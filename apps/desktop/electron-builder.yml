@@ -1,0 +1,73 @@
+# Packaging (SUITE_SPEC §15.6; the release contract is .jobs/L-REL.assets.md). Everything the app runs is bundled into
+# dist/ by scripts/build.mjs, so the package carries dist/** and package.json only: no node_modules, no source.
+# CI overrides the version (-c.extraMetadata.version) and the artifact names (-c.<target>.artifactName); the defaults
+# below are the release names already, so a local build gives the same file names.
+appId: desi.creative.vitals
+productName: Vitals
+copyright: Vitals contributors
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**
+  - package.json
+  - "!node_modules/**"
+asar: true
+# the stdio MCP bridge is run by Node directly (ELECTRON_RUN_AS_NODE), so it must exist as a plain file
+asarUnpack:
+  - dist/mcp.cjs
+npmRebuild: false
+nodeGypRebuild: false
+compression: normal
+publish:
+  provider: github
+  owner: patalbansishashank
+  repo: vitals
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  maintainer: Vitals
+  executableName: vitals
+  icon: build/icons/png
+  synopsis: See what a plan does before you live it
+  description: Vitals, the health app, with the ring over Bluetooth and the Vitals MCP for AI tools on this computer.
+  desktop:
+    entry:
+      Name: Vitals
+      Comment: Your ring, your plan, your data
+      Categories: Utility;Health;
+      StartupWMClass: vitals
+appImage:
+  artifactName: Vitals-linux-x86_64.AppImage
+deb:
+  artifactName: Vitals-linux-amd64.deb
+win:
+  target:
+    - nsis
+  icon: build/icons/icon.ico
+  artifactName: Vitals-windows-x64-setup.exe
+nsis:
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  deleteAppDataOnUninstall: false
+  shortcutName: Vitals
+
+mac:
+  target:
+    - target: dmg
+      arch: universal
+  icon: build/icons/icon.icns
+  category: public.app-category.healthcare-fitness
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  identity: null
+  artifactName: Vitals-macos-universal.dmg
+  extendInfo:
+    NSBluetoothAlwaysUsageDescription: Vitals connects to your ring over Bluetooth.
+    NSCameraUsageDescription: Vitals uses the camera to scan a pairing code.
+dmg:
+  artifactName: Vitals-macos-universal.dmg

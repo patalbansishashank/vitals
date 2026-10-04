@@ -49,3 +49,31 @@ export const AGENTS_COPY = {
   directLabel: (name: string) => (name === 'webmcp' ? 'agents in this browser' : name),
   saveFailed: "Couldn't save that setting.",
 } as const;
+
+/** Settings › Agents › Connect your AI tools (desktop app only, SUITE_SPEC §15.6). */
+export const CONNECT_TOOLS_COPY = {
+  title: 'Connect your AI tools',
+  intro: 'Let AI apps on this computer use Vitals. Each one asks you first, and nothing changes until you say yes.',
+  found: 'found',
+  notFound: 'not found on this computer',
+  added: 'Vitals added',
+  add: 'Add Vitals',
+  addName: (label: string) => `Add Vitals to ${label}`,
+  remove: 'Remove',
+  removeName: (label: string) => `Remove Vitals from ${label}`,
+  addTitle: (label: string) => `Add Vitals to ${label}?`,
+  fileLabel: 'file that changes',
+  linesLabel: 'what is added',
+  canLabel: (label: string) => `what ${label} can do`,
+  can: 'Read your data, log food and activity, and propose changes you approve. It cannot delete anything.',
+  viaServer: 'It reaches Vitals through your server, with its own agent key that stays in this app.',
+  viaApp: 'It reaches Vitals through this app, which starts in the background when needed.',
+  confirmAdd: 'Add Vitals',
+  cancel: 'Cancel',
+  removeTitle: (label: string) => `Remove Vitals from ${label}?`,
+  removeBody: (label: string) => `${label} can no longer use Vitals.`,
+  confirmRemove: 'Remove',
+  agentLabel: (label: string) => `Vitals desktop app · ${label}`,
+  keyFailed: (label: string, why: string) => `Vitals was added to ${label}, but its key for your server could not be made (${why}). It uses this app instead.`,
+  loadFailed: "Couldn't look for AI apps on this computer.",
+} as const;

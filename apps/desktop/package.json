@@ -3,5 +3,29 @@
   "version": "0.4.0",
   "private": true,
   "license": "MIT",
-  "type": "module"
+  "description": "Vitals for the desktop: the app, the ring over Bluetooth and the Vitals MCP for AI tools.",
+  "homepage": "https://github.com/patalbansishashank/vitals",
+  "author": "Vitals contributors",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "icons": "node scripts/icons.mjs",
+    "start": "electron .",
+    "start:smoke": "VITALS_SMOKE=1 electron .",
+    "dist:linux": "electron-builder --config electron-builder.yml --linux AppImage deb --publish never",
+    "dist:dir": "electron-builder --config electron-builder.yml --dir --publish never",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "e2e": "node e2e/desktop.e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "~0.28.2"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "electron-updater": "^6.8.9"
+  }
 }

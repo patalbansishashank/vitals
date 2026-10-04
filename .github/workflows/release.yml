@@ -1,7 +1,8 @@
 # App release. On a version tag (vX.Y.Z) in the public repo: builds the desktop app (Linux AppImage and deb, Windows
 # installer, macOS universal dmg), the Android APK (signed when the keystore secrets exist), a checksums file, and a
 # GitHub Release with the CHANGELOG section as notes. Asset names are stable and listed in docs/RELEASING.md.
-# The website deploy is deploy.yml; both run on the same tag. The test gate runs locally in `pnpm release`.
+# Candidate tags build artifacts only. The website deploy is deploy.yml and excludes candidate tags.
+# The test gate runs locally in `pnpm release`.
 name: Release
 
 on:
@@ -157,6 +158,9 @@ jobs:
           # shellcheck disable=SC2086 # TARGETS and NAMES are lists of arguments
           pnpm exec electron-builder --config electron-builder.yml --publish never \
             -c.extraMetadata.version="$VERSION" $TARGETS $NAMES
+
+      - name: Verify native packages
+        run: bash scripts/release/verify-desktop.sh apps/desktop/release
 
       - name: Smoke launch
         env:

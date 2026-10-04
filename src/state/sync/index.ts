@@ -9,6 +9,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { allowOrigin, browserNet } from '@/net/net';
+import { onDesktopSyncNow } from '@/platform/desktopShell';
 import { createIdbBackend, createMemoryBackend, isIndexedDbAvailable, SYNC_OFF, type SyncStatus } from '@/store';
 import { relayHttpBase } from '@/sync/pairing';
 import { createRemoteBlobBackend } from '@/sync/blobs/remote';
@@ -25,16 +26,19 @@ async function createEvoluEngine(): Promise<SyncStore> {
   return createEvoluSyncStore({ platform: createWebEvoluPlatform, net: browserNet });
 }
 
-function watchEnvironment(scheduler: { setVisible(v: boolean): void; trigger(r: 'online'): Promise<void> }): () => void {
+/** Visibility and network for the scheduler, and the desktop tray's "Sync now" (a no-op outside the desktop app). */
+export function watchEnvironment(scheduler: { setVisible(v: boolean): void; trigger(r: 'online' | 'manual'): Promise<void> }): () => void {
   if (typeof document === 'undefined') return () => {};
   const onVisibility = () => scheduler.setVisible(document.visibilityState === 'visible');
   const onOnline = () => void scheduler.trigger('online');
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('online', onOnline);
+  const offTray = onDesktopSyncNow(() => void scheduler.trigger('manual'));
   onVisibility();
   return () => {
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('online', onOnline);
+    offTray();
   };
 }
 

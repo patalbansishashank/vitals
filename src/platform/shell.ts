@@ -1,4 +1,5 @@
 import { androidShell } from './androidShell';
+import { desktopShell } from './desktopShell';
 import { detectPlatform } from './detect';
 
 /*
@@ -42,5 +43,7 @@ export const webShell: ShellBridge = {
 };
 
 export function shell(): ShellBridge {
-  return detectPlatform() === 'android' ? androidShell() : webShell;
+  const platform = detectPlatform();
+  if (platform === 'android') return androidShell();
+  return platform === 'electron' ? desktopShell() : webShell;
 }
