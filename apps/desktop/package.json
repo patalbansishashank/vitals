@@ -1,6 +1,6 @@
 {
   "name": "@vitals/desktop",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "license": "MIT",
   "description": "Vitals for the desktop: the app, the ring over Bluetooth and the Vitals MCP for AI tools.",
