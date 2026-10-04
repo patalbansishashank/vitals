@@ -6,6 +6,7 @@ Vitals is deployed to production (https://vitals.creative.desi, Netlify site `cr
 |---|---|
 | Push to `main` (or any branch), pull request | **Nothing.** No workflow runs, nothing is deployed. |
 | Push of a tag `vX.Y.Z` | `.github/workflows/deploy.yml`: install, build, production deploy of `dist/` to Netlify. `.github/workflows/release.yml`: the desktop and Android apps and a GitHub Release (see "The apps" below) |
+| Push of a tag `vX.Y.Z-rc.N` | Builds all app platforms as run artifacts only. No GitHub Release and no website deploy. |
 | Manual run ("Run workflow") | `.github/workflows/deploy.yml` for the branch or tag picked in "Use workflow from"; `release.yml` for the tag typed in its `tag` field |
 
 The quality gate (typecheck, lint, the full test suite) runs **locally**, inside `pnpm release`, before the version tag exists. The GitHub workflows do not run tests: they only build, deploy and publish. Production deploys come only from that workflow; nobody runs `netlify deploy --prod` from a laptop, and Netlify does not build from Git on its own (the site is not connected to the repository).
@@ -74,8 +75,8 @@ nothing) and publishes them as a GitHub Release named `Vitals X.Y.Z`. Four jobs 
 | Android | Ubuntu, JDK 21 | `Vitals-android.apk`, signed; `Vitals-android-unsigned.apk` instead when the signing secrets are missing |
 | GitHub Release | Ubuntu | `SHA256SUMS.txt`, then creates the release (or, on a re-run, replaces its files and notes) |
 
-The Windows and macOS legs never block the release: if one fails, the release goes out with the Linux files and the APK
-and without that leg's file. A Linux or Android failure stops the release.
+For a publishing run, the Windows and macOS legs never block the release: if one fails, the release goes out with the Linux files and the APK
+and without that leg's file. A Linux or Android failure stops the release. Dry runs require all platforms to pass.
 
 Desktop jobs also upload electron-updater's files (`latest.yml`, `latest-linux.yml`, `latest-mac.yml`, `*.blockmap`).
 
@@ -95,15 +96,17 @@ How each part is built:
   with no signing config), then `scripts/release/sign-apk.sh` aligns the APK and signs it with `apksigner`.
 - **Checksums:** `scripts/release/checksums.sh` hashes every installer (not the updater files).
 
-Only plain `vX.Y.Z` tags build: a pre-release tag such as `v0.5.0-rc.1` stops at the first step, so it can never become
-the "latest" release the download links point to. Re-running a failed run is safe: the release's files and notes are
-replaced, and a release left as a draft by a broken upload is published.
+Plain `vX.Y.Z` tags must match the root package version and publish the release. Candidate tags such as
+`v0.5.0-rc.1` build every platform but never publish, even if a manual run asks to publish. The candidate version is
+applied only in the disposable CI checkout, so the real version stays unchanged until the release script bumps it.
+The deploy workflow excludes every tag containing a hyphen and also refuses manual deploys from such tags.
+Re-running a stable publishing run replaces the release's files and notes and publishes a draft left by a broken upload.
 
 To build a tag again without publishing (for example to test the pipeline): Actions → **Release** → **Run workflow**,
-type the tag, untick "Publish". The files stay on the run as artifacts for 90 days.
+type the tag and leave "Publish" off (the default). The files stay on the run as artifacts for 90 days.
 
 ```sh
-gh workflow run release.yml -f tag=v0.5.0 -f publish=false
+gh workflow run release.yml -f tag=v0.5.0-rc.1 -f publish=false
 ```
 
 ### The Android signing key
