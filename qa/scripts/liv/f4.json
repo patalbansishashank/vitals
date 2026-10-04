@@ -1,0 +1,6 @@
+[{"goto":"/food","wait":3000},
+{"click":"I ate something else: lunch","role":"button","wait":1500},
+{"fill":"Or describe it","value":"2 rotis and 1 katori dal","wait":500},
+{"click":"Log lunch","wait":2500,"eval":"[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ')"},
+{"textDump":1800,"shot":"08-food-logged"},
+{"goto":"/today","wait":2500,"eval":"document.body.innerText.match(/So far[\\s\\S]{0,500}/)?.[0]"}]

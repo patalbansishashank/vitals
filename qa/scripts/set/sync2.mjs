@@ -1,0 +1,43 @@
+import { openPersistent, dump, text, BASE, shot } from './lib.mjs';
+import fs from 'node:fs';
+const RELAY = process.env.RELAY || 'http://127.0.0.1:4191';
+const words = fs.readFileSync('/media/DEV/tmp/qa-set-words.txt', 'utf8').trim();
+const d1 = await openPersistent('/media/DEV/tmp/qa-set-prof1');
+const pressed = async (page, name) => page.getByRole('radio', { name, exact: true }).first().getAttribute('aria-checked');
+await d1.page.goto(BASE + '/settings#units', { waitUntil: 'load' });
+await d1.page.waitForTimeout(2000);
+console.log('d1 status:', (await d1.page.locator('section#sync').innerText()).slice(0, 120).replace(/\n/g, ' | '));
+await d1.page.getByRole('radio', { name: 'imperial', exact: true }).click();
+await d1.page.getByRole('radio', { name: 'Sunday', exact: true }).click();
+await d1.page.waitForTimeout(1000);
+await d1.page.locator('section#sync').getByRole('button', { name: 'Sync now' }).click();
+await d1.page.waitForTimeout(3000);
+console.log('d1 after sync now:', (await d1.page.locator('section#sync').innerText()).slice(0, 120).replace(/\n/g, ' | '));
+
+fs.rmSync('/media/DEV/tmp/qa-set-prof2', { recursive: true, force: true });
+const d2 = await openPersistent('/media/DEV/tmp/qa-set-prof2', { mobile: true });
+await d2.page.goto(BASE + '/settings#sync', { waitUntil: 'load' });
+await d2.page.waitForTimeout(1500);
+const s2 = d2.page.locator('section#sync');
+await s2.getByLabel('sync server address').fill(RELAY);
+await s2.getByRole('button', { name: 'Join with a pairing code' }).click();
+await s2.getByLabel('pairing code').fill(words);
+await s2.getByRole('button', { name: 'Join', exact: true }).click();
+await d2.page.waitForTimeout(8000);
+const dlg = d2.page.getByRole('alertdialog');
+if (await dlg.count()) { console.log('d2 existing-data dialog:', await dlg.innerText()); await dlg.getByRole('button', { name: 'Merge' }).click(); await d2.page.waitForTimeout(6000); }
+console.log('d2 sync:', (await s2.innerText()).slice(0, 400).replace(/\n/g, ' | '));
+await shot(d2.page, 'd2-joined-mobile');
+console.log('d2 imperial pressed', await pressed(d2.page, 'imperial'), 'sunday', await pressed(d2.page, 'Sunday'));
+await d2.page.reload({ waitUntil: 'load' }); await d2.page.waitForTimeout(3000);
+console.log('d2 after reload imperial', await pressed(d2.page, 'imperial'), 'sunday', await pressed(d2.page, 'Sunday'));
+// d2 -> d1
+await d2.page.getByRole('radio', { name: 'kJ', exact: true }).click();
+await d2.page.waitForTimeout(1000);
+await d2.page.locator('section#sync').getByRole('button', { name: 'Sync now' }).click();
+await d2.page.waitForTimeout(3000);
+await d1.page.locator('section#sync').getByRole('button', { name: 'Sync now' }).click();
+await d1.page.waitForTimeout(4000);
+console.log('d1 kJ pressed', await pressed(d1.page, 'kJ'));
+console.log('D1 ERR', d1.errors, '\nD2 ERR', d2.errors);
+await d1.ctx.close(); await d2.ctx.close();

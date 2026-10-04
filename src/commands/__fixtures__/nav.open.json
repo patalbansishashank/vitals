@@ -1,0 +1,6 @@
+{
+  "route": "schedule",
+  "params": {
+    "scenarioId": "starter"
+  }
+}

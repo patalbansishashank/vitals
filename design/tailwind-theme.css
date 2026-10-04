@@ -1,0 +1,267 @@
+/* ==========================================================================
+   Vitals — Tailwind CSS v4 theme mapping
+   --------------------------------------------------------------------------
+   Usage (e.g. src/styles/app.css):
+
+     @import "tailwindcss";
+     @import "../../design/tokens.css";          // raw --lm-* tokens, both themes
+     @import "../../design/tailwind-theme.css";  // this file
+
+   `@theme inline` makes every utility reference the live CSS variable, so the
+   light/dark swap in tokens.css re-themes all utilities at runtime without
+   `dark:` variants. Default Tailwind colours are reset: only system roles
+   exist, so an off-system colour cannot be typed by accident.
+   ========================================================================== */
+
+@theme inline {
+  /* reset Tailwind defaults we do not want reachable */
+  --color-*: initial;
+  --font-*: initial;
+  --shadow-*: initial;
+  --radius-*: initial;
+
+  /* ---- colour roles ---------------------------------------------------- */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-chassis: var(--lm-chassis);
+  --color-chassis-2: var(--lm-chassis-2);
+  --color-face: var(--lm-face);
+  --color-well: var(--lm-well);
+  --color-raised: var(--lm-raised);
+  --color-scrim: var(--lm-scrim);
+
+  --color-line: var(--lm-line);
+  --color-line-strong: var(--lm-line-strong);
+  --color-edge: var(--lm-edge);
+
+  --color-ink: var(--lm-ink);
+  --color-ink-2: var(--lm-ink-2);
+  --color-ink-3: var(--lm-ink-3);
+  --color-ink-faint: var(--lm-ink-faint);
+  --color-ink-inverse: var(--lm-ink-inverse);
+
+  --color-signal: var(--lm-signal);
+  --color-signal-hover: var(--lm-signal-hover);
+  --color-signal-press: var(--lm-signal-press);
+  --color-signal-ink: var(--lm-signal-ink);
+  --color-focus: var(--lm-focus);
+
+  --color-info: var(--lm-info-fg);
+  --color-info-bg: var(--lm-info-bg);
+  --color-info-edge: var(--lm-info-edge);
+  --color-info-mark: var(--lm-info-mark);
+  --color-caution: var(--lm-caution-fg);
+  --color-caution-bg: var(--lm-caution-bg);
+  --color-caution-edge: var(--lm-caution-edge);
+  --color-caution-mark: var(--lm-caution-mark);
+  --color-danger: var(--lm-danger-fg);
+  --color-danger-bg: var(--lm-danger-bg);
+  --color-danger-edge: var(--lm-danger-edge);
+  --color-danger-mark: var(--lm-danger-mark);
+  --color-ok: var(--lm-ok-fg);
+  --color-ok-bg: var(--lm-ok-bg);
+  --color-ok-edge: var(--lm-ok-edge);
+  --color-ok-mark: var(--lm-ok-mark);
+
+  --color-grade-a: var(--lm-grade-a-bg);
+  --color-grade-a-fg: var(--lm-grade-a-fg);
+  --color-grade-b: var(--lm-grade-b-bg);
+  --color-grade-b-fg: var(--lm-grade-b-fg);
+  --color-grade-c-edge: var(--lm-grade-c-edge);
+  --color-grade-c-fg: var(--lm-grade-c-fg);
+  --color-grade-d-edge: var(--lm-grade-d-edge);
+  --color-grade-d-fg: var(--lm-grade-d-fg);
+
+  --color-cat-body: var(--lm-cat-body);
+  --color-cat-fuel: var(--lm-cat-fuel);
+  --color-cat-energy: var(--lm-cat-energy);
+  --color-cat-cellular: var(--lm-cat-cellular);
+  --color-cat-performance: var(--lm-cat-performance);
+  --color-cat-recovery: var(--lm-cat-recovery);
+  --color-cat-cardio: var(--lm-cat-cardio);
+  --color-cat-hormones: var(--lm-cat-hormones);
+
+  --color-macro-protein: var(--lm-macro-protein);
+  --color-macro-carbs: var(--lm-macro-carbs);
+  --color-macro-fibre: var(--lm-macro-fibre);
+  --color-macro-fat: var(--lm-macro-fat);
+  --color-macro-alcohol: var(--lm-macro-alcohol);
+
+  --color-plan-a: var(--lm-plan-a);
+  --color-plan-b: var(--lm-plan-b);
+  --color-plan-c: var(--lm-plan-c);
+  --color-rung-hard: var(--lm-rung-hard);
+  --color-rung-medium: var(--lm-rung-medium);
+  --color-rung-easy: var(--lm-rung-easy);
+  --color-rung-ideal: var(--lm-rung-ideal);
+
+  --color-deficit-1: var(--lm-energy-deficit-1);
+  --color-deficit-2: var(--lm-energy-deficit-2);
+  --color-deficit-3: var(--lm-energy-deficit-3);
+  --color-deficit-4: var(--lm-energy-deficit-4);
+  --color-surplus-1: var(--lm-energy-surplus-1);
+  --color-surplus-2: var(--lm-energy-surplus-2);
+  --color-surplus-3: var(--lm-energy-surplus-3);
+  --color-surplus-4: var(--lm-energy-surplus-4);
+  --color-fast: var(--lm-energy-fast);
+
+  --color-keto-1: var(--lm-keto-1);
+  --color-keto-2: var(--lm-keto-2);
+  --color-keto-3: var(--lm-keto-3);
+
+  --color-chart-grid: var(--lm-chart-grid);
+  --color-chart-axis: var(--lm-chart-axis);
+  --color-chart-crosshair: var(--lm-chart-crosshair);
+
+  --color-avatar-lean: var(--lm-avatar-lean);
+  --color-avatar-fat: var(--lm-avatar-fat);
+  --color-avatar-outline: var(--lm-avatar-outline);
+  --color-avatar-organ: var(--lm-avatar-organ);
+
+  /* ---- type ------------------------------------------------------------ */
+  --font-sans: var(--lm-font-sans);
+  --font-mono: var(--lm-font-mono);
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --text-2xs: var(--lm-text-2xs);
+  --text-2xs--line-height: var(--lm-text-2xs--lh);
+  --text-2xs--letter-spacing: var(--lm-text-2xs--ls);
+  --text-xs: var(--lm-text-xs);
+  --text-xs--line-height: var(--lm-text-xs--lh);
+  --text-xs--letter-spacing: var(--lm-text-xs--ls);
+  --text-sm: var(--lm-text-sm);
+  --text-sm--line-height: var(--lm-text-sm--lh);
+  --text-base: var(--lm-text-base);
+  --text-base--line-height: var(--lm-text-base--lh);
+  --text-md: var(--lm-text-md);
+  --text-md--line-height: var(--lm-text-md--lh);
+  --text-lg: var(--lm-text-lg);
+  --text-lg--line-height: var(--lm-text-lg--lh);
+  --text-lg--letter-spacing: var(--lm-text-lg--ls);
+  --text-xl: var(--lm-text-xl);
+  --text-xl--line-height: var(--lm-text-xl--lh);
+  --text-xl--letter-spacing: var(--lm-text-xl--ls);
+  --text-2xl: var(--lm-text-2xl);
+  --text-2xl--line-height: var(--lm-text-2xl--lh);
+  --text-2xl--letter-spacing: var(--lm-text-2xl--ls);
+  --text-readout-sm: var(--lm-readout-sm);
+  --text-readout-sm--line-height: var(--lm-readout-sm--lh);
+  --text-readout-md: var(--lm-readout-md);
+  --text-readout-md--line-height: var(--lm-readout-md--lh);
+  --text-readout-lg: var(--lm-readout-lg);
+  --text-readout-lg--line-height: var(--lm-readout-lg--lh);
+
+  /* ---- spacing: 4px grid (p-1 = 4px, p-4 = 16px, ...) ------------------ */
+  --spacing: 0.25rem;
+
+  /* ---- radii ----------------------------------------------------------- */
+  --radius-xs: var(--lm-radius-xs);
+  --radius-sm: var(--lm-radius-sm);
+  --radius-md: var(--lm-radius-md);
+  --radius-lg: var(--lm-radius-lg);
+  --radius-xl: var(--lm-radius-xl);
+  --radius-full: var(--lm-radius-full);
+
+  /* ---- elevation ------------------------------------------------------- */
+  --shadow-face: var(--lm-shadow-face);
+  --shadow-key: var(--lm-shadow-key);
+  --shadow-key-pressed: var(--lm-shadow-key-pressed);
+  --shadow-thumb: var(--lm-shadow-thumb);
+  --shadow-pop: var(--lm-shadow-pop);
+  --shadow-sheet: var(--lm-shadow-sheet);
+  --shadow-drawer: var(--lm-shadow-drawer);
+  --inset-shadow-well: var(--lm-shadow-well);
+
+  /* ---- motion ---------------------------------------------------------- */
+  --ease-out: var(--lm-ease-out);
+  --ease-in-out: var(--lm-ease-in-out);
+  --ease-press: var(--lm-ease-press);
+  --ease-needle: var(--lm-ease-needle);
+  --ease-sheet: var(--lm-ease-sheet);
+
+  /* ---- breakpoints (must be literal for media queries) ----------------- */
+  --breakpoint-sm: 30rem;   /* 480  */
+  --breakpoint-md: 48rem;   /* 768  */
+  --breakpoint-lg: 64rem;   /* 1024 */
+  --breakpoint-xl: 80rem;   /* 1280 */
+  --breakpoint-2xl: 96rem;  /* 1536 */
+}
+
+/* ---- dark variant: honours both OS preference and the forced toggle ---- */
+@custom-variant dark {
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]) *) { @slot; }
+  }
+  &:where([data-theme="dark"], [data-theme="dark"] *) { @slot; }
+}
+
+/* ---- utilities without a v4 theme namespace ----------------------------- */
+@utility wdth-condensed { font-stretch: 84%; }
+@utility wdth-normal    { font-stretch: 100%; }
+@utility wdth-wide      { font-stretch: 112%; }
+@utility wdth-display   { font-stretch: 120%; }
+
+@utility engraved {           /* instrument label: lowercase caption */
+  font-size: var(--lm-text-xs);
+  line-height: var(--lm-text-xs--lh);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  text-transform: lowercase;
+  color: var(--lm-ink-2);
+}
+@utility readout {            /* live numeric value: fixed places, no jitter */
+  font-stretch: 112%;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum" 1, "zero" 1;
+  letter-spacing: -0.01em;
+}
+@utility nums-tabular { font-variant-numeric: tabular-nums; }
+
+@utility duration-instant { transition-duration: var(--lm-dur-instant); }
+@utility duration-fast    { transition-duration: var(--lm-dur-fast); }
+@utility duration-base    { transition-duration: var(--lm-dur-base); }
+@utility duration-slow    { transition-duration: var(--lm-dur-slow); }
+@utility duration-needle  { transition-duration: var(--lm-dur-needle); }
+
+@utility z-lane-label { z-index: var(--lm-z-lane-label); }
+@utility z-sticky     { z-index: var(--lm-z-sticky); }
+@utility z-rail       { z-index: var(--lm-z-rail); }
+@utility z-tabbar     { z-index: var(--lm-z-tabbar); }
+@utility z-drawer     { z-index: var(--lm-z-drawer); }
+@utility z-popover    { z-index: var(--lm-z-popover); }
+@utility z-sheet      { z-index: var(--lm-z-sheet); }
+@utility z-dialog     { z-index: var(--lm-z-dialog); }
+@utility z-toast      { z-index: var(--lm-z-toast); }
+@utility z-tooltip    { z-index: var(--lm-z-tooltip); }
+
+@utility focus-ring {
+  outline: 2px solid var(--lm-focus);
+  outline-offset: 2px;
+}
+
+@utility stage-dots {         /* perforated avatar / empty-state stage */
+  background-color: var(--lm-avatar-stage);
+  background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1.1px, transparent 1.3px);
+  background-size: 12px 12px;
+  background-position: 6px 6px;
+}
+
+/* ---- base layer ----------------------------------------------------------- */
+@layer base {
+  html {
+    font-family: var(--lm-font-sans);
+    font-size: 100%;
+    background: var(--lm-chassis);
+    color: var(--lm-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible { outline: 2px solid var(--lm-focus); outline-offset: 2px; }
+  ::selection { background: var(--lm-text-selection); color: var(--lm-ink); }
+  * { scrollbar-width: thin; scrollbar-color: var(--lm-line-strong) transparent; }
+}

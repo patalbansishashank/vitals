@@ -1,0 +1,410 @@
+/* ==========================================================================
+   Catalogue picker (design/COMPONENTS.md §14.5). Tokens only; both themes via tokens.
+   Chips: 28 px on pointer, 32 px on touch with a 44 px hit area, 13/500, 8 px gaps.
+   ========================================================================== */
+
+@layer components {
+  .lm-pk {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-pk__body {
+    display: grid;
+    /* one column no wider than the card: the implicit auto column grew to its widest child (379 px in a 324 px card at
+       390 px), so Settings got wider than the phone and the browser zoomed the whole page out (Q6) */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-pk__optional,
+  .lm-pk__region-note,
+  .lm-pk__count,
+  .lm-pk__nomatch {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lm-pk__count:empty {
+    display: none;
+  }
+
+  /* search row */
+  .lm-pk__top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-pk__search {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lm-pk__search-input {
+    width: 100%;
+    height: 40px;
+    padding-right: 40px;
+  }
+  .lm-pk__search-input::-webkit-search-cancel-button {
+    appearance: none;
+  }
+  .lm-pk__search-clear {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+  }
+  @media (pointer: coarse) {
+    .lm-pk__search-input {
+      height: 44px;
+    }
+  }
+  .lm-pk__total {
+    flex: none;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-pk__nomatch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* region note */
+  .lm-pk__region {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+  .lm-pk__region-note {
+    flex: 1 1 280px;
+  }
+  .lm-pk__region-keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .lm-pk__region-select {
+    min-width: 180px;
+  }
+  /* "Tick the usual items for a Tamil Nadu and Puducherry kitchen" is longer than a phone column: the key wraps instead
+     of widening the page (Q6, same pattern as .lm-empty__action) */
+  .lm-pk__region-keys {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .lm-pk__region-keys .lm-key {
+    max-width: 100%;
+    height: auto;
+    min-height: 40px;
+    padding-block: 9px;
+    white-space: normal;
+    line-height: 1.3;
+    text-align: left;
+  }
+  .lm-pk__region-keys .lm-key__label {
+    display: block;
+  }
+
+  /* groups */
+  .lm-pk__groups {
+    display: grid;
+    gap: 4px;
+  }
+  .lm-pk__group {
+    display: grid;
+    gap: 8px;
+    padding-block: 4px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-pk__group:first-child {
+    border-top: 0;
+  }
+  .lm-pk__group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-pk__group-key {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: var(--lm-hit-pointer);
+    padding: 0 6px;
+    border: 0;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-base);
+    font-weight: var(--lm-weight-medium);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  @media (pointer: coarse) {
+    .lm-pk__group-key {
+      min-height: var(--lm-hit-touch);
+    }
+  }
+  @media (hover: hover) {
+    .lm-pk__group-key:hover {
+      background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 6%);
+    }
+  }
+  .lm-pk__group-key:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: var(--lm-focus-offset);
+  }
+  .lm-pk__group-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lm-pk__group-count {
+    margin-left: auto;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    font-weight: var(--lm-weight-regular);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .lm-pk__status {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+  }
+
+  /* chips */
+  .lm-pk__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 0 8px 6px;
+  }
+  .lm-pk__chipwrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    max-width: 100%;
+  }
+  .lm-pk__chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    max-width: 100%;
+    padding: 0 10px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-face);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-sm);
+    font-weight: var(--lm-weight-medium);
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-pk__chip::after {
+    content: '';
+    position: absolute;
+    inset: -2px 0;
+  }
+  @media (pointer: coarse) {
+    .lm-pk__chip {
+      height: 32px;
+    }
+    .lm-pk__chip::after {
+      inset: -6px -2px;
+    }
+  }
+  @media (hover: hover) {
+    .lm-pk__chip:hover {
+      background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 6%);
+    }
+    .lm-pk__chip[aria-checked='true']:hover {
+      background: color-mix(in oklab, var(--lm-ink), var(--lm-face) 12%);
+    }
+  }
+  .lm-pk__chip:active {
+    background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 10%);
+  }
+  .lm-pk__chip[aria-checked='true'] {
+    border-color: var(--lm-ink);
+    background: var(--lm-ink);
+    color: var(--lm-ink-inverse);
+  }
+  /* region default not touched yet: the system's dashed "assumed" mark */
+  .lm-pk__chip[data-assumed='true'] {
+    outline: 1px dashed var(--lm-ink);
+    outline-offset: 2px;
+  }
+  .lm-pk__chip:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: var(--lm-focus-offset);
+  }
+  .lm-pk__chip-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lm-pk__chip-text b {
+    font-weight: var(--lm-weight-bold);
+  }
+  .lm-pk__rank {
+    display: inline-grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-ink-inverse);
+    color: var(--lm-ink);
+    font-size: var(--lm-text-2xs);
+    font-weight: var(--lm-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-pk__notused {
+    color: var(--lm-ink-2);
+    font-weight: var(--lm-weight-regular);
+  }
+  .lm-pk__chip[aria-checked='true'] .lm-pk__notused {
+    color: color-mix(in oklab, var(--lm-ink-inverse), var(--lm-ink) 25%);
+  }
+  /* 16 px pencil, 24 px hit */
+  .lm-key.lm-pk__note-key {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0;
+  }
+
+  /* added by you */
+  .lm-pk__added {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0 0 8px 6px;
+    list-style: none;
+  }
+  .lm-pk__added-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+  }
+  .lm-pk__pending {
+    font-size: var(--lm-text-sm);
+    font-weight: var(--lm-weight-medium);
+  }
+
+  /* I also have… */
+  .lm-pk__also {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+  .lm-pk__also-label {
+    font-size: var(--lm-text-sm);
+    font-weight: var(--lm-weight-medium);
+  }
+  .lm-pk__also-input {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+
+  /* paste a list */
+  .lm-pk__paste {
+    display: grid;
+    gap: 8px;
+  }
+  .lm-pk__paste-body {
+    display: grid;
+    gap: 8px;
+    padding-left: 6px;
+  }
+  .lm-pk__textarea {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    padding-block: 8px;
+    resize: vertical;
+  }
+  .lm-pk__preview {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+  }
+  .lm-pk__preview-sum {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: var(--lm-weight-medium);
+  }
+  .lm-pk__preview-list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-pk__preview-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--lm-hit-pointer);
+    font-size: var(--lm-text-sm);
+  }
+
+  /* note popover */
+  .lm-pk__note {
+    display: grid;
+    gap: 12px;
+    width: min(320px, calc(100vw - 32px));
+  }
+  .lm-pk__note-field {
+    display: grid;
+    gap: 4px;
+  }
+
+  /* states */
+  .lm-pk__loading {
+    display: grid;
+    gap: 12px;
+  }
+  .lm-pk__error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+  }
+  .lm-pk__error p {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+  }
+}
+
+/* intake turn footer (Done / Skip this list), docked like the question card footer */
+.lm-pk__intake-footer {
+  position: sticky;
+  bottom: calc(var(--lm-tabbar-h, 0px) + 8px);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-block: 8px;
+  background: var(--lm-well);
+  border-top: 1px solid var(--lm-line);
+}

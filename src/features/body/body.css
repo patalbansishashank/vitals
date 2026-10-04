@@ -1,0 +1,541 @@
+/* ==========================================================================
+   Your body (design/screens/your-body.md §3–§4). Tokens only; faceplates come
+   from the design system, this file lays them out and styles the few pieces
+   that are specific to the screen (progress scale, mini figure, rails).
+   DOM order = the spec's tab order (units → sex → … → figure → shape → habits);
+   grid areas place the faceplates per breakpoint.
+   ========================================================================== */
+
+@layer components {
+  .lm-body {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    padding-bottom: 32px;
+  }
+  .lm-body > * {
+    min-width: 0;
+  }
+  .lm-body-mid {
+    display: contents;
+  }
+  .lm-body-basics { grid-area: basics; }
+  .lm-body-figure { grid-area: figure; }
+  .lm-body-est { grid-area: est; }
+  .lm-body-shape { grid-area: shape; }
+  .lm-body-habits-face { grid-area: habits; }
+  .lm-body-labs-face { grid-area: labs; }
+  .lm-body-continue { grid-area: next; }
+
+  /* ---- mobile (single column): figure first, then what it answers ---- */
+  .lm-body[data-mode='normal'] {
+    grid-template-areas: 'figure' 'est' 'basics' 'shape' 'habits' 'labs' 'next';
+  }
+  .lm-body[data-mode='basics'] {
+    grid-template-areas: 'basics' 'figure' 'est';
+  }
+  .lm-body[data-mode='shape'] {
+    grid-template-areas: 'figure' 'est' 'shape';
+  }
+  .lm-body[data-mode='habits'] {
+    grid-template-areas: 'habits' 'est';
+  }
+  .lm-body[data-mode='start'] {
+    max-width: 720px;
+    margin-inline: auto;
+  }
+
+  /* ---- tablet and small desktop (768–1279): figure beside the shape scales ---- */
+  @media (min-width: 48rem) {
+    .lm-body-mid {
+      grid-area: mid;
+      display: grid;
+      gap: 16px;
+      align-content: start;
+      min-width: 0;
+    }
+    .lm-body-mid > * {
+      grid-area: auto;
+    }
+    .lm-body[data-mode='normal'] {
+      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-areas:
+        'mid shape'
+        'basics habits'
+        'basics labs'
+        'next next';
+    }
+    .lm-body[data-mode='basics'] {
+      grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
+      grid-template-areas: 'basics mid';
+    }
+    .lm-body[data-mode='shape'] {
+      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-areas: 'mid shape';
+    }
+    .lm-body[data-mode='habits'] {
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+      grid-template-areas: 'habits mid';
+    }
+  }
+
+  /* ---- desktop ≥ 1280: 320 | figure | 372; spanning columns never stretch the left stack
+         (their extra height goes to the trailing flexible row) ---- */
+  @media (min-width: 80rem) {
+    .lm-body[data-mode='normal'] {
+      grid-template-columns: 320px minmax(480px, 1fr) 372px;
+      grid-template-rows: auto auto auto auto 1fr;
+      grid-template-areas:
+        'basics mid shape'
+        'habits mid shape'
+        'labs mid shape'
+        'next mid shape'
+        '. mid shape';
+    }
+    .lm-body[data-mode='shape'] {
+      grid-template-columns: minmax(480px, 1fr) 372px;
+    }
+  }
+
+  /* ---- shared inner structure ---- */
+  .lm-body-form {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .lm-body-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    min-width: 0;
+  }
+  .lm-body-pair {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  @media (min-width: 30rem) {
+    .lm-body-pair {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+  }
+  .lm-body-more {
+    display: grid;
+    justify-items: start;
+    gap: 12px;
+    padding-top: 4px;
+  }
+  .lm-body-more > .lm-field,
+  .lm-body-more > .lm-body-form {
+    justify-self: stretch;
+  }
+  .lm-body-hint,
+  .lm-body-note,
+  .lm-body-lead {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.45;
+    color: var(--lm-ink-2);
+    max-width: 62ch;
+  }
+  .lm-body-note {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  .lm-body-note b {
+    font-weight: 600;
+  }
+  .lm-body-lead {
+    font-size: var(--lm-text-base);
+    line-height: 1.5;
+    color: var(--lm-ink);
+  }
+  .lm-body-linkbtn {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+  }
+  .lm-body-save {
+    white-space: nowrap;
+  }
+  /* setup on a phone: the progress scale needs the row */
+  @media (max-width: 47.99rem) {
+    .lm-body-save[data-setup='true'] {
+      display: none;
+    }
+  }
+  .lm-body-setup-top {
+    display: none;
+    align-items: center;
+    gap: 8px;
+  }
+  @media (min-width: 64rem) {
+    .lm-body-setup-top {
+      display: inline-flex;
+    }
+  }
+
+  /* ---- figure ---- */
+  .lm-body-figure[data-hidden='true'] .lm-body-row {
+    margin-top: 12px;
+  }
+  .lm-body-stage {
+    position: relative;
+    height: clamp(340px, 58vh, 560px);
+    min-width: 0;
+  }
+  .lm-body-stage > .lm-avatar {
+    height: 100%;
+  }
+  .lm-body-stage > .lm-avatar .lm-avatar__stage {
+    border-radius: 0;
+  }
+  /* touch: "adjust on figure" is on — a 1 px ink frame; the figure owns the gesture */
+  .lm-body-stage[data-adjusting='true'] {
+    outline: 1px solid var(--lm-ink);
+    outline-offset: -1px;
+    touch-action: none;
+  }
+  @media (max-width: 47.99rem) {
+    .lm-body-stage {
+      height: auto;
+      aspect-ratio: 4 / 5;
+      max-height: 72vh;
+    }
+  }
+  /* the 3D figure fills the stage like the SVG one did */
+  .lm-body-stage > .lm-fig3d {
+    height: 100%;
+  }
+  .lm-body-stage .lm-avatar__stage {
+    border-radius: 0;
+  }
+  /* visceral view: same box, grows only when the words need it (no page jump on switching) */
+  .lm-body-stage--visceral {
+    height: auto;
+    min-height: clamp(340px, 58vh, 560px);
+    padding: 12px 16px 16px;
+  }
+  @media (max-width: 47.99rem) {
+    .lm-body-stage--visceral {
+      aspect-ratio: auto;
+      max-height: none;
+      min-height: min(calc((100vw - 2 * var(--lm-gutter, 16px)) * 1.25), 72vh);
+      padding: 10px 12px 14px;
+    }
+  }
+  @media (min-width: 64rem) {
+    .lm-body-stage--visceral {
+      padding-inline: 20px;
+    }
+  }
+
+  /* ---- Shape › Adjust the drawing ---- */
+  .lm-body-drawing {
+    display: grid;
+    justify-items: start;
+    gap: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-body-drawing__panel {
+    justify-self: stretch;
+    display: grid;
+    gap: 18px;
+    min-width: 0;
+  }
+  .lm-frame {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lm-frame__ends {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    letter-spacing: var(--lm-text-xs--ls);
+    color: var(--lm-ink-2);
+  }
+  .lm-frame__end {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lm-frame__cap {
+    flex: none;
+    width: 24px;
+    height: 32px;
+    color: var(--lm-ink-3);
+  }
+  .lm-frame__cap path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.4px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-frame__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 12px;
+  }
+
+  .lm-body-figure__notes {
+    display: grid;
+    gap: 8px;
+    padding: 10px 16px 14px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-body-figure__notes .lm-eng {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (min-width: 64rem) {
+    .lm-body-figure__notes {
+      padding-inline: 20px;
+    }
+  }
+
+  /* ---- estimates ---- */
+  .lm-body-est__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px 24px;
+  }
+  .lm-body-est__rail .lm-body-est__cell {
+    width: 204px;
+    padding-inline: 0 14px;
+    margin-inline-end: 14px;
+    border-right: 1px solid var(--lm-line);
+  }
+  .lm-body-est__rail .lm-body-est__cell:last-child {
+    border-right: 0;
+    margin-inline-end: 0;
+  }
+  .lm-body-est__cell {
+    min-width: 0;
+  }
+  .lm-body-est__cell .lm-readout__caption {
+    max-width: 34ch;
+  }
+  .lm-body-est__gentle {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--lm-line);
+    justify-content: space-between;
+  }
+
+  /* ---- shape ---- */
+  .lm-body-shape__body {
+    display: grid;
+    gap: 22px;
+    min-width: 0;
+  }
+  .lm-body-optional {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lm-body-optional > :first-child {
+    flex: 1;
+  }
+
+  /* ---- habits ---- */
+  .lm-body-habits {
+    display: grid;
+    gap: 24px;
+    min-width: 0;
+  }
+  .lm-body-adv {
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lm-body-adv > :first-child {
+    flex: 1 1 200px;
+  }
+
+  /* ---- labs ---- */
+  .lm-body-labs {
+    display: grid;
+    gap: 20px;
+  }
+  .lm-body-labs__grid {
+    display: grid;
+    gap: 14px 16px;
+  }
+  @media (min-width: 30rem) {
+    .lm-body-labs__grid {
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
+  }
+
+  /* ---- continue / choose a start ---- */
+  .lm-body-continue {
+    display: grid;
+    gap: 10px;
+  }
+  .lm-body-start {
+    display: grid;
+    gap: 16px;
+  }
+  .lm-body-start__keys {
+    display: grid;
+    gap: 16px;
+  }
+  @media (min-width: 40rem) {
+    .lm-body-start__keys {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  .lm-body-start__opt {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+  }
+  .lm-body-start__opt .lm-key {
+    height: auto;
+    min-height: 56px;
+    padding-block: 12px;
+    white-space: normal;
+    text-align: center;
+  }
+
+  /* ---- setup progress scale (context bar) ---- */
+  .lm-body-steps {
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-body-steps li {
+    display: grid;
+    gap: 3px;
+    justify-items: start;
+  }
+  .lm-body-steps__bar {
+    position: relative;
+    width: 44px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--lm-well);
+    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+  }
+  .lm-body-steps li[data-state='done'] .lm-body-steps__bar,
+  .lm-body-steps li[data-state='current'] .lm-body-steps__bar {
+    background: var(--lm-ink);
+    box-shadow: none;
+  }
+  .lm-body-steps li[data-state='current'] .lm-body-steps__bar::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: -1px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+  }
+  .lm-body-steps__label {
+    font-size: var(--lm-text-2xs);
+    line-height: 12px;
+    font-stretch: 84%;
+    color: var(--lm-ink-3);
+  }
+  .lm-body-steps li[data-state='current'] .lm-body-steps__label {
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+
+  /* ---- sticky mini figure (mobile) ---- */
+  .lm-body-mini {
+    position: fixed;
+    z-index: var(--lm-z-sticky);
+    top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 64px);
+    right: calc(var(--lm-gutter) + var(--lm-safe-right, 0px));
+    width: 120px;
+    height: 120px;
+    padding: 6px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-lg);
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-pop);
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(-4px);
+    pointer-events: none;
+    transition:
+      opacity var(--lm-dur-base) var(--lm-ease-out),
+      transform var(--lm-dur-base) var(--lm-ease-out);
+  }
+  .lm-body-mini[data-visible='true'] {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+  .lm-body-mini__fig {
+    display: block;
+    height: 100%;
+    overflow: hidden;
+    border-radius: var(--lm-radius-md);
+  }
+  .lm-body-mini .lm-avatar {
+    height: 100%;
+  }
+  @media (min-width: 64rem) {
+    .lm-body-mini {
+      display: none;
+    }
+  }
+}
+@layer components {
+  .lm-body-lead--gap {
+    margin-bottom: 20px;
+  }
+}
+
+@layer components {
+  .lm-body-wrap {
+    min-width: 0;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  /* segments sized to their words, the spare width shared: "prefer not to say" stays on one line when the column
+     has room and wraps (to two lines at most) only in the narrowest one (Q3-J2-01) */
+  .lm-bank.lm-body-bank--fit[data-block='true'] > .lm-bank__key {
+    flex: 1 1 auto;
+    padding-inline: 10px;
+  }
+  .lm-body-start > .lm-key {
+    justify-self: start;
+  }
+}
+
+@layer components {
+  /* sheet / side-panel content: the panel body has no padding of its own */
+  .lm-body-panel {
+    padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right, 0px)) 24px calc(var(--lm-gutter) + var(--lm-safe-left, 0px));
+  }
+  @media (min-width: 64rem) {
+    .lm-body-panel {
+      padding: 18px 20px 28px;
+    }
+  }
+}

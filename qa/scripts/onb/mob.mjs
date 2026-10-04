@@ -1,0 +1,16 @@
+import { open, BASE, shot } from './lib.mjs';
+import { run } from './steps.mjs';
+import fs from 'node:fs';
+const { browser, page, errors } = await open({ mobile: true });
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await run(page, JSON.parse(fs.readFileSync('/media/DEV/tmp/base-shape.json', 'utf8')));
+await page.evaluate(() => window.scrollTo(0, 1e6)); await page.waitForTimeout(800);
+const r = await page.evaluate(() => { const b = document.querySelector('[aria-controls=body-drawing-panel]'); const n = document.querySelector('nav.lm-tabbar'); return { btn: b?.getBoundingClientRect().toJSON(), nav: n?.getBoundingClientRect().toJSON(), vh: innerHeight }; });
+console.log(JSON.stringify(r));
+await shot(page, 'mob-shape-bottom');
+await page.getByRole('button', { name: 'Next: a normal day' }).click().catch(e => console.log('next fail', e.message.split('\n')[0]));
+await page.waitForTimeout(1500); console.log(page.url());
+const sk = page.getByRole('button', { name: 'Skip this part' });
+console.log('skip count', await sk.count(), await sk.first().isVisible().catch(() => 'x'));
+await sk.first().click({ timeout: 8000 }).catch(e => console.log('skip fail', e.message.split('\n').slice(0, 12).join(' ').slice(0, 600)));
+console.log('ERRORS', errors); await browser.close();

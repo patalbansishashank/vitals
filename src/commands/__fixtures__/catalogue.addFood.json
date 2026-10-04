@@ -1,0 +1,7 @@
+{
+  "food": {
+    "name": "Homemade besan chilla",
+    "per100g": { "energyKcal": 210, "proteinG": 11, "fatG": 7, "carbG": 25, "fibreG": 5 },
+    "portions": [{ "label": "1 chilla", "g": 80 }]
+  }
+}

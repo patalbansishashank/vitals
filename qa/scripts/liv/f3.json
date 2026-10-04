@@ -1,0 +1,3 @@
+[{"goto":"/food","wait":3000},
+{"click":"I ate something else: lunch","role":"button","wait":1500,"eval":"(()=>{const d=[...document.querySelectorAll('section,aside,[role=dialog],[class*=sheet],[class*=panel]')].find(e=>/What did you eat for lunch/.test(e.innerText)&&e.innerText.length<3000);return d?d.innerText+'\\n'+[...d.querySelectorAll('input')].map(i=>i.type+'|'+(i.labels?.[0]?.innerText||i.getAttribute('aria-label')||i.placeholder)).join(' ; '):'none'})()"},
+{"fillCss":"input[type=search]","value":"dal","wait":1500,"eval":"(()=>{const d=[...document.querySelectorAll('[role=listbox],[role=option],ul')].map(e=>e.innerText.slice(0,500));return d})()"}]

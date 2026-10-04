@@ -1,0 +1,4 @@
+{
+  "prescribed": { "exercises": [{ "exerciseId": "bb_back_squat", "setCount": 3, "reps": 8 }] },
+  "performed": [{ "exerciseId": "baithak", "setCount": 3, "reps": 30 }]
+}

@@ -1,0 +1,2204 @@
+/* ==========================================================================
+   Simulator · schedule builder. Tokens only (var(--lm-*)); feature-local
+   custom properties are prefixed --sim-*. Visual source: design/prototype
+   (#schedule) with design/REVIEW_FINDINGS.md applied (energy stepped every
+   5 %, own fast treatment in dark, printed 24 h dial, no clipped labels).
+   ========================================================================== */
+
+@layer components {
+  /* ---- theme-dependent feature tones ------------------------------------ */
+  :root {
+    /* end of the energy ramps: raster steps mix from the neutral well towards these in OKLab */
+    --sim-deficit-end: color-mix(in oklab, var(--lm-energy-deficit-4), var(--lm-cat-body) 40%);
+    --sim-surplus-end: color-mix(in oklab, var(--lm-energy-surplus-4), var(--lm-cat-fuel) 35%);
+    /* water-only fast: ink cell, inverse text (light) */
+    --sim-fast-bg: var(--lm-energy-fast);
+    --sim-fast-fg: var(--lm-ink-inverse);
+    --sim-fast-fg-2: color-mix(in oklab, var(--lm-ink-inverse) 74%, transparent);
+    --sim-fast-hatch: transparent;
+    --sim-sel: var(--lm-ink);
+    --sim-sel-on-fast: var(--lm-signal);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --sim-deficit-end: color-mix(in oklab, var(--lm-energy-deficit-4), var(--lm-cat-body) 28%);
+      --sim-surplus-end: color-mix(in oklab, var(--lm-energy-surplus-4), var(--lm-cat-fuel) 25%);
+      /* dark: anthracite-inverse + hatch, so white stays reserved for the selection outline */
+      --sim-fast-bg: #0c0d0e;
+      --sim-fast-fg: var(--lm-ink);
+      --sim-fast-fg-2: var(--lm-ink-2);
+      --sim-fast-hatch: color-mix(in oklab, var(--lm-ink) 16%, transparent);
+      --sim-sel-on-fast: var(--lm-ink);
+    }
+  }
+  :root[data-theme='dark'] {
+    --sim-deficit-end: color-mix(in oklab, var(--lm-energy-deficit-4), var(--lm-cat-body) 28%);
+    --sim-surplus-end: color-mix(in oklab, var(--lm-energy-surplus-4), var(--lm-cat-fuel) 25%);
+    --sim-fast-bg: #0c0d0e;
+    --sim-fast-fg: var(--lm-ink);
+    --sim-fast-fg-2: var(--lm-ink-2);
+    --sim-fast-hatch: color-mix(in oklab, var(--lm-ink) 16%, transparent);
+    --sim-sel-on-fast: var(--lm-ink);
+  }
+
+  /* ---- page ---------------------------------------------------------------- */
+  .sim-page[data-view='schedule'] {
+    padding-bottom: 24px;
+  }
+  .sim-bodynotice {
+    margin-bottom: 12px;
+  }
+  .sim-horizon-row {
+    display: flex;
+    align-items: center;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+    margin: -4px 0 12px;
+  }
+  .sim-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-xs);
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink);
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sim-chip b {
+    font-stretch: 112%;
+    font-weight: 700;
+  }
+  .sim-sub {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+  }
+  .sim-empty {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .sim-swatch {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex: none;
+  }
+  .sim-input {
+    height: 36px;
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-base);
+  }
+  @media (max-width: 47.99rem) {
+    .sim-input {
+      font-size: 16px;
+    }
+  }
+
+  /* ---- context bar pieces -------------------------------------------------- */
+  .sim-switcher {
+    all: unset;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: min(46vw, 420px);
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+  }
+  .sim-switcher:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  /* below 1024 the schedule | results bank wraps to its own row: the name may use the whole row ("Moderat…" at 375) */
+  @media (max-width: 63.99rem) {
+    .sim-switcher {
+      max-width: 100%;
+    }
+  }
+  .sim-switcher__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sim-switcher .lucide,
+  .sim-switcher svg {
+    color: var(--lm-ink-2);
+    flex: none;
+  }
+  .sim-horizon {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sim-horizon__start {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .sim-horizon__datebtn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: var(--lm-radius-xs);
+    font-size: var(--lm-text-xs);
+    font-weight: 600;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .sim-horizon__datebtn:hover {
+    background: color-mix(in oklab, var(--lm-ink) 5%, transparent);
+  }
+  .sim-horizon__datebtn:focus-within {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 1px;
+  }
+  .sim-horizon__datebtn svg {
+    color: var(--lm-ink-2);
+  }
+  /* the native date input covers the text: tapping anywhere opens the platform picker */
+  .sim-horizon__date {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    color-scheme: inherit;
+  }
+  .sim-horizon__date::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+  .sim-horizon__end {
+    font-variant-numeric: tabular-nums;
+  }
+  /* desktop top bar: "Start this plan" beside the run key */
+  .sim-topactions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sim-run {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  /* determinate ring while the ensemble streams (the key keeps its spinner during the nominal run) */
+  .sim-runkey[data-progress] .lm-runkey__ring circle {
+    animation: none;
+    transform: rotate(-90deg);
+    stroke-dasharray: calc(var(--sim-run-p, 0) * 163.4) 200;
+    transition: stroke-dasharray var(--lm-dur-base) var(--lm-ease-out);
+  }
+
+  /* ---- schedule layout ------------------------------------------------------- */
+  .sim-sched {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .sim-sched__main {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .sim-sched {
+      gap: 16px;
+      grid-template-columns: 188px minmax(0, 1fr);
+    }
+    .sim-sched__main {
+      gap: 16px;
+    }
+  }
+  @media (min-width: 80rem) {
+    .sim-sched[data-editor='docked'] {
+      grid-template-columns: 188px minmax(0, 1fr) 372px;
+    }
+    .sim-sched__editor[data-mode='docked'] {
+      width: 372px;
+    }
+  }
+  .sim-sched--empty {
+    display: block;
+  }
+
+  /* ---- program tray -------------------------------------------------------- */
+  .sim-tray {
+    min-width: 0;
+  }
+  .sim-tray__head {
+    display: none;
+  }
+  .sim-tray__keys {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--lm-gutter);
+    margin: 0 calc(-1 * var(--lm-gutter));
+    padding: 2px var(--lm-gutter) 6px;
+    scrollbar-width: none;
+  }
+  .sim-tray__keys::-webkit-scrollbar {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .sim-sched__tray {
+      position: sticky;
+      top: calc(var(--lm-topbar-h) + 16px);
+    }
+    .sim-sched__tray .sim-tray__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .sim-sched__tray .sim-tray__keys {
+      flex-direction: column;
+      overflow: visible;
+      margin: 0;
+      padding: 0;
+    }
+  }
+  .sim-tray--sheet .sim-tray__keys {
+    margin: 0;
+    padding: 12px 16px 16px;
+    scroll-padding-inline: 16px;
+  }
+  .sim-pkey {
+    position: relative;
+    flex: 0 0 148px;
+    scroll-snap-align: start;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .sim-sched__tray .sim-pkey {
+      flex: none;
+    }
+  }
+  .sim-pkey__cap {
+    all: unset;
+    box-sizing: border-box;
+    display: grid;
+    gap: 5px;
+    width: 100%;
+    min-height: 76px;
+    padding: 9px 10px 8px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-key);
+    color: var(--lm-ink);
+    cursor: pointer;
+    transition:
+      box-shadow var(--lm-dur-instant) var(--lm-ease-press),
+      transform var(--lm-dur-instant) var(--lm-ease-press),
+      background var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .sim-pkey__cap:hover {
+    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 3%);
+  }
+  .sim-pkey__cap:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .sim-pkey[data-armed] .sim-pkey__cap {
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-key-pressed);
+    transform: translateY(1px);
+    border-color: var(--lm-ink);
+  }
+  .sim-pkey__l1 {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding-right: 26px;
+  }
+  .sim-pkey__letter {
+    font-stretch: 112%;
+    font-weight: 700;
+    font-size: 15px;
+    line-height: 1;
+    min-width: 12px;
+  }
+  .sim-pkey__ind {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1px solid var(--lm-edge);
+    flex: none;
+    transition: background var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .sim-pkey[data-armed] .sim-pkey__ind {
+    background: var(--lm-signal);
+    border-color: var(--lm-signal-edge);
+  }
+  .sim-pkey__name {
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .sim-pkey__sum {
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    color: var(--lm-ink-2);
+    font-stretch: 88%;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sim-pkey__kcal {
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    color: var(--lm-ink-2);
+    font-stretch: 88%;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sim-microbar {
+    display: flex;
+    gap: 1px;
+    height: 5px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--lm-well);
+  }
+  .sim-microbar i {
+    display: block;
+    min-width: 1px;
+  }
+  .sim-microbar[data-zero] {
+    background: repeating-linear-gradient(135deg, var(--lm-ink-3) 0 1px, transparent 1px 4px);
+    opacity: 0.7;
+  }
+  .sim-pkey__glyphs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    min-height: 16px;
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    font-stretch: 88%;
+  }
+  .sim-pkey__glyphs > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .sim-pkey__count {
+    margin-left: auto;
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+  }
+  .sim-pkey__more {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .sim-pkey__more {
+      opacity: 0;
+      transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+    }
+    .sim-pkey:hover .sim-pkey__more,
+    .sim-pkey:focus-within .sim-pkey__more,
+    .sim-pkey__more[aria-expanded='true'] {
+      opacity: 1;
+    }
+  }
+  .sim-pkey--new {
+    all: unset;
+    box-sizing: border-box;
+    flex: 0 0 112px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px dashed var(--lm-edge);
+    border-radius: var(--lm-radius-sm);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+    cursor: pointer;
+    scroll-snap-align: start;
+  }
+  .sim-pkey--new:hover {
+    color: var(--lm-ink);
+    border-color: var(--lm-ink-3);
+  }
+  .sim-pkey--new:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .sim-pkey--new:disabled {
+    color: var(--lm-ink-faint);
+    cursor: not-allowed;
+  }
+
+  /* ---- summary strip ------------------------------------------------------ */
+  .sim-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    overflow: hidden;
+  }
+  /* the one plain sentence about the plan's extra training (R-MAINT), under the whole strip */
+  .sim-summary__note {
+    flex: 1 0 100%;
+    margin: 0;
+    padding: 8px 14px 10px;
+    border-top: 1px solid var(--lm-line);
+    font-size: var(--lm-text-sm);
+    line-height: 1.45;
+    color: var(--lm-ink);
+  }
+  .sim-summary__scope {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px;
+    border-right: 1px solid var(--lm-line);
+  }
+  .sim-summary__dates {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sim-summary__items {
+    flex: 1;
+    min-width: 0;
+    scrollbar-width: none;
+  }
+  .sim-summary__items::-webkit-scrollbar {
+    display: none;
+  }
+  .sim-summary__items.lm-strip {
+    border: 0;
+  }
+  @media (min-width: 48rem) {
+    .sim-summary__items.lm-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+      overflow: visible;
+    }
+    .sim-summary .lm-strip__item {
+      min-width: 0;
+    }
+  }
+  .sim-summary .lm-strip__item {
+    display: grid;
+    align-content: start;
+    gap: 3px;
+    padding: 12px 14px;
+    flex: 1 0 168px;
+    min-width: 168px;
+  }
+  .sim-summary__big {
+    font-size: 20px;
+    line-height: 1.15;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .sim-summary__macros {
+    font-size: 16px;
+    letter-spacing: -0.02em;
+  }
+  .sim-summary__sub {
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-summary__bar {
+    height: 4px;
+    max-width: 140px;
+  }
+  @media (max-width: 47.99rem) {
+    .sim-summary {
+      flex-direction: column;
+      flex-wrap: nowrap;
+    }
+    .sim-summary__note {
+      flex: none;
+    }
+    .sim-summary__scope {
+      flex-direction: row;
+      align-items: center;
+      border-right: 0;
+      border-bottom: 1px solid var(--lm-line);
+      padding: 8px 12px;
+    }
+    .sim-summary__scope .lm-bank[aria-orientation='vertical'],
+    .sim-summary__scope [role='radiogroup'] {
+      flex-direction: row;
+    }
+    .sim-summary .lm-strip__item {
+      flex: 0 0 176px;
+      min-width: 176px;
+    }
+    .sim-summary__items.lm-strip {
+      scroll-padding-inline: 0;
+    }
+  }
+
+  /* ---- raster faceplate + bar ------------------------------------------------ */
+  .sim-rasterface {
+    overflow: visible;
+  }
+
+  /* ---- week scrubber (long horizons) --------------------------------------- */
+  .sim-scrub {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 10px;
+    align-items: center;
+    padding: 8px 12px 6px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sim-scrub__label {
+    grid-row: 1;
+  }
+  .sim-scrub__track {
+    position: relative;
+    display: grid;
+    gap: 1px;
+    height: 20px;
+    padding: 2px;
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+    cursor: pointer;
+    touch-action: none;
+  }
+  .sim-scrub__track:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .sim-scrub__wk {
+    min-width: 0;
+    border-radius: 1px;
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-ink) 8%, transparent);
+  }
+  .sim-scrub__wk[data-fast] {
+    background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in oklab, var(--lm-ink) 30%, transparent) 3px 4px) !important;
+  }
+  .sim-scrub__wk[data-on] {
+    box-shadow: inset 0 0 0 1.5px var(--lm-ink);
+  }
+  .sim-scrub__needle {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+    pointer-events: none;
+    transition: left var(--lm-dur-needle) var(--lm-ease-needle);
+  }
+  .sim-scrub__nums {
+    grid-column: 2;
+    display: grid;
+    margin-top: 2px;
+    font-size: var(--lm-text-2xs);
+    line-height: 12px;
+    color: var(--lm-ink-2);
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .sim-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px 10px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--lm-line);
+    min-height: 52px;
+  }
+  .sim-bar__label {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+  .sim-bar__label b {
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sim-bar__tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+  .sim-bar__sep {
+    width: 1px;
+    height: 20px;
+    margin: 0 4px;
+    background: var(--lm-line);
+  }
+  .sim-bar__anchor {
+    width: 0;
+    height: 32px;
+  }
+  .sim-barkey__text {
+    white-space: nowrap;
+  }
+  /* labels only when the bar is wide enough (container query on the bar itself) */
+  .sim-bar {
+    container-type: inline-size;
+  }
+  .sim-barkey .sim-barkey__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sim-barkey.lm-key {
+    padding-inline: 0;
+    width: 32px;
+    justify-content: center;
+  }
+  .sim-barkey.lm-key[data-size='md'] {
+    width: 40px;
+  }
+  @container (min-width: 940px) {
+    .sim-barkey .sim-barkey__text {
+      position: static;
+      width: auto;
+      height: auto;
+      overflow: visible;
+      clip-path: none;
+    }
+    .sim-barkey.lm-key {
+      padding-inline: 10px;
+      width: auto;
+    }
+  }
+  @media (max-width: 47.99rem) {
+    .sim-bar__label {
+      flex-basis: 100%;
+    }
+    .sim-bar__tools {
+      width: 100%;
+      justify-content: space-between;
+      flex-wrap: nowrap;
+    }
+    .sim-bar__sep {
+      display: none;
+    }
+  }
+
+  /* ---- raster grid ------------------------------------------------------------ */
+  .sim-raster {
+    display: grid;
+    grid-template-columns: 34px repeat(7, minmax(0, 1fr));
+    column-gap: 3px;
+    padding: 8px 8px 10px;
+    --sim-gap: 3px;
+  }
+  @media (min-width: 64rem) {
+    .sim-raster {
+      grid-template-columns: 132px 44px repeat(7, minmax(0, 1fr));
+      column-gap: 4px;
+      padding: 10px 14px 14px;
+      --sim-gap: 4px;
+    }
+  }
+  .sim-raster__grid {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    grid-template-rows: subgrid;
+    row-gap: var(--sim-gap);
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  @media (min-width: 64rem) {
+    .sim-raster__grid {
+      grid-column: 2 / -1;
+    }
+  }
+  .sim-raster__row {
+    display: contents;
+  }
+  .sim-raster__head > * {
+    position: sticky;
+    top: calc(var(--lm-topbar-h) + var(--sim-ctx-h, 64px));
+    z-index: 3;
+    background: var(--lm-face);
+    padding: 2px 0 4px;
+  }
+  @media (min-width: 64rem) {
+    .sim-raster__head > * {
+      top: var(--lm-topbar-h);
+    }
+  }
+  .sim-raster__dow {
+    text-align: center;
+    font-size: var(--lm-text-2xs);
+    line-height: 16px;
+    color: var(--lm-ink-3);
+    font-stretch: 88%;
+  }
+  .sim-raster__dow[data-weekend] {
+    color: var(--lm-ink-2);
+  }
+  .sim-raster__corner {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .sim-raster__all {
+    all: unset;
+    cursor: pointer;
+    font-size: var(--lm-text-2xs);
+    line-height: 16px;
+    color: var(--lm-ink-3);
+    padding: 0 4px;
+    border-radius: 2px;
+  }
+  .sim-raster__all:hover {
+    color: var(--lm-ink);
+  }
+  .sim-raster__all:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-raster__wk {
+    display: flex;
+    align-items: stretch;
+    justify-content: flex-end;
+    min-width: 0;
+  }
+  .sim-raster__wkbtn {
+    all: unset;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 1px;
+    width: 100%;
+    padding-right: 4px;
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-raster__wkbtn:hover .sim-raster__wkno {
+    color: var(--lm-ink);
+  }
+  .sim-raster__wkbtn:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-raster__wkno {
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    color: var(--lm-ink-3);
+    font-stretch: 84%;
+    white-space: nowrap;
+  }
+  .sim-raster__wkpct {
+    display: none;
+    font-size: 10.5px;
+    line-height: 13px;
+    color: var(--lm-ink-2);
+    font-stretch: 84%;
+    white-space: nowrap;
+  }
+  @media (min-width: 64rem) {
+    .sim-raster__wkpct {
+      display: block;
+    }
+  }
+
+  /* phase column (≥ 1024) */
+  .sim-phase {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .sim-phase {
+      display: block;
+      grid-column: 1;
+      position: relative;
+      min-width: 0;
+      padding: 4px 8px 4px 13px;
+    }
+    .sim-phase::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 6px;
+      border: 1px solid var(--lm-line-strong);
+      border-right: 0;
+      border-radius: 3px 0 0 3px;
+    }
+    .sim-phase[data-explicit]::before {
+      border-color: var(--lm-ink-3);
+    }
+  }
+  .sim-phase__btn {
+    all: unset;
+    box-sizing: border-box;
+    display: grid;
+    gap: 1px;
+    width: 100%;
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+  }
+  .sim-phase__btn:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-phase__name {
+    font-size: 12.5px;
+    line-height: 16px;
+    font-weight: 600;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  .sim-phase__sub {
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-phase__bal {
+    color: var(--lm-ink);
+  }
+  .sim-phase__input {
+    width: 100%;
+    height: 24px;
+    padding: 0 4px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-well);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  /* day cells */
+  .sim-cell {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 52px;
+    min-width: 0;
+    padding: 4px 4px 9px 5px;
+    border-radius: 4px;
+    background: var(--lm-well);
+    color: var(--lm-ink);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-ink) 7%, transparent);
+    cursor: pointer;
+    overflow: visible;
+    outline: none;
+    touch-action: pan-y;
+  }
+  @media (min-width: 64rem) {
+    .sim-cell {
+      min-height: 62px;
+      padding: 5px 7px 11px;
+    }
+  }
+  .sim-cell {
+    scroll-margin-top: calc(var(--lm-topbar-h) + var(--sim-ctx-h, 64px) + 28px);
+  }
+  .sim-cell--blank {
+    background: transparent;
+    box-shadow: none;
+    cursor: default;
+  }
+  .sim-cell:hover:not(.sim-cell--blank) {
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-ink) 26%, transparent);
+  }
+  .sim-cell__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 2px;
+    min-width: 0;
+  }
+  .sim-cell__letter {
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 14px;
+    font-stretch: 112%;
+  }
+  .sim-cell__pct {
+    font-size: 10.5px;
+    line-height: 14px;
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 64rem) {
+    .sim-cell__pct {
+      font-size: 11px;
+    }
+  }
+  .sim-cell__glyphs {
+    display: none;
+    gap: 3px;
+    color: var(--lm-ink-2);
+    margin-top: auto;
+  }
+  .sim-cell__glyphs svg {
+    width: 13px;
+    height: 13px;
+  }
+  @media (min-width: 64rem) {
+    .sim-cell__glyphs {
+      display: flex;
+    }
+  }
+  .sim-cell__bar {
+    position: absolute;
+    left: 5px;
+    right: 7px;
+    bottom: 4px;
+    height: 3px;
+    display: flex;
+    gap: 1px;
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  @media (min-width: 64rem) {
+    .sim-cell__bar {
+      left: 7px;
+      right: 9px;
+      bottom: 5px;
+    }
+  }
+  .sim-cell__bar i {
+    display: block;
+    min-width: 1px;
+  }
+  /* partial-day fast band, bottom edge; joins the neighbour through the gap */
+  .sim-cell__band {
+    position: absolute;
+    bottom: 0;
+    height: 5px;
+    background: var(--sim-fast-bg);
+    background-image: repeating-linear-gradient(135deg, var(--sim-fast-hatch) 0 1px, transparent 1px 4px);
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--lm-face) 70%, transparent);
+  }
+  .sim-cell__band[data-join-r] {
+    right: calc(-1 * var(--sim-gap)) !important;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .sim-cell__band[data-join-l] {
+    left: calc(-1 * var(--sim-gap)) !important;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  .sim-cell--fast {
+    background: var(--sim-fast-bg);
+    background-image: repeating-linear-gradient(135deg, var(--sim-fast-hatch) 0 1px, transparent 1px 5px);
+    color: var(--sim-fast-fg);
+    box-shadow: none;
+  }
+  .sim-cell--fast .sim-cell__pct,
+  .sim-cell--fast .sim-cell__glyphs {
+    color: var(--sim-fast-fg-2);
+  }
+  .sim-pkey__src {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+  }
+  /* training source in the calendar (R-DETRAIN): the usual week's sessions are underlined with dots */
+  .sim-cell__train {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .sim-cell__train[data-source='habitual'],
+  .sim-legend__usual {
+    padding-bottom: 2px;
+    background-image: linear-gradient(to right, currentColor 50%, transparent 0);
+    background-size: 3px 1px;
+    background-repeat: repeat-x;
+    background-position: left bottom;
+  }
+  .sim-cell--fast .sim-cell__pct {
+    font-weight: 600;
+    color: var(--sim-fast-fg);
+  }
+  /* continuous ink band across a multi-day fast: square joining sides, gap filled */
+  .sim-cell--fast[data-join-r] {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .sim-cell--fast[data-join-l] {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  .sim-cell--fast[data-join-r]::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: calc(-1 * var(--sim-gap));
+    width: var(--sim-gap);
+    background: inherit;
+  }
+  .sim-cell[data-sel] {
+    box-shadow: inset 0 0 0 2px var(--sim-sel);
+  }
+  .sim-cell--fast[data-sel] {
+    box-shadow: inset 0 0 0 2px var(--sim-sel-on-fast);
+  }
+  .sim-cell[data-edit]::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 2px;
+    border-radius: 4px 4px 0 0;
+    background: var(--lm-signal);
+    z-index: 1;
+  }
+  .sim-cell:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 1px;
+    z-index: 2;
+  }
+  .sim-cell__flag {
+    position: absolute;
+    right: 3px;
+    top: 17px;
+    display: flex;
+    color: var(--lm-caution-mark);
+  }
+  .sim-cell__flag svg {
+    width: 11px;
+    height: 11px;
+  }
+  .sim-cell__flag[data-severity='danger'],
+  .sim-cell__flag[data-severity='error'] {
+    color: var(--lm-danger-mark);
+  }
+  @media (min-width: 64rem) {
+    .sim-cell__flag {
+      top: auto;
+      bottom: 11px;
+      right: 6px;
+    }
+  }
+  .sim-cell[data-flag='error'] {
+    box-shadow: inset 0 0 0 1px var(--lm-danger-mark);
+  }
+  .sim-cell__ov {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 7px 7px;
+    border-color: transparent transparent var(--lm-ink) transparent;
+    border-bottom-right-radius: 3px;
+  }
+  .sim-cell--fast .sim-cell__ov {
+    border-bottom-color: var(--sim-fast-fg);
+  }
+
+  /* preview row */
+  .sim-raster__foot {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .sim-raster__foot {
+      grid-column: 2 / -1;
+    }
+  }
+  .sim-preview {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--lm-line);
+    min-width: 0;
+  }
+  .sim-preview__cap {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px 12px;
+    flex-wrap: wrap;
+    margin: 0 0 4px;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-preview__cap b {
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .sim-preview__hint {
+    color: var(--lm-ink-3);
+  }
+  .sim-preview[data-pending] svg {
+    opacity: 0.55;
+    transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .sim-preview__empty {
+    height: 48px;
+  }
+
+  /* ---- day editor ------------------------------------------------------------- */
+  .sim-sched__editor[data-mode='docked'] {
+    top: calc(var(--lm-topbar-h) + 16px);
+    max-height: calc(100dvh - var(--lm-topbar-h) - 32px);
+  }
+  .sim-editor {
+    display: grid;
+  }
+  .sim-editor__head {
+    display: grid;
+    gap: 10px;
+    padding: 12px 16px 14px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sim-editor__r1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .sim-editor__when {
+    flex: 1 1 auto;
+    min-width: 7.5em;
+  }
+  /* a long program label (planner programs) truncates instead of squeezing the day line (sweep 2026-10-01) */
+  .sim-editor__r1 > .sim-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 55%;
+  }
+  .sim-editor__nav {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .sim-editor__scope,
+  .sim-editor__name,
+  .sim-field {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .sim-editor__override {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .sim-ovmark {
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 0 8px 8px;
+    border-color: transparent transparent var(--lm-ink) transparent;
+  }
+  /* a day inside a fast (QA 2026-10-01): the fast, not the program, decides what is eaten */
+  .sim-editor__fasted {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 6px 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-well);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .sim-editor__fasted p {
+    margin: 0;
+    min-width: 0;
+  }
+  .sim-editor__fasted > :last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .sim-chip--fast {
+    background: var(--sim-fast-bg);
+    background-image: repeating-linear-gradient(135deg, var(--sim-fast-hatch) 0 1px, transparent 1px 4px);
+    color: var(--sim-fast-fg);
+    border-color: var(--sim-fast-bg);
+    font-weight: 600;
+  }
+  .sim-editor__fastnote {
+    margin: 8px 0 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .sim-editor__refeed {
+    margin: 0;
+  }
+  .sim-meals__list li[data-dropped] {
+    color: var(--lm-ink-3);
+  }
+  .sim-editor__issues {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .sim-sec {
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sim-sec:last-child {
+    border-bottom: 0;
+  }
+  .sim-sec__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 16px 4px 8px;
+    min-height: 44px;
+  }
+  .sim-sec__toggle {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: var(--lm-radius-xs);
+    flex: none;
+  }
+  .sim-sec__toggle:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-sec__chev {
+    color: var(--lm-ink-3);
+    transform: rotate(-90deg);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .sim-sec[data-open] .sim-sec__chev {
+    transform: none;
+  }
+  .sim-sec__title {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .sim-sec__aside {
+    margin-left: auto;
+    min-width: 0;
+    text-align: right;
+  }
+  .sim-sec__body {
+    display: grid;
+    gap: 14px;
+    padding: 2px 16px 18px;
+    min-width: 0;
+  }
+  .sim-energy,
+  .sim-macros,
+  .sim-ex,
+  .sim-sleep,
+  .sim-adv,
+  .sim-fastev {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+  .sim-macro {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .sim-macro__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .sim-macro__rest {
+    color: var(--lm-ink-3);
+  }
+  .sim-macro__foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .sim-macro__grams {
+    flex: 1 1 100%;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sim-macrobar {
+    display: grid;
+    gap: 6px;
+  }
+  .sim-macrobar__bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--lm-well);
+  }
+  .sim-macrobar__bar i {
+    display: block;
+    min-width: 2px;
+  }
+  .sim-macrobar__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-macrobar__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .sim-macrobar__total {
+    margin-left: auto;
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+
+  /* triangle */
+  .sim-tri {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+  }
+  .sim-tri__svg {
+    touch-action: none;
+    cursor: crosshair;
+    max-width: 100%;
+    height: auto;
+  }
+  .sim-tri__face {
+    fill: var(--lm-well);
+  }
+  .sim-tri__safe {
+    fill: var(--lm-ok-bg);
+  }
+  .sim-tri__grid {
+    stroke: var(--lm-chart-grid);
+    stroke-width: 1;
+  }
+  .sim-tri__edge {
+    fill: none;
+    stroke: var(--lm-line-strong);
+  }
+  .sim-tri__corner {
+    font-size: 12px;
+    font-weight: 500;
+    fill: var(--lm-ink-2);
+  }
+  .sim-tri__mark line {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1.25;
+  }
+  .sim-tri__puck {
+    cursor: grab;
+    outline: none;
+  }
+  .sim-tri__focus {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 2;
+  }
+  .sim-tri__puck:focus-visible .sim-tri__focus {
+    stroke: var(--lm-focus);
+  }
+  .sim-tri__cap {
+    fill: var(--lm-raised);
+    stroke: var(--lm-edge);
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.18));
+  }
+  .sim-tri__puck.is-caution .sim-tri__cap {
+    stroke: var(--lm-caution-mark);
+    stroke-width: 2;
+  }
+  .sim-tri__dot {
+    fill: var(--lm-ink);
+  }
+  .sim-tri__caption {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    text-align: center;
+  }
+
+  /* meals & ring */
+  .sim-meals {
+    display: grid;
+    grid-template-columns: 208px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+  @media (max-width: 23.5rem) {
+    .sim-meals {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+    }
+  }
+  .sim-meals__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 7px;
+    font-size: var(--lm-text-sm);
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+  }
+  .sim-meals__list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* the 372 px editor leaves ~108 px beside the 208 px dial: "07:30 walk · 45 min" must wrap, not push a
+       horizontal scrollbar into the panel */
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .sim-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lm-ink);
+    flex: none;
+  }
+  .sim-dot--train {
+    border-radius: 2px;
+    background: var(--lm-cat-performance);
+  }
+  .sim-dot--train[data-kind='cardio'] {
+    background: var(--lm-cat-energy);
+  }
+  .sim-dot--sleep {
+    border-radius: 2px;
+    background: var(--lm-cat-recovery);
+  }
+  .sim-meals__banks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+  .sim-ring {
+    width: 208px;
+    height: 208px;
+  }
+  .sim-ring__svg {
+    display: block;
+    touch-action: none;
+    overflow: visible;
+  }
+  .sim-ring__svg text {
+    font-family: var(--lm-font-sans);
+    user-select: none;
+  }
+  .sim-ring__bezel {
+    fill: var(--lm-face);
+    stroke: var(--lm-line-strong);
+    stroke-width: 1;
+  }
+  .sim-ring__tick {
+    stroke: var(--lm-line-strong);
+    stroke-width: 1;
+  }
+  .sim-ring__tick[data-major] {
+    stroke: var(--lm-edge);
+    stroke-width: 1.25;
+  }
+  .sim-ring__num {
+    font-size: 10.5px;
+    font-stretch: 84%;
+    fill: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-ring__track {
+    fill: none;
+    stroke: var(--lm-line);
+    stroke-width: 1;
+    pointer-events: stroke;
+    cursor: copy;
+  }
+  .sim-ring__track {
+    stroke-width: 12;
+    stroke: transparent;
+  }
+  .sim-ring__fast {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1.5;
+    stroke-dasharray: 1.5 3;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
+  .sim-ring__fast--day {
+    stroke: var(--lm-ink);
+    stroke-width: 2;
+    stroke-dasharray: 1.5 2.5;
+  }
+  .sim-ring__window {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-width: 4;
+    stroke-linecap: round;
+    pointer-events: none;
+  }
+  .sim-ring__hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 14;
+    pointer-events: stroke;
+    cursor: grab;
+  }
+  .sim-ring__sleep {
+    fill: none;
+    stroke: var(--lm-cat-recovery);
+    stroke-opacity: 0.6;
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+  .sim-ring__session {
+    fill: none;
+    stroke: var(--lm-cat-performance);
+    stroke-width: 4;
+    stroke-linecap: round;
+  }
+  .sim-ring__session[data-kind='cardio'] {
+    stroke: var(--lm-cat-energy);
+  }
+  .sim-ring__session[data-dotted] {
+    stroke-dasharray: 1 5;
+  }
+  .sim-ring__thumbg,
+  .sim-ring__bandg,
+  .sim-ring__sessiong {
+    outline: none;
+    cursor: grab;
+  }
+  .sim-ring__focus {
+    fill: transparent;
+    stroke: transparent;
+    stroke-width: 2;
+  }
+  .sim-ring__thumbg:focus-visible .sim-ring__focus {
+    stroke: var(--lm-focus);
+  }
+  .sim-ring__bandg:focus-visible .sim-ring__window,
+  .sim-ring__sessiong:focus-visible .sim-ring__session {
+    stroke-width: 6;
+  }
+  .sim-ring__cap {
+    fill: var(--lm-raised);
+    stroke: var(--lm-edge);
+    stroke-width: 1;
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.2));
+  }
+  .sim-ring__dot {
+    fill: var(--lm-ink);
+  }
+  .sim-ring__meal {
+    fill: var(--lm-ink);
+    stroke: var(--lm-face);
+    stroke-width: 2;
+  }
+  .sim-ring__c1 {
+    font-size: 15px;
+    font-weight: 600;
+    font-stretch: 112%;
+    fill: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-ring__c2 {
+    font-size: 11px;
+    fill: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* multi-day fast timeline */
+  .sim-ftl {
+    margin: 0;
+    display: grid;
+    gap: 4px;
+  }
+  .sim-ftl svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .sim-ftl__bg {
+    fill: var(--lm-well);
+    rx: 4;
+  }
+  .sim-ftl__sleep {
+    fill: var(--lm-cat-recovery);
+    opacity: 0.45;
+  }
+  .sim-ftl__fast {
+    fill: var(--sim-fast-bg);
+    rx: 2;
+  }
+  .sim-ftl__planned {
+    fill: var(--lm-ink-3);
+  }
+  .sim-ftl__mid {
+    stroke: var(--lm-line-strong);
+  }
+  .sim-ftl__day {
+    font-size: 11px;
+    fill: var(--lm-ink-2);
+    font-stretch: 84%;
+  }
+  .sim-ftl__meal {
+    fill: var(--lm-raised);
+    stroke: var(--lm-ink);
+    stroke-width: 1.5;
+  }
+  .sim-ftl__cap {
+    font-size: 11px;
+    fill: var(--lm-ink-2);
+  }
+  .sim-ftl__caption {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* training source (R-DETRAIN): as usual / custom / none */
+  .sim-ex__source {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .sim-ex__source .sim-row__def {
+    color: var(--lm-ink-2);
+  }
+  .sim-ex__extra {
+    margin: 0 0 -8px;
+  }
+  .sim-usual {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-well);
+    min-width: 0;
+  }
+  .sim-usual__today {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .sim-usual__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-usual__list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .sim-usual__list li[data-today] {
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .sim-usual__list svg {
+    flex: none;
+  }
+  .sim-usual__wd {
+    flex: none;
+    width: 2.4em;
+    font-stretch: 112%;
+    font-weight: 700;
+  }
+  .sim-usual .sim-sub,
+  .sim-usual__none {
+    margin: 0;
+  }
+  .sim-usual__none {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .sim-meals__list li[data-source='habitual'] {
+    color: var(--lm-ink-2);
+  }
+
+  /* sessions */
+  .sim-ex__add {
+    justify-self: start;
+    margin-top: -6px;
+  }
+  .sim-ex__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+  }
+  .sim-session {
+    border-top: 1px solid var(--lm-line);
+  }
+  .sim-session:first-child {
+    border-top: 0;
+  }
+  .sim-session__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    color: var(--lm-ink-2);
+  }
+  .sim-session__sum {
+    all: unset;
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+    padding: 4px 0;
+  }
+  .sim-session__sum:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-session__sum b {
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .sim-session__sum span {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sim-session__chev {
+    color: var(--lm-ink-3);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .sim-session[data-open] .sim-session__chev {
+    transform: rotate(180deg);
+  }
+  .sim-session__body {
+    display: grid;
+    gap: 12px;
+    padding: 4px 0 14px 28px;
+  }
+  .sim-grid2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 10px 12px;
+  }
+  .sim-grid2 .lm-stepper,
+  .sim-regions .lm-stepper {
+    min-width: 0;
+  }
+  .sim-regions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    gap: 8px 12px;
+  }
+  .sim-time {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .sim-time__input {
+    height: 40px;
+    padding: 0 8px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-base);
+    font-variant-numeric: tabular-nums;
+    color-scheme: inherit;
+    min-width: 0;
+  }
+
+  /* defaulted rows */
+  .sim-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 12px;
+  }
+  .sim-row__label {
+    display: grid;
+    gap: 1px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+    min-width: 0;
+  }
+  .sim-row__def {
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    color: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .sim-row[data-set] .sim-row__def {
+    color: var(--lm-ink-2);
+  }
+  .sim-row__ctl {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .sim-row__ctl .lm-stepper {
+    width: 176px;
+  }
+  .sim-row__spacer {
+    width: 32px;
+  }
+  .sim-adv__h {
+    margin: 6px 0 -4px;
+    font-size: var(--lm-text-xs);
+    font-weight: 600;
+    color: var(--lm-ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sim-adv__h::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--lm-line);
+  }
+  .sim-doses {
+    display: grid;
+    gap: 8px;
+  }
+  .sim-doses__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .sim-dose {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
+  }
+  .sim-switchrow {
+    display: grid;
+    gap: 2px;
+  }
+  @media (max-width: 23.5rem) {
+    .sim-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .sim-row__ctl .lm-stepper {
+      width: 100%;
+    }
+  }
+
+  /* ---- popovers ---------------------------------------------------------------- */
+  .sim-pop {
+    display: grid;
+    gap: 12px;
+    width: min(320px, calc(100vw - 32px));
+  }
+  .sim-pop__title {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+  }
+  .sim-pop__line {
+    margin: -4px 0 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
+  .sim-pop__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .sim-pattern {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .sim-pattern__slot {
+    display: grid;
+    gap: 2px;
+    justify-items: center;
+  }
+  .sim-pattern__sel {
+    width: 100%;
+    height: 36px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-raised);
+    color: var(--lm-ink);
+    font: inherit;
+    font-weight: 700;
+    font-stretch: 112%;
+    text-align: center;
+    text-align-last: center;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: var(--lm-shadow-key);
+    cursor: pointer;
+  }
+
+  /* scenario switcher */
+  .sim-scenarios {
+    display: grid;
+    gap: 10px;
+    width: min(360px, calc(100vw - 32px));
+    /* the popover is max 360 px including its padding: never push a horizontal scrollbar into it */
+    max-width: 100%;
+  }
+  .sim-scenarios__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+  }
+  .sim-scenarios__item {
+    all: unset;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 40px;
+    padding: 4px 8px;
+    border-radius: var(--lm-radius-xs);
+    cursor: pointer;
+  }
+  /* menu row in a popover (raised) or a sheet (face): 4 % ink over whichever surface, like .lm-menu__item */
+  @media (hover: hover) {
+    .sim-scenarios__item:hover {
+      background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+    }
+  }
+  .sim-scenarios__item:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-scenarios__name {
+    font-weight: 600;
+    font-size: var(--lm-text-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sim-scenarios__meta {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sim-scenarios__rename {
+    display: flex;
+    gap: 8px;
+  }
+  .sim-scenarios__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-sheet .sim-scenarios {
+    width: auto;
+    padding: 8px 16px 16px;
+  }
+
+  /* starter picker */
+  .sim-starter {
+    min-height: 420px;
+  }
+  .sim-starter__plate {
+    max-width: 520px;
+    margin: 0 auto;
+    text-align: left;
+  }
+  .sim-starter__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+  }
+  .sim-starter__list li + li {
+    border-top: 1px solid var(--lm-line);
+  }
+  .sim-starter__key {
+    all: unset;
+    box-sizing: border-box;
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    padding: 10px 8px;
+    border-radius: var(--lm-radius-xs);
+    cursor: pointer;
+  }
+  .sim-starter__key:hover {
+    background: color-mix(in oklab, var(--lm-ink) 4%, transparent);
+  }
+  .sim-starter__key:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-starter__key b {
+    font-size: var(--lm-text-base);
+    font-weight: 600;
+  }
+  .sim-starter__key span {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+
+  /* delete-program dialog */
+  .sim-delprog {
+    display: grid;
+    gap: 12px;
+  }
+
+  /* ---- mobile action bar -------------------------------------------------------- */
+  .sim-ab__text {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+    font-size: var(--lm-text-sm);
+  }
+  .sim-ab__text b {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sim-ab__arm {
+    all: unset;
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+    cursor: pointer;
+    font-size: var(--lm-text-sm);
+    border-radius: var(--lm-radius-xs);
+  }
+  .sim-ab__arm:focus-visible {
+    outline: 2px solid var(--lm-focus);
+  }
+  .sim-ab__bulk {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sim-ab__count {
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    margin-right: 4px;
+    white-space: nowrap;
+  }
+
+  /* ---- results tab --------------------------------------------------------------- */
+  .sim-results {
+    display: grid;
+    gap: 12px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sim-pkey__cap,
+    .sim-sec__chev,
+    .sim-runkey[data-progress] .lm-runkey__ring circle {
+      transition: none;
+    }
+  }
+}

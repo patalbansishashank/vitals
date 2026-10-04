@@ -1,0 +1,256 @@
+{
+ "chromium": "/usr/bin/chromium",
+ "site": "https://vitals.creative.desi/",
+ "at": "2026-10-03T06:34:30.956Z",
+ "results": [
+  {
+   "variant": "granted-via-cdp",
+   "target": "a-loopback",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 4,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "a-loopback-tas",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": "loopback",
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 3,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "b-tailnet-ip",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "b-tailnet-ip-tas",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 0,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "b-tailnet-ip-tas-preflight",
+   "url": "http://100.64.0.2:4892/v1/pair/status",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 0,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "c-serve-server",
+   "url": "https://vitals.example.ts.net:8443/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"relay\"],\"ownerCount\":9}",
+   "ms": 68,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "c-serve-pc",
+   "url": "https://my-pc.example.ts.net:8444/echo",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"host\":\"my-pc.example.ts.net:8444\",\"xff\":\"100.64.0.2\",\"xfh\":\"my-pc.example.ts.net:8444\",\"auth\":\"present\"}",
+   "ms": 13,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "c-serve-pc-sse",
+   "url": "https://my-pc.example.ts.net:8444/sse",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "chunkTimesMs": [
+    504,
+    1003,
+    1503,
+    2003,
+    2505,
+    3003
+   ],
+   "events": 6,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_ABORTED"
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "d-public",
+   "url": "https://api.github.com/zen",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "Keep it logically awesome.",
+   "ms": 51,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "permissions": {
+    "local-network-access": "denied",
+    "local-network": "granted",
+    "loopback-network": "granted"
+   },
+   "grantTried": {
+    "localNetwork+loopbackNetwork": "ok"
+   },
+   "console": [
+    "Connecting to 'http://100.64.0.2:4892/health' violates the following Content Security Policy directive: \"connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*\". The action has been blocked.",
+    "Connecting to 'http://100.64.0.2:4892/health' violates the following Content Security Policy directive: \"connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*\". The action has been blocked.",
+    "Connecting to 'http://100.64.0.2:4892/v1/pair/status' violates the following Content Security Policy directive: \"connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*\". The action has been blocked."
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "a-loopback",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 9,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "a-loopback-tas",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": "loopback",
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 3,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "b-tailnet-ip",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 3,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "b-tailnet-ip-tas",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": "local",
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 3,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "b-tailnet-ip-tas-preflight",
+   "url": "http://100.64.0.2:4892/v1/pair/status",
+   "targetAddressSpace": "local",
+   "outcome": "allowed",
+   "status": 401,
+   "body": "{\"error\":\"unauthorized\",\"message\":\"Pair this browser or client with the Companion first\"}",
+   "ms": 7,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "c-serve-server",
+   "url": "https://vitals.example.ts.net:8443/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"relay\"],\"ownerCount\":9}",
+   "ms": 71,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "c-serve-pc",
+   "url": "https://my-pc.example.ts.net:8444/echo",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"host\":\"my-pc.example.ts.net:8444\",\"xff\":\"100.64.0.2\",\"xfh\":\"my-pc.example.ts.net:8444\",\"auth\":\"present\"}",
+   "ms": 14,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "c-serve-pc-sse",
+   "url": "https://my-pc.example.ts.net:8444/sse",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "chunkTimesMs": [
+    504,
+    1003,
+    1504,
+    2004,
+    2504,
+    3002
+   ],
+   "events": 6,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_ABORTED"
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "d-public",
+   "url": "https://api.github.com/zen",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "Avoid administrative distraction.",
+   "ms": 50,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "permissions": {
+    "local-network-access": "denied",
+    "local-network": "granted",
+    "loopback-network": "granted"
+   },
+   "grantTried": {
+    "localNetwork+loopbackNetwork": "ok"
+   },
+   "console": [
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/health'. This content should also be served over HTTPS.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/health'. This content should also be served over HTTPS.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/v1/pair/status'. This content should also be served over HTTPS."
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1 @@
+[{"goto":"/plan/goals","wait":1500},{"click":"Find plans","exact":false,"wait":5000},{"waitText":"Start this plan","timeout":900000,"wait":2000},{"click":"Start this plan","wait":1500,"dump":1,"textDump":3000,"shot":"01-startsheet"},{"click":"today","wait":800,"textDump":600},{"click":"Start plan","wait":4000,"dump":1,"textDump":3000,"shot":"02-today-first"}]

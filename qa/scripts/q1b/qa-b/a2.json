@@ -1,0 +1,4 @@
+[{"goto":"/settings/devices","wait":1500},
+{"upload":"qa/fixtures/q1b-b/bio14.json","nth":1,"wait":6000,"dump":1,"shot":"02-devices-imported"},
+{"css":"main","wait":100,"eval":"document.querySelector('#devices, [id*=devices]')?.innerText.slice(0,3000)"},
+{"goto":"/progress","wait":3500,"textDump":200,"eval":"(()=>{const h=[...document.querySelectorAll('h2')].find(x=>/Body signals/.test(x.innerText)); return h.closest('section')?.innerText||h.parentElement.innerText})()","shot":"03-progress-signals"}]

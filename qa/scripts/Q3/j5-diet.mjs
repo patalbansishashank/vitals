@@ -1,0 +1,20 @@
+// Q3 J5 — the Food screen never names a food the diet rules out (lacto-vegetarian fixture: no eggs).
+import { fresh, closeAll, mainText, results, sleep, shot } from './lib.mjs';
+import { search, startRung, nav } from './j5-lib.mjs';
+const R = results('J5-diet');
+const { page, errors } = await fresh('desktop');
+await search(page);
+await startRung(page, 'Medium');
+await nav(page, 'food');
+await sleep(1500);
+const t = await mainText(page);
+const meals = t.slice(t.indexOf('Meals'), t.indexOf('Groceries'));
+R.check('meal examples name no eggs for a vegetarian without eggs', !/\begg/i.test(meals), meals.match(/for example[^\n]*/)?.[0] ?? '');
+const whey = t.slice(t.indexOf('whey protein'), t.indexOf('plant protein powder'));
+R.check('whey "food first" names no eggs for a vegetarian without eggs', /food first/.test(whey) && !/\begg/i.test(whey), whey.match(/food first\n?[^\n]*/)?.[0] ?? '');
+await shot(page, 'J5', 'diet-food');
+R.check('no console or page errors', errors.length === 0, errors.join(' | '));
+const rows = R.save();
+await closeAll();
+console.table(rows.map((r) => ({ ok: r.ok, name: r.name, detail: r.detail })));
+process.exit(rows.some((r) => !r.ok) ? 1 : 0);

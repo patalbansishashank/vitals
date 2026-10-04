@@ -1,0 +1,9 @@
+{
+  "source": {
+    "scenarioId": "starter"
+  },
+  "series": [
+    "scaleWeight"
+  ],
+  "resolution": "week"
+}

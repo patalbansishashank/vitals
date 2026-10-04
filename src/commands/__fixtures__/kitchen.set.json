@@ -1,0 +1,5 @@
+{
+  "equipment": [{ "id": "eq.otg", "note": "small, 28 L" }, { "id": "eq.soda_maker", "use": "ownNotUsed" }],
+  "cuisines": [{ "id": "cu.punjabi" }, { "id": "cu.kerala" }],
+  "staples": [{ "id": "st.atta" }]
+}

@@ -1,0 +1,4 @@
+[{"goto":"/train","wait":3000},
+{"click":"Swap push-up","role":"button","wait":2000},
+{"click":"Use Kushti conditioning circuit (dand + baithak + rope)","role":"button","wait":2500,"eval":"[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ')"},
+{"textDump":1400,"shot":"12-after-swap"}]

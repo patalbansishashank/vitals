@@ -1,0 +1,6 @@
+dist
+node_modules
+docs
+research
+design
+pnpm-lock.yaml

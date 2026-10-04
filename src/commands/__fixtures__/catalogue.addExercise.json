@@ -1,0 +1,7 @@
+{
+  "exercise": {
+    "name": "Wooden wheel rollout",
+    "description": "kneeling rollouts with a cart wheel on a rod",
+    "pattern": "coreAntiExtension"
+  }
+}

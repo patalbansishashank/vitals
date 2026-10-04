@@ -1,0 +1,1 @@
+[{"goto":"/onboarding/diet","wait":2000},{"click":"none","wait":400},{"click":"Done","wait":1500,"eval":"[document.querySelector('legend')?.innerText, [...document.querySelectorAll('main button')].map(b=>b.innerText.slice(0,30)).join(' | ')]"}]

@@ -1,0 +1,1 @@
+[{"goto":"/today","wait":1500,"eval":"(async()=>{const r=await navigator.serviceWorker?.getRegistrations?.()||[];for(const x of r)await x.unregister();const k=await caches.keys();for(const c of k)await caches.delete(c);return [r.length,k.length]})()"},{"goto":"/today","wait":2000,"eval":"[...document.scripts].map(s=>s.src.split('/').pop()).join(',')"}]

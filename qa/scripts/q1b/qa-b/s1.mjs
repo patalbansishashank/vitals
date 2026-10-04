@@ -1,0 +1,10 @@
+import { open, BASE, shot, text, dump } from './lib.mjs';
+const mobile = process.argv[2] === 'mobile';
+const { browser, page, errors } = await open({ mobile, profile: process.argv[3] || 'p5' });
+const T = async (n = 2000) => (await text(page, 9000)).replace(/\n+/g, ' / ').slice(0, n);
+await page.goto(BASE + '/simulate', { waitUntil: 'networkidle' }); await page.waitForTimeout(3000);
+console.log('SIM', await T(1500));
+await dump(page, 'sim');
+await shot(page, mobile ? '40-sim-m' : '40-sim');
+console.log('ERRORS', errors);
+await browser.close();

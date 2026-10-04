@@ -1,0 +1,13 @@
+{
+  "base": {
+    "scenarioId": "starter"
+  },
+  "variants": [
+    [
+      {
+        "op": "setHorizon",
+        "days": 28
+      }
+    ]
+  ]
+}

@@ -1,0 +1,5182 @@
+{
+ "version": 1,
+ "format": "vitals.tools/1",
+ "agentToolsetHash": "7c1ecd952e4f1a6d7e0d2c0f9efca388b8695c90851e72b2f1d9c6e45eca30fd",
+ "toolsetHash": {
+  "ui": "471d24f58e2fd7a13e7ef4a9f56f4903de64d63cbe83fadaccadcf3a66197600",
+  "ai": "7c1ecd952e4f1a6d7e0d2c0f9efca388b8695c90851e72b2f1d9c6e45eca30fd",
+  "webmcp": "d9d7a6726717b6aeeeaf92edfa44854a464b0948e51ac637596a60a7df33695e",
+  "mcp": "8033cbc41390685bf8307b81853694ff7ad16a4861a5830d4da8eb1455f3b7e2"
+ },
+ "surfaces": {
+  "ui": {
+   "tools": [
+    {
+     "name": "agents_configure",
+     "commandId": "agents.configure",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "756da28c6c52ec4a"
+    },
+    {
+     "name": "ai_configure",
+     "commandId": "ai.configure",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "89d9ad7f5f0433b9"
+    },
+    {
+     "name": "ai_usage",
+     "commandId": "ai.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "app_status",
+     "commandId": "app.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3e95c1a916484101"
+    },
+    {
+     "name": "bio_baselines",
+     "commandId": "bio.baselines",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b6a38c44dccace5a"
+    },
+    {
+     "name": "bio_daily",
+     "commandId": "bio.daily",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8c7e6e09d91cf5f5"
+    },
+    {
+     "name": "bio_delete_source",
+     "commandId": "bio.deleteSource",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "88ddf060299d390a"
+    },
+    {
+     "name": "bio_device_connect",
+     "commandId": "bio.deviceConnect",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "04ddf7d38ef1abfd"
+    },
+    {
+     "name": "bio_device_sync",
+     "commandId": "bio.deviceSync",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "496322169099c5ea"
+    },
+    {
+     "name": "bio_import",
+     "commandId": "bio.import",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f1cbf5abef1edfbb"
+    },
+    {
+     "name": "bio_manual",
+     "commandId": "bio.manual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ece5ec5bd1e8b357"
+    },
+    {
+     "name": "bio_rescore",
+     "commandId": "bio.rescore",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7df37c0718468a57"
+    },
+    {
+     "name": "bio_scores",
+     "commandId": "bio.scores",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b0b4184101f516d8"
+    },
+    {
+     "name": "bio_series",
+     "commandId": "bio.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7589456bc2fecaf1"
+    },
+    {
+     "name": "bio_set_policy",
+     "commandId": "bio.setPolicy",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "23612d0a15385103"
+    },
+    {
+     "name": "bio_sources",
+     "commandId": "bio.sources",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9e30fb7d7a3363b7"
+    },
+    {
+     "name": "biometrics_clear_correction",
+     "commandId": "biometrics.clearCorrection",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ff5fe386ee6262c0"
+    },
+    {
+     "name": "biometrics_correct",
+     "commandId": "biometrics.correct",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "1dc03b967d1e856d"
+    },
+    {
+     "name": "biometrics_drop_priorities",
+     "commandId": "biometrics.dropPriorities",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "c99f7ec42e2c4a76"
+    },
+    {
+     "name": "catalogue_add_equipment",
+     "commandId": "catalogue.addEquipment",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7d4d517fd329f200"
+    },
+    {
+     "name": "catalogue_add_exercise",
+     "commandId": "catalogue.addExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7ac56da44388e740"
+    },
+    {
+     "name": "catalogue_add_food",
+     "commandId": "catalogue.addFood",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e40ae7c4e60881af"
+    },
+    {
+     "name": "catalogue_equipment",
+     "commandId": "catalogue.equipment",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "069fbf5ad9e85317"
+    },
+    {
+     "name": "catalogue_equivalence",
+     "commandId": "catalogue.equivalence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fea49081454d4a15"
+    },
+    {
+     "name": "catalogue_get_exercise",
+     "commandId": "catalogue.getExercise",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "94c63e7476b1e205"
+    },
+    {
+     "name": "catalogue_get_food",
+     "commandId": "catalogue.getFood",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a8cfa57b8bda1728"
+    },
+    {
+     "name": "catalogue_search_exercises",
+     "commandId": "catalogue.searchExercises",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b3072e9e059f36bb"
+    },
+    {
+     "name": "catalogue_search_foods",
+     "commandId": "catalogue.searchFoods",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3aabe71e800291d7"
+    },
+    {
+     "name": "catalogue_supplements",
+     "commandId": "catalogue.supplements",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "coach_apply_pending",
+     "commandId": "coach.applyPending",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "0aa49ea15890110e"
+    },
+    {
+     "name": "coach_conversations",
+     "commandId": "coach.conversations",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "6272b1f092ac4beb"
+    },
+    {
+     "name": "coach_delete",
+     "commandId": "coach.delete",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "676ecd685690efd9"
+    },
+    {
+     "name": "coach_discard_pending",
+     "commandId": "coach.discardPending",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "8b90a6346ddb441f"
+    },
+    {
+     "name": "coach_history",
+     "commandId": "coach.history",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a04d92129e2ba583"
+    },
+    {
+     "name": "coach_pending",
+     "commandId": "coach.pending",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cde44895fca099ef"
+    },
+    {
+     "name": "coach_search_notes",
+     "commandId": "coach.searchNotes",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "bf16ccd1c94a0ad9"
+    },
+    {
+     "name": "data_erase_all",
+     "commandId": "data.eraseAll",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "abde641847624cea"
+    },
+    {
+     "name": "data_export",
+     "commandId": "data.export",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "560541bba63c485f"
+    },
+    {
+     "name": "data_import",
+     "commandId": "data.import",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "f0d1705d48e2965f"
+    },
+    {
+     "name": "data_usage",
+     "commandId": "data.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "712e75fbda76638e"
+    },
+    {
+     "name": "day_get",
+     "commandId": "day.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "evidence_get",
+     "commandId": "evidence.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c55f0b1c70c9957d"
+    },
+    {
+     "name": "evidence_search",
+     "commandId": "evidence.search",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "15d5c95a1498f359"
+    },
+    {
+     "name": "food_candidates",
+     "commandId": "food.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9f1dfd4d4db1fc82"
+    },
+    {
+     "name": "food_day_targets",
+     "commandId": "food.dayTargets",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5e272420c869949d"
+    },
+    {
+     "name": "food_delete_recipe",
+     "commandId": "food.deleteRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "144f1dea223acd49"
+    },
+    {
+     "name": "food_grocery_list",
+     "commandId": "food.groceryList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "ce1bbb109b250732"
+    },
+    {
+     "name": "food_parse",
+     "commandId": "food.parse",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c7e3af2021b93709"
+    },
+    {
+     "name": "food_plan_day",
+     "commandId": "food.planDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3061438d2027fe1f"
+    },
+    {
+     "name": "food_recipes",
+     "commandId": "food.recipes",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "food_save_recipe",
+     "commandId": "food.saveRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c21ed4647e6b6c6"
+    },
+    {
+     "name": "goals_edit",
+     "commandId": "goals.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3833c1460101e13a"
+    },
+    {
+     "name": "goals_get",
+     "commandId": "goals.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "981068a1bc2914b8"
+    },
+    {
+     "name": "goals_suggest",
+     "commandId": "goals.suggest",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5bee78f0ca618831"
+    },
+    {
+     "name": "history_list",
+     "commandId": "history.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7c938c3b2393904a"
+    },
+    {
+     "name": "history_seal",
+     "commandId": "history.seal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4ba29633bb9ec335"
+    },
+    {
+     "name": "history_undo",
+     "commandId": "history.undo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fcc32c3be55ece93"
+    },
+    {
+     "name": "intake_answer",
+     "commandId": "intake.answer",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "59867041d087c73a"
+    },
+    {
+     "name": "intake_get",
+     "commandId": "intake.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82f97bd765a59179"
+    },
+    {
+     "name": "intake_next_questions",
+     "commandId": "intake.nextQuestions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fac23073462cc2b0"
+    },
+    {
+     "name": "intake_skip",
+     "commandId": "intake.skip",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d1a9faa7b814d798"
+    },
+    {
+     "name": "job_cancel",
+     "commandId": "job.cancel",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5da294fbd0e3cce4"
+    },
+    {
+     "name": "job_result",
+     "commandId": "job.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "209686a5464dd63d"
+    },
+    {
+     "name": "job_status",
+     "commandId": "job.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2b69c8a76a859aee"
+    },
+    {
+     "name": "kitchen_add",
+     "commandId": "kitchen.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "87b1cdbc61fefdb6"
+    },
+    {
+     "name": "kitchen_get",
+     "commandId": "kitchen.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cd140c210864f500"
+    },
+    {
+     "name": "kitchen_set",
+     "commandId": "kitchen.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7741ba6efc62055e"
+    },
+    {
+     "name": "log_bulk",
+     "commandId": "log.bulk",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "6866592e4bc408b5"
+    },
+    {
+     "name": "log_confirm_day",
+     "commandId": "log.confirmDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "26418dddff861151"
+    },
+    {
+     "name": "log_edit",
+     "commandId": "log.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0881127fa08aa701"
+    },
+    {
+     "name": "log_fast",
+     "commandId": "log.fast",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d65488c52342036e"
+    },
+    {
+     "name": "log_from_biometrics",
+     "commandId": "log.fromBiometrics",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ffe30523fd724b53"
+    },
+    {
+     "name": "log_get",
+     "commandId": "log.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "dcadf60a1d67a071"
+    },
+    {
+     "name": "log_mark_day",
+     "commandId": "log.markDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "547c113024358d95"
+    },
+    {
+     "name": "log_meal",
+     "commandId": "log.meal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6635a32a6f9267b5"
+    },
+    {
+     "name": "log_meal_from_photo",
+     "commandId": "log.mealFromPhoto",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dcdcbfdf034fcf83"
+    },
+    {
+     "name": "log_measurement",
+     "commandId": "log.measurement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "aa1fce3dac3d1790"
+    },
+    {
+     "name": "log_note",
+     "commandId": "log.note",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1464b428776546de"
+    },
+    {
+     "name": "log_retract",
+     "commandId": "log.retract",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "b858fec5a7cadc92"
+    },
+    {
+     "name": "log_session",
+     "commandId": "log.session",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c3801768e66bcfb"
+    },
+    {
+     "name": "log_sleep",
+     "commandId": "log.sleep",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c223c1eb72c1b77"
+    },
+    {
+     "name": "log_steps",
+     "commandId": "log.steps",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d522d9ca143248f5"
+    },
+    {
+     "name": "log_subjective",
+     "commandId": "log.subjective",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e262b931650242f5"
+    },
+    {
+     "name": "log_substance",
+     "commandId": "log.substance",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5d759313fd20143e"
+    },
+    {
+     "name": "log_supplement",
+     "commandId": "log.supplement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0beb15799d81909e"
+    },
+    {
+     "name": "markers_confirm",
+     "commandId": "markers.confirm",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "905f4260d6632445"
+    },
+    {
+     "name": "markers_get",
+     "commandId": "markers.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "348e4dbc044566ac"
+    },
+    {
+     "name": "markers_import",
+     "commandId": "markers.import",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "33287aae0f6c162d"
+    },
+    {
+     "name": "markers_remove",
+     "commandId": "markers.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31976c2fb217fda3"
+    },
+    {
+     "name": "markers_set",
+     "commandId": "markers.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "8f757ecfbff10467"
+    },
+    {
+     "name": "nav_open",
+     "commandId": "nav.open",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8af1830fef07d644"
+    },
+    {
+     "name": "pantry_add",
+     "commandId": "pantry.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9acd0adae1bac40d"
+    },
+    {
+     "name": "pantry_get",
+     "commandId": "pantry.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82ba72943ba88fa8"
+    },
+    {
+     "name": "pantry_parse_list",
+     "commandId": "pantry.parseList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2fb69349b8552e6f"
+    },
+    {
+     "name": "pantry_remove",
+     "commandId": "pantry.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1197dd4a76170248"
+    },
+    {
+     "name": "plan_adherence",
+     "commandId": "plan.adherence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "plan_adopt_version",
+     "commandId": "plan.adoptVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_check_in",
+     "commandId": "plan.checkIn",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_declare_event",
+     "commandId": "plan.declareEvent",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e5b2cc0601a7d58c"
+    },
+    {
+     "name": "plan_discard",
+     "commandId": "plan.discard",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e94dac7148e38d68"
+    },
+    {
+     "name": "plan_drift",
+     "commandId": "plan.drift",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_edit_day",
+     "commandId": "plan.editDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "550d1830d98c2d29"
+    },
+    {
+     "name": "plan_end",
+     "commandId": "plan.end",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "903e49f57fa1ef35"
+    },
+    {
+     "name": "plan_get",
+     "commandId": "plan.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_pause",
+     "commandId": "plan.pause",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_reject_version",
+     "commandId": "plan.rejectVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_replace",
+     "commandId": "plan.replace",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "b7231d3eeb432846"
+    },
+    {
+     "name": "plan_replan",
+     "commandId": "plan.replan",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e4ea2359ac88149a"
+    },
+    {
+     "name": "plan_resume",
+     "commandId": "plan.resume",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_shift",
+     "commandId": "plan.shift",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "5784cc042f9aeb4f"
+    },
+    {
+     "name": "plan_start",
+     "commandId": "plan.start",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cdd995625f9098ca"
+    },
+    {
+     "name": "plan_swap_exercise",
+     "commandId": "plan.swapExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fc330a7bb913bec3"
+    },
+    {
+     "name": "plan_versions",
+     "commandId": "plan.versions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "80c300a4e51111d5"
+    },
+    {
+     "name": "planner_find",
+     "commandId": "planner.find",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f1735e131e32afd5"
+    },
+    {
+     "name": "planner_open_in_simulator",
+     "commandId": "planner.openInSimulator",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "c43f69cbd50a0ac9"
+    },
+    {
+     "name": "planner_result",
+     "commandId": "planner.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "806fbaf51772e9c6"
+    },
+    {
+     "name": "planner_stop",
+     "commandId": "planner.stop",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7e1c2cce7d1f9429"
+    },
+    {
+     "name": "profile_explain_maintenance",
+     "commandId": "profile.explainMaintenance",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "64084622934e950c"
+    },
+    {
+     "name": "profile_get",
+     "commandId": "profile.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cb715241d34d5f5f"
+    },
+    {
+     "name": "profile_patch",
+     "commandId": "profile.patch",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "00e4615b831237cb"
+    },
+    {
+     "name": "profile_reset_shape",
+     "commandId": "profile.resetShape",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "2c0b8b56898361bf"
+    },
+    {
+     "name": "profile_set_setup_step",
+     "commandId": "profile.setSetupStep",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e52a7a63649cc5a2"
+    },
+    {
+     "name": "safety_acknowledge",
+     "commandId": "safety.acknowledge",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "ac80b0dfffc295fa"
+    },
+    {
+     "name": "safety_acknowledge_danger",
+     "commandId": "safety.acknowledgeDanger",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "bf6fb79a335cfeaf"
+    },
+    {
+     "name": "safety_clear_age_answer",
+     "commandId": "safety.clearAgeAnswer",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "68911cb0091b18c0"
+    },
+    {
+     "name": "safety_clear_fasting_opt_in",
+     "commandId": "safety.clearFastingOptIn",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "68911cb0091b18c0"
+    },
+    {
+     "name": "safety_commit_screening",
+     "commandId": "safety.commitScreening",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "271ffe37ad5acab8"
+    },
+    {
+     "name": "safety_report_illness",
+     "commandId": "safety.reportIllness",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31d332d5a244bfbf"
+    },
+    {
+     "name": "safety_set_fasting_opt_in",
+     "commandId": "safety.setFastingOptIn",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "d54d1d875e04919b"
+    },
+    {
+     "name": "safety_set_short_window",
+     "commandId": "safety.setShortWindow",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "ad9b15ed53494323"
+    },
+    {
+     "name": "safety_status",
+     "commandId": "safety.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "68911cb0091b18c0"
+    },
+    {
+     "name": "scenario_apply_starter",
+     "commandId": "scenario.applyStarter",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9b273648719d210f"
+    },
+    {
+     "name": "scenario_create",
+     "commandId": "scenario.create",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a49e682866e88a4e"
+    },
+    {
+     "name": "scenario_delete",
+     "commandId": "scenario.delete",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0cb00f2beeb9fa93"
+    },
+    {
+     "name": "scenario_duplicate",
+     "commandId": "scenario.duplicate",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a4894eec17fb9257"
+    },
+    {
+     "name": "scenario_edit",
+     "commandId": "scenario.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9079afb8cc5af4fb"
+    },
+    {
+     "name": "scenario_ensure_active",
+     "commandId": "scenario.ensureActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a13577b717e67862"
+    },
+    {
+     "name": "scenario_get",
+     "commandId": "scenario.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "833d897e442041dd"
+    },
+    {
+     "name": "scenario_list",
+     "commandId": "scenario.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3fe1099f700aea45"
+    },
+    {
+     "name": "scenario_redo",
+     "commandId": "scenario.redo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a1a46c8bd2b5bf1b"
+    },
+    {
+     "name": "scenario_rename",
+     "commandId": "scenario.rename",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dc32128da46e1850"
+    },
+    {
+     "name": "scenario_set_active",
+     "commandId": "scenario.setActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4df27287968e59c7"
+    },
+    {
+     "name": "scenario_undo",
+     "commandId": "scenario.undo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a1a46c8bd2b5bf1b"
+    },
+    {
+     "name": "settings_get",
+     "commandId": "settings.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "99534f77db0b85b6"
+    },
+    {
+     "name": "settings_update",
+     "commandId": "settings.update",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6299a067c6ff5e1e"
+    },
+    {
+     "name": "sim_compare",
+     "commandId": "sim.compare",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "sim_explain",
+     "commandId": "sim.explain",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7a455ce8d786d547"
+    },
+    {
+     "name": "sim_run",
+     "commandId": "sim.run",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "eae751f221497f98"
+    },
+    {
+     "name": "sim_series",
+     "commandId": "sim.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a401e3984c8a3496"
+    },
+    {
+     "name": "sim_what_if",
+     "commandId": "sim.whatIf",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "supplements_get",
+     "commandId": "supplements.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8b4114bee670f582"
+    },
+    {
+     "name": "supplements_remove",
+     "commandId": "supplements.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "27ee1b16559fa3ee"
+    },
+    {
+     "name": "supplements_set",
+     "commandId": "supplements.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "86dc9ad584518962"
+    },
+    {
+     "name": "sync_configure",
+     "commandId": "sync.configure",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "5bf0021dae6ac73d"
+    },
+    {
+     "name": "sync_join",
+     "commandId": "sync.join",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "d348dca609da24de"
+    },
+    {
+     "name": "sync_now",
+     "commandId": "sync.now",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "sync_pair",
+     "commandId": "sync.pair",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "a975403005e0389e"
+    },
+    {
+     "name": "sync_rotate",
+     "commandId": "sync.rotate",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "fa77232620ec81bb"
+    },
+    {
+     "name": "sync_status",
+     "commandId": "sync.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "sync_unpair",
+     "commandId": "sync.unpair",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "today_get",
+     "commandId": "today.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "train_alternatives",
+     "commandId": "train.alternatives",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5750c1eff6dbbb64"
+    },
+    {
+     "name": "train_session",
+     "commandId": "train.session",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3be33d3e7660c1a9"
+    },
+    {
+     "name": "train_shopping_list",
+     "commandId": "train.shoppingList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a9673705e3191090"
+    }
+   ],
+   "excluded": []
+  },
+  "ai": {
+   "tools": [
+    {
+     "name": "ai_usage",
+     "commandId": "ai.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "app_status",
+     "commandId": "app.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3e95c1a916484101"
+    },
+    {
+     "name": "bio_baselines",
+     "commandId": "bio.baselines",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b6a38c44dccace5a"
+    },
+    {
+     "name": "bio_daily",
+     "commandId": "bio.daily",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8c7e6e09d91cf5f5"
+    },
+    {
+     "name": "bio_manual",
+     "commandId": "bio.manual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ece5ec5bd1e8b357"
+    },
+    {
+     "name": "bio_scores",
+     "commandId": "bio.scores",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b0b4184101f516d8"
+    },
+    {
+     "name": "bio_series",
+     "commandId": "bio.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7589456bc2fecaf1"
+    },
+    {
+     "name": "bio_sources",
+     "commandId": "bio.sources",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9e30fb7d7a3363b7"
+    },
+    {
+     "name": "biometrics_clear_correction",
+     "commandId": "biometrics.clearCorrection",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ff5fe386ee6262c0"
+    },
+    {
+     "name": "biometrics_correct",
+     "commandId": "biometrics.correct",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "1dc03b967d1e856d"
+    },
+    {
+     "name": "catalogue_add_equipment",
+     "commandId": "catalogue.addEquipment",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7d4d517fd329f200"
+    },
+    {
+     "name": "catalogue_add_exercise",
+     "commandId": "catalogue.addExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7ac56da44388e740"
+    },
+    {
+     "name": "catalogue_add_food",
+     "commandId": "catalogue.addFood",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e40ae7c4e60881af"
+    },
+    {
+     "name": "catalogue_equipment",
+     "commandId": "catalogue.equipment",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "069fbf5ad9e85317"
+    },
+    {
+     "name": "catalogue_equivalence",
+     "commandId": "catalogue.equivalence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fea49081454d4a15"
+    },
+    {
+     "name": "catalogue_get_exercise",
+     "commandId": "catalogue.getExercise",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "94c63e7476b1e205"
+    },
+    {
+     "name": "catalogue_get_food",
+     "commandId": "catalogue.getFood",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a8cfa57b8bda1728"
+    },
+    {
+     "name": "catalogue_search_exercises",
+     "commandId": "catalogue.searchExercises",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b3072e9e059f36bb"
+    },
+    {
+     "name": "catalogue_search_foods",
+     "commandId": "catalogue.searchFoods",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3aabe71e800291d7"
+    },
+    {
+     "name": "catalogue_supplements",
+     "commandId": "catalogue.supplements",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "coach_conversations",
+     "commandId": "coach.conversations",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "6272b1f092ac4beb"
+    },
+    {
+     "name": "coach_discard_pending",
+     "commandId": "coach.discardPending",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "8b90a6346ddb441f"
+    },
+    {
+     "name": "coach_history",
+     "commandId": "coach.history",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a04d92129e2ba583"
+    },
+    {
+     "name": "coach_pending",
+     "commandId": "coach.pending",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cde44895fca099ef"
+    },
+    {
+     "name": "coach_search_notes",
+     "commandId": "coach.searchNotes",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "bf16ccd1c94a0ad9"
+    },
+    {
+     "name": "data_usage",
+     "commandId": "data.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "712e75fbda76638e"
+    },
+    {
+     "name": "day_get",
+     "commandId": "day.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "evidence_get",
+     "commandId": "evidence.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c55f0b1c70c9957d"
+    },
+    {
+     "name": "evidence_search",
+     "commandId": "evidence.search",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "15d5c95a1498f359"
+    },
+    {
+     "name": "food_candidates",
+     "commandId": "food.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9f1dfd4d4db1fc82"
+    },
+    {
+     "name": "food_day_targets",
+     "commandId": "food.dayTargets",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5e272420c869949d"
+    },
+    {
+     "name": "food_delete_recipe",
+     "commandId": "food.deleteRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "144f1dea223acd49"
+    },
+    {
+     "name": "food_grocery_list",
+     "commandId": "food.groceryList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "ce1bbb109b250732"
+    },
+    {
+     "name": "food_parse",
+     "commandId": "food.parse",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c7e3af2021b93709"
+    },
+    {
+     "name": "food_plan_day",
+     "commandId": "food.planDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3061438d2027fe1f"
+    },
+    {
+     "name": "food_recipes",
+     "commandId": "food.recipes",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "food_save_recipe",
+     "commandId": "food.saveRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c21ed4647e6b6c6"
+    },
+    {
+     "name": "goals_edit",
+     "commandId": "goals.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3833c1460101e13a"
+    },
+    {
+     "name": "goals_get",
+     "commandId": "goals.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "981068a1bc2914b8"
+    },
+    {
+     "name": "goals_suggest",
+     "commandId": "goals.suggest",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5bee78f0ca618831"
+    },
+    {
+     "name": "history_list",
+     "commandId": "history.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7c938c3b2393904a"
+    },
+    {
+     "name": "history_seal",
+     "commandId": "history.seal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4ba29633bb9ec335"
+    },
+    {
+     "name": "history_undo",
+     "commandId": "history.undo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fcc32c3be55ece93"
+    },
+    {
+     "name": "intake_answer",
+     "commandId": "intake.answer",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "59867041d087c73a"
+    },
+    {
+     "name": "intake_get",
+     "commandId": "intake.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82f97bd765a59179"
+    },
+    {
+     "name": "intake_next_questions",
+     "commandId": "intake.nextQuestions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fac23073462cc2b0"
+    },
+    {
+     "name": "intake_skip",
+     "commandId": "intake.skip",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d1a9faa7b814d798"
+    },
+    {
+     "name": "job_cancel",
+     "commandId": "job.cancel",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5da294fbd0e3cce4"
+    },
+    {
+     "name": "job_result",
+     "commandId": "job.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "209686a5464dd63d"
+    },
+    {
+     "name": "job_status",
+     "commandId": "job.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2b69c8a76a859aee"
+    },
+    {
+     "name": "kitchen_add",
+     "commandId": "kitchen.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "87b1cdbc61fefdb6"
+    },
+    {
+     "name": "kitchen_get",
+     "commandId": "kitchen.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cd140c210864f500"
+    },
+    {
+     "name": "kitchen_set",
+     "commandId": "kitchen.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7741ba6efc62055e"
+    },
+    {
+     "name": "log_bulk",
+     "commandId": "log.bulk",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "6866592e4bc408b5"
+    },
+    {
+     "name": "log_confirm_day",
+     "commandId": "log.confirmDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "26418dddff861151"
+    },
+    {
+     "name": "log_edit",
+     "commandId": "log.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0881127fa08aa701"
+    },
+    {
+     "name": "log_fast",
+     "commandId": "log.fast",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d65488c52342036e"
+    },
+    {
+     "name": "log_from_biometrics",
+     "commandId": "log.fromBiometrics",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ffe30523fd724b53"
+    },
+    {
+     "name": "log_get",
+     "commandId": "log.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "dcadf60a1d67a071"
+    },
+    {
+     "name": "log_mark_day",
+     "commandId": "log.markDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "547c113024358d95"
+    },
+    {
+     "name": "log_meal",
+     "commandId": "log.meal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6635a32a6f9267b5"
+    },
+    {
+     "name": "log_meal_from_photo",
+     "commandId": "log.mealFromPhoto",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dcdcbfdf034fcf83"
+    },
+    {
+     "name": "log_measurement",
+     "commandId": "log.measurement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "aa1fce3dac3d1790"
+    },
+    {
+     "name": "log_note",
+     "commandId": "log.note",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1464b428776546de"
+    },
+    {
+     "name": "log_retract",
+     "commandId": "log.retract",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "b858fec5a7cadc92"
+    },
+    {
+     "name": "log_session",
+     "commandId": "log.session",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c3801768e66bcfb"
+    },
+    {
+     "name": "log_sleep",
+     "commandId": "log.sleep",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c223c1eb72c1b77"
+    },
+    {
+     "name": "log_steps",
+     "commandId": "log.steps",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d522d9ca143248f5"
+    },
+    {
+     "name": "log_subjective",
+     "commandId": "log.subjective",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e262b931650242f5"
+    },
+    {
+     "name": "log_substance",
+     "commandId": "log.substance",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5d759313fd20143e"
+    },
+    {
+     "name": "log_supplement",
+     "commandId": "log.supplement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0beb15799d81909e"
+    },
+    {
+     "name": "markers_get",
+     "commandId": "markers.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "348e4dbc044566ac"
+    },
+    {
+     "name": "markers_import",
+     "commandId": "markers.import",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "33287aae0f6c162d"
+    },
+    {
+     "name": "markers_remove",
+     "commandId": "markers.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31976c2fb217fda3"
+    },
+    {
+     "name": "markers_set",
+     "commandId": "markers.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "8f757ecfbff10467"
+    },
+    {
+     "name": "nav_open",
+     "commandId": "nav.open",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8af1830fef07d644"
+    },
+    {
+     "name": "pantry_add",
+     "commandId": "pantry.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9acd0adae1bac40d"
+    },
+    {
+     "name": "pantry_get",
+     "commandId": "pantry.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82ba72943ba88fa8"
+    },
+    {
+     "name": "pantry_parse_list",
+     "commandId": "pantry.parseList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2fb69349b8552e6f"
+    },
+    {
+     "name": "pantry_remove",
+     "commandId": "pantry.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1197dd4a76170248"
+    },
+    {
+     "name": "plan_adherence",
+     "commandId": "plan.adherence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "plan_adopt_version",
+     "commandId": "plan.adoptVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_check_in",
+     "commandId": "plan.checkIn",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_declare_event",
+     "commandId": "plan.declareEvent",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e5b2cc0601a7d58c"
+    },
+    {
+     "name": "plan_discard",
+     "commandId": "plan.discard",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e94dac7148e38d68"
+    },
+    {
+     "name": "plan_drift",
+     "commandId": "plan.drift",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_edit_day",
+     "commandId": "plan.editDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "550d1830d98c2d29"
+    },
+    {
+     "name": "plan_end",
+     "commandId": "plan.end",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "903e49f57fa1ef35"
+    },
+    {
+     "name": "plan_get",
+     "commandId": "plan.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_pause",
+     "commandId": "plan.pause",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_reject_version",
+     "commandId": "plan.rejectVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_replace",
+     "commandId": "plan.replace",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "b7231d3eeb432846"
+    },
+    {
+     "name": "plan_replan",
+     "commandId": "plan.replan",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e4ea2359ac88149a"
+    },
+    {
+     "name": "plan_resume",
+     "commandId": "plan.resume",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_shift",
+     "commandId": "plan.shift",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "5784cc042f9aeb4f"
+    },
+    {
+     "name": "plan_start",
+     "commandId": "plan.start",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cdd995625f9098ca"
+    },
+    {
+     "name": "plan_swap_exercise",
+     "commandId": "plan.swapExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fc330a7bb913bec3"
+    },
+    {
+     "name": "plan_versions",
+     "commandId": "plan.versions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "80c300a4e51111d5"
+    },
+    {
+     "name": "planner_find",
+     "commandId": "planner.find",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f1735e131e32afd5"
+    },
+    {
+     "name": "planner_open_in_simulator",
+     "commandId": "planner.openInSimulator",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "c43f69cbd50a0ac9"
+    },
+    {
+     "name": "planner_result",
+     "commandId": "planner.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "806fbaf51772e9c6"
+    },
+    {
+     "name": "planner_stop",
+     "commandId": "planner.stop",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7e1c2cce7d1f9429"
+    },
+    {
+     "name": "profile_explain_maintenance",
+     "commandId": "profile.explainMaintenance",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "64084622934e950c"
+    },
+    {
+     "name": "profile_get",
+     "commandId": "profile.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cb715241d34d5f5f"
+    },
+    {
+     "name": "profile_patch",
+     "commandId": "profile.patch",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "00e4615b831237cb"
+    },
+    {
+     "name": "profile_reset_shape",
+     "commandId": "profile.resetShape",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "2c0b8b56898361bf"
+    },
+    {
+     "name": "safety_report_illness",
+     "commandId": "safety.reportIllness",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31d332d5a244bfbf"
+    },
+    {
+     "name": "safety_status",
+     "commandId": "safety.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "68911cb0091b18c0"
+    },
+    {
+     "name": "scenario_apply_starter",
+     "commandId": "scenario.applyStarter",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9b273648719d210f"
+    },
+    {
+     "name": "scenario_create",
+     "commandId": "scenario.create",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a49e682866e88a4e"
+    },
+    {
+     "name": "scenario_delete",
+     "commandId": "scenario.delete",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0cb00f2beeb9fa93"
+    },
+    {
+     "name": "scenario_duplicate",
+     "commandId": "scenario.duplicate",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a4894eec17fb9257"
+    },
+    {
+     "name": "scenario_edit",
+     "commandId": "scenario.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9079afb8cc5af4fb"
+    },
+    {
+     "name": "scenario_ensure_active",
+     "commandId": "scenario.ensureActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a13577b717e67862"
+    },
+    {
+     "name": "scenario_get",
+     "commandId": "scenario.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "833d897e442041dd"
+    },
+    {
+     "name": "scenario_list",
+     "commandId": "scenario.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3fe1099f700aea45"
+    },
+    {
+     "name": "scenario_redo",
+     "commandId": "scenario.redo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a1a46c8bd2b5bf1b"
+    },
+    {
+     "name": "scenario_rename",
+     "commandId": "scenario.rename",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dc32128da46e1850"
+    },
+    {
+     "name": "scenario_set_active",
+     "commandId": "scenario.setActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4df27287968e59c7"
+    },
+    {
+     "name": "scenario_undo",
+     "commandId": "scenario.undo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a1a46c8bd2b5bf1b"
+    },
+    {
+     "name": "settings_get",
+     "commandId": "settings.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "99534f77db0b85b6"
+    },
+    {
+     "name": "settings_update",
+     "commandId": "settings.update",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6299a067c6ff5e1e"
+    },
+    {
+     "name": "sim_compare",
+     "commandId": "sim.compare",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "sim_explain",
+     "commandId": "sim.explain",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7a455ce8d786d547"
+    },
+    {
+     "name": "sim_run",
+     "commandId": "sim.run",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "eae751f221497f98"
+    },
+    {
+     "name": "sim_series",
+     "commandId": "sim.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a401e3984c8a3496"
+    },
+    {
+     "name": "sim_what_if",
+     "commandId": "sim.whatIf",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "supplements_get",
+     "commandId": "supplements.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8b4114bee670f582"
+    },
+    {
+     "name": "supplements_remove",
+     "commandId": "supplements.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "27ee1b16559fa3ee"
+    },
+    {
+     "name": "supplements_set",
+     "commandId": "supplements.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "86dc9ad584518962"
+    },
+    {
+     "name": "sync_now",
+     "commandId": "sync.now",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "sync_status",
+     "commandId": "sync.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "today_get",
+     "commandId": "today.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "train_alternatives",
+     "commandId": "train.alternatives",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5750c1eff6dbbb64"
+    },
+    {
+     "name": "train_session",
+     "commandId": "train.session",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3be33d3e7660c1a9"
+    },
+    {
+     "name": "train_shopping_list",
+     "commandId": "train.shoppingList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a9673705e3191090"
+    }
+   ],
+   "excluded": [
+    {
+     "commandId": "agents.configure",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "ai.configure",
+     "reason": "keys and providers are configured by the person in the app"
+    },
+    {
+     "commandId": "bio.deleteSource",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "bio.deviceConnect",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.deviceSync",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.import",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.rescore",
+     "reason": "background maintenance the app schedules itself"
+    },
+    {
+     "commandId": "bio.setPolicy",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "biometrics.dropPriorities",
+     "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "coach.applyPending",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "coach.delete",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "data.eraseAll",
+     "reason": "erasing the person's data needs their own confirmation in the app"
+    },
+    {
+     "commandId": "data.export",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "data.import",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "markers.confirm",
+     "reason": "the person checks and confirms the review table themselves; the Coach only shows it"
+    },
+    {
+     "commandId": "profile.setSetupStep",
+     "reason": "screen progress of the app itself, not a change an agent should make"
+    },
+    {
+     "commandId": "safety.acknowledge",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.acknowledgeDanger",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.clearAgeAnswer",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.clearFastingOptIn",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.commitScreening",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.setFastingOptIn",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.setShortWindow",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.configure",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.join",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.pair",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.rotate",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.unpair",
+     "reason": "requires the person's own consent in the app"
+    }
+   ]
+  },
+  "webmcp": {
+   "tools": [
+    {
+     "name": "ai_usage",
+     "commandId": "ai.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "app_status",
+     "commandId": "app.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3e95c1a916484101"
+    },
+    {
+     "name": "bio_baselines",
+     "commandId": "bio.baselines",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b6a38c44dccace5a"
+    },
+    {
+     "name": "bio_daily",
+     "commandId": "bio.daily",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8c7e6e09d91cf5f5"
+    },
+    {
+     "name": "bio_manual",
+     "commandId": "bio.manual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ece5ec5bd1e8b357"
+    },
+    {
+     "name": "bio_scores",
+     "commandId": "bio.scores",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b0b4184101f516d8"
+    },
+    {
+     "name": "bio_series",
+     "commandId": "bio.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7589456bc2fecaf1"
+    },
+    {
+     "name": "bio_sources",
+     "commandId": "bio.sources",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9e30fb7d7a3363b7"
+    },
+    {
+     "name": "biometrics_clear_correction",
+     "commandId": "biometrics.clearCorrection",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ff5fe386ee6262c0"
+    },
+    {
+     "name": "biometrics_correct",
+     "commandId": "biometrics.correct",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "1dc03b967d1e856d"
+    },
+    {
+     "name": "catalogue_add_equipment",
+     "commandId": "catalogue.addEquipment",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7d4d517fd329f200"
+    },
+    {
+     "name": "catalogue_add_exercise",
+     "commandId": "catalogue.addExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7ac56da44388e740"
+    },
+    {
+     "name": "catalogue_add_food",
+     "commandId": "catalogue.addFood",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e40ae7c4e60881af"
+    },
+    {
+     "name": "catalogue_equipment",
+     "commandId": "catalogue.equipment",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "069fbf5ad9e85317"
+    },
+    {
+     "name": "catalogue_equivalence",
+     "commandId": "catalogue.equivalence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fea49081454d4a15"
+    },
+    {
+     "name": "catalogue_get_exercise",
+     "commandId": "catalogue.getExercise",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "94c63e7476b1e205"
+    },
+    {
+     "name": "catalogue_get_food",
+     "commandId": "catalogue.getFood",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a8cfa57b8bda1728"
+    },
+    {
+     "name": "catalogue_search_exercises",
+     "commandId": "catalogue.searchExercises",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b3072e9e059f36bb"
+    },
+    {
+     "name": "catalogue_search_foods",
+     "commandId": "catalogue.searchFoods",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3aabe71e800291d7"
+    },
+    {
+     "name": "catalogue_supplements",
+     "commandId": "catalogue.supplements",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "data_usage",
+     "commandId": "data.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "712e75fbda76638e"
+    },
+    {
+     "name": "day_get",
+     "commandId": "day.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "evidence_get",
+     "commandId": "evidence.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c55f0b1c70c9957d"
+    },
+    {
+     "name": "evidence_search",
+     "commandId": "evidence.search",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "15d5c95a1498f359"
+    },
+    {
+     "name": "food_candidates",
+     "commandId": "food.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9f1dfd4d4db1fc82"
+    },
+    {
+     "name": "food_day_targets",
+     "commandId": "food.dayTargets",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5e272420c869949d"
+    },
+    {
+     "name": "food_delete_recipe",
+     "commandId": "food.deleteRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "144f1dea223acd49"
+    },
+    {
+     "name": "food_grocery_list",
+     "commandId": "food.groceryList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "ce1bbb109b250732"
+    },
+    {
+     "name": "food_parse",
+     "commandId": "food.parse",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c7e3af2021b93709"
+    },
+    {
+     "name": "food_plan_day",
+     "commandId": "food.planDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3061438d2027fe1f"
+    },
+    {
+     "name": "food_recipes",
+     "commandId": "food.recipes",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "food_save_recipe",
+     "commandId": "food.saveRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c21ed4647e6b6c6"
+    },
+    {
+     "name": "goals_edit",
+     "commandId": "goals.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3833c1460101e13a"
+    },
+    {
+     "name": "goals_get",
+     "commandId": "goals.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "981068a1bc2914b8"
+    },
+    {
+     "name": "goals_suggest",
+     "commandId": "goals.suggest",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5bee78f0ca618831"
+    },
+    {
+     "name": "history_list",
+     "commandId": "history.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7c938c3b2393904a"
+    },
+    {
+     "name": "history_seal",
+     "commandId": "history.seal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4ba29633bb9ec335"
+    },
+    {
+     "name": "history_undo",
+     "commandId": "history.undo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fcc32c3be55ece93"
+    },
+    {
+     "name": "intake_answer",
+     "commandId": "intake.answer",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "59867041d087c73a"
+    },
+    {
+     "name": "intake_get",
+     "commandId": "intake.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82f97bd765a59179"
+    },
+    {
+     "name": "intake_next_questions",
+     "commandId": "intake.nextQuestions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fac23073462cc2b0"
+    },
+    {
+     "name": "intake_skip",
+     "commandId": "intake.skip",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d1a9faa7b814d798"
+    },
+    {
+     "name": "job_cancel",
+     "commandId": "job.cancel",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5da294fbd0e3cce4"
+    },
+    {
+     "name": "job_result",
+     "commandId": "job.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "209686a5464dd63d"
+    },
+    {
+     "name": "job_status",
+     "commandId": "job.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2b69c8a76a859aee"
+    },
+    {
+     "name": "kitchen_add",
+     "commandId": "kitchen.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "87b1cdbc61fefdb6"
+    },
+    {
+     "name": "kitchen_get",
+     "commandId": "kitchen.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cd140c210864f500"
+    },
+    {
+     "name": "kitchen_set",
+     "commandId": "kitchen.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7741ba6efc62055e"
+    },
+    {
+     "name": "log_bulk",
+     "commandId": "log.bulk",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "6866592e4bc408b5"
+    },
+    {
+     "name": "log_confirm_day",
+     "commandId": "log.confirmDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "26418dddff861151"
+    },
+    {
+     "name": "log_edit",
+     "commandId": "log.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0881127fa08aa701"
+    },
+    {
+     "name": "log_fast",
+     "commandId": "log.fast",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d65488c52342036e"
+    },
+    {
+     "name": "log_from_biometrics",
+     "commandId": "log.fromBiometrics",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ffe30523fd724b53"
+    },
+    {
+     "name": "log_get",
+     "commandId": "log.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "dcadf60a1d67a071"
+    },
+    {
+     "name": "log_mark_day",
+     "commandId": "log.markDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "547c113024358d95"
+    },
+    {
+     "name": "log_meal",
+     "commandId": "log.meal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6635a32a6f9267b5"
+    },
+    {
+     "name": "log_meal_from_photo",
+     "commandId": "log.mealFromPhoto",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dcdcbfdf034fcf83"
+    },
+    {
+     "name": "log_measurement",
+     "commandId": "log.measurement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "aa1fce3dac3d1790"
+    },
+    {
+     "name": "log_note",
+     "commandId": "log.note",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1464b428776546de"
+    },
+    {
+     "name": "log_retract",
+     "commandId": "log.retract",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "b858fec5a7cadc92"
+    },
+    {
+     "name": "log_session",
+     "commandId": "log.session",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c3801768e66bcfb"
+    },
+    {
+     "name": "log_sleep",
+     "commandId": "log.sleep",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c223c1eb72c1b77"
+    },
+    {
+     "name": "log_steps",
+     "commandId": "log.steps",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d522d9ca143248f5"
+    },
+    {
+     "name": "log_subjective",
+     "commandId": "log.subjective",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e262b931650242f5"
+    },
+    {
+     "name": "log_substance",
+     "commandId": "log.substance",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5d759313fd20143e"
+    },
+    {
+     "name": "log_supplement",
+     "commandId": "log.supplement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0beb15799d81909e"
+    },
+    {
+     "name": "markers_get",
+     "commandId": "markers.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "348e4dbc044566ac"
+    },
+    {
+     "name": "markers_import",
+     "commandId": "markers.import",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "33287aae0f6c162d"
+    },
+    {
+     "name": "markers_remove",
+     "commandId": "markers.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31976c2fb217fda3"
+    },
+    {
+     "name": "markers_set",
+     "commandId": "markers.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "8f757ecfbff10467"
+    },
+    {
+     "name": "nav_open",
+     "commandId": "nav.open",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8af1830fef07d644"
+    },
+    {
+     "name": "pantry_add",
+     "commandId": "pantry.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9acd0adae1bac40d"
+    },
+    {
+     "name": "pantry_get",
+     "commandId": "pantry.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82ba72943ba88fa8"
+    },
+    {
+     "name": "pantry_parse_list",
+     "commandId": "pantry.parseList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2fb69349b8552e6f"
+    },
+    {
+     "name": "pantry_remove",
+     "commandId": "pantry.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1197dd4a76170248"
+    },
+    {
+     "name": "plan_adherence",
+     "commandId": "plan.adherence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "plan_adopt_version",
+     "commandId": "plan.adoptVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_declare_event",
+     "commandId": "plan.declareEvent",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e5b2cc0601a7d58c"
+    },
+    {
+     "name": "plan_discard",
+     "commandId": "plan.discard",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e94dac7148e38d68"
+    },
+    {
+     "name": "plan_drift",
+     "commandId": "plan.drift",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_edit_day",
+     "commandId": "plan.editDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "550d1830d98c2d29"
+    },
+    {
+     "name": "plan_end",
+     "commandId": "plan.end",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "903e49f57fa1ef35"
+    },
+    {
+     "name": "plan_get",
+     "commandId": "plan.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_pause",
+     "commandId": "plan.pause",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_reject_version",
+     "commandId": "plan.rejectVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_replace",
+     "commandId": "plan.replace",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "b7231d3eeb432846"
+    },
+    {
+     "name": "plan_replan",
+     "commandId": "plan.replan",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e4ea2359ac88149a"
+    },
+    {
+     "name": "plan_resume",
+     "commandId": "plan.resume",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_shift",
+     "commandId": "plan.shift",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "5784cc042f9aeb4f"
+    },
+    {
+     "name": "plan_start",
+     "commandId": "plan.start",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cdd995625f9098ca"
+    },
+    {
+     "name": "plan_swap_exercise",
+     "commandId": "plan.swapExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fc330a7bb913bec3"
+    },
+    {
+     "name": "plan_versions",
+     "commandId": "plan.versions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "80c300a4e51111d5"
+    },
+    {
+     "name": "planner_find",
+     "commandId": "planner.find",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f1735e131e32afd5"
+    },
+    {
+     "name": "planner_open_in_simulator",
+     "commandId": "planner.openInSimulator",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "c43f69cbd50a0ac9"
+    },
+    {
+     "name": "planner_result",
+     "commandId": "planner.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "806fbaf51772e9c6"
+    },
+    {
+     "name": "planner_stop",
+     "commandId": "planner.stop",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7e1c2cce7d1f9429"
+    },
+    {
+     "name": "profile_explain_maintenance",
+     "commandId": "profile.explainMaintenance",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "64084622934e950c"
+    },
+    {
+     "name": "profile_get",
+     "commandId": "profile.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cb715241d34d5f5f"
+    },
+    {
+     "name": "profile_patch",
+     "commandId": "profile.patch",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "00e4615b831237cb"
+    },
+    {
+     "name": "profile_reset_shape",
+     "commandId": "profile.resetShape",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "2c0b8b56898361bf"
+    },
+    {
+     "name": "safety_report_illness",
+     "commandId": "safety.reportIllness",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31d332d5a244bfbf"
+    },
+    {
+     "name": "safety_status",
+     "commandId": "safety.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "68911cb0091b18c0"
+    },
+    {
+     "name": "scenario_apply_starter",
+     "commandId": "scenario.applyStarter",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9b273648719d210f"
+    },
+    {
+     "name": "scenario_create",
+     "commandId": "scenario.create",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a49e682866e88a4e"
+    },
+    {
+     "name": "scenario_delete",
+     "commandId": "scenario.delete",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0cb00f2beeb9fa93"
+    },
+    {
+     "name": "scenario_duplicate",
+     "commandId": "scenario.duplicate",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a4894eec17fb9257"
+    },
+    {
+     "name": "scenario_edit",
+     "commandId": "scenario.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9079afb8cc5af4fb"
+    },
+    {
+     "name": "scenario_ensure_active",
+     "commandId": "scenario.ensureActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a13577b717e67862"
+    },
+    {
+     "name": "scenario_get",
+     "commandId": "scenario.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "833d897e442041dd"
+    },
+    {
+     "name": "scenario_list",
+     "commandId": "scenario.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3fe1099f700aea45"
+    },
+    {
+     "name": "scenario_rename",
+     "commandId": "scenario.rename",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dc32128da46e1850"
+    },
+    {
+     "name": "scenario_set_active",
+     "commandId": "scenario.setActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4df27287968e59c7"
+    },
+    {
+     "name": "settings_get",
+     "commandId": "settings.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "99534f77db0b85b6"
+    },
+    {
+     "name": "settings_update",
+     "commandId": "settings.update",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6299a067c6ff5e1e"
+    },
+    {
+     "name": "sim_compare",
+     "commandId": "sim.compare",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "sim_explain",
+     "commandId": "sim.explain",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7a455ce8d786d547"
+    },
+    {
+     "name": "sim_run",
+     "commandId": "sim.run",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "eae751f221497f98"
+    },
+    {
+     "name": "sim_series",
+     "commandId": "sim.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a401e3984c8a3496"
+    },
+    {
+     "name": "sim_what_if",
+     "commandId": "sim.whatIf",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "supplements_get",
+     "commandId": "supplements.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8b4114bee670f582"
+    },
+    {
+     "name": "supplements_remove",
+     "commandId": "supplements.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "27ee1b16559fa3ee"
+    },
+    {
+     "name": "supplements_set",
+     "commandId": "supplements.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "86dc9ad584518962"
+    },
+    {
+     "name": "sync_now",
+     "commandId": "sync.now",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "sync_status",
+     "commandId": "sync.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "today_get",
+     "commandId": "today.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "train_alternatives",
+     "commandId": "train.alternatives",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5750c1eff6dbbb64"
+    },
+    {
+     "name": "train_session",
+     "commandId": "train.session",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3be33d3e7660c1a9"
+    },
+    {
+     "name": "train_shopping_list",
+     "commandId": "train.shoppingList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a9673705e3191090"
+    }
+   ],
+   "excluded": [
+    {
+     "commandId": "agents.configure",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "ai.configure",
+     "reason": "keys and providers are configured by the person in the app"
+    },
+    {
+     "commandId": "bio.deleteSource",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "bio.deviceConnect",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.deviceSync",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.import",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.rescore",
+     "reason": "background maintenance the app schedules itself"
+    },
+    {
+     "commandId": "bio.setPolicy",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "biometrics.dropPriorities",
+     "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "coach.applyPending",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "coach.conversations",
+     "reason": "Coach history stays in the app"
+    },
+    {
+     "commandId": "coach.delete",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "coach.discardPending",
+     "reason": "proposals are reviewed in the app"
+    },
+    {
+     "commandId": "coach.history",
+     "reason": "Coach history stays in the app"
+    },
+    {
+     "commandId": "coach.pending",
+     "reason": "proposals are reviewed in the app"
+    },
+    {
+     "commandId": "coach.searchNotes",
+     "reason": "Coach history stays in the app"
+    },
+    {
+     "commandId": "data.eraseAll",
+     "reason": "erasing the person's data needs their own confirmation in the app"
+    },
+    {
+     "commandId": "data.export",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "data.import",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "markers.confirm",
+     "reason": "the person checks and confirms the review table in the app"
+    },
+    {
+     "commandId": "plan.checkIn",
+     "reason": "the check-in runs in the app on its day"
+    },
+    {
+     "commandId": "profile.setSetupStep",
+     "reason": "screen progress of the app itself, not a change an agent should make"
+    },
+    {
+     "commandId": "safety.acknowledge",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.acknowledgeDanger",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.clearAgeAnswer",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.clearFastingOptIn",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.commitScreening",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.setFastingOptIn",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.setShortWindow",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "scenario.redo",
+     "reason": "step history belongs to the open Simulator session"
+    },
+    {
+     "commandId": "scenario.undo",
+     "reason": "step history belongs to the open Simulator session"
+    },
+    {
+     "commandId": "sync.configure",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.join",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.pair",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.rotate",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.unpair",
+     "reason": "requires the person's own consent in the app"
+    }
+   ]
+  },
+  "mcp": {
+   "tools": [
+    {
+     "name": "ai_usage",
+     "commandId": "ai.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "app_status",
+     "commandId": "app.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3e95c1a916484101"
+    },
+    {
+     "name": "bio_baselines",
+     "commandId": "bio.baselines",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b6a38c44dccace5a"
+    },
+    {
+     "name": "bio_daily",
+     "commandId": "bio.daily",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8c7e6e09d91cf5f5"
+    },
+    {
+     "name": "bio_manual",
+     "commandId": "bio.manual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ece5ec5bd1e8b357"
+    },
+    {
+     "name": "bio_scores",
+     "commandId": "bio.scores",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b0b4184101f516d8"
+    },
+    {
+     "name": "bio_series",
+     "commandId": "bio.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7589456bc2fecaf1"
+    },
+    {
+     "name": "bio_sources",
+     "commandId": "bio.sources",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9e30fb7d7a3363b7"
+    },
+    {
+     "name": "biometrics_clear_correction",
+     "commandId": "biometrics.clearCorrection",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ff5fe386ee6262c0"
+    },
+    {
+     "name": "biometrics_correct",
+     "commandId": "biometrics.correct",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "1dc03b967d1e856d"
+    },
+    {
+     "name": "catalogue_add_equipment",
+     "commandId": "catalogue.addEquipment",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7d4d517fd329f200"
+    },
+    {
+     "name": "catalogue_add_exercise",
+     "commandId": "catalogue.addExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7ac56da44388e740"
+    },
+    {
+     "name": "catalogue_add_food",
+     "commandId": "catalogue.addFood",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e40ae7c4e60881af"
+    },
+    {
+     "name": "catalogue_equipment",
+     "commandId": "catalogue.equipment",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "069fbf5ad9e85317"
+    },
+    {
+     "name": "catalogue_equivalence",
+     "commandId": "catalogue.equivalence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fea49081454d4a15"
+    },
+    {
+     "name": "catalogue_get_exercise",
+     "commandId": "catalogue.getExercise",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "94c63e7476b1e205"
+    },
+    {
+     "name": "catalogue_get_food",
+     "commandId": "catalogue.getFood",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a8cfa57b8bda1728"
+    },
+    {
+     "name": "catalogue_search_exercises",
+     "commandId": "catalogue.searchExercises",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "b3072e9e059f36bb"
+    },
+    {
+     "name": "catalogue_search_foods",
+     "commandId": "catalogue.searchFoods",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3aabe71e800291d7"
+    },
+    {
+     "name": "catalogue_supplements",
+     "commandId": "catalogue.supplements",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "data_usage",
+     "commandId": "data.usage",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "712e75fbda76638e"
+    },
+    {
+     "name": "day_get",
+     "commandId": "day.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "evidence_get",
+     "commandId": "evidence.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c55f0b1c70c9957d"
+    },
+    {
+     "name": "evidence_search",
+     "commandId": "evidence.search",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "15d5c95a1498f359"
+    },
+    {
+     "name": "food_candidates",
+     "commandId": "food.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "9f1dfd4d4db1fc82"
+    },
+    {
+     "name": "food_day_targets",
+     "commandId": "food.dayTargets",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5e272420c869949d"
+    },
+    {
+     "name": "food_delete_recipe",
+     "commandId": "food.deleteRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "144f1dea223acd49"
+    },
+    {
+     "name": "food_grocery_list",
+     "commandId": "food.groceryList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "ce1bbb109b250732"
+    },
+    {
+     "name": "food_parse",
+     "commandId": "food.parse",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c7e3af2021b93709"
+    },
+    {
+     "name": "food_plan_day",
+     "commandId": "food.planDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3061438d2027fe1f"
+    },
+    {
+     "name": "food_recipes",
+     "commandId": "food.recipes",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "866f5fdeeb027fd5"
+    },
+    {
+     "name": "food_save_recipe",
+     "commandId": "food.saveRecipe",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c21ed4647e6b6c6"
+    },
+    {
+     "name": "goals_edit",
+     "commandId": "goals.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3833c1460101e13a"
+    },
+    {
+     "name": "goals_get",
+     "commandId": "goals.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "981068a1bc2914b8"
+    },
+    {
+     "name": "goals_suggest",
+     "commandId": "goals.suggest",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5bee78f0ca618831"
+    },
+    {
+     "name": "history_list",
+     "commandId": "history.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7c938c3b2393904a"
+    },
+    {
+     "name": "history_seal",
+     "commandId": "history.seal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4ba29633bb9ec335"
+    },
+    {
+     "name": "history_undo",
+     "commandId": "history.undo",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fcc32c3be55ece93"
+    },
+    {
+     "name": "intake_answer",
+     "commandId": "intake.answer",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "59867041d087c73a"
+    },
+    {
+     "name": "intake_get",
+     "commandId": "intake.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82f97bd765a59179"
+    },
+    {
+     "name": "intake_next_questions",
+     "commandId": "intake.nextQuestions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "fac23073462cc2b0"
+    },
+    {
+     "name": "intake_skip",
+     "commandId": "intake.skip",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d1a9faa7b814d798"
+    },
+    {
+     "name": "job_cancel",
+     "commandId": "job.cancel",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5da294fbd0e3cce4"
+    },
+    {
+     "name": "job_result",
+     "commandId": "job.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "209686a5464dd63d"
+    },
+    {
+     "name": "job_status",
+     "commandId": "job.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2b69c8a76a859aee"
+    },
+    {
+     "name": "kitchen_add",
+     "commandId": "kitchen.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "87b1cdbc61fefdb6"
+    },
+    {
+     "name": "kitchen_get",
+     "commandId": "kitchen.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cd140c210864f500"
+    },
+    {
+     "name": "kitchen_set",
+     "commandId": "kitchen.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7741ba6efc62055e"
+    },
+    {
+     "name": "log_bulk",
+     "commandId": "log.bulk",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "6866592e4bc408b5"
+    },
+    {
+     "name": "log_confirm_day",
+     "commandId": "log.confirmDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "26418dddff861151"
+    },
+    {
+     "name": "log_edit",
+     "commandId": "log.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0881127fa08aa701"
+    },
+    {
+     "name": "log_fast",
+     "commandId": "log.fast",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d65488c52342036e"
+    },
+    {
+     "name": "log_from_biometrics",
+     "commandId": "log.fromBiometrics",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ffe30523fd724b53"
+    },
+    {
+     "name": "log_get",
+     "commandId": "log.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "dcadf60a1d67a071"
+    },
+    {
+     "name": "log_mark_day",
+     "commandId": "log.markDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "547c113024358d95"
+    },
+    {
+     "name": "log_meal",
+     "commandId": "log.meal",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6635a32a6f9267b5"
+    },
+    {
+     "name": "log_meal_from_photo",
+     "commandId": "log.mealFromPhoto",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dcdcbfdf034fcf83"
+    },
+    {
+     "name": "log_measurement",
+     "commandId": "log.measurement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "aa1fce3dac3d1790"
+    },
+    {
+     "name": "log_note",
+     "commandId": "log.note",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1464b428776546de"
+    },
+    {
+     "name": "log_retract",
+     "commandId": "log.retract",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "b858fec5a7cadc92"
+    },
+    {
+     "name": "log_session",
+     "commandId": "log.session",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c3801768e66bcfb"
+    },
+    {
+     "name": "log_sleep",
+     "commandId": "log.sleep",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9c223c1eb72c1b77"
+    },
+    {
+     "name": "log_steps",
+     "commandId": "log.steps",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "d522d9ca143248f5"
+    },
+    {
+     "name": "log_subjective",
+     "commandId": "log.subjective",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "e262b931650242f5"
+    },
+    {
+     "name": "log_substance",
+     "commandId": "log.substance",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "5d759313fd20143e"
+    },
+    {
+     "name": "log_supplement",
+     "commandId": "log.supplement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0beb15799d81909e"
+    },
+    {
+     "name": "markers_get",
+     "commandId": "markers.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "348e4dbc044566ac"
+    },
+    {
+     "name": "markers_import",
+     "commandId": "markers.import",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "33287aae0f6c162d"
+    },
+    {
+     "name": "markers_remove",
+     "commandId": "markers.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31976c2fb217fda3"
+    },
+    {
+     "name": "markers_set",
+     "commandId": "markers.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "8f757ecfbff10467"
+    },
+    {
+     "name": "pantry_add",
+     "commandId": "pantry.add",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9acd0adae1bac40d"
+    },
+    {
+     "name": "pantry_get",
+     "commandId": "pantry.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "82ba72943ba88fa8"
+    },
+    {
+     "name": "pantry_parse_list",
+     "commandId": "pantry.parseList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "2fb69349b8552e6f"
+    },
+    {
+     "name": "pantry_remove",
+     "commandId": "pantry.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "1197dd4a76170248"
+    },
+    {
+     "name": "plan_adherence",
+     "commandId": "plan.adherence",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7b7626f39520f1ba"
+    },
+    {
+     "name": "plan_adopt_version",
+     "commandId": "plan.adoptVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_declare_event",
+     "commandId": "plan.declareEvent",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e5b2cc0601a7d58c"
+    },
+    {
+     "name": "plan_discard",
+     "commandId": "plan.discard",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e94dac7148e38d68"
+    },
+    {
+     "name": "plan_drift",
+     "commandId": "plan.drift",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_edit_day",
+     "commandId": "plan.editDay",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "550d1830d98c2d29"
+    },
+    {
+     "name": "plan_end",
+     "commandId": "plan.end",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "903e49f57fa1ef35"
+    },
+    {
+     "name": "plan_get",
+     "commandId": "plan.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f60c2492c81e954c"
+    },
+    {
+     "name": "plan_pause",
+     "commandId": "plan.pause",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_reject_version",
+     "commandId": "plan.rejectVersion",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0b1336ed4e8ca5bf"
+    },
+    {
+     "name": "plan_replace",
+     "commandId": "plan.replace",
+     "version": 1,
+     "perm": "destructive",
+     "confirm": "destructive",
+     "schemaHash": "b7231d3eeb432846"
+    },
+    {
+     "name": "plan_replan",
+     "commandId": "plan.replan",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "e4ea2359ac88149a"
+    },
+    {
+     "name": "plan_resume",
+     "commandId": "plan.resume",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "af2e69959ded2adb"
+    },
+    {
+     "name": "plan_shift",
+     "commandId": "plan.shift",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "5784cc042f9aeb4f"
+    },
+    {
+     "name": "plan_start",
+     "commandId": "plan.start",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cdd995625f9098ca"
+    },
+    {
+     "name": "plan_swap_exercise",
+     "commandId": "plan.swapExercise",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "fc330a7bb913bec3"
+    },
+    {
+     "name": "plan_versions",
+     "commandId": "plan.versions",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "80c300a4e51111d5"
+    },
+    {
+     "name": "planner_find",
+     "commandId": "planner.find",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "f1735e131e32afd5"
+    },
+    {
+     "name": "planner_open_in_simulator",
+     "commandId": "planner.openInSimulator",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "c43f69cbd50a0ac9"
+    },
+    {
+     "name": "planner_result",
+     "commandId": "planner.result",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "806fbaf51772e9c6"
+    },
+    {
+     "name": "planner_stop",
+     "commandId": "planner.stop",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "7e1c2cce7d1f9429"
+    },
+    {
+     "name": "profile_explain_maintenance",
+     "commandId": "profile.explainMaintenance",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "64084622934e950c"
+    },
+    {
+     "name": "profile_get",
+     "commandId": "profile.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "cb715241d34d5f5f"
+    },
+    {
+     "name": "profile_patch",
+     "commandId": "profile.patch",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "00e4615b831237cb"
+    },
+    {
+     "name": "profile_reset_shape",
+     "commandId": "profile.resetShape",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "2c0b8b56898361bf"
+    },
+    {
+     "name": "safety_report_illness",
+     "commandId": "safety.reportIllness",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "31d332d5a244bfbf"
+    },
+    {
+     "name": "safety_status",
+     "commandId": "safety.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "68911cb0091b18c0"
+    },
+    {
+     "name": "scenario_apply_starter",
+     "commandId": "scenario.applyStarter",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9b273648719d210f"
+    },
+    {
+     "name": "scenario_create",
+     "commandId": "scenario.create",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a49e682866e88a4e"
+    },
+    {
+     "name": "scenario_delete",
+     "commandId": "scenario.delete",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0cb00f2beeb9fa93"
+    },
+    {
+     "name": "scenario_duplicate",
+     "commandId": "scenario.duplicate",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a4894eec17fb9257"
+    },
+    {
+     "name": "scenario_edit",
+     "commandId": "scenario.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "9079afb8cc5af4fb"
+    },
+    {
+     "name": "scenario_ensure_active",
+     "commandId": "scenario.ensureActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "a13577b717e67862"
+    },
+    {
+     "name": "scenario_get",
+     "commandId": "scenario.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "833d897e442041dd"
+    },
+    {
+     "name": "scenario_list",
+     "commandId": "scenario.list",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3fe1099f700aea45"
+    },
+    {
+     "name": "scenario_rename",
+     "commandId": "scenario.rename",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "dc32128da46e1850"
+    },
+    {
+     "name": "scenario_set_active",
+     "commandId": "scenario.setActive",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "4df27287968e59c7"
+    },
+    {
+     "name": "settings_get",
+     "commandId": "settings.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "99534f77db0b85b6"
+    },
+    {
+     "name": "settings_update",
+     "commandId": "settings.update",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "6299a067c6ff5e1e"
+    },
+    {
+     "name": "sim_compare",
+     "commandId": "sim.compare",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "sim_explain",
+     "commandId": "sim.explain",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "7a455ce8d786d547"
+    },
+    {
+     "name": "sim_run",
+     "commandId": "sim.run",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "eae751f221497f98"
+    },
+    {
+     "name": "sim_series",
+     "commandId": "sim.series",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a401e3984c8a3496"
+    },
+    {
+     "name": "sim_what_if",
+     "commandId": "sim.whatIf",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "c38cfc9f8ea78714"
+    },
+    {
+     "name": "supplements_get",
+     "commandId": "supplements.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "8b4114bee670f582"
+    },
+    {
+     "name": "supplements_remove",
+     "commandId": "supplements.remove",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "27ee1b16559fa3ee"
+    },
+    {
+     "name": "supplements_set",
+     "commandId": "supplements.set",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "86dc9ad584518962"
+    },
+    {
+     "name": "sync_now",
+     "commandId": "sync.now",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "sync_status",
+     "commandId": "sync.status",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "322d8098578f0bab"
+    },
+    {
+     "name": "today_get",
+     "commandId": "today.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "524960f03927900a"
+    },
+    {
+     "name": "train_alternatives",
+     "commandId": "train.alternatives",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "5750c1eff6dbbb64"
+    },
+    {
+     "name": "train_session",
+     "commandId": "train.session",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "3be33d3e7660c1a9"
+    },
+    {
+     "name": "train_shopping_list",
+     "commandId": "train.shoppingList",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "a9673705e3191090"
+    }
+   ],
+   "excluded": [
+    {
+     "commandId": "agents.configure",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "ai.configure",
+     "reason": "keys and providers are configured by the person in the app"
+    },
+    {
+     "commandId": "bio.deleteSource",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "bio.deviceConnect",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.deviceSync",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.import",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "bio.rescore",
+     "reason": "background maintenance the app schedules itself"
+    },
+    {
+     "commandId": "bio.setPolicy",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "biometrics.dropPriorities",
+     "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "coach.applyPending",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "coach.conversations",
+     "reason": "Coach history stays in the app"
+    },
+    {
+     "commandId": "coach.delete",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "coach.discardPending",
+     "reason": "proposals are reviewed in the app"
+    },
+    {
+     "commandId": "coach.history",
+     "reason": "Coach history stays in the app"
+    },
+    {
+     "commandId": "coach.pending",
+     "reason": "proposals are reviewed in the app"
+    },
+    {
+     "commandId": "coach.searchNotes",
+     "reason": "Coach history stays in the app"
+    },
+    {
+     "commandId": "data.eraseAll",
+     "reason": "erasing the person's data needs their own confirmation in the app"
+    },
+    {
+     "commandId": "data.export",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "data.import",
+     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
+    },
+    {
+     "commandId": "markers.confirm",
+     "reason": "the person checks and confirms the review table in the app"
+    },
+    {
+     "commandId": "nav.open",
+     "reason": "an MCP client has no app screen to open"
+    },
+    {
+     "commandId": "plan.checkIn",
+     "reason": "the check-in runs in the app on its day"
+    },
+    {
+     "commandId": "profile.setSetupStep",
+     "reason": "screen progress of the app itself, not a change an agent should make"
+    },
+    {
+     "commandId": "safety.acknowledge",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.acknowledgeDanger",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.clearAgeAnswer",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.clearFastingOptIn",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.commitScreening",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.setFastingOptIn",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.setShortWindow",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "scenario.redo",
+     "reason": "step history belongs to the open Simulator session"
+    },
+    {
+     "commandId": "scenario.undo",
+     "reason": "step history belongs to the open Simulator session"
+    },
+    {
+     "commandId": "sync.configure",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.join",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.pair",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.rotate",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "sync.unpair",
+     "reason": "requires the person's own consent in the app"
+    }
+   ]
+  }
+ }
+}

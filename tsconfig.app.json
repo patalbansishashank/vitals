@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "paths": { "@/*": ["./src/*"] }
+  },
+  "include": ["src", "tests", "packages/companion/src/home/personProgram.ts", "packages/companion/src/home/personProgram.test.ts", "packages/companion/src/home/personWorkerEntry.ts", "packages/companion/src/home/identicalBatch.test.ts", "packages/companion/src/home/freshReplica.test.ts", "packages/companion/src/home/chunkCopies.test.ts", "packages/companion/src/home/syncedScores.test.ts", "packages/companion/src/home/notOnServer.test.ts"]
+}

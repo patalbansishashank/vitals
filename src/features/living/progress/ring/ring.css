@@ -1,0 +1,117 @@
+/* ==========================================================================
+   Ring views on Progress and the score details (night stages, day lines,
+   steps, workouts). Colour only on data marks: the recovery hue for sleep
+   and night signals, the cardio hue for heart rate and activity; unknown
+   sleep is hatched ink, missing days a dashed hollow mark. Tokens only.
+   ========================================================================== */
+
+@layer components {
+  .lv-ring-night,
+  .lv-ring-day,
+  .lv-ring-steps {
+    min-width: 0;
+    margin-bottom: 8px;
+  }
+  .lv-ring-day { --lv-ring-hue: var(--lm-cat-cardio); }
+  .lv-ring-day[data-hue='recovery'] { --lv-ring-hue: var(--lm-cat-recovery); }
+  .lv-ring-steps { --lv-ring-hue: var(--lm-cat-cardio); }
+  .lv-ring-svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .lv-ring-title { margin: 0 0 4px; }
+  .lv-ring-lines {
+    margin: 0 0 8px;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  .lv-ring-note {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--lm-ink-2);
+  }
+  .lv-ring-grid {
+    stroke: var(--lm-line);
+    stroke-width: 1;
+  }
+  .lv-ring-tick {
+    font-size: 11px;
+    fill: var(--lm-chart-tick);
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-ring-line {
+    fill: none;
+    stroke: var(--lv-ring-hue);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+  }
+  .lv-ring-dot { fill: var(--lv-ring-hue); }
+  .lv-ring-ref line {
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }
+  .lv-ring-ref text {
+    font-size: 11px;
+    fill: var(--lm-ink);
+  }
+  .lv-ring-bar { fill: var(--lv-ring-hue); }
+  .lv-ring-missing {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+
+  /* stages: depth by row and by tint of the recovery hue; unknown hatched */
+  .lv-ring-stage,
+  .lv-ring-key { --lv-stage: var(--lm-cat-recovery); }
+  .lv-ring-stage { fill: var(--lv-stage); }
+  .lv-ring-stage[data-stage='light'] { fill: color-mix(in srgb, var(--lm-cat-recovery) 60%, transparent); }
+  .lv-ring-stage[data-stage='rem'] { fill: color-mix(in srgb, var(--lm-cat-recovery) 35%, var(--lm-ink-2)); }
+  .lv-ring-stage[data-stage='awake'] { fill: var(--lm-ink-3); }
+  .lv-ring-stage[data-stage='unknown'] {
+    fill: color-mix(in srgb, var(--lm-ink-3) 30%, transparent);
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+  }
+  .lv-ring-key {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 4px;
+    border-radius: 2px;
+    background: var(--lm-cat-recovery);
+    vertical-align: -1px;
+  }
+  .lv-ring-key[data-stage='light'] { background: color-mix(in srgb, var(--lm-cat-recovery) 60%, transparent); }
+  .lv-ring-key[data-stage='rem'] { background: color-mix(in srgb, var(--lm-cat-recovery) 35%, var(--lm-ink-2)); }
+  .lv-ring-key[data-stage='awake'] { background: var(--lm-ink-3); }
+  .lv-ring-key[data-stage='unknown'] {
+    background: transparent;
+    outline: 1px dashed var(--lm-ink-3);
+    outline-offset: -1px;
+  }
+  .lv-ring-table { max-width: 420px; margin-top: 8px; }
+
+  .lv-ring-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lv-ring-nav__day {
+    min-width: 10ch;
+    text-align: center;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-ring-scroll { overflow-x: auto; }
+  .lv-ring-workouts { min-width: 520px; }
+  .lv-ring-workouts td,
+  .lv-ring-workouts th { white-space: nowrap; }
+}

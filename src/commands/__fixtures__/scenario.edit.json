@@ -1,0 +1,22 @@
+{
+  "id": "starter",
+  "ops": [
+    {
+      "op": "paint",
+      "days": [
+        3,
+        4
+      ],
+      "program": 0
+    },
+    {
+      "op": "editDays",
+      "days": [
+        5
+      ],
+      "patch": {
+        "steps": 11000
+      }
+    }
+  ]
+}

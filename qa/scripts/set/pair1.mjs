@@ -1,0 +1,18 @@
+import { openPersistent, dump, text, BASE, shot } from './lib.mjs';
+const RELAY = process.env.RELAY || 'http://127.0.0.1:4191';
+const { ctx, page, errors } = await openPersistent('/media/DEV/tmp/qa-set-prof1');
+page.on('requestfailed', r => console.log('FAILED', r.url(), r.failure()?.errorText));
+await page.goto(BASE + '/settings#sync', { waitUntil: 'networkidle' });
+await page.waitForTimeout(1000);
+const sec = page.locator('section#sync');
+await sec.getByLabel('sync server address').fill(RELAY);
+await sec.getByRole('button', { name: 'Set up sync on this device' }).click();
+await page.waitForTimeout(6000);
+await dump(page, 'after setup', 'main');
+console.log(await sec.innerText());
+await shot(page, 'pair-panel');
+const uri = await page.evaluate(() => { const ol = document.querySelector('ol[aria-label="The 24 words"]'); return ol ? [...ol.querySelectorAll('li span:last-child')].map(s => s.textContent).join(' ') : null; });
+console.log('WORDS', uri);
+import fs from 'node:fs'; fs.writeFileSync('/media/DEV/tmp/qa-set-words.txt', uri || '');
+console.log('ERRORS', errors);
+await ctx.close();

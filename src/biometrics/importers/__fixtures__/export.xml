@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE HealthData [
+<!-- HealthKit Export Version: 14 -->
+<!ELEMENT HealthData (ExportDate,Me,(Record|Correlation|Workout|ActivitySummary|ClinicalRecord|Audiogram|VisionPrescription)*)>
+<!ATTLIST HealthData
+  locale CDATA #REQUIRED
+>
+]>
+<HealthData locale="en_GB">
+ <ExportDate value="2026-09-30 22:00:00 +0200"/>
+ <Me HKCharacteristicTypeIdentifierDateOfBirth="1990-01-01" HKCharacteristicTypeIdentifierBiologicalSex="HKBiologicalSexNotSet"/>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Sam&apos;s Apple Watch" sourceVersion="10.0" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,2, software:10.0&gt;&gt;" unit="count/min" creationDate="2026-09-29 08:00:05 +0200" startDate="2026-09-29 08:00:00 +0200" endDate="2026-09-29 08:00:00 +0200" value="61"/>
+ <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="Sam&apos;s Apple Watch" sourceVersion="10.0" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, manufacturer:Apple Inc., model:Watch, hardware:Watch6,2, software:10.0&gt;&gt;" unit="count/min" creationDate="2026-09-29 08:05:05 +0200" startDate="2026-09-29 08:05:00 +0200" endDate="2026-09-29 08:05:00 +0200" value="67">
+  <MetadataEntry key="HKMetadataKeyHeartRateMotionContext" value="0"/>
+ </Record>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="count/min" startDate="2026-09-29 00:00:00 +0200" endDate="2026-09-29 23:59:00 +0200" value="52"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="ms" startDate="2026-09-29 03:00:00 +0200" endDate="2026-09-29 03:01:00 +0200" value="48.5">
+  <HeartRateVariabilityMetadataList>
+   <InstantaneousBeatsPerMinute bpm="60" time="3:00:00.12 AM"/>
+  </HeartRateVariabilityMetadataList>
+ </Record>
+ <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="%" startDate="2026-09-29 03:10:00 +0200" endDate="2026-09-29 03:10:00 +0200" value="0.97"/>
+ <Record type="HKQuantityTypeIdentifierOxygenSaturation" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="%" startDate="2026-09-29 03:20:00 +0200" endDate="2026-09-29 03:20:00 +0200" value="95"/>
+ <Record type="HKQuantityTypeIdentifierRespiratoryRate" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="count/min" startDate="2026-09-29 03:30:00 +0200" endDate="2026-09-29 03:30:00 +0200" value="14.5"/>
+ <Record type="HKQuantityTypeIdentifierAppleSleepingWristTemperature" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="degC" startDate="2026-09-29 03:40:00 +0200" endDate="2026-09-29 03:40:00 +0200" value="35.4"/>
+ <Record type="HKQuantityTypeIdentifierBodyTemperature" sourceName="Thermo" unit="degC" startDate="2026-09-29 09:00:00 +0200" endDate="2026-09-29 09:00:00 +0200" value="36.8"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Sam&apos;s iPhone" device="&lt;&lt;HKDevice: 0x601, name:iPhone, manufacturer:Apple Inc., model:iPhone, hardware:iPhone15,2, software:17.0&gt;&gt;" unit="count" startDate="2026-09-29 09:00:00 +0200" endDate="2026-09-29 09:10:00 +0200" value="500"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="Sam&apos;s iPhone" device="&lt;&lt;HKDevice: 0x601, name:iPhone, manufacturer:Apple Inc., model:iPhone, hardware:iPhone15,2, software:17.0&gt;&gt;" unit="count" startDate="2026-09-29 10:00:00 +0200" endDate="2026-09-29 10:10:00 +0200" value="700"/>
+ <Record type="HKQuantityTypeIdentifierDistanceWalkingRunning" sourceName="Sam&apos;s iPhone" device="&lt;&lt;HKDevice: 0x601, name:iPhone, manufacturer:Apple Inc., model:iPhone, hardware:iPhone15,2, software:17.0&gt;&gt;" unit="km" startDate="2026-09-29 09:00:00 +0200" endDate="2026-09-29 09:10:00 +0200" value="0.4"/>
+ <Record type="HKQuantityTypeIdentifierActiveEnergyBurned" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="kJ" startDate="2026-09-29 09:00:00 +0200" endDate="2026-09-29 09:10:00 +0200" value="41.84"/>
+ <Record type="HKQuantityTypeIdentifierVO2Max" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" unit="mL/min·kg" startDate="2026-09-29 12:00:00 +0200" endDate="2026-09-29 12:00:00 +0200" value="44.2"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Scale &amp; Co" unit="lb" startDate="2026-09-29 07:00:00 +0200" endDate="2026-09-29 07:00:00 +0200" value="176.37">
+  <MetadataEntry key="HKWasUserEntered" value="1"/>
+ </Record>
+ <Record type="HKQuantityTypeIdentifierBodyFatPercentage" sourceName="Scale &amp; Co" unit="%" startDate="2026-09-29 07:00:00 +0200" endDate="2026-09-29 07:00:00 +0200" value="0.215"/>
+ <Record type="HKQuantityTypeIdentifierLeanBodyMass" sourceName="Scale &amp; Co" unit="kg" startDate="2026-09-29 07:00:00 +0200" endDate="2026-09-29 07:00:00 +0200" value="62.5"/>
+ <Record type="HKQuantityTypeIdentifierWaistCircumference" sourceName="Scale &amp; Co" unit="cm" startDate="2026-09-29 07:00:00 +0200" endDate="2026-09-29 07:00:00 +0200" value="84"/>
+ <Correlation type="HKCorrelationTypeIdentifierBloodPressure" sourceName="BP Cuff" startDate="2026-09-29 07:30:00 +0200" endDate="2026-09-29 07:30:00 +0200">
+  <Record type="HKQuantityTypeIdentifierBloodPressureSystolic" sourceName="BP Cuff" unit="mmHg" startDate="2026-09-29 07:30:00 +0200" endDate="2026-09-29 07:30:00 +0200" value="121"/>
+  <Record type="HKQuantityTypeIdentifierBloodPressureDiastolic" sourceName="BP Cuff" unit="mmHg" startDate="2026-09-29 07:30:00 +0200" endDate="2026-09-29 07:30:00 +0200" value="79"/>
+ </Correlation>
+ <Record type="HKQuantityTypeIdentifierBloodPressureSystolic" sourceName="BP Cuff" unit="mmHg" startDate="2026-09-29 07:30:00 +0200" endDate="2026-09-29 07:30:00 +0200" value="121"/>
+ <Record type="HKQuantityTypeIdentifierBloodPressureDiastolic" sourceName="BP Cuff" unit="mmHg" startDate="2026-09-29 07:30:00 +0200" endDate="2026-09-29 07:30:00 +0200" value="79"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Meter" unit="mmol&lt;180.1559&gt;/L" startDate="2026-09-29 07:45:00 +0200" endDate="2026-09-29 07:45:00 +0200" value="5.0"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-28 23:00:00 +0200" endDate="2026-09-29 06:30:00 +0200" value="HKCategoryValueSleepAnalysisInBed"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-28 23:10:00 +0200" endDate="2026-09-29 01:10:00 +0200" value="HKCategoryValueSleepAnalysisAsleepCore"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-29 01:10:00 +0200" endDate="2026-09-29 02:10:00 +0200" value="HKCategoryValueSleepAnalysisAsleepDeep"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-29 02:10:00 +0200" endDate="2026-09-29 02:30:00 +0200" value="HKCategoryValueSleepAnalysisAwake"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-29 02:30:00 +0200" endDate="2026-09-29 04:30:00 +0200" value="HKCategoryValueSleepAnalysisAsleepREM"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-29 04:30:00 +0200" endDate="2026-09-29 06:20:00 +0200" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" startDate="2026-09-29 14:00:00 +0200" endDate="2026-09-29 14:30:00 +0200" value="HKCategoryValueSleepAnalysisAsleepCore"/>
+ <Workout workoutActivityType="HKWorkoutActivityTypeTraditionalStrengthTraining" duration="45.5" durationUnit="min" totalDistance="3.2" totalDistanceUnit="km" totalEnergyBurned="320" totalEnergyBurnedUnit="kcal" sourceName="Sam&apos;s Apple Watch" device="&lt;&lt;HKDevice: 0x600, name:Apple Watch, model:Watch, hardware:Watch6,2&gt;&gt;" creationDate="2026-09-29 18:50:00 +0200" startDate="2026-09-29 18:00:00 +0200" endDate="2026-09-29 18:46:00 +0200">
+  <MetadataEntry key="HKIndoorWorkout" value="1"/>
+  <WorkoutStatistics type="HKQuantityTypeIdentifierHeartRate" startDate="2026-09-29 18:00:00 +0200" endDate="2026-09-29 18:46:00 +0200" average="128.5" minimum="90" maximum="165" unit="count/min"/>
+  <WorkoutEvent type="HKWorkoutEventTypePause" date="2026-09-29 18:20:00 +0200"/>
+ </Workout>
+</HealthData>

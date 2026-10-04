@@ -1,0 +1,26 @@
+{
+ "algo": "v1",
+ "refKey": "1.0.0-contract-3b70e02c-2f251099",
+ "problems": {
+  "T1/train/sphere-10": {
+   "lexSuccess": 1,
+   "r1": 0.000005490303100560053
+  },
+  "T2/train/k2-s4": {
+   "lexSuccess": 0.6666666666666666,
+   "r1": 0.04776581725750828
+  },
+  "T3/train/s50": {
+   "lexSuccess": 0,
+   "r1": 0.08641316226041629
+  },
+  "T4/train/convex-5": {
+   "lexSuccess": 1,
+   "r1": 5.360110138334188e-7
+  },
+  "R1/smoke-c": {
+   "lexSuccess": 0,
+   "r1": 0.06544270934287462
+  }
+ }
+}

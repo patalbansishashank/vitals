@@ -1,0 +1,694 @@
+/* ==========================================================================
+   Living-mode charts (CHART_SPEC §7.8–7.10, COMPONENTS §13.9): adherence
+   dial, adherence calendar, per-block bars, trend lane, score history.
+   Achromatic states (ink, hollow, dash); colour only on data marks.
+   ========================================================================== */
+.lmc-dial {
+  position: relative;
+  display: inline-grid;
+  justify-items: center;
+  gap: 4px;
+  flex: none;
+}
+.lmc-dial__svg {
+  display: block;
+  overflow: visible;
+}
+.lmc-dial__hair {
+  fill: none;
+  stroke: var(--lm-line);
+}
+.lmc-dial__arc path,
+path.lmc-dial__arc {
+  fill: none;
+  transition:
+    stroke var(--lm-dur-fast) var(--lm-ease-out),
+    opacity var(--lm-dur-fast) var(--lm-ease-out);
+}
+path.lmc-dial__arc[data-state='done'],
+.lmc-dial__ink {
+  stroke: var(--lm-ink);
+  stroke-linecap: butt;
+}
+path.lmc-dial__arc[data-state='unknown'] {
+  stroke: var(--lm-ink-3);
+}
+.lmc-dial__hollow {
+  fill: none;
+  stroke: var(--lm-edge);
+}
+.lmc-dial__hollow-line {
+  stroke: var(--lm-edge);
+}
+.lmc-dial [data-arc] {
+  cursor: default;
+}
+.lmc-dial__centre {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  pointer-events: none;
+}
+.lmc-dial[data-size='sm'] .lmc-dial__centre,
+.lmc-dial[data-size='md'] .lmc-dial__centre {
+  height: var(--lmc-dial-px);
+}
+.lmc-dial[data-size='sm'] { --lmc-dial-px: 64px; }
+.lmc-dial[data-size='md'] { --lmc-dial-px: 120px; }
+.lmc-dial__num {
+  font-stretch: 120%;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums slashed-zero;
+  line-height: 1;
+  color: var(--lm-ink);
+}
+.lmc-dial[data-size='sm'] .lmc-dial__num { font-size: 17px; }
+.lmc-dial[data-size='md'] .lmc-dial__num { font-size: 32px; }
+.lmc-dial__sub {
+  margin-top: 4px;
+  /* stays inside the ring: "not enough logged" wraps to two lines instead of crossing it (Q6) */
+  max-width: calc(var(--lmc-dial-px, 120px) * 0.7);
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--lm-ink-2);
+  text-align: center;
+}
+.lmc-dial__word,
+.lmc-dial__coverage {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lm-ink-2);
+  text-align: center;
+}
+
+/* ==========================================================================
+   Trend lane, score history, adherence calendar, per-block bars.
+   Tokens only; chrome achromatic; the now-hand and the calendar's today dot
+   are the only yellow. SVG text never below 11 px (REVIEW_FINDINGS #8).
+   ========================================================================== */
+@layer components {
+  /* ------------------------------------------------------ shared svg bits */
+  .lmc-lv-svg {
+    display: block;
+    overflow: visible;
+  }
+  .lmc-lv-svg text {
+    font-family: var(--lm-font-sans);
+  }
+  .lmc-lv-tick {
+    fill: var(--lm-ink-3);
+    font-size: 11px;
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+  }
+  .lmc-lv-eng {
+    fill: var(--lm-ink-2);
+    font-size: 11px;
+    font-weight: 500;
+  }
+  .lmc-lv-halo {
+    paint-order: stroke;
+    stroke: var(--lm-face);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+  .lmc-lv-grid {
+    stroke: var(--lm-chart-grid);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-lv-axis {
+    stroke: var(--lm-chart-axis);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-lv-tickmark {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-lv-hatch {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-opacity: 0.45;
+  }
+  .lmc-lv-xhair {
+    stroke: var(--lm-chart-crosshair);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-lv-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 0 0 6px;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmc-lv-legend[data-inline='true'] {
+    margin: 0;
+  }
+  .lmc-lv-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lmc-lv-legend svg {
+    display: block;
+    flex: none;
+    overflow: visible;
+  }
+  .lmc-lv-tip {
+    position: absolute;
+    top: 4px;
+    z-index: 3;
+    display: grid;
+    gap: 1px;
+    min-width: 148px;
+    max-width: 240px;
+    padding: 7px 10px;
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-pop);
+    pointer-events: none;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  .lmc-lv-tip b {
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .lmc-lv-tip[data-side='right'] {
+    transform: translateX(10px);
+  }
+  .lmc-lv-tip[data-side='left'] {
+    transform: translateX(calc(-100% - 10px));
+  }
+  /* small lanes (Today): the readout docks as one line over the top of the plot */
+  .lmc-lv-tip[data-dock='true'] {
+    top: 0;
+    left: 0;
+    right: 0;
+    max-width: none;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 8px;
+    padding: 3px 8px;
+    transform: none;
+    border-radius: var(--lm-radius-sm);
+    box-shadow: none;
+    border: 1px solid var(--lm-line);
+  }
+
+  /* ------------------------------------------------------------ trend lane */
+  .lmc-tl,
+  .lmc-sh {
+    position: relative;
+    min-width: 0;
+  }
+  .lmc-tl__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .lmc-tl__lead {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lmc-tl__title {
+    margin: 0;
+  }
+  .lmc-tl__readout {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  .lmc-tl__plot {
+    position: relative;
+    touch-action: pan-y;
+    border-radius: var(--lm-radius-xs);
+    cursor: crosshair;
+  }
+  .lmc-tl__plot:focus {
+    outline: none;
+  }
+  .lmc-tl__plot:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lmc-tl__band {
+    fill: var(--lm-cat-body);
+    fill-opacity: var(--lm-chart-band-alpha);
+    stroke: none;
+  }
+  .lmc-tl__p50 {
+    fill: none;
+    stroke: var(--lm-cat-body);
+    stroke-width: 1;
+    stroke-opacity: 0.5;
+  }
+  .lmc-tl__presc {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+  .lmc-tl__goal {
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-tl__dot {
+    fill: var(--lm-cat-body);
+    fill-opacity: 0.35;
+  }
+  .lmc-tl__dot--flagged {
+    fill: var(--lm-face);
+    fill-opacity: 1;
+    stroke: var(--lm-cat-body);
+    stroke-width: 1;
+    stroke-opacity: 0.8;
+  }
+  .lmc-tl__trend {
+    fill: none;
+    stroke: var(--lm-cat-body);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .lmc-tl__event {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-tl__now line {
+    stroke: var(--lm-chart-now);
+    stroke-width: 1.5;
+  }
+  .lmc-tl__now circle {
+    fill: var(--lm-chart-now);
+    stroke: var(--lm-signal-edge);
+    stroke-width: 1;
+  }
+  .lmc-tl__xdot,
+  .lmc-sh__xdot {
+    stroke: var(--lm-chart-ring);
+    stroke-width: 2;
+  }
+  .lmc-tl__xdot {
+    fill: var(--lm-cat-body);
+  }
+  .lmc-tl__bar {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-tl__arrow {
+    fill: none;
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* --------------------------------------------------------- score history */
+  .lmc-sh {
+    --lmc-sh-hue: var(--lm-cat-recovery);
+  }
+  .lmc-sh__mean {
+    fill: none;
+    stroke: var(--lmc-sh-hue);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .lmc-sh__join {
+    stroke: var(--lmc-sh-hue);
+    stroke-width: 2;
+    stroke-dasharray: 3 3;
+  }
+  .lmc-sh__night {
+    fill: var(--lmc-sh-hue);
+    fill-opacity: 0.35;
+  }
+  .lmc-sh__normal {
+    fill: var(--lm-ink);
+    fill-opacity: 0.12;
+    stroke: none;
+  }
+  .lmc-sh__compare {
+    fill: none;
+    stroke: var(--lmc-sh-hue);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+  }
+  .lmc-sh__xdot {
+    fill: var(--lmc-sh-hue);
+  }
+
+  /* ------------------------------------------------------------ table twin */
+  .lmc-twin {
+    margin-top: 10px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lmc-twin__bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin__grow {
+    flex: 1;
+  }
+  .lmc-twin__wrap {
+    max-height: 320px;
+    overflow: auto;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lmc-twin__wrap:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lmc-twin__table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    font-size: var(--lm-text-sm);
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  .lmc-twin__table th,
+  .lmc-twin__table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--lm-line);
+    white-space: nowrap;
+    text-align: right;
+    color: var(--lm-ink);
+  }
+  .lmc-twin__table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--lm-face);
+    font-weight: 600;
+    font-stretch: 100%;
+    vertical-align: bottom;
+  }
+  .lmc-twin__table thead th small {
+    display: block;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin__table th[scope='row'],
+  .lmc-twin__table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--lm-face);
+    text-align: left;
+    font-weight: 500;
+  }
+  .lmc-twin__table thead th:first-child {
+    z-index: 3;
+  }
+  .lmc-twin__table td:last-child,
+  .lmc-twin__table thead th:last-child {
+    text-align: left;
+  }
+  .lmc-twin__table td small,
+  .lmc-twin__table th[scope='row'] small {
+    margin-left: 4px;
+    font-size: 11px;
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin__table tr[data-today='true'] th,
+  .lmc-twin__table tr[data-today='true'] td {
+    background: var(--lm-well);
+  }
+
+  /* -------------------------------------------------------------- calendar */
+  .lmc-cal {
+    min-width: 0;
+  }
+  .lmc-cal__caption {
+    margin-bottom: 6px;
+  }
+  .lmc-cal__grid {
+    display: grid;
+    gap: 2px;
+    max-width: 560px;
+  }
+  .lmc-cal__row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+  }
+  .lmc-cal__wd {
+    display: grid;
+    place-items: center;
+    height: 20px;
+  }
+  .lmc-cal__cell {
+    min-width: 0;
+  }
+  .lmc-cal__day,
+  .lmc-cal__blank {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    width: 100%;
+    min-height: var(--lm-hit-touch);
+    padding: 3px 0;
+    border: 1px solid transparent;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink);
+    font: inherit;
+  }
+  @media (pointer: fine) {
+    .lmc-cal__day,
+    .lmc-cal__blank {
+      min-height: 36px;
+    }
+  }
+  .lmc-cal__day {
+    cursor: pointer;
+    transition:
+      background var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lmc-cal__day:hover {
+    background: var(--lm-well);
+  }
+  .lmc-cal__day:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 1px;
+  }
+  .lmc-cal__day[data-selected='true'] {
+    border-color: var(--lm-ink);
+  }
+  .lmc-cal__num {
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 500;
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+  }
+  .lmc-cal__mark {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+  }
+  .lmc-cal__mark svg {
+    display: block;
+  }
+  .lmc-cal__hollow {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .lmc-cal__strike {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .lmc-cal__day--assumed {
+    border: 1px dashed var(--lm-edge);
+  }
+  .lmc-cal__day--paused .lmc-cal__num {
+    color: var(--lm-ink-2);
+  }
+  .lmc-cal__day--future .lmc-cal__num {
+    color: var(--lm-ink-3);
+    font-weight: 400;
+  }
+  /* the indicator dot sits just right of the date number, whatever the cell width */
+  .lmc-cal__now {
+    position: absolute;
+    top: 6px;
+    left: calc(50% + 9px);
+    width: 6px;
+    height: 6px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-signal);
+    border: 1px solid var(--lm-signal-edge);
+  }
+
+  /* ------------------------------------------------------- per-block bars */
+  .lmc-bb {
+    --lmc-bb-label: 76px;
+    --lmc-bb-value: 76px;
+    min-width: 0;
+  }
+  .lmc-bb__cap {
+    margin-bottom: 6px;
+  }
+  .lmc-bb__list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lmc-bb__row,
+  .lmc-bb__scale {
+    display: grid;
+    grid-template-columns: var(--lmc-bb-label) minmax(0, 1fr) var(--lmc-bb-value);
+    align-items: center;
+    gap: 10px;
+  }
+  .lmc-bb__row {
+    min-height: 28px;
+  }
+  .lmc-bb__label {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+    overflow-wrap: anywhere;
+  }
+  .lmc-bb__track {
+    position: relative;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+  }
+  .lmc-bb__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 2px;
+    background: var(--lm-ink);
+  }
+  /* printed scale ticks under the track (0 · 50 · 100) — a scale, not a target */
+  .lmc-bb__tick {
+    position: absolute;
+    top: 100%;
+    width: 1px;
+    height: 3px;
+    margin-left: -0.5px;
+    background: var(--lm-ink-3);
+  }
+  .lmc-bb__value {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    font-weight: 600;
+    font-stretch: 112%;
+    font-variant-numeric: tabular-nums slashed-zero;
+    color: var(--lm-ink);
+  }
+  .lmc-bb__row[data-known='false'] .lmc-bb__value,
+  .lmc-bb[data-quiet='true'] .lmc-bb__value {
+    font-weight: 500;
+    font-stretch: 100%;
+    color: var(--lm-ink-2);
+  }
+  .lmc-bb__scale {
+    height: 16px;
+    margin-top: 2px;
+  }
+  .lmc-bb__nums {
+    position: relative;
+    height: 16px;
+  }
+  .lmc-bb__nums b {
+    position: absolute;
+    top: 2px;
+    transform: translateX(-50%);
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 400;
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink-3);
+  }
+  .lmc-bb__nums b:first-child {
+    transform: none;
+  }
+  .lmc-bb__nums b:last-child {
+    transform: translateX(-100%);
+  }
+  .lmc-bb__cost {
+    margin: 8px 0 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  @media (max-width: 420px) {
+    .lmc-bb {
+      --lmc-bb-label: 64px;
+      --lmc-bb-value: 64px;
+    }
+  }
+
+  /* -------------------------------------------- forced colours (§9) */
+  @media (forced-colors: active) {
+    .lmc-tl__band,
+    .lmc-sh__normal {
+      fill: none;
+      stroke: CanvasText;
+      stroke-width: 1;
+    }
+    .lmc-tl__trend,
+    .lmc-sh__mean,
+    .lmc-sh__join,
+    .lmc-sh__compare,
+    .lmc-tl__presc {
+      stroke: CanvasText;
+    }
+    .lmc-tl__dot,
+    .lmc-sh__night {
+      fill: CanvasText;
+    }
+    .lmc-tl__now line,
+    .lmc-lv-xhair {
+      stroke: Highlight;
+    }
+    .lmc-tl__now circle,
+    .lmc-cal__now {
+      fill: Highlight;
+      background: Highlight;
+    }
+    .lmc-bb__fill {
+      background: CanvasText;
+    }
+  }
+}

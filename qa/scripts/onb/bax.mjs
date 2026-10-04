@@ -1,0 +1,12 @@
+import { open, BASE } from './lib.mjs';
+import { run } from './steps.mjs';
+import fs from 'node:fs';
+const { browser, page, errors } = await open({ args: process.argv[2] === 'nogl' ? ['--disable-webgl', '--disable-3d-apis'] : [] });
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await run(page, JSON.parse(fs.readFileSync('/media/DEV/tmp/base-shape.json', 'utf8')));
+await page.waitForTimeout(3000); console.log(page.url());
+const b = page.getByText('Adjust the drawing', { exact: false }); console.log('adj count', await b.count());
+await b.last().click(); await page.waitForTimeout(1000);
+const snap = await page.locator('main').ariaSnapshot();
+console.log(snap.split('\n').filter(l => /frame|visceral|figure|hips|shoulder|slider|Match|drawing|img/i.test(l)).join('\n').slice(0, 3000));
+console.log('ERRORS', errors); await browser.close();

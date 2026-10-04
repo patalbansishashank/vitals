@@ -1,0 +1,19 @@
+{
+  "ops": [
+    {
+      "op": "add",
+      "goal": {
+        "key": "fixture-goal",
+        "metric": "fatMass",
+        "mode": "lose",
+        "amount": 3,
+        "strength": "should",
+        "functional": null
+      }
+    },
+    {
+      "op": "setHorizon",
+      "days": 84
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+[{"goto":"/today","wait":2500},
+{"css":"[aria-label='Mark steps as planned']","wait":1500,"eval":"[...document.querySelectorAll('[role=status],[role=alert],.lm-toast')].map(e=>e.innerText).join(' || ')"},
+{"css":"[aria-label='Mark creatine as planned']","wait":1500,"eval":"[...document.querySelectorAll('[role=status],[role=alert],.lm-toast')].map(e=>e.innerText).join(' || ')"},
+{"css":"[aria-label='Mark sleep as planned']","wait":1500,"eval":"[...document.querySelectorAll('[role=status],[role=alert],.lm-toast')].map(e=>e.innerText).join(' || ')"},
+{"typeCss":"input[aria-label=weight]","value":"91.8","wait":1500,"eval":"[...document.querySelectorAll('[role=status],[role=alert],.lm-toast')].map(e=>e.innerText).join(' || ')"},
+{"click":"3","wait":1500,"eval":"[...document.querySelectorAll('[role=status],[role=alert],.lm-toast')].map(e=>e.innerText).join(' || ')"},
+{"wait":1000,"textDump":4000,"shot":"05-today-logged"}]

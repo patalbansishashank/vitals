@@ -1,0 +1,43 @@
+.lm-devfig {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1rem;
+  max-width: 80rem;
+  margin: 0 auto;
+}
+.lm-devfig__note {
+  max-width: 60ch;
+}
+.lm-devfig__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  align-items: center;
+}
+.lm-devfig__controls label {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.lm-devfig__stage {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+.lm-devfig__svg {
+  min-height: 20rem;
+}
+.lm-devfig__stats table {
+  border-collapse: collapse;
+}
+.lm-devfig__stats th,
+.lm-devfig__stats td {
+  padding: 0.15rem 0.75rem 0.15rem 0;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.lm-devfig__benchcanvas {
+  width: 320px;
+  height: 200px;
+}

@@ -1,0 +1,62 @@
+/* 3D figure: the SVG BodyAvatar owns the perforated stage, ruler, labels and handles; the WebGL canvas sits in the
+   same stage underneath (`.lm-fig3d__layer`) and fades in over the SVG body (tokens collapse under reduced motion). */
+@layer components {
+  .lm-fig3d {
+    margin: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .lm-fig3d[data-size='fill'] {
+    height: 100%;
+  }
+
+  .lm-fig3d__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: stretch;
+    min-height: 0;
+  }
+  .lm-fig3d[data-size='fill'] > .lm-fig3d__row {
+    flex: 1 1 auto;
+  }
+
+  .lm-fig3d__stage {
+    position: relative;
+    flex: 2 1 18rem;
+    min-width: 0;
+    min-height: 20rem;
+    aspect-ratio: 4 / 5;
+  }
+  .lm-fig3d[data-size='fill'] .lm-fig3d__stage {
+    min-height: 0;
+    aspect-ratio: auto;
+    height: 100%;
+  }
+  .lm-fig3d__stage > .lm-avatar {
+    height: 100%;
+  }
+
+  .lm-fig3d__layer {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out);
+  }
+  .lm-fig3d__layer[data-ready] {
+    opacity: 1;
+  }
+
+  .lm-fig3d__canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .lm-fig3d__visceral {
+    flex: 1 1 16rem;
+  }
+}

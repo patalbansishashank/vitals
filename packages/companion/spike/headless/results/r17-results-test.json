@@ -1,0 +1,332 @@
+{
+  "node": "v26.10.0",
+  "platform": "linux-x64",
+  "rssBaselineMiB": 117.6,
+  "importCommandBus": {
+    "ok": true,
+    "ms": 5019,
+    "commands": 162,
+    "rssMiB": 239.9,
+    "heapMiB": 123.7,
+    "deltaMiB": 122.3
+  },
+  "openPersonStore": {
+    "ok": true,
+    "openMs": 50,
+    "rssDeltaMiB": 0.2
+  },
+  "attachToCommandBus": {
+    "ok": true,
+    "ms": 16,
+    "rssMiB": 240.6
+  },
+  "commandContext": {
+    "tz": "Asia/Calcutta",
+    "device": "SERVERHME0000001"
+  },
+  "livingAutomation": {
+    "ok": true,
+    "ms": 1,
+    "started": true
+  },
+  "logLikeCommands": [
+    "catalogue.addEquipment",
+    "catalogue.addExercise",
+    "catalogue.addFood",
+    "catalogue.equipment",
+    "catalogue.equivalence",
+    "catalogue.getExercise",
+    "catalogue.getFood",
+    "catalogue.searchExercises",
+    "catalogue.searchFoods",
+    "catalogue.supplements",
+    "log.bulk",
+    "log.confirmDay",
+    "log.edit",
+    "log.fast",
+    "log.fromBiometrics",
+    "log.get",
+    "log.markDay",
+    "log.meal",
+    "log.mealFromPhoto",
+    "log.measurement",
+    "log.note",
+    "log.retract",
+    "log.session",
+    "log.sleep",
+    "log.steps",
+    "log.subjective",
+    "log.substance",
+    "log.supplement",
+    "plan.checkIn"
+  ],
+  "commands": {
+    "settings.update": {
+      "ok": true,
+      "ms": 18,
+      "kind": "output"
+    },
+    "profile.get": {
+      "ok": true,
+      "ms": 4,
+      "kind": "output"
+    },
+    "today.get": {
+      "ok": true,
+      "ms": 1,
+      "kind": "output"
+    },
+    "plan.get": {
+      "ok": true,
+      "ms": 0,
+      "kind": "output"
+    },
+    "day.get": {
+      "ok": true,
+      "ms": 0,
+      "kind": "output"
+    },
+    "food.dayTargets": {
+      "ok": true,
+      "ms": 0,
+      "kind": "output"
+    },
+    "goals.get": {
+      "ok": true,
+      "ms": 0,
+      "kind": "output"
+    },
+    "safety.status": {
+      "ok": true,
+      "ms": 2,
+      "kind": "output"
+    },
+    "pantry.add": {
+      "ok": true,
+      "ms": 266,
+      "kind": "output"
+    },
+    "log.steps": {
+      "ok": true,
+      "ms": 2,
+      "kind": "output"
+    },
+    "log.sleep": {
+      "ok": true,
+      "ms": 2,
+      "kind": "output"
+    },
+    "log.measurement": {
+      "ok": true,
+      "ms": 2,
+      "kind": "output"
+    },
+    "log.note": {
+      "ok": true,
+      "ms": 1,
+      "kind": "output"
+    },
+    "log.get": {
+      "ok": true,
+      "ms": 0,
+      "kind": "output"
+    },
+    "planner.find": {
+      "ok": false,
+      "code": "safety_blocked",
+      "message": "The Planner is not available with your safety answers."
+    },
+    "data.export": {
+      "ok": true,
+      "ms": 4,
+      "kind": "output"
+    },
+    "nav.open": {
+      "ok": true,
+      "ms": 0,
+      "kind": "output"
+    },
+    "markers.import": {
+      "ok": false,
+      "code": "not_found",
+      "message": "That file is not on this device."
+    },
+    "bio.daily": {
+      "ok": true,
+      "ms": 1,
+      "kind": "output"
+    }
+  },
+  "todayGetx20": {
+    "msEach": 0.3,
+    "rssDeltaMiB": 0
+  },
+  "bioImport": {
+    "ok": true,
+    "ms": 513,
+    "state": "done",
+    "result": {
+      "status": {
+        "jobId": "01M407QZQ0JGR39K4QZJHPE84W",
+        "state": "done",
+        "progress": 1,
+        "stage": "scoring"
+      },
+      "result": {
+        "importer": "lumen_cloudevents",
+        "records": 2,
+        "samples": 122,
+        "chunks": 3,
+        "duplicates": 0,
+        "skipped": 0,
+        "rejected": 0,
+        "sources": [
+          "file:lumen_cloudevents|:j-style_2301"
+        ],
+        "days": {
+          "from": "2026-10-01",
+          "to": "2026-10-02"
+        },
+        "warnings": [],
+        "scored": 46
+      }
+    },
+    "events": 124
+  },
+  "agentToolCall": {
+    "ok": true,
+    "ms": 101,
+    "mcpTools": 124,
+    "read": "applied",
+    "settingsUpdate": "applied",
+    "logSteps": "applied",
+    "planGet": "applied",
+    "logStepsEnvelope": "{\"ok\":true,\"status\":\"applied\",\"changeId\":\"01M407QZVTBPRWXTYARGYKNX2M\",\"summary\":\"Log steps: done.\",\"data\":{\"entryId\":\"01M407QZVV9N1ZSSTA5J3KP7N9\"}}"
+  },
+  "secondDeviceSync": {
+    "ok": true,
+    "ms": 128,
+    "syncedDocsOnA": 17,
+    "seenOnB": 17,
+    "perCollectionOnA": {
+      "profile": 1,
+      "safety": 1,
+      "goals": 1,
+      "scenarios": 1,
+      "dailyLogs": 4,
+      "measurements": 1,
+      "bioRecords": 2,
+      "bioChunks": 3,
+      "bioSources": 1,
+      "pantry": 1,
+      "settings": 1
+    },
+    "perCollectionOnB": {
+      "profile": 1,
+      "safety": 1,
+      "goals": 1,
+      "scenarios": 1,
+      "dailyLogs": 4,
+      "measurements": 1,
+      "bioRecords": 2,
+      "bioChunks": 3,
+      "bioSources": 1,
+      "pantry": 1,
+      "settings": 1
+    }
+  },
+  "personDirLayout": [
+    {
+      "path": "persons/p1/",
+      "bytes": 64,
+      "mode": "700"
+    },
+    {
+      "path": "persons/p1/vitals-cJl6f_tHgpXO4OGg3SinBw.db",
+      "bytes": 122880,
+      "mode": "644"
+    }
+  ],
+  "browserGlobalsTouched": [
+    {
+      "global": "document",
+      "at": "file:///media/DEV/Hobby/Lumen%20Health/node_modules/.pnpm/@evolu+common@8.14.0/node_modules/@evolu/common/dist/src/Platform.js:17:25"
+    },
+    {
+      "global": "navigator",
+      "prop": "userAgent",
+      "at": "file:///media/DEV/Hobby/Lumen%20Health/node_modules/.pnpm/zod@4.6.5/node_modules/zod/v4/core/util.js:224:54"
+    },
+    {
+      "global": "window",
+      "at": "src/state/bridge.ts:221:1"
+    },
+    {
+      "global": "localStorage",
+      "at": "src/state/persistence.ts:120:5"
+    },
+    {
+      "global": "window",
+      "at": "src/state/persistence.ts:612:1"
+    },
+    {
+      "global": "window",
+      "at": "src/state/bridge.ts:48:12"
+    },
+    {
+      "global": "localStorage",
+      "at": "src/state/bridge.ts:152:5"
+    },
+    {
+      "global": "window",
+      "at": "file:///media/DEV/Hobby/Lumen%20Health/node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/development/lib/router/utils.js:861:19"
+    },
+    {
+      "global": "window",
+      "at": "file:///media/DEV/Hobby/Lumen%20Health/node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/development/vendor/turbo-stream-v2/unflatten.js:14:19"
+    },
+    {
+      "global": "window",
+      "at": "file:///media/DEV/Hobby/Lumen%20Health/node_modules/.pnpm/react-router@8.4.0_react-dom@19.3.0_react@19.3.0__react@19.3.0/node_modules/react-router/dist/development/lib/dom/lib.js:23:19"
+    },
+    {
+      "global": "window",
+      "at": "src/components/lib/hooks.ts:5:35"
+    },
+    {
+      "global": "navigator",
+      "prop": "locks",
+      "at": "packages/companion/src/evoluNode.ts:43:55"
+    },
+    {
+      "global": "localStorage",
+      "at": "src/state/runtime.ts:58:5"
+    }
+  ],
+  "mode": "test",
+  "rssAfterOnePersonMiB": 289.5,
+  "reopenFromDisk": {
+    "ok": true,
+    "ms": 23,
+    "syncedDocs": 17,
+    "openMs": 21
+  },
+  "fivePersonsOpenOnlyMiB": 7.8,
+  "fivePersonsWrites": {
+    "docs": 1000,
+    "ms": 223
+  },
+  "fivePersons": {
+    "openMs": [
+      33,
+      42,
+      30,
+      36,
+      29
+    ],
+    "rssBeforeMiB": 289.5,
+    "rssAfterMiB": 315.8,
+    "perPersonMiB": 5.3,
+    "rssAfterCloseMiB": 316
+  }
+}

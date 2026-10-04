@@ -1,0 +1,2153 @@
+{
+  "vitalsVersion": "2",
+  "app": "vitals",
+  "appVersion": "0.1.0",
+  "exportedAt": "2026-10-01T19:22:00.724Z",
+  "device": "3SZ9GCR9K9613MDE",
+  "blobs": "omitted",
+  "stores": {
+    "vitals.body": {
+      "version": 2,
+      "state": {
+        "sex": "male",
+        "figure": {
+          "frame": null
+        },
+        "ageYears": 34,
+        "heightCm": 175,
+        "weightKg": 88,
+        "ethnicity": null,
+        "shape": {},
+        "waist": {
+          "use": false,
+          "cm": null,
+          "neckCm": null,
+          "hipCm": null
+        },
+        "knownBodyFat": {
+          "use": false,
+          "pct": null,
+          "source": "dxa"
+        },
+        "training": {
+          "years": null,
+          "quality": null
+        },
+        "habits": {
+          "sessionsPerWeek": 4,
+          "lifingCardioMix": 0.2,
+          "typicalSteps": 6000,
+          "bedTimeH": 0,
+          "wakeTimeH": 8,
+          "habitualAlcoholDrinksPerWeek": 0,
+          "sleepQuality": "fair",
+          "dietAnimalLevel": "vegetarian",
+          "activity": {
+            "work": "desk",
+            "workDaysPerWeek": 5,
+            "workHoursPerDay": 8,
+            "commute": {
+              "mode": "walk",
+              "activeMinPerWorkday": 20
+            },
+            "steps": {
+              "source": "estimate",
+              "weeklyMean": 6000
+            },
+            "offDay": "mixed",
+            "onFeetAtHome": "some",
+            "recreation": [
+              {
+                "label": "cricket",
+                "intensity": "moderate",
+                "minPerWeek": 120
+              }
+            ]
+          }
+        },
+        "cycle": {
+          "tracking": false
+        },
+        "menopause": null,
+        "labs": {},
+        "setup": "done",
+        "shapeSkipped": false,
+        "habitsSkipped": false,
+        "updatedAt": "2026-10-01T19:21:38.129Z",
+        "revision": 21
+      }
+    },
+    "vitals.safety": {
+      "version": 1,
+      "state": {
+        "answers": {
+          "ageBand": "18-64",
+          "pregnancy": "no",
+          "eatingDisorder": "no",
+          "scoffRisk": false,
+          "diabetes": "no",
+          "conditions": "no",
+          "metabolic": "no",
+          "medications": "no",
+          "symptoms": "no",
+          "supervisedExercise": "no",
+          "musculoskeletal": "no",
+          "alcohol": "no"
+        },
+        "answeredAt": "2026-10-01T19:20:25.434Z",
+        "questionSetVersion": 1,
+        "acknowledgements": {
+          "disclaimer": {
+            "version": 1,
+            "at": "2026-10-01T19:20:26.659Z"
+          }
+        },
+        "fastingOptIn": null,
+        "legacyLongFastsRequest": false,
+        "recentIllnessAt": null,
+        "shortWindow": null,
+        "dangerAcks": {},
+        "pendingReview": true
+      }
+    },
+    "vitals.scenarios": {
+      "version": 2,
+      "state": {
+        "scenarios": [
+          {
+            "id": "starter",
+            "name": "Moderate deficit",
+            "createdAt": "2026-10-01T19:21:46.752Z",
+            "updatedAt": "2026-10-01T19:21:46.752Z",
+            "started": true,
+            "schedule": {
+              "schemaVersion": 1,
+              "startDate": "2026-10-05",
+              "horizonDays": 84,
+              "programs": [
+                {
+                  "id": "A",
+                  "label": "moderate deficit",
+                  "energy": {
+                    "kind": "pctMaintenance",
+                    "pct": 80
+                  },
+                  "macros": {
+                    "protein": {
+                      "unit": "gPerKgBw",
+                      "value": 2
+                    },
+                    "carbs": {
+                      "unit": "pctEnergy",
+                      "value": 35
+                    },
+                    "fat": {
+                      "unit": "remainder"
+                    }
+                  },
+                  "meals": {
+                    "count": 3,
+                    "window": {
+                      "startH": 8,
+                      "lengthH": 12
+                    },
+                    "split": "even"
+                  },
+                  "habitualTraining": true,
+                  "exercise": []
+                }
+              ],
+              "days": [
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                }
+              ],
+              "defaults": {
+                "energyReference": "baseline"
+              }
+            }
+          },
+          {
+            "id": "slrza4j",
+            "name": "Moderate deficit (imported)",
+            "createdAt": "2026-10-01T19:20:20.028Z",
+            "updatedAt": "2026-10-01T19:20:20.028Z",
+            "started": true,
+            "schedule": {
+              "schemaVersion": 1,
+              "startDate": "2026-10-05",
+              "horizonDays": 84,
+              "programs": [
+                {
+                  "id": "A",
+                  "label": "moderate deficit",
+                  "energy": {
+                    "kind": "pctMaintenance",
+                    "pct": 80
+                  },
+                  "macros": {
+                    "protein": {
+                      "unit": "gPerKgBw",
+                      "value": 2
+                    },
+                    "carbs": {
+                      "unit": "pctEnergy",
+                      "value": 35
+                    },
+                    "fat": {
+                      "unit": "remainder"
+                    }
+                  },
+                  "meals": {
+                    "count": 3,
+                    "window": {
+                      "startH": 8,
+                      "lengthH": 12
+                    },
+                    "split": "even"
+                  },
+                  "habitualTraining": true,
+                  "exercise": []
+                }
+              ],
+              "days": [
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                },
+                {
+                  "program": 0
+                }
+              ],
+              "defaults": {
+                "energyReference": "baseline"
+              }
+            }
+          }
+        ],
+        "activeId": "starter"
+      }
+    },
+    "vitals.ui.lastRoute": {
+      "version": 1,
+      "state": "/settings"
+    }
+  },
+  "collections": {
+    "settings": [
+      {
+        "units": "metric",
+        "energyUnit": "kcal",
+        "glucoseUnit": "mmol",
+        "dateStyle": "day-month",
+        "weekStart": "monday",
+        "_id": "me",
+        "_col": "settings",
+        "_schema": 1,
+        "_rev": "1790882506805-0001-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.805Z",
+        "_updated": "2026-10-01T19:21:46.805Z"
+      }
+    ],
+    "deviceSettings": [
+      {
+        "theme": "system",
+        "reduceMotion": "system",
+        "chartPatterns": false,
+        "showFigure": true,
+        "lastExportAt": null,
+        "_id": "me",
+        "_col": "deviceSettings",
+        "_schema": 1,
+        "_rev": "1790882506806-0000-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.806Z",
+        "_updated": "2026-10-01T19:21:46.806Z"
+      }
+    ],
+    "uiPrefs": [
+      {
+        "bodySetup": "done",
+        "shapeSkipped": false,
+        "habitsSkipped": false,
+        "activeScenarioId": "starter",
+        "_id": "me",
+        "_col": "uiPrefs",
+        "_schema": 1,
+        "_rev": "1790882515679-0000-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.804Z",
+        "_updated": "2026-10-01T19:21:55.679Z"
+      }
+    ],
+    "profile": [
+      {
+        "sex": "male",
+        "figure": {
+          "frame": null
+        },
+        "ageYears": 34,
+        "heightCm": 175,
+        "weightKg": 88,
+        "ethnicity": null,
+        "shape": {},
+        "waist": {
+          "use": false,
+          "cm": null,
+          "neckCm": null,
+          "hipCm": null
+        },
+        "knownBodyFat": {
+          "use": false,
+          "pct": null,
+          "source": "dxa"
+        },
+        "training": {
+          "years": null,
+          "quality": null
+        },
+        "habits": {
+          "sessionsPerWeek": 4,
+          "lifingCardioMix": 0.2,
+          "typicalSteps": 6000,
+          "bedTimeH": 0,
+          "wakeTimeH": 8,
+          "habitualAlcoholDrinksPerWeek": 0,
+          "sleepQuality": "fair",
+          "dietAnimalLevel": "vegetarian",
+          "activity": {
+            "work": "desk",
+            "workDaysPerWeek": 5,
+            "workHoursPerDay": 8,
+            "commute": {
+              "mode": "walk",
+              "activeMinPerWorkday": 20
+            },
+            "steps": {
+              "source": "estimate",
+              "weeklyMean": 6000
+            },
+            "offDay": "mixed",
+            "onFeetAtHome": "some",
+            "recreation": [
+              {
+                "label": "cricket",
+                "intensity": "moderate",
+                "minPerWeek": 120
+              }
+            ]
+          }
+        },
+        "cycle": {
+          "tracking": false
+        },
+        "menopause": null,
+        "labs": {},
+        "updatedAt": "2026-10-01T19:21:38.129Z",
+        "revision": 21,
+        "_id": "me",
+        "_col": "profile",
+        "_schema": 2,
+        "_rev": "1790882515678-0000-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.803Z",
+        "_updated": "2026-10-01T19:21:55.678Z"
+      }
+    ],
+    "intake": [
+      {
+        "answeredAt": {
+          "activity": "2026-10-01T19:20:48.899Z",
+          "training": "2026-10-01T19:21:11.965Z",
+          "diet": "2026-10-01T19:21:24.685Z",
+          "kitchen": "2026-10-01T19:21:14.073Z",
+          "supplements": "2026-10-01T19:21:23.967Z",
+          "devices": "2026-10-01T19:21:34.322Z"
+        },
+        "questionSetVersion": {
+          "activity": 1,
+          "training": 1,
+          "diet": 1,
+          "kitchen": 1,
+          "supplements": 1,
+          "devices": 1
+        },
+        "activity": {
+          "turns": {
+            "values": {
+              "work": "yes",
+              "job": "desk",
+              "workTime": {
+                "days": 5,
+                "hours": 8
+              },
+              "commute": "walk",
+              "commuteMin": 20,
+              "stepsKnown": "roughly",
+              "stepsRough": 6000,
+              "offDay": "mixed",
+              "home": "some",
+              "sport": [
+                {
+                  "label": "cricket",
+                  "intensity": "moderate",
+                  "minPerWeek": 120
+                }
+              ],
+              "trainNow": "3-4",
+              "trainMix": "lifting",
+              "sleep": {
+                "bed": 0,
+                "wake": 8
+              },
+              "sleepQuality": "fair"
+            },
+            "status": {
+              "work": "answered",
+              "job": "answered",
+              "workTime": "answered",
+              "commute": "answered",
+              "commuteMin": "answered",
+              "stepsKnown": "answered",
+              "stepsRough": "answered",
+              "offDay": "answered",
+              "home": "answered",
+              "sport": "answered",
+              "trainNow": "answered",
+              "trainMix": "answered",
+              "sleep": "answered",
+              "sleepQuality": "answered"
+            }
+          },
+          "work": "desk",
+          "workDaysPerWeek": 5,
+          "workHoursPerDay": 8,
+          "commute": {
+            "mode": "walk",
+            "activeMinPerWorkday": 20
+          },
+          "steps": {
+            "source": "estimate",
+            "weeklyMean": 6000
+          },
+          "offDay": "mixed",
+          "onFeetAtHome": "some",
+          "recreation": [
+            {
+              "label": "cricket",
+              "intensity": "moderate",
+              "minPerWeek": 120
+            }
+          ]
+        },
+        "skipped": {},
+        "training": {
+          "owned": [
+            "mudgar_heavy",
+            "mudgar_pair",
+            "gada",
+            "indian_clubs",
+            "dumbbell"
+          ],
+          "access": [
+            {
+              "place": "home",
+              "equipment": [
+                "mudgar_heavy",
+                "mudgar_pair",
+                "gada",
+                "indian_clubs",
+                "dumbbell"
+              ],
+              "weekdays": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
+            },
+            {
+              "place": "gym",
+              "equipment": [
+                "barbell",
+                "plates",
+                "squat_rack",
+                "bench",
+                "adjustable_bench",
+                "dumbbell",
+                "kettlebell",
+                "pullup_bar",
+                "dip_bars",
+                "cable_station",
+                "leg_press",
+                "leg_machine",
+                "treadmill",
+                "stationary_bike",
+                "rower",
+                "elliptical",
+                "stair_climber",
+                "floor_mat"
+              ],
+              "weekdays": [
+                1,
+                3,
+                6
+              ]
+            }
+          ],
+          "refused": [
+            "gym",
+            "kettlebell",
+            "jumping"
+          ],
+          "liked": [
+            "indian"
+          ],
+          "injuries": [
+            "knee",
+            "lumbar"
+          ],
+          "skill": 3,
+          "purchaseAllowance": {
+            "maxPriceTier": 1,
+            "maxItems": 2
+          },
+          "prefs": {
+            "daysPerWeek": 2,
+            "minPerSession": 45,
+            "bestTime": "evening",
+            "logStyle": "quick",
+            "willingness": {
+              "lifting": "no",
+              "indian": "like"
+            },
+            "homeConstraints": [],
+            "customEquipment": [],
+            "weightsUnknown": [
+              "gada"
+            ]
+          },
+          "turns": {
+            "values": {
+              "experience": "1to3",
+              "willing": {
+                "lifting": "no",
+                "indian": "like"
+              },
+              "where": [
+                "home",
+                "gym"
+              ],
+              "whereDays": {
+                "gym": [
+                  1,
+                  3,
+                  6
+                ]
+              },
+              "kit": {
+                "owned": [
+                  "mudgar_heavy",
+                  "mudgar_pair",
+                  "gada",
+                  "indian_clubs",
+                  "dumbbell"
+                ],
+                "custom": []
+              },
+              "weights": {
+                "mudgar_heavy": [
+                  10
+                ],
+                "mudgar_pair": [
+                  5
+                ],
+                "gada": "unsure",
+                "dumbbell": [
+                  7.5
+                ]
+              },
+              "time": {
+                "days": 2,
+                "minutes": 45,
+                "best": "evening"
+              },
+              "injuries": {
+                "parts": [
+                  "knee",
+                  "lumbar"
+                ],
+                "cleared": []
+              },
+              "conditions": [
+                "none"
+              ],
+              "wontDo": [
+                "jumping"
+              ],
+              "buy": "t1",
+              "log": "quick"
+            },
+            "status": {
+              "experience": "answered",
+              "willing": "answered",
+              "where": "answered",
+              "whereDays": "answered",
+              "kit": "answered",
+              "weights": "answered",
+              "time": "answered",
+              "injuries": "answered",
+              "conditions": "answered",
+              "wontDo": "answered",
+              "buy": "answered",
+              "log": "answered"
+            }
+          },
+          "enjoy": {
+            "gym": -2,
+            "kettlebell": -2,
+            "indian": 1
+          },
+          "loadsKg": {
+            "mudgar_heavy": [
+              10
+            ],
+            "mudgar_pair": [
+              5
+            ],
+            "dumbbell": [
+              7.5
+            ]
+          }
+        },
+        "diet": {
+          "rulesComplete": true,
+          "turns": {
+            "values": {
+              "eat": {
+                "preset": "vegetarian",
+                "foods": [
+                  "dairy"
+                ]
+              },
+              "dairy": "yes",
+              "allergies": [
+                "none"
+              ],
+              "rules": [
+                "none"
+              ],
+              "cuisine": [
+                "south_indian",
+                "gujarati"
+              ],
+              "cooks": "self",
+              "kitchen": [
+                "pressure_cooker",
+                "tawa",
+                "kadhai",
+                "gas_2burner",
+                "fridge"
+              ],
+              "mealTime": "lt10",
+              "alcohol": "no",
+              "supplements": "open",
+              "later": "no"
+            },
+            "status": {
+              "eat": "answered",
+              "dairy": "answered",
+              "allergies": "answered",
+              "rules": "answered",
+              "cuisine": "answered",
+              "cooks": "answered",
+              "kitchen": "answered",
+              "mealTime": "answered",
+              "alcohol": "answered",
+              "supplements": "answered",
+              "later": "answered"
+            }
+          },
+          "animalFoods": {
+            "meat": "none",
+            "chicken": false,
+            "mutton": false,
+            "beef": false,
+            "pork": false,
+            "fish": false,
+            "shellfish": false,
+            "eggs": "none",
+            "dairy": "yes",
+            "honey": true
+          },
+          "dayRules": [],
+          "periodRules": [],
+          "noOnionGarlic": false,
+          "halal": false,
+          "kosher": false,
+          "allergies": [],
+          "allergiesOther": [],
+          "allergyStrict": true,
+          "intolerances": [],
+          "medicalDiet": [],
+          "dislikes": [],
+          "cuisines": [
+            "south_indian",
+            "gujarati"
+          ],
+          "staples": {
+            "grain": [],
+            "fat": []
+          },
+          "whoCooks": "self",
+          "familyFoodMode": false,
+          "timeBudgetMin": {
+            "weekdayBreakfast": 5,
+            "weekdayLunch": 10,
+            "weekdayDinner": 10,
+            "weekend": 25
+          },
+          "alcoholDrinksPerWeek": 0
+        },
+        "kitchen": {
+          "equipment": [
+            "pressure_cooker",
+            "tawa",
+            "kadhai",
+            "gas_2burner",
+            "fridge"
+          ],
+          "pantry": []
+        },
+        "supplements": {
+          "stance": "open",
+          "taking": []
+        },
+        "devices": {
+          "has": [
+            "ring",
+            "scale"
+          ],
+          "models": [
+            "Apple Watch",
+            "Apple Watch"
+          ],
+          "platforms": [
+            "android"
+          ],
+          "streams": [
+            {
+              "stream": "sleep_sessions",
+              "imported": true,
+              "coach": "hidden",
+              "engine": true,
+              "scores": true
+            },
+            {
+              "stream": "heart_rate",
+              "imported": true,
+              "coach": "hidden",
+              "engine": true,
+              "scores": true
+            },
+            {
+              "stream": "hrv",
+              "imported": true,
+              "coach": "hidden",
+              "engine": false,
+              "scores": true
+            },
+            {
+              "stream": "spo2",
+              "imported": true,
+              "coach": "hidden",
+              "engine": false,
+              "scores": true
+            },
+            {
+              "stream": "skin_temp",
+              "imported": true,
+              "coach": "hidden",
+              "engine": false,
+              "scores": true
+            },
+            {
+              "stream": "steps",
+              "imported": true,
+              "coach": "hidden",
+              "engine": true,
+              "scores": false
+            },
+            {
+              "stream": "weight",
+              "imported": true,
+              "coach": "hidden",
+              "engine": true,
+              "scores": false
+            },
+            {
+              "stream": "body_fat",
+              "imported": true,
+              "coach": "hidden",
+              "engine": true,
+              "scores": false
+            },
+            {
+              "stream": "vendor_scores",
+              "imported": false,
+              "coach": "hidden",
+              "engine": false,
+              "scores": false
+            }
+          ],
+          "turns": {
+            "values": {
+              "has": [
+                "ring",
+                "scale"
+              ],
+              "models": {
+                "ring": "Apple Watch",
+                "scale": "Apple Watch"
+              },
+              "platform": "android",
+              "routes": "later",
+              "streams": [
+                {
+                  "stream": "sleep_sessions",
+                  "imported": true,
+                  "scores": true,
+                  "engine": true,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "heart_rate",
+                  "imported": true,
+                  "scores": true,
+                  "engine": true,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "hrv",
+                  "imported": true,
+                  "scores": true,
+                  "engine": false,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "spo2",
+                  "imported": true,
+                  "scores": true,
+                  "engine": false,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "skin_temp",
+                  "imported": true,
+                  "scores": true,
+                  "engine": false,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "steps",
+                  "imported": true,
+                  "scores": false,
+                  "engine": true,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "weight",
+                  "imported": true,
+                  "scores": false,
+                  "engine": true,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "body_fat",
+                  "imported": true,
+                  "scores": false,
+                  "engine": true,
+                  "coach": "hidden"
+                },
+                {
+                  "stream": "vendor_scores",
+                  "imported": false,
+                  "scores": false,
+                  "engine": false,
+                  "coach": "hidden"
+                }
+              ]
+            },
+            "status": {
+              "has": "answered",
+              "models": "answered",
+              "platform": "answered",
+              "routes": "answered",
+              "streams": "answered"
+            }
+          }
+        },
+        "_id": "me",
+        "_col": "intake",
+        "_schema": 1,
+        "_rev": "1790882515680-0001-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:55.680Z",
+        "_updated": "2026-10-01T19:21:55.680Z"
+      }
+    ],
+    "safety": [
+      {
+        "answers": {
+          "ageBand": "18-64",
+          "pregnancy": "no",
+          "eatingDisorder": "no",
+          "scoffRisk": false,
+          "diabetes": "no",
+          "conditions": "no",
+          "metabolic": "no",
+          "medications": "no",
+          "symptoms": "no",
+          "supervisedExercise": "no",
+          "musculoskeletal": "no",
+          "alcohol": "no"
+        },
+        "answeredAt": "2026-10-01T19:20:25.434Z",
+        "questionSetVersion": 1,
+        "acknowledgements": {
+          "disclaimer": {
+            "version": 1,
+            "at": "2026-10-01T19:20:26.659Z"
+          }
+        },
+        "fastingOptIn": null,
+        "legacyLongFastsRequest": false,
+        "recentIllnessAt": null,
+        "shortWindow": null,
+        "dangerAcks": {},
+        "pendingReview": true,
+        "_id": "me",
+        "_col": "safety",
+        "_schema": 1,
+        "_rev": "1790882515670-0000-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.805Z",
+        "_updated": "2026-10-01T19:21:55.670Z"
+      }
+    ],
+    "goals": [
+      {
+        "goals": [],
+        "horizonDays": 112,
+        "startDate": null,
+        "constraints": {},
+        "strictness": "balanced",
+        "lastRequestHash": null,
+        "lastRunAt": null,
+        "_id": "me",
+        "_col": "goals",
+        "_schema": 1,
+        "_rev": "1790882506806-0001-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.806Z",
+        "_updated": "2026-10-01T19:21:46.806Z"
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "starter",
+        "name": "Moderate deficit",
+        "createdAt": "2026-10-01T19:21:46.752Z",
+        "updatedAt": "2026-10-01T19:21:46.752Z",
+        "started": true,
+        "schedule": {
+          "schemaVersion": 1,
+          "startDate": "2026-10-05",
+          "horizonDays": 84,
+          "programs": [
+            {
+              "id": "A",
+              "label": "moderate deficit",
+              "energy": {
+                "kind": "pctMaintenance",
+                "pct": 80
+              },
+              "macros": {
+                "protein": {
+                  "unit": "gPerKgBw",
+                  "value": 2
+                },
+                "carbs": {
+                  "unit": "pctEnergy",
+                  "value": 35
+                },
+                "fat": {
+                  "unit": "remainder"
+                }
+              },
+              "meals": {
+                "count": 3,
+                "window": {
+                  "startH": 8,
+                  "lengthH": 12
+                },
+                "split": "even"
+              },
+              "habitualTraining": true,
+              "exercise": []
+            }
+          ],
+          "days": [
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            }
+          ],
+          "defaults": {
+            "energyReference": "baseline"
+          }
+        },
+        "_id": "starter",
+        "_col": "scenarios",
+        "_schema": 2,
+        "_rev": "1790882506806-0002-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:46.806Z",
+        "_updated": "2026-10-01T19:21:46.806Z"
+      },
+      {
+        "id": "slrza4j",
+        "name": "Moderate deficit (imported)",
+        "createdAt": "2026-10-01T19:20:20.028Z",
+        "updatedAt": "2026-10-01T19:20:20.028Z",
+        "started": true,
+        "schedule": {
+          "schemaVersion": 1,
+          "startDate": "2026-10-05",
+          "horizonDays": 84,
+          "programs": [
+            {
+              "id": "A",
+              "label": "moderate deficit",
+              "energy": {
+                "kind": "pctMaintenance",
+                "pct": 80
+              },
+              "macros": {
+                "protein": {
+                  "unit": "gPerKgBw",
+                  "value": 2
+                },
+                "carbs": {
+                  "unit": "pctEnergy",
+                  "value": 35
+                },
+                "fat": {
+                  "unit": "remainder"
+                }
+              },
+              "meals": {
+                "count": 3,
+                "window": {
+                  "startH": 8,
+                  "lengthH": 12
+                },
+                "split": "even"
+              },
+              "habitualTraining": true,
+              "exercise": []
+            }
+          ],
+          "days": [
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            },
+            {
+              "program": 0
+            }
+          ],
+          "defaults": {
+            "energyReference": "baseline"
+          }
+        },
+        "_id": "slrza4j",
+        "_col": "scenarios",
+        "_schema": 2,
+        "_rev": "1790882515680-0000-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:55.680Z",
+        "_updated": "2026-10-01T19:21:55.680Z"
+      }
+    ],
+    "bioSources": [
+      {
+        "kind": "personPolicy",
+        "policies": [
+          {
+            "stream": "body",
+            "imported": true,
+            "coach": "hidden",
+            "engine": true,
+            "scores": false
+          },
+          {
+            "stream": "daily_summary",
+            "imported": true,
+            "coach": "hidden",
+            "engine": true,
+            "scores": true
+          },
+          {
+            "stream": "hr",
+            "imported": true,
+            "coach": "hidden",
+            "engine": true,
+            "scores": true
+          },
+          {
+            "stream": "hrv",
+            "imported": true,
+            "coach": "hidden",
+            "engine": false,
+            "scores": true
+          },
+          {
+            "stream": "ibi",
+            "imported": true,
+            "coach": "hidden",
+            "engine": false,
+            "scores": true
+          },
+          {
+            "stream": "skin_temp",
+            "imported": true,
+            "coach": "hidden",
+            "engine": false,
+            "scores": true
+          },
+          {
+            "stream": "sleep_sessions",
+            "imported": true,
+            "coach": "hidden",
+            "engine": true,
+            "scores": true
+          },
+          {
+            "stream": "spo2",
+            "imported": true,
+            "coach": "hidden",
+            "engine": false,
+            "scores": true
+          },
+          {
+            "stream": "steps",
+            "imported": true,
+            "coach": "hidden",
+            "engine": true,
+            "scores": false
+          }
+        ],
+        "updatedAt": "2026-10-01T19:21:34.442Z",
+        "_id": "policy:me",
+        "_col": "bioSources",
+        "_schema": 1,
+        "_rev": "1790882515681-0000-3SZ9GCR9K9613MDE",
+        "_device": "3SZ9GCR9K9613MDE",
+        "_created": "2026-10-01T19:21:55.681Z",
+        "_updated": "2026-10-01T19:21:55.681Z"
+      }
+    ]
+  }
+}

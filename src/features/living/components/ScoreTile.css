@@ -1,0 +1,218 @@
+/* ==========================================================================
+   Score tiles, baseline gauge and the body-signals strip (COMPONENTS §13.14;
+   design/screens/scores.md). Tiles sit inside one faceplate with hairline
+   dividers — never cards. Achromatic: colour only on status marks.
+   Tokens only (var(--lm-*)).
+   ========================================================================== */
+
+@layer components {
+  /* ---- the strip / grid ---------------------------------------------------- */
+  .lv-score-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+  }
+  .lv-score-grid > .lv-score + .lv-score {
+    border-top: 1px solid var(--lm-line);
+  }
+  @media (min-width: 64rem) {
+    .lv-score-grid[data-columns='3'] {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    /* hairlines between cells: right + bottom borders pulled under the clip at the edges */
+    .lv-score-grid[data-columns='3'] > .lv-score {
+      border-top: 0;
+      border-right: 1px solid var(--lm-line);
+      border-bottom: 1px solid var(--lm-line);
+      margin: 0 -1px -1px 0;
+    }
+  }
+  .lv-signals__empty {
+    padding: 16px;
+  }
+
+  /* ---- one tile ------------------------------------------------------------ */
+  .lv-score {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px 16px;
+  }
+  @media (min-width: 64rem) {
+    .lv-score {
+      padding: 16px 20px;
+    }
+  }
+  .lv-score__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    min-width: 0;
+  }
+  .lv-score__title {
+    margin: 0;
+    min-width: 0;
+  }
+  .lv-score__link {
+    color: inherit;
+    text-decoration: none;
+  }
+  /* hover never changes text colour (COMPONENTS §14.1): underline only */
+  .lv-score__link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .lv-score__kind {
+    color: var(--lm-ink-2);
+  }
+  .lv-score__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+  }
+  .lv-score__ver {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 6px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-sm);
+    font-size: 11px;
+    font-stretch: var(--lm-wdth-condensed);
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink-2);
+    text-decoration: none;
+  }
+  .lv-score__ver:hover {
+    border-color: var(--lm-edge);
+  }
+  .lv-score__body {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lv-score__body > p {
+    margin: 0;
+  }
+  .lv-score__state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-score__valueline {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-score__value {
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  p.lv-score__value {
+    margin: 0;
+  }
+  .lv-score__line {
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--lm-ink-2);
+  }
+  .lv-score__withheld {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+  }
+  .lv-score__prov {
+    font-size: 11px;
+    line-height: 15px;
+    color: var(--lm-ink-3);
+  }
+  .lv-score__vendor {
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px dotted var(--lm-line-strong);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--lm-ink-3);
+  }
+  .lv-score__plan {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0 2px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- baseline gauge ------------------------------------------------------ */
+  .lv-gauge {
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+  }
+  .lv-gauge__axis {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .lv-gauge__tick {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .lv-gauge__tick[data-major='true'] {
+    stroke: var(--lm-ink-2);
+  }
+  .lv-gauge__normal {
+    fill: var(--lm-ink);
+    fill-opacity: 0.18;
+  }
+  .lv-gauge__mean {
+    fill: var(--lm-ink);
+  }
+  .lv-gauge__last {
+    fill: var(--lm-face);
+    stroke: var(--lm-ink);
+    stroke-width: 1.5;
+  }
+  .lv-gauge__bracket {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+  }
+  .lv-gauge__ref {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+  .lv-gauge__num {
+    font-size: 11px;
+    font-stretch: var(--lm-wdth-condensed);
+    font-variant-numeric: tabular-nums;
+    fill: var(--lm-ink-2);
+  }
+
+  /* ---- withheld count scale ------------------------------------------------ */
+  .lv-count {
+    display: block;
+  }
+  .lv-count__tick {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .lv-count__tick[data-inked='true'] {
+    stroke: var(--lm-ink);
+    stroke-width: 2;
+  }
+}

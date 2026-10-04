@@ -1,0 +1,11 @@
+{
+ "url": "http://100.64.0.2:4892/mcp",
+ "initialize": "ok",
+ "toolCount": 0,
+ "destructiveListed": [],
+ "todayGet": "[{\"type\":\"text\",\"text\":\"{\\\"ok\\\":false,\\\"status\\\":\\\"rejected\\\",\\\"summary\\\":\\\"Open Vitals in a browser tab, then try again.\\\",\\\"error\\\":{\\\"code\\\":\\\"unavailable\\\",",
+ "rawHostPublicName": "403 {\"error\":\"host not allowed\"}",
+ "rawHostTsNet": "200 event: message\ndata: {\"result\":{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{\"",
+ "rawWithSiteOrigin": "401 {\"error\":\"unauthorized\",\"message\":\"Pair this browser or client with the Companio",
+ "rawNoBearer": "401 {\"error\":\"unauthorized\",\"message\":\"Pair this browser or client with the Companio"
+}

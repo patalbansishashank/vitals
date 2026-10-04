@@ -1,0 +1,11 @@
+import { open, text, forbidden } from './lib.mjs';
+import { planSetup, runPlan, abcHits } from './plib.mjs';
+import fs from 'node:fs';
+const { browser, page, errors } = await open(false);
+await planSetup(page, { goals: ['Fat mass ↓', 'Hunger pressure ↓'], longest: null });
+console.log('LONGEST checked:', await page.evaluate(() => [...document.querySelectorAll('[role=radio][aria-checked=true]')].map(e => e.innerText).join(',')));
+await runPlan(page);
+const t = await text(page); fs.writeFileSync('/media/DEV/tmp/pl3.txt', t);
+console.log('forbidden', await forbidden(page), abcHits(t).length);
+console.log((t.match(/[^\n]*fast[^\n]*/gi) || []).slice(0, 30).join('\n'));
+console.log(errors); await browser.close();

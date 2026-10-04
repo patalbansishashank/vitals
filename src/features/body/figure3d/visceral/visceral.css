@@ -1,0 +1,306 @@
+/* ==========================================================================
+   Visceral view - waist slice + side cutaway (R2 sec. 3.4). Same design language as the body avatar
+   (avatar.css): grey chassis, flat fills, 1.25 px outline strokes, tokens only. Light and dark come from the tokens
+   (src/styles/tokens.css switches --lm-avatar-* per theme).
+   ========================================================================== */
+
+@layer components {
+  .lm-visc {
+    --vs-fat: var(--lm-avatar-fat);
+    --vs-deep: var(--lm-avatar-visceral);
+    --vs-wall: var(--lm-avatar-lean);
+    --vs-organs: color-mix(in oklab, var(--lm-avatar-lean) 38%, var(--lm-avatar-stage));
+    --vs-spine: color-mix(in oklab, var(--lm-avatar-outline) 30%, var(--lm-avatar-fat));
+    --vs-edge: var(--lm-avatar-outline);
+    --vs-edge-w: 1.25px;
+    margin: 0;
+    min-width: 0;
+    display: grid;
+    gap: 10px;
+    font-family: var(--lm-font-sans);
+    color: var(--lm-ink);
+  }
+  @supports (color: light-dark(#000, #fff)) {
+    .lm-visc {
+      /* as avatar.css: on the light stage the fat layer is pulled toward the lean material so it separates from the well */
+      --vs-fat: light-dark(
+        color-mix(in oklab, var(--lm-avatar-fat) 74%, var(--lm-avatar-lean)),
+        var(--lm-avatar-fat)
+      );
+    }
+  }
+
+  .lm-visc__panels {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 5fr);
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border-radius: var(--lm-radius-lg);
+    background: var(--lm-avatar-stage);
+  }
+  .lm-visc__section > .lm-visc__svg {
+    padding: 12px;
+    border-radius: var(--lm-radius-lg);
+    background: var(--lm-avatar-stage);
+  }
+  .lm-visc__panels .lm-visc__section > .lm-visc__svg {
+    padding: 0;
+    background: none;
+  }
+  .lm-visc__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+  }
+  .lm-visc__section .lm-visc__svg {
+    min-width: 220px;
+  }
+
+  /* ---- materials ---- */
+  .lm-visc__sat {
+    fill: var(--vs-fat);
+    stroke: var(--vs-edge);
+    stroke-width: var(--vs-edge-w);
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__wall {
+    fill: var(--vs-wall);
+  }
+  .lm-visc__organs {
+    fill: var(--vs-organs);
+  }
+  .lm-visc__organs-edge {
+    fill: none;
+    stroke: var(--vs-wall);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__deep {
+    fill: var(--vs-deep);
+    fill-rule: evenodd;
+  }
+  .lm-visc__spine {
+    fill: var(--vs-spine);
+  }
+  .lm-visc__halo {
+    fill: var(--vs-deep);
+    fill-rule: evenodd;
+    opacity: 0.28;
+  }
+  .lm-visc__ref {
+    fill: none;
+    stroke: var(--lm-ink-2);
+    stroke-width: 1px;
+    stroke-dasharray: 3 3;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__ref[data-ref='130'] {
+    stroke-dasharray: 7 3;
+  }
+  .lm-visc__ghost {
+    fill: none;
+    stroke: var(--lm-avatar-ghost);
+    stroke-width: 1px;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+    opacity: 0.75;
+  }
+  .lm-visc__ghost[data-ghost='deep'] {
+    stroke-dasharray: 2 2;
+  }
+  .lm-visc__loop {
+    fill: var(--vs-organs);
+    stroke: var(--vs-wall);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__cavity-edge {
+    fill: none;
+    stroke: var(--vs-wall);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__slice {
+    stroke: var(--lm-ink);
+    stroke-width: 1.25px;
+    stroke-dasharray: 4 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__scale {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1.25px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__svg text {
+    font-family: var(--lm-font-sans);
+    fill: var(--lm-ink-2);
+  }
+  .lm-visc__svg .lm-visc__ref-label {
+    fill: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- caption: numbers, band bar, legend ---- */
+  .lm-visc__caption {
+    display: grid;
+    gap: 8px;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-visc__number {
+    margin: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+  }
+  .lm-visc__number strong {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-visc__range {
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lm-visc__bar {
+    position: relative;
+    height: 10px;
+    margin: 4px 0 18px;
+    border-radius: var(--lm-radius-full);
+    background: linear-gradient(
+      to right,
+      var(--lm-well) 0 var(--vs-t1),
+      color-mix(in oklab, var(--vs-deep) 35%, var(--lm-well)) var(--vs-t1) var(--vs-t2),
+      color-mix(in oklab, var(--vs-deep) 70%, var(--lm-well)) var(--vs-t2) 100%
+    );
+    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+  }
+  .lm-visc__bar-range {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    border-radius: var(--lm-radius-full);
+    border: 1px solid var(--lm-ink-3);
+  }
+  .lm-visc__bar-mark {
+    position: absolute;
+    top: -4px;
+    width: 3px;
+    height: 18px;
+    margin-left: -1.5px;
+    border-radius: 2px;
+    background: var(--lm-ink);
+  }
+  .lm-visc__bar-tick {
+    position: absolute;
+    top: 12px;
+    transform: translateX(-50%);
+    font-size: var(--lm-text-2xs);
+    line-height: var(--lm-text-2xs--lh);
+    color: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-visc__bands {
+    margin: 0;
+    color: var(--lm-ink-2);
+  }
+  .lm-visc__bands [data-current] {
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+
+  .lm-visc__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-visc__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lm-visc__swatch {
+    width: 14px;
+    height: 14px;
+    flex: none;
+    border-radius: var(--lm-radius-xs);
+    box-shadow: inset 0 0 0 1px var(--vs-edge);
+  }
+  .lm-visc__swatch[data-k='sat'] {
+    background: var(--vs-fat);
+  }
+  .lm-visc__swatch[data-k='deep'] {
+    background: var(--vs-deep);
+  }
+  .lm-visc__swatch[data-k='wall'] {
+    background: var(--vs-wall);
+  }
+  .lm-visc__swatch[data-k='organs'] {
+    background: var(--vs-organs);
+  }
+  .lm-visc__swatch[data-k='ring'] {
+    background: none;
+    box-shadow: none;
+    border: 1px dashed var(--lm-ink-2);
+    border-radius: var(--lm-radius-full);
+  }
+  .lm-visc__swatch[data-k='ghost'] {
+    background: none;
+    box-shadow: none;
+    border: 1px solid var(--lm-avatar-ghost);
+    border-radius: var(--lm-radius-full);
+  }
+  .lm-visc__details summary {
+    cursor: pointer;
+    color: var(--lm-ink-2);
+  }
+  .lm-visc__details p {
+    margin: 4px 0 0;
+  }
+
+  /* ---- the full view: panels over words, or beside them from 38rem of container width ---- */
+  .lm-visc--view {
+    container-type: inline-size;
+  }
+  .lm-visc__grid {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-visc__grid > figcaption {
+    min-width: 0;
+  }
+  @container (min-width: 38rem) {
+    .lm-visc__grid {
+      grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
+      align-items: start;
+      gap: 20px;
+    }
+  }
+  .lm-visc__span {
+    margin: 0;
+    color: var(--lm-ink);
+  }
+  .lm-visc__note {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs, var(--lm-text-sm));
+    line-height: var(--lm-text-xs--lh, var(--lm-text-sm--lh));
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 480px) {
+    .lm-visc__panels {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+      padding: 8px;
+      gap: 8px;
+    }
+  }
+}

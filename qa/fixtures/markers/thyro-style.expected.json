@@ -1,0 +1,110 @@
+{
+  "file": "thyro-style.pdf",
+  "synthetic": true,
+  "layout": "TEST NAME / TECHNOLOGY / VALUE / UNITS / REFERENCE RANGE (method column second)",
+  "sampleDate": "2026-09-14",
+  "pages": 1,
+  "textlessPages": [],
+  "note": "textlessPages and imageOnly[].sourcePage count the source pages; a long table may spill onto an extra printed page (see printedPages)",
+  "patient": {
+    "name": "Aarav Testpatel",
+    "ageSex": "34 Y / M",
+    "phone": "+91 98765 43210",
+    "id": "PID-77881234",
+    "barcode": "BC90817263",
+    "address": "Flat 12, Imaginary Residency, Pune 411001",
+    "doctor": "Dr. Fictional Rao"
+  },
+  "tierA": [
+    {
+      "markerId": "hdl",
+      "nameOnReport": "HDL CHOLESTEROL - DIRECT",
+      "value": 44,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "ldl",
+      "nameOnReport": "LDL CHOLESTEROL - DIRECT",
+      "value": 192,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "tg",
+      "nameOnReport": "TRIGLYCERIDES",
+      "value": 160,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "apoB",
+      "nameOnReport": "APOLIPOPROTEIN - B (APO-B)",
+      "value": 138,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "lpa",
+      "nameOnReport": "LIPOPROTEIN (A) [LP(A)]",
+      "value": 62,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "hba1c",
+      "nameOnReport": "HbA1c",
+      "value": 5.9,
+      "unit": "%",
+      "calculated": false
+    },
+    {
+      "markerId": "ft3",
+      "nameOnReport": "FREE T3",
+      "value": 3.1,
+      "unit": "pg/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "tsh",
+      "nameOnReport": "TSH - ULTRASENSITIVE",
+      "value": 2.84,
+      "unit": "µIU/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "b12",
+      "nameOnReport": "VITAMIN B-12",
+      "value": 178,
+      "unit": "pg/mL",
+      "calculated": false,
+      "issue": "\"pq\" read as pg; check this value"
+    },
+    {
+      "markerId": "vitD",
+      "nameOnReport": "25-OH VITAMIN D (TOTAL)",
+      "value": 18.4,
+      "unit": "ng/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "hsCrp",
+      "nameOnReport": "HIGH SENSITIVITY C-REACTIVE PROTEIN (HS-CRP)",
+      "value": 2.6,
+      "unit": "mg/L",
+      "calculated": false
+    },
+    {
+      "markerId": "ferritin",
+      "nameOnReport": "FERRITIN",
+      "value": 96.5,
+      "unit": "ng/mL",
+      "calculated": false
+    }
+  ],
+  "imageOnly": [],
+  "droppedCalculated": [
+    "NON-HDL CHOLESTEROL"
+  ],
+  "printedPages": 2
+}

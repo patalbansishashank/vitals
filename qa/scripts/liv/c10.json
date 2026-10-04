@@ -1,0 +1,3 @@
+[{"goto":"/coach","wait":3500,"eval":"(()=>{const b=[...document.querySelectorAll('button')].filter(b=>/Undo logged/.test(b.getAttribute('aria-label')||''));b[b.length-1].scrollIntoView();b[b.length-1].click();return b.length})()"},
+{"wait":3000,"eval":"[[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,200)).join(' || '), [...document.querySelectorAll('button')].filter(b=>/Undo logged|Redo/.test(b.getAttribute('aria-label')||b.innerText)).map(b=>b.getAttribute('aria-label')||b.innerText).join(',') , document.body.innerText.match(/undone/g)?.length]"},
+{"goto":"/food","wait":3000,"eval":"document.body.innerText.match(/energy\\neaten[\\s\\S]{0,25}/)?.[0]"}]

@@ -1,0 +1,15 @@
+import { open, BASE, shot } from './lib.mjs';
+const { browser, page, errors } = await open({ profile: process.argv[2] || 'p1' });
+await page.goto(BASE + '/settings', { waitUntil: 'networkidle' }); await page.waitForTimeout(1500);
+const sec = page.locator('section', { has: page.locator('h2', { hasText: 'AI provider' }) });
+await sec.locator('input[type=radio][value=custom]').check(); await page.waitForTimeout(800);
+const url = sec.locator('input[type=url]').first(); await url.click(); await page.keyboard.press('Control+a'); await page.keyboard.type('http://127.0.0.1:4193/v1', { delay: 20 }); await page.keyboard.press('Tab'); await page.waitForTimeout(2000);
+await sec.locator('input[type=password]').fill('sk-qa-b-123456789');
+await sec.getByRole('button', { name: 'Save key' }).click(); await page.waitForTimeout(1000);
+await sec.getByLabel('model id', { exact: true }).fill('fake-model'); await sec.getByLabel('monthly spending cap').fill('');
+await sec.getByRole('button', { name: 'Test connection' }).click(); await page.waitForTimeout(5000);
+await sec.getByRole('button', { name: 'Save provider' }).click(); await page.waitForTimeout(1500);
+const t = await sec.innerText(); console.log(t.slice(0, 200), '....', t.slice(t.indexOf('Test connection'), t.indexOf('Test connection') + 500).replace(/\n+/g, ' / '));
+await shot(page, '15-ai-provider-set');
+console.log('ERRORS', errors);
+await browser.close();

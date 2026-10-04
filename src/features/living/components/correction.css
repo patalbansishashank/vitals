@@ -1,0 +1,58 @@
+@layer components {
+  .lv-fedby {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    justify-content: flex-end;
+    font-size: 13px;
+    color: var(--lm-ink);
+  }
+  .lv-fedby__src {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-corrected {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-corrected__was {
+    flex-basis: 100%;
+    font-weight: 400;
+    color: var(--lm-ink-3, var(--lm-ink-2));
+  }
+  .lv-correct {
+    display: grid;
+    gap: 14px;
+  }
+  .lv-correct__line {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  .lv-correct__pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .lv-correct__actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+  .lv-correct__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 12px;
+  }
+}

@@ -1,0 +1,20 @@
+{
+ "S": {
+  "hard": 17,
+  "medium": 2,
+  "easy": 5,
+  "ideal": 14
+ },
+ "M": {
+  "hard": 17,
+  "medium": 6,
+  "easy": 10,
+  "ideal": 13
+ },
+ "X": {
+  "hard": 17,
+  "medium": 4,
+  "easy": 11,
+  "ideal": 12
+ }
+}

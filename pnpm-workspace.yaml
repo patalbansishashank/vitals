@@ -1,0 +1,13 @@
+packages:
+  - "."
+  - "packages/*"
+  - "apps/*"
+allowBuilds:
+  better-sqlite3: true
+minimumReleaseAgeExclude:
+  - '@evolu/common@8.14.0'
+  - '@evolu/web@3.4.0'
+  - '@evolu/nodejs@4.1.0'
+onlyBuiltDependencies:
+  - esbuild
+  - better-sqlite3

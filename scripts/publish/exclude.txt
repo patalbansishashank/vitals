@@ -1,0 +1,18 @@
+# Paths left out of the public snapshot, one per line. publish-public.sh passes them to `git rm --cached` as git
+# pathspecs anchored at the repository root (`plan/` is the top-level plan directory only, never src/**/plan/; a `*`
+# also crosses `/`); the hygiene guard test reads them too. Everything else in the tracked tree is public.
+# Private build history and working notes: plans, work-package notes, hand-offs. They hold the owner's infrastructure
+# names, test persons and day-to-day decisions, and are of no use to an outside reader.
+plan/
+docs/wp/
+docs/HANDOFF.md
+# QA session output: logs, transcripts and 114 MB of screenshots taken against the owner's own devices and server.
+qa/results/
+qa/screenshots/
+qa/findings-*.md
+qa/scripts/BRIEF-COMMON.md
+# Agent briefs for QA runs: build instructions with references to the private plans, no use outside.
+qa/scripts/Q3/BRIEF.md
+qa/scripts/q1b/BRIEF.md
+# The owner's git-ignored QA values never exist in the tree, listed here for clarity.
+qa/local.config.json

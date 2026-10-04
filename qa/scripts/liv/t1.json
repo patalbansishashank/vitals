@@ -1,0 +1,4 @@
+[{"goto":"/today","wait":2500},{"typeCss":"input[aria-label=weight], input[type=text]","value":"91.6","wait":2000,"textDump":300},
+{"css":"[aria-label='Mark breakfast as planned']","wait":2000},
+{"textDump":2500},
+{"click":"Today menu","role":"button","wait":800,"dump":1}]

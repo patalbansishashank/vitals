@@ -1,0 +1,6 @@
+[{"goto":"/coach","wait":3500},
+{"fillCss":"textarea","value":"I had dal and rice for lunch again","wait":300},{"click":"Send","role":"button","wait":8000},
+{"goto":"/food","wait":3000,"eval":"document.body.innerText.match(/energy\\neaten[\\s\\S]{0,60}/)?.[0]"},
+{"goto":"/coach","wait":3500,"eval":"[document.body.innerText.match(/Conversation[\\s\\S]{0,400}/)?.[0], [...document.querySelectorAll('button')].filter(b=>/Undo logged/.test(b.getAttribute('aria-label')||'')).length]"},
+{"css":"button[aria-label='Undo logged lunch']","nth":-1,"wait":3000,"soft":1,"eval":"document.body.innerText.match(/undone[\\s\\S]{0,80}/)?.[0]","shot":"19-coach-undo"},
+{"goto":"/food","wait":3000,"eval":"document.body.innerText.match(/energy\\neaten[\\s\\S]{0,60}/)?.[0]"}]

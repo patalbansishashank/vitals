@@ -1,0 +1,1 @@
+[{"goto":"/body?setup=basics"},{"typeCss":"input[type=text]","nth":0,"value":"35"},{"typeCss":"input[type=text]","nth":1,"value":"175"},{"typeCss":"input[type=text]","nth":2,"value":"92"},{"wait":1000,"eval":"document.body.innerText.match(/Enter[^\\n]*/)"},{"click":"Next: shape","wait":1500,"dump":1,"textDump":900}]

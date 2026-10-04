@@ -1,0 +1,12 @@
+import { open, BASE, shot } from './lib.mjs';
+const { browser, page, errors } = await open({ mobile: true });
+await page.goto(BASE + '/settings/sync', { waitUntil: 'networkidle' }); await page.waitForTimeout(1500);
+const s = page.locator('section#sync');
+await s.getByLabel('sync server address').fill('http://127.0.0.1:4191');
+await s.getByRole('button', { name: 'Test' }).click(); await page.waitForTimeout(2500);
+await s.getByRole('button', { name: 'Test' }).scrollIntoViewIfNeeded();
+await shot(page, 'sync-test-mobile');
+console.log((await s.innerText()).replace(/\n+/g, ' | ').slice(0, 500));
+const ov = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+console.log('horizontal overflow', ov, errors.filter(e => !/preload|Permissions-Policy|404|CONNECTION_REFUSED/.test(e)));
+await browser.close();

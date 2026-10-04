@@ -1,0 +1,14 @@
+import { openPersistent, BASE } from './lib.mjs';
+const d = await openPersistent(process.argv[2], { mobile: true });
+await d.page.goto(BASE + '/settings#sync', { waitUntil: 'load' }); await d.page.waitForTimeout(4000);
+const s = d.page.locator('section#sync');
+await s.getByRole('button', { name: 'Stop syncing on this device' }).click(); await d.page.waitForTimeout(800);
+const dlg = d.page.getByRole('alertdialog').or(d.page.getByRole('dialog')).first();
+console.log('DIALOG', (await dlg.innerText()).replace(/\n+/g, ' | '));
+await dlg.getByRole('button', { name: 'Stop syncing' }).click(); await d.page.waitForTimeout(5000);
+console.log('after', (await s.innerText()).slice(0, 160).replace(/\n+/g, ' | '));
+await d.page.reload({ waitUntil: 'load' }); await d.page.waitForTimeout(4000);
+console.log('units after unpair+reload', await d.page.evaluate(() => [...document.querySelectorAll('#units [role=radio][aria-checked=true]')].map(e => e.textContent).join(',')));
+console.log('data line', (await d.page.locator('section#data').innerText()).slice(0, 200).replace(/\n+/g, ' | '));
+console.log(d.errors.filter(e => !/preload|Permissions-Policy|404|CONNECTION_REFUSED/.test(e)));
+await d.ctx.close();

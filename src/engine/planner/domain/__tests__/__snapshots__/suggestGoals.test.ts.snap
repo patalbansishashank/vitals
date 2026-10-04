@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`suggestGoals on the golden requests and personas > summary of every case (golden record) 1`] = `
+[
+  "request a: 1.fatMass lose 6 · 2.skeletalMuscle keep",
+  "request b: 1.fatMass lose 6 · 2.skeletalMuscle keep",
+  "request c: 1.fatMass lose 6 · 2.skeletalMuscle keep",
+  "request d: 1.fatMass lose 5 · 2.skeletalMuscle keep",
+  "request e: 1.skeletalMuscle gain 0.4 · 2.fatMass keep · 3.strength raise",
+  "request af: 1.fatMass lose 6 · 2.skeletalMuscle keep",
+  "request flf: 1.fatMass lose 5 · 2.skeletalMuscle keep",
+  "request fuzz0: 1.skeletalMuscle gain 0.4 · 2.fatMass keep · 3.strength raise",
+  "request fuzz1: 1.skeletalMuscle gain 1.1 · 2.fatMass keep · 3.strength raise",
+  "request fuzz2: 1.fatMass lose 4.5 · 2.skeletalMuscle keep",
+  "request fuzz3: 1.fatMass lose 2 · 2.skeletalMuscle keep",
+  "request fuzz4: 1.fatMass lose 4.5 · 2.skeletalMuscle keep",
+  "request fuzz5: 1.fatMass lose 0.5 · 2.leanTissue keep",
+  "request fuzz6: 1.fatMass lose 5.5 · 2.leanTissue keep",
+  "request fuzz7: 1.fatMass lose 5 · 2.leanTissue keep",
+  "request fuzz8: 1.fatMass lose 7.5 · 2.skeletalMuscle keep",
+  "request fuzz9: 1.fatMass lose 4 · 2.skeletalMuscle keep",
+  "persona MAN_95: 1.fatMass lose 6.5 · 2.skeletalMuscle keep",
+  "persona WOMAN_62: 1.skeletalMuscle gain 0.8 · 2.fatMass keep · 3.strength raise",
+  "persona LEAN_MAN: 1.skeletalMuscle gain 0.4 · 2.fatMass keep · 3.strength raise",
+  "persona OLDER_WOMAN: 1.fatMass lose 3 · 2.leanTissue keep",
+  "persona OBESE_MAN: 1.fatMass lose 8.5 · 2.leanTissue keep",
+]
+`;

@@ -1,0 +1,5 @@
+[{"goto":"/food","wait":3000},
+{"eval":"[...document.querySelectorAll(\"button\")].filter(b=>/Plan my day/.test(b.innerText)).map(b=>b.outerHTML.slice(0,200)+(document.getElementById(b.getAttribute(\"aria-describedby\"))?.innerText||\"\"))","wait":100},{"wait":10,"eval":"[...document.querySelectorAll('[role=status],[role=alert],.lm-toast,[role=dialog]')].map(e=>e.innerText.slice(0,400)).join(' || ')"},
+{"key":"Escape"},
+{"click":"I ate this: breakfast as planned","role":"button","wait":2000,"eval":"[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ')"},
+{"click":"I ate something else: lunch","role":"button","wait":1500,"dump":1,"eval":"[...document.querySelectorAll('[role=dialog]')].map(e=>e.innerText.slice(0,1500)).join(' || ')","shot":"07-food-else"}]

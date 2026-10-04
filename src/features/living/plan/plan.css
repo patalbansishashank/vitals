@@ -1,0 +1,120 @@
+/* ==========================================================================
+   Plan details (design/screens/living-mode.md §9–§10): faceplates on the
+   chassis — the plan's facts, the ease switch and the lifecycle keys on the
+   left; proposals and versions on the right (≥ 1024). Achromatic chrome.
+   Tokens only (var(--lm-*)).
+   ========================================================================== */
+
+@layer components {
+  .lv-plan {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .lv-plan__col {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .lv-plan {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+      gap: 24px;
+    }
+    .lv-plan--version {
+      grid-template-columns: minmax(0, 1fr);
+      max-width: 960px;
+    }
+  }
+  .lv-plan-section {
+    margin-top: 20px;
+  }
+  .lv-plan-section > * + * {
+    margin-top: 10px;
+  }
+  .lv-plan-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lv-plan-prose {
+    margin: 0;
+    max-width: var(--lm-measure-prose);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-plan-note {
+    margin: 0;
+    max-width: var(--lm-measure-prose);
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--lm-ink-3);
+  }
+  .lv-plan-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lv-plan-proposals {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lv-plan-h {
+    margin: 4px 0 0;
+  }
+  .lv-plan-versions {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-plan-versions__link {
+    justify-content: flex-start;
+    height: auto;
+    min-height: 44px;
+    padding-block: 8px;
+    /* the row text lines up with the faceplate title; the hover fill bleeds 8 px (Q6: text sat 17 px in, lines touched) */
+    padding-inline: 8px;
+    margin-inline: -8px;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-plan-versions__link .lm-key__label {
+    display: block;
+  }
+  .lv-plan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lv-plan-table th,
+  .lv-plan-table td {
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid var(--lm-line);
+    text-align: left;
+    vertical-align: baseline;
+  }
+  .lv-plan-table thead th {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-plan-table tbody th {
+    font-weight: 500;
+  }
+  .lv-plan-pause {
+    display: grid;
+    gap: 16px;
+  }
+}

@@ -1,0 +1,1 @@
+[{"goto":"/welcome?step=consent"},{"css":"input[type=checkbox]"},{"click":"Continue","wait":2000,"dump":1,"textDump":1500}]

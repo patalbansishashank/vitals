@@ -1,0 +1,290 @@
+{
+  "format": "vitals.tools/1",
+  "appVersion": "fixture",
+  "hash": "2675cc4283157e277ac5c3a9808580c51e5b8719dc3227533c2cc2b61a5e9be8",
+  "tools": [
+    {
+      "id": "log.get",
+      "name": "log_get",
+      "namespace": "log",
+      "version": 1,
+      "title": "Read the log",
+      "description": "Returns logged meals, sessions and measurements between two ISO dates (inclusive).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
+      },
+      "perm": "read",
+      "confirm": "read",
+      "surfaces": [
+        "ui",
+        "ai",
+        "webmcp",
+        "mcp"
+      ],
+      "idempotency": "none",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "id": "log.measurement",
+      "name": "log_measurement",
+      "namespace": "log",
+      "version": 1,
+      "title": "Log a measurement",
+      "description": "Logs a body measurement. Weight in kg, waist in cm. Example: {\"kind\":\"weight\",\"value\":82.4}.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "weight",
+              "waist"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "kind",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "perm": "write",
+      "impact": "low",
+      "confirm": "log",
+      "surfaces": [
+        "ui",
+        "ai",
+        "webmcp",
+        "mcp"
+      ],
+      "idempotency": "key",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "id": "nav.open",
+      "name": "nav_open",
+      "namespace": "nav",
+      "version": 1,
+      "title": "Open a screen",
+      "description": "Opens a screen in the app tab (today, plan, log, coach, settings).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "route": {
+            "type": "string",
+            "enum": [
+              "today",
+              "plan",
+              "log",
+              "coach",
+              "settings"
+            ]
+          }
+        },
+        "required": [
+          "route"
+        ],
+        "additionalProperties": false
+      },
+      "perm": "read",
+      "confirm": "read",
+      "surfaces": [
+        "ui",
+        "ai",
+        "webmcp"
+      ],
+      "idempotency": "none",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "id": "plan.end",
+      "name": "plan_end",
+      "namespace": "plan",
+      "version": 1,
+      "title": "End the plan",
+      "description": "Ends the active plan now. Cannot be undone after 30 days.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "perm": "destructive",
+      "confirm": "destructive",
+      "surfaces": [
+        "ui",
+        "ai",
+        "webmcp",
+        "mcp"
+      ],
+      "idempotency": "key",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "id": "plan.shift",
+      "name": "plan_shift",
+      "namespace": "plan",
+      "version": 1,
+      "title": "Shift the plan",
+      "description": "Moves the remaining plan days by a number of days (positive = later). Changes goal dates.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "integer",
+            "minimum": -14,
+            "maximum": 14
+          }
+        },
+        "required": [
+          "days"
+        ],
+        "additionalProperties": false
+      },
+      "perm": "write",
+      "impact": "consequential",
+      "confirm": "edit",
+      "surfaces": [
+        "ui",
+        "ai",
+        "webmcp",
+        "mcp"
+      ],
+      "idempotency": "key",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "id": "settings.update",
+      "name": "settings_update",
+      "namespace": "settings",
+      "version": 1,
+      "title": "Change settings",
+      "description": "Changes app settings.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "patch": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "patch"
+        ],
+        "additionalProperties": false
+      },
+      "perm": "write",
+      "impact": "low",
+      "confirm": "log",
+      "surfaces": [
+        "ui"
+      ],
+      "idempotency": "natural",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "id": "today.get",
+      "name": "today_get",
+      "namespace": "today",
+      "version": 1,
+      "title": "Read today",
+      "description": "Returns today's plan targets, logged intake and the adherence score so far. No side effects.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "date",
+          "score"
+        ],
+        "additionalProperties": false
+      },
+      "perm": "read",
+      "confirm": "read",
+      "surfaces": [
+        "ui",
+        "ai",
+        "webmcp",
+        "mcp"
+      ],
+      "idempotency": "none",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

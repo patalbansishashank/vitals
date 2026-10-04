@@ -1,0 +1,431 @@
+{
+ "about": "Q4 scripted model. Authored by hand (no real provider on this PC): each rule is what a capable model is expected to do for the journey's message. Placeholders: {{date}} (the turn's date from the Coach context), {{date+N}}, {{next:Tue}}, {{attachment}}, {{var:x}}.",
+ "fallback": "I can log meals and training, change the plan (you apply each change), find plans and answer questions about your data.",
+ "rules": [
+  {
+   "id": "J1-training-days",
+   "user": "training days to Tue/Thu",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "plan_shift",
+       "args": {
+        "from": "{{next:Mon}}",
+        "days": 1,
+        "mode": "swap",
+        "withDate": "{{next:Tue}}"
+       }
+      }
+     ]
+    },
+    {
+     "tools": [
+      {
+       "name": "plan_shift",
+       "args": {
+        "from": "{{next:Wed}}",
+        "days": 1,
+        "mode": "swap",
+        "withDate": "{{next:Thu}}"
+       }
+      }
+     ]
+    },
+    {
+     "tools": [
+      {
+       "name": "plan_edit_day",
+       "args": {
+        "date": "{{next:Fri}}",
+        "scope": "day",
+        "patch": {
+         "habitualTraining": false,
+         "exercise": null
+        }
+       }
+      }
+     ]
+    }
+   ],
+   "done": "I've proposed moving Monday's session to Tuesday and Wednesday's to Thursday, and no training on Friday. Apply them one by one."
+  },
+  {
+   "id": "J2-make-plan",
+   "user": "make me a plan for",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "goals_edit",
+       "args": {
+        "ops": [
+         {
+          "op": "add",
+          "goal": {
+           "metric": "fatMass",
+           "mode": "lose",
+           "amount": 6,
+           "strength": "must",
+           "functional": null
+          }
+         },
+         {
+          "op": "setHorizon",
+          "days": 90
+         }
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "tools": [
+      {
+       "name": "planner_find",
+       "args": {
+        "tier": "S"
+       }
+      }
+     ]
+    }
+   ],
+   "done": "Goal set: lose 6 kg of fat in about 90 days. I'm searching for plans now; ask me to start one when the search is done."
+  },
+  {
+   "id": "J2-start-recommended",
+   "user": "start the (one you recommend|recommended)",
+   "vars": {
+    "want": "recommended"
+   },
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "planner_result",
+       "args": {}
+      }
+     ]
+    },
+    {
+     "dynamic": "startRung"
+    }
+   ],
+   "done": "Here is the plan to start. Apply it when you're ready."
+  },
+  {
+   "id": "J2-start-hard",
+   "user": "start the hard",
+   "vars": {
+    "want": "hard"
+   },
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "planner_result",
+       "args": {}
+      }
+     ]
+    },
+    {
+     "dynamic": "startRung"
+    }
+   ],
+   "done": "Here is the Hard plan. Apply it to start."
+  },
+  {
+   "id": "J2-start-medium",
+   "user": "start the medium",
+   "vars": {
+    "want": "medium"
+   },
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "planner_result",
+       "args": {}
+      }
+     ]
+    },
+    {
+     "dynamic": "startRung"
+    }
+   ],
+   "done": "Here is the Medium plan. Apply it to start."
+  },
+  {
+   "id": "J2-start-easy",
+   "user": "start the easy",
+   "vars": {
+    "want": "easy"
+   },
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "planner_result",
+       "args": {}
+      }
+     ]
+    },
+    {
+     "dynamic": "startRung"
+    }
+   ],
+   "done": "Here is the Easy plan. Apply it to start."
+  },
+  {
+   "id": "J2-start-ideal",
+   "user": "start the ideal",
+   "vars": {
+    "want": "ideal"
+   },
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "planner_result",
+       "args": {}
+      }
+     ]
+    },
+    {
+     "dynamic": "startRung"
+    },
+    {
+     "dynamic": "startRung"
+    }
+   ]
+  },
+  {
+   "id": "J3-meal",
+   "user": "I ate dal, rice and two eggs",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "log_meal",
+       "args": {
+        "text": "dal, rice and two eggs",
+        "method": "aiText",
+        "slot": "lunch",
+        "confidence": 0.7,
+        "components": [
+         {
+          "name": "dal",
+          "grams": 150,
+          "gramsLow": 100,
+          "gramsHigh": 220
+         },
+         {
+          "name": "cooked rice",
+          "grams": 180,
+          "gramsLow": 120,
+          "gramsHigh": 250
+         },
+         {
+          "name": "boiled egg",
+          "portion": {
+           "unit": "egg",
+           "count": 2
+          },
+          "grams": 100
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "done": "Logged lunch: dal, rice and two eggs (estimates; edit the card if the portions were different)."
+  },
+  {
+   "id": "J3-session",
+   "user": "30 min on the treadmill",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "log_session",
+       "args": {
+        "status": "done",
+        "durationMin": 30,
+        "performed": [
+         {
+          "exerciseId": "treadmill_run",
+          "minutes": 30
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "done": "Logged 30 minutes on the treadmill."
+  },
+  {
+   "id": "J4-travel",
+   "user": "travelling for three days",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "plan_declare_event",
+       "args": {
+        "kind": "travel",
+        "from": "{{date+1}}",
+        "to": "{{date+3}}",
+        "note": "travelling for three days"
+       }
+      }
+     ]
+    }
+   ],
+   "done": "I've proposed a travel stretch from tomorrow for three days, with the plan adjusted around it. Apply it to adopt the change."
+  },
+  {
+   "id": "J5-pantry",
+   "user": "I have paneer, spinach and an air fryer",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "pantry_add",
+       "args": {
+        "items": [
+         {
+          "label": "paneer"
+         },
+         {
+          "label": "spinach"
+         }
+        ],
+        "source": "coach"
+       }
+      }
+     ]
+    },
+    {
+     "tools": [
+      {
+       "name": "kitchen_add",
+       "args": {
+        "items": [
+         {
+          "label": "air fryer"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ],
+   "done": "Added paneer and spinach to your pantry and the air fryer to your kitchen."
+  },
+  {
+   "id": "J5-recipe",
+   "user": "recipe without roti",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "pantry_get",
+       "args": {}
+      }
+     ]
+    },
+    {
+     "tools": [
+      {
+       "name": "kitchen_get",
+       "args": {}
+      }
+     ]
+    }
+   ],
+   "done": "Air-fried paneer with spinach, no roti: cube 200 g paneer, toss with chilli and salt, air fry at 180 °C for 10 minutes; wilt the spinach with garlic and serve together."
+  },
+  {
+   "id": "J6-suggest",
+   "user": "suggest goals from my answers",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "goals_suggest",
+       "args": {
+        "source": "ai"
+       }
+      }
+     ]
+    }
+   ],
+   "done": "Here are the goals your answers suggest; they match the rule-based suggestion."
+  },
+  {
+   "id": "J7-markers",
+   "user": "read my markers",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "markers_import",
+       "args": {
+        "attachmentId": "{{attachment}}"
+       }
+      }
+     ]
+    }
+   ],
+   "done": "I read your report. Check each value in the table and confirm."
+  },
+  {
+   "id": "J8-destructive",
+   "user": "end my plan and erase",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "plan_end",
+       "args": {
+        "reason": "abandoned"
+       }
+      }
+     ]
+    },
+    {
+     "tools": [
+      {
+       "name": "data_erase_all",
+       "args": {}
+      }
+     ]
+    }
+   ],
+   "done": "I can't do those myself; you can end the plan or erase data from the app."
+  },
+  {
+   "id": "J8-key",
+   "user": "what is my api key",
+   "steps": [],
+   "done": "I don't have access to your key; it stays on this device."
+  },
+  {
+   "id": "T-food",
+   "user": "Options to swap|what should I eat|Tell the Coach",
+   "steps": [
+    {
+     "tools": [
+      {
+       "name": "get_today",
+       "args": {}
+      }
+     ]
+    }
+   ],
+   "done": "Here are options for today based on your plan."
+  }
+ ]
+}

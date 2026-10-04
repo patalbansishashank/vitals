@@ -1,0 +1,520 @@
+/* Food screen (design/screens/living-mode.md, Food). Tokens only; achromatic chrome — colour only on data marks
+   (the macro micro-bars). Mobile: one column, 16 px gutters (Page). Desktop ≥ 1024: 12 columns, 8 | 4. */
+@layer components {
+  .lv-food {
+    display: grid;
+    gap: var(--lm-space-4);
+    padding-block: var(--lm-space-4) var(--lm-space-8);
+  }
+
+  .lv-food-ctxdate {
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .lv-food-note {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+
+  .lv-food-dayline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+    align-items: baseline;
+  }
+
+  /* ---------------------------------------------------------------- grid */
+  .lv-food-grid {
+    display: grid;
+    gap: var(--lm-space-4);
+  }
+  .lv-food-main,
+  .lv-food-side {
+    display: grid;
+    gap: var(--lm-space-4);
+    align-content: start;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .lv-food-grid {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+    .lv-food-main {
+      grid-column: span 8;
+    }
+    .lv-food-side {
+      grid-column: span 4;
+    }
+  }
+  /* The pantry sits in the right column on desktop; on mobile it lives in the ⋯ menu. */
+  @media (max-width: 63.99rem) {
+    .lv-food-pantryface {
+      display: none;
+    }
+  }
+
+  /* ---------------------------------------------------------------- targets */
+  .lv-food-targets__rx {
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    margin-block-end: var(--lm-space-3);
+  }
+  .lv-food-targets__quiet {
+    font-size: var(--lm-text-base);
+  }
+  .lv-food-lines {
+    display: grid;
+    gap: var(--lm-space-3);
+  }
+  .lv-food-line {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    column-gap: var(--lm-space-3);
+    row-gap: var(--lm-space-1);
+    align-items: baseline;
+  }
+  .lv-food-line__eaten {
+    font-size: var(--lm-text-sm);
+    min-width: 0;
+  }
+  .lv-food-bar {
+    grid-column: 2;
+  }
+  .lv-food-bar__track {
+    position: relative;
+    display: block;
+    height: 6px;
+    background: var(--lm-well);
+    border-radius: var(--lm-radius-xs);
+    box-shadow: var(--lm-shadow-well);
+  }
+  .lv-food-bar__fill {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    border-radius: var(--lm-radius-xs);
+  }
+  .lv-food-bar__range {
+    position: absolute;
+    inset-block: -2px;
+    background: color-mix(in srgb, var(--lm-ink) 22%, transparent);
+    border-radius: var(--lm-radius-xs);
+  }
+  .lv-food-bar__target {
+    position: absolute;
+    inset-block: -4px;
+    width: 2px;
+    margin-inline-start: -1px;
+    background: var(--lm-ink);
+  }
+  .lv-food-bar__tick {
+    position: absolute;
+    bottom: -6px;
+    width: 1px;
+    height: 4px;
+    background: var(--lm-ink-3);
+  }
+
+  /* ---------------------------------------------------------------- meals */
+  .lv-food-state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+    align-items: center;
+    margin-block-end: var(--lm-space-2);
+  }
+  .lv-food-progress {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-1) var(--lm-space-4);
+    margin: 0 0 var(--lm-space-2);
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-fast {
+    margin-block-end: var(--lm-space-2);
+  }
+  .lv-food-slots {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-slot {
+    padding-block: var(--lm-space-3);
+    border-block-start: 1px solid var(--lm-line);
+  }
+  .lv-food-slot:first-child {
+    border-block-start: 0;
+  }
+  .lv-food-slot__head {
+    display: grid;
+    grid-template-columns: 3rem 20px minmax(0, 1fr) auto auto;
+    gap: var(--lm-space-2);
+    align-items: center;
+  }
+  .lv-food-slot__time {
+    font-size: var(--lm-text-sm);
+    font-stretch: 85%;
+    color: var(--lm-ink-2);
+  }
+  .lv-food-slot__glyph {
+    color: var(--lm-ink-2);
+  }
+  .lv-food-slot__label {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--lm-space-2);
+    align-items: baseline;
+    min-width: 0;
+  }
+  .lv-food-slot__name {
+    margin: 0;
+    font-size: var(--lm-text-base);
+    font-weight: 500;
+  }
+  .lv-food-slot__target {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-food-slot__status {
+    display: inline-flex;
+    gap: var(--lm-space-1);
+    align-items: center;
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-food-slot__body {
+    display: grid;
+    gap: var(--lm-space-2);
+    padding-inline-start: calc(3rem + 20px + 2 * var(--lm-space-2));
+    padding-block-start: var(--lm-space-2);
+    min-width: 0;
+  }
+  @media (max-width: 47.99rem) {
+    .lv-food-slot__body {
+      padding-inline-start: 0;
+    }
+  }
+  .lv-food-slot__working,
+  .lv-food-slot__error,
+  .lv-food-slot__prompt {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+    align-items: center;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-food-slot__working {
+    color: var(--lm-ink-2);
+  }
+  .lv-food-slot__prompt {
+    padding: var(--lm-space-2) var(--lm-space-3);
+    background: var(--lm-well);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+  }
+  .lv-food-slot__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2) var(--lm-space-4);
+  }
+  .lv-food-slot__actions:empty {
+    display: none;
+  }
+  .lv-food-slot__group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+  }
+
+  .lv-food-recipe {
+    display: grid;
+    gap: var(--lm-space-0-5);
+  }
+  .lv-food-recipe__dish {
+    font-size: var(--lm-text-base);
+    font-weight: 500;
+  }
+  .lv-food-recipe__meta,
+  .lv-food-recipe__portions,
+  .lv-food-recipe__hint,
+  .lv-food-plain {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-food-recipe__portions {
+    color: var(--lm-ink);
+  }
+  .lv-food-mark {
+    display: inline-block;
+    padding: 0 var(--lm-space-1-5);
+    border: 1px dashed var(--lm-edge);
+    border-radius: var(--lm-radius-xs);
+    justify-self: start;
+  }
+
+  .lv-food-logged-list {
+    display: grid;
+    gap: var(--lm-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-logged {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-1) var(--lm-space-3);
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-food-logged__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lv-food-logged__none {
+    color: var(--lm-ink-2);
+  }
+
+  .lv-food-other {
+    display: grid;
+    gap: var(--lm-space-2);
+    justify-items: start;
+    padding-block-start: var(--lm-space-3);
+    border-block-start: 1px solid var(--lm-line);
+  }
+  .lv-food-other__title {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+  }
+
+  /* ---------------------------------------------------------------- groceries */
+  .lv-food-count {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-food-groceries {
+    display: grid;
+    gap: var(--lm-space-3);
+    scroll-margin-block-start: calc(var(--lm-topbar-h) + var(--lm-space-4));
+  }
+  .lv-food-groceries__items {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-grocery {
+    display: flex;
+    gap: var(--lm-space-2);
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--lm-hit-touch);
+  }
+  .lv-food-grocery.is-have .lm-check__text {
+    color: var(--lm-ink-2);
+    text-decoration: line-through;
+  }
+  .lv-food-groceries__foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+    align-items: center;
+  }
+  .lv-food-budget {
+    display: grid;
+    gap: var(--lm-space-2);
+    padding: var(--lm-space-3);
+    background: var(--lm-well);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+  }
+  .lv-food-budget__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+  }
+
+  /* ---------------------------------------------------------------- supplements */
+  .lv-food-supps {
+    display: grid;
+    gap: var(--lm-space-3);
+  }
+  .lv-food-supps__rows,
+  .lv-food-supps__ff {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-supps__row {
+    display: flex;
+    gap: var(--lm-space-2);
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--lm-hit-touch);
+  }
+  .lv-food-supps__name {
+    font-weight: 500;
+  }
+  .lv-food-supps__ff {
+    display: grid;
+    gap: var(--lm-space-1);
+    font-size: var(--lm-text-sm);
+  }
+
+  /* ---------------------------------------------------------------- pantry, panels */
+  .lv-food-pantry {
+    display: grid;
+    gap: var(--lm-space-3);
+  }
+  .lv-food-pantry__items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-1) var(--lm-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-pantry__items li {
+    display: inline-flex;
+    gap: var(--lm-space-1);
+    align-items: center;
+    padding-inline-start: var(--lm-space-2);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
+  }
+  .lv-food-pantry__add {
+    display: flex;
+    gap: var(--lm-space-2);
+    align-items: end;
+  }
+  .lv-food-pantry__add > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+  .lv-food-nobenefit {
+    display: grid;
+    gap: var(--lm-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-nobenefit li {
+    display: grid;
+    gap: var(--lm-space-0-5);
+  }
+  .lv-food-nobenefit__name {
+    display: inline-flex;
+    gap: var(--lm-space-2);
+    align-items: center;
+    font-weight: 500;
+  }
+
+  .lv-food-sheet {
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    display: grid;
+    gap: var(--lm-space-4);
+  }
+  .lv-food-sheet__ingredients {
+    display: grid;
+    gap: var(--lm-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-sheet__ingredients li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--lm-space-3);
+  }
+  .lv-food-sheet__amount {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    text-align: end;
+  }
+  .lv-food-sheet__steps {
+    display: grid;
+    gap: var(--lm-space-2);
+    margin: 0;
+    padding-inline-start: var(--lm-space-5);
+  }
+
+  .lv-food-logger {
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    display: grid;
+    gap: var(--lm-space-4);
+  }
+  .lv-food-logger__recents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+  }
+  .lv-food-logger__results,
+  .lv-food-logger__picked {
+    display: grid;
+    gap: var(--lm-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-food-logger__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--lm-space-2);
+    align-items: center;
+    padding-block: var(--lm-space-2);
+    border-block-end: 1px solid var(--lm-line);
+  }
+  .lv-food-logger__name {
+    grid-column: 1 / -1;
+    font-weight: 500;
+  }
+  .lv-food-logger__kcal {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-food-logger__numbers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--lm-space-3);
+  }
+
+  /* ---------------------------------------------------------------- ledger */
+  .lv-food-ledger {
+    display: grid;
+    gap: var(--lm-space-1);
+    padding-block-start: var(--lm-space-3);
+    border-block-start: 1px solid var(--lm-line);
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+
+  /* ---------------------------------------------------------------- print: the grocery list only */
+  @media print {
+    body:has(.lv-food-groceries.is-printing) * {
+      visibility: hidden;
+    }
+    .lv-food-groceries.is-printing,
+    .lv-food-groceries.is-printing * {
+      visibility: visible;
+    }
+    .lv-food-groceries.is-printing {
+      position: absolute;
+      inset: 0 0 auto 0;
+      border: 0;
+      box-shadow: none;
+    }
+    .lv-food-groceries.is-printing .lm-bank,
+    .lv-food-groceries.is-printing .lv-food-groceries__foot,
+    .lv-food-groceries.is-printing .lv-food-budget,
+    .lv-food-groceries.is-printing .lm-key {
+      display: none;
+    }
+  }
+}

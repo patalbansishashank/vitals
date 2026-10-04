@@ -1,0 +1,10 @@
+import { open, dump, text, BASE, shot } from './lib.mjs';
+const mobile = process.argv[2] === 'mobile';
+const path = process.argv[3] || '/settings';
+const { browser, page, errors } = await open({ mobile });
+await page.goto(BASE + path, { waitUntil: 'networkidle' });
+await page.waitForTimeout(1500);
+await dump(page, 'at', 'body');
+console.log(await text(page, 'main', +(process.argv[4]||6000)));
+console.log('ERRORS', errors);
+await browser.close();

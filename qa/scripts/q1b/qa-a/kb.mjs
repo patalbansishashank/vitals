@@ -1,0 +1,23 @@
+import { open, BASE, base, shot } from './lib.mjs';
+import { run } from '../../onb/steps.mjs';
+const { browser, page, errors } = await open();
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+await run(page, base);
+const foc = () => page.evaluate(() => { const a = document.activeElement; const cs = getComputedStyle(a); const lg = [...document.querySelectorAll('main fieldset legend')].filter(l => l.getBoundingClientRect().height).pop()?.innerText; return `${a.tagName}${a.getAttribute('role') ? '/' + a.getAttribute('role') : ''} "${(a.getAttribute('aria-label') || a.innerText || '').replace(/\s+/g, ' ').slice(0, 40)}" chk=${a.getAttribute('aria-checked')} ring=${cs.outlineStyle !== 'none' || cs.boxShadow !== 'none'} | LEG: ${lg?.slice(0, 50)}`; });
+const press = async (k, n = 1) => { for (let i = 0; i < n; i++) { await page.keyboard.press(k); await page.waitForTimeout(250); } };
+const tabTo = async (re, max = 40) => { for (let i = 0; i < max; i++) { await press('Tab'); const f = await foc(); if (re.test(f)) { console.log(`  tab#${i + 1} ->`, f); return true; } } console.log('  NOT REACHED', re, await foc()); return false; };
+console.log('start', await foc());
+await tabTo(/"never"/, 4);
+await press('ArrowRight'); console.log('  ArrowRight', await foc()); await press('ArrowRight'); console.log('  ArrowRight', await foc());
+await press('Space'); await page.waitForTimeout(600); console.log('after Space (commit?)', await foc());
+await tabTo(/radio "no"/, 4); await press('ArrowRight'); console.log('  ArrowRight', await foc()); await press('Space'); console.log('  Space', await foc());
+await tabTo(/"Done/, 30); await press('Enter'); await page.waitForTimeout(600); console.log('after willingness Done', await foc());
+await tabTo(/"home"/, 4); await press('Space'); console.log('  home ticked', await foc()); await press('ArrowRight'); console.log('  ArrowRight', await foc()); await press('Space'); console.log('  gym ticked?', await foc());
+await press('Enter'); await page.waitForTimeout(700); console.log('after Enter on checkbox (should commit to days)', await foc());
+await tabTo(/"Mon"/, 4); await press('Space'); await press('ArrowRight'); await press('ArrowRight'); await press('Space'); console.log('  Mon+Wed', await foc()); await press('Enter'); await page.waitForTimeout(700); console.log('after days Enter', await foc());
+await tabTo(/Indian traditional set/, 4); await press('Enter'); console.log('  preset', await foc());
+for (let k = 0; k < 4; k++) { await press('Tab'); console.log('kit stop', k + 1, await foc()); }
+await shot(page, 'kb-kit');
+await tabTo(/"mudgar"/, 6); for (let k = 0; k < 3; k++) await press('ArrowRight'); console.log('  moved within group', await foc()); await press('Space'); console.log('  toggled', await foc()); await shot(page, 'kb-kit-ticked'); await press('Enter'); await page.waitForTimeout(700); console.log('after kit Enter', await foc());
+console.log('ERRORS', errors.filter(e => !/Failed to load resource/.test(e)));
+await browser.close();

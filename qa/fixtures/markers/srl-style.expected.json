@@ -1,0 +1,123 @@
+{
+  "file": "srl-style.pdf",
+  "synthetic": true,
+  "layout": "Test / Result / Unit / Bio. Ref. Interval, method lines under names, category ranges (low eGFR)",
+  "sampleDate": "2026-08-03",
+  "pages": 2,
+  "textlessPages": [],
+  "note": "textlessPages and imageOnly[].sourcePage count the source pages; a long table may spill onto an extra printed page (see printedPages)",
+  "patient": {
+    "name": "Meera Imaginary",
+    "ageSex": "61 Years / Female",
+    "phone": "9123456780",
+    "id": "LPL-0099887",
+    "barcode": "112233445",
+    "address": "Imaginary Collection Centre, 4 Fake Lane, Kolkata",
+    "doctor": "Dr. Placeholder Sen"
+  },
+  "tierA": [
+    {
+      "markerId": "creatinine",
+      "nameOnReport": "Serum Creatinine",
+      "value": 1.28,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "egfr",
+      "nameOnReport": "EST. GLOMERULAR FILTRATION RATE (eGFR)",
+      "value": 47,
+      "unit": "mL/min/1.73 m²",
+      "calculated": false
+    },
+    {
+      "markerId": "urate",
+      "nameOnReport": "URIC ACID",
+      "value": 7.2,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "sodium",
+      "nameOnReport": "SODIUM",
+      "value": 136,
+      "unit": "mEq/L",
+      "calculated": false
+    },
+    {
+      "markerId": "potassium",
+      "nameOnReport": "POTASSIUM",
+      "value": 5.3,
+      "unit": "mEq/L",
+      "calculated": false
+    },
+    {
+      "markerId": "uacr",
+      "nameOnReport": "Microalbumin/Creatinine ratio",
+      "value": 48,
+      "unit": "mg/g",
+      "calculated": false
+    },
+    {
+      "markerId": "alt",
+      "nameOnReport": "ALT (SGPT)",
+      "value": 38,
+      "unit": "U/L",
+      "calculated": false
+    },
+    {
+      "markerId": "ast",
+      "nameOnReport": "AST (SGOT)",
+      "value": 31,
+      "unit": "U/L",
+      "calculated": false
+    },
+    {
+      "markerId": "ggt",
+      "nameOnReport": "GAMMA GT (GGT)",
+      "value": 54,
+      "unit": "U/L",
+      "calculated": false
+    },
+    {
+      "markerId": "tg",
+      "nameOnReport": "Triglycerides",
+      "value": 182,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "hdl",
+      "nameOnReport": "HDL Cholesterol",
+      "value": 41,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "ldl",
+      "nameOnReport": "LDL Cholesterol (Calculated)",
+      "value": 134.6,
+      "unit": "mg/dL",
+      "calculated": true
+    },
+    {
+      "markerId": "fpg",
+      "nameOnReport": "Glucose, Fasting (Plasma)",
+      "value": 112,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "hba1c",
+      "nameOnReport": "HbA1c (Glycated Haemoglobin)",
+      "value": 6.2,
+      "unit": "%",
+      "calculated": false
+    }
+  ],
+  "imageOnly": [],
+  "droppedCalculated": [
+    "Non-HDL Cholesterol"
+  ],
+  "printedPages": 3
+}

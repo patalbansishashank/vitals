@@ -1,0 +1,2 @@
+[{"goto":"/progress","wait":2500,"dump":1,"textDump":3500,"shot":"01-progress-empty"},
+{"goto":"/settings/devices","wait":2000,"dump":1,"textDump":2500}]

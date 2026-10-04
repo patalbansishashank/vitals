@@ -1,0 +1,205 @@
+/* Supplement row (design/COMPONENTS.md §14.4). The row is its own container: the layout follows the row's width, not
+   the screen's, so it fits the intake card, Settings and the Food column alike. Controls keep their minimum widths and
+   wrap to the next line instead of shrinking (no overlap). No row hover (its controls carry their own). Tokens only. */
+@layer components {
+  .lm-supprow {
+    container-type: inline-size;
+    padding-block: var(--lm-space-3);
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-supprow:last-child {
+    border-bottom: 0;
+  }
+
+  /* < 480: name | state, then the dose on the right, then the four times on their own line */
+  .lm-supprow__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'left state'
+      'controls controls';
+    column-gap: var(--lm-space-3);
+    row-gap: var(--lm-space-2);
+    align-items: start;
+  }
+  .lm-supprow__left {
+    grid-area: left;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .lm-supprow__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-2);
+    min-height: 32px;
+  }
+  .lm-supprow__name {
+    color: var(--lm-ink);
+    font-size: var(--lm-text-md, 15px);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+  .lm-supprow__line {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs, 12px);
+    line-height: 1.4;
+  }
+  .lm-supprow__line--quiet,
+  .lm-supprow[data-state='notForMe'] .lm-supprow__name {
+    color: var(--lm-ink-3);
+  }
+  .lm-supprow__caution {
+    color: var(--lm-caution-fg);
+    font-size: var(--lm-text-xs, 12px);
+    line-height: 1.4;
+  }
+  .lm-supprow__state {
+    grid-area: state;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-1);
+    min-width: 0;
+  }
+  .lm-supprow__state .lm-select,
+  .lm-supprow__state select {
+    min-width: 132px;
+  }
+  .lm-supprow__today {
+    grid-area: state;
+    justify-self: end;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--lm-space-2);
+  }
+  .lm-supprow__controls {
+    grid-area: controls;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: flex-start;
+    gap: var(--lm-space-2) var(--lm-space-3);
+  }
+  .lm-supprow__dose {
+    display: grid;
+    grid-auto-flow: column;
+    justify-content: end;
+    align-items: center;
+    column-gap: var(--lm-space-2);
+    row-gap: var(--lm-space-1);
+    flex: none;
+  }
+  .lm-supprow__dosefield {
+    width: 96px;
+  }
+  .lm-supprow__dosefield input {
+    font-size: 16px; /* no zoom on touch */
+  }
+  .lm-supprow__unit,
+  .lm-supprow__unit.lm-select-native {
+    width: 104px;
+    min-width: 0;
+  }
+  .lm-supprow__each {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs, 12px);
+    white-space: nowrap;
+  }
+  .lm-supprow__dose > .lm-error {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
+  .lm-supprow__times {
+    display: grid;
+    gap: var(--lm-space-1);
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .lm-supprow__bank {
+    display: flex;
+    width: 100%;
+  }
+  .lm-supprow__bank > .lm-bank__key {
+    flex: 1 1 0;
+    height: 44px;
+    padding-inline: var(--lm-space-2);
+  }
+  .lm-supprow__bank > .lm-bank__key[aria-pressed='true'] {
+    background: var(--lm-raised);
+    color: var(--lm-ink);
+    box-shadow: var(--lm-shadow-key);
+  }
+
+  /* 480–719: name | state bank, then dose and times side by side on the right (wrapping if they meet) */
+  @container (min-width: 480px) {
+    .lm-supprow__times {
+      flex: 0 1 auto;
+    }
+    .lm-supprow__bank {
+      display: inline-flex;
+      width: auto;
+    }
+    .lm-supprow__bank > .lm-bank__key {
+      flex: none;
+      height: 36px;
+      padding-inline: var(--lm-space-3);
+    }
+  }
+
+  /* ≥ 720: one line — name | dose · times · state */
+  @container (min-width: 720px) {
+    .lm-supprow__grid {
+      grid-template-columns: minmax(140px, 1fr) auto auto;
+      grid-template-areas: 'left controls state';
+    }
+    .lm-supprow__controls {
+      flex-wrap: nowrap;
+    }
+  }
+}
+
+/* The list editor around the rows (intake card, Settings). */
+@layer components {
+  .lm-supplist {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .lm-supplist__label {
+    display: block;
+    margin-bottom: var(--lm-space-1);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+  }
+  .lm-supplist__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-2);
+  }
+  .lm-supplist__otherrow {
+    display: flex;
+    gap: var(--lm-space-2);
+    align-items: center;
+  }
+  .lm-supplist__otherrow > .lm-input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lm-supplist__note {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+  }
+  .lm-supplist__rows {
+    display: grid;
+    min-width: 0;
+  }
+  .lm-supplist__rows > [role='listitem']:last-child .lm-supprow {
+    border-bottom: 0;
+  }
+}

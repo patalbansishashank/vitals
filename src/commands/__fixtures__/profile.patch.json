@@ -1,0 +1,12 @@
+{
+  "weightKg": 82.5,
+  "figure": {
+    "frame": 0.4
+  },
+  "shape": {
+    "bodyFatPct": 24
+  },
+  "habits": {
+    "typicalSteps": 9000
+  }
+}

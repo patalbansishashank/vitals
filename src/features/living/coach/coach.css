@@ -1,0 +1,243 @@
+/* Coach (living-mode.md, Coach): one flush faceplate, rows separated by hairlines (no bubbles), engraved speakers in
+   a 64 px gutter on desktop / above the text on mobile; "What the Coach knows" docked at ≥ 1280 px. Achromatic. */
+@layer components {
+  .lv-coach {
+    display: grid;
+    gap: 12px;
+  }
+
+  .lv-coach-grid {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .lv-coach-main {
+    display: grid;
+    gap: 12px;
+    align-content: start;
+    width: 100%;
+    max-width: 760px;
+    min-width: 0;
+    margin-inline: auto;
+  }
+  @media (min-width: 80rem) {
+    .lv-coach-grid[data-docked='true'] {
+      grid-template-columns: minmax(0, 760px) 360px;
+      justify-content: center;
+      align-items: start;
+    }
+    .lv-coach-grid[data-docked='true'] .lv-coach-main {
+      margin-inline: 0;
+    }
+  }
+
+  /* "1 proposal waiting", pinned under the context row */
+  .lv-coach-waiting {
+    position: sticky;
+    top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 64px);
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .lv-coach-waiting > * {
+    pointer-events: auto;
+    box-shadow: var(--lm-shadow-pop);
+  }
+  @media (min-width: 64rem) {
+    .lv-coach-waiting {
+      top: calc(var(--lm-topbar-h) + 8px);
+    }
+  }
+
+  .lv-coach-quiet {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+
+  /* the conversation */
+  .lv-coach-conv {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .lv-coach-log {
+    display: grid;
+    /* one shrinkable column: a wide card (a correction proposal at 390 px) wraps instead of widening the page */
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .lv-coach-day {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 14px 16px 6px;
+  }
+  .lv-coach-day::before,
+  .lv-coach-day::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--lm-line);
+  }
+  .lv-coach-segment {
+    margin: 0;
+    padding: 10px 16px;
+    border-top: 1px dashed var(--lm-line-strong);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+    text-align: center;
+  }
+
+  .lv-coach-turn {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--lm-line);
+    min-width: 0;
+  }
+  .lv-coach-day + .lv-coach-turn {
+    border-top: 0;
+  }
+  @media (min-width: 64rem) {
+    .lv-coach-turn {
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 0;
+      padding: 14px 20px;
+    }
+    .lv-coach-day,
+    .lv-coach-segment {
+      padding-inline: 20px;
+    }
+  }
+  .lv-coach-who {
+    padding-top: 2px;
+  }
+  .lv-coach-body {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+  .lv-coach-text {
+    margin: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    color: var(--lm-ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .lv-coach-note {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-coach-turn[aria-busy='true'] .lv-coach-text::after {
+    content: '';
+    display: inline-block;
+    width: 2px;
+    height: 1em;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    background: var(--lm-ink-2);
+  }
+  .lv-coach-card {
+    min-width: 0;
+    scroll-margin-block: 96px;
+  }
+  .lv-coach-keys,
+  .lv-coach-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .lv-coach-photo {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+  }
+  .lv-coach-photo__img {
+    display: block;
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-line);
+    background: var(--lm-well);
+  }
+
+  .lv-coach-empty {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+    padding: 24px 16px;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    color: var(--lm-ink);
+  }
+  .lv-coach-empty p {
+    margin: 0;
+  }
+  .lv-coach-empty__title {
+    font-weight: 600;
+  }
+  @media (min-width: 64rem) {
+    .lv-coach-empty {
+      padding: 32px 20px 32px 84px;
+    }
+  }
+
+  /* the composer stays reachable at the foot of the conversation */
+  .lv-coach-compose {
+    position: sticky;
+    bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
+    z-index: 1;
+    padding: 12px 16px;
+    background: var(--lm-face);
+    border-top: 1px solid var(--lm-line);
+    border-radius: 0 0 var(--lm-radius-md) var(--lm-radius-md);
+  }
+  @media (min-width: 64rem) {
+    .lv-coach-compose {
+      bottom: 0;
+      padding: 12px 20px 14px;
+    }
+  }
+
+  /* What the Coach knows (docked) */
+  .lv-coach-brief {
+    position: sticky;
+    top: calc(var(--lm-topbar-h) + 12px);
+    max-height: calc(100dvh - var(--lm-topbar-h) - 24px);
+    overflow-y: auto;
+  }
+  .lv-coach-brief__body {
+    display: grid;
+    gap: 16px;
+  }
+  /* in the mobile sheet the shared panel body has no padding: inset like the head and foot */
+  .lm-panel__body > .lv-coach-brief__body {
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+  }
+  .lv-coach-brief__lines {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  .lv-coach-brief__link {
+    justify-self: start;
+    font-size: var(--lm-text-sm);
+  }
+}

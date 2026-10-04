@@ -1,0 +1,163 @@
+/* ==========================================================================
+   Vitals — base layer: document typography, browser surfaces, motion policy.
+   Everything reads --lm-* tokens (tokens.css). No literal colours here.
+   ========================================================================== */
+
+/* Font stack with the metric-matched fallback (fonts.css). Unlayered so it
+   beats the token declaration it refines; also re-applied inside theme scopes. */
+:root,
+[data-theme-scope] {
+  --lm-font-sans: 'Archivo', 'Archivo Fallback', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
+  /* safe-area insets as tokens so layout math stays readable */
+  --lm-safe-top: env(safe-area-inset-top, 0px);
+  --lm-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --lm-safe-left: env(safe-area-inset-left, 0px);
+  --lm-safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* ---- motion policy ------------------------------------------------------
+   data-motion on <html> is written by src/app/theme.ts from the settings
+   store: "reduce" forces the reduced profile, "full" overrides an OS
+   preference, absent = follow the OS (tokens.css media query). */
+:root[data-motion='reduce'] {
+  --lm-dur-fast: 0.01ms;
+  --lm-dur-base: 0.01ms;
+  --lm-dur-slow: 0.01ms;
+  --lm-dur-needle: 0.01ms;
+  --lm-dur-morph: 0.01ms;
+  --lm-ease-needle: linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-motion='full'] {
+    --lm-dur-fast: 140ms;
+    --lm-dur-base: 200ms;
+    --lm-dur-slow: 320ms;
+    --lm-dur-needle: 420ms;
+    --lm-dur-morph: 900ms;
+    --lm-ease-needle: cubic-bezier(0.34, 1.36, 0.64, 1);
+  }
+  :root:not([data-motion='full']) *,
+  :root:not([data-motion='full']) *::before,
+  :root:not([data-motion='full']) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Theme change cross-fade (settings-data.md §7). theme.ts adds the class for
+   ~260 ms; reduced motion collapses the durations above. */
+:root.lm-theme-fading,
+:root.lm-theme-fading *,
+:root.lm-theme-fading *::before,
+:root.lm-theme-fading *::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow !important;
+  transition-duration: var(--lm-dur-base) !important;
+  transition-timing-function: var(--lm-ease-out) !important;
+}
+
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: calc(var(--lm-topbar-h) * 2 + var(--lm-safe-top));
+  }
+  @media (min-width: 64rem) {
+    html {
+      scroll-padding-top: calc(var(--lm-topbar-h) + 16px);
+    }
+  }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    color: var(--lm-ink);
+    background: var(--lm-chassis);
+    -webkit-tap-highlight-color: transparent;
+    font-synthesis: none;
+  }
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+  a {
+    color: inherit;
+    text-decoration-color: var(--lm-edge);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  code,
+  kbd,
+  samp {
+    font-family: var(--lm-font-mono);
+    font-size: 0.92em;
+  }
+  table {
+    font-variant-numeric: tabular-nums;
+  }
+  ::placeholder {
+    color: var(--lm-ink-3);
+    opacity: 1;
+  }
+  :focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  /* headings and regions receive focus programmatically (route change, dialogs) — no ring */
+  h1[tabindex='-1']:focus,
+  h2[tabindex='-1']:focus,
+  main[tabindex='-1']:focus {
+    outline: none;
+  }
+  /* Scrollbars carry the chassis, not the OS default. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--lm-line-strong) transparent;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+/* Visually hidden, still announced. */
+.lm-sr {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}

@@ -1,0 +1,14 @@
+{
+  "file": {
+    "vitalsVersion": "1",
+    "stores": {
+      "vitals.settings": {
+        "version": 3,
+        "state": {
+          "units": "imperial"
+        }
+      }
+    }
+  },
+  "mode": "merge"
+}

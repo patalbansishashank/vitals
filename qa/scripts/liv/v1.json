@@ -1,0 +1,6 @@
+[{"goto":"/today","wait":3000,"eval":"[...document.scripts].map(s=>s.src.split('/').pop()).join(',')"},
+{"css":"[aria-label='Mark breakfast as planned']","wait":2500,"eval":"[document.querySelector('[aria-label=\"Mark breakfast as planned\"]')?.getAttribute('aria-pressed'), [...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,200)).join(' || '), document.body.innerText.match(/eaten[^\\n]*\\n[^\\n]*\\n[^\\n]*/)?.[0]]"},
+{"goto":"/food","wait":2500},{"click":"I ate something else: lunch","role":"button","wait":1500},{"fill":"Or describe it","value":"2 rotis and 1 katori dal","wait":300},{"click":"Log lunch","wait":2500,"eval":"[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ')"},
+{"click":"I ate something else: snack","role":"button","wait":1500},{"fill":"Or describe it","value":"xyzzy plover","wait":300},{"click":"Log snack","wait":2500,"eval":"[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ')"},
+{"key":"Escape"},
+{"wait":500,"eval":"document.body.innerText.match(/Targets[\\s\\S]{0,600}/)?.[0]","shot":"17-food-after-fix"}]

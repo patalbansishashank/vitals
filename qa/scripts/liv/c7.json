@@ -1,0 +1,2 @@
+[{"goto":"/coach","wait":3500},
+{"fillCss":"textarea","value":"I had dal and rice for lunch","wait":300},{"click":"Send","role":"button","wait":9000,"textDump":2500,"shot":"18-coach-card","dump":1}]

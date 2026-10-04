@@ -1,0 +1,1 @@
+[{"goto":"/body?setup=shape"},{"click":"Skip for now","wait":1500,"dump":1,"textDump":600},{"click":"Skip for now","soft":1,"wait":1500,"dump":1,"textDump":600},{"goto":"/simulate","wait":2500,"dump":1,"textDump":1500}]

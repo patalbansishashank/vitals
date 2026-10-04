@@ -1,0 +1,3 @@
+[{"goto":"/train","wait":3000},
+{"click":"Swap push-up","role":"button","wait":2500,"eval":"(()=>{const d=[...document.querySelectorAll('[role=dialog]')].map(e=>e.innerText);return d.join(' ### ').slice(0,3000)})()","shot":"11-swap-sheet"},
+{"dump":1}]

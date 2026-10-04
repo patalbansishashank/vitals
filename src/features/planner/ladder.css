@@ -1,0 +1,1417 @@
+/* ==========================================================================
+   Plan ladder (design/screens/plan-ladder.md; COMPONENTS §13.5-13.7).
+   Tokens only (var(--lm-*)); chrome achromatic, rung hues on data marks and the
+   rung keys only. The Ideal is achromatic and dashed: a reference, not a fourth
+   choice. Prefix: lp-.
+   ========================================================================== */
+
+@layer components {
+  /* ---- rung identity (hue on data marks and keys only) ------------------------------------------------------ */
+  [data-rung='hard'] {
+    --lp-rung: var(--lm-rung-hard, var(--lm-plan-a));
+  }
+  [data-rung='medium'] {
+    --lp-rung: var(--lm-rung-medium, var(--lm-plan-b));
+  }
+  [data-rung='easy'] {
+    --lp-rung: var(--lm-rung-easy, var(--lm-plan-c));
+  }
+  [data-rung='ideal'] {
+    --lp-rung: var(--lm-rung-ideal, var(--lm-ink));
+  }
+
+  .lp-rkey {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    background: var(--lp-rung);
+    color: var(--lm-ink-inverse);
+    font-size: 13px;
+    font-weight: 700;
+    font-stretch: 112%;
+    line-height: 1;
+    box-shadow: var(--lm-shadow-key);
+  }
+  .lp-rkey[data-size='sm'] {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+    box-shadow: none;
+  }
+  .lp-rkey[data-pressed] {
+    box-shadow: var(--lm-shadow-key-pressed);
+    transform: translateY(1px);
+  }
+  .lp-rkey[data-rung='ideal'] {
+    background: transparent;
+    color: var(--lm-ink);
+    border: 1px dashed var(--lm-ink);
+    box-shadow: none;
+    transform: none;
+  }
+
+  /* ---- results layout ------------------------------------------------------------------------------------- */
+  .lp-results--ladder {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .lp-results--ladder > .lp-notice {
+    margin: 0;
+  }
+  .lp-results.is-stale .lp-ladder,
+  .lp-results.is-stale .lp-ladder-face,
+  .lp-results.is-stale .lp-ltable-wrap,
+  .lp-results.is-stale .lp-tabs {
+    opacity: 0.6;
+  }
+  .lp-viewswitch {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -6px;
+  }
+
+  /* ---- ladder strip (LadderScale) ----------------------------------------------------------------------------- */
+  .lp-scale {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lp-scale__title {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 12px;
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-scale__ceil-text {
+    color: var(--lm-ink);
+  }
+  .lp-scale__view {
+    justify-self: end;
+  }
+  .lp-scale__plot {
+    position: relative;
+    height: 72px;
+    margin: 8px 64px 0 12px;
+  }
+  @media (min-width: 64rem) {
+    .lp-scale__plot {
+      height: 96px;
+    }
+  }
+  .lp-scale__svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .lp-scale__base {
+    stroke: var(--lm-chart-axis);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .lp-scale__ceiling {
+    stroke: var(--lm-ink);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+    vector-effect: non-scaling-stroke;
+  }
+  .lp-scale__search {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .lp-scale__xlabel {
+    margin: 2px 64px 0 12px;
+    color: var(--lm-ink-3);
+  }
+  .lp-scale__frontier {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .lp-scale__mark {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--lm-ink);
+    cursor: pointer;
+    transform: translate(-5px, -5px);
+    border-radius: var(--lm-radius-xs);
+  }
+  .lp-scale__mark[data-edge='end'] {
+    flex-direction: row-reverse;
+    transform: translate(calc(-100% + 5px), -5px);
+  }
+  .lp-scale__mark i {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--lp-rung);
+    box-shadow: 0 0 0 2px var(--lm-face);
+  }
+  .lp-scale__mark[aria-pressed='true'] i {
+    box-shadow:
+      0 0 0 2px var(--lm-face),
+      0 0 0 3.5px var(--lm-ink);
+  }
+  .lp-scale__label {
+    font-size: var(--lm-text-2xs);
+    white-space: nowrap;
+    /* a plate under the text so the ceiling line never strikes through it (a rung near the ceiling, phones) */
+    padding: 0 3px;
+    margin-top: -14px;
+    background: var(--lm-face);
+    border-radius: var(--lm-radius-xs);
+  }
+  .lp-scale__mark[aria-pressed='true'] .lp-scale__label {
+    font-weight: 600;
+  }
+  /* crowded markers: the label sits below the dot (always when the neighbour is very close, on narrow plots when it is
+     close), so labels never cover another rung's dot or label */
+  .lp-scale__plot {
+    container: lp-scale / inline-size;
+  }
+  .lp-scale__mark[data-crowd='close'] .lp-scale__label {
+    margin-top: 0;
+    translate: 0 14px;
+  }
+  @container lp-scale (max-width: 640px) {
+    .lp-scale__mark[data-crowd='tight'] .lp-scale__label {
+      margin-top: 0;
+      translate: 0 14px;
+    }
+  }
+  .lp-scale__axis {
+    position: relative;
+    height: 14px;
+    margin: 0 64px 0 12px;
+    border-top: 1px solid var(--lm-chart-axis);
+    font-size: 11px;
+    color: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .lp-scale__axis > span {
+    position: absolute;
+    top: 1px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .lp-scale__axis > span[data-edge='start'] {
+    transform: none;
+  }
+  .lp-scale__axis > span[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  .lp-scale__how {
+    margin: 4px 0 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.5;
+    color: var(--lm-ink-2);
+    max-width: 110ch;
+  }
+
+  /* ---- the ladder of cards: only the cards that exist (plan-ladder.md §12.3) -----------------------------------
+     --lp-inside = rung cards (1-3); [data-ideal] adds the 1 px / 24 px limits rule and the Ideal; [data-n] = all cards.
+     < 768: one card full width, more on a snap rail · 768-1023: 2-up (a rail from 3) · 1024-1319: 2 columns, cards
+     placed by data-x / data-y · ≥ 1320: one column per card, 280-440 px, left-aligned. A collapsed rung is a chip
+     under the graph and never reserves a column or height. */
+  .lp-ladder-wrap {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+  .lp-ladder {
+    --lp-w: calc(100% - 28px);
+    position: relative;
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(var(--lp-rows), auto);
+    grid-template-columns: repeat(var(--lp-inside), var(--lp-w));
+    column-gap: 12px;
+    row-gap: 0;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: var(--lm-gutter, 16px);
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    margin: -4px calc(-1 * var(--lm-gutter, 16px)) 0;
+    padding: 4px var(--lm-gutter, 16px) 8px;
+  }
+  .lp-ladder::-webkit-scrollbar {
+    display: none;
+  }
+  .lp-ladder[data-ideal] {
+    grid-template-columns: repeat(var(--lp-inside), var(--lp-w)) 24px var(--lp-w);
+  }
+  /* a single card: full width, no rail */
+  .lp-ladder[data-n='1'] {
+    --lp-w: minmax(0, 1fr);
+    overflow: visible;
+    scroll-snap-type: none;
+  }
+  .lp-ladder__col {
+    grid-row: 1 / span var(--lp-rows);
+    display: grid;
+    grid-template-rows: subgrid;
+    min-width: 0;
+    scroll-snap-align: start;
+  }
+  .lp-ladder__rule {
+    grid-row: 1 / span var(--lp-rows);
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+  .lp-ladder__rule::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    border-left: 1px dashed var(--lm-line-strong);
+  }
+  .lp-ladder__rule span {
+    position: relative;
+    margin-top: 28px;
+    padding: 6px 0;
+    background: var(--lm-chassis);
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: var(--lm-text-2xs);
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+    height: max-content;
+  }
+  @media (min-width: 48rem) {
+    .lp-ladder {
+      --lp-w: calc(50% - 8px);
+      column-gap: 16px;
+    }
+    /* two cards side by side without a rail (the rule column takes its share) */
+    .lp-ladder[data-n='2'] {
+      --lp-w: minmax(0, 1fr);
+      overflow: visible;
+      scroll-snap-type: none;
+    }
+  }
+  @media (min-width: 64rem) {
+    /* 1024-1319: two columns; an odd card count puts the Ideal on a new row under a "beyond your limits" rule */
+    .lp-ladder,
+    .lp-ladder[data-ideal] {
+      grid-auto-flow: row;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(var(--lp-rows2), auto);
+      overflow: visible;
+      scroll-snap-type: none;
+      margin: 0;
+      padding: 0;
+    }
+    .lp-ladder[data-n='1'],
+    .lp-ladder[data-n='2'] {
+      grid-template-rows: repeat(var(--lp-rows), auto);
+    }
+    .lp-ladder__col[data-x='0'] {
+      grid-column: 1;
+    }
+    .lp-ladder__col[data-x='1'] {
+      grid-column: 2;
+    }
+    .lp-ladder__col[data-y='0'] {
+      grid-row: 1 / span var(--lp-rows);
+    }
+    .lp-ladder__col[data-y='1'] {
+      grid-row: var(--lp-row2) / span var(--lp-rows);
+      margin-top: 16px;
+    }
+    .lp-ladder__col[data-col='ideal'] {
+      position: relative;
+    }
+    .lp-ladder__col[data-col='ideal'][data-y='1']::before {
+      content: 'beyond your limits';
+      position: absolute;
+      top: -14px;
+      left: 0;
+      right: 0;
+      border-top: 1px dashed var(--lm-line-strong);
+      padding-top: 1px;
+      font-size: var(--lm-text-2xs);
+      color: var(--lm-ink-3);
+      line-height: 1;
+      text-align: right;
+      transform: translateY(-50%);
+    }
+    .lp-ladder[data-n='1'] .lp-ladder__col {
+      max-width: 520px;
+    }
+    .lp-ladder__rule {
+      display: none;
+    }
+  }
+  @media (min-width: 82.5rem) {
+    /* ≥ 1320: one column per card, left-aligned; the 1 px column is the limits rule */
+    .lp-ladder,
+    .lp-ladder[data-ideal] {
+      grid-auto-flow: column;
+      grid-template-rows: repeat(var(--lp-rows), auto);
+      grid-template-columns: repeat(var(--lp-inside), minmax(280px, 440px));
+      justify-content: start;
+      column-gap: 16px;
+    }
+    .lp-ladder[data-ideal] {
+      grid-template-columns: repeat(var(--lp-inside), minmax(280px, 440px)) 1px minmax(280px, 440px);
+    }
+    .lp-ladder__col[data-x],
+    .lp-ladder__col[data-y] {
+      grid-column: auto;
+      grid-row: 1 / span var(--lp-rows);
+      margin-top: 0;
+    }
+    .lp-ladder__col[data-col='ideal'][data-y='1']::before {
+      content: none;
+    }
+    .lp-ladder[data-n='1'] .lp-ladder__col {
+      max-width: none;
+    }
+    .lp-ladder__rule {
+      display: flex;
+    }
+    .lp-ladder__rule span {
+      margin-top: 40px;
+    }
+  }
+
+  /* ---- collapsed rungs: chips under the graph ------------------------------------------------------------- */
+  .lp-lchips {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+  }
+  .lp-lchip {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-height: 32px;
+    max-width: 100%;
+    padding: 6px 12px 6px 8px;
+    background: var(--lm-face);
+    border: 1px dashed var(--lm-line-strong);
+    border-radius: var(--lm-radius-sm);
+    font-size: var(--lm-text-xs);
+    line-height: 1.45;
+    color: var(--lm-ink-2);
+  }
+  .lp-lchip .lp-rkey {
+    margin-top: 1px;
+    background: transparent;
+    color: var(--lp-rung);
+    border: 1px solid var(--lp-rung);
+  }
+  .lp-lchip__text {
+    min-width: 0;
+  }
+  .lp-lchip__text .lm-eng {
+    color: var(--lm-ink);
+  }
+  @media (max-width: 47.99rem) {
+    .lp-lchip {
+      flex: 1 1 100%;
+    }
+  }
+
+  /* ---- ladder card ----------------------------------------------------------------------------------------- */
+  .lp-lcard {
+    /* the card's own surface, and the row hover mixed into it (COMPONENTS §14.1: 6 % ink, never a tinted fill) */
+    --lp-surface: var(--lm-face);
+    --lp-face-hover: var(--lm-face-hover);
+    --lp-face-press: color-mix(in oklab, var(--lp-surface), var(--lm-ink) 10%);
+    grid-row: 1 / -1;
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: 10px;
+    min-width: 0;
+    padding: 14px 16px 16px;
+    background: var(--lp-surface);
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-md);
+    box-shadow: var(--lm-shadow-face);
+    cursor: pointer;
+    transition:
+      box-shadow var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lp-lcard:hover {
+    border-color: var(--lm-edge);
+  }
+  .lp-lcard[data-selected] {
+    border-color: var(--lm-ink);
+    box-shadow:
+      0 0 0 1px var(--lm-ink),
+      var(--lm-shadow-face);
+  }
+  .lp-lcard[data-rung='ideal'] {
+    --lp-surface: color-mix(in oklab, var(--lm-face) 70%, var(--lm-chassis));
+    /* the token's 6 % ink mix, over the Ideal's own surface */
+    --lp-face-hover: color-mix(in oklab, var(--lp-surface), var(--lm-ink) 6%);
+    border-style: dashed;
+    border-color: var(--lm-ink-3);
+  }
+  /* a rung kept from the previous, shorter search */
+  .lp-lcard[data-carried] {
+    border-top-style: dashed;
+  }
+  .lp-lcard__carried {
+    margin: 2px 0 0;
+    color: var(--lm-ink-3);
+  }
+  .lp-lcard[data-rung='ideal'][data-selected] {
+    border-color: var(--lm-ink);
+  }
+  .lp-lcard[data-standalone] {
+    grid-template-rows: none;
+    grid-row: auto;
+    cursor: default;
+    max-width: 520px;
+  }
+  .lp-lcard__row {
+    min-width: 0;
+    border-radius: var(--lm-radius-xs);
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lp-lcard__row:empty {
+    display: block;
+  }
+  /* Row hover (PLAN item 11): only on controls that do something (a goal row opening Explain, the fasting "why", the
+     safety line). Background only, text colour unchanged; pointer devices only; touch gets the pressed shade. */
+  .lp-rowbtn,
+  .lp-lcard__line--btn,
+  .lp-lcard__safety--btn {
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  @media (hover: hover) {
+    .lp-rowbtn:hover,
+    .lp-lcard__line--btn:hover,
+    .lp-lcard__safety--btn:hover {
+      background: var(--lp-face-hover);
+    }
+  }
+  .lp-rowbtn:active,
+  .lp-lcard__line--btn:active,
+  .lp-lcard__safety--btn:active {
+    background: var(--lp-face-press);
+  }
+  .lp-rowbtn:focus-visible,
+  .lp-lcard__line--btn:focus-visible,
+  .lp-lcard__safety--btn:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 0;
+  }
+  /* a goal row as a button: the row's padding sits inside the painted area */
+  .lp-rowbtn {
+    width: calc(100% + 12px);
+    margin: -4px -6px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  /* Ideal equals Hard: one line on Hard's card and the limits lifted without effect */
+  .lp-lcard__same {
+    margin-top: 6px;
+    display: grid;
+    gap: 4px;
+    font-size: var(--lm-text-xs);
+    line-height: 1.45;
+    cursor: default;
+  }
+  .lp-lcard__same-line {
+    margin: 0;
+    color: var(--lm-ink);
+  }
+  .lp-lcard__lifted summary {
+    width: max-content;
+    max-width: 100%;
+    color: var(--lm-ink-2);
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .lp-lcard__lifted ul {
+    margin: 4px 0 0;
+    padding-left: 1.1em;
+    color: var(--lm-ink-2);
+  }
+  .lp-ltable__same {
+    margin: 0;
+  }
+  .lp-lcard__head {
+    display: grid;
+    align-content: start;
+    gap: 2px;
+  }
+  .lp-lcard__toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--lm-ink);
+    text-align: left;
+    cursor: pointer;
+    border-radius: var(--lm-radius-sm);
+    outline-offset: 4px;
+    position: relative;
+  }
+  .lp-lcard[data-selected] .lp-lcard__toggle::after {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+  }
+  .lp-lcard__title {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--lm-text-md, 17px);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .lp-lcard__effort {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lp-lcard__subtitle {
+    margin: 4px 0 0;
+    font-size: var(--lm-text-sm);
+    line-height: 1.35;
+    color: var(--lm-ink);
+    text-wrap: balance;
+  }
+  .lp-lcard__caption {
+    margin: 2px 0 0;
+    color: var(--lm-ink-3);
+  }
+  .lp-lcard__sec {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+  }
+  .lp-lcard__sec::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lp-lcard__line {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.5;
+    color: var(--lm-ink-2);
+  }
+  .lp-lcard__line--btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    margin: -2px -4px;
+    padding: 2px 4px;
+    border-radius: var(--lm-radius-sm);
+  }
+  .lp-lcard__safety {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    text-align: left;
+  }
+  .lp-lcard__safety--btn {
+    cursor: pointer;
+    margin: -2px -4px;
+    padding: 2px 4px;
+    border-radius: var(--lm-radius-sm);
+  }
+  .lp-lcard__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    align-self: end;
+  }
+  .lp-lcard__actions:not(:empty) {
+    padding-top: 10px;
+    border-top: 1px solid var(--lm-line);
+  }
+  /* below 1024 the Start key lives in the action bar (the only solid key in the view) */
+  .lp-lcard__start {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .lp-lcard__start {
+      display: inline-flex;
+    }
+  }
+  .lp-lcard__start .lv-start-entry {
+    display: inline-flex;
+  }
+
+  /* goal rows */
+  .lp-lgoal {
+    display: grid;
+    gap: 3px;
+  }
+  .lp-lgoal__main {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 6px;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+  }
+  .lp-lgoal__rank {
+    flex: none;
+    width: 1.1em;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-3);
+  }
+  .lp-lgoal__name {
+    /* the name keeps its width; a long value wraps under it rather than clipping the name */
+    flex: 1 0 auto;
+    min-width: 0;
+    max-width: calc(100% - 1.1em - 6px);
+    color: var(--lm-ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lp-lgoal__value {
+    flex: none;
+    max-width: 100%;
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .lp-lgoal__show {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .lp-lgoal__bar {
+    margin-left: calc(1.1em + 6px);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .lp-lgoal__range {
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-lgoal__verdict {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 0 calc(1.1em + 6px);
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-lgoal__vs {
+    display: block;
+    margin: 0 0 0 calc(1.1em + 6px);
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-3);
+  }
+
+  /* things to buy */
+  .lp-buys {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+    font-size: var(--lm-text-xs);
+  }
+  .lp-buy {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+  .lp-buy__name {
+    color: var(--lm-ink);
+  }
+  .lp-buy__meta {
+    color: var(--lm-ink-2);
+  }
+
+  /* dots (phones) */
+  .lp-dot[data-gap] {
+    margin-left: 12px;
+  }
+
+  /* ---- burden scale: one scale on every card (plan-ladder.md §12.1) -----------------------------------------------
+     The track runs from today's habit to your limit and is --lp-track wide on every card (the fill is a share of it,
+     the limit tick at its right end). On the Ideal, a value past the limit continues past the tick as a hatched
+     segment of at most half a track; the Ideal reserves that room only when some row overflows. */
+  .lp-burden {
+    --lp-track: 120px;
+    --lp-reserve: 0px;
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lp-burden[data-size='compact'] {
+    --lp-track: 64px;
+  }
+  .lp-burden[data-overflow] {
+    --lp-reserve: calc(var(--lp-track) / 2);
+  }
+  .lp-burden__head {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lp-burden__rows {
+    display: grid;
+    gap: 5px;
+    margin: 0;
+  }
+  .lp-burden__row {
+    display: grid;
+    grid-template-columns: 8.5em minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .lp-burden__label {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lp-burden__val {
+    display: grid;
+    grid-template-columns: calc(var(--lp-track) + var(--lp-reserve)) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    min-width: 0;
+  }
+  .lp-burden__text {
+    position: relative; /* clips its screen-reader suffix with the ellipsis */
+    font-size: var(--lm-text-xs);
+    line-height: 1.4;
+    color: var(--lm-ink);
+    min-width: 0;
+  }
+  .lp-burden__row:not([data-active]) .lp-burden__text {
+    color: var(--lm-ink-3);
+  }
+  /* phones, full size (Overview): the sentence goes under its bar instead of a one-word-wide column */
+  @media (max-width: 47.99rem) {
+    .lp-burden[data-size='full'] .lp-burden__row {
+      align-items: start;
+    }
+    .lp-burden[data-size='full'] .lp-burden__val {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
+      padding-top: 4px;
+    }
+  }
+  .lp-burden[data-size='compact'] .lp-burden__row {
+    grid-template-columns: 7.2em minmax(0, 1fr);
+    gap: 8px;
+  }
+  .lp-burden[data-size='compact'] .lp-burden__val {
+    gap: 8px;
+  }
+  .lp-burden[data-size='compact'] .lp-burden__text {
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lp-burden__bar {
+    position: relative;
+    width: var(--lp-track);
+    height: 8px;
+    border-radius: 4px;
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+  }
+  .lp-burden[data-size='compact'] .lp-burden__bar {
+    height: 6px;
+  }
+  .lp-burden__bar--none {
+    height: 0 !important;
+    background: transparent;
+    box-shadow: none;
+    border-top: 1px dashed var(--lm-line-strong);
+  }
+  .lp-burden__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: inherit;
+    background: var(--lm-ink);
+  }
+  .lp-burden__limit {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    right: 0;
+    width: 1px;
+    background: var(--lm-ink);
+  }
+  .lp-burden__over {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--lm-ink);
+    border-left: 0;
+    border-radius: 0 2px 2px 0;
+    background: repeating-linear-gradient(45deg, var(--lm-ink) 0 1px, transparent 1px 4px);
+  }
+  /* cut at half a track: a chevron end, the text carries the number */
+  .lp-burden__over[data-capped] {
+    border-right: 0;
+    clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 50%, calc(100% - 4px) 100%, 0 100%);
+  }
+  /* compact legend on every card: now ├──┤ your limit (▨ past your limit on an overflowing Ideal) */
+  .lp-burden__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px 6px;
+    margin: -2px 0 0;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--lm-ink-3);
+  }
+  .lp-burden__legend-track {
+    position: relative;
+    width: 22px;
+    height: 7px;
+    border-left: 1px solid var(--lm-ink-3);
+    border-right: 1px solid var(--lm-ink-3);
+  }
+  .lp-burden__legend-track::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 3px;
+    border-top: 1px solid var(--lm-ink-3);
+  }
+  .lp-burden__legend-over {
+    width: 12px;
+    height: 7px;
+    margin-left: 6px;
+    border: 1px solid var(--lm-ink);
+    background: repeating-linear-gradient(45deg, var(--lm-ink) 0 1px, transparent 1px 4px);
+  }
+  .lp-burden__foot {
+    margin: 2px 0 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    max-width: 80ch;
+  }
+
+  /* ---- limit costs ------------------------------------------------------------------------------------------ */
+  .lp-lcosts {
+    display: grid;
+    gap: 10px;
+  }
+  .lp-lcosts__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .lp-lcost {
+    display: grid;
+    gap: 1px;
+    font-size: var(--lm-text-xs);
+    line-height: 1.45;
+    color: var(--lm-ink);
+  }
+  .lp-lcost strong {
+    font-weight: 600;
+  }
+  .lp-lcost__deltas,
+  .lp-lcost__effort {
+    color: var(--lm-ink-2);
+  }
+  .lp-lcost--rest {
+    color: var(--lm-ink-2);
+    font-style: italic;
+  }
+  .lp-lcosts__none {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.5;
+  }
+  .lp-lcosts__more {
+    margin: 0;
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-3);
+  }
+  .lp-lcosts__block {
+    display: grid;
+    gap: 2px;
+  }
+  .lp-lcosts__block > .lm-eng {
+    margin: 0;
+  }
+  .lp-lcosts__text {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.5;
+    color: var(--lm-ink);
+  }
+  .lp-lcosts__advised {
+    padding-top: 8px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lp-lcosts__advised .lp-lcosts__text {
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- fasting rival popover -------------------------------------------------------------------------------- */
+  .lp-rival-pop {
+    display: grid;
+    gap: 10px;
+    max-width: 360px;
+  }
+  .lp-rival {
+    border-collapse: collapse;
+    font-size: var(--lm-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+  .lp-rival caption {
+    caption-side: top;
+    text-align: left;
+    padding-bottom: 4px;
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-3);
+    text-transform: lowercase;
+  }
+  .lp-rival th,
+  .lp-rival td {
+    padding: 2px 12px 2px 0;
+    text-align: left;
+    font-weight: 400;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lp-rival td {
+    text-align: right;
+    color: var(--lm-ink);
+  }
+
+  /* ---- comparison table ------------------------------------------------------------------------------------- */
+  .lp-ltable-wrap {
+    max-width: 100%;
+    overflow: auto;
+    max-height: 80vh;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-face);
+    box-shadow: var(--lm-shadow-face);
+  }
+  .lp-ltable {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    font-variation-settings: 'wdth' var(--lm-wdth-condensed, 84);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+  }
+  .lp-ltable th,
+  .lp-ltable td {
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lp-ltable td {
+    min-width: 168px;
+    color: var(--lm-ink);
+  }
+  .lp-ltable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--lm-face);
+    border-bottom: 1px solid var(--lm-line-strong);
+  }
+  .lp-ltable tbody th {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 124px;
+    background: var(--lm-face);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lp-ltable .lp-ltable__corner {
+    left: 0;
+    z-index: 3;
+  }
+  .lp-ltable tr[data-group='effort']:not([data-row='effort']) th {
+    padding-left: 22px;
+    font-weight: 400;
+  }
+  .lp-ltable tr[data-row='effort'] td {
+    font-weight: 600;
+  }
+  .lp-ltable [data-selected] {
+    box-shadow:
+      inset 2px 0 0 var(--lm-ink),
+      inset -2px 0 0 var(--lm-ink);
+  }
+  .lp-ltable td[data-rung='ideal'],
+  .lp-ltable th[data-rung='ideal'] {
+    border-left: 1px dashed var(--lm-line-strong);
+  }
+  .lp-ltable__head {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-weight: 600;
+    color: var(--lm-ink);
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+  }
+
+  /* ---- curves --------------------------------------------------------------------------------------------------- */
+  .lp-curves__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    margin: 12px 0;
+  }
+  @media (min-width: 48rem) {
+    .lp-curves__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .lp-curve {
+    min-width: 0;
+  }
+  .lp-curve__title {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 10px;
+    margin: 0 0 4px;
+    font-size: var(--lm-text-xs);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lp-curve__read {
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lp-curve__svg,
+  .lp-conv__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+  .lp-curve__grid {
+    stroke: var(--lm-chart-grid);
+    stroke-width: 1;
+  }
+  .lp-curve__axis {
+    stroke: var(--lm-chart-axis);
+    stroke-width: 1;
+  }
+  .lp-curve__tick {
+    font-size: 10.5px;
+    fill: var(--lm-chart-tick, var(--lm-ink-3));
+    font-variant-numeric: tabular-nums;
+  }
+  .lp-curve__band {
+    fill: var(--lp-rung);
+    opacity: 0.12;
+  }
+  .lp-curve__line {
+    fill: none;
+    stroke: var(--lp-rung);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .lp-curve__line[data-selected] {
+    stroke-width: 2.5;
+  }
+  .lp-curve__line[data-rung='ideal'] {
+    stroke: var(--lm-ink);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+  }
+  .lp-curve__target {
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+  }
+  .lp-curve__target-t {
+    font-size: 10.5px;
+    fill: var(--lm-ink-2);
+  }
+  .lp-curve__cross {
+    stroke: var(--lm-chart-crosshair);
+    stroke-width: 1;
+  }
+  .lp-curve__end {
+    font-size: 11.5px;
+    fill: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .lp-curve__end[data-rung='ideal'] {
+    fill: var(--lm-ink-2);
+  }
+
+  /* run view: convergence and four slots */
+  .lp-conv {
+    display: grid;
+    gap: 4px;
+  }
+  .lp-conv__legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 2px 10px;
+    margin: 0;
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-conv__best {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-width: 2;
+  }
+  .lp-conv__ladder {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1.5;
+    stroke-dasharray: 4 3;
+  }
+  .lp-run .lp-slots {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 64rem) {
+    .lp-run .lp-slots {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1fr);
+    }
+  }
+  .lp-run .lp-slot[data-rung='ideal'] {
+    border-style: dashed;
+  }
+  .lp-run .lp-slot__plan {
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-run .lp-slot:not([data-filled]) .lp-rkey {
+    background: transparent;
+    color: var(--lm-ink-3);
+    border: 1px solid var(--lp-rung);
+  }
+
+  /* ---- header, chips, panels -------------------------------------------------------------------------------- */
+  .lp-evidence-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    cursor: pointer;
+    border-radius: var(--lm-radius-xs);
+  }
+  .lp-evidence-pop,
+  .lp-best-pop {
+    display: grid;
+    gap: 8px;
+    max-width: 340px;
+  }
+  .lp-best-pop .lp-plain {
+    margin: 0;
+  }
+  .lp-xchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lp-xchip__link {
+    font-variant-numeric: tabular-nums;
+  }
+  .lp-between {
+    display: grid;
+    gap: 8px;
+  }
+  .lp-nosafe__ideal {
+    margin-top: 12px;
+  }
+  .lp-nosafe__card {
+    display: grid;
+  }
+
+  /* adopt panel */
+  .lp-adopt {
+    display: grid;
+    gap: 14px;
+    /* the panel body has no inset of its own: line up with the panel title */
+    padding: 12px 16px 16px;
+  }
+  .lp-adopt__rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+  }
+  .lp-adopt__row {
+    display: grid;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lp-adopt__label {
+    display: grid;
+    gap: 2px;
+  }
+  .lp-adopt__detail {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-adopt__knob {
+    padding-left: 28px;
+  }
+
+  /* limits tab */
+  .lp-limits-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .lp-limits-list li {
+    display: grid;
+    gap: 2px;
+    font-size: var(--lm-text-sm);
+  }
+  .lp-limits-list__share,
+  .lp-limits-list__cost {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-limitstab {
+    display: grid;
+    gap: 16px;
+  }
+  .lp-limitstab__note {
+    color: var(--lm-ink-2);
+  }
+
+  /* this week's sessions (days tab) */
+  .lp-sessions {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .lp-session__head {
+    display: flex;
+    justify-content: space-between;
+    margin: 0 0 2px;
+    font-size: var(--lm-text-xs);
+  }
+  .lp-session__items {
+    margin: 0;
+    padding-left: 18px;
+    font-size: var(--lm-text-sm);
+    line-height: 1.5;
+  }
+}
+
+@media print {
+  .lp-print__ladder table {
+    width: 100%;
+    border-collapse: collapse;
+    break-inside: avoid;
+    page-break-after: always;
+    font-size: 8.5pt;
+  }
+  .lp-print__ladder th,
+  .lp-print__ladder td {
+    padding: 3pt 4pt;
+    border-bottom: 0.5pt solid #999;
+    text-align: left;
+    vertical-align: top;
+  }
+  .lp-print__sessions ol {
+    margin: 0;
+    padding-left: 12pt;
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "extractionId": "01JEXTRACTION0000000000000",
+  "accept": [
+    { "row": 0, "date": "2026-09-12" },
+    { "row": 2, "value": 5.9, "unit": "%", "date": "2026-09-12" }
+  ],
+  "context": { "recentIllness": false }
+}

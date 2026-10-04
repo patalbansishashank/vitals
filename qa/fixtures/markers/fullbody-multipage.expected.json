@@ -1,0 +1,109 @@
+{
+  "file": "fullbody-multipage.pdf",
+  "synthetic": true,
+  "layout": "TEST DESCRIPTION / RESULT / UNITS / REF. RANGE / METHOD over three pages, patient block on every page",
+  "sampleDate": "2026-06-19",
+  "pages": 3,
+  "textlessPages": [],
+  "note": "textlessPages and imageOnly[].sourcePage count the source pages; a long table may spill onto an extra printed page (see printedPages)",
+  "patient": {
+    "name": "Kabir Nonexistent",
+    "ageSex": "42 Yrs / Male",
+    "phone": "+91-90000-11122",
+    "id": "UHID-55660011",
+    "barcode": "SID-A0044721",
+    "address": "221 Pretend Nagar, Bengaluru 560001",
+    "doctor": "Dr. Example Menon"
+  },
+  "tierA": [
+    {
+      "markerId": "hb",
+      "nameOnReport": "HEMOGLOBIN",
+      "value": 14.6,
+      "unit": "g/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "hdl",
+      "nameOnReport": "HDL CHOLESTEROL - DIRECT",
+      "value": 52,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "ldl",
+      "nameOnReport": "LDL CHOLESTEROL - DIRECT",
+      "value": 118,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "tg",
+      "nameOnReport": "TRIGLYCERIDES",
+      "value": 132,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "fpg",
+      "nameOnReport": "FASTING BLOOD SUGAR(GLUCOSE)",
+      "value": 94,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "insulin",
+      "nameOnReport": "INSULIN - FASTING",
+      "value": 11.2,
+      "unit": "µU/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "hba1c",
+      "nameOnReport": "HbA1c",
+      "value": 5.4,
+      "unit": "%",
+      "calculated": false
+    },
+    {
+      "markerId": "testosterone",
+      "nameOnReport": "TESTOSTERONE",
+      "value": 512,
+      "unit": "ng/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "cortisol",
+      "nameOnReport": "CORTISOL (MORNING)",
+      "value": 14.2,
+      "unit": "µg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "b12",
+      "nameOnReport": "VITAMIN B12",
+      "value": 412,
+      "unit": "pg/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "vitD",
+      "nameOnReport": "VITAMIN D TOTAL (25-OH)",
+      "value": 31,
+      "unit": "ng/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "ferritin",
+      "nameOnReport": "SERUM FERRITIN",
+      "value": 140,
+      "unit": "ng/mL",
+      "calculated": false
+    }
+  ],
+  "imageOnly": [],
+  "droppedCalculated": [
+    "NON-HDL CHOLESTEROL"
+  ],
+  "printedPages": 3
+}

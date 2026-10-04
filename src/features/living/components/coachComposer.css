@@ -1,0 +1,69 @@
+/* CoachComposer (COMPONENTS §13.18): ink keys, a well field, no accent colour. */
+@layer components {
+  .lv-composer {
+    display: grid;
+    /* one shrinkable column: a long prompt chip ellipsises instead of widening the Coach at 390 px */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+  }
+  .lv-composer__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lv-composer__chip {
+    max-width: 100%;
+  }
+  .lv-composer__row {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lv-composer__field {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    padding: 9px 12px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    color: var(--lm-ink);
+    font: inherit;
+    /* 16 px on mobile so the browser never zooms the field */
+    font-size: 1rem;
+    line-height: 1.375rem;
+    resize: none;
+  }
+  .lv-composer__field::placeholder {
+    color: var(--lm-ink-3);
+  }
+  textarea.lv-composer__field {
+    field-sizing: content;
+    /* 1–6 lines */
+    max-height: calc(6 * 1.375rem + 20px);
+    overflow-y: auto;
+  }
+  @media (min-width: 64rem) {
+    .lv-composer__field {
+      font-size: var(--lm-text-base);
+    }
+  }
+  .lv-composer__staged {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .lv-composer__thumb {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-line);
+  }
+  .lv-composer__notice:empty {
+    display: none;
+  }
+}

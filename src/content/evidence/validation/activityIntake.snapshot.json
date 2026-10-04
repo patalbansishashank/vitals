@@ -1,0 +1,401 @@
+{
+  "generated": "2026-10-01",
+  "rows": [
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-deskLittle",
+      "measured": 1.39008,
+      "unit": "PAL",
+      "expected": "[1.4, 1.5]",
+      "status": "miss",
+      "knownMiss": "accepted"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-deskOrdinary",
+      "measured": 1.45674,
+      "unit": "PAL",
+      "expected": "[1.4, 1.5]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-mixed",
+      "measured": 1.60162,
+      "unit": "PAL",
+      "expected": "[1.6, 1.7]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-onFeet",
+      "measured": 1.68211,
+      "unit": "PAL",
+      "expected": "[1.7, 1.9]",
+      "status": "miss",
+      "knownMiss": "accepted"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-delivery",
+      "measured": 1.77232,
+      "unit": "PAL",
+      "expected": "[1.7, 1.9]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-trades",
+      "measured": 1.85737,
+      "unit": "PAL",
+      "expected": "[1.8, 2]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-heavy",
+      "measured": 2.2179,
+      "unit": "PAL",
+      "expected": "[2, 2.4]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/m-notWorking",
+      "measured": 1.47991,
+      "unit": "PAL",
+      "expected": "[1.4, 1.7]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-deskLittle",
+      "measured": 1.39023,
+      "unit": "PAL",
+      "expected": "[1.4, 1.5]",
+      "status": "miss",
+      "knownMiss": "accepted"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-deskOrdinary",
+      "measured": 1.45665,
+      "unit": "PAL",
+      "expected": "[1.4, 1.5]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-mixed",
+      "measured": 1.60101,
+      "unit": "PAL",
+      "expected": "[1.6, 1.7]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-onFeet",
+      "measured": 1.68121,
+      "unit": "PAL",
+      "expected": "[1.7, 1.9]",
+      "status": "miss",
+      "knownMiss": "accepted"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-delivery",
+      "measured": 1.77109,
+      "unit": "PAL",
+      "expected": "[1.7, 1.9]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-trades",
+      "measured": 1.85583,
+      "unit": "PAL",
+      "expected": "[1.8, 2]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-heavy",
+      "measured": 2.21506,
+      "unit": "PAL",
+      "expected": "[2, 2.4]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V1-fao-lifestyle-pal/f-notWorking",
+      "measured": 1.47974,
+      "unit": "PAL",
+      "expected": "[1.4, 1.7]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/m-adl",
+      "measured": -185.117,
+      "unit": "kcal/d",
+      "expected": "0 ± 342",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/m-walk",
+      "measured": -79.0678,
+      "unit": "kcal/d",
+      "expected": "0 ± 342",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/m-very",
+      "measured": -27.1061,
+      "unit": "kcal/d",
+      "expected": "0 ± 342",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/m-skip",
+      "measured": -146.058,
+      "unit": "kcal/d",
+      "expected": "0 ± 342",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/f-adl",
+      "measured": -138.666,
+      "unit": "kcal/d",
+      "expected": "0 ± 250",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/f-walk",
+      "measured": -61.3095,
+      "unit": "kcal/d",
+      "expected": "0 ± 250",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/f-very",
+      "measured": 32.9127,
+      "unit": "kcal/d",
+      "expected": "0 ± 250",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V2-nasem-categories/f-skip",
+      "measured": -109.715,
+      "unit": "kcal/d",
+      "expected": "0 ± 250",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V3-skip-all-population/min",
+      "measured": 1.5015,
+      "unit": "PAL",
+      "expected": "[1.5, 1.65]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V3-skip-all-population/max",
+      "measured": 1.62876,
+      "unit": "PAL",
+      "expected": "[1.5, 1.65]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V3-skip-all-population/share153",
+      "measured": 80,
+      "unit": "%",
+      "expected": "[100, 100]",
+      "status": "q-miss"
+    },
+    {
+      "key": "R1-V4-iaea-dlw-pi/insidePi",
+      "measured": 402.077,
+      "unit": "kcal/d",
+      "expected": "> 0",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V4-iaea-dlw-pi/skipBias",
+      "measured": -10.8472,
+      "unit": "%",
+      "expected": "[-12, -5]",
+      "status": "q-pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v5stand",
+      "measured": 54.6,
+      "unit": "kcal/d",
+      "expected": "[40, 70]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v6steps",
+      "measured": 585.054,
+      "unit": "kcal/d",
+      "expected": "588 ± 88.2",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v7male",
+      "measured": 285.417,
+      "unit": "kcal/d",
+      "expected": "> 110",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v7female",
+      "measured": 206.135,
+      "unit": "kcal/d",
+      "expected": "> 87",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v8men",
+      "measured": 150.857,
+      "unit": "kcal/d",
+      "expected": "142 ± 56.8",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v8all",
+      "measured": 129.905,
+      "unit": "kcal/d",
+      "expected": "> 100",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v9postal",
+      "measured": 443.897,
+      "unit": "kcal/d",
+      "expected": "[400, 700]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v10cap",
+      "measured": 2.5,
+      "unit": "PAL",
+      "expected": "2.5 ± 0.000001",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v10flag",
+      "measured": 1,
+      "unit": "flag",
+      "expected": "1 ± 0",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V5-V10-intake-anchors/v10warn",
+      "measured": 1,
+      "unit": "flag",
+      "expected": "1 ± 0",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V11-rmaint-invariance/heavyAdj",
+      "measured": 2.65288e-13,
+      "unit": "kcal/d",
+      "expected": "0 ± 0.000001",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V11-rmaint-invariance/heavyFm",
+      "measured": -0.000986678,
+      "unit": "kg",
+      "expected": "0 ± 0.15",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V11-rmaint-invariance/heavyScale",
+      "measured": -0.000471805,
+      "unit": "kg",
+      "expected": "0 ± 0.3",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V11-rmaint-invariance/skipAdj",
+      "measured": 0,
+      "unit": "kcal/d",
+      "expected": "0 ± 0.000001",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V11-rmaint-invariance/skipFm",
+      "measured": -0.000826806,
+      "unit": "kg",
+      "expected": "0 ± 0.15",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V11-rmaint-invariance/skipScale",
+      "measured": -0.000730575,
+      "unit": "kg",
+      "expected": "0 ± 0.3",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V12-V13-band-and-sleep/answered",
+      "measured": 0.1,
+      "unit": "frac",
+      "expected": "[0.1, 1]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V12-V13-band-and-sleep/skipped",
+      "measured": 0.121795,
+      "unit": "frac",
+      "expected": "[0.12, 1]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V12-V13-band-and-sleep/wristNarrows",
+      "measured": 20.1949,
+      "unit": "kcal/d",
+      "expected": "> 0",
+      "status": "pass"
+    },
+    {
+      "key": "R1-V12-V13-band-and-sleep/sleep",
+      "measured": 0,
+      "unit": "kcal/d",
+      "expected": "0 ± 1",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/heavyDesk",
+      "measured": 0.715448,
+      "unit": "PAL",
+      "expected": "[0.5, 1]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/tradesDesk",
+      "measured": 0.376631,
+      "unit": "PAL",
+      "expected": "[0.3, 0.6]",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/deskStable",
+      "measured": -0.000497235,
+      "unit": "kg",
+      "expected": "0 ± 0.3",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/tradesStable",
+      "measured": -0.000207995,
+      "unit": "kg",
+      "expected": "0 ± 0.3",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/heavyStable",
+      "measured": 0.000889317,
+      "unit": "kg",
+      "expected": "0 ± 0.3",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/deskTee",
+      "measured": 0.00892371,
+      "unit": "%",
+      "expected": "0 ± 2",
+      "status": "pass"
+    },
+    {
+      "key": "R1-steady-desk-vs-manual/heavyTee",
+      "measured": -0.0059019,
+      "unit": "%",
+      "expected": "0 ± 2",
+      "status": "pass"
+    }
+  ]
+}

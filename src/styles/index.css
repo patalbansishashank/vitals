@@ -1,0 +1,13 @@
+/* ==========================================================================
+   Vitals — stylesheet entry. Order matters:
+   1. Tailwind (preflight + utilities)   2. self-hosted Archivo
+   3. tokens (copied from design/)       4. Tailwind theme mapping (copied)
+   5. base layer                          6. component + shell layers
+   ========================================================================== */
+@import 'tailwindcss';
+@import './fonts.css';
+@import './tokens.css';
+@import './tailwind-theme.css';
+@import './base.css';
+@import './components.css';
+@import './shell.css';

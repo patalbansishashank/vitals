@@ -1,0 +1,913 @@
+{
+  "formatVersion": 1,
+  "exportedAt": 1790758800000,
+  "appVersion": "0.0.0-synthetic",
+  "counts": {
+    "measurements": 48
+  },
+  "devices": [
+    {
+      "id": "dev-1",
+      "name": "Synthetic Ring",
+      "batteryPercent": 64,
+      "stateRaw": "connected",
+      "deviceTypeRaw": "jstyle2301",
+      "capabilitiesRaw": "",
+      "firmwareVersion": "V0000",
+      "createdAt": 0,
+      "updatedAt": 0
+    }
+  ],
+  "measurements": [
+    {
+      "id": "m-0001",
+      "kindRaw": "HEART_RATE",
+      "value": 61,
+      "unit": "bpm",
+      "timestamp": 1790658000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790658060000
+    },
+    {
+      "id": "m-0002",
+      "kindRaw": "HEART_RATE",
+      "value": 64,
+      "unit": "bpm",
+      "timestamp": 1790658300000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790658360000
+    },
+    {
+      "id": "m-0003",
+      "kindRaw": "HEART_RATE",
+      "value": 75,
+      "unit": "bpm",
+      "timestamp": 1790658600000,
+      "sourceRaw": "spot",
+      "confidenceRaw": "known",
+      "createdAt": 1790658660000
+    },
+    {
+      "id": "m-0004",
+      "kindRaw": "SPO2",
+      "value": 96,
+      "unit": "%",
+      "timestamp": 1790643600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790643660000
+    },
+    {
+      "id": "m-0005",
+      "kindRaw": "TEMPERATURE",
+      "value": 34.2,
+      "unit": "°C",
+      "timestamp": 1790645400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790645460000
+    },
+    {
+      "id": "m-0006",
+      "kindRaw": "HRV",
+      "value": 55,
+      "unit": "ms",
+      "timestamp": 1790646000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790646060000
+    },
+    {
+      "id": "m-0007",
+      "kindRaw": "STRESS",
+      "value": 30,
+      "unit": "",
+      "timestamp": 1790646600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790646660000
+    },
+    {
+      "id": "m-0008",
+      "kindRaw": "BLOOD_SUGAR",
+      "value": 98,
+      "unit": "mg/dL",
+      "timestamp": 1790647200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790647260000
+    },
+    {
+      "id": "m-0009",
+      "kindRaw": "BLOOD_PRESSURE_SYSTOLIC",
+      "value": 120,
+      "unit": "mmHg",
+      "timestamp": 1790647800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790647860000
+    },
+    {
+      "id": "m-0010",
+      "kindRaw": "BLOOD_PRESSURE_DIASTOLIC",
+      "value": 80,
+      "unit": "mmHg",
+      "timestamp": 1790647800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790647860000
+    },
+    {
+      "id": "m-0011",
+      "kindRaw": "VO2MAX",
+      "value": 42,
+      "unit": "mL/kg/min",
+      "timestamp": 1790668800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790668860000
+    },
+    {
+      "id": "m-0012",
+      "kindRaw": "HEART_RATE",
+      "value": 52,
+      "unit": "bpm",
+      "timestamp": 1790544600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790544660000
+    },
+    {
+      "id": "m-0013",
+      "kindRaw": "HEART_RATE",
+      "value": 59,
+      "unit": "bpm",
+      "timestamp": 1790546400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790546460000
+    },
+    {
+      "id": "m-0014",
+      "kindRaw": "HEART_RATE",
+      "value": 57,
+      "unit": "bpm",
+      "timestamp": 1790548200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790548260000
+    },
+    {
+      "id": "m-0015",
+      "kindRaw": "HEART_RATE",
+      "value": 55,
+      "unit": "bpm",
+      "timestamp": 1790550000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790550060000
+    },
+    {
+      "id": "m-0016",
+      "kindRaw": "HEART_RATE",
+      "value": 53,
+      "unit": "bpm",
+      "timestamp": 1790551800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790551860000
+    },
+    {
+      "id": "m-0017",
+      "kindRaw": "HEART_RATE",
+      "value": 60,
+      "unit": "bpm",
+      "timestamp": 1790553600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790553660000
+    },
+    {
+      "id": "m-0018",
+      "kindRaw": "HEART_RATE",
+      "value": 58,
+      "unit": "bpm",
+      "timestamp": 1790555400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790555460000
+    },
+    {
+      "id": "m-0019",
+      "kindRaw": "HEART_RATE",
+      "value": 56,
+      "unit": "bpm",
+      "timestamp": 1790557200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790557260000
+    },
+    {
+      "id": "m-0020",
+      "kindRaw": "HEART_RATE",
+      "value": 54,
+      "unit": "bpm",
+      "timestamp": 1790559000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790559060000
+    },
+    {
+      "id": "m-0021",
+      "kindRaw": "HEART_RATE",
+      "value": 52,
+      "unit": "bpm",
+      "timestamp": 1790560800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790560860000
+    },
+    {
+      "id": "m-0022",
+      "kindRaw": "HEART_RATE",
+      "value": 59,
+      "unit": "bpm",
+      "timestamp": 1790562600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790562660000
+    },
+    {
+      "id": "m-0023",
+      "kindRaw": "HEART_RATE",
+      "value": 57,
+      "unit": "bpm",
+      "timestamp": 1790564400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790564460000
+    },
+    {
+      "id": "m-0024",
+      "kindRaw": "HEART_RATE",
+      "value": 55,
+      "unit": "bpm",
+      "timestamp": 1790566200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790566260000
+    },
+    {
+      "id": "m-0025",
+      "kindRaw": "HEART_RATE",
+      "value": 53,
+      "unit": "bpm",
+      "timestamp": 1790568000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790568060000
+    },
+    {
+      "id": "m-0026",
+      "kindRaw": "HEART_RATE",
+      "value": 60,
+      "unit": "bpm",
+      "timestamp": 1790569800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790569860000
+    },
+    {
+      "id": "m-0027",
+      "kindRaw": "HEART_RATE",
+      "value": 58,
+      "unit": "bpm",
+      "timestamp": 1790571600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790571660000
+    },
+    {
+      "id": "m-0028",
+      "kindRaw": "SPO2",
+      "value": 94,
+      "unit": "%",
+      "timestamp": 1790546400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790546460000
+    },
+    {
+      "id": "m-0029",
+      "kindRaw": "SPO2",
+      "value": 95,
+      "unit": "%",
+      "timestamp": 1790550000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790550060000
+    },
+    {
+      "id": "m-0030",
+      "kindRaw": "SPO2",
+      "value": 96,
+      "unit": "%",
+      "timestamp": 1790553600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790553660000
+    },
+    {
+      "id": "m-0031",
+      "kindRaw": "SPO2",
+      "value": 97,
+      "unit": "%",
+      "timestamp": 1790557200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790557260000
+    },
+    {
+      "id": "m-0032",
+      "kindRaw": "SPO2",
+      "value": 94,
+      "unit": "%",
+      "timestamp": 1790560800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790560860000
+    },
+    {
+      "id": "m-0033",
+      "kindRaw": "SPO2",
+      "value": 95,
+      "unit": "%",
+      "timestamp": 1790564400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790564460000
+    },
+    {
+      "id": "m-0034",
+      "kindRaw": "SPO2",
+      "value": 96,
+      "unit": "%",
+      "timestamp": 1790568000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790568060000
+    },
+    {
+      "id": "m-0035",
+      "kindRaw": "SPO2",
+      "value": 97,
+      "unit": "%",
+      "timestamp": 1790571600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790571660000
+    },
+    {
+      "id": "m-0036",
+      "kindRaw": "TEMPERATURE",
+      "value": 33.6,
+      "unit": "°C",
+      "timestamp": 1790546400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790546460000
+    },
+    {
+      "id": "m-0037",
+      "kindRaw": "TEMPERATURE",
+      "value": 33.8,
+      "unit": "°C",
+      "timestamp": 1790550000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790550060000
+    },
+    {
+      "id": "m-0038",
+      "kindRaw": "TEMPERATURE",
+      "value": 34,
+      "unit": "°C",
+      "timestamp": 1790553600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790553660000
+    },
+    {
+      "id": "m-0039",
+      "kindRaw": "TEMPERATURE",
+      "value": 33.6,
+      "unit": "°C",
+      "timestamp": 1790557200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790557260000
+    },
+    {
+      "id": "m-0040",
+      "kindRaw": "TEMPERATURE",
+      "value": 33.8,
+      "unit": "°C",
+      "timestamp": 1790560800000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790560860000
+    },
+    {
+      "id": "m-0041",
+      "kindRaw": "TEMPERATURE",
+      "value": 34,
+      "unit": "°C",
+      "timestamp": 1790564400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790564460000
+    },
+    {
+      "id": "m-0042",
+      "kindRaw": "TEMPERATURE",
+      "value": 33.6,
+      "unit": "°C",
+      "timestamp": 1790568000000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790568060000
+    },
+    {
+      "id": "m-0043",
+      "kindRaw": "TEMPERATURE",
+      "value": 33.8,
+      "unit": "°C",
+      "timestamp": 1790571600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790571660000
+    },
+    {
+      "id": "m-0044",
+      "kindRaw": "RESPIRATORY_RATE",
+      "value": 14,
+      "unit": "breaths/min",
+      "timestamp": 1790557200000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790557260000
+    },
+    {
+      "id": "m-0045",
+      "kindRaw": "RESPIRATORY_RATE",
+      "value": 15,
+      "unit": "breaths/min",
+      "timestamp": 1790564400000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790564460000
+    },
+    {
+      "id": "m-0046",
+      "kindRaw": "HEART_RATE",
+      "value": 88,
+      "unit": "bpm",
+      "timestamp": 1790596800000,
+      "sourceRaw": "live",
+      "confidenceRaw": "known",
+      "createdAt": 1790596860000
+    },
+    {
+      "id": "m-0047",
+      "kindRaw": "HEART_RATE",
+      "value": 199,
+      "unit": "bpm",
+      "timestamp": 1790598600000,
+      "sourceRaw": "history",
+      "confidenceRaw": "known",
+      "createdAt": 1790598660000
+    },
+    {
+      "id": "m-0048",
+      "kindRaw": "HEART_RATE",
+      "value": 70,
+      "unit": "bpm",
+      "timestamp": 1790600400000,
+      "sourceRaw": "demo",
+      "confidenceRaw": "known",
+      "createdAt": 1790600460000
+    }
+  ],
+  "activityDaily": [
+    {
+      "id": "ad-1",
+      "date": 1790460000000,
+      "steps": 7200,
+      "calories": 310,
+      "distanceMeters": 5400,
+      "activeMinutes": 28,
+      "source": "ring",
+      "syncedAt": 1790539200000,
+      "createdAt": 1790488800000,
+      "updatedAt": 1790539200000
+    },
+    {
+      "id": "ad-2",
+      "date": 1790546400000,
+      "steps": 10400,
+      "calories": 450,
+      "distanceMeters": 7900,
+      "activeMinutes": 52,
+      "source": "ring",
+      "syncedAt": 1790625600000,
+      "createdAt": 1790575200000,
+      "updatedAt": 1790625600000,
+      "estimatedActiveCalories": 300
+    },
+    {
+      "id": "ad-3",
+      "date": 1790632800000,
+      "steps": 9000,
+      "calories": 380,
+      "distanceMeters": 6800,
+      "activeMinutes": 45,
+      "source": "ring",
+      "syncedAt": 1790704805000,
+      "createdAt": 1790661600000,
+      "updatedAt": 1790704805000
+    }
+  ],
+  "activityBuckets": [
+    {
+      "startEpoch": 1790661600000,
+      "date": 1790632800000,
+      "steps": 20,
+      "distanceMeters": 15,
+      "source": "ring_history",
+      "updatedAt": 1790665200000
+    },
+    {
+      "startEpoch": 1790661660000,
+      "date": 1790632800000,
+      "steps": 30,
+      "distanceMeters": 22,
+      "source": "ring_history",
+      "updatedAt": 1790665200000
+    },
+    {
+      "startEpoch": 1790578800000,
+      "date": 1790546400000,
+      "steps": 640,
+      "distanceMeters": 480,
+      "source": "ring_history",
+      "updatedAt": 1790582400000
+    }
+  ],
+  "batterySamples": [
+    {
+      "id": "b-1",
+      "percent": 81,
+      "timestamp": 1790582400000,
+      "createdAt": 1790582400000
+    },
+    {
+      "id": "b-3",
+      "percent": 64,
+      "timestamp": 1790678100000,
+      "createdAt": 1790678100000
+    },
+    {
+      "id": "b-2",
+      "percent": 72,
+      "timestamp": 1790661600000,
+      "createdAt": 1790661600000
+    }
+  ],
+  "deviceMeasurementConfigs": [],
+  "activitySessions": [
+    {
+      "id": "as-1",
+      "type": "run",
+      "statusRaw": "completed",
+      "startedAt": 1790611200000,
+      "endedAt": 1790613720000,
+      "totalPauseSeconds": 120,
+      "calories": 410,
+      "distanceMeters": 6100,
+      "avgHeartRate": 148.4,
+      "minHeartRate": 96,
+      "maxHeartRate": 171,
+      "avgSpO2": 96,
+      "useGps": true,
+      "perceivedEffort": "hard",
+      "createdAt": 1790611200000,
+      "updatedAt": 1790613780000
+    },
+    {
+      "id": "as-2",
+      "type": "walk",
+      "statusRaw": "completed",
+      "startedAt": 1790499600000,
+      "endedAt": 1790501700000,
+      "totalPauseSeconds": 0,
+      "useGps": false,
+      "avgHeartRate": 101,
+      "maxHeartRate": 118,
+      "createdAt": 1790499600000,
+      "updatedAt": 1790501760000
+    },
+    {
+      "id": "as-3",
+      "type": "gym",
+      "statusRaw": "recording",
+      "startedAt": 1790701200000,
+      "useGps": false,
+      "createdAt": 1790701200000,
+      "updatedAt": 1790701200000
+    }
+  ],
+  "activityGpsPoints": [
+    {
+      "id": "g-1",
+      "sessionId": "as-1",
+      "latitude": 0,
+      "longitude": 0,
+      "timestamp": 1790611260000,
+      "accepted": true
+    }
+  ],
+  "activityEvents": [],
+  "activitySamples": [],
+  "activitySensorPolls": [],
+  "sleepSessions": [
+    {
+      "id": "ss-a",
+      "date": 1790546400000,
+      "startAt": 1790544600000,
+      "endAt": 1790571600000,
+      "totalMinutes": 450,
+      "score": 78,
+      "syncedAt": 1790575200000,
+      "sourceRaw": "ring",
+      "createdAt": 1790571600000,
+      "updatedAt": 1790575200000
+    },
+    {
+      "id": "ss-b",
+      "date": 1790632800000,
+      "startAt": 1790629200000,
+      "endAt": 1790629860000,
+      "totalMinutes": 11,
+      "score": 80,
+      "syncedAt": 1790661600000,
+      "sourceRaw": "ring",
+      "createdAt": 1790658000000,
+      "updatedAt": 1790661600000
+    },
+    {
+      "id": "ss-demo",
+      "date": 1790373600000,
+      "startAt": 1790370000000,
+      "endAt": 1790398800000,
+      "totalMinutes": 480,
+      "sourceRaw": "demo",
+      "createdAt": 0,
+      "updatedAt": 0
+    }
+  ],
+  "sleepStageBlocks": [
+    {
+      "id": "sb-a0",
+      "sessionId": "ss-a",
+      "startAt": 1790544600000,
+      "startMinute": 0,
+      "durationMinutes": 15,
+      "stageRaw": "AWAKE"
+    },
+    {
+      "id": "sb-a1",
+      "sessionId": "ss-a",
+      "startAt": 1790545500000,
+      "startMinute": 15,
+      "durationMinutes": 60,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-a2",
+      "sessionId": "ss-a",
+      "startAt": 1790549100000,
+      "startMinute": 75,
+      "durationMinutes": 50,
+      "stageRaw": "DEEP"
+    },
+    {
+      "id": "sb-a3",
+      "sessionId": "ss-a",
+      "startAt": 1790552100000,
+      "startMinute": 125,
+      "durationMinutes": 40,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-a4",
+      "sessionId": "ss-a",
+      "startAt": 1790554500000,
+      "startMinute": 165,
+      "durationMinutes": 30,
+      "stageRaw": "REM"
+    },
+    {
+      "id": "sb-a5",
+      "sessionId": "ss-a",
+      "startAt": 1790556300000,
+      "startMinute": 195,
+      "durationMinutes": 25,
+      "stageRaw": "UNKNOWN"
+    },
+    {
+      "id": "sb-a6",
+      "sessionId": "ss-a",
+      "startAt": 1790559000000,
+      "startMinute": 240,
+      "durationMinutes": 70,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-a7",
+      "sessionId": "ss-a",
+      "startAt": 1790563200000,
+      "startMinute": 310,
+      "durationMinutes": 30,
+      "stageRaw": "DEEP"
+    },
+    {
+      "id": "sb-a8",
+      "sessionId": "ss-a",
+      "startAt": 1790565000000,
+      "startMinute": 340,
+      "durationMinutes": 50,
+      "stageRaw": "REM"
+    },
+    {
+      "id": "sb-a9",
+      "sessionId": "ss-a",
+      "startAt": 1790568000000,
+      "startMinute": 390,
+      "durationMinutes": 50,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-a10",
+      "sessionId": "ss-a",
+      "startAt": 1790571000000,
+      "startMinute": 440,
+      "durationMinutes": 10,
+      "stageRaw": "AWAKE"
+    },
+    {
+      "id": "sb-b0",
+      "sessionId": "ss-b",
+      "startAt": 1790629200000,
+      "startMinute": 0,
+      "durationMinutes": 1,
+      "stageRaw": "AWAKE"
+    },
+    {
+      "id": "sb-b1",
+      "sessionId": "ss-b",
+      "startAt": 1790629260000,
+      "startMinute": 1,
+      "durationMinutes": 1,
+      "stageRaw": "AWAKE"
+    },
+    {
+      "id": "sb-b2",
+      "sessionId": "ss-b",
+      "startAt": 1790629320000,
+      "startMinute": 2,
+      "durationMinutes": 1,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-b3",
+      "sessionId": "ss-b",
+      "startAt": 1790629380000,
+      "startMinute": 3,
+      "durationMinutes": 1,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-b4",
+      "sessionId": "ss-b",
+      "startAt": 1790629440000,
+      "startMinute": 4,
+      "durationMinutes": 1,
+      "stageRaw": "DEEP"
+    },
+    {
+      "id": "sb-b5",
+      "sessionId": "ss-b",
+      "startAt": 1790629500000,
+      "startMinute": 5,
+      "durationMinutes": 1,
+      "stageRaw": "REM"
+    },
+    {
+      "id": "sb-b6",
+      "sessionId": "ss-b",
+      "startAt": 1790629560000,
+      "startMinute": 6,
+      "durationMinutes": 1,
+      "stageRaw": "REM"
+    },
+    {
+      "id": "sb-b7",
+      "sessionId": "ss-b",
+      "startAt": 1790629620000,
+      "startMinute": 7,
+      "durationMinutes": 1,
+      "stageRaw": "UNKNOWN"
+    },
+    {
+      "id": "sb-b8",
+      "sessionId": "ss-b",
+      "startAt": 1790629680000,
+      "startMinute": 8,
+      "durationMinutes": 1,
+      "stageRaw": "LIGHT"
+    },
+    {
+      "id": "sb-b9",
+      "sessionId": "ss-b",
+      "startAt": 1790629740000,
+      "startMinute": 9,
+      "durationMinutes": 1,
+      "stageRaw": "AWAKE"
+    },
+    {
+      "id": "sb-b10",
+      "sessionId": "ss-b",
+      "startAt": 1790629800000,
+      "startMinute": 10,
+      "durationMinutes": 1,
+      "stageRaw": "LIGHT"
+    }
+  ],
+  "coachConversations": [
+    {
+      "id": "c-1",
+      "title": "PRIVATE-COACH-TITLE",
+      "createdAt": 0,
+      "updatedAt": 0
+    }
+  ],
+  "coachMessages": [
+    {
+      "id": "cm-1",
+      "conversationId": "c-1",
+      "role": "user",
+      "body": "PRIVATE-COACH-MESSAGE",
+      "createdAt": 0
+    }
+  ],
+  "coachMemories": [],
+  "coachToolCalls": [],
+  "userProfiles": [],
+  "userGoals": [],
+  "rawPackets": [
+    {
+      "id": "rp-1",
+      "timestamp": 0,
+      "directionRaw": "rx",
+      "commandId": 1,
+      "hexPayload": "PRIVATE-RAW-PACKET",
+      "createdAt": 0
+    }
+  ],
+  "derivedUpdates": [],
+  "coachSummaries": [],
+  "wearableLogs": [
+    {
+      "id": "wl-1",
+      "message": "PRIVATE-WEARABLE-LOG"
+    }
+  ],
+  "coachNotificationRecords": [],
+  "mealEntries": [
+    {
+      "id": "me-1",
+      "name": "PRIVATE-MEAL"
+    }
+  ],
+  "foodProducts": [],
+  "measurementDeletions": [
+    {
+      "measurementId": "m-0047",
+      "kindRaw": "HEART_RATE",
+      "timestamp": 1790598600000,
+      "deletedAt": 1790598660000
+    }
+  ]
+}

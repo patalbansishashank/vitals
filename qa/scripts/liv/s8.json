@@ -1,0 +1,1 @@
+[{"goto":"/plan/goals","wait":1500,"textDump":300},{"click":"Find plans","exact":false,"wait":5000,"dump":1,"textDump":600},{"waitText":"Start this plan","timeout":900000,"wait":2000,"dump":1,"textDump":2500,"shot":"00-ladder"}]

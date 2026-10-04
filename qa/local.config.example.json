@@ -1,0 +1,13 @@
+{
+  "_comment": "Copy to qa/local.config.json (git-ignored) and fill in your own values. QA scripts read this file; every key can also be set by the environment variable named in docs/QA.md.",
+  "serverUrl": "https://vitals.example.ts.net:8443",
+  "serverHost": "vitals.example.ts.net",
+  "serverSsh": "vitals-server",
+  "serverIp4": "100.64.0.1",
+  "serverIp6": "fd7a:115c:a1e0::1",
+  "pcHost": "my-pc.example.ts.net",
+  "pcIp4": "100.64.0.2",
+  "siteUrl": "https://vitals.creative.desi",
+  "ownerPersonId": "0000000000000000",
+  "neverPublic": []
+}

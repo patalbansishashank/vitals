@@ -1,0 +1,655 @@
+/* ==========================================================================
+   Blood markers chapter (design/screens/onboarding-intake-v3.md §8; COMPONENTS §14.3, §14.6).
+   Tokens only; both themes. Mobile first: one column, each marker a fieldset
+   block; from 768 px real tables inside the card (scrolling sideways only when
+   the card is narrower than the table).
+   ========================================================================== */
+
+@layer components {
+  .lm-mk {
+    display: grid;
+    gap: 16px;
+    max-width: 1040px;
+    margin-inline: auto;
+    padding-block: 8px 96px;
+    min-width: 0;
+  }
+  .lm-mk-intro {
+    margin: 0;
+  }
+
+  /* ---- card (inset region, §14.3) ---- */
+  .lm-mk-card {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px;
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-well);
+    scroll-margin-top: 30vh;
+  }
+  .lm-mk-card--wide {
+    max-width: none;
+  }
+  /* inside the intake's question card: the card is the host's, this is only its body */
+  .lm-mk-card.lm-mk-card--embedded {
+    padding: 0;
+    border: 0;
+    background: none;
+    max-width: none;
+  }
+  .lm-mk-card:not(.lm-mk-card--wide) {
+    max-width: 720px;
+  }
+  .lm-mk-card__set {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .lm-mk-card__prompt {
+    float: left;
+    width: 100%;
+    padding: 0;
+    font-size: 1.0625rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-mk-card__prompt + * {
+    clear: both;
+  }
+  .lm-mk-card__prompt:focus {
+    outline: none;
+  }
+  .lm-mk-card__why {
+    display: grid;
+    gap: 4px;
+  }
+  .lm-mk-card__body {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-mk-card__default {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+  .lm-mk-card__foot {
+    display: grid;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-mk-footrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .lm-mk-footrow__right {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .lm-mk-foot-notes {
+    display: grid;
+    gap: 8px;
+  }
+  .lm-mk-reason {
+    margin: 0;
+    text-align: right;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-note {
+    margin: 0;
+    max-width: 70ch;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-sub {
+    margin: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-mk-link {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--lm-text-xs);
+    line-height: 1.5rem;
+    color: var(--lm-ink-2);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .lm-mk-link:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+
+  /* ---- B0 statements and keys ---- */
+  .lm-mk-statements {
+    margin: 0;
+  }
+  .lm-mk-keys .lm-ik-key {
+    min-height: 56px;
+  }
+
+  /* ---- B1 groups ---- */
+  .lm-mk-group {
+    display: grid;
+    min-width: 0;
+    border-top: 1px solid var(--lm-line-strong);
+  }
+  .lm-mk-group__head {
+    margin: 0;
+    font: inherit;
+  }
+  .lm-mk-group__toggle {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 0;
+    border: 0;
+    background: none;
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lm-mk-group__toggle:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+  .lm-mk-group__toggle .lm-ik-why__chev:not(.is-open) {
+    transform: rotate(-90deg);
+  }
+  .lm-mk-group__name {
+    font-size: var(--lm-text-base);
+    font-weight: 600;
+  }
+  .lm-mk-group__count {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-mk-group__panel {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding-bottom: 16px;
+  }
+  .lm-mk-group__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+  }
+  .lm-mk-group__clear {
+    margin-left: auto;
+  }
+  .lm-mk-inline {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-mk-inline__label {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-date {
+    width: auto;
+    min-width: 9.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- shared cells ---- */
+  .lm-mk-name {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    text-align: left;
+    font-weight: 400;
+  }
+  .lm-mk-name__label {
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lm-mk-name__plain {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-num {
+    width: 6rem;
+    flex: none;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-mk-num--range {
+    width: 4.5rem;
+  }
+  .lm-mk-unit {
+    width: 7.5rem;
+    flex: none;
+  }
+  .lm-mk-unit-only {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-range {
+    display: inline-grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lm-mk-range__nums {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--lm-ink-3);
+  }
+  .lm-mk-range__text {
+    width: 12rem;
+    max-width: 100%;
+  }
+  .lm-mk-date-cell {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-mk-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lm-mk-status[data-out='true'] {
+    color: var(--lm-ink);
+    font-weight: 500;
+  }
+  .lm-mk-conv {
+    display: block;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-mk-conv:empty {
+    display: none;
+  }
+  .lm-mk-ask {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+  }
+  .lm-mk-ask__q {
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lm-mk-tab {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- tables (≥ 768) ---- */
+  .lm-mk-scroll {
+    min-width: 0;
+    overflow-x: auto;
+    container: mk-table / inline-size;
+  }
+  .lm-mk-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+  }
+  .lm-mk-table th,
+  .lm-mk-table td {
+    padding: 6px 8px 6px 0;
+    vertical-align: top;
+    text-align: left;
+  }
+  .lm-mk-table thead th {
+    padding-bottom: 4px;
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-mk-table .lm-mk-num-col {
+    text-align: right;
+  }
+  .lm-mk-table td .lm-mk-status,
+  .lm-mk-table td.lm-mk-date-cell {
+    line-height: 40px;
+  }
+  .lm-mk-tr + .lm-mk-tr {
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-mk-tr__msg > td {
+    padding-top: 0;
+  }
+  .lm-mk-tr__msg > td:empty {
+    padding: 0;
+  }
+  .lm-mk-table--review td {
+    line-height: 32px;
+  }
+  .lm-mk-table--review .lm-mk-name {
+    line-height: normal;
+  }
+  /* a narrow card (the intake column beside "Your picture so far", ~550 px at 1440): the date column repeats the
+     group's "tested on" date, so it gives way, and the status may wrap; the table then fits without clipping */
+  @container mk-table (max-width: 660px) {
+    .lm-mk-table .lm-mk-col-date {
+      display: none;
+    }
+    .lm-mk-table td .lm-mk-status {
+      align-items: flex-start;
+      white-space: normal;
+      line-height: var(--lm-text-sm--lh);
+      padding-top: 10px;
+    }
+    .lm-mk-table .lm-mk-num--range {
+      width: 4rem;
+    }
+  }
+
+  /* ---- blocks (< 768) ---- */
+  .lm-mk-blocks {
+    display: grid;
+    min-width: 0;
+  }
+  .lm-mk-block {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 12px 0;
+    border: 0;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-mk-block:first-child {
+    border-top: 0;
+  }
+  .lm-mk-block > legend {
+    float: left;
+    width: 100%;
+    padding: 0;
+    display: block;
+  }
+  .lm-mk-block > legend + * {
+    clear: both;
+  }
+  .lm-mk-block__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-mk-block__row--meta {
+    justify-content: space-between;
+  }
+
+  /* ---- B2 ---- */
+  .lm-mk-file {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+  }
+  .lm-mk-file__key {
+    cursor: pointer;
+  }
+  .lm-mk-file__key:focus-within {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-mk-consent {
+    display: grid;
+    gap: 8px;
+    padding: 12px 0;
+    border-top: 1px solid var(--lm-line);
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-mk-consent__line {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lm-mk-reading {
+    position: relative;
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+    padding-top: 8px;
+  }
+  .lm-mk-reading .lm-progress-rule {
+    width: 100%;
+  }
+  .lm-mk-reading__text {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-context {
+    display: grid;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-mk-context__row {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    min-width: 0;
+  }
+  @media (min-width: 48rem) {
+    .lm-mk-context__row {
+      grid-template-columns: 15rem auto 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+  }
+  .lm-mk-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lm-mk-review__bar {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .lm-mk-check {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--lm-ink);
+  }
+  .lm-mk-check-cell {
+    width: 32px;
+    line-height: 32px;
+  }
+  .lm-mk-check-hit {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    min-height: 44px;
+    margin-left: -12px;
+    cursor: pointer;
+  }
+  .lm-mk-conf .lm-chip {
+    border: 1px solid var(--lm-line-strong);
+  }
+  .lm-mk-conf[data-level='low'] .lm-chip {
+    border-style: dashed;
+  }
+  .lm-mk-low {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-rblocks {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-mk-rblock {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 0 4px;
+    padding: 10px 0;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-mk-rblock:first-child {
+    border-top: 0;
+  }
+  .lm-mk-rblock__body {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lm-mk-rblock__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lm-mk-rblock__line--sub {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-rblock__line--sub:empty {
+    display: none;
+  }
+  .lm-mk-missing {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-shown summary {
+    min-height: 32px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+    cursor: pointer;
+  }
+  .lm-mk-shown ul {
+    display: grid;
+    gap: 2px;
+    margin: 4px 0 0;
+    padding: 0 0 0 16px;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-shown__value {
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink);
+  }
+
+  /* ---- receipt (§8.4) ---- */
+  .lm-mk-receipt {
+    display: grid;
+    gap: 12px;
+    max-width: 720px;
+  }
+  .lm-mk-receipt__rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* a receipt row reads like an answer row (COMPONENTS §14.2): question over answer, Change on the right (Q6: the
+     row had no styles and ran "blood test results" into the answer) */
+  .lm-mk-receipt__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding-block: 10px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-mk-receipt__row .lm-ik-receipt__dot {
+    display: none;
+  }
+  .lm-mk-receipt__row .lm-ik-receipt__q {
+    grid-column: 1;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-mk-receipt__row .lm-ik-receipt__a {
+    grid-column: 1;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  .lm-mk-receipt__row .lm-ik-receipt__change {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: end;
+  }
+  .lm-mk-effects {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-mk-effect,
+  .lm-mk-receipt .lm-notice {
+    /* the BecauseChip's short form below 480 px (markers.css, form="container") */
+    container: lm-because-host / inline-size;
+  }
+  .lm-mk-effect {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-mk-effect__text {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+}

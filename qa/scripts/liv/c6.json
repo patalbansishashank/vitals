@@ -1,0 +1,3 @@
+[{"goto":"/settings","wait":2500},{"click":"Test connection","wait":5000,"soft":1,"eval":"document.body.innerText.match(/check what the model can do[\\s\\S]{0,500}/)?.[0]"},
+{"goto":"/coach","wait":2500,"textDump":600},
+{"fillCss":"textarea","value":"I had dal and rice for lunch","wait":300},{"click":"Send","wait":8000,"textDump":3000,"shot":"16-coach-card","dump":1}]

@@ -1,0 +1,7 @@
+[Unit]
+Description=Copy the Caddy-managed TLS certificate into the Vitals Server (MQTT over TLS)
+
+[Service]
+Type=oneshot
+# Environment=VITALS_TLS_NAME=hermes.example.com   (the public name Caddy holds the certificate for; required)
+ExecStart=/usr/local/bin/vitals-cert-sync.sh

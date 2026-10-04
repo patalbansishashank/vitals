@@ -1,0 +1,446 @@
+/* ==========================================================================
+   Vitals — design tokens  v1.0  (2026-09-30)
+   --------------------------------------------------------------------------
+   World: a precision instrument in the Ulm / Braun lineage. Mineral-grey
+   chassis, white faceplates (anthracite in dark), hairline scales, one
+   Vitals-yellow signal key. Colour lives in data, not chrome.
+
+   HOW TO USE
+   - Plain CSS: import this file once at the app root. Every value is a
+     custom property prefixed `--lm-`.
+   - Tailwind v4: import this file, then `design/tailwind-theme.css`, which maps
+     these tokens into Tailwind's `@theme` namespaces (bg-face, text-ink-2,
+     rounded-md, shadow-key, ease-needle, z-sheet, ...).
+   - Theme switching: default follows the OS. `<html data-theme="light">` or
+     `data-theme="dark"` forces a theme (the settings toggle writes this).
+   - Chart/series colours are HEX on purpose: they are the documented,
+     validator-checked source of truth (dataviz six checks, see CHART_SPEC.md
+     §3). Do not eyeball replacements; re-run the validator.
+
+   VALIDATION RECORD (dataviz/scripts/validate_palette.js, surfaces = --lm-face)
+   - Category palette, adjacent: light worst CVD ΔE 14.2, normal 23.8;
+                                 dark  worst CVD ΔE 11.4, normal 17.3. PASS.
+     Relief rule: recovery + cardio sit < 3:1 on the light face, so lanes and
+     overlay lines ALWAYS carry visible labels (they do by spec).
+   - Macro palette (stack order protein > net carbs > fibre > fat > alcohol),
+     adjacent: light CVD 17.3 / normal 23.8; dark CVD 11.5 / normal 16.0. PASS.
+   - Plan trio A/B/C, ALL pairs: CVD 13.9, normal 15.4 (both modes). PASS.
+   - Ketosis ordinal ramp: monotone, ΔL ≥ .06, light end ≥ 2:1. PASS.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------------------
+     1. SURFACES  (neutral hue 255, chroma ≤ .006 — reads as mineral grey)
+     --------------------------------------------------------------------- */
+  --lm-chassis:        #e8eaec; /* oklch(.935 .004 255) page background        */
+  --lm-chassis-2:      #dde0e3; /* oklch(.905 .005 255) rail, toolbars, tray   */
+  --lm-face:           #fbfcfd; /* oklch(.99 .0015 255) panels + chart surface */
+  --lm-well:           #f1f2f4; /* oklch(.962 .003 255) recessed: inputs, tracks, day cells */
+  --lm-raised:         #ffffff; /* popovers, menus, key caps                   */
+  /* row hover (COMPONENTS §14.1): 6 % ink over the face, background only; var-based, so both themes re-derive it */
+  --lm-face-hover:     color-mix(in oklab, var(--lm-face), var(--lm-ink) 6%);
+  --lm-scrim:          rgb(25 28 32 / 0.32);   /* behind sheets and dialogs    */
+
+  /* lines */
+  --lm-line:           #d7d9dc; /* hairline dividers inside faceplates          */
+  --lm-line-strong:    #c1c4c8; /* faceplate outlines, chart baseline           */
+  --lm-edge:           #83868b; /* control boundaries: ≥3:1 on face/well/chassis (WCAG 1.4.11) */
+
+  /* ink */
+  --lm-ink:            #191c20; /* 16.6:1 on face — primary text, marks of UI    */
+  --lm-ink-2:          #4a4e53; /*  8.2:1 on face, 7.0:1 on chassis — secondary (aligned with src/styles/tokens.css) */
+  --lm-ink-3:          #5f6368; /*  5.9:1 on face, 5.0:1 on chassis — tertiary, axis ticks (aligned with src/styles/tokens.css) */
+  --lm-ink-faint:      #a1a5aa; /*  2.4:1 — disabled only, never meaning-bearing */
+  --lm-ink-inverse:    #fbfcfd; /* text on ink fills (selected keys)             */
+
+  /* ---------------------------------------------------------------------
+     2. SIGNAL — Vitals yellow. The ONE chromatic accent in chrome.
+     Used for: the Run / Optimise key, the "now" hand on clocks and the
+     playhead, the brand dot, the active indicator light on key banks.
+     Never for warnings (that is --lm-caution-*), never as text colour.
+     --------------------------------------------------------------------- */
+  --lm-signal:         #f5d336; /* oklch(.87 .165 96)  ink on it = 11.6:1        */
+  --lm-signal-hover:   #fcde4d; /* oklch(.90 .16 97)                             */
+  --lm-signal-press:   #e6c126; /* oklch(.82 .16 94)                             */
+  --lm-signal-ink:     #191c20; /* text/icon on signal — always dark, both themes */
+  --lm-signal-edge:    #191c20; /* 1px outline that lets yellow read on white     */
+
+  /* focus + selection (browser surfaces are themed, not default) */
+  --lm-focus:          #191c20; /* 2px ring + 2px --lm-face offset               */
+  --lm-focus-offset:   #fbfcfd;
+  --lm-text-selection: rgb(245 211 54 / 0.45);
+  --lm-caret:          #191c20;
+
+  /* ---------------------------------------------------------------------
+     3. SEVERITY — info / caution / danger (+ ok for "goal met")
+     Always shipped with an icon AND a label. Never colour alone.
+     fg = text + icon on bg and on face (all ≥ 4.8:1); mark = chart/event glyph fill.
+     --------------------------------------------------------------------- */
+  --lm-info-fg:        #2a669f;  --lm-info-bg:    #ebf5ff;  --lm-info-edge:    #bbd4ee;  --lm-info-mark:    #4984bf;
+  --lm-caution-fg:     #955e00;  --lm-caution-bg: #fff2d6;  --lm-caution-edge: #f0cb8d;  --lm-caution-mark: #ee9e10;
+  --lm-danger-fg:      #be2323;  --lm-danger-bg:  #ffedec;  --lm-danger-edge:  #f9bcb9;  --lm-danger-mark:  #d73431;
+  --lm-ok-fg:          #21763c;  --lm-ok-bg:      #e5f9e8;  --lm-ok-edge:      #aedbb6;  --lm-ok-mark:      #319751;
+
+  /* ---------------------------------------------------------------------
+     4. EVIDENCE GRADES A–D — ordinal, achromatic on purpose (grades must
+     never look like severity or like a series). Letter + pips always shown.
+     --------------------------------------------------------------------- */
+  --lm-grade-a-bg:     #191c20;  --lm-grade-a-fg:  #fbfcfd;  --lm-grade-a-edge:  #191c20;
+  --lm-grade-b-bg:     #52565b;  --lm-grade-b-fg:  #fbfcfd;  --lm-grade-b-edge:  #52565b;
+  --lm-grade-c-bg:     transparent; --lm-grade-c-fg: #191c20; --lm-grade-c-edge: #52565b;
+  --lm-grade-d-bg:     transparent; --lm-grade-d-fg: #52565b; --lm-grade-d-edge: #83868b; /* edge is dashed for D */
+  --lm-grade-pip-on:   currentColor;
+  --lm-grade-pip-off:  #c1c4c8;
+
+  /* ---------------------------------------------------------------------
+     5. CATEGORY PALETTE — 8 validated hues, fixed order, one per metric
+     category. A metric wears its category hue everywhere (lane, overlay line,
+     picker chip, goal row, library). `--lm-series-N` aliases the same slots.
+     Series 9–24 are COMPOSITE: hue (n-1) % 8 + 1 with dash pattern 2 or 3 and
+     marker shape (see --lm-dash-* / CHART_SPEC.md §3.3). Never generate a hue.
+     --------------------------------------------------------------------- */
+  --lm-cat-body:        #2a6cc9; /* 1 cobalt  — body composition              */
+  --lm-cat-fuel:        #d6682f; /* 2 copper  — fuel & ketosis                */
+  --lm-cat-energy:      #129d97; /* 3 teal    — energy & metabolism           */
+  --lm-cat-cellular:    #694daf; /* 4 violet  — cellular signalling           */
+  --lm-cat-performance: #25873e; /* 5 green   — performance & training        */
+  --lm-cat-recovery:    #58b0db; /* 6 sky     — recovery & wellbeing (label!) */
+  --lm-cat-cardio:      #dda734; /* 7 saffron — cardiometabolic      (label!) */
+  --lm-cat-hormones:    #ca588c; /* 8 rose    — hormones & appetite           */
+
+  --lm-series-1: var(--lm-cat-body);
+  --lm-series-2: var(--lm-cat-fuel);
+  --lm-series-3: var(--lm-cat-energy);
+  --lm-series-4: var(--lm-cat-cellular);
+  --lm-series-5: var(--lm-cat-performance);
+  --lm-series-6: var(--lm-cat-recovery);
+  --lm-series-7: var(--lm-cat-cardio);
+  --lm-series-8: var(--lm-cat-hormones);
+  /* composite slots 9–12 (hue + dash pattern 2 + square marker) */
+  --lm-series-9:  var(--lm-series-1);
+  --lm-series-10: var(--lm-series-2);
+  --lm-series-11: var(--lm-series-3);
+  --lm-series-12: var(--lm-series-4);
+
+  /* stroke patterns for composite identity (SVG stroke-dasharray / canvas setLineDash) */
+  --lm-dash-1: none;        /* first metric of a category: solid, circle marker   */
+  --lm-dash-2: 7 4;         /* second: long dash, square marker                   */
+  --lm-dash-3: 1.5 3.5;     /* third: dotted (round caps), triangle marker        */
+
+  /* ---------------------------------------------------------------------
+     6. MACRONUTRIENTS — stack order is fixed: protein, net carbs, fibre, fat,
+     alcohol (fibre sits beside net carbs because it IS carbohydrate).
+     --------------------------------------------------------------------- */
+  --lm-macro-protein:  #3a55b1; /* indigo */
+  --lm-macro-carbs:    #dea63d; /* grain gold (net carbs) */
+  --lm-macro-fibre:    #727018; /* olive */
+  --lm-macro-fat:      #e07a98; /* rose-coral */
+  --lm-macro-alcohol:  #68448d; /* plum */
+  --lm-macro-gap:      var(--lm-face); /* 2px surface gap between stacked segments */
+
+  /* ---------------------------------------------------------------------
+     7. PLAN IDENTITY A / B / C (planner comparison). All-pairs validated.
+     --------------------------------------------------------------------- */
+  --lm-plan-a: #2a6cc9;
+  --lm-plan-b: #d6682f;
+  --lm-plan-c: #129d97;
+
+  /* v0.2 PLAN LADDER (screens/plan-ladder.md). Aliases of the validated A/B/C
+     hues, so no new validation is needed; the Ideal is achromatic on purpose
+     (ink, dashed 4 3 line, hollow marker) — it is a reference, not a choice. */
+  --lm-rung-hard:   var(--lm-plan-a);
+  --lm-rung-medium: var(--lm-plan-b);
+  --lm-rung-easy:   var(--lm-plan-c);
+  --lm-rung-ideal:  var(--lm-ink);
+  --lm-rung-ideal-dash: 4 3;
+
+  /* ---------------------------------------------------------------------
+     8. ENERGY BALANCE — diverging tints for day cells & phase bands.
+     Deficit (cool) ↔ maintenance (neutral well) ↔ surplus (warm apricot).
+     Neither arm is "good". Text on any step: --lm-ink (≥ 9.5:1) or
+     --lm-ink-2 (≥ 4.5:1).
+     Step thresholds (% of maintenance): 1 = 1–10, 2 = 10–20, 3 = 20–35, 4 = >35.
+     --------------------------------------------------------------------- */
+  --lm-energy-deficit-1: #e4f2fe;
+  --lm-energy-deficit-2: #cde7fe;
+  --lm-energy-deficit-3: #b4dbfd;
+  --lm-energy-deficit-4: #9cd1ff;
+  --lm-energy-neutral:   var(--lm-well);
+  --lm-energy-surplus-1: #ffeee3;
+  --lm-energy-surplus-2: #ffdeca;
+  --lm-energy-surplus-3: #ffcfb1;
+  --lm-energy-surplus-4: #fdbd97;
+  --lm-energy-fast:      #191c20; /* water-only fast day: ink cell, inverse text */
+
+  /* ketosis state (ordinal, fuel hue): forming → nutritional → deep */
+  --lm-keto-1: #e69671;
+  --lm-keto-2: #d26e3e;
+  --lm-keto-3: #b44c0d;
+
+  /* ---------------------------------------------------------------------
+     9. CHART CHROME
+     --------------------------------------------------------------------- */
+  --lm-chart-surface:     var(--lm-face);
+  --lm-chart-grid:        #e9ebee;  /* 1px solid, never dashed              */
+  --lm-chart-axis:        #c1c4c8;  /* baseline / zero line                 */
+  --lm-chart-tick:        var(--lm-ink-3);
+  --lm-chart-label:       var(--lm-ink-2);
+  --lm-chart-crosshair:   #52565b;  /* 1px vertical hairline                */
+  --lm-chart-now:         var(--lm-signal); /* playhead / "today" hand      */
+  --lm-chart-phase-alt:   rgb(25 28 32 / 0.035); /* alternate schedule blocks */
+  --lm-chart-band-alpha:  0.14;     /* likely-range band = series hue @ 14% */
+  --lm-chart-area-alpha:  0.10;     /* single-series area wash              */
+  --lm-chart-dim-alpha:   0.28;     /* non-focused series in focus mode     */
+  --lm-chart-ring:        var(--lm-face); /* 2px surface ring on markers    */
+
+  /* ---------------------------------------------------------------------
+     10. AVATAR (see AVATAR_SPEC.md) — neutral material, never skin tone
+     --------------------------------------------------------------------- */
+  --lm-avatar-lean:      #7487a5; /* lean core (muscle, organs, bone)      */
+  --lm-avatar-fat:       #d0d8e4; /* adipose envelope (frosted layer)      */
+  --lm-avatar-outline:   #333e4d; /* 1.25px silhouette edge                */
+  --lm-avatar-ghost:     #83868b; /* before-state outline in morph (1px)   */
+  --lm-avatar-visceral:  #ca9780; /* optional visceral-fat ellipse         */
+  --lm-avatar-definition: rgb(25 28 32 / 0.22); /* muscle definition strokes */
+  --lm-avatar-stage:     var(--lm-well);
+  --lm-avatar-dot:       rgb(25 28 32 / 0.11); /* perforated stage grid    */
+  /* v0.2 visceral view (screens/body-figure-v2.md §6). Organs are a quiet
+     neutral so the two fat layers carry the eye; visceral keeps its warm
+     material tone (never red), subcutaneous keeps the frosted fat tone. */
+  --lm-avatar-organ:      #e7eaee; /* organ region fill in the waist slice  */
+  --lm-avatar-organ-line: rgb(51 62 77 / 0.45); /* bowel-loop strokes      */
+  --lm-avatar-wall:       var(--lm-avatar-lean); /* abdominal muscle wall  */
+  --lm-avatar-halo-alpha: 0.28;   /* uncertainty halo around visceral fill */
+
+  /* ---------------------------------------------------------------------
+     11. TYPOGRAPHY — one family, three widths.
+     Archivo (OFL, variable: wght 100–900, wdth 62–125; has tnum, zero, case,
+     frac, sups/subs). Google Fonts or self-host from google/fonts ofl/archivo.
+     --------------------------------------------------------------------- */
+  --lm-font-sans: "Archivo", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
+  --lm-font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; /* JSON preview only */
+
+  --lm-wdth-condensed: 84;   /* axis ticks, lane labels on mobile, dense tables */
+  --lm-wdth-normal:    100;  /* UI + prose                                      */
+  --lm-wdth-wide:      112;  /* readouts, key captions                          */
+  --lm-wdth-display:   120;  /* screen titles, hero readouts                    */
+
+  --lm-weight-regular: 400;
+  --lm-weight-medium:  500;
+  --lm-weight-semibold: 600;
+  --lm-weight-bold:    700;
+
+  /* size / line-height / tracking  (fixed rem, ratio ≈ 1.2; root = 16px) */
+  --lm-text-2xs: 0.6875rem;  --lm-text-2xs--lh: 1rem;      --lm-text-2xs--ls: 0.01em;  /* 11 ticks        */
+  --lm-text-xs:  0.75rem;    --lm-text-xs--lh: 1rem;       --lm-text-xs--ls: 0.005em;  /* 12 engraved labels, captions */
+  --lm-text-sm:  0.8125rem;  --lm-text-sm--lh: 1.125rem;   --lm-text-sm--ls: 0;        /* 13 dense UI, table */
+  --lm-text-base: 0.9375rem; --lm-text-base--lh: 1.375rem; --lm-text-base--ls: 0;      /* 15 UI body       */
+  --lm-text-md:  1.0625rem;  --lm-text-md--lh: 1.625rem;   --lm-text-md--ls: 0;        /* 17 prose (library) */
+  --lm-text-lg:  1.25rem;    --lm-text-lg--lh: 1.625rem;   --lm-text-lg--ls: -0.005em; /* 20 section title */
+  --lm-text-xl:  1.5rem;     --lm-text-xl--lh: 1.875rem;   --lm-text-xl--ls: -0.01em;  /* 24 screen title (mobile) */
+  --lm-text-2xl: 1.875rem;   --lm-text-2xl--lh: 2.25rem;   --lm-text-2xl--ls: -0.015em;/* 30 screen title (desktop) */
+  --lm-readout-sm: 1.375rem; --lm-readout-sm--lh: 1.5rem;  /* 22 card readouts          */
+  --lm-readout-md: 2rem;     --lm-readout-md--lh: 2.125rem;/* 32 live estimates         */
+  --lm-readout-lg: 3.25rem;  --lm-readout-lg--lh: 3.25rem; /* 52 one hero readout / view */
+
+  --lm-measure-prose: 68ch;
+
+  /* ---------------------------------------------------------------------
+     12. SPACING — 4px grid. Tailwind's --spacing: .25rem produces the same.
+     --------------------------------------------------------------------- */
+  --lm-space-0: 0;       --lm-space-px: 1px;   --lm-space-0-5: 2px;  --lm-space-1: 4px;
+  --lm-space-1-5: 6px;   --lm-space-2: 8px;    --lm-space-3: 12px;   --lm-space-4: 16px;
+  --lm-space-5: 20px;    --lm-space-6: 24px;   --lm-space-8: 32px;   --lm-space-10: 40px;
+  --lm-space-12: 48px;   --lm-space-16: 64px;  --lm-space-20: 80px;  --lm-space-24: 96px;
+
+  /* layout constants */
+  --lm-gutter:          16px;  /* mobile page gutter                  */
+  --lm-gutter-lg:       24px;  /* ≥1024                               */
+  --lm-rail-w:          76px;  /* desktop navigation rail             */
+  --lm-topbar-h:        56px;
+  --lm-tabbar-h:        64px;  /* mobile bottom bar (+ safe-area)     */
+  --lm-drawer-w:        392px; /* explain drawer, day editor panel    */
+  --lm-lane-h-strip:    26px;  /* collapsed lane in focus mode         */
+  --lm-lane-h:          72px;  /* default lane (64px under 768)         */
+  --lm-lane-h-focus:    280px; /* focused lane (220px under 768)        */
+  --lm-lane-tick-col:   32px;  /* y-tick label column inside the plot   */
+  --lm-lane-label-w:    168px; /* desktop lane label gutter           */
+  --lm-hit-touch:       44px;  /* minimum touch target                */
+  --lm-hit-pointer:     32px;  /* minimum pointer target (dense UI)   */
+  --lm-content-max:     1440px;
+
+  /* ---------------------------------------------------------------------
+     13. RADII — soft instrument corners
+     --------------------------------------------------------------------- */
+  --lm-radius-xs:   3px;   /* chips, grade badges, tick caps     */
+  --lm-radius-sm:   5px;   /* keys, inputs, day cells            */
+  --lm-radius-md:   8px;   /* faceplates, cards, popovers        */
+  --lm-radius-lg:   12px;  /* avatar stage, drawers              */
+  --lm-radius-xl:   18px;  /* mobile sheet top corners           */
+  --lm-radius-full: 9999px;/* round keys, pills, indicator dots  */
+
+  /* ---------------------------------------------------------------------
+     14. ELEVATION — physical, offset + soft blur; never coloured halos
+     --------------------------------------------------------------------- */
+  --lm-shadow-face:    0 1px 0 rgb(25 28 32 / 0.04), 0 1px 3px rgb(25 28 32 / 0.06);
+  --lm-shadow-key:     inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 0 rgb(25 28 32 / 0.10), 0 1px 2px rgb(25 28 32 / 0.10);
+  --lm-shadow-key-pressed: inset 0 1px 2px rgb(25 28 32 / 0.22), inset 0 0 0 1px rgb(25 28 32 / 0.06);
+  --lm-shadow-well:    inset 0 1px 2px rgb(25 28 32 / 0.07);
+  --lm-shadow-thumb:   0 1px 1px rgb(25 28 32 / 0.18), 0 2px 6px rgb(25 28 32 / 0.16);
+  --lm-shadow-pop:     0 2px 4px rgb(25 28 32 / 0.06), 0 8px 24px -4px rgb(25 28 32 / 0.16);
+  --lm-shadow-sheet:   0 -2px 8px rgb(25 28 32 / 0.06), 0 -16px 40px -8px rgb(25 28 32 / 0.18);
+  --lm-shadow-drawer:  -8px 0 32px -12px rgb(25 28 32 / 0.20);
+
+  /* ---------------------------------------------------------------------
+     15. MOTION — state, not decoration. Needles are damped, keys are quick.
+     --------------------------------------------------------------------- */
+  --lm-dur-instant: 80ms;   /* key press, toggle                    */
+  --lm-dur-fast:    140ms;  /* hover, focus, chip select            */
+  --lm-dur-base:    200ms;  /* panels, tabs, lane expand            */
+  --lm-dur-slow:    320ms;  /* sheets, drawers, chart re-scale      */
+  --lm-dur-needle:  420ms;  /* readouts settling, slider value tween */
+  --lm-dur-morph:   900ms;  /* avatar before→after auto-play        */
+
+  --lm-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);     /* expo-out: default */
+  --lm-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --lm-ease-press:  cubic-bezier(0.3, 0, 0.5, 1);
+  --lm-ease-needle: cubic-bezier(0.34, 1.36, 0.64, 1); /* one damped overshoot */
+  --lm-ease-sheet:  cubic-bezier(0.32, 0.72, 0, 1);    /* iOS-like sheet     */
+
+  /* ---------------------------------------------------------------------
+     16. Z-INDEX
+     --------------------------------------------------------------------- */
+  --lm-z-base:     0;
+  --lm-z-lane-label: 10;
+  --lm-z-sticky:   100;  /* top bar, chart toolbar, lane axis */
+  --lm-z-rail:     150;
+  --lm-z-tabbar:   200;
+  --lm-z-drawer:   300;
+  --lm-z-popover:  400;  /* menus, metric picker popover */
+  --lm-z-sheet:    500;  /* bottom sheets */
+  --lm-z-dialog:   600;
+  --lm-z-toast:    700;
+  --lm-z-tooltip:  800;
+
+  /* ---------------------------------------------------------------------
+     17. BREAKPOINTS (mobile-first; CSS media queries cannot read vars —
+     these mirror tailwind-theme.css and are here for JS/matchMedia)
+     --------------------------------------------------------------------- */
+  --lm-bp-sm:  480px;
+  --lm-bp-md:  768px;   /* two-column forms, day editor becomes side panel */
+  --lm-bp-lg:  1024px;  /* rail navigation, persistent metric picker       */
+  --lm-bp-xl:  1280px;  /* three-column Your body, explain drawer docked   */
+  --lm-bp-2xl: 1536px;
+}
+
+/* ==========================================================================
+   DARK — anthracite chassis. Same roles, re-stepped (not inverted).
+   Declared twice: OS preference (unless forced light) and forced dark.
+   ========================================================================== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --lm-chassis: #151618; --lm-chassis-2: #181a1c; --lm-face: #1d1f22; --lm-well: #181a1c; --lm-raised: #27292c;
+    --lm-scrim: rgb(0 0 0 / 0.55);
+    --lm-line: #333639; --lm-line-strong: #45484c; --lm-edge: #717579;
+    --lm-ink: #eff0f2; --lm-ink-2: #b7bbc0; --lm-ink-3: #95999e; --lm-ink-faint: #66696e; --lm-ink-inverse: #151618;
+    --lm-signal: #f0d03c; --lm-signal-hover: #f8da4f; --lm-signal-press: #dfbb27; --lm-signal-ink: #151618; --lm-signal-edge: transparent;
+    --lm-focus: #f0d03c; --lm-focus-offset: #1d1f22; --lm-text-selection: rgb(240 208 60 / 0.32); --lm-caret: #f0d03c;
+    --lm-info-fg: #97c2f0;    --lm-info-bg: #192837;    --lm-info-edge: #2e4a67;    --lm-info-mark: #4984bf;
+    --lm-caution-fg: #f4c26a; --lm-caution-bg: #342611; --lm-caution-edge: #664610; --lm-caution-mark: #ee9e10;
+    --lm-danger-fg: #fb9890;  --lm-danger-bg: #3b1c1a;  --lm-danger-edge: #7a3430;  --lm-danger-mark: #e0514d;
+    --lm-ok-fg: #89d298;      --lm-ok-bg: #1a2b1d;      --lm-ok-edge: #295233;      --lm-ok-mark: #3c9950;
+    --lm-grade-a-bg: #eff0f2; --lm-grade-a-fg: #151618; --lm-grade-a-edge: #eff0f2;
+    --lm-grade-b-bg: #95999e; --lm-grade-b-fg: #151618; --lm-grade-b-edge: #95999e;
+    --lm-grade-c-bg: transparent; --lm-grade-c-fg: #eff0f2; --lm-grade-c-edge: #b7bbc0;
+    --lm-grade-d-bg: transparent; --lm-grade-d-fg: #b7bbc0; --lm-grade-d-edge: #717579;
+    --lm-grade-pip-off: #45484c;
+    --lm-cat-body: #4385e4; --lm-cat-fuel: #d86931; --lm-cat-energy: #129d97; --lm-cat-cellular: #8b72d7;
+    --lm-cat-performance: #3c9950; --lm-cat-recovery: #449dc7; --lm-cat-cardio: #bb8600; --lm-cat-hormones: #d36094;
+    --lm-macro-protein: #5f80e0; --lm-macro-carbs: #bf890d; --lm-macro-fibre: #6f6d13; --lm-macro-fat: #d46f8d; --lm-macro-alcohol: #825ea9;
+    --lm-plan-a: #4385e4; --lm-plan-b: #d86931; --lm-plan-c: #129d97;
+    --lm-energy-deficit-1: #1e2c37; --lm-energy-deficit-2: #1e3548; --lm-energy-deficit-3: #1e405b; --lm-energy-deficit-4: #1f4e73;
+    --lm-energy-surplus-1: #37281e; --lm-energy-surplus-2: #462d1e; --lm-energy-surplus-3: #58341e; --lm-energy-surplus-4: #6d3e1f;
+    --lm-energy-fast: #eff0f2;
+    --lm-keto-1: #84492d; --lm-keto-2: #b05e36; --lm-keto-3: #e17c4c;
+    --lm-chart-grid: #292b2e; --lm-chart-axis: #45484c; --lm-chart-crosshair: #b7bbc0; --lm-chart-phase-alt: rgb(255 255 255 / 0.03);
+    --lm-chart-band-alpha: 0.20; --lm-chart-area-alpha: 0.14; --lm-chart-dim-alpha: 0.32;
+    --lm-avatar-lean: #5f7698; --lm-avatar-fat: #373e48; --lm-avatar-outline: #b8c5d8; --lm-avatar-ghost: #95999e;
+    --lm-avatar-visceral: #9d6044; --lm-avatar-definition: rgb(239 240 242 / 0.20); --lm-avatar-dot: rgb(239 240 242 / 0.07);
+    --lm-avatar-organ: #2a2e33; --lm-avatar-organ-line: rgb(184 197 216 / 0.40); --lm-avatar-halo-alpha: 0.34;
+    --lm-shadow-face: 0 1px 0 rgb(0 0 0 / 0.30), 0 0 0 1px rgb(255 255 255 / 0.02);
+    --lm-shadow-key: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 1px 0 rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
+    --lm-shadow-key-pressed: inset 0 1px 3px rgb(0 0 0 / 0.55);
+    --lm-shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.35);
+    --lm-shadow-thumb: 0 1px 1px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.45);
+    --lm-shadow-pop: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -4px rgb(0 0 0 / 0.55);
+    --lm-shadow-sheet: 0 -16px 40px -8px rgb(0 0 0 / 0.6);
+    --lm-shadow-drawer: -8px 0 32px -12px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --lm-chassis: #151618; --lm-chassis-2: #181a1c; --lm-face: #1d1f22; --lm-well: #181a1c; --lm-raised: #27292c;
+  --lm-scrim: rgb(0 0 0 / 0.55);
+  --lm-line: #333639; --lm-line-strong: #45484c; --lm-edge: #717579;
+  --lm-ink: #eff0f2; --lm-ink-2: #b7bbc0; --lm-ink-3: #95999e; --lm-ink-faint: #66696e; --lm-ink-inverse: #151618;
+  --lm-signal: #f0d03c; --lm-signal-hover: #f8da4f; --lm-signal-press: #dfbb27; --lm-signal-ink: #151618; --lm-signal-edge: transparent;
+  --lm-focus: #f0d03c; --lm-focus-offset: #1d1f22; --lm-text-selection: rgb(240 208 60 / 0.32); --lm-caret: #f0d03c;
+  --lm-info-fg: #97c2f0;    --lm-info-bg: #192837;    --lm-info-edge: #2e4a67;    --lm-info-mark: #4984bf;
+  --lm-caution-fg: #f4c26a; --lm-caution-bg: #342611; --lm-caution-edge: #664610; --lm-caution-mark: #ee9e10;
+  --lm-danger-fg: #fb9890;  --lm-danger-bg: #3b1c1a;  --lm-danger-edge: #7a3430;  --lm-danger-mark: #e0514d;
+  --lm-ok-fg: #89d298;      --lm-ok-bg: #1a2b1d;      --lm-ok-edge: #295233;      --lm-ok-mark: #3c9950;
+  --lm-grade-a-bg: #eff0f2; --lm-grade-a-fg: #151618; --lm-grade-a-edge: #eff0f2;
+  --lm-grade-b-bg: #95999e; --lm-grade-b-fg: #151618; --lm-grade-b-edge: #95999e;
+  --lm-grade-c-bg: transparent; --lm-grade-c-fg: #eff0f2; --lm-grade-c-edge: #b7bbc0;
+  --lm-grade-d-bg: transparent; --lm-grade-d-fg: #b7bbc0; --lm-grade-d-edge: #717579;
+  --lm-grade-pip-off: #45484c;
+  --lm-cat-body: #4385e4; --lm-cat-fuel: #d86931; --lm-cat-energy: #129d97; --lm-cat-cellular: #8b72d7;
+  --lm-cat-performance: #3c9950; --lm-cat-recovery: #449dc7; --lm-cat-cardio: #bb8600; --lm-cat-hormones: #d36094;
+  --lm-macro-protein: #5f80e0; --lm-macro-carbs: #bf890d; --lm-macro-fibre: #6f6d13; --lm-macro-fat: #d46f8d; --lm-macro-alcohol: #825ea9;
+  --lm-plan-a: #4385e4; --lm-plan-b: #d86931; --lm-plan-c: #129d97;
+  --lm-energy-deficit-1: #1e2c37; --lm-energy-deficit-2: #1e3548; --lm-energy-deficit-3: #1e405b; --lm-energy-deficit-4: #1f4e73;
+  --lm-energy-surplus-1: #37281e; --lm-energy-surplus-2: #462d1e; --lm-energy-surplus-3: #58341e; --lm-energy-surplus-4: #6d3e1f;
+  --lm-energy-fast: #eff0f2;
+  --lm-keto-1: #84492d; --lm-keto-2: #b05e36; --lm-keto-3: #e17c4c;
+  --lm-chart-grid: #292b2e; --lm-chart-axis: #45484c; --lm-chart-crosshair: #b7bbc0; --lm-chart-phase-alt: rgb(255 255 255 / 0.03);
+  --lm-chart-band-alpha: 0.20; --lm-chart-area-alpha: 0.14; --lm-chart-dim-alpha: 0.32;
+  --lm-avatar-lean: #5f7698; --lm-avatar-fat: #373e48; --lm-avatar-outline: #b8c5d8; --lm-avatar-ghost: #95999e;
+  --lm-avatar-visceral: #9d6044; --lm-avatar-definition: rgb(239 240 242 / 0.20); --lm-avatar-dot: rgb(239 240 242 / 0.07);
+  --lm-avatar-organ: #2a2e33; --lm-avatar-organ-line: rgb(184 197 216 / 0.40); --lm-avatar-halo-alpha: 0.34;
+  --lm-shadow-face: 0 1px 0 rgb(0 0 0 / 0.30), 0 0 0 1px rgb(255 255 255 / 0.02);
+  --lm-shadow-key: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 1px 0 rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
+  --lm-shadow-key-pressed: inset 0 1px 3px rgb(0 0 0 / 0.55);
+  --lm-shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.35);
+  --lm-shadow-thumb: 0 1px 1px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.45);
+  --lm-shadow-pop: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -4px rgb(0 0 0 / 0.55);
+  --lm-shadow-sheet: 0 -16px 40px -8px rgb(0 0 0 / 0.6);
+  --lm-shadow-drawer: -8px 0 32px -12px rgb(0 0 0 / 0.6);
+}
+
+/* ==========================================================================
+   REDUCED MOTION — needles snap, sheets cut, only 80ms opacity remains.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --lm-dur-fast: 0.01ms; --lm-dur-base: 0.01ms; --lm-dur-slow: 0.01ms;
+    --lm-dur-needle: 0.01ms; --lm-dur-morph: 0.01ms;
+    --lm-ease-needle: linear;
+  }
+}
+
+/* ==========================================================================
+   FORCED COLORS / HIGH CONTRAST — chart textures switch on (CHART_SPEC §9)
+   ========================================================================== */
+@media (forced-colors: active) {
+  :root { --lm-chart-band-alpha: 0; --lm-focus: Highlight; }
+}
+
+/* ==========================================================================
+   BROWSER SURFACES — the parts nobody draws still carry the design
+   ========================================================================== */
+::selection { background: var(--lm-text-selection); color: var(--lm-ink); }
+:root { caret-color: var(--lm-caret); accent-color: var(--lm-ink); }

@@ -1,0 +1,100 @@
+/* Avatar lab (/dev/avatar) layout - mirrors the Your body grid (screens/your-body.md §4). */
+@layer components {
+  .lm-avatar-demo {
+    display: grid;
+    gap: 16px;
+    padding-block: 16px 48px;
+  }
+  .lm-avatar-demo__head {
+    display: grid;
+    gap: 4px;
+  }
+  .lm-avatar-demo__grid {
+    display: grid;
+    gap: 16px;
+    align-items: start;
+  }
+  .lm-avatar-demo__col {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .lm-avatar-demo__fields {
+    display: grid;
+    gap: 16px;
+  }
+  .lm-avatar-demo__stage {
+    height: clamp(340px, 58vh, 560px);
+  }
+  .lm-avatar-demo__morph {
+    max-width: 640px;
+    margin-inline: auto;
+  }
+  .lm-avatar-demo__specimens {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .lm-avatar-demo__specimen {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    text-align: center;
+  }
+  .lm-avatar-demo__cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-avatar-demo__cards > .lm-avatar {
+    width: 48px;
+  }
+  @media (max-width: 47.99rem) {
+    .lm-avatar-demo__stage {
+      height: auto;
+      aspect-ratio: 4 / 5;
+    }
+  }
+  @media (min-width: 64rem) {
+    .lm-avatar-demo__grid {
+      grid-template-columns: minmax(0, 1fr) 360px;
+    }
+    .lm-avatar-demo__grid > :first-child {
+      grid-column: 1 / -1;
+    }
+  }
+  @media (min-width: 80rem) {
+    .lm-avatar-demo__grid {
+      grid-template-columns: 300px minmax(0, 1fr) 372px;
+    }
+    .lm-avatar-demo__grid > :first-child {
+      grid-column: auto;
+    }
+  }
+}
+@layer components {
+  .lm-avatar-demo__readouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px 24px;
+  }
+}
+@layer components {
+  .lm-avatar-demo__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+}
+@layer components {
+  .lm-avatar-demo__toolbar--inset {
+    padding: 0 0 12px;
+    margin-bottom: 16px;
+  }
+}

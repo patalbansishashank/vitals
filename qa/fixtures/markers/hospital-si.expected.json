@@ -1,0 +1,183 @@
+{
+  "file": "hospital-si.pdf",
+  "synthetic": true,
+  "layout": "Investigation / Observed Value / Flag / Units / Biological Reference Interval, SI units, H/L flags, page 2 image only",
+  "sampleDate": "2026-05-11",
+  "pages": 2,
+  "textlessPages": [
+    2
+  ],
+  "note": "textlessPages and imageOnly[].sourcePage count the source pages; a long table may spill onto an extra printed page (see printedPages)",
+  "patient": {
+    "name": "Rohan Fakename",
+    "ageSex": "52 Y / M",
+    "phone": "044-2345 6789",
+    "id": "H-55443322",
+    "barcode": "ACC-7788990",
+    "address": "No. 7, Dummy Street, Chennai 600004",
+    "doctor": "Dr. Notreal Iyer"
+  },
+  "tierA": [
+    {
+      "markerId": "hb",
+      "nameOnReport": "Haemoglobin",
+      "value": 128,
+      "unit": "g/L",
+      "calculated": false
+    },
+    {
+      "markerId": "fpg",
+      "nameOnReport": "Fasting Plasma Glucose",
+      "value": 6.4,
+      "unit": "mmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "hba1c",
+      "nameOnReport": "HbA1c",
+      "value": 6.6,
+      "unit": "%",
+      "calculated": false
+    },
+    {
+      "markerId": "ldl",
+      "nameOnReport": "LDL-C (direct)",
+      "value": 3.9,
+      "unit": "mmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "hdl",
+      "nameOnReport": "HDL-C",
+      "value": 0.9,
+      "unit": "mmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "tg",
+      "nameOnReport": "Triglycerides",
+      "value": 2.4,
+      "unit": "mmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "creatinine",
+      "nameOnReport": "Creatinine",
+      "value": 132,
+      "unit": "µmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "egfr",
+      "nameOnReport": "eGFR (CKD-EPI 2021)",
+      "value": 55,
+      "unit": "mL/min/1.73 m²",
+      "calculated": false
+    },
+    {
+      "markerId": "urate",
+      "nameOnReport": "Uric Acid",
+      "value": 452,
+      "unit": "µmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "sodium",
+      "nameOnReport": "Sodium",
+      "value": 139,
+      "unit": "mmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "potassium",
+      "nameOnReport": "Potassium",
+      "value": 4.6,
+      "unit": "mmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "alt",
+      "nameOnReport": "ALT",
+      "value": 0.75,
+      "unit": "µkat/L",
+      "calculated": false
+    },
+    {
+      "markerId": "ast",
+      "nameOnReport": "AST",
+      "value": 28,
+      "unit": "U/L",
+      "calculated": false
+    },
+    {
+      "markerId": "tsh",
+      "nameOnReport": "TSH",
+      "value": 3.4,
+      "unit": "mIU/L",
+      "calculated": false
+    },
+    {
+      "markerId": "ft3",
+      "nameOnReport": "Free T3",
+      "value": 4.9,
+      "unit": "pmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "b12",
+      "nameOnReport": "Vitamin B12",
+      "value": 111,
+      "unit": "pmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "vitD",
+      "nameOnReport": "25-Hydroxy Vitamin D",
+      "value": 42,
+      "unit": "nmol/L",
+      "calculated": false
+    },
+    {
+      "markerId": "hsCrp",
+      "nameOnReport": "hs-CRP",
+      "value": 4.1,
+      "unit": "mg/L",
+      "calculated": false
+    },
+    {
+      "markerId": "testosterone",
+      "nameOnReport": "Testosterone, total",
+      "value": 14.8,
+      "unit": "nmol/L",
+      "calculated": false
+    }
+  ],
+  "imageOnly": [
+    {
+      "markerId": "cortisol",
+      "nameOnReport": "Cortisol (8 AM)",
+      "value": 390,
+      "unit": "nmol/L",
+      "calculated": false,
+      "sourcePage": 2
+    },
+    {
+      "markerId": "ferritin",
+      "nameOnReport": "Ferritin",
+      "value": 310,
+      "unit": "µg/L",
+      "calculated": false,
+      "sourcePage": 2
+    },
+    {
+      "markerId": "apoB",
+      "nameOnReport": "Apolipoprotein B",
+      "value": 1.21,
+      "unit": "g/L",
+      "calculated": false,
+      "sourcePage": 2
+    }
+  ],
+  "droppedCalculated": [],
+  "printedPages": 2
+}

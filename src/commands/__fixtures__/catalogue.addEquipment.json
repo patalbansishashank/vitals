@@ -1,0 +1,6 @@
+{
+  "equipment": {
+    "name": "Wooden wheel",
+    "patterns": ["coreAntiExtension"]
+  }
+}

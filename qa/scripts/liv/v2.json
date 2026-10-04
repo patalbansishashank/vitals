@@ -1,0 +1,1 @@
+[{"goto":"/food","wait":3000,"eval":"document.querySelector('h1')?.innerText"},{"goto":"/food/2026-10-02","wait":3000,"eval":"[document.querySelector('h1')?.innerText, document.body.innerText.match(/energy\\neaten[\\s\\S]{0,60}/)?.[0]]"}]

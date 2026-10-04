@@ -1,0 +1,162 @@
+/* ==========================================================================
+   Living mode — shared styles (date strip, estimate readout, source chip,
+   sheets, typed confirmation). Loaded by every Living screen via boot.ts.
+   Tokens only; chrome achromatic; the yellow dot marks today.
+   ========================================================================== */
+@layer components {
+  /* ---- sheets -------------------------------------------------------------- */
+  .lv-sheet {
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    display: grid;
+    /* one track no wider than the sheet: a 5-key bank or a date field must never push past the edge */
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  /* 4–5 key banks (row status, busy reasons) do not fit a 390 px sheet or the 392 px side panel: below 520 px they
+     become a two-column bank (no separator at a row start; an odd last key spans the row) instead of running off */
+  .lv-sheet {
+    container: lv-sheet / inline-size;
+  }
+  @container lv-sheet (max-width: 520px) {
+    .lv-sheet .lm-bank:not([data-orientation='vertical']) {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: 2px;
+    }
+    .lv-sheet .lm-bank > .lm-bank__key:nth-child(odd)::before {
+      display: none;
+    }
+    .lv-sheet .lm-bank > .lm-bank__key:last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
+  }
+  /* a lone action key keeps its own width */
+  .lv-sheet > .lm-key {
+    justify-self: start;
+  }
+  .lv-sheet__target {
+    margin: 0;
+    color: var(--lm-ink-2);
+  }
+  .lv-sheet__editor {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+  .lv-confirm__body {
+    margin: 0 0 12px;
+  }
+
+  /* ---- estimate readout / source chip ---------------------------------------- */
+  .lv-est {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 4px;
+  }
+  .lv-est__range {
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-est .lm-chip {
+    margin-left: 4px;
+  }
+  .lv-source.is-assumed {
+    border-style: dashed;
+  }
+
+  /* ---- date strip (shared by Today, Food, Train) ------------------------------- */
+  .lv-datestrip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lv-datestrip__days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .lv-daykey {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: 6px 0 4px;
+    border: 1px solid transparent;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink);
+    cursor: pointer;
+  }
+  @media (pointer: fine) {
+    .lv-daykey {
+      min-height: 52px;
+    }
+  }
+  .lv-daykey:hover {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 5%);
+  }
+  .lv-daykey__wd {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-daykey__num {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .lv-daykey__glyph {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+  }
+  .lv-daykey__dot {
+    width: 6px;
+    height: 6px;
+    border: 1px solid var(--lm-edge);
+    border-radius: 50%;
+  }
+  .lv-daykey.is-today {
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-key-pressed);
+  }
+  .lv-daykey.is-today::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+  }
+  .lv-daykey.is-selected:not(.is-today) {
+    border: 2px solid var(--lm-ink);
+  }
+  .lv-daykey.is-paused .lv-daykey__num {
+    text-decoration: line-through;
+    text-decoration-color: var(--lm-ink-3);
+  }
+  .lv-daykey.is-outside {
+    color: var(--lm-ink-3);
+  }
+  .lv-daykey.is-start {
+    border-left: 2px solid var(--lm-ink);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+  .lv-daykey.is-end {
+    border-right: 2px solid var(--lm-ink);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+}

@@ -1,0 +1,84 @@
+/* ==========================================================================
+   Mode-aware navigation (IA §3.4–§3.6, COMPONENTS §11, §13.17): the rail's
+   plan-day readout and lower-group hairline, the 5-key tab bar, the planning
+   override's plan strip, and the 140 ms cross-fade when the mode changes.
+   Tokens only; the yellow dot is the only colour.
+   ========================================================================== */
+@layer components {
+  .lm-rail__day {
+    margin: -8px 0 10px;
+    font-size: 11px;
+    font-stretch: 75%;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    color: var(--lm-ink-2);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .lm-rail__rule {
+    display: block;
+    width: 44px;
+    height: 1px;
+    margin: 6px 0;
+    background: var(--lm-line-strong);
+  }
+  .lm-navkey[data-fade] {
+    animation: lm-navfade var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  @keyframes lm-navfade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .lm-topbar__coach {
+    display: inline-flex;
+  }
+  /* screens without the tab bar (useChromeless / route handle.chromeless): no reserved space under the content,
+     and the action bar sits on the safe-area edge */
+  .lm-app[data-chromeless='true'] {
+    --lm-tabbar-h: 0px;
+  }
+
+  /* ---- plan strip (planning override; not dismissible) ------------------- */
+  .lm-planstrip {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    min-height: 40px;
+    padding: 6px calc(var(--lm-gutter) + var(--lm-safe-right)) 6px calc(var(--lm-gutter) + var(--lm-safe-left));
+    background: var(--lm-chassis-2);
+    border-bottom: 1px solid var(--lm-line-strong);
+  }
+  @media (min-width: 64rem) {
+    .lm-planstrip {
+      padding-inline: var(--lm-gutter-lg);
+    }
+  }
+  .lm-planstrip__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+  }
+  .lm-planstrip__text {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: 1.35;
+    color: var(--lm-ink);
+  }
+  .lm-planstrip__text strong {
+    font-weight: 600;
+  }
+  .lm-planstrip__note {
+    color: var(--lm-ink-2);
+  }
+}

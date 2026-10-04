@@ -1,0 +1,3 @@
+[{"goto":"/today","wait":2500,"eval":"document.querySelector('[aria-label=\"Mark breakfast as planned\"]').getAttribute('aria-pressed')"},
+{"css":"[aria-label='Mark breakfast as planned']","wait":3000,"eval":"[document.querySelector('[aria-label=\"Mark breakfast as planned\"]')?.getAttribute('aria-pressed'), document.querySelector('[role=status],[class*=toast]')?.innerText, document.body.innerText.match(/eaten[^\\n]*\\n[^\\n]*\\n[^\\n]*/)?.[0]]"},
+{"shot":"03-today-tick"}]

@@ -1,0 +1,310 @@
+/* ==========================================================================
+   BodyAvatar - the two-layer figure on the perforated stage (AVATAR_SPEC §4-§8).
+   Tokens only. Text inside the SVG is set in real pixels (the viewBox is the
+   stage's pixel box), never below 11 px (REVIEW_FINDINGS #8).
+   ========================================================================== */
+
+@layer components {
+  .lm-avatar {
+    /* Materials. REVIEW_FINDINGS #8: on the light stage the frosted fat layer is pulled a quarter of the way toward
+       the lean material so the envelope separates from the well (L ~.82 vs .96) while staying clearly lighter than
+       the core (L ~.62). Dark keeps the token and turns slightly translucent so the core reads through (§4.1). */
+    --av-fat: var(--lm-avatar-fat);
+    --av-lean: var(--lm-avatar-lean);
+    --av-edge: var(--lm-avatar-outline);
+    --av-edge-w: 1.25px;
+    margin: 0;
+    min-width: 0;
+    display: grid;
+    gap: 8px;
+  }
+  @supports (color: light-dark(#000, #fff)) {
+    .lm-avatar {
+      --av-fat: light-dark(
+        color-mix(in oklab, var(--lm-avatar-fat) 74%, var(--lm-avatar-lean)),
+        color-mix(in oklab, var(--lm-avatar-fat) 92%, transparent)
+      );
+    }
+  }
+  .lm-avatar[data-size='fill'] {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .lm-avatar[data-size='sm'],
+  .lm-avatar[data-size='xs'] {
+    --av-edge-w: 1px;
+  }
+
+  .lm-avatar__stage {
+    position: relative;
+    height: var(--avatar-stage-h, 100%);
+    min-height: 0;
+    min-width: 0;
+    border-radius: var(--lm-radius-lg);
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .lm-avatar[data-size='xs'] .lm-avatar__stage,
+  .lm-avatar[data-size='sm'] .lm-avatar__stage {
+    border-radius: var(--lm-radius-md);
+  }
+  .lm-avatar__svg {
+    display: block;
+    /* positioned so it paints over an absolutely positioned underlay (the 3D canvas) */
+    position: relative;
+  }
+
+  /* ---- figure materials ---- */
+  .lm-avatar__env {
+    fill: var(--av-fat);
+    stroke: var(--av-edge);
+    stroke-width: var(--av-edge-w);
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-avatar__core {
+    fill: var(--av-lean);
+  }
+  .lm-avatar__head {
+    fill: var(--av-lean);
+    stroke: var(--av-edge);
+    stroke-width: var(--av-edge-w);
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-avatar__fig[data-layer='silhouette'] .lm-avatar__head {
+    fill: var(--av-fat);
+  }
+  .lm-avatar__def {
+    fill: none;
+    stroke: var(--lm-avatar-definition);
+    stroke-width: 1px;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-avatar__visc {
+    fill: var(--lm-avatar-visceral);
+    opacity: 0.7;
+  }
+  .lm-avatar__ghost {
+    fill: none;
+    stroke: var(--lm-avatar-ghost);
+    stroke-width: 1px;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+    opacity: 0.6;
+  }
+  .lm-avatar__fig[data-body-drag] {
+    cursor: ns-resize;
+    touch-action: none;
+  }
+
+  /* ---- printed text: ruler, callouts, view labels (px, never scaled) ---- */
+  .lm-avatar__svg text {
+    font-family: var(--lm-font-sans);
+    font-size: 11px;
+    fill: var(--lm-ink-2);
+  }
+  .lm-avatar__ruler-line,
+  .lm-avatar__tick {
+    stroke: var(--lm-line-strong);
+    stroke-width: 1px;
+    shape-rendering: crispEdges;
+  }
+  .lm-avatar__svg .lm-avatar__num {
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-avatar__height-tick {
+    stroke: var(--lm-ink);
+    stroke-width: 1px;
+    shape-rendering: crispEdges;
+  }
+  .lm-avatar__svg .lm-avatar__height {
+    fill: var(--lm-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-avatar__leader {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1px;
+  }
+  .lm-avatar__measure-dot {
+    fill: var(--lm-ink);
+  }
+  .lm-avatar__svg .lm-avatar__measure-name {
+    fill: var(--lm-ink-2);
+    font-weight: 500;
+  }
+  .lm-avatar__svg .lm-avatar__measure-value {
+    fill: var(--lm-ink);
+    font-weight: 600;
+    font-stretch: 112%;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  .lm-avatar__views text {
+    text-anchor: middle;
+  }
+
+  /* ---- handles: 12 px raised caps, 44 px hit areas (AVATAR_SPEC §8) ---- */
+  .lm-avatar__handles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .lm-avatar__handle {
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    margin: -22px 0 0 -22px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    pointer-events: auto;
+    cursor: ew-resize;
+    touch-action: none;
+    outline: none;
+    transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-avatar__cap {
+    position: relative;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--lm-raised);
+    border: 1px solid var(--lm-edge);
+    box-shadow: var(--lm-shadow-key);
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      transform var(--lm-dur-instant) var(--lm-ease-press);
+  }
+  .lm-avatar__cap::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--lm-ink);
+  }
+  .lm-avatar__handle:hover .lm-avatar__cap,
+  .lm-avatar__handle[data-active] .lm-avatar__cap {
+    background: var(--lm-signal);
+    border-color: var(--lm-signal-edge);
+  }
+  .lm-avatar__handle[data-active] .lm-avatar__cap {
+    transform: scale(1.15);
+  }
+  .lm-avatar__handle[data-active] .lm-avatar__cap::after {
+    background: var(--lm-signal-ink);
+  }
+  .lm-avatar__handle:focus-visible .lm-avatar__cap {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-avatar__handle[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+  .lm-avatar[data-handles='hover'] .lm-avatar__handle {
+    opacity: 0;
+  }
+  .lm-avatar[data-handles='hover'] .lm-avatar__stage:hover .lm-avatar__handle,
+  .lm-avatar[data-handles='hover'] .lm-avatar__handle:focus-visible,
+  .lm-avatar[data-handles='hover'][data-dragging] .lm-avatar__handle {
+    opacity: 1;
+  }
+  .lm-avatar[data-handles='hover'] .lm-avatar__stage:hover .lm-avatar__handle[aria-disabled='true'] {
+    opacity: 0.4;
+  }
+  @media (hover: none) {
+    .lm-avatar[data-handles='hover'] .lm-avatar__handle {
+      opacity: 1;
+    }
+  }
+
+  .lm-avatar__tip {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 16px));
+    padding: 4px 8px;
+    border-radius: var(--lm-radius-xs);
+    background: var(--lm-ink);
+    color: var(--lm-ink-inverse);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: var(--lm-shadow-pop);
+    z-index: 1;
+  }
+
+  .lm-avatar__caption {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  /* ---- morph controls ---- */
+  .lm-avatar-morph {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-avatar-morph[data-fill] {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .lm-avatar-morph__summary {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-avatar-morph__controls {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+    gap: 12px;
+  }
+
+  /* ---- another renderer draws the body underneath (3D figure): the SVG body cross-fades out and stays as hit areas;
+     ruler, labels, callouts and handles stay on top. --lm-dur-base collapses under reduced motion. ---- */
+  .lm-avatar__fig > * {
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out);
+  }
+  .lm-avatar[data-body='hidden'] .lm-avatar__fig > * {
+    opacity: 0;
+  }
+
+  @media (forced-colors: active) {
+    .lm-avatar__svg {
+      forced-color-adjust: none;
+    }
+    .lm-avatar__env {
+      fill: Canvas;
+      stroke: CanvasText;
+    }
+    .lm-avatar__core,
+    .lm-avatar__head {
+      fill: GrayText;
+    }
+    .lm-avatar__ghost,
+    .lm-avatar__leader,
+    .lm-avatar__tick,
+    .lm-avatar__ruler-line,
+    .lm-avatar__height-tick {
+      stroke: CanvasText;
+    }
+    .lm-avatar__svg text,
+    .lm-avatar__measure-dot {
+      fill: CanvasText;
+    }
+  }
+}

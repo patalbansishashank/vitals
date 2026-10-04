@@ -1,0 +1,1 @@
+[{"goto":"/coach","wait":2000},{"click":"Set up a provider","role":"link","wait":2500,"dump":1,"textDump":2500}]

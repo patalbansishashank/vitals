@@ -1,0 +1,1083 @@
+/* ==========================================================================
+   Intake v3 (design/screens/onboarding-intake-v3.md; COMPONENTS §13.2, §13.15, §14.2, §14.3).
+   Tokens only. Mobile first: one column at 375 px with the page's 16 px gutters,
+   nothing wider than the column (no horizontal scroll); from 1024 px a 640 px
+   conversation column and a 360 px "Your picture so far" faceplate.
+   ========================================================================== */
+
+@layer components {
+  .lm-ik {
+    display: grid;
+    gap: 16px;
+    max-width: 1040px;
+    margin-inline: auto;
+    padding-block: 8px 96px;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .lm-ik {
+      grid-template-columns: minmax(0, 640px) 360px;
+      gap: 32px;
+      justify-content: center;
+      align-items: start;
+    }
+  }
+  .lm-ik__col {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+  }
+  .lm-ik__aside {
+    display: none;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .lm-ik__aside {
+      display: block;
+      position: sticky;
+      top: calc(var(--lm-topbar-h) + 16px);
+    }
+  }
+  .lm-ik__intro {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    max-width: 60ch;
+  }
+  .lm-ik__footer-note {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+
+  /* ---- chapter scale (design v3 §3.4): own centred row < 768 px; right-aligned on the title row from 768 px ---- */
+  .lm-ik-progress {
+    order: 10;
+    flex: 1 0 100%;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 32px;
+    align-content: center;
+  }
+  .lm-ik-progress__segs {
+    display: flex;
+    gap: 6px;
+    width: min(100% - 32px, 360px);
+  }
+  .lm-ik-progress__seg {
+    flex: 1 1 0;
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .lm-ik-progress__bar {
+    position: relative;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well), inset 0 0 0 1px var(--lm-line-strong);
+    overflow: hidden;
+  }
+  .lm-ik-progress__seg[data-optional='true'] .lm-ik-progress__bar {
+    box-shadow: none;
+    background: transparent;
+    outline: 1px dashed var(--lm-line-strong);
+    outline-offset: -1px;
+  }
+  .lm-ik-progress__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--lm-ink);
+    transition: width var(--lm-dur-needle) var(--lm-ease-out);
+  }
+  .lm-ik-progress__later {
+    position: absolute;
+    inset-block: 0;
+    background: repeating-linear-gradient(45deg, var(--lm-ink) 0 1px, transparent 1px 4px);
+  }
+  .lm-ik-progress__notch {
+    position: absolute;
+    inset-block: 0;
+    width: 1px;
+    background: var(--lm-face);
+  }
+  .lm-ik-progress__label,
+  .lm-ik-progress__one {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    line-height: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lm-ik-progress__one {
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-progress__seg[data-current='true'] .lm-ik-progress__label {
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .lm-ik-progress__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  /* < 768: one label under the bar; segment labels hidden */
+  .lm-ik-progress__label {
+    display: none;
+  }
+  @media (min-width: 48rem) {
+    .lm-ik-progress {
+      order: 0;
+      flex: 0 0 420px;
+      margin-left: auto;
+      justify-items: stretch;
+    }
+    .lm-ik-progress__segs {
+      width: 100%;
+    }
+    /* block, not inline-flex: text-overflow only works on a block box, so a long name ends in "…" instead of being cut
+       into another word ("blood marker", Q6; REVIEW_FINDINGS 6) */
+    .lm-ik-progress__label {
+      display: block;
+    }
+    .lm-ik-progress__label > .lm-ik-progress__dot {
+      display: inline-block;
+      margin-right: 4px;
+      vertical-align: 1px;
+    }
+    .lm-ik-progress__one {
+      display: none;
+    }
+  }
+  /* the shell's spacer would share the free space with the auto margin: the progress takes it instead */
+  @media (min-width: 48rem) {
+    .lm-ctx:has(> .lm-ik-progress) > .lm-ctx__grow {
+      display: none;
+    }
+  }
+  @media (min-width: 64rem) {
+    .lm-ik-progress {
+      flex-basis: 440px;
+    }
+    .lm-ik-progress ~ .lm-ctx__actions {
+      margin-left: 12px;
+    }
+  }
+
+  /* ---- live readout rail (below 1024 px, sticky) ---- */
+  .lm-ik-rail {
+    display: grid;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--lm-line);
+    font-size: var(--lm-text-sm);
+  }
+  .lm-ik-rail__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 40px;
+  }
+  .lm-ik-rail__panel {
+    padding-bottom: 8px;
+  }
+  @media (min-width: 64rem) {
+    .lm-ik-rail {
+      display: none;
+    }
+  }
+  .lm-ik-rail__text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- answered list (COMPONENTS §14.2) ---- */
+  .lm-ik-answers {
+    display: grid;
+    gap: 4px;
+  }
+  .lm-ik-list {
+    display: grid;
+    min-width: 0;
+  }
+  .lm-ik-list__rows {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-ik-row-a {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    min-height: 56px;
+    padding-block: 12px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-ik-row-a[data-depth] {
+    padding-left: 16px;
+  }
+  .lm-ik-row-a[data-depth='2'] {
+    padding-left: 32px;
+  }
+  .lm-ik-row-a[data-depth]::before,
+  .lm-ik-list__slot[data-depth]::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--lm-line-strong);
+  }
+  .lm-ik-row-a[data-depth='2']::before {
+    left: 22px;
+  }
+  .lm-ik-row-a__q {
+    grid-column: 1;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-row-a__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px var(--lm-ink-2);
+    transform: translateY(-1px);
+  }
+  .lm-ik-row-a__a {
+    grid-column: 1;
+    margin: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  .lm-ik-row-a[data-later='true'] .lm-ik-row-a__a {
+    color: var(--lm-ink-2);
+    font-weight: 400;
+  }
+  .lm-ik-row-a[data-not-used='true'] .lm-ik-row-a__q,
+  .lm-ik-row-a[data-not-used='true'] .lm-ik-row-a__a {
+    color: var(--lm-ink-3);
+    font-weight: 400;
+  }
+  .lm-ik-row-a__key {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: start;
+  }
+  .lm-ik-list__slot {
+    position: relative;
+    list-style: none;
+  }
+  .lm-ik-list__slot[data-depth] {
+    padding-left: 16px;
+  }
+  .lm-ik-list__more {
+    margin: 4px 0 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+
+  /* ---- question card (COMPONENTS §14.3): an inset region inside the list, never a nested faceplate ---- */
+  .lm-ik-card {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    margin: 12px 0;
+    padding: 16px;
+    background: var(--lm-well);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+    scroll-margin-top: 30vh;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :root:not([data-motion='reduce']) .lm-ik-card {
+      animation: lm-ik-enter var(--lm-dur-slow) var(--lm-ease-needle) both;
+    }
+  }
+  @keyframes lm-ik-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .lm-ik-card__intro {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    max-width: 60ch;
+  }
+  .lm-ik-card__count {
+    color: var(--lm-ink-3);
+  }
+  .lm-ik-chip-parent {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
+    max-width: 100%;
+    padding: 2px 10px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: 999px;
+    background: var(--lm-face);
+    font-size: var(--lm-text-xs);
+    line-height: 16px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-chip-parent > span {
+    overflow-wrap: anywhere;
+  }
+  .lm-ik-card__prompt {
+    float: left;
+    width: 100%;
+    padding: 0;
+    font-size: 1.0625rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-ik-card__prompt + * {
+    clear: both;
+  }
+  .lm-ik-card__prompt:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-ik-card__default {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+  .lm-ik-card__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-ik-card__foot-right {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-left: auto;
+  }
+  /* a widget's own keys (markers table: Save 6 values) in Next's place */
+  .lm-ik-card__foot-slot {
+    display: contents;
+  }
+
+  /* ---- maintenance result and chapter receipt (inset regions with the card's metrics) ---- */
+  .lm-ik-result,
+  .lm-ik-receipt-end {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    margin: 12px 0;
+    padding: 16px;
+    background: var(--lm-well);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+  }
+  .lm-ik-result--plain {
+    margin: 0;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+  .lm-ik-result__title {
+    margin: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 600;
+  }
+  .lm-ik-result__measured {
+    color: var(--lm-ink) !important;
+  }
+  .lm-ik-receipt-end__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+  }
+  .lm-ik-receipt-end__counts {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-receipt-end__keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lm-ik-maint > .lm-ik-result__title {
+    margin-top: 8px;
+  }
+  .lm-ik-measured .lm-ik-inline {
+    flex-wrap: wrap;
+  }
+
+  .lm-ik-turn__why {
+    display: grid;
+    gap: 4px;
+  }
+  .lm-ik-why {
+    justify-self: start;
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    cursor: pointer;
+  }
+  .lm-ik-why__chev {
+    display: inline-block;
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-ik-why__chev.is-open {
+    transform: rotate(180deg);
+  }
+  .lm-ik-why__text {
+    margin: 0;
+    max-width: 60ch;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-turn__answers {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-ik-done {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .lm-ik-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* ---- answer keys (single choice) ---- */
+  .lm-ik-keys {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  @media (min-width: 48rem) {
+    .lm-ik-keys {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .lm-ik-keys--cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 48rem) {
+    .lm-ik-keys--cards {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .lm-ik-keys--presets {
+    grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  }
+  .lm-ik-key {
+    position: relative;
+    display: grid;
+    align-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: 64px;
+    padding: 10px 12px 10px 20px;
+    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-edge);
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-key);
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      box-shadow var(--lm-dur-instant) var(--lm-ease-press),
+      transform var(--lm-dur-instant) var(--lm-ease-press);
+  }
+  .lm-ik-keys--presets .lm-ik-key {
+    min-height: 48px;
+    padding-block: 8px;
+  }
+  .lm-ik-key[data-cards='true'] {
+    min-height: 72px;
+  }
+  .lm-ik-key:hover {
+    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
+  }
+  .lm-ik-key[aria-pressed='true'] {
+    background: var(--lm-ink);
+    color: var(--lm-ink-inverse);
+    box-shadow: var(--lm-shadow-key-pressed);
+    transform: translateY(1px);
+  }
+  .lm-ik-key[aria-pressed='true']::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 8px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+  }
+  .lm-ik-key__label {
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+  .lm-ik-key__examples {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-key[aria-pressed='true'] .lm-ik-key__examples,
+  .lm-ik-key[aria-pressed='true'] .lm-ik-key__default {
+    color: color-mix(in oklab, var(--lm-ink-inverse), transparent 20%);
+  }
+  .lm-ik-key__default {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+
+  /* ---- answer chips (multi select) ---- */
+  .lm-ik-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-ik-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 6px 14px 6px 10px;
+    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-edge);
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-key);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-base);
+    line-height: 1.25;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .lm-ik-chip[aria-checked='true'] {
+    background: var(--lm-ink);
+    color: var(--lm-ink-inverse);
+    box-shadow: var(--lm-shadow-key-pressed);
+  }
+  .lm-ik-chip__box {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--lm-edge);
+  }
+  .lm-ik-chip[aria-checked='true'] .lm-ik-chip__box {
+    background: var(--lm-signal);
+    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+  }
+  .lm-ik-chip__rank {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    color: var(--lm-signal-ink);
+    font-size: var(--lm-text-xs);
+    font-weight: 600;
+  }
+  .lm-ik-chip__examples {
+    font-size: var(--lm-text-xs);
+    opacity: 0.8;
+  }
+  .lm-ik-other {
+    display: grid;
+    gap: 8px;
+  }
+  .lm-ik-other__row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+  .lm-ik-other__row .lm-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .lm-ik-other__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-ik-other__list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding-left: 10px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    font-size: var(--lm-text-sm);
+  }
+
+  /* ---- numbers ---- */
+  .lm-ik-number {
+    display: grid;
+    gap: 12px;
+  }
+  .lm-ik-number__exact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* ---- composite rows shared by widgets ---- */
+  .lm-ik-row {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-ik-row__label {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-inline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+  }
+  .lm-ik-group-title {
+    margin: 4px 0 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-note {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+    max-width: 60ch;
+  }
+  .lm-ik-bankrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  @media (min-width: 48rem) {
+    .lm-ik-bankrow {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+  }
+  .lm-ik-bankrow__name {
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+  }
+  .lm-ik-sportrow {
+    display: grid;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--lm-line);
+  }
+
+  /* ---- chapter end ---- */
+  .lm-ik-end {
+    display: grid;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--lm-line-strong);
+  }
+
+  /* ---- driver bar (COMPONENTS §13.2) ---- */
+  .lm-ik-driverbar {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-ik-driverbar__bar {
+    display: flex;
+    height: 20px;
+    gap: 2px;
+    min-width: 0;
+    background: var(--lm-face);
+  }
+  .lm-ik-driverbar__seg {
+    position: relative;
+    min-width: 2px;
+    background: var(--lm-cat-energy);
+    transition: flex-grow var(--lm-dur-needle) var(--lm-ease-out);
+  }
+  .lm-ik-driverbar__seg[data-alt='true'] {
+    background: color-mix(in oklab, var(--lm-cat-energy) 55%, var(--lm-face));
+  }
+  .lm-ik-driverbar__seg[data-assumed='true'] {
+    outline: 1px dashed var(--lm-ink);
+    outline-offset: -1px;
+  }
+  .lm-ik-driverbar__labels {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-driverbar__labels > span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .lm-ik-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    table-layout: fixed;
+  }
+  .lm-ik-table caption {
+    text-align: left;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    padding-bottom: 4px;
+  }
+  .lm-ik-table th,
+  .lm-ik-table td {
+    padding: 6px 6px 6px 0;
+    border-bottom: 1px solid var(--lm-line);
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    font-weight: 400;
+  }
+  .lm-ik-table thead th {
+    font-weight: 500;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-table .lm-ik-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    width: 4rem;
+  }
+  .lm-ik-table .lm-ik-table__part {
+    width: 32%;
+  }
+  .lm-ik-table .lm-ik-table__act {
+    width: 5.5rem;
+    padding-right: 0;
+    text-align: right;
+    overflow-wrap: normal;
+  }
+  .lm-ik-table .lm-ik-table__part {
+    width: 30%;
+  }
+  /* Your body › Maintenance: chapter A's answers fold under a disclosure (inline, never a sheet) */
+  .lm-ik-fold {
+    border-top: 1px solid var(--lm-line);
+    padding-top: 4px;
+  }
+  .lm-ik-fold > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    cursor: pointer;
+    font-size: var(--lm-text-base);
+    font-weight: 600;
+    list-style-position: inside;
+  }
+  .lm-ik-fold > summary:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-ik-assumed {
+    display: block;
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-xs);
+  }
+
+  /* ---- maintenance result ---- */
+  .lm-ik-maint {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-ik-maint__lines {
+    display: grid;
+    gap: 6px;
+  }
+  .lm-ik-maint__lines p {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+    max-width: 62ch;
+  }
+  .lm-ik-maint__unknown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .lm-ik-maint__unknown p {
+    flex: 1 1 16rem;
+    color: var(--lm-ink);
+  }
+  /* ---- "Your picture so far" ---- */
+  .lm-ik-picture {
+    display: grid;
+    gap: 12px;
+  }
+
+  /* ---- summary ---- */
+  .lm-ik-summary {
+    max-width: 720px;
+    margin-inline: auto;
+    display: grid;
+    gap: 16px;
+    padding-block: 8px 96px;
+  }
+  .lm-ik-summary__rows {
+    display: grid;
+    margin: 0;
+  }
+  .lm-ik-summary__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 12px;
+    padding-block: 12px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  /* the footer's rule is the only line above the key */
+  .lm-ik-summary__row:last-child {
+    border-bottom: 0;
+  }
+  .lm-ik-summary__row dt {
+    grid-column: 1;
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-summary__row dd {
+    grid-column: 1;
+    margin: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    overflow-wrap: anywhere;
+  }
+  .lm-ik-summary__row[data-unanswered='true'] dd {
+    color: var(--lm-ink-3);
+  }
+  .lm-ik-summary__change {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin-top: 18px;
+  }
+  .lm-ik-summary__face > .lm-face-foot {
+    padding-top: 16px;
+  }
+  @media (max-width: 29.99rem) {
+    .lm-ik-summary__go {
+      flex: 1 1 100%;
+    }
+  }
+
+  /* ---- devices: route cards, privacy lines, stream matrix (COMPONENTS §13.15) ---- */
+  .lm-ik__privacy {
+    display: grid;
+    gap: 6px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-ik-routes {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-ik-route {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+  }
+  .lm-ik-route__name {
+    font-weight: 600;
+    font-size: var(--lm-text-base);
+  }
+  .lm-ik-route__text {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+  }
+  .lm-ik-matrix th,
+  .lm-ik-matrix td {
+    padding: 8px 8px 8px 0;
+    border-bottom: 1px solid var(--lm-line);
+    text-align: left;
+    vertical-align: middle;
+  }
+  .lm-ik-matrix thead th {
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-matrix tbody th {
+    font-weight: 500;
+  }
+  .lm-ik-matrix-blocks {
+    display: grid;
+  }
+  .lm-ik-matrix-block {
+    display: grid;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-ik-matrix-block__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lm-ik-matrix-block__name {
+    font-weight: 600;
+  }
+  .lm-ik-matrix-block__rest {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lm-ik-matrix-block__rest > div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lm-ik-matrix-block__rest dt {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-matrix-block__rest dd {
+    margin: 0;
+  }
+  .lm-ik-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lm-ik-cell__hint {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-never {
+    display: inline-grid;
+    gap: 4px;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-never__key {
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lm-ik-never__why {
+    max-width: 28ch;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+  }
+
+  /* ---- Your body: a normal day, Your setup ---- */
+  .lm-ik-normalday {
+    display: grid;
+    gap: 4px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+}

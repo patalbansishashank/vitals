@@ -1,0 +1,14 @@
+{
+  "name": "@vitals/rings",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Ring drivers for every supported family.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

@@ -1,0 +1,24 @@
+/* Start sheet (plan-ladder.md §6.7, COMPONENTS §13.19) and the "Start this plan" entry on the planner results. */
+@layer components {
+  .lv-start-entry {
+    display: flex;
+    justify-content: flex-end;
+    margin: 4px 0 16px;
+  }
+  .lv-start {
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    display: grid;
+    gap: 20px;
+  }
+  .lv-start__note {
+    margin: 8px 0 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-start__days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}

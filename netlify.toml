@@ -1,0 +1,42 @@
+[build]
+  command = "pnpm build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# The 3D figure pack (public/figure/figure-v1.bin, ~190 kB). The file name carries the version (a re-bake that changes the
+# format or content gets figure-v2.bin), so it can be cached for good. The file is already gzip: src/features/body/figure3d
+# inflates it with DecompressionStream and passes already-inflated bytes through (magic-byte check). It is served as
+# application/octet-stream, which Netlify does not compress again, and with no Content-Encoding, so the browser sees the
+# gzip bytes exactly as baked.
+[[headers]]
+  for = "/figure/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+    Content-Type = "application/octet-stream"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # Merge of SUITE_SPEC §9.1 and E11: camera=(self) for scanning a pairing QR code in Settings › Sync (the page's own
+    # origin only, never an embedded frame); bluetooth=(self) for Web Bluetooth rings (src/biometrics/ble/webBluetooth.ts).
+    # Microphone and location stay off: voice uses OS dictation and nothing reads position.
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), bluetooth=(self)"
+    # 'wasm-unsafe-eval': Evolu's SQLite-WASM (it does not allow JS eval). connect-src: R7 option B, any https/wss origin
+    # for the user-chosen sync relay (+ loopback); the compensating control is the allowlist in src/net/net.ts.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"

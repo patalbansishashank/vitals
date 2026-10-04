@@ -1,0 +1,318 @@
+/* ChangeCard (COMPONENTS §13.11): achromatic chrome; colour only on the destructive and blocked marks.
+   Standalone = a Faceplate; in the Coach conversation = an inset region (well fill, 1 px line, radius md). */
+@layer components {
+  .lv-card {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+    color: var(--lm-ink);
+    /* an id, a link or a long value without spaces wraps inside the card instead of widening the page (Q10-03) */
+    overflow-wrap: anywhere;
+  }
+  .lv-card[data-context='conversation'] {
+    padding: 12px 14px;
+    background: var(--lm-well);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+  }
+
+  .lv-card__head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    min-width: 0;
+  }
+  .lv-card__mark {
+    display: inline-flex;
+    align-self: center;
+    color: var(--lm-ink);
+  }
+  .lv-card__mark[data-class='destructive'] {
+    color: var(--lm-danger-mark);
+  }
+  .lv-card__mark[data-class='blocked'] {
+    color: var(--lm-caution-mark);
+  }
+  .lv-card__title {
+    margin: 0;
+    min-width: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .lv-card__left {
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .lv-card__note,
+  .lv-card__line {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-card__note {
+    color: var(--lm-ink);
+  }
+  .lv-card__totals {
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* diff rows: label · before → after (logs: label · after) */
+  .lv-card__diff {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  /* label · value (logs, metrics); diffs put the label on its own line on mobile, then "before → after" */
+  .lv-card__row {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 2px 10px;
+    align-items: baseline;
+    min-width: 0;
+  }
+  /* meal rows on mobile: "name · kcal", then the amount chip on its own line */
+  .lv-card__row:has(> .lv-card__kcal) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'label kcal' 'after after';
+  }
+  .lv-card__row:has(> .lv-card__kcal) > .lv-card__label {
+    grid-area: label;
+  }
+  .lv-card__row:has(> .lv-card__kcal) > .lv-card__after {
+    grid-area: after;
+  }
+  .lv-card__row:has(> .lv-card__kcal) > .lv-card__kcal {
+    grid-area: kcal;
+  }
+  .lv-card__row:has(> .lv-card__before) {
+    grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+  }
+  .lv-card__row:has(> .lv-card__before) > .lv-card__label {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 48rem) {
+    .lv-card__row {
+      grid-template-columns: 8.5rem minmax(0, 1fr);
+    }
+    .lv-card__row:has(> .lv-card__kcal) {
+      grid-template-columns: 8.5rem minmax(0, 1fr) auto;
+      grid-template-areas: 'label after kcal';
+    }
+    .lv-card__row:has(> .lv-card__before) {
+      grid-template-columns: 8.5rem minmax(0, auto) auto minmax(0, 1fr);
+    }
+    .lv-card__row:has(> .lv-card__before) > .lv-card__label {
+      grid-column: auto;
+    }
+  }
+  .lv-card__label {
+    color: var(--lm-ink-2);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lv-card__before {
+    color: var(--lm-ink-3);
+    min-width: 0;
+  }
+  .lv-card__arrow {
+    color: var(--lm-ink-3);
+  }
+  .lv-card__after {
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-card__kcal {
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  /* goal dates on mobile: label, then the before range, then "→ after" */
+  .lv-card__goals .lv-card__row:has(> .lv-card__before) {
+    grid-template-columns: 1.25rem minmax(0, 1fr);
+  }
+  .lv-card__goals .lv-card__row > .lv-card__before {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 48rem) {
+    .lv-card__goals .lv-card__row:has(> .lv-card__before) {
+      grid-template-columns: 8.5rem minmax(0, auto) auto minmax(0, 1fr);
+    }
+    .lv-card__goals .lv-card__row > .lv-card__before {
+      grid-column: auto;
+    }
+  }
+  .lv-card__goals .lv-card__before,
+  .lv-card__goals .lv-card__after {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--lm-ink);
+  }
+  .lv-card__goals .lv-card__before {
+    color: var(--lm-ink-2);
+  }
+  .lv-card__date {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* "what I saw" */
+  .lv-card__meal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+    min-width: 0;
+  }
+  .lv-card__meal:has(> .lv-card__thumb) {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+  .lv-card__meal[data-review] .lv-card__gram {
+    border-color: var(--lm-edge);
+  }
+  .lv-card__meal-body {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lv-card__thumb {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-line);
+    background: var(--lm-face);
+  }
+  .lv-card__gram {
+    cursor: pointer;
+    height: auto;
+    min-height: 24px;
+    max-width: 100%;
+    padding-block: 3px;
+    line-height: 1.3;
+    white-space: normal;
+    text-align: left;
+  }
+  .lv-card__grams {
+    max-width: 9rem;
+  }
+
+  /* stale: caution mark + the refreshed version */
+  .lv-card__stale {
+    display: grid;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lv-card__stale-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--lm-ink);
+  }
+
+  .lv-card__ask {
+    display: grid;
+    gap: 6px;
+  }
+  .lv-card__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 2px;
+  }
+
+  /* states */
+  .lv-card[data-state='undone'] .lv-card__title {
+    color: var(--lm-ink-3);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+  .lv-card[data-state='undone'] .lv-card__diff,
+  .lv-card[data-state='undone'] .lv-card__totals,
+  .lv-card[data-state='undone'] .lv-card__meal {
+    color: var(--lm-ink-3);
+  }
+  .lv-card[data-state='discarded'] .lv-card__title,
+  .lv-card[data-state='expired'] .lv-card__title {
+    color: var(--lm-ink-3);
+    font-weight: 500;
+  }
+  .lv-card[data-state='discarded'] .lv-card__mark,
+  .lv-card[data-state='expired'] .lv-card__mark {
+    color: var(--lm-ink-3);
+  }
+
+  /* read: one collapsed line */
+  .lv-card--read {
+    gap: 4px;
+  }
+  .lv-card--read[data-context='conversation'] {
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+  .lv-card__readkey {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 32px;
+    padding: 4px 0;
+    border: 0;
+    background: none;
+    color: var(--lm-ink-2);
+    font: inherit;
+    font-size: var(--lm-text-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+  .lv-card__readkey .lv-card__mark {
+    color: var(--lm-ink-2);
+  }
+  .lv-card__readtext {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lv-card__chev {
+    flex: none;
+  }
+  .lv-card__reads {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0 0 4px 24px;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lv-card__reads[hidden] {
+    display: none;
+  }
+  .lv-card__read-label {
+    display: block;
+    font-weight: 600;
+  }
+  .lv-card__read-sum {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--lm-ink-2);
+  }
+  @media (pointer: coarse) {
+    .lv-card__readkey {
+      min-height: 44px;
+    }
+  }
+}

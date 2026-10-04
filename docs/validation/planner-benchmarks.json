@@ -1,0 +1,2257 @@
+{
+ "version": 1,
+ "generatedAt": "2026-10-01T23:03:45.685Z",
+ "engineVersion": "1.0.0-contract",
+ "plannerVersion": "2.0 (hybrid)",
+ "machine": "32-thread desktop shared with other work",
+ "seeds": {
+  "split": "held-out",
+  "values": [
+   1001,
+   1002,
+   1003,
+   1004,
+   1005,
+   1006,
+   1007,
+   1008,
+   1009,
+   1010,
+   1011,
+   1012,
+   1013,
+   1014,
+   1015,
+   1016,
+   1017,
+   1018,
+   1019,
+   1020,
+   1021,
+   1022,
+   1023,
+   1024,
+   1025,
+   1026,
+   1027,
+   1028,
+   1029,
+   1030,
+   1031
+  ]
+ },
+ "algorithms": [
+  {
+   "id": "v1",
+   "label": "previous planner",
+   "role": "baseline"
+  },
+  {
+   "id": "hybrid",
+   "label": "combined planner (previous search for the hardest plan, new ladder)",
+   "role": "candidate"
+  }
+ ],
+ "suites": [
+  {
+   "id": "R2",
+   "label": "Full requests",
+   "description": "The reference requests and generated requests in full; the reference is the best plan any run has found.",
+   "reference": "best-known",
+   "problems": 16,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 240,
+     "lexSuccess": {
+      "median": 0.25,
+      "p10": 0.1875,
+      "p90": 0.35
+     },
+     "regretPct": {
+      "median": 1.9520615920681827,
+      "p10": 0,
+      "p90": 10.32921469493704
+     },
+     "hypervolume": {
+      "median": 0.4976805523829493,
+      "p10": 0.26238262631173187,
+      "p90": 0.7372839082849831
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.2592
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.2758
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.285
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.2942
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3233
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3333
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.3408
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.3483
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.35
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.3717
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.3742
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.3775
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.38
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.3817
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.3858
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.4092
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.4533
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.495
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.5275
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.5717
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.605
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.6475
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.72
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.7708
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.8025
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.8167
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.8167
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.8167
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.8167
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.8167
+      }
+     ],
+     "anytimeScore": 0.45112795108349674,
+     "wallMs": {
+      "median": 18631,
+      "p10": 12891.9,
+      "p90": 24278.3
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 240,
+     "lexSuccess": {
+      "median": 0.25,
+      "p10": 0.1875,
+      "p90": 0.4125
+     },
+     "regretPct": {
+      "median": 1.8581862499353008,
+      "p10": 0,
+      "p90": 10.535976060406165
+     },
+     "hypervolume": {
+      "median": 0.5910606015494593,
+      "p10": 0.3357745737846883,
+      "p90": 0.7476495763904569
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.2592
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.2758
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.285
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.2942
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3233
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3333
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.3408
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.3483
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.35
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.3717
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.3742
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.3775
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.38
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.3817
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.3858
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.4092
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.4533
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.495
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.5275
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.5717
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.605
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.6475
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.72
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.7708
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.8025
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.8217
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.8442
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.8442
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.8467
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.8475
+      }
+     ],
+     "anytimeScore": 0.5022878786720032,
+     "wallMs": {
+      "median": 27921,
+      "p10": 19988.6,
+      "p90": 36058.2
+     }
+    }
+   ]
+  },
+  {
+   "id": "R1",
+   "label": "Small real plan spaces",
+   "description": "Reference requests restricted to a few plan shapes and settings, small enough to simulate every plan; the reference is the exhaustive best.",
+   "reference": "exhaustive",
+   "problems": 6,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 0.6666666666666666,
+      "p10": 0.5,
+      "p90": 0.8333333333333334
+     },
+     "regretPct": {
+      "median": 0,
+      "p10": 0,
+      "p90": 8.073592670013763
+     },
+     "hypervolume": {
+      "median": 0.4077900577756669,
+      "p10": 0.14325230520744545,
+      "p90": 0.8763575336027162
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.5796
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.6032
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.6409
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.6935
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.7086
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.7344
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.7441
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.7634
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.7774
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.7892
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.8054
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.8172
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.8226
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.8957
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.9323
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.9591
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.9656
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.9656
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.9699
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.9828
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.9849
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9882
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9935
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9935
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9946
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9946
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9946
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9946
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9946
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9946
+      }
+     ],
+     "anytimeScore": 0.8509378549305336,
+     "wallMs": {
+      "median": 16964.5,
+      "p10": 12110.5,
+      "p90": 18667
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 0.6666666666666666,
+      "p10": 0.5,
+      "p90": 0.8333333333333334
+     },
+     "regretPct": {
+      "median": 0,
+      "p10": 0,
+      "p90": 7.977357355559544
+     },
+     "hypervolume": {
+      "median": 0.400631909829547,
+      "p10": 0.1415588907251563,
+      "p90": 0.9147822631638733
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.5796
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.6032
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.6409
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.6935
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.7086
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.7344
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.7441
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.7634
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.7774
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.7892
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.8054
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.8172
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.8226
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.8957
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.9323
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.9591
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.9656
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.9656
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.9699
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.9828
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.9849
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9882
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9935
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9935
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9946
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9957
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9968
+      }
+     ],
+     "anytimeScore": 0.8585472136195252,
+     "wallMs": {
+      "median": 27675,
+      "p10": 19391,
+      "p90": 30971
+     }
+    }
+   ]
+  },
+  {
+   "id": "T1",
+   "label": "Continuous test functions",
+   "description": "Smooth and rugged test functions with a known best point, at 10 to 40 settings.",
+   "reference": "analytic",
+   "problems": 12,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 372,
+     "lexSuccess": {
+      "median": 0.75,
+      "p10": 0.75,
+      "p90": 0.8333333333333334
+     },
+     "regretPct": {
+      "median": 0.18028862436930138,
+      "p10": 0.0011529827474388024,
+      "p90": 20.55056819504571
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.4382
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.4403
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.4425
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.4484
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.4575
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.4715
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.478
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4892
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.4995
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.5194
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.5457
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.5753
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.6118
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.6505
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.6817
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.7226
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.7559
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.7774
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.8043
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.8247
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.8446
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.8446
+      }
+     ],
+     "anytimeScore": 0.6405667411417519,
+     "wallMs": {
+      "median": 169,
+      "p10": 151,
+      "p90": 347.80000000000007
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 372,
+     "lexSuccess": {
+      "median": 0.75,
+      "p10": 0.75,
+      "p90": 0.8333333333333334
+     },
+     "regretPct": {
+      "median": 0.09414454576203157,
+      "p10": 2.032929380391124e-11,
+      "p90": 9.712743527404543
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.4382
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.4403
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.4425
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.4478
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.4581
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.4694
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.4769
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4876
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.5011
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.5177
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.5376
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.5608
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.5995
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.6312
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.6634
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.7145
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.7452
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.7661
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.7925
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.8167
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.8392
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.8651
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.8753
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.8844
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.8844
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.8844
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.8844
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.8844
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.8844
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.8844
+      }
+     ],
+     "anytimeScore": 0.6409139258157056,
+     "wallMs": {
+      "median": 164,
+      "p10": 146,
+      "p90": 345.90000000000003
+     }
+    }
+   ]
+  },
+  {
+   "id": "T2",
+   "label": "Planted ranked goals",
+   "description": "Synthetic problems with two to four ranked goals and a known best answer, including a plateau of equally good first-goal answers.",
+   "reference": "analytic",
+   "problems": 6,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 0.5,
+      "p10": 0.3333333333333333,
+      "p90": 0.8333333333333334
+     },
+     "regretPct": {
+      "median": 0.39081298560852407,
+      "p10": 0.012933215901428374,
+      "p90": 15.548394865239807
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.2108
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.2473
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.2914
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.3151
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3387
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3656
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.3903
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4301
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.4613
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.4892
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.514
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.5398
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.5527
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.5957
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.6333
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.6559
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.6925
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.7323
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.7882
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.8548
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.8753
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9075
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9204
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9301
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9333
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9355
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9355
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9355
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9355
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9355
+      }
+     ],
+     "anytimeScore": 0.5977455807499064,
+     "wallMs": {
+      "median": 193,
+      "p10": 179,
+      "p90": 214.5
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 1,
+      "p10": 0.8333333333333334,
+      "p90": 1
+     },
+     "regretPct": {
+      "median": 0.0642191364400746,
+      "p10": 0.005460678502772209,
+      "p90": 0.5730173981482845
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.2108
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.2473
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.2914
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.3151
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3323
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3516
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.3796
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4172
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.4613
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.4882
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.5183
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.5387
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.5667
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.6108
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.629
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.6548
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.6968
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.7269
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.7581
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.7849
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.8118
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.8828
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9538
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9903
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9978
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9978
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9978
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9978
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9978
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9978
+      }
+     ],
+     "anytimeScore": 0.5964313486102846,
+     "wallMs": {
+      "median": 192,
+      "p10": 175,
+      "p90": 210
+     }
+    }
+   ]
+  },
+  {
+   "id": "T3",
+   "label": "Needle among many plan shapes",
+   "description": "The best plan hides in one plan shape among 50 to 400, and decoy shapes look good at first.",
+   "reference": "analytic",
+   "problems": 6,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 0,
+      "p10": 0,
+      "p90": 0
+     },
+     "regretPct": {
+      "median": 7.4459606072660165,
+      "p10": 6.734673606174479,
+      "p90": 8.722809761235663
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.2667
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.3
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.3
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.3022
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3043
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3355
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.371
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.372
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.3731
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.3731
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.4011
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.4011
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.4011
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.4011
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.4022
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.4376
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.529
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.5581
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.5634
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.5634
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.5968
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.5978
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.5978
+      }
+     ],
+     "anytimeScore": 0.44283189484986774,
+     "wallMs": {
+      "median": 152,
+      "p10": 138.5,
+      "p90": 169.5
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 0,
+      "p10": 0,
+      "p90": 0
+     },
+     "regretPct": {
+      "median": 7.383245937457605,
+      "p10": 6.734524675123926,
+      "p90": 9.053180362225477
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.3011
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.3011
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.3043
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.3065
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3075
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3742
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.3753
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.3774
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.3774
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.4022
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.4022
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.4022
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.4022
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.4022
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.4043
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.4097
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.4151
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.5151
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.5731
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.5753
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.5753
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.5753
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.5935
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.5935
+      }
+     ],
+     "anytimeScore": 0.4387645457407701,
+     "wallMs": {
+      "median": 150,
+      "p10": 136.5,
+      "p90": 165
+     }
+    }
+   ]
+  },
+  {
+   "id": "T4",
+   "label": "Effort and result frontier",
+   "description": "Two-objective problems (result and effort) with convex, concave and broken frontiers of known shape.",
+   "reference": "analytic",
+   "problems": 6,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 1,
+      "p10": 1,
+      "p90": 1
+     },
+     "regretPct": {
+      "median": 0.00016882365634907082,
+      "p10": 0.000025640875589427736,
+      "p90": 0.009094709480306218
+     },
+     "hypervolume": {
+      "median": 0.17469797133471693,
+      "p10": 0,
+      "p90": 0.41671346427350664
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.1806
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.1978
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.2376
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.2796
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3226
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3699
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.428
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4925
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.5495
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.5914
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.6591
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.7151
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.7667
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.8097
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.8602
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.9011
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.9323
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.9624
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.9882
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9989
+      }
+     ],
+     "anytimeScore": 0.7028116880666004,
+     "wallMs": {
+      "median": 163.5,
+      "p10": 149,
+      "p90": 177
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 186,
+     "lexSuccess": {
+      "median": 1,
+      "p10": 1,
+      "p90": 1
+     },
+     "regretPct": {
+      "median": 0.00016882365634907082,
+      "p10": 0.000025640875589427736,
+      "p90": 0.009094709480306218
+     },
+     "hypervolume": {
+      "median": 0.7048051737876473,
+      "p10": 0,
+      "p90": 0.9952951591375917
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.1806
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.1978
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.2376
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.2796
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.3226
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3699
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.428
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4925
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.5495
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.5914
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.6591
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.7151
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.7667
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.8097
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.8602
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.9011
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.9323
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.9624
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.9882
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9989
+      },
+      {
+       "evaluations": 3162,
+       "solved": 1
+      },
+      {
+       "evaluations": 3981,
+       "solved": 1
+      },
+      {
+       "evaluations": 5012,
+       "solved": 1
+      },
+      {
+       "evaluations": 6310,
+       "solved": 1
+      },
+      {
+       "evaluations": 7110,
+       "solved": 1
+      }
+     ],
+     "anytimeScore": 0.7183676895066455,
+     "wallMs": {
+      "median": 194,
+      "p10": 179,
+      "p90": 212.5
+     }
+    }
+   ]
+  },
+  {
+   "id": "T5",
+   "label": "Uncertain physiology",
+   "description": "Planted ranked goals whose outcome shifts with uncertain parameters; the reference is computed on 10,000 draws.",
+   "reference": "analytic",
+   "problems": 4,
+   "results": [
+    {
+     "algorithmId": "v1",
+     "runs": 124,
+     "lexSuccess": {
+      "median": 0.5,
+      "p10": 0.25,
+      "p90": 0.75
+     },
+     "regretPct": {
+      "median": 0.5424548194987944,
+      "p10": 0.020794846090217423,
+      "p90": 12.413507270517634
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.1597
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.1903
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.229
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.2661
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.2952
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3226
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.371
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.3984
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.4371
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.4613
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.4839
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.5194
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.5435
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.6113
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.6371
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.6726
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.7419
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.8177
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.8532
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.9032
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.9129
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9355
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9419
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9419
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9468
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9516
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9516
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9516
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9516
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9516
+      }
+     ],
+     "anytimeScore": 0.5960575260786223,
+     "wallMs": {
+      "median": 192.5,
+      "p10": 174,
+      "p90": 213.7
+     }
+    },
+    {
+     "algorithmId": "hybrid",
+     "runs": 124,
+     "lexSuccess": {
+      "median": 1,
+      "p10": 0.75,
+      "p90": 1
+     },
+     "regretPct": {
+      "median": 0.06134291759047339,
+      "p10": 0.006900877298544606,
+      "p90": 0.4437104496183522
+     },
+     "timeToQuality": [
+      {
+       "evaluations": 10,
+       "solved": 0.1597
+      },
+      {
+       "evaluations": 13,
+       "solved": 0.1903
+      },
+      {
+       "evaluations": 16,
+       "solved": 0.229
+      },
+      {
+       "evaluations": 20,
+       "solved": 0.2661
+      },
+      {
+       "evaluations": 25,
+       "solved": 0.2968
+      },
+      {
+       "evaluations": 32,
+       "solved": 0.3194
+      },
+      {
+       "evaluations": 40,
+       "solved": 0.3855
+      },
+      {
+       "evaluations": 50,
+       "solved": 0.4048
+      },
+      {
+       "evaluations": 63,
+       "solved": 0.4355
+      },
+      {
+       "evaluations": 79,
+       "solved": 0.4823
+      },
+      {
+       "evaluations": 100,
+       "solved": 0.5371
+      },
+      {
+       "evaluations": 126,
+       "solved": 0.5806
+      },
+      {
+       "evaluations": 158,
+       "solved": 0.5968
+      },
+      {
+       "evaluations": 200,
+       "solved": 0.621
+      },
+      {
+       "evaluations": 251,
+       "solved": 0.6452
+      },
+      {
+       "evaluations": 316,
+       "solved": 0.6887
+      },
+      {
+       "evaluations": 398,
+       "solved": 0.7387
+      },
+      {
+       "evaluations": 501,
+       "solved": 0.7823
+      },
+      {
+       "evaluations": 631,
+       "solved": 0.8194
+      },
+      {
+       "evaluations": 794,
+       "solved": 0.8661
+      },
+      {
+       "evaluations": 1000,
+       "solved": 0.8984
+      },
+      {
+       "evaluations": 1259,
+       "solved": 0.9387
+      },
+      {
+       "evaluations": 1585,
+       "solved": 0.9839
+      },
+      {
+       "evaluations": 1995,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 2512,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 3162,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 3981,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 5012,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 6310,
+       "solved": 0.9968
+      },
+      {
+       "evaluations": 7110,
+       "solved": 0.9968
+      }
+     ],
+     "anytimeScore": 0.6072719823404763,
+     "wallMs": {
+      "median": 196.5,
+      "p10": 176,
+      "p90": 213
+     }
+    }
+   ]
+  }
+ ],
+ "gate": {
+  "candidateId": "hybrid",
+  "baselineId": "v1",
+  "alpha": 0.05,
+  "margins": {
+   "lexSuccessPoints": 2,
+   "regretPoints": 1
+  },
+  "suites": [
+   {
+    "suiteId": "R2",
+    "lexSuccessDiff": {
+     "estimate": 1.6666666666666667,
+     "lower": 0
+    },
+    "regretDiff": {
+     "estimate": 0.07815029894845826,
+     "upper": 0.29379348813171946
+    },
+    "nonInferior": true,
+    "superior": false,
+    "effectSize": 0.4916059027777778,
+    "pAdjusted": 1
+   },
+   {
+    "suiteId": "R1",
+    "lexSuccessDiff": {
+     "estimate": 1.6129032258064515,
+     "lower": 0.5376344086021506
+    },
+    "regretDiff": {
+     "estimate": -0.019247701539515175,
+     "upper": 0.03618133176351408
+    },
+    "nonInferior": true,
+    "superior": false,
+    "effectSize": 0.5397878367441323,
+    "pAdjusted": 0.2828036908318776
+   },
+   {
+    "suiteId": "T1",
+    "lexSuccessDiff": {
+     "estimate": 1.881720430107527,
+     "lower": 0.5376344086021506
+    },
+    "regretDiff": {
+     "estimate": -1.3007262309826113,
+     "upper": -1.1081571935372556
+    },
+    "nonInferior": true,
+    "superior": true,
+    "effectSize": 0.6382168458781362,
+    "pAdjusted": 0
+   },
+   {
+    "suiteId": "T2",
+    "lexSuccessDiff": {
+     "estimate": 38.17204301075269,
+     "lower": 32.25806451612903
+    },
+    "regretDiff": {
+     "estimate": -4.6570662972338965,
+     "upper": -4.031551065526964
+    },
+    "nonInferior": true,
+    "superior": false,
+    "effectSize": 0.4923112498554746,
+    "pAdjusted": 1
+   },
+   {
+    "suiteId": "T3",
+    "lexSuccessDiff": {
+     "estimate": 0,
+     "lower": 0
+    },
+    "regretDiff": {
+     "estimate": -0.07963634541444199,
+     "upper": 0.016320766959389273
+    },
+    "nonInferior": true,
+    "superior": true,
+    "effectSize": 0.5757602034917332,
+    "pAdjusted": 0.0006222370764681351
+   },
+   {
+    "suiteId": "T4",
+    "lexSuccessDiff": {
+     "estimate": 0,
+     "lower": 0
+    },
+    "regretDiff": {
+     "estimate": 0,
+     "upper": 0
+    },
+    "nonInferior": true,
+    "superior": false,
+    "effectSize": 0.5,
+    "pAdjusted": 1
+   },
+   {
+    "suiteId": "T5",
+    "lexSuccessDiff": {
+     "estimate": 38.70967741935484,
+     "lower": 30.64516129032258
+    },
+    "regretDiff": {
+     "estimate": -4.841957905562396,
+     "upper": -4.005532292050892
+    },
+    "nonInferior": true,
+    "superior": false,
+    "effectSize": 0.47099375650364206,
+    "pAdjusted": 1
+   }
+  ],
+  "safetyTestsPassed": true,
+  "deterministic": true,
+  "passed": true
+ }
+}

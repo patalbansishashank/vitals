@@ -1,0 +1,51 @@
+# Vitals Companion sync relay as a systemd USER unit (`vitals-companion service --role sync` prints the same unit for any path).
+#
+# Install (as the service user, linger on: `loginctl enable-linger $USER` once, needs root):
+#   rsync -a --delete --exclude node_modules --exclude spike packages/companion/ <host>:vitals-companion/
+#   ssh <host> 'cd ~/vitals-companion && npm install --omit=dev --no-audit --no-fund --legacy-peer-deps'
+#   (--legacy-peer-deps: @evolu/nodejs declares optional lint-tool peers whose versions clash; none are used at runtime)
+#   mkdir -p ~/.local/share/vitals-companion && chmod 700 ~/.local/share/vitals-companion
+#   cp vitals-companion-sync.service ~/.config/systemd/user/vitals-companion.service
+#   systemctl --user daemon-reload && systemctl --user enable --now vitals-companion
+#   curl -s http://127.0.0.1:4870/health          # {"version":...,"roles":["relay"],"ownerCount":N}
+#   tailscale serve --bg --https=8443 http://127.0.0.1:4870   # tailnet-only HTTPS; 8443 because Caddy owns :443
+#
+# Undo:
+#   tailscale serve --https=8443 off
+#   systemctl --user disable --now vitals-companion
+#   rm ~/.config/systemd/user/vitals-companion.service && systemctl --user daemon-reload
+#   rm -rf ~/vitals-companion ~/.local/share/vitals-companion   # the data dir holds the relay store
+#
+# Binds loopback only; remote devices reach it through `tailscale serve`. No secrets belong in this file:
+# the sync relay needs none (devices authenticate with their own Evolu owner keys).
+#
+# Node 24 note: bin/vitals-companion.mjs calls @evolu/common's installPolyfills() (0.2.0+); 0.1.0 crashed on the first
+# sync message on Node 24 (Map.prototype.getOrInsertComputed missing).
+#
+# Sandboxing note: ProtectSystem=, PrivateTmp= and ReadWritePaths= need a mount namespace. A user manager can only
+# create one through an unprivileged user namespace. On Ubuntu 24.04 (kernel.apparmor_restrict_unprivileged_userns=1)
+# systemd logs "Failed to set up user namespacing for unprivileged user, ignoring: Permission denied" and starts the
+# service WITHOUT those three (verified on oci-arm 2026-10-02: same mnt namespace as the login shell). NoNewPrivileges=
+# and UMask= are still enforced. The directives are kept so they apply wherever namespacing is allowed (or when this
+# file is installed as a system unit with User=); the unit runs correctly either way.
+
+[Unit]
+Description=Vitals Companion sync relay (loopback, exposed via tailscale serve)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/vitals-companion
+ExecStart=/usr/bin/node %h/vitals-companion/bin/vitals-companion.mjs sync --host 127.0.0.1 --port 4870 --data %h/.local/share/vitals-companion
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=%h/.local/share/vitals-companion
+
+[Install]
+WantedBy=default.target

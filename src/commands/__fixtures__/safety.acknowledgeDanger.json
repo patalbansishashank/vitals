@@ -1,0 +1,11 @@
+{
+  "scenarioId": "starter",
+  "ack": {
+    "scheduleHash": "h",
+    "rules": [
+      "W-D01"
+    ],
+    "version": 1,
+    "at": "2026-10-01T09:00:00.000Z"
+  }
+}

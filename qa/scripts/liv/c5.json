@@ -1,0 +1,6 @@
+[{"goto":"/settings","wait":2500},{"css":"input[type=radio][value=custom]","wait":800},{"typeCss":"input[type=url]:near(:text('base URL'))","value":"http://127.0.0.1:4190/v1","after":"Tab","wait":1500},
+{"click":"OpenAI chat","wait":500},
+{"fillCss":"input[type=password]","value":"sk-qa-fake-key-1234567890","wait":300},{"click":"Save key","wait":1500},
+{"fill":"model id","value":"fake-model","wait":300},
+{"click":"Test connection","wait":5000,"eval":"(()=>{const s=[...document.querySelectorAll('section')].find(e=>/AI provider/.test(e.querySelector('h2')?.innerText||''));return s.innerText.split('Sign in with ChatGPT')[1].slice(0,1800)})()"},
+{"click":"Save provider","wait":2000,"eval":"[...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ') + ' ## ' + document.body.innerText.match(/AI provider\\n[\\s\\S]{0,400}/)?.[0]","shot":"15-provider-saved"}]

@@ -1,0 +1,404 @@
+/* ==========================================================================
+   Today (design/screens/living-mode.md §4; COMPONENTS §13.8–§13.10, §4).
+   Mobile: one column. ≥ 1024: 12 columns, 7 | 5 (plan + Tell the Coach |
+   notices, So far, Against the forecast, Body signals). ≥ 1280: the 24 h
+   dial sits left of the rows inside one faceplate. Tokens only; chrome
+   achromatic; the only yellow is the dial's now-hand.
+   ========================================================================== */
+@layer components {
+  .lv-today {
+    display: grid;
+    gap: 16px;
+    padding-top: 12px;
+  }
+  .lv-today__context {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  @media (min-width: 64rem) {
+    .lv-today__context {
+      display: none;
+    }
+  }
+  .lv-today__quiet {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .lv-today__grid {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .lv-today__main,
+  .lv-today__side {
+    display: grid;
+    gap: 16px;
+    align-content: start;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .lv-today__grid {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+    .lv-today__main {
+      grid-column: span 7;
+    }
+    .lv-today__side {
+      grid-column: span 5;
+    }
+  }
+
+  /* ---- notices zone -------------------------------------------------------- */
+  .lv-notices {
+    display: grid;
+    gap: 8px;
+    justify-items: stretch;
+  }
+  .lv-notices > .lm-key {
+    justify-self: start;
+  }
+
+  /* ---- Today's plan -------------------------------------------------------- */
+  .lv-plan__intent {
+    margin: 0 0 12px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-plan__body {
+    display: grid;
+    gap: 16px;
+    justify-items: center;
+  }
+  .lv-plan__body[data-ring='left'] {
+    grid-template-columns: 240px minmax(0, 1fr);
+    align-items: start;
+    justify-items: stretch;
+  }
+  .lv-plan__rows {
+    width: 100%;
+    min-width: 0;
+  }
+  .lv-plan__hard {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lv-plan__empty {
+    margin: 0;
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- 24 h dial (display) -------------------------------------------------- */
+  .lv-dial {
+    position: relative;
+    margin: 0;
+    display: grid;
+    justify-items: center;
+  }
+  .lv-dial__svg {
+    display: block;
+    overflow: visible;
+  }
+  .lv-dial__bezel {
+    fill: var(--lm-face);
+    stroke: var(--lm-line-strong);
+    stroke-width: 1;
+  }
+  .lv-dial__tick {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .lv-dial__tick--major {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1.5;
+  }
+  .lv-dial__num {
+    font-size: 11px;
+    font-stretch: 75%;
+    font-variant-numeric: tabular-nums;
+    fill: var(--lm-ink-3);
+  }
+  .lv-dial__track {
+    fill: none;
+    stroke: var(--lm-line);
+    stroke-width: 1;
+  }
+  .lv-dial__window {
+    fill: none;
+    stroke: color-mix(in oklab, var(--lm-ink) 22%, transparent);
+    stroke-width: 5;
+  }
+  .lv-dial__fast {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 2;
+    stroke-dasharray: 2 2;
+  }
+  .lv-dial__sleep {
+    fill: none;
+    stroke: color-mix(in oklab, var(--lm-cat-recovery) 45%, transparent);
+    stroke-width: 3;
+  }
+  .lv-dial__session {
+    fill: none;
+    stroke: var(--lm-cat-performance);
+    stroke-width: 3;
+  }
+  .lv-dial__meal {
+    fill: var(--lm-ink);
+    stroke: var(--lm-face);
+    stroke-width: 1.5;
+  }
+  .lv-dial__now line {
+    stroke: var(--lm-chart-now, var(--lm-signal));
+    stroke-width: 1.5;
+  }
+  .lv-dial__now circle {
+    fill: var(--lm-signal);
+    stroke: var(--lm-signal-edge);
+    stroke-width: 1;
+  }
+  .lv-dial__centre {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 2px;
+    padding: 0 30%;
+    text-align: center;
+    pointer-events: none;
+  }
+  .lv-dial__primary {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--lm-ink);
+  }
+  .lv-dial__secondary {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- prescription rows ------------------------------------------------- */
+  .lv-rows {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-row {
+    display: grid;
+    grid-template-columns: 44px 20px minmax(0, 1fr) auto 44px 32px;
+    align-items: center;
+    gap: 4px 10px;
+    min-height: 56px;
+    padding: 6px 0;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lv-rows > .lv-row:first-child {
+    border-top: 0;
+  }
+  .lv-row.is-highlight {
+    background: color-mix(in oklab, var(--lm-ink) 5%, transparent);
+  }
+  .lv-row__time {
+    font-size: 13px;
+    font-stretch: 75%;
+    color: var(--lm-ink-2);
+  }
+  .lv-row__glyph {
+    color: var(--lm-ink-2);
+  }
+  .lv-row__what {
+    display: grid;
+    min-width: 0;
+  }
+  .lv-row__label {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lv-row__target {
+    font-size: 13px;
+    color: var(--lm-ink-2);
+    overflow-wrap: anywhere;
+  }
+  .lv-row__logged {
+    justify-self: end;
+    font-size: 13px;
+    color: var(--lm-ink);
+    text-align: right;
+  }
+  .lv-row__weigh {
+    width: 116px;
+  }
+  @media (max-width: 47.99rem) {
+    .lv-row {
+      grid-template-columns: 40px 20px minmax(0, 1fr) 44px 32px;
+    }
+    .lv-row__logged {
+      grid-column: 3 / 4;
+      grid-row: 2;
+      justify-self: start;
+      text-align: left;
+    }
+  }
+  .lv-rows__rule {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--lm-line-strong);
+  }
+
+  /* tick key: empty (well) · done (ink fill) · partial (half fill) · skipped (hollow + diagonal) · assumed (dashed) */
+  .lv-tick {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--lm-edge);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    color: var(--lm-ink-inverse);
+    box-shadow: var(--lm-inset-shadow-well, none);
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  button.lv-tick:not(:disabled) {
+    cursor: pointer;
+  }
+  .lv-tick.is-done {
+    background: var(--lm-ink);
+    border-color: var(--lm-ink);
+  }
+  .lv-tick.is-partial {
+    background: linear-gradient(to top, var(--lm-ink) 50%, var(--lm-well) 50%);
+  }
+  .lv-tick.is-skipped {
+    background: var(--lm-face);
+  }
+  .lv-tick.is-skipped::after {
+    content: '';
+    position: absolute;
+    inset: 8px;
+    background: linear-gradient(to top right, transparent calc(50% - 0.5px), var(--lm-ink-2) calc(50% - 0.5px), var(--lm-ink-2) calc(50% + 0.5px), transparent calc(50% + 0.5px));
+  }
+  .lv-tick.is-assumed {
+    border-style: dashed;
+  }
+  .lv-tick:disabled {
+    opacity: 0.55;
+  }
+
+  /* ---- So far ---------------------------------------------------------------- */
+  .lv-sofar__grid {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .lv-sofar__dial {
+    flex: none;
+    padding: 4px;
+    border: 0;
+    border-radius: var(--lm-radius-sm);
+    background: none;
+    cursor: pointer;
+  }
+  .lv-sofar__lines {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lv-sofar__head,
+  .lv-sofar__line {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-sofar__head {
+    color: var(--lm-ink-2);
+  }
+  .lv-sofar__logged {
+    color: var(--lm-ink-2);
+  }
+  .lv-sofar__open {
+    margin: 12px 0 0;
+    padding: 12px 0 0 18px;
+    border-top: 1px solid var(--lm-line);
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+
+  /* ---- forecast ------------------------------------------------------------- */
+  .lv-forecast__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    margin: 8px 0 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-forecast__empty,
+  .lv-forecast__shift {
+    color: var(--lm-ink-2);
+  }
+  .lv-forecast__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+  }
+
+  /* ---- Tell the Coach (desktop) --------------------------------------------- */
+  .lv-tell__cards {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  /* ---- scheduled / complete ---------------------------------------------------- */
+  .lv-scheduled__list {
+    margin: 0 0 16px;
+    padding-left: 18px;
+    display: grid;
+    gap: 6px;
+  }
+  .lv-scheduled__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ---- check-in sheet --------------------------------------------------------- */
+  .lv-checkin {
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    display: grid;
+    gap: 16px;
+  }
+  .lv-checkin__text,
+  .lv-checkin__verdict,
+  .lv-checkin__next {
+    margin: 8px 0 0;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-checkin__verdict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+
+}

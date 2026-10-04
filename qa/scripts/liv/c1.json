@@ -1,0 +1,2 @@
+[{"goto":"/coach","wait":3000,"dump":1,"textDump":1500,"shot":"14-coach-noprovider"},
+{"goto":"/today","wait":2000},{"fillCss":"input[placeholder*='Coach'], .lv-coach-bar input, input[type=text]:not([aria-label=weight])","value":"had dal for lunch","wait":300},{"key":"Enter","wait":2000,"eval":"[location.pathname, [...document.querySelectorAll('[role=status],[role=alert]')].map(e=>e.innerText.slice(0,300)).join(' || ')]"}]

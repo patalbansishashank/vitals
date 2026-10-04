@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly check for a renewed certificate for the Vitals Server's MQTT listener
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

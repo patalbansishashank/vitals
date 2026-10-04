@@ -1,0 +1,10 @@
+kind,metric,start,end,local_date,tz_offset_s,value,unit,source,context,native_id,version
+daily,steps,,,2026-03-10,,8421,,ring,,,
+daily,distance_m,,,2026-03-10,,6.2,km,ring,,,
+daily,spo2_avg_pct,,,2026-03-10,,0.96,fraction,ring,,,
+daily,hrv_rmssd_ms,,,2026-03-10,,52,,ring,,,
+spot,weight_kg,2026-03-10T06:30:00Z,,,,81.4,,scale,fasting,,
+series,hr,2026-03-10T10:00:00Z,,,,62,bpm,ring,rest,,
+series,hr,2026-03-10T10:01:00Z,,,,64,bpm,ring,rest,,
+series,hr,2026-03-10T10:02:30Z,,,,"63",bpm,ring,rest,,
+sleep,,2026-03-09T22:30:00Z,2026-03-10T06:10:00Z,,,26400,,ring,,,

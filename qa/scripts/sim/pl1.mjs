@@ -1,0 +1,42 @@
+import { open, firstRun, controls, BASE, text, forbidden } from './lib.mjs';
+const mobile = process.argv[2] === 'm'; const tag = mobile ? 'm' : 'd';
+const { browser, page, errors } = await open(mobile);
+await firstRun(page);
+await page.goto(BASE + '/plan'); await page.waitForTimeout(2500);
+await page.getByText('Safety settings').first().click(); await page.waitForTimeout(500);
+await page.getByRole('switch', { name: /allow fasts over 24 hours/ }).click({ force: true }); await page.waitForTimeout(800);
+const dlg = page.getByRole('dialog');
+await dlg.getByRole('radio', { name: 'no' }).first().click(); await page.waitForTimeout(300);
+await dlg.getByRole('radio', { name: 'yes' }).nth(1).click(); await page.waitForTimeout(500);
+await dlg.getByRole('radio', { name: 'up to 72 hours' }).click(); await page.waitForTimeout(300);
+const cbs = dlg.getByRole('checkbox'); for (let i = 0; i < await cbs.count(); i++) await cbs.nth(i).check({ force: true });
+await page.screenshot({ path: `qa/screenshots/sim-20-optin-${tag}.png` });
+await dlg.getByRole('button', { name: 'Allow longer fasts' }).click(); await page.waitForTimeout(800);
+console.log('SAFETY', (await page.locator('.lp-safety').innerText()).slice(0, 600));
+await page.getByRole('radio', { name: '72 h', exact: true }).click(); await page.waitForTimeout(300);
+await page.getByRole('button', { name: 'Add a goal' }).click(); await page.waitForTimeout(800);
+await page.getByRole('button', { name: /^Autophagy signal.*add as a goal/ }).click(); await page.waitForTimeout(800);
+const goalsTxt = async () => (await page.locator('main').innerText()).slice(0, 1200);
+console.log('AFTER ADD1', (await goalsTxt()).slice(0, 900));
+await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+const fm = page.getByRole('button', { name: 'Fat mass ↓' }); if (await fm.count()) { await fm.click(); await page.waitForTimeout(500); }
+console.log('PREFLIGHT', (await page.locator('main').innerText()).match(/Before you run[\s\S]{0,700}/)?.[0]);
+await page.screenshot({ path: `qa/screenshots/sim-21-goals-${tag}.png` });
+const t0 = Date.now();
+await page.getByRole('button', { name: /Find plans/ }).click();
+for (let i = 0; i < 60; i++) {
+  await page.waitForTimeout(5000);
+  const u = page.url(); const tx = await page.locator('main').innerText();
+  if (i % 3 === 0) console.log('POLL', Math.round((Date.now() - t0) / 1000), u, tx.replace(/\s+/g, ' ').slice(0, 400));
+  if (i === 1) await page.screenshot({ path: `qa/screenshots/sim-22-running-${tag}.png` });
+  if (/results/.test(u) && !/Optimiser progress/.test(tx)) break;
+}
+console.log('DONE after', Math.round((Date.now() - t0) / 1000), 's', page.url());
+await page.waitForTimeout(2000);
+await page.screenshot({ path: `qa/screenshots/sim-23-ladder-${tag}.png` });
+const fs = await import('node:fs');
+fs.writeFileSync(`/media/DEV/tmp/pl-results-${tag}.txt`, await text(page));
+fs.writeFileSync(`/media/DEV/tmp/pl-controls-${tag}.txt`, (await controls(page)).join('\n'));
+fs.writeFileSync(`/media/DEV/tmp/pl-state-${tag}.json`, JSON.stringify(await page.context().storageState()));
+console.log('FORBIDDEN', await forbidden(page));
+console.log(errors); await browser.close();

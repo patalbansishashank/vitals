@@ -1,0 +1,36 @@
+{
+  "name": "vitals-companion",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Vitals Server: sync relay, per-person store (home role), device pairing, MQTT broker for Lumen Health, AI proxy and MCP on one port.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "vitals-server": "./bin/vitals-server.mjs",
+    "vitals-companion": "./bin/vitals-companion.mjs"
+  },
+  "scripts": {
+    "start": "node ./bin/vitals-companion.mjs",
+    "build": "vite build -c vite.person.config.ts && node scripts/pack.mjs",
+    "build:person": "vite build -c vite.person.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@evolu/common": "8.14.0",
+    "@evolu/nodejs": "4.1.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
+    "aedes": "~1.2.0",
+    "better-sqlite3": "12.11.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.3",
+    "@types/ws": "^8.18.1",
+    "@vitals/rings": "workspace:*",
+    "mqtt": "^5.16.0"
+  }
+}

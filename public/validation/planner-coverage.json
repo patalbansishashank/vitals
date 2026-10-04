@@ -1,0 +1,5621 @@
+{
+ "levers": {
+  "total": 21,
+  "reachable": 19,
+  "reachablePct": 90.5,
+  "unreachable": [
+   "L2",
+   "L6"
+  ],
+  "dynamic": {
+   "energy": "used",
+   "protein": "used",
+   "carbFat": "used",
+   "fibre": "used",
+   "eatingWindow": "used",
+   "resistanceTraining": "used",
+   "cardio": "used",
+   "dietBreak": "used",
+   "refeedDay": "used",
+   "lowDays": "missing",
+   "zeroDay": "missing",
+   "fastDay24": "used",
+   "waterFast": "used",
+   "L1": "used",
+   "L5": "used",
+   "L7": "missing",
+   "L8": "used",
+   "L9": "used"
+  }
+ },
+ "blocks": {
+  "total": 17,
+  "reachable": 17,
+  "reachablePct": 100,
+  "unreachable": []
+ },
+ "edges": {
+  "total": 1514,
+  "modelled": 1210,
+  "mapped": 275,
+  "infoOnly": 29,
+  "probed": 1444,
+  "live": 1227,
+  "livePct": 85,
+  "weak": 209,
+  "mixed": 1,
+  "wrongSign": 0,
+  "dead": 7,
+  "notProbed": 41,
+  "moduleNotOnPath": [
+   "energy>energyIntake>glycogenTotal",
+   "energy>energyIntake>muscleGlycogen",
+   "energy>energyIntake>rmr",
+   "energy>energyIntake>fastingGlucose",
+   "energy>energyIntake>triglycerides",
+   "energy>energyIntake>sbp",
+   "energy>energyIntake>ldl",
+   "energy>energyIntake>apoB",
+   "energy>energyIntake>strength",
+   "energy>energyIntake>enduranceCapacity",
+   "protein>protein>rmr",
+   "protein>protein>bhb",
+   "protein>protein>ldl",
+   "protein>protein>apoB",
+   "protein>protein>triglycerides",
+   "protein>protein>sbp",
+   "carbFat>fatShare>sbp",
+   "carbFat>fatShare>tdee",
+   "carbFat>carbIntake>ldl",
+   "carbFat>carbIntake>apoB",
+   "carbFat>carbIntake>triglycerides",
+   "fibre>fibre>glucose",
+   "fibre>fibre>ldl",
+   "fibre>fibre>apoB",
+   "fibre>fibre>insulinSensitivity",
+   "eatingWindow>eatingWindow>glucose",
+   "eatingWindow>eatingWindow>glycogenTotal",
+   "eatingWindow>mealCount>hunger",
+   "eatingWindow>mealCount>glucose",
+   "cardio>cardio>sbp",
+   "cardio>cardio>glycogenTotal",
+   "dietBreak>energyIntake>rmr",
+   "dietBreak>energyIntake>fastingGlucose",
+   "dietBreak>energyIntake>triglycerides",
+   "dietBreak>energyIntake>sbp",
+   "dietBreak>energyIntake>ldl",
+   "dietBreak>energyIntake>apoB",
+   "refeedDay>energyIntake>glycogenTotal",
+   "refeedDay>energyIntake>muscleGlycogen",
+   "refeedDay>energyIntake>bhb",
+   "refeedDay>energyIntake>ketoAdaptation",
+   "refeedDay>energyIntake>tdee",
+   "refeedDay>energyIntake>rmr",
+   "refeedDay>energyIntake>metabolicAdaptation",
+   "refeedDay>energyIntake>insulinSensitivity",
+   "refeedDay>energyIntake>fastingGlucose",
+   "refeedDay>energyIntake>triglycerides",
+   "refeedDay>energyIntake>sbp",
+   "refeedDay>energyIntake>crp",
+   "refeedDay>energyIntake>ldl",
+   "refeedDay>energyIntake>apoB",
+   "refeedDay>energyIntake>strength",
+   "lowDays>lowEnergyDays>leanTissue",
+   "lowDays>lowEnergyDays>glycogenTotal",
+   "lowDays>lowEnergyDays>muscleGlycogen",
+   "lowDays>lowEnergyDays>rmr",
+   "zeroDay>zeroIntake>muscleGlycogen",
+   "zeroDay>zeroIntake>rmr",
+   "zeroDay>zeroIntake>fastingGlucose",
+   "zeroDay>zeroIntake>sbp",
+   "zeroDay>zeroIntake>ldl",
+   "zeroDay>zeroIntake>apoB",
+   "fastDay24>zeroIntake>glycogenTotal",
+   "fastDay24>zeroIntake>muscleGlycogen",
+   "fastDay24>zeroIntake>rmr",
+   "fastDay24>zeroIntake>fastingGlucose",
+   "fastDay24>zeroIntake>triglycerides",
+   "fastDay24>zeroIntake>sbp",
+   "fastDay24>zeroIntake>ldl",
+   "fastDay24>zeroIntake>apoB",
+   "waterFast>zeroIntake>glycogenTotal",
+   "waterFast>zeroIntake>muscleGlycogen",
+   "waterFast>zeroIntake>ketoAdaptation",
+   "waterFast>zeroIntake>tdee",
+   "waterFast>zeroIntake>rmr",
+   "waterFast>zeroIntake>insulinSensitivity",
+   "waterFast>zeroIntake>glucose",
+   "waterFast>zeroIntake>fastingGlucose",
+   "waterFast>zeroIntake>triglycerides",
+   "waterFast>zeroIntake>sbp",
+   "waterFast>zeroIntake>crp",
+   "waterFast>zeroIntake>ldl",
+   "waterFast>zeroIntake>apoB",
+   "waterFast>zeroIntake>enduranceCapacity",
+   "L1>steps>glycogenTotal",
+   "L1>steps>enduranceCapacity",
+   "L5>sleepExtension>skeletalMuscle",
+   "L5>sleepExtension>leanTissue",
+   "L5>sleepExtension>rmr",
+   "L5>sleepExtension>strength",
+   "L7>creatine>strength",
+   "L8>omega3>triglycerides",
+   "L8>omega3>sbp",
+   "L8>omega3>apoB",
+   "L9>viscousFibre>ldl",
+   "L9>viscousFibre>apoB",
+   "L9>viscousFibre>glucose",
+   "B1>energyIntake>muscleGlycogen",
+   "B1>energyIntake>rmr",
+   "B1>energyIntake>fastingGlucose",
+   "B1>energyIntake>triglycerides",
+   "B1>energyIntake>sbp",
+   "B1>energyIntake>ldl",
+   "B1>energyIntake>apoB",
+   "B24>energyIntake>muscleGlycogen",
+   "B24>energyIntake>tdee",
+   "B24>energyIntake>rmr",
+   "B24>energyIntake>fastingGlucose",
+   "B24>energyIntake>triglycerides",
+   "B24>energyIntake>sbp",
+   "B24>energyIntake>ldl",
+   "B24>energyIntake>apoB",
+   "B3>energyIntake>muscleGlycogen",
+   "B3>energyIntake>rmr",
+   "B3>energyIntake>fastingGlucose",
+   "B3>energyIntake>triglycerides",
+   "B3>energyIntake>ldl",
+   "B3>energyIntake>apoB",
+   "B6>fatShare>ldl",
+   "B6>fatShare>triglycerides",
+   "B6>fatShare>sbp",
+   "B11>lowEnergyDays>leanTissue",
+   "B11>lowEnergyDays>glycogenTotal",
+   "B11>lowEnergyDays>muscleGlycogen",
+   "B11>lowEnergyDays>rmr",
+   "B12>zeroIntake>muscleGlycogen",
+   "B12>zeroIntake>rmr",
+   "B12>zeroIntake>fastingGlucose",
+   "B12>zeroIntake>sbp",
+   "B12>zeroIntake>ldl",
+   "B12>zeroIntake>apoB",
+   "B21>energyIntake>rmr",
+   "B21>energyIntake>fastingGlucose",
+   "B21>energyIntake>triglycerides",
+   "B21>energyIntake>sbp",
+   "B21>energyIntake>ldl",
+   "B21>energyIntake>apoB",
+   "B23>energyIntake>glycogenTotal",
+   "B23>energyIntake>muscleGlycogen",
+   "B23>energyIntake>bhb",
+   "B23>energyIntake>rmr",
+   "B23>energyIntake>insulinSensitivity",
+   "B23>energyIntake>glucose",
+   "B23>energyIntake>fastingGlucose",
+   "B23>energyIntake>sbp",
+   "B23>energyIntake>crp",
+   "B23>energyIntake>ldl",
+   "B23>energyIntake>apoB",
+   "B23>energyIntake>enduranceCapacity",
+   "B22>energyIntake>muscleGlycogen",
+   "B22>energyIntake>rmr",
+   "B22>energyIntake>fastingGlucose",
+   "B22>energyIntake>triglycerides",
+   "B22>energyIntake>sbp",
+   "B22>energyIntake>ldl",
+   "B22>energyIntake>apoB",
+   "B8>energyIntake>rmr",
+   "B8>energyIntake>fastingGlucose",
+   "B8>energyIntake>triglycerides",
+   "B8>energyIntake>sbp",
+   "B8>energyIntake>ldl",
+   "B8>energyIntake>apoB",
+   "B9>energyIntake>glycogenTotal",
+   "B9>energyIntake>muscleGlycogen",
+   "B9>energyIntake>bhb",
+   "B9>energyIntake>ketoAdaptation",
+   "B9>energyIntake>tdee",
+   "B9>energyIntake>rmr",
+   "B9>energyIntake>metabolicAdaptation",
+   "B9>energyIntake>insulinSensitivity",
+   "B9>energyIntake>fastingGlucose",
+   "B9>energyIntake>triglycerides",
+   "B9>energyIntake>sbp",
+   "B9>energyIntake>crp",
+   "B9>energyIntake>ldl",
+   "B9>energyIntake>apoB",
+   "B9>energyIntake>strength",
+   "B13>zeroIntake>glycogenTotal",
+   "B13>zeroIntake>muscleGlycogen",
+   "B13>zeroIntake>rmr",
+   "B13>zeroIntake>fastingGlucose",
+   "B13>zeroIntake>triglycerides",
+   "B13>zeroIntake>sbp",
+   "B13>zeroIntake>ldl",
+   "B13>zeroIntake>apoB",
+   "B14>zeroIntake>glycogenTotal",
+   "B14>zeroIntake>muscleGlycogen",
+   "B14>zeroIntake>ketoAdaptation",
+   "B14>zeroIntake>igf1",
+   "B14>zeroIntake>tdee",
+   "B14>zeroIntake>rmr",
+   "B14>zeroIntake>metabolicAdaptation",
+   "B14>zeroIntake>insulinSensitivity",
+   "B14>zeroIntake>glucose",
+   "B14>zeroIntake>fastingGlucose",
+   "B14>zeroIntake>triglycerides",
+   "B14>zeroIntake>sbp",
+   "B14>zeroIntake>ldl",
+   "B14>zeroIntake>apoB",
+   "B14>zeroIntake>enduranceCapacity",
+   "B15>zeroIntake>glycogenTotal",
+   "B15>zeroIntake>muscleGlycogen",
+   "B15>zeroIntake>ketoAdaptation",
+   "B15>zeroIntake>tdee",
+   "B15>zeroIntake>rmr",
+   "B15>zeroIntake>insulinSensitivity",
+   "B15>zeroIntake>glucose",
+   "B15>zeroIntake>fastingGlucose",
+   "B15>zeroIntake>triglycerides",
+   "B15>zeroIntake>sbp",
+   "B15>zeroIntake>crp",
+   "B15>zeroIntake>ldl",
+   "B15>zeroIntake>apoB",
+   "B15>zeroIntake>enduranceCapacity",
+   "creatine_monohydrate>LBM with RT>leanTissue",
+   "omega3_epa_dha>TG>triglycerides",
+   "omega3_epa_dha>BP>sbp",
+   "psyllium>LDL-C>ldl"
+  ],
+  "disagreements": [
+   {
+    "edge": "protein>protein>leanTissue",
+    "status": "dead"
+   },
+   {
+    "edge": "protein>protein>skeletalMuscle",
+    "status": "dead"
+   },
+   {
+    "edge": "B21>energyIntake>autophagyIdx",
+    "status": "mixed"
+   },
+   {
+    "edge": "whey_protein>FFM with RT>leanTissue",
+    "status": "dead"
+   },
+   {
+    "edge": "whey_protein>MPS during energy deficit>leanTissue",
+    "status": "dead"
+   },
+   {
+    "edge": "plant_protein>LBM/strength vs whey with RT>leanTissue",
+    "status": "dead"
+   },
+   {
+    "edge": "plant_protein>LBM/strength vs whey with RT>strength",
+    "status": "dead"
+   },
+   {
+    "edge": "casein_presleep>chronic hypertrophy>skeletalMuscle",
+    "status": "dead"
+   }
+  ]
+ },
+ "deadFields": [
+  "PlannerSafetyInput.fasting.maxEligibleTier",
+  "PlannerSafetyInput.fasting.effectiveTier",
+  "PlannerSafetyInput.fasting.optInTiers",
+  "TrainingProfile.loadsKg",
+  "TrainingProfile.liked",
+  "TrainingProfile.capacities"
+ ],
+ "notStrictFields": [
+  {
+   "field": "PracticalConstraints.maxSessionMin",
+   "verdict": "changes"
+  },
+  {
+   "field": "PracticalConstraints.sleepFixed",
+   "verdict": "changes"
+  },
+  {
+   "field": "PracticalConstraints.hungerTolerance",
+   "verdict": "contextOnly"
+  },
+  {
+   "field": "PracticalConstraints.proteinFloorGPerKg",
+   "verdict": "changes"
+  },
+  {
+   "field": "ConstraintDraft.maxSessionMin",
+   "verdict": "changes"
+  },
+  {
+   "field": "ConstraintDraft.proteinFloor",
+   "verdict": "changes"
+  },
+  {
+   "field": "ConstraintDraft.sleepFixed",
+   "verdict": "changes"
+  },
+  {
+   "field": "ConstraintDraft.hungerTolerance",
+   "verdict": "contextOnly"
+  },
+  {
+   "field": "PlannerSafetyInput.flags",
+   "verdict": "changes"
+  },
+  {
+   "field": "TrainingProfile.owned",
+   "verdict": "changes"
+  },
+  {
+   "field": "TrainingProfile.access",
+   "verdict": "contextOnly"
+  },
+  {
+   "field": "TrainingProfile.purchaseAllowance",
+   "verdict": "contextOnly"
+  },
+  {
+   "field": "TrainingProfile.enjoy",
+   "verdict": "contextOnly"
+  },
+  {
+   "field": "TrainingProfile.refused",
+   "verdict": "changes"
+  },
+  {
+   "field": "TrainingProfile.injuries",
+   "verdict": "changes"
+  },
+  {
+   "field": "TrainingProfile.cleared",
+   "verdict": "changes"
+  },
+  {
+   "field": "TrainingProfile.skill",
+   "verdict": "contextOnly"
+  }
+ ],
+ "maskedConsents": [
+  "PlannerSafetyInput.expertMode"
+ ],
+ "gates": {
+  "total": 37,
+  "unsourced": [],
+  "flagged": [
+   {
+    "gate": "zeroDays.servedClass",
+    "metric": "fatMass",
+    "gainInTolerances": 21.4
+   },
+   {
+    "gate": "omega3.tgBpGoal",
+    "metric": "fatMass",
+    "gainInTolerances": 1.01
+   }
+  ],
+  "costs": [
+   {
+    "gate": "fasting.longestFast",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 0 structures over the corpus scan"
+   },
+   {
+    "gate": "fasting.refused",
+    "kind": "userLimit",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "fasting.servedGoal",
+    "kind": "evidence",
+    "requests": 2,
+    "flagged": false,
+    "worst": {
+     "request": "muscle|none|default|olderWoman",
+     "goal": 0,
+     "metric": "leanTissue",
+     "gain": -0.0017009941315298904,
+     "delta": 0.05,
+     "with": 41.909127371651785,
+     "without": 41.907253810337615
+    },
+    "note": ""
+   },
+   {
+    "gate": "fasting.muscleAbove",
+    "kind": "evidence",
+    "requests": 2,
+    "flagged": false,
+    "worst": {
+     "request": "strength|none|loose|olderWoman",
+     "goal": 0,
+     "metric": "strength",
+     "gain": 0.005499485068780914,
+     "delta": 0.05,
+     "with": 114.64806583949498,
+     "without": 114.73358263288226
+    },
+    "note": ""
+   },
+   {
+    "gate": "rt.noviceCap",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 0 structures over the corpus scan"
+   },
+   {
+    "gate": "user.excluded",
+    "kind": "userLimit",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "block.tier",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 160 structures over the corpus scan"
+   },
+   {
+    "gate": "lever.noEngineChannel",
+    "kind": "feasibility",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "lever.tier",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 20800 structures over the corpus scan"
+   },
+   {
+    "gate": "lever.expertOnlyFasts",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 0 structures over the corpus scan"
+   },
+   {
+    "gate": "lever.optInConsent",
+    "kind": "consent",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 3815 structures over the corpus scan"
+   },
+   {
+    "gate": "block.energyEnvelope",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 945 structures over the corpus scan"
+   },
+   {
+    "gate": "B11.weeklyFloor",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 263 structures over the corpus scan"
+   },
+   {
+    "gate": "B12.intakeFloor28",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 0 structures over the corpus scan"
+   },
+   {
+    "gate": "block.minRtSessions",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "muscle|none|tight|obeseMan",
+     "goal": 0,
+     "metric": "leanTissue",
+     "gain": 0,
+     "delta": 0.05,
+     "with": 68.08172934395927,
+     "without": 68.08172934395927
+    },
+    "note": ""
+   },
+   {
+    "gate": "segments.durationFit",
+    "kind": "feasibility",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|none|default|man88",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": -0.01936222258068258,
+     "delta": 0.05,
+     "with": 16.416355678013392,
+     "without": 16.532529013497488
+    },
+    "note": ""
+   },
+   {
+    "gate": "sequence.noRepeat",
+    "kind": "feasibility",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "B3.notAlone",
+    "kind": "evidence",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "zeroDays.servedClass",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": true,
+    "worst": {
+     "request": "muscle|prefersFasting|loose|man88",
+     "goal": 1,
+     "metric": "fatMass",
+     "gain": 2.1396666272673244,
+     "delta": 0.1,
+     "with": 22.5403562273298,
+     "without": 22.688757760184153
+    },
+    "note": ""
+   },
+   {
+    "gate": "creatine.muscleGoal",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "transient|T3|default|man88",
+     "goal": 0,
+     "metric": "autophagyIdx",
+     "gain": 0.009234211487772384,
+     "delta": 0.05,
+     "with": 25.866768513407028,
+     "without": 26.074511221476964
+    },
+    "note": ""
+   },
+   {
+    "gate": "creatine.withTraining",
+    "kind": "evidence",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "omega3.tgBpGoal",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": true,
+    "worst": {
+     "request": "fatLoss|T3|default|woman78",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": 0.0505947839646114,
+     "delta": 0.05,
+     "with": 24.619277954101562,
+     "without": 24.315709250313894
+    },
+    "note": ""
+   },
+   {
+    "gate": "viscousFibre.lipidGoal",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|none|default|man88",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": -0.010300999596005648,
+     "delta": 0.05,
+     "with": 16.416355678013392,
+     "without": 16.478161675589426
+    },
+    "note": ""
+   },
+   {
+    "gate": "sleepExtension.shortSleep",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|none|loose|leanTrained",
+     "goal": 1,
+     "metric": "leanTissue",
+     "gain": 0.05568376887125931,
+     "delta": 0.1,
+     "with": 58.43814631870815,
+     "without": 58.48616191319057
+    },
+    "note": ""
+   },
+   {
+    "gate": "sleep.fixed",
+    "kind": "userLimit",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "refeed.deficitOnly",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|none|default|man88",
+     "goal": 1,
+     "metric": "leanTissue",
+     "gain": 0.028528290668251646,
+     "delta": 0.1,
+     "with": 62.87739072527204,
+     "without": 62.899549756731304
+    },
+    "note": ""
+   },
+   {
+    "gate": "refeed.notInVeryLowCarb",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|none|default|man88",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": -0.01936222258068258,
+     "delta": 0.05,
+     "with": 16.416355678013392,
+     "without": 16.532529013497488
+    },
+    "note": ""
+   },
+   {
+    "gate": "fast24.hosts",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|none|default|man88",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": -0.043816566467285156,
+     "delta": 0.05,
+     "with": 16.416355678013392,
+     "without": 16.679255076817103
+    },
+    "note": ""
+   },
+   {
+    "gate": "surplus.noFasts",
+    "kind": "evidence",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|T2|loose|man88",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": 0,
+     "delta": 0.05,
+     "with": 16.619374138968332,
+     "without": 16.619374138968332
+    },
+    "note": ""
+   },
+   {
+    "gate": "zeroDays.noMultiDayFast",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 312 structures over the corpus scan"
+   },
+   {
+    "gate": "lowDays.noMultiDayFast",
+    "kind": "feasibility",
+    "requests": 1,
+    "flagged": false,
+    "worst": {
+     "request": "fatLoss|T2|loose|man88",
+     "goal": 0,
+     "metric": "fatMass",
+     "gain": -0.021524701799664925,
+     "delta": 0.05,
+     "with": 16.619374138968332,
+     "without": 16.748522349766322
+    },
+    "note": ""
+   },
+   {
+    "gate": "fast.intakeFloor28",
+    "kind": "safety",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "kept by design; removes 0 structures over the corpus scan"
+   },
+   {
+    "gate": "fast.horizonFits",
+    "kind": "feasibility",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "removes nothing on the corpus"
+   },
+   {
+    "gate": "protein.trainingFloor",
+    "kind": "evidence",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "decoder clamp: registered, not switchable"
+   },
+   {
+    "gate": "rt.productiveRange",
+    "kind": "evidence",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "decoder clamp: registered, not switchable"
+   },
+   {
+    "gate": "surplus.maxKcal",
+    "kind": "evidence",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "decoder clamp: registered, not switchable"
+   },
+   {
+    "gate": "eatingWindow.lateEating",
+    "kind": "evidence",
+    "requests": 0,
+    "flagged": false,
+    "worst": null,
+    "note": "decoder clamp: registered, not switchable"
+   }
+  ]
+ },
+ "undocumentedMechanisms": [
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "bhb",
+   "personas": 3,
+   "maxDelta": -0.024
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 3,
+   "maxDelta": 0.532
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 3,
+   "maxDelta": -0.578
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 3,
+   "maxDelta": -0.214
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 3,
+   "maxDelta": 0.805
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "fatMass",
+   "personas": 3,
+   "maxDelta": 0.339
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "hunger",
+   "personas": 3,
+   "maxDelta": -12.8
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "hunger",
+   "personas": 3,
+   "maxDelta": 1.04
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "hunger",
+   "personas": 3,
+   "maxDelta": 6.27
+  },
+  {
+   "sources": [
+    "eatingWindow"
+   ],
+   "metric": "igf1",
+   "personas": 3,
+   "maxDelta": 0.00253
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "ketoAdaptation",
+   "personas": 3,
+   "maxDelta": -1.94
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "ketoAdaptation",
+   "personas": 3,
+   "maxDelta": -0.78
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "ketoAdaptation",
+   "personas": 3,
+   "maxDelta": -1.98
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "leanTissue",
+   "personas": 3,
+   "maxDelta": -0.162
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "leanTissue",
+   "personas": 3,
+   "maxDelta": -0.0578
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "leanTissue",
+   "personas": 3,
+   "maxDelta": 0.0837
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "liverFat",
+   "personas": 3,
+   "maxDelta": -0.154
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "liverFat",
+   "personas": 3,
+   "maxDelta": -0.584
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "liverFat",
+   "personas": 3,
+   "maxDelta": -0.157
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "liverFat",
+   "personas": 3,
+   "maxDelta": -1.13
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 3,
+   "maxDelta": -11.9
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 3,
+   "maxDelta": 29.1
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 3,
+   "maxDelta": 35.4
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 3,
+   "maxDelta": 44
+  },
+  {
+   "sources": [
+    "B12",
+    "zeroDay"
+   ],
+   "metric": "rtMuscleGain",
+   "personas": 3,
+   "maxDelta": -2.6
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "scaleWeight",
+   "personas": 3,
+   "maxDelta": -0.638
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "scaleWeight",
+   "personas": 3,
+   "maxDelta": 1.73
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "scaleWeight",
+   "personas": 3,
+   "maxDelta": -0.236
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "scaleWeight",
+   "personas": 3,
+   "maxDelta": 0.423
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "skeletalMuscle",
+   "personas": 3,
+   "maxDelta": -0.0809
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "skeletalMuscle",
+   "personas": 3,
+   "maxDelta": -0.0289
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "skeletalMuscle",
+   "personas": 3,
+   "maxDelta": 0.0418
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "strength",
+   "personas": 3,
+   "maxDelta": -0.267
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "visceralFat",
+   "personas": 3,
+   "maxDelta": -0.0738
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "visceralFat",
+   "personas": 3,
+   "maxDelta": -0.0274
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "visceralFat",
+   "personas": 3,
+   "maxDelta": 0.0498
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "waist",
+   "personas": 3,
+   "maxDelta": -0.565
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "waist",
+   "personas": 3,
+   "maxDelta": -0.21
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "waist",
+   "personas": 3,
+   "maxDelta": 0.413
+  },
+  {
+   "sources": [
+    "B11",
+    "lowDays"
+   ],
+   "metric": "autophagyIdx",
+   "personas": 2,
+   "maxDelta": -0.595
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "autophagyIdx",
+   "personas": 2,
+   "maxDelta": -1.55
+  },
+  {
+   "sources": [
+    "eatingWindow"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 2,
+   "maxDelta": -0.0487
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 2,
+   "maxDelta": -0.0957
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 2,
+   "maxDelta": -0.126
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "fatMass",
+   "personas": 2,
+   "maxDelta": 0.243
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "hoursInKetosis",
+   "personas": 2,
+   "maxDelta": 22.8
+  },
+  {
+   "sources": [
+    "casein_presleep",
+    "plant_protein",
+    "protein",
+    "whey_protein"
+   ],
+   "metric": "ketoAdaptation",
+   "personas": 2,
+   "maxDelta": 2.81
+  },
+  {
+   "sources": [
+    "B11",
+    "lowDays"
+   ],
+   "metric": "ketoInduction",
+   "personas": 2,
+   "maxDelta": 0.369
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "liverFat",
+   "personas": 2,
+   "maxDelta": -0.0565
+  },
+  {
+   "sources": [
+    "B11",
+    "lowDays"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 2,
+   "maxDelta": -35.5
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 2,
+   "maxDelta": -10.4
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "micronutrientScore",
+   "personas": 2,
+   "maxDelta": -9
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "micronutrientScore",
+   "personas": 2,
+   "maxDelta": -6
+  },
+  {
+   "sources": [
+    "B21"
+   ],
+   "metric": "rtMuscleGain",
+   "personas": 2,
+   "maxDelta": 0.0536
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "scaleWeight",
+   "personas": 2,
+   "maxDelta": 0.265
+  },
+  {
+   "sources": [
+    "L7",
+    "creatine_monohydrate"
+   ],
+   "metric": "skeletalMuscle",
+   "personas": 2,
+   "maxDelta": 0.0143
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "visceralFat",
+   "personas": 2,
+   "maxDelta": 0.0361
+  },
+  {
+   "sources": [
+    "B12",
+    "zeroDay"
+   ],
+   "metric": "vo2max",
+   "personas": 2,
+   "maxDelta": -0.778
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "waist",
+   "personas": 2,
+   "maxDelta": 0.27
+  },
+  {
+   "sources": [
+    "carbFat"
+   ],
+   "metric": "adherence",
+   "personas": 1,
+   "maxDelta": 0.194
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "autophagyIdx",
+   "personas": 1,
+   "maxDelta": -0.384
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "autophagyIdx",
+   "personas": 1,
+   "maxDelta": -0.513
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "autophagyIdx",
+   "personas": 1,
+   "maxDelta": 0.913
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "bodyFatPct",
+   "personas": 1,
+   "maxDelta": -0.0678
+  },
+  {
+   "sources": [
+    "fibre"
+   ],
+   "metric": "crp",
+   "personas": 1,
+   "maxDelta": -0.00203
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "crp",
+   "personas": 1,
+   "maxDelta": 0.00182
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "crp",
+   "personas": 1,
+   "maxDelta": 0.00194
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "fatMass",
+   "personas": 1,
+   "maxDelta": -0.0344
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "fatMass",
+   "personas": 1,
+   "maxDelta": -0.0583
+  },
+  {
+   "sources": [
+    "B11",
+    "lowDays"
+   ],
+   "metric": "glucose",
+   "personas": 1,
+   "maxDelta": 0.188
+  },
+  {
+   "sources": [
+    "B21"
+   ],
+   "metric": "glucose",
+   "personas": 1,
+   "maxDelta": -0.278
+  },
+  {
+   "sources": [
+    "energy"
+   ],
+   "metric": "hoursInKetosis",
+   "personas": 1,
+   "maxDelta": -2.49
+  },
+  {
+   "sources": [
+    "B1"
+   ],
+   "metric": "hoursInKetosis",
+   "personas": 1,
+   "maxDelta": 0.762
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "igf1",
+   "personas": 1,
+   "maxDelta": -0.0375
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "insulinSensitivity",
+   "personas": 1,
+   "maxDelta": 0.0284
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "leanTissue",
+   "personas": 1,
+   "maxDelta": 0.00593
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "liverFat",
+   "personas": 1,
+   "maxDelta": -0.0158
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "metabolicAdaptation",
+   "personas": 1,
+   "maxDelta": -4.07
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "air_squat",
+    "akhara_digging",
+    "back_extension",
+    "backpack_row",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bird_dog",
+    "bulgarian_split_squat",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "crunch",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dip",
+    "face_pull",
+    "farmer_carry",
+    "gada_hold",
+    "gada_swing",
+    "glute_bridge",
+    "goblet_squat",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "inverted_row",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "resistanceTraining",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "split_squat",
+    "squat_jump",
+    "step_up",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "towel_door_row",
+    "triceps_pushdown",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "utkatasana",
+    "wall_sit",
+    "wrestler_bridge"
+   ],
+   "metric": "micronutrientScore",
+   "personas": 1,
+   "maxDelta": 3
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "micronutrientScore",
+   "personas": 1,
+   "maxDelta": 3
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "micronutrientScore",
+   "personas": 1,
+   "maxDelta": 3
+  },
+  {
+   "sources": [
+    "eatingWindow"
+   ],
+   "metric": "rtMuscleGain",
+   "personas": 1,
+   "maxDelta": 0.00833
+  },
+  {
+   "sources": [
+    "B8",
+    "dietBreak"
+   ],
+   "metric": "rtMuscleGain",
+   "personas": 1,
+   "maxDelta": 0.0157
+  },
+  {
+   "sources": [
+    "B23"
+   ],
+   "metric": "rtMuscleGain",
+   "personas": 1,
+   "maxDelta": 0.0554
+  },
+  {
+   "sources": [
+    "B22"
+   ],
+   "metric": "rtMuscleGain",
+   "personas": 1,
+   "maxDelta": 0.0319
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "scaleWeight",
+   "personas": 1,
+   "maxDelta": -0.0383
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "scaleWeight",
+   "personas": 1,
+   "maxDelta": -0.0719
+  },
+  {
+   "sources": [
+    "eatingWindow"
+   ],
+   "metric": "skeletalMuscle",
+   "personas": 1,
+   "maxDelta": 0.00752
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "skeletalMuscle",
+   "personas": 1,
+   "maxDelta": 0.00296
+  },
+  {
+   "sources": [
+    "L9",
+    "psyllium"
+   ],
+   "metric": "strength",
+   "personas": 1,
+   "maxDelta": -0.0954
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "strength",
+   "personas": 1,
+   "maxDelta": 0.138
+  },
+  {
+   "sources": [
+    "B2"
+   ],
+   "metric": "tdee",
+   "personas": 1,
+   "maxDelta": -75.9
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "visceralFat",
+   "personas": 1,
+   "maxDelta": -0.00412
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "visceralFat",
+   "personas": 1,
+   "maxDelta": -0.00551
+  },
+  {
+   "sources": [
+    "ab_wheel",
+    "adho_mukha",
+    "air_squat",
+    "akhara_digging",
+    "ankle_mobility",
+    "ardha_matsyendrasana",
+    "back_extension",
+    "backpack_row",
+    "badminton",
+    "baithak",
+    "baithak_garnal",
+    "bakasana",
+    "band_chest_press",
+    "band_curl",
+    "band_lateral_walk",
+    "band_oh_press",
+    "band_pull_apart",
+    "band_pulldown",
+    "band_rdl",
+    "band_row",
+    "band_squat",
+    "band_triceps",
+    "battle_rope",
+    "bb_back_squat",
+    "bb_bench_press",
+    "bb_curl",
+    "bb_deadlift",
+    "bb_front_squat",
+    "bb_overhead_press",
+    "bb_row",
+    "bear_crawl",
+    "bench_dip",
+    "bhujangasana",
+    "bike_hiit",
+    "bird_dog",
+    "boxing_bag",
+    "brisk_walk",
+    "bulgarian_split_squat",
+    "burpee",
+    "cable_row",
+    "calf_raise_seated",
+    "calf_raise_standing",
+    "cardio",
+    "chaturanga",
+    "chin_up",
+    "circuit_kb",
+    "cricket",
+    "crunch",
+    "cycle_outdoor",
+    "dand",
+    "dand_garnal",
+    "db_bench_press",
+    "db_curl",
+    "db_fly",
+    "db_row",
+    "db_shoulder_press",
+    "db_walking_lunge",
+    "decline_push_up",
+    "dhanurasana",
+    "dip",
+    "elliptical",
+    "face_pull",
+    "farmer_carry",
+    "foam_roll",
+    "football",
+    "gada_hold",
+    "gada_swing",
+    "garba",
+    "glute_bridge",
+    "goblet_squat",
+    "hamstring_stretch",
+    "handstand_push_up",
+    "hanging_knee_raise",
+    "hatha_yoga",
+    "hiit_bodyweight",
+    "hike",
+    "hip_flexor_stretch",
+    "hip_thrust",
+    "hollow_hold",
+    "improvised_press",
+    "incline_db_press",
+    "incline_push_up",
+    "indian_club_mobility",
+    "inverted_row",
+    "jog_outdoor",
+    "jump_rope",
+    "jumping_jack",
+    "kabaddi",
+    "kb_clean_press",
+    "kb_deadlift",
+    "kb_goblet_cossack",
+    "kb_snatch",
+    "kb_swing",
+    "kb_swing_emom",
+    "kho_kho",
+    "knee_push_up",
+    "kushti_circuit",
+    "kushti_drill",
+    "lat_pulldown",
+    "lateral_raise",
+    "leg_curl",
+    "leg_extension",
+    "leg_press",
+    "malasana",
+    "mallakhamb_pole",
+    "mallakhamb_rope",
+    "med_ball_slam",
+    "mountain_climber",
+    "mudgar_pair",
+    "mudgar_two_hand",
+    "nal_lift",
+    "navasana",
+    "nordic_curl",
+    "oh_triceps_ext",
+    "pallof_press",
+    "paschimottanasana",
+    "pike_push_up",
+    "pilates_mat",
+    "pistol_squat",
+    "plank",
+    "power_yoga",
+    "pull_up",
+    "push_up",
+    "rdl",
+    "reverse_lunge",
+    "ring_push_up",
+    "rope_climb",
+    "rope_skipping_slow",
+    "row_erg",
+    "rucking",
+    "sandbag_bearhug_carry",
+    "sandbag_clean",
+    "sandbag_squat",
+    "setu_bandha",
+    "shirshasana",
+    "shoulder_dislocate",
+    "side_plank",
+    "sl_calf_raise",
+    "sl_glute_bridge",
+    "sledgehammer",
+    "slider_leg_curl",
+    "spin_class",
+    "split_squat",
+    "squat_jump",
+    "stair_climb",
+    "stationary_bike",
+    "step_aerobics",
+    "step_up",
+    "stepmill",
+    "suitcase_carry",
+    "sumtola_clean_press",
+    "sumtola_squat",
+    "surya_namaskar",
+    "swim",
+    "thoracic_rotation",
+    "towel_door_row",
+    "treadmill_incline_walk",
+    "treadmill_run",
+    "triceps_pushdown",
+    "trikonasana",
+    "trx_row",
+    "turkish_getup",
+    "tyre_flip",
+    "ustrasana",
+    "utkatasana",
+    "virabhadrasana",
+    "vrikshasana",
+    "walk",
+    "wall_sit",
+    "weighted_vest_walk",
+    "wrestler_bridge"
+   ],
+   "metric": "waist",
+   "personas": 1,
+   "maxDelta": -0.0649
+  },
+  {
+   "sources": [
+    "L1"
+   ],
+   "metric": "waist",
+   "personas": 1,
+   "maxDelta": -0.0649
+  },
+  {
+   "sources": [
+    "B6"
+   ],
+   "metric": "waist",
+   "personas": 1,
+   "maxDelta": 0.0739
+  }
+ ],
+ "fastingGateVsGraph": {
+  "expected": [
+   {
+    "pair": "bhb:down",
+    "reason": "fasts raise blood ketones in the model, never lower them; offered because ketones are a transient marker and the other direction is served"
+   },
+   {
+    "pair": "igf1:up",
+    "reason": "fasts lower IGF-1 in the model, never raise it; offered because IGF-1 is a transient marker and the other direction is served"
+   },
+   {
+    "pair": "hunger:down",
+    "reason": "hunger rises during a fast in the model; offered because the goal type covers hunger and adherence, and a person may simply prefer eating this way"
+   },
+   {
+    "pair": "adherence:up",
+    "reason": "every fast lowers modelled plan adherence; offered for the same reason as hunger"
+   },
+   {
+    "pair": "ketoInduction:down",
+    "reason": "the keto-induction symptom index does not respond to fasts in the model; offered with the comfort goals"
+   }
+  ],
+  "unexpected": []
+ },
+ "geneRange": {
+  "dead": [],
+  "outsideRegistry": [
+   "protein.gPerKg",
+   "cardio.pctVo2max"
+  ],
+  "effectivelyFixed": []
+ },
+ "evaluator": {
+  "unrecordedSeries": [],
+  "plans": 50,
+  "maxRelDiff": 0,
+  "disagreements": 0
+ },
+ "levels": {
+  "requests": 17,
+  "tiers": [
+   "S",
+   "M",
+   "X"
+  ],
+  "counts": {
+   "S": {
+    "hard": {
+     "card": 17,
+     "absent": 0,
+     "fail": 0
+    },
+    "medium": {
+     "card": 13,
+     "absent": 4,
+     "fail": 0
+    },
+    "easy": {
+     "card": 13,
+     "absent": 4,
+     "fail": 0
+    },
+    "ideal": {
+     "card": 7,
+     "absent": 10,
+     "fail": 0
+    }
+   },
+   "M": {
+    "hard": {
+     "card": 17,
+     "absent": 0,
+     "fail": 0
+    },
+    "medium": {
+     "card": 11,
+     "absent": 6,
+     "fail": 0
+    },
+    "easy": {
+     "card": 12,
+     "absent": 5,
+     "fail": 0
+    },
+    "ideal": {
+     "card": 6,
+     "absent": 11,
+     "fail": 0
+    }
+   },
+   "X": {
+    "hard": {
+     "card": 17,
+     "absent": 0,
+     "fail": 0
+    },
+    "medium": {
+     "card": 13,
+     "absent": 4,
+     "fail": 0
+    },
+    "easy": {
+     "card": 13,
+     "absent": 4,
+     "fail": 0
+    },
+    "ideal": {
+     "card": 5,
+     "absent": 12,
+     "fail": 0
+    }
+   }
+  },
+  "cells": [
+   {
+    "key": "a",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "a",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "a",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "b",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "notDistinct"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "notDistinct"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "b",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "b",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "c",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "c",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "c",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "d",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "d",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "d",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "e",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "e",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "e",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "af",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "af",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "af",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "flf",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "flf",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "flf",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz0",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz0",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "notDistinct"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "notDistinct"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz0",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz1",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz1",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz1",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz2",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz2",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz2",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz3",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz3",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz3",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz4",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz4",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz4",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz5",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz5",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz5",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "notDistinct"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "notDistinct"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz6",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz6",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz6",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz7",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz7",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "card",
+      "reason": "card"
+     }
+    ]
+   },
+   {
+    "key": "fuzz7",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "tooClose"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz8",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz8",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz8",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "medium",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz9",
+    "tier": "S",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz9",
+    "tier": "M",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   },
+   {
+    "key": "fuzz9",
+    "tier": "X",
+    "verdicts": [
+     {
+      "level": "hard",
+      "state": "card",
+      "reason": "card"
+     },
+     {
+      "level": "easy",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "medium",
+      "state": "absent",
+      "reason": "belowMinimal"
+     },
+     {
+      "level": "ideal",
+      "state": "absent",
+      "reason": "sameAsHard"
+     }
+    ]
+   }
+  ],
+  "failures": [],
+  "before": {
+   "S": {
+    "hard": 17,
+    "medium": 2,
+    "easy": 5,
+    "ideal": 14
+   },
+   "M": {
+    "hard": 17,
+    "medium": 6,
+    "easy": 10,
+    "ideal": 13
+   },
+   "X": {
+    "hard": 17,
+    "medium": 4,
+    "easy": 11,
+    "ideal": 12
+   }
+  }
+ }
+}

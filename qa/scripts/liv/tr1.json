@@ -1,0 +1,2 @@
+[{"goto":"/train","wait":3000,"dump":1,"textDump":2500,"shot":"09-train-today"},
+{"goto":"/train/2026-10-02","wait":3000,"dump":1,"textDump":3500}]

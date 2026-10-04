@@ -1,0 +1,9 @@
+{
+  "supplementId": "creatine_monohydrate",
+  "state": "taking",
+  "dose": 5,
+  "unit": "g",
+  "timesOfDay": [
+    "morning"
+  ]
+}

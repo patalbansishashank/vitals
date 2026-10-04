@@ -1,0 +1,10 @@
+import { open, BASE, shot, text } from './lib.mjs';
+const mobile = process.argv[2] === 'mobile';
+const prof = process.argv[3] || 'p1-base';
+const { browser, page, errors } = await open({ mobile, profile: prof });
+await page.clock.install({ time: new Date('2026-10-02T12:00:00') });
+await page.goto(BASE + '/food', { waitUntil: 'networkidle' }); await page.waitForTimeout(3000);
+console.log('FOOD', (await text(page, 5000)).replace(/\n+/g, ' / '));
+await shot(page, mobile ? '20-food-noprovider-m' : '20-food-noprovider');
+console.log('ERRORS', errors);
+await browser.close();

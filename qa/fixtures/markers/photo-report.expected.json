@@ -1,0 +1,67 @@
+{
+  "file": "photo-report.png",
+  "synthetic": true,
+  "layout": "phone photo of a one-page report (PNG, slightly rotated)",
+  "sampleDate": "2026-07-02",
+  "pages": 1,
+  "textlessPages": [],
+  "note": "textlessPages and imageOnly[].sourcePage count the source pages; a long table may spill onto an extra printed page (see printedPages)",
+  "patient": {
+    "name": "Ishaan Madeup",
+    "ageSex": "29 Y / M",
+    "phone": "+91 99887 66554",
+    "id": "PDC-3141592",
+    "barcode": "BAR-2718281",
+    "address": "9 Nowhere Road, Jaipur 302001",
+    "doctor": "Dr. Unreal Shah"
+  },
+  "tierA": [
+    {
+      "markerId": "ldl",
+      "nameOnReport": "LDL Cholesterol",
+      "value": 165,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "hdl",
+      "nameOnReport": "HDL Cholesterol",
+      "value": 52,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "tg",
+      "nameOnReport": "Triglycerides",
+      "value": 140,
+      "unit": "mg/dL",
+      "calculated": false
+    },
+    {
+      "markerId": "hba1c",
+      "nameOnReport": "HbA1c",
+      "value": 5.6,
+      "unit": "%",
+      "calculated": false
+    },
+    {
+      "markerId": "tsh",
+      "nameOnReport": "TSH",
+      "value": 1.9,
+      "unit": "µIU/mL",
+      "calculated": false
+    },
+    {
+      "markerId": "vitD",
+      "nameOnReport": "Vitamin D (25-OH)",
+      "value": 24,
+      "unit": "ng/mL",
+      "calculated": false
+    }
+  ],
+  "imageOnly": [],
+  "droppedCalculated": [],
+  "width": 760,
+  "height": 1000,
+  "patientBlockBottomFraction": 0.156
+}

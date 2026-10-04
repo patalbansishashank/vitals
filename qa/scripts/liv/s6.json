@@ -1,0 +1,1 @@
+[{"goto":"/simulate/starter/schedule"},{"click":"Run","wait":15000},{"goto":"/simulate/starter/results","wait":5000,"dump":1,"eval":"document.body.innerText.match(/.{0,40}[Ss]tart.{0,60}/g)"}]

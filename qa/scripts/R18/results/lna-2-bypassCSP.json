@@ -1,0 +1,522 @@
+{
+ "chromium": "/usr/bin/chromium",
+ "site": "https://vitals.creative.desi/",
+ "at": "2026-10-03T06:34:09.805Z",
+ "results": [
+  {
+   "variant": "granted-via-cdp",
+   "target": "a-loopback",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 3,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "a-loopback-tas",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": "loopback",
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 3,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "b-tailnet-ip",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "b-tailnet-ip-tas",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 0,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "b-tailnet-ip-tas-preflight",
+   "url": "http://100.64.0.2:4892/v1/pair/status",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 0,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "c-serve-server",
+   "url": "https://vitals.example.ts.net:8443/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 46,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "c-serve-pc",
+   "url": "https://my-pc.example.ts.net:8444/echo",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 9,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    },
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "c-serve-pc-sse",
+   "url": "https://my-pc.example.ts.net:8444/sse",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp",
+   "target": "d-public",
+   "url": "https://api.github.com/zen",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "Non-blocking is better than blocking.",
+   "ms": 51,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp",
+   "permissions": {
+    "local-network-access": "denied",
+    "local-network": "denied",
+    "loopback-network": "granted"
+   },
+   "grantTried": {
+    "localNetworkAccess": "ok",
+    "localNetwork": "ok",
+    "loopbackNetwork": "ok"
+   },
+   "console": [
+    "Connecting to 'http://100.64.0.2:4892/health' violates the following Content Security Policy directive: \"connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*\". The action has been blocked.",
+    "Connecting to 'http://100.64.0.2:4892/health' violates the following Content Security Policy directive: \"connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*\". The action has been blocked.",
+    "Connecting to 'http://100.64.0.2:4892/v1/pair/status' violates the following Content Security Policy directive: \"connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*\". The action has been blocked.",
+    "Access to fetch at 'https://vitals.example.ts.net:8443/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://my-pc.example.ts.net:8444/echo' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://my-pc.example.ts.net:8444/sse' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space."
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "a-loopback",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 2,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "a-loopback-tas",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": "loopback",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 2,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "b-tailnet-ip",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "b-tailnet-ip-tas",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "b-tailnet-ip-tas-preflight",
+   "url": "http://100.64.0.2:4892/v1/pair/status",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    },
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "c-serve-server",
+   "url": "https://vitals.example.ts.net:8443/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 49,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "c-serve-pc",
+   "url": "https://my-pc.example.ts.net:8444/echo",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 9,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    },
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "c-serve-pc-sse",
+   "url": "https://my-pc.example.ts.net:8444/sse",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "default-bypassCSP",
+   "target": "d-public",
+   "url": "https://api.github.com/zen",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "Keep it logically awesome.",
+   "ms": 52,
+   "cdpFailures": []
+  },
+  {
+   "variant": "default-bypassCSP",
+   "permissions": {
+    "local-network-access": "prompt",
+    "local-network": "prompt",
+    "loopback-network": "prompt"
+   },
+   "grantTried": {},
+   "console": [
+    "Access to fetch at 'http://127.0.0.1:4891/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `loopback` address space.",
+    "Access to fetch at 'http://127.0.0.1:4891/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `loopback` address space.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/health'. This content should also be served over HTTPS.",
+    "Access to fetch at 'http://100.64.0.2:4892/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/health'. This content should also be served over HTTPS.",
+    "Access to fetch at 'http://100.64.0.2:4892/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/v1/pair/status'. This content should also be served over HTTPS.",
+    "Access to fetch at 'http://100.64.0.2:4892/v1/pair/status' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://vitals.example.ts.net:8443/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://my-pc.example.ts.net:8444/echo' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://my-pc.example.ts.net:8444/sse' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space."
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "a-loopback",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 4,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "a-loopback-tas",
+   "url": "http://127.0.0.1:4891/health",
+   "targetAddressSpace": "loopback",
+   "outcome": "allowed",
+   "status": 200,
+   "body": "{\"version\":\"0.2.0\",\"roles\":[\"proxy\",\"agent\"],\"ownerCount\":0}",
+   "ms": 5,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "b-tailnet-ip",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 3,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "b-tailnet-ip-tas",
+   "url": "http://100.64.0.2:4892/health",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 3,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "b-tailnet-ip-tas-preflight",
+   "url": "http://100.64.0.2:4892/v1/pair/status",
+   "targetAddressSpace": "local",
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 1,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    },
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "c-serve-server",
+   "url": "https://vitals.example.ts.net:8443/health",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 48,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "c-serve-pc",
+   "url": "https://my-pc.example.ts.net:8444/echo",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 14,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_BLOCKED_BY_LOCAL_NETWORK_ACCESS_CHECKS",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    },
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "c-serve-pc-sse",
+   "url": "https://my-pc.example.ts.net:8444/sse",
+   "targetAddressSpace": null,
+   "outcome": "blocked",
+   "error": "TypeError: Failed to fetch",
+   "ms": 2,
+   "cdpFailures": [
+    {
+     "errorText": "net::ERR_FAILED",
+     "cors": {
+      "corsError": "LocalNetworkAccessPermissionDenied",
+      "failedParameter": ""
+     }
+    }
+   ]
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "target": "d-public",
+   "url": "https://api.github.com/zen",
+   "targetAddressSpace": null,
+   "outcome": "allowed",
+   "status": 200,
+   "body": "Keep it logically awesome.",
+   "ms": 52,
+   "cdpFailures": []
+  },
+  {
+   "variant": "granted-via-cdp-bypassCSP",
+   "permissions": {
+    "local-network-access": "denied",
+    "local-network": "denied",
+    "loopback-network": "granted"
+   },
+   "grantTried": {
+    "localNetworkAccess": "ok",
+    "localNetwork": "ok",
+    "loopbackNetwork": "ok"
+   },
+   "console": [
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/health'. This content should also be served over HTTPS.",
+    "Access to fetch at 'http://100.64.0.2:4892/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/health'. This content should also be served over HTTPS.",
+    "Access to fetch at 'http://100.64.0.2:4892/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Mixed Content: The page at 'https://vitals.creative.desi/welcome' was loaded over HTTPS, but requested an insecure resource 'http://100.64.0.2:4892/v1/pair/status'. This content should also be served over HTTPS.",
+    "Access to fetch at 'http://100.64.0.2:4892/v1/pair/status' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://vitals.example.ts.net:8443/health' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://my-pc.example.ts.net:8444/echo' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space.",
+    "Access to fetch at 'https://my-pc.example.ts.net:8444/sse' from origin 'https://vitals.creative.desi' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space."
+   ]
+  }
+ ]
+}

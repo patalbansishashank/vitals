@@ -1,0 +1,7 @@
+[{"goto":"/food","wait":3000,"eval":"[document.querySelector('h1')?.innerText, document.body.innerText.match(/energy\\neaten[\\s\\S]{0,25}/)?.[0]]"},
+{"goto":"/coach","wait":3500},
+{"fillCss":"textarea","value":"I had dal and rice for lunch today","wait":300},{"click":"Send","role":"button","wait":8000},
+{"goto":"/food","wait":3000,"eval":"document.body.innerText.match(/energy\\neaten[\\s\\S]{0,25}/)?.[0]"},
+{"goto":"/coach","wait":3500,"eval":"(()=>{const b=[...document.querySelectorAll('button')].filter(b=>/Undo logged/.test(b.getAttribute('aria-label')||''));b[b.length-1].click();return b.length})()"},
+{"wait":3000,"eval":"[...document.querySelectorAll('article')].slice(-1).map(a=>a.innerText.slice(0,200))","shot":"19-coach-undo"},
+{"goto":"/food","wait":3000,"eval":"document.body.innerText.match(/energy\\neaten[\\s\\S]{0,25}/)?.[0]"}]

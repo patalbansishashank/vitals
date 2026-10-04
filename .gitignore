@@ -1,0 +1,25 @@
+node_modules
+dist
+coverage
+.netlify
+*.local
+.DS_Store
+*.tsbuildinfo
+.vitest/
+.env
+.env.*
+.e6-tmp/
+scripts/figure/.cache/
+bench-results/
+.tmp-bundle/
+qa/results/.timing/
+# plan 04: QA values that must not be public, private design captures, the desktop and Android builds, signing keys
+qa/local.config.json
+design/screens/private/
+apps/*/dist/
+apps/*/release/
+apps/android/android/app/build/
+apps/android/android/.gradle/
+*.keystore
+*.jks
+release-signing/

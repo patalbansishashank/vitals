@@ -1,0 +1,73 @@
+# Production deploy to Netlify. Runs only for version tags (vX.Y.Z) and on manual dispatch.
+# Pushes to main run nothing. The release gate (typecheck, lint, full test suite) runs locally
+# in `pnpm release` before the tag is created; see docs/RELEASING.md.
+name: Deploy
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      # package.json has no "packageManager" field, so the pnpm major is pinned here.
+      # If one is added later, drop `version` (the action fails when both are set and disagree).
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Set up Node (from .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # netlify-cli has two binaries (netlify, ntl), so pnpm 11 needs `--package=netlify-cli@27 dlx netlify`
+      # (`pnpm dlx netlify-cli@27` fails with ERR_PNPM_DLX_MULTIPLE_BINS). This step also warms the dlx cache
+      # so the deploy step's JSON output is not mixed with install logs.
+      - name: Install Netlify CLI
+        run: pnpm --package=netlify-cli@27 dlx netlify --version
+
+      # dist/ was built above, so --no-build stops the CLI from running the build again.
+      # netlify.toml (redirects, headers) is still applied to the deploy. `--filter vitals` names the app package:
+      # the repo is a pnpm workspace (vitals + packages/companion) and the CLI refuses to guess (v0.2.0 deploy failure).
+      - name: Deploy to Netlify (production)
+        env:
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          pnpm --reporter=silent --package=netlify-cli@27 dlx netlify deploy --prod --no-build --dir=dist \
+            --filter vitals --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" \
+            --message "Release ${GITHUB_REF_NAME}" --json > "$RUNNER_TEMP/deploy.json"
+          jq '{deploy_id, site_name, url, deploy_url, logs}' "$RUNNER_TEMP/deploy.json"
+          {
+            echo "### Deployed ${GITHUB_REF_NAME} to production"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Site | $(jq -r '.url' "$RUNNER_TEMP/deploy.json") |"
+            echo "| Deploy | $(jq -r '.deploy_url' "$RUNNER_TEMP/deploy.json") |"
+            echo "| Deploy id | \`$(jq -r '.deploy_id' "$RUNNER_TEMP/deploy.json")\` |"
+            echo "| Netlify log | $(jq -r '.logs' "$RUNNER_TEMP/deploy.json") |"
+          } >> "$GITHUB_STEP_SUMMARY"

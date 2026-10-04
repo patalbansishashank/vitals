@@ -1,0 +1,8 @@
+{
+  "readings": [
+    { "id": "ldl", "value": 162, "unit": "mg/dL", "date": "2026-09-12", "method": "direct", "fasting": true },
+    { "id": "hba1c", "value": 5.9, "unit": "%", "date": "2026-09-12" }
+  ],
+  "chapter": "manual",
+  "context": { "creatineLast2w": false }
+}

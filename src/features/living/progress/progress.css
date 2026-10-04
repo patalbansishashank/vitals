@@ -1,0 +1,514 @@
+/* ==========================================================================
+   Progress (design/screens/living-mode.md §8) and score detail
+   (design/screens/scores.md §3.2). Faceplates on the chassis, hairlines
+   inside, achromatic chrome — colour only on data marks and status marks.
+   Mobile: one column with an anchor-chip rail; desktop: a sticky section
+   index on the left. Tokens only (var(--lm-*)).
+   ========================================================================== */
+
+@layer components {
+  /* ---- page grid and section index ----------------------------------------- */
+  .lv-prog {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .lv-prog-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+  .lv-prog-index {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .lv-prog {
+      grid-template-columns: 200px minmax(0, 1fr);
+      gap: 24px;
+    }
+    .lv-prog-index {
+      display: block;
+      align-self: stretch;
+    }
+    .lv-prog-index__sticky {
+      position: sticky;
+      top: calc(var(--lm-topbar-h) + 20px);
+    }
+  }
+  .lv-prog-index__label {
+    margin: 0 0 8px;
+  }
+  .lv-prog-face {
+    scroll-margin-top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 72px);
+  }
+  @media (min-width: 64rem) {
+    .lv-prog-face {
+      scroll-margin-top: calc(var(--lm-topbar-h) + 16px);
+    }
+  }
+  .lv-prog-plan {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* mobile anchor chips: a snap rail; the next chip peeks (scroll-padding = gutter) */
+  .lv-prog-rail {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--lm-line);
+    background: var(--lm-chassis);
+  }
+  .lv-prog-rail .lm-scroll-rail {
+    scroll-padding-inline: var(--lm-gutter);
+  }
+  @media (min-width: 64rem) {
+    .lv-prog-rail {
+      display: none;
+    }
+  }
+  .lv-prog-rail__chip {
+    position: relative;
+    height: 36px;
+    padding-inline: 14px;
+    flex: none;
+    scroll-snap-align: start;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  /* 44 px touch target around the 36 px chip */
+  .lv-prog-rail__chip::after {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
+  }
+  .lv-prog-rail__chip[aria-current='true'] {
+    background: var(--lm-ink);
+    border-color: var(--lm-ink);
+    color: var(--lm-ink-inverse);
+  }
+
+  /* ---- shared bits ---------------------------------------------------------- */
+  .lv-prog-state {
+    margin: 0 0 12px;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-note {
+    margin: 0;
+    font-size: 12px;
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-month {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .lv-prog-month__name {
+    min-width: 9ch;
+    text-align: center;
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+  }
+  .lv-prog-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lv-prog-table th,
+  .lv-prog-table td {
+    padding: 8px 8px 8px 0;
+    border-bottom: 1px solid var(--lm-line);
+    text-align: left;
+    vertical-align: baseline;
+  }
+  .lv-prog-table thead th {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-table tbody th {
+    font-weight: 500;
+  }
+  .lv-prog-table__sub {
+    display: block;
+    font-size: 12px;
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-table tr.is-missing {
+    color: var(--lm-ink-3);
+  }
+
+  /* ---- goals / check-ins ------------------------------------------------------ */
+  .lv-prog-goal,
+  .lv-prog-checkin {
+    display: grid;
+    gap: 6px;
+  }
+  .lv-prog-goal > p,
+  .lv-prog-checkin > p {
+    margin: 0;
+  }
+  .lv-prog-goal__title,
+  .lv-prog-checkin__title {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+  }
+  .lv-prog-goal__state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 17px;
+    line-height: 22px;
+    font-weight: 600;
+  }
+  .lv-prog-goal__date {
+    font-variant-numeric: tabular-nums;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-prog-goal__cause,
+  .lv-prog-goal__keep {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-goal__act {
+    margin-top: 4px;
+  }
+
+  /* ---- adherence --------------------------------------------------------------- */
+  .lv-prog-adh__readouts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 40px;
+    margin-bottom: 16px;
+  }
+  .lv-prog-word {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .lv-prog-word__aside {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- body ----------------------------------------------------------------------- */
+  .lv-prog-comp {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+  }
+  .lv-prog-comp__row {
+    display: grid;
+    grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+    gap: 4px 12px;
+    align-items: baseline;
+  }
+  .lv-prog-comp__row dd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    align-items: baseline;
+    margin: 0;
+  }
+  .lv-prog-comp__since {
+    font-size: 12px;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- body signals footer ------------------------------------------------------ */
+  .lv-prog-more {
+    margin: 0;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--lm-ink-3);
+  }
+  .lv-prog-more a {
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- log calendar ------------------------------------------------------------ */
+  .lv-prog-cal {
+    width: 100%;
+    max-width: 420px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-bottom: 8px;
+  }
+  .lv-prog-cal th {
+    padding: 0 0 4px;
+    text-align: center;
+    font-weight: 500;
+  }
+  .lv-prog-cal__cell {
+    padding: 1px;
+    text-align: center;
+  }
+  .lv-prog-cal__key {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 2px;
+    min-height: 44px;
+    border-radius: var(--lm-radius-sm);
+    color: var(--lm-ink);
+    text-decoration: none;
+  }
+  @media (hover: hover) {
+    a.lv-prog-cal__key:hover {
+      background: var(--lm-face-hover);
+    }
+  }
+  .lv-prog-cal__key[data-outside='true'] {
+    color: var(--lm-ink-3);
+  }
+  .lv-prog-cal__cell[data-today='true'] .lv-prog-cal__key {
+    box-shadow: inset 0 0 0 2px var(--lm-ink);
+  }
+  .lv-prog-cal__cell[data-assumed='true'] .lv-prog-cal__key {
+    outline: 1px dashed var(--lm-ink-3);
+    outline-offset: -3px;
+  }
+  .lv-prog-cal__cell[data-paused='true'] .lv-prog-cal__key::after {
+    content: '';
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: 50%;
+    border-top: 1px solid var(--lm-ink-3);
+  }
+  .lv-prog-cal__num {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-prog-cal__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-ink);
+  }
+  .lv-prog-cal__none {
+    width: 6px;
+    height: 6px;
+  }
+
+  /* ---- log day list -------------------------------------------------------------- */
+  .lv-prog-days {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-prog-day {
+    display: grid;
+    gap: 6px;
+    padding: 10px 0;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lv-prog-day:first-child {
+    border-top: 0;
+  }
+  .lv-prog-day__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+  .lv-prog-day__date {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    font-weight: 600;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  @media (pointer: fine) {
+    .lv-prog-day__date {
+      min-height: 32px;
+    }
+  }
+  .lv-prog-day__score {
+    font-size: 12px;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-prog-day__entries {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12px;
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-day__entries li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ---- plan versions ----------------------------------------------------------- */
+  .lv-prog-versions {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-prog-versions li + li {
+    border-top: 1px solid var(--lm-line);
+  }
+  .lv-prog-versions a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- add a measurement ---------------------------------------------------- */
+  .lv-measure {
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    display: grid;
+    gap: 16px;
+  }
+  .lv-measure__date {
+    margin: 0;
+  }
+  .lv-measure__repeats {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .lv-measure__pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  /* ---- score detail ------------------------------------------------------------ */
+  .lv-detail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .lv-detail__col {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .lv-detail {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    }
+  }
+  .lv-detail__readout {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+  }
+  .lv-detail__readout > p {
+    margin: 0;
+  }
+  .lv-detail__state {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 600;
+    font-stretch: var(--lm-wdth-wide);
+  }
+  .lv-detail__valueline {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-detail__value {
+    font-size: 24px;
+    line-height: 30px;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-detail__lines {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-detail__prov {
+    font-size: 11px;
+    color: var(--lm-ink-3);
+  }
+  .lv-detail__flag,
+  .lv-detail__prose {
+    margin: 0 0 12px;
+    max-width: var(--lm-measure-prose);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lv-detail__vendor {
+    color: var(--lm-ink-3);
+  }
+  .lv-detail__decisions {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-detail__decisions a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--lm-ink);
+  }
+  .lv-detail__evidence {
+    margin: 12px 0 0;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-detail__versions {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-detail__ver {
+    font-size: 11px;
+    font-stretch: var(--lm-wdth-condensed);
+    color: var(--lm-ink);
+  }
+}
