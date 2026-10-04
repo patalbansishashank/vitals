@@ -7,7 +7,7 @@ import { FOOD_FIXTURE } from '../foods.fixture';
 import { KITCHEN_COUNTS, KITCHEN_SEED } from '../kitchen';
 
 const ROOT = join(__dirname, '..', '..', '..', '..');
-const SEED = JSON.parse(readFileSync(join(ROOT, 'plan', '02-next', 'research', 'R12-seed.json'), 'utf8')) as Record<string, unknown>;
+const SEED = JSON.parse(readFileSync(join(ROOT, 'research', 'R12-seed.json'), 'utf8')) as Record<string, unknown>;
 
 describe('kitchen catalogue module', () => {
   it('equals the R12 seed (regenerate with node scripts/kitchen-catalogue.mjs)', () => {

@@ -1,0 +1,3324 @@
+{
+  "version": 1,
+  "generatedFrom": "plan/02-next/research/R13-markers-lipids.md",
+  "notes": "Units: mg/dL = SI × factor (ApoB: g/L × 100). Lp(a) factor is null: store mg/dL and nmol/L as entered, never convert. retestWeeks null = measure once. Rule \"when.op >= 0\" means \"any entered value\". \"when.sex\" and \"when.and\" extend the A3 schema. Placeholders {value} and {date} are filled from the stored measurement.",
+  "markers": [
+    {
+      "id": "ldl",
+      "label": "LDL cholesterol (LDL-C)",
+      "units": {
+        "si": "mmol/L",
+        "conventional": "mg/dL",
+        "factor": 38.67
+      },
+      "ranges": [
+        {
+          "region": "US/India lab print",
+          "source": "S80",
+          "high": 100,
+          "note": "ATP III: < 100 optimal, 100–129 near optimal, 130–159 borderline high, 160–189 high, ≥ 190 very high (mg/dL). Printed on most Indian reports."
+        },
+        {
+          "region": "India",
+          "source": "S66",
+          "target": 100,
+          "note": "CSI 2023 goals: < 100 low/moderate risk, < 70 high, < 55 very high and extreme risk (mg/dL)."
+        },
+        {
+          "region": "India",
+          "source": "S68",
+          "target": 50,
+          "note": "LAI: < 50 mg/dL for established ASCVD or diabetes with added risk factors; ≤ 30 optional for extreme risk (abstract)."
+        },
+        {
+          "region": "Europe",
+          "source": "S70",
+          "target": 55,
+          "note": "ESC/EAS 2019: < 116 low, < 100 moderate, < 70 high, < 55 very high risk (mg/dL)."
+        },
+        {
+          "region": "Diabetes (ADA)",
+          "source": "S79",
+          "target": 70,
+          "note": "ADA 2026: age 40–75 with diabetes < 70; with ASCVD < 55 mg/dL."
+        },
+        {
+          "region": "Non-fasting flag",
+          "source": "S74",
+          "high": 116,
+          "note": "EAS/EFLM: non-fasting LDL ≥ 3 mmol/L (≈ 116 mg/dL) is flagged; non-fasting LDL reads ≈ 8 mg/dL lower."
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">=",
+          "value": 190,
+          "unit": "mg/dL",
+          "message": "LDL at or above 190 mg/dL can mean an inherited cholesterol condition. Please see a clinician; Vitals keeps planning but cannot assess this.",
+          "source": "S80"
+        }
+      ],
+      "retestWeeks": 8
+    },
+    {
+      "id": "hdl",
+      "label": "HDL cholesterol (HDL-C)",
+      "units": {
+        "si": "mmol/L",
+        "conventional": "mg/dL",
+        "factor": 38.67
+      },
+      "ranges": [
+        {
+          "region": "US/India lab print",
+          "source": "S80",
+          "low": 40,
+          "note": "ATP III: < 40 low; ≥ 60 high. Metabolic-syndrome criterion < 40 men / < 50 women."
+        },
+        {
+          "region": "India",
+          "source": "S66",
+          "low": 40,
+          "note": "CSI 2023: desirable > 40 men, > 50 women; a risk marker, not a target; raising HDL with drugs not recommended."
+        },
+        {
+          "region": "Non-fasting flag",
+          "source": "S74",
+          "low": 40,
+          "note": "EAS/EFLM: ≤ 1 mmol/L (≈ 40 mg/dL) flagged."
+        }
+      ],
+      "clinicianOnly": [],
+      "retestWeeks": 8
+    },
+    {
+      "id": "nonhdl",
+      "label": "Non-HDL cholesterol",
+      "units": {
+        "si": "mmol/L",
+        "conventional": "mg/dL",
+        "factor": 38.67
+      },
+      "ranges": [
+        {
+          "region": "India",
+          "source": "S66",
+          "target": 130,
+          "note": "CSI 2023 goals: < 130 low/moderate, < 100 high, < 85 very high and extreme risk (mg/dL)."
+        },
+        {
+          "region": "Europe",
+          "source": "S70",
+          "target": 85,
+          "note": "ESC/EAS 2019: goal ≈ LDL goal + 30 mg/dL (exact table not confirmed this session)."
+        },
+        {
+          "region": "Non-fasting flag",
+          "source": "S74",
+          "high": 150,
+          "note": "EAS/EFLM: ≥ 3.9 mmol/L (≈ 150 mg/dL) flagged."
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">=",
+          "value": 220,
+          "unit": "mg/dL",
+          "message": "Non-HDL at or above 220 mg/dL (LDL 190 + 30) when LDL is not reported. Please see a clinician. Derived threshold.",
+          "source": "S70"
+        }
+      ],
+      "retestWeeks": 8
+    },
+    {
+      "id": "tg",
+      "label": "Triglycerides (TG)",
+      "units": {
+        "si": "mmol/L",
+        "conventional": "mg/dL",
+        "factor": 88.57
+      },
+      "ranges": [
+        {
+          "region": "US/India lab print",
+          "source": "S73",
+          "high": 150,
+          "note": "NCEP: < 150 normal, 150–199 borderline high, 200–499 high, ≥ 500 very high (mg/dL)."
+        },
+        {
+          "region": "Endocrine Society",
+          "source": "S72",
+          "high": 150,
+          "note": "Mild 150–199, moderate 200–999, severe 1000–1999, very severe ≥ 2000 mg/dL (categories via S73)."
+        },
+        {
+          "region": "India",
+          "source": "S66",
+          "high": 150,
+          "note": "CSI 2023: < 150 desirable; drug therapy considered for fasting TG > 500."
+        },
+        {
+          "region": "Diabetes (ADA)",
+          "source": "S79",
+          "high": 500,
+          "note": "ADA 2026: TG ≥ 500 needs medical therapy (pancreatitis risk)."
+        },
+        {
+          "region": "Non-fasting flag",
+          "source": "S74",
+          "high": 175,
+          "note": "EAS/EFLM: non-fasting ≥ 2 mmol/L (≈ 175 mg/dL) flagged; non-fasting TG reads ≈ 26 mg/dL higher."
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">=",
+          "value": 500,
+          "unit": "mg/dL",
+          "message": "Triglycerides at or above 500 mg/dL need medical treatment because of pancreatitis risk. Please see a clinician before changing your diet.",
+          "source": "S79"
+        },
+        {
+          "op": ">=",
+          "value": 1000,
+          "unit": "mg/dL",
+          "message": "Triglycerides at or above 1000 mg/dL are severe. Please contact a clinician soon.",
+          "source": "S72"
+        }
+      ],
+      "retestWeeks": 6
+    },
+    {
+      "id": "apob",
+      "label": "Apolipoprotein B (ApoB)",
+      "units": {
+        "si": "g/L",
+        "conventional": "mg/dL",
+        "factor": 100
+      },
+      "ranges": [
+        {
+          "region": "Non-fasting flag",
+          "source": "S74",
+          "high": 100,
+          "note": "EAS/EFLM: ApoB ≥ 1.0 g/L (100 mg/dL) flagged."
+        },
+        {
+          "region": "India",
+          "source": "S66",
+          "note": "CSI 2023: no universal ApoB target stated."
+        },
+        {
+          "region": "Europe",
+          "source": "S70",
+          "note": "ESC/EAS 2019 ApoB goals (< 65 / < 80 / < 100 mg/dL by risk, as quoted in the index) NOT confirmed in an opened page."
+        }
+      ],
+      "clinicianOnly": [],
+      "retestWeeks": 8
+    },
+    {
+      "id": "lpa",
+      "label": "Lipoprotein(a) [Lp(a)]",
+      "units": {
+        "si": "nmol/L",
+        "conventional": "mg/dL",
+        "factor": null
+      },
+      "ranges": [
+        {
+          "region": "EAS 2022",
+          "source": "S46",
+          "low": 30,
+          "high": 50,
+          "note": "< 30 mg/dL (< 75 nmol/L) lower risk; > 50 mg/dL (> 125 nmol/L) higher risk. mg/dL ↔ nmol/L conversion is isoform-dependent and not reliable."
+        },
+        {
+          "region": "India",
+          "source": "S66",
+          "high": 50,
+          "note": "CSI 2023: desirable < 50 mg/dL; measure at least once in a lifetime; about 1 in 4 South Asians above 50 mg/dL (> 125 nmol/L)."
+        },
+        {
+          "region": "Europe",
+          "source": "S70",
+          "high": 180,
+          "note": "ESC/EAS 2019: > 180 mg/dL carries risk similar to heterozygous familial hypercholesterolaemia."
+        },
+        {
+          "region": "Europe 2025",
+          "source": "S71",
+          "high": 50,
+          "note": "ESC/EAS 2025 focused update: > 50 mg/dL (≥ 105 nmol/L) clinically relevant (low confidence: page identity not independently verified)."
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">=",
+          "value": 180,
+          "unit": "mg/dL",
+          "message": "Lp(a) at or above 180 mg/dL carries risk similar to inherited high cholesterol. Please discuss it with a clinician.",
+          "source": "S70"
+        }
+      ],
+      "retestWeeks": null
+    }
+  ],
+  "interactions": [
+    {
+      "markerId": "ldl",
+      "lever": "vlc",
+      "direction": "up",
+      "effectSize": "+0.12 mmol/L (+4.6 mg/dL) vs low-fat at ≥ 12 mo [S5]; +0.16 mmol/L (+6.2 mg/dL) at ≥ 6 mo [S6]. Lean adults: +44 % in 3 wk (range +5 to +107 %) [S8]; +1.82 mmol/L (+70 mg/dL) in 4 wk, rise in 17/17 women [S7]. Self-selected survey: mean +91 mg/dL (SD 103), −5.9 mg/dL per BMI unit [S9]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese RCT adults (mean); normal-weight young adults (tail)",
+      "timeCourseWeeks": 3,
+      "mechanism": "More saturated fat lowers hepatic LDL-receptor activity; in lean people, more fat-carrying lipoprotein output (Lipid Energy Model, a hypothesis)",
+      "grade": "A",
+      "sources": [
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "lowcarb",
+      "direction": "none",
+      "effectSize": "+0.07 mmol/L (+2.7 mg/dL) vs low-fat at 6–12 mo [S12]; LDL fell 3.7 mg/dL less than on low-fat [S14]; −1.0 mg/dL vs usual diet at 6 mo [S13]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese adults, 23–121 RCTs",
+      "timeCourseWeeks": 26,
+      "mechanism": "Smaller SFA rise than keto; weight loss offsets it",
+      "grade": "A",
+      "sources": [
+        "S12",
+        "S13",
+        "S14"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "highprotein",
+      "direction": "none",
+      "effectSize": "−3.3 mg/dL (protein 25 %E vs carbohydrate diet, 6-wk feeding) [S15]; no difference in energy-restricted trials (mean 12 wk) [S16]; not significant across 74 trials [S17]",
+      "unit": "mg/dL",
+      "population": "Adults with prehypertension (OmniHeart); overweight adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "Protein replacing refined carbohydrate; half plant protein in OmniHeart",
+      "grade": "A",
+      "sources": [
+        "S15",
+        "S16",
+        "S17"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "fast16_8",
+      "direction": "none",
+      "effectSize": "TRE + CR vs CR alone: +0.5 mg/dL (95 % CI −8.5 to 9.5) at 12 mo [S48]; +1.39 mg/dL (ns) across 6 RCTs [S49]",
+      "unit": "mg/dL",
+      "population": "Adults with obesity",
+      "timeCourseWeeks": 52,
+      "mechanism": "No effect beyond the energy deficit it produces",
+      "grade": "A",
+      "sources": [
+        "S48",
+        "S49"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "fast24",
+      "direction": "up",
+      "effectSize": "+23 mg/dL after one 24-h water fast (second-hand figure from S51 table; abstract S50 reports total cholesterol up); pooled fasts ≤ 3 d: Hedges g +0.32",
+      "unit": "mg/dL",
+      "population": "Healthy adults, crossover",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Fasting lipolysis and lower insulin; reduced LDL clearance is the leading hypothesis (not established)",
+      "grade": "C",
+      "sources": [
+        "S50",
+        "S51"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "fast36_48",
+      "direction": "up",
+      "effectSize": "Pooled water-only fasts ≤ 3 d: LDL Hedges g +0.32 (standardised, small-to-moderate) [S51]; no direct 36–48 h trial opened",
+      "unit": "SMD",
+      "population": "Mixed adults, 22 studies",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "As for 24 h; extrapolated",
+      "grade": "C",
+      "sources": [
+        "S51"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "fast48plus",
+      "direction": "mixed",
+      "effectSize": "Zero-energy 7 d: 2.95 → 4.90 mmol/L (+66 %, +75 mg/dL) [S54]; pooled fasts > 3 d g +0.62, biphasic with a turning point near 10 d [S51]; 14-d 250 kcal/d modified fast: −0.72 mmol/L (−28 mg/dL) at day 14 [S53]",
+      "unit": "mg/dL",
+      "population": "Non-obese healthy adults (S54, n = 10); clinic fasters (S53, n = 40)",
+      "timeCourseWeeks": 1,
+      "mechanism": "Mobilised adipose lipid and reduced clearance during true fasting; falls again later in long modified fasts",
+      "grade": "B",
+      "sources": [
+        "S51",
+        "S53",
+        "S54"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "satfat",
+      "direction": "up",
+      "effectSize": "+0.036 mmol/L (+1.4 mg/dL) per 1 %E SFA replacing carbohydrate; vs PUFA the swap differs by 0.058 mmol/L (2.2 mg/dL) per %E [S1]. Cutting SFA 15 → 6 %E lowered LDL 11 % in 8 wk [S27]. Coconut oil +10.5 mg/dL vs non-tropical oils [S29]",
+      "unit": "mg/dL per %E",
+      "population": "165 diets / 2026 subjects (S1); 103 healthy adults (S27)",
+      "timeCourseWeeks": 3,
+      "mechanism": "SFA lowers hepatic LDL-receptor activity, so LDL clearance falls",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S27",
+        "S29"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "dietcholesterol",
+      "direction": "up",
+      "effectSize": "+1.9 mg/dL per +100 mg/d (linear) to +4.5 mg/dL (non-linear, saturating) [S3]; total cholesterol +2.2 mg/dL per 100 mg/d [S2]",
+      "unit": "mg/dL per 100 mg/d",
+      "population": "55 RCTs, 2652 adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Absorbed cholesterol suppresses hepatic LDL-receptor synthesis; saturable, with hypo- and hyper-responders",
+      "grade": "A",
+      "sources": [
+        "S2",
+        "S3",
+        "S4"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "fibre",
+      "direction": "down",
+      "effectSize": "−0.057 mmol/L (−2.2 mg/dL) per g soluble fibre at 2–10 g/d [S18]; oat β-glucan ≥ 3 g/d −0.25 mmol/L (−9.7 mg/dL) [S20]",
+      "unit": "mg/dL per g",
+      "population": "Adults, 2–12 wk trials",
+      "timeCourseWeeks": 4,
+      "mechanism": "Viscous fibre binds bile acids; the liver draws LDL cholesterol to make more",
+      "grade": "A",
+      "sources": [
+        "S18",
+        "S20"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "unsatfat",
+      "direction": "down",
+      "effectSize": "Per 1 %E replacing carbohydrate: PUFA −0.022 mmol/L (−0.85 mg/dL), MUFA −0.009 mmol/L [S1]; nuts −4.8 mg/dL per daily serving [S21]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials (S1); 61 trials (S21)",
+      "timeCourseWeeks": 3,
+      "mechanism": "PUFA up-regulates LDL-receptor activity; displaces SFA",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S21"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "alcohol",
+      "direction": "none",
+      "effectSize": "LDL change not reported in the opened meta-analyses (they report HDL and TG) [S22, S23]",
+      "unit": "—",
+      "population": "Adults, short feeding trials",
+      "timeCourseWeeks": 4,
+      "mechanism": "No direct LDL-receptor pathway known; expectation is no change",
+      "grade": "D",
+      "sources": [
+        "S22",
+        "S23"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "caffeine",
+      "direction": "mixed",
+      "effectSize": "Coffee: LDL +5.4 mg/dL (95 % CI 1.4–9.5), larger for unfiltered and in hyperlipidaemia [S26]; filtered coffee \"very little increase\" [S25]. Caffeine 400 mg/d alone: no lipid change in one 8-wk RCT (cirrhosis) [S36]",
+      "unit": "mg/dL",
+      "population": "12 RCTs, 1017 Western adults (~45 d)",
+      "timeCourseWeeks": 6,
+      "mechanism": "Unfiltered brew carries lipid-raising coffee oils; caffeine itself shows no effect (oil mechanism not re-opened here)",
+      "grade": "B",
+      "sources": [
+        "S25",
+        "S26",
+        "S36"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "+4.08 mg/dL (95 % CI −2.55 to 10.70, ns), 8 RCTs, very low-to-low certainty [S35]",
+      "unit": "mg/dL",
+      "population": "Adults in 8 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "No known pathway to LDL metabolism",
+      "grade": "C",
+      "sources": [
+        "S35"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "wheyprotein",
+      "direction": "none",
+      "effectSize": "−0.08 mmol/L (−3 mg/dL; 95 % CI −0.23 to 0.07, ns), 13 RCTs [S34]",
+      "unit": "mg/dL",
+      "population": "Adults, 13 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "No expected effect beyond displacing other foods",
+      "grade": "B",
+      "sources": [
+        "S34"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "deficit_large",
+      "direction": "mixed",
+      "effectSize": "VLCD 8 wk: LDL fell in weeks 1–3, then returned to baseline by week 8 [S57]",
+      "unit": "mg/dL",
+      "population": "Severely obese adults (BMI 40)",
+      "timeCourseWeeks": 8,
+      "mechanism": "Early fall with less intake; adipose cholesterol released during rapid loss (hypothesis)",
+      "grade": "C",
+      "sources": [
+        "S57"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "deficit_moderate",
+      "direction": "down",
+      "effectSize": "Weight-loss interventions: −0.20 mmol/L (−7.7 mg/dL) at 6–12 mo [S56]; alternate-day fasting −5.8 mg/dL with −4.3 kg [S52]",
+      "unit": "mg/dL",
+      "population": "83 RCTs (S56); 7 RCTs (S52)",
+      "timeCourseWeeks": 26,
+      "mechanism": "Lower hepatic cholesterol synthesis and VLDL output as fat mass falls",
+      "grade": "A",
+      "sources": [
+        "S52",
+        "S56"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "surplus",
+      "direction": "mixed",
+      "effectSize": "+1000 kcal/d for 3 wk raised LDL only when the surplus was saturated fat [S59]; +1250 kcal/d for 28 d: no LDL change [S58]",
+      "unit": "mg/dL",
+      "population": "Healthy adults, 3–4 wk",
+      "timeCourseWeeks": 3,
+      "mechanism": "Effect follows the fat type of the surplus (SFA → LDL-receptor down)",
+      "grade": "B",
+      "sources": [
+        "S58",
+        "S59"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "resistance_load",
+      "direction": "down",
+      "effectSize": "−6.1 mg/dL (29 RCTs, ≥ 4 wk) [S62]; a 2025 pooled analysis found only HDL improved with resistance training [S61]",
+      "unit": "mg/dL",
+      "population": "1329 adults (S62)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear; partly via body composition",
+      "grade": "B",
+      "sources": [
+        "S61",
+        "S62"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "All exercise: −7.2 mg/dL (95 % CI −9.1 to −5.4; 178 studies); aerobic training lowers LDL [S61]; benefit tracks weekly volume more than intensity [S82]",
+      "unit": "mg/dL",
+      "population": "6867 adults (S61)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Higher lipoprotein lipase activity and lipid turnover",
+      "grade": "A",
+      "sources": [
+        "S61",
+        "S82"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "Short sleep: RR 1.01 (0.93–1.10) for incident dyslipidaemia [S63]; experimental restriction lowered LDL in n = 14 [S64]",
+      "unit": "RR",
+      "population": "30 033 adults (S63)",
+      "timeCourseWeeks": 4,
+      "mechanism": "No consistent pathway in humans",
+      "grade": "C",
+      "sources": [
+        "S63",
+        "S64"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "−0.20 mmol/L (−7.7 mg/dL) at 6–12 mo [S56]; LDL fall correlates with kg lost (r = 0.29) [S55]",
+      "unit": "mg/dL",
+      "population": "70 studies (S55); 83 RCTs (S56)",
+      "timeCourseWeeks": 26,
+      "mechanism": "Less hepatic cholesterol synthesis; smaller VLDL pool",
+      "grade": "A",
+      "sources": [
+        "S55",
+        "S56"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:omega3_epa_dha",
+      "direction": "mixed",
+      "effectSize": "4 g/d EPA+DHA can raise LDL in TG ≥ 500 mg/dL; EPA-only did not [S31]; dose-response curve J-shaped [S32]",
+      "unit": "mg/dL",
+      "population": "Adults with hypertriglyceridaemia",
+      "timeCourseWeeks": 8,
+      "mechanism": "DHA speeds VLDL → LDL conversion when VLDL is high",
+      "grade": "A",
+      "sources": [
+        "S31",
+        "S32"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:psyllium",
+      "direction": "down",
+      "effectSize": "−0.33 mmol/L (−12.8 mg/dL; 95 % CI −0.38 to −0.27) at ~10 g/d [S19]",
+      "unit": "mg/dL",
+      "population": "28 trials, 1924 adults, ≥ 3 wk",
+      "timeCourseWeeks": 4,
+      "mechanism": "Bile-acid binding (viscous fibre)",
+      "grade": "A",
+      "sources": [
+        "S19"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:plant_protein",
+      "direction": "down",
+      "effectSize": "−4.76 mg/dL (≈ −3 to −4 %) at median 25 g/d soy protein, ~6 wk [S33]",
+      "unit": "mg/dL",
+      "population": "Adults with LDL 110–201 mg/dL, 41 trials",
+      "timeCourseWeeks": 6,
+      "mechanism": "Soy protein components raise LDL-receptor activity (mechanism debated)",
+      "grade": "A",
+      "sources": [
+        "S33"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:green_tea_extract",
+      "direction": "down",
+      "effectSize": "−2.19 mg/dL (95 % CI −3.16 to −1.21) [S37]",
+      "unit": "mg/dL",
+      "population": "14 RCTs, 1136 adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Catechins reduce intestinal cholesterol absorption",
+      "grade": "A",
+      "sources": [
+        "S37"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:cla_chitosan_glucomannan",
+      "direction": "none",
+      "effectSize": "CLA: LDL WMD +0.49 (ns) in 56 RCTs [S39]; an older analysis found −0.22 (units not stated) [S40]",
+      "unit": "—",
+      "population": "Adults, 56 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "No consistent effect; glucomannan was not assessed here",
+      "grade": "B",
+      "sources": [
+        "S39",
+        "S40"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:garcinia",
+      "direction": "none",
+      "effectSize": "LDL not significant; total cholesterol −6.8 mg/dL [S41]",
+      "unit": "mg/dL",
+      "population": "14 RCTs, 623 adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Unclear",
+      "grade": "C",
+      "sources": [
+        "S41"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:vitamin_d3",
+      "direction": "down",
+      "effectSize": "SMD −0.12 (small) [S42]",
+      "unit": "SMD",
+      "population": "41 RCTs, 3434 adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear; larger in deficiency",
+      "grade": "B",
+      "sources": [
+        "S42"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:magnesium",
+      "direction": "none",
+      "effectSize": "−0.01 mmol/L (ns) [S43]",
+      "unit": "mmol/L",
+      "population": "Adults with/without diabetes",
+      "timeCourseWeeks": 12,
+      "mechanism": "None expected",
+      "grade": "A",
+      "sources": [
+        "S43"
+      ]
+    },
+    {
+      "markerId": "ldl",
+      "lever": "supp:exogenous_ketones",
+      "direction": "none",
+      "effectSize": "No human trial found; rat study shows little lipid change over 28 d [S83]",
+      "unit": "—",
+      "population": "Rats",
+      "timeCourseWeeks": 4,
+      "mechanism": "Mechanistic expectation: none (no SFA or carbohydrate change)",
+      "grade": "D",
+      "sources": [
+        "S83"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "vlc",
+      "direction": "up",
+      "effectSize": "+0.09 mmol/L (+3.5 mg/dL) vs low-fat [S5]; +0.14 mmol/L (+5.4 mg/dL) [S6]; +13 mg/dL in a self-selected survey [S9]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese RCT adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "More dietary fat raises apoA-I production; less VLDL exchange",
+      "grade": "A",
+      "sources": [
+        "S5",
+        "S6",
+        "S9"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "lowcarb",
+      "direction": "up",
+      "effectSize": "+0.05 mmol/L (+1.9 mg/dL) vs low-fat [S12]; +3.3 mg/dL vs low-fat [S14]; +2.3 mg/dL vs usual diet at 6 mo [S13]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese adults",
+      "timeCourseWeeks": 26,
+      "mechanism": "As above, smaller",
+      "grade": "A",
+      "sources": [
+        "S12",
+        "S13",
+        "S14"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "highprotein",
+      "direction": "none",
+      "effectSize": "−1.3 mg/dL (protein vs carbohydrate diet) [S15]; no difference in energy-restricted trials [S16]",
+      "unit": "mg/dL",
+      "population": "Adults (OmniHeart; 12-wk trials)",
+      "timeCourseWeeks": 6,
+      "mechanism": "None of note",
+      "grade": "A",
+      "sources": [
+        "S15",
+        "S16"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "fast16_8",
+      "direction": "none",
+      "effectSize": "TRE + CR vs CR: +1.6 mg/dL (95 % CI −1.1 to 4.3) at 12 mo [S48]",
+      "unit": "mg/dL",
+      "population": "Adults with obesity",
+      "timeCourseWeeks": 52,
+      "mechanism": "No effect beyond weight change",
+      "grade": "B",
+      "sources": [
+        "S48"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "fast24",
+      "direction": "up",
+      "effectSize": "54.4 → 57.4 mg/dL after a 24-h water fast (second-hand from S51; abstract S50 confirms HDL rose)",
+      "unit": "mg/dL",
+      "population": "Healthy adults, crossover",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Acute shift in lipoprotein exchange with fasting lipolysis",
+      "grade": "C",
+      "sources": [
+        "S50",
+        "S51"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "fast36_48",
+      "direction": "none",
+      "effectSize": "Pooled fasts ≤ 3 d: Hedges g −0.01 [S51]",
+      "unit": "SMD",
+      "population": "Mixed adults",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "No change expected in the first 3 days",
+      "grade": "C",
+      "sources": [
+        "S51"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "fast48plus",
+      "direction": "down",
+      "effectSize": "Pooled fasts > 3 d: g −0.33, threshold near 3 d [S51]; slight fall at 14 d with more large HDL particles [S53]; unchanged at 7 d (n = 10) [S54]",
+      "unit": "SMD",
+      "population": "Mixed adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "Less dietary fat and apoA-I synthesis during prolonged fasting",
+      "grade": "B",
+      "sources": [
+        "S51",
+        "S53",
+        "S54"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "satfat",
+      "direction": "up",
+      "effectSize": "+0.011 mmol/L (+0.43 mg/dL) per 1 %E replacing carbohydrate [S1]; cutting SFA 15 → 6 %E lowered HDL 11 % [S27]; coconut oil +4.0 mg/dL [S29]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "Dietary fat raises apoA-I production",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S27",
+        "S29"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "dietcholesterol",
+      "direction": "up",
+      "effectSize": "+0.008 mmol/L (+0.3 mg/dL) per 100 mg/d [S2]; sex-dependent direction [S3]",
+      "unit": "mg/dL per 100 mg/d",
+      "population": "17 studies, 556 adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Small",
+      "grade": "A",
+      "sources": [
+        "S2",
+        "S3"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "fibre",
+      "direction": "none",
+      "effectSize": "HDL unchanged with soluble fibre [S18] and oat β-glucan [S20]",
+      "unit": "mg/dL",
+      "population": "Adults, 2–12 wk",
+      "timeCourseWeeks": 4,
+      "mechanism": "No pathway",
+      "grade": "A",
+      "sources": [
+        "S18",
+        "S20"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "unsatfat",
+      "direction": "up",
+      "effectSize": "Per 1 %E replacing carbohydrate: MUFA +0.008, PUFA +0.006 mmol/L (+0.3 / +0.2 mg/dL) [S1]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "Dietary fat raises apoA-I production",
+      "grade": "A",
+      "sources": [
+        "S1"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "alcohol",
+      "direction": "up",
+      "effectSize": "+3.99 mg/dL per 30 g ethanol/d [S22]; +0.094 mmol/L (+3.6 mg/dL), dose-dependent [S23]",
+      "unit": "mg/dL",
+      "population": "42–44 short feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "Ethanol raises apoA-I and HDL production; this rise is not evidence of benefit",
+      "grade": "A",
+      "sources": [
+        "S22",
+        "S23"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "caffeine",
+      "direction": "none",
+      "effectSize": "Coffee meta-analysis reported total and LDL cholesterol and TG, not an HDL change [S26]; caffeine alone: no lipid change [S36]",
+      "unit": "mg/dL",
+      "population": "Adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "None expected",
+      "grade": "D",
+      "sources": [
+        "S26",
+        "S36"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "−0.68 mg/dL (ns) [S35]",
+      "unit": "mg/dL",
+      "population": "8 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "C",
+      "sources": [
+        "S35"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "wheyprotein",
+      "direction": "none",
+      "effectSize": "+0.01 mmol/L (ns) [S34]",
+      "unit": "mmol/L",
+      "population": "13 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "B",
+      "sources": [
+        "S34"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "deficit_large",
+      "direction": "down",
+      "effectSize": "VLCD 8 wk: 1.26 → 1.04 mmol/L (−8.5 mg/dL) [S57]; −0.007 mmol/L per kg while actively losing [S55]",
+      "unit": "mg/dL",
+      "population": "Severely obese adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Less dietary fat and apoA-I synthesis while intake is very low; reverses once weight is stable",
+      "grade": "B",
+      "sources": [
+        "S55",
+        "S57"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "deficit_moderate",
+      "direction": "mixed",
+      "effectSize": "−0.007 mmol/L per kg during active loss; +0.009 mmol/L per kg once weight is stable [S55]",
+      "unit": "mmol/L per kg",
+      "population": "70 weight-loss studies",
+      "timeCourseWeeks": 12,
+      "mechanism": "Falls during loss, rises after stabilising",
+      "grade": "A",
+      "sources": [
+        "S55"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "surplus",
+      "direction": "up",
+      "effectSize": "+11 % with +1250 kcal/d for 28 d [S58]; rose in the SFA-overfeeding arm only [S59]",
+      "unit": "%",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "More fat intake raises apoA-I",
+      "grade": "B",
+      "sources": [
+        "S58",
+        "S59"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "resistance_load",
+      "direction": "none",
+      "effectSize": "+0.7 mg/dL (ns) [S62]; modest rise in a 2025 pooled analysis [S61]",
+      "unit": "mg/dL",
+      "population": "29 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "Small",
+      "grade": "B",
+      "sources": [
+        "S61",
+        "S62"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "aerobic_load",
+      "direction": "up",
+      "effectSize": "+2.53 mg/dL; threshold ≈ 900 kcal/wk or 120 min/wk; +1.4 mg/dL per extra 10 min/session [S60]; +2.11 mg/dL all exercise [S61]",
+      "unit": "mg/dL",
+      "population": "25 RCTs (S60)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Higher lipoprotein lipase and LCAT activity",
+      "grade": "A",
+      "sources": [
+        "S60",
+        "S61"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "Large HDL particles lower in people reporting insufficient sleep (cohort); HDL-C change not quantified [S64]; no association with incident dyslipidaemia [S63]",
+      "unit": "—",
+      "population": "Cohorts, n = 2739; n = 30 033",
+      "timeCourseWeeks": 4,
+      "mechanism": "Down-regulated cholesterol-transport genes (hypothesis)",
+      "grade": "C",
+      "sources": [
+        "S63",
+        "S64"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "weight_loss",
+      "direction": "mixed",
+      "effectSize": "−0.007 mmol/L per kg while losing; +0.009 mmol/L per kg at stable reduced weight [S55]",
+      "unit": "mmol/L per kg",
+      "population": "70 studies",
+      "timeCourseWeeks": 12,
+      "mechanism": "Phase-dependent",
+      "grade": "A",
+      "sources": [
+        "S55"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "supp:omega3_epa_dha",
+      "direction": "mixed",
+      "effectSize": "Dose-response curve J-shaped (non-linear) [S32]",
+      "unit": "—",
+      "population": "90 RCTs, 72 598 adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Faster VLDL clearance shifts HDL composition",
+      "grade": "B",
+      "sources": [
+        "S32"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "supp:cla_chitosan_glucomannan",
+      "direction": "mixed",
+      "effectSize": "HDL WMD −0.40 (−0.72 to −0.07), while the abstract text says \"improved\": internally inconsistent [S39]",
+      "unit": "—",
+      "population": "56 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear",
+      "grade": "C",
+      "sources": [
+        "S39"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "supp:garcinia",
+      "direction": "up",
+      "effectSize": "+2.95 mg/dL (2.01–3.89) [S41]",
+      "unit": "mg/dL",
+      "population": "14 RCTs, 623 adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Unclear; small heterogeneous trials",
+      "grade": "C",
+      "sources": [
+        "S41"
+      ]
+    },
+    {
+      "markerId": "hdl",
+      "lever": "supp:magnesium",
+      "direction": "up",
+      "effectSize": "+1.21 mg/dL (0.58–1.85) [S84]; ns in an older analysis [S43]",
+      "unit": "mg/dL",
+      "population": "Adults (dose-response meta-analysis)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear",
+      "grade": "B",
+      "sources": [
+        "S43",
+        "S84"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "vlc",
+      "direction": "mixed",
+      "effectSize": "Derived (non-HDL ≈ LDL + TG/5): mixed populations ≈ +1 mg/dL (LDL +4.6, TG −16) [S5]; lean adults rise with LDL (+70 mg/dL LDL in 4 wk) [S7]",
+      "unit": "mg/dL",
+      "population": "As for LDL",
+      "timeCourseWeeks": 3,
+      "mechanism": "LDL rise partly offset by lower VLDL cholesterol",
+      "grade": "B",
+      "sources": [
+        "S5",
+        "S7"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "lowcarb",
+      "direction": "none",
+      "effectSize": "Derived: ≈ +1 mg/dL (LDL +2.7, TG −8.9 vs low-fat) [S12]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese adults",
+      "timeCourseWeeks": 26,
+      "mechanism": "Opposing LDL and VLDL changes",
+      "grade": "B",
+      "sources": [
+        "S12"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "highprotein",
+      "direction": "down",
+      "effectSize": "Derived: ≈ −6 mg/dL (LDL −3.3, TG −15.7) [S15]",
+      "unit": "mg/dL",
+      "population": "OmniHeart adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "Less VLDL from refined carbohydrate",
+      "grade": "B",
+      "sources": [
+        "S15"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "fast16_8",
+      "direction": "none",
+      "effectSize": "Derived from TRE vs CR: ≈ −0.7 mg/dL [S48]",
+      "unit": "mg/dL",
+      "population": "Adults with obesity",
+      "timeCourseWeeks": 52,
+      "mechanism": "Weight-dependent only",
+      "grade": "B",
+      "sources": [
+        "S48"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "fast24",
+      "direction": "up",
+      "effectSize": "Derived: ≈ +15 mg/dL (LDL +23, TG −38, second-hand) [S50, S51]",
+      "unit": "mg/dL",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "LDL rise exceeds VLDL fall",
+      "grade": "C",
+      "sources": [
+        "S50",
+        "S51"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "fast36_48",
+      "direction": "up",
+      "effectSize": "Total cholesterol g +0.15 with HDL unchanged (≤ 3 d) [S51]",
+      "unit": "SMD",
+      "population": "Mixed adults",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "Extrapolated",
+      "grade": "C",
+      "sources": [
+        "S51"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "fast48plus",
+      "direction": "mixed",
+      "effectSize": "Zero-energy 7 d: total cholesterol +1.83 mmol/L with HDL unchanged → ≈ +71 mg/dL [S54]; 14-d modified fast: falls (LDL −28, TG −31 mg/dL) [S53]",
+      "unit": "mg/dL",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "As for LDL",
+      "grade": "B",
+      "sources": [
+        "S53",
+        "S54"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "satfat",
+      "direction": "up",
+      "effectSize": "Derived from total − HDL coefficients: +0.034 mmol/L (+1.3 mg/dL) per 1 %E replacing carbohydrate [S1]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "LDL-receptor down-regulation",
+      "grade": "A",
+      "sources": [
+        "S1"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "dietcholesterol",
+      "direction": "up",
+      "effectSize": "Derived: +1.9 mg/dL per 100 mg/d (total +2.2, HDL +0.3) [S2]",
+      "unit": "mg/dL per 100 mg/d",
+      "population": "17 studies",
+      "timeCourseWeeks": 3,
+      "mechanism": "As for LDL",
+      "grade": "A",
+      "sources": [
+        "S2"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "fibre",
+      "direction": "down",
+      "effectSize": "Psyllium ~10 g/d: −0.39 mmol/L (−15 mg/dL) [S19]; soluble fibre −1.7 mg/dL per g (derived, HDL unchanged) [S18]",
+      "unit": "mg/dL",
+      "population": "Adults, ≥ 3 wk",
+      "timeCourseWeeks": 4,
+      "mechanism": "Bile-acid binding",
+      "grade": "A",
+      "sources": [
+        "S18",
+        "S19"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "unsatfat",
+      "direction": "down",
+      "effectSize": "Derived: PUFA −0.028 mmol/L (−1.1 mg/dL) per %E [S1]; nuts: total −4.7, ApoB −3.7 mg/dL per serving [S21]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "LDL-receptor up-regulation",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S21"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "alcohol",
+      "direction": "mixed",
+      "effectSize": "TG +5.7 mg/dL per 30 g/d [S22] → ≈ +1 mg/dL; heavy intake raises VLDL (J-shaped) [S24]",
+      "unit": "mg/dL",
+      "population": "Adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "More VLDL secretion at high intake",
+      "grade": "C",
+      "sources": [
+        "S22",
+        "S24"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "caffeine",
+      "direction": "up",
+      "effectSize": "Coffee, derived: ≈ +8 mg/dL (LDL +5.4, TG +12.6) [S26]; filtered ≈ none [S25]",
+      "unit": "mg/dL",
+      "population": "Western adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "As for LDL",
+      "grade": "B",
+      "sources": [
+        "S25",
+        "S26"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "Derived: +3.6 mg/dL (ns components) [S35]",
+      "unit": "mg/dL",
+      "population": "8 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "C",
+      "sources": [
+        "S35"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "wheyprotein",
+      "direction": "none",
+      "effectSize": "Derived: ≈ −4.6 mg/dL (ns components) [S34]",
+      "unit": "mg/dL",
+      "population": "13 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "B",
+      "sources": [
+        "S34"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "deficit_large",
+      "direction": "down",
+      "effectSize": "VLCD 8 wk, derived: −0.32 mmol/L (−12 mg/dL) (total −0.54, HDL −0.22), with LDL and ApoB back to baseline by week 8 [S57]",
+      "unit": "mg/dL",
+      "population": "Severely obese adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Lower VLDL; LDL biphasic",
+      "grade": "C",
+      "sources": [
+        "S57"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "deficit_moderate",
+      "direction": "down",
+      "effectSize": "ADF, derived: ≈ −10 mg/dL (total −11.3, HDL −1.05) [S52]; ≈ −8.7 mg/dL from S56 LDL/TG",
+      "unit": "mg/dL",
+      "population": "7 RCTs (S52)",
+      "timeCourseWeeks": 26,
+      "mechanism": "Weight-dependent fall in VLDL and LDL",
+      "grade": "A",
+      "sources": [
+        "S52",
+        "S56"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "surplus",
+      "direction": "mixed",
+      "effectSize": "SFA surplus raised LDL; unsaturated or sugar surplus did not [S59]; 28-d mixed surplus: LDL and TG unchanged [S58]",
+      "unit": "mg/dL",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Fat type of the surplus",
+      "grade": "C",
+      "sources": [
+        "S58",
+        "S59"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "resistance_load",
+      "direction": "down",
+      "effectSize": "−8.7 mg/dL (29 RCTs) [S62]",
+      "unit": "mg/dL",
+      "population": "1329 adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear",
+      "grade": "A",
+      "sources": [
+        "S62"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "Derived from all exercise: ≈ −8 mg/dL (total −5.9, HDL +2.1) [S61]",
+      "unit": "mg/dL",
+      "population": "> 200 studies",
+      "timeCourseWeeks": 12,
+      "mechanism": "Lipoprotein lipase activity",
+      "grade": "B",
+      "sources": [
+        "S61"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "No association with incident dyslipidaemia [S63]",
+      "unit": "RR",
+      "population": "30 033 adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "None established",
+      "grade": "C",
+      "sources": [
+        "S63"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "Derived: ≈ −8.7 mg/dL (LDL −0.20, TG −0.13 mmol/L) [S56]",
+      "unit": "mg/dL",
+      "population": "83 RCTs",
+      "timeCourseWeeks": 26,
+      "mechanism": "Weight-dependent",
+      "grade": "A",
+      "sources": [
+        "S56"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:omega3_epa_dha",
+      "direction": "down",
+      "effectSize": "Approximately linear fall, most evident above 2 g/d in hyperlipidaemia [S32]; \"modestly decreased\" at 4 g/d [S31]",
+      "unit": "mg/dL",
+      "population": "90 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "Lower hepatic VLDL secretion",
+      "grade": "A",
+      "sources": [
+        "S31",
+        "S32"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:psyllium",
+      "direction": "down",
+      "effectSize": "−0.39 mmol/L (−15 mg/dL) at ~10 g/d [S19]",
+      "unit": "mg/dL",
+      "population": "28 trials",
+      "timeCourseWeeks": 4,
+      "mechanism": "Bile-acid binding",
+      "grade": "A",
+      "sources": [
+        "S19"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:plant_protein",
+      "direction": "down",
+      "effectSize": "Total cholesterol −6.4 mg/dL at 25 g/d soy protein (HDL not given; derived) [S33]",
+      "unit": "mg/dL",
+      "population": "43 trials",
+      "timeCourseWeeks": 6,
+      "mechanism": "As for LDL",
+      "grade": "B",
+      "sources": [
+        "S33"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:green_tea_extract",
+      "direction": "down",
+      "effectSize": "Total cholesterol −7.2 mg/dL, HDL ns (derived) [S37]",
+      "unit": "mg/dL",
+      "population": "14 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "Less cholesterol absorption",
+      "grade": "B",
+      "sources": [
+        "S37"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:garcinia",
+      "direction": "down",
+      "effectSize": "Derived: ≈ −9.7 mg/dL (total −6.8, HDL +3.0) [S41]",
+      "unit": "mg/dL",
+      "population": "14 small RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "Unclear",
+      "grade": "C",
+      "sources": [
+        "S41"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:vitamin_d3",
+      "direction": "down",
+      "effectSize": "Total cholesterol SMD −0.17 (small) [S42]",
+      "unit": "SMD",
+      "population": "41 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear",
+      "grade": "B",
+      "sources": [
+        "S42"
+      ]
+    },
+    {
+      "markerId": "nonhdl",
+      "lever": "supp:magnesium",
+      "direction": "none",
+      "effectSize": "Total cholesterol +0.03 mmol/L (ns) [S43]",
+      "unit": "mmol/L",
+      "population": "Adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "None expected",
+      "grade": "A",
+      "sources": [
+        "S43"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "vlc",
+      "direction": "down",
+      "effectSize": "−0.18 mmol/L (−16 mg/dL) vs low-fat at ≥ 12 mo [S5]; −0.26 mmol/L (−23 mg/dL) [S6]; −26 mg/dL in a survey [S9]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese RCT adults",
+      "timeCourseWeeks": 2,
+      "mechanism": "Less carbohydrate → less hepatic de-novo lipogenesis and VLDL-TG output",
+      "grade": "A",
+      "sources": [
+        "S5",
+        "S6",
+        "S9"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "lowcarb",
+      "direction": "down",
+      "effectSize": "−0.10 mmol/L (−8.9 mg/dL) vs low-fat [S12]; −14 mg/dL vs low-fat [S14]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "As above, smaller",
+      "grade": "A",
+      "sources": [
+        "S12",
+        "S14"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "highprotein",
+      "direction": "down",
+      "effectSize": "−15.7 mg/dL (protein 25 %E vs carbohydrate) [S15]; −0.23 mmol/L (−20 mg/dL) in energy-restricted trials [S16]",
+      "unit": "mg/dL",
+      "population": "Adults (6–12 wk)",
+      "timeCourseWeeks": 6,
+      "mechanism": "Less carbohydrate-driven VLDL",
+      "grade": "A",
+      "sources": [
+        "S15",
+        "S16",
+        "S17"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "fast16_8",
+      "direction": "down",
+      "effectSize": "TRE vs regular diet: −11.6 mg/dL (19 trials) [S47]; no extra fall vs equal CR (−5.9, ns) [S48]",
+      "unit": "mg/dL",
+      "population": "Overweight/obese adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Through weight loss and a longer post-absorptive period",
+      "grade": "A",
+      "sources": [
+        "S47",
+        "S48"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "fast24",
+      "direction": "down",
+      "effectSize": "132 → 94 mg/dL; still lower at 48 h (figures second-hand from S51; direction in abstract S50)",
+      "unit": "mg/dL",
+      "population": "Healthy adults, crossover",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "No meal-derived chylomicrons; lower VLDL output",
+      "grade": "B",
+      "sources": [
+        "S50",
+        "S51"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "fast36_48",
+      "direction": "down",
+      "effectSize": "Pooled fasts ≤ 3 d: g −0.34 (ns); estimated turning point ≈ 2.5 d [S51]",
+      "unit": "SMD",
+      "population": "Mixed adults",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "As for 24 h",
+      "grade": "C",
+      "sources": [
+        "S51"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "fast48plus",
+      "direction": "mixed",
+      "effectSize": "Pooled fasts > 3 d: g +0.19 (ns) [S51]; 7-d zero-energy: unchanged [S54]; 14-d modified fast: −0.35 mmol/L (−31 mg/dL) [S53]",
+      "unit": "mg/dL",
+      "population": "Mixed adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "Adipose fatty acids re-packaged as VLDL by the liver during long fasts",
+      "grade": "C",
+      "sources": [
+        "S51",
+        "S53",
+        "S54"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "satfat",
+      "direction": "down",
+      "effectSize": "−0.012 mmol/L (−1.1 mg/dL) per 1 %E replacing carbohydrate [S1]; cutting SFA 15 → 9 %E (carbohydrate up) raised TG ≈ 9 % [S27]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "Effect is from the carbohydrate it displaces, not the SFA",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S27"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "dietcholesterol",
+      "direction": "none",
+      "effectSize": "TG not reported as changing in the opened analyses [S2, S3]",
+      "unit": "—",
+      "population": "Adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "No pathway expected",
+      "grade": "D",
+      "sources": [
+        "S2",
+        "S3"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "fibre",
+      "direction": "none",
+      "effectSize": "TG unchanged with soluble fibre [S18] and oat β-glucan [S20]",
+      "unit": "mg/dL",
+      "population": "Adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "No pathway",
+      "grade": "A",
+      "sources": [
+        "S18",
+        "S20"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "unsatfat",
+      "direction": "down",
+      "effectSize": "Per 1 %E replacing carbohydrate: MUFA −0.015, PUFA −0.021 mmol/L (−1.3 / −1.9 mg/dL) [S1]; nuts −2.2 mg/dL per serving [S21]",
+      "unit": "mg/dL per %E",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "Displaces carbohydrate; PUFA lowers VLDL output",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S21"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "alcohol",
+      "direction": "up",
+      "effectSize": "+5.7 mg/dL per 30 g/d (2.5–8.9) [S22]; no effect in another analysis [S23]; J-shaped, worse with obesity and in hypertriglyceridaemia [S24]",
+      "unit": "mg/dL",
+      "population": "Adults",
+      "timeCourseWeeks": 2,
+      "mechanism": "Ethanol raises VLDL secretion and impairs lipolysis",
+      "grade": "B",
+      "sources": [
+        "S22",
+        "S23",
+        "S24"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "caffeine",
+      "direction": "mixed",
+      "effectSize": "Coffee: +12.6 mg/dL, larger for unfiltered [S26]; caffeine alone: no change [S36]",
+      "unit": "mg/dL",
+      "population": "Western adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "Coffee oils (unfiltered brew)",
+      "grade": "B",
+      "sources": [
+        "S26",
+        "S36"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "+7.95 mg/dL (−13.7 to 29.6, ns) [S35]",
+      "unit": "mg/dL",
+      "population": "8 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "C",
+      "sources": [
+        "S35"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "wheyprotein",
+      "direction": "down",
+      "effectSize": "−0.11 mmol/L (−9.7 mg/dL, borderline); absent in leaner people and at low dose [S34]",
+      "unit": "mg/dL",
+      "population": "13 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "Displaces carbohydrate (assumed)",
+      "grade": "B",
+      "sources": [
+        "S34"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "deficit_large",
+      "direction": "down",
+      "effectSize": "VLCD 8 wk: 1.46 → 1.06 mmol/L (−35 mg/dL) [S57]",
+      "unit": "mg/dL",
+      "population": "Severely obese adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "Less substrate for VLDL; less liver fat",
+      "grade": "B",
+      "sources": [
+        "S57"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "deficit_moderate",
+      "direction": "down",
+      "effectSize": "−0.13 mmol/L (−11.5 mg/dL) at 6–12 mo [S56]; ADF −11.3 mg/dL [S52]",
+      "unit": "mg/dL",
+      "population": "83 RCTs; 7 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "Less liver fat and VLDL output",
+      "grade": "A",
+      "sources": [
+        "S52",
+        "S56"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "surplus",
+      "direction": "mixed",
+      "effectSize": "TG unchanged with +1000–1250 kcal/d for 3–4 wk [S58, S59]; more sugar raises TG +0.11 mmol/L (+9.7 mg/dL) even at equal energy [S30]",
+      "unit": "mg/dL",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Depends on how much of the surplus is sugar",
+      "grade": "B",
+      "sources": [
+        "S30",
+        "S58",
+        "S59"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "resistance_load",
+      "direction": "down",
+      "effectSize": "−8.1 mg/dL (29 RCTs) [S62]",
+      "unit": "mg/dL",
+      "population": "1329 adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Muscle TG uptake; body composition",
+      "grade": "A",
+      "sources": [
+        "S62"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "All exercise: −8.0 mg/dL (95 % CI −10.5 to −5.6) [S61]; more weekly volume, more benefit [S82]",
+      "unit": "mg/dL",
+      "population": "8081 adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Lipoprotein lipase activity up",
+      "grade": "A",
+      "sources": [
+        "S61",
+        "S82"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "No association with incident dyslipidaemia [S63]",
+      "unit": "RR",
+      "population": "30 033 adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "None established",
+      "grade": "C",
+      "sources": [
+        "S63"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "−0.13 mmol/L (−11.5 mg/dL) [S56]; correlates with kg lost (r = 0.32) [S55]",
+      "unit": "mg/dL",
+      "population": "83 RCTs; 70 studies",
+      "timeCourseWeeks": 12,
+      "mechanism": "Less liver fat",
+      "grade": "A",
+      "sources": [
+        "S55",
+        "S56"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "supp:omega3_epa_dha",
+      "direction": "down",
+      "effectSize": "4 g/d: ≥ 30 % fall when TG ≥ 500 mg/dL [S31]; roughly linear dose-response, clearest above 2 g/d [S32]",
+      "unit": "%",
+      "population": "Adults with hypertriglyceridaemia",
+      "timeCourseWeeks": 4,
+      "mechanism": "EPA/DHA lower hepatic VLDL-TG secretion and raise clearance",
+      "grade": "A",
+      "sources": [
+        "S31",
+        "S32"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "supp:psyllium",
+      "direction": "none",
+      "effectSize": "TG unchanged with soluble fibre [S18]",
+      "unit": "mg/dL",
+      "population": "Adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "No pathway",
+      "grade": "B",
+      "sources": [
+        "S18"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "supp:cla_chitosan_glucomannan",
+      "direction": "none",
+      "effectSize": "CLA: TG WMD +1.76 (ns) [S39]",
+      "unit": "—",
+      "population": "56 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "None",
+      "grade": "B",
+      "sources": [
+        "S39"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "supp:garcinia",
+      "direction": "down",
+      "effectSize": "−24.2 mg/dL (−37.8 to −10.6) [S41]",
+      "unit": "mg/dL",
+      "population": "14 small RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "Unclear; heterogeneous trials",
+      "grade": "C",
+      "sources": [
+        "S41"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "supp:vitamin_d3",
+      "direction": "down",
+      "effectSize": "SMD −0.12 (small) [S42]",
+      "unit": "SMD",
+      "population": "41 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear",
+      "grade": "B",
+      "sources": [
+        "S42"
+      ]
+    },
+    {
+      "markerId": "tg",
+      "lever": "supp:magnesium",
+      "direction": "none",
+      "effectSize": "−0.10 mmol/L (ns) [S43]",
+      "unit": "mmol/L",
+      "population": "Adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "None expected",
+      "grade": "A",
+      "sources": [
+        "S43"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "vlc",
+      "direction": "up",
+      "effectSize": "Rose (p < 0.001) with LDL +1.82 mmol/L in lean women, 4 wk [S7]; rose in normal-weight adults, 3 wk [S8]; median 178 mg/dL in 100 people with keto-induced high LDL [S10]. Mixed-population size not available",
+      "unit": "mg/dL",
+      "population": "Normal-weight young adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Each LDL particle carries one ApoB; more particles retained when LDL-receptor activity falls",
+      "grade": "B",
+      "sources": [
+        "S7",
+        "S8",
+        "S10"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "lowcarb",
+      "direction": "none",
+      "effectSize": "LDL particle number did not differ between 20 %, 40 % and 60 % carbohydrate diets over 20 wk [S11]",
+      "unit": "nmol/L LDL-P",
+      "population": "164 adults after weight loss",
+      "timeCourseWeeks": 20,
+      "mechanism": "Weight-stable; SFA rise offset by lower VLDL",
+      "grade": "B",
+      "sources": [
+        "S11"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "highprotein",
+      "direction": "down",
+      "effectSize": "Expected to follow non-HDL (≈ −6 mg/dL non-HDL) [S15]; no direct ApoB figure opened",
+      "unit": "mg/dL",
+      "population": "OmniHeart adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "Fewer VLDL particles",
+      "grade": "C",
+      "sources": [
+        "S15"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "fast16_8",
+      "direction": "none",
+      "effectSize": "No ApoB data opened; LDL and TG do not change beyond CR [S48]",
+      "unit": "—",
+      "population": "Adults with obesity",
+      "timeCourseWeeks": 52,
+      "mechanism": "Mechanistic expectation: follows weight loss only",
+      "grade": "D",
+      "sources": [
+        "S48"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "fast24",
+      "direction": "up",
+      "effectSize": "No ApoB data opened; LDL rises after 24 h [S50, S51]",
+      "unit": "—",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Mechanistic expectation: follows LDL",
+      "grade": "D",
+      "sources": [
+        "S50",
+        "S51"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "fast36_48",
+      "direction": "up",
+      "effectSize": "No ApoB data opened; LDL g +0.32 for fasts ≤ 3 d [S51]",
+      "unit": "—",
+      "population": "Mixed adults",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "Mechanistic expectation: follows LDL",
+      "grade": "D",
+      "sources": [
+        "S51"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "fast48plus",
+      "direction": "mixed",
+      "effectSize": "7-d zero-energy fast: 0.84 → 1.37 g/L (+65 %) [S54]; 14-d 250 kcal/d fast: unchanged [S53]",
+      "unit": "g/L",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "Fewer particles cleared during true fasting",
+      "grade": "B",
+      "sources": [
+        "S53",
+        "S54"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "satfat",
+      "direction": "up",
+      "effectSize": "No ApoB coefficient in the opened regression; LDL +1.4 mg/dL per %E [S1]. Risk tracks ApoB, not the diet that produced it [S44]",
+      "unit": "mg/dL",
+      "population": "Controlled feeding trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "LDL-receptor down-regulation retains particles; SFA raises LDL-C more than particle count (expected smaller % change)",
+      "grade": "B",
+      "sources": [
+        "S1",
+        "S44"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "dietcholesterol",
+      "direction": "up",
+      "effectSize": "No ApoB figure opened; LDL +1.9–4.5 mg/dL per 100 mg/d [S3]",
+      "unit": "mg/dL",
+      "population": "Adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Mechanistic expectation: follows LDL, smaller",
+      "grade": "C",
+      "sources": [
+        "S3"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "fibre",
+      "direction": "down",
+      "effectSize": "Psyllium ~10 g/d: −0.05 g/L (−5 mg/dL) [S19]",
+      "unit": "mg/dL",
+      "population": "28 trials",
+      "timeCourseWeeks": 4,
+      "mechanism": "Bile-acid binding raises LDL-receptor activity",
+      "grade": "A",
+      "sources": [
+        "S19"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "unsatfat",
+      "direction": "down",
+      "effectSize": "Nuts: −3.7 mg/dL per daily serving [S21]",
+      "unit": "mg/dL",
+      "population": "61 trials",
+      "timeCourseWeeks": 3,
+      "mechanism": "LDL-receptor up-regulation",
+      "grade": "A",
+      "sources": [
+        "S21"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "alcohol",
+      "direction": "none",
+      "effectSize": "No ApoB data in the opened analyses (ApoA-I rose) [S22, S23]",
+      "unit": "—",
+      "population": "Adults",
+      "timeCourseWeeks": 4,
+      "mechanism": "Mechanistic expectation: none at moderate intake",
+      "grade": "D",
+      "sources": [
+        "S22",
+        "S23"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "caffeine",
+      "direction": "up",
+      "effectSize": "No ApoB figure opened; unfiltered coffee raises LDL +5.4 mg/dL [S26]",
+      "unit": "—",
+      "population": "Western adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "Mechanistic expectation: follows LDL",
+      "grade": "C",
+      "sources": [
+        "S26"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "No ApoB data; lipids unchanged [S35]",
+      "unit": "—",
+      "population": "8 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "D",
+      "sources": [
+        "S35"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "wheyprotein",
+      "direction": "none",
+      "effectSize": "No ApoB data; LDL unchanged [S34]",
+      "unit": "—",
+      "population": "13 RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "None expected",
+      "grade": "D",
+      "sources": [
+        "S34"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "deficit_large",
+      "direction": "mixed",
+      "effectSize": "VLCD: ApoB fell in weeks 1–3, then returned to baseline by week 8 [S57]",
+      "unit": "g/L",
+      "population": "Severely obese adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Biphasic, as LDL",
+      "grade": "C",
+      "sources": [
+        "S57"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "deficit_moderate",
+      "direction": "down",
+      "effectSize": "No ApoB figure opened; LDL −7.7 and TG −11.5 mg/dL [S56]",
+      "unit": "—",
+      "population": "83 RCTs",
+      "timeCourseWeeks": 26,
+      "mechanism": "Mechanistic expectation: fewer VLDL and LDL particles",
+      "grade": "C",
+      "sources": [
+        "S56"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "surplus",
+      "direction": "mixed",
+      "effectSize": "No ApoB figure opened; SFA surplus raised LDL [S59]",
+      "unit": "—",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Follows the fat type of the surplus",
+      "grade": "C",
+      "sources": [
+        "S59"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "resistance_load",
+      "direction": "down",
+      "effectSize": "No ApoB figure opened; non-HDL −8.7 mg/dL [S62]",
+      "unit": "—",
+      "population": "29 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "Mechanistic expectation: follows non-HDL",
+      "grade": "C",
+      "sources": [
+        "S62"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "No ApoB figure opened; high-volume training improved lipoprotein variables more than low volume [S82]",
+      "unit": "—",
+      "population": "111 sedentary dyslipidaemic adults",
+      "timeCourseWeeks": 26,
+      "mechanism": "Fewer VLDL particles",
+      "grade": "C",
+      "sources": [
+        "S82"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "No ApoB data; no dyslipidaemia association [S63]",
+      "unit": "—",
+      "population": "Cohorts",
+      "timeCourseWeeks": 4,
+      "mechanism": "None established",
+      "grade": "D",
+      "sources": [
+        "S63"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "No ApoB figure opened; LDL and TG fall with loss [S56]",
+      "unit": "—",
+      "population": "83 RCTs",
+      "timeCourseWeeks": 26,
+      "mechanism": "Mechanistic expectation: fewer particles",
+      "grade": "C",
+      "sources": [
+        "S56"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "supp:omega3_epa_dha",
+      "direction": "down",
+      "effectSize": "\"Modestly decreased\" at 4 g/d in the largest trials (no figure in abstract) [S31]",
+      "unit": "—",
+      "population": "Adults with hypertriglyceridaemia",
+      "timeCourseWeeks": 8,
+      "mechanism": "Fewer VLDL particles secreted",
+      "grade": "B",
+      "sources": [
+        "S31"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "supp:psyllium",
+      "direction": "down",
+      "effectSize": "−0.05 g/L (−5 mg/dL) at ~10 g/d [S19]",
+      "unit": "mg/dL",
+      "population": "28 trials",
+      "timeCourseWeeks": 4,
+      "mechanism": "Bile-acid binding",
+      "grade": "A",
+      "sources": [
+        "S19"
+      ]
+    },
+    {
+      "markerId": "apob",
+      "lever": "supp:cla_chitosan_glucomannan",
+      "direction": "none",
+      "effectSize": "ApoB WMD −0.73 (−9.9 to 8.4, ns) [S39]",
+      "unit": "—",
+      "population": "56 RCTs",
+      "timeCourseWeeks": 12,
+      "mechanism": "None",
+      "grade": "B",
+      "sources": [
+        "S39"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "vlc",
+      "direction": "down",
+      "effectSize": "−14.7 % (95 % CI −19.5 to −9.5) on 20 % carbohydrate / 21 % SFA for 20 wk [S11]; EAS: a low-carbohydrate high-fat diet may lower Lp(a) 10–15 % [S46]; no change vs control at 3 wk [S8]",
+      "unit": "%",
+      "population": "164 adults after weight loss (S11)",
+      "timeCourseWeeks": 20,
+      "mechanism": "Unknown; higher SFA and lower carbohydrate reduce apo(a) production (hypothesis)",
+      "grade": "B",
+      "sources": [
+        "S8",
+        "S11",
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "lowcarb",
+      "direction": "none",
+      "effectSize": "−2.1 % (ns) on 40 % carbohydrate / 14 % SFA [S11]",
+      "unit": "%",
+      "population": "164 adults",
+      "timeCourseWeeks": 20,
+      "mechanism": "Too small a shift",
+      "grade": "B",
+      "sources": [
+        "S11"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "highprotein",
+      "direction": "none",
+      "effectSize": "OmniHeart: Lp(a) rose 8–18 % on all three low-SFA diets, including the protein diet [S28]",
+      "unit": "%",
+      "population": "OmniHeart adults",
+      "timeCourseWeeks": 6,
+      "mechanism": "Rise attributed to the low SFA of all arms, not to protein",
+      "grade": "C",
+      "sources": [
+        "S28"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "fast16_8",
+      "direction": "none",
+      "effectSize": "No data opened; EAS lists fasting as \"none\" [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 12,
+      "mechanism": "Genetically fixed production rate",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "fast24",
+      "direction": "none",
+      "effectSize": "No data; EAS lists fasting as \"none\" [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Genetically fixed production rate",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "fast36_48",
+      "direction": "none",
+      "effectSize": "No data; EAS lists fasting as \"none\" [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "Genetically fixed production rate",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "fast48plus",
+      "direction": "none",
+      "effectSize": "Unchanged after a 14-d 250 kcal/d fast [S53]",
+      "unit": "mg/dL",
+      "population": "40 adults",
+      "timeCourseWeeks": 2,
+      "mechanism": "Genetically fixed production rate",
+      "grade": "B",
+      "sources": [
+        "S53"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "satfat",
+      "direction": "down",
+      "effectSize": "Replacing SFA raises Lp(a) 9–23 % (DELTA: +15 % for SFA 16 → 5 %E with carbohydrate; +11 % with MUFA) [S27, S28, S46]",
+      "unit": "%",
+      "population": "Healthy adults, 8-wk feeding periods",
+      "timeCourseWeeks": 8,
+      "mechanism": "Unknown; this is the \"Lp(a) paradox\" and is never a reason to eat more SFA (LDL and ApoB rise more)",
+      "grade": "B",
+      "sources": [
+        "S27",
+        "S28",
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "dietcholesterol",
+      "direction": "none",
+      "effectSize": "No data opened; EAS: lifestyle has minimal impact [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "fibre",
+      "direction": "none",
+      "effectSize": "No data opened; EAS: lifestyle has minimal impact [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "unsatfat",
+      "direction": "up",
+      "effectSize": "Replacing SFA with MUFA: +11 % (DELTA-2) [S28]",
+      "unit": "%",
+      "population": "Healthy adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mirror of the SFA row",
+      "grade": "B",
+      "sources": [
+        "S28"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "alcohol",
+      "direction": "none",
+      "effectSize": "No data opened; EAS: lifestyle has minimal impact [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "caffeine",
+      "direction": "none",
+      "effectSize": "No data opened [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "No data opened [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "wheyprotein",
+      "direction": "none",
+      "effectSize": "No data opened [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "deficit_large",
+      "direction": "up",
+      "effectSize": "Diet-induced ~10 % weight loss: +14.8 nmol/L despite lower LDL; no change after bariatric surgery [S65]",
+      "unit": "nmol/L",
+      "population": "131 adults with obesity and T2D, 3–4 mo",
+      "timeCourseWeeks": 14,
+      "mechanism": "Unknown; possibly lower SFA during dieting",
+      "grade": "C",
+      "sources": [
+        "S65"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "deficit_moderate",
+      "direction": "up",
+      "effectSize": "As above: +14.8 nmol/L with diet-induced loss [S65]",
+      "unit": "nmol/L",
+      "population": "131 adults with obesity and T2D",
+      "timeCourseWeeks": 14,
+      "mechanism": "Unknown",
+      "grade": "C",
+      "sources": [
+        "S65"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "surplus",
+      "direction": "none",
+      "effectSize": "No data opened [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 4,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "resistance_load",
+      "direction": "none",
+      "effectSize": "EAS: physical activity none or minimal [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 12,
+      "mechanism": "Genetically fixed",
+      "grade": "C",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "aerobic_load",
+      "direction": "none",
+      "effectSize": "EAS: physical activity none or minimal [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 12,
+      "mechanism": "Genetically fixed",
+      "grade": "C",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "No data opened [S46]",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 4,
+      "mechanism": "Mechanistic expectation: none",
+      "grade": "D",
+      "sources": [
+        "S46"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "weight_loss",
+      "direction": "mixed",
+      "effectSize": "+14.8 nmol/L after diet-induced loss [S65]; −14.7 % on a low-carb maintenance diet after loss [S11]",
+      "unit": "nmol/L",
+      "population": "Adults with obesity",
+      "timeCourseWeeks": 14,
+      "mechanism": "Depends on the diet used, not the kilograms",
+      "grade": "C",
+      "sources": [
+        "S11",
+        "S65"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "supp:l_carnitine",
+      "direction": "down",
+      "effectSize": "Oral: −9.0 mg/dL; overall −8.82 mg/dL (−10.09 to −7.55) [S38]",
+      "unit": "mg/dL",
+      "population": "Pooled RCTs to 2015",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unknown",
+      "grade": "B",
+      "sources": [
+        "S38"
+      ]
+    },
+    {
+      "markerId": "lpa",
+      "lever": "supp:cla_chitosan_glucomannan",
+      "direction": "up",
+      "effectSize": "CLA > 24 wk: SMD +0.24 (0.01–0.47) [S40]",
+      "unit": "SMD",
+      "population": "21 RCTs",
+      "timeCourseWeeks": 24,
+      "mechanism": "Unknown",
+      "grade": "C",
+      "sources": [
+        "S40"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "W-L-LDL-1",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 130,
+        "unit": "mg/dL"
+      },
+      "kind": "cap",
+      "severity": "caution",
+      "target": "satfat",
+      "value": 10,
+      "message": "Saturated fat is kept under 10 % of energy because your LDL was {value} mg/dL on {date}. Ghee, butter, coconut oil and fatty dairy are swapped for vegetable oils.",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S27",
+        "S29"
+      ],
+      "mapsTo": "W-L05"
+    },
+    {
+      "id": "W-L-LDL-2",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 130,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "eggYolksPerDay",
+      "value": 1,
+      "message": "Up to one egg yolk a day; extra eggs as whites, because your LDL was {value} mg/dL on {date}. Eggs are not removed; the effect is small but real.",
+      "grade": "A",
+      "sources": [
+        "S2",
+        "S3",
+        "S4"
+      ]
+    },
+    {
+      "id": "W-L-LDL-3",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 130,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "fibre",
+      "value": 10,
+      "message": "More soluble fibre (oats, dal, isabgol; aim ~10 g/day) because your LDL was {value} mg/dL on {date}. About 10 g psyllium lowers LDL by ~13 mg/dL.",
+      "grade": "A",
+      "sources": [
+        "S18",
+        "S19",
+        "S20"
+      ]
+    },
+    {
+      "id": "W-L-LDL-4",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 130,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "unsatfat",
+      "message": "Nuts and unsaturated oils are preferred over saturated fats because your LDL was {value} mg/dL on {date}.",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S21"
+      ]
+    },
+    {
+      "id": "W-L-LDL-5",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 160,
+        "unit": "mg/dL"
+      },
+      "kind": "warn",
+      "severity": "caution",
+      "target": "vlc",
+      "message": "Very-low-carb raised LDL in every lean woman in one trial (+70 mg/dL in 4 weeks). Your LDL was {value} mg/dL on {date}. Plan a retest after 6–8 weeks.",
+      "grade": "B",
+      "sources": [
+        "S5",
+        "S7",
+        "S8",
+        "S9"
+      ],
+      "mapsTo": "W-M09 (shown before the plan)"
+    },
+    {
+      "id": "W-L-LDL-6",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 0,
+        "unit": "mg/dL"
+      },
+      "kind": "retest",
+      "severity": "info",
+      "target": "vlc|satfat>=15",
+      "value": 8,
+      "message": "Your plan changes fat or carbohydrate a lot. LDL settles within 3–4 weeks; retest lipids at about 8 weeks to compare with {value} mg/dL on {date}.",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S7",
+        "S8"
+      ]
+    },
+    {
+      "id": "W-L-LDL-7",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 190,
+        "unit": "mg/dL"
+      },
+      "kind": "clinician",
+      "severity": "danger",
+      "target": "clinicianCard",
+      "message": "Your LDL was {value} mg/dL on {date}. At 190 or more, an inherited condition is possible. Please see a clinician; the plan continues with LDL cautions on.",
+      "grade": "A",
+      "sources": [
+        "S80"
+      ],
+      "mapsTo": "W-L11"
+    },
+    {
+      "id": "W-L-LDL-8",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 0,
+        "unit": "mg/dL"
+      },
+      "kind": "reask",
+      "severity": "info",
+      "target": "recentFastOver48h",
+      "message": "Was the {date} test within 2 weeks of a fast longer than 2 days? LDL rose 66 % during a 7-day fast, so that result may not be your usual level.",
+      "grade": "B",
+      "sources": [
+        "S51",
+        "S54"
+      ]
+    },
+    {
+      "id": "W-L-LDL-9",
+      "markerId": "ldl",
+      "when": {
+        "op": ">=",
+        "value": 130,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "caffeine",
+      "message": "Prefer filtered or instant coffee over boiled or unfiltered coffee, because your LDL was {value} mg/dL on {date}. Unfiltered coffee raises LDL ~5 mg/dL.",
+      "grade": "B",
+      "sources": [
+        "S25",
+        "S26"
+      ]
+    },
+    {
+      "id": "W-L-HDL-1",
+      "markerId": "hdl",
+      "when": {
+        "op": "<",
+        "value": 40,
+        "unit": "mg/dL",
+        "sex": "M"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "aerobic_load",
+      "value": 120,
+      "message": "Aerobic exercise of 120+ min/week is ranked higher because your HDL was {value} mg/dL on {date}; it raises HDL by about 2.5 mg/dL.",
+      "grade": "A",
+      "sources": [
+        "S60"
+      ]
+    },
+    {
+      "id": "W-L-HDL-2",
+      "markerId": "hdl",
+      "when": {
+        "op": "<",
+        "value": 50,
+        "unit": "mg/dL",
+        "sex": "F"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "aerobic_load",
+      "value": 120,
+      "message": "Aerobic exercise of 120+ min/week is ranked higher because your HDL was {value} mg/dL on {date}; it raises HDL by about 2.5 mg/dL.",
+      "grade": "A",
+      "sources": [
+        "S60"
+      ]
+    },
+    {
+      "id": "W-L-HDL-3",
+      "markerId": "hdl",
+      "when": {
+        "op": "<",
+        "value": 40,
+        "unit": "mg/dL"
+      },
+      "kind": "warn",
+      "severity": "info",
+      "target": "alcohol",
+      "message": "Alcohol raises HDL, but that is not a reason to drink: a higher HDL number from alcohol is not shown to protect the heart. Your HDL was {value} mg/dL on {date}.",
+      "grade": "B",
+      "sources": [
+        "S22",
+        "S23",
+        "S66"
+      ]
+    },
+    {
+      "id": "W-L-HDL-4",
+      "markerId": "hdl",
+      "when": {
+        "op": ">=",
+        "value": 80,
+        "unit": "mg/dL",
+        "and": [
+          {
+            "field": "tg",
+            "op": "<=",
+            "value": 70,
+            "unit": "mg/dL"
+          },
+          {
+            "field": "bmi",
+            "op": "<",
+            "value": 25
+          }
+        ]
+      },
+      "kind": "warn",
+      "severity": "caution",
+      "target": "vlc",
+      "message": "Lean, with high HDL ({value} mg/dL on {date}) and low TG: on very-low-carb, people like this saw the largest LDL rises (median +146 mg/dL). Retest at 6–8 weeks.",
+      "grade": "C",
+      "sources": [
+        "S9"
+      ]
+    },
+    {
+      "id": "W-L-HDL-5",
+      "markerId": "hdl",
+      "when": {
+        "op": ">=",
+        "value": 0,
+        "unit": "mg/dL"
+      },
+      "kind": "retest",
+      "severity": "info",
+      "target": "deficit_moderate|deficit_large",
+      "value": 0,
+      "message": "HDL often dips while you are losing weight and recovers once weight is stable. Compare with {value} mg/dL ({date}) after weight has been steady for a few weeks.",
+      "grade": "A",
+      "sources": [
+        "S55",
+        "S57"
+      ]
+    },
+    {
+      "id": "W-L-NHDL-1",
+      "markerId": "nonhdl",
+      "when": {
+        "op": ">=",
+        "value": 160,
+        "unit": "mg/dL"
+      },
+      "kind": "cap",
+      "severity": "caution",
+      "target": "satfat",
+      "value": 10,
+      "message": "Saturated fat is kept under 10 % of energy because your non-HDL cholesterol was {value} mg/dL on {date}.",
+      "grade": "A",
+      "sources": [
+        "S1",
+        "S66"
+      ],
+      "mapsTo": "W-L05"
+    },
+    {
+      "id": "W-L-NHDL-2",
+      "markerId": "nonhdl",
+      "when": {
+        "op": ">=",
+        "value": 160,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "fibre",
+      "value": 10,
+      "message": "More soluble fibre (oats, dal, isabgol) because your non-HDL cholesterol was {value} mg/dL on {date}; ~10 g psyllium lowers it by ~15 mg/dL.",
+      "grade": "A",
+      "sources": [
+        "S19"
+      ]
+    },
+    {
+      "id": "W-L-NHDL-3",
+      "markerId": "nonhdl",
+      "when": {
+        "op": ">=",
+        "value": 220,
+        "unit": "mg/dL"
+      },
+      "kind": "clinician",
+      "severity": "danger",
+      "target": "clinicianCard",
+      "message": "Your non-HDL cholesterol was {value} mg/dL on {date}. This is very high; please see a clinician. The plan continues with cholesterol cautions on.",
+      "grade": "D",
+      "sources": [
+        "S70",
+        "S80"
+      ],
+      "mapsTo": "W-L11"
+    },
+    {
+      "id": "W-L-TG-1",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 150,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "lowcarb",
+      "message": "Lower-carb and lower-sugar options rank higher because your triglycerides were {value} mg/dL on {date}; cutting carbohydrate lowers them.",
+      "grade": "A",
+      "sources": [
+        "S5",
+        "S12",
+        "S30"
+      ]
+    },
+    {
+      "id": "W-L-TG-2",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 150,
+        "unit": "mg/dL"
+      },
+      "kind": "cap",
+      "severity": "caution",
+      "target": "addedSugarPctE",
+      "value": 10,
+      "message": "Added sugar is kept under 10 % of energy because your triglycerides were {value} mg/dL on {date}.",
+      "grade": "A",
+      "sources": [
+        "S30"
+      ]
+    },
+    {
+      "id": "W-L-TG-3",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 150,
+        "unit": "mg/dL"
+      },
+      "kind": "warn",
+      "severity": "caution",
+      "target": "alcohol",
+      "message": "Alcohol raises triglycerides, more so at higher intakes. Your triglycerides were {value} mg/dL on {date}; the plan counts drinks against this.",
+      "grade": "B",
+      "sources": [
+        "S22",
+        "S24"
+      ]
+    },
+    {
+      "id": "W-L-TG-4",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 200,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "supp:omega3_epa_dha",
+      "message": "Omega-3 (fish or algal oil) is offered in the supplement list because your triglycerides were {value} mg/dL on {date}. Doses over 2 g/day: ask a clinician.",
+      "grade": "A",
+      "sources": [
+        "S31",
+        "S32"
+      ]
+    },
+    {
+      "id": "W-L-TG-5",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 500,
+        "unit": "mg/dL"
+      },
+      "kind": "cap",
+      "severity": "danger",
+      "target": "fatPctE",
+      "value": 30,
+      "message": "Fat is held at or below 30 % of energy and keto is not proposed, because your triglycerides were {value} mg/dL on {date}. You can choose keto after seeing a clinician.",
+      "grade": "C",
+      "sources": [
+        "S72",
+        "S79"
+      ],
+      "mapsTo": "W-L04 (block → cap + clinician opt-in)"
+    },
+    {
+      "id": "W-L-TG-6",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 500,
+        "unit": "mg/dL"
+      },
+      "kind": "cap",
+      "severity": "danger",
+      "target": "alcohol",
+      "value": 0,
+      "message": "Alcohol is planned at zero because your triglycerides were {value} mg/dL on {date}; at this level clinicians advise stopping.",
+      "grade": "B",
+      "sources": [
+        "S24",
+        "S79"
+      ],
+      "mapsTo": "W-L04"
+    },
+    {
+      "id": "W-L-TG-7",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 500,
+        "unit": "mg/dL"
+      },
+      "kind": "clinician",
+      "severity": "danger",
+      "target": "clinicianCard",
+      "message": "Your triglycerides were {value} mg/dL on {date}. At 500 or more they need medical treatment because of pancreatitis risk. Please see a clinician.",
+      "grade": "A",
+      "sources": [
+        "S72",
+        "S79"
+      ],
+      "mapsTo": "W-L11"
+    },
+    {
+      "id": "W-L-TG-8",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 175,
+        "unit": "mg/dL",
+        "and": [
+          {
+            "field": "fasting",
+            "op": "==",
+            "value": false
+          }
+        ]
+      },
+      "kind": "reask",
+      "severity": "info",
+      "target": "fasting",
+      "message": "Your triglycerides ({value} mg/dL, {date}) were measured after eating, which adds about 26 mg/dL. Consider a fasting retest before the plan relies on it.",
+      "grade": "B",
+      "sources": [
+        "S74"
+      ]
+    },
+    {
+      "id": "W-L-TG-9",
+      "markerId": "tg",
+      "when": {
+        "op": ">=",
+        "value": 400,
+        "unit": "mg/dL"
+      },
+      "kind": "reask",
+      "severity": "info",
+      "target": "ldlMethod",
+      "message": "With triglycerides at {value} mg/dL ({date}), a calculated LDL is not valid. Vitals uses non-HDL or ApoB; a direct LDL, if your report has one, is better.",
+      "grade": "A",
+      "sources": [
+        "S75",
+        "S81"
+      ]
+    },
+    {
+      "id": "W-L-APOB-1",
+      "markerId": "apob",
+      "when": {
+        "op": ">=",
+        "value": 100,
+        "unit": "mg/dL"
+      },
+      "kind": "cap",
+      "severity": "caution",
+      "target": "satfat",
+      "value": 10,
+      "message": "Saturated fat is kept under 10 % of energy because your ApoB was {value} mg/dL on {date}.",
+      "grade": "B",
+      "sources": [
+        "S1",
+        "S44",
+        "S74"
+      ],
+      "mapsTo": "W-L05"
+    },
+    {
+      "id": "W-L-APOB-2",
+      "markerId": "apob",
+      "when": {
+        "op": ">=",
+        "value": 100,
+        "unit": "mg/dL"
+      },
+      "kind": "warn",
+      "severity": "caution",
+      "target": "vlc",
+      "message": "Very-low-carb raised ApoB with LDL in lean adults within 3–4 weeks. Your ApoB was {value} mg/dL on {date}. Plan a retest after 6–8 weeks.",
+      "grade": "B",
+      "sources": [
+        "S7",
+        "S8"
+      ],
+      "mapsTo": "W-M09 (shown before the plan)"
+    },
+    {
+      "id": "W-L-APOB-3",
+      "markerId": "apob",
+      "when": {
+        "op": ">=",
+        "value": 0,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "primaryLipidMarker",
+      "message": "ApoB counts the particles that cause plaque, so Vitals tracks your ApoB ({value} mg/dL on {date}) ahead of LDL.",
+      "grade": "A",
+      "sources": [
+        "S44",
+        "S45"
+      ]
+    },
+    {
+      "id": "W-L-APOB-4",
+      "markerId": "apob",
+      "when": {
+        "op": ">=",
+        "value": 100,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "fibre",
+      "value": 10,
+      "message": "More soluble fibre (oats, dal, isabgol) because your ApoB was {value} mg/dL on {date}; ~10 g psyllium lowers ApoB ~5 mg/dL.",
+      "grade": "A",
+      "sources": [
+        "S19"
+      ]
+    },
+    {
+      "id": "W-L-LPA-1",
+      "markerId": "lpa",
+      "when": {
+        "op": ">",
+        "value": 50,
+        "unit": "mg/dL"
+      },
+      "kind": "warn",
+      "severity": "caution",
+      "target": "vlc|satfat",
+      "message": "Your Lp(a) was {value} mg/dL on {date}, which raises the weight of any LDL rise. LDL cautions for keto or high saturated fat are shown before the plan.",
+      "grade": "B",
+      "sources": [
+        "S46",
+        "S66"
+      ],
+      "mapsTo": "W-L05"
+    },
+    {
+      "id": "W-L-LPA-2",
+      "markerId": "lpa",
+      "when": {
+        "op": ">",
+        "value": 125,
+        "unit": "nmol/L"
+      },
+      "kind": "warn",
+      "severity": "caution",
+      "target": "vlc|satfat",
+      "message": "Your Lp(a) was {value} nmol/L on {date}, which raises the weight of any LDL rise. LDL cautions for keto or high saturated fat are shown before the plan.",
+      "grade": "B",
+      "sources": [
+        "S46",
+        "S66"
+      ],
+      "mapsTo": "W-L05"
+    },
+    {
+      "id": "W-L-LPA-3",
+      "markerId": "lpa",
+      "when": {
+        "op": ">",
+        "value": 50,
+        "unit": "mg/dL"
+      },
+      "kind": "clinician",
+      "severity": "caution",
+      "target": "clinicianNote",
+      "message": "Lp(a) is mostly inherited and diet barely moves it. Yours was {value} mg/dL on {date}; ask a clinician how it changes your overall heart risk.",
+      "grade": "A",
+      "sources": [
+        "S46",
+        "S66"
+      ]
+    },
+    {
+      "id": "W-L-LPA-4",
+      "markerId": "lpa",
+      "when": {
+        "op": ">",
+        "value": 50,
+        "unit": "mg/dL"
+      },
+      "kind": "prefer",
+      "severity": "info",
+      "target": "fibre|unsatfat",
+      "message": "Diet cannot lower Lp(a) much, so the plan works on LDL instead (fibre, unsaturated fats), because your Lp(a) was {value} mg/dL on {date}.",
+      "grade": "B",
+      "sources": [
+        "S19",
+        "S46"
+      ]
+    },
+    {
+      "id": "W-L-LPA-5",
+      "markerId": "lpa",
+      "when": {
+        "op": ">=",
+        "value": 180,
+        "unit": "mg/dL"
+      },
+      "kind": "clinician",
+      "severity": "danger",
+      "target": "clinicianCard",
+      "message": "Your Lp(a) was {value} mg/dL on {date}. At 180 or more the risk is like inherited high cholesterol. Please see a clinician.",
+      "grade": "A",
+      "sources": [
+        "S70"
+      ],
+      "mapsTo": "W-L11"
+    }
+  ]
+}

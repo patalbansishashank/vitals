@@ -1,0 +1,2199 @@
+{
+ "version": 1,
+ "generatedFrom": "plan/02-next/research/R13-markers-glycaemic-urate.md",
+ "sources": {
+  "S1": "American Diabetes Association Professional Practice Committee. 2. Diagnosis and Classification of Diabetes: Standards of Care in Diabetes—2026. Diabetes Care 2026;49(Suppl 1):S27–S49. DOI 10.2337/dc26-S002 · PMID 41358893 · https://pmc.ncbi.nlm.nih.gov/articles/PMC12690183/ (full text read from a mirror PDF, https://sentucuman.com.ar/docs/standards-of-care-2026.pdf, because diabetesjournals.org returned 403)",
+  "S2": "ADA Professional Practice Committee. 6. Glycemic Goals and Hypoglycemia: Standards of Care in Diabetes—2026. DOI 10.2337/dc26-S006 · PMID 41358894 (same mirror PDF)",
+  "S3": "RSSDI Clinical Practice Recommendations for the Management of Type 2 Diabetes Mellitus 2022, summary document for training. https://www.rssdi.in/newwebsite/RSSDI-Clinical-Practice-Recommendations-2022%20(1).pdf",
+  "S4": "Anjana RM et al. Metabolic non-communicable disease health report of India: the ICMR-INDIAB national cross-sectional study (ICMR-INDIAB-17). Lancet Diabetes Endocrinol 2023;11(7):474–489. DOI 10.1016/S2213-8587(23)00119-5 · PMID 37301218",
+  "S5": "Singh Y, Garg MK, Tandon N, Marwaha RK. A study of insulin resistance by HOMA-IR and its cut-off value to identify metabolic syndrome in urban Indian adolescents. J Clin Res Pediatr Endocrinol 2013;5(4):245–251. DOI 10.4274/Jcrpe.1127 · PMID 24379034 · https://pmc.ncbi.nlm.nih.gov/articles/PMC3890224/",
+  "S6": "Jog KS et al. Comparison of novel biomarkers of insulin resistance with HOMA-IR in a South Indian population. Cureus 2023. DOI 10.7759/cureus.33653 · PMID 36788883",
+  "S7": "Miller WG et al. Toward standardization of insulin immunoassays. Clin Chem 2009;55(5):1011–1018. DOI 10.1373/clinchem.2008.118380 · PMID 19325009 · https://academic.oup.com/clinchem/article-abstract/55/5/1011/5629277",
+  "S8": "Knopp JL, Holder-Pearson L, Chase JG. Insulin units and conversion factors: a story of truth, boots, and faster half-truths. J Diabetes Sci Technol 2019;13(3):597–600. DOI 10.1177/1932296818805074 · PMID 30318910 · https://pmc.ncbi.nlm.nih.gov/articles/PMC6501531/",
+  "S9": "Patel A et al. Association between glycated hemoglobin (HbA1c) levels in patients with iron deficiency anemia in a tertiary care hospital in Central India. Cureus 2024. DOI 10.7759/cureus.66121 · PMID 39229395",
+  "S10": "Nathan DM et al. Translating the A1C assay into estimated average glucose values. Diabetes Care 2008;31(8):1473–1478. DOI 10.2337/dc08-0545 · PMID 18540046",
+  "S11": "NGSP. IFCC Standardization of HbA1c (IFCC–NGSP master equation). https://ngsp.org/ifccngsp.asp",
+  "S12": "Goldenberg JZ et al. Efficacy and safety of low and very low carbohydrate diets for type 2 diabetes remission: systematic review and meta-analysis. BMJ 2021;372:m4743. DOI 10.1136/bmj.m4743 · PMID 33441384 · https://pmc.ncbi.nlm.nih.gov/articles/PMC7804828/",
+  "S13": "Choi YJ, Jeon SM, Shin S. Impact of a ketogenic diet on metabolic parameters in patients with obesity or overweight and with or without type 2 diabetes: a meta-analysis of randomized controlled trials. Nutrients 2020;12(7):2005. DOI 10.3390/nu12072005 · PMID 32640608",
+  "S14": "Yu Z et al. Effects of high-protein diet on glycemic control, insulin resistance and blood pressure in type 2 diabetes: a systematic review and meta-analysis of randomized controlled trials. Clin Nutr 2020;39:1724–1734. DOI 10.1016/j.clnu.2019.08.008 · PMID 31466731",
+  "S15": "16:8 time-restricted eating and cardiometabolic outcomes: meta-analysis of 23 RCTs (n = 1280). Nutr Rev 2026. DOI 10.1093/nutrit/nuaf206 · PMID 41351878",
+  "S16": "Time-restricted eating without calorie restriction in non-diabetic adults: meta-analysis of 11 RCTs (n = 653). Front Nutr 2025. DOI 10.3389/fnut.2025.1631477 · PMID 41346676",
+  "S17": "Sutton EF et al. Early time-restricted feeding improves insulin sensitivity, blood pressure, and oxidative stress even without weight loss in men with prediabetes. Cell Metab 2018;27:1212–1221. DOI 10.1016/j.cmet.2018.04.010 · PMID 29754952",
+  "S18": "Time-restricted eating in type 2 diabetes: meta-analysis. Diabetol Metab Syndr 2026. DOI 10.1186/s13098-026-02138-8 · PMID 41803962",
+  "S19": "Cioffi I et al. Intermittent versus continuous energy restriction on weight loss and cardiometabolic outcomes: a systematic review and meta-analysis of randomized controlled trials. J Transl Med 2018;16:371. DOI 10.1186/s12967-018-1748-4 · PMID 30583725",
+  "S20": "Trepanowski JF et al. Effect of alternate-day fasting on weight loss, weight maintenance, and cardioprotection among metabolically healthy obese adults. JAMA Intern Med 2017;177(7):930–938. DOI 10.1001/jamainternmed.2017.0936 · PMID 28459931",
+  "S21": "Salgin B et al. Effects of prolonged fasting and sustained lipolysis on insulin secretion and insulin sensitivity in normal subjects. Am J Physiol Endocrinol Metab 2009;296:E454–E461. DOI 10.1152/ajpendo.90613.2008 · PMID 19106250",
+  "S22": "Soeters MR et al. Muscle adaptation to short-term fasting in healthy lean humans. J Clin Endocrinol Metab 2008. DOI 10.1210/jc.2006-2491 · PMID 18056775",
+  "S23": "Gibb RD et al. Psyllium fiber improves glycemic control proportional to loss of glycemic control: a meta-analysis of data in euglycemic subjects, patients at risk of type 2 diabetes mellitus, and patients being treated for type 2 diabetes mellitus. Am J Clin Nutr 2015;102:1604–1614. DOI 10.3945/ajcn.115.106989 · PMID 26561625",
+  "S24": "Reynolds AN, Akerman AP, Mann J. Dietary fibre and whole grains in diabetes management: systematic review and meta-analyses. PLoS Med 2020;17(3):e1003053. DOI 10.1371/journal.pmed.1003053 · PMID 32142510",
+  "S25": "Imamura F et al. Effects of saturated fat, polyunsaturated fat, monounsaturated fat, and carbohydrate on glucose-insulin homeostasis: a systematic review and meta-analysis of randomised controlled feeding trials. PLoS Med 2016;13(7):e1002087. DOI 10.1371/journal.pmed.1002087 · PMID 27434027",
+  "S26": "Pourafshar S et al. Egg consumption may improve factors associated with glycemic control and insulin sensitivity in adults with pre- and type II diabetes. Food Funct 2018. PMID 30073224 (single intervention study; abstract only)",
+  "S27": "Schrieks IC et al. The effect of alcohol consumption on insulin sensitivity and glycemic status: a systematic review and meta-analysis of intervention studies. Diabetes Care 2015;38(4):723–732. DOI 10.2337/dc14-1556 · PMID 25805864",
+  "S28": "Shi X et al. Acute caffeine ingestion reduces insulin sensitivity in healthy subjects: a systematic review and meta-analysis. Nutr J 2016;15:103. DOI 10.1186/s12937-016-0220-7 · PMID 28031026",
+  "S29": "Gualano B et al. Creatine in type 2 diabetes: a randomized, double-blind, placebo-controlled trial. Med Sci Sports Exerc 2011;43(5):770–778. DOI 10.1249/MSS.0b013e3181fcee7d · PMID 20881878",
+  "S30": "Mohammadi S et al. Effects of supplementation with milk protein on glycemic parameters: a GRADE-assessed systematic review and dose-response meta-analysis. Nutr J 2023;22:49. DOI 10.1186/s12937-023-00878-1 · PMID 37798798",
+  "S31": "Lean MEJ et al. Primary care-led weight management for remission of type 2 diabetes (DiRECT): an open-label, cluster-randomised trial. Lancet 2018;391:541–551. DOI 10.1016/S0140-6736(17)33102-1 · PMID 29221645",
+  "S32": "Lim EL et al. Reversal of type 2 diabetes: normalisation of beta cell function in association with decreased pancreas and liver triacylglycerol. Diabetologia 2011;54:2506–2514. DOI 10.1007/s00125-011-2204-7 · PMID 21656330",
+  "S33": "Umpierre D et al. Physical activity advice only or structured exercise training and association with HbA1c levels in type 2 diabetes: a systematic review and meta-analysis. JAMA 2011;305(17):1790–1799. DOI 10.1001/jama.2011.576 · PMID 21540423",
+  "S34": "Donga E et al. A single night of partial sleep deprivation induces insulin resistance in multiple metabolic pathways in healthy subjects. J Clin Endocrinol Metab 2010;95(6):2963–2968. DOI 10.1210/jc.2009-2430 · PMID 20371664",
+  "S35": "Spiegel K, Leproult R, Van Cauter E. Impact of sleep debt on metabolic and endocrine function. Lancet 1999;354:1435–1439. DOI 10.1016/S0140-6736(99)01376-8 · PMID 10543671",
+  "S36": "Knowler WC et al. Reduction in the incidence of type 2 diabetes with lifestyle intervention or metformin (DPP). N Engl J Med 2002;346:393–403. DOI 10.1056/NEJMoa012512 · PMID 11832527",
+  "S37": "Brown TJ et al. Omega-3, omega-6, and total dietary polyunsaturated fat for prevention and treatment of type 2 diabetes mellitus: systematic review and meta-analysis of randomised controlled trials. BMJ 2019;366:l4697. DOI 10.1136/bmj.l4697 · PMID 31434641",
+  "S38": "Pittas AG et al. Vitamin D supplementation and prevention of type 2 diabetes (D2d). N Engl J Med 2019;381:520–530. DOI 10.1056/NEJMoa1900906 · PMID 31173679",
+  "S39": "Magnesium supplementation and glucose/insulin-sensitivity parameters: meta-analysis of RCTs. Pharmacol Res 2016. DOI 10.1016/j.phrs.2016.06.019 · PMID 27329332",
+  "S40": "Liu K et al. Effect of green tea on glucose control and insulin sensitivity: a meta-analysis of 17 randomized controlled trials. Am J Clin Nutr 2013;98(2):340–348. DOI 10.3945/ajcn.112.052746 · PMID 23803878",
+  "S41": "Farrin N et al. The effects of Ashwagandha (Withania somnifera) supplementation on fasting blood glucose and HbA1c: a systematic review and dose-response meta-analysis of randomized controlled trials. Diabetes Res Clin Pract 2026;241:113529. DOI 10.1016/j.diabres.2026.113529 · PMID 42641800",
+  "S42": "Dias GZT et al. Melatonin supplementation improves insulin resistance markers but not fasting glucose: a systematic review and meta-analysis of randomized controlled trials. Diabetes Res Clin Pract 2026;237:113290. DOI 10.1016/j.diabres.2026.113290 · PMID 42070664",
+  "S43": "Yu Q et al. Effects of ketone supplements on blood β-hydroxybutyrate, glucose and insulin: a systematic review and three-level meta-analysis. Complement Ther Clin Pract 2023;52:101774. DOI 10.1016/j.ctcp.2023.101774 · PMID 37327753",
+  "S44": "FitzGerald JD et al. 2020 American College of Rheumatology Guideline for the Management of Gout. Arthritis Care Res 2020;72(6):744–760. DOI 10.1002/acr.24180 · PMID 32391934 · https://pmc.ncbi.nlm.nih.gov/articles/PMC10563586/",
+  "S45": "Nuki G, Doherty M, Richette P. Current management of gout: practical messages from 2016 EULAR guidelines. Pol Arch Intern Med 2017;127(4):267–277. DOI 10.20452/pamw.4001 · PMID 28430170",
+  "S46": "Billa G et al. Prevalence of hyperuricemia in Indian subjects attending hyperuricemia screening programs: a retrospective study. J Assoc Physicians India 2018;66(4):43–46. PMID 30347952",
+  "S47": "Wilhelmi de Toledo F, Grundler F et al. Safety, health improvement and well-being during a 4 to 21-day fasting period in an observational study including 1422 subjects. PLoS One 2019;14(1):e0209353. DOI 10.1371/journal.pone.0209353 · PMID 30601864 · https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0209353",
+  "S48": "Grundler F et al. Long-term fasting-induced ketosis in 1610 subjects: metabolic regulation and safety. Nutrients 2024;16(12):1849. DOI 10.3390/nu16121849 · PMID 38931204",
+  "S49": "Goldfinger S, Klinenberg JR, Seegmiller JE. Renal retention of uric acid induced by infusion of beta-hydroxybutyrate and acetoacetate. N Engl J Med 1965;272:351–355. DOI 10.1056/NEJM196502182720705 · PMID 14239117 (bibliographic record only; no abstract available)",
+  "S50": "Ketogenic and DASH diets and serum uric acid: meta-analysis of RCTs. Sci Rep 2023;13. DOI 10.1038/s41598-023-37672-2 · PMID 37380733",
+  "S51": "Ketogenic diet in PCOS: serum uric acid course over 12 weeks (cohort). Reprod Biomed Online 2022. PMID 35732547 (abstract truncated)",
+  "S52": "Very-low-calorie ketogenic diet in hypertensive obese postmenopausal women. Nutrients 2026. DOI 10.3390/nu18121912 · PMID 42356298",
+  "S53": "Choi HK et al. Alcohol intake and risk of incident gout in men: a prospective study. Lancet 2004;363:1277–1281. DOI 10.1016/S0140-6736(04)16000-5 · PMID 15094272",
+  "S54": "Choi HK et al. Purine-rich foods, dairy and protein intake, and the risk of gout in men. N Engl J Med 2004;350:1093–1103. DOI 10.1056/NEJMoa035700 · PMID 15014182",
+  "S55": "Dalbeth N et al. Acute effect of milk on serum urate concentrations: a randomised controlled crossover trial. Ann Rheum Dis 2010;69:1677–1682. DOI 10.1136/ard.2009.124230 · PMID 20472590",
+  "S56": "Choi HK, Curhan G. Coffee, tea, and caffeine consumption and serum uric acid level: the Third National Health and Nutrition Examination Survey. Arthritis Rheum 2007;57(5):816–821. DOI 10.1002/art.22762 · PMID 17530681",
+  "S57": "Zhang Y et al. Is coffee consumption associated with a lower risk of hyperuricaemia or gout? A systematic review and meta-analysis. BMJ Open 2016;6:e009809. DOI 10.1136/bmjopen-2015-009809 · PMID 27401353",
+  "S58": "Jamnik J et al. Fructose intake and risk of gout and hyperuricemia: a systematic review and meta-analysis of prospective cohort studies. BMJ Open 2016;6:e013191. DOI 10.1136/bmjopen-2016-013191 · PMID 27697882",
+  "S59": "Ayoub-Charette S et al. Important food sources of fructose-containing sugars and incident gout: a systematic review and meta-analysis of prospective cohort studies. BMJ Open 2019;9:e024171. DOI 10.1136/bmjopen-2018-024171 · PMID 31061018",
+  "S60": "Nielsen SM et al. Weight loss for overweight and obese individuals with gout: a systematic review of longitudinal studies. Ann Rheum Dis 2017;76:1870–1882. DOI 10.1136/annrheumdis-2017-211472 · PMID 28866649",
+  "S61": "Dessein PH et al. Beneficial effects of weight loss associated with moderate calorie/carbohydrate restriction, and increased proportional intake of protein and unsaturated fat on serum urate and lipoprotein levels in gout: a pilot study. Ann Rheum Dis 2000;59:539–543. DOI 10.1136/ard.59.7.539 · PMID 10873964",
+  "S62": "Sleep apnoea, gout and serum urate: meta-analysis of 17 studies (CPAP effect on urate). Sleep Med 2026. DOI 10.1016/j.sleep.2026.109171 · PMID 42526100",
+  "S63": "Kosaki K et al. Xanthine oxidoreductase activity in marathon runners: potential implications for marathon-induced acute kidney injury. J Appl Physiol 2022;133(1):1–10. DOI 10.1152/japplphysiol.00669.2021 · PMID 35608201",
+  "S64": "Vitals internal: plan/02-next/research-blood-markers.md (index and decisions, 2026-10-02), including the structure-only read of an Indian chain-lab report (units, reference-range formats).",
+  "S65": "Vitals internal: research/06-lipids-cardiometabolic-biomarkers.md §4.11 (glycaemic coefficients) and §4.13 (urate model). Used only for model coefficients already in the engine; its primary sources were not re-opened in this job unless listed above.",
+  "S66": "Juraschek SP, Miller ER, Gelber AC. Effect of oral vitamin C supplementation on serum uric acid: a meta-analysis of randomized controlled trials. Arthritis Care Res 2011;63(9):1295–1306. DOI 10.1002/acr.20519 · PMID 21671418"
+ },
+ "markers": [
+  {
+   "id": "fasting_glucose",
+   "label": "Fasting plasma glucose",
+   "units": {
+    "si": "mmol/L",
+    "conventional": "mg/dL",
+    "factor": 18.016
+   },
+   "ranges": [
+    {
+     "region": "global",
+     "source": "S1",
+     "high": 99,
+     "note": "Normal < 100 mg/dL (< 5.6 mmol/L) after ≥ 8 h without calories"
+    },
+    {
+     "region": "global",
+     "source": "S1",
+     "low": 100,
+     "high": 125,
+     "note": "ADA prediabetes (impaired fasting glucose) 100–125 mg/dL (5.6–6.9 mmol/L)"
+    },
+    {
+     "region": "global",
+     "source": "S1",
+     "low": 126,
+     "note": "ADA diabetes ≥ 126 mg/dL (≥ 7.0 mmol/L); needs a repeat test unless symptoms"
+    },
+    {
+     "region": "IN",
+     "source": "S3",
+     "low": 110,
+     "high": 125,
+     "note": "RSSDI 2022 impaired fasting glucose 110–125 mg/dL (WHO-style cut-off, higher than ADA's 100)"
+    },
+    {
+     "region": "IN",
+     "source": "S3",
+     "low": 126,
+     "note": "RSSDI 2022 diabetes ≥ 126 mg/dL, repeat to confirm unless unequivocal"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": "gte",
+     "value": 126,
+     "unit": "mg/dL",
+     "message": "Your fasting glucose is in the diabetes range. Please confirm it with a doctor; one result is not a diagnosis.",
+     "source": "S1"
+    }
+   ],
+   "retestWeeks": 12
+  },
+  {
+   "id": "hba1c",
+   "label": "HbA1c (glycated haemoglobin)",
+   "units": {
+    "si": "mmol/mol",
+    "conventional": "%",
+    "factor": null,
+    "formula": "mmol/mol = 10.93 × % − 23.50; % = 0.09148 × mmol/mol + 2.152"
+   },
+   "ranges": [
+    {
+     "region": "global",
+     "source": "S1",
+     "high": 5.6,
+     "note": "Below 5.7 % (39 mmol/mol) is normal"
+    },
+    {
+     "region": "global",
+     "source": "S1",
+     "low": 5.7,
+     "high": 6.4,
+     "note": "ADA prediabetes 5.7–6.4 % (39–47 mmol/mol); RSSDI 2022 uses the same"
+    },
+    {
+     "region": "global",
+     "source": "S1",
+     "low": 6.5,
+     "note": "Diabetes ≥ 6.5 % (≥ 48 mmol/mol), NGSP-certified method, repeat to confirm"
+    },
+    {
+     "region": "global",
+     "source": "S2",
+     "target": 7.0,
+     "note": "Treatment goal < 7 % (< 53 mmol/mol) for many non-pregnant adults with diabetes (clinician sets it)"
+    },
+    {
+     "region": "IN",
+     "source": "S3",
+     "target": 7.0,
+     "note": "RSSDI 2022 target HbA1c < 7.0 %; exclude anaemia before diagnosing on HbA1c; fructosamine if haemoglobinopathy"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": "gte",
+     "value": 6.5,
+     "unit": "%",
+     "message": "Your HbA1c is in the diabetes range. Please confirm with a doctor; HbA1c needs a repeat test and can read wrong with anaemia.",
+     "source": "S1"
+    },
+    {
+     "op": "gte",
+     "value": 9.0,
+     "unit": "%",
+     "message": "Your HbA1c is well above the treatment goal. Please see a doctor before starting fasting or a large diet change.",
+     "source": "S64"
+    }
+   ],
+   "retestWeeks": 12
+  },
+  {
+   "id": "fasting_insulin",
+   "label": "Fasting insulin (and HOMA-IR)",
+   "units": {
+    "si": "pmol/L",
+    "conventional": "µU/mL",
+    "factor": 6.0,
+    "note": "1 µU/mL = 6.00 pmol/L (Knopp 2019); some labs and the engine's research/06 use 6.945, which under-reports by ~15 %"
+   },
+   "ranges": [
+    {
+     "region": "IN",
+     "source": "S5",
+     "high": 2.5,
+     "note": "HOMA-IR (FPG mmol/L × insulin µU/mL / 22.5) cut-off 2.5 for metabolic syndrome in urban Indian adolescents; no adult Indian guideline"
+    },
+    {
+     "region": "IN",
+     "source": "S6",
+     "high": 1.23,
+     "note": "One South Indian adult study (n=192) proposed HOMA-IR 1.23; assay-dependent, not a guideline"
+    },
+    {
+     "region": "global",
+     "source": "S7",
+     "note": "No guideline reference range; insulin immunoassays differ by > 15 % from the reference method in 7 of 10 assays, so use the lab's own range and compare only like with like"
+    }
+   ],
+   "clinicianOnly": [],
+   "retestWeeks": 12
+  },
+  {
+   "id": "uric_acid",
+   "label": "Serum uric acid (urate)",
+   "units": {
+    "si": "µmol/L",
+    "conventional": "mg/dL",
+    "factor": 59.48
+   },
+   "ranges": [
+    {
+     "region": "global",
+     "source": "S44",
+     "high": 6.8,
+     "note": "Above 6.8 mg/dL (≈ 405 µmol/L) is hyperuricaemia; urate can crystallise"
+    },
+    {
+     "region": "global",
+     "source": "S44",
+     "target": 6.0,
+     "note": "Gout on urate-lowering treatment: target < 6 mg/dL (ACR 2020); < 5 mg/dL in severe gout (EULAR 2016)"
+    },
+    {
+     "region": "IN",
+     "source": "S64",
+     "low": 3.5,
+     "high": 7.2,
+     "note": "Typical Indian chain-lab range, men (printed on reports; varies by lab)"
+    },
+    {
+     "region": "IN",
+     "source": "S64",
+     "low": 2.6,
+     "high": 6.0,
+     "note": "Typical Indian chain-lab range, women"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": "gte",
+     "value": 6.8,
+     "unit": "mg/dL",
+     "message": "Your uric acid is above the level where crystals can form. If you have had joint pain or swelling, see a doctor before long fasts. High uric acid without symptoms is usually not treated with medicine.",
+     "source": "S44"
+    }
+   ],
+   "retestWeeks": 8
+  }
+ ],
+ "interactions": [
+  {
+   "markerId": "fasting_glucose",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "−0.73 mmol/L (≈ −13 mg/dL; 95 % CI −1.19 to −0.27) vs control at 6 months; +0.06 mmol/L (NS) at 12 months",
+   "unit": "mmol/L",
+   "population": "adults with T2D, 14 RCTs",
+   "timeCourseWeeks": 2,
+   "mechanism": "Less dietary glucose and lower hepatic glucose output; the advantage fades by 12 months as adherence falls. In lean normoglycaemic people a small FPG rise from 'physiological insulin resistance' is possible (mechanistic expectation, not measured in the sources opened)",
+   "grade": "B",
+   "sources": [
+    "S12",
+    "S13"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "Small; no separate FPG estimate for 26–45 %E opened. Isocaloric swap of 5 %E carbohydrate for SFA: +0.02 mmol/L (null)",
+   "unit": "mmol/L",
+   "population": "feeding trials, mixed adults",
+   "timeCourseWeeks": 4,
+   "mechanism": "Lower glycaemic load; benefit depends on what replaces the carbohydrate (unsaturated fat better than SFA)",
+   "grade": "C",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "−0.13 mmol/L (−0.46 to 0.19), NS",
+   "unit": "mmol/L",
+   "population": "adults with T2D, 13 RCTs",
+   "timeCourseWeeks": 8,
+   "mechanism": "Protein stimulates both insulin and glucagon; net FPG effect near zero",
+   "grade": "B",
+   "sources": [
+    "S14"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "fast16_8",
+   "direction": "down",
+   "effectSize": "−2.65 mg/dL (−3.92 to −1.39) without calorie restriction; −0.44 mmol/L (≈ −8 mg/dL) in T2D",
+   "unit": "mg/dL",
+   "population": "non-diabetic adults (11 RCTs, n=653); T2D meta-analysis",
+   "timeCourseWeeks": 8,
+   "mechanism": "Longer overnight post-absorptive period, modest weight loss, better hepatic insulin sensitivity",
+   "grade": "B",
+   "sources": [
+    "S16",
+    "S18",
+    "S15"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "No difference from daily calorie restriction at equal weight loss (6 and 12 months)",
+   "unit": "mg/dL",
+   "population": "metabolically healthy adults with obesity; 11 RCTs of intermittent vs continuous restriction",
+   "timeCourseWeeks": 12,
+   "mechanism": "Effect runs through weight loss, not through the fast itself. Acutely, the morning after a 24 h fast insulin sensitivity is lower (see insulin row)",
+   "grade": "B",
+   "sources": [
+    "S20",
+    "S19"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "fast36_48",
+   "direction": "mixed",
+   "effectSize": "FPG falls during the fast; insulin sensitivity falls (insulin sensitivity index 5.7 → 2.6 after a 24 h fast), so a test in the 1–3 days after is not representative",
+   "unit": "index",
+   "population": "healthy adults",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Glucose sparing: high free fatty acids reduce muscle glucose uptake (Randle cycle); glycogen depletion",
+   "grade": "C",
+   "sources": [
+    "S21",
+    "S22"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "fast48plus",
+   "direction": "mixed",
+   "effectSize": "Peripheral insulin-mediated glucose uptake −46 % after 60 h; FPG low during the fast, transiently higher glucose response after refeeding",
+   "unit": "%",
+   "population": "healthy lean adults",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Same glucose-sparing adaptation, stronger with time",
+   "grade": "C",
+   "sources": [
+    "S22"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "satfat",
+   "direction": "none",
+   "effectSize": "+0.02 mmol/L (−0.01 to +0.04) per 5 %E carbohydrate → SFA",
+   "unit": "mmol/L",
+   "population": "102 feeding trials, n=4220",
+   "timeCourseWeeks": 4,
+   "mechanism": "SFA does not acutely change FPG; it worsens insulin sensitivity relative to PUFA",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "One small study: FPG −4.4 % with eggs; no meta-analysis opened",
+   "unit": "%",
+   "population": "adults with pre-diabetes or T2D, single study",
+   "timeCourseWeeks": 12,
+   "mechanism": "No direct pathway from dietary cholesterol to hepatic glucose output; eggs displace refined carbohydrate",
+   "grade": "D",
+   "sources": [
+    "S26"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "fibre",
+   "direction": "down",
+   "effectSize": "−0.56 mmol/L (≈ −10 mg/dL; −0.73 to −0.38); psyllium in T2D −37 mg/dL, no effect in euglycaemic adults",
+   "unit": "mmol/L",
+   "population": "adults with diabetes (34 trials); psyllium 35 RCTs",
+   "timeCourseWeeks": 8,
+   "mechanism": "Viscous fibre slows glucose absorption; colonic fermentation to short-chain fatty acids",
+   "grade": "A",
+   "sources": [
+    "S24",
+    "S23"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "unsatfat",
+   "direction": "down",
+   "effectSize": "Direction shown when PUFA replaces SFA or carbohydrate; FPG magnitude not given in the abstract",
+   "unit": "mmol/L",
+   "population": "102 feeding trials",
+   "timeCourseWeeks": 4,
+   "mechanism": "PUFA/MUFA improve insulin sensitivity and secretion relative to SFA and carbohydrate",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "alcohol",
+   "direction": "none",
+   "effectSize": "Fasting glucose unchanged",
+   "unit": "mmol/L",
+   "population": "14 intervention studies, adults",
+   "timeCourseWeeks": 4,
+   "mechanism": "Ethanol inhibits gluconeogenesis acutely (hypoglycaemia risk on glucose-lowering drugs; mechanistic, not quantified here)",
+   "grade": "B",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "caffeine",
+   "direction": "mixed",
+   "effectSize": "Acute caffeine lowers insulin sensitivity (SMD −2.06); long-term coffee effect not opened",
+   "unit": "SMD",
+   "population": "healthy adults, 7 RCTs",
+   "timeCourseWeeks": 0,
+   "mechanism": "Adenosine-receptor block and adrenaline release reduce muscle glucose uptake for hours",
+   "grade": "C",
+   "sources": [
+    "S28"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "No FPG data opened; HbA1c fell in one T2D trial (see HbA1c)",
+   "unit": "mg/dL",
+   "population": "—",
+   "timeCourseWeeks": 12,
+   "mechanism": "Mechanistic expectation: creatine with exercise raises muscle GLUT4; FPG effect in non-diabetics unknown",
+   "grade": "D",
+   "sources": [
+    "S29"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "wheyprotein",
+   "direction": "down",
+   "effectSize": "−1.83 mg/dL (−3.28 to −0.38)",
+   "unit": "mg/dL",
+   "population": "36 RCTs of milk protein, n=1851",
+   "timeCourseWeeks": 8,
+   "mechanism": "Insulinotropic amino acids and incretin release; small fasting effect",
+   "grade": "B",
+   "sources": [
+    "S30"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "FPG 9.2 → 5.9 mmol/L within 1 week on 600 kcal/d; diabetes remission 46 % vs 4 % at 12 months",
+   "unit": "mmol/L",
+   "population": "adults with T2D",
+   "timeCourseWeeks": 1,
+   "mechanism": "Rapid fall in liver fat restores hepatic insulin sensitivity within days",
+   "grade": "A",
+   "sources": [
+    "S32",
+    "S31"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "Via weight loss: about −0.7 mg/dL per kg lost near FPG 100 mg/dL (engine coefficient)",
+   "unit": "mg/dL",
+   "population": "adults with overweight (engine fit)",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lower liver and visceral fat, better hepatic insulin sensitivity",
+   "grade": "B",
+   "sources": [
+    "S65",
+    "S36"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "Not quantified in sources opened; liver fat rises within 3 weeks of overfeeding (engine research)",
+   "unit": "mg/dL",
+   "population": "overfed adults",
+   "timeCourseWeeks": 4,
+   "mechanism": "Ectopic liver fat and hepatic insulin resistance",
+   "grade": "C",
+   "sources": [
+    "S65"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "resistance_load",
+   "direction": "down",
+   "effectSize": "FPG not reported; HbA1c −0.57 % in T2D (see HbA1c)",
+   "unit": "mg/dL",
+   "population": "adults with T2D",
+   "timeCourseWeeks": 12,
+   "mechanism": "More muscle mass and GLUT4; post-exercise glucose uptake",
+   "grade": "C",
+   "sources": [
+    "S33"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "FPG not reported; HbA1c −0.73 % in T2D (see HbA1c)",
+   "unit": "mg/dL",
+   "population": "adults with T2D",
+   "timeCourseWeeks": 12,
+   "mechanism": "Contraction-mediated glucose uptake; better insulin sensitivity",
+   "grade": "C",
+   "sources": [
+    "S33"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "sleep_debt",
+   "direction": "up",
+   "effectSize": "One night of partial sleep loss: glucose disposal 40.7 → 32.5 µmol/kg lean mass/min (−20 %); endogenous glucose production 3.6 → 4.4",
+   "unit": "µmol/kg/min",
+   "population": "healthy adults",
+   "timeCourseWeeks": 0,
+   "mechanism": "Sympathetic activation and cortisol raise hepatic glucose output and reduce muscle uptake",
+   "grade": "B",
+   "sources": [
+    "S34",
+    "S35"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "Lifestyle programme with ~7 % weight loss cut diabetes incidence by 58 % (48–66 %); engine slope −0.7 mg/dL per kg (up to −3 mg/dL per kg in T2D)",
+   "unit": "% risk",
+   "population": "adults with prediabetes (DPP)",
+   "timeCourseWeeks": 24,
+   "mechanism": "Lower liver and visceral fat",
+   "grade": "A",
+   "sources": [
+    "S36",
+    "S65"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:psyllium",
+   "direction": "down",
+   "effectSize": "T2D −37 mg/dL; prediabetes modest; euglycaemic none",
+   "unit": "mg/dL",
+   "population": "35 RCTs",
+   "timeCourseWeeks": 8,
+   "mechanism": "Viscous gel slows glucose absorption; effect proportional to how high glucose is",
+   "grade": "A",
+   "sources": [
+    "S23"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:magnesium",
+   "direction": "mixed",
+   "effectSize": "No overall FPG effect; trials ≥ 4 months improved FPG and HOMA-IR",
+   "unit": "mg/dL",
+   "population": "RCT meta-analysis",
+   "timeCourseWeeks": 16,
+   "mechanism": "Magnesium is a cofactor in insulin signalling; benefit likely only if depleted",
+   "grade": "C",
+   "sources": [
+    "S39"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:vitamin_d3",
+   "direction": "none",
+   "effectSize": "Diabetes HR 0.88 (0.75–1.04), NS, with 4000 IU/d",
+   "unit": "HR",
+   "population": "adults with prediabetes (D2d)",
+   "timeCourseWeeks": 130,
+   "mechanism": "Vitamin D receptor on beta cells; no clinical effect shown in replete people",
+   "grade": "A",
+   "sources": [
+    "S38"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:omega3_epa_dha",
+   "direction": "none",
+   "effectSize": "HbA1c −0.02 % (−0.07 to 0.04); diabetes RR 1.00",
+   "unit": "%",
+   "population": "RCT meta-analysis",
+   "timeCourseWeeks": 26,
+   "mechanism": "No glycaemic pathway of note",
+   "grade": "A",
+   "sources": [
+    "S37"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:green_tea_extract",
+   "direction": "down",
+   "effectSize": "−0.09 mmol/L (−0.15 to −0.03)",
+   "unit": "mmol/L",
+   "population": "17 RCTs (tea and extract)",
+   "timeCourseWeeks": 8,
+   "mechanism": "Catechins may slow carbohydrate absorption; small effect",
+   "grade": "B",
+   "sources": [
+    "S40"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:ashwagandha",
+   "direction": "down",
+   "effectSize": "−3.09 mg/dL (−5.61 to −0.58), very low certainty",
+   "unit": "mg/dL",
+   "population": "11 RCTs, n=667",
+   "timeCourseWeeks": 8,
+   "mechanism": "Unclear; possibly via cortisol and stress",
+   "grade": "C",
+   "sources": [
+    "S41"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:melatonin",
+   "direction": "none",
+   "effectSize": "No significant FPG change (27 studies)",
+   "unit": "mg/dL",
+   "population": "31 RCTs, 1–10 mg/d",
+   "timeCourseWeeks": 8,
+   "mechanism": "Melatonin acutely reduces insulin secretion at night; daytime FPG unchanged",
+   "grade": "B",
+   "sources": [
+    "S42"
+   ]
+  },
+  {
+   "markerId": "fasting_glucose",
+   "lever": "supp:exogenous_ketones",
+   "direction": "down",
+   "effectSize": "Acute small fall in blood glucose (Hedges g 0.12) for hours after a dose",
+   "unit": "g",
+   "population": "30 studies, n=408",
+   "timeCourseWeeks": 0,
+   "mechanism": "Ketones lower hepatic glucose output acutely",
+   "grade": "C",
+   "sources": [
+    "S43"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "−0.47 % (−0.60 to −0.34) at 6 months; −0.23 % (−0.46 to 0) at 12 months; remission 57 % vs 31 % at 6 months",
+   "unit": "% points",
+   "population": "adults with T2D, 17 RCTs (n=747)",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lower mean glucose; HbA1c follows with a ~35 d half-life",
+   "grade": "B",
+   "sources": [
+    "S12",
+    "S13"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "Replacing 5 %E carbohydrate with MUFA −0.09 % (−0.12 to −0.05), with PUFA −0.11 % (−0.17 to −0.05)",
+   "unit": "% points per 5 %E",
+   "population": "102 feeding trials, n=4220",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lower glycaemic load plus better insulin sensitivity from unsaturated fat",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "−0.05 % (−0.18 to 0.08), NS",
+   "unit": "% points",
+   "population": "adults with T2D, 13 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Neutral on mean glucose",
+   "grade": "B",
+   "sources": [
+    "S14"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "fast16_8",
+   "direction": "down",
+   "effectSize": "SMD −0.31 (−0.56 to −0.05) in trials > 6 months; −0.32 % (−0.47 to −0.18) in T2D",
+   "unit": "% points",
+   "population": "23 RCTs (n=1280); T2D meta-analysis",
+   "timeCourseWeeks": 24,
+   "mechanism": "Mostly via weight loss and lower mean glucose",
+   "grade": "B",
+   "sources": [
+    "S15",
+    "S18"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "No independent effect beyond the weight lost (alternate-day vs daily restriction)",
+   "unit": "% points",
+   "population": "adults with obesity",
+   "timeCourseWeeks": 24,
+   "mechanism": "Mean glucose changes only through weight loss",
+   "grade": "C",
+   "sources": [
+    "S20",
+    "S19"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "fast36_48",
+   "direction": "none",
+   "effectSize": "Too short to move HbA1c measurably; one 2-day dip in glucose is diluted over ~100 days of red-cell age",
+   "unit": "% points",
+   "population": "mechanism",
+   "timeCourseWeeks": 12,
+   "mechanism": "HbA1c integrates glucose over red-cell life (half-time ≈ 35 d)",
+   "grade": "C",
+   "sources": [
+    "S10",
+    "S65"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "fast48plus",
+   "direction": "down",
+   "effectSize": "Not quantified; expected small fall if repeated, via mean glucose and weight",
+   "unit": "% points",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 12,
+   "mechanism": "Same integration; weight loss",
+   "grade": "D",
+   "sources": [
+    "S65"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "satfat",
+   "direction": "up",
+   "effectSize": "Relative to PUFA: replacing SFA with PUFA lowered HbA1c (no magnitude in abstract); vs carbohydrate roughly neutral",
+   "unit": "% points",
+   "population": "feeding trials",
+   "timeCourseWeeks": 12,
+   "mechanism": "SFA impairs insulin sensitivity relative to PUFA",
+   "grade": "C",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "No HbA1c data opened",
+   "unit": "% points",
+   "population": "—",
+   "timeCourseWeeks": 12,
+   "mechanism": "No direct pathway",
+   "grade": "D",
+   "sources": [
+    "S26"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "fibre",
+   "direction": "down",
+   "effectSize": "−2.00 mmol/mol (≈ −0.18 %; −3.30 to −0.71); psyllium in T2D −0.97 %",
+   "unit": "mmol/mol",
+   "population": "adults with diabetes (33 trials); psyllium RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Slower glucose absorption lowers mean glucose",
+   "grade": "A",
+   "sources": [
+    "S24",
+    "S23"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "unsatfat",
+   "direction": "down",
+   "effectSize": "−0.09 to −0.11 % per 5 %E replacing carbohydrate",
+   "unit": "% points per 5 %E",
+   "population": "102 feeding trials",
+   "timeCourseWeeks": 12,
+   "mechanism": "Better insulin sensitivity and secretion",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "alcohol",
+   "direction": "down",
+   "effectSize": "SMD −0.62 (−1.01 to −0.23) in intervention studies; not a reason to drink",
+   "unit": "SMD",
+   "population": "14 intervention studies",
+   "timeCourseWeeks": 12,
+   "mechanism": "Unclear; ethanol suppresses gluconeogenesis. Hypoglycaemia risk on glucose-lowering drugs",
+   "grade": "C",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "caffeine",
+   "direction": "none",
+   "effectSize": "No HbA1c data opened",
+   "unit": "% points",
+   "population": "—",
+   "timeCourseWeeks": 12,
+   "mechanism": "Acute insulin-sensitivity drop does not obviously carry into mean glucose",
+   "grade": "D",
+   "sources": [
+    "S28"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "creatine",
+   "direction": "down",
+   "effectSize": "−1.1 % (−1.9 to −0.4) vs placebo, with exercise training",
+   "unit": "% points",
+   "population": "adults with T2D, one RCT",
+   "timeCourseWeeks": 12,
+   "mechanism": "Creatine plus exercise raises muscle GLUT4 translocation",
+   "grade": "C",
+   "sources": [
+    "S29"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "wheyprotein",
+   "direction": "none",
+   "effectSize": "+0.01 % (−0.14 to 0.16)",
+   "unit": "% points",
+   "population": "36 RCTs of milk protein",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lowers post-meal peaks only slightly overall",
+   "grade": "B",
+   "sources": [
+    "S30"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "Diabetes remission (HbA1c < 6.5 % off drugs) 46 % vs 4 % at 12 months with total diet replacement",
+   "unit": "% remission",
+   "population": "adults with T2D (DiRECT)",
+   "timeCourseWeeks": 12,
+   "mechanism": "Loss of liver and pancreatic fat restores beta-cell function",
+   "grade": "A",
+   "sources": [
+    "S31",
+    "S32"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "About −0.02 % per kg in non-diabetic adults, −0.08 % per kg in T2D (engine coefficients)",
+   "unit": "% points per kg",
+   "population": "engine fit from trials",
+   "timeCourseWeeks": 12,
+   "mechanism": "Weight loss lowers mean glucose",
+   "grade": "B",
+   "sources": [
+    "S65"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "Not quantified in sources opened",
+   "unit": "% points",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 12,
+   "mechanism": "Weight gain and liver fat raise mean glucose",
+   "grade": "D",
+   "sources": [
+    "S65"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "resistance_load",
+   "direction": "down",
+   "effectSize": "−0.57 % (−1.14 to −0.01)",
+   "unit": "% points",
+   "population": "adults with T2D, structured training",
+   "timeCourseWeeks": 12,
+   "mechanism": "More muscle glucose disposal",
+   "grade": "A",
+   "sources": [
+    "S33"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "−0.73 % (−1.06 to −0.40); > 150 min/week −0.89 %, ≤ 150 min/week −0.36 %",
+   "unit": "% points",
+   "population": "adults with T2D, 47 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Contraction-mediated glucose uptake and insulin sensitivity",
+   "grade": "A",
+   "sources": [
+    "S33"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "sleep_debt",
+   "direction": "up",
+   "effectSize": "No HbA1c data opened; acute insulin resistance −20 % per short night",
+   "unit": "% points",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 12,
+   "mechanism": "Repeated short nights raise mean glucose",
+   "grade": "D",
+   "sources": [
+    "S34",
+    "S35"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "−0.02 %/kg non-diabetic, −0.08 %/kg T2D; DPP 58 % fewer new diabetes cases",
+   "unit": "% points per kg",
+   "population": "engine coefficients; DPP",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lower liver/visceral fat",
+   "grade": "A",
+   "sources": [
+    "S65",
+    "S36"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:psyllium",
+   "direction": "down",
+   "effectSize": "−0.97 % in T2D",
+   "unit": "% points",
+   "population": "psyllium RCTs in T2D",
+   "timeCourseWeeks": 12,
+   "mechanism": "Viscous fibre",
+   "grade": "B",
+   "sources": [
+    "S23"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:omega3_epa_dha",
+   "direction": "none",
+   "effectSize": "−0.02 % (−0.07 to 0.04)",
+   "unit": "% points",
+   "population": "RCT meta-analysis",
+   "timeCourseWeeks": 12,
+   "mechanism": "No glycaemic pathway",
+   "grade": "A",
+   "sources": [
+    "S37"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:magnesium",
+   "direction": "none",
+   "effectSize": "No overall HbA1c effect; longer trials better",
+   "unit": "% points",
+   "population": "RCT meta-analysis",
+   "timeCourseWeeks": 16,
+   "mechanism": "Cofactor in insulin signalling",
+   "grade": "C",
+   "sources": [
+    "S39"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:green_tea_extract",
+   "direction": "down",
+   "effectSize": "−0.30 % (−0.37 to −0.22)",
+   "unit": "% points",
+   "population": "17 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Catechins; estimate looks large for the FPG change and is graded down",
+   "grade": "C",
+   "sources": [
+    "S40"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:ashwagandha",
+   "direction": "none",
+   "effectSize": "−0.05 % (−0.47 to 0.36), 3 trials, very low certainty",
+   "unit": "% points",
+   "population": "RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Unclear",
+   "grade": "C",
+   "sources": [
+    "S41"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:melatonin",
+   "direction": "down",
+   "effectSize": "Improved (magnitude not in abstract)",
+   "unit": "% points",
+   "population": "9 RCTs reporting HbA1c",
+   "timeCourseWeeks": 12,
+   "mechanism": "Unclear",
+   "grade": "C",
+   "sources": [
+    "S42"
+   ]
+  },
+  {
+   "markerId": "hba1c",
+   "lever": "supp:iron",
+   "direction": "up",
+   "effectSize": "Measurement effect: HbA1c 4.63 % → 5.82 % after treating iron-deficiency anaemia (non-diabetic adults); ADA says iron deficiency raises HbA1c, so direction is contested",
+   "unit": "% points",
+   "population": "141 non-diabetic adults with IDA, Central India",
+   "timeCourseWeeks": 12,
+   "mechanism": "Red-cell age and iron status change HbA1c without any change in glucose",
+   "grade": "C",
+   "sources": [
+    "S9",
+    "S1"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "HOMA-IR −0.14 (−0.51 to 0.23) at 6 months, very low certainty (T2D); keto HOMA SMD −0.29 in diabetic subgroup",
+   "unit": "HOMA-IR",
+   "population": "adults with T2D; adults with obesity",
+   "timeCourseWeeks": 4,
+   "mechanism": "Less carbohydrate means less insulin secretion; liver fat falls",
+   "grade": "B",
+   "sources": [
+    "S12",
+    "S13"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "HOMA-IR −2.4 % (−4.6 to −0.3) per 5 %E carbohydrate → MUFA",
+   "unit": "% per 5 %E",
+   "population": "feeding trials",
+   "timeCourseWeeks": 4,
+   "mechanism": "Lower insulin demand; MUFA improves sensitivity",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "highprotein",
+   "direction": "down",
+   "effectSize": "HOMA-IR −0.27 (−0.47 to −0.06)",
+   "unit": "HOMA-IR",
+   "population": "adults with T2D, 13 RCTs",
+   "timeCourseWeeks": 8,
+   "mechanism": "Weight-loss and satiety effects; amino acids also stimulate insulin acutely",
+   "grade": "B",
+   "sources": [
+    "S14"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "fast16_8",
+   "direction": "down",
+   "effectSize": "Fasting insulin −2.00 µU/mL (−3.02 to −0.97); HOMA-IR −0.58 (−0.81 to −0.35)",
+   "unit": "µU/mL",
+   "population": "non-diabetic adults, TRE without calorie restriction",
+   "timeCourseWeeks": 8,
+   "mechanism": "Longer daily low-insulin window; small weight loss",
+   "grade": "B",
+   "sources": [
+    "S16",
+    "S15",
+    "S17"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "fast24",
+   "direction": "mixed",
+   "effectSize": "Long-term: fasting insulin −0.89 µU/mL (−1.56 to −0.22) vs continuous restriction. Acute: after a 24 h fast insulin sensitivity index 5.7 → 2.6 (×10⁻⁴ min⁻¹ per mU/L)",
+   "unit": "µU/mL",
+   "population": "11 RCTs (8–24 weeks); healthy adults (acute)",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Low insulin during the fast; high free fatty acids cause transient insulin resistance afterwards",
+   "grade": "B",
+   "sources": [
+    "S19",
+    "S21"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "fast36_48",
+   "direction": "mixed",
+   "effectSize": "Insulin falls during the fast; peripheral insulin resistance develops (see 60 h data). A fasting insulin drawn in the 1–3 days after is not a baseline",
+   "unit": "µU/mL",
+   "population": "healthy adults",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Glucose sparing via fatty-acid oxidation",
+   "grade": "B",
+   "sources": [
+    "S21",
+    "S22"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "fast48plus",
+   "direction": "mixed",
+   "effectSize": "Insulin-mediated glucose uptake −46 % after 60 h",
+   "unit": "%",
+   "population": "healthy lean adults",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Glucose sparing; ~ninefold free fatty acids",
+   "grade": "B",
+   "sources": [
+    "S22"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "satfat",
+   "direction": "none",
+   "effectSize": "Fasting insulin −1.1 pmol/L (−1.7 to −0.5) per 5 %E carbohydrate → SFA (≈ −0.2 µU/mL, negligible); worse than PUFA",
+   "unit": "pmol/L per 5 %E",
+   "population": "feeding trials",
+   "timeCourseWeeks": 4,
+   "mechanism": "SFA impairs insulin sensitivity relative to PUFA",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "One small study: HOMA-IR lower with eggs",
+   "unit": "HOMA-IR",
+   "population": "pre-diabetes/T2D, single study",
+   "timeCourseWeeks": 12,
+   "mechanism": "Displacement of refined carbohydrate",
+   "grade": "D",
+   "sources": [
+    "S26"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "fibre",
+   "direction": "down",
+   "effectSize": "HOMA-IR −1.24 (−1.72 to −0.76); insulin SMD −2.03",
+   "unit": "HOMA-IR",
+   "population": "adults with diabetes (9 trials)",
+   "timeCourseWeeks": 8,
+   "mechanism": "Lower post-meal insulin demand; SCFA effects",
+   "grade": "A",
+   "sources": [
+    "S24"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "unsatfat",
+   "direction": "down",
+   "effectSize": "Fasting insulin −1.6 pmol/L (−2.8 to −0.4) per 5 %E carbohydrate → PUFA",
+   "unit": "pmol/L per 5 %E",
+   "population": "feeding trials",
+   "timeCourseWeeks": 4,
+   "mechanism": "Better insulin sensitivity",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "alcohol",
+   "direction": "down",
+   "effectSize": "Fasting insulin SMD −0.19 (−0.35 to −0.02); in women −0.23, none in men",
+   "unit": "SMD",
+   "population": "14 intervention studies",
+   "timeCourseWeeks": 4,
+   "mechanism": "Unclear; not a lever to recommend",
+   "grade": "C",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "caffeine",
+   "direction": "up",
+   "effectSize": "Acute insulin sensitivity SMD −2.06; a coffee before the blood draw can raise fasting insulin",
+   "unit": "SMD",
+   "population": "healthy adults, 7 RCTs",
+   "timeCourseWeeks": 0,
+   "mechanism": "Adrenaline release and adenosine block",
+   "grade": "C",
+   "sources": [
+    "S28"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "No data opened",
+   "unit": "µU/mL",
+   "population": "—",
+   "timeCourseWeeks": 12,
+   "mechanism": "Mechanistic expectation only (muscle GLUT4)",
+   "grade": "D",
+   "sources": [
+    "S29"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "wheyprotein",
+   "direction": "down",
+   "effectSize": "Fasting insulin −1.06 µU/mL (−1.76 to −0.36); HOMA-IR −0.27 (−0.40 to −0.14)",
+   "unit": "µU/mL",
+   "population": "36 RCTs of milk protein",
+   "timeCourseWeeks": 8,
+   "mechanism": "Satiety and weight effects; fasting state",
+   "grade": "B",
+   "sources": [
+    "S30"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "Fasting glucose normalised within 1 week on 600 kcal/d with falling liver fat; insulin falls within days (engine τ ≈ 5 d)",
+   "unit": "µU/mL",
+   "population": "adults with T2D",
+   "timeCourseWeeks": 1,
+   "mechanism": "Liver fat falls fast; hepatic insulin sensitivity returns",
+   "grade": "A",
+   "sources": [
+    "S32",
+    "S65"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "ln insulin −0.030 per % weight lost (engine)",
+   "unit": "ln µU/mL per %",
+   "population": "engine fit",
+   "timeCourseWeeks": 8,
+   "mechanism": "Weight loss",
+   "grade": "B",
+   "sources": [
+    "S65",
+    "S19"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "Not quantified in sources opened",
+   "unit": "µU/mL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 4,
+   "mechanism": "Liver fat and adipose expansion raise insulin resistance",
+   "grade": "C",
+   "sources": [
+    "S65"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "resistance_load",
+   "direction": "down",
+   "effectSize": "No fasting-insulin data opened; HbA1c falls in T2D",
+   "unit": "µU/mL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 12,
+   "mechanism": "More muscle mass for glucose disposal",
+   "grade": "D",
+   "sources": [
+    "S33"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "aerobic_load",
+   "direction": "none",
+   "effectSize": "HOMA-IR unchanged after 4 weeks of training without weight change (engine research)",
+   "unit": "HOMA-IR",
+   "population": "adults with obesity",
+   "timeCourseWeeks": 4,
+   "mechanism": "Benefit is in muscle insulin sensitivity, which fasting insulin captures poorly",
+   "grade": "C",
+   "sources": [
+    "S65"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "sleep_debt",
+   "direction": "up",
+   "effectSize": "Insulin sensitivity −20 % after one short night",
+   "unit": "%",
+   "population": "healthy adults",
+   "timeCourseWeeks": 0,
+   "mechanism": "Hepatic and peripheral insulin resistance",
+   "grade": "B",
+   "sources": [
+    "S34"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "ln insulin −0.030 per % weight lost (engine); muscle insulin sensitivity improves after ~7 % loss",
+   "unit": "ln µU/mL per %",
+   "population": "engine fit",
+   "timeCourseWeeks": 8,
+   "mechanism": "Less ectopic fat",
+   "grade": "B",
+   "sources": [
+    "S65",
+    "S36"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "supp:magnesium",
+   "direction": "down",
+   "effectSize": "HOMA-IR −0.67 (−1.20 to −0.14)",
+   "unit": "HOMA-IR",
+   "population": "RCT meta-analysis",
+   "timeCourseWeeks": 16,
+   "mechanism": "Insulin-signalling cofactor",
+   "grade": "C",
+   "sources": [
+    "S39"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "supp:green_tea_extract",
+   "direction": "down",
+   "effectSize": "Fasting insulin −1.16 µU/mL (−1.91 to −0.40), high-quality studies only",
+   "unit": "µU/mL",
+   "population": "RCTs",
+   "timeCourseWeeks": 8,
+   "mechanism": "Catechins",
+   "grade": "C",
+   "sources": [
+    "S40"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "supp:melatonin",
+   "direction": "down",
+   "effectSize": "Fasting insulin and HOMA-IR improved (magnitude not in abstract)",
+   "unit": "HOMA-IR",
+   "population": "7 and 4 RCTs",
+   "timeCourseWeeks": 8,
+   "mechanism": "Unclear",
+   "grade": "C",
+   "sources": [
+    "S42"
+   ]
+  },
+  {
+   "markerId": "fasting_insulin",
+   "lever": "supp:exogenous_ketones",
+   "direction": "none",
+   "effectSize": "No significant insulin change in obesity/prediabetes",
+   "unit": "µU/mL",
+   "population": "30 studies",
+   "timeCourseWeeks": 0,
+   "mechanism": "Ketones do not raise insulin load",
+   "grade": "C",
+   "sources": [
+    "S43"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "vlc",
+   "direction": "mixed",
+   "effectSize": "Pooled ketogenic RCTs +0.26 mg/dL (−0.47 to 0.98), I² high; one cohort 5.7 → 8.4 mg/dL at week 6; a VLCKD trial −1.23 mg/dL",
+   "unit": "mg/dL",
+   "population": "10 RCTs; women with PCOS; postmenopausal women with obesity",
+   "timeCourseWeeks": 6,
+   "mechanism": "Ketones compete with urate for renal tubular secretion (rise in weeks 1–6); weight loss lowers it later",
+   "grade": "C",
+   "sources": [
+    "S50",
+    "S51",
+    "S52",
+    "S49"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "Weight-loss diet with 40 % carbohydrate, 30 % protein, 30 % fat: 0.57 → 0.47 mmol/L (≈ 9.6 → 7.9 mg/dL) over 16 weeks",
+   "unit": "mg/dL",
+   "population": "13 men with gout",
+   "timeCourseWeeks": 16,
+   "mechanism": "Weight loss and better insulin sensitivity increase renal urate excretion; no sustained ketosis",
+   "grade": "C",
+   "sources": [
+    "S61"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "highprotein",
+   "direction": "mixed",
+   "effectSize": "Total protein not linked to gout; meat RR +41 %, seafood +51 %, dairy −44 % (top vs bottom quintile)",
+   "unit": "RR",
+   "population": "47,150 men, 12 years",
+   "timeCourseWeeks": 12,
+   "mechanism": "Purine load from meat and fish raises urate; dairy proteins are uricosuric",
+   "grade": "B",
+   "sources": [
+    "S54"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "fast16_8",
+   "direction": "none",
+   "effectSize": "No data opened; no sustained ketosis expected in a 16 h window",
+   "unit": "mg/dL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 4,
+   "mechanism": "Overnight ketones stay low (< 0.5 mmol/L)",
+   "grade": "D",
+   "sources": [
+    "S49"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "fast24",
+   "direction": "up",
+   "effectSize": "Not measured in sources opened; small transient rise expected",
+   "unit": "mg/dL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Early ketosis begins competing for tubular secretion",
+   "grade": "D",
+   "sources": [
+    "S49",
+    "S65"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "fast36_48",
+   "direction": "up",
+   "effectSize": "Not measured in sources opened; rise expected as ketones climb (engine: +0.6 mg/dL per mmol/L BHB, proposed)",
+   "unit": "mg/dL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 0.5,
+   "mechanism": "Ketone–urate competition; rise scales with ketonaemia",
+   "grade": "D",
+   "sources": [
+    "S49",
+    "S65",
+    "S48"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "fast48plus",
+   "direction": "up",
+   "effectSize": "338 → 495 µmol/L (≈ 5.7 → 8.3 mg/dL, +46 %) over 4–21 days; larger rise with higher ketonuria; 1 gout flare in 1422 (a man already treated for gout)",
+   "unit": "µmol/L",
+   "population": "1422 adults, Buchinger fasting 200–250 kcal/d",
+   "timeCourseWeeks": 1,
+   "mechanism": "Ketone–urate competition for renal secretion; some tissue catabolism",
+   "grade": "B",
+   "sources": [
+    "S47",
+    "S48",
+    "S49"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "satfat",
+   "direction": "none",
+   "effectSize": "No data opened",
+   "unit": "mg/dL",
+   "population": "—",
+   "timeCourseWeeks": 4,
+   "mechanism": "No known direct pathway",
+   "grade": "D",
+   "sources": [
+    "S64"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "No data opened; eggs are low in purines",
+   "unit": "mg/dL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 4,
+   "mechanism": "No purine load",
+   "grade": "D",
+   "sources": [
+    "S54"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "fibre",
+   "direction": "down",
+   "effectSize": "DASH pattern (high fibre, fruit, vegetables, low-fat dairy) −0.25 mg/dL (−0.4 to −0.1); fibre alone not isolated",
+   "unit": "mg/dL",
+   "population": "RCTs of DASH",
+   "timeCourseWeeks": 8,
+   "mechanism": "Pattern effect; attribution to fibre uncertain",
+   "grade": "C",
+   "sources": [
+    "S50"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "unsatfat",
+   "direction": "none",
+   "effectSize": "No data opened",
+   "unit": "mg/dL",
+   "population": "—",
+   "timeCourseWeeks": 4,
+   "mechanism": "No known direct pathway",
+   "grade": "D",
+   "sources": [
+    "S64"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "alcohol",
+   "direction": "up",
+   "effectSize": "Gout RR 1.32 at 10–14.9 g/d to 2.53 at ≥ 50 g/d; beer RR 1.49 per daily serving, spirits 1.15, wine 1.04 (NS)",
+   "unit": "RR",
+   "population": "47,150 men, 12 years",
+   "timeCourseWeeks": 1,
+   "mechanism": "Ethanol speeds ATP breakdown to urate and lactate reduces urate excretion; beer adds guanosine",
+   "grade": "B",
+   "sources": [
+    "S53",
+    "S44"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "caffeine",
+   "direction": "none",
+   "effectSize": "Caffeine and tea not associated with urate; coffee ≥ 6 cups/d −0.43 mg/dL (cross-sectional); coffee meta-analysis: no significant urate difference, gout RR 0.43",
+   "unit": "mg/dL",
+   "population": "NHANES III n=14,758; meta-analysis",
+   "timeCourseWeeks": 12,
+   "mechanism": "The coffee effect is not from caffeine (possibly chlorogenic acids, insulin sensitivity)",
+   "grade": "C",
+   "sources": [
+    "S56",
+    "S57"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "No data found",
+   "unit": "mg/dL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 4,
+   "mechanism": "Creatine is cleared as creatinine, not via purines",
+   "grade": "D",
+   "sources": [
+    "S64"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "wheyprotein",
+   "direction": "down",
+   "effectSize": "Skim-milk protein (80 g) lowered urate ~10 % over 3 h; soy protein raised it ~10 %",
+   "unit": "%",
+   "population": "16 healthy men, crossover",
+   "timeCourseWeeks": 0,
+   "mechanism": "Milk proteins increase renal urate excretion",
+   "grade": "C",
+   "sources": [
+    "S55",
+    "S54"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "deficit_large",
+   "direction": "mixed",
+   "effectSize": "Bariatric surgery: transient urate rise and more flares early; later falls",
+   "unit": "µmol/L",
+   "population": "10 longitudinal studies",
+   "timeCourseWeeks": 8,
+   "mechanism": "Ketosis and tissue breakdown early; weight loss later",
+   "grade": "C",
+   "sources": [
+    "S60"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "−7.7 kg over 16 weeks: urate −1.7 mg/dL; flares 2.1 → 0.6 per month",
+   "unit": "mg/dL",
+   "population": "13 men with gout",
+   "timeCourseWeeks": 16,
+   "mechanism": "Insulin sensitivity raises renal urate excretion",
+   "grade": "C",
+   "sources": [
+    "S61",
+    "S60"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "Fructose: gout RR 1.62 (highest vs lowest intake); sugar-sweetened drinks RR 2.08",
+   "unit": "RR",
+   "population": "prospective cohorts, n=125,299 and 154,289",
+   "timeCourseWeeks": 12,
+   "mechanism": "Fructose phosphorylation depletes ATP and raises urate production; weight gain lowers excretion",
+   "grade": "B",
+   "sources": [
+    "S58",
+    "S59"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "resistance_load",
+   "direction": "none",
+   "effectSize": "No data opened",
+   "unit": "mg/dL",
+   "population": "—",
+   "timeCourseWeeks": 1,
+   "mechanism": "Hard sessions break down some ATP; effect expected small and transient",
+   "grade": "D",
+   "sources": [
+    "S63"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "aerobic_load",
+   "direction": "mixed",
+   "effectSize": "Marathon: transient rise in xanthine oxidoreductase activity and urate, resolved by 24 h; chronic effect not shown in sources opened",
+   "unit": "mg/dL",
+   "population": "23 young men",
+   "timeCourseWeeks": 0.15,
+   "mechanism": "ATP breakdown to hypoxanthine during very long efforts; dehydration",
+   "grade": "C",
+   "sources": [
+    "S63"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "sleep_debt",
+   "direction": "up",
+   "effectSize": "Sleep apnoea: gout RR 1.29 (1.11–1.48); CPAP lowered urate (Hedges g −0.49). Plain sleep debt: no data opened",
+   "unit": "g",
+   "population": "17 studies of sleep apnoea",
+   "timeCourseWeeks": 8,
+   "mechanism": "Night-time hypoxia raises purine turnover; generalising to sleep debt is a guess",
+   "grade": "D",
+   "sources": [
+    "S62"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "Weight loss 3–34 kg: urate change −168 to +30 µmol/L; ~75 % of studies showed fewer flares",
+   "unit": "µmol/L",
+   "population": "people with gout, 10 studies",
+   "timeCourseWeeks": 16,
+   "mechanism": "Better insulin sensitivity increases renal urate excretion",
+   "grade": "C",
+   "sources": [
+    "S60",
+    "S61",
+    "S44"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "supp:casein_presleep",
+   "direction": "down",
+   "effectSize": "Milk-protein effect as for whey (~10 % acute fall)",
+   "unit": "%",
+   "population": "16 healthy men",
+   "timeCourseWeeks": 0,
+   "mechanism": "Dairy protein is uricosuric",
+   "grade": "C",
+   "sources": [
+    "S55"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "supp:plant_protein",
+   "direction": "up",
+   "effectSize": "Soy protein (80 g) raised urate ~10 % over 3 h; purine-rich vegetables not linked to gout",
+   "unit": "%",
+   "population": "16 healthy men; 47,150 men",
+   "timeCourseWeeks": 0,
+   "mechanism": "Soy contains purines",
+   "grade": "C",
+   "sources": [
+    "S55",
+    "S54"
+   ]
+  },
+  {
+   "markerId": "uric_acid",
+   "lever": "supp:exogenous_ketones",
+   "direction": "up",
+   "effectSize": "Not measured; expected rise with ketonaemia",
+   "unit": "mg/dL",
+   "population": "mechanistic expectation",
+   "timeCourseWeeks": 0,
+   "mechanism": "Ketone–urate competition",
+   "grade": "D",
+   "sources": [
+    "S49"
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "id": "W-L-FPG-1",
+   "markerId": "fasting_glucose",
+   "when": {
+    "op": "gte",
+    "value": 126,
+    "unit": "mg/dL"
+   },
+   "kind": "reask",
+   "target": "diabetes_question",
+   "message": "Because your fasting glucose was {value} mg/dL on {date}, please answer the diabetes question again. Fasts over 24 h and very-low-carb wait for your answer.",
+   "grade": "A",
+   "sources": [
+    "S1",
+    "S3",
+    "S64"
+   ]
+  },
+  {
+   "id": "W-L-FPG-2",
+   "markerId": "fasting_glucose",
+   "when": {
+    "op": "gte",
+    "value": 100,
+    "unit": "mg/dL"
+   },
+   "kind": "prefer",
+   "target": "fibre",
+   "message": "Because your fasting glucose was {value} mg/dL on {date} (prediabetes range), the plan ranks fibre, weight loss and training higher.",
+   "grade": "A",
+   "sources": [
+    "S1",
+    "S24",
+    "S36",
+    "S33"
+   ]
+  },
+  {
+   "id": "W-L-FPG-3",
+   "markerId": "fasting_glucose",
+   "when": {
+    "op": "within_days_after",
+    "value": 3,
+    "unit": "days after a fast > 24 h"
+   },
+   "kind": "retest",
+   "target": "fasting_glucose",
+   "message": "Your glucose test on {date} was taken within 3 days of a long fast. Glucose and insulin read high or low then; retest after 2 weeks of normal eating.",
+   "grade": "C",
+   "sources": [
+    "S21",
+    "S22"
+   ]
+  },
+  {
+   "id": "W-L-FPG-4",
+   "markerId": "fasting_glucose",
+   "when": {
+    "op": "gte",
+    "value": 100,
+    "unit": "mg/dL"
+   },
+   "kind": "retest",
+   "target": "fasting_glucose",
+   "value": 12,
+   "message": "Because your fasting glucose was {value} mg/dL on {date}, retest it with HbA1c about 12 weeks after your plan starts.",
+   "grade": "B",
+   "sources": [
+    "S1",
+    "S2"
+   ]
+  },
+  {
+   "id": "W-L-HBA1C-1",
+   "markerId": "hba1c",
+   "when": {
+    "op": "gte",
+    "value": 6.5,
+    "unit": "%"
+   },
+   "kind": "reask",
+   "target": "diabetes_question",
+   "message": "Because your HbA1c was {value} % on {date}, please answer the diabetes question again. Fasts over 24 h and very-low-carb wait for your answer.",
+   "grade": "A",
+   "sources": [
+    "S1",
+    "S3"
+   ]
+  },
+  {
+   "id": "W-L-HBA1C-2",
+   "markerId": "hba1c",
+   "when": {
+    "op": "gte",
+    "value": 5.7,
+    "unit": "%"
+   },
+   "kind": "prefer",
+   "target": "fibre",
+   "message": "Because your HbA1c was {value} % on {date} (prediabetes range), the plan ranks fibre, weight loss, unsaturated fats and training higher.",
+   "grade": "A",
+   "sources": [
+    "S1",
+    "S24",
+    "S25",
+    "S33",
+    "S36"
+   ]
+  },
+  {
+   "id": "W-L-HBA1C-3",
+   "markerId": "hba1c",
+   "when": {
+    "op": "flag",
+    "value": "anaemia_or_haemoglobinopathy",
+    "unit": "flag"
+   },
+   "kind": "warn",
+   "target": "hba1c",
+   "message": "Your report shows low haemoglobin or a haemoglobin variant, so your HbA1c of {value} % on {date} may be off. The plan leans on fasting glucose instead.",
+   "grade": "A",
+   "sources": [
+    "S1",
+    "S3",
+    "S9"
+   ]
+  },
+  {
+   "id": "W-L-HBA1C-4",
+   "markerId": "hba1c",
+   "when": {
+    "op": "any",
+    "value": 0,
+    "unit": "%"
+   },
+   "kind": "retest",
+   "target": "hba1c",
+   "value": 12,
+   "message": "HbA1c shows about 3 months of glucose. Retest no sooner than 12 weeks after your plan started; an earlier test shows only part of the change.",
+   "grade": "A",
+   "sources": [
+    "S2",
+    "S10",
+    "S65"
+   ]
+  },
+  {
+   "id": "W-L-HBA1C-5",
+   "markerId": "hba1c",
+   "when": {
+    "op": "gte",
+    "value": 6.5,
+    "unit": "%"
+   },
+   "kind": "clinician",
+   "target": "fast48plus",
+   "message": "Because your HbA1c was {value} % on {date}: if you take diabetes medicine, fasting or very-low-carb can drop your sugar too low. Agree any fast with your doctor first.",
+   "grade": "C",
+   "sources": [
+    "S1",
+    "S2",
+    "S27"
+   ]
+  },
+  {
+   "id": "W-L-INS-1",
+   "markerId": "fasting_insulin",
+   "when": {
+    "op": "gte",
+    "value": 2.5,
+    "unit": "HOMA-IR"
+   },
+   "kind": "prefer",
+   "target": "fast16_8",
+   "message": "Because your HOMA-IR was {value} on {date} (from your glucose and insulin), the plan ranks weight loss, fibre, 16:8 eating and training higher.",
+   "grade": "C",
+   "sources": [
+    "S5",
+    "S16",
+    "S24",
+    "S36"
+   ]
+  },
+  {
+   "id": "W-L-INS-2",
+   "markerId": "fasting_insulin",
+   "when": {
+    "op": "any",
+    "value": 0,
+    "unit": "µU/mL"
+   },
+   "kind": "retest",
+   "target": "fasting_insulin",
+   "value": 12,
+   "message": "Insulin tests differ between labs by 15 % or more. Retest at the same lab after about 12 weeks to compare.",
+   "grade": "B",
+   "sources": [
+    "S7"
+   ]
+  },
+  {
+   "id": "W-L-INS-3",
+   "markerId": "fasting_insulin",
+   "when": {
+    "op": "within_days_after",
+    "value": 3,
+    "unit": "days after a fast > 36 h, or same morning as coffee"
+   },
+   "kind": "retest",
+   "target": "fasting_insulin",
+   "message": "Your insulin test on {date} came soon after a long fast or after coffee, which changes insulin for a while. Retest after 2 weeks of normal eating, water only that morning.",
+   "grade": "B",
+   "sources": [
+    "S21",
+    "S22",
+    "S28"
+   ]
+  },
+  {
+   "id": "W-L-URIC-1",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte",
+    "value": 6.8,
+    "unit": "mg/dL"
+   },
+   "kind": "warn",
+   "target": "fast36_48",
+   "message": "Because your uric acid was {value} mg/dL on {date}, fasts over 24 h and very-low-carb can raise it further for a few weeks. Drink at least 2.5 L a day.",
+   "grade": "B",
+   "sources": [
+    "S47",
+    "S48",
+    "S49",
+    "S50",
+    "S44"
+   ]
+  },
+  {
+   "id": "W-L-URIC-2",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte",
+    "value": 6.8,
+    "unit": "mg/dL"
+   },
+   "kind": "cap",
+   "target": "fast48plus",
+   "value": 72,
+   "message": "Because your uric acid was {value} mg/dL on {date}, fasts are capped at 72 h unless you choose longer after reading the warning.",
+   "grade": "C",
+   "sources": [
+    "S47",
+    "S49"
+   ]
+  },
+  {
+   "id": "W-L-URIC-3",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte_with_flag",
+    "value": 6.0,
+    "unit": "mg/dL + gout"
+   },
+   "kind": "cap",
+   "target": "fast36_48",
+   "value": 24,
+   "message": "Because you have gout and your uric acid was {value} mg/dL on {date}, fasts are capped at 24 h. Ask your doctor before anything longer.",
+   "grade": "C",
+   "sources": [
+    "S44",
+    "S45",
+    "S47",
+    "S60"
+   ]
+  },
+  {
+   "id": "W-L-URIC-4",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte",
+    "value": 6.8,
+    "unit": "mg/dL"
+   },
+   "kind": "warn",
+   "target": "alcohol",
+   "message": "Because your uric acid was {value} mg/dL on {date}, the plan counts alcohol against you, beer most and wine least.",
+   "grade": "B",
+   "sources": [
+    "S53",
+    "S44"
+   ]
+  },
+  {
+   "id": "W-L-URIC-5",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte",
+    "value": 6.8,
+    "unit": "mg/dL"
+   },
+   "kind": "prefer",
+   "target": "wheyprotein",
+   "message": "Because your uric acid was {value} mg/dL on {date}, the plan prefers dairy protein (curd, paneer, milk, whey) and limits sugary drinks.",
+   "grade": "C",
+   "sources": [
+    "S54",
+    "S55",
+    "S59"
+   ]
+  },
+  {
+   "id": "W-L-URIC-6",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte",
+    "value": 6.8,
+    "unit": "mg/dL"
+   },
+   "kind": "warn",
+   "target": "deficit_large",
+   "message": "Because your uric acid was {value} mg/dL on {date}: very fast weight loss can raise it for a few weeks before it falls. A moderate pace is gentler.",
+   "grade": "C",
+   "sources": [
+    "S60",
+    "S61"
+   ]
+  },
+  {
+   "id": "W-L-URIC-7",
+   "markerId": "uric_acid",
+   "when": {
+    "op": "gte",
+    "value": 6.8,
+    "unit": "mg/dL"
+   },
+   "kind": "retest",
+   "target": "uric_acid",
+   "value": 8,
+   "message": "Because your uric acid was {value} mg/dL on {date}, retest it about 8 weeks after starting very-low-carb or any fast over 72 h.",
+   "grade": "C",
+   "sources": [
+    "S47",
+    "S50",
+    "S51"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,2954 @@
+{
+ "version": 1,
+ "source": "plan/02-next/research/R13-markers-liver-kidney-electrolytes.md",
+ "date": "2026-10-02",
+ "sourceIds": {
+  "S1": "Kwo PY, Cohen SM, Lim JK · PMID 27995906 · doi:10.1038/ajg.2016.517",
+  "S2": "Rinella ME et al · PMID 36727674 · doi:10.1097/HEP.0000000000000323 · PMC10735173",
+  "S3": "EASL-EASD-EASO Clinical Practice Guidelines on MASLD · PMID 38851997 · doi:10.1016/j.jhep.2024.04.031",
+  "S4": "Duseja A et al · PMID 36950481 · doi:10.1016/j.jceh.2022.11.014 · PMC10025685",
+  "S5": "Shalimar et al · PMID 35677499 · doi:10.1016/j.jceh.2021.11.010",
+  "S6": "Choudhary NS et al · PMID 25352365 · doi:10.1111/jgh.12836",
+  "S7": "Aggarwal et al · PMID 33098064 · doi:10.1007/s12664-020-01091-2",
+  "S8": "Pettersson J et al · PMID 17764474 · doi:10.1111/j.1365-2125.2007.03001.x",
+  "S9": "Kechagias S et al · PMID 18276725 · doi:10.1136/gut.2007.131797",
+  "S10": "Gasteyger C et al · PMID 18469232 · doi:10.1093/ajcn/87.5.1141",
+  "S11": "Browning JD et al · PMID 21367948 · doi:10.3945/ajcn.110.007674",
+  "S12": "Mardinoglu A et al · PMID 29456073 · doi:10.1016/j.cmet.2018.01.005",
+  "S13": "Luukkonen PK et al · PMID 29844096 · doi:10.2337/dc18-0071",
+  "S14": "Ruhl CE, Everhart JE · PMID 15633120 · doi:10.1053/j.gastro.2004.09.075",
+  "S15": "Xiao Q et al · PMID 25124935 · doi:10.1002/hep.27367",
+  "S16": "Wilhelmi de Toledo F et al · PMID 30601864 · doi:10.1371/journal.pone.0209353 · PMC6314618",
+  "S17": "Wei X et al · PMID 36930148 · doi:10.1001/jamanetworkopen.2023.3513",
+  "S18": "Kim et al · PMID 40441053 · doi:10.1016/j.clnu.2025.05.013",
+  "S19": "Oketch-Rabah HA et al · PMID 32140423 · doi:10.1016/j.toxrep.2020.02.008",
+  "S20": "Björnsson HK et al · PMID 31991029 · doi:10.1111/liv.14393",
+  "S21": "Guo et al · PMID 41983068 · doi:10.3389/fnut.2026.1731510",
+  "S22": "Alatalo PI et al · PMID 18842799 · doi:10.1093/ajcn/88.4.1097",
+  "S23": "Niemelä O · PMID 26828506 · doi:10.3390/ijerph13020166 · PMC4772186",
+  "S24": "Mohammadi et al · PMID 40471664 · doi:10.1093/nutrit/nuaf068",
+  "S25": "Kreider RB et al · PMID 28615996 · doi:10.1186/s12970-017-0173-z · PMC5469049",
+  "S26": "Sun et al · PMID 37334291 · doi:10.3389/fendo.2023.1159258",
+  "S27": "KDIGO 2024 Clinical Practice Guideline for the Evaluation and Management of CKD · PMID 38490803 · doi:10.1016/j.kint.2023.10.018 · https://kdigo.org/wp-content/",
+  "S28": "Inker LA et al · PMID 34554658 · doi:10.1056/NEJMoa2102953 · PMC8822996",
+  "S29": "Devries MC et al · PMID 30383278 · doi:10.1093/jn/nxy197",
+  "S30": "Tsiaras et al · PMID 42035842 · doi:10.1053/j.jrn.2026.04.010",
+  "S31": "Naeini et al · PMID 41199218 · doi:10.1186/s12882-025-04558-6",
+  "S32": "Preiss DJ et al · PMID 17270090 · doi:10.1258/000456307779595995",
+  "S33": "Singh AK et al · PMID 23714169 · doi:10.1186/1471-2369-14-114",
+  "S34": "Friedman AN et al · PMID 22653255 · doi:10.2215/CJN.11741111",
+  "S35": "Tirosh A et al · PMID 23690533 · doi:10.2337/dc12-1846",
+  "S36": "Navaneethan SD et al · PMID 19808241 · doi:10.2215/CJN.02250409",
+  "S37": "Acharya P et al · PMID 34070285 · doi:10.3390/diseases9020039",
+  "S38": "Bello et al · PMID 39572100 · doi:10.1136/bmjopen-2024-085329",
+  "S39": "Kelly JT et al · PMID 32868398 · doi:10.1681/ASN.2020030384",
+  "S40": "Gerth J et al · PMID 12078945 · doi:10.5414/cnp57425",
+  "S41": "Unnikrishnan RI et al · PMID 17488949 · doi:10.2337/dc06-2554",
+  "S42": "Yadav et al · PMID 42254849 · doi:10.1016/j.ekir.2026.106543",
+  "S43": "Spasovski G et al · PMID 24569496 · doi:10.1093/ndt/gfu040",
+  "S44": "Lewis et al · PMID 29523608 · doi:10.1136/bcr-2017-222916 · PMC5847945",
+  "S45": "Clase CM et al · PMID 31706619 · doi:10.1016/j.kint.2019.09.018",
+  "S46": "Neal B et al · PMID 34459569 · doi:10.1056/NEJMoa2105675",
+  "S47": "Patil et al · PMID 42429521 · doi:10.4103/ijph.ijph_306_25",
+  "S48": "da Silva JSV et al · PMID 32115791 · doi:10.1002/ncp.10474",
+  "S49": "Micoanski et al · PMID 40573123 · doi:10.3390/nu17122012",
+  "S50": "Jensen et al · PMID 42186885 · doi:10.61409/V11250922",
+  "S51": "Vitals research index: `plan/02-next/research-blood-markers · internal"
+ },
+ "markers": [
+  {
+   "id": "alt",
+   "label": "ALT (SGPT)",
+   "units": {
+    "si": "µkat/L",
+    "conventional": "U/L",
+    "factor": 0.0167
+   },
+   "ranges": [
+    {
+     "region": "US",
+     "source": "S1",
+     "high": 33,
+     "note": "ACG healthy ULN, men (29–33)"
+    },
+    {
+     "region": "US",
+     "source": "S1",
+     "high": 25,
+     "note": "ACG healthy ULN, women (19–25)"
+    },
+    {
+     "region": "US",
+     "source": "S2",
+     "high": 30,
+     "note": "AASLD: ALT > 30 U/L abnormal"
+    },
+    {
+     "region": "India",
+     "source": "S6",
+     "high": 38.6,
+     "note": "Histology-normal Indian liver donors, 95th percentile, men"
+    },
+    {
+     "region": "India",
+     "source": "S6",
+     "high": 35.2,
+     "note": "Histology-normal Indian liver donors, 95th percentile, women"
+    },
+    {
+     "region": "India",
+     "source": "S51",
+     "note": "Lab-printed ULN often '< 45' or '< 50' U/L; use the printed value for the 3x ULN clinician rule"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": ">",
+     "value": 3,
+     "unit": "x lab ULN",
+     "message": "ALT more than 3 times your lab's upper limit: please see a clinician.",
+     "source": "S51"
+    },
+    {
+     "op": ">=",
+     "value": 1.3,
+     "unit": "FIB-4",
+     "message": "FIB-4 of 1.3 or more cannot rule out liver scarring: please see a clinician.",
+     "source": "S2"
+    }
+   ],
+   "retestWeeks": 12
+  },
+  {
+   "id": "ast",
+   "label": "AST (SGOT)",
+   "units": {
+    "si": "µkat/L",
+    "conventional": "U/L",
+    "factor": 0.0167
+   },
+   "ranges": [
+    {
+     "region": "India",
+     "source": "S6",
+     "high": 33.8,
+     "note": "Histology-normal Indian donors, 95th percentile, men"
+    },
+    {
+     "region": "India",
+     "source": "S6",
+     "high": 31,
+     "note": "Histology-normal Indian donors, 95th percentile, women"
+    },
+    {
+     "region": "any",
+     "source": "S8",
+     "note": "Reads high for at least 7 days after unaccustomed heavy lifting"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": ">",
+     "value": 3,
+     "unit": "x lab ULN",
+     "message": "AST more than 3 times your lab's upper limit: please see a clinician.",
+     "source": "S51"
+    }
+   ],
+   "retestWeeks": 12
+  },
+  {
+   "id": "ggt",
+   "label": "GGT",
+   "units": {
+    "si": "µkat/L",
+    "conventional": "U/L",
+    "factor": 0.0167
+   },
+   "ranges": [
+    {
+     "region": "any",
+     "source": "S51",
+     "note": "Lab-printed, sex-specific ULN (typically 55–60 U/L men); no guideline target"
+    },
+    {
+     "region": "any",
+     "source": "S23",
+     "note": "Normalises within 2–3 weeks of stopping heavy drinking"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": ">",
+     "value": 1,
+     "unit": "x lab ULN after >= 4 weeks of little or no alcohol",
+     "message": "GGT still high after weeks of little alcohol: please see a clinician.",
+     "source": "S23"
+    }
+   ],
+   "retestWeeks": 6
+  },
+  {
+   "id": "creatinine",
+   "label": "Creatinine (serum)",
+   "units": {
+    "si": "µmol/L",
+    "conventional": "mg/dL",
+    "factor": 88.4
+   },
+   "ranges": [
+    {
+     "region": "any",
+     "source": "S27",
+     "note": "Lab-printed, sex-specific; non-GFR determinants: muscle, meat meal, creatine, keto/vegetarian/high-protein diets"
+    },
+    {
+     "region": "any",
+     "source": "S30",
+     "note": "Creatine supplements add about +0.13 mg/dL without changing GFR"
+    }
+   ],
+   "clinicianOnly": [],
+   "retestWeeks": 13
+  },
+  {
+   "id": "egfr",
+   "label": "eGFR (CKD-EPI 2021)",
+   "units": {
+    "si": "mL/min/1.73 m²",
+    "conventional": "mL/min/1.73 m²",
+    "factor": 1
+   },
+   "ranges": [
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 90,
+     "note": "G1 normal or high"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 60,
+     "high": 89,
+     "note": "G2 mildly decreased (not CKD without other markers)"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 45,
+     "high": 59,
+     "note": "G3a"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 30,
+     "high": 44,
+     "note": "G3b"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 15,
+     "high": 29,
+     "note": "G4"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "high": 15,
+     "note": "G5 kidney failure (< 15)"
+    },
+    {
+     "region": "India",
+     "source": "S42",
+     "note": "CKD-EPI 2021 placed many Indian CKD patients in higher (milder) categories than an India-recalibrated EKFC equation"
+    },
+    {
+     "region": "any",
+     "source": "S28",
+     "note": "142 x min(Scr/k,1)^a x max(Scr/k,1)^-1.200 x 0.9938^age x 1.012[F]; k 0.7 F / 0.9 M; a -0.241 F / -0.302 M"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": "<",
+     "value": 30,
+     "unit": "mL/min/1.73 m²",
+     "message": "eGFR below 30: please see a kidney specialist.",
+     "source": "S27"
+    },
+    {
+     "op": ">",
+     "value": 25,
+     "unit": "% fall from previous entry",
+     "message": "Your eGFR fell sharply between tests: please ask a clinician to check it.",
+     "source": "S27"
+    }
+   ],
+   "retestWeeks": 13
+  },
+  {
+   "id": "uacr",
+   "label": "Urine albumin-creatinine ratio",
+   "units": {
+    "si": "mg/mmol",
+    "conventional": "mg/g",
+    "factor": 0.113
+   },
+   "ranges": [
+    {
+     "region": "global",
+     "source": "S27",
+     "high": 30,
+     "note": "A1 normal to mildly increased (< 30 mg/g)"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 30,
+     "high": 300,
+     "note": "A2 moderately increased"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "low": 300,
+     "note": "A3 severely increased"
+    },
+    {
+     "region": "India",
+     "source": "S41",
+     "note": "CURES used 30–299 µg/mg (= mg/g) for microalbuminuria; same cut-offs"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": ">=",
+     "value": 300,
+     "unit": "mg/g",
+     "message": "Urine ACR 300 mg/g or more: please see a clinician soon.",
+     "source": "S27"
+    }
+   ],
+   "retestWeeks": 13
+  },
+  {
+   "id": "sodium",
+   "label": "Sodium (serum)",
+   "units": {
+    "si": "mmol/L",
+    "conventional": "mEq/L",
+    "factor": 1
+   },
+   "ranges": [
+    {
+     "region": "global",
+     "source": "S43",
+     "low": 135,
+     "note": "Hyponatraemia below 135 mmol/L"
+    },
+    {
+     "region": "any",
+     "source": "S51",
+     "high": 145,
+     "note": "Lab-printed upper limit, typically 145"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": "<",
+     "value": 135,
+     "unit": "mmol/L",
+     "message": "Sodium below 135: please see a clinician; seek care now if headache, confusion or vomiting.",
+     "source": "S43"
+    },
+    {
+     "op": ">",
+     "value": 145,
+     "unit": "mmol/L",
+     "message": "Sodium above the normal range: please see a clinician.",
+     "source": "S51"
+    }
+   ],
+   "retestWeeks": 52
+  },
+  {
+   "id": "potassium",
+   "label": "Potassium (serum)",
+   "units": {
+    "si": "mmol/L",
+    "conventional": "mEq/L",
+    "factor": 1
+   },
+   "ranges": [
+    {
+     "region": "any",
+     "source": "S51",
+     "low": 3.5,
+     "high": 5.0,
+     "note": "Lab-printed, typically 3.5–5.0 or 5.1"
+    },
+    {
+     "region": "global",
+     "source": "S27",
+     "high": 5.5,
+     "note": "KDIGO action bands: <= 4.8, 4.9–5.5, > 5.5 (hyperkalaemia actions)"
+    }
+   ],
+   "clinicianOnly": [
+    {
+     "op": "<",
+     "value": 3.5,
+     "unit": "mmol/L",
+     "message": "Potassium below 3.5: please see a clinician.",
+     "source": "S51"
+    },
+    {
+     "op": ">",
+     "value": 5.0,
+     "unit": "mmol/L",
+     "message": "Potassium above 5.0: please see a clinician.",
+     "source": "S51"
+    },
+    {
+     "op": ">",
+     "value": 5.5,
+     "unit": "mmol/L",
+     "message": "Potassium above 5.5: please contact a clinician today.",
+     "source": "S27"
+    }
+   ],
+   "retestWeeks": 52
+  }
+ ],
+ "interactions": [
+  {
+   "markerId": "alt",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "liver fat -55% vs -28% (calorie restriction); ALT n.s. at 2 wk",
+   "unit": "% liver fat",
+   "population": "NAFLD adults, n=18",
+   "timeCourseWeeks": 2,
+   "mechanism": "Less hepatic DNL, more beta-oxidation",
+   "grade": "B",
+   "sources": [
+    "S11",
+    "S12"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "rapid liver-fat fall (no % in abstract)",
+   "unit": "qualitative",
+   "population": "obese NAFLD",
+   "timeCourseWeeks": 2,
+   "mechanism": "Less DNL substrate",
+   "grade": "C",
+   "sources": [
+    "S12"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "no effect of milk-protein supplements on ALT",
+   "unit": "U/L",
+   "population": "adults, 65 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "No hepatic load at these intakes",
+   "grade": "A",
+   "sources": [
+    "S24"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "fast16_8",
+   "direction": "down",
+   "effectSize": "IHTG -8.3% (TRE) vs -8.1% (calorie restriction); timing adds nothing",
+   "unit": "% liver fat",
+   "population": "obese NAFLD, China, n=88",
+   "timeCourseWeeks": 26,
+   "mechanism": "Energy deficit",
+   "grade": "B",
+   "sources": [
+    "S17"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "no data; no change expected after one day",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "Expected no change",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "fast36_48",
+   "direction": "up",
+   "effectSize": "no data; small rise expected",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.3,
+   "mechanism": "Start of fasting transamination",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "fast48plus",
+   "direction": "up",
+   "effectSize": "0.5 -> 0.7 µkat/L (about 30 -> 42 U/L), within range",
+   "unit": "U/L",
+   "population": "Buchinger fasters, n=1422, 4–21 d",
+   "timeCourseWeeks": 1,
+   "mechanism": "Amino-acid transamination for gluconeogenesis",
+   "grade": "B",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "satfat",
+   "direction": "up",
+   "effectSize": "+55% liver fat with SFA overfeeding vs +15% unsaturated; ALT not in abstract",
+   "unit": "% liver fat",
+   "population": "overweight adults, +1000 kcal/d, 3 wk",
+   "timeCourseWeeks": 3,
+   "mechanism": "More lipolysis, ceramides, insulin resistance",
+   "grade": "C",
+   "sources": [
+    "S13"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "fibre",
+   "direction": "down",
+   "effectSize": "no direct ALT data; expected small fall via weight and insulin",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 12,
+   "mechanism": "Weight and insulin",
+   "grade": "D",
+   "sources": [
+    "S4"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "unsatfat",
+   "direction": "none",
+   "effectSize": "omega-3: ALT unchanged (GGT -5.4 U/L)",
+   "unit": "U/L",
+   "population": "NAFLD adults, 20 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lower lipolysis, less lipotoxicity",
+   "grade": "A",
+   "sources": [
+    "S18",
+    "S13"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "alcohol",
+   "direction": "up",
+   "effectSize": "higher in moderate drinkers (< 40 g/d) vs abstainers; larger at higher BMI",
+   "unit": "qualitative",
+   "population": "healthy adults, n=2164",
+   "timeCourseWeeks": 4,
+   "mechanism": "Ethanol hepatotoxicity plus fat synergy",
+   "grade": "B",
+   "sources": [
+    "S22",
+    "S2"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "caffeine",
+   "direction": "down",
+   "effectSize": "coffee > 2 cups/d OR 0.56; >= 3 cups/d OR 0.75; decaf OR 0.62",
+   "unit": "odds ratio for raised ALT",
+   "population": "US NHANES adults",
+   "timeCourseWeeks": 52,
+   "mechanism": "Coffee polyphenols (decaf similar, so not caffeine)",
+   "grade": "C",
+   "sources": [
+    "S14",
+    "S15",
+    "S2"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "no clinically significant change in liver enzymes",
+   "unit": "qualitative",
+   "population": "athletes, 5–10 g/d for 21 mo",
+   "timeCourseWeeks": 12,
+   "mechanism": "Not hepatically active",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "wheyprotein",
+   "direction": "none",
+   "effectSize": "no effect on ALT",
+   "unit": "U/L",
+   "population": "adults, 65 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S24"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "deficit_large",
+   "direction": "mixed",
+   "effectSize": "ALT fell in men; mild transient rise in women",
+   "unit": "qualitative",
+   "population": "obese adults, 800 kcal/d 8 wk, n=147",
+   "timeCourseWeeks": 8,
+   "mechanism": "Rapid lipolysis loads the liver",
+   "grade": "B",
+   "sources": [
+    "S10"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "3–5% weight loss improves steatosis; INASL 30% or 500–1000 kcal/d restriction",
+   "unit": "% weight loss",
+   "population": "MASLD adults",
+   "timeCourseWeeks": 12,
+   "mechanism": "Less liver fat",
+   "grade": "A",
+   "sources": [
+    "S4",
+    "S2"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "22 -> peak 97 U/L (range 19–447)",
+   "unit": "U/L",
+   "population": "healthy young adults, doubled kcal 4 wk, n=18",
+   "timeCourseWeeks": 4,
+   "mechanism": "Liver fat, sugar-driven DNL",
+   "grade": "B",
+   "sources": [
+    "S9"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "resistance_load",
+   "direction": "mixed",
+   "effectSize": "acute: raised >= 7 days after unaccustomed 1-h lifting; chronic exercise SMD -0.78",
+   "unit": "SMD / qualitative",
+   "population": "healthy men (acute); NAFLD (chronic)",
+   "timeCourseWeeks": 1,
+   "mechanism": "Muscle release acutely; less liver fat chronically",
+   "grade": "B",
+   "sources": [
+    "S8",
+    "S21"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "SMD -0.78 (-1.15 to -0.40)",
+   "unit": "SMD",
+   "population": "NAFLD, 18 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Less liver fat and insulin resistance",
+   "grade": "B",
+   "sources": [
+    "S21"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "sleep_debt",
+   "direction": "up",
+   "effectSize": "insomnia -> ALT OR 2.79 (Mendelian randomisation)",
+   "unit": "odds ratio",
+   "population": "European GWAS cohorts",
+   "timeCourseWeeks": 52,
+   "mechanism": "Insulin resistance (proposed)",
+   "grade": "C",
+   "sources": [
+    "S26"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "3–5% steatosis; >= 7–10% steatohepatitis and fibrosis",
+   "unit": "% weight loss",
+   "population": "MASLD adults",
+   "timeCourseWeeks": 24,
+   "mechanism": "Less liver fat",
+   "grade": "A",
+   "sources": [
+    "S2",
+    "S4"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "supp:omega3_epa_dha",
+   "direction": "none",
+   "effectSize": "ALT unchanged; GGT -5.4 U/L",
+   "unit": "U/L",
+   "population": "NAFLD, 20 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S18"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "supp:green_tea_extract",
+   "direction": "up",
+   "effectSize": "rare hepatocellular injury at 140–~1000 mg EGCG/d",
+   "unit": "case reports",
+   "population": "supplement users",
+   "timeCourseWeeks": 4,
+   "mechanism": "EGCG bioavailability rises when fasting",
+   "grade": "C",
+   "sources": [
+    "S19"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "supp:ashwagandha",
+   "direction": "up",
+   "effectSize": "rare cholestatic/mixed injury, latency 2–12 wk",
+   "unit": "case series n=5",
+   "population": "supplement users",
+   "timeCourseWeeks": 6,
+   "mechanism": "Idiosyncratic",
+   "grade": "C",
+   "sources": [
+    "S20"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "supp:creatine_monohydrate",
+   "direction": "none",
+   "effectSize": "no liver enzyme change",
+   "unit": "qualitative",
+   "population": "athletes",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "supp:whey_protein",
+   "direction": "none",
+   "effectSize": "no effect on ALT",
+   "unit": "U/L",
+   "population": "adults, 65 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S24"
+   ]
+  },
+  {
+   "markerId": "alt",
+   "lever": "supp:caffeine",
+   "direction": "none",
+   "effectSize": "no data for caffeine pills; coffee effect not caffeine-specific",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S15"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "AST fell significantly with 2 wk of < 20 g/d carbohydrate",
+   "unit": "qualitative",
+   "population": "NAFLD adults, n=18",
+   "timeCourseWeeks": 2,
+   "mechanism": "Less liver fat",
+   "grade": "B",
+   "sources": [
+    "S11"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "expected via liver fat",
+   "unit": "qualitative",
+   "population": "obese NAFLD",
+   "timeCourseWeeks": 2,
+   "mechanism": "Less DNL",
+   "grade": "C",
+   "sources": [
+    "S12"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "no effect of milk-protein supplements on AST",
+   "unit": "U/L",
+   "population": "adults, 65 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S24"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "fast16_8",
+   "direction": "down",
+   "effectSize": "no AST number; TRE equals calorie restriction",
+   "unit": "qualitative",
+   "population": "obese NAFLD",
+   "timeCourseWeeks": 26,
+   "mechanism": "Deficit",
+   "grade": "C",
+   "sources": [
+    "S17"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "fast36_48",
+   "direction": "up",
+   "effectSize": "no data; small rise expected",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.3,
+   "mechanism": "Transamination",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "fast48plus",
+   "direction": "up",
+   "effectSize": "0.4 -> 0.6 µkat/L (about 24 -> 36 U/L), within range",
+   "unit": "U/L",
+   "population": "Buchinger fasters, n=1422",
+   "timeCourseWeeks": 1,
+   "mechanism": "Protein catabolism and transamination",
+   "grade": "B",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "satfat",
+   "direction": "up",
+   "effectSize": "via liver fat (+55%); AST not in abstract",
+   "unit": "% liver fat",
+   "population": "overweight adults",
+   "timeCourseWeeks": 3,
+   "mechanism": "As ALT",
+   "grade": "C",
+   "sources": [
+    "S13"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "fibre",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S4"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "unsatfat",
+   "direction": "none",
+   "effectSize": "omega-3: AST unchanged",
+   "unit": "U/L",
+   "population": "NAFLD, 20 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S18"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "alcohol",
+   "direction": "none",
+   "effectSize": "moderate (< 40 g/d) drinking did not change AST",
+   "unit": "qualitative",
+   "population": "healthy adults, n=2164",
+   "timeCourseWeeks": 4,
+   "mechanism": "AST rises mainly with heavier drinking",
+   "grade": "B",
+   "sources": [
+    "S22"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "caffeine",
+   "direction": "down",
+   "effectSize": ">= 3 cups/d coffee OR 0.82 for raised AST",
+   "unit": "odds ratio",
+   "population": "US NHANES adults",
+   "timeCourseWeeks": 52,
+   "mechanism": "Coffee constituents",
+   "grade": "C",
+   "sources": [
+    "S15"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "no change in muscle or liver enzymes",
+   "unit": "qualitative",
+   "population": "athletes, 21 mo",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "wheyprotein",
+   "direction": "none",
+   "effectSize": "no effect",
+   "unit": "U/L",
+   "population": "adults, 65 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S24"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "deficit_large",
+   "direction": "mixed",
+   "effectSize": "fell in men, mild transient rise in women",
+   "unit": "qualitative",
+   "population": "obese adults, 800 kcal/d",
+   "timeCourseWeeks": 8,
+   "mechanism": "Rapid lipolysis",
+   "grade": "B",
+   "sources": [
+    "S10"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "via liver fat",
+   "unit": "qualitative",
+   "population": "MASLD adults",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S2"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "expected; ALT rose sharply, AST not in abstract",
+   "unit": "qualitative",
+   "population": "healthy young adults",
+   "timeCourseWeeks": 4,
+   "mechanism": "Liver fat",
+   "grade": "C",
+   "sources": [
+    "S9"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "resistance_load",
+   "direction": "up",
+   "effectSize": "raised for >= 7 days after unaccustomed 1-h weightlifting (with CK, myoglobin)",
+   "unit": "qualitative",
+   "population": "healthy men, n=15",
+   "timeCourseWeeks": 1,
+   "mechanism": "Release from muscle",
+   "grade": "B",
+   "sources": [
+    "S8"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "SMD -0.65 (-1.07 to -0.23)",
+   "unit": "SMD",
+   "population": "NAFLD, RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Less liver fat",
+   "grade": "B",
+   "sources": [
+    "S21"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "sleep_debt",
+   "direction": "none",
+   "effectSize": "no AST data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S26"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "falls with liver fat",
+   "unit": "qualitative",
+   "population": "NAFLD adults",
+   "timeCourseWeeks": 4,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S11",
+    "S2"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "supp:omega3_epa_dha",
+   "direction": "none",
+   "effectSize": "AST unchanged",
+   "unit": "U/L",
+   "population": "NAFLD, 20 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S18"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "supp:green_tea_extract",
+   "direction": "up",
+   "effectSize": "rare hepatocellular injury",
+   "unit": "case reports",
+   "population": "supplement users",
+   "timeCourseWeeks": 4,
+   "mechanism": "EGCG",
+   "grade": "C",
+   "sources": [
+    "S19"
+   ]
+  },
+  {
+   "markerId": "ast",
+   "lever": "supp:ashwagandha",
+   "direction": "up",
+   "effectSize": "rare cholestatic/mixed injury",
+   "unit": "case series",
+   "population": "supplement users",
+   "timeCourseWeeks": 6,
+   "mechanism": "Idiosyncratic",
+   "grade": "C",
+   "sources": [
+    "S20"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "expected via liver fat; no GGT trial opened",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 4,
+   "mechanism": "Less liver fat",
+   "grade": "D",
+   "sources": [
+    "S11"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "expected via liver fat",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 4,
+   "mechanism": "Less liver fat",
+   "grade": "D",
+   "sources": [
+    "S12"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "fast16_8",
+   "direction": "down",
+   "effectSize": "expected via deficit",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 12,
+   "mechanism": "Deficit",
+   "grade": "D",
+   "sources": [
+    "S17"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "fast36_48",
+   "direction": "down",
+   "effectSize": "expected from longer fasts",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.3,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "fast48plus",
+   "direction": "down",
+   "effectSize": "0.6 -> 0.4 µkat/L (about 36 -> 24 U/L), larger with longer fasts",
+   "unit": "U/L",
+   "population": "Buchinger fasters, n=1422",
+   "timeCourseWeeks": 1,
+   "mechanism": "Lower hepatic and oxidative load (authors' proposal)",
+   "grade": "B",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "satfat",
+   "direction": "up",
+   "effectSize": "expected via liver fat",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 3,
+   "mechanism": "Liver fat",
+   "grade": "D",
+   "sources": [
+    "S13"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "unsatfat",
+   "direction": "down",
+   "effectSize": "omega-3: -5.38 U/L (-9.16 to -1.61)",
+   "unit": "U/L",
+   "population": "NAFLD, 20 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "Less hepatic lipid and oxidative stress",
+   "grade": "A",
+   "sources": [
+    "S18"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "alcohol",
+   "direction": "up",
+   "effectSize": "higher in moderate (< 40 g/d) drinkers, P < 0.001; normalises 2–3 wk after stopping",
+   "unit": "qualitative",
+   "population": "healthy adults, n=2164",
+   "timeCourseWeeks": 3,
+   "mechanism": "Enzyme induction, oxidative stress",
+   "grade": "B",
+   "sources": [
+    "S22",
+    "S23"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "caffeine",
+   "direction": "down",
+   "effectSize": ">= 3 cups/d coffee OR 0.69; decaf OR 0.70",
+   "unit": "odds ratio",
+   "population": "US NHANES adults",
+   "timeCourseWeeks": 52,
+   "mechanism": "Coffee constituents",
+   "grade": "C",
+   "sources": [
+    "S15"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "no change in liver enzymes",
+   "unit": "qualitative",
+   "population": "athletes",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "expected from fasting data",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 4,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "expected via liver fat",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S2"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "expected via liver fat",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 4,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S9"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "resistance_load",
+   "direction": "none",
+   "effectSize": "stayed normal after weightlifting that raised AST/ALT",
+   "unit": "qualitative",
+   "population": "healthy men, n=15",
+   "timeCourseWeeks": 1,
+   "mechanism": "Not a muscle enzyme",
+   "grade": "B",
+   "sources": [
+    "S8"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "exercise modulates ethanol-sensitive markers (review)",
+   "unit": "qualitative",
+   "population": "review",
+   "timeCourseWeeks": 12,
+   "mechanism": "Less oxidative stress",
+   "grade": "C",
+   "sources": [
+    "S23"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "weight gain raises, loss lowers (review)",
+   "unit": "qualitative",
+   "population": "review",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "C",
+   "sources": [
+    "S23"
+   ]
+  },
+  {
+   "markerId": "ggt",
+   "lever": "supp:omega3_epa_dha",
+   "direction": "down",
+   "effectSize": "-5.38 U/L",
+   "unit": "U/L",
+   "population": "NAFLD, 20 RCTs",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "A",
+   "sources": [
+    "S18"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "creatinine -4.2%, cystatin C -8.4% at 3 mo; CrCl +15.8 mL/min; keto stones 5.9% pooled (7.9% adults)",
+   "unit": "% / incidence",
+   "population": "obese adults n=307 (2 y); keto cohorts",
+   "timeCourseWeeks": 12,
+   "mechanism": "Weight loss; stones from acid and urate load",
+   "grade": "B",
+   "sources": [
+    "S34",
+    "S37",
+    "S27"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "lowcarb",
+   "direction": "up",
+   "effectSize": "+5.3% (95% CI 2.1–8.5) in 2 y, similar to other diets",
+   "unit": "% eGFR",
+   "population": "DIRECT, n=318",
+   "timeCourseWeeks": 52,
+   "mechanism": "Lower insulin and BP",
+   "grade": "B",
+   "sources": [
+    "S35"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "change in GFR SMD 0.11 (-0.05 to 0.27)",
+   "unit": "SMD",
+   "population": "healthy adults, 28 RCTs, n=1358",
+   "timeCourseWeeks": 4,
+   "mechanism": "Small hyperfiltration only",
+   "grade": "A",
+   "sources": [
+    "S29"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "highprotein",
+   "direction": "up",
+   "effectSize": "cooked-meat meal: 80.5 -> 101 µmol/L, eGFR 84 -> 59.5 at 1–2 h (artefact)",
+   "unit": "µmol/L",
+   "population": "n=32",
+   "timeCourseWeeks": 0.01,
+   "mechanism": "Meat creatine/creatinine absorbed",
+   "grade": "B",
+   "sources": [
+    "S32"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "fast16_8",
+   "direction": "none",
+   "effectSize": "Ramadan fasting: no consistent change in creatinine or eGFR",
+   "unit": "µmol/L",
+   "population": "CKD and transplant, 32 studies",
+   "timeCourseWeeks": 4,
+   "mechanism": "Dry dawn-dusk fasting (harsher than 16:8)",
+   "grade": "C",
+   "sources": [
+    "S38"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "no data; none expected if hydrated",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "fast36_48",
+   "direction": "up",
+   "effectSize": "no data; small rise expected",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 0.3,
+   "mechanism": "Catabolism, volume shifts",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "fast48plus",
+   "direction": "up",
+   "effectSize": "71.9 -> 76.4 µmol/L (+0.05 mg/dL), within range; urea 4.7 -> 3.1 mmol/L",
+   "unit": "µmol/L",
+   "population": "Buchinger fasters, n=1422, 3 L water/d",
+   "timeCourseWeeks": 1,
+   "mechanism": "Protein catabolism; volume shifts",
+   "grade": "B",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "satfat",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "dietcholesterol",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "fibre",
+   "direction": "none",
+   "effectSize": "short-term none; vegetables OR 0.79 for incident CKD",
+   "unit": "odds ratio",
+   "population": "cohorts, low certainty",
+   "timeCourseWeeks": 260,
+   "mechanism": "—",
+   "grade": "C",
+   "sources": [
+    "S39"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "unsatfat",
+   "direction": "none",
+   "effectSize": "no data",
+   "unit": "qualitative",
+   "population": "—",
+   "timeCourseWeeks": 0,
+   "mechanism": "None known",
+   "grade": "D",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "alcohol",
+   "direction": "none",
+   "effectSize": "moderate drinking RR 0.86 for incident CKD (confounded)",
+   "unit": "relative risk",
+   "population": "cohorts, low certainty",
+   "timeCourseWeeks": 260,
+   "mechanism": "Confounding likely",
+   "grade": "C",
+   "sources": [
+    "S39"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "creatine",
+   "direction": "up",
+   "effectSize": "+0.13 mg/dL (0.07–0.18); eGFR MD -5.2 (-15.0 to 4.6, n.s.)",
+   "unit": "mg/dL",
+   "population": "19 RCTs",
+   "timeCourseWeeks": 1,
+   "mechanism": "More creatine turnover, not lower GFR",
+   "grade": "A",
+   "sources": [
+    "S30",
+    "S31",
+    "S27"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "wheyprotein",
+   "direction": "none",
+   "effectSize": "as high protein",
+   "unit": "SMD",
+   "population": "healthy adults",
+   "timeCourseWeeks": 4,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S29"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "deficit_large",
+   "direction": "mixed",
+   "effectSize": "CKD: proteinuria -1.31 g/24 h, no further GFR fall; creatinine falls if muscle lost",
+   "unit": "g/24 h",
+   "population": "CKD, 13 studies",
+   "timeCourseWeeks": 30,
+   "mechanism": "Less hyperfiltration; less muscle",
+   "grade": "C",
+   "sources": [
+    "S36"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "deficit_moderate",
+   "direction": "up",
+   "effectSize": "+4.0 to +5.3% in 2 y",
+   "unit": "% eGFR",
+   "population": "DIRECT, n=318",
+   "timeCourseWeeks": 52,
+   "mechanism": "Insulin and BP fall",
+   "grade": "B",
+   "sources": [
+    "S35"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "surplus",
+   "direction": "up",
+   "effectSize": "expected if muscle is gained",
+   "unit": "qualitative",
+   "population": "mechanism only",
+   "timeCourseWeeks": 12,
+   "mechanism": "More muscle creatine turnover",
+   "grade": "D",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "resistance_load",
+   "direction": "up",
+   "effectSize": "muscle mass is a non-GFR determinant of creatinine",
+   "unit": "qualitative",
+   "population": "guideline",
+   "timeCourseWeeks": 12,
+   "mechanism": "More muscle",
+   "grade": "C",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "aerobic_load",
+   "direction": "none",
+   "effectSize": "100-km race: creatinine and urea almost unchanged; active OR 0.82 for CKD",
+   "unit": "qualitative",
+   "population": "athletes n=51; cohorts",
+   "timeCourseWeeks": 0.01,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S40",
+    "S39"
+   ]
+  },
+  {
+   "markerId": "egfr",
+   "lever": "weight_loss",
+   "direction": "mixed",
+   "effectSize": "hyperfiltration (GFR > 125): -25.6 mL/min after surgery; moderate obesity: eGFR +4–7%",
+   "unit": "mL/min",
+   "population": "CKD/obese adults",
+   "timeCourseWeeks": 26,
+   "mechanism": "Hyperfiltration resolves; BP and insulin fall",
+   "grade": "B",
+   "sources": [
+    "S36",
+    "S35"
+   ]
+  },
+  {
+   "markerId": "creatinine",
+   "lever": "supp:creatine_monohydrate",
+   "direction": "up",
+   "effectSize": "+0.13 mg/dL",
+   "unit": "mg/dL",
+   "population": "19 RCTs",
+   "timeCourseWeeks": 1,
+   "mechanism": "Artefact",
+   "grade": "A",
+   "sources": [
+    "S30"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "vlc",
+   "direction": "none",
+   "effectSize": "no harmful effect on albuminuria over 2 y",
+   "unit": "qualitative",
+   "population": "obese adults, n=307",
+   "timeCourseWeeks": 52,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S34"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "lowcarb",
+   "direction": "down",
+   "effectSize": "improved on all diets; -24.8 mg/g in microalbuminuria",
+   "unit": "mg/g",
+   "population": "DIRECT, n=318",
+   "timeCourseWeeks": 104,
+   "mechanism": "Weight, insulin, BP",
+   "grade": "B",
+   "sources": [
+    "S35"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "no effect on albuminuria (LC-HP diet)",
+   "unit": "qualitative",
+   "population": "obese adults",
+   "timeCourseWeeks": 52,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S34"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "fast16_8",
+   "direction": "none",
+   "effectSize": "proteinuria an outcome; no pooled effect in abstract",
+   "unit": "qualitative",
+   "population": "CKD Ramadan studies",
+   "timeCourseWeeks": 4,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S38"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "alcohol",
+   "direction": "none",
+   "effectSize": "secondary CKD outcomes consistent with RR 0.86 (low certainty)",
+   "unit": "relative risk",
+   "population": "cohorts",
+   "timeCourseWeeks": 260,
+   "mechanism": "Confounded",
+   "grade": "C",
+   "sources": [
+    "S39"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "no urinalysis differences over 21 mo (ACR not reported)",
+   "unit": "qualitative",
+   "population": "athletes",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "C",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "wheyprotein",
+   "direction": "none",
+   "effectSize": "as high protein",
+   "unit": "qualitative",
+   "population": "obese adults",
+   "timeCourseWeeks": 52,
+   "mechanism": "—",
+   "grade": "C",
+   "sources": [
+    "S34"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "proteinuria -1.31 g/24 h",
+   "unit": "g/24 h",
+   "population": "CKD, 13 studies",
+   "timeCourseWeeks": 30,
+   "mechanism": "Less hyperfiltration, lower BP",
+   "grade": "B",
+   "sources": [
+    "S36"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "deficit_moderate",
+   "direction": "down",
+   "effectSize": "-24.8 mg/g in microalbuminuria",
+   "unit": "mg/g",
+   "population": "DIRECT",
+   "timeCourseWeeks": 104,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S35"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "resistance_load",
+   "direction": "up",
+   "effectSize": "exercise raises urine albumin (transient)",
+   "unit": "qualitative",
+   "population": "guideline",
+   "timeCourseWeeks": 0.15,
+   "mechanism": "Haemodynamic",
+   "grade": "B",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "aerobic_load",
+   "direction": "up",
+   "effectSize": "glomerular proteinuria in 11.4% 6 h after a 100-km race",
+   "unit": "% of runners",
+   "population": "athletes n=51",
+   "timeCourseWeeks": 0.15,
+   "mechanism": "Haemodynamic",
+   "grade": "B",
+   "sources": [
+    "S40",
+    "S27"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "weight_loss",
+   "direction": "down",
+   "effectSize": "as deficit",
+   "unit": "g/24 h",
+   "population": "CKD",
+   "timeCourseWeeks": 30,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S36"
+   ]
+  },
+  {
+   "markerId": "uacr",
+   "lever": "supp:potassium_salt_substitute",
+   "direction": "down",
+   "effectSize": "lower sodium lowered BP and albuminuria in CKD trials up to 36 wk",
+   "unit": "qualitative",
+   "population": "CKD",
+   "timeCourseWeeks": 12,
+   "mechanism": "Lower intraglomerular pressure",
+   "grade": "B",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "early ketosis natriuresis; no serum number",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 1,
+   "mechanism": "Ketoanions carry sodium into urine",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "highprotein",
+   "direction": "none",
+   "effectSize": "more solute protects against dilutional hyponatraemia (expected)",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0,
+   "mechanism": "Urea solute lets the kidney excrete water",
+   "grade": "D",
+   "sources": [
+    "S49"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "fast16_8",
+   "direction": "none",
+   "effectSize": "none expected",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "none expected",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "fast36_48",
+   "direction": "down",
+   "effectSize": "small fall expected",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0.3,
+   "mechanism": "Natriuresis",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "fast48plus",
+   "direction": "down",
+   "effectSize": "140.1 -> 138.7 mmol/L; 6/1422 mild hyponatraemia (lowest 127), corrected with salt",
+   "unit": "mmol/L",
+   "population": "Buchinger fasters, n=1422, 3 L water/d",
+   "timeCourseWeeks": 1,
+   "mechanism": "Natriuresis plus high water intake",
+   "grade": "B",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "alcohol",
+   "direction": "down",
+   "effectSize": "beer potomania: dilutional hyponatraemia, sometimes seizures",
+   "unit": "case reports",
+   "population": "44 cases",
+   "timeCourseWeeks": 2,
+   "mechanism": "Hypotonic fluid with little solute",
+   "grade": "C",
+   "sources": [
+    "S49"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "restrictive diets reported as a cause of potomania",
+   "unit": "case reports",
+   "population": "44 cases",
+   "timeCourseWeeks": 4,
+   "mechanism": "Low solute plus high fluid",
+   "grade": "C",
+   "sources": [
+    "S49"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "136.9 -> 131.1 mmol/L at the end of a 100-km race",
+   "unit": "mmol/L",
+   "population": "athletes n=51",
+   "timeCourseWeeks": 0.01,
+   "mechanism": "Overdrinking hypotonic fluid, non-osmotic vasopressin",
+   "grade": "B",
+   "sources": [
+    "S40",
+    "S44"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "supp:electrolytes_fasting",
+   "direction": "up",
+   "effectSize": "salt corrected all 6 fasting hyponatraemia cases",
+   "unit": "qualitative",
+   "population": "Buchinger fasters",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "Replaces sodium",
+   "grade": "C",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "sodium",
+   "lever": "supp:electrolytes_sweat_lowcarb",
+   "direction": "up",
+   "effectSize": "as above",
+   "unit": "qualitative",
+   "population": "Buchinger fasters",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "Replaces sodium",
+   "grade": "C",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "vlc",
+   "direction": "down",
+   "effectSize": "small fall expected; no serum number",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 1,
+   "mechanism": "Natriuresis raises aldosterone and urinary K loss",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "fast16_8",
+   "direction": "none",
+   "effectSize": "none expected",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "fast24",
+   "direction": "none",
+   "effectSize": "none expected",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0.1,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "fast36_48",
+   "direction": "none",
+   "effectSize": "none expected",
+   "unit": "qualitative",
+   "population": "mechanism",
+   "timeCourseWeeks": 0.3,
+   "mechanism": "—",
+   "grade": "D",
+   "sources": [
+    "S16"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "fast48plus",
+   "direction": "mixed",
+   "effectSize": "4.4 -> 4.4 mmol/L during fast; refeeding: 10–30%+ fall in K, P or Mg within 5 days",
+   "unit": "mmol/L / %",
+   "population": "fasters n=1422; hospital refeeding consensus",
+   "timeCourseWeeks": 1,
+   "mechanism": "Insulin drives K into cells on refeeding",
+   "grade": "B",
+   "sources": [
+    "S16",
+    "S48"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "fibre",
+   "direction": "none",
+   "effectSize": "fresh plant foods' bioavailable K lower than assumed; higher K intake OR 0.78 for CKD",
+   "unit": "odds ratio",
+   "population": "guideline; cohorts",
+   "timeCourseWeeks": 0,
+   "mechanism": "—",
+   "grade": "C",
+   "sources": [
+    "S27",
+    "S39"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "caffeine",
+   "direction": "down",
+   "effectSize": "case: >= 480 mg/d caffeine, K 2.0 mmol/L with rhabdomyolysis",
+   "unit": "mmol/L",
+   "population": "single case",
+   "timeCourseWeeks": 2,
+   "mechanism": "Beta2-adrenergic shift into cells",
+   "grade": "D",
+   "sources": [
+    "S50"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "creatine",
+   "direction": "none",
+   "effectSize": "no electrolyte change over 21 mo",
+   "unit": "qualitative",
+   "population": "athletes",
+   "timeCourseWeeks": 12,
+   "mechanism": "—",
+   "grade": "B",
+   "sources": [
+    "S25"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "deficit_large",
+   "direction": "down",
+   "effectSize": "refeeding-syndrome risk after prolonged very low intake",
+   "unit": "%",
+   "population": "hospital consensus",
+   "timeCourseWeeks": 1,
+   "mechanism": "Insulin shift on refeeding",
+   "grade": "B",
+   "sources": [
+    "S48"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "aerobic_load",
+   "direction": "down",
+   "effectSize": "4.8 -> 4.0 mmol/L 6 h after a 100-km race",
+   "unit": "mmol/L",
+   "population": "athletes n=51",
+   "timeCourseWeeks": 0.01,
+   "mechanism": "Sweat loss, catecholamines",
+   "grade": "B",
+   "sources": [
+    "S40"
+   ]
+  },
+  {
+   "markerId": "potassium",
+   "lever": "supp:potassium_salt_substitute",
+   "direction": "up",
+   "effectSize": "serious hyperkalaemia 3.35 vs 3.30 per 1000 py (n.s.) without serious kidney disease; KCl substitutes are high-absorption K in CKD",
+   "unit": "events/1000 py",
+   "population": "rural China, n=20995, mean 4.7 y",
+   "timeCourseWeeks": 26,
+   "mechanism": "Added absorbable potassium",
+   "grade": "B",
+   "sources": [
+    "S46",
+    "S27"
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "id": "W-L-ALT-1",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": "healthyULN",
+    "unit": "U/L (33 M / 25 F)"
+   },
+   "kind": "prefer",
+   "target": "deficit_moderate",
+   "message": "Because your ALT was {v} U/L on {date}, above the healthy limit of {uln}, the plan favours steady fat loss and less sugar.",
+   "grade": "A",
+   "sources": [
+    "S1",
+    "S2",
+    "S4"
+   ]
+  },
+  {
+   "id": "W-L-ALT-2",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": "healthyULN",
+    "unit": "U/L (33 M / 25 F)"
+   },
+   "kind": "cap",
+   "target": "alcohol",
+   "message": "Because your ALT was {v} U/L on {date}, the plan keeps alcohol to {cap} g a day or less. Less is better for the liver.",
+   "grade": "B",
+   "sources": [
+    "S2",
+    "S22"
+   ],
+   "value": {
+    "gPerDayWomen": 20,
+    "gPerDayMen": 30
+   }
+  },
+  {
+   "id": "W-L-ALT-3",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "reask",
+   "target": "recentHardTraining7d",
+   "message": "Heavy or new lifting can raise ALT and AST for a week. Did you train hard in the 7 days before {date}?",
+   "grade": "B",
+   "sources": [
+    "S8"
+   ]
+  },
+  {
+   "id": "W-L-ALT-4",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": "healthyULN",
+    "unit": "U/L (33 M / 25 F)"
+   },
+   "kind": "cap",
+   "target": "surplus",
+   "message": "Because your ALT was {v} U/L on {date}, the plan keeps the surplus small. Big surpluses raise ALT within weeks.",
+   "grade": "C",
+   "sources": [
+    "S9"
+   ],
+   "value": {
+    "maxPctAboveMaintenance": 10
+   }
+  },
+  {
+   "id": "W-L-ALT-5",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "warn",
+   "target": "supp:green_tea_extract",
+   "message": "Because your ALT was {v} U/L on {date}: green tea extract and ashwagandha can rarely injure the liver. Consider pausing it and retesting.",
+   "grade": "C",
+   "sources": [
+    "S19",
+    "S20"
+   ]
+  },
+  {
+   "id": "W-L-ALT-6",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": 3,
+    "unit": "x lab ULN"
+   },
+   "kind": "clinician",
+   "target": "deficit_large",
+   "message": "Because your ALT was {v} U/L on {date}, more than 3 times your lab's limit, please see a clinician. The plan stays gentle until then.",
+   "grade": "C",
+   "sources": [
+    "S51",
+    "S10"
+   ],
+   "value": {
+    "maxDeficitPct": 25,
+    "maxFastHours": 24
+   }
+  },
+  {
+   "id": "W-L-ALT-7",
+   "markerId": "alt",
+   "when": {
+    "op": ">",
+    "value": "healthyULN",
+    "unit": "U/L (33 M / 25 F)"
+   },
+   "kind": "retest",
+   "target": "alt",
+   "message": "Retest ALT around {date+12w} to see whether the plan is helping. Avoid hard lifting for 7 days before.",
+   "grade": "B",
+   "sources": [
+    "S2",
+    "S8"
+   ],
+   "value": {
+    "weeks": 12
+   }
+  },
+  {
+   "id": "W-L-AST-1",
+   "markerId": "ast",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "reask",
+   "target": "recentHardTraining7d",
+   "message": "Because your AST was {v} U/L on {date}: did you lift hard or start new training in the 7 days before? Muscle can raise AST for a week.",
+   "grade": "B",
+   "sources": [
+    "S8"
+   ]
+  },
+  {
+   "id": "W-L-AST-2",
+   "markerId": "ast",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "retest",
+   "target": "ast",
+   "message": "Retest AST and ALT around {date+12w}, with no hard lifting in the 7 days before.",
+   "grade": "B",
+   "sources": [
+    "S8"
+   ],
+   "value": {
+    "weeks": 12
+   }
+  },
+  {
+   "id": "W-L-AST-3",
+   "markerId": "ast",
+   "when": {
+    "op": ">",
+    "value": 3,
+    "unit": "x lab ULN"
+   },
+   "kind": "clinician",
+   "target": "ast",
+   "message": "Because your AST was {v} U/L on {date}, more than 3 times your lab's limit, please see a clinician.",
+   "grade": "C",
+   "sources": [
+    "S51"
+   ]
+  },
+  {
+   "id": "W-L-GGT-1",
+   "markerId": "ggt",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "reask",
+   "target": "alcoholPerWeek",
+   "message": "Because your GGT was {v} U/L on {date}, which often rises with alcohol, how much do you usually drink in a week?",
+   "grade": "B",
+   "sources": [
+    "S22",
+    "S23"
+   ]
+  },
+  {
+   "id": "W-L-GGT-2",
+   "markerId": "ggt",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "cap",
+   "target": "alcohol",
+   "message": "Because your GGT was {v} U/L on {date}, the plan cuts alcohol. GGT usually falls within 2–3 weeks of drinking less.",
+   "grade": "B",
+   "sources": [
+    "S23",
+    "S2"
+   ],
+   "value": {
+    "gPerDayWomen": 20,
+    "gPerDayMen": 30
+   }
+  },
+  {
+   "id": "W-L-GGT-3",
+   "markerId": "ggt",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L"
+   },
+   "kind": "retest",
+   "target": "ggt",
+   "message": "Retest GGT around {date+6w}. If it is still high after weeks of little or no alcohol, see a clinician.",
+   "grade": "C",
+   "sources": [
+    "S23"
+   ],
+   "value": {
+    "weeks": 6
+   }
+  },
+  {
+   "id": "W-L-GGT-4",
+   "markerId": "ggt",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "U/L after >= 4 wk of <= 1 drink/week"
+   },
+   "kind": "clinician",
+   "target": "ggt",
+   "message": "Your GGT stayed high on {date} after weeks of little alcohol. Please see a clinician to check your liver.",
+   "grade": "C",
+   "sources": [
+    "S23"
+   ]
+  },
+  {
+   "id": "W-L-EGFR-1",
+   "markerId": "egfr",
+   "when": {
+    "op": "<",
+    "value": 60,
+    "unit": "mL/min/1.73 m²"
+   },
+   "kind": "cap",
+   "target": "highprotein",
+   "message": "Because your eGFR was {v} on {date}, the plan keeps protein at or below 1.3 g per kg a day, as kidney guidelines advise.",
+   "grade": "A",
+   "sources": [
+    "S27"
+   ],
+   "value": {
+    "maxProteinGPerKg": 1.3
+   }
+  },
+  {
+   "id": "W-L-EGFR-2",
+   "markerId": "egfr",
+   "when": {
+    "op": "<",
+    "value": 60,
+    "unit": "mL/min/1.73 m²"
+   },
+   "kind": "cap",
+   "target": "supp:creatine_monohydrate",
+   "message": "Because your eGFR was {v} on {date}, we don't suggest creatine or potassium salt. Ask your doctor before using them.",
+   "grade": "B",
+   "sources": [
+    "S27",
+    "S46"
+   ],
+   "value": {
+    "suggest": false,
+    "alsoTargets": [
+     "supp:potassium_salt_substitute"
+    ]
+   }
+  },
+  {
+   "id": "W-L-EGFR-3",
+   "markerId": "egfr",
+   "when": {
+    "op": "<",
+    "value": 60,
+    "unit": "mL/min/1.73 m² (first entry)"
+   },
+   "kind": "retest",
+   "target": "egfr",
+   "message": "A single low eGFR is not a diagnosis. Retest around {date+3m}, without cooked meat that morning and off creatine for 2 weeks.",
+   "grade": "A",
+   "sources": [
+    "S27",
+    "S32",
+    "S30"
+   ],
+   "value": {
+    "weeks": 13
+   }
+  },
+  {
+   "id": "W-L-EGFR-4",
+   "markerId": "egfr",
+   "when": {
+    "op": "<",
+    "value": 60,
+    "unit": "mL/min/1.73 m²"
+   },
+   "kind": "warn",
+   "target": "vlc",
+   "message": "Because your eGFR was {v} on {date}, check with your doctor before keto or fasts over 24 h (kidney stones, fluid and salt shifts).",
+   "grade": "C",
+   "sources": [
+    "S37",
+    "S27"
+   ],
+   "value": {
+    "maxFastHours": 24
+   }
+  },
+  {
+   "id": "W-L-CREAT-1",
+   "markerId": "creatinine",
+   "when": {
+    "op": ">",
+    "value": "labULN",
+    "unit": "mg/dL (or eGFR 60–89) with creatine >= 3 g/d, meat meal or high muscle"
+   },
+   "kind": "warn",
+   "target": "supp:creatine_monohydrate",
+   "message": "Your creatinine on {date} may read high from creatine, muscle or a meat meal. A cystatin C test gives a cleaner kidney estimate.",
+   "grade": "A",
+   "sources": [
+    "S30",
+    "S32",
+    "S27",
+    "S28"
+   ]
+  },
+  {
+   "id": "W-L-EGFR-5",
+   "markerId": "egfr",
+   "when": {
+    "op": ">",
+    "value": 25,
+    "unit": "% fall from previous entry, unexplained"
+   },
+   "kind": "clinician",
+   "target": "egfr",
+   "message": "Your eGFR fell from {old} to {v} between {d1} and {d2}. Please ask a clinician to check it.",
+   "grade": "C",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "id": "W-L-EGFR-6",
+   "markerId": "egfr",
+   "when": {
+    "op": "<",
+    "value": 30,
+    "unit": "mL/min/1.73 m²"
+   },
+   "kind": "clinician",
+   "target": "egfr",
+   "message": "Because your eGFR was {v} on {date}, please see a kidney specialist. The plan stays gentle until you have.",
+   "grade": "A",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "id": "W-L-ACR-1",
+   "markerId": "uacr",
+   "when": {
+    "op": ">=",
+    "value": 30,
+    "unit": "mg/g"
+   },
+   "kind": "cap",
+   "target": "highprotein",
+   "message": "Because your urine ACR was {v} mg/g on {date}, the plan keeps protein at or below 1.3 g per kg a day until a repeat test.",
+   "grade": "A",
+   "sources": [
+    "S27"
+   ],
+   "value": {
+    "maxProteinGPerKg": 1.3,
+    "provisional": true
+   }
+  },
+  {
+   "id": "W-L-ACR-2",
+   "markerId": "uacr",
+   "when": {
+    "op": ">=",
+    "value": 30,
+    "unit": "mg/g"
+   },
+   "kind": "retest",
+   "target": "uacr",
+   "message": "Retest urine ACR by {date+3m} on a first-morning sample: no hard exercise the day before, not during a period or infection.",
+   "grade": "A",
+   "sources": [
+    "S27",
+    "S40"
+   ],
+   "value": {
+    "weeks": 13
+   }
+  },
+  {
+   "id": "W-L-ACR-3",
+   "markerId": "uacr",
+   "when": {
+    "op": ">=",
+    "value": 30,
+    "unit": "mg/g"
+   },
+   "kind": "prefer",
+   "target": "weight_loss",
+   "message": "Because your urine ACR was {v} mg/g on {date}, the plan favours less salt and steady weight loss, which lower it.",
+   "grade": "B",
+   "sources": [
+    "S27",
+    "S36",
+    "S35"
+   ],
+   "value": {
+    "maxSodiumGPerDay": 2
+   }
+  },
+  {
+   "id": "W-L-ACR-4",
+   "markerId": "uacr",
+   "when": {
+    "op": ">=",
+    "value": 30,
+    "unit": "mg/g"
+   },
+   "kind": "warn",
+   "target": "vlc",
+   "message": "Because your ACR was {v} mg/g on {date}: keto raises kidney-stone risk (about 8 in 100 adults). Drink well and check with your doctor.",
+   "grade": "C",
+   "sources": [
+    "S37"
+   ],
+   "value": {
+    "minFluidL": 2.5
+   }
+  },
+  {
+   "id": "W-L-ACR-5",
+   "markerId": "uacr",
+   "when": {
+    "op": ">=",
+    "value": 300,
+    "unit": "mg/g"
+   },
+   "kind": "clinician",
+   "target": "uacr",
+   "message": "Because your urine ACR was {v} mg/g on {date}, severely increased, please see a clinician soon.",
+   "grade": "A",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "id": "W-L-NA-1",
+   "markerId": "sodium",
+   "when": {
+    "op": "<",
+    "value": 135,
+    "unit": "mmol/L"
+   },
+   "kind": "cap",
+   "target": "fast48plus",
+   "message": "Because your sodium was {v} mmol/L on {date}, below 135, fasts are kept to 24 hours or less.",
+   "grade": "B",
+   "sources": [
+    "S16",
+    "S43"
+   ],
+   "value": {
+    "maxFastHours": 24
+   }
+  },
+  {
+   "id": "W-L-NA-2",
+   "markerId": "sodium",
+   "when": {
+    "op": "<",
+    "value": 135,
+    "unit": "mmol/L"
+   },
+   "kind": "reask",
+   "target": "vlc",
+   "message": "Because your sodium was {v} mmol/L on {date}, start keto only after a normal repeat test or your doctor's OK. Have you had either?",
+   "grade": "C",
+   "sources": [
+    "S16",
+    "S43"
+   ]
+  },
+  {
+   "id": "W-L-NA-3",
+   "markerId": "sodium",
+   "when": {
+    "op": "outside",
+    "value": [
+     135,
+     145
+    ],
+    "unit": "mmol/L"
+   },
+   "kind": "clinician",
+   "target": "sodium",
+   "message": "Because your sodium was {v} mmol/L on {date}, outside the normal range, please see a clinician. Headache, confusion or vomiting: seek care now.",
+   "grade": "A",
+   "sources": [
+    "S43",
+    "S44"
+   ]
+  },
+  {
+   "id": "W-L-NA-4",
+   "markerId": "sodium",
+   "when": {
+    "op": "<",
+    "value": 135,
+    "unit": "mmol/L with aerobic sessions > 2 h"
+   },
+   "kind": "warn",
+   "target": "aerobic_load",
+   "message": "Because your sodium was {v} mmol/L on {date}: in long sessions drink to thirst, not by schedule. Gaining weight during exercise means overdrinking.",
+   "grade": "B",
+   "sources": [
+    "S40",
+    "S44"
+   ]
+  },
+  {
+   "id": "W-L-NA-5",
+   "markerId": "sodium",
+   "when": {
+    "op": "missing",
+    "value": null,
+    "unit": "no value in last 4 wk, fast > 72 h or PSMF chosen"
+   },
+   "kind": "retest",
+   "target": "sodium",
+   "message": "Fasts over 3 days need a recent sodium and potassium test. Please test before {start}.",
+   "grade": "C",
+   "sources": [
+    "S16",
+    "S51"
+   ],
+   "value": {
+    "weeks": 4
+   }
+  },
+  {
+   "id": "W-L-K-1",
+   "markerId": "potassium",
+   "when": {
+    "op": "<",
+    "value": 3.5,
+    "unit": "mmol/L"
+   },
+   "kind": "cap",
+   "target": "fast48plus",
+   "message": "Because your potassium was {v} mmol/L on {date}, below 3.5, fasts are kept to 24 hours and keto waits for a normal repeat test.",
+   "grade": "B",
+   "sources": [
+    "S16",
+    "S48"
+   ],
+   "value": {
+    "maxFastHours": 24,
+    "reaskBefore": "vlc"
+   }
+  },
+  {
+   "id": "W-L-K-2",
+   "markerId": "potassium",
+   "when": {
+    "op": ">",
+    "value": 5.0,
+    "unit": "mmol/L"
+   },
+   "kind": "cap",
+   "target": "supp:potassium_salt_substitute",
+   "message": "Because your potassium was {v} mmol/L on {date}, we don't suggest potassium salt or potassium electrolyte mixes. Ask your doctor.",
+   "grade": "B",
+   "sources": [
+    "S27",
+    "S46"
+   ],
+   "value": {
+    "suggest": false,
+    "alsoTargets": [
+     "supp:electrolytes_fasting"
+    ],
+    "maxFastHours": 24
+   }
+  },
+  {
+   "id": "W-L-K-3",
+   "markerId": "potassium",
+   "when": {
+    "op": "outside",
+    "value": [
+     3.5,
+     5.0
+    ],
+    "unit": "mmol/L"
+   },
+   "kind": "clinician",
+   "target": "potassium",
+   "message": "Because your potassium was {v} mmol/L on {date}, outside the normal range, please see a clinician.",
+   "grade": "A",
+   "sources": [
+    "S27",
+    "S45"
+   ]
+  },
+  {
+   "id": "W-L-K-4",
+   "markerId": "potassium",
+   "when": {
+    "op": ">",
+    "value": 5.5,
+    "unit": "mmol/L"
+   },
+   "kind": "clinician",
+   "target": "potassium",
+   "message": "Because your potassium was {v} mmol/L on {date}, above 5.5, please contact a clinician today.",
+   "grade": "A",
+   "sources": [
+    "S27"
+   ]
+  },
+  {
+   "id": "W-L-K-5",
+   "markerId": "potassium",
+   "when": {
+    "op": "any",
+    "value": null,
+    "unit": "fast > 48 h or PSMF planned"
+   },
+   "kind": "warn",
+   "target": "fast48plus",
+   "message": "After fasts over 2 days, potassium can drop in the first days of eating. Break the fast with small meals and stop if weak or palpitating.",
+   "grade": "B",
+   "sources": [
+    "S48",
+    "S16"
+   ]
+  },
+  {
+   "id": "W-L-K-6",
+   "markerId": "potassium",
+   "when": {
+    "op": "<",
+    "value": 3.5,
+    "unit": "mmol/L with caffeine > 400 mg/d"
+   },
+   "kind": "cap",
+   "target": "caffeine",
+   "message": "Because your potassium was {v} mmol/L on {date}, the plan keeps caffeine under 400 mg a day. Very high caffeine can lower potassium.",
+   "grade": "D",
+   "sources": [
+    "S50"
+   ],
+   "value": {
+    "maxMgPerDay": 400
+   }
+  }
+ ]
+}

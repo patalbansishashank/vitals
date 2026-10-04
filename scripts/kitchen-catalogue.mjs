@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates `src/content/catalogues/kitchen.ts` from the R12 seed (`plan/02-next/research/R12-seed.json`): equipment,
+ * Generates `src/content/catalogues/kitchen.ts` from the R12 seed (`research/R12-seed.json`): equipment,
  * cuisines, staples, pantry and regions, one item per line. `src/content/catalogues/__tests__/kitchen.test.ts` checks
  * that the module equals the seed.
  *
@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const SEED_PATH = join(ROOT, 'plan', '02-next', 'research', 'R12-seed.json');
+export const SEED_PATH = join(ROOT, 'research', 'R12-seed.json');
 export const OUT_PATH = join(ROOT, 'src', 'content', 'catalogues', 'kitchen.ts');
 const LISTS = ['equipment', 'cuisines', 'staples', 'pantry', 'regions'];
 

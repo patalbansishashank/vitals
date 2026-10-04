@@ -1,6 +1,6 @@
 /**
  * Builds `src/markers/interactions.json` (the blood-marker interaction table, SUITE_SPEC §13.5.2) from the four
- * research files `plan/02-next/research/R13-*.json` and the source lists of their markdown write-ups.
+ * research files `research/R13-*.json` and the source lists of their markdown write-ups.
  *
  *   node scripts/markers/build-interactions.ts          write the table
  *   node scripts/markers/build-interactions.ts --check  exit 1 if the committed table differs from a fresh build
@@ -574,7 +574,7 @@ export function buildTable(inputs: readonly ResearchInput[]): Json {
     }
   }
 
-  return { schema: 'vitals.markerInteractions/1', generatedFrom: inputs.map((i) => `plan/02-next/research/${i.json}`), markers, interactions, rules };
+  return { schema: 'vitals.markerInteractions/1', generatedFrom: inputs.map((i) => `research/${i.json}`), markers, interactions, rules };
 }
 
 const R13_CODE: Readonly<Record<string, string>> = {
@@ -596,7 +596,7 @@ function sameWhen(a: Condition, b: Condition): boolean {
 /* ------------------------------------------------------------------------------------------- cli */
 
 export function readInputs(root: string): ResearchInput[] {
-  const dir = join(root, 'plan/02-next/research');
+  const dir = join(root, 'research');
   return RESEARCH_FILES.map((f) => ({
     json: f.json,
     md: f.md,

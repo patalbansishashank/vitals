@@ -1,0 +1,3003 @@
+{
+  "version": 1,
+  "generatedFrom": "plan/02-next/research/R13-markers-haem-thyroid-inflammation-hormones.md",
+  "conventions": {
+    "factor": "SI value = conventional value × factor",
+    "sources": "ids refer to the numbered source lists (S1…S108) in the markdown dossier",
+    "whenAlso": "optional when.also = second predicate on another marker (markerId), a profile/plan field (field), or {repeat:true} = confirmed on a repeat test",
+    "symbolicValues": "whoCutoff (13.0 g/dL men, 12.0 g/dL women), labLow/labHigh/labRange = the range printed on the report",
+    "grades": "A meta-analysis or several concordant RCTs; B few RCTs or consistent human data; C limited or indirect human; D mechanism, animal or expert opinion (R5 policy: grades set band width and wording, never gate)"
+  },
+  "markers": [
+    {
+      "id": "hb",
+      "label": "Haemoglobin (Hb)",
+      "units": {
+        "si": "g/L",
+        "conventional": "g/dL",
+        "factor": 10
+      },
+      "ranges": [
+        {
+          "region": "WHO",
+          "source": [
+            "S1",
+            "S2"
+          ],
+          "low": 13,
+          "note": "men ≥15 y, g/dL"
+        },
+        {
+          "region": "WHO",
+          "source": [
+            "S1",
+            "S2"
+          ],
+          "low": 12,
+          "note": "non-pregnant women ≥15 y, g/dL"
+        },
+        {
+          "region": "India",
+          "source": [
+            "S3"
+          ],
+          "note": "Indian reference cut-offs 1–2 g/dL lower than WHO, children 1–19 y only; adults use WHO"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": "<",
+          "value": 8,
+          "unit": "g/dL",
+          "message": "Haemoglobin below 8 g/dL is severe anaemia. Please see a clinician before any deficit or fast.",
+          "source": [
+            "S22",
+            "S1"
+          ]
+        },
+        {
+          "op": ">",
+          "value": "labHigh",
+          "unit": "g/dL",
+          "message": "Haemoglobin above your lab's range needs a clinician to look at it (dehydration, smoking, altitude or a blood disorder).",
+          "source": [
+            "S2"
+          ]
+        }
+      ],
+      "retestWeeks": 12
+    },
+    {
+      "id": "ferritin",
+      "label": "Serum ferritin",
+      "units": {
+        "si": "µg/L",
+        "conventional": "ng/mL",
+        "factor": 1
+      },
+      "ranges": [
+        {
+          "region": "WHO",
+          "source": [
+            "S11"
+          ],
+          "low": 15,
+          "note": "iron deficiency, apparently healthy adults"
+        },
+        {
+          "region": "WHO",
+          "source": [
+            "S11"
+          ],
+          "low": 70,
+          "note": "iron deficiency when inflammation is present"
+        },
+        {
+          "region": "Athletes",
+          "source": [
+            "S12",
+            "S13"
+          ],
+          "low": 30,
+          "note": "low stores in athletes; practice, not consensus"
+        },
+        {
+          "region": "WHO",
+          "source": [
+            "S11"
+          ],
+          "high": 200,
+          "note": "overload risk, men and non-menstruating women (not on ferritin alone)"
+        },
+        {
+          "region": "WHO",
+          "source": [
+            "S11"
+          ],
+          "high": 150,
+          "note": "overload risk, menstruating women"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": "<",
+          "value": 15,
+          "unit": "ng/mL",
+          "message": "Ferritin below 15 means your iron stores are empty. Please ask a clinician about iron treatment and the cause.",
+          "source": [
+            "S11",
+            "S1"
+          ]
+        },
+        {
+          "op": ">",
+          "value": 200,
+          "unit": "ng/mL",
+          "message": "Ferritin above 200 (men) or 150 (women) with a normal CRP needs a clinician to check for iron overload. Vitals stops suggesting iron.",
+          "source": [
+            "S11"
+          ]
+        }
+      ],
+      "retestWeeks": 12
+    },
+    {
+      "id": "b12",
+      "label": "Vitamin B12 (serum cobalamin)",
+      "units": {
+        "si": "pmol/L",
+        "conventional": "pg/mL",
+        "factor": 0.738
+      },
+      "ranges": [
+        {
+          "region": "International",
+          "source": [
+            "S25",
+            "S28"
+          ],
+          "low": 200,
+          "note": "pg/mL; below = deficient (usual), 200–300 borderline"
+        },
+        {
+          "region": "International",
+          "source": [
+            "S29"
+          ],
+          "low": 271,
+          "note": "pg/mL (= 200 pmol/L) biochemical/subclinical cut-off"
+        },
+        {
+          "region": "India",
+          "source": [
+            "S31"
+          ],
+          "low": 135,
+          "note": "pg/mL (= 100 pmol/L) proposed for young Indian vegetarians; single study"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": "<",
+          "value": 135,
+          "unit": "pg/mL",
+          "message": "B12 this low (below about 100 pmol/L) should be treated by a clinician, sooner if you have numbness, tingling or memory problems.",
+          "source": [
+            "S28",
+            "S31"
+          ]
+        }
+      ],
+      "retestWeeks": 12
+    },
+    {
+      "id": "vitd",
+      "label": "25-hydroxyvitamin D [25(OH)D]",
+      "units": {
+        "si": "nmol/L",
+        "conventional": "ng/mL",
+        "factor": 2.496
+      },
+      "ranges": [
+        {
+          "region": "IOM",
+          "source": [
+            "S35"
+          ],
+          "low": 20,
+          "note": "ng/mL; covers bone needs"
+        },
+        {
+          "region": "India (IAP, children)",
+          "source": [
+            "S36"
+          ],
+          "low": 12,
+          "note": "ng/mL; deficiency below"
+        },
+        {
+          "region": "India (review)",
+          "source": [
+            "S38"
+          ],
+          "low": 12,
+          "note": "ng/mL; proposed adult threshold, advocacy-level"
+        },
+        {
+          "region": "Endocrine Society 2024",
+          "source": [
+            "S34"
+          ],
+          "note": "no target; no routine testing"
+        },
+        {
+          "region": "Toxicity",
+          "source": [
+            "S36",
+            "S37"
+          ],
+          "high": 100,
+          "note": "ng/mL; toxicity only with hypercalcaemia; hallmark >150"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">",
+          "value": 100,
+          "unit": "ng/mL",
+          "message": "Vitamin D above 100 ng/mL is in the toxic range for some people. Stop vitamin D supplements and ask a clinician to check your calcium.",
+          "source": [
+            "S36",
+            "S37"
+          ]
+        }
+      ],
+      "retestWeeks": 12
+    },
+    {
+      "id": "crp",
+      "label": "High-sensitivity C-reactive protein (hs-CRP)",
+      "units": {
+        "si": "mg/L",
+        "conventional": "mg/dL",
+        "factor": 10
+      },
+      "ranges": [
+        {
+          "region": "CDC/AHA 2003",
+          "source": [
+            "S48"
+          ],
+          "high": 1,
+          "note": "mg/L; low risk below 1"
+        },
+        {
+          "region": "CDC/AHA 2003",
+          "source": [
+            "S48"
+          ],
+          "high": 3,
+          "note": "mg/L; high risk above 3"
+        },
+        {
+          "region": "ACC/AHA 2019",
+          "source": [
+            "S49"
+          ],
+          "high": 2,
+          "note": "mg/L; ≥2 is a risk enhancer"
+        },
+        {
+          "region": "CDC/AHA 2003",
+          "source": [
+            "S48"
+          ],
+          "high": 10,
+          "note": "mg/L; above 10 = probable acute inflammation, repeat"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">",
+          "value": 10,
+          "unit": "mg/L",
+          "message": "hs-CRP above 10 on two tests a few weeks apart needs a clinician to look for the cause.",
+          "source": [
+            "S48"
+          ]
+        }
+      ],
+      "retestWeeks": 26
+    },
+    {
+      "id": "tsh",
+      "label": "Thyroid-stimulating hormone (TSH)",
+      "units": {
+        "si": "mIU/L",
+        "conventional": "µIU/mL",
+        "factor": 1
+      },
+      "ranges": [
+        {
+          "region": "Lab",
+          "source": [
+            "S64"
+          ],
+          "note": "use the lab's printed range; AACE/ATA treat-threshold discussion at 10 mIU/L"
+        },
+        {
+          "region": "India",
+          "source": [
+            "S65"
+          ],
+          "high": 5.5,
+          "note": "µIU/mL; hypothyroid cut-off used in the 8-city study"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">",
+          "value": 10,
+          "unit": "µIU/mL",
+          "message": "TSH above 10 usually means an under-active thyroid that is treated. Please see a clinician.",
+          "source": [
+            "S64"
+          ]
+        },
+        {
+          "op": "<",
+          "value": "labLow",
+          "unit": "µIU/mL",
+          "message": "TSH below your lab's range can mean an over-active thyroid or too much thyroid medicine. Please see a clinician.",
+          "source": [
+            "S64"
+          ]
+        }
+      ],
+      "retestWeeks": 8
+    },
+    {
+      "id": "ft3",
+      "label": "Free triiodothyronine (free T3)",
+      "units": {
+        "si": "pmol/L",
+        "conventional": "pg/mL",
+        "factor": 1.536
+      },
+      "ranges": [
+        {
+          "region": "Lab",
+          "source": [
+            "S67"
+          ],
+          "note": "use the lab range; free T3 ~2.0–4.4 pg/mL typical, assay dependent"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": ">",
+          "value": "labHigh",
+          "unit": "pg/mL",
+          "message": "Free T3 above your lab's range can mean an over-active thyroid. Please see a clinician.",
+          "source": [
+            "S64"
+          ]
+        }
+      ],
+      "retestWeeks": 4
+    },
+    {
+      "id": "testosterone",
+      "label": "Total testosterone (men)",
+      "units": {
+        "si": "nmol/L",
+        "conventional": "ng/dL",
+        "factor": 0.0347
+      },
+      "ranges": [
+        {
+          "region": "Harmonised (US/EU cohorts)",
+          "source": [
+            "S81"
+          ],
+          "low": 264,
+          "high": 916,
+          "note": "ng/dL, non-obese men 19–39 y"
+        },
+        {
+          "region": "AUA 2018",
+          "source": [
+            "S82"
+          ],
+          "low": 300,
+          "note": "ng/dL, two morning samples"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": "<",
+          "value": 264,
+          "unit": "ng/dL",
+          "message": "Testosterone below 264 ng/dL on two morning tests needs a clinician, especially with low libido, low energy or loss of morning erections.",
+          "source": [
+            "S80",
+            "S81",
+            "S82"
+          ]
+        }
+      ],
+      "retestWeeks": 4
+    },
+    {
+      "id": "cortisol",
+      "label": "Morning serum cortisol",
+      "units": {
+        "si": "nmol/L",
+        "conventional": "µg/dL",
+        "factor": 27.59
+      },
+      "ranges": [
+        {
+          "region": "Endocrine Society",
+          "source": [
+            "S97"
+          ],
+          "low": 5,
+          "note": "µg/dL morning; below suggests adrenal insufficiency (with ACTH)"
+        },
+        {
+          "region": "Endocrine Society",
+          "source": [
+            "S98"
+          ],
+          "note": "morning serum cortisol is not a Cushing's screening test"
+        }
+      ],
+      "clinicianOnly": [
+        {
+          "op": "<",
+          "value": 5,
+          "unit": "µg/dL",
+          "message": "A morning cortisol below 5 µg/dL can mean the adrenal glands are not making enough. Please see a clinician soon, before any fasting.",
+          "source": [
+            "S97"
+          ]
+        },
+        {
+          "op": ">",
+          "value": "labHigh",
+          "unit": "µg/dL",
+          "message": "A high morning cortisol on its own is not a diagnosis. If your doctor ordered it, discuss it with them.",
+          "source": [
+            "S98"
+          ]
+        }
+      ],
+      "retestWeeks": null
+    }
+  ],
+  "interactions": [
+    {
+      "markerId": "hb",
+      "lever": "vlc",
+      "direction": "none",
+      "effectSize": "no trial of Hb found",
+      "unit": "g/dL",
+      "population": "—",
+      "timeCourseWeeks": 12,
+      "mechanism": "Low carbohydrate raises resting and post-exercise hepcidin (S17, S18), which lowers iron absorption; any Hb effect would take months and only in low-iron people (expectation)",
+      "grade": "D",
+      "sources": [
+        "S17",
+        "S18"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "highprotein",
+      "direction": "up",
+      "effectSize": "no Hb trial; vegetarians have ferritin −29.7 µg/L vs omnivores",
+      "unit": "—",
+      "population": "adults (cross-sectional)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Meat/fish protein brings haem iron; plant protein brings phytate-bound iron (expectation for Hb)",
+      "grade": "D",
+      "sources": [
+        "S20"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "fast48plus",
+      "direction": "none",
+      "effectSize": "no data in healthy adults; Hb < 8 g/dL is a reason not to fast (Ramadan review)",
+      "unit": "—",
+      "population": "patients",
+      "timeCourseWeeks": null,
+      "mechanism": "Fasting reduces iron, B12 and folate intake; harm in severe anaemia is expert opinion",
+      "grade": "D",
+      "sources": [
+        "S22"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "caffeine",
+      "direction": "down",
+      "effectSize": "coffee −39 %, tea −64 % non-haem iron absorption from the same meal; no effect 1 h before",
+      "unit": "% absorption",
+      "population": "iron-replete adults, single meals",
+      "timeCourseWeeks": null,
+      "mechanism": "Polyphenols (chlorogenic acid, tannins) chelate non-haem iron in the gut; Hb falls only if stores run down (months)",
+      "grade": "C",
+      "sources": [
+        "S14",
+        "S15"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "deficit_large",
+      "direction": "none",
+      "effectSize": "no effect of 25 % CR over 24 months on Hb or hepcidin",
+      "unit": "g/dL",
+      "population": "non-obese adults with an 18 mg iron multivitamin",
+      "timeCourseWeeks": 104,
+      "mechanism": "Red-cell production is protected when micronutrients are covered; untested without the multivitamin and in already-anaemic people",
+      "grade": "B",
+      "sources": [
+        "S10"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "deficit_moderate",
+      "direction": "none",
+      "effectSize": "as above",
+      "unit": "g/dL",
+      "population": "as above",
+      "timeCourseWeeks": 104,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S10"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "ΔHb vs Δplasma volume r = −0.81; transient haemolysis after long runs",
+      "unit": "g/dL",
+      "population": "endurance athletes",
+      "timeCourseWeeks": 4,
+      "mechanism": "Training expands plasma volume (dilution) and foot-strike haemolysis destroys a few red cells; normalises 3–5 days after stopping",
+      "grade": "B",
+      "sources": [
+        "S6",
+        "S7",
+        "S8"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "weight_loss",
+      "direction": "none",
+      "effectSize": "no effect over 24 months of CR",
+      "unit": "g/dL",
+      "population": "non-obese adults",
+      "timeCourseWeeks": 104,
+      "mechanism": "As deficit_large",
+      "grade": "B",
+      "sources": [
+        "S10"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "supp:iron",
+      "direction": "up",
+      "effectSize": "+0.42 g/dL (95 % CI 0.10–0.74); ≥ 1 g/dL in 2 weeks if iron-deficient",
+      "unit": "g/dL",
+      "population": "active women; IDA patients",
+      "timeCourseWeeks": 4,
+      "mechanism": "Supplies iron for erythropoiesis; alternate-day dosing raises fractional absorption (21.8 vs 16.3 %)",
+      "grade": "A",
+      "sources": [
+        "S9",
+        "S1",
+        "S19"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "supp:vitamin_b12",
+      "direction": "up",
+      "effectSize": "larger Hb rise at 4 and 8 weeks when B12 added to iron + folic acid",
+      "unit": "g/dL",
+      "population": "Indian children with nutritional anaemia",
+      "timeCourseWeeks": 8,
+      "mechanism": "B12 is needed for DNA synthesis in red-cell precursors; helps only if B12 is low",
+      "grade": "C",
+      "sources": [
+        "S106"
+      ]
+    },
+    {
+      "markerId": "hb",
+      "lever": "supp:calcium",
+      "direction": "down",
+      "effectSize": "300–600 mg calcium with a meal cuts iron absorption 50–60 %",
+      "unit": "% absorption",
+      "population": "adults, single meals",
+      "timeCourseWeeks": null,
+      "mechanism": "Calcium inhibits both haem and non-haem iron uptake at the enterocyte; separate from iron-rich meals",
+      "grade": "C",
+      "sources": [
+        "S16"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "vlc",
+      "direction": "down",
+      "effectSize": "no ferritin trial; hepcidin higher after 24 h at 3 g/kg CHO and after 6 days LCHF",
+      "unit": "hepcidin",
+      "population": "trained endurance athletes",
+      "timeCourseWeeks": 12,
+      "mechanism": "Low muscle glycogen raises exercise IL-6, which drives hepatic hepcidin and blocks iron absorption for hours after training",
+      "grade": "C",
+      "sources": [
+        "S17",
+        "S18"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "highprotein",
+      "direction": "mixed",
+      "effectSize": "vegetarians −29.7 µg/L vs omnivores",
+      "unit": "µg/L",
+      "population": "adults, cross-sectional",
+      "timeCourseWeeks": 26,
+      "mechanism": "Animal protein brings better-absorbed haem iron (classic physiology); plant protein does not; direction depends on the source",
+      "grade": "B",
+      "sources": [
+        "S20"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "alcohol",
+      "direction": "up",
+      "effectSize": "ferritin and serum iron rise progressively with intake; beer more than wine or spirits",
+      "unit": "µg/L",
+      "population": "3375 adult twins",
+      "timeCourseWeeks": 8,
+      "mechanism": "Alcohol suppresses hepcidin and injures liver cells; a high ferritin then overstates stores",
+      "grade": "B",
+      "sources": [
+        "S21"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "caffeine",
+      "direction": "down",
+      "effectSize": "coffee −39 %, tea −64 % (up to −94 % for black tea) of meal iron absorbed",
+      "unit": "% absorption",
+      "population": "adults, single meals",
+      "timeCourseWeeks": 26,
+      "mechanism": "Polyphenol chelation of non-haem iron in the gut; separating by ≥ 1 h removes the effect",
+      "grade": "B",
+      "sources": [
+        "S14",
+        "S15"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "deficit_large",
+      "direction": "none",
+      "effectSize": "25 % CR for 24 months: no ferritin or hepcidin change; LEA alone did not raise hepcidin over 6 days",
+      "unit": "µg/L",
+      "population": "non-obese adults with multivitamin; elite race walkers",
+      "timeCourseWeeks": 104,
+      "mechanism": "Stores are protected when iron intake is covered; less food means less iron if the diet is not iron-dense",
+      "grade": "B",
+      "sources": [
+        "S10",
+        "S18"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "deficit_moderate",
+      "direction": "none",
+      "effectSize": "as above",
+      "unit": "µg/L",
+      "population": "as above",
+      "timeCourseWeeks": 104,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S10"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "hepcidin 1.7–3.1× at 3–24 h after a 60-min run; iron deficiency in 15–35 % of female and 5–11 % of male athletes",
+      "unit": "hepcidin; % deficient",
+      "population": "endurance athletes",
+      "timeCourseWeeks": 12,
+      "mechanism": "Exercise IL-6 → hepcidin → less iron absorbed, plus sweat, gut and haemolysis losses",
+      "grade": "B",
+      "sources": [
+        "S5",
+        "S13"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "weight_loss",
+      "direction": "none",
+      "effectSize": "no change over 24 months of CR",
+      "unit": "µg/L",
+      "population": "non-obese adults",
+      "timeCourseWeeks": 104,
+      "mechanism": "Loss of inflammatory fat could lower ferritin in obesity (expectation)",
+      "grade": "B",
+      "sources": [
+        "S10"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "supp:iron",
+      "direction": "up",
+      "effectSize": "+12.6 ng/mL (95 % CI 8.3–16.9); alternate-day 60 mg absorbs 21.8 % vs 16.3 % daily",
+      "unit": "ng/mL",
+      "population": "active women; iron-depleted women",
+      "timeCourseWeeks": 12,
+      "mechanism": "Direct repletion; daily dosing raises hepcidin and blunts the next day's absorption",
+      "grade": "A",
+      "sources": [
+        "S9",
+        "S19"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "supp:calcium",
+      "direction": "down",
+      "effectSize": "300–600 mg calcium with a meal cuts iron absorption 50–60 %",
+      "unit": "% absorption",
+      "population": "adults",
+      "timeCourseWeeks": null,
+      "mechanism": "Calcium inhibits enterocyte iron uptake; take calcium away from iron-rich meals",
+      "grade": "B",
+      "sources": [
+        "S16"
+      ]
+    },
+    {
+      "markerId": "ferritin",
+      "lever": "supp:multivitamin_low_energy",
+      "direction": "none",
+      "effectSize": "CALERIE used an 18 mg iron multivitamin; no ferritin change in either arm",
+      "unit": "µg/L",
+      "population": "non-obese adults",
+      "timeCourseWeeks": 104,
+      "mechanism": "Covers iron needs during restriction",
+      "grade": "C",
+      "sources": [
+        "S10"
+      ]
+    },
+    {
+      "markerId": "b12",
+      "lever": "highprotein",
+      "direction": "up",
+      "effectSize": "plasma B12 plateaus at ~10 µg/day intake; dairy and fish the main contributors",
+      "unit": "pmol/L",
+      "population": "Norwegian adults (n = 5937)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Animal protein foods carry B12; plant protein carries none",
+      "grade": "B",
+      "sources": [
+        "S33"
+      ]
+    },
+    {
+      "markerId": "b12",
+      "lever": "dietcholesterol",
+      "direction": "up",
+      "effectSize": "no egg-specific estimate found",
+      "unit": "—",
+      "population": "vegetarians vs lacto-ovo",
+      "timeCourseWeeks": 26,
+      "mechanism": "Eggs carry B12 (less bioavailable than dairy, expectation); lacto-ovo vegetarians fare better than vegans",
+      "grade": "D",
+      "sources": [
+        "S32"
+      ]
+    },
+    {
+      "markerId": "b12",
+      "lever": "wheyprotein",
+      "direction": "up",
+      "effectSize": "no whey-specific estimate; dairy B12 appears more bioavailable",
+      "unit": "pmol/L",
+      "population": "adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Whey is a dairy fraction carrying some B12 (expectation for magnitude)",
+      "grade": "C",
+      "sources": [
+        "S33"
+      ]
+    },
+    {
+      "markerId": "b12",
+      "lever": "supp:vitamin_b12",
+      "direction": "up",
+      "effectSize": "647–1032 µg/day oral gives 80–90 % of the maximal MMA fall",
+      "unit": "% MMA",
+      "population": "older adults with mild deficiency",
+      "timeCourseWeeks": 16,
+      "mechanism": "Passive (non-intrinsic-factor) absorption of ~1 % of a large oral dose",
+      "grade": "B",
+      "sources": [
+        "S24"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "vlc",
+      "direction": "up",
+      "effectSize": "25(OH)D rose at 3 months on a ketogenic diet",
+      "unit": "ng/mL",
+      "population": "children with epilepsy (indirect)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Unclear; possibly supplement use in the trial and fat loss (expectation)",
+      "grade": "D",
+      "sources": [
+        "S107"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "deficit_large",
+      "direction": "up",
+      "effectSize": "via weight loss: +3.3 ng/mL at 10–15 % and +7.7 at ≥ 15 % loss",
+      "unit": "ng/mL",
+      "population": "postmenopausal women, 12 months",
+      "timeCourseWeeks": 52,
+      "mechanism": "Volumetric dilution reverses as body size falls",
+      "grade": "C",
+      "sources": [
+        "S45",
+        "S46"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "deficit_moderate",
+      "direction": "up",
+      "effectSize": "via weight loss: +2.1 to +2.7 ng/mL at < 10 % loss",
+      "unit": "ng/mL",
+      "population": "postmenopausal women",
+      "timeCourseWeeks": 52,
+      "mechanism": "As above",
+      "grade": "C",
+      "sources": [
+        "S45"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "surplus",
+      "direction": "down",
+      "effectSize": "obese vs normal-weight 25(OH)D −19.8 nmol/L (≈ −8 ng/mL) at the same dose",
+      "unit": "nmol/L",
+      "population": "adults, observational",
+      "timeCourseWeeks": 52,
+      "mechanism": "Larger body volume dilutes vitamin D",
+      "grade": "C",
+      "sources": [
+        "S42",
+        "S46"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "aerobic_load",
+      "direction": "none",
+      "effectSize": "exercise-only arm no different from control",
+      "unit": "ng/mL",
+      "population": "postmenopausal women",
+      "timeCourseWeeks": 52,
+      "mechanism": "Outdoor training adds sun exposure (expectation, not measured)",
+      "grade": "C",
+      "sources": [
+        "S45"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "weight_loss",
+      "direction": "up",
+      "effectSize": "+2.1/+2.7/+3.3/+7.7 ng/mL for < 5/5–10/10–15/≥ 15 % loss",
+      "unit": "ng/mL",
+      "population": "postmenopausal women (n = 439), 12 months",
+      "timeCourseWeeks": 52,
+      "mechanism": "Volumetric dilution",
+      "grade": "B",
+      "sources": [
+        "S45",
+        "S46"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "supp:vitamin_d3",
+      "direction": "up",
+      "effectSize": "≈ +7 ng/mL per 1000 IU/day at baseline ~28 ng/mL; +4.8 per 1000 IU at low doses, flattening; obese need 2–3× the dose",
+      "unit": "ng/mL",
+      "population": "adults (RCT and pooled observational)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Substrate supply to hepatic 25-hydroxylase; half-life 15 days, plateau in ~2–3 months",
+      "grade": "A",
+      "sources": [
+        "S41",
+        "S42",
+        "S43",
+        "S44"
+      ]
+    },
+    {
+      "markerId": "vitd",
+      "lever": "supp:magnesium",
+      "direction": "mixed",
+      "effectSize": "raised 25(OH)D near 30 ng/mL baseline, lowered it at 30–50",
+      "unit": "ng/mL",
+      "population": "adults (n = 180)",
+      "timeCourseWeeks": 12,
+      "mechanism": "Magnesium is a cofactor for vitamin D hydroxylases and catabolism",
+      "grade": "B",
+      "sources": [
+        "S47"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "vlc",
+      "direction": "none",
+      "effectSize": "no significant CRP effect (44 RCTs); IL-6 and TNF-α fell",
+      "unit": "mg/L",
+      "population": "adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Ketosis may blunt inflammasome activity; CRP benefit tracks weight loss rather than carbohydrate",
+      "grade": "A",
+      "sources": [
+        "S57"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "fast16_8",
+      "direction": "mixed",
+      "effectSize": "IF −0.29 mg/L in one meta-analysis; no effect in another",
+      "unit": "mg/L",
+      "population": "overweight/obese adults, ≥ 8 weeks",
+      "timeCourseWeeks": 8,
+      "mechanism": "Benefit mostly through weight loss",
+      "grade": "B",
+      "sources": [
+        "S55",
+        "S56"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "satfat",
+      "direction": "up",
+      "effectSize": "−0.14 mg/L per 1 %E less SFA (cross-sectional); top SFA quartile OR 1.58 for raised CRP",
+      "unit": "mg/L",
+      "population": "urban Asian Indian youth; US adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "SFA activates TLR4 signalling in fat and immune cells (mechanism moderate)",
+      "grade": "C",
+      "sources": [
+        "S51",
+        "S59"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "fibre",
+      "direction": "down",
+      "effectSize": "−0.37 mg/L (−0.74 to 0) when fibre rises ≥ 8 g/day",
+      "unit": "mg/L",
+      "population": "overweight/obese adults, RCTs",
+      "timeCourseWeeks": 8,
+      "mechanism": "Fermentation to short-chain fatty acids, lower gut-derived endotoxin, weight loss",
+      "grade": "B",
+      "sources": [
+        "S58",
+        "S59"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "unsatfat",
+      "direction": "down",
+      "effectSize": "marine n-3 lowers CRP (68 RCTs); magnitude in mg/L not extracted",
+      "unit": "mg/L",
+      "population": "adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "n-3 fatty acids are precursors of pro-resolving mediators and reduce NF-κB signalling",
+      "grade": "C",
+      "sources": [
+        "S60"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "deficit_large",
+      "direction": "down",
+      "effectSize": "−0.13 mg/L per kg lost across all interventions",
+      "unit": "mg/L",
+      "population": "adults, 33 studies",
+      "timeCourseWeeks": 12,
+      "mechanism": "Less visceral fat → less IL-6 → less hepatic CRP",
+      "grade": "A",
+      "sources": [
+        "S53"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "deficit_moderate",
+      "direction": "down",
+      "effectSize": "CR SMD −0.15; lifestyle slope ≈ −0.06 mg/L per kg",
+      "unit": "mg/L",
+      "population": "overweight/obese adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S56",
+        "S53"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "surplus",
+      "direction": "up",
+      "effectSize": "no direct CRP data; overfeeding raised endotoxin markers",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": 8,
+      "mechanism": "Fat gain raises adipose IL-6 (expectation from the weight-loss slope)",
+      "grade": "D",
+      "sources": [
+        "S53"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "resistance_load",
+      "direction": "down",
+      "effectSize": "training of all types: ES 0.26",
+      "unit": "SMD",
+      "population": "adults, 83 trials",
+      "timeCourseWeeks": 8,
+      "mechanism": "Chronic training lowers IL-6 and visceral fat",
+      "grade": "B",
+      "sources": [
+        "S54"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "aerobic_load",
+      "direction": "mixed",
+      "effectSize": "chronic: ES 0.26 lower (0.38 with weight loss); acute marathon: raised from day 1 to day 3",
+      "unit": "SMD; mg/L",
+      "population": "adults; recreational runners",
+      "timeCourseWeeks": 8,
+      "mechanism": "Training is anti-inflammatory over weeks; muscle damage after long or hard sessions drives an acute-phase rise",
+      "grade": "A",
+      "sources": [
+        "S54",
+        "S62"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "sleep_debt",
+      "direction": "up",
+      "effectSize": "raised after 88 h awake and after 10 days at 4.2 h/night (mg/L not in abstract)",
+      "unit": "mg/L",
+      "population": "healthy adults (n = 10 per arm)",
+      "timeCourseWeeks": 2,
+      "mechanism": "Sleep loss activates sympathetic and IL-6 pathways",
+      "grade": "C",
+      "sources": [
+        "S61"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "−0.13 mg/L per kg (all); ≈ −0.06 per kg with lifestyle only",
+      "unit": "mg/L",
+      "population": "adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Visceral fat loss",
+      "grade": "A",
+      "sources": [
+        "S53"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "supp:omega3_epa_dha",
+      "direction": "down",
+      "effectSize": "CRP lowered (68 RCTs); umbrella ES −0.40, very heterogeneous",
+      "unit": "SMD",
+      "population": "adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "As unsatfat",
+      "grade": "B",
+      "sources": [
+        "S60"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "supp:vitamin_d3",
+      "direction": "mixed",
+      "effectSize": "−1.08 mg/L, larger if baseline ≥ 5 mg/L; another meta-analysis null",
+      "unit": "mg/L",
+      "population": "adults",
+      "timeCourseWeeks": 12,
+      "mechanism": "Vitamin D modulates immune cells; effect inconsistent",
+      "grade": "C",
+      "sources": [
+        "S63"
+      ]
+    },
+    {
+      "markerId": "crp",
+      "lever": "supp:psyllium",
+      "direction": "down",
+      "effectSize": "covered by the fibre estimate",
+      "unit": "mg/L",
+      "population": "overweight/obese adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "As fibre",
+      "grade": "C",
+      "sources": [
+        "S58"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "vlc",
+      "direction": "none",
+      "effectSize": "TSH unchanged (p = 0.27) after ≥ 3 weeks isocaloric keto",
+      "unit": "µIU/mL",
+      "population": "healthy adults (n = 11)",
+      "timeCourseWeeks": 3,
+      "mechanism": "Low insulin reduces T4→T3 conversion peripherally; pituitary set-point unaffected",
+      "grade": "B",
+      "sources": [
+        "S73"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "fast24",
+      "direction": "down",
+      "effectSize": "pooled fasting effect g = −0.58 (small); 60 h fast: TSH unchanged",
+      "unit": "SMD",
+      "population": "adults, 10 studies",
+      "timeCourseWeeks": 0.5,
+      "mechanism": "Fasting lowers leptin and hypothalamic TRH",
+      "grade": "B",
+      "sources": [
+        "S69",
+        "S70"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "fast36_48",
+      "direction": "down",
+      "effectSize": "as above",
+      "unit": "SMD",
+      "population": "adults",
+      "timeCourseWeeks": 0.5,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S69",
+        "S70"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "fast48plus",
+      "direction": "down",
+      "effectSize": "as above",
+      "unit": "SMD",
+      "population": "adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S69"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "caffeine",
+      "direction": "up",
+      "effectSize": "coffee with the dose cut levothyroxine absorption ~27–36 %",
+      "unit": "% absorption",
+      "population": "women on levothyroxine",
+      "timeCourseWeeks": 6,
+      "mechanism": "Coffee binds/sequesters T4 in the gut; TSH rises in treated users only",
+      "grade": "B",
+      "sources": [
+        "S77",
+        "S66"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "surplus",
+      "direction": "up",
+      "effectSize": "obese TSH 3.3 vs 2.1 µU/mL in lean controls (association)",
+      "unit": "µIU/mL",
+      "population": "severe obesity",
+      "timeCourseWeeks": null,
+      "mechanism": "Leptin stimulates TRH; adipose inflammation",
+      "grade": "C",
+      "sources": [
+        "S105"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "sleep_debt",
+      "direction": "down",
+      "effectSize": "14 days at 5.5 h: TSH modestly lower, mainly in women",
+      "unit": "µIU/mL",
+      "population": "healthy adults (n = 11)",
+      "timeCourseWeeks": 2,
+      "mechanism": "Partial sleep restriction blunts the nocturnal TSH surge (acute total loss acts differently)",
+      "grade": "C",
+      "sources": [
+        "S74"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "28 % loss: 2.33 → 1.82 µIU/mL; obese 3.3 → 2.1 after surgery",
+      "unit": "µIU/mL",
+      "population": "bariatric patients",
+      "timeCourseWeeks": 52,
+      "mechanism": "Falling leptin and fat mass",
+      "grade": "B",
+      "sources": [
+        "S67",
+        "S105"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "supp:ashwagandha",
+      "direction": "down",
+      "effectSize": "8 weeks: TSH fell and T3/T4 rose vs placebo",
+      "unit": "µIU/mL",
+      "population": "adults with subclinical hypothyroidism",
+      "timeCourseWeeks": 8,
+      "mechanism": "Withanolides appear to stimulate thyroid hormone output; risk of over-treatment in people on levothyroxine",
+      "grade": "B",
+      "sources": [
+        "S78"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "supp:calcium",
+      "direction": "up",
+      "effectSize": "separate from levothyroxine (4 h is traditional, untested)",
+      "unit": "—",
+      "population": "levothyroxine users",
+      "timeCourseWeeks": 6,
+      "mechanism": "Calcium carbonate binds T4 in the gut",
+      "grade": "B",
+      "sources": [
+        "S66"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "supp:iron",
+      "direction": "up",
+      "effectSize": "as calcium",
+      "unit": "—",
+      "population": "levothyroxine users",
+      "timeCourseWeeks": 6,
+      "mechanism": "Ferrous sulfate binds T4",
+      "grade": "B",
+      "sources": [
+        "S66"
+      ]
+    },
+    {
+      "markerId": "tsh",
+      "lever": "supp:multivitamin_low_energy",
+      "direction": "down",
+      "effectSize": "10 mg/day biotin: TSH falsely −34 % on Roche assays at 2 h; minimal on others",
+      "unit": "% (assay)",
+      "population": "healthy adults (n = 13)",
+      "timeCourseWeeks": 0,
+      "mechanism": "Assay artefact (streptavidin–biotin), not a real change; 24 h washout",
+      "grade": "B",
+      "sources": [
+        "S79"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "vlc",
+      "direction": "down",
+      "effectSize": "800 kcal zero-carb 2 weeks: T3 −47 %; isocaloric keto: total T3 4.1 vs 4.8 pmol/L",
+      "unit": "% / pmol/L",
+      "population": "obese adults; healthy adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "Low insulin and glucose cut type-1 deiodinase activity (T4→T3)",
+      "grade": "B",
+      "sources": [
+        "S71",
+        "S73"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "lowcarb",
+      "direction": "none",
+      "effectSize": "no change in T3 with ≥ 50 g/day carbohydrate (hypocaloric)",
+      "unit": "%",
+      "population": "obese adults",
+      "timeCourseWeeks": 2,
+      "mechanism": "Enough carbohydrate preserves deiodination",
+      "grade": "C",
+      "sources": [
+        "S71"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "fast24",
+      "direction": "down",
+      "effectSize": "total T3 ≈ 152 → 131 ng/dL at 24 h",
+      "unit": "ng/dL",
+      "population": "healthy women",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Deiodinase falls with glycogen depletion",
+      "grade": "B",
+      "sources": [
+        "S70"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "fast36_48",
+      "direction": "down",
+      "effectSize": "total T3 −24 to −55 % by 60 h; pooled fasting FT3 g = −1.98",
+      "unit": "% / SMD",
+      "population": "healthy adults",
+      "timeCourseWeeks": 0.3,
+      "mechanism": "As above; reverse T3 rises",
+      "grade": "B",
+      "sources": [
+        "S70",
+        "S69"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "fast48plus",
+      "direction": "down",
+      "effectSize": "7–18 days total fast: T3 −53 %, rT3 +58 %",
+      "unit": "%",
+      "population": "obese adults",
+      "timeCourseWeeks": 1,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S71"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "deficit_large",
+      "direction": "down",
+      "effectSize": "T3 −16 %, fT3 −9 % when EA fell below ~25 kcal/kg LBM/day for 4 days; 8-week military deficit lowered T3 to near/below normal",
+      "unit": "%",
+      "population": "exercising women; lean men",
+      "timeCourseWeeks": 0.6,
+      "mechanism": "Energy sensing (leptin, insulin) cuts T4→T3 conversion",
+      "grade": "B",
+      "sources": [
+        "S75",
+        "S88"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "deficit_moderate",
+      "direction": "none",
+      "effectSize": "no T3 change at EA ≥ 25 kcal/kg LBM/day; T3 stable in most short LEA studies",
+      "unit": "%",
+      "population": "exercising women; athletes",
+      "timeCourseWeeks": 1,
+      "mechanism": "Above the threshold, conversion is preserved",
+      "grade": "C",
+      "sources": [
+        "S75",
+        "S76"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "surplus",
+      "direction": "up",
+      "effectSize": "3 weeks overfeeding raised T3",
+      "unit": "%",
+      "population": "healthy adults",
+      "timeCourseWeeks": 3,
+      "mechanism": "Carbohydrate and energy raise deiodination",
+      "grade": "B",
+      "sources": [
+        "S72"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "only when exercise drives EA below ~25 kcal/kg LBM",
+      "unit": "%",
+      "population": "exercising women",
+      "timeCourseWeeks": 0.6,
+      "mechanism": "Low energy availability, not exercise itself",
+      "grade": "C",
+      "sources": [
+        "S75"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "sleep_debt",
+      "direction": "none",
+      "effectSize": "no T3 data opened",
+      "unit": "—",
+      "population": "—",
+      "timeCourseWeeks": null,
+      "mechanism": "Partial sleep loss lowered TSH and FT4 modestly (S74); T3 not reported",
+      "grade": "D",
+      "sources": [
+        "S74"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "weight_loss",
+      "direction": "down",
+      "effectSize": "28 % loss: FT3 3.23 → 2.89 pg/mL; weight-loss meta-analysis FT3 lower, more with diet than surgery",
+      "unit": "pg/mL",
+      "population": "bariatric and dieting adults",
+      "timeCourseWeeks": 26,
+      "mechanism": "Smaller body and lower leptin",
+      "grade": "B",
+      "sources": [
+        "S67",
+        "S68"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "supp:ashwagandha",
+      "direction": "up",
+      "effectSize": "T3 rose vs placebo over 8 weeks",
+      "unit": "—",
+      "population": "subclinical hypothyroid adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Thyroid-stimulating effect of withanolides",
+      "grade": "B",
+      "sources": [
+        "S78"
+      ]
+    },
+    {
+      "markerId": "ft3",
+      "lever": "supp:multivitamin_low_energy",
+      "direction": "up",
+      "effectSize": "10 mg/day biotin: total T3 falsely +35 % on Roche assays",
+      "unit": "% (assay)",
+      "population": "healthy adults",
+      "timeCourseWeeks": 0,
+      "mechanism": "Assay artefact; 24 h washout",
+      "grade": "B",
+      "sources": [
+        "S79"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "vlc",
+      "direction": "mixed",
+      "effectSize": "isocaloric keto in trained men: +118 vs −36 ng/dL (10–11 wk); high-protein (≥ 35 %E) low-carb: −5.23 nmol/L",
+      "unit": "ng/dL; nmol/L",
+      "population": "resistance-trained men; men in diet trials",
+      "timeCourseWeeks": 10,
+      "mechanism": "Fat intake supports steroidogenesis; very high protein with low carbohydrate lowers T by an unclear route",
+      "grade": "B",
+      "sources": [
+        "S86",
+        "S84"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "highprotein",
+      "direction": "none",
+      "effectSize": "no consistent effect at 1.25–3.4 g/kg/day; lower above ~3.4 g/kg",
+      "unit": "nmol/L",
+      "population": "men",
+      "timeCourseWeeks": 8,
+      "mechanism": "Possibly via reduced carbohydrate and hepatic adaptations; the app's 1.6–2.2 g/kg is below the effect zone",
+      "grade": "C",
+      "sources": [
+        "S85",
+        "S84"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "fast16_8",
+      "direction": "mixed",
+      "effectSize": "16:8 in trained men: T fell (size not reported); meta-analysis total T −0.88 ng/mL (ns), free T −4.9 pg/mL",
+      "unit": "ng/mL; pg/mL",
+      "population": "resistance-trained men; adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Energy deficit and LH pulsatility",
+      "grade": "B",
+      "sources": [
+        "S90",
+        "S91"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "fast36_48",
+      "direction": "down",
+      "effectSize": "3.5-day fast cut LH production 2.1-fold in young men (T not in abstract)",
+      "unit": "LH",
+      "population": "young men",
+      "timeCourseWeeks": 0.5,
+      "mechanism": "Fasting suppresses GnRH/LH pulses",
+      "grade": "C",
+      "sources": [
+        "S104"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "fast48plus",
+      "direction": "down",
+      "effectSize": "as above",
+      "unit": "LH",
+      "population": "young men",
+      "timeCourseWeeks": 0.5,
+      "mechanism": "As above",
+      "grade": "C",
+      "sources": [
+        "S104"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "satfat",
+      "direction": "up",
+      "effectSize": "low-fat vs higher-fat diets: total T SMD −0.38 (−0.75 to −0.01)",
+      "unit": "SMD",
+      "population": "men, 6 studies (n = 206)",
+      "timeCourseWeeks": 4,
+      "mechanism": "Dietary fat (total, not specifically SFA) supports steroidogenesis; mechanism uncertain",
+      "grade": "C",
+      "sources": [
+        "S83"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "unsatfat",
+      "direction": "up",
+      "effectSize": "part of the same low-fat comparison",
+      "unit": "SMD",
+      "population": "men",
+      "timeCourseWeeks": 4,
+      "mechanism": "As satfat",
+      "grade": "C",
+      "sources": [
+        "S83"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "creatine",
+      "direction": "none",
+      "effectSize": "DHT +56 %, DHT:T ratio +36 %; T itself not shown changed",
+      "unit": "%",
+      "population": "rugby players (n = 20)",
+      "timeCourseWeeks": 3,
+      "mechanism": "Unclear; single small trial, not replicated",
+      "grade": "C",
+      "sources": [
+        "S93"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "deficit_large",
+      "direction": "down",
+      "effectSize": "8 weeks at 1000–1200 kcal/day deficit: T to near/below normal; contest prep 922 → 227 ng/dL",
+      "unit": "ng/dL",
+      "population": "lean men; one bodybuilder",
+      "timeCourseWeeks": 8,
+      "mechanism": "Low leptin and insulin suppress GnRH/LH; reverses with refeeding",
+      "grade": "B",
+      "sources": [
+        "S88",
+        "S89"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "deficit_moderate",
+      "direction": "none",
+      "effectSize": "caloric restriction: no meaningful T change (pooled)",
+      "unit": "ng/mL",
+      "population": "adults",
+      "timeCourseWeeks": 8,
+      "mechanism": "Above a threshold, the axis is preserved",
+      "grade": "C",
+      "sources": [
+        "S91"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "aerobic_load",
+      "direction": "down",
+      "effectSize": "only with energy deficit and other stressors",
+      "unit": "ng/dL",
+      "population": "lean men under multistress",
+      "timeCourseWeeks": 8,
+      "mechanism": "Functional central suppression",
+      "grade": "D",
+      "sources": [
+        "S88"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "sleep_debt",
+      "direction": "down",
+      "effectSize": "−10 to −15 % daytime T after 1 week at ~5 h/night",
+      "unit": "%",
+      "population": "young healthy men (n = 10)",
+      "timeCourseWeeks": 1,
+      "mechanism": "Testosterone is secreted mainly during sleep",
+      "grade": "B",
+      "sources": [
+        "S92"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "weight_loss",
+      "direction": "up",
+      "effectSize": "+2.87 nmol/L (diet), +8.73 nmol/L (bariatric)",
+      "unit": "nmol/L",
+      "population": "obese men, 24 trials",
+      "timeCourseWeeks": 26,
+      "mechanism": "Less insulin resistance, more SHBG, less aromatase",
+      "grade": "A",
+      "sources": [
+        "S87"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "supp:vitamin_d3",
+      "direction": "mixed",
+      "effectSize": "+2.7 nmol/L over 1 year in deficient men losing weight; no effect in men with low T over 12 weeks",
+      "unit": "nmol/L",
+      "population": "men",
+      "timeCourseWeeks": 52,
+      "mechanism": "Unclear; probably only in deficiency",
+      "grade": "C",
+      "sources": [
+        "S94",
+        "S95"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "supp:ashwagandha",
+      "direction": "mixed",
+      "effectSize": "T rose in men but not significantly vs placebo",
+      "unit": "—",
+      "population": "stressed adults (60 days)",
+      "timeCourseWeeks": 8,
+      "mechanism": "Possible via lower cortisol",
+      "grade": "C",
+      "sources": [
+        "S96"
+      ]
+    },
+    {
+      "markerId": "testosterone",
+      "lever": "supp:creatine_monohydrate",
+      "direction": "none",
+      "effectSize": "as creatine",
+      "unit": "%",
+      "population": "rugby players",
+      "timeCourseWeeks": 3,
+      "mechanism": "As creatine",
+      "grade": "C",
+      "sources": [
+        "S93"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "vlc",
+      "direction": "up",
+      "effectSize": "short-term low-carb: cortisol SMD +0.41 (0.16–0.66), back to baseline after ~3 weeks",
+      "unit": "SMD",
+      "population": "men",
+      "timeCourseWeeks": 3,
+      "mechanism": "Lower glucose availability raises counter-regulatory cortisol until fat adaptation",
+      "grade": "B",
+      "sources": [
+        "S84"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "lowcarb",
+      "direction": "up",
+      "effectSize": "included in the same meta-analysis",
+      "unit": "SMD",
+      "population": "men",
+      "timeCourseWeeks": 3,
+      "mechanism": "As VLC",
+      "grade": "C",
+      "sources": [
+        "S84"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "fast24",
+      "direction": "up",
+      "effectSize": "no 24 h data; 3.5-day fast +40–47 %",
+      "unit": "%",
+      "population": "men",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Gluconeogenic counter-regulation (expectation for 24 h: smaller)",
+      "grade": "D",
+      "sources": [
+        "S104"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "fast36_48",
+      "direction": "up",
+      "effectSize": "24-h mean cortisol +40 % (young), +47 % (older) over 3.5 days",
+      "unit": "%",
+      "population": "healthy men",
+      "timeCourseWeeks": 0.5,
+      "mechanism": "Counter-regulation to support glucose output",
+      "grade": "B",
+      "sources": [
+        "S104"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "fast48plus",
+      "direction": "up",
+      "effectSize": "as above",
+      "unit": "%",
+      "population": "healthy men",
+      "timeCourseWeeks": 0.5,
+      "mechanism": "As above",
+      "grade": "B",
+      "sources": [
+        "S104"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "caffeine",
+      "direction": "up",
+      "effectSize": "robust rise after abstinence; reduced but not eliminated at 300–600 mg/day",
+      "unit": "%",
+      "population": "adults (n = 96)",
+      "timeCourseWeeks": 0,
+      "mechanism": "Adenosine antagonism activates the HPA axis; partial tolerance",
+      "grade": "B",
+      "sources": [
+        "S101"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "deficit_large",
+      "direction": "up",
+      "effectSize": "1200 kcal/day for 3 weeks raised total cortisol output",
+      "unit": "—",
+      "population": "women (n = 121)",
+      "timeCourseWeeks": 3,
+      "mechanism": "Energy restriction is a physiological stressor",
+      "grade": "B",
+      "sources": [
+        "S99"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "aerobic_load",
+      "direction": "up",
+      "effectSize": "30 min at 40/60/80 % VO2max: +5.7/+39.9/+83.1 %",
+      "unit": "%",
+      "population": "men (n = 12)",
+      "timeCourseWeeks": 0,
+      "mechanism": "Intensity threshold near 60 % VO2max",
+      "grade": "B",
+      "sources": [
+        "S103"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "sleep_debt",
+      "direction": "up",
+      "effectSize": "evening cortisol +37 % (partial) and +45 % (total sleep loss)",
+      "unit": "%",
+      "population": "healthy adults",
+      "timeCourseWeeks": 0.15,
+      "mechanism": "Delayed HPA quiescence",
+      "grade": "B",
+      "sources": [
+        "S100"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "supp:ashwagandha",
+      "direction": "down",
+      "effectSize": "serum cortisol reduced vs placebo (P = 0.0006); lower morning cortisol in a second RCT",
+      "unit": "—",
+      "population": "stressed adults, 60 days",
+      "timeCourseWeeks": 8,
+      "mechanism": "Adaptogen effect on the HPA axis (mechanism uncertain)",
+      "grade": "B",
+      "sources": [
+        "S102",
+        "S96"
+      ]
+    },
+    {
+      "markerId": "cortisol",
+      "lever": "supp:caffeine",
+      "direction": "up",
+      "effectSize": "as caffeine",
+      "unit": "%",
+      "population": "adults",
+      "timeCourseWeeks": 0,
+      "mechanism": "As caffeine",
+      "grade": "B",
+      "sources": [
+        "S101"
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "id": "W-L-HB-1",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": "whoCutoff",
+        "unit": "g/dL",
+        "note": "13.0 men, 12.0 women"
+      },
+      "kind": "cap",
+      "target": "deficit_large",
+      "value": "deficitPct − 5",
+      "severity": "caution",
+      "message": "Because your haemoglobin was {value} g/dL on {date}, below the usual cut-off, your deficit is capped 5 points lower than usual until a retest.",
+      "grade": "D",
+      "sources": [
+        "S1",
+        "S2"
+      ]
+    },
+    {
+      "id": "W-L-HB-2",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": "whoCutoff",
+        "unit": "g/dL"
+      },
+      "kind": "cap",
+      "target": "fast36_48",
+      "value": 24,
+      "severity": "caution",
+      "message": "Because your haemoglobin was {value} g/dL on {date}, fasts are kept to 24 hours or less until it is back in range.",
+      "grade": "D",
+      "sources": [
+        "S22"
+      ]
+    },
+    {
+      "id": "W-L-HB-3",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": "whoCutoff",
+        "unit": "g/dL"
+      },
+      "kind": "reask",
+      "target": "ferritin",
+      "severity": "info",
+      "message": "Your haemoglobin was {value} g/dL on {date}. Low iron and low B12 are the common causes; add ferritin and B12 from the same report if you have them.",
+      "grade": "B",
+      "sources": [
+        "S1",
+        "S30"
+      ]
+    },
+    {
+      "id": "W-L-HB-4",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": "whoCutoff",
+        "unit": "g/dL",
+        "also": {
+          "field": "plan.aerobic_load",
+          "op": ">=",
+          "value": "high"
+        }
+      },
+      "kind": "warn",
+      "target": "aerobic_load",
+      "severity": "info",
+      "message": "Endurance training dilutes the blood, so haemoglobin reads a little lower; your value of {value} g/dL on {date} is still below the cut-off, so a clinician check is worthwhile.",
+      "grade": "B",
+      "sources": [
+        "S6",
+        "S7"
+      ]
+    },
+    {
+      "id": "W-L-HB-5",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": 8,
+        "unit": "g/dL"
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "stop-and-see",
+      "message": "Because your haemoglobin was {value} g/dL on {date}, please see a clinician before starting a deficit or fasting. The plan stays at maintenance until then.",
+      "grade": "B",
+      "sources": [
+        "S22",
+        "S1"
+      ]
+    },
+    {
+      "id": "W-L-HB-6",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": "whoCutoff",
+        "unit": "g/dL"
+      },
+      "kind": "retest",
+      "target": "hb",
+      "value": 4,
+      "severity": "info",
+      "message": "Retest haemoglobin in 4 weeks if you start iron, otherwise in 12 weeks.",
+      "grade": "B",
+      "sources": [
+        "S1"
+      ]
+    },
+    {
+      "id": "W-L-HB-7",
+      "markerId": "hb",
+      "when": {
+        "op": "<",
+        "value": "whoCutoff",
+        "unit": "g/dL"
+      },
+      "kind": "prefer",
+      "target": "caffeine",
+      "severity": "info",
+      "message": "Because your haemoglobin was {value} g/dL on {date}: drink tea or coffee at least an hour away from main meals; it blocks iron from food.",
+      "grade": "C",
+      "sources": [
+        "S14",
+        "S15"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-1",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 30,
+        "unit": "ng/mL",
+        "also": {
+          "field": "plan.aerobic_load",
+          "op": ">=",
+          "value": "moderate"
+        }
+      },
+      "kind": "cap",
+      "target": "deficit_large",
+      "severity": "caution",
+      "message": "Because your ferritin was {value} ng/mL on {date}, your deficit is kept moderate (no more than 20 %) while you train for endurance.",
+      "grade": "C",
+      "sources": [
+        "S12",
+        "S13"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-2",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 30,
+        "unit": "ng/mL"
+      },
+      "kind": "prefer",
+      "target": "caffeine",
+      "severity": "info",
+      "message": "Because your ferritin was {value} ng/mL on {date}: keep tea and coffee at least an hour away from meals; with meals they cut iron absorption by 40–60 %.",
+      "grade": "B",
+      "sources": [
+        "S14",
+        "S15"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-3",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 30,
+        "unit": "ng/mL"
+      },
+      "kind": "prefer",
+      "target": "recipes.vitaminC_with_iron",
+      "severity": "info",
+      "message": "Because your ferritin was {value} ng/mL on {date}, recipes pair pulses and greens with a vitamin C food (lemon, amla, tomato) to absorb more iron.",
+      "grade": "B",
+      "sources": [
+        "S23"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-4",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 30,
+        "unit": "ng/mL"
+      },
+      "kind": "prefer",
+      "target": "supp:iron",
+      "severity": "info",
+      "message": "Because your ferritin was {value} ng/mL on {date}, iron is shown in your supplement options; take it only with a clinician's advice, ideally on alternate days.",
+      "grade": "B",
+      "sources": [
+        "S11",
+        "S19"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-5",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 30,
+        "unit": "ng/mL",
+        "also": {
+          "field": "supplements.calcium",
+          "op": "==",
+          "value": true
+        }
+      },
+      "kind": "warn",
+      "target": "supp:calcium",
+      "severity": "info",
+      "message": "Calcium blocks iron absorption; take calcium at a different meal from iron-rich food or iron tablets.",
+      "grade": "B",
+      "sources": [
+        "S16"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-6",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 70,
+        "unit": "ng/mL",
+        "also": {
+          "markerId": "crp",
+          "op": ">",
+          "value": 5,
+          "unit": "mg/L"
+        }
+      },
+      "kind": "reask",
+      "target": "ferritin",
+      "severity": "info",
+      "message": "Your CRP was raised when ferritin was measured on {date}; ferritin rises with inflammation, so {value} ng/mL may hide low iron. Retest when well.",
+      "grade": "C",
+      "sources": [
+        "S11"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-7",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 15,
+        "unit": "ng/mL"
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "see-clinician",
+      "message": "Because your ferritin was {value} ng/mL on {date}, your iron stores are empty. Please see a clinician about treatment and the cause.",
+      "grade": "A",
+      "sources": [
+        "S11",
+        "S1"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-8",
+      "markerId": "ferritin",
+      "when": {
+        "op": ">",
+        "value": 200,
+        "unit": "ng/mL",
+        "also": {
+          "markerId": "crp",
+          "op": "<=",
+          "value": 5,
+          "unit": "mg/L"
+        }
+      },
+      "kind": "clinician",
+      "target": "supp:iron",
+      "severity": "see-clinician",
+      "message": "Because your ferritin was {value} ng/mL on {date} with a normal CRP, Vitals will not suggest iron; please ask a clinician about it.",
+      "grade": "B",
+      "sources": [
+        "S11"
+      ]
+    },
+    {
+      "id": "W-L-FERRITIN-9",
+      "markerId": "ferritin",
+      "when": {
+        "op": "<",
+        "value": 30,
+        "unit": "ng/mL"
+      },
+      "kind": "retest",
+      "target": "ferritin",
+      "value": 12,
+      "severity": "info",
+      "message": "Retest ferritin (with CRP) in 12 weeks, at least 2 weeks after any illness or hard race.",
+      "grade": "C",
+      "sources": [
+        "S1",
+        "S12"
+      ]
+    },
+    {
+      "id": "W-L-B12-1",
+      "markerId": "b12",
+      "when": {
+        "op": "<",
+        "value": 200,
+        "unit": "pg/mL"
+      },
+      "kind": "prefer",
+      "target": "supp:vitamin_b12",
+      "severity": "caution",
+      "message": "Because your B12 was {value} pg/mL on {date}, vitamin B12 is suggested in your supplements. Dairy, eggs and fish also help.",
+      "grade": "B",
+      "sources": [
+        "S28",
+        "S24",
+        "S33"
+      ]
+    },
+    {
+      "id": "W-L-B12-2",
+      "markerId": "b12",
+      "when": {
+        "op": "between",
+        "value": [
+          200,
+          300
+        ],
+        "unit": "pg/mL"
+      },
+      "kind": "reask",
+      "target": "medications",
+      "severity": "info",
+      "message": "Your B12 was {value} pg/mL on {date}, borderline. Do you take metformin or an acid-reducing medicine (PPI)? Both lower B12; a clinician can confirm with an MMA or homocysteine test.",
+      "grade": "B",
+      "sources": [
+        "S25",
+        "S26",
+        "S27",
+        "S28"
+      ]
+    },
+    {
+      "id": "W-L-B12-3",
+      "markerId": "b12",
+      "when": {
+        "op": "<",
+        "value": 135,
+        "unit": "pg/mL"
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "see-clinician",
+      "message": "Because your B12 was {value} pg/mL on {date}, very low, please see a clinician, sooner if you have numbness, tingling or memory problems.",
+      "grade": "C",
+      "sources": [
+        "S28",
+        "S31"
+      ]
+    },
+    {
+      "id": "W-L-B12-4",
+      "markerId": "b12",
+      "when": {
+        "op": "<",
+        "value": 300,
+        "unit": "pg/mL",
+        "also": {
+          "field": "diet.pattern",
+          "op": "in",
+          "value": [
+            "vegetarian",
+            "eggetarian",
+            "vegan"
+          ]
+        }
+      },
+      "kind": "prefer",
+      "target": "foods.b12_sources",
+      "severity": "info",
+      "message": "Because your B12 was {value} pg/mL on {date}, meals favour curd, milk, paneer and eggs where your diet allows.",
+      "grade": "B",
+      "sources": [
+        "S33",
+        "S30"
+      ]
+    },
+    {
+      "id": "W-L-B12-5",
+      "markerId": "b12",
+      "when": {
+        "op": "<",
+        "value": 200,
+        "unit": "pg/mL"
+      },
+      "kind": "retest",
+      "target": "b12",
+      "value": 12,
+      "severity": "info",
+      "message": "Retest B12 about 12 weeks after starting a supplement.",
+      "grade": "C",
+      "sources": [
+        "S24"
+      ]
+    },
+    {
+      "id": "W-L-VITD-1",
+      "markerId": "vitd",
+      "when": {
+        "op": "<",
+        "value": 12,
+        "unit": "ng/mL"
+      },
+      "kind": "prefer",
+      "target": "supp:vitamin_d3",
+      "severity": "caution",
+      "message": "Because your vitamin D was {value} ng/mL on {date}, low by Indian and international cut-offs, vitamin D3 is suggested in your supplements.",
+      "grade": "B",
+      "sources": [
+        "S36",
+        "S38",
+        "S35"
+      ]
+    },
+    {
+      "id": "W-L-VITD-2",
+      "markerId": "vitd",
+      "when": {
+        "op": "between",
+        "value": [
+          12,
+          20
+        ],
+        "unit": "ng/mL"
+      },
+      "kind": "prefer",
+      "target": "supp:vitamin_d3",
+      "severity": "info",
+      "message": "Your vitamin D was {value} ng/mL on {date}. A daily 600–1000 IU supplement or regular midday sun is optional; most adults at this level do not need more.",
+      "grade": "B",
+      "sources": [
+        "S35",
+        "S34"
+      ]
+    },
+    {
+      "id": "W-L-VITD-3",
+      "markerId": "vitd",
+      "when": {
+        "op": ">",
+        "value": 100,
+        "unit": "ng/mL"
+      },
+      "kind": "clinician",
+      "target": "supp:vitamin_d3",
+      "value": 0,
+      "severity": "see-clinician",
+      "message": "Because your vitamin D was {value} ng/mL on {date}, Vitals stops suggesting vitamin D. Please ask a clinician to check your calcium.",
+      "grade": "B",
+      "sources": [
+        "S36",
+        "S37"
+      ]
+    },
+    {
+      "id": "W-L-VITD-4",
+      "markerId": "vitd",
+      "when": {
+        "op": "<",
+        "value": 12,
+        "unit": "ng/mL",
+        "also": {
+          "field": "bmi",
+          "op": ">=",
+          "value": 30
+        }
+      },
+      "kind": "warn",
+      "target": "supp:vitamin_d3",
+      "severity": "info",
+      "message": "At a higher body weight the same vitamin D dose raises blood levels less; your value was {value} ng/mL on {date}.",
+      "grade": "B",
+      "sources": [
+        "S42"
+      ]
+    },
+    {
+      "id": "W-L-VITD-5",
+      "markerId": "vitd",
+      "when": {
+        "op": "<",
+        "value": 12,
+        "unit": "ng/mL"
+      },
+      "kind": "retest",
+      "target": "vitd",
+      "value": 12,
+      "severity": "info",
+      "message": "Optional: recheck vitamin D about 12 weeks after starting a supplement. Routine yearly testing is not needed.",
+      "grade": "C",
+      "sources": [
+        "S44",
+        "S34"
+      ]
+    },
+    {
+      "id": "W-L-CRP-1",
+      "markerId": "crp",
+      "when": {
+        "op": ">",
+        "value": 10,
+        "unit": "mg/L"
+      },
+      "kind": "cap",
+      "target": "fasting",
+      "value": 24,
+      "severity": "caution",
+      "message": "Because your hs-CRP was {value} mg/L on {date}, which usually means a recent illness, fasts are kept to 24 hours or less for 4 weeks.",
+      "grade": "D",
+      "sources": [
+        "S48"
+      ]
+    },
+    {
+      "id": "W-L-CRP-2",
+      "markerId": "crp",
+      "when": {
+        "op": ">",
+        "value": 10,
+        "unit": "mg/L"
+      },
+      "kind": "retest",
+      "target": "crp",
+      "value": 2,
+      "severity": "info",
+      "message": "Repeat hs-CRP in about 2 weeks when you feel well; a value above 10 is usually from an infection.",
+      "grade": "B",
+      "sources": [
+        "S48"
+      ]
+    },
+    {
+      "id": "W-L-CRP-3",
+      "markerId": "crp",
+      "when": {
+        "op": ">",
+        "value": 3,
+        "unit": "mg/L"
+      },
+      "kind": "prefer",
+      "target": "fibre",
+      "severity": "info",
+      "message": "Because your hs-CRP was {value} mg/L on {date}, the plan ranks weight loss, fibre and regular training higher; they lower it.",
+      "grade": "B",
+      "sources": [
+        "S53",
+        "S58",
+        "S54"
+      ]
+    },
+    {
+      "id": "W-L-CRP-4",
+      "markerId": "crp",
+      "when": {
+        "op": ">",
+        "value": 3,
+        "unit": "mg/L"
+      },
+      "kind": "reask",
+      "target": "sampleContext",
+      "severity": "info",
+      "message": "Was the blood taken within 3 days of a hard race or session, or during a cold? Either can raise CRP for a few days.",
+      "grade": "C",
+      "sources": [
+        "S62",
+        "S48"
+      ]
+    },
+    {
+      "id": "W-L-CRP-5",
+      "markerId": "crp",
+      "when": {
+        "op": ">",
+        "value": 3,
+        "unit": "mg/L"
+      },
+      "kind": "prefer",
+      "target": "satfat",
+      "severity": "info",
+      "message": "Because your hs-CRP was {value} mg/L on {date}, cooking fats lean toward mustard, groundnut or olive oil rather than ghee or coconut oil.",
+      "grade": "C",
+      "sources": [
+        "S51",
+        "S59"
+      ]
+    },
+    {
+      "id": "W-L-CRP-6",
+      "markerId": "crp",
+      "when": {
+        "op": ">",
+        "value": 10,
+        "unit": "mg/L",
+        "also": {
+          "repeat": true
+        }
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "see-clinician",
+      "message": "Your hs-CRP has been above 10 mg/L on two tests ({date}). Please see a clinician to find the cause.",
+      "grade": "B",
+      "sources": [
+        "S48"
+      ]
+    },
+    {
+      "id": "W-L-TSH-1",
+      "markerId": "tsh",
+      "when": {
+        "op": "outside",
+        "value": "labRange",
+        "unit": "µIU/mL"
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "see-clinician",
+      "message": "Because your TSH was {value} µIU/mL on {date}, outside your lab's range, please see a clinician. Your plan continues; it is not changed by this value.",
+      "grade": "B",
+      "sources": [
+        "S64",
+        "S65"
+      ]
+    },
+    {
+      "id": "W-L-TSH-2",
+      "markerId": "tsh",
+      "when": {
+        "op": ">",
+        "value": 10,
+        "unit": "µIU/mL",
+        "also": {
+          "field": "conditions.thyroidTreated",
+          "op": "==",
+          "value": false
+        }
+      },
+      "kind": "cap",
+      "target": "fasting",
+      "severity": "caution",
+      "message": "Because your TSH was {value} µIU/mL on {date} and you are not on treatment, fasts are kept to 24 hours or less until a clinician has seen it.",
+      "grade": "D",
+      "sources": [
+        "S64"
+      ]
+    },
+    {
+      "id": "W-L-TSH-3",
+      "markerId": "tsh",
+      "when": {
+        "op": "any",
+        "value": null,
+        "unit": "µIU/mL",
+        "also": {
+          "field": "medications.levothyroxine",
+          "op": "==",
+          "value": true
+        }
+      },
+      "kind": "prefer",
+      "target": "caffeine",
+      "severity": "info",
+      "message": "Take levothyroxine with water 60 minutes before breakfast and coffee or tea; keep calcium and iron at least 4 hours away.",
+      "grade": "B",
+      "sources": [
+        "S66",
+        "S77"
+      ]
+    },
+    {
+      "id": "W-L-TSH-4",
+      "markerId": "tsh",
+      "when": {
+        "op": "any",
+        "value": null,
+        "unit": "µIU/mL",
+        "also": {
+          "field": "supplements.ashwagandha",
+          "op": "==",
+          "value": true
+        }
+      },
+      "kind": "warn",
+      "target": "supp:ashwagandha",
+      "severity": "caution",
+      "message": "Ashwagandha can raise thyroid hormones. If you have a thyroid condition or take levothyroxine, check with your clinician first.",
+      "grade": "B",
+      "sources": [
+        "S78"
+      ]
+    },
+    {
+      "id": "W-L-TSH-5",
+      "markerId": "tsh",
+      "when": {
+        "op": "any",
+        "value": null,
+        "unit": "µIU/mL",
+        "also": {
+          "field": "supplements.biotinHighDose",
+          "op": "==",
+          "value": true
+        }
+      },
+      "kind": "reask",
+      "target": "sampleContext",
+      "severity": "info",
+      "message": "High-dose biotin (hair and nail products) can make thyroid results wrong. Stop it at least 24 hours before your next blood test.",
+      "grade": "B",
+      "sources": [
+        "S79"
+      ]
+    },
+    {
+      "id": "W-L-TSH-6",
+      "markerId": "tsh",
+      "when": {
+        "op": "outside",
+        "value": "labRange",
+        "unit": "µIU/mL"
+      },
+      "kind": "retest",
+      "target": "tsh",
+      "value": 8,
+      "severity": "info",
+      "message": "Repeat TSH in about 8 weeks, or as your clinician advises.",
+      "grade": "B",
+      "sources": [
+        "S66"
+      ]
+    },
+    {
+      "id": "W-L-FT3-1",
+      "markerId": "ft3",
+      "when": {
+        "op": "<",
+        "value": "labLow",
+        "unit": "pg/mL",
+        "also": {
+          "field": "energyAvailability",
+          "op": "<",
+          "value": 30
+        }
+      },
+      "kind": "warn",
+      "target": "deficit_large",
+      "severity": "caution",
+      "message": "Because your free T3 was {value} pg/mL on {date}, low, while your energy intake is very low for your training, Vitals suggests a 1–2 week diet break at maintenance.",
+      "grade": "B",
+      "sources": [
+        "S75",
+        "S88"
+      ]
+    },
+    {
+      "id": "W-L-FT3-2",
+      "markerId": "ft3",
+      "when": {
+        "op": "<",
+        "value": "labLow",
+        "unit": "pg/mL",
+        "also": {
+          "field": "plan.fastOrVlcActive",
+          "op": "==",
+          "value": true
+        }
+      },
+      "kind": "warn",
+      "target": "fasting",
+      "severity": "info",
+      "message": "Your free T3 was {value} pg/mL on {date}. T3 falls during fasting and very-low-carb eating to save energy; this is expected and reverses when you eat normally.",
+      "grade": "B",
+      "sources": [
+        "S70",
+        "S71",
+        "S73"
+      ]
+    },
+    {
+      "id": "W-L-FT3-3",
+      "markerId": "ft3",
+      "when": {
+        "op": "<",
+        "value": "labLow",
+        "unit": "pg/mL",
+        "also": {
+          "markerId": "testosterone",
+          "op": "<",
+          "value": 300,
+          "unit": "ng/dL"
+        }
+      },
+      "kind": "cap",
+      "target": "deficit_large",
+      "severity": "caution",
+      "message": "Because your free T3 ({value} pg/mL) and testosterone were both low on {date}, your deficit is capped at moderate and a diet break is scheduled.",
+      "grade": "C",
+      "sources": [
+        "S88",
+        "S75"
+      ]
+    },
+    {
+      "id": "W-L-FT3-4",
+      "markerId": "ft3",
+      "when": {
+        "op": "any",
+        "value": null,
+        "unit": "pg/mL",
+        "also": {
+          "field": "import.t3Kind",
+          "op": "==",
+          "value": "unknown"
+        }
+      },
+      "kind": "reask",
+      "target": "ft3",
+      "severity": "info",
+      "message": "Is this free T3 or total T3? Reports from camp panels usually show total T3 (in ng/dL).",
+      "grade": "D",
+      "sources": [
+        "S67"
+      ]
+    },
+    {
+      "id": "W-L-FT3-5",
+      "markerId": "ft3",
+      "when": {
+        "op": "<",
+        "value": "labLow",
+        "unit": "pg/mL"
+      },
+      "kind": "retest",
+      "target": "ft3",
+      "value": 4,
+      "severity": "info",
+      "message": "Recheck free T3 about 4 weeks after a diet break or return to maintenance, not during a fast.",
+      "grade": "D",
+      "sources": [
+        "S88"
+      ]
+    },
+    {
+      "id": "W-L-TESTOSTERONE-1",
+      "markerId": "testosterone",
+      "when": {
+        "op": "<",
+        "value": 264,
+        "unit": "ng/dL"
+      },
+      "kind": "retest",
+      "target": "testosterone",
+      "value": 4,
+      "severity": "info",
+      "message": "Your testosterone was {value} ng/dL on {date}. One value is not enough: repeat a fasting test before 10 am within 4 weeks, at the same lab.",
+      "grade": "A",
+      "sources": [
+        "S80",
+        "S82"
+      ]
+    },
+    {
+      "id": "W-L-TESTOSTERONE-2",
+      "markerId": "testosterone",
+      "when": {
+        "op": "<",
+        "value": 264,
+        "unit": "ng/dL",
+        "also": {
+          "repeat": true
+        }
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "see-clinician",
+      "message": "Your testosterone has been below 264 ng/dL on two morning tests ({date}). Please see a clinician.",
+      "grade": "A",
+      "sources": [
+        "S80",
+        "S81",
+        "S82"
+      ]
+    },
+    {
+      "id": "W-L-TESTOSTERONE-3",
+      "markerId": "testosterone",
+      "when": {
+        "op": "<",
+        "value": 300,
+        "unit": "ng/dL",
+        "also": {
+          "field": "deficitPct",
+          "op": ">",
+          "value": 25
+        }
+      },
+      "kind": "cap",
+      "target": "deficit_large",
+      "severity": "caution",
+      "message": "Because your testosterone was {value} ng/dL on {date} during a large deficit, the deficit is capped at moderate and a diet break is suggested; this usually recovers with more food.",
+      "grade": "B",
+      "sources": [
+        "S88",
+        "S89"
+      ]
+    },
+    {
+      "id": "W-L-TESTOSTERONE-4",
+      "markerId": "testosterone",
+      "when": {
+        "op": "<",
+        "value": 300,
+        "unit": "ng/dL",
+        "also": {
+          "field": "sleepHours",
+          "op": "<",
+          "value": 6
+        }
+      },
+      "kind": "warn",
+      "target": "sleep_debt",
+      "severity": "caution",
+      "message": "Because your testosterone was {value} ng/dL on {date} and you sleep under 6 hours, sleep is the first lever: one week of 5-hour nights lowers it 10–15 %.",
+      "grade": "B",
+      "sources": [
+        "S92"
+      ]
+    },
+    {
+      "id": "W-L-TESTOSTERONE-5",
+      "markerId": "testosterone",
+      "when": {
+        "op": "<",
+        "value": 300,
+        "unit": "ng/dL"
+      },
+      "kind": "cap",
+      "target": "highprotein",
+      "value": 3.4,
+      "severity": "info",
+      "message": "Because your testosterone was {value} ng/dL on {date}, protein stays at or below 3.4 g/kg and very-low-carb plans keep enough fat.",
+      "grade": "C",
+      "sources": [
+        "S85",
+        "S84",
+        "S83"
+      ]
+    },
+    {
+      "id": "W-L-TESTOSTERONE-6",
+      "markerId": "testosterone",
+      "when": {
+        "op": "<",
+        "value": 300,
+        "unit": "ng/dL",
+        "also": {
+          "field": "bmi",
+          "op": ">=",
+          "value": 27
+        }
+      },
+      "kind": "prefer",
+      "target": "weight_loss",
+      "severity": "info",
+      "message": "Because your testosterone was {value} ng/dL on {date}, losing weight is the lever most likely to raise it (about +3 nmol/L with diet).",
+      "grade": "A",
+      "sources": [
+        "S87"
+      ]
+    },
+    {
+      "id": "W-L-CORTISOL-1",
+      "markerId": "cortisol",
+      "when": {
+        "op": "<",
+        "value": 5,
+        "unit": "µg/dL"
+      },
+      "kind": "clinician",
+      "target": "plan",
+      "severity": "stop-and-see",
+      "message": "Because your morning cortisol was {value} µg/dL on {date}, very low, please see a clinician soon. Fasting is paused until then.",
+      "grade": "A",
+      "sources": [
+        "S97"
+      ]
+    },
+    {
+      "id": "W-L-CORTISOL-2",
+      "markerId": "cortisol",
+      "when": {
+        "op": "<",
+        "value": 5,
+        "unit": "µg/dL"
+      },
+      "kind": "cap",
+      "target": "fasting",
+      "value": 12,
+      "severity": "caution",
+      "message": "Because your morning cortisol was {value} µg/dL on {date}, fasts are capped at 12 hours until a clinician has reviewed it.",
+      "grade": "D",
+      "sources": [
+        "S97"
+      ]
+    },
+    {
+      "id": "W-L-CORTISOL-3",
+      "markerId": "cortisol",
+      "when": {
+        "op": "any",
+        "value": null,
+        "unit": "µg/dL"
+      },
+      "kind": "warn",
+      "target": "display",
+      "severity": "info",
+      "message": "A single morning cortisol changes with sleep, caffeine, fasting and exercise, so Vitals shows it but does not plan on it.",
+      "grade": "B",
+      "sources": [
+        "S98",
+        "S100",
+        "S101",
+        "S104"
+      ]
+    },
+    {
+      "id": "W-L-CORTISOL-4",
+      "markerId": "cortisol",
+      "when": {
+        "op": ">",
+        "value": "labHigh",
+        "unit": "µg/dL"
+      },
+      "kind": "reask",
+      "target": "sampleContext",
+      "severity": "info",
+      "message": "Was the sample taken after poor sleep, a fast, coffee, hard exercise, or while on steroid medicines or the pill? All raise cortisol.",
+      "grade": "B",
+      "sources": [
+        "S100",
+        "S101",
+        "S103",
+        "S104"
+      ]
+    }
+  ]
+}

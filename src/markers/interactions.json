@@ -1,10 +1,10 @@
 {
  "schema": "vitals.markerInteractions/1",
  "generatedFrom": [
-  "plan/02-next/research/R13-lipids.json",
-  "plan/02-next/research/R13-glycaemic-urate.json",
-  "plan/02-next/research/R13-liver-kidney-electrolytes.json",
-  "plan/02-next/research/R13-haem-thyroid-inflammation-hormones.json"
+  "research/R13-lipids.json",
+  "research/R13-glycaemic-urate.json",
+  "research/R13-liver-kidney-electrolytes.json",
+  "research/R13-haem-thyroid-inflammation-hormones.json"
  ],
  "markers": [
   {
