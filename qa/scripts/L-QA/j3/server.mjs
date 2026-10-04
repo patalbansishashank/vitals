@@ -1,17 +1,17 @@
-// J3 server side: the test person `L-QA-J3-<hhmm>` (created without --join: the server holds the person's sync key and
-// hands it to each paired device, decision 5), pairing codes, agent tokens, removal. Only L-QA-J3- labels are touched;
-// codes and tokens stay in memory, never printed. Person ids of this journey are kept in .e6-tmp/j3/state.json.
+// J3 server side: the test person `L-QA-R2J3-<hhmm>` (created without --join: the server holds the person's sync key and
+// hands it to each paired device, decision 5), pairing codes, agent tokens, removal. Only L-QA-R2J3- labels are touched;
+// codes and tokens stay in memory, never printed. Person ids of this journey are kept in .e6-tmp/r2j3/state.json.
 import fs from 'node:fs';
 import { sshRun, personsList, agentToken } from './harness/lib/server.mjs';
 import { TMP, cfg } from './apps.mjs';
 
 const VS = 'node ~/vitals-server/current/bin/vitals-server.mjs';
 const SSH = cfg.serverSsh;
-const STATE = `${TMP}/j3/state.json`;
-export const PREFIX = 'L-QA-J3-';
+const STATE = `${TMP}/r2j3/state.json`;
+export const PREFIX = 'L-QA-R2J3-';
 export const state = () => (fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : {});
 export const saveState = (s) => {
-  fs.mkdirSync(`${TMP}/j3`, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(`${TMP}/r2j3`, { recursive: true, mode: 0o700 });
   fs.writeFileSync(STATE, JSON.stringify(s, null, 1), { mode: 0o600 });
 };
 const safe = (s) => {
@@ -28,7 +28,7 @@ async function mustBeOurs(id) {
 export async function addPerson(label) {
   if (!label.startsWith(PREFIX)) throw new Error('bad label');
   const r = await sshRun(SSH, `${VS} persons add ${safe(label)} --tz Asia/Kolkata`);
-  const m = r.stdout.match(/([0-9a-f]{16})\s+L-QA-J3-/);
+  const m = r.stdout.match(/([0-9a-f]{16})\s+L-QA-R2J3-/);
   if (!m) throw new Error(`persons add failed: ${r.stderr.slice(0, 200)}`);
   return m[1];
 }

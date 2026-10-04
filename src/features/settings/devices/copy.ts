@@ -13,8 +13,9 @@ export function formatDay(iso: string, style: 'day-month' | 'month-day'): string
 export const DEV = {
   title: 'Devices and streams',
   intro: 'Choose which devices bring data in and what each may be used for: your scores, your plan, and what the Coach can see. Nothing connects until you say so.',
-  limits: 'A web page can’t read Apple Health or Health Connect directly or sync in the background. Import files, or connect an open ring with Chrome.',
-  none: 'No devices yet. Import a file or connect a ring to bring body signals in.',
+  limits: 'A web page can’t read Apple Health or Health Connect directly or sync in the background. Import files, or add a ring below.',
+  limitsApp: 'Vitals can’t read Apple Health or Health Connect directly. Import a file, or add a ring below.',
+  none: 'No devices yet. Import a file or add a ring to bring body signals in.',
   loading: 'Reading your devices…',
   chooseInIntake: 'Choose devices and what they share',
   tier: {
@@ -25,8 +26,6 @@ export const DEV = {
   kind: { ring: 'ring', watch: 'watch', band: 'band', phone: 'phone', scale: 'scale', strap: 'strap', manual: 'entered by hand', unknown: 'device' } as Record<string, string>,
   lastData: (d: string | null) => (d ? `last data ${d}` : 'no data yet'),
   records: (n: number) => `${n} ${n === 1 ? 'record' : 'records'}`,
-  syncNow: 'Sync now',
-  syncHelp: 'Chrome, while Vitals is open. Close the ring’s own app first.',
   remove: 'Remove this device…',
   removeTitle: (label: string) => `Remove ${label}?`,
   removeBody: 'Deletes this device’s data from Vitals (and from your synced devices). Your logs and plan stay. Scores rebuild without it.',
@@ -34,6 +33,7 @@ export const DEV = {
   removeKey: 'Remove device',
   cancel: 'Cancel',
   cols: { imported: 'bring in', scores: 'my scores', engine: 'my plan', coach: 'Coach sees' },
+  policyTable: 'Stream sharing settings',
   coach: { hidden: 'hidden', daily: 'daily', 'daily+series': 'daily + detail' } as const,
   switchLabel: (col: string, stream: string) => `${col}: ${stream}`,
   vendorTitle: 'vendor scores',
@@ -49,12 +49,66 @@ export const DEV = {
     const dup = r.duplicates === 0 ? 'Nothing was a repeat.' : `${r.duplicates} ${r.duplicates === 1 ? 'was' : 'were'} already here and skipped.`;
     return `${range}${counts} ${dup}`;
   },
-  ringTitle: 'connect a ring',
-  ringHelp: 'Pair an open ring directly over Bluetooth (Chrome on a computer or Android).',
-  ringUnavailable: 'This browser can’t use Bluetooth. Use Chrome on a computer or Android, or import a file.',
-  ringKey: (label: string) => `Connect ${label}`,
   failed: 'That didn’t work.',
   syncing: (pct: number) => `Reading the ring · ${pct} %`,
+} as const;
+
+/**
+ * The rings block (SUITE_SPEC §15.2, plan 04 item 1): one card per ring from the ring service, and the scan list.
+ * Rings are named by their driver label only, never by what they advertise; nothing here asks for a code (decision 13).
+ */
+export const RING = {
+  title: 'rings',
+  ringPage: 'Open the Ring page',
+  seeData: 'See the data',
+  unsupported: 'This browser can’t reach rings. Use the Vitals app for Android or your computer.',
+  unsupportedApp: 'This device can’t reach rings: Bluetooth isn’t available to Vitals here.',
+  bluetoothOff: 'Bluetooth is off',
+  permission: 'Allow Bluetooth for Vitals',
+  state: {
+    idle: 'Not connected',
+    searching: 'Looking for your ring…',
+    connecting: 'Connecting…',
+    connected: 'Connected',
+  },
+  reading: (pct: number | null) => (pct === null ? 'Reading your ring…' : `Reading your ring… ${pct} %`),
+  elsewhere: (device: string, since: string | null) => `Connected to ${device}${since ? ` since ${since}` : ''}`,
+  failed: 'That didn’t work. Try again.',
+  battery: (pct: number, charging: boolean) => `Battery ${pct} %${charging ? ' · charging' : ''}`,
+  lastRead: (ago: string, by: string | null) => `Last read ${ago}${by ? ` on ${by}` : ''}`,
+  neverRead: 'Not read yet',
+  liveHr: (bpm: number) => `Heart rate now ${bpm} bpm`,
+  connect: 'Connect',
+  syncNow: 'Sync now',
+  connectHere: 'Connect here instead',
+  disconnect: 'Disconnect',
+  forget: 'Forget…',
+  forgetTitle: (label: string) => `Forget ${label}?`,
+  forgetBody: 'Vitals stops connecting to this ring on all your devices. What it already read stays in Vitals.',
+  forgetKey: 'Forget ring',
+  cancel: 'Cancel',
+  add: 'Add a ring',
+  looking: 'Looking for rings nearby…',
+  osPrompt: (device: 'phone' | 'computer') => `Your ${device} may ask to pair with the ring. That’s expected; choose Pair.`,
+  candidates: 'rings nearby',
+  signal: (rssi: number | undefined) => (rssi === undefined ? null : rssi >= -65 ? 'close by' : rssi >= -80 ? 'nearby' : 'far away'),
+  yours: 'Already yours',
+  stop: 'Stop looking',
+  noneFound: 'No ring found. Check that it is charged and close by, then look again.',
+  lookAgain: 'Look again',
+  which: 'Which of your rings is this?',
+  match: (label: string, by: string | null, ago: string | null) =>
+    `Your ${label}${by ? ` from ${by}` : ''}${ago ? `, last read ${ago}` : ''}`,
+  newRing: 'A new ring',
+  pairing: 'Connecting…',
+  pairingHistory: 'Reading your ring’s history…',
+  sharing: {
+    label: 'Use my ring data in my plan and Coach',
+    help: 'Your ring data is used for your plan and scores, and the Coach and your AI tools can see it. Turn it off here or per signal in Settings › Devices.',
+    some: 'Some of it is shared.',
+    someLink: 'See each signal',
+    notice: 'Your ring data is now used for your plan and scores, and the Coach can see it. You can turn this off below.',
+  },
 } as const;
 
 /** Plain names of E10's policy streams. */

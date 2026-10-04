@@ -1,8 +1,9 @@
 /**
  * The standing briefing (SUITE_SPEC §5.3; R8 §5.4): built by code every turn from read commands, never by the model.
  * Static part (role, not medical advice, safety relay rule, confirmation policy, units, style) plus a dynamic part
- * (date, safety mode, profile, active plan and today, goals, proposals, recent log, scores, questions still open),
- * fitted to ≤ 3k tokens by dropping or truncating the lowest-priority sections first (`fitBriefing`).
+ * (date, safety mode, profile, active plan and today, goals, proposals, body signals the person shares, recent log,
+ * scores, questions still open), fitted to ≤ 3k tokens by dropping or truncating the lowest-priority sections first
+ * (`fitBriefing`).
  *
  * The same data feeds the visible "What the Coach knows" panel (`VisibleBriefingInput`, rendered by the UI's
  * `buildCoachBriefing`), so what the person sees is what the model receives.
@@ -45,6 +46,9 @@ export interface BriefingData {
   pantry?: Rec | null;
   /** E20: newest confirmed blood test reading per marker, its state and the rule ids of its notes (`markers.get`). */
   markers?: Array<{ id: string; value: number; unit: string; date: string; state: string; notes: string[] }> | null;
+  /** `bio.daily` of yesterday and today as the Coach may see it (SUITE_SPEC §4.5; a ring's data by default, plan 04
+   * item 11): sleep, resting HR, steps and the rest, each with its source. */
+  bodySignals?: Rec | null;
 }
 
 /** One day of the visible "Last 7 days" (newest first; today comes from `today`). */
@@ -103,7 +107,73 @@ function aboutLines(d: BriefingData): string[] {
   const home = d.pantry && Array.isArray(d.pantry.items) ? d.pantry.items.length : 0;
   if (eq || home) out.push(`Kitchen: ${eq} ${eq === 1 ? 'piece' : 'pieces'} of equipment, ${home} ${home === 1 ? 'item' : 'items'} at home.`);
   if (d.markers?.length) out.push(`Blood test results: ${d.markers.length} marker${d.markers.length === 1 ? '' : 's'}, newest ${d.markers.map((m) => m.date).sort().at(-1)}.`);
+  const sig = bodySignalsOf(d.bodySignals);
+  if (sig.kinds.length) out.push(`Body signals from ${sig.sources.join(', ')}: ${sig.kinds.join(', ')}.`);
   return out;
+}
+
+/* ------------------------------------------------------------------------------------------- body signals */
+
+const SIGNAL_NAMES: Array<[RegExp, string]> = [
+  [/^resting_hr/, 'resting heart rate'],
+  [/^hr_/, 'heart rate'],
+  [/^hrv_/, 'HRV'],
+  [/^spo2/, 'blood oxygen'],
+  [/temp/, 'temperature'],
+  [/^steps$/, 'steps'],
+  [/^(active_kcal|total_kcal|active_min)/, 'activity'],
+  [/^distance/, 'distance'],
+];
+/** Tier C values that only mean something as change from the person's own normal (SUITE_SPEC §4.4). */
+const TREND_ONLY = /^(hrv_|spo2|skin_temp|body_temp)/;
+
+interface SignalDay { date: string; parts: string[] }
+
+/** `bio.daily` (newest two days) → one line per day plus the plain names and sources for the visible panel. */
+function bodySignalsOf(v: unknown, quiet = false): { days: SignalDay[]; kinds: string[]; sources: string[]; trendOnly: boolean } {
+  const days = isRec(v) && Array.isArray(v.days) ? v.days.filter(isRec) : [];
+  const kinds = new Set<string>();
+  const sources = new Set<string>();
+  let trendOnly = false;
+  const out: SignalDay[] = [];
+  for (const day of [...days].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 2)) {
+    const parts: string[] = [];
+    const sleep = isRec(day.sleep) ? day.sleep : null;
+    if (sleep && typeof sleep.asleepH === 'number') {
+      parts.push(`sleep ${sleep.asleepH.toFixed(1)} h asleep${typeof sleep.source === 'string' ? ` (${sleep.source})` : ''}`);
+      kinds.add('sleep');
+      if (typeof sleep.source === 'string') sources.add(sleep.source);
+    }
+    const bySource = new Map<string, string[]>();
+    for (const [key, x] of Object.entries(isRec(day.values) ? day.values : {})) {
+      if (!isRec(x) || typeof x.value !== 'number' || (quiet && /kcal/.test(key))) continue;
+      const src = typeof x.source === 'string' ? x.source : 'device';
+      const unit = typeof x.unit === 'string' && x.unit && x.unit !== 'count' ? ` ${x.unit}` : '';
+      bySource.set(src, [...(bySource.get(src) ?? []), `${key} ${Math.round(x.value * 10) / 10}${unit}`]);
+      sources.add(src);
+      const name = SIGNAL_NAMES.find(([re]) => re.test(key))?.[1];
+      if (name) kinds.add(name);
+      if (TREND_ONLY.test(key) && x.tier === 'C') trendOnly = true;
+    }
+    for (const [src, vals] of bySource) parts.push(`${vals.join(', ')} (${src})`);
+    for (const w of Array.isArray(day.workouts) ? day.workouts.filter(isRec) : []) {
+      parts.push(`workout ${String(w.type)} ${String(w.durationMin)} min${typeof w.source === 'string' ? ` (${w.source})` : ''}`);
+      kinds.add('workouts');
+      if (typeof w.source === 'string') sources.add(w.source);
+    }
+    for (const o of Array.isArray(day.vendor) ? day.vendor.filter(isRec) : []) parts.push(`vendor opinion: ${String(o.source)} says ${String(o.key)} ${String(o.value)}`);
+    if (parts.length) out.push({ date: String(day.date), parts });
+  }
+  return { days: out, kinds: [...kinds], sources: [...sources], trendOnly };
+}
+
+/** Quiet mode leaves out energy values (no calorie talk). */
+function bodySignalsSection(v: unknown, quiet: boolean): string | null {
+  const sig = bodySignalsOf(v, quiet);
+  if (!sig.days.length) return null;
+  const lines = sig.days.map((d) => `${d.date}: ${d.parts.join('; ')}`.slice(0, 500));
+  if (sig.trendOnly) lines.push('HRV, blood oxygen and temperature from a consumer ring mean something only as change from the person\'s own normal.');
+  return `Body signals (newest first, source in brackets):\n${lines.join('\n')}`;
 }
 
 function questionsOf(q: unknown): string[] {
@@ -140,7 +210,9 @@ function logLines(entries: Rec[]): string {
   for (const e of entries) {
     const date = typeof e.date === 'string' ? e.date : typeof e.localDate === 'string' ? e.localDate : '?';
     const kind = typeof e.kind === 'string' ? e.kind : typeof e.type === 'string' ? e.type : 'entry';
-    const label = typeof e.text === 'string' ? `${kind} "${e.text.slice(0, 60)}"` : kind;
+    const versions = isRec(e.conflict) && Array.isArray(e.conflict.versions) ? e.conflict.versions.length : 0;
+    const label = (typeof e.text === 'string' ? `${kind} "${e.text.slice(0, 60)}"` : kind)
+      + (versions > 1 ? ` (${versions} versions; unresolved edit, counted once)` : '');
     byDay.set(date, [...(byDay.get(date) ?? []), label]);
   }
   return [...byDay.entries()]
@@ -189,6 +261,11 @@ export function buildBriefing(
     else lines.push('No plan is running.');
     if (v.prescription) lines.push(`Today prescribes: ${compact(v.prescription, 900)}`);
     lines.push(`Logged today: ${compact({ totals: quiet ? undefined : v.logged.totals, items: v.logged.items, fast: v.logged.fast, steps: v.logged.steps, sleepHours: v.logged.sleepHours }, 500)}`);
+    const conflicts = [
+      ...v.logged.entries.filter((entry) => entry.conflict).map((entry) => `${entry.kind} (${entry.conflict!.versions.length} versions; counted once)`),
+      ...(v.logged.measurements ?? []).filter((entry) => entry.conflict).map((entry) => `measurement (${entry.conflict!.versions.length} versions; counted once)`),
+    ];
+    if (conflicts.length) lines.push(`Unresolved log edits: ${conflicts.join(', ')}. Ask the person which version to keep.`);
     if (v.remaining && !quiet) lines.push(`Remaining today: ${compact(v.remaining)}`);
     if (!quiet) lines.push(`Adherence: today ${v.adherence.today?.score ?? '—'}, 7-day ${v.adherence.a7 ?? '—'}, 28-day ${v.adherence.a28 ?? '—'}, ${v.adherence.daysLogged7} of 7 days logged.`);
     if (v.drift?.length) lines.push(`Drift: ${v.drift.map((g) => `${g.metric} ${g.state}${g.goalDate.range ? `, goal date likely ${g.goalDate.range[0]}–${g.goalDate.range[1]}` : ''}`).join('; ')}.`);
@@ -215,6 +292,8 @@ export function buildBriefing(
         : `Proposals waiting for the person: ${d.pending.map((p) => `${String(p.commandId)} (${String(p.pendingId)})`).join(', ')}.`,
     });
   }
+  const signals = bodySignalsSection(d.bodySignals, quiet);
+  if (signals) sections.push({ id: 'signals', priority: 50, text: signals });
   sections.push({ id: 'kitchen', priority: 45, text: kitchenSection(d.kitchen ?? null, d.pantry ?? null) });
   if (d.recentLog?.length) sections.push({ id: 'recent', priority: 40, text: `Last 7 days of logs:\n${logLines(d.recentLog)}` });
   if (d.adherence) sections.push({ id: 'scores', priority: 30, text: `Adherence detail: ${compact(d.adherence, 700)}` });
@@ -262,7 +341,7 @@ export async function gatherBriefingData(bus: CoachBus, now: Date, localToday: s
       return null;
     }
   };
-  const [safety, profile, todayView, goals, recentLog, adherence, pending, questions, scores, supplements, kitchen, pantry, markers] = await Promise.all([
+  const [safety, profile, todayView, goals, recentLog, adherence, pending, questions, scores, supplements, kitchen, pantry, markers, bodySignals] = await Promise.all([
     read('safety.status'),
     read('profile.get'),
     read('today.get'),
@@ -276,6 +355,7 @@ export async function gatherBriefingData(bus: CoachBus, now: Date, localToday: s
     read('kitchen.get'),
     read('pantry.get'),
     read('markers.get'),
+    read('bio.daily', { from: addDays(localToday, -1), to: localToday }),
   ]);
   let tz: string | undefined = zone;
   try {
@@ -301,5 +381,6 @@ export async function gatherBriefingData(bus: CoachBus, now: Date, localToday: s
     kitchen: isRec(kitchen) ? kitchen : null,
     pantry: isRec(pantry) ? pantry : null,
     markers: briefingMarkers(markers),
+    bodySignals: isRec(bodySignals) ? bodySignals : null,
   };
 }

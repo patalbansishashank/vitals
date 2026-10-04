@@ -43,10 +43,11 @@ export const SERVER_COPY = {
   syncOn: 'on',
   syncOff: 'off on this device',
   syncThrough: (state: string, server: string) => `${state} · through ${server}`,
-  alreadyOtherKey: "This device already syncs with another key. Stop syncing here first to use your server's.",
+  alreadyOtherKey:
+    "This device already syncs with another key, so it was left as it is. To use your server's instead, stop syncing in Settings › Sync, then forget this server and pair again.",
   joinFailed: (message: string) => `Sync didn't start: ${message}`,
   revokeKeepsKey: "Removing a device stops it using your server. A device that already synced keeps the sync key, like anyone who has the 24 words, and can keep syncing. Locking it out takes a new sync key on every device, which this page can't make yet.",
-  readable: 'Your server keeps a readable copy of your data so the Coach and agents work without this browser.',
+  readable: 'Your server keeps a readable copy of your data so the Coach and agents work without this device.',
   syncHint: 'Sync is off on this device. To bring your data across, join sync with the words or QR from another device in Settings › Sync.',
   checkNow: 'Check now',
   addDevice: 'Add another device',
@@ -82,7 +83,7 @@ export const SERVER_COPY = {
   holds: [
     'your plan, logs, body data and Coach conversations, in one folder on that computer',
     'your AI keys and your ChatGPT sign-in, if you added them there',
-    "your ring's data from Lumen Health, if you connected it",
+    "your ring's data, if you connected a ring",
   ],
   holdsRead:
     "It can read all of this: that is how the Coach, agents and your ring work while your devices are off. Anyone who can open that computer's files can read it too.",
@@ -92,11 +93,13 @@ export const SERVER_COPY = {
   forgetBody:
     'This device stops syncing and stops using the Coach providers, agent address and ring data that go through your server. What is already on this device stays here. Your other devices keep working. To use the server again, pair this device again.',
   forgetConfirm: 'Forget server',
+  forgetSyncFailed: (message: string) => `Sync didn't stop: ${message} Stop it in Settings › Sync.`,
   forgotten: 'This device no longer uses your server. Its data is still here.',
   unreachable: "Can't reach your server. Is the computer on, and is Tailscale on here? Everything still works on this device.",
   lastContactAt: (when: string) => `Last contact ${when}.`,
   tryAgain: 'Try again',
-  revoked: 'This device was removed from your server. Sync, the Coach\'s server providers and the agent address stopped here. Your data on this device is kept.',
+  revoked:
+    "This device was removed from your server. The Coach's server providers and the agent address stopped here. Sync keeps running with the key this device holds until you stop it in Settings › Sync. Your data on this device is kept.",
   connectAgain: 'Connect again',
   versionOld: (have: string, need: string) => `Your server runs ${have} and this page needs ${need} or later. Update the server, then check again.`,
   firstRunTitle: 'Do you have a Vitals server?',

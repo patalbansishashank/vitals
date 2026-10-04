@@ -4,6 +4,37 @@
    Tokens only; chrome achromatic; the yellow dot marks today.
    ========================================================================== */
 @layer components {
+  .lv-log-conflict {
+    min-width: 0;
+  }
+  .lv-log-conflict__count {
+    margin: 0 0 10px;
+    color: var(--lm-ink-2);
+  }
+  .lv-log-conflict__versions {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-log-conflict__versions li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lv-log-conflict__versions strong {
+    font-weight: 600;
+  }
+  .lv-log-conflict__versions small {
+    color: var(--lm-ink-2);
+  }
+  .lv-log-conflict__error {
+    margin: 8px 0 0;
+    color: var(--lm-ink);
+  }
   /* ---- sheets -------------------------------------------------------------- */
   .lv-sheet {
     /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */

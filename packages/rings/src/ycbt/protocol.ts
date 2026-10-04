@@ -1,3 +1,4 @@
+import { plausibleAggregate } from '../plausibility';
 /**
  * The YCBT `Protocol`: framing, the ingest state machine and the sync planner. Tier P (no timers, no I/O; the session
  * runs the timers and calls `timeout`). Port of Lumen's `YCBTDriver.kt` (reassembly, `04 xx` acknowledgements, the
@@ -264,8 +265,34 @@ function cursorEvents(st: YcbtState, t: HistoryType): Array<{ ring: RingEvent }>
 }
 
 /** Flushes a step's events as `RingEvent`s, dropping values of a kind the ring has not been granted. */
-function flush(s: Step, origin: 'live' | 'spot'): RingEvent[] {
-  return s.events.splice(0).flatMap((d) => ('ring' in d ? [d.ring] : supported(d, s.st.caps) ? toRingEvents(d, zoneOf(s.st), s.st.firmware ?? '', origin) : []));
+function flush(s: Step, origin: 'live' | 'spot', receivedMs = s.st.nowMs): RingEvent[] {
+  return s.events.splice(0).flatMap((d) => ('ring' in d ? [d.ring] : supported(d, s.st.caps) ? toRingEvents(d, zoneOf(s.st), s.st.firmware ?? '', origin) : []))
+    .filter((e) => {
+      if (!plausibleAggregate(e)) return false;
+      const t = e.type === 'sample' || e.type === 'vendor' ? e.t
+        : e.type === 'activityBucket' ? e.start + e.durS * 1000
+          : e.type === 'sleepEpochs' ? e.start + e.stages.length * e.epochS * 1000
+            : e.type === 'dailyTotal' ? e.localDay : null;
+      if (receivedMs > 0 && t !== null && t > receivedMs) return false;
+      const history = (e.type === 'sample' || e.type === 'vendor') ? e.origin === 'history' : e.type === 'activityBucket' || e.type === 'sleepEpochs';
+      if (history && receivedMs > 0 && t !== null && t < receivedMs - 8 * 86_400_000) return false;
+      if (e.type === 'activityBucket') return e.steps >= 0 && e.steps <= 5_000 && (e.distanceM ?? 0) >= 0 && (e.distanceM ?? 0) <= 6_000;
+      if (e.type === 'sample') {
+        if (e.stream === 'hr') return e.value >= 30 && e.value <= 220;
+        if (e.stream === 'spo2') return e.value >= 70 && e.value <= 100;
+        if (e.stream === 'hrv') return e.value >= 1 && e.value <= 300;
+        if (e.stream === 'skin_temp') return e.value >= 30 && e.value <= 45;
+        if (e.stream === 'resp_rate') return e.value >= 5 && e.value <= 60;
+      }
+      if (e.type === 'vendor') {
+        if (e.key === 'ycbt_bp_systolic') return e.value >= 60 && e.value <= 250;
+        if (e.key === 'ycbt_bp_diastolic') return e.value >= 30 && e.value <= 150;
+        if (e.key === 'ycbt_glucose') return e.value >= 20 && e.value <= 600;
+        if (e.key === 'ycbt_stress' || e.key === 'ycbt_fatigue') return e.value >= 1 && e.value <= 100;
+        if (e.key === 'ycbt_vo2max') return e.value >= 1 && e.value <= 100;
+      }
+      return true;
+    });
 }
 
 function handleHealth(s: Step, cmd: number, payload: Uint8Array): void {
@@ -410,12 +437,13 @@ export function createYcbtProtocol(opts: YcbtOptions = {}): Protocol {
       return { state: st, expectReply: false };
     },
 
-    ingest(bytes, state, channel): IngestResult {
+    ingest(bytes, state, channel, receivedMs): IngestResult {
       const s: Step = { st: state as YcbtState, events: [], send: [], done: false };
       const asm = assemble(s.st.buffers, bytes, channel ?? YCBT_STREAM);
       s.st = { ...s.st, buffers: asm.buffers };
       const out: RingEvent[] = [];
-      const ctx = { tz: s.st.tz ?? undefined, tzOffsetS: s.st.tzOffsetS, nowMs: s.st.nowMs };
+      const clockMs = receivedMs ?? s.st.nowMs;
+      const ctx = { tz: s.st.tz ?? undefined, tzOffsetS: s.st.tzOffsetS, nowMs: clockMs };
       for (const raw of asm.frames) {
         const f = validateFrame(raw);
         let origin: 'live' | 'spot' = 'live';
@@ -464,7 +492,7 @@ export function createYcbtProtocol(opts: YcbtOptions = {}): Protocol {
             if (fl.finish) s.events.push({ kotlin: 'HistorySyncFinished' });
           }
         }
-        out.push(...flush(s, origin));
+        out.push(...flush(s, origin, clockMs));
       }
       return { events: out, state: s.st, send: s.send.length ? s.send : undefined, done: s.done || undefined };
     },

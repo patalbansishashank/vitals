@@ -142,6 +142,25 @@ describe('the sync key after pairing (plan decision 5)', () => {
     expect((await t.api('/v1/sync/key', { method: 'POST', token: d.token, body: {} })).status).toBe(200);
   });
 
+  it('five parallel first calls get one key; the key is in no log line and the stored key is intact', async () => {
+    const lines: string[] = [];
+    const t = await boot({ log: (l) => lines.push(l) });
+    const secret = Uint8Array.from({ length: 32 }, (_, i) => 200 - i);
+    const p = await t.home.persons.add({ label: 'Cy', timeZone: 'UTC', secret, relayUrl: null });
+    const { code } = await t.home.devices.issueCode(p.id);
+    const paired = await t.api('/v1/pair/device', { method: 'POST', body: { code, label: 'Phone' } });
+    const token = paired.body.token as unknown as string;
+    const all = await Promise.all(Array.from({ length: 5 }, () => t.api('/v1/sync/key', { method: 'POST', token, body: {} })));
+    expect(all.map((r) => r.status).sort()).toEqual([200, 409, 409, 409, 409]);
+    const key = all.find((r) => r.status === 200)!.body.key as unknown as string;
+    expect(Buffer.from(key, 'base64url')).toEqual(Buffer.from(secret));
+    // zeroing the handed copy touched neither the file nor a later read (the person worker reads the same file)
+    expect(Buffer.from(await t.home.persons.readSecret(p.id))).toEqual(Buffer.from(secret));
+    const log = lines.join('\n');
+    expect(log).toContain(`device ${paired.body.deviceId}: sync key handed over`);
+    for (const form of [key, Buffer.from(secret).toString('base64'), Buffer.from(secret).toString('hex'), token]) expect(log).not.toContain(form);
+  });
+
   it('a relay-only server has no such route', async () => {
     const dir = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), 'relay-'));
     const c = await startCompanion({ port: 0, dataDir: join(dir, 'relay'), allowedOrigins: [], log: () => {} });

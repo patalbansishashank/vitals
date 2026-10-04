@@ -107,7 +107,8 @@ export interface LivingActions {
   logSupplement(date: LocalDate, supplementId: string, dose: number, unit: string): Promise<ActionOutcome>;
   logDifficulty(date: LocalDate, difficulty: 1 | 2 | 3 | 4 | 5): Promise<ActionOutcome>;
   logMeasurement(date: LocalDate, m: MeasurementInput): Promise<ActionOutcome>;
-  retract(entryId: string): Promise<ActionOutcome>;
+  /** `keepEntryId` guards a conflict choice against a stale notice. */
+  retract(entryId: string, keepEntryId?: string): Promise<ActionOutcome>;
   /** Welcome back: fill missed days "as planned" (assumed, never scored). */
   backfill(dates: readonly LocalDate[]): Promise<ActionOutcome>;
   /** Change cards (Today proposals, applied automatic changes, Coach cards). */

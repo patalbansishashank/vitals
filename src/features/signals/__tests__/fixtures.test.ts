@@ -239,7 +239,7 @@ describe('fixture signals source', () => {
   it('person, goals and baselines', async () => {
     expect(full.person()).toEqual({ ageYears: 41, goals: { steps: 8000, activeMin: 30, sleepH: 8 }, vendorScores: false, tempUnit: 'C' });
     const b = await full.baselines();
-    expect(b.map((x) => x.metric).sort()).toEqual(['hrv_rmssd_ms', 'resting_hr_bpm', 'skin_temp_delta_c', 'sleep_h']);
+    expect(b.map((x) => x.metric).sort()).toEqual(['hrv_rmssd_ms', 'resting_hr_bpm', 'skin_temp_delta_c', 'sleep_h', 'spo2_avg_pct']);
     for (const x of b) {
       expect(x.nights).toBeGreaterThanOrEqual(14);
       expect(x.forming).toBe(false);

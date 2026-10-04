@@ -15,7 +15,15 @@ import { createLuckRingProtocol, HISTORY_CATALOG, type LuckRingState } from '../
 import { RecordingFake, expectKotlin, fixedClock, kotlinEvents, replayPager, session, sleep, waitUntil } from './helpers';
 
 const timers = { quietMs: 30, stallMs: 80 };
-const opts = { timers, clock: fixedClock() };
+const FIXTURE_NOW = 1_700_000_000_000;
+let fixtureNow = FIXTURE_NOW;
+const opts = { timers, clock: { ...fixedClock(), now: () => fixtureNow } };
+const openFixtureSession = async (fake: Parameters<typeof openRingSession>[1], options: NonNullable<Parameters<typeof openRingSession>[2]> = opts) => {
+  fixtureNow = FIXTURE_NOW; // the startup bundle's byte-golden clock
+  const ring = await openRingSession(luckring, fake, options);
+  fixtureNow = FIXTURE_NOW + 3_600_000; // later replayed notifications have later ring timestamps
+  return ring;
+};
 const HANDSHAKE_PACKETS = 8;
 
 async function collect(it: AsyncIterable<RingEvent>): Promise<RingEvent[]> {
@@ -28,7 +36,7 @@ describe('LuckRing connect handshake', () => {
   it('cold, no ring replies: the nine packets in the Kotlin order; a silent ring does not fail the connect', async () => {
     const fx = session('connect handshake, cold');
     const fake = fakeFromSession(fx as unknown as FixtureSession, { frameLength: 20, name: 'TK18_AA11' });
-    const s = await openRingSession(luckring, fake, opts);
+    const s = await openFixtureSession(fake);
     expect(s.info()).toEqual({ firmware: '', battery: undefined, model: 'TK18', clockOffsetS: 0 });
     expect(fake.remaining).toBe(1); // the history request is the sync's
     const evs = await collect(s.readHistory('steps', {}, new AbortController().signal));
@@ -54,7 +62,7 @@ describe('LuckRing connect handshake', () => {
       ],
       { name: 'TK18' },
     );
-    const s = await openRingSession(luckring, fake, opts);
+    const s = await openFixtureSession(fake);
     expect(s.info()).toEqual({ firmware: '1.2.3.4.5', battery: 85, model: 'TK18', clockOffsetS: 0 });
     expect(fake.errors).toEqual([]);
     expect(fake.remaining).toBe(1);
@@ -68,7 +76,7 @@ describe('LuckRing connect handshake', () => {
 
   it('the profile rides in the bundle when the caller has one', async () => {
     const fake = new RecordingFake([], { name: 'TK18' });
-    const s = await openRingSession(luckring, fake, { ...opts, profile: { metric: true, sex: 'male', ageYears: 30, heightCm: 175, weightKg: 70 } });
+    const s = await openFixtureSession(fake, { ...opts, profile: { metric: true, sex: 'male', ageYears: 30, heightCm: 175, weightKg: 70 } });
     expect(toHex(fake.writes[0]!)).toBe('00 01 03 00 01 6e 00 00 43 00 41 00 07 0c 00 66 00 00 00 00');
     expect(toHex(fake.writes[1]!)).toBe('01 00 1e af 46 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00');
     await s.close();
@@ -78,7 +86,7 @@ describe('LuckRing connect handshake', () => {
 describe('LuckRing history pager sessions', () => {
   async function open(): Promise<{ s: Awaited<ReturnType<typeof openRingSession>>; fake: RecordingFake }> {
     const fake = new RecordingFake([], { name: 'TK18' });
-    const s = await openRingSession(luckring, fake, opts);
+    const s = await openFixtureSession(fake);
     expect(fake.writes.length).toBe(HANDSHAKE_PACKETS);
     return { s, fake };
   }
@@ -138,7 +146,7 @@ describe('LuckRing history pager sessions', () => {
     await s.close();
     // engineReset: a new connection is a new session and a cold handshake again.
     const again = new RecordingFake([], { name: 'TK18' });
-    await (await openRingSession(luckring, again, opts)).close();
+    await (await openFixtureSession(again)).close();
     expect(again.writes.map(toHex)).toEqual(fake.writes.slice(0, HANDSHAKE_PACKETS).map(toHex));
   });
 });
@@ -158,7 +166,7 @@ describe('LuckRing live heart rate and spot SpO2', () => {
     let pending: string[] = [];
     fx.steps.forEach((step, i) => {
       if (step.do) {
-        const c = { ...COMMANDS[Object.keys(step.do)[0]!]!, params: { ...COMMANDS[Object.keys(step.do)[0]!]!.params, nowMs: i, tzOffsetS: 0 } };
+        const c = { ...COMMANDS[Object.keys(step.do)[0]!]!, params: { ...COMMANDS[Object.keys(step.do)[0]!]!.params, nowMs: FIXTURE_NOW + 3_600_000 + i, tzOffsetS: 0 } };
         const plan = protocol.begin!(c, st);
         st = plan.state as LuckRingState;
         pending = protocol.frame(c, st).map((f) => toHex(f.bytes));
@@ -181,7 +189,7 @@ describe('LuckRing live heart rate and spot SpO2', () => {
 
   it('a session stream: start, live samples, the empty envelope ends it, the stop goes out', async () => {
     const fake = new RecordingFake([], { name: 'TK18' });
-    const s = await openRingSession(luckring, fake, opts);
+    const s = await openFixtureSession(fake);
     const evs: RingEvent[] = [];
     const run = (async () => {
       for await (const e of s.liveHeartRate(new AbortController().signal)) evs.push(e);
@@ -200,7 +208,7 @@ describe('LuckRing live heart rate and spot SpO2', () => {
 
   it('spot SpO2 readings are spot samples and the stop is written', async () => {
     const fake = new RecordingFake([], { name: 'TK18' });
-    const s = await openRingSession(luckring, fake, opts);
+    const s = await openFixtureSession(fake);
     const evs: RingEvent[] = [];
     const run = (async () => {
       for await (const e of s.spot('spo2', new AbortController().signal)) evs.push(e);

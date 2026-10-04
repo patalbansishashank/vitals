@@ -55,7 +55,10 @@ const settle = async (fake: FakePeripheral): Promise<void> => {
 /** Opens a session on a fake scripted with the handshake, then the given session's steps. */
 const open = async (s: Session): Promise<{ fake: FakePeripheral; ring: Awaited<ReturnType<typeof openRingSession>> }> => {
   const fake = new FakePeripheral([...HANDSHAKE, ...fixtureSteps(s)], { address: 'AA:BB:CC:DD:EE:02', reads: BATTERY_READ });
-  return { fake, ring: await openRingSession(noAppId, fake, { timers, clock: clockOf(s) }) };
+  let now = s.context.nowMs;
+  const ring = await openRingSession(noAppId, fake, { timers, clock: { now: () => now, tzOffsetS: () => s.context.tzOffsetS } });
+  if (s.name.startsWith('live heart rate') || s.name.startsWith('spot heart rate')) now += 3_600_000;
+  return { fake, ring };
 };
 
 describe('Jring connect', () => {

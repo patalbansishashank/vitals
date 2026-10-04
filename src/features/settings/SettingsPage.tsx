@@ -14,6 +14,7 @@ import { platform } from '@/platform';
 import { AiSection } from './ai/AiSection';
 import { SupplementsSection } from './supplements/SupplementsSection';
 import { KitchenSection } from './KitchenSection';
+import './settings.css';
 
 /** `/settings/:section` deep links (SUITE_SPEC §6.2), with the design's aliases (`data-sources` → devices). */
 const SECTION_ALIASES: Readonly<Record<string, SectionId>> = { ai: 'coach', 'data-sources': 'devices' };
@@ -122,16 +123,15 @@ export default function SettingsPage() {
               href={`#${s.id}`}
               className="lm-chip"
               data-kind="filter"
-              aria-pressed={active === s.id}
               aria-current={active === s.id ? 'true' : undefined}
-              style={{ height: 32, paddingInline: 12 }}
+              style={{ minWidth: 44, height: 44, paddingInline: 12 }}
             >
               {s.label}
             </a>
           ))}
         </ScrollRail>
       </nav>
-      <Page>
+      <Page className="settings-page">
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,720px)] lg:gap-6">
           {/* desktop: vertical key bank with the yellow light on the section in view */}
           <nav aria-label="Settings sections" className="hidden lg:block">

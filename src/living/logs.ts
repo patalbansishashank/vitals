@@ -6,22 +6,106 @@
 import { addDays, daysBetween } from './dates';
 import type { Est, EntrySource, LocalDate, LogEntry, LoggingTier, LogEntrySummary, MeasurementEntry, NutrientEstimate } from './types';
 
-/** Entries that are still in force: superseded entries and retract targets are hidden; retract markers themselves too.
- * A retracted entry no longer supersedes anything, so retracting an edit (its undo) brings back the entry it replaced. */
-export function effectiveEntries<E extends { id: string; supersedes?: string; kind?: string; target?: string }>(entries: readonly E[]): E[] {
-  const retracted = new Set<string>();
-  for (const e of entries) if (e.kind === 'retract' && e.target) retracted.add(e.target);
-  const hidden = new Set<string>(retracted);
-  for (const e of entries) if (e.supersedes && !retracted.has(e.id)) hidden.add(e.supersedes);
-  return entries.filter((e) => !hidden.has(e.id) && e.kind !== 'retract');
+/**
+ * Entries still in force. An undo copy supersedes a retract marker, restoring its target's lineage. A conflict choice is a
+ * retract that names the version kept (`keep`); two choices that cross (each removes what the other keeps, two devices at
+ * once) cancel out, so the conflict shows again instead of the value before both edits (L-REV2 R3-02). A later choice
+ * names the crossed choices it saw (`overrides`), which then count for nothing, so the person's next tap settles it.
+ */
+export function effectiveEntries<E extends { id: string; supersedes?: string; kind?: string; target?: string; keep?: string; overrides?: readonly string[] }>(entries: readonly E[], includeRetracts = false): E[] {
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const overridden = new Set(entries.flatMap((entry) => (entry.kind === 'retract' ? entry.overrides ?? [] : [])));
+  const choices = new Set(entries.filter((entry) => entry.kind === 'retract' && entry.target && entry.keep && !overridden.has(entry.id)).map((entry) => `${entry.target} ${entry.keep}`));
+  const crossed = (entry: E): boolean => !!entry.keep && choices.has(`${entry.keep} ${entry.target}`);
+  const markers = entries.filter((entry) => entry.kind === 'retract' && !overridden.has(entry.id) && !crossed(entry));
+  const retracted = new Set(markers.filter((entry) => entry.target).map((entry) => entry.target!));
+  const successors = new Map<string, E[]>();
+  const markerSuccessors = new Map<string, E[]>();
+  const parentOf = (entry: E, seen = new Set<string>()): string | undefined => {
+    const parentId = entry.supersedes;
+    if (!parentId || seen.has(parentId)) return undefined;
+    const parent = byId.get(parentId);
+    if (parent?.kind !== 'retract') return parentId;
+    seen.add(parentId);
+    const restored = parent.target ? byId.get(parent.target) : undefined;
+    return restored ? parentOf(restored, seen) : undefined;
+  };
+  for (const entry of entries) {
+    if (entry.kind === 'retract') continue;
+    if (entry.supersedes && byId.get(entry.supersedes)?.kind === 'retract')
+      markerSuccessors.set(entry.supersedes, [...(markerSuccessors.get(entry.supersedes) ?? []), entry]);
+    const parentId = parentOf(entry);
+    if (parentId) successors.set(parentId, [...(successors.get(parentId) ?? []), entry]);
+  }
+  const branchMemo = new Map<string, boolean>();
+  const visiting = new Set<string>();
+  const branchSurvives = (entry: E): boolean => {
+    const known = branchMemo.get(entry.id);
+    if (known !== undefined) return known;
+    if (visiting.has(entry.id)) return false;
+    visiting.add(entry.id);
+    const survives = !retracted.has(entry.id) || (successors.get(entry.id) ?? []).some(branchSurvives);
+    visiting.delete(entry.id);
+    branchMemo.set(entry.id, survives);
+    return survives;
+  };
+  const live = entries.filter((entry) => entry.kind !== 'retract' && !retracted.has(entry.id) && !(successors.get(entry.id) ?? []).some(branchSurvives));
+  return includeRetracts ? [...live, ...markers.filter((entry) => !retracted.has(entry.id) && !markerSuccessors.has(entry.id))] : live;
+}
+
+export type ProjectedEntry<E> = E & { conflict?: { parentId: string; versions: E[] } };
+
+/**
+ * One visible entry per append-only lineage. Storage still retains every effective fork until a person retracts one. The
+ * counted version is one not written by a device if there is one (a corrected value beats a device value), then the
+ * latest `at`, then the id.
+ */
+export function projectEntries<E extends { id: string; at?: string; supersedes?: string; kind?: string; target?: string; keep?: string; source?: { by?: string } }>(entries: readonly E[]): ProjectedEntry<E>[] {
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const ancestors = (entry: E): string[] => {
+    const path: string[] = [];
+    const seen = new Set<string>();
+    let next: E | undefined = entry;
+    while (next && !seen.has(next.id)) {
+      path.push(next.id);
+      seen.add(next.id);
+      const parentId: string | undefined = next.kind === 'retract' ? next.target : next.supersedes;
+      if (parentId && !byId.has(parentId)) path.push(parentId);
+      next = parentId ? byId.get(parentId) : undefined;
+    }
+    return path;
+  };
+  const groups = new Map<string, E[]>();
+  for (const entry of effectiveEntries(entries)) {
+    const path = ancestors(entry);
+    const root = path[path.length - 1] ?? entry.id;
+    const group = groups.get(root) ?? [];
+    group.push(entry);
+    groups.set(root, group);
+  }
+  const compare = (a: E, b: E): number => (b.at ?? '').localeCompare(a.at ?? '') || b.id.localeCompare(a.id);
+  const byDevice = (e: E): number => (e.source?.by === 'device' ? 1 : 0);
+  const projected: ProjectedEntry<E>[] = [];
+  for (const group of groups.values()) {
+    group.sort((a, b) => byDevice(a) - byDevice(b) || compare(a, b));
+    const winner = group[0]!;
+    if (group.length === 1) {
+      projected.push(winner);
+      continue;
+    }
+    const paths = group.map(ancestors);
+    const parentId = paths[0]!.find((id) => paths.every((path) => path.includes(id))) ?? paths[0]![paths[0]!.length - 1]!;
+    projected.push({ ...winner, conflict: { parentId, versions: group } });
+  }
+  return projected.sort(compare);
 }
 
 export function entriesOn(entries: readonly LogEntry[], date: LocalDate): LogEntry[] {
-  return effectiveEntries(entries).filter((e) => e.date === date);
+  return projectEntries(entries).filter((e) => e.date === date);
 }
 
 export function measurementsInForce(ms: readonly MeasurementEntry[]): MeasurementEntry[] {
-  return effectiveEntries(ms);
+  return projectEntries(ms);
 }
 
 /**
@@ -82,7 +166,7 @@ export function addEst(a: Est, b: Est | undefined): Est {
 /** Day totals of the logged meals (assumed entries included only when `includeAssumed`). */
 export function mealTotals(entries: readonly LogEntry[], includeAssumed = true): { energyKcal: Est; proteinG: Est; carbG: Est; fatG: Est; fibreG: Est; alcoholG: Est } {
   const t = { energyKcal: zero(), proteinG: zero(), carbG: zero(), fatG: zero(), fibreG: zero(), alcoholG: zero() };
-  for (const e of entries) {
+  for (const e of projectEntries(entries)) {
     if (e.kind !== 'meal' || (!includeAssumed && e.assumed)) continue;
     const n: NutrientEstimate = e.totals;
     t.energyKcal = addEst(t.energyKcal, n.energyKcal);
@@ -99,7 +183,7 @@ export function mealTotals(entries: readonly LogEntry[], includeAssumed = true):
 export function aiEnergyShare(entries: readonly LogEntry[]): number {
   let ai = 0;
   let all = 0;
-  for (const e of entries) {
+  for (const e of projectEntries(entries)) {
     if (e.kind !== 'meal' || e.assumed) continue;
     const v = Math.max(0, e.totals.energyKcal.value);
     all += v;
@@ -109,7 +193,7 @@ export function aiEnergyShare(entries: readonly LogEntry[]): number {
 }
 
 /** Plain summary of an entry for Today and the Coach (no numbers the model computed; the app's totals only). */
-export function summarise(e: LogEntry): LogEntrySummary {
+function summarisePlain(e: LogEntry): LogEntrySummary {
   const base = { id: e.id, kind: e.kind, ...(e.at ? { at: e.at } : {}), source: e.source.by, aiEstimated: isAiEstimated(e.source), ...(e.confidence !== undefined ? { confidence: e.confidence } : {}) };
   switch (e.kind) {
     case 'meal':
@@ -135,14 +219,21 @@ export function summarise(e: LogEntry): LogEntrySummary {
   }
 }
 
+export function summarise(e: ProjectedEntry<LogEntry>): LogEntrySummary {
+  const summary = summarisePlain(e);
+  return e.conflict
+    ? { ...summary, conflict: { parentId: e.conflict.parentId, versions: e.conflict.versions.map(summarisePlain) } }
+    : summary;
+}
+
 /** Dates (within [from, to]) with at least one T1+ entry that is not assumed. */
 export function t1PlusDays(entries: readonly LogEntry[], measurements: readonly MeasurementEntry[], from: LocalDate, to: LocalDate): Set<LocalDate> {
   const out = new Set<LocalDate>();
-  for (const e of effectiveEntries(entries)) {
+  for (const e of projectEntries(entries)) {
     if (e.assumed || e.date < from || e.date > to) continue;
     if (tierOfEntry(e) !== 'T0') out.add(e.date);
   }
-  for (const m of effectiveEntries(measurements)) {
+  for (const m of projectEntries(measurements)) {
     if (m.assumed || m.date < from || m.date > to) continue;
     if (tierOfMeasurement(m) !== 'T0') out.add(m.date);
   }
@@ -152,8 +243,8 @@ export function t1PlusDays(entries: readonly LogEntry[], measurements: readonly 
 /** Dates with any non-assumed log, mark or weigh-in ("days logged"). */
 export function loggedDays(entries: readonly LogEntry[], measurements: readonly MeasurementEntry[], markedDates: readonly LocalDate[]): Set<LocalDate> {
   const out = new Set<LocalDate>(markedDates);
-  for (const e of effectiveEntries(entries)) if (!e.assumed) out.add(e.date);
-  for (const m of effectiveEntries(measurements)) if (!m.assumed) out.add(m.date);
+  for (const e of projectEntries(entries)) if (!e.assumed) out.add(e.date);
+  for (const m of projectEntries(measurements)) if (!m.assumed) out.add(m.date);
   return out;
 }
 

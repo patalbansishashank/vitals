@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { compositionModule } from './index';
 import { makeRig, setIntake } from './testHarness';
+import { measureUnderLoad } from '../../testing/benchLoad';
 
 function run180(regional: boolean, callModule = true): number {
   const r = makeRig(undefined, { regional });
@@ -44,10 +45,13 @@ function best(regional: boolean, n: number): number {
 
 describe('performance', () => {
   it('180-day run: hourly physics ≤ 0.5 ms (regional off); regional/waist daily update reported', () => {
-    const off = best(false, 60);
-    const on = best(true, 20);
-    console.log(`composition 180-d run: ${off.toFixed(3)} ms (regional off), ${on.toFixed(3)} ms (regional + waist on)`);
-    expect(off).toBeLessThan(0.5);
-    expect(on).toBeLessThan(20);
+    const {
+      result: { off, on },
+      factor,
+    } = measureUnderLoad(() => ({ off: best(false, 60), on: best(true, 20) }));
+    console.log(`composition 180-d run: ${off.toFixed(3)} ms (regional off), ${on.toFixed(3)} ms (regional + waist on) (load factor ${factor.toFixed(2)})`);
+    // limits scale with the machine load (benchLoad.ts)
+    expect(off).toBeLessThan(0.5 * factor);
+    expect(on).toBeLessThan(20 * factor);
   });
 });

@@ -1,5 +1,8 @@
 /** E9b meal logging through the bus: log.meal thresholds and nutrient rules, log.mealFromPhoto with a fake recognizer, log.bulk. */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { guardedCall } from '@/agents/dispatcher';
+import { createBusAgentDispatcher } from '@/commands/ai/agentDispatcher';
+import { toolManifest } from '@/commands/manifest';
 import { dispatch, settleCommits, type CommandResult } from '@/commands';
 import { freshState } from '@/commands/__tests__/harness';
 import { installAiPorts, type PhotoRecognition } from '@/commands/aiPorts';
@@ -84,6 +87,25 @@ describe('log.meal', () => {
     expect(b.status).toBe('ask');
     await settleCommits();
     expect(meals()).toHaveLength(0);
+  });
+
+  it('tells an MCP agent that nothing was logged for an unknown food, and why (J3-02)', async () => {
+    const dispatcher = createBusAgentDispatcher({ directApply: () => false });
+    let n = 0;
+    const call = (args: Record<string, unknown>) => guardedCall(dispatcher, toolManifest(), 'mcp', 'log_meal', args, { actor: { kind: 'mcp', id: 't' }, idempotencyKey: `k${n++}` });
+    const a = await call({ components: [{ name: 'xyzzy pie', grams: 100 }], method: 'typed' });
+    expect(a, JSON.stringify(a)).toMatchObject({ status: 'pending_user' });
+    expect(a.summary).toMatch(/^Not logged: .*xyzzy pie/);
+    expect(a.summary).toMatch(/Nothing was saved/);
+    expect(a.summary).not.toMatch(/done/);
+    await settleCommits();
+    expect(meals()).toHaveLength(0);
+    // a meal that is logged still says so
+    const b = await call({ components: [{ name: 'rice', foodId: 'rice_white_cooked', grams: 150 }], method: 'typed' });
+    expect(b.status).toBe('applied');
+    expect(b.summary).toMatch(/done/);
+    await settleCommits();
+    expect(meals()).toHaveLength(1);
   });
 
   it('rejects nutrient numbers unless they come from a label', async () => {

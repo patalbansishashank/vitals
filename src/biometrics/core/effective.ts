@@ -5,11 +5,13 @@
  * without a source; stored in `bioSources/policy:me`) and each source's own `BioSourceDoc.policies` (set when a device
  * or file first brings data in, or through `bio.setPolicy` with a source). The effective policy of a stream for a source
  * is the source's entry, else the person's, else — for data the person brought in themselves (an import or a device
- * they connected) — the "device turned on" suggestion (imported, scores, engine where eligible, Coach hidden).
- * Without a source and without a person entry everything is off.
+ * they connected) — the "device turned on" suggestion (imported, scores, engine where eligible, Coach hidden), or for a
+ * ring connected through Vitals the ring default (the same with the Coach seeing daily + detail; plan 04 item 11).
+ * Without a source and without a person entry everything is off. A person matrix nobody set is empty, so it never
+ * turns a ring stream off; an entry the person set does win.
  */
 import { DAILY_METRIC_GROUPS } from './resolve';
-import { normalizePolicy, POLICY_STREAMS, suggestedOnPolicy, type PolicyMatrix } from './policy';
+import { isRingSource, normalizePolicy, POLICY_STREAMS, ringDefaultPolicy, suggestedOnPolicy, type PolicyMatrix } from './policy';
 import type { BioBatch, BioRecord, BioSourceDoc, DailyRecord, PolicyStream, SpotMetric, StreamPolicy } from './types';
 
 /** Id of the person-level policy document in `bioSources` (never a source key: source keys start with a channel). */
@@ -41,10 +43,15 @@ function entry(list: readonly StreamPolicy[] | undefined, stream: PolicyStream):
 }
 
 /** The effective policy of `stream` for data from `source` (see the module comment). Always normalised. */
-export function effectivePolicy(source: Pick<BioSourceDoc, 'policies'> | null | undefined, person: readonly StreamPolicy[], stream: PolicyStream): StreamPolicy {
+export function effectivePolicy(
+  source: (Pick<BioSourceDoc, 'policies'> & { sourceKey?: string }) | null | undefined,
+  person: readonly StreamPolicy[],
+  stream: PolicyStream,
+): StreamPolicy {
   const own = entry(source?.policies, stream) ?? entry(person, stream);
   if (own) return normalizePolicy({ ...own, stream });
-  return source ? suggestedOnPolicy(stream) : off(stream);
+  if (!source) return off(stream);
+  return source.sourceKey && isRingSource({ sourceKey: source.sourceKey }) ? ringDefaultPolicy(stream) : suggestedOnPolicy(stream);
 }
 
 /** The person's matrix for every policy stream: their explicit entries, else the device-on suggestion. Used where no
@@ -64,7 +71,8 @@ export function withPolicy(list: readonly StreamPolicy[], p: StreamPolicy): Stre
   return out.sort((a, b) => a.stream.localeCompare(b.stream));
 }
 
-/** Policies for a source that has just appeared: the person's explicit entries replace the device-on suggestions. */
+/** Policies for a source that has just appeared: the person's explicit entries replace the source's own defaults (the
+ * device-on suggestion, or the ring defaults). Streams the person never set keep the source's default. */
 export function adoptPersonPolicies(sourcePolicies: readonly StreamPolicy[], person: readonly StreamPolicy[]): StreamPolicy[] {
   return sourcePolicies.map((p) => normalizePolicy(entry(person, p.stream) ?? p));
 }

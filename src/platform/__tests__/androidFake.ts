@@ -23,6 +23,8 @@ export function installFakeCapacitor(opts: { platform?: string; pending?: Shared
     }),
     batteryOptimisation: vi.fn(async () => ({ restricted: true })),
     openBatterySettings: vi.fn(async () => ({})),
+    setRingTick: vi.fn(async (_o: { everyMs: number }) => ({})),
+    ringTickDone: vi.fn(async () => ({})),
     saveFile: vi.fn(async (_o: { name: string; mime: string; dataBase64: string }) => ({})),
     addListener: vi.fn(async (event: string, cb: Listener) => {
       const set = listeners.get(event) ?? new Set<Listener>();

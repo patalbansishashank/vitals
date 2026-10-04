@@ -3,7 +3,7 @@
   .lv-train {
     display: grid;
     gap: var(--lm-space-4);
-    padding-block: var(--lm-space-4) var(--lm-space-8);
+    padding-bottom: var(--lm-space-8);
   }
 
   /* date strip: a mobile scroll strip whose next key peeks; snap keeps the gutter */

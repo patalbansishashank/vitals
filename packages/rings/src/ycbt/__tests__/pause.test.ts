@@ -13,7 +13,9 @@ import { QUIET_MS, SILENCE_MAX_MS } from '../protocol';
 import { ScriptedRing } from './ring';
 
 const QUIET = 30;
-const opts = { timers: { quietMs: QUIET, stallMs: 200 }, clock: { now: () => Date.parse('2026-07-06T12:34:14Z'), tzOffsetS: () => 0 } };
+const START_NOW = Date.parse('2026-07-06T12:34:14Z');
+let notificationNow = START_NOW;
+const opts = { timers: { quietMs: QUIET, stallMs: 200 }, clock: { now: () => notificationNow, tzOffsetS: () => 0 } };
 const f = (...b: number[]): string => toHex(frameLogical(b));
 const REC1 = [0x1c, 0xf0, 0xde, 0x31, 0x00, 0x47];
 const REC2 = [0x1a, 0xfe, 0xde, 0x31, 0x00, 0x42];
@@ -28,6 +30,7 @@ const hr = (evs: RingEvent[]): number[] => evs.flatMap((e) => (e.type === 'sampl
 const status = (evs: RingEvent[], key: string): string[] => evs.flatMap((e) => (e.type === 'status' && e.key === key ? [`${e.stream ?? ''}=${e.value}`] : []));
 
 async function open(pool: Array<{ hex: string; replies: string[] }>): Promise<{ ring: ScriptedRing; s: Awaited<ReturnType<typeof openRingSession>> }> {
+  notificationNow = START_NOW;
   const ring = new ScriptedRing(pool.map((p) => ({ ...p, used: false })), 'R10M 1A2B');
   ring.prelude = 'all';
   const s = await openRingSession(ycbt, ring, opts);
@@ -39,9 +42,11 @@ describe('YCBT history read across a pause after the header', () => {
   it('waits through several quiet periods and gets the whole type', async () => {
     expect(SILENCE_MAX_MS / QUIET_MS).toBeGreaterThanOrEqual(6);
     const { ring, s } = await open([{ hex: '05 06 06 00 83 20', replies: [HEADER, DATA1] }, { hex: ACK, replies: [] }]);
+    notificationNow = Date.parse('2026-07-07T00:34:14Z');
     const evs: RingEvent[] = [];
     const read = (async () => {
-      for await (const e of s.runtime.exchange({ op: 'history', params: { types: 'heart' } })) evs.push(e);
+      // The captured records are late evening; use a synthetic host clock after those samples.
+      for await (const e of s.runtime.exchange({ op: 'history', params: { types: 'heart', nowMs: START_NOW } })) evs.push(e);
     })();
     await sleep(QUIET * 3.3); // silent for more than three quiet periods, then the ring goes on
     ring.notify(DATA2);

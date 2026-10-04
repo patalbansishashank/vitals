@@ -80,6 +80,8 @@ export const SLEEP_COPY = {
   noStage: 'no stage',
   bpm: (n: number) => `${n}${T}bpm`,
   pct: (n: number) => `${n}${T}%`,
+  /** Blood oxygen as change from the person's normal (% points). */
+  pctChange: (signed: string) => `${signed}${T}%`,
   temp: (signed: string, unit: 'C' | 'F') => `${signed}${T}°${unit}`,
   gapNote: 'Breaks in a line are times with no readings.',
 

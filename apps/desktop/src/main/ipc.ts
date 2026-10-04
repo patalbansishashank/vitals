@@ -3,7 +3,7 @@
  * from our page (`isAppSender`) and that the arguments have the shape the contract promises; the modules behind the
  * channels are passed in, typed by the slice used here, so this wires W2–W4's modules without importing them.
  */
-import { AI_TOOL_IDS, CHANNELS, type AiToolId, type AiToolRow, type DesktopOs, type McpCallResponse, type McpServerInfo, type SecretKey } from '../shared/bridge';
+import { AI_TOOL_IDS, CHANNELS, isServerMcpUrl, type AiToolId, type AiToolRow, type DesktopInfo, type McpCallResponse, type McpServerInfo, type SecretKey } from '../shared/bridge';
 import { isAppSender } from './security';
 
 interface IpcEvent {
@@ -18,9 +18,39 @@ export interface IpcMainSlice {
   removeHandler(channel: string): void;
 }
 
+/** How recent the person's click or key press must be for `mcpAdd`. */
+export const ADD_INPUT_MS = 10_000;
+
+/** Input from the person: a click, a key or a tap. Activation the app grants the page itself (`executeJavaScript(…, true)`) sends no input event. */
+const PERSON_INPUT = new Set(['mouseDown', 'mouseUp', 'rawKeyDown', 'keyDown', 'keyUp', 'char', 'gestureTap', 'touchEnd']);
+
+export interface InputSource {
+  on(event: 'input-event', listener: (event: unknown, input: { type: string }) => void): unknown;
+}
+
+export interface RealInput {
+  /** When the person last clicked, tapped or pressed a key in the window (`now()` time), or null; clears it, so one input allows one Add. */
+  take(): number | null;
+}
+
+/** Remembers the window's last real input (`webContents.on('input-event')`). */
+export function watchRealInput(wc: InputSource, now: () => number = Date.now): RealInput {
+  let last: number | null = null;
+  wc.on('input-event', (_e, input) => {
+    if (PERSON_INPUT.has(input?.type)) last = now();
+  });
+  return {
+    take() {
+      const at = last;
+      last = null;
+      return at;
+    },
+  };
+}
+
 export interface IpcDeps {
   ipcMain: IpcMainSlice;
-  info: { version: string; os: DesktopOs };
+  info: DesktopInfo;
   /** The tray, when there is one (it can be created after the window). */
   tray(): { setStatus(s: { ring?: string; sync?: string }): void } | null;
   autostart: { get(): Promise<boolean>; set(on: boolean): Promise<void> };
@@ -28,8 +58,12 @@ export interface IpcDeps {
   aiTools: { list(): Promise<AiToolRow[]>; add(id: AiToolId): Promise<AiToolRow>; remove(id: AiToolId): Promise<AiToolRow> };
   relay: { handleResult(r: McpCallResponse): void; setManifest(m: unknown): void };
   setServer(info: McpServerInfo | null): void;
-  secrets: { get(k: SecretKey): Promise<string | null>; set(k: SecretKey, v: string | null): Promise<void> };
+  /** Write only: no channel hands a secret back to the page. */
+  secrets: { set(k: SecretKey, v: string | null): Promise<void> };
   keepAlive(on: boolean, text: string): void;
+  /** Main's own check that Add follows a click: the preload's `userActivation` check can be satisfied without one. */
+  realInput: RealInput;
+  now?: () => number;
 }
 
 const isToolId = (id: unknown): id is AiToolId => AI_TOOL_IDS.includes(id as AiToolId);
@@ -38,7 +72,7 @@ const optText = (v: unknown): string | undefined => (typeof v === 'string' ? v.s
 
 /** Registers every handler; returns the function that removes them. */
 export function registerIpc(d: IpcDeps): () => void {
-  const { ipcMain } = d;
+  const { ipcMain, now = Date.now } = d;
   const handled: string[] = [];
   const listened: Array<[string, (event: IpcEvent, ...args: unknown[]) => void]> = [];
 
@@ -76,6 +110,8 @@ export function registerIpc(d: IpcDeps): () => void {
   handle(CHANNELS.mcpTools, () => d.aiTools.list());
   handle(CHANNELS.mcpAdd, (id) => {
     if (!isToolId(id)) throw new Error('unknown AI tool');
+    const at = d.realInput.take();
+    if (at === null || now() - at > ADD_INPUT_MS) throw new Error('Add needs a click in the dialog.');
     return d.aiTools.add(id);
   });
   handle(CHANNELS.mcpRemove, (id) => {
@@ -87,13 +123,10 @@ export function registerIpc(d: IpcDeps): () => void {
     if (o && typeof o.callId === 'string') d.relay.handleResult({ callId: o.callId, envelope: o.envelope });
   });
   on(CHANNELS.mcpManifest, (_e, m) => d.relay.setManifest(m ?? null));
+  // an agent key goes only to https, or to http on this computer: anything else is no server
   on(CHANNELS.mcpServer, (_e, info) => {
     const o = info as Partial<McpServerInfo> | null;
-    d.setServer(o && typeof o.mcpUrl === 'string' ? { mcpUrl: o.mcpUrl } : null);
-  });
-  handle(CHANNELS.secretsGet, (k) => {
-    if (!isSecretKey(k)) throw new Error('unknown secret');
-    return d.secrets.get(k);
+    d.setServer(o && isServerMcpUrl(o.mcpUrl) ? { mcpUrl: o.mcpUrl } : null);
   });
   handle(CHANNELS.secretsSet, (k, v) => {
     if (!isSecretKey(k)) throw new Error('unknown secret');

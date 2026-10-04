@@ -8,7 +8,7 @@
 import type { BioStream } from '../../../../src/biometrics/core/types';
 import type { RingEvent, SleepStage } from '../types';
 import {
-  APP, DEV, GET, GROUP, MODE, REAL, SETTING, ringTimeToMs, supportFunctions, zoneOffsetS,
+  APP, DEV, GET, GROUP, MODE, REAL, SETTING, localToEpochMs, ringTimeToMs, supportFunctions, zoneOffsetS,
   type Capability, type HistoryTypeName, type YcbtFrame, type ZoneContext,
 } from './commands';
 
@@ -318,7 +318,8 @@ const HISTORY_VENDOR: Partial<Record<MeasurementKind, readonly [string, string]>
 /** Epoch ms of the local midnight that starts `t`'s day (the `dailyTotal.localDay` convention of records.ts). */
 export function localDay(t: number, zone: ZoneContext): number {
   const off = (zone.tz ? zoneOffsetS(zone.tz, t) : zone.tzOffsetS) * 1000;
-  return Math.floor((t + off) / 86_400_000) * 86_400_000 - off;
+  const wallMidnight = Math.floor((t + off) / 86_400_000) * 86_400_000;
+  return localToEpochMs(wallMidnight / 1000, zone);
 }
 
 /**
@@ -333,14 +334,15 @@ export function toRingEvents(d: YcbtDecoded, zone: ZoneContext, firmware: string
     case 'TimeSyncAck':
       return [{ type: 'status', key: 'ack', value: 'time' }];
     case 'HeartRateSample':
-      return [{ type: 'sample', stream: 'hr', t: d._timestamp, value: d.bpm, unit: 'bpm', origin }];
+      return d.bpm >= 30 && d.bpm <= 220 ? [{ type: 'sample', stream: 'hr', t: d._timestamp, value: d.bpm, unit: 'bpm', origin }] : [];
     case 'Spo2Result':
       return [{ type: 'sample', stream: 'spo2', t: d._timestamp, value: d.value, unit: '%', origin }];
     case 'HrvSample':
       return [{ type: 'sample', stream: 'hrv', t: d._timestamp, value: d.value, unit: 'ms', origin }];
     case 'TemperatureSample':
-      return [{ type: 'sample', stream: 'skin_temp', t: d._timestamp, value: d.celsius, unit: '°C', origin }];
+      return d.celsius >= 30 && d.celsius <= 45 ? [{ type: 'sample', stream: 'skin_temp', t: d._timestamp, value: d.celsius, unit: '°C', origin }] : [];
     case 'BloodPressureSample': {
+      if (d.systolic < 60 || d.systolic > 250 || d.diastolic < 30 || d.diastolic > 150) return [];
       const o = d.isHistory ? 'history' : origin;
       return [
         { type: 'vendor', key: 'ycbt_bp_systolic', t: d._timestamp, value: d.systolic, unit: 'mmHg', origin: o },
@@ -367,6 +369,9 @@ export function toRingEvents(d: YcbtDecoded, zone: ZoneContext, firmware: string
     case 'MeasurementRejected':
       return [{ type: 'status', key: 'error', value: `measurement_rejected:${d.mode}` }];
     case 'HistoryMeasurement': {
+      if (d.kind_field === 'HEART_RATE' && (d.value < 30 || d.value > 220)) return [];
+      if (d.kind_field === 'SPO2' && (d.value < 70 || d.value > 100)) return [];
+      if (d.kind_field === 'TEMPERATURE' && (d.value < 30 || d.value > 45)) return [];
       const s = HISTORY_SAMPLE[d.kind_field];
       if (s) return [{ type: 'sample', stream: s[0], t: d._timestamp, value: d.value, unit: s[1], origin: 'history' }];
       const v = HISTORY_VENDOR[d.kind_field]!;

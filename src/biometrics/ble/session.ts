@@ -82,7 +82,7 @@ export async function openSession(driver: BleDriver, link: BleLink, opts: Sessio
   let state = protocol.initialState();
   let closed = false;
   let dropped = false;
-  const inbox: Uint8Array[] = [];
+  const inbox: Array<{ bytes: Uint8Array; receivedMs: number }> = [];
   let wake: (() => void) | null = null;
   const poke = (): void => {
     const w = wake;
@@ -91,7 +91,7 @@ export async function openSession(driver: BleDriver, link: BleLink, opts: Sessio
   };
 
   const unsubscribe = await link.subscribe(svc, uuids.notify, (bytes) => {
-    inbox.push(bytes);
+    inbox.push({ bytes, receivedMs: clock.now() });
     poke();
   });
   const offDisconnect = isDisconnectAware(link)
@@ -116,7 +116,7 @@ export async function openSession(driver: BleDriver, link: BleLink, opts: Sessio
   const stamp = (cmd: RingCommand): RingCommand => ({ ...cmd, params: { nowMs: clock.now(), tzOffsetS: clock.tzOffsetS(), ...cmd.params } });
 
   /** Waits for a packet, the timer, abort or disconnect. */
-  const nextPacket = (ms: number | undefined, signal?: AbortSignal): Promise<Uint8Array | 'timeout'> =>
+  const nextPacket = (ms: number | undefined, signal?: AbortSignal): Promise<{ bytes: Uint8Array; receivedMs: number } | 'timeout'> =>
     new Promise((resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const cleanup = (): void => {
@@ -156,7 +156,7 @@ export async function openSession(driver: BleDriver, link: BleLink, opts: Sessio
           ? protocol.timeout
             ? protocol.timeout(state, sawPacket && quietMs !== undefined ? 'quiet' : 'stall')
             : { events: [{ type: 'status', key: 'error', value: `timeout:${cmd.op}` } as RingDecodedEvent], state, done: true }
-          : protocol.ingest(got, state);
+          : protocol.ingest(got.bytes, state, undefined, got.receivedMs);
       sawPacket = got !== 'timeout';
       state = r.state;
       for (const e of r.events) yield e;

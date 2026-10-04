@@ -1,26 +1,31 @@
 /**
- * Blood oxygen and skin temperature per night (ring-pages.md §7.4.7), or per month on the year.
- * - Blood oxygen: per night a range line from the lowest reading to the night's average (recovery hue at 50 %) with
- *   the average as an 8 px dot; the person's normal band behind; y fixed 85–100 % (a narrow absolute scale is the
- *   honest one here), ticks 90, 95, 100. The floor only moves down if a night went lower, so nothing is cut off.
+ * Blood oxygen and skin temperature per night (ring-pages.md §7.4.7), or per month on the year. Both are tier C
+ * signals (D6): once the person's normal has formed they are drawn as change from it, around a 1 px zero line labelled
+ * "your normal"; absolute values appear only in the table twin.
+ * - Blood oxygen (`relative`): per night a range line from the lowest reading's change to the night's average change
+ *   (recovery hue at 50 %) with the average as an 8 px dot; y hugs the data (and 0) with 10 % padding. While the normal
+ *   forms (fewer than 14 nights) the chart shows the absolute values instead: y fixed 85–100 %, ticks 90, 95, 100, the
+ *   floor only moving down if a night went lower, so nothing is cut off.
  * - Skin temperature: per night a column from the zero line ("your normal") up or down to the night's change from
  *   normal, recovery hue, 4 px rounded data end, square base on the zero line. No diverging colour: position carries
  *   the sign.
- * A missing night is the dashed stub (temperature: on the zero line); a future night draws nothing.
+ * The "your normal" label takes the first clear spot beside the zero line (right above, right below, left above, left
+ * below) so no bar or dot covers it; with none clear it moves into the top margin.
+ * A missing night is the dashed stub (on the zero line in change mode); a future night draws nothing.
  */
 import { memo, type ReactNode } from 'react';
 import { formatNumber, formatSigned } from '@/components/lib/format';
 import type { LocalDate } from '@/living';
 import type { PeriodWindow } from '../models';
 import { HEART_COPY as C } from './copyHeart';
-import { SlotChart } from './DailyRange';
+import { SlotChart, type SlotGeometry } from './DailyRange';
 import './heart.css';
 
 export interface NightRangeDatum {
   start: LocalDate;
   future: boolean;
   recorded: boolean;
-  /** Blood oxygen: the night's (or month's) average and lowest, %. */
+  /** Blood oxygen: the night's (or month's) average and lowest: % (absolute) or % points from the normal (relative). */
   avg?: number | null;
   lowest?: number | null;
   /** Skin temperature: change from the person's normal, in the display unit; null while the normal forms. */
@@ -45,7 +50,7 @@ interface Common {
 }
 
 export type NightRangesProps =
-  | (Common & { kind: 'spo2'; normal?: { lo: number; hi: number } | null })
+  | (Common & { kind: 'spo2'; /** `avg` / `lowest` are changes from the person's normal (it has formed). */ relative?: boolean })
   | (Common & { kind: 'temp'; unit: '°C' | '°F' });
 
 const finite = (v: number | null | undefined): v is number => typeof v === 'number' && Number.isFinite(v);
@@ -67,10 +72,114 @@ export function columnPath(x: number, w: number, y0: number, y1: number, r = 4):
   ].join(' ');
 }
 
+/** Pixel box of the marks in one slot (for keeping the "your normal" label clear of them). */
+export interface MarkBox {
+  x0: number;
+  x1: number;
+  top: number;
+  bottom: number;
+}
+
+/** Width of the 11 px "your normal" label plus a little air. */
+export const ZERO_LABEL_W = 66;
+
+/**
+ * Where the "your normal" label goes: the first spot beside the zero line that no mark covers (right above, right
+ * below, left above, left below); with none clear, the top margin at the right, over the plot area.
+ */
+export function zeroLabelSpot(g: SlotGeometry, boxes: readonly MarkBox[], labelW = ZERO_LABEL_W): { x: number; y: number; anchor: 'start' | 'end' } {
+  const y0 = g.Y(0);
+  const spots = [
+    { x: g.right - 2, anchor: 'end' as const, above: true },
+    { x: g.right - 2, anchor: 'end' as const, above: false },
+    { x: g.padL + 2, anchor: 'start' as const, above: true },
+    { x: g.padL + 2, anchor: 'start' as const, above: false },
+  ];
+  for (const s of spots) {
+    const lx0 = s.anchor === 'end' ? s.x - labelW : s.x, lx1 = s.anchor === 'end' ? s.x : s.x + labelW;
+    // text box: 11 px tall, baseline 4 px above the line, or its top 3 px below it
+    const ly0 = s.above ? y0 - 14 : y0 + 3, ly1 = s.above ? y0 - 2 : y0 + 15;
+    if (ly0 < 0 || ly1 > g.bottom) continue;
+    const hit = boxes.some((b) => b.x1 > lx0 && b.x0 < lx1 && b.bottom > ly0 && b.top < ly1);
+    if (!hit) return { x: s.x, y: s.above ? y0 - 4 : y0 + 12, anchor: s.anchor };
+  }
+  return { x: g.right - 2, y: g.top - 3, anchor: 'end' };
+}
+
+/** The zero line and its "your normal" label, drawn over the marks so nothing hides it. */
+function ZeroLine({ g, boxes }: { g: SlotGeometry; boxes: readonly MarkBox[] }) {
+  const y0 = g.Y(0);
+  const spot = zeroLabelSpot(g, boxes);
+  return (
+    <>
+      <line className="hr-zero" data-mark="zero" x1={g.padL} x2={g.right} y1={Math.round(y0) + 0.5} y2={Math.round(y0) + 0.5} />
+      <text className="hr-zero-label hr-halo" data-mark="zero-label" x={spot.x} y={spot.y} textAnchor={spot.anchor}>
+        {C.yourNormal}
+      </text>
+    </>
+  );
+}
+
+/** 2–3 whole-number ticks (steps of 1, 2, 5, 10 … points) inside [lo, hi]; 0 is always one of them. */
+export function changeTicks(lo: number, hi: number): number[] {
+  for (const step of [1, 2, 5, 10, 20, 50]) {
+    const out: number[] = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v === 0 ? 0 : v);
+    if (out.length <= 3) return out;
+  }
+  return [0];
+}
+
+/** Blood oxygen as change from the person's normal: y hugs the changes and 0, at least 2 points tall, + 10 %. */
+export function spo2ChangeDomain(data: readonly NightRangeDatum[]): [number, number] {
+  const vals = data.flatMap((d) => (d.future ? [] : [d.avg, d.lowest])).filter(finite);
+  let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals);
+  if (hi - lo < 2) {
+    const c = (lo + hi) / 2;
+    lo = Math.min(lo, c - 1);
+    hi = Math.max(hi, c + 1);
+  }
+  const pad = (hi - lo) * 0.1;
+  return [lo - pad, hi + pad];
+}
+
 export const NightRanges = memo(function NightRanges(props: NightRangesProps) {
   const { data, kind, ...rest } = props;
+  if (props.kind === 'spo2' && props.relative) {
+    const domain = spo2ChangeDomain(data);
+    return (
+      <SlotChart
+        {...rest}
+        hue="recovery"
+        unit="%"
+        slots={data}
+        domain={domain}
+        yTicks={changeTicks(domain[0], domain[1])}
+        yFormat={(v) => (v === 0 ? '0' : formatSigned(v, 0))}
+        stubY={(g) => g.Y(0) + 2}
+        marks={(g) => {
+          const boxes: MarkBox[] = [];
+          data.forEach((d, i) => {
+            if (d.future || !finite(d.avg)) return;
+            const ya = g.Y(d.avg), yl = finite(d.lowest) ? g.Y(d.lowest) : ya;
+            boxes.push({ x0: g.X(i) - 4, x1: g.X(i) + 4, top: Math.min(ya - 4, yl), bottom: Math.max(ya + 4, yl) });
+          });
+          return (
+            <>
+              {data.map((d, i) =>
+                !d.future && finite(d.lowest) && finite(d.avg) ? (
+                  <line key={`r${i}`} className="hr-range" data-mark="range" x1={g.X(i)} x2={g.X(i)} y1={g.Y(d.lowest)} y2={g.Y(d.avg)} />
+                ) : null,
+              )}
+              {data.map((d, i) => (!d.future && finite(d.avg) ? <circle key={`d${i}`} className="hr-dot" data-mark="dot" cx={g.X(i)} cy={g.Y(d.avg)} r={4} /> : null))}
+              <ZeroLine g={g} boxes={boxes} />
+            </>
+          );
+        }}
+      />
+    );
+  }
   if (kind === 'spo2') {
-    const normal = props.normal ?? null;
     const lows = data.map((d) => d.lowest).filter(finite);
     const floor = Math.min(85, ...(lows.length ? [Math.floor(Math.min(...lows) / 5) * 5] : []));
     const domain: [number, number] = [floor, 100.5];
@@ -83,11 +192,6 @@ export const NightRanges = memo(function NightRanges(props: NightRangesProps) {
         slots={data}
         domain={domain}
         yTicks={yTicks}
-        under={(g) =>
-          normal ? (
-            <rect className="hr-normal" data-mark="normal" x={g.padL} y={g.Y(Math.min(100, normal.hi))} width={g.right - g.padL} height={Math.max(1, g.Y(normal.lo) - g.Y(Math.min(100, normal.hi)))} />
-          ) : null
-        }
         marks={(g) => (
           <>
             {data.map((d, i) =>
@@ -120,17 +224,20 @@ export const NightRanges = memo(function NightRanges(props: NightRangesProps) {
       stubY={(g) => g.Y(0) + 2}
       marks={(g) => {
         const y0 = g.Y(0);
+        const boxes: MarkBox[] = [];
+        data.forEach((d, i) => {
+          if (d.future || !finite(d.dev)) return;
+          const y1 = g.Y(d.dev);
+          boxes.push({ x0: g.X(i) - g.colW / 2, x1: g.X(i) + g.colW / 2, top: Math.min(y0, y1), bottom: Math.max(y0, y1) });
+        });
         return (
           <>
-            <line className="hr-zero" data-mark="zero" x1={g.padL} x2={g.right} y1={Math.round(y0) + 0.5} y2={Math.round(y0) + 0.5} />
-            <text className="hr-zero-label hr-halo" x={g.right - 2} y={y0 - 4} textAnchor="end">
-              {C.yourNormal}
-            </text>
             {data.map((d, i) =>
               !d.future && finite(d.dev) ? (
                 <path key={`c${i}`} className="hr-col" data-mark="column" data-sign={d.dev >= 0 ? 'up' : 'down'} d={columnPath(g.X(i) - g.colW / 2, g.colW, y0, g.Y(d.dev))} />
               ) : null,
             )}
+            <ZeroLine g={g} boxes={boxes} />
           </>
         );
       }}

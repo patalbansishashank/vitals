@@ -43,6 +43,10 @@ function ringLinkOf(link: BleLink): RingLink {
     get deviceName() {
       return link.deviceName;
     },
+    // the platform id the ring's identity may come from (never the name)
+    get deviceId() {
+      return (link as { deviceId?: string }).deviceId;
+    },
     onDisconnect: () => () => {},
     disconnect: () => link.disconnect(),
   };
@@ -89,7 +93,7 @@ export function bleProtocolOf(p: Protocol): BleProtocol {
   return {
     initialState: () => p.initialState(),
     frame: (cmd) => p.frame(cmd, p.initialState()).map((f) => f.bytes),
-    ingest: (bytes, state) => widen(p.ingest(bytes, state)),
+    ingest: (bytes, state, channel, receivedMs) => widen(p.ingest(bytes, state, channel, receivedMs)),
     planSync: (cursor) => p.planSync(cursor, p.initialState()),
     ...(p.begin ? { begin: (cmd: RingCommand, state: ProtocolState) => p.begin!(cmd, state) } : {}),
     ...(p.timeout ? { timeout: (state: ProtocolState, kind: 'quiet' | 'stall') => widen(p.timeout!(state, kind)) } : {}),

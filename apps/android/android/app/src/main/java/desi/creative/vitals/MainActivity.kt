@@ -2,9 +2,11 @@ package desi.creative.vitals
 
 import android.content.Intent
 import android.os.Bundle
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
 import com.getcapacitor.BridgeActivity
+import com.getcapacitor.WebViewListener
 
 /**
  * The one activity. Capacitor's BridgeActivity loads the web app; this adds the VitalsShell plugin, the share
@@ -20,6 +22,9 @@ import com.getcapacitor.BridgeActivity
 class MainActivity : BridgeActivity() {
 
     private var handledIntent: Intent? = null
+
+    /** The WebView's renderer is gone and a fresh activity (and WebView) is on its way: the service stays. */
+    private var restarting = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         registerPlugin(VitalsShellPlugin::class.java)
@@ -38,6 +43,18 @@ class MainActivity : BridgeActivity() {
         // Keep the renderer process at foreground priority even when the activity is hidden (API 26+); otherwise
         // Android lowers it as soon as the screen goes off and may kill it under memory pressure.
         bridge?.webView?.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
+
+        // Measured on the owner's phone: with the screen off for 20 minutes the system dropped the WebView's renderer
+        // ("isolated not needed"), and WebView's default for an unhandled loss is to kill the app with it. Handle it:
+        // keep the process and the ring service, and start over with a fresh activity and WebView, whose JS
+        // reconnects the ring.
+        bridge?.addWebViewListener(object : WebViewListener() {
+            override fun onRenderProcessGone(webView: WebView?, detail: RenderProcessGoneDetail?): Boolean {
+                restarting = true
+                runOnUiThread { recreate() }
+                return true
+            }
+        })
 
         // Capacitor has no back handling of its own (that is @capacitor/app, not a dependency): without this the
         // activity finishes and the ring link dies. Go back in the web history, else leave the app in the background.
@@ -94,8 +111,9 @@ class MainActivity : BridgeActivity() {
 
     override fun onDestroy() {
         ShellState.activityAlive = false
-        // The WebView (and the ring link in it) is gone: the service has nothing left to keep alive.
-        RingLinkService.stop(this)
+        // The WebView (and the ring link in it) is gone: the service has nothing left to keep alive, unless a fresh
+        // WebView is about to take over.
+        if (!restarting && !isChangingConfigurations) RingLinkService.stop(this)
         super.onDestroy()
     }
 }

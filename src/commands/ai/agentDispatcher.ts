@@ -49,6 +49,14 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/** Why a write logged nothing, when its own output says so (`status: 'ask'` with a question, or `logged: false`). */
+function notLogged(def: CommandDef, output: unknown): string | null {
+  if (def.perm !== 'write' || typeof output !== 'object' || output === null) return null;
+  const o = output as { status?: unknown; logged?: unknown; question?: unknown };
+  if (o.status !== 'ask' && o.logged !== false) return null;
+  return typeof o.question === 'string' && o.question ? o.question : 'one answer is needed from the person.';
+}
+
 async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSignal): Promise<ToolResultEnvelope> {
   if (!r.ok) return fromError(r.error);
   if ('pending' in r && r.redirected) {
@@ -81,6 +89,16 @@ async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSigna
     return { ok: true, status: 'running', jobId: r.job.jobId, summary: `${def.title} is running. Check progress with the job status tool.` };
   }
   const output = def.toModel ? def.toModel(r.output as never) : r.output;
+  const unlogged = notLogged(def, r.output);
+  if (unlogged) {
+    // the command asked a question instead of writing (an unknown food, a low-confidence meal): nothing is saved
+    return {
+      ok: true,
+      status: 'pending_user',
+      summary: `Not logged: ${unlogged} Nothing was saved. Ask the person, then call ${def.title} again with the answer.`.slice(0, 400),
+      ...(output !== undefined ? { data: await capped(output) } : {}),
+    };
+  }
   const notes = r.notices.filter((n) => n.level !== 'info').map((n) => n.text);
   const base = def.perm === 'read' ? `Looked at ${lowerFirst(def.title)}.` : `${def.title}: done.`;
   return {

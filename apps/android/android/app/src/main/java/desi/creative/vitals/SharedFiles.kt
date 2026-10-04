@@ -21,6 +21,7 @@ object SharedFiles {
     private const val TAG = "VitalsShell"
     private const val DIR = "shared"
     private const val MAX_AGE_MS = 24L * 60 * 60 * 1000
+    private const val MAX_CACHE_BYTES = 256L * 1024 * 1024
 
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -110,12 +111,15 @@ object SharedFiles {
             return null
         }
         val folder = dir(context).apply { mkdirs() }
+        val used = folder.listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
+        val remaining = (MAX_CACHE_BYTES - used).coerceAtLeast(0L)
+        if (remaining == 0L) return null
         val taken = (folder.list()?.toSet() ?: emptySet()) + ShellState.pendingSharedNames()
         val name = SharedFileNames.unique(SharedFileNames.sanitise(displayName, mime), taken)
         val target = File(folder, name)
         val size = try {
             resolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(target).use { output -> input.copyTo(output, 64 * 1024) }
+                FileOutputStream(target).use { output -> SharedFileBytes.copy(input, output, remaining) }
             }
         } catch (e: Exception) {
             target.delete() // no half-copied file left behind

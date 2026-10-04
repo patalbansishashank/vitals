@@ -6,6 +6,7 @@ import type { RingDecodedEvent } from '../../../../src/biometrics/core/ble/types
 import type { IngestResult, Protocol, RingEvent, SleepStage } from '../types';
 import { redactOutbound } from './commands';
 import { createJStyle2301Protocol, type J2301Options } from './legacyProtocol';
+import { plausibleAggregate } from '../plausibility';
 
 export type { J2301State, OpcodeCursor } from './legacyProtocol';
 export { decodeCursor, encodeCursor, historyReady, planJ2301Sync, DRIFT_REPORT_S, MAX_PAGES, PACKETS_PER_PAGE, REPLY_MS, SETTLE_MS, SILENCE_MAX_MS, STALL_MS } from './legacyProtocol';
@@ -19,7 +20,7 @@ export function toRingEvent(e: RingDecodedEvent): RingEvent {
 }
 
 /** The 0x51 day totals arrive as `vendor daily_*` values at the day's local midnight; one `dailyTotal` per day joins them. */
-const DAILY: Record<string, 'steps' | 'distanceM' | 'kcal' | 'activeS'> = { daily_steps: 'steps', daily_distance: 'distanceM', daily_kcal: 'kcal', exercise_duration_raw: 'activeS' };
+const DAILY: Record<string, 'steps' | 'distanceM' | 'kcal' | 'activeS'> = { daily_steps: 'steps', daily_distance: 'distanceM', daily_kcal: 'kcal', active_minutes: 'activeS' };
 
 export function toRingEvents(events: RingDecodedEvent[]): RingEvent[] {
   const out = events.map(toRingEvent);
@@ -29,10 +30,10 @@ export function toRingEvents(events: RingDecodedEvent[]): RingEvent[] {
     const field = DAILY[e.key];
     if (!field) continue;
     const d = days.get(e.t) ?? { type: 'dailyTotal', localDay: e.t };
-    d[field] = e.value;
+    d[field] = field === 'activeS' ? e.value * 60 : e.value;
     days.set(e.t, d);
   }
-  return [...out, ...days.values()];
+  return [...out, ...days.values()].filter(plausibleAggregate);
 }
 
 export function createJ2301Protocol(opts: J2301Options = {}): Protocol {
@@ -44,7 +45,7 @@ export function createJ2301Protocol(opts: J2301Options = {}): Protocol {
   return {
     initialState: legacy.initialState,
     frame: (cmd) => legacy.frame(cmd).map((bytes) => ({ bytes })),
-    ingest: (bytes, state) => widen(legacy.ingest(bytes, state)),
+    ingest: (bytes, state, channel, receivedMs) => widen(legacy.ingest(bytes, state, channel, receivedMs)),
     planSync: (cursor) => legacy.planSync(cursor),
     begin: (cmd, state) => legacy.begin!(cmd, state),
     timeout: (state, kind) => widen(legacy.timeout!(state, kind)),

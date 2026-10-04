@@ -34,11 +34,14 @@ const SECRETS_TO_HIDE = secretsOf(PAIR_QR);
 const NOT_ON_SERVER_SEED = ['planner.find', 'nav.open', 'markers.import', 'log.mealFromPhoto', 'plan.replan', 'plan.declareEvent', 'plan.shift', 'plan.editDay'];
 /** `log.mealFromPhoto` → `log_meal_from_photo` (the manifest's tool names). */
 const toolNameOf = (id) => id.replace(/\./g, '_').replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
-const SECRET_KEY_CODEX = 'agentToken:codex';
 /** qa/fixtures/Q4/script.json rule J3-meal: the stand-in model answers with one log_meal call, then a plain reply. */
 const COACH_MEAL = 'I ate dal, rice and two eggs';
 const STAND_IN_MODEL = 'q4-scripted';
 const STAND_IN_KEY = 'e2e-fake-key'; // not a real key: the stand-in only notes that one was sent
+/** Where the page keeps the server ids of the keys it made (src/features/settings/agents/agentKeyIds.ts). */
+const KEY_IDS = 'vitals-desktop-agent-key-ids';
+/** The Codex key's server id, from 8b (for 8d). */
+let codexKeyId = null;
 if (ONLY_SERVER && !PAIR_QR) {
   console.error('VITALS_E2E_ONLY=server needs VITALS_E2E_PAIR_FILE');
   process.exit(2);
@@ -993,27 +996,25 @@ async function serverChecks() {
     const dialog = page.getByRole('dialog', { name: 'Add Vitals to Codex?' });
     await dialog.waitFor({ timeout: 10_000 });
     assert((await dialog.innerText()).includes('through your server'), 'the consent dialog does not say Codex reaches Vitals through the server');
+    // the page cannot read the key back from the app (review DESK-06): it is taken from the server's answer, never printed
+    const minted = page.waitForResponse((r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/v1/agents/tokens', { timeout: 30_000 });
     await dialog.getByRole('button', { name: 'Add Vitals' }).click();
+    const key = await (await minted).json().catch(() => null);
+    assert(typeof key?.token === 'string' && key.token.length > 0 && typeof key?.id === 'string' && key.id.length > 0, 'the server minted no agent key');
+    codexKeyId = key.id;
     await section.getByRole('button', { name: 'Remove Vitals from Codex' }).waitFor({ timeout: 30_000 });
     const alerts = (await section.locator('[role=alert]').allInnerTexts()).join(' | ');
     assert(!alerts, `Connect your AI tools shows: ${alerts}`);
-    // the key is checked inside the page: only booleans come back
+    // the page keeps only the key's id, for Remove (review J4-02)
     await until(
-      () => page.evaluate(async (k) => {
-        const t = await window.vitalsDesktop.secrets.get(k);
-        return typeof t === 'string' && t.length > 0;
-      }, SECRET_KEY_CODEX),
+      () => page.evaluate(([k, id]) => (JSON.parse(localStorage.getItem(k) ?? '{}').codex ?? []).includes(id), [KEY_IDS, key.id]),
       20_000,
-      'the agent key in vitalsDesktop.secrets',
+      'the page to keep the new key id',
     );
     const toml = read(CODEX_FILE) ?? '';
     assert(toml.includes('[mcp_servers.vitals]') && toml.includes('"--client", "codex"'), 'the Codex file has no vitals entry');
-    const leaked = await page.evaluate(async ([k, text]) => {
-      const t = await window.vitalsDesktop.secrets.get(k);
-      return !!t && text.includes(t);
-    }, [SECRET_KEY_CODEX, toml]);
-    assert(!leaked, 'the agent key was written into the Codex file');
-    return 'consent says "through your server"; a non-empty key is in vitalsDesktop.secrets (not shown) and not in the Codex file; the Codex file has the vitals table';
+    assert(!toml.includes(key.token), 'the agent key was written into the Codex file');
+    return 'consent says "through your server"; the server minted a key (not shown), the page kept only its id, the key is not in the Codex file; the Codex file has the vitals table (8c shows the app holds the key)';
   });
 
   await check('8c server: --mcp --client codex goes to the server with that key; a food log lands there', async () => {
@@ -1095,9 +1096,18 @@ async function serverChecks() {
     await confirm.waitFor({ timeout: 10_000 });
     await confirm.getByRole('button', { name: 'Remove' }).click();
     await section.getByRole('button', { name: 'Add Vitals to Codex' }).waitFor({ timeout: 30_000 });
-    const gone = await page.evaluate(async (k) => (await window.vitalsDesktop.secrets.get(k)) === null, SECRET_KEY_CODEX);
-    assert(gone, 'the agent key is still in vitalsDesktop.secrets');
+    const alerts = (await section.locator('[role=alert]').allInnerTexts()).join(' | ');
+    assert(!alerts, `Connect your AI tools shows: ${alerts}`);
+    // the server no longer lists the key (review J4-02); asked from the page with its own pairing, only a boolean comes back
+    assert(codexKeyId, '8b did not record the key id');
+    const listed = await page.evaluate(async (id) => {
+      const p = JSON.parse(localStorage.getItem('vitals.server.v1') ?? 'null');
+      const r = await fetch(`${p.baseUrl}/v1/agents/tokens`, { headers: { authorization: `Bearer ${p.token}` }, cache: 'no-store', credentials: 'omit' });
+      if (!r.ok) return `HTTP ${r.status}`;
+      return ((await r.json()).tokens ?? []).some((t) => t.id === id);
+    }, codexKeyId);
+    assert(listed === false, listed === true ? 'the server still lists the Codex agent key after Remove' : `could not list the server's agent keys (${listed})`);
     assert(read(CODEX_FILE) === CODEX_ORIGINAL, 'the Codex file is not back to its original bytes');
-    return 'key cleared (the page revokes it on the server), Codex file restored';
+    return 'the key is revoked on the server (no longer listed), Codex file restored';
   });
 }

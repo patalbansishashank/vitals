@@ -95,7 +95,10 @@
   }
   .lm-fig3d__details summary {
     width: fit-content;
-    padding: 0.15rem 0.25rem;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0.15rem 0.55rem;
     font-size: var(--lm-text-xs);
     font-weight: 600;
     cursor: pointer;
@@ -201,6 +204,13 @@
   }
   .lm-fig3d[data-size='sm'] .lm-fig3d__motion {
     width: 100%;
+  }
+  @media (pointer: coarse) {
+    .lm-fig3d__details summary,
+    .lm-fig3d__chip,
+    .lm-fig3d__motion {
+      min-height: 44px;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .lm-fig3d__layer {

@@ -1,7 +1,8 @@
 /** `history.*` (SUITE_SPEC §1.5): list, undo (field by field) and seal (end of a gesture). */
-import { deepEqual, jsonClone, type CollectionId } from '@/store';
+import { bodyOf, deepEqual, jsonClone, type CollectionId } from '@/store';
+import { effectiveEntries } from '@/living';
 import { bindingsFor, docKey, getBindings, knownReader, ownsDoc } from '@/state/bridge';
-import { storeReader } from '@/state/runtime';
+import { getDocumentStore, storeReader } from '@/state/runtime';
 import * as sched from '@/state/internal/schedule';
 import { changeSets, getChangeSet, markUndone, planUndo, seal, summary } from '../history';
 import { defineCommand, fail } from '../registry';
@@ -102,7 +103,29 @@ export const historyUndo = defineCommand({
     const plan = planUndo(cs, currentBody);
     const overrides = new Map<string, Record<string, unknown> | null>();
     const unbound: Array<{ col: CollectionId; id: string; body: Record<string, unknown> | null }> = [];
+    const appendOnly: Array<{ col: 'dailyLogs' | 'measurements'; body: Record<string, unknown> & { _id: string } }> = [];
     for (const t of plan.targets) {
+      if (t.col === 'dailyLogs' || t.col === 'measurements') {
+        if (t.body !== null) fail('conflict', 'This log change cannot be undone by replacing a stored entry.');
+        const all = getDocumentStore().peekAll<{ supersedes?: string; kind?: string; target?: string }>(t.col)
+          .map((doc) => ({ ...bodyOf<{ supersedes?: string; kind?: string; target?: string }>(doc), id: doc._id }));
+        if (!effectiveEntries(all, true).some((entry) => entry.id === t.id)) fail('conflict', 'That log entry changed since. Look at it again first.');
+        const created = currentBody(t.col, t.id) ?? fail('not_found', 'The log entry to undo is missing.');
+        const { id: _id, _id: _storeId, ...body } = created;
+        void _id; void _storeId;
+        if (body.kind === 'retract' && typeof body.target === 'string') {
+          const restored = currentBody(t.col, body.target) ?? fail('not_found', 'The removed entry to restore is missing.');
+          const { id: _restoreId, _id: _restoreStoreId, ...copy } = restored;
+          void _restoreId; void _restoreStoreId;
+          appendOnly.push({ col: t.col, body: { ...copy, at: ctx.now, supersedes: t.id, _id: ctx.newId() } });
+        } else {
+          appendOnly.push({ col: t.col, body: {
+            date: body.date, at: ctx.now, source: body.source, kind: 'retract', target: t.id,
+            ...(t.col === 'dailyLogs' ? { tz: body.tz } : { metric: body.metric, value: body.value }), _id: ctx.newId(),
+          } });
+        }
+        continue;
+      }
       let body = t.body;
       if (body === null && t.fields) {
         const cur = { ...(currentBody(t.col, t.id) ?? {}) };
@@ -135,7 +158,10 @@ export const historyUndo = defineCommand({
       const next = b.fromDocs(read);
       if (next && !deepEqual(next, b.snapshot())) b.apply(next, 'current');
     }
-    const pending = unbound.map((u) => (u.body === null ? ctx.docs.remove(u.col, u.id) : ctx.docs.put(u.col, { ...u.body, _id: u.id })));
+    const pending = [
+      ...unbound.map((u) => (u.body === null ? ctx.docs.remove(u.col, u.id) : ctx.docs.put(u.col, { ...u.body, _id: u.id }))),
+      ...appendOnly.map((u) => ctx.docs.append(u.col, u.body)),
+    ];
     const mine = ctx.changeSetId ? getChangeSet(ctx.changeSetId) : undefined;
     if (mine) {
       mine.undoes = cs.id;

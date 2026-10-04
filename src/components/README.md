@@ -100,6 +100,8 @@ export default function SimulatePage() {
   main column) and sets `document.title`. `back={{ label: 'Evidence' }}` adds a back chevron
   (nested routes); `back={{ mobileOnly: true }}` + `compactOnMobile` puts the title into the
   mobile top bar (Settings).
+- Completion scales use `TopBar progress`, which aligns them to the trailing content edge
+  and gives them a separate centered row below 768 px. Keep section navigation in `tabs`.
 - `<GlobalNotice id severity title body actions />` (or `showNotice()` / `dismissNotice()`) shows an
   app-wide notice under the context bar. `setNavBadge('simulate', true)` lights the stale dot on the
   rail and tab bar. `toast(message, { action })` for undoable/background confirmations.

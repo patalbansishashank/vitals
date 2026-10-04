@@ -81,7 +81,10 @@ describe('intake chapters render', () => {
   it('devices and data shows the privacy lines', async () => {
     renderAt('/onboarding/devices');
     expect(await screen.findByRole('heading', { level: 1, name: 'Devices and data' })).toBeInTheDocument();
-    expect(screen.getByText('Device data stays on your devices. There is no Vitals server for it.')).toBeInTheDocument();
+    expect(screen.getByText(/stays on your own devices, and on your own server if you pair one/)).toBeInTheDocument();
+    expect(screen.getByText(/A ring you connect through Vitals shares its data with your plan, your scores and the Coach from the start/)).toBeInTheDocument();
+    expect(screen.getByText(/Data from files and other apps stays off until you turn it on/)).toBeInTheDocument();
+    expect(screen.queryByText(/no Vitals server/i)).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'ring' })).toBeInTheDocument();
   });
 

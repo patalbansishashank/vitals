@@ -190,7 +190,7 @@ describe('capacitor transport: requestDevice', () => {
     const chooser: DeviceChooser = { update: (l) => lists.push([...l]), chosen: chosen.promise };
     const p = transport.requestDevice(query, { chooser });
     await vi.waitFor(() => expect(lists.length).toBe(2));
-    expect(lists[0]).toEqual([{ id: 'AA:00:00:00:00:02', name: 'Ring 7307', rssi: -60 }]);
+    expect(lists[0]).toEqual([{ id: 'AA:00:00:00:00:02', name: 'Ring 7307', rssi: -60, serviceUuids: [], manufacturerData: [Uint8Array.of(0x34, 0x12, 1, 0x23, 0x01)] }]);
     expect(lists[1]!.map((d) => d.id)).toEqual(['AA:00:00:00:00:02', 'AA:00:00:00:00:03']);
     // still scanning: nothing connected until the person picks
     expect(ble.connected).toEqual([]);
@@ -433,6 +433,38 @@ describe('capacitor transport: availability and loading', () => {
     expect(await transport.isAvailable()).toBe(false);
     expect(await transport.isAvailable()).toBe(true);
     expect(ble.initialize).toHaveBeenCalledTimes(2);
+  });
+
+  it('a refused permission is told apart from Bluetooth being off', async () => {
+    const ble = new FakeCapBle();
+    ble.initialize.mockRejectedValueOnce(new Error('Permission denied.'));
+    const transport = createCapacitorTransport(async () => ble);
+    expect(transport.permissionDenied?.()).toBe(false);
+    expect(await transport.isAvailable()).toBe(false);
+    expect(transport.permissionDenied?.()).toBe(true);
+    expect(await transport.isAvailable()).toBe(true);
+    expect(transport.permissionDenied?.()).toBe(false);
+  });
+
+  it('requestDevice rejects NoDeviceError permission when initialize or the scan is refused', async () => {
+    const ble = new FakeCapBle();
+    ble.initialize.mockRejectedValueOnce(new Error('Permission denied.'));
+    const transport = createCapacitorTransport(async () => ble);
+    await expect(transport.requestDevice(query)).rejects.toMatchObject({ name: 'NoDeviceError', reason: 'permission' });
+
+    const scanBle = new FakeCapBle();
+    scanBle.requestLEScan = vi.fn().mockRejectedValue(new Error('BLUETOOTH_SCAN permission not granted'));
+    const scanTransport = createCapacitorTransport(async () => scanBle);
+    await expect(scanTransport.requestDevice(query)).rejects.toMatchObject({ name: 'NoDeviceError', reason: 'permission' });
+    expect(scanTransport.permissionDenied?.()).toBe(true);
+  });
+
+  it('a plugin that is off or missing is not a permission refusal', async () => {
+    const transport = createCapacitorTransport(async () => {
+      throw new Error('plugin missing');
+    });
+    expect(await transport.isAvailable()).toBe(false);
+    expect(transport.permissionDenied?.()).toBe(false);
   });
 
   it('requestDevice with an unloadable plugin rejects NoDeviceError unavailable', async () => {

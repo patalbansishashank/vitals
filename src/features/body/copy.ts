@@ -24,7 +24,7 @@ export const SETUP = {
   back: 'Back',
   skip: 'Skip for now',
   intro: {
-    basics: 'Four facts the equations need. Everything stays on this device.',
+    basics: 'Four facts the equations need. Your data starts on this device and can sync if you connect your own server.',
     shape: 'Drag the scales, or the figure’s edges, until the figure looks like you. Every estimate follows as you go.',
     habits: 'How you usually train, move, sleep and eat. Maintenance energy updates as you go.',
   },

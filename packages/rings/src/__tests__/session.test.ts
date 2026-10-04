@@ -41,6 +41,66 @@ function stubFamily(extra: Partial<RingFamily> = {}): RingFamily {
   } as RingFamily;
 }
 
+describe('notification receipt clocks', () => {
+  it('keeps authentication payload bytes out of fake-peripheral mismatch diagnostics', async () => {
+    const fake = new FakePeripheral();
+    // An arbitrary synthetic payload, never the built-in firmware credential.
+    await fake.write('svc', 'w', Uint8Array.of(0x3c, 0xa5, 0xa5), 'withResponse');
+    expect(fake.errors).toEqual(['unexpected write 3c …']);
+  });
+
+  it('does not expose invalid battery percentages from handshake or the standard characteristic', async () => {
+    const family = stubFamily({ handshake: async () => ({ firmware: '', clockOffsetS: 0, battery: 255 }) });
+    family.gatt = { ...family.gatt, battery: { service: 'bat', characteristic: 'v' } };
+    family.protocol = { ...family.protocol, frame: () => { throw new Error('no command channel'); } };
+    const fake = new FakePeripheral([], { reads: { 'bat/v': 'ff' } });
+    const session = await openRingSession(family, fake);
+    try {
+      expect(session.info().battery).toBeUndefined();
+      expect(await session.battery()).toBeUndefined();
+    } finally {
+      await session.close();
+    }
+  });
+
+  it.each(['exchange', 'live'] as const)('keeps queued %s readings at their arrival times', async (mode) => {
+    let now = Date.UTC(2026, 9, 4, 12);
+    const anchor = now;
+    const family = stubFamily({ liveHeartRate: { start: { op: 'live' }, stop: { op: 'stop' } } });
+    family.protocol = {
+      ...family.protocol,
+      begin: (cmd, state) => ({ state: { ...state, nowMs: cmd.params?.nowMs }, expectReply: true }),
+      ingest: (bytes, state, _channel, receivedMs) => ({
+        state, done: bytes[0] === 2,
+        events: [{ type: 'sample', stream: 'hr', t: receivedMs ?? 0, value: 60 + bytes[0]!, unit: 'bpm', origin: 'live' }],
+      }),
+    };
+    const fake = new RecordingFake();
+    const session = await openRingSession(family, fake, { clock: { now: () => now, tzOffsetS: () => 0 } });
+    try {
+      const stream = mode === 'exchange' ? session.runtime.exchange({ op: 'ping' }) : session.liveHeartRate(new AbortController().signal);
+      const iterator = stream[Symbol.asyncIterator]();
+      const first = iterator.next();
+      await waitUntil(() => fake.writes.length > 0);
+      now = anchor + 60_000;
+      fake.notify('01');
+      now = anchor + 120_000;
+      fake.notify('02');
+      now = anchor + 180_000; // Queued packets must retain arrival time even when decoded later.
+      expect((await first).value).toMatchObject({ t: anchor + 60_000 });
+      expect((await iterator.next()).value).toMatchObject({ t: anchor + 120_000 });
+      expect((await iterator.next()).done).toBe(true);
+      expect(session.runtime.state.nowMs).toBe(anchor);
+      const idle: RingEvent[] = [];
+      session.on((ev) => { if (ev.type !== 'disconnected') idle.push(ev); });
+      fake.notify('01');
+      expect(idle[0]).toMatchObject({ t: now });
+    } finally {
+      await session.close();
+    }
+  });
+});
+
 describe('LuckRing: pushes outside the read', () => {
   // Heart-rate history (8) in two packets, and an unsolicited battery SEND (85 %).
   const HEAD = '00 01 01 03 01 08 00 00 0d 00 02 00 02 00 f1 53 65 48 3c f1';
@@ -49,7 +109,7 @@ describe('LuckRing: pushes outside the read', () => {
 
   it('a battery push during a history read keeps the stall budget: frames after the settle time are still read', async () => {
     const fake = new RecordingFake([], { name: 'TK18' });
-    const s = await openRingSession(luckring, fake, { timers: { quietMs: 30, stallMs: 400 }, clock: fixedClock() });
+    const s = await openRingSession(luckring, fake, { timers: { quietMs: 30, stallMs: 400 }, clock: fixedClock({ nowMs: 1_700_000_060_000, tzOffsetS: 0 }) });
     const base = fake.writes.length;
     const evs: RingEvent[] = [];
     let ended = false;
@@ -136,6 +196,29 @@ describe('J-Style: a read that got nothing keeps its refresh round', () => {
     expect(r.done).toBe(true);
     expect(errors(r.events)).not.toContain('stall:hr');
     expect(decodeCursor(cursors(r.events)[0])[0x55]).toMatchObject({ seq: 2 });
+    await s.close();
+  });
+});
+
+describe('identity never comes from the advertised name', () => {
+  /** A fake that advertises only a name: no id, no address. */
+  const nameOnly = (): RecordingFake => {
+    const fake = new RecordingFake([], { name: 'ADV-NAME 77' });
+    (fake.peripheral as { id?: string }).id = undefined;
+    return fake;
+  };
+
+  it('a name alone is no identity: the open fails and the link is closed', async () => {
+    const fake = nameOnly();
+    await expect(openRingSession(stubFamily(), fake)).rejects.toMatchObject({ name: 'RingError', message: expect.stringContaining('no identity') });
+    expect(fake.connected).toBe(false);
+  });
+
+  it('an advertised id gives adv:<id>, never the name', async () => {
+    const fake = new RecordingFake([], { id: 'per-origin-7', name: 'ADV-NAME 77' });
+    const s = await openRingSession(stubFamily(), fake);
+    expect(s.identity).toMatchObject({ ringId: 'adv:per-origin-7', basis: 'advertised' });
+    expect(JSON.stringify(s.identity)).not.toContain('ADV-NAME');
     await s.close();
   });
 });

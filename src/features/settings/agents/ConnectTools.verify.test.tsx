@@ -20,7 +20,7 @@ function bridgeWith(over: { add?: DesktopMcpBridge['mcp']['add']; setSecret?: (k
       setManifest: vi.fn(),
       setServer: vi.fn(),
     },
-    secrets: { get: vi.fn(async () => null), set: vi.fn(over.setSecret ?? (async () => undefined)) },
+    secrets: { set: vi.fn(over.setSecret ?? (async () => undefined)) },
   } satisfies DesktopMcpBridge;
   (window as unknown as { vitalsDesktop?: unknown }).vitalsDesktop = bridge;
   return bridge;
@@ -29,6 +29,7 @@ function bridgeWith(over: { add?: DesktopMcpBridge['mcp']['add']; setSecret?: (k
 afterEach(() => {
   delete (window as unknown as { vitalsDesktop?: unknown }).vitalsDesktop;
   setServerClientForTests(null);
+  localStorage.removeItem('vitals-desktop-agent-key-ids');
 });
 
 describe('ConnectTools adversarial', () => {

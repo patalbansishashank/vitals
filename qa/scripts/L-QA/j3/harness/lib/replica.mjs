@@ -17,7 +17,7 @@ import { mealEntry } from './docs.mjs';
 import { mcpClient } from './server.mjs';
 
 const CHILD = fileURLToPath(new URL('./nodeReplicaChild.mjs', import.meta.url));
-const { newDeviceId } = await import('../../../../../../.e6-tmp/cand/src/store/ids.ts');
+const { newDeviceId } = await import('../../../../../../src/store/ids.ts');
 
 export async function openReplica(kind, opts) {
   if (kind === 'node') return openNodeReplica(opts);

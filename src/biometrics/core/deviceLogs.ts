@@ -18,12 +18,13 @@
  */
 import { appDay, DEFAULT_ROLLOVER_H } from '@/living/appDay';
 import { addDays } from '@/living/dates';
-import { effectiveEntries } from '@/living/logs';
+import { projectEntries } from '@/living/logs';
 import { workoutKindOf } from '@/living/observations';
 import type { DeviceWorkout, EntrySource, LocalDate, LogEntry, StimulusVector } from '@/living';
 import { effectivePolicy } from './effective';
 import { usedByEngine } from './policy';
 import { resolveDays, type SourcedRecord } from './resolve';
+import { reconcileSleep } from './reconcileSleep';
 import type { BioCorrection, BioRecord, BioSourceDoc, PolicyStream, SleepRecord, StreamPolicy, WorkoutRecord } from './types';
 
 export type DeviceLogStream = 'steps' | 'sleep_sessions' | 'workouts';
@@ -166,7 +167,7 @@ export function planDeviceLogs(i: DeviceLogInput): DeviceLogPlan {
   const off = new Set<DeviceLogStream>();
   const on = new Set<DeviceLogStream>();
   const candidates: SourcedRecord[] = [];
-  for (const sr of i.records) {
+  for (const sr of reconcileSleep(i.records)) {
     const r = sr.record;
     if (r.kind !== 'daily' && r.kind !== 'sleep' && r.kind !== 'workout') continue;
     if (r.kind === 'daily' && r.steps === undefined) continue;
@@ -183,7 +184,8 @@ export function planDeviceLogs(i: DeviceLogInput): DeviceLogPlan {
   const day = resolveDays(candidates, i.sources, { from: D, to: D }, (i.corrections ?? []).filter((c) => c.target.localDate === D))[0];
 
   const all = i.entries;
-  const inForce = effectiveEntries(all).filter((e) => e.date === D);
+  // one version per lineage, the one that is counted: a fork compares with it, not with an arbitrary sibling (L-REV2 R3-01)
+  const inForce = projectEntries(all).filter((e) => e.date === D);
   const removed = new Set(all.filter((e) => e.kind === 'retract').map((e) => (e as Extract<LogEntry, { kind: 'retract' }>).target));
   const deviceSource = (key: string, recordId: string): EntrySource => ({ by: 'device', method: 'biometrics', bioRecordId: recordId, deviceKey: key });
   const isDevice = (e: LogEntry): boolean => e.source.by === 'device' && e.source.method === 'biometrics';

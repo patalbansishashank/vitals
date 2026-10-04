@@ -7,6 +7,30 @@
    ========================================================================== */
 
 @layer components {
+  .lm-body-setup-actions {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+  .lm-body-setup-actions > .lm-key {
+    min-height: 44px;
+  }
+  @media (max-width: 24rem) {
+    .lm-body-setup-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .lm-body-setup-actions > .lm-key:last-child {
+      grid-column: 1 / -1;
+    }
+    /* Reserve both action rows above the bottom navigation. */
+    .lm-app[data-actionbar='true']:has(.lm-body-setup-actions) {
+      --lm-actionbar-h: 114px;
+    }
+  }
+
   .lm-body {
     display: grid;
     gap: 16px;
@@ -46,7 +70,7 @@
     margin-inline: auto;
   }
 
-  /* ---- tablet and small desktop (768–1279): figure beside the shape scales ---- */
+  /* ---- tablet and small desktop: figure beside the shape scales ---- */
   @media (min-width: 48rem) {
     .lm-body-mid {
       grid-area: mid;
@@ -80,9 +104,10 @@
     }
   }
 
-  /* ---- desktop ≥ 1280: 320 | figure | 372; spanning columns never stretch the left stack
+  /* ---- desktop ≥ 1344: room for 320 | figure | 372 after the rail and gutters;
+         spanning columns never stretch the left stack
          (their extra height goes to the trailing flexible row) ---- */
-  @media (min-width: 80rem) {
+  @media (min-width: 84rem) {
     .lm-body[data-mode='normal'] {
       grid-template-columns: 320px minmax(480px, 1fr) 372px;
       grid-template-rows: auto auto auto auto 1fr;
@@ -487,6 +512,12 @@
     opacity: 1;
     transform: none;
     pointer-events: auto;
+  }
+  @media (max-width: 47.99rem) {
+    /* Shape setup has a second header row for completion; keep the floating figure below it. */
+    .lm-body[data-mode='shape'] ~ .lm-body-mini {
+      top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 96px);
+    }
   }
   .lm-body-mini__fig {
     display: block;

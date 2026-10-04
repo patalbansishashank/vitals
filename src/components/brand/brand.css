@@ -53,16 +53,17 @@
     }
   }
 
-  /* ---- launch hand-over: the pre-JS start screen's twin, drawn over the live app, then faded away ----------------- */
+  /* ---- launch hand-over: the pre-JS start screen's twin over the live app, fading from its first frame ------------- */
   .lm-launch {
     position: fixed;
     inset: 0;
-    z-index: 900; /* above tooltips: nothing of the app may show through until the mark has drawn */
+    z-index: 900; /* above tooltips, so the fade reveals the whole app at once */
     display: grid;
     place-items: center;
     background: var(--lm-chassis);
     pointer-events: none;
   }
+  /* launchTiming.fadeMs: starts as soon as the app is in the document, never waits for the draw-on */
   .lm-launch[data-phase='fade'] {
     animation: lm-launch-fade 150ms var(--lm-ease-out) forwards;
   }

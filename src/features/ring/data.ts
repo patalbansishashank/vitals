@@ -97,6 +97,8 @@ export interface RingService {
   rings(): RingStatus[];
   /** What the platform can do right now (drives the first card when there is no ring yet). */
   availability?(): RingAvailability;
+  /** False while the first platform check is still running (`availability()` is not an answer yet); absent = known. */
+  availabilityKnown?(): boolean;
   /** Live heart rate into `RingStatus.liveHr` until the returned function is called (the real service's way). */
   watchLiveHeartRate?(ringKey: string): () => void;
   subscribe(cb: (rings: RingStatus[]) => void): () => void;
@@ -286,6 +288,15 @@ export function connectRing(svc: RingService, ringKey: string): Promise<void> {
 /** What the platform can do now: the service's own answer, else derived from the platform. */
 export function ringAvailability(svc: RingService, plat: RingPlatform): RingAvailability {
   return svc.availability?.() ?? (plat.ble ? 'ready' : 'unsupported');
+}
+
+/**
+ * What the page shows for the platform: 'checking' while the service's first check is still running on a platform with
+ * a Bluetooth API (never "can't connect here" before the check says so); a platform with none is 'unsupported' at once.
+ */
+export function pageRingAvailability(svc: RingService, plat: RingPlatform): RingAvailability | 'checking' {
+  if (svc.availabilityKnown && !svc.availabilityKnown()) return plat.ble ? 'checking' : 'unsupported';
+  return ringAvailability(svc, plat);
 }
 
 /**

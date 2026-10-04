@@ -40,7 +40,7 @@ const ready = (points: LaneData['points'] = []): LaneData => ({ status: 'ready',
 
 describe('NightChannels', () => {
   const n = sleepNight(night('2026-10-03T23:30', 30));
-  const base = { night: n, date: '2026-10-04' as const, tempUnit: 'C' as const, spo2Band: null, tempNormalC: 34.1 };
+  const base = { night: n, date: '2026-10-04' as const, tempUnit: 'C' as const, spo2NormalPct: null, tempNormalC: 34.1 };
 
   it('reading lanes keep their height and say so; failed lanes offer Try again', () => {
     const retry = vi.fn();
@@ -59,24 +59,45 @@ describe('NightChannels', () => {
     expect(screen.queryByText(/34\.4/)).toBeNull();
   });
 
-  it('°F: change from normal in Fahrenheit, normal band for blood oxygen, breaks over gaps', () => {
+  it('°F: change from normal in Fahrenheit, blood oxygen as change from its normal, breaks over gaps', () => {
     const t = (m: number) => n.bed! + m * MIN;
     const spo2 = [0, 5, 10, 120, 125, 130].map((m) => ({ t: t(m), v: 95 }));
     const temp = [0, 30, 60].map((m) => ({ t: t(m), v: 34.6 }));
-    const { container } = render(<NightChannels {...base} tempUnit="F" spo2Band={{ lo: 94, hi: 97 }} hr={ready()} spo2={ready(spo2)} temp={ready(temp)} />);
+    const { container } = render(<NightChannels {...base} tempUnit="F" spo2NormalPct={97} hr={ready()} spo2={ready(spo2)} temp={ready(temp)} />);
     expect(screen.getByText('skin temperature · °F')).toBeTruthy();
-    expect(container.querySelector('rect.sl-band')).toBeTruthy();
     expect(container.querySelectorAll('[data-lane="spo2"] polyline')).toHaveLength(2);
     expect(screen.getByText('Breaks in a line are times with no readings.')).toBeTruthy();
+    // both tier C lanes have a "your normal" zero line; blood oxygen ticks are signed changes, never 95
+    const spo2Lane = container.querySelector('.sl-lane[data-lane="spo2"]')!;
+    expect(within(spo2Lane as HTMLElement).getByText('your normal')).toBeTruthy();
+    expect(spo2Lane.querySelector('line.sg-axis')).toBeTruthy();
+    const ticks = [...spo2Lane.querySelectorAll('.sg-tick')].map((e) => e.textContent);
+    expect(ticks).toContain('0');
+    expect(ticks.some((x) => /^95$|^9\d$/.test(x ?? ''))).toBe(false);
+    expect(screen.getAllByText('your normal')).toHaveLength(2);
     const plot = container.querySelector<HTMLElement>('.sl-plot')!;
     fireEvent.focus(plot);
-    // +0.5 °C from normal = +0.9 °F
-    expect(text(container.querySelector('.sl-readout'))).toBe('23:30 · awake · 95 % · +0.9 °F');
+    // 95 % against a 97 % normal = −2 %; +0.5 °C from normal = +0.9 °F
+    expect(text(container.querySelector('.sl-readout'))).toBe('23:30 · awake · −2 % · +0.9 °F');
+    expect(plot.getAttribute('aria-label')).toMatch(/blood oxygen −2 to −2\s% from your normal/);
+    // the table twin keeps the absolute value
+    fireEvent.click(screen.getByRole('button', { name: /^Show .* data table$/ }));
+    const buckets = screen.getAllByRole('table')[1]!;
+    expect(text(within(buckets).getAllByRole('row')[1]!)).toContain('95');
+  });
+
+  it('blood oxygen while its normal forms: the absolute line, no zero line', () => {
+    const spo2 = [0, 5, 10].map((m) => ({ t: n.bed! + m * MIN, v: 95 }));
+    const { container } = render(<NightChannels {...base} hr={ready()} spo2={ready(spo2)} temp={ready()} />);
+    const spo2Lane = container.querySelector('.sl-lane[data-lane="spo2"]') as HTMLElement;
+    expect(within(spo2Lane).queryByText('your normal')).toBeNull();
+    fireEvent.focus(container.querySelector<HTMLElement>('.sl-plot')!);
+    expect(text(container.querySelector('.sl-readout'))).toBe('23:30 · awake · 95 %');
   });
 
   it('table twin: stages, then one row per 5 minutes of the night', () => {
     render(<NightChannels {...base} hr={ready([{ t: n.bed!, v: 58 }])} spo2={ready()} temp={ready()} />);
-    fireEvent.click(screen.getByRole('button', { name: 'table' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Show .* data table$/ }));
     const [stages, buckets] = screen.getAllByRole('table');
     expect(within(stages!).getAllByRole('row')).toHaveLength(1 + 6);
     // 23:30 → 08:00 = 102 five-minute rows

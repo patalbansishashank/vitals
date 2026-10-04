@@ -51,9 +51,9 @@ function idTail(ringKey: string): string | null {
   return id && id.length >= 4 ? id.slice(-4).toUpperCase() : null;
 }
 
-function Row({ label, children, id, help }: { label: string; children?: ReactNode; id?: string; help?: ReactNode }) {
+function Row({ label, children, help, forget }: { label: string; children?: ReactNode; help?: ReactNode; forget?: boolean }) {
   return (
-    <li className="rs-setting" id={id} data-row={label}>
+    <li className="rs-setting" data-row={label} data-forget-ring={forget || undefined}>
       <Engraved>{label}</Engraved>
       {children !== undefined ? <div className="rs-setting__value">{children}</div> : null}
       {help ? <p className="rs-setting__help">{help}</p> : null}
@@ -61,7 +61,7 @@ function Row({ label, children, id, help }: { label: string; children?: ReactNod
   );
 }
 
-export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing: () => void }) {
+export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing: (trigger: HTMLButtonElement) => void }) {
   const { service, platform } = useRingEnv();
   const rings = useRings();
   const caps: RingCaps = ring.caps ?? {};
@@ -133,12 +133,12 @@ export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing:
         ) : null}
 
         <Row label={C.disconnect}>
-          <Key size="sm" loading={busy === 'disconnect'} disabledReason={linked ? undefined : C.notConnected} onClick={() => void act('disconnect', () => service.disconnect(key))}>
+          <Key size="sm" className="rg-statuskey" loading={busy === 'disconnect'} disabledReason={linked ? undefined : C.notConnected} onClick={() => void act('disconnect', () => service.disconnect(key))}>
             {C.disconnectKey}
           </Key>
         </Row>
 
-        <Row label={C.forget} id="forget-ring">
+        <Row label={C.forget} forget>
           <Key size="sm" variant="danger" onClick={() => setForgetOpen(true)}>
             {C.forgetKey}
           </Key>
@@ -153,7 +153,7 @@ export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing:
         ) : null}
 
         <Row label={C.add}>
-          <Key size="sm" onClick={onAddRing}>
+          <Key size="sm" onClick={(event) => onAddRing(event.currentTarget)}>
             {C.addKey}
           </Key>
         </Row>

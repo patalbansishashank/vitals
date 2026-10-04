@@ -6,7 +6,7 @@
  */
 import { useRef, type ReactNode } from 'react';
 import { useElementWidth } from '@/features/charts/core/hooks';
-import { ChartShell, MissingStub, TwinTable, useChartSizes, useSlotCrosshair, type ChartStatus } from './kit';
+import { CHART_NAV_HELP, ChartShell, MissingStub, TwinTable, useChartSizes, useSlotCrosshair, type ChartStatus } from './kit';
 import { columnPath, columnScale, compactTick, type HourSlot } from './activityModels';
 import { ACTIVITY_COPY as C, withUnit } from './copyActivity';
 import './activity.css';
@@ -100,6 +100,7 @@ export function HourBars({
           className="ac-plotarea"
           role="img"
           aria-label={summary}
+          aria-description={CHART_NAV_HELP}
           tabIndex={0}
           onKeyDown={(e) => cross.onKeyDown(e)}
           onFocus={cross.onFocus}

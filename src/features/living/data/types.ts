@@ -44,8 +44,14 @@ export interface HistoryDay {
   assumed: boolean;
   paused: boolean;
   entries: LogEntrySummary[];
-  /** "Lunch on Tue was edited on two devices." */
-  conflict?: string;
+  /** Every unresolved fork on this day, including measurements. */
+  conflicts?: HistoryConflict[];
+}
+
+export interface HistoryConflict {
+  parentId: string;
+  kind: 'meal' | 'workout' | 'measurement' | 'entry';
+  versions: Array<{ id: string; label: string; at?: string; source?: string; energyKcal?: number }>;
 }
 
 /** Adherence over a span (Progress › Adherence; check-in). */

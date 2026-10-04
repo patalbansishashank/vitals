@@ -17,7 +17,7 @@ import { useElementWidth } from '@/features/charts/core/hooks';
 import { useDebouncedText } from '@/features/charts/living/TrendLane';
 import { RING_COPY as C } from './copy';
 import { HEART_COPY as H } from './copyHeart';
-import { SHELL_COPY, TwinTable, useSlotCrosshair } from './kit';
+import { CHART_NAV_HELP, SHELL_COPY, TwinTable, tableButtonName, useSlotCrosshair } from './kit';
 import { clockAt, nf, runsOf, type SeriesPoint } from './ringData';
 import './ring.css';
 import './heart.css';
@@ -121,6 +121,7 @@ export const DayLine = memo(function DayLine({
           ? {
               role: 'img',
               'aria-label': summary,
+              'aria-description': CHART_NAV_HELP,
               tabIndex: 0,
               onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => cross.onKeyDown(e),
               onFocus: cross.onFocus,
@@ -198,7 +199,7 @@ export const DayLine = memo(function DayLine({
       {interactive ? (
         <>
           <div className="hr-dl-tablebar">
-            <Key size="sm" variant="quiet" aria-expanded={showTable} aria-controls={tableId} onClick={() => setShowTable((v) => !v)}>
+            <Key size="sm" variant="quiet" aria-label={tableButtonName(title, showTable)} aria-expanded={showTable} aria-controls={tableId} onClick={() => setShowTable((v) => !v)}>
               {showTable ? SHELL_COPY.hideTable : SHELL_COPY.table}
             </Key>
           </div>

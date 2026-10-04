@@ -13,7 +13,7 @@ import type { ResolvedDay, SleepRecord } from '@/biometrics/core/types';
 import type { LocalDate } from '@/living';
 import { addDays, daysBetween } from '@/living/dates';
 import { clockAt, nightModel, type NightModel, type NightStage, type SeriesPoint } from './ringData';
-import { tempNormal } from './heartModels';
+import { spo2Normal, tempNormal } from './heartModels';
 import type { PeriodWindow } from '../models';
 import type { SignalBaseline } from '../data';
 
@@ -443,8 +443,12 @@ export function tempNormalC(baselines: readonly SignalBaseline[] | null, history
   return n && n.basis === 'absolute' && !n.forming ? n.value : null;
 }
 
-/** The person's normal blood-oxygen range, only once it has 14 nights (§7.3.2). */
-export function spo2Band(baselines: readonly SignalBaseline[] | null): { lo: number; hi: number } | null {
-  const b = baselines?.find((x) => x.metric === 'spo2' || x.metric === 'spo2_pct' || x.metric === 'spo2_avg_pct');
-  return b && b.nights >= 14 && !b.forming ? { lo: b.lo, hi: b.hi } : null;
+/**
+ * The person's normal blood oxygen (%) for the overnight lane's "change from your normal" (§7.3.2, D6), only once it has
+ * 14 nights: the Heart tab's rule (`spo2Normal`: bio.baselines, else the nightly averages of the last `NORMAL_DAYS`),
+ * so the same night shows the same change on both tabs. Null while it forms (the lane then shows the absolute line).
+ */
+export function spo2NormalPct(baselines: readonly SignalBaseline[] | null, history: readonly ResolvedDay[]): number | null {
+  const n = spo2Normal(baselines, history);
+  return n && !n.forming ? n.mean : null;
 }

@@ -19,6 +19,7 @@ interface GattCharacteristic extends EventTarget {
   readValue(): Promise<DataView>;
 }
 interface GattService {
+  readonly uuid?: string;
   getCharacteristic(c: BluetoothServiceUUID): Promise<GattCharacteristic>;
 }
 interface GattServer {
@@ -26,6 +27,7 @@ interface GattServer {
   connect(): Promise<GattServer>;
   disconnect(): void;
   getPrimaryService(s: BluetoothServiceUUID): Promise<GattService>;
+  getPrimaryServices?(): Promise<GattService[]>;
 }
 interface BtDevice extends EventTarget {
   readonly id?: string;
@@ -56,8 +58,23 @@ export async function webBluetoothAvailability(): Promise<boolean> {
 /** Copies a notification DataView (Chrome reuses the buffer). */
 const copy = (v: DataView): Uint8Array => new Uint8Array(v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength) as ArrayBuffer);
 
+/**
+ * Links in use per device. The page has one GATT connection per device, shared by every link to it, so it is closed
+ * only when the last link lets go (a late link must not close the one a newer link uses). Every link must be closed by
+ * its owner, and only one may subscribe at a time: Chromium shares characteristic objects per device, so an old
+ * link's unsubscribe would stop a new link's notifications (the service closes a session before it reconnects).
+ */
+const live = new WeakMap<object, Set<WebBluetoothLink>>();
+const inUse = (device: object): boolean => (live.get(device)?.size ?? 0) > 0;
+
+/**
+ * A `gatt.connect()` still pending per device. Chromium cannot cancel one (`disconnect()` does nothing until it is
+ * connected), so a connect given up is let go when it lands, unless a link uses the device by then.
+ */
+const connecting = new WeakMap<object, { server: Promise<GattServer>; lost: boolean }>();
+
 export class WebBluetoothLink implements BleLink, RingLink {
-  private services = new Map<string, Promise<GattService>>();
+  private serviceCache = new Map<string, Promise<GattService>>();
   private chars = new Map<string, Promise<GattCharacteristic>>();
   private dropListeners = new Set<() => void>();
   private queue: Promise<unknown> = Promise.resolve();
@@ -68,6 +85,8 @@ export class WebBluetoothLink implements BleLink, RingLink {
     private server: GattServer,
   ) {
     device.addEventListener('gattserverdisconnected', this.onDrop);
+    const set = live.get(device) ?? new Set();
+    live.set(device, set.add(this));
   }
 
   get deviceName(): string | undefined {
@@ -81,10 +100,15 @@ export class WebBluetoothLink implements BleLink, RingLink {
     return this.platformId ?? this.device.id;
   }
 
+  async services(): Promise<string[]> {
+    return (await this.server.getPrimaryServices?.() ?? []).flatMap((service) => service.uuid ? [service.uuid] : []);
+  }
+
   private dropped = false;
 
   private onDrop = (): void => {
-    this.services.clear();
+    live.get(this.device)?.delete(this);
+    this.serviceCache.clear();
     this.chars.clear();
     if (this.dropped) return;
     this.dropped = true;
@@ -95,8 +119,8 @@ export class WebBluetoothLink implements BleLink, RingLink {
     const key = `${s}/${c}`;
     let p = this.chars.get(key);
     if (!p) {
-      let sp = this.services.get(String(s));
-      if (!sp) this.services.set(String(s), (sp = this.server.getPrimaryService(s)));
+      let sp = this.serviceCache.get(String(s));
+      if (!sp) this.serviceCache.set(String(s), (sp = this.server.getPrimaryService(s)));
       p = sp.then((svc) => svc.getCharacteristic(c));
       this.chars.set(key, p);
       p.catch(() => this.chars.delete(key));
@@ -151,9 +175,60 @@ export class WebBluetoothLink implements BleLink, RingLink {
 
   async disconnect(): Promise<void> {
     this.device.removeEventListener('gattserverdisconnected', this.onDrop);
-    if (this.server.connected) this.server.disconnect();
+    live.get(this.device)?.delete(this);
+    if (this.server.connected && !inUse(this.device)) this.server.disconnect();
     this.onDrop();
   }
+
+  /**
+   * A new link to the same ring without a chooser or a click: `gatt.connect()` on the device this page was given. The
+   * page keeps its permission for the device while it runs, and the platform connects even when a scan would not list
+   * the ring. Gives up after `ms` or on abort; a connect still pending from an earlier try is waited on, not repeated.
+   */
+  async reopen(ms: number, signal?: AbortSignal): Promise<WebBluetoothLink> {
+    const pending = connectOnce(this.device);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let onAbort: (() => void) | undefined;
+    try {
+      const server = await Promise.race([
+        pending.server,
+        new Promise<never>((_, reject) => {
+          const fail = (why: string): void => {
+            pending.lost = true;
+            reject(Object.assign(new Error(why), { name: why === 'aborted' ? 'AbortError' : 'TimeoutError' }));
+          };
+          timer = setTimeout(() => fail('GATT connect timed out'), ms);
+          onAbort = () => fail('aborted');
+          if (signal?.aborted) onAbort();
+          else signal?.addEventListener('abort', onAbort, { once: true });
+        }),
+      ]);
+      return new WebBluetoothLink(this.device, server);
+    } finally {
+      clearTimeout(timer);
+      if (onAbort) signal?.removeEventListener('abort', onAbort);
+    }
+  }
+}
+
+/** The device's pending `gatt.connect()`, or a new one; whoever waits on it now wants the connection. */
+function connectOnce(device: BtDevice): { server: Promise<GattServer>; lost: boolean } {
+  let p = connecting.get(device);
+  if (!p) {
+    if (!device.gatt) throw new Error('device has no GATT server');
+    const attempt = { server: device.gatt.connect(), lost: false };
+    connecting.set(device, attempt);
+    attempt.server.then(
+      (server) => {
+        connecting.delete(device);
+        if (attempt.lost && !inUse(device)) server.disconnect();
+      },
+      () => connecting.delete(device),
+    );
+    p = attempt;
+  }
+  p.lost = false;
+  return p;
 }
 
 /** Shows the chooser filtered by the driver and connects. Call from a user gesture. */
@@ -162,7 +237,6 @@ export async function requestDevice(driver: Pick<BleDriver, 'requestOptions'>): 
   if (!bt) throw new Error('Web Bluetooth is not available in this browser');
   if (bt.getAvailability && !(await bt.getAvailability())) throw new Error('Bluetooth adapter unavailable');
   const device = await bt.requestDevice({ filters: driver.requestOptions.filters, optionalServices: driver.requestOptions.optionalServices });
-  if (!device.gatt) throw new Error('device has no GATT server');
-  const server = await device.gatt.connect();
+  const server = await connectOnce(device).server;
   return new WebBluetoothLink(device, server);
 }

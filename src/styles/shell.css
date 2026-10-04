@@ -5,6 +5,19 @@
    ========================================================================== */
 
 @layer components {
+  /* Keyboard focus must scroll into the space above the fixed navigation. */
+  html:has(.lm-app) {
+    scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + 24px);
+  }
+  html:has(.lm-app[data-actionbar='true']) {
+    scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + 88px);
+  }
+  @media (min-width: 64rem) {
+    html:has(.lm-app),
+    html:has(.lm-app[data-actionbar='true']) {
+      scroll-padding-bottom: 24px;
+    }
+  }
   .lm-app {
     --lm-actionbar-h: 0px;
     min-height: 100vh;
@@ -328,6 +341,26 @@
   }
   .lm-ctx__grow {
     flex: 1;
+  }
+  .lm-ctx:has(> .lm-ctx__progress) {
+    row-gap: 16px;
+  }
+  .lm-ctx__progress {
+    display: grid;
+    justify-items: center;
+    flex: 1 0 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .lm-ctx__progress > * {
+    max-width: 100%;
+  }
+  @media (min-width: 48rem) {
+    .lm-ctx__progress {
+      flex: 0 1 auto;
+      margin-inline-start: auto;
+      justify-items: end;
+    }
   }
   .lm-ctx__params {
     display: none;

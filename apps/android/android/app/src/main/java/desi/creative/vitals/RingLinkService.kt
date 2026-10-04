@@ -11,13 +11,15 @@ import androidx.core.content.ContextCompat
 
 /**
  * Foreground service of type connectedDevice. It does no Bluetooth itself: the ring link runs in the WebView's JS.
- * Its job is to keep the process (and so the WebView) alive with a persistent notification on `ring_link`, and to go
+ * Its job is to keep the process (and so the WebView) alive with a persistent notification on `ring_link`, to run
+ * RingTick (the background read: an alarm that wakes the phone, a wake lock only while the ring is read), and to go
  * away when the activity goes away (the link died with the WebView).
  *
- * No wake lock: the foreground service already keeps the process from being killed, and incoming GATT notifications
- * wake the CPU through the Bluetooth stack, which holds its own wake lock while it delivers them. A partial wake lock
- * held all night would cost battery, and in Doze it is ignored anyway. If R21 (screen-off run) shows the WebView
- * stalling, that is the place to revisit.
+ * Measured on the owner's phone (Android 16), screen off: the process, this service, the Bluetooth link and the
+ * WebView's renderer (kept at this process's priority by MainActivity's renderer policy) all hold, but the CPU sleeps,
+ * and Chromium stops the renderer of a hidden window: RingWebView keeps the window "visible" while this runs, and
+ * RingTick wakes the CPU, so the ring is read without the app being opened.
+ * No wake lock outside a read: incoming GATT notifications wake the CPU through the Bluetooth stack.
  */
 class RingLinkService : Service() {
 
@@ -51,18 +53,23 @@ class RingLinkService : Service() {
         return try {
             ServiceCompat.startForeground(this, Notices.ID_RING_LINK, notification, type)
             ShellState.keepAliveOn = true
+            RingWebView.onKeepAliveChanged()
+            RingTick.schedule(this)
             true
         } catch (e: Exception) {
             // Android 12+: ForegroundServiceStartNotAllowedException (started from the background);
             // Android 14+: SecurityException when the connectedDevice type's permission is missing.
             // The plugin checks both before starting; this is the last line, so it never crashes.
             ShellState.keepAliveOn = false
+            RingWebView.onKeepAliveChanged()
             false
         }
     }
 
     private fun stop() {
         ShellState.keepAliveOn = false
+        RingWebView.onKeepAliveChanged()
+        RingTick.cancel(this)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -75,6 +82,8 @@ class RingLinkService : Service() {
 
     override fun onDestroy() {
         ShellState.keepAliveOn = false
+        RingWebView.onKeepAliveChanged()
+        RingTick.cancel(this)
         super.onDestroy()
     }
 

@@ -120,11 +120,14 @@ describe('HourBars', () => {
     expect(stubs).not.toContain('09:00 – 10:00 · no data');
     expect(stubs.some((s) => s.startsWith('13:00'))).toBe(false);
     expect(container.querySelector('[data-band="sleep"]')).toBeTruthy();
+    expect(screen.getByRole('group', { name: 's' })).toBeTruthy();
   });
 
   it('table twin lists every hour up to now, "no data" for missing and 0 for a recorded zero', () => {
     render(<HourBars hours={hours} bands={[]} summary="s" />);
-    fireEvent.click(screen.getByRole('button', { name: 'table' }));
+    const tableButton = screen.getByRole('button', { name: /^Show .* data table$/ });
+    fireEvent.click(tableButton);
+    expect(screen.getByRole('button', { name: /^Hide .* data table$/ })).toHaveAttribute('aria-expanded', 'true');
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
     expect(rows).toHaveLength(13);
     expect(plain(rows[9]!.textContent)).toBe('09:000 steps');

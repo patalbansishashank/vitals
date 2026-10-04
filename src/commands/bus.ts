@@ -513,6 +513,12 @@ function dispatchInLane(id: string, input: unknown, opts: DispatchOptions): Prom
 async function dispatchOnce(id: string, input: unknown, opts: DispatchOptions): Promise<CommandResult> {
   const def = getCommand(id);
   const actor = opts.actor ?? LOCAL_USER;
+  // a replay of a keyed command that already ran gets its first result, even when a redirect would apply now (a ring
+  // that owns steps since then must not turn an MQTT replay of `log.steps` into a new correction)
+  if (def?.idempotency === 'key' && opts.idempotencyKey && !opts.dryRun) {
+    const hit = ledgerGet(`${def.id}|${opts.idempotencyKey}`);
+    if (hit) return hit;
+  }
   if (redirectReady && redirectRules.has(id)) await redirectReady().catch(() => undefined);
   const redirect = redirectOf(id, input, actor);
   if (redirect && 'refuse' in redirect) return { ok: false, error: redirect.refuse };

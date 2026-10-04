@@ -21,10 +21,15 @@ export function harnessConfig() {
   if (fs.existsSync(file)) cfg = JSON.parse(fs.readFileSync(file, 'utf8'));
   const env = process.env;
   // older names (serverBaseUrl, sshHost, VITALS_QA_SERVER, VITALS_QA_SSH) still read
-  const serverBaseUrl = env.VITALS_QA_SERVER_URL || env.VITALS_QA_SERVER || cfg.serverUrl || cfg.serverBaseUrl;
+  const serverBaseUrl =
+    env.VITALS_QA_SERVER_URL || env.VITALS_QA_SERVER || cfg.serverUrl || cfg.serverBaseUrl;
   const sshHost = env.VITALS_QA_SERVER_SSH || env.VITALS_QA_SSH || cfg.serverSsh || cfg.sshHost;
-  if (!serverBaseUrl) throw new Error('No server address: set serverUrl in qa/local.config.json (see qa/local.config.example.json) or VITALS_QA_SERVER_URL.');
-  if (!sshHost) throw new Error('No ssh alias: set serverSsh in qa/local.config.json or VITALS_QA_SERVER_SSH.');
+  if (!serverBaseUrl)
+    throw new Error(
+      'No server address: set serverUrl in qa/local.config.json (see qa/local.config.example.json) or VITALS_QA_SERVER_URL.',
+    );
+  if (!sshHost)
+    throw new Error('No ssh alias: set serverSsh in qa/local.config.json or VITALS_QA_SERVER_SSH.');
   return { serverBaseUrl: serverBaseUrl.replace(/\/$/, ''), sshHost };
 }
 
@@ -56,10 +61,22 @@ export function results(scenario, meta = {}) {
     return value;
   };
   const save = (extra = {}) => {
-    const dir = `${ROOT}/qa/results/sync`;
+    const resultGroup = process.env.SYNC_RESULT_GROUP ?? 'sync';
+    if (!/^[A-Za-z0-9-]+$/.test(resultGroup)) throw new Error('Invalid result group');
+    const dir = `${ROOT}/qa/results/${resultGroup}`;
     fs.mkdirSync(dir, { recursive: true });
     const failed = rows.filter((r) => !r.ok).length;
-    const out = { scenario, at: new Date().toISOString(), ...meta, passed: rows.length - failed, failed, timingsMs: timings, ...(Object.keys(observed).length ? { observed } : {}), ...extra, checks: rows };
+    const out = {
+      scenario,
+      at: new Date().toISOString(),
+      ...meta,
+      passed: rows.length - failed,
+      failed,
+      timingsMs: timings,
+      ...(Object.keys(observed).length ? { observed } : {}),
+      ...extra,
+      checks: rows,
+    };
     fs.writeFileSync(`${dir}/${scenario}.json`, JSON.stringify(out, null, 1) + '\n');
     return out;
   };

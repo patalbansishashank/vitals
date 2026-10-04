@@ -349,8 +349,9 @@ export class FakeCapClient implements CapBleClient {
     this.connected = true;
     this.onDrop = onDisconnect;
   }
-  /** The plugin reports `onDisconnect` for an app-made disconnect too. */
+  /** The plugin reports `onDisconnect` for an app-made disconnect too; with no link it just resolves (Device.kt). */
   async disconnect(deviceId: string): Promise<void> {
+    if (!this.connected) return;
     this.stats.disconnects++;
     this.connected = false;
     void this.ring.fake.disconnect();

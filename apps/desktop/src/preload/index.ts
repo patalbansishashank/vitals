@@ -27,9 +27,10 @@ function on<T>(channel: string, cb: (value: T) => void): () => void {
   return () => void ipcRenderer.removeListener(channel, listener);
 }
 
-const info = ipcRenderer.sendSync(CHANNELS.info) as { version?: unknown; os?: unknown } | null;
+const info = ipcRenderer.sendSync(CHANNELS.info) as { version?: unknown; os?: unknown; secretsPersistent?: unknown } | null;
 const version = typeof info?.version === 'string' ? info.version : '0.0.0';
 const os: DesktopOs = info?.os === 'win32' || info?.os === 'darwin' ? info.os : 'linux';
+const secretsPersistent = info?.secretsPersistent !== false;
 
 const isToolId = (id: unknown): id is AiToolId => AI_TOOL_IDS.includes(id as AiToolId);
 const badId = (): Promise<never> => Promise.reject(new Error('unknown AI tool'));
@@ -67,7 +68,8 @@ const bridge: DesktopBridge = {
     tools: () => ipcRenderer.invoke(CHANNELS.mcpTools) as Promise<AiToolRow[]>,
     add(id) {
       if (!isToolId(id)) return badId();
-      // only from a click in the consent dialog: a script cannot add Vitals to an AI tool on its own
+      // only from a click in the consent dialog: a script cannot add Vitals to an AI tool on its own (main also checks
+      // for a real click or key press, since the page can be given activation without one)
       if (!navigator.userActivation?.isActive) return Promise.reject(new Error('Add needs a click in the dialog.'));
       return ipcRenderer.invoke(CHANNELS.mcpAdd, id) as Promise<AiToolRow>;
     },
@@ -82,8 +84,8 @@ const bridge: DesktopBridge = {
     setServer: (info: McpServerInfo | null) => ipcRenderer.send(CHANNELS.mcpServer, info && typeof info.mcpUrl === 'string' ? { mcpUrl: info.mcpUrl } : null),
   },
   secrets: {
-    get: (key: SecretKey) => ipcRenderer.invoke(CHANNELS.secretsGet, key) as Promise<string | null>,
     set: (key: SecretKey, value) => ipcRenderer.invoke(CHANNELS.secretsSet, key, value ?? null) as Promise<void>,
+    persistent: secretsPersistent,
   },
   keepAlive: (keep, text) => ipcRenderer.send(CHANNELS.keepAlive, keep === true, String(text ?? '')),
   onShow: (cb) => on<void>(CHANNELS.show, () => cb()),

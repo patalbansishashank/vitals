@@ -87,10 +87,6 @@
     stroke-linecap: round;
   }
   .sl-point { fill: var(--sl-hue); }
-  .sl-band {
-    fill: var(--lm-cat-recovery);
-    fill-opacity: var(--lm-chart-band-alpha);
-  }
   .sl-normal { fill: var(--lm-ink-2); }
   .sl-lowest__dot {
     fill: var(--lm-cat-cardio);

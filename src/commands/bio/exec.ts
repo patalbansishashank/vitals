@@ -11,8 +11,8 @@ import { rescoreHistory, type RescoreReport } from '@/biometrics/ingest/rescoreJ
 import { ingestBatches, type IngestOutcome } from '@/biometrics/ingest/pipeline';
 import { addDays, daysBetween } from '@/biometrics/core/scores/util';
 import { CORRECTION_SOURCE, resolveDays } from '@/biometrics/core/resolve';
-import { normalizePolicy, scoreAllowed, suggestedOnPolicy } from '@/biometrics/core/policy';
-import { newSourceDoc, sourceKeyOf, suggestedPolicies } from '@/biometrics/core/source';
+import { isRingSource, normalizePolicy, RING_FOLD_ID, ringDefaultPolicy, ringFoldOf, ringSharing, scoreAllowed, suggestedOnPolicy } from '@/biometrics/core/policy';
+import { lumenFold, sourceKeyOf, suggestedPolicies } from '@/biometrics/core/source';
 import { recordId } from '@/biometrics/core/hash';
 import { validateBatch, CANONICAL_UNIT } from '@/biometrics/core/validate';
 import { RAW_STREAMS, BIO_SCHEMA } from '@/biometrics/core/types';
@@ -23,10 +23,10 @@ import type {
 import {
   adoptPersonPolicies, applyImportPolicy, DAILY_GROUPS, effectivePolicy, importPolicies, personMatrix, policyStreamId, streamOfMetric, withPolicy,
 } from '@/biometrics/core/effective';
-import { mapEventsToBatch } from '@/biometrics/core/events';
-import type { BleLink, BleSession, RingDecodedEvent } from '@/biometrics/core/ble/types';
+import type { BleLink } from '@/biometrics/core/ble/types';
+import type { RingSyncReport } from '@/biometrics/service/types';
 import { bioActivity } from '@/biometrics/app/activity';
-import type { BioDocIndex, SourceBody } from '@/biometrics/store/docIndex';
+import type { BioDocIndex } from '@/biometrics/store/docIndex';
 import type { DocBioStore } from '@/biometrics/store/docStore';
 import { SqliteUnavailableError, isSqliteHead, isZipHead, isJsonHead } from '@/biometrics/importers/sqlite';
 import { localDateOf, tzOffsetSeconds } from '@/biometrics/importers/util';
@@ -34,6 +34,7 @@ import { fail } from '../registry';
 import type { CommandContext, JobHandle, JobRef } from '../types';
 import { bioIndex, commandWriter, deriveWriter, openBioStore } from './store';
 import { defaultBioPorts, scheduleRescore, type BioPorts } from './runtime';
+import { ringDefaultsNotice, storedRingChoice } from './sharing';
 
 const BUILD = 'vitals-web';
 const MAX_DAYS = 92;
@@ -294,6 +295,7 @@ export async function baselines(ctx: CommandContext) {
     { metric: 'hrv_rmssd_ms', unit: 'ms', key: 'hrv', stream: 'hrv', get: (d) => (d.daily?.hrv?.metric === 'rmssd' ? d.daily.hrv.value_ms : undefined) },
     { metric: 'sleep_h', unit: 'h', key: 'sleep', stream: 'sleep_sessions', get: (d) => (d.mainSleep ? d.mainSleep.asleep_s / 3600 : undefined) },
     { metric: 'skin_temp_delta_c', unit: '°C', key: 'skin_temp', stream: 'skin_temp', get: (d) => d.daily?.skin_temp_delta_c },
+    { metric: 'spo2_avg_pct', unit: '%', key: 'spo2', stream: 'spo2', get: (d) => d.daily?.spo2_avg_pct },
   ];
   const out = [];
   for (const spec of specs) {
@@ -367,7 +369,8 @@ export async function sources() {
     };
   });
   list.sort((a, b) => a.tier.localeCompare(b.tier) || a.sourceKey.localeCompare(b.sourceKey));
-  return { sources: list, policies: ix.personPolicies.map(normalizePolicy) };
+  // the Ring page's master switch reads `ringSharing`; `ringDefaultsNotice` is its one-time notice (./sharing.ts)
+  return { sources: list, policies: ix.personPolicies.map(normalizePolicy), ringSharing: ringSharing(ix.sources()), ringDefaultsNotice: ringDefaultsNotice(ix) };
 }
 
 /* =============================================================================== bio.scores */
@@ -395,11 +398,13 @@ export async function scores(ctx: CommandContext, input: ScoresIn) {
   const results = [];
   for (const r of [...newest.values()].sort((a, b) => a.scope.localDate.localeCompare(b.scope.localDate) || a.scoreId.localeCompare(b.scoreId))) {
     const def = getScoreDef(r.scoreId, r.version) ?? getScoreDef(r.scoreId);
-    if (isAgent(ctx) && def && !def.optInStreams.every((s) => matrix[s]?.imported && matrix[s]?.coach !== 'hidden')) {
+    const sk = scoreSource(ix, r);
+    // the score's own source decides (a ring's defaults let the Coach see it); without one, the person's matrix
+    const sees = (s: PolicyStream) => (sk ? coachSees(ix, ctx, sk, s) : matrix[s]?.imported && matrix[s]?.coach !== 'hidden');
+    if (isAgent(ctx) && def && !def.optInStreams.every(sees)) {
       hidden.add(r.scoreId);
       continue;
     }
-    const sk = scoreSource(ix, r);
     results.push({
       scoreId: r.scoreId,
       title: def?.title ?? r.scoreId,
@@ -534,8 +539,13 @@ export async function setPolicy(ctx: CommandContext, input: PolicyIn) {
   const person = await store.personPolicies();
   const { stream: _s, ...patch } = input.policy;
   void _s;
-  // with any source, data of a stream nobody set follows the device-on suggestion, so a single-field change starts there
-  const hasData = (await store.sources()).length > 0;
+  // with any source, data of a stream nobody set follows the device-on suggestion, so a single-field change starts there;
+  // when every device source is a ring, it starts from what the rings hold (the ring defaults unless changed)
+  const all = await store.sources();
+  const hasData = all.length > 0;
+  const devices = all.filter((s) => s.sourceKey !== MANUAL_SOURCE && s.sourceKey !== CORRECTION_SOURCE);
+  const ringOnly = devices.length > 0 && devices.every((s) => isRingSource(s));
+  const ringStart = ringOnly ? (devices.map((s) => s.policies.find((p) => p.stream === stream)).find((p) => p !== undefined) ?? ringDefaultPolicy(stream)) : null;
   let result: StreamPolicy[];
   let before: StreamPolicy;
   let after: StreamPolicy;
@@ -547,7 +557,7 @@ export async function setPolicy(ctx: CommandContext, input: PolicyIn) {
     result = withPolicy(src.policies, after);
     await store.putSource({ ...src, policies: result });
   } else {
-    before = person.find((p) => p.stream === stream) ?? (hasData ? suggestedOnPolicy(stream) : effectivePolicy(null, person, stream));
+    before = person.find((p) => p.stream === stream) ?? (ringStart ? normalizePolicy({ ...ringStart, stream }) : hasData ? suggestedOnPolicy(stream) : effectivePolicy(null, person, stream));
     after = normalizePolicy({ ...before, ...patch, stream });
     result = withPolicy(person, after);
     await store.putPersonPolicies(result, ctx.now);
@@ -761,7 +771,7 @@ async function* withPolicy$(batches: AsyncIterable<BioBatch> | Iterable<BioBatch
   for await (const b of batches) yield applyImportPolicy(b, person);
 }
 
-/** Ingest, adopt the person's choices on new sources, rescore what changed. */
+/** Ingest, adopt the person's choices on new sources (a new ring follows the master switch), rescore what changed. */
 async function ingestAndScore(
   store: DocBioStore,
   batches: AsyncIterable<BioBatch> | Iterable<BioBatch>,
@@ -769,11 +779,15 @@ async function ingestAndScore(
 ): Promise<{ rep: IngestOutcome; scored: number }> {
   const person = await store.personPolicies();
   const before = new Set((await store.sources()).map((s) => s.sourceKey));
-  const rep = await ingestBatches(withPolicy$(batches, person), store, { now: ctx.now, policies: importPolicies(person) });
+  const ix = await bioIndex();
+  const ringSharing = storedRingChoice(ix);
+  const fold = lumenFold(ringFoldOf(ix.sourceDocs.get(RING_FOLD_ID)));
+  const rep = await ingestBatches(withPolicy$(batches, person), store, { now: ctx.now, policies: importPolicies(person), ringSharing, ...(fold ? { fold } : {}) });
   for (const sk of rep.sources) {
     if (before.has(sk)) continue;
     const s = await store.getSource(sk);
-    if (s) await store.putSource({ ...s, policies: adoptPersonPolicies(s.policies, person) });
+    // a ring starts from the ring defaults (item 11), not from the person's intake matrix
+    if (s && !isRingSource(s)) await store.putSource({ ...s, policies: adoptPersonPolicies(s.policies, person) });
     await store.patchSource(sk, { createdAt: ctx.now });
   }
   await store.flush();
@@ -809,8 +823,10 @@ export async function importFile(ctx: CommandContext, input: ImportIn): Promise<
     try {
       const store = await openBioStore({ writer: deriveWriter(undefined, 'import') });
       const read = importer.run(staged.blob, { tz: ctx.tz, now: ctx.now, signal: h.signal, onProgress: (f) => progress(0.7 * f, 'reading') });
-      // Lumen nights may already be stored from the broker: is_main is decided against them (§14.5)
-      const batches = format === 'lumen_cloudevents' ? (await import('@/biometrics/importers/lumenIngest')).withLumenMainSleep$(read, store) : read;
+      // Lumen nights may already be stored from the broker: is_main is decided against them (§14.5), under the ring key
+      // once the Lumen source is folded into the ring (§15.2)
+      const fold = lumenFold(ringFoldOf((await bioIndex()).sourceDocs.get(RING_FOLD_ID)));
+      const batches = format === 'lumen_cloudevents' ? (await import('@/biometrics/importers/lumenIngest')).withLumenMainSleep$(read, store, fold) : read;
       const { rep, scored } = await ingestAndScore(store, batches, { today: ctx.today, now: ctx.now, tz: ctx.tz, signal: h.signal, jobId: h.jobId, progress });
       return {
         importer: format!, records: rep.records, samples: rep.samples, chunks: rep.chunks, duplicates: rep.duplicates, skipped: rep.skipped, rejected: rep.rejected,
@@ -827,94 +843,51 @@ export async function importFile(ctx: CommandContext, input: ImportIn): Promise<
 
 /* =============================================================================== Bluetooth */
 
-const BLE_MESSAGES: Record<string, string> = {
-  credential_invalid: 'This ring’s firmware isn’t supported yet.',
-  auth_rejected: 'The ring refused the connection. Close the ring’s own app, keep the ring close and try again.',
-  disconnected: 'The ring disconnected. Close the ring’s own app, keep the ring close and try again.',
-  aborted: 'Stopped.',
-  closed: 'The connection closed. Try again.',
-  transport: 'Vitals couldn’t talk to the ring. Close the ring’s own app, keep the ring close and try again.',
-  timeout: 'The ring didn’t answer. Keep the ring close and try again.',
-  unsupported_firmware: 'This ring’s firmware isn’t supported yet.',
-  bond_required: 'The ring has to be paired first. Accept the pairing request when it appears, then try again.',
-};
-
-async function openRing(ctx: CommandContext, driverId: string, linkRef: string | undefined) {
-  const { getDriver } = await import('@/biometrics/ble/registry');
-  const driver = getDriver(driverId);
-  if (!driver) fail('not_found', `No Bluetooth driver “${driverId}”.`, { path: '/driver', rule: 'driver' });
-  const staged = linkRef ? ports(ctx).takeLink(linkRef) : undefined;
-  if (!staged) fail('precondition_failed', 'Choose the ring in the browser’s Bluetooth window first (close the ring’s own app before you do).', { rule: 'ble:no_link' });
-  if (staged.driver !== driver.id) {
-    await staged.link.disconnect().catch(() => undefined);
-    fail('invalid_input', 'That ring was chosen for another kind of device.', { path: '/linkRef' });
-  }
-  const { BleSessionError } = await import('@/biometrics/ble/session');
-  try {
-    const open = driver.open as unknown as (l: BleLink, o: { signal?: AbortSignal }) => Promise<BleSession>;
-    const session = await open(staged.link, { signal: ctx.signal });
-    return { driver, session, deviceName: staged.link.deviceName };
-  } catch (e) {
-    await staged.link.disconnect().catch(() => undefined);
-    if (e instanceof BleSessionError) fail('precondition_failed', BLE_MESSAGES[e.code] ?? e.message, { rule: `ble:${e.code}` });
-    throw e;
-  }
+/**
+ * The one ingest path for ring reads (the ring service is the only ring writer, SUITE_SPEC §15.2): the batch goes
+ * through `ingestAndScore` in a derive transaction; the service then marks the source and saves its cursor.
+ */
+export async function ingestRingBatch(batch: BioBatch, o: { ringKey: string; signal: AbortSignal; progress: (p: number, stage: string) => void }): Promise<RingSyncReport> {
+  const now = new Date().toISOString();
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  const today = localDateOf(Date.now(), tz);
+  const store = await openBioStore({ writer: deriveWriter(undefined, 'device sync') });
+  const { rep, scored } = await ingestAndScore(store, [batch], { today, now, tz, signal: o.signal, jobId: `ring:${o.ringKey}`, progress: o.progress });
+  await store.flush();
+  return { sourceKey: o.ringKey, driver: '', firmware: '', battery: null, records: rep.records, samples: rep.samples, duplicates: rep.duplicates, days: rep.days, warnings: rep.warnings.slice(0, 50), scored };
 }
 
-function ringJob(ctx: CommandContext, ring: Awaited<ReturnType<typeof openRing>>, existing: SourceBody | null): JobRef {
-  const { driver, session, deviceName } = ring;
+/** The staged link a screen opened inside the click, or a precondition failure in plain words. */
+function stagedLink(ctx: CommandContext, driverId: string, linkRef: string | undefined): BleLink {
+  const staged = linkRef ? ports(ctx).takeLink(linkRef) : undefined;
+  if (!staged) fail('precondition_failed', 'Choose the ring in the browser’s Bluetooth window first (close the ring’s own app before you do).', { rule: 'ble:no_link' });
+  if (staged.driver !== driverId) {
+    void staged.link.disconnect().catch(() => undefined);
+    fail('invalid_input', 'That ring was chosen for another kind of device.', { path: '/linkRef' });
+  }
+  return staged.link;
+}
+
+/** Hands the link to the ring service as a job; the service keeps the link afterwards and syncs on its own. */
+function ringJob(ctx: CommandContext, link: BleLink, driverId: string, ringKey: string | null, create = false): JobRef {
   return ctx.jobs.start('import', async (h: JobHandle) => {
-    bioActivity.set({ syncing: { jobId: h.jobId, progress: 0, sourceKey: existing?.sourceKey ?? null, driver: driver.id } });
+    bioActivity.set({ syncing: { jobId: h.jobId, progress: 0, sourceKey: ringKey, driver: driverId } });
     const progress = (f: number, stage: string) => {
       h.progress(f, stage);
       const cur = bioActivity.get().syncing;
       if (cur?.jobId === h.jobId) bioActivity.set({ syncing: { ...cur, progress: f } });
     };
     try {
-      const info = await session.info();
-      const cursor = { ...(existing?.ble?.cursor ?? {}) };
-      const events: RingDecodedEvent[] = [];
-      let clockOffsetS = info.clockOffsetS;
-      const errors: string[] = [];
+      const { getRingService, RingLinkError } = await import('@/biometrics/service');
       try {
-        for await (const e of session.sync(cursor, (p) => progress(0.6 * p, 'reading'), h.signal)) {
-          if (e.type !== 'status') events.push(e);
-          else if (e.key === 'cursor' && e.stream && typeof e.value === 'string') cursor[e.stream] = e.value;
-          else if (e.key === 'clock_offset_s' && typeof e.value === 'number') clockOffsetS = Math.abs(e.value) > Math.abs(clockOffsetS) ? e.value : clockOffsetS;
-          else if (e.key === 'error') errors.push(String(e.value));
+        return await getRingService().syncLink(link, driverId, { ...(ringKey ? { ringKey } : {}), ...(create ? { create } : {}), signal: h.signal, onProgress: progress });
+      } catch (e) {
+        if (e instanceof RingLinkError) {
+          const { errorOf } = await import('@/biometrics/service/ringService');
+          throw new Error(e.code === 'failed' && e.message !== e.code ? e.message : errorOf(e).message, { cause: e });
         }
-      } finally {
-        await session.close().catch(() => undefined);
+        throw e;
       }
-      const unsupported = errors.find((x) => x.startsWith('unsupported_firmware'));
-      if (unsupported && events.length === 0) throw new Error(`This ring’s firmware (${info.firmware || 'unknown'}) isn’t supported yet, so Vitals can’t read its history.`);
-      const nowMs = Date.parse(ctx.now);
-      const device: BioProvenance['device'] = { type: 'ring', manufacturer: driver.family, model: deviceName || driver.label, tier: 'C', ...(info.firmware ? { firmware: info.firmware } : {}) };
-      const channel = `ble:${driver.id}` as const;
-      const sourceKey = existing?.sourceKey ?? sourceKeyOf({ channel, device, recording_method: 'automatic', modality: 'sensed', ingested_at: ctx.now });
-      const batch = mapEventsToBatch(events, {
-        tz: ctx.tz, tzOffsetS: tzOffsetSeconds(nowMs, ctx.tz), channel, device, decoder: `${driver.id}/${info.firmware || 'unknown'}@1`, ...(info.firmware ? { firmware: info.firmware } : {}),
-        producer: { name: 'vitals-ble', version: '1' }, ingestedAt: ctx.now, exportedAt: ctx.now, clockOffsetS,
-      });
-      // a ring that already has a source keeps it even if its advertised name changed
-      if (existing) for (const r of batch.records) r.provenance = { ...r.provenance, device: existing.label ? { ...device, model: existing.label.replace(`${driver.family} `, '') } : device };
-      const store = await openBioStore({ writer: deriveWriter(undefined, 'device sync') });
-      const { rep, scored } = await ingestAndScore(store, [batch], { today: ctx.today, now: ctx.now, tz: ctx.tz, signal: h.signal, jobId: h.jobId, progress });
-      const sk = existing?.sourceKey ?? rep.sources[0] ?? sourceKey;
-      if (!(await store.getSource(sk))) {
-        const person = await store.personPolicies();
-        const doc = newSourceDoc({ channel, device, recording_method: 'automatic', modality: 'sensed', ingested_at: ctx.now }, 0, []);
-        await store.putSource({ ...doc, sourceKey: sk, policies: adoptPersonPolicies(doc.policies, person), baselineEpochs: [ctx.today] });
-      }
-      await store.patchSource(sk, {
-        deviceType: 'ring',
-        ble: { driver: driver.id, cursor, ...(info.firmware ? { firmware: info.firmware } : {}), ...(info.battery !== undefined ? { battery: info.battery } : {}), lastSyncAt: ctx.now, clockOffsetS },
-      });
-      await store.flush();
-      return {
-        sourceKey: sk, driver: driver.id, firmware: info.firmware, battery: info.battery ?? null, records: rep.records, samples: rep.samples, duplicates: rep.duplicates,
-        days: rep.days, warnings: [...errors.filter((x) => !x.startsWith('unsupported_firmware')), ...rep.warnings].slice(0, 50), scored,
-      };
     } finally {
       if (bioActivity.get().syncing?.jobId === h.jobId) bioActivity.set({ syncing: null });
     }
@@ -922,8 +895,10 @@ function ringJob(ctx: CommandContext, ring: Awaited<ReturnType<typeof openRing>>
 }
 
 export async function deviceConnect(ctx: CommandContext, input: { driver: string; linkRef?: string }): Promise<JobRef> {
-  const ring = await openRing(ctx, input.driver, input.linkRef);
-  return ringJob(ctx, ring, null);
+  const { getDriver } = await import('@/biometrics/ble/registry');
+  const { familyById } = await import('../../../packages/rings/src/index');
+  if (!getDriver(input.driver) && !familyById(input.driver)) fail('not_found', `No Bluetooth driver “${input.driver}”.`, { path: '/driver', rule: 'driver' });
+  return ringJob(ctx, stagedLink(ctx, input.driver, input.linkRef), input.driver, null, true);
 }
 
 export async function deviceSync(ctx: CommandContext, input: { sourceKey: string; linkRef?: string }): Promise<JobRef> {
@@ -931,8 +906,7 @@ export async function deviceSync(ctx: CommandContext, input: { sourceKey: string
   const src = ix.source(input.sourceKey);
   if (!src) fail('not_found', 'No such source.', { path: '/sourceKey' });
   if (!src.ble?.driver) fail('precondition_failed', 'This source isn’t a ring Vitals reads over Bluetooth. Import a new file instead.', { rule: 'ble:not_a_ring' });
-  const ring = await openRing(ctx, src.ble.driver, input.linkRef);
-  return ringJob(ctx, ring, structuredClone(src));
+  return ringJob(ctx, stagedLink(ctx, src.ble.driver, input.linkRef), src.ble.driver, input.sourceKey);
 }
 
 /* =============================================================================== bio.deleteSource */

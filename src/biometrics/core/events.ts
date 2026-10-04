@@ -1,9 +1,9 @@
 /**
  * RingDecodedEvent[] -> canonical BioBatch (SUITE_SPEC §4.6). Shared by the BLE drivers and the CloudEvents importer.
- * Tier P: a fixed UTC offset is supplied by the caller (no Intl), no clock (`ingestedAt`/`exportedAt` are parameters).
+ * Tier P: UTC offsets are supplied by the caller (no Intl), no clock (`ingestedAt`/`exportedAt` are parameters).
  *
  * Grouping: samples/vendor values become one series record per (stream, local date, origin); sleep epochs one sleep record
- * per decoded packet run; activity buckets steps/distance series (aggregation 'sum') plus one daily record per local date
+ * per contiguous session; activity buckets steps/distance series (aggregation 'sum') plus one daily record per local date
  * carrying the sums of the buckets seen; workouts one workout record. `status` events are ignored. Record ids are
  * deterministic, so a re-sync that decodes the same data yields the same ids.
  */
@@ -23,6 +23,8 @@ export interface EventMapContext {
   tz: string;
   /** Fixed offset used for every local date in this batch, seconds east of UTC. */
   tzOffsetS: number;
+  /** Optional historical offset resolver, for ring history spanning daylight-saving changes. */
+  offsetAtMs?: (epochMs: number) => number;
   channel: BioChannel;
   device: BioProvenance['device'];
   /** e.g. 'jstyle2301/V0789@1' */
@@ -41,8 +43,47 @@ const STAGE_NAMES: Record<string, SleepStageName> = {
   awake: 'awake', light: 'light', deep: 'deep', rem: 'rem', unknown: 'unknown', asleep: 'asleep_unspecified', in_bed: 'awake_in_bed',
 };
 
-const MODE: Record<'history' | 'spot' | 'live', 'periodic' | 'spot' | 'continuous'> = { history: 'periodic', spot: 'spot', live: 'continuous' };
-const METHOD: Record<'history' | 'spot' | 'live', 'automatic' | 'active'> = { history: 'automatic', spot: 'active', live: 'automatic' };
+type Origin = Extract<RingDecodedEvent, { type: 'sample' }>['origin'];
+const MODE: Record<Origin, 'periodic' | 'spot' | 'continuous'> = { history: 'periodic', spot: 'spot', live: 'continuous', workout_stream: 'continuous' };
+const METHOD: Record<Origin, 'automatic' | 'active'> = { history: 'automatic', spot: 'active', live: 'automatic', workout_stream: 'active' };
+type SleepRun = Extract<RingDecodedEvent, { type: 'sleepEpochs' }>;
+
+/** Resolve packet overlaps by completeness, then arrival, before the generic stage flattener sees them. */
+function sleepCoverage(runs: SleepRun[], order: Map<SleepRun, number>): { segs: StageSeg[]; codes: number[]; complete: boolean } {
+  type Segment = StageSeg & { complete: boolean; order: number; code: number | undefined };
+  const changes = new Map<number, { add: Segment[]; remove: Segment[] }>();
+  const changeAt = (t: number) => {
+    let c = changes.get(t);
+    if (!c) changes.set(t, (c = { add: [], remove: [] }));
+    return c;
+  };
+  for (const run of runs) run.stages.forEach((name, i) => {
+    const s = run.start + i * run.epochS * 1000;
+    const g: Segment = { s, e: s + run.epochS * 1000, stage: STAGE_NAMES[name.toLowerCase()] ?? 'unknown', complete: run.complete, order: order.get(run) ?? 0, code: run.rawCodes[i] };
+    changeAt(g.s).add.push(g);
+    changeAt(g.e).remove.push(g);
+  });
+  const times = [...changes.keys()].sort((a, b) => a - b);
+  const active = new Set<Segment>();
+  const segs: StageSeg[] = [];
+  const codes: number[] = [];
+  let complete = true;
+  for (let i = 0; i < times.length - 1; i++) {
+    const t = times[i]!;
+    const change = changes.get(t)!;
+    for (const s of change.remove) active.delete(s);
+    for (const s of change.add) active.add(s);
+    let winner: Segment | undefined;
+    for (const s of active) if (!winner || Number(s.complete) > Number(winner.complete) || (s.complete === winner.complete && s.order > winner.order)) winner = s;
+    if (!winner) continue;
+    complete &&= winner.complete;
+    if (winner.code !== undefined) codes.push(winner.code);
+    const last = segs[segs.length - 1];
+    if (last?.e === t && last.stage === winner.stage) last.e = times[i + 1]!;
+    else segs.push({ s: t, e: times[i + 1]!, stage: winner.stage });
+  }
+  return { segs, codes, complete };
+}
 
 /** Run-length code string of the vendor's raw codes, e.g. '1x30,2x12'. Capped so a night stays under ~1 KB. */
 export function rleCodes(codes: number[], maxRuns = 200): string {
@@ -58,7 +99,7 @@ export function rleCodes(codes: number[], maxRuns = 200): string {
 }
 
 export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContext): BioBatch {
-  const off = ctx.tzOffsetS;
+  const offsetAt = ctx.offsetAtMs ?? (() => ctx.tzOffsetS);
   const drift = ctx.clockOffsetS !== undefined && Math.abs(ctx.clockOffsetS) > CLOCK_DRIFT_THRESHOLD_S;
   const device = ctx.device ? { ...ctx.device, ...(ctx.firmware ? { firmware: ctx.firmware } : {}) } : ctx.device;
   const srcKey = `${ctx.channel}:${device?.model ?? device?.type ?? 'device'}`;
@@ -67,16 +108,21 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
   const flags = (...f: QualityFlag[]): QualityFlag[] => (drift ? [...f, 'clock_drift'] : f);
   const readAtS = (Date.parse(ctx.ingestedAt) || 0) / 1000;
 
-  const series = new Map<string, { stream: BioStream; unit: string; origin: 'history' | 'spot' | 'live'; agg: 'sample' | 'sum'; interval?: number; pts: Array<[number, number]> }>();
-  const addPt = (stream: BioStream, unit: string, origin: 'history' | 'spot' | 'live', agg: 'sample' | 'sum', t: number, v: number, interval?: number): void => {
-    const key = `${stream}|${localDateAt(t, off)}|${origin}|${agg}|${unit}`;
+  const series = new Map<string, { stream: BioStream; unit: string; origin: Origin; agg: 'sample' | 'sum'; interval?: number; off: number; pts: Map<number, number> }>();
+  const addPt = (stream: BioStream, unit: string, origin: Origin, agg: 'sample' | 'sum', t: number, v: number, interval?: number): void => {
+    const off = offsetAt(t);
+    const key = `${stream}|${localDateAt(t, off)}|${origin}|${agg}|${unit}|${off}`;
     let g = series.get(key);
-    if (!g) series.set(key, (g = { stream, unit, origin, agg, interval, pts: [] }));
-    g.pts.push([t, v]);
+    if (!g) series.set(key, (g = { stream, unit, origin, agg, interval, off, pts: new Map() }));
+    g.pts.set(t, v);
   };
 
   const sleeps: Array<{ rec: ReturnType<typeof buildSleepRecord> }> = [];
-  const days = new Map<string, { steps: number; distance: number; hasDistance: boolean }>();
+  const sleepRuns = new Map<number, SleepRun>();
+  const sleepOrder = new Map<SleepRun, number>();
+  let sleepSequence = 0;
+  const buckets = new Map<number, Extract<RingDecodedEvent, { type: 'activityBucket' }>>();
+  const days = new Map<string, { steps: number; distance: number; kcal: number; hasDistance: boolean; hasKcal: boolean; off: number }>();
   const workouts: WorkoutRecord[] = [];
 
   for (const ev of events) {
@@ -88,39 +134,21 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
         addPt(`vendor:${ev.key}`, ev.unit, 'history', 'sample', ev.t, ev.value);
         break;
       case 'activityBucket': {
-        addPt('steps', 'count', 'history', 'sum', ev.start, ev.steps, ev.durS);
-        if (ev.distanceM !== undefined) addPt('distance', 'm', 'history', 'sum', ev.start, ev.distanceM, ev.durS);
-        const d = localDateAt(ev.start, off);
-        const day = days.get(d) ?? { steps: 0, distance: 0, hasDistance: false };
-        day.steps += ev.steps;
-        if (ev.distanceM !== undefined) { day.distance += ev.distanceM; day.hasDistance = true; }
-        days.set(d, day);
+        // Retransmissions and revised buckets replace the same timestamp before totals are summed.
+        buckets.set(ev.start, ev);
         break;
       }
       case 'sleepEpochs': {
-        const segs: StageSeg[] = [];
-        ev.stages.forEach((name, i) => {
-          const stage = STAGE_NAMES[name.toLowerCase()] ?? 'unknown';
-          const s = ev.start + i * ev.epochS * 1000;
-          const last = segs[segs.length - 1];
-          if (last && last.stage === stage && last.e === s) last.e = s + ev.epochS * 1000;
-          else segs.push({ s, e: s + ev.epochS * 1000, stage });
-        });
-        const rec = buildSleepRecord({
-          segs, offsetS: off, sourceKey: srcKey,
-          provenance: prov({ native_version: ev.firmware || undefined }),
-          quality: qualityOf('vendor_proprietary', flags(...(ev.complete ? [] : (['provisional_stages'] as QualityFlag[]))), {
-            confidence: ev.complete ? null : 'low', ...(ev.rawCodes.length > 0 ? { vendor_state: rleCodes(ev.rawCodes) } : {}),
-          }),
-          isMain: false,
-          // complete beats provisional; a later read beats an earlier one, so a night the ring re-classifies is stored as a
-          // newer version instead of a duplicate (R20-ID-03). `ingestedAt` is the read time.
-          version: sleepVersion(ev.complete, readAtS),
-        });
-        sleeps.push({ rec });
+        if (!Number.isFinite(ev.start) || !Number.isFinite(ev.epochS) || ev.epochS <= 0 || ev.stages.length === 0) break;
+        const prev = sleepRuns.get(ev.start);
+        if (!prev?.complete || ev.complete) {
+          sleepRuns.set(ev.start, ev);
+          sleepOrder.set(ev, sleepSequence++);
+        }
         break;
       }
       case 'workout': {
+        const off = offsetAt(ev.start);
         const dur = Math.max(0, Math.round((ev.end - ev.start) / 1000));
         workouts.push({
           kind: 'workout',
@@ -132,6 +160,10 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
           exercise_type: ev.kind,
           native_type: ev.kind,
           active_duration_s: dur,
+          ...(ev.distanceM !== undefined ? { distance_m: ev.distanceM } : {}),
+          ...(ev.kcal !== undefined ? { active_kcal: ev.kcal } : {}),
+          ...(ev.hrAvg !== undefined ? { hr_avg_bpm: ev.hrAvg } : {}),
+          ...(ev.hrMax !== undefined ? { hr_max_bpm: ev.hrMax } : {}),
         });
         break;
       }
@@ -140,13 +172,47 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
     }
   }
 
+  for (const ev of buckets.values()) {
+    addPt('steps', 'count', 'history', 'sum', ev.start, ev.steps, ev.durS);
+    if (ev.distanceM !== undefined) addPt('distance', 'm', 'history', 'sum', ev.start, ev.distanceM, ev.durS);
+    if (ev.kcal !== undefined) addPt('active_kcal', 'kcal', 'history', 'sum', ev.start, ev.kcal, ev.durS);
+    const off = offsetAt(ev.start);
+    const d = localDateAt(ev.start, off);
+    const day = days.get(d) ?? { steps: 0, distance: 0, kcal: 0, hasDistance: false, hasKcal: false, off };
+    day.steps += ev.steps;
+    if (ev.distanceM !== undefined) { day.distance += ev.distanceM; day.hasDistance = true; }
+    if (ev.kcal !== undefined) { day.kcal += ev.kcal; day.hasKcal = true; }
+    days.set(d, day);
+  }
+
+  // A history night may span several packets. Join touching/overlapping runs, keeping naps separated by a gap.
+  const groups: SleepRun[][] = [];
+  let end = -Infinity;
+  for (const ev of [...sleepRuns.values()].sort((a, b) => a.start - b.start)) {
+    if (ev.start > end) groups.push([]);
+    groups[groups.length - 1]!.push(ev);
+    end = Math.max(end, ev.start + ev.epochS * ev.stages.length * 1000);
+  }
+  for (const group of groups) {
+    const { segs, codes, complete } = sleepCoverage(group, sleepOrder);
+    const wake = Math.max(...group.map((ev) => ev.start + ev.epochS * ev.stages.length * 1000));
+    sleeps.push({ rec: buildSleepRecord({
+      segs, offsetS: offsetAt(wake), sourceKey: srcKey,
+      provenance: prov({ native_version: group[0]!.firmware || undefined }),
+      quality: qualityOf('vendor_proprietary', flags(...(complete ? [] : (['provisional_stages'] as QualityFlag[]))), {
+        confidence: complete ? null : 'low', ...(codes.length > 0 ? { vendor_state: rleCodes(codes) } : {}),
+      }),
+      isMain: false, version: sleepVersion(complete, readAtS),
+    }) });
+  }
+
   const records: BioRecord[] = [];
 
-  for (const g of series.values()) g.pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const ordered = [...series.values()].sort((a, b) => a.pts[0]![0] - b.pts[0]![0] || (a.stream < b.stream ? -1 : a.stream > b.stream ? 1 : a.origin < b.origin ? -1 : 1));
+  const ordered = [...series.values()].map((g) => ({ ...g, pts: [...g.pts].sort((a, b) => a[0] - b[0]) }))
+    .sort((a, b) => a.pts[0]![0] - b.pts[0]![0] || (a.stream < b.stream ? -1 : a.stream > b.stream ? 1 : a.origin < b.origin ? -1 : 1));
   for (const g of ordered) {
-    // identical (t, value) pairs are one sample
-    const pts = g.pts.filter((p, i) => i === 0 || p[0] !== g.pts[i - 1]![0] || p[1] !== g.pts[i - 1]![1]);
+    const pts = g.pts;
+    const off = g.off;
     const t0 = pts[0]![0];
     const hrv = g.stream === 'hrv';
     const vendor = g.stream.startsWith('vendor:');
@@ -162,6 +228,7 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
       aggregation: g.agg,
       ...(g.interval !== undefined ? { interval_s: g.interval } : {}),
       sampling: { mode: MODE[g.origin], ...(g.interval !== undefined ? { nominal_interval_s: g.interval } : {}), ...(device ? { device_tier: device.tier } : {}) },
+      ...(g.origin === 'workout_stream' ? { context: 'exercise' } : {}),
       t_offset_s: pts.map((p) => Math.round((p[0] - t0) / 1000)),
       values: pts.map((p) => p[1]),
     };
@@ -192,11 +259,12 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
       // sums only grow as a re-sync fills the day, so the larger total wins (R20-ID-03, low: two reads with equal steps
       // and a different distance share a version, and the first one stored is kept)
       version: Math.max(1, Math.round(d.steps)),
-      time: { tz_offset_s: off, local_date: date },
+      time: { tz_offset_s: d.off, local_date: date },
       provenance: prov(),
       quality: qualityOf('vendor_proprietary', flags('partial_day')),
       steps: d.steps,
       ...(d.hasDistance ? { distance_m: d.distance } : {}),
+      ...(d.hasKcal ? { active_kcal: d.kcal } : {}),
     };
     records.push(daily);
   }

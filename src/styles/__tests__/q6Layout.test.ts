@@ -45,7 +45,7 @@ describe('Q6 layout fixes', () => {
   it('chapter progress labels are blocks, so long names end in an ellipsis instead of being cut', () => {
     const css = read('src/features/intake/intake.css');
     expect(css).toMatch(/\.lm-ik-progress__label \{\s*display: block;\s*\}/);
-    expect(css).toMatch(/flex: 0 0 420px;/);
+    expect(css).toMatch(/width: 420px;/);
   });
 
   it('a complete chapter never reads "question 3 of 2"', () => {
@@ -66,7 +66,9 @@ describe('Q6 layout fixes', () => {
     const page = read('src/features/settings/SettingsPage.tsx');
     expect(page).toMatch(/new ResizeObserver\(\(\) => !done && go\(\)\)/);
     expect(page).toMatch(/window\.setTimeout\(stop, 3000\)/);
-    expect(read('src/features/settings/sections.tsx')).toMatch(/<Faceplate as="section" id=\{id\} aria-labelledby=\{titleId\} className="scroll-mt-2">/);
+    // one small scroll margin on the section (8 px; C-MOBILEUI's phone rule only adds the taller chip rail), never a second top-bar offset
+    expect(read('src/features/settings/sections.tsx')).toMatch(/<Faceplate as="section" id=\{id\} aria-labelledby=\{titleId\} className="settings-section">/);
+    expect(rule(read('src/features/settings/settings.css'), '.settings-section')).toMatch(/scroll-margin-top: var\(--lm-space-2\);/);
   });
 
   it('the catalogue picker never makes a page wider than the phone (Settings › Kitchen at 390 px)', () => {

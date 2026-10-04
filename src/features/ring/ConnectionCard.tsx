@@ -240,7 +240,11 @@ export function ConnectionCard({ ring, showTail = false, collapsible = false, de
       );
       break;
     case 'syncing':
-      keys = <Key disabled>{K.reading}</Key>;
+      keys = (
+        <Key disabled className="rg-statuskey">
+          {K.reading}
+        </Key>
+      );
       break;
     case 'elsewhere':
       keys = (

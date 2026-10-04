@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveDays } from '../resolve';
 import { inferTier, sourceKeyOf, suggestedPolicies, defaultPolicies, policyStreamOf } from '../source';
-import type { BioSourceDoc } from '../types';
+import type { BioChannel, BioSourceDoc } from '../types';
 import { daily, prov, sleep } from './factory';
 
 const ring = prov();
@@ -14,6 +14,16 @@ describe('source', () => {
     expect(sourceKeyOf(prov({ device: undefined, source_app: 'Health App' }))).toBe('file:canonical|app:health_app');
     expect(sourceKeyOf(prov({ device: undefined }))).toBe('file:canonical');
     expect(inferTier(prov({ device: undefined }))).toBe('C');
+  });
+  it.each(['serial:C-RINGX-TEST', 'mac:00:00:00:00:00:01', 'adv:C-RINGX-TEST'])('keeps the physical ring channel for %s', (identity) => {
+    const channel: BioChannel = `ble:jstyle2301/2301/${identity}`;
+    expect(sourceKeyOf(prov({ channel }))).toBe(channel);
+    expect(sourceKeyOf(prov({ channel, device: undefined, source_app: 'Vitals' }))).toBe(channel);
+    expect(sourceKeyOf(prov({ channel, device: { type: 'ring', manufacturer: 'J-Style', model: '2301', firmware: 'test', tier: 'C' } }))).toBe(channel);
+  });
+  it('distinguishes physical rings while preserving legacy BLE keys', () => {
+    expect(sourceKeyOf(prov({ channel: 'ble:jstyle2301/2301/serial:C-RINGX-A' }))).not.toBe(sourceKeyOf(prov({ channel: 'ble:jstyle2301/2301/serial:C-RINGX-B' })));
+    expect(sourceKeyOf(prov({ channel: 'ble:jstyle2301' }))).toBe('ble:jstyle2301|acme:r1');
   });
   it('policies: all off by default; suggestions import+score, coach hidden, vendor never scores', () => {
     expect(defaultPolicies().every((p) => !p.imported && !p.scores && !p.engine && p.coach === 'hidden')).toBe(true);

@@ -1,6 +1,6 @@
 /** Settings › Sync copy. Plain and short, like the rest of Settings. */
 export const SYNC_COPY = {
-  intro: 'Your data stays on this device until you set up sync. Your sync server only ever holds encrypted data it cannot read.',
+  intro: 'Your data is saved on this device. If you set up sync, your server may hold a readable copy and share it with paired devices.',
   /** With a paired home server (R20-PAIR-02): that server can read the data, so the relay sentence above is not true. */
   introHome: 'Your home server holds a readable copy of your data and syncs your devices. The 24 words are the backup.',
   lnaHint: 'Chrome may ask to “connect to devices on your local network”. Allow it so Vitals can reach your server.',
@@ -25,7 +25,7 @@ export const SYNC_COPY = {
   scan: 'Scan code',
   codeLabel: 'pairing code',
   existingTitle: 'This device already has data',
-  existingBody: 'Merge it, or replace it with the synced data?',
+  existingBody: 'Merge it, or replace it with the synced data? Replace deletes what is only on this device.',
   merge: 'Merge',
   replace: 'Replace with synced data',
   showCode: 'Show pairing code',

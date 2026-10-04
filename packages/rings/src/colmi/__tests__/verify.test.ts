@@ -229,7 +229,8 @@ describe('verify: every decode vector through protocol.ingest', () => {
   it('big data (5) and interval temperature (2) on the V2 channel', () => {
     for (const v of g('ColmiDecoder.decodeBigData')) {
       const tz = v.context!.tzOffsetS as number;
-      const r = P.ingest(fromHex(v.bytes!), base(noonOf(v.context!.todayLocal as string, tz), tz), BIGDATA);
+      // Some synthetic nap vectors end after noon; stamp the receive clock after their last minute.
+      const r = P.ingest(fromHex(v.bytes!), base(noonOf(v.context!.todayLocal as string, tz) + 6 * 3_600_000, tz), BIGDATA);
       expect(r.events, v.name).toEqual(expectedRingEvents(v.derivedEvents!, 0xbc, tz));
     }
     for (const v of g('ColmiDecoder.decodeIntervalTemperature')) {
@@ -347,7 +348,7 @@ describe('verify: clock and day-stamp rules (hand-worked from ColmiEncoder.setDa
     expect(p2.events[0]).toMatchObject({ t: mid + 180 * 60_000, value: 50 });
   });
 
-  it('activity window: now-8d inclusive, now+1h inclusive, west-of-UTC local slot', () => {
+  it('activity window: Kotlin decoder accepts +1h; public events stop at the session clock', () => {
     const tz = -18000;
     const slotT = T(2026, 7, 17, 15, 0); // local 10:00 on 2026-07-17 at -05:00 = slot 40
     const bucket = (now: number) => {
@@ -358,7 +359,8 @@ describe('verify: clock and day-stamp rules (hand-worked from ColmiEncoder.setDa
     expect(bucket(slotT + 8 * 86_400_000)).toEqual(kept); // Kotlin: ts < lower -> drop, so equal is kept
     expect(bucket(slotT + 8 * 86_400_000 - 1)).toEqual(kept);
     expect(bucket(slotT + 8 * 86_400_000 + 1)).toEqual([]);
-    expect(bucket(slotT - 3_600_000)).toEqual(kept); // ts > upper -> drop, so equal is kept
+    expect(bucket(slotT)).toEqual(kept);
+    expect(bucket(slotT - 3_600_000)).toEqual([]);
     expect(bucket(slotT - 3_600_000 - 1)).toEqual([]);
   });
 

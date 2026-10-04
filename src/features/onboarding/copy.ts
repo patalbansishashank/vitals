@@ -44,7 +44,7 @@ export const LAST_REVIEWED = '30 September 2026';
 export const WELCOME = {
   documentTitle: 'Welcome',
   headline: 'See what a plan does before you live it.',
-  body: 'Vitals projects your body forward day by day from what you eat, how you train, move and sleep. It shows trends for an average person like you — with ranges, not promises — and the evidence behind every curve. Everything stays on this device.',
+  body: 'Vitals projects your body forward day by day from what you eat, how you train, move and sleep. It shows trends for an average person like you — with ranges, not promises — and the evidence behind every curve. Your data starts on this device. You can connect your own server to use it on other devices.',
   start: 'Get started',
   time: 'About a minute. A few questions first, then your body and a normal week (about five minutes, every question skippable).',
   importLead: 'Already have data?',
@@ -684,9 +684,9 @@ export const LIMITS_PAGE = {
   dataTitle: 'Your data',
   // REVIEW: counsel — privacy statements (dossier §4.7; hosting logs are a separate processing to disclose).
   data: [
-    "Everything you enter is processed in this browser. Vitals doesn't send it to a server: there is no account, no analytics and no cookies.",
-    "It stays in this browser's storage until you delete it in Settings › Your data › Reset everything. On a shared device, anyone using this browser can see it.",
-    'The website host keeps standard connection logs (such as IP addresses) when the page loads. It never receives what you enter.',
+    'Your entries are saved on this device. If you connect your own server, Vitals syncs data through it to devices you pair. There is no Vitals account, analytics or cookies.',
+    'On the website, this browser stores a local copy. On a shared device, anyone using this browser can see it. You can manage local data in Settings › Your data.',
+    'The website host may keep standard connection logs when the page loads. Your own server is a separate destination if you connect it.',
   ],
   modeTitle: 'Your safety mode',
   changesTitle: 'Evidence and changes',

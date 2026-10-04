@@ -21,7 +21,7 @@ export const FLAGS = {
 } as const;
 
 export const CHANNELS = {
-  info: 'vitals:info', // sync (sendSync) → { version, os }
+  info: 'vitals:info', // sync (sendSync) → DesktopInfo
   trayStatus: 'vitals:tray:status',
   autostartGet: 'vitals:autostart:get',
   autostartSet: 'vitals:autostart:set',
@@ -35,14 +35,21 @@ export const CHANNELS = {
   mcpResult: 'vitals:mcp:result', // page → main: McpCallResponse
   mcpManifest: 'vitals:mcp:manifest', // page → main: the tool manifest (or null)
   mcpServer: 'vitals:mcp:server', // page → main: McpServerInfo | null
-  secretsGet: 'vitals:secrets:get',
-  secretsSet: 'vitals:secrets:set',
+  secretsSet: 'vitals:secrets:set', // page → main, write only: main reads the secrets itself, the page never can
   keepAlive: 'vitals:keepalive',
   show: 'vitals:show', // main → page: the window was shown (ShellBridge.onResume)
   syncNow: 'vitals:sync:now', // main → page: the tray's "Sync now"
 } as const;
 
 export type DesktopOs = 'linux' | 'win32' | 'darwin';
+
+/** What `CHANNELS.info` answers. */
+export interface DesktopInfo {
+  version: string;
+  os: DesktopOs;
+  /** False when there is no OS keyring: the agent keys live in memory only and are gone after the app quits. */
+  secretsPersistent: boolean;
+}
 
 export type AiToolId = 'claude-code' | 'codex' | 'opencode' | 'chatgpt-desktop';
 export const AI_TOOL_IDS: readonly AiToolId[] = ['claude-code', 'codex', 'opencode', 'chatgpt-desktop'];
@@ -87,6 +94,21 @@ export interface McpServerInfo {
   mcpUrl: string;
 }
 
+const LOOPBACK = new Set(['127.0.0.1', '[::1]', 'localhost']);
+
+/** An address main may send an agent key to: `https:`, or `http:` on this computer only (never in clear text over a network). */
+export function isServerMcpUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2048) return false;
+  let u: URL;
+  try {
+    u = new URL(value);
+  } catch {
+    return false;
+  }
+  if (u.username || u.password) return false;
+  return u.protocol === 'https:' || (u.protocol === 'http:' && LOOPBACK.has(u.hostname));
+}
+
 /** Secrets kept by main with Electron `safeStorage`; never written to an AI tool's config. One agent token per tool. */
 export type SecretKey = `agentToken:${AiToolId}`;
 
@@ -113,7 +135,12 @@ export interface DesktopBridge {
     /** The paired server's MCP address, or null when no server is paired. */
     setServer(info: McpServerInfo | null): void;
   };
-  secrets: { get(key: SecretKey): Promise<string | null>; set(key: SecretKey, value: string | null): Promise<void> };
+  /** Write only: the page hands a key over and can never read it back. */
+  secrets: {
+    set(key: SecretKey, value: string | null): Promise<void>;
+    /** False when there is no OS keyring: the keys are forgotten when the app quits. */
+    persistent: boolean;
+  };
   /** ShellBridge on desktop: tray status line, and keeps the window running in the background. */
   keepAlive(on: boolean, text: string): void;
   /** The window was shown again (from the tray or a second launch). */

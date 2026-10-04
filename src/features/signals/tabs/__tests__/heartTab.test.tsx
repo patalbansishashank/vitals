@@ -90,7 +90,7 @@ describe('Heart and recovery · day', () => {
     expect(titles).toEqual(['heart rate through the day', 'heart-rate variability last night', 'blood oxygen at night', 'skin temperature at night']);
     expect(document.querySelectorAll('.sp-pair')).toHaveLength(1);
     // the tier note is said once, by the page's source line, not again inside the tab
-    expect(screen.queryByText('tier C: shown as change from your own normal')).toBeNull();
+    expect(screen.queryByText(/shown as change from your own normal/)).toBeNull();
   });
 
   it('no age: a plain line and the age line', async () => {
@@ -168,12 +168,40 @@ describe('Heart and recovery · day', () => {
     expect(within(face).getByText('your normal')).toBeTruthy();
     expect(within(face).getByText(/average \+0\.3\s°C from your normal · highest \+0\.4\s°C at 02:00/)).toBeTruthy();
     expect(face.textContent).not.toMatch(/34\.7/);
-    fireEvent.click(within(face).getByRole('button', { name: 'table' }));
+    fireEvent.click(within(face).getByRole('button', { name: /^Show .* data table$/ }));
     expect(within(within(face).getByRole('table')).getByText('34.7')).toBeTruthy();
-    // blood oxygen reads its average and lowest
+    // blood oxygen while its normal forms (no spo2 history): the absolute line and the night count
     expect(screen.getByText(/average 96\s% · lowest 96\s% at 23:00/)).toBeTruthy();
+    const ox = screen.getByText('blood oxygen at night').closest('.hr-face') as HTMLElement;
+    expect(within(ox).getByText('Building your normal: 0 of 14 nights.')).toBeTruthy();
     // a sleep band behind the day line
     expect(mainChart().querySelector('[data-band="sleep"]')).toBeTruthy();
+  });
+
+  it('blood oxygen at night as change from normal (tier C, as skin temperature): "your normal" line, absolute only in the table', async () => {
+    const night = mainSleep(TODAY);
+    const days = [rd(TODAY, { spo2_avg_pct: 96 }, { mainSleep: night, sleeps: [night] })];
+    const baselines: SignalBaseline[] = [{ metric: 'spo2_avg_pct', unit: '%', mean: 97, lo: 96, hi: 98, nights: 30, forming: false }];
+    const spo2 = [0, 60, 120, 180].map((m, i) => ({ t: local('2026-10-02', 23) + m * MIN, v: [96, 95, 93, 96][i]! }));
+    await show(source({ days, baselines, series: { spo2 } }), 'day', TODAY);
+    const face = screen.getByText('blood oxygen at night').closest('.lv-ring-day') as HTMLElement;
+    expect(within(face).getByText('your normal')).toBeTruthy();
+    // mean 95 against a 97 normal; the lowest reading is at 01:00
+    expect(within(face).getByText(/^average −2\s% from your normal · lowest at 01:00$/)).toBeTruthy();
+    expect(within(face).queryByText('Building your normal: 0 of 14 nights.')).toBeNull();
+    const plot = face.querySelector('.hr-dl-plot') as HTMLElement;
+    expect(plot.getAttribute('aria-label')).toMatch(/shown as change from your own normal/);
+    expect(plot.getAttribute('aria-label')).not.toMatch(/tier C|93 %/);
+    fireEvent.focus(plot);
+    expect(tip(face)).toMatch(/^02:00 · −1\s% from your normal$/);
+    // no absolute percentage and no 90–100 axis in the plain view
+    const plain = face.textContent ?? '';
+    expect(plain).not.toMatch(/9[0-9]\s?%/);
+    expect([...face.querySelectorAll('.lv-ring-tick')].map((e) => e.textContent)).not.toContain('95');
+    fireEvent.click(within(face).getByRole('button', { name: /^Show .* data table$/ }));
+    const t = within(face).getByRole('table');
+    expect(within(t).getByText('93')).toBeTruthy();
+    expect(within(t).getByText('−4')).toBeTruthy();
   });
 
   it('your ring says: only when vendor scores are on', async () => {
@@ -214,7 +242,7 @@ describe('Heart and recovery · week, month, year', () => {
     expect(main.querySelectorAll('[data-mark="dot"]')).toHaveLength(2);
     expect(main.querySelectorAll('[data-mark="range"]')).toHaveLength(3);
     const titles = [...document.querySelectorAll('.sg-chart__title')].map((e) => e.textContent);
-    expect(titles).toEqual(['heart rate per day', 'resting heart rate', 'heart-rate variability · tier C', 'blood oxygen per night', 'skin temperature per night']);
+    expect(titles).toEqual(['heart rate per day', 'resting heart rate', 'heart-rate variability', 'blood oxygen per night', 'skin temperature per night']);
     expect(document.querySelectorAll('.sp-pair')).toHaveLength(2);
   });
 
@@ -263,6 +291,33 @@ describe('Heart and recovery · week, month, year', () => {
     expect(face.querySelector('[data-mark="column"]')).toBeNull();
   });
 
+  it('blood oxygen per night as change from the person’s normal; absolute only in the table', async () => {
+    const baselines: SignalBaseline[] = [{ metric: 'spo2_avg_pct', unit: '%', mean: 97, lo: 96, hi: 98, nights: 30, forming: false }];
+    await show(source({ days: weekDays, baselines }), 'week', '2026-09-30');
+    const face = screen.getByText('blood oxygen per night').closest('.hr-face') as HTMLElement;
+    expect(within(face).getByText('your normal')).toBeTruthy();
+    expect(face.querySelector('[data-coverage]')!.textContent).toMatch(/^1 of 6 nights recorded · average −1\s% from your normal \(recorded nights\)$/);
+    expect(face.querySelectorAll('[data-mark="dot"]')).toHaveLength(1);
+    expect(face.querySelector('[role="img"]')!.getAttribute('aria-label')).toMatch(/shown as change from your own normal/);
+    expect(face.querySelector('.sg-chart__frame')!.textContent).not.toMatch(/\b9[0-9]\b/);
+    const plot = face.querySelector('.hr-plot') as HTMLElement;
+    fireEvent.focus(plot);
+    fireEvent.keyDown(plot, { key: 'Home' });
+    expect(tip(plot)).toMatch(/^Mon 28 Sep · average −1\s% from your normal · lowest −6\s%$/);
+    expect(within(face).queryByText(/Building your normal/)).toBeNull();
+    fireEvent.click(within(face).getByRole('button', { name: /^Show .* data table$/ }));
+    const row = within(within(face).getByRole('table')).getAllByRole('row')[1]!;
+    expect(row.textContent).toBe('Mon 28 Sep9691−1');
+  });
+
+  it('blood oxygen per night while the normal forms: the absolute chart and the night count', async () => {
+    await show(source({ days: weekDays }), 'week', '2026-09-30');
+    const face = screen.getByText('blood oxygen per night').closest('.hr-face') as HTMLElement;
+    expect(within(face).queryByText('your normal')).toBeNull();
+    expect(within(face).getByText('Building your normal: 1 of 14 nights.')).toBeTruthy();
+    expect(face.querySelector('[data-coverage]')!.textContent).toMatch(/average 96\s% \(recorded nights\)/);
+  });
+
   it('your ring says per day, only when on', async () => {
     const days = [...weekDays, rd('2026-09-27', null), rd('2026-09-30', { vendor: { stress: { value: 34, scale: '0-100' } } })];
     await show(source({ days, person: { vendorScores: true } }), 'week', '2026-09-30');
@@ -303,6 +358,12 @@ describe('Heart and recovery · the synthetic fixtures', () => {
         if (kind !== 'year') expect(tab.querySelectorAll('[data-missing="true"]').length).toBeGreaterThan(0);
       }
       expect(container.textContent).not.toMatch(/NaN|undefined/);
+      // J6-10: the internal tier name never reaches the words on screen or the chart descriptions
+      expect(container.innerHTML).not.toMatch(/tier\s*C/i);
+      // J6-03: the fixture's normal has formed, so blood oxygen is change from it, never an absolute percentage
+      const ox = [...container.querySelectorAll('.hr-face')].find((f) => /blood oxygen/.test(f.querySelector('.sg-chart__title, .lv-ring-title')?.textContent ?? ''))!;
+      expect(ox.querySelector('[data-mark="zero"]')).toBeTruthy();
+      expect(ox.textContent).not.toMatch(/\b9\d(\.\d)?\s?%/);
       unmount();
     }
   });

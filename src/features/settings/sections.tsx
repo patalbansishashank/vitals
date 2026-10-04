@@ -35,10 +35,8 @@ export const SECTIONS: ReadonlyArray<{ id: SectionId; label: string; title: stri
 
 export function SettingsSection({ id, title, saved = false, children }: { id: SectionId; title: string; saved?: boolean; children: ReactNode }) {
   const titleId = `settings-${id}-title`;
-  // html's scroll-padding-top already clears the top bar and the chip rail; 8 px more is the gap (Q6: a 124 px margin on
-  // top of it left the previous section's last 110 px showing above a deep-linked section)
   return (
-    <Faceplate as="section" id={id} aria-labelledby={titleId} className="scroll-mt-2">
+    <Faceplate as="section" id={id} aria-labelledby={titleId} className="settings-section">
       <FaceplateHeader title={title} titleId={titleId} actions={<SavedLabel on={saved} />} />
       <div>{children}</div>
     </Faceplate>
@@ -118,11 +116,13 @@ export function UnitsSection() {
   const [saved, flash] = useSavedFlash();
   return (
     <SettingsSection id="units" title="Units" saved={saved}>
-      <BankRow field="units" label="body" onSaved={flash} options={[{ value: 'metric', label: 'metric' }, { value: 'imperial', label: 'imperial' }]} />
-      <BankRow field="energyUnit" label="energy" onSaved={flash} options={[{ value: 'kcal', label: 'kcal' }, { value: 'kJ', label: 'kJ' }]} />
-      <BankRow field="glucoseUnit" label="glucose and lipids" onSaved={flash} options={[{ value: 'mmol', label: 'mmol/L' }, { value: 'mgdl', label: 'mg/dL' }]} />
-      <BankRow field="dateStyle" label="dates" onSaved={flash} options={[{ value: 'day-month', label: '5 Oct' }, { value: 'month-day', label: 'Oct 5' }]} />
-      <BankRow field="weekStart" label="week starts" onSaved={flash} options={[{ value: 'monday', label: 'Monday' }, { value: 'sunday', label: 'Sunday' }]} />
+      <div className="settings-unit-rows">
+        <BankRow field="units" label="body" onSaved={flash} options={[{ value: 'metric', label: 'metric' }, { value: 'imperial', label: 'imperial' }]} />
+        <BankRow field="energyUnit" label="energy" onSaved={flash} options={[{ value: 'kcal', label: 'kcal' }, { value: 'kJ', label: 'kJ' }]} />
+        <BankRow field="glucoseUnit" label="glucose and lipids" onSaved={flash} options={[{ value: 'mmol', label: 'mmol/L' }, { value: 'mgdl', label: 'mg/dL' }]} />
+        <BankRow field="dateStyle" label="dates" onSaved={flash} options={[{ value: 'day-month', label: '5 Oct' }, { value: 'month-day', label: 'Oct 5' }]} />
+        <BankRow field="weekStart" label="week starts" onSaved={flash} options={[{ value: 'monday', label: 'Monday' }, { value: 'sunday', label: 'Sunday' }]} />
+      </div>
       <p className="mt-3 text-xs leading-[1.45] text-ink-2">Changes apply everywhere at once. Vitals stores measurements in metric and converts for display.</p>
     </SettingsSection>
   );
@@ -132,31 +132,33 @@ export function AppearanceSection() {
   const [saved, flash] = useSavedFlash();
   return (
     <SettingsSection id="appearance" title="Appearance" saved={saved}>
-      <BankRow
-        field="theme"
-        label="theme"
-        help="System follows your device."
-        onSaved={flash}
-        options={[
-          { value: 'system', label: 'system' },
-          { value: 'light', label: 'light' },
-          { value: 'dark', label: 'dark' },
-        ]}
-      />
-      <SwitchRow field="chartPatterns" label="patterns in charts" help="Adds hatching to bands and bars so they read without colour. On automatically in high-contrast mode." onSaved={flash} />
-      <BankRow
-        field="reduceMotion"
-        label="reduce motion"
-        help="System follows your device's setting."
-        onSaved={flash}
-        options={[
-          { value: 'system', label: 'system' },
-          { value: 'on', label: 'on' },
-          { value: 'off', label: 'off' },
-        ]}
-      />
-      <SwitchRow field="showFigure" label="show figure" help="Hide the body figure everywhere and use numbers only." onSaved={flash} />
-      <QuietModeRow onSaved={flash} />
+      <div className="settings-appearance-rows">
+        <BankRow
+          field="theme"
+          label="theme"
+          help="System follows your device."
+          onSaved={flash}
+          options={[
+            { value: 'system', label: 'system' },
+            { value: 'light', label: 'light' },
+            { value: 'dark', label: 'dark' },
+          ]}
+        />
+        <SwitchRow field="chartPatterns" label="patterns in charts" help="Adds hatching to bands and bars so they read without colour. On automatically in high-contrast mode." onSaved={flash} />
+        <BankRow
+          field="reduceMotion"
+          label="reduce motion"
+          help="System follows your device's setting."
+          onSaved={flash}
+          options={[
+            { value: 'system', label: 'system' },
+            { value: 'on', label: 'on' },
+            { value: 'off', label: 'off' },
+          ]}
+        />
+        <SwitchRow field="showFigure" label="show figure" help="Hide the body figure everywhere and use numbers only." onSaved={flash} />
+        <QuietModeRow onSaved={flash} />
+      </div>
     </SettingsSection>
   );
 }

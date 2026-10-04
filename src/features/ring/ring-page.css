@@ -24,6 +24,10 @@
   .rg-span {
     min-width: 0;
   }
+  /* no rows to show under the pairing flow: no empty grid row either */
+  .rg-span--today:empty {
+    display: none;
+  }
   .rg-settings {
     scroll-margin-top: calc(var(--lm-topbar-h) + 72px);
   }
@@ -94,6 +98,13 @@
   .rg-key svg.rg-light[data-light='attention'] {
     top: 7px;
     right: 7px;
+  }
+
+  /* a disabled key whose words carry the state ("reading…", a Disconnect that waits for a link): tertiary ink instead of
+     the disabled-only faint ink, so the text keeps 4.5:1 or more in both themes (J6-09); the cap still reads as off */
+  .lm-key.rg-statuskey[data-variant]:disabled,
+  .lm-key.rg-statuskey[data-variant][aria-disabled='true']:not([data-loading='true']) {
+    color: var(--lm-ink-3);
   }
 
   /* ---- connection card (§5.2) ---- */

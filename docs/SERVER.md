@@ -1,7 +1,8 @@
 # Vitals Server
 
 The Vitals Server is the `vitals-server` program in `packages/companion`. It runs on one always-on computer (for the
-owner: a small ARM server) and serves the website, the installed app and the Lumen Health phone app. It has two roles:
+owner: a small ARM server) and serves the website and installed apps. It can also receive legacy Lumen Health broadcasts
+until that phone app is retired. It has two roles:
 
 | Role | What it holds | Can it read health data? |
 |---|---|---|
@@ -101,6 +102,22 @@ keeps only its hash. Remove a device with `vitals-server devices revoke <person>
 
 The browser asks once for permission to reach devices on your local network, because tailnet addresses count as local.
 
+### Pairing turns sync on
+
+On a `home` server, pairing a device also lets that device take the person's sync key over TLS, once, so it joins the
+person's sync group without the 24 words. The device does this by itself after it is paired:
+
+- The route is `POST /v1/sync/key`, called with the new device's token (an agent token gets 403).
+- It works once per device and only within 10 minutes of pairing (the same window as the code). A second call gets 409
+  `already_issued`; a late call gets 410 `window_closed`, and the device must be paired again.
+- The answer is sent with `Cache-Control: no-store`. The key is in the response body only: never in a URL or a log line.
+- The server log gets one line, `person <id> device <deviceId>: sync key handed over` (or `sync key refused: <reason>`),
+  never the key.
+- A `relay` server holds no key, so it answers 404 and the app keeps the old path: type or scan the 24 words.
+
+The 24 words stay as the backup (Settings › Sync). A device that was revoked after it took the key still has the key,
+exactly as with the 24 words; to lock it out, make a new key in Settings › Sync.
+
 ## Phone setup (Lumen Health)
 
 Create a broker login (at most two per person):
@@ -156,6 +173,68 @@ Import your Lumen Health history first, then switch on broadcasting. Records sen
    the Coach until it is on).
 4. Then paste the broker login into Lumen Health's broadcast settings (table above). The card shows "connected", the
    last event, events per stream today and the ring's battery.
+
+## A public address for devices without tailnet DNS (the apps)
+
+Some phones cannot resolve `*.ts.net` names (Tailscale's DNS setting is off), and the packaged desktop and Android apps
+have the same problem. The fix is the one used for MQTT above: a public DNS name whose address record points at the
+server's tailnet address (`vitals-server.example.com` -> `100.64.0.1`), with a certificate Caddy already keeps for that
+name. Only a tailnet address is in public DNS, so nothing is reachable from the internet. If you did the MQTT over TLS
+step, the name and the certificate already exist: you need no DNS change and no new certificate.
+
+Port 443 on that name may be taken by something else, so the API uses port **8444**.
+
+1. **Caddy.** Add one site on port 8444, bound to the tailnet address only, with the same `tls` block as the existing
+   site for that name (same issuer, so Caddy reuses the same certificate). Back up the Caddyfile first.
+
+   ```caddy
+   vitals-server.example.com:8444 {
+       bind 100.64.0.1
+       tls { …the same tls block as the existing site for this name… }
+       import tailnet_only          # whatever refuses non-tailnet addresses in your file
+       reverse_proxy 127.0.0.1:4870
+   }
+   ```
+   Then `caddy validate --config /etc/caddy/Caddyfile` and `systemctl reload caddy`. Check that Caddy now listens on
+   `100.64.0.1:8444`. If the tailnet firewall lists ports, allow 8444.
+2. **The server.** As the server's user, then restart:
+
+   ```sh
+   vitals-server init --public-host vitals-server.example.com \
+     --public-origin https://vitals-server.example.com:8444
+   systemctl --user restart vitals-server && vitals-server status
+   ```
+   `--public-host` adds the name to the Host names the server accepts (it replaces any earlier list, so repeat every name
+   you want to keep). `--public-origin` makes this the server's own address. `init` keeps every other setting. The
+   restart also restarts the MQTT broker; phones reconnect by themselves. If the old `.ts.net` address is already in use,
+   it keeps working where it resolves.
+3. **App origins.** The server always accepts the packaged apps' own origins, `https://localhost` and
+   `capacitor://localhost` (Android) and `app://vitals` (desktop); you add nothing for them. An origin for any other web
+   page needs `--origin <url>` (it adds to the list, no duplicates). A request with no `Origin` header (curl, the apps'
+   native calls) passes.
+
+With a public origin set, the pairing code's QR text (`vitals-server:1?u=<address>&c=<code>&n=<label>`), the MQTT hint and
+the agent MCP address all carry `https://vitals-server.example.com:8444`, so a device that scans the code is given an
+address it can reach. Devices paired earlier, and agent registrations already made, keep the address they were given.
+
+The site on 8444 proxies everything to the server, so these paths work on it: `/health`, `/v1/…` (pairing, devices,
+the person routes), `/sync` (WebSocket, `wss://vitals-server.example.com:8444/sync`), `/mqtt` (WebSocket, when the
+broker is on) and `/mcp`. In the app, Settings › Server takes `https://vitals-server.example.com:8444` (write the port,
+no trailing slash).
+
+**Check it** from a computer on the tailnet:
+
+```sh
+curl -sS https://vitals-server.example.com:8444/health                       # 200 and JSON; 403 "host not allowed" = step 2 is missing
+curl -sS -o /dev/null -D - -H 'Origin: https://localhost' https://vitals-server.example.com:8444/health | grep -i -E '^HTTP|access-control-allow-origin'
+curl -sS -o /dev/null -w '%{http_code}\n' -H 'Origin: https://evil.example' https://vitals-server.example.com:8444/health   # 403
+```
+
+On the phone (Tailscale on), open `https://vitals-server.example.com:8444/health` in the browser: it shows the same JSON.
+
+**Roll back.** Copy the Caddyfile backup back and `systemctl reload caddy`; the `.ts.net` address and MQTT over TLS do
+not depend on this site. To drop the public origin, run `vitals-server init --public-origin <the old address>` and
+restart. Port 8444 depends on Caddy: if Caddy is down the apps lose the API on this address, but the MQTT path does not.
 
 ## Providers
 
@@ -282,8 +361,8 @@ run on the server against the person's store, through the same guard the browser
 
 These rules hold for every scope:
 - Destructive tools are never listed and never run.
-- Commands that need a browser-only port (`planner.find`, `nav.open`, `markers.import`, `log.mealFromPhoto`, and the
-  re-plans `plan.replan`, `plan.declareEvent`, `plan.shift`, `plan.editDay`) are left out. Any command whose answer names `not_on_server` (`detail.reason` or `detail.rule`) is removed at run time and open sessions get
+- Commands that need a browser-only port (`planner.find`, `nav.open`, `markers.import`, `log.mealFromPhoto`, and some
+  plan editing commands) are left out. Any command whose answer names `not_on_server` (`detail.reason` or `detail.rule`) is removed at run time and open sessions get
   `tools/list_changed`.
 - Limits: 60 tool calls per minute per token, 4 open sessions per token, 32 per server.
 
@@ -309,12 +388,17 @@ vitals-server agent-token revoke <person> <id>
 `vitals-companion agents register <codex|opencode|claude> --remote https://vitals.<tailnet>.ts.net:8443` writes the
 entry below and keeps a backup of the file it edits.
 
-| Client | What gets written | Checked 2026-10-03 against a server on a loopback port with a real store |
+| Client | What gets written | Evidence |
 |---|---|---|
 | Codex 0.159 (`codex exec`) | `~/.codex/config.toml`: `[mcp_servers.vitals]` `url = "<url>"`, `bearer_token_env_var = "VITALS_TOKEN"`, `default_tools_approval_mode = "approve"` | yes: `today_get` ran on the server |
 | OpenCode 2.0 (`opencode run`) | `~/.config/opencode/opencode.json` → `mcp.vitals = { type: "remote", url, headers: { Authorization: "Bearer {env:VITALS_TOKEN}" }, enabled: true }` | yes: `today_get` ran on the server. OpenCode prints the resolved request headers, token included, in its own output |
 | Claude Code 2.1 (`claude -p`) | runs `claude mcp add --transport http -s user vitals <url> --header "Authorization: Bearer $VITALS_TOKEN"` (Claude Code then keeps the token in `~/.claude.json`, 0600) | yes: `today_get` ran on the server |
-| ChatGPT desktop app | nothing: "Not available yet". Connecting it to your own server was not confirmed to work | no |
+| ChatGPT desktop app | On Linux, the packaged client can use the Codex entry in `~/.codex/config.toml`. On Windows and macOS, Settings › Agents shows manual steps to add the remote MCP address and an agent key in ChatGPT's settings. `agents register` has no ChatGPT option. | Q5 exercised ChatGPT's bundled Codex command through a local Companion proxy, not the ChatGPT GUI or the current home-server route. Those paths still need a hands-on check. |
+
+The MCP connection also provides `briefing_get`, a `coach` prompt and a `vitals://briefing` resource. They use the
+Coach's own briefing rules and visibility filters. Some derived body-signal flags still need source-level hiding; the
+release does not claim every derived signal is filtered. Agents can read the briefing and stage a
+plan change for review; they cannot end or replace a plan or erase data.
 
 An agent config that already has a local `vitals` entry (the Companion over stdio) must be replaced. Codex refuses to
 merge `url` into a stdio entry ("url is not supported for stdio"), and OpenCode silently keeps the local entry.
@@ -363,6 +447,10 @@ The numbering follows docs/SUITE_SPEC.md §14.1. Not measured before: joining th
 at real size.
 
 ## Limits
+
+If a device clock differs by more than five minutes, sync holds its new changes back and shows a clock-drift status.
+Correct that device's date and time and restart Vitals; the pending changes are kept. Ring chunks replaced by newer
+versions are readable correctly, but the relay does not yet compact their old stored bytes, so its storage can grow.
 
 | What | Limit |
 |---|---|
@@ -424,6 +512,9 @@ Memory (31 s ago): server rss 412 MB, main heap 53 MB, 2 of at most 4 persons op
 | `person <id>: worker ran out of memory (heap limit 512 MB); closed, it opens again on the next request` | One person's worker hit its heap limit |
 | `person <id>: worker stopped: a <command> request ran past 1 min; closed, …` | A request ran past its time |
 
+**Removing a person.** `vitals-server persons remove <person>` also closes that person's worker, and `status` counts only
+persons that still exist (a removed person may show as "removed" for up to a minute).
+
 **Changing the cap.** Set `"maxOpenPersons": <n>` in `~/.config/vitals-server/server.json` and restart
 (`systemctl --user restart vitals-server`). Keep `n × 600 MB` under the unit's `MemoryMax` if every person may be busy at
 once; raise `MemoryMax` in the unit (deploy/oci-arm.sh writes it) when the host has room.
@@ -464,4 +555,3 @@ when you are done, and do not share it. Without `VITALS_DIAG_PORT` nothing liste
 
 How to read it: a person with `elu` near 1 and no report, while nobody uses it, has a stuck thread. When `rss` grows and
 the heaps do not, the memory is outside JavaScript (native queues, SQLite, buffers).
-

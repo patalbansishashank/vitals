@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { Toaster } from '@/components';
-import { POLICY_STREAMS } from '@/biometrics/core/policy';
+import { isRingSource as coreIsRingSource, POLICY_STREAMS } from '@/biometrics/core/policy';
 import type { DeviceType, StreamPolicy } from '@/biometrics/core/types';
 import type { CommandResult } from '@/commands/types';
 import { RingServiceProvider, type RingSharing } from '../data';
@@ -84,14 +84,21 @@ const on = (stream: StreamPolicy['stream']): StreamPolicy => ({ stream, imported
 const off = (stream: StreamPolicy['stream']): StreamPolicy => ({ stream, imported: true, scores: false, engine: false, coach: 'hidden' });
 
 describe('ring sources and the switch state', () => {
-  it('a ring source: device type ring, a ble: channel, or the Lumen source', () => {
-    expect(isRingSource({ sourceKey: 'ble:jstyle2301|j-style:2301#c3d94f2a' })).toBe(true);
-    expect(isRingSource({ sourceKey: 'file:lumen_cloudevents|j-style:2301' })).toBe(true);
-    expect(isRingSource({ sourceKey: 'file:lumen_cloudevents' })).toBe(true);
-    expect(isRingSource({ sourceKey: 'file:apple_health|app:health', deviceType: 'ring' })).toBe(true);
-    expect(isRingSource({ sourceKey: 'file:apple_health|app:health' }, 'ring')).toBe(true);
+  it('a ring source: a ble: channel or the Lumen source, the same test as the commands', () => {
+    for (const sourceKey of ['ble:jstyle2301|j-style:2301#c3d94f2a', 'ble:jstyle2301/2301/serial:TEST0001', 'file:lumen_cloudevents|j-style:2301', 'file:lumen_cloudevents']) {
+      expect(isRingSource({ sourceKey }), sourceKey).toBe(true);
+      expect(isRingSource({ sourceKey }), sourceKey).toBe(coreIsRingSource({ sourceKey }));
+    }
+    // a ring imported through another app's file stays opt-in: the switch never changes it, so the page does not count it
+    expect(isRingSource({ sourceKey: 'file:apple_health|app:health', deviceType: 'ring' })).toBe(false);
+    expect(isRingSource({ sourceKey: 'file:apple_health|app:health' }, 'ring')).toBe(false);
     expect(isRingSource({ sourceKey: 'file:apple_health|app:health' }, 'watch')).toBe(false);
     expect(isRingSource({ sourceKey: 'manual' })).toBe(false);
+  });
+
+  it('a ring source without stored entries reads the ring default, not the device-on suggestion', () => {
+    const bare: RingSourceLike = { sourceKey: 'ble:jstyle2301/2301/serial:TEST0001', policies: [] };
+    expect(ringSharingState([bare], [])).toBe('on');
   });
 
   it('on / off / some / none', () => {
@@ -109,11 +116,12 @@ describe('ring sources and the switch state', () => {
 });
 
 describe('createRingSharing', () => {
-  function deps(results: Record<string, (input: unknown) => CommandResult>) {
+  function deps(results: Record<string, (input: unknown) => CommandResult>, sourceDocs = new Map<string, unknown>()) {
     const sources: Array<RingSourceLike & { deviceType?: DeviceType }> = [
-      { sourceKey: 'ble:jstyle2301|j-style:2301#c3d94f2a', policies: [on('hr'), off('sleep_sessions')] },
+      { sourceKey: 'ble:jstyle2301|j-style:2301#c3d94f2a', policies: [off('hr'), off('sleep_sessions')] },
       { sourceKey: 'file:lumen_cloudevents|j-style:2301', policies: [off('hr')] },
-      { sourceKey: 'file:apple_health|app:health', policies: [off('steps')] },
+      // another app's ring import, its records marked as a ring: not counted (it stays opt-in)
+      { sourceKey: 'file:apple_health|app:health', policies: [on('steps')], deviceType: 'ring' },
     ];
     const sent: Array<{ id: string; input: unknown }> = [];
     let n = 0;
@@ -121,7 +129,7 @@ describe('createRingSharing', () => {
     return {
       sent,
       deps: {
-        index: () => ({ sources: () => sources, personPolicies: [], deviceTypes: new Map<string, DeviceType>(), subscribe: () => () => {} }),
+        index: () => ({ sources: () => sources, personPolicies: [], deviceTypes: new Map<string, DeviceType>([['file:apple_health|app:health', 'ring']]), sourceDocs, subscribe: () => () => {} }),
         send: async (id: string, input: unknown) => {
           sent.push({ id, input });
           return (results[id] ?? ok)(input);
@@ -130,9 +138,9 @@ describe('createRingSharing', () => {
     };
   }
 
-  it('reads the state over ring sources only', () => {
+  it('reads the state over ring sources only (the shared health-app import does not make it "some")', () => {
     const { deps: d } = deps({});
-    expect(createRingSharing(d).state()).toBe('some');
+    expect(createRingSharing(d).state()).toBe('off');
   });
 
   it('sends bio.setRingSharing and undoes its change set', async () => {
@@ -144,35 +152,21 @@ describe('createRingSharing', () => {
     expect(sent[1]).toEqual({ id: 'history.undo', input: { changeSetId: 'cs1' } });
   });
 
-  it('falls back to bio.setPolicy per ring source and stream while the command is unknown', async () => {
-    const { deps: d, sent } = deps({ 'bio.setRingSharing': () => ({ ok: false, error: { code: 'not_found', message: 'Unknown command "bio.setRingSharing".' } }) });
+  it('a refusal is reported, not swallowed, and nothing else is sent', async () => {
+    const { deps: d, sent } = deps({ 'bio.setRingSharing': () => ({ ok: false, error: { code: 'safety_blocked', message: 'Not now.' } }) });
     const s = createRingSharing(d);
-    await act(() => s.set(false));
-    // only streams not already withheld change; imported stays (not in the patch); the non-ring source is untouched
-    expect(sent.slice(1)).toEqual([
-      { id: 'bio.setPolicy', input: { stream: 'hr', sourceKey: 'ble:jstyle2301|j-style:2301#c3d94f2a', policy: { scores: false, engine: false, coach: 'hidden' } } },
-    ]);
-    sent.length = 0;
-    await s.set(true);
-    expect(sent.slice(1).map((x) => (x.input as { stream: string; sourceKey: string }).sourceKey + ' ' + (x.input as { stream: string }).stream)).toEqual([
-      'ble:jstyle2301|j-style:2301#c3d94f2a sleep_sessions',
-      'file:lumen_cloudevents|j-style:2301 hr',
-    ]);
-    expect((sent[1]!.input as { policy: unknown }).policy).toEqual({ imported: true, scores: true, engine: true, coach: 'daily+series' });
+    await expect(s.set(true)).rejects.toThrow('Not now.');
+    expect(sent.map((x) => x.id)).toEqual(['bio.setRingSharing']);
     await s.undo();
-    expect(sent.slice(3)).toEqual([
-      { id: 'history.undo', input: { changeSetId: 'cs3' } },
-      { id: 'history.undo', input: { changeSetId: 'cs2' } },
-    ]);
+    expect(sent).toHaveLength(1);
   });
 
-  it('a refusal is reported, not swallowed', async () => {
-    const { deps: d } = deps({ 'bio.setRingSharing': () => ({ ok: false, error: { code: 'safety_blocked', message: 'Not now.' } }) });
-    await expect(createRingSharing(d).set(true)).rejects.toThrow('Not now.');
-  });
-
-  it('the migration notice waits for the ring service', () => {
-    const { deps: d } = deps({});
-    expect(createRingSharing(d).noticePending()).toBe(false);
+  it('the migration notice: pending while its record says so; OK sends bio.dismissRingDefaultsNotice', () => {
+    expect(createRingSharing(deps({}).deps).noticePending()).toBe(false);
+    const { deps: d, sent } = deps({}, new Map<string, unknown>([['ringDefaults:me', { kind: 'ringDefaults', notice: 'show' }]]));
+    const s = createRingSharing(d);
+    expect(s.noticePending()).toBe(true);
+    s.dismissNotice();
+    expect(sent).toEqual([{ id: 'bio.dismissRingDefaultsNotice', input: {} }]);
   });
 });

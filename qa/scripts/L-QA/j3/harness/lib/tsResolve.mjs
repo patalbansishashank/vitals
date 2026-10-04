@@ -7,7 +7,7 @@ import { createRequire, registerHooks, stripTypeScriptTypes } from 'node:module'
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const CAND_ROOT = pathToFileURL(fileURLToPath(new URL('../../../../../../.e6-tmp/cand/', import.meta.url))).href;
+const CAND_ROOT = pathToFileURL(fileURLToPath(new URL('../../../../../../', import.meta.url))).href;
 const SRC = `${CAND_ROOT}src/`;
 
 let ts = null;

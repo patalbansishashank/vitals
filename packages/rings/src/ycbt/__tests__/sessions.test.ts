@@ -36,7 +36,14 @@ interface Session { name: string; context: { layer: string; kind?: 'hr' | 'spo2'
 
 const sessions = fixture<{ sessions: Session[] }>('sessions.json').sessions;
 const NOW = Date.parse('2026-07-06T12:34:14Z');
-const opts = { timers: { quietMs: 30, stallMs: 80 }, clock: { now: () => NOW, tzOffsetS: () => 0 }, profile: { metric: true, sex: 'other' as const, ageYears: 25, heightCm: 175, weightKg: 70 } };
+const TEST_OPTIONS = { timers: { quietMs: 30, stallMs: 80 }, profile: { metric: true, sex: 'other' as const, ageYears: 25, heightCm: 175, weightKg: 70 } };
+// These Kotlin history fixtures contain late-evening records; their earlier synthetic host clock predated the records.
+const LATE_HISTORY = new Set([
+  'full cycle acks and advances to next type',
+  'record straddling two data frames survives',
+  'a header packet count the ring contradicts does not fail the transfer',
+  'start is ignored while a transfer is in flight',
+]);
 const DEVICE_INFO = '02 00 1e 00 a3 00 12 01 00 64 00 01 00 03 00 00 00 00 01 00 00 00 01 00 00 00 00 00 ef 10';
 const CANNED = { '02 00 08 00 47 43 6f ec': [DEVICE_INFO], '02 01 08 00 47 46 9b 16': [toHex(frameLogical([2, 1, ...new Array<number>(14).fill(0)]))] };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -65,6 +72,8 @@ const DEVIATIONS: Record<string, { order?: 'set'; unused?: string[]; note: strin
 };
 
 async function replay(s: Session): Promise<{ ring: ScriptedRing; events: RingEvent[]; busy: number; first?: RingSession & { runtime: SessionRuntime } }> {
+  let testNow = NOW;
+  const opts = { ...TEST_OPTIONS, clock: { now: () => testNow, tzOffsetS: () => 0 } };
   const pool: PoolEntry[] = s.steps.flatMap((st) =>
     st.expectWrite ? [{ hex: st.expectWrite, replies: st.notify ?? [], used: false }] : (st.expectWrites ?? []).map((hex) => ({ hex, replies: [], used: false })),
   );
@@ -123,6 +132,7 @@ async function replay(s: Session): Promise<{ ring: ScriptedRing; events: RingEve
     const op = st.send?.op;
     await sleep(5);
     if (op) await open();
+    if (op && LATE_HISTORY.has(s.name)) testNow = NOW + 12 * 3_600_000;
     const p = st.send?.params ?? {};
     switch (op) {
       case 'runStartup':

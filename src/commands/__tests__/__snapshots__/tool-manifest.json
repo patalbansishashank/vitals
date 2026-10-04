@@ -1,12 +1,12 @@
 {
  "version": 1,
  "format": "vitals.tools/1",
- "agentToolsetHash": "6821eb68bedf53a88128473e18bae533fd42a6260f679fb24a263e187c5a85d5",
+ "agentToolsetHash": "72e80e7b6e51d3f5600debb0e7bc9e11faf2a808583976d1b6fc368613252666",
  "toolsetHash": {
-  "ui": "1257cc3d4ab091acc3e91638f7924faf40282eb9dd37b0b2b91cace5e5b6ed64",
-  "ai": "7c1ecd952e4f1a6d7e0d2c0f9efca388b8695c90851e72b2f1d9c6e45eca30fd",
-  "webmcp": "a9f942bdcaa01773f83849bc688b42542d32354a68c3e0c724ee7aced76fc4f8",
-  "mcp": "a7324de606eab142f2e12f117def71f64b5a48c18aaaa2bcf1855941e378460f"
+  "ui": "1838a0d97c6f444c0de1e9aa34fd56de183d1041eba3325d4a7bcba93a5b28e5",
+  "ai": "63354116ae81bfc060faf4ba0a69ff86506587e1f91032a3002babc19ee3d47f",
+  "webmcp": "e0ce618b24e851adada262877e7b8db39e911a0eb9ed0d91c399bb014d714d5b",
+  "mcp": "70c6873997e06c515b63f1d3f621bbfa355dd8a4b29bcf5e8b755bc93ac88738"
  },
  "surfaces": {
   "ui": {
@@ -88,6 +88,15 @@
      "schemaHash": "496322169099c5ea"
     },
     {
+     "name": "bio_dismiss_ring_defaults_notice",
+     "commandId": "bio.dismissRingDefaultsNotice",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "3043a04c94bbe264"
+    },
+    {
      "name": "bio_import",
      "commandId": "bio.import",
      "version": 1,
@@ -140,12 +149,21 @@
      "schemaHash": "23612d0a15385103"
     },
     {
+     "name": "bio_set_ring_sharing",
+     "commandId": "bio.setRingSharing",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "42ca72197c8da95a"
+    },
+    {
      "name": "bio_sources",
      "commandId": "bio.sources",
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "9e30fb7d7a3363b7"
+     "schemaHash": "68eea8ae3d43afa5"
     },
     {
      "name": "biometrics_clear_correction",
@@ -173,6 +191,24 @@
      "impact": "low",
      "confirm": "log",
      "schemaHash": "c99f7ec42e2c4a76"
+    },
+    {
+     "name": "biometrics_ring_defaults",
+     "commandId": "biometrics.ringDefaults",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "27a5af3da686a215"
+    },
+    {
+     "name": "biometrics_ring_fold",
+     "commandId": "biometrics.ringFold",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "0097b415c6f32c54"
     },
     {
      "name": "briefing_get",
@@ -687,7 +723,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "b858fec5a7cadc92"
+     "schemaHash": "83b0f1d0f7ec06b1"
     },
     {
      "name": "log_session",
@@ -1493,7 +1529,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "9e30fb7d7a3363b7"
+     "schemaHash": "68eea8ae3d43afa5"
     },
     {
      "name": "biometrics_clear_correction",
@@ -1977,7 +2013,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "b858fec5a7cadc92"
+     "schemaHash": "83b0f1d0f7ec06b1"
     },
     {
      "name": "log_session",
@@ -2613,6 +2649,10 @@
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
     {
+     "commandId": "bio.dismissRingDefaultsNotice",
+     "reason": "screen progress of the app itself, not a change an agent should make"
+    },
+    {
      "commandId": "bio.import",
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
@@ -2625,8 +2665,20 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "bio.setRingSharing",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "biometrics.dropPriorities",
      "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "biometrics.ringDefaults",
+     "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "biometrics.ringFold",
+     "reason": "a migration the app runs itself"
     },
     {
      "commandId": "briefing.get",
@@ -2775,7 +2827,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "9e30fb7d7a3363b7"
+     "schemaHash": "68eea8ae3d43afa5"
     },
     {
      "name": "biometrics_clear_correction",
@@ -3226,7 +3278,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "b858fec5a7cadc92"
+     "schemaHash": "83b0f1d0f7ec06b1"
     },
     {
      "name": "log_session",
@@ -3835,6 +3887,10 @@
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
     {
+     "commandId": "bio.dismissRingDefaultsNotice",
+     "reason": "screen progress of the app itself, not a change an agent should make"
+    },
+    {
      "commandId": "bio.import",
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
@@ -3847,8 +3903,20 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "bio.setRingSharing",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "biometrics.dropPriorities",
      "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "biometrics.ringDefaults",
+     "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "biometrics.ringFold",
+     "reason": "a migration the app runs itself"
     },
     {
      "commandId": "coach.applyPending",
@@ -4025,7 +4093,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "9e30fb7d7a3363b7"
+     "schemaHash": "68eea8ae3d43afa5"
     },
     {
      "name": "biometrics_clear_correction",
@@ -4476,7 +4544,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "b858fec5a7cadc92"
+     "schemaHash": "83b0f1d0f7ec06b1"
     },
     {
      "name": "log_session",
@@ -5077,6 +5145,10 @@
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
     {
+     "commandId": "bio.dismissRingDefaultsNotice",
+     "reason": "screen progress of the app itself, not a change an agent should make"
+    },
+    {
      "commandId": "bio.import",
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
@@ -5089,8 +5161,20 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "bio.setRingSharing",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "biometrics.dropPriorities",
      "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "biometrics.ringDefaults",
+     "reason": "a one-time migration the app runs itself"
+    },
+    {
+     "commandId": "biometrics.ringFold",
+     "reason": "a migration the app runs itself"
     },
     {
      "commandId": "coach.applyPending",

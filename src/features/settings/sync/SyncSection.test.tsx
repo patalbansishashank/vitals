@@ -106,7 +106,7 @@ describe('Settings › Sync, not paired', () => {
     const user = userEvent.setup();
     const { calls } = fakeController();
     render(<SyncSection />);
-    expect(screen.getByText(/stays on this device until you set up sync/)).toBeInTheDocument();
+    expect(screen.getByText(/server may hold a readable copy/)).toBeInTheDocument();
     expect(screen.getByText(/connect to devices on your local network/)).toBeInTheDocument();
 
     const input = screen.getByLabelText('sync server address');

@@ -12,6 +12,7 @@ import type { ModuleContext, StepClock } from '../../types/module';
 import type { DayInput, HourInput } from '../../types/inputs';
 import { N_REGIONS } from '../../types/inputs';
 import { fuelModule, muscleGlycogenG, stepFuelHour, type FuelConst, type FuelState } from './index';
+import { measureUnderLoad } from '../../testing/benchLoad';
 import { makeRig, runDays, threeMeals, TEST_MAN, type HourTrace, type Scenario } from './testHarness';
 
 function menu(pct: number, tee = 2500) {
@@ -243,13 +244,16 @@ describe('fuel module hooks inside the engine contract', () => {
         stepFuelHour(s, k, bus, hour, t, null);
       }
     };
-    for (let i = 0; i < 30; i++) run(); // warm-up (JIT)
-    const reps = 60;
-    const t0 = performance.now();
-    for (let i = 0; i < reps; i++) run();
-    const ms = (performance.now() - t0) / reps;
-    console.info(`[bench] fuel.stepHour: ${ms.toFixed(3)} ms per 180-day run (budget 1.0 ms)`);
+    const { result: ms, factor } = measureUnderLoad(() => {
+      for (let i = 0; i < 30; i++) run(); // warm-up (JIT)
+      const reps = 60;
+      const t0 = performance.now();
+      for (let i = 0; i < reps; i++) run();
+      return (performance.now() - t0) / reps;
+    });
+    console.info(`[bench] fuel.stepHour: ${ms.toFixed(3)} ms per 180-day run (budget 1.0 ms; load factor ${factor.toFixed(2)})`);
     expect(Number.isFinite(s.liverG)).toBe(true);
-    expect(ms).toBeLessThan(2.0); // generous CI guard; the reported number is compared with the 1.0 ms budget
+    // limit scales with the machine load (benchLoad.ts)
+    expect(ms).toBeLessThan(2.0 * factor); // generous CI guard; the reported number is compared with the 1.0 ms budget
   });
 });

@@ -75,5 +75,8 @@ export const CONNECT_TOOLS_COPY = {
   confirmRemove: 'Remove',
   agentLabel: (label: string) => `Vitals desktop app · ${label}`,
   keyFailed: (label: string, why: string) => `Vitals was added to ${label}, but its key for your server could not be made (${why}). It uses this app instead.`,
+  oldKeyLeft: (label: string, why: string) => `Vitals was added to ${label}, but an old key for it may still work on your server (${why}). Check the keys list above.`,
+  keyLeft: (label: string, why: string) => `Vitals was removed from ${label}, but its key still works on your server (${why}). Revoke it in the keys list above.`,
+  keysNotKept: 'This computer has no keyring, so Vitals forgets the server keys when it quits. After a restart, remove and add the AI tool again to use your server.',
   loadFailed: "Couldn't look for AI apps on this computer.",
 } as const;

@@ -229,7 +229,7 @@ describe('sleep › week and month', () => {
     const { container } = renderTab('week', '2026-10-04', '2026-10-04', source([nightOn('2026-10-03'), nightOn('2026-10-04', 0, ['provisional_stages'])]));
     const col = container.querySelector('.sl-bars [data-provisional="true"]')!;
     expect(col.getAttribute('opacity')).toBe('0.6');
-    fireEvent.click(within(container.querySelector('.sl-bars') as HTMLElement).getByRole('button', { name: 'table' }));
+    fireEvent.click(within(container.querySelector('.sl-bars') as HTMLElement).getByRole('button', { name: /^Show .* data table$/ }));
     expect(screen.getByText('Sun 4 Oct (still changing)')).toBeTruthy();
     expect(screen.getAllByText('no data').length).toBeGreaterThan(0);
   });

@@ -253,7 +253,13 @@ Spot heart rate (`spot.hr`):
 
 Only the one settled value is stored; raw `0x09` samples are not.
 
-Workout heart rate (`liveHeartRate`): sport mode `19 01 <mode> 00 02` for run (0) or walk (9), stop with state 4,
+Live heart rate on the Ring page (`liveHeartRate` with `measure`): `09 01 00`, 500 ms, `28 02 01 1e 00`, then every
+`0x09` byte-21 value (30..220) is shown; after 30 s `28 02 00 1e 00` and `09 00 00`, and the window starts again while
+someone watches. Stop (or a read, or a spot check) writes the same two stop commands. `09 01 00` alone gave no heart
+rate in 198 s on the owner's V0789 (R5-01); that byte 21 carries heart rate only while `0x28` runs is inferred from
+the spot flow above (**unverified**). Each new window may first echo the last value for a few seconds.
+
+Workout heart rate (not used for the Ring page): sport mode `19 01 <mode> 00 02` for run (0) or walk (9), stop with state 4,
 pause 2, resume 3. The ring pushes `0x18` with heart rate at byte 1. Other activity types send nothing. Sport mode has
 tests but was never checked on a ring (**unverified**).
 

@@ -44,7 +44,7 @@ describe('Ring settings', () => {
     expect(screen.queryByText('how often your ring measures')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Vibrate' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reset the ring…' })).toBeNull();
-    expect(document.getElementById('forget-ring')).toBeTruthy();
+    expect(document.querySelector('[data-forget-ring]')).toBeTruthy();
     await waitFor(() => expect(document.querySelector('.rs-batt__line')).toBeTruthy());
     expect(document.body.textContent ?? '').not.toMatch(FORBIDDEN);
   });
@@ -131,6 +131,8 @@ describe('Ring settings', () => {
     const { fake, ring } = setup({ scenario: 'idle' });
     const key = screen.getByRole('button', { name: 'Disconnect' });
     expect(key.getAttribute('aria-disabled')).toBe('true');
+    // its words carry the state: the status-key class lifts the text out of the disabled-only faint ink (J6-09)
+    expect(key.classList.contains('rg-statuskey')).toBe(true);
     fireEvent.click(key);
     expect(fake.calls).not.toContain(`disconnect:${ring.ringKey}`);
   });
@@ -150,7 +152,7 @@ describe('Ring settings', () => {
     await waitFor(() => expect(document.querySelectorAll('.rs-batt__line')).toHaveLength(2));
     expect(document.querySelector('[data-low="true"]')).toBeTruthy();
     expect(screen.getByText('low')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'table' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Show .* data table$/ }));
     expect(screen.getByRole('table')).toBeTruthy();
     expect(screen.getByRole('img').getAttribute('aria-label')).toMatch(/Breaks in the line are times with no readings/);
   });

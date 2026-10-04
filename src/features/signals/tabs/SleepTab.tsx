@@ -28,7 +28,7 @@ import {
   nightColumns,
   sleepDayMap,
   sleepStats,
-  spo2Band,
+  spo2NormalPct,
   tempNormalC,
 } from '../charts/sleepModels';
 import '../charts/sleep.css';
@@ -61,7 +61,7 @@ function SleepDayView({ window: w }: TabProps) {
   const spo2 = useSeries('spo2', from, to, dates);
   const temp = useSeries('skin_temp', from, to, dates);
   const normal = useMemo(() => tempNormalC(baselines, prior), [baselines, prior]);
-  const band = useMemo(() => spo2Band(baselines), [baselines]);
+  const spo2Normal = useMemo(() => spo2NormalPct(baselines, prior), [baselines, prior]);
 
   return (
     <div className="sl-tab" data-period="day">
@@ -75,7 +75,7 @@ function SleepDayView({ window: w }: TabProps) {
           temp={temp}
           tempNormalC={normal}
           tempUnit={person.tempUnit}
-          spo2Band={band}
+          spo2NormalPct={spo2Normal}
         />
       </Faceplate>
       {night || sd?.others.length ? (

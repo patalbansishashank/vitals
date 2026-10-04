@@ -147,9 +147,9 @@ export function createCrpProtocol(): Protocol {
       return { state: st, expectReply: false };
     },
 
-    ingest(bytes, state, channel?: Uuid): IngestResult {
+    ingest(bytes, state, channel?: Uuid, receivedMs?: number): IngestResult {
       let st = state as CrpState;
-      const ctx = { nowMs: st.nowMs, tz: st.tz, tzOffsetS: st.tzOffsetS };
+      const ctx = { nowMs: st.nowMs, receivedMs, tz: st.tz, tzOffsetS: st.tzOffsetS };
       const map = (d: CrpDecoded[]): RingEvent[] => toCrpRingEvents(d, { ...ctx, firmware: st.firmware ?? '' });
       const ch = (channel ?? CRP_CMD_NOTIFY).toLowerCase();
       // `CRPDriver.ingest`: only fdd3 replies reassemble; fdd1 (steps) and anything else decode as they come.

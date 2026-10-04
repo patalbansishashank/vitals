@@ -68,7 +68,7 @@ describe('Jring history read across a pause', () => {
     const started = Date.now();
     for await (const e of ring.runtime.exchange({ op: 'historyQuery', params: { days: 3, stream: 'sleep_stage' } })) evs.push(e);
     expect(Date.now() - started).toBeLessThan(QUIET * 3);
-    expect(evs.filter((e) => e.type === 'activityBucket')).toHaveLength(30);
+    expect(evs.filter((e) => e.type === 'activityBucket')).toHaveLength(29); // final slot is future of the receipt clock
     expect(errors(evs)).toEqual([]);
     expect(cursors(evs)).toEqual([{ type: 'status', key: 'cursor', value: `jr1:${slot + 14 * 60}`, stream: 'steps' }]);
     await ring.close();
@@ -86,7 +86,7 @@ describe('Jring history read across a pause', () => {
     fake.notify(activity(slot - 900));
     fake.notify(activity(slot));
     await read;
-    expect(evs.filter((e) => e.type === 'activityBucket')).toHaveLength(45);
+    expect(evs.filter((e) => e.type === 'activityBucket')).toHaveLength(44);
     expect(errors(evs)).toEqual([]);
     await ring.close();
   });
@@ -109,7 +109,7 @@ describe('Jring ring clock at a non-zero offset (+05:30)', () => {
     expect(Date.now() - started).toBeLessThan(QUIET * 3);
     const starts = evs.flatMap((e) => (e.type === 'activityBucket' ? [e.start] : []));
     expect(starts[0]).toBe((slot - 900) * 1000);
-    expect(starts.at(-1)).toBe((slot + 14 * 60) * 1000);
+    expect(starts.at(-1)).toBe((slot + 13 * 60) * 1000);
     expect(errors(evs)).toEqual([]);
     expect(cursors(evs)).toEqual([{ type: 'status', key: 'cursor', value: `jr1:${slot + 14 * 60}`, stream: 'steps' }]);
     await ring.close();
@@ -143,7 +143,7 @@ describe('Jring history read and packets that are not part of it', () => {
     fake.notify(activity(slot - 900));
     fake.notify(activity(slot));
     await read;
-    expect(evs.filter((e) => e.type === 'activityBucket')).toHaveLength(30);
+    expect(evs.filter((e) => e.type === 'activityBucket')).toHaveLength(29);
     expect(errors(evs)).toEqual([]);
     expect(cursors(evs)).toEqual([{ type: 'status', key: 'cursor', value: `jr1:${slot + 14 * 60}`, stream: 'steps' }]);
     await ring.close();

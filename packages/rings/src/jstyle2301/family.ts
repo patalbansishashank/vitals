@@ -83,8 +83,14 @@ export function createJ2301Family(opts: J2301Options = {}): RingFamily {
     reconnect: ANDROID_RECONNECT,
     priority: DEFAULT_PRIORITY,
     handshake: j2301Handshake,
-    // Vendor `RealTimeStep(true)` opens the 0x09 stream whose byte 21 carries live HR; `false` closes it.
-    liveHeartRate: { start: { op: 'realtimeSteps', params: { enable: true } }, stop: { op: 'realtimeSteps', params: { enable: false } } },
+    // Vendor `RealTimeStep(true)` opens the 0x09 stream; `false` closes it. `09 01 00` alone gave no heart rate on the
+    // owner's V0789 (R5-01); the only sequence seen to carry byte-21 heart rate is the manual heart rate below (0x28
+    // running), so live heart rate runs that measurement in 30 s windows while someone watches (**unverified** on a ring).
+    liveHeartRate: {
+      start: { op: 'realtimeSteps', params: { enable: true } },
+      stop: { op: 'realtimeSteps', params: { enable: false } },
+      measure: { start: { op: 'hrMeasure', params: { start: true, seconds: 30 } }, stop: { op: 'hrMeasure', params: { start: false, seconds: 30 } }, gapMs: 500, windowMs: 30_000 },
+    },
     // Lumen's manual heart rate: `RealTimeStep(true)`, 500 ms, then `SetDeviceMeasurementWithType(HR, 30 s, start)`; the 0x28
     // replies carry the reading; stop reverses both (R10 §4.2, the manual heart rate note).
     spot: { hr: [{ op: 'realtimeSteps', params: { enable: true } }, { op: 'hrMeasure', params: { start: true, seconds: 30 } }] },

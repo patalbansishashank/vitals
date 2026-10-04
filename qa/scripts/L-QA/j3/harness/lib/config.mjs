@@ -1,5 +1,5 @@
-// J3 copy of the candidate's qa/scripts/sync (L-SYNC harness) for L-QA journey 3: label prefix L-QA-J3-, results in
-// qa/results/L-QA/j3/, app modules resolved from the QA candidate tree .e6-tmp/cand (see lib/config.mjs CAND).
+// J3 copy of the candidate's qa/scripts/sync (L-SYNC harness) for L-QA journey 3: label prefix L-QA-R2J3-, results in
+// qa/results/L-QA/round2/j3/, app modules resolved from the QA candidate tree .e6-tmp/cand (see lib/config.mjs CAND).
 // Shared settings of the sync harness. Host names never live in tracked files: the server origin and the ssh alias come
 // from the git-ignored qa/local.config.json (L-PUB's shape, qa/local.config.example.json: `serverUrl`, `serverSsh`)
 // merged with the environment (VITALS_QA_SERVER_URL, VITALS_QA_SERVER_SSH win over the file; VITALS_QA_CONFIG points at
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../..');
 /** The QA candidate tree whose app code the replicas run. */
-export const CAND = process.env.J3_CAND || `${ROOT}/.e6-tmp/cand`;
+export const CAND = process.env.J3_CAND || ROOT;
 process.env.TMPDIR = process.env.TMPDIR || `${ROOT}/.e6-tmp`;
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0 = Date.now();
@@ -34,7 +34,7 @@ export function harnessConfig() {
 
 /** Run directory for replica data: .e6-tmp/sync-harness/<run>/ (git-ignored). */
 export function runDir(run) {
-  const dir = `${ROOT}/.e6-tmp/j3-harness/${run}`;
+  const dir = `${ROOT}/.e6-tmp/r2j3-harness/${run}`;
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
 }
@@ -60,7 +60,7 @@ export function results(scenario, meta = {}) {
     return value;
   };
   const save = (extra = {}) => {
-    const dir = `${ROOT}/qa/results/L-QA/j3`;
+    const dir = `${ROOT}/qa/results/L-QA/round2/j3`;
     fs.mkdirSync(dir, { recursive: true });
     const failed = rows.filter((r) => !r.ok).length;
     const out = { scenario, at: new Date().toISOString(), ...meta, passed: rows.length - failed, failed, timingsMs: timings, ...(Object.keys(observed).length ? { observed } : {}), ...extra, checks: rows };

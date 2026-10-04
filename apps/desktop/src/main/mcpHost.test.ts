@@ -305,6 +305,21 @@ describe('mcp host: remote path (server paired)', () => {
     expect(lines.join('\n')).not.toContain('agent-token-xyz');
   });
 
+  // review DESK-06: the key never goes out in clear text over a network
+  it('a plain http server address off this computer gets no token: the session runs locally', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    cleanups.push(() => fetchSpy.mockRestore());
+    const page = fakePage();
+    const { socketPath, lines } = await startHost(page.relay, async () => ({ mcpUrl: 'http://server.example:8443/mcp', token: 'agent-token-xyz' }));
+    const { sdk } = await connectClient(socketPath, 'codex', 'codex');
+    expect(sdk.getServerVersion()).toMatchObject({ version: '0.4.0-test' });
+    await sdk.callTool({ name: 'log_get', arguments: {} });
+    expect(page.calls).toHaveLength(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(lines.some((l) => l.includes('not https'))).toBe(true);
+    expect(lines.join('\n')).not.toContain('agent-token-xyz');
+  });
+
   it('a rejected token also falls back to local, and nothing logs it', async () => {
     const srv = await fakeServer();
     const page = fakePage();

@@ -93,10 +93,16 @@ describe('AgentsSection', () => {
     render(<AgentsSection />, { wrapper: MemoryRouter });
     expect(await screen.findByText(`${BASE}/mcp`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Make an agent key' }));
+    expect(screen.getByRole('combobox', { name: 'agent' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('button', { name: 'Make an agent key' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Make an agent key' }));
     await user.type(screen.getByLabelText('name'), 'Codex on laptop');
     await user.click(screen.getByRole('radio', { name: /^read/ }));
     await user.click(screen.getByRole('button', { name: 'Make key' }));
     expect(await screen.findByText('agent-secret-xyz')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Your agent key · Codex on laptop' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Copy key' })).toBeInTheDocument();
     expect(server.state.calls.find((c) => c.method === 'POST' && c.path === '/v1/agents/tokens')?.body).toEqual({ client: 'codex', scope: 'read', label: 'Codex on laptop' });
     expect(screen.getByText(/bearer_token_env_var = "VITALS_TOKEN"/)).toBeInTheDocument();
     expect(screen.getByText(/claude mcp add --transport http -s user vitals/)).toBeInTheDocument();
@@ -104,6 +110,7 @@ describe('AgentsSection', () => {
     for (const pre of document.querySelectorAll('pre')) expect(pre.textContent).not.toContain('agent-secret-xyz');
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByText('agent-secret-xyz')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Make an agent key' })).toHaveFocus();
     await user.click(await screen.findByRole('button', { name: 'Revoke Codex on laptop' }));
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Revoke' }));
     await waitFor(() => expect(server.state.tokens).toHaveLength(0));

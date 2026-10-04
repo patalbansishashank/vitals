@@ -19,7 +19,7 @@
  * device holds, and writes the merged result as a new version when it is not what the database kept.
  */
 import { installPolyfills } from '@evolu/common/polyfills';
-import { createAppOwner, createOwnerWebSocketTransport, getOrThrow, NonNegativeInt, OwnerSecret, sqliteTrue, type AppOwner } from '@evolu/common';
+import { createAppOwner, createOwnerWebSocketTransport, getOrThrow, NonNegativeInt, OwnerSecret, QuarantineOrigin, QuarantineReason, sqliteTrue, type AppOwner } from '@evolu/common';
 import {
   AppName,
   createEvolu,
@@ -169,6 +169,26 @@ function mapStatus(s: OwnerSyncStatus, prev: SyncStatus, endpoint: string | unde
   }
 }
 
+/** A completed relay exchange does not mean future-dated messages were applied locally. */
+export function withClockDriftStatus(
+  status: SyncStatus,
+  localMessages: number,
+  remoteMessages: number,
+): SyncStatus {
+  if (localMessages + remoteMessages === 0) return status;
+  return {
+    ...status,
+    state: 'error',
+    pendingChanges: Math.max(status.pendingChanges, localMessages),
+    lastError: {
+      code: 'clock_drift',
+      message:
+        'Check the date and time on your devices, then restart the app. Some changes are waiting because device clocks differ.',
+      at: new Date().toISOString(),
+    },
+  };
+}
+
 export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
   const listeners = new Set<(c: DocChange) => void>();
   const statusListeners = new Set<(s: SyncStatus) => void>();
@@ -222,10 +242,16 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
   const allRows = createQuery((db) => db.selectFrom('doc').selectAll());
   const unsentRows = createQuery((db) => db.selectFrom('_unsent').select(['id', 'doc']));
   const drainQuery = createQuery((db) => db.selectFrom('_unsent').select(['id']).limit(1));
+  const driftRows = createQuery((db) => db.selectFrom('evolu_message_quarantine')
+    .select(['ownerId', 'timestamp', 'origin'])
+    .where('reason', '=', QuarantineReason.TimestampDrift)
+    .distinct());
+  let driftLocal = 0;
+  let driftRemote = 0;
 
   const setStatus = (s: SyncStatus) => {
-    current = s;
-    for (const l of statusListeners) l(s);
+    current = withClockDriftStatus(s, driftLocal, driftRemote);
+    for (const l of statusListeners) l(current);
   };
   const emit = (c: DocChange) => {
     for (const l of listeners) l(c);
@@ -516,9 +542,19 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       dbSeen.clear();
       states.clear();
       unsent.clear();
+      driftLocal = 0;
+      driftRemote = 0;
       generation = 0;
       absorb((await startedOrFailed(evolu.loadQuery(allRows), platform.deps, options.startTimeoutMs ?? 20_000)) as ReadonlyArray<Row>);
       cleanups.push(evolu.subscribeQuery(allRows)(() => absorb(evolu!.getQueryRows(allRows) as ReadonlyArray<Row>)));
+      const updateDrift = (rows: ReadonlyArray<{ origin: number }>) => {
+        driftLocal = rows.filter((r) => r.origin === QuarantineOrigin.LocalMutation).length;
+        driftRemote = rows.length - driftLocal;
+        const base = syncStateToOwnerSyncStatus(platform!.deps.syncState.get(), evolu!.name, owner!.id);
+        setStatus(mapStatus(base, current, endpoint, unsent.size));
+      };
+      updateDrift((await startedOrFailed(evolu.loadQuery(driftRows), platform.deps, options.startTimeoutMs ?? 20_000)) as ReadonlyArray<{ origin: number }>);
+      cleanups.push(evolu.subscribeQuery(driftRows)(() => updateDrift(evolu!.getQueryRows(driftRows) as ReadonlyArray<{ origin: number }>)));
       // documents written before the last reload that the relay has not acknowledged (the database is up by now)
       for (const r of (await evolu.loadQuery(unsentRows)) as ReadonlyArray<{ id: ReturnType<typeof unsentRowId>; doc: string | null }>) {
         const slash = r.doc?.indexOf('/') ?? -1;
@@ -531,7 +567,7 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
         syncState.subscribe(() => {
           if (!endpoint) return;
           const next = mapStatus(syncStateToOwnerSyncStatus(syncState.get(), name, ownerId), current, endpoint, unsent.size);
-          if (next.state === 'synced') clearUnsent();
+          if (next.state === 'synced' && driftLocal === 0) clearUnsent();
           setStatus(next);
         }),
       );
@@ -552,6 +588,8 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       endpoint = undefined;
       relay = null;
       unsent.clear();
+      driftLocal = 0;
+      driftRemote = 0;
       if (e) await e[Symbol.asyncDispose]();
       await platform?.dispose();
       platform = null;
@@ -687,6 +725,8 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       platform = null;
       snapshot.clear();
       unsent.clear();
+      driftLocal = 0;
+      driftRemote = 0;
       relay = null;
       keys = null;
       owner = null;

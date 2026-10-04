@@ -127,7 +127,9 @@ describe('rwfit JL history payload vectors', () => {
       const evs = decodeJlHistory(key, fromHex(v.bytes!), { tzOffsetS: 0, firmware: 'jl' }) ?? [];
       expectKotlin(evs, v.events);
       const r = rwfitProtocol.ingest(fromHex(v.frame!), { ...initialRWfitState(), framing: 'jl' });
-      expectKotlin(r.events, v.events);
+      // The public event bridge rejects an implausibly large activity bucket; the raw codec still matches Kotlin bytes.
+      const publicEvents = v.name.startsWith('steps decodes 16-byte') ? v.events.slice(1) : v.events;
+      expectKotlin(r.events, publicEvents);
       expect(r.send).toEqual([{ op: 'appAck', params: { triple: v.context.triple } }]);
     });
   }

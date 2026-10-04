@@ -52,6 +52,7 @@ export type ServerErrorCode =
   | 'local_network_denied'
   | 'not_vitals'
   | 'key_unavailable'
+  | 'key_used'
   | 'server_error';
 
 /** What the person reads for each error (§14.3 table verbatim, §14.7 and design/screens/server.md §5 for the rest). */
@@ -82,6 +83,8 @@ export const SERVER_MESSAGES: Readonly<Record<ServerErrorCode, string>> = {
   local_network_denied: 'This browser blocked the connection to your server. Allow "local network" access for this site in the browser\'s site settings.',
   not_vitals: "That address isn't a Vitals server.",
   key_unavailable: "Your server didn't hand over the sync key.",
+  key_used:
+    'Your server hands each device its sync key once, within 10 minutes of pairing, and that has passed. To turn sync on here, forget this server and pair again with a new code, or join with the 24 words in Settings › Sync.',
   server_error: "Your server answered with an error. Try again in a minute. If it keeps happening, check the server's log.",
 };
 
@@ -343,7 +346,7 @@ export interface ServerClient {
   issueCode(label?: string): Promise<PairCode>;
   /**
    * The person's sync key (32 bytes), handed once to a freshly paired device (`POST /v1/sync/key`). Null when this server
-   * gives none: a server without the route (404), a device that already got it (409) or paired too long ago (410).
+   * has no such route (404, a relay); `key_used` when this device already got it (409) or paired too long ago (410).
    * The bytes are never stored here; the caller zeroes them after use.
    */
   syncKey(signal?: AbortSignal): Promise<Uint8Array | null>;
@@ -676,7 +679,9 @@ export function createServerClient(options: ServerClientOptions = {}): ServerCli
       try {
         r = await request<unknown>('/v1/sync/key', { method: 'POST', body: {}, ...(signal ? { signal } : {}) });
       } catch (e) {
-        if (e instanceof ServerError && (e.status === 404 || e.status === 405 || e.status === 409 || e.status === 410)) return null;
+        if (e instanceof ServerError && (e.status === 404 || e.status === 405)) return null;
+        // already handed to this device, or the window after pairing closed: say how to get sync on, not nothing
+        if (e instanceof ServerError && (e.status === 409 || e.status === 410)) throw new ServerError('key_used', { status: e.status });
         throw e;
       }
       const key = isObj(r) && r.format === 'owner-secret-v1' ? bytesOfBase64Url(str(r.key)) : null;

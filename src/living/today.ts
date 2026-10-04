@@ -103,6 +103,12 @@ function checklist(i: TodayInput, rx: PrescribedDaySnapshot): TodayChecklistItem
   return out.sort((a, b) => key(a) - key(b));
 }
 
+const sleepHoursOf = (entries: readonly LogEntry[]): number | undefined => {
+  const s = entries.find((e): e is Extract<LogEntry, { kind: 'sleep' }> => e.kind === 'sleep');
+  return s ? hoursBetween(s.bedAt, s.wakeAt) : undefined;
+};
+const stepsOf = (entries: readonly LogEntry[]): number | undefined => entries.find((e): e is Extract<LogEntry, { kind: 'steps' }> => e.kind === 'steps')?.steps;
+
 function fmtClock(h: ClockH): string {
   const hh = Math.floor(h);
   const mm = Math.round((h - hh) * 60);
@@ -132,11 +138,8 @@ export function buildTodayView(i: TodayInput): TodayView {
 
   const weigh = i.measurements.filter((m) => m.metric === 'weightKg');
   const measured = weigh.length > 0 ? weigh.reduce((s, m) => s + m.value, 0) / weigh.length : i.observations?.weights?.[0]?.kg;
-  const sleepHours = i.observations?.sleep?.hours ?? (() => {
-    const s = i.entries.find((e): e is Extract<LogEntry, { kind: 'sleep' }> => e.kind === 'sleep');
-    return s ? hoursBetween(s.bedAt, s.wakeAt) : undefined;
-  })();
-  const steps = i.observations?.steps?.value ?? i.entries.find((e): e is Extract<LogEntry, { kind: 'steps' }> => e.kind === 'steps')?.steps;
+  const sleepHours = i.observations?.sleep?.hours ?? sleepHoursOf(i.entries);
+  const steps = i.observations?.steps?.value ?? stepsOf(i.entries);
   const fast = fastState(rx, i.entries, i.now);
   const items = (i.logged?.loggedDay.items ?? []).map((o) => ({ itemId: o.itemId, status: o.status, ...(o.credit !== null ? { credit: o.credit } : {}) }));
 
@@ -153,6 +156,7 @@ export function buildTodayView(i: TodayInput): TodayView {
     prescription: rx,
     logged: {
       entries: i.entries.map(summarise),
+      measurements: [...i.measurements],
       totals: { energyKcal: totals.energyKcal, proteinG: totals.proteinG, carbG: totals.carbG, fatG: totals.fatG, fibreG: totals.fibreG },
       items,
       ...(fast ? { fast } : {}),
@@ -184,6 +188,39 @@ export function buildTodayView(i: TodayInput): TodayView {
       : null,
     notices,
     coachPrompts,
+  };
+}
+
+/** What an adherence line says instead of a value the Coach may not see. */
+export const HIDDEN_WHY = 'from a device the Coach does not see';
+
+/**
+ * Today without some of its entries (plan 04 item 11: an agent's read leaves out device entries from streams the person
+ * hides from the Coach). Their rows go, with the steps and sleep hours they gave and the numbers their adherence lines
+ * quote ("9000 steps", "7.5 h asleep"); what the plan made of them (score, credits, ticks) stays. A device session's
+ * line names no value. `entries` are the day's entries the view was built from.
+ */
+export function todayWithout(view: TodayView, entries: readonly LogEntry[], hidden: ReadonlySet<string>): TodayView {
+  const gone = new Set(entries.filter((e) => hidden.has(e.id)).map((e) => e.kind));
+  if (gone.size === 0) return view;
+  const kept = entries.filter((e) => !hidden.has(e.id));
+  const { steps, sleepHours, ...logged } = view.logged;
+  const keptSteps = gone.has('steps') ? stepsOf(kept) : steps;
+  const keptSleep = gone.has('sleep') ? sleepHoursOf(kept) : sleepHours;
+  const quoted = new Set<string>();
+  const today = view.adherence.today && {
+    ...view.adherence.today,
+    items: view.adherence.today.items.map((it) => {
+      if (it.credit === null || !((it.type === 'steps' && gone.has('steps')) || (it.type === 'sleep' && gone.has('sleep')))) return it;
+      quoted.add(it.why);
+      return { ...it, why: HIDDEN_WHY };
+    }),
+  };
+  return {
+    ...view,
+    logged: { ...logged, entries: logged.entries.filter((s) => !hidden.has(s.id)), ...(keptSteps !== undefined ? { steps: keptSteps } : {}), ...(keptSleep !== undefined ? { sleepHours: keptSleep } : {}) },
+    adherence: { ...view.adherence, today },
+    coachPrompts: view.coachPrompts.filter((p) => ![...quoted].some((w) => p.startsWith(`${w}:`))),
   };
 }
 

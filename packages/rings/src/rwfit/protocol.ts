@@ -1,3 +1,4 @@
+import { plausibleAggregate } from '../plausibility';
 /**
  * RWfit `Protocol` for `@vitals/rings`. Tier P: no timers, no I/O. Port of Lumen's `RWfitDriver.kt` (ingest, ACKs, framing
  * switch), `RWfitEncoder.kt` (one op per encoder method) and `RWfitSyncEngine.kt` (legacy cascade, JL burst).
@@ -22,6 +23,7 @@
 import type { BioStream } from '../../../../src/biometrics/core/types';
 import type { CommandPlan, IngestResult, OutboundFrame, Protocol, ProtocolState, RingCommand, RingEvent, SyncCursor } from '../types';
 import { fromHex } from '../types';
+import { zoneOffsetAtS } from '../zone';
 import {
   HISTORY, JL, JL_TYPE, LEGACY, decodeJl, decodeLegacy, historyDef, jlAck, jlFrame, jlHistoryTriple, jlTimePayload, legacyAck, legacyFrame,
   legacyTimePayload, nextSerial, wallClock, type Framing, type HistoryDef, type HistoryType, type JlPending, type LegacyParts, type Triple,
@@ -57,10 +59,13 @@ export interface RWfitState extends ProtocolState {
   parts: LegacyParts;
   jlPending: JlPending | null;
   tzOffsetS: number;
+  tz: string | null;
   nowMs: number;
   battery: number | null;
   charging: boolean | null;
   deviceInfo: boolean;
+  /** Kotlin requests the JL catalog once per connection, even when its background pass runs again. */
+  jlHistoryRequested: boolean;
   /** Legacy streams the manifest claimed (cascade order); null until a manifest arrived. */
   claimed: HistoryType[] | null;
   inflight: Inflight | null;
@@ -82,13 +87,47 @@ function eventTime(e: RingEvent): number | null {
     case 'vendor':
       return e.t;
     case 'activityBucket':
+      return e.start + e.durS * 1000;
     case 'sleepEpochs':
-      return e.start;
+      return e.start + e.stages.length * e.epochS * 1000;
     case 'dailyTotal':
       return e.localDay;
     default:
       return null;
   }
+}
+
+/** Kotlin's plausible-value bridge and the ring-clock future bound for public events. */
+function boundedEvents(events: RingEvent[], nowMs: number): RingEvent[] {
+  return events.filter((e) => {
+      if (!plausibleAggregate(e)) return false;
+    const t = eventTime(e);
+    if (nowMs > 0 && t !== null && (t > nowMs || t < nowMs - 8 * 86_400_000)) return false;
+    if (e.type === 'activityBucket') return e.steps >= 0 && e.steps <= 5_000 && (e.distanceM ?? 0) >= 0 && (e.distanceM ?? 0) <= 6_000;
+    if (e.type === 'sample') {
+      if (e.stream === 'hr') return e.value >= 30 && e.value <= 220;
+      if (e.stream === 'spo2') return e.value >= 70 && e.value <= 100;
+      if (e.stream === 'skin_temp') return e.value >= 30 && e.value <= 45;
+      if (e.stream === 'hrv') return e.value >= 1 && e.value <= 300;
+    }
+    if (e.type === 'vendor') {
+      if (e.key === 'blood_pressure_systolic_estimate') return e.value >= 60 && e.value <= 250;
+      if (e.key === 'blood_pressure_diastolic_estimate') return e.value >= 30 && e.value <= 150;
+      if (e.key === 'stress') return e.value >= 1 && e.value <= 100;
+      if (e.key === 'blood_glucose_estimate') return e.value >= 20 && e.value <= 600;
+    }
+    return true;
+  });
+}
+
+/** Kotlin's legacy decoder uses raw zone offset plus one hour if the zone observes DST at all. */
+function legacyCorrectionS(st: RWfitState): number {
+  if (!st.tz || st.nowMs <= 0) return st.tzOffsetS;
+  const year = new Date(st.nowMs).getUTCFullYear();
+  const zone = { tz: st.tz, tzOffsetS: st.tzOffsetS };
+  const jan = zoneOffsetAtS(zone, Date.UTC(year, 0, 15));
+  const jul = zoneOffsetAtS(zone, Date.UTC(year, 6, 15));
+  return jan !== jul ? Math.min(jan, jul) + 3_600 : jan;
 }
 
 // ---------------------------------------------------------------- framing
@@ -206,7 +245,7 @@ export function planRWfitSync(cursor: SyncCursor, state: ProtocolState): RingCom
     }
     return out;
   };
-  if (st.framing === 'jl') return [{ op: 'historyBurst', params: { streams: streamsOf(JL_HISTORY), ...prev(JL_HISTORY) } }];
+  if (st.framing === 'jl') return st.jlHistoryRequested ? [] : [{ op: 'historyBurst', params: { streams: streamsOf(JL_HISTORY), ...prev(JL_HISTORY) } }];
   return [
     { op: 'syncManifest', params: { streams: streamsOf(LEGACY_HISTORY) } },
     ...LEGACY_HISTORY.map((h): RingCommand => {
@@ -242,18 +281,18 @@ function endHistory(st: RWfitState, h: Extract<Inflight, { kind: 'history' }>, c
 
 export function initialRWfitState(): RWfitState {
   return {
-    framing: 'legacy', serial: 0, parts: {}, jlPending: null, tzOffsetS: 0, nowMs: 0, battery: null, charging: null, deviceInfo: false,
+    framing: 'legacy', serial: 0, parts: {}, jlPending: null, tzOffsetS: 0, tz: null, nowMs: 0, battery: null, charging: null, deviceInfo: false, jlHistoryRequested: false,
     claimed: null, inflight: null, cursors: {},
   };
 }
 
 function begin(cmd: RingCommand, state: ProtocolState): CommandPlan {
   let st = state as RWfitState;
-  st = { ...st, nowMs: num(cmd, 'nowMs', st.nowMs), tzOffsetS: num(cmd, 'tzOffsetS', st.tzOffsetS) };
+  st = { ...st, nowMs: num(cmd, 'nowMs', st.nowMs), tzOffsetS: num(cmd, 'tzOffsetS', st.tzOffsetS), tz: str(cmd, 'tz') || st.tz };
   if (cmd.op === 'selectFraming') {
     // `RWfitDriver.servicesDiscovered`; the codecs start clean on the new framing.
     const framing: Framing = str(cmd, 'framing') === 'jl' ? 'jl' : 'legacy';
-    return { state: { ...st, framing, parts: {}, jlPending: null, claimed: null, inflight: null }, expectReply: false };
+    return { state: { ...st, framing, parts: {}, jlPending: null, claimed: null, inflight: null, jlHistoryRequested: false }, expectReply: false };
   }
   // Legacy: the frame about to be written takes the next serial (ACKs carry their own).
   if (st.framing === 'legacy' && cmd.op !== 'appAck' && cmd.params?.serial === undefined && legacyCommandFor(cmd, st) !== null) {
@@ -282,7 +321,7 @@ function begin(cmd: RingCommand, state: ProtocolState): CommandPlan {
       if (st.framing !== 'jl') return { state: st, expectReply: false };
       const types = JL_HISTORY.map((h) => h.type);
       const inflight: Inflight = { kind: 'history', types, waiting: types, packets: 0, silenceMs: 0, newest: {} };
-      return { state: { ...st, inflight }, expectReply: true, quietMs: QUIET_MS, stallMs: HISTORY_STALL_MS };
+      return { state: { ...st, inflight, jlHistoryRequested: true }, expectReply: true, quietMs: QUIET_MS, stallMs: HISTORY_STALL_MS };
     }
     default:
       // deviceInfo, timeSync, realtimeMeasure, unbind, raw, appAck: the Kotlin writes them without waiting.
@@ -318,9 +357,10 @@ function settle(
   return { state: closed.state, events, done: false };
 }
 
-function ingest(bytes: Uint8Array, state: ProtocolState): IngestResult {
+function ingest(bytes: Uint8Array, state: ProtocolState, _channel?: string, receivedMs?: number): IngestResult {
   let st = state as RWfitState;
-  const ctx = { tzOffsetS: st.tzOffsetS, firmware: st.framing };
+  const eventClockMs = receivedMs ?? st.nowMs;
+  const ctx = { tzOffsetS: st.framing === 'legacy' ? legacyCorrectionS(st) : st.tzOffsetS, firmware: st.framing };
   if (st.inflight) st = { ...st, inflight: st.inflight.kind === 'history' ? { ...st.inflight, packets: st.inflight.packets + 1, silenceMs: 0 } : { ...st.inflight, silenceMs: 0 } };
   const events: RingEvent[] = [];
   const send: RingCommand[] = [];
@@ -339,7 +379,8 @@ function ingest(bytes: Uint8Array, state: ProtocolState): IngestResult {
         // `onDeviceAck`: a refusal is only logged by the Kotlin; reported here.
         if (item.status !== 0) events.push({ type: 'status', key: 'error', value: `refused:0x${item.cmd.toString(16).padStart(2, '0')}:${item.status}` });
       } else {
-        const d = decodeLegacyPayload(item.cmd, item.payload, ctx);
+        const decoded = decodeLegacyPayload(item.cmd, item.payload, ctx);
+        const d = { ...decoded, events: boundedEvents(decoded.events, eventClockMs) };
         if (d.deviceInfo) st = { ...st, deviceInfo: true };
         if (d.battery) st = { ...st, battery: d.battery.percent, charging: d.battery.charging };
         const isManifest = item.cmd === LEGACY.SYNC_MANIFEST;
@@ -358,7 +399,8 @@ function ingest(bytes: Uint8Array, state: ProtocolState): IngestResult {
       if (item.kind === 'checksumFailed') continue; // bad CRC: dropped silently, no ACK (Kotlin)
       // `ingestJieLi`: every non-ACK frame is ACKed before it is decoded.
       if (!item.isAck) send.push({ op: 'appAck', params: { triple: Array.from(item.triple, (b) => b.toString(16).padStart(2, '0')).join(' ') } });
-      const d = decodeJlPayload(item.triple, item.payload, ctx);
+      const decoded = decodeJlPayload(item.triple, item.payload, ctx);
+      const d = { ...decoded, events: boundedEvents(decoded.events, eventClockMs) };
       if (d.deviceInfo) st = { ...st, deviceInfo: true };
       if (d.battery !== undefined) st = { ...st, battery: d.battery };
       const s = settle(st, d, false);

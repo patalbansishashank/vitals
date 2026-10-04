@@ -7,11 +7,13 @@
  * plan then keeps its assumptions), and the next assimilation picks the measurements up. Answers are cached per index
  * revision and range, so repeated reads during one projection cost nothing.
  */
-import type { DayObservations, ObservationAdapter } from '@/living';
+import type { DayObservations, LogEntry, ObservationAdapter } from '@/living';
 import type { DocumentStore } from '@/store';
 import { getDocumentStore } from '@/state/runtime';
 import { timeZone } from '../bus';
+import { effectivePolicy } from '@/biometrics/core/effective';
 import { buildObservations } from '@/biometrics/core/observations';
+import type { PolicyStream } from '@/biometrics/core/types';
 import { sharedBioIndex, type BioDocIndex } from '@/biometrics/store/docIndex';
 
 const zone = (): string => timeZone();
@@ -24,6 +26,26 @@ export function observationsFromIndex(ix: BioDocIndex, from: string, to: string,
   if (records.length === 0 && corrections.length === 0) return [];
   const results = [...ix.scores()].filter((r) => r.scope.localDate >= from && r.scope.localDate <= to);
   return buildObservations({ records, sources: ix.sources(), person: ix.personPolicies, results, tz, from, to, corrections });
+}
+
+const DEVICE_STREAM: Partial<Record<LogEntry['kind'], PolicyStream>> = { steps: 'steps', sleep: 'sleep_sessions', session: 'workouts' };
+
+/**
+ * Ids of the device entries (`log.fromBiometrics`) whose stream the person hides from the Coach (plan 04 item 11): the
+ * plan uses them (`engine` on), an agent's read leaves them out. The entry's record names its source; a record no longer
+ * stored falls back to the person's own setting. Entries by hand are not device data and are never in it.
+ */
+export function coachHiddenEntryIds(ix: BioDocIndex, entries: readonly LogEntry[]): Set<string> {
+  const out = new Set<string>();
+  for (const e of entries) {
+    const stream = DEVICE_STREAM[e.kind];
+    if (!stream || e.source.by !== 'device' || e.source.method !== 'biometrics') continue;
+    const doc = e.source.bioRecordId ? ix.latest.get(e.source.bioRecordId) : undefined;
+    const sk = doc ? ix.recDocs.get(doc)?.sourceKey : undefined;
+    const p = effectivePolicy(sk ? (ix.source(sk) ?? { policies: [] }) : null, ix.personPolicies, stream);
+    if (!p.imported || p.coach === 'hidden') out.add(e.id);
+  }
+  return out;
 }
 
 /** The adapter over the app's current document store (or a given one, in tests). */

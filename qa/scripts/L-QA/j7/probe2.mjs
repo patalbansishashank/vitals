@@ -1,0 +1,12 @@
+import { chromium, newPage, shot } from './lib.mjs';
+import { onboard } from '../j1/onboard.mjs';
+const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
+const { ctx, page } = await newPage(browser);
+await ctx.route('https://localhost/**', async (route) => { const u = new URL(route.request().url()); try { const r = await route.fetch({ url: 'http://127.0.0.1:4337' + u.pathname + u.search }); await route.fulfill({ response: r }); } catch { await route.abort(); } });
+const go = async (p) => { await page.goto('https://localhost' + p, { waitUntil: 'load' }); await page.waitForFunction(() => document.querySelectorAll('button, a[href]').length > 0, null, { timeout: 90000 }).catch(() => {}); };
+await go('/'); console.log(JSON.stringify(await onboard(page, () => {}))); await go('/settings?section=server'); await page.waitForTimeout(3000);
+console.log(page.url());
+console.log((await page.innerText('body')).replace(/\n+/g, ' | ').slice(0, 900));
+console.log(await page.evaluate(() => [...document.querySelectorAll('input,button')].map(e => e.tagName + ':' + (e.getAttribute('aria-label') || e.innerText || e.placeholder || '').slice(0, 30)).join(' ; ')));
+await shot(page, 'probe-server.png');
+await browser.close();

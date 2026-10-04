@@ -60,6 +60,7 @@ export interface JringState extends ProtocolState {
   /** 0x20 payload as spaced hex; nothing branches on it yet (as in Kotlin). */
   capabilities: string | null;
   tzOffsetS: number;
+  tz?: string;
   nowMs: number;
   /** Offset latched at the last 0x01 (`JringClock.capture`); null before the first one. */
   clockOffsetS: number | null;
@@ -214,7 +215,7 @@ export function createJringProtocol(): Protocol {
 
     begin(cmd, state): CommandPlan {
       const st0 = state as JringState;
-      let st: JringState = { ...st0, nowMs: num(cmd, 'nowMs', st0.nowMs), tzOffsetS: num(cmd, 'tzOffsetS', st0.tzOffsetS) };
+      let st: JringState = { ...st0, nowMs: num(cmd, 'nowMs', st0.nowMs), tzOffsetS: num(cmd, 'tzOffsetS', st0.tzOffsetS), tz: str(cmd, 'tz', st0.tz ?? '') || undefined };
       switch (cmd.op) {
         case 'timeSync':
           // `enqueueTimeSync`: latch the offset that goes out on the wire; the decoder subtracts this same value.
@@ -245,17 +246,18 @@ export function createJringProtocol(): Protocol {
       return { state: st, expectReply: false };
     },
 
-    ingest(bytes, state): IngestResult {
+    ingest(bytes, state, _channel, receivedMs): IngestResult {
       let st = state as JringState;
       const offset = st.clockOffsetS ?? st.tzOffsetS;
-      const decoded = decodeJringPacket(bytes, offset, st.nowMs);
+      const eventNowMs = receivedMs ?? st.nowMs;
+      const decoded = decodeJringPacket(bytes, offset, eventNowMs);
       const events: RingEvent[] = [];
       const send: RingCommand[] = [];
       // A completion or result packet during a history read is background logging, not the end of the read (RINGS-11).
       const historyRead = st.inflight?.kind === 'activity' || st.inflight?.kind === 'hrHistory';
       let done = false;
       for (const d of decoded) {
-        events.push(...toJringRingEvents(d, { nowMs: st.nowMs, clockOffsetS: offset, firmware: st.firmware ?? '' }));
+        events.push(...toJringRingEvents(d, { nowMs: eventNowMs, clockOffsetS: offset, tz: st.tz, strictNow: eventNowMs > 0, firmware: st.firmware ?? '' }));
         switch (d.kind) {
           case 'Status':
             st = { ...st, firmware: d.firmware, address: d.address === '00:00:00:00:00:00' ? null : d.address };

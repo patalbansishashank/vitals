@@ -136,11 +136,13 @@ export async function openPersonProgram(init: PersonInit, secret: Uint8Array): P
 
   /** The broker's path for live ring events (R17 blocker 9): map, ingest like `bio.import`, rescore a moment later. */
   async function ingestLumen(req: Extract<PersonRequest, { op: 'ingestLumen' }>): Promise<IngestLumenResult> {
-    const [{ checkLumenEvent, mapLumenEvents }, { ingestLumenBatches }, { adoptPersonPolicies, applyImportPolicy, importPolicies }, { openBioStore, deriveWriter }] = await Promise.all([
+    const [{ checkLumenEvent, mapLumenEvents }, { ingestLumenBatches }, { adoptPersonPolicies, applyImportPolicy, importPolicies }, { bioIndex, openBioStore, deriveWriter }, { isRingSource, RING_FOLD_ID, RING_SHARING_ID, ringChoiceOf, ringFoldOf }, { lumenFold }] = await Promise.all([
       import('@/biometrics/importers/lumenCloudEvents'),
       import('@/biometrics/importers/lumenIngest'),
       import('@/biometrics/core/effective'),
       import('@/commands/bio/store'),
+      import('@/biometrics/core/policy'),
+      import('@/biometrics/core/source'),
     ]);
     const rejected: NonNullable<IngestLumenResult['rejected']> = [];
     const accepted = req.events.filter((e, index) => {
@@ -157,15 +159,21 @@ export async function openPersonProgram(init: PersonInit, secret: Uint8Array): P
     let added = 0;
     if (records > 0) {
       // as bio.import (src/commands/bio/exec.ts ingestAndScore): the person's stream choices filter the batch and new
-      // sources adopt them; scoring follows debounced (scheduleRescore) instead of inside the call, one message at a time
+      // sources adopt them, and a new ring source follows the person's master switch; scoring follows debounced
+      // (scheduleRescore) instead of inside the call, one message at a time
       const store = await openBioStore({ writer: deriveWriter(undefined, 'ring sync') });
       const person = await store.personPolicies();
       const before = new Set((await store.sources()).map((s) => s.sourceKey));
-      const rep = await ingestLumenBatches([applyImportPolicy(mapped.batch, person)], store, { now, policies: importPolicies(person) });
+      const ix = await bioIndex();
+      const ringSharing = ringChoiceOf(ix.sourceDocs.get(RING_SHARING_ID));
+      // one ring = one source (§15.2): Lumen data goes to the person's one J-Style 2301 ring source once it is folded
+      const fold = lumenFold(ringFoldOf(ix.sourceDocs.get(RING_FOLD_ID)));
+      const rep = await ingestLumenBatches([applyImportPolicy(mapped.batch, person)], store, { now, policies: importPolicies(person), ringSharing, ...(fold ? { fold } : {}) });
       for (const sk of rep.sources) {
         if (before.has(sk)) continue;
         const s = await store.getSource(sk);
-        if (s) await store.putSource({ ...s, policies: adoptPersonPolicies(s.policies, person) });
+        // a ring source keeps the ring defaults (item 11); the person's intake matrix shapes other sources only
+        if (s && !isRingSource(s)) await store.putSource({ ...s, policies: adoptPersonPolicies(s.policies, person) });
         await store.patchSource(sk, { createdAt: now });
       }
       await store.flush();

@@ -9,6 +9,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNod
 import { Copy, KeyRound, Link2, RefreshCw, ScanLine, Trash2 } from 'lucide-react';
 import { RingMark } from '@/components/brand/RingMark';
 import { Chip, Dialog, Faceplate, FaceplateHeader, Field, InlineWarning, Key, KeyValueList, Notice, TextInput, toast, type Severity } from '@/components';
+import { mintConfirmation } from '@/commands';
+import { sendCommand } from '@/features/lib/sendCommand';
+import { platformCaps } from '@/platform';
 import { useSyncView, type SyncView } from '@/state/sync';
 import {
   defaultDeviceLabel,
@@ -30,7 +33,7 @@ import { SyncPillView } from '../sync/SyncPill';
 import { countdown, formatDay, relativeTime, SERVER_COPY as C } from './copy';
 import { useServerClient, useServerConnection, useServerPairing } from './hooks';
 import { PairingCodeField } from './PairingCodeField';
-import { joinSyncFromServer, syncsThroughServer } from './serverSync';
+import { dropHeldSyncKey, joinSyncFromServer, syncsThroughServer } from './serverSync';
 
 const ScanDialog = lazy(() => import('../sync/ScanDialog'));
 
@@ -96,21 +99,28 @@ export function ServerSection() {
     syncRef.current = sync;
   }, [sync]);
   const [existing, setExisting] = useState<{ summary: string; resolve: (c: 'merge' | 'replace') => void } | null>(null);
-  const [joinNote, setJoinNote] = useState<string | null>(null);
+  const [joinNote, setJoinNote] = useState<{ text: string; retry: boolean } | null>(null);
+  const [joining, setJoining] = useState(false);
+  // a key held for Try again lives only as long as this pairing and this page
+  useEffect(() => {
+    if (!pairing) dropHeldSyncKey();
+  }, [pairing]);
+  useEffect(() => dropHeldSyncKey, []);
 
   // lives here, not in the pair panel: that panel is gone as soon as the pairing is stored
   const startSync = useCallback(
     async (paired: ServerPairing) => {
       setJoinNote(null);
+      setJoining(true);
       const out = await joinSyncFromServer({
         client,
         baseUrl: paired.baseUrl,
         label: paired.person.label,
         view: syncRef.current,
         ask: (summary) => new Promise((resolve) => setExisting({ summary, resolve })),
-      });
-      if (out.kind === 'other_key') setJoinNote(C.alreadyOtherKey);
-      else if (out.kind === 'failed') setJoinNote(C.joinFailed(out.message));
+      }).finally(() => setJoining(false));
+      if (out.kind === 'other_key') setJoinNote({ text: C.alreadyOtherKey, retry: false });
+      else if (out.kind === 'failed') setJoinNote({ text: C.joinFailed(out.message), retry: out.retry });
     },
     [client],
   );
@@ -118,7 +128,15 @@ export function ServerSection() {
   return (
     <div id="server" className="grid scroll-mt-2 gap-4">
       {pairing ? (
-        <PairedView pairing={pairing} connection={connection} check={check} onForgot={() => setForgotten(true)} note={joinNote} />
+        <PairedView
+          pairing={pairing}
+          connection={connection}
+          check={check}
+          onForgot={() => setForgotten(true)}
+          note={joinNote?.text ?? null}
+          onRetry={joinNote?.retry ? () => void startSync(pairing) : undefined}
+          retrying={joining}
+        />
       ) : (
         <UnpairedView
           connection={connection}
@@ -207,7 +225,7 @@ function UnpairedView({
             <p className="m-0 text-sm text-ink-2">{C.introOnce}</p>
           </div>
         </div>
-        <p className="m-0 max-w-[68ch] text-xs leading-[1.45] text-ink-2">{C.localNetwork}</p>
+        {platformCaps().installedApp ? null : <p className="m-0 max-w-[68ch] text-xs leading-[1.45] text-ink-2">{C.localNetwork}</p>}
         {open ? (
           <PairPanel
             key={prefill ? `${prefill.baseUrl}|${prefill.code}` : 'blank'}
@@ -403,6 +421,8 @@ function PairedView({
   check,
   onForgot,
   note,
+  onRetry,
+  retrying,
 }: {
   pairing: ServerPairing;
   connection: ServerConnection;
@@ -410,6 +430,9 @@ function PairedView({
   onForgot: () => void;
   /** Why pairing did not turn sync on (another key on this device, or the join failed). */
   note: string | null;
+  /** Set when trying the join again can work (§15.4: failure shows the reason with Try again). */
+  onRetry?: (() => void) | undefined;
+  retrying: boolean;
 }) {
   const client = useServerClient();
   const sync = useSyncView();
@@ -484,7 +507,20 @@ function PairedView({
             <div className="grid gap-2">
               <KeyValueList items={items} />
               <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.readable}</p>
-              {note ? <InlineWarning severity="caution">{note}</InlineWarning> : null}
+              {note ? (
+                <InlineWarning
+                  severity="caution"
+                  action={
+                    onRetry ? (
+                      <Key size="sm" icon={RefreshCw} loading={retrying} onClick={onRetry}>
+                        {C.tryAgain}
+                      </Key>
+                    ) : undefined
+                  }
+                >
+                  {note}
+                </InlineWarning>
+              ) : null}
               {!sync.paired ? <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.syncHint}</p> : null}
               <div>
                 <Key size="sm" icon={RefreshCw} loading={checking || connection.state === 'checking'} onClick={() => void checkNow()}>
@@ -533,8 +569,15 @@ function PairedView({
               variant="danger"
               onClick={() => {
                 setConfirmForget(false);
+                // the confirm says this device stops syncing: the relay on this server does not check the device token,
+                // so forgetting the pairing alone would leave sync running through it. Stopping keeps this device's data.
+                const stopSync = syncsThroughServer(sync, pairing.baseUrl);
                 client.forget();
                 onForgot();
+                if (stopSync)
+                  void sendCommand('sync.unpair', {}, { confirmation: mintConfirmation('sync.unpair', {}), silent: true }).then((r) => {
+                    if (!r.ok) toast(C.forgetSyncFailed(r.error.message));
+                  });
               }}
             >
               {C.forgetConfirm}

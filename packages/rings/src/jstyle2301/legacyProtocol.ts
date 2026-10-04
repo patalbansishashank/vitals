@@ -45,6 +45,7 @@ export interface J2301State extends ProtocolState {
   auth: 'none' | 'pending' | 'accepted' | 'rejected';
   battery: number | null;
   tzOffsetS: number;
+  tz?: string;
   nowMs: number;
   inflight: Inflight | null;
   /** Latest cursor string per Vitals stream (merged across the opcodes that feed it). */
@@ -168,7 +169,11 @@ function finishHistory(st: J2301State, flag: 'end' | 'more', partial = false): {
   return { state: { ...st, inflight: null, cursors: { ...st.cursors, [h.stream]: value } }, events };
 }
 
-export function createJStyle2301Protocol(opts: J2301Options = {}): BleProtocol {
+export interface J2301LegacyProtocol extends BleProtocol {
+  ingest(bytes: Uint8Array, state: ProtocolState, channel?: string, receivedMs?: number): IngestResult;
+}
+
+export function createJStyle2301Protocol(opts: J2301Options = {}): J2301LegacyProtocol {
   return {
     initialState: (): J2301State => ({ firmware: null, auth: 'none', battery: null, tzOffsetS: 0, nowMs: 0, inflight: null, cursors: {} }),
 
@@ -178,7 +183,7 @@ export function createJStyle2301Protocol(opts: J2301Options = {}): BleProtocol {
 
     begin(cmd, state): CommandPlan {
       const st = state as J2301State;
-      const clock = { nowMs: num(cmd, 'nowMs', st.nowMs), tzOffsetS: num(cmd, 'tzOffsetS', st.tzOffsetS) };
+      const clock = { nowMs: num(cmd, 'nowMs', st.nowMs), tzOffsetS: num(cmd, 'tzOffsetS', st.tzOffsetS), tz: str(cmd, 'tz') || st.tz };
       const reply = REPLY_OPS[cmd.op];
       if (reply !== undefined) {
         const auth = cmd.op === 'authenticate' ? 'pending' : st.auth;
@@ -200,9 +205,10 @@ export function createJStyle2301Protocol(opts: J2301Options = {}): BleProtocol {
       return { state: { ...st, ...clock }, expectReply: false };
     },
 
-    ingest(bytes, state): IngestResult {
+    ingest(bytes, state, _channel, receivedMs): IngestResult {
       let st = state as J2301State;
-      const d = decodePacket(bytes, { firmware: st.firmware, tzOffsetS: st.tzOffsetS, nowMs: st.nowMs });
+      const receiptMs = receivedMs ?? st.nowMs;
+      const d = decodePacket(bytes, { firmware: st.firmware, tzOffsetS: st.tzOffsetS, tz: st.tz, nowMs: receiptMs });
       const events = [...d.events];
       if (d.firmware !== undefined) st = { ...st, firmware: d.firmware };
       if (d.battery !== undefined) st = { ...st, battery: d.battery };
@@ -215,12 +221,12 @@ export function createJStyle2301Protocol(opts: J2301Options = {}): BleProtocol {
       }
       if (bytes[0] !== h.opcode) return { events, state: st, unrelated: true };
       let newestMs = h.newestMs;
-      let aheadMs = h.aheadMs;
+      let aheadMs = Math.max(h.aheadMs, d.clockAheadMs ?? 0);
       for (const e of d.events) {
         const t = eventTime(e);
         if (t === null) continue;
         newestMs = newestMs === null ? t : Math.max(newestMs, t);
-        if (st.nowMs > 0) aheadMs = Math.max(aheadMs, t - st.nowMs);
+        if (receiptMs > 0) aheadMs = Math.max(aheadMs, t - receiptMs);
       }
       const cur: Inflight = { ...h, packets: h.packets + 1, newestMs, aheadMs, quietMs: 0 };
       st = { ...st, inflight: cur };

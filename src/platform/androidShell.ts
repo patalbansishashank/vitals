@@ -22,13 +22,20 @@ export interface AndroidShellBridge {
   batteryOptimisation?(): Promise<{ restricted: boolean; openSettings(): void }>;
 }
 
-export type NoticeKind = 'battery_low' | 'ring_disconnected';
+/** `ring_moved`: the ring service's "ring now connected to another device" notice. */
+export type NoticeKind = 'battery_low' | 'ring_disconnected' | 'ring_moved';
 export type LaunchReason = 'launcher' | 'boot' | 'bluetooth' | 'notification' | 'share';
 export interface ShellState {
   bluetoothOn: boolean;
   notificationsAllowed: boolean;
   keepAliveOn: boolean;
   launchReason: LaunchReason;
+  /** The app's window is really on screen (the page's visibility follows it, see androidScreen). */
+  onScreen?: boolean;
+  /** Background read ticks since the process started, the wall time of the last one and the interval (diagnostics). */
+  ringTicks?: number;
+  lastRingTickAt?: number;
+  ringTickEveryMs?: number;
 }
 /** A file shared to Vitals, already copied by the native side into the app's cache. */
 export interface SharedFileEntry {
@@ -53,6 +60,8 @@ export interface VitalsShellPlugin {
   saveFile(o: { name: string; mime: string; dataBase64: string }): Promise<unknown>;
   batteryOptimisation(): Promise<{ restricted: boolean }>;
   openBatterySettings(): Promise<unknown>;
+  setRingTick(o: { everyMs: number }): Promise<unknown>;
+  ringTickDone(): Promise<unknown>;
   addListener(event: string, cb: (data: unknown) => void): Promise<ListenerHandle> | ListenerHandle;
 }
 /** The part of the injected `window.Capacitor` this module reads. */
@@ -174,6 +183,28 @@ export async function clearNotice(kind: NoticeKind): Promise<void> {
 /** What the boot and Bluetooth-on receivers read: start the ring link only when both are true. */
 export async function setRingPrefs(prefs: { keepConnected: boolean; ringKnown: boolean }): Promise<void> {
   await vitalsShell()?.setPrefs({ keepConnected: prefs.keepConnected, ringKnown: prefs.ringKnown });
+}
+
+/**
+ * The background read: while the ring service runs, an alarm wakes the phone every `everyMs` (screen off included)
+ * and fires `cb`, holding the CPU awake until `ringTickDone()` (or three minutes). No-op without the plugin.
+ */
+export function onRingTick(cb: () => void): () => void {
+  return listen('ringTick', () => cb());
+}
+
+/** The app's window went on or off screen (native `screen` event). No-op without the plugin. */
+export function onScreenChange(cb: (on: boolean) => void): () => void {
+  return listen('screen', (d) => cb(!!(d as { on?: unknown } | null)?.on));
+}
+
+export async function setRingTick(everyMs: number): Promise<void> {
+  await vitalsShell()?.setRingTick({ everyMs });
+}
+
+/** The read a tick asked for is done: the phone may sleep again. */
+export async function ringTickDone(): Promise<void> {
+  await vitalsShell()?.ringTickDone();
 }
 
 /** Ask for POST_NOTIFICATIONS (Android 13+). False without the plugin. */

@@ -408,13 +408,13 @@ describe('chooserFactory, web', () => {
     expect(await f.available()).toBe(false);
   });
 
-  it('scan reports the one chosen device with the families asked for, then resolves', async () => {
+  it('scan reports the chosen device without assigning a requested family, then resolves', async () => {
     const link = new FakeLink({ id: 'opaque-1', name: 'Ring A' });
     const { requestDevice, transport } = web(link);
     const f = chooserFactory(transport, 'web-bluetooth');
     const found: ChooserAdvertisement[] = [];
     await f.scan([famA, famB], (ad) => found.push(ad), new AbortController().signal);
-    expect(found).toEqual([{ name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: 'opaque-1', matchedFamilies: ['jstyle2301', 'colmi'] }]);
+    expect(found).toEqual([{ name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: 'opaque-1', needsDiscovery: true }]);
     expect(requestDevice).toHaveBeenCalledTimes(1);
     expect(queryOf(requestDevice.mock.calls[0]![0] as never).filters).toHaveLength(3);
     expect(requestDevice.mock.calls[0]![1]!.chooser).toBeUndefined();
@@ -515,8 +515,8 @@ describe('chooserFactory, electron (with a fake transport)', () => {
     const done = f.scan([famA, famB], (ad) => found.push(ad), ctl.signal).then(() => (ended = true));
     await sleep(30);
     expect(found).toEqual([
-      { name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: ringA.id, matchedFamilies: ['jstyle2301', 'colmi'] },
-      { name: 'Ring B', serviceUuids: [], manufacturerData: [], platformId: ringB.id, matchedFamilies: ['jstyle2301', 'colmi'] },
+      { name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: ringA.id, needsDiscovery: true },
+      { name: 'Ring B', serviceUuids: [], manufacturerData: [], platformId: ringB.id, needsDiscovery: true },
     ]);
     expect(ended).toBe(false);
     expect(requestDevice).toHaveBeenCalledTimes(1);
@@ -599,7 +599,7 @@ describe('chooserFactory, electron (with a fake transport)', () => {
     await expect(chooserFactory(transport, 'electron').scan([famA], () => {}, new AbortController().signal)).resolves.toBeUndefined();
   });
 
-  it('a chooser built by scan uses the update callback only through the families it was given', async () => {
+  it('a chooser built by scan forwards the selected device only once', async () => {
     let chooser: DeviceChooser | undefined;
     const transport: BleTransport = {
       kind: 'electron',
@@ -614,7 +614,7 @@ describe('chooserFactory, electron (with a fake transport)', () => {
     const scanned = chooserFactory(transport, 'electron').scan([famB], (ad) => found.push(ad), ctl.signal);
     chooser!.update([ringA]);
     chooser!.update([ringA]);
-    expect(found.map((a) => a.matchedFamilies)).toEqual([['colmi']]);
+    expect(found.map((a) => a.needsDiscovery)).toEqual([true]);
     ctl.abort();
     await scanned;
   });
@@ -690,9 +690,9 @@ describe('chooserFactory over the real desktop transport and bridge', () => {
     const found: ChooserAdvertisement[] = [];
     const scanned = f.scan([famA], (ad) => found.push(ad), ctl.signal);
     await sleep(40);
-    expect(found.map((a) => [a.platformId, a.name, a.matchedFamilies])).toEqual([
-      [MAC, 'Ring A', ['jstyle2301']],
-      ['E2:80:00:00:00:02', 'Ring B', ['jstyle2301']],
+    expect(found.map((a) => [a.platformId, a.name, a.needsDiscovery])).toEqual([
+      [MAC, 'Ring A', true],
+      ['E2:80:00:00:00:02', 'Ring B', true],
     ]);
 
     const t = await f.connect({ platformId: MAC }, famA);

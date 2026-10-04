@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { periodWindow } from '../../models';
 import { DailyRange, type RangeDatum } from '../DailyRange';
 import { DayLine } from '../DayLine';
-import { NightRanges, type NightRangeDatum } from '../NightRanges';
+import { NightRanges, zeroLabelSpot, type NightRangeDatum } from '../NightRanges';
+import type { SlotGeometry } from '../DailyRange';
 import { ZoneBar } from '../ZoneBar';
 import { ZoneLine } from '../ZoneLine';
 import { zoneModel } from '../zones';
@@ -71,12 +72,13 @@ describe('ZoneLine (§7.4.2)', () => {
   it('spot checks are dots in the table too', () => {
     render(<ZoneLine points={morning} spots={[{ t: at(12), v: 72 }]} from={from} to={to} offsetS={0} zones={z} axis="clock" height={180} title="hr" />);
     expect(document.querySelectorAll('[data-mark="spot"]')).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'table' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Show .* data table$/ }));
     expect(screen.getByText('12:00 · spot check')).toBeTruthy();
   });
 
   it('crosshair readout with the keyboard: 5-minute steps, zone named', () => {
     render(<ZoneLine points={morning} from={from} to={to} offsetS={0} zones={z} restingBpm={58} axis="clock" height={180} title="hr" />);
+    expect(plot()).toHaveAttribute('aria-description', expect.stringContaining('Left and Right Arrow'));
     fireEvent.focus(plot());
     expect(tip()).toMatch(/^07:55 · 152\sbpm · zone 3 · moderate$/);
     fireEvent.keyDown(plot(), { key: 'ArrowLeft' });
@@ -180,14 +182,60 @@ describe('NightRanges (§7.4.7)', () => {
   const w = periodWindow('week', '2026-09-30', '2026-10-04');
   const base = (i: number) => ({ start: w.slots[i]!.start, future: false, readout: 'r' });
 
-  it('blood oxygen: fixed 85–100 % with ticks 90, 95, 100, range to the average dot, the normal band', () => {
+  it('blood oxygen while the normal forms: fixed 85–100 % with ticks 90, 95, 100, range to the average dot, no zero line', () => {
     const data: NightRangeDatum[] = w.slots.map((_, i) => (i === 3 ? { ...base(i), recorded: false } : { ...base(i), recorded: true, avg: 96, lowest: 91 }));
-    render(<NightRanges kind="spo2" window={w} data={data} normal={{ lo: 95, hi: 97 }} title="blood oxygen per night" summary="s" height={140} />);
+    render(<NightRanges kind="spo2" window={w} data={data} title="blood oxygen per night" summary="s" height={140} />);
     for (const t of ['90', '95', '100']) expect(screen.getByText(t)).toBeTruthy();
     expect(screen.queryByText('85')).toBeNull();
     expect(document.querySelectorAll('[data-mark="dot"]')).toHaveLength(6);
-    expect(document.querySelectorAll('[data-mark="normal"]')).toHaveLength(1);
+    expect(document.querySelector('[data-mark="zero"]')).toBeNull();
     expect(document.querySelectorAll('[data-missing="true"]')).toHaveLength(1);
+  });
+
+  it('blood oxygen as change from normal: dots and ranges around "your normal", signed ticks, no absolute axis', () => {
+    const data: NightRangeDatum[] = w.slots.map((_, i) => (i === 3 ? { ...base(i), recorded: false } : { ...base(i), recorded: true, avg: i % 2 ? -1 : 0.4, lowest: -5 }));
+    render(<NightRanges kind="spo2" relative window={w} data={data} title="blood oxygen per night" summary="s" height={140} />);
+    expect(screen.getByText('your normal')).toBeTruthy();
+    expect(document.querySelectorAll('[data-mark="zero"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-mark="dot"]')).toHaveLength(6);
+    expect(document.querySelectorAll('[data-mark="range"]')).toHaveLength(6);
+    const ticks = [...document.querySelectorAll('.sg-tick')].map((e) => e.textContent);
+    expect(ticks).toContain('0');
+    expect(ticks).toContain('−2');
+    for (const t of ['90', '95', '100']) expect(ticks).not.toContain(t);
+    // the missing night's stub sits on the zero line
+    const zeroY = Number(document.querySelector('[data-mark="zero"]')!.getAttribute('y1'));
+    const stub = document.querySelector('[data-missing="true"]')!;
+    expect(Math.abs(Number(stub.getAttribute('y')) + 4.5 - 2 - zeroY)).toBeLessThan(2);
+  });
+
+  it('"your normal" never sits behind a bar (J6-15): it moves beside the zero line to a clear spot', () => {
+    // the last two nights go up, so the label goes under the line at the right
+    const up: NightRangeDatum[] = w.slots.map((_, i) => ({ ...base(i), recorded: true, dev: i >= 5 ? 0.4 : -0.3 }));
+    const { unmount } = render(<NightRanges kind="temp" unit="°C" window={w} data={up} title="skin temperature per night" summary="s" height={120} />);
+    const zeroY = () => Number(document.querySelector('[data-mark="zero"]')!.getAttribute('y1'));
+    const label = () => document.querySelector('[data-mark="zero-label"]')!;
+    expect(Number(label().getAttribute('y'))).toBeGreaterThan(zeroY());
+    expect(label().getAttribute('text-anchor')).toBe('end');
+    unmount();
+    // the last two go down: above the line, at the right
+    const down: NightRangeDatum[] = w.slots.map((_, i) => ({ ...base(i), recorded: true, dev: i >= 5 ? -0.4 : 0.3 }));
+    render(<NightRanges kind="temp" unit="°C" window={w} data={down} title="skin temperature per night" summary="s" height={120} />);
+    expect(Number(label().getAttribute('y'))).toBeLessThan(zeroY());
+    expect(label().getAttribute('text-anchor')).toBe('end');
+    // the label is drawn after the columns, so nothing paints over it
+    const kids = [...document.querySelector('.sg-svg')!.querySelectorAll('[data-mark="column"], [data-mark="zero-label"]')];
+    expect(kids[kids.length - 1]!.getAttribute('data-mark')).toBe('zero-label');
+  });
+
+  it('zeroLabelSpot: right above, right below, left above, left below, else the top margin', () => {
+    const g: SlotGeometry = { width: 390, height: 120, padL: 26, right: 386, top: 14, bottom: 90, slotW: 51, colW: 24, X: (i) => 26 + (i + 0.5) * 51, Y: (v) => 52 - v * 30 };
+    const box = (x0: number, x1: number, top: number, bottom: number) => ({ x0, x1, top, bottom });
+    expect(zeroLabelSpot(g, [])).toEqual({ x: 384, y: 48, anchor: 'end' });
+    expect(zeroLabelSpot(g, [box(350, 374, 30, 52)])).toEqual({ x: 384, y: 64, anchor: 'end' });
+    expect(zeroLabelSpot(g, [box(350, 374, 30, 70)])).toEqual({ x: 28, y: 48, anchor: 'start' });
+    expect(zeroLabelSpot(g, [box(350, 374, 30, 70), box(30, 50, 30, 52)])).toEqual({ x: 28, y: 64, anchor: 'start' });
+    expect(zeroLabelSpot(g, [box(350, 374, 30, 70), box(30, 50, 30, 70)])).toEqual({ x: 384, y: 11, anchor: 'end' });
   });
 
   it('skin temperature: columns up and down from the "your normal" line, stub on the zero line', () => {
@@ -209,7 +257,7 @@ describe('DayLine change from normal (§7.4.4)', () => {
     expect(screen.getByText('your normal')).toBeTruthy();
     expect(document.querySelector('.lv-ring-note')!.textContent).toMatch(/−0\.1 to \+0\.2 °C/);
     expect(document.body.textContent).not.toMatch(/34\.5/);
-    fireEvent.click(screen.getByRole('button', { name: 'table' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Show .* data table$/ }));
     const t = screen.getByRole('table');
     expect(within(t).getByText('34.5')).toBeTruthy();
     expect(within(t).getByText('+0.2')).toBeTruthy();

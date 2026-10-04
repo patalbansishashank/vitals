@@ -24,7 +24,7 @@ import {
 } from '@/engine/assimilation';
 import { addDays, daysBetween, weekdayOf } from './dates';
 import { planDay } from './calendar';
-import { effectiveEntries } from './logs';
+import { projectEntries } from './logs';
 import type { LoggedDayResult } from './loggedDay';
 import type { DayObservations } from './observations';
 import type { ConfirmedState } from './plannerContract';
@@ -66,10 +66,10 @@ export function weighInsFor(
   const mark = (d0: number): void => {
     for (let k = 0; k < params.eventDays; k++) inflate.set(d0 + k, params.eventRMult);
   };
-  for (const e of effectiveEntries(events)) if (e.kind === 'event' && EVENT_INFLATES.has(e.event) && !e.assumed) mark(planDay(plan, e.date));
+  for (const e of projectEntries(events)) if (e.kind === 'event' && EVENT_INFLATES.has(e.event) && !e.assumed) mark(planDay(plan, e.date));
   for (const b of blockStarts) if (b > 0) mark(b);
   const out: WeighInObs[] = [];
-  for (const m of effectiveEntries(measurements)) {
+  for (const m of projectEntries(measurements)) {
     if (m.metric !== 'weightKg' || m.assumed || !Number.isFinite(m.value)) continue;
     const day = planDay(plan, m.date);
     if (day < 0) continue;
@@ -281,11 +281,11 @@ export interface HardReanchorInputs {
 /** Hard re-anchor triggers (§3.5 step 7), first match in priority order, or null. */
 export function hardReanchorReason(i: HardReanchorInputs): HardReanchorReason | null {
   if (i.lastRecordEngine && (i.lastRecordEngine.engineVersion !== i.currentEngine.engineVersion || i.lastRecordEngine.registryHash !== i.currentEngine.registryHash)) return 'engineVersion';
-  const ms = effectiveEntries(i.measurements);
+  const ms = projectEntries(i.measurements);
   if (ms.some((m) => m.method === 'dxa' && m.metric === 'bodyFatPct' && m.date === i.today && !m.assumed)) return 'dxa';
   const weighedToday = ms.some((m) => m.metric === 'weightKg' && m.date === i.today && !m.assumed);
   if (weighedToday && i.lastWeighInBefore && daysBetween(i.lastWeighInBefore, i.today) >= 14) return 'weighInGap';
-  const ev = effectiveEntries(i.entries).filter((e): e is Extract<LogEntry, { kind: 'event' }> => e.kind === 'event' && !e.assumed);
+  const ev = projectEntries(i.entries).filter((e): e is Extract<LogEntry, { kind: 'event' }> => e.kind === 'event' && !e.assumed);
   const illDays = new Set(ev.filter((e) => e.event === 'illness').map((e) => e.date));
   let run = 0;
   for (let k = 1; k <= 3; k++) if (illDays.has(addDays(i.today, -k))) run++;

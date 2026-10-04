@@ -17,6 +17,8 @@ import { installBioPorts, rescoreOnRemoteBio, scheduleRescore, setRescoreRunner 
 import { getDocumentStore, onDocumentStoreSwitch } from '@/state/runtime';
 import type { LocalDate } from '@/store';
 import type * as ExecModule from './exec';
+import type * as SharingModule from './sharing';
+import type * as FoldModule from './fold';
 
 const BY = 'I1 (biometrics)';
 
@@ -62,3 +64,49 @@ implement('bio.rescore', lazy((m) => m.rescore), BY);
 implement('bio.import', lazy((m) => m.importFile), BY);
 implement('bio.deviceConnect', lazy((m) => m.deviceConnect), BY);
 implement('bio.deviceSync', lazy((m) => m.deviceSync), BY);
+
+// ring data on by default (plan 04 item 11): the master switch, its notice and the one-time migration (./sharing.ts)
+let sharingP: Promise<typeof SharingModule> | null = null;
+const sharing = () => (sharingP ??= import('./sharing'));
+implement('bio.setRingSharing', async (ctx: CommandContext, input: { on: boolean }) => (await sharing()).setRingSharing(ctx, input), BY);
+implement('bio.dismissRingDefaultsNotice', async (ctx: CommandContext) => (await sharing()).dismissRingDefaultsNotice(ctx), BY);
+implement('biometrics.ringDefaults', async (ctx: CommandContext) => (await sharing()).ringDefaultsMigration(ctx), BY);
+
+// one ring = one source (SUITE_SPEC §15.2): sources keyed from an advertised name or an old Lumen key fold into the
+// ring's one source, and Lumen data into the person's one J-Style 2301 ring (./fold.ts)
+let foldP: Promise<typeof FoldModule> | null = null;
+const fold = () => (foldP ??= import('./fold'));
+implement('biometrics.ringFold', async (ctx: CommandContext) => (await fold()).ringFoldMigration(ctx), BY);
+
+let ringDefaultsStarted = false;
+/** Run `biometrics.ringDefaults` once per page load as the SYSTEM actor; it records itself, so later loads do nothing.
+ * `biometrics.ringFold` follows it (idempotent: it acts only on a source that is not where it belongs). */
+export async function runRingDefaultsMigration(): Promise<void> {
+  if (ringDefaultsStarted) return;
+  ringDefaultsStarted = true;
+  const r = await dispatch('biometrics.ringDefaults', {}, { actor: SYSTEM_ACTOR });
+  if (!r.ok) console.warn('Vitals: moving ring data to the ring defaults did not finish', r.error);
+  await runRingFold();
+}
+
+/** Run `biometrics.ringFold` as the SYSTEM actor: at boot, and again once a ring source is first created. */
+export async function runRingFold(): Promise<void> {
+  const r = await dispatch('biometrics.ringFold', {}, { actor: SYSTEM_ACTOR });
+  if (!r.ok) console.warn('Vitals: folding ring sources did not finish', r.error);
+}
+if ((import.meta as { env?: { MODE?: string } }).env?.MODE !== 'test' && typeof globalThis.addEventListener === 'function') {
+  // after the app has booted its store (this module loads with the command registry, before the store exists)
+  setTimeout(() => {
+    try {
+      void getDocumentStore()
+        .ready.then(() => runRingDefaultsMigration())
+        .catch(() => undefined);
+      // the ring service: auto-connect to known rings (SUITE_SPEC §15.2); lazy so the main chunk stays light
+      void import('@/biometrics/service/app')
+        .then((m) => m.startAppRingService())
+        .catch((e: unknown) => console.warn('Vitals: the ring service did not start', e));
+    } catch {
+      /* no store in this context */
+    }
+  }, 4000);
+}

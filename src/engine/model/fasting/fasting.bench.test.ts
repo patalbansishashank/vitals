@@ -5,6 +5,7 @@
  */
 import { fastingModule } from './index';
 import { makeRig, mealAt, type FastPerson } from './testkit';
+import { measureUnderLoad } from '../../testing/benchLoad';
 
 const LEAN_MAN: FastPerson = {
   ffm0Kg: 63.8,
@@ -50,16 +51,20 @@ describe('fasting — performance (micro-benchmark, reported)', () => {
       return performance.now() - t0;
     };
     const n = 80;
-    for (let i = 0; i < 60; i++) once(true);
-    let fast = 0;
-    for (let i = 0; i < n; i++) fast += once(true);
-    for (let i = 0; i < 60; i++) once(false);
-    let dict = 0;
-    for (let i = 0; i < n; i++) dict += once(false);
-    const ms = fast / n;
+    const { result, factor } = measureUnderLoad(() => {
+      for (let i = 0; i < 60; i++) once(true);
+      let fast = 0;
+      for (let i = 0; i < n; i++) fast += once(true);
+      for (let i = 0; i < 60; i++) once(false);
+      let dict = 0;
+      for (let i = 0; i < n; i++) dict += once(false);
+      return { fast, dict };
+    });
+    const ms = result.fast / n;
     console.info(
-      `[bench] fasting module: ${ms.toFixed(3)} ms per 180-day run (fast-mode bus), ${(dict / n).toFixed(3)} ms with the core's dictionary-mode bus`,
+      `[bench] fasting module: ${ms.toFixed(3)} ms per 180-day run (fast-mode bus), ${(result.dict / n).toFixed(3)} ms with the core's dictionary-mode bus (load factor ${factor.toFixed(2)})`,
     );
-    expect(ms).toBeLessThan(0.5);
+    // limit scales with the machine load (benchLoad.ts)
+    expect(ms).toBeLessThan(0.5 * factor);
   });
 });

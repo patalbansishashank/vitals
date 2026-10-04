@@ -3,14 +3,14 @@
  * week, a month or a year. Tabs sleep · heart and recovery · activity, sticky under the top bar with the period bar
  * below them (one toolbar row at ≥ 1280 px). The URL is the state (`?tab=&period=&date=`): every change pushes, so Back
  * walks through them and a link can open last Tuesday's night. Without a date the tab's reference day is shown (today,
- * or for sleep the newest night). Whole-page states: nothing measured and no ring (an empty stage), a ring that has not
+ * or for sleep the newest night). Whole-page states: stored records still loading (the loading rule), nothing measured and no ring (an empty stage), a ring that has not
  * been read since before the period (a line and Open Ring), a read running (the source line says so). The tabs draw
  * their own chart states.
  */
 import { useMemo, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { EmptyStage, InlineWarning, KeyLink, Page, Tab, TabList, TabPanel, Tabs } from '@/components';
-import { TopBar } from '@/app/shell';
+import { PageFallback, TopBar } from '@/app/shell';
 import { paths } from '@/app/paths';
 import { useLivingClock } from '@/features/living/clock';
 import { useRings, type RingStatus } from '@/features/ring/data';
@@ -18,7 +18,7 @@ import { useSettingsStore } from '@/state/settingsStore';
 import { addDays } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import { DevFixtureGate } from './DevFixtureGate';
-import { useDays, useSignalsRevision, useSignalsSource } from './data';
+import { useDays, useSignalsReady, useSignalsRevision, useSignalsSource } from './data';
 import { SIGNALS_PAGE_COPY as C } from './copyPage';
 import {
   dayText,
@@ -69,6 +69,7 @@ function SignalsBody() {
   const today = localDateOfMs(nowMs);
   const source = useSignalsSource();
   const rev = useSignalsRevision(source);
+  const ready = useSignalsReady(source);
   const rings = useRings();
   const dateStyle = useSettingsStore((s) => s.dateStyle) as DateStyle;
   const [params, setParams] = useSearchParams();
@@ -98,6 +99,15 @@ function SignalsBody() {
     const merged: SignalsQuery = { ...q, ...next };
     setParams(new URLSearchParams(signalsSearch(merged)));
   };
+
+  // stored records still loading: the app's ordinary loading rule, never "Nothing measured yet" before the store answers
+  if (!ready) {
+    return (
+      <Page>
+        <PageFallback />
+      </Page>
+    );
+  }
 
   if (firstDate === null && rings.length === 0) {
     return (

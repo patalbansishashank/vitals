@@ -31,8 +31,8 @@ import java.io.FileOutputStream
 
 /**
  * The `VitalsShell` plugin: the contract between the Android layer and the web glue
- * (.jobs/tmp/L-ANDROID.contract.md). The ring link itself lives in JS; this is keep-alive, notifications,
- * preferences for the boot receiver, shared files in and the share sheet out.
+ * (.jobs/tmp/L-ANDROID.contract.md). The ring link itself lives in JS; this is keep-alive, the background read tick
+ * (RingTick), notifications, preferences for the boot receiver, shared files in and the share sheet out.
  */
 @CapacitorPlugin(
     name = "VitalsShell",
@@ -79,6 +79,18 @@ class VitalsShellPlugin : Plugin() {
         } catch (_: IllegalArgumentException) {
         }
         if (ShellState.plugin === this) ShellState.plugin = null
+        // A read this bridge was doing is gone with it: do not hold the CPU for the rest of the tick.
+        RingTick.done()
+    }
+
+    /** RingTick's alarm fired (wake lock held): the web layer reads the ring, then calls ringTickDone. */
+    fun fireRingTick(at: Long) {
+        notifyListeners("ringTick", JSObject().put("at", at))
+    }
+
+    /** The window went on or off screen (RingWebView): the web layer's page visibility follows this. */
+    fun fireScreen(on: Boolean) {
+        notifyListeners("screen", JSObject().put("on", on))
     }
 
     /** Called on the main thread when new shared files are pending (from SharedFiles or on load). */
@@ -134,6 +146,25 @@ class VitalsShellPlugin : Plugin() {
         call.resolve()
     }
 
+    /** How often the ring is read while the service runs with the screen off (ms; clamped to a minute). */
+    @PluginMethod
+    fun setRingTick(call: PluginCall) {
+        val every = call.getDouble("everyMs")?.toLong()
+        if (every == null || every <= 0) {
+            call.reject("everyMs missing", "invalid")
+            return
+        }
+        RingTick.setEvery(context, every)
+        call.resolve(JSObject().put("everyMs", RingTick.everyMs))
+    }
+
+    /** The web layer finished the read a ringTick asked for: the wake lock goes. */
+    @PluginMethod
+    fun ringTickDone(call: PluginCall) {
+        RingTick.done()
+        call.resolve()
+    }
+
     @PluginMethod
     fun notify(call: PluginCall) {
         val kind = call.getString("kind")
@@ -172,6 +203,10 @@ class VitalsShellPlugin : Plugin() {
                 .put("notificationsAllowed", Notices.notificationsAllowed(context))
                 .put("keepAliveOn", ShellState.keepAliveOn)
                 .put("launchReason", ShellState.launchReason)
+                .put("onScreen", ShellState.onScreen)
+                .put("ringTicks", RingTick.count)
+                .put("lastRingTickAt", RingTick.lastAt)
+                .put("ringTickEveryMs", RingTick.everyMs)
         )
     }
 

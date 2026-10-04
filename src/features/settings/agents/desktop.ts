@@ -40,7 +40,12 @@ export interface DesktopMcpBridge {
     setManifest(manifest: unknown): void;
     setServer(info: McpServerInfo | null): void;
   };
-  secrets: { get(key: SecretKey): Promise<string | null>; set(key: SecretKey, value: string | null): Promise<void> };
+  /** Write only: the page hands a key to the app and can never read it back. */
+  secrets: {
+    set(key: SecretKey, value: string | null): Promise<void>;
+    /** False when the computer has no keyring: the app forgets the keys when it quits. */
+    persistent?: boolean;
+  };
 }
 
 /** The desktop bridge, or undefined outside the desktop app. */

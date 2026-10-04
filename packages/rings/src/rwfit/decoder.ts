@@ -4,9 +4,8 @@
  * Framing and reassembly live in `./codec.ts`; these functions see one deframed payload.
  *
  * Clock (both framings count local wall-clock seconds as if they were UTC; see the doc's "Clock"):
- *   - legacy: epoch-1970 local seconds. Kotlin subtracts `rawOffset + (zone ever uses DST ? 1 h : 0)`. A fixed
- *     `tzOffsetS` cannot tell "ever uses DST", so this port subtracts `tzOffsetS` (the offset now). Equal to the Kotlin in
- *     zones without DST and during DST; one hour later than the Kotlin (and the vendor app) in a DST zone's winter.
+ *   - legacy: epoch-1970 local seconds. Kotlin subtracts `rawOffset + (zone ever uses DST ? 1 h : 0)`. The protocol
+ *     supplies that correction when it has an IANA zone; a fixed `tzOffsetS` alone cannot identify the winter DST quirk.
  *   - JL: epoch-2000 local seconds; Kotlin subtracts `getOffset(now)`, which is exactly the stamped `tzOffsetS`.
  */
 import type { RingEvent, SleepStage } from '../types';

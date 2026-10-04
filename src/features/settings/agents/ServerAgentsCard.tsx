@@ -3,7 +3,7 @@
  * keys made through `POST /v1/agents/tokens` (shown once), one-line recipes per agent, and the list of keys with Revoke.
  * The key itself is never stored in this browser: it lives in React state only until the block is closed.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
 import { Dialog, Engraved, Field, InlineWarning, Key, KeyLink, RadioGroup, Select, TextInput, toast } from '@/components';
 import type { AgentClient, AgentRecipe, AgentScope, AgentTokenCreated, AgentTokenInfo } from '@/net/server';
@@ -79,7 +79,15 @@ function PairedAgents({ mcpUrl }: { mcpUrl: string }) {
   const [created, setCreated] = useState<(AgentTokenCreated & { label: string; client: AgentClient }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<AgentTokenInfo | null>(null);
+  const makeKey = useRef<HTMLButtonElement>(null);
+  const focusAfterClose = useRef(false);
   const unreachable = connection.state === 'unreachable';
+
+  useEffect(() => {
+    if (created || !focusAfterClose.current) return;
+    makeKey.current?.focus();
+    focusAfterClose.current = false;
+  }, [created, form]);
 
   useEffect(() => {
     let live = true;
@@ -113,10 +121,16 @@ function PairedAgents({ mcpUrl }: { mcpUrl: string }) {
         </Key>
       </div>
       {created ? (
-        <ShownOnce created={created} onClose={() => setCreated(null)} />
+        <ShownOnce created={created} onClose={() => {
+          focusAfterClose.current = true;
+          setCreated(null);
+        }} />
       ) : form ? (
         <MakeKeyForm
-          onCancel={() => setForm(false)}
+          onCancel={() => {
+            focusAfterClose.current = true;
+            setForm(false);
+          }}
           onCreated={(c) => {
             setForm(false);
             setCreated(c);
@@ -125,7 +139,7 @@ function PairedAgents({ mcpUrl }: { mcpUrl: string }) {
         />
       ) : (
         <div>
-          <Key disabledReason={unreachable ? C.unreachable(relativeTime('lastContactAt' in connection ? connection.lastContactAt : null)) : undefined} onClick={() => setForm(true)}>
+          <Key ref={makeKey} disabledReason={unreachable ? C.unreachable(relativeTime('lastContactAt' in connection ? connection.lastContactAt : null)) : undefined} onClick={() => setForm(true)}>
             {C.make}
           </Key>
         </div>
@@ -183,11 +197,13 @@ function PairedAgents({ mcpUrl }: { mcpUrl: string }) {
 
 function MakeKeyForm({ onCancel, onCreated }: { onCancel: () => void; onCreated: (c: AgentTokenCreated & { label: string; client: AgentClient }) => void }) {
   const client = useServerClient();
+  const form = useRef<HTMLDivElement>(null);
   const [agent, setAgent] = useState<AgentClient>('codex');
   const [label, setLabel] = useState('');
   const [scope, setScope] = useState<AgentScope>('log');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => form.current?.querySelector<HTMLElement>('select, [role="combobox"]')?.focus(), []);
   const create = async () => {
     setBusy(true);
     setError(null);
@@ -202,7 +218,7 @@ function MakeKeyForm({ onCancel, onCreated }: { onCancel: () => void; onCreated:
     }
   };
   return (
-    <div className="grid gap-3 rounded-md border border-line p-3">
+    <div ref={form} className="grid gap-3 rounded-md border border-line p-3">
       <Field label={C.clientLabel}>
         <Select value={agent} options={CLIENTS.map((c) => ({ value: c, label: C.clients[c] }))} onChange={(v) => setAgent(v as AgentClient)} />
       </Field>
@@ -234,9 +250,11 @@ function MakeKeyForm({ onCancel, onCreated }: { onCancel: () => void; onCreated:
 /** The key, shown once (COMPONENTS §15.2), with the recipes. Closing hides it for good. */
 function ShownOnce({ created, onClose }: { created: AgentTokenCreated & { label: string; client: AgentClient }; onClose: () => void }) {
   const recipes = created.recipes.length > 0 ? created.recipes : fallbackRecipes(created.mcpUrl, created.client);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), []);
   return (
     <div role="region" aria-labelledby="agent-key-title" className="grid gap-3 rounded-md border border-line p-3">
-      <h3 id="agent-key-title" className="lm-eng m-0">
+      <h3 ref={heading} tabIndex={-1} id="agent-key-title" className="lm-eng m-0">
         {C.shownOnceTitle} · {created.label}
       </h3>
       <InlineWarning severity="caution">{C.shownOnce}</InlineWarning>
@@ -244,7 +262,7 @@ function ShownOnce({ created, onClose }: { created: AgentTokenCreated & { label:
         <code className={`rounded-sm bg-well px-2 py-1 font-mono text-sm text-ink ${wrap}`} aria-label={C.keyLabel}>
           {created.token}
         </code>
-        <Key size="sm" icon={Copy} onClick={() => copyText(created.token)}>
+        <Key size="sm" icon={Copy} aria-label={`Copy ${C.keyLabel}`} onClick={() => copyText(created.token)}>
           {C.copy}
         </Key>
       </div>

@@ -42,6 +42,8 @@ export function pairStage(rings: readonly RingStatus[], before: readonly string[
 }
 
 export interface PairingFlowProps {
+  /** Move focus into the flow only when opened from the Add another ring key. */
+  autoFocusIntro?: boolean;
   /** A pair has started: the page keeps the flow where it is until `onDone`. */
   onStart?: () => void;
   /** Connected and "Connected." has shown: back to the normal page (the toast is already up). */
@@ -50,7 +52,7 @@ export interface PairingFlowProps {
   onCancel?: () => void;
 }
 
-export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
+export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel }: PairingFlowProps) {
   const { service, platform } = useRingEnv();
   const rings = useRings();
   const [phase, setPhase] = useState<Phase>({ step: 'intro' });
@@ -61,7 +63,19 @@ export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
   const alive = useRef(true);
   /** A pair is in flight: a second tap on the same row (or Try again) must not start another one. */
   const pairing = useRef(false);
+  const phaseStatus = useRef<HTMLElement>(null);
+  const introStep = useRef<HTMLDivElement>(null);
+  const setPhaseStatus = (node: HTMLElement | null) => { phaseStatus.current = node; };
   const onDoneRef = useRef(onDone);
+  const focusPhase = phase.step === 'connect' ? `${phase.step}:${phase.status}` : phase.step === 'scan' ? `${phase.step}:${phase.looking}` : phase.step;
+  useEffect(() => {
+    if (phase.step !== 'intro') phaseStatus.current?.focus({ preventScroll: true });
+  }, [focusPhase, phase.step]);
+  useEffect(() => {
+    if (!autoFocusIntro) return;
+    const target = introStep.current?.querySelector<HTMLButtonElement>('button') ?? introStep.current;
+    target?.focus({ preventScroll: true });
+  }, [autoFocusIntro]);
   useEffect(() => {
     onDoneRef.current = onDone;
   });
@@ -146,7 +160,11 @@ export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
   async function pairWith(c: RingCandidate) {
     if (pairing.current) return;
     pairing.current = true;
-    clearScan();
+    // The native/desktop chooser still needs this request to hand over the selected peripheral to pair().
+    const scan = scanRef.current;
+    scanRef.current = null;
+    clearTimeout(timers.current.stop);
+    clearTimeout(timers.current.settle);
     const before = service.rings().map((r) => r.ringKey);
     setPhase({ step: 'connect', candidate: c, before, status: 'working' });
     onStart?.();
@@ -156,6 +174,8 @@ export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
       pairing.current = false;
       if (alive.current) setPhase({ step: 'connect', candidate: c, before, status: 'failed' });
       return;
+    } finally {
+      scan?.abort();
     }
     pairing.current = false;
     if (!alive.current) {
@@ -214,7 +234,7 @@ export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
       ) : null;
     }
     body = (
-      <div className="rg-pair__step">
+      <div ref={introStep} className="rg-pair__step" role="group" aria-label={P.title} tabIndex={-1}>
         <p className="rg-pair__line">{P.intro(near)}</p>
         {platform.ble === 'web-bluetooth' || platform.ble === 'electron' ? <p className="rg-pair__line">{P.chooserLine}</p> : null}
         {blocker ? <InlineWarning severity="caution">{blocker}</InlineWarning> : null}
@@ -225,7 +245,7 @@ export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
     body = (
       <div className="rg-pair__step">
         <div className="rg-pair__scanhead">
-          <span className="rg-pair__status" role="status">
+          <span ref={setPhaseStatus} className="rg-pair__status" role="status" tabIndex={-1}>
             {phase.looking ? P.looking : P.stopped}
           </span>
           {phase.looking ? (
@@ -276,7 +296,7 @@ export function PairingFlow({ onStart, onDone, onCancel }: PairingFlowProps) {
     }
     body = (
       <div className="rg-pair__step">
-        <div role="status" className="rg-pair__lines">
+        <div ref={setPhaseStatus} role="status" tabIndex={-1} className="rg-pair__lines">
           {lines.map((l) => (
             <p key={l} className="rg-pair__line">
               {l}

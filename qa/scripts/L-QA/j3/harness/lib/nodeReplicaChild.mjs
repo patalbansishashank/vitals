@@ -15,8 +15,8 @@ import './tsResolve.mjs';
 process.removeAllListeners('warning'); // stripTypeScriptTypes is "experimental"; the parent keeps stderr for errors only
 const { installPolyfills } = await import('@evolu/common/polyfills');
 installPolyfills();
-const { createEvoluSyncStore } = await import('../../../../../../.e6-tmp/cand/src/sync/evolu/adapter.ts');
-const { createNodeEvoluPlatform } = await import('../../../../../../.e6-tmp/cand/packages/companion/src/evoluNode.ts');
+const { createEvoluSyncStore } = await import('../../../../../../src/sync/evolu/adapter.ts');
+const { createNodeEvoluPlatform } = await import('../../../../../../packages/companion/src/evoluNode.ts');
 
 let store = null;
 let opened = null;
@@ -134,14 +134,14 @@ const ops = {
 async function bioStore() {
   if (bio) return bio;
   const [{ createDocumentStore, mintWriteToken, revokeWriteToken }, { DocBioStore }, { BioDocIndex }, { openFileChunkStore }, { createRemoteBlobBackend }, { relayHttpBase }, { mapEventsToBatch }, { ingestBatches }] = await Promise.all([
-    import('../../../../../../.e6-tmp/cand/src/store/index.ts'),
-    import('../../../../../../.e6-tmp/cand/src/biometrics/store/docStore.ts'),
-    import('../../../../../../.e6-tmp/cand/src/biometrics/store/docIndex.ts'),
-    import('../../../../../../.e6-tmp/cand/packages/companion/src/home/blobFiles.ts'),
-    import('../../../../../../.e6-tmp/cand/src/sync/blobs/remote.ts'),
-    import('../../../../../../.e6-tmp/cand/src/sync/pairing.ts'),
-    import('../../../../../../.e6-tmp/cand/src/biometrics/core/events.ts'),
-    import('../../../../../../.e6-tmp/cand/src/biometrics/ingest/pipeline.ts'),
+    import('../../../../../../src/store/index.ts'),
+    import('../../../../../../src/biometrics/store/docStore.ts'),
+    import('../../../../../../src/biometrics/store/docIndex.ts'),
+    import('../../../../../../packages/companion/src/home/blobFiles.ts'),
+    import('../../../../../../src/sync/blobs/remote.ts'),
+    import('../../../../../../src/sync/pairing.ts'),
+    import('../../../../../../src/biometrics/core/events.ts'),
+    import('../../../../../../src/biometrics/ingest/pipeline.ts'),
   ]);
   const docs = createDocumentStore({ backend: store, device: opened.deviceId });
   await docs.ready;

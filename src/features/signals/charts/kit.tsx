@@ -170,6 +170,11 @@ export const SHELL_COPY = {
   hideTable: 'hide table',
 } as const;
 
+/** Announce the controls when a keyboard user reaches a chart's single tab stop. */
+export const CHART_NAV_HELP = 'Use Left and Right Arrow to explore readings. Home and End jump to the first and last reading.';
+export const CHART_DRILL_HELP = `${CHART_NAV_HELP} Press Enter to open the selected date.`;
+export const tableButtonName = (title: string, shown: boolean) => `${shown ? 'Hide' : 'Show'} ${title} data table`;
+
 export function ChartShell({ title, header, summary, readout, height, status = 'ready', stale, emptyLine, onRetry, table, footer, className, children }: ChartShellProps) {
   const [showTable, setShowTable] = useState(false);
   const tableId = useId();
@@ -198,7 +203,7 @@ export function ChartShell({ title, header, summary, readout, height, status = '
             <Engraved as="p">{SHELL_COPY.reading}</Engraved>
           </div>
         ) : (
-          <div className="sg-chart__frame" aria-label={summary}>
+          <div className="sg-chart__frame" role="group" aria-label={summary}>
             {children}
             {emptyLine ? <p className="sg-chart__empty">{emptyLine}</p> : null}
           </div>
@@ -207,7 +212,7 @@ export function ChartShell({ title, header, summary, readout, height, status = '
       {footer ? <div className="sg-chart__foot">{footer}</div> : null}
       {table ? (
         <div className="sg-chart__tablebar">
-          <Key size="sm" variant="quiet" aria-expanded={showTable} aria-controls={tableId} onClick={() => setShowTable((v) => !v)}>
+          <Key size="sm" variant="quiet" aria-label={tableButtonName(title, showTable)} aria-expanded={showTable} aria-controls={tableId} onClick={() => setShowTable((v) => !v)}>
             {showTable ? SHELL_COPY.hideTable : SHELL_COPY.table}
           </Key>
         </div>

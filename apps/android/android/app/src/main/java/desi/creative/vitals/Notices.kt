@@ -17,11 +17,13 @@ object Notices {
     const val ID_TAP_TO_CONNECT = 2
     private const val ID_BATTERY_LOW = 10
     private const val ID_RING_DISCONNECTED = 11
+    private const val ID_RING_MOVED = 12
 
     /** One fixed id per alert kind, so a second call replaces instead of stacking. Unknown kind -> null. */
     fun idForKind(kind: String?): Int? = when (kind) {
         "battery_low" -> ID_BATTERY_LOW
         "ring_disconnected" -> ID_RING_DISCONNECTED
+        "ring_moved" -> ID_RING_MOVED
         else -> null
     }
 

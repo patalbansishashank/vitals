@@ -26,11 +26,11 @@ export const LICENCES: ReadonlyArray<{ name: string; licence: string }> = [
   { name: 'Body mesh', licence: 'derived from MakeHuman (CC0)' },
 ];
 
-export const PRIVACY_TEXT = "No accounts, no analytics, no cookies. Your data stays in this browser's local storage and IndexedDB.";
+export const PRIVACY_TEXT = 'No accounts, no analytics, no cookies. Data is saved on this device. Coach may send your conversation to the AI provider you choose.';
 /** With sync on (design/screens/settings-sync-ai.md §9): the data is no longer on this device only. */
 export const PRIVACY_TEXT_SYNCED =
-  'No accounts, no analytics, no cookies. Data stays on your devices. With sync, encrypted copies go to your own server. With the Coach, the conversation goes to the AI provider you chose.';
+  'No accounts, no analytics, no cookies. Data is saved here and on your own server for paired devices. Coach may send your conversation to the AI provider you choose.';
 export const DATA_LINE = {
-  local: 'Stored on this device only. Nothing is sent to a server.',
-  synced: "Stored on your devices and your sync server (scrambled; the server can't read it). Nothing is sent to Vitals.",
+  local: 'Stored on this device. Connect your own server to sync with other devices.',
+  synced: 'Stored on your devices and your own server. Your server may hold a readable copy of synced data.',
 } as const;

@@ -56,7 +56,7 @@ export const SIGNALS_PAGE_COPY = {
   from: (labels: readonly string[]) => `From ${joinLabels(labels)}`,
   read: (ago: string) => `read ${ago}`,
   reading: (pct: number | null) => (pct === null ? 'reading your ring' : `reading your ring · ${pct}${U}%`),
-  tierNote: 'tier C: shown as change from your own normal',
+  tierNote: 'These readings are most useful as changes from your own normal.',
 
   /* relative read time (§5.2) */
   justNow: 'just now',

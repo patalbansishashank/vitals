@@ -34,6 +34,15 @@ let n = 0;
 const entry = (e: Record<string, unknown>): LogEntry => ({ id: `E${String(++n).padStart(25, '0')}`, date: D, tz: 'UTC', source: { by: 'user', method: 'typed' }, ...e }) as LogEntry;
 
 describe('planDeviceLogs', () => {
+  it('supersedes a provisional tail before filtering by the app-day rollover', () => {
+    const partial = night('tail', '2026-10-01T22:00:00.000Z', '2026-10-02T02:30:00.000Z', '2026-10-02', 4);
+    partial.quality.flags = ['provisional_stages'];
+    const full = night('full', '2026-10-01T21:30:00.000Z', '2026-10-02T06:30:00.000Z', '2026-10-02', 8);
+    const records = [sr(partial), sr(full)];
+    expect(planDeviceLogs(base(records)).create).toEqual([]);
+    expect(planDeviceLogs(base(records, { date: '2026-10-02' })).create.map((c) => c.recordId)).toEqual(['full']);
+  });
+
   it('maps steps, the night ending on the day and the day’s workouts (type, duration, kcal, heart rate)', () => {
     const p = planDeviceLogs(base([
       sr(daily('d1', D, { steps: 9123.4 })),
@@ -98,6 +107,17 @@ describe('planDeviceLogs', () => {
     const after = planDeviceLogs(base(records, { entries: retracted }));
     expect(after.create).toEqual([]);
     expect(after.skipped.find((s) => s.stream === 'steps')?.reason).toBe('removed');
+  });
+
+  // L-REV2 R3-01: two devices updated the same device entry; the re-run compares with the one that is counted
+  it('with two device versions of one entry, a re-run updates the counted one', () => {
+    const records = [sr(daily('d1', D, { steps: 8000 }))];
+    const first = entry({ ...planDeviceLogs(base(records)).create[0]!.entry, at: '2026-10-01T20:00:00Z' });
+    const { id: firstId, ...body } = first;
+    const fresh = entry({ ...body, steps: 8000, at: '2026-10-01T21:00:00Z', supersedes: firstId });
+    const stale = entry({ ...body, steps: 7000, at: '2026-10-01T22:00:00Z', supersedes: firstId });
+    const rerun = planDeviceLogs(base(records, { entries: [first, fresh, stale] }));
+    expect(rerun.create.map((c) => [c.stream, c.supersedes, (c.entry as { steps?: number }).steps])).toEqual([['steps', stale.id, 8000]]);
   });
 
   it('never overrides what the person logged: their steps, sleep or the same session win and are reported', () => {

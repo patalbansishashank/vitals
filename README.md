@@ -7,8 +7,9 @@
 
 Vitals is a private, local-first health planner. You can simulate how eating, fasting, training and sleep change
 the body, then follow a living plan day by day. An optional server that you host yourself keeps your devices in
-sync. There is a website, a desktop app and an Android app (coming in v0.5.0), and Vitals can read data from
-rings (the J-Style 2301 first, more families after it).
+sync. There is a website, a desktop app and an Android app. The apps read rings over Bluetooth; the website can do so
+in browsers that support Web Bluetooth. Seven protocol families are included. J-Style 2301 is the one proven on a real
+ring; the others have been checked with test data.
 
 Live site: https://vitals.creative.desi
 
@@ -64,21 +65,90 @@ in [docs/SERVER.md](docs/SERVER.md).
 
 ## Desktop app
 
-<!-- L-DESKTOP: fill in build and install steps -->
+The same Vitals web app in its own window, for Linux, Windows and macOS (Electron). Your data stays on the computer
+and, if you set one up, on your own server, as in the browser. What it adds to the website:
 
-Installers come from this repository's GitHub Releases.
+- **Ring over Bluetooth**, with a silent reconnect when the app starts (the browser asks you each time). No ring ever asks you for a password.
+- **Tray icon** with the ring status, Open, Sync now and Quit. Closing the window leaves the app in the tray.
+- **Start with my computer**, off by default. It starts the app hidden in the tray.
+- **Updates** from GitHub Releases, checked every 6 hours. The AppImage and the Windows installer download the new
+  version and restart into it. The `.deb` and the macOS app only tell you that a new version is ready and link to the
+  download page.
+- **The Vitals MCP built in.** Settings, then Agents, then "Connect your AI tools" finds Claude Code, Codex and OpenCode
+  on the computer, and shows the file and lines it would add before you confirm. On Linux, ChatGPT desktop can use the
+  Codex connection; on Windows and macOS, Settings gives the server address and key setup steps for ChatGPT. A tool can
+  read your data, log food and activity (each with undo), and propose bigger changes for you to approve. It cannot end
+  or replace your plan or erase your data. With a paired server it uses its own agent key; without one it runs through
+  the app.
+
+**Install.** Use **Get the app** on the Vitals website, or download from the
+[latest release](https://github.com/patalbansishashank/vitals/releases/latest):
+
+| System | File |
+|---|---|
+| Linux, any distribution | `Vitals-linux-x86_64.AppImage` (make it executable, then run it) |
+| Debian, Ubuntu | `Vitals-linux-amd64.deb` |
+| Windows 10 and 11 | `Vitals-windows-x64-setup.exe` |
+| macOS 11 or newer, Apple silicon and Intel | `Vitals-macos-universal.dmg` |
+
+`SHA256SUMS.txt` in the same release lists the checksum of each file. The Windows installer is unsigned: if SmartScreen
+warns, choose **More info**, then **Run anyway**. The macOS app has an ad-hoc signature, not an Apple developer
+signature or notarisation: if Gatekeeper blocks it, open **System Settings › Privacy & Security › Open Anyway**.
+Windows and macOS installers were built and smoke-launched in CI, but their full user flows have not
+been hand-tested.
+
+**Build it yourself.** Needs Node (the version in `.nvmrc`) and pnpm.
+
+```sh
+pnpm install
+pnpm --filter @vitals/desktop run build   # the web app plus the app's own bundles, in apps/desktop/dist
+pnpm --filter @vitals/desktop run start   # run it
+pnpm --filter @vitals/desktop run dist:linux   # AppImage and .deb in apps/desktop/release
+```
+
+The Windows and macOS installers are built by the release workflow on those systems.
 
 ## Android app
 
-<!-- L-ANDROID: fill in build and install steps -->
+The same Vitals web app as an installable APK (`desi.creative.vitals`, Android 8 or newer, built with Capacitor). What it
+adds to the website:
 
-Installers come from this repository's GitHub Releases.
+- **Ring over Bluetooth**, with a reconnect by the ring's stored address. No ring ever asks you for a password.
+- **A foreground service** that keeps the ring link alive with the screen off, shown as a persistent "Ring connected"
+  notification. A 15-minute screen-off read and upload was observed while the phone was charging; an unplugged
+  overnight run still needs checking. If background reads stop, use Android's **Settings › Battery › Vitals › Allow
+  background activity**.
+- **Boot and update receivers.** After a restart or an app update a quiet "tap to connect your ring" notification
+  appears, if you asked Vitals to stay connected. Android does not let an app start itself from the background.
+- **Notifications** for a low ring battery and for a lost ring link.
+- **Pairing with your server** by code or by scanning the QR, and App Links: a pairing link from
+  `https://vitals.creative.desi/settings` opens the app on its Settings page.
+- **Share to Vitals** for the file formats the importers read.
+
+**Install.** Use **Get the app** on the Vitals website, or download `Vitals-android.apk`
+from the [latest release](https://github.com/patalbansishashank/vitals/releases/latest). Open it and allow installs
+from that source when Android asks. The release APK is signed with the project's release key so future releases can
+install over it. Check that the file is named `Vitals-android.apk`: if a release offers only
+`Vitals-android-unsigned.apk`, it cannot be installed until you sign it yourself. The app's origin is
+`https://localhost`; a Vitals Server from 0.5.0 on accepts it, so you add nothing to `allowedOrigins`.
+
+**Build it yourself.** Needs JDK 21 and the Android SDK (platform 36, build-tools 35 or 36).
+
+```sh
+export JAVA_HOME=/path/to/jdk-21 ANDROID_HOME=/path/to/android-sdk
+pnpm install
+pnpm --filter @vitals/android run build:debug   # apps/android/android/app/build/outputs/apk/debug/app-debug.apk
+pnpm --filter @vitals/android run build:apk     # release build, unsigned, in app/build/outputs/apk/release/
+```
+
+A build you make yourself is signed with your own key, or not at all; it will not update over the release APK.
 
 ## Rings
 
 Vitals talks to rings itself over Bluetooth: Web Bluetooth in the browser and the desktop app, and native Bluetooth on
 Android. The J-Style 2301 is the first supported ring. No ring ever asks you for a password or key. Where
 each protocol came from is written in [src/biometrics/LICENSES.md](src/biometrics/LICENSES.md).
+The built-in J-Style 2301 passcode worked on one real ring; another ring with the same firmware may differ.
 
 ## Evidence policy
 

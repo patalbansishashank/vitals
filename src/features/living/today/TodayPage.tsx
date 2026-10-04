@@ -13,6 +13,7 @@ import { TODAY_COPY } from '../copy';
 import { useLivingActions } from '../data/actions';
 import { useLiving } from '../data/source';
 import { DateStrip } from '../components/DateStrip';
+import { LogConflict } from '../components/LogConflict';
 import { ChangeCard } from '../components/ChangeCard';
 import { CoachComposer } from '../components/CoachComposer';
 import { SignalsStrip } from '../components/ScoreTile';
@@ -53,6 +54,7 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
   const lg = useMediaQuery(MQ.lg);
   const xl = useMediaQuery(MQ.xl);
   const view = useLiving((s) => s.today(date), [date]);
+  const dayConflicts = useLiving((s) => s.history(date, date)[0]?.conflicts ?? [], [date]);
   const week = useMemo(() => weekOf(date), [date]);
   const days = useLiving((s) => s.days(week), [week]);
   const span = lg ? 13 : 6;
@@ -217,6 +219,7 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
         <div className="lv-today__grid">
           <div className="lv-today__main">
             {!lg ? <NoticesZone notices={view?.notices ?? []} changes={changes} extra={extra} onCheckIn={() => setCheckIn(true)} /> : null}
+            {dayConflicts.map((conflict) => <LogConflict key={conflict.parentId} conflict={conflict} quiet={quiet} />)}
             {planFace}
             {lg ? (
               <Faceplate title="Tell the Coach" aria-label="Tell the Coach" className="lv-tell">

@@ -22,7 +22,34 @@ vi.mock('@/features/lib/sendCommand', () => ({
   }),
 }));
 
+// a document store that is still loading until `release()` (the real one hydrates in about 0.5 to 3 s at start)
+const { slowStore } = vi.hoisted(() => {
+  let release!: () => void;
+  const ready = new Promise<void>((r) => (release = r));
+  return { slowStore: { ready, release: () => release(), peekAll: () => [], subscribe: () => () => undefined } };
+});
+vi.mock('@/state/runtime', async (importOriginal) => ({ ...(await importOriginal<object>()), getDocumentStore: () => slowStore }));
+
 import { storeSignalsSource } from '../data';
+
+describe('storeSignalsSource.ready', () => {
+  it('is false while the store hydrates (no answer yet), then true with a revision bump to subscribers', async () => {
+    const src = storeSignalsSource();
+    const seen = vi.fn();
+    const off = src.subscribe(seen);
+    const rev0 = src.revision();
+    expect(src.ready?.()).toBe(false);
+    expect(src.firstDate()).toBeNull();
+    slowStore.release();
+    await slowStore.ready;
+    await Promise.resolve();
+    expect(src.ready?.()).toBe(true);
+    expect(src.revision()).toBeGreaterThan(rev0);
+    expect(seen).toHaveBeenCalled();
+    expect(src.firstDate()).toBeNull(); // loaded and empty: now "nothing stored" is an answer
+    off();
+  });
+});
 
 describe('storeSignalsSource.series', () => {
   it('reads one raw day per local date (deduplicated, in order) and merges the answers in time order', async () => {

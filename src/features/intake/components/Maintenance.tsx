@@ -58,16 +58,18 @@ export function DriverBar({ rows, unit, quiet, table = true, onChange }: DriverB
                   {unit === 'kJ' ? 'kJ a day' : MAINT.colKcal}
                 </th>
               )}
-              <th scope="col">{MAINT.colFrom}</th>
+              <th scope="col" className="lm-ik-table__source">
+                {MAINT.colFrom}
+              </th>
               {onChange ? <td className="lm-ik-table__act" /> : null}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <th scope="row">{r.label}</th>
+                <th scope="row" className="lm-ik-table__label">{r.label}</th>
                 {quiet ? null : <td className="lm-ik-num">{fmt(r.kcal, unit)}</td>}
-                <td>
+                <td className="lm-ik-table__source">
                   {r.from}
                   {r.assumed ? <span className="lm-ik-assumed">{MAINT.assumed}</span> : null}
                 </td>

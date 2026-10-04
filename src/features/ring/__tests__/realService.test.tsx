@@ -105,6 +105,9 @@ function realService(initial: RealRingStatus[], availability: ReturnType<RealRin
         calls.push(`unwatch:${key}`);
       };
     },
+    async syncLink() {
+      throw new Error('not used by the Ring page');
+    },
     async disconnect(key) {
       calls.push(`disconnect:${key}`);
     },
@@ -200,7 +203,7 @@ describe('Ring page on the real service contract', () => {
     off.unmount();
     page(realService([ring({ state: 'permission_needed' })], 'permission_needed'));
     expect(word()).toBe('needs permission');
-    expect(card().textContent).toContain('Vitals needs permission to find and connect to nearby devices.');
+    expect(card().textContent).toContain('Vitals needs the Nearby devices permission to find your ring.');
     expect(card().querySelector('.rg-card__keys')).toBeNull();
   });
 
@@ -274,7 +277,7 @@ describe('Ring page on the real service contract', () => {
     cleanup();
 
     page(realService([], 'permission_needed'));
-    expect(document.body.textContent).toContain('Vitals needs permission to find and connect to nearby devices.');
+    expect(document.body.textContent).toContain('Vitals needs the Nearby devices permission to find your ring.');
     expect(screen.queryByRole('button', { name: 'Look for rings' })).toBeNull();
     cleanup();
 

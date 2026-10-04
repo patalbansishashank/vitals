@@ -2,6 +2,7 @@ import { vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { setPlatformForTests } from '@/platform';
 import { NoticesRegion, useNoticeStore } from '@/app/shell/notices';
 import { applyUpdate, reloadOnce, resetController, startPwa, type RegisterSW } from '../controller';
 import { InstallSection } from '../InstallSection';
@@ -191,6 +192,19 @@ describe('Settings › Install Vitals', () => {
     expect(getInstallState().phase).toBe('installed');
     expect(await screen.findByText('installed')).toBeInTheDocument();
     stop();
+  });
+
+  it.each(['android', 'electron'] as const)('in the %s app says installed, with no browser steps and no offline status (J2-03)', (p) => {
+    setPlatformForTests(p);
+    try {
+      resetInstall({ platform: 'chromium', standalone: false });
+      const { container } = render(<InstallSection />, { wrapper: MemoryRouter });
+      expect(screen.getByText('installed')).toBeInTheDocument();
+      expect(screen.queryByText('not installed')).not.toBeInTheDocument();
+      expect(container.textContent).not.toMatch(/browser menu|Add to Home screen|not active here|offline/i);
+    } finally {
+      setPlatformForTests(undefined);
+    }
   });
 
   it('shows plain steps for Safari on iOS and for Firefox', () => {

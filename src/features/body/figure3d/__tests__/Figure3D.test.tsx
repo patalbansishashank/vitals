@@ -5,7 +5,7 @@ import { Figure3D } from '../Figure3D';
 import type { Figure3DCanvasProps } from '../Figure3DCanvas';
 
 const canvas = vi.hoisted(() => ({
-  mode: 'ready' as 'ready' | 'fail' | 'lose' | 'slow',
+  mode: 'ready' as 'ready' | 'pending' | 'fail' | 'lose' | 'slow',
   props: null as unknown,
 }));
 vi.mock('../Figure3DCanvas', async () => {
@@ -17,7 +17,7 @@ vi.mock('../Figure3DCanvas', async () => {
       else if (canvas.mode === 'slow') {
         device.markSlowDevice();
         p.onFail('slow device');
-      } else {
+      } else if (canvas.mode !== 'pending') {
         p.onReady?.();
         if (canvas.mode === 'lose') setTimeout(() => p.onFail('WebGL context lost'), 0);
       }
@@ -66,6 +66,7 @@ describe('<Figure3D>', () => {
     expect(p.layout).toBeNull();
     expect(p.compareTo).toBe(start);
     expect(p.autoRotate).toBe(true);
+    expect(p.interactive).toBe(true);
     expect(p.anatomyLayers).toEqual({
       skin: true,
       subcutaneousFat: true,
@@ -73,6 +74,21 @@ describe('<Figure3D>', () => {
       muscles: true,
       skeleton: true,
     });
+  });
+
+  it('keeps transient SVG handles out of the keyboard order while 3D loads', async () => {
+    withWebGL2(true);
+    canvas.mode = 'pending';
+    const interactive = { onRegionDrag: vi.fn() };
+    const loading = render(<Figure3D params={params} interactive={interactive} />);
+    expect(loading.container.querySelector('.lm-avatar')).toBeInTheDocument();
+    expect(loading.container.querySelectorAll('.lm-avatar__handle')).toHaveLength(0);
+    await screen.findByTestId('fig3d-canvas');
+    expect((canvas.props as Figure3DCanvasProps).interactive).toBe(false);
+    loading.unmount();
+
+    const fallback = render(<Figure3D params={params} interactive={interactive} forceSvg />);
+    expect(fallback.container.querySelectorAll('.lm-avatar__handle')).toHaveLength(4);
   });
 
   it('lets the person choose layers and pause turning', async () => {

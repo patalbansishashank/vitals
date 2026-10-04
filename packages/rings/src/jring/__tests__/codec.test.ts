@@ -135,7 +135,8 @@ describe('Jring decode vectors', () => {
 // ---------------------------------------------------------------- mapping onto RingEvent through protocol.ingest
 
 const ingest = (hex: string, over: Partial<JringState> = {}): RingEvent[] => {
-  const st = { ...(jring.protocol.initialState() as JringState), nowMs: NOW_MS, ...over };
+  // The packet with fifteen minute slots is received after its final slot, not at its first slot.
+  const st = { ...(jring.protocol.initialState() as JringState), nowMs: NOW_MS + 20 * 60_000, ...over };
   return jring.protocol.ingest(fromHex(hex), st).events;
 };
 const pad = (hex: string): string => {

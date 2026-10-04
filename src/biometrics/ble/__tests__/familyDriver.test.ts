@@ -81,7 +81,7 @@ describe('J-Style 2301 over the family session', () => {
     await s.close();
   });
 
-  it('sync yields the old events: samples, day totals as vendor values, cursors per stream and clock drift', async () => {
+  it('sync preserves day totals, cursors and clock drift while excluding future samples', async () => {
     const reply = (op: number): Uint8Array[] =>
       op === 0x55 ? [new Uint8Array([...hrRec(61, 16, 9, 1), ...hrRec(62, 16, 10, 10)]), Uint8Array.of(0x55, 0xff)]
       : op === 0x51 ? [dayTotal, Uint8Array.of(0x51, 0xff)]
@@ -93,7 +93,7 @@ describe('J-Style 2301 over the family session', () => {
     expect(link.errors).toEqual([]);
     expect(link.remaining).toBe(0);
     expect(new Set(evs.map((e) => e.type))).toEqual(new Set(['vendor', 'status', 'sample']));
-    expect(evs.filter((e) => e.type === 'sample').map((e) => (e.type === 'sample' ? [e.stream, e.value, e.origin] : []))).toEqual([['hr', 61, 'history'], ['hr', 62, 'history']]);
+    expect(evs.filter((e) => e.type === 'sample').map((e) => (e.type === 'sample' ? [e.stream, e.value, e.origin] : []))).toEqual([['hr', 61, 'history']]);
     expect(evs).toContainEqual({ type: 'vendor', key: 'daily_steps', t: Date.UTC(2026, 8, 15), value: 4321, unit: 'count' });
     expect(evs).toContainEqual({ type: 'status', key: 'clock_offset_s', value: 600, stream: 'hr' });
     const cursors = evs.filter((e) => e.type === 'status' && e.key === 'cursor');
@@ -126,8 +126,10 @@ describe('J-Style 2301 over the family session', () => {
 
   it('a link without a drop signal or reads still opens and closes', async () => {
     const rec = new RecordedLink(v0525);
-    const plain: BleLink = {
+    // every real link has a platform id (the identity never comes from the name)
+    const plain: BleLink & { deviceId: string } = {
       deviceName: 'Plain',
+      deviceId: 'plain-link',
       write: (s, c, b) => rec.write(s, c, b),
       subscribe: (s, c, cb) => rec.subscribe(s, c, cb),
       disconnect: () => rec.disconnect(),

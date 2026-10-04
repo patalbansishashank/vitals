@@ -58,6 +58,8 @@ export function assemble(partial: PartialFrame | null, data: Uint8Array): { part
 export interface DecodeContext {
   /** Firmware seen in the device-info reply, for the sleep events' provenance. */
   firmware: string;
+  /** Phone clock at receipt; LuckRing record timestamps are already UTC. */
+  nowMs?: number;
 }
 
 const ack = (value: number | string): RingEvent => ({ type: 'status', key: 'ack', value });
@@ -65,6 +67,27 @@ const ms = (rec: number[]): number => u32(rec, 0) * 1000;
 type MetricStream = 'hr' | 'spo2' | 'hrv' | 'skin_temp';
 const UNIT: Record<MetricStream, string> = { hr: 'bpm', spo2: 'pct', hrv: 'ms', skin_temp: 'degC' };
 const sample = (stream: MetricStream, t: number, value: number, origin: SampleOrigin): RingEvent => ({ type: 'sample', stream, t, value, unit: UNIT[stream], origin });
+
+/** The same value windows as the Kotlin RingEventBridge, applied before records reach the shared store. */
+function plausible(e: RingEvent, nowMs: number | undefined): boolean {
+  if (nowMs === undefined) return true;
+  if (e.type === 'status' && e.key === 'battery') return typeof e.value === 'number' && e.value <= 100;
+  if (e.type === 'activityBucket' && (e.steps > 5000 || (e.distanceM ?? 0) > 6000)) return false;
+  if (e.type === 'sample') {
+    const ranges: Record<MetricStream, [number, number]> = { hr: [30, 220], spo2: [70, 100], hrv: [1, 300], skin_temp: [30, 45] };
+    const range = ranges[e.stream as MetricStream];
+    if (range && (!Number.isFinite(e.value) || e.value < range[0] || e.value > range[1])) return false;
+  }
+  if (e.type === 'vendor') {
+    const ranges: Record<string, [number, number]> = { bp_sys: [60, 250], bp_dia: [30, 150], stress: [1, 100] };
+    const range = ranges[e.key];
+    if (range && (!Number.isFinite(e.value) || e.value < range[0] || e.value > range[1])) return false;
+  }
+  const t = e.type === 'sample' || e.type === 'vendor' ? e.t : e.type === 'activityBucket' ? e.start : e.type === 'sleepEpochs' ? e.start + e.stages.length * e.epochS * 1000 : null;
+  if (t !== null && (!Number.isFinite(t) || t <= 0 || t > nowMs)) return false;
+  if ((e.type === 'sleepEpochs' || (e.type === 'sample' && e.origin === 'history') || (e.type === 'vendor' && e.origin === 'history')) && t !== null && t < nowMs - 8 * 86_400_000) return false;
+  return true;
+}
 
 /** `records`: `[total u16][items u8]` then `items` records; stride null = body / items (temperature). Partial records drop. */
 export function records(p: number[], stride: number | null): number[][] {
@@ -82,7 +105,7 @@ export function records(p: number[], stride: number | null): number[][] {
 export function decodeFrame(f: LogicalFrame, ctx: DecodeContext): RingEvent[] {
   if (f.cmdType === CMD.ACK) return [ack(f.dataType)]; // a device ACK is a verdict on our command
   const p = f.payload;
-  switch (f.dataType) {
+  const decoded = (() : RingEvent[] => { switch (f.dataType) {
     case DT.DEV_INFO:
       // `decodeDeviceInfo`: bytes 1..5 joined by dots; byte 0 is the item count.
       return p.length < 6 ? [ack(DT.DEV_INFO)] : [{ type: 'status', key: 'firmware', value: p.slice(1, 6).join('.') }];
@@ -144,6 +167,8 @@ export function decodeFrame(f: LogicalFrame, ctx: DecodeContext): RingEvent[] {
   }
   // Kotlin `Unknown(dataType, raw)`; these frames cannot carry a secret.
   return [{ type: 'status', key: 'error', value: `unknown_data_type:${f.dataType}` }];
+  })();
+  return decoded.filter((e) => plausible(e, ctx.nowMs));
 }
 
 /** `decodeHistory`: 5 B `[time][value u8]`; an empty envelope yields nothing. */
@@ -208,8 +233,15 @@ export function decodeSleep(p: number[], firmware: string): RingEvent[] {
   let start: number | null = null;
   let stages: SleepStage[] = [];
   let codes: number[] = [];
+  let lastEndS = 0;
   const flush = (complete: boolean): void => {
-    if (start !== null && stages.length > 0) out.push({ type: 'sleepEpochs', start: start * 1000, epochS: 60, stages, rawCodes: codes, firmware, complete });
+    if (start !== null && stages.length > 0) {
+      const endS = start + stages.length * 60;
+      if (start >= lastEndS) {
+        out.push({ type: 'sleepEpochs', start: start * 1000, epochS: 60, stages, rawCodes: codes, firmware, complete });
+        lastEndS = endS;
+      }
+    }
     start = null;
     stages = [];
     codes = [];
@@ -224,7 +256,12 @@ export function decodeSleep(p: number[], firmware: string): RingEvent[] {
     }
     const next = entries[i + 1];
     if (!next) continue; // the last entry has no duration
-    const minutes = Math.max(0, Math.trunc((next.time - e.time) / 60));
+    // A corrupt or reordered timestamp must not expand into an unbounded stage array.
+    const minutes = Math.trunc((next.time - e.time) / 60);
+    if (minutes < 0 || minutes > 24 * 60 || stages.length + minutes > 24 * 60) {
+      flush(false);
+      continue;
+    }
     const stage: SleepStage = e.type === 2 ? 'deep' : 'light';
     for (let m = 0; m < minutes; m++) {
       stages.push(stage);

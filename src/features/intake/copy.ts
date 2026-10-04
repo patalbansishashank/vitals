@@ -882,8 +882,9 @@ export const D = {
     caption: 'Choose what each stream does',
   },
   privacy: [
-    'Device data stays on your devices. There is no Vitals server for it.',
-    "The Coach sees a stream only if you choose 'daily' or 'daily + detail' for it, and only when you talk to it. It never sees vendor scores unless you allow them, and they're labelled as the vendor's opinion.",
+    'Your device data stays on your own devices, and on your own server if you pair one. No one else holds it.',
+    'A ring you connect through Vitals shares its data with your plan, your scores and the Coach from the start. You can turn that off in one tap, or for each stream. Data from files and other apps stays off until you turn it on.',
+    "The Coach only sees a stream you let it see ('daily' or 'daily + detail'), and only when you talk to it. It never sees vendor scores unless you allow them, and they're labelled as the vendor's opinion.",
     'Ring and watch indexes are estimates, not measurements. Vitals computes its own scores from the raw data and shows how sure each one is.',
   ],
 } as const;

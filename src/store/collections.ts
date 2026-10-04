@@ -188,8 +188,9 @@ export const COLLECTIONS: Readonly<Record<CollectionId, CollectionDef>> = {
   }),
   providerKeys: def('providerKeys', 'lwwField', 'optIn', 81, { key: 'presetId', owner: 'AI (E9)', schema: open(), exported: false, sealed: true }),
   deviceSettings: def('deviceSettings', 'local', 'no', 3, {
-    key: 'me',
-    idPattern: ME,
+    // `ringCursor:<ringKey>`: the ring service's read cursor, pause and reconnect id on this device (SUITE_SPEC §15.2)
+    key: 'me | ringCursor:${ringKey}',
+    idPattern: /^(me|ringCursor:ble:\S+)$/,
     owner: 'settings',
     schema: open([], { theme: T.Enum(['system', 'light', 'dark']), reduceMotion: T.Enum(['system', 'on', 'off']) }),
   }),

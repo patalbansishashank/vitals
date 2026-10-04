@@ -120,6 +120,7 @@
     display: grid;
     gap: 8px;
     width: min(332px, calc(100vw - 2 * var(--lm-gutter) - 24px));
+    overflow-x: auto;
   }
   .sp-cal__title {
     margin: 0;
@@ -137,6 +138,7 @@
   }
   .sp-cal__grid {
     width: 100%;
+    min-width: 308px;
     border-collapse: collapse;
     table-layout: fixed;
   }

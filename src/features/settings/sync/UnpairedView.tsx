@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from 'react';
 import { ScanLine } from 'lucide-react';
 import { Field, InlineWarning, Key, TextInput, useField } from '@/components';
 import { dispatch } from '@/commands';
+import { platformCaps } from '@/platform';
 import { describeLocalData } from '@/state/sync';
 import { normalizeRelayUrl, parsePairingUri, wordsToSecret } from '@/sync/pairing';
 import type { PairingCode } from '@/sync/types';
@@ -138,7 +139,7 @@ export function UnpairedView({
   return (
     <div className="grid gap-4">
       <p className="m-0 text-sm leading-[1.5] text-ink">{intro}</p>
-      <p className="m-0 text-xs leading-[1.45] text-ink-2">{SYNC_COPY.lnaHint}</p>
+      {platformCaps().installedApp ? null : <p className="m-0 text-xs leading-[1.45] text-ink-2">{SYNC_COPY.lnaHint}</p>}
       <Field label={SYNC_COPY.serverLabel} help={SYNC_COPY.serverHelp} error={urlError ?? (tested && !tested.ok ? tested.message : null)}>
         <TextInput
           type="url"

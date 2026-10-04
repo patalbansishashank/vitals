@@ -17,6 +17,8 @@ export interface RingLink extends BleLink {
   onDisconnect(cb: () => void): () => void;
   /** Platform id of the ring: a MAC on Android and Linux, an opaque id in browsers. Kept to reconnect later. */
   readonly deviceId?: string;
+  /** Primary GATT services of the chosen peripheral, when the platform exposes discovery. */
+  services?(): Promise<string[]>;
 }
 
 /** A ring seen while scanning. `name` is the ring's advertised name, shown as is in a scan list. */
@@ -24,6 +26,8 @@ export interface FoundDevice {
   id: string;
   name?: string;
   rssi?: number;
+  serviceUuids?: string[];
+  manufacturerData?: Uint8Array[];
 }
 
 /** What to look for: a driver's `requestOptions` (filters are ORed, as in Web Bluetooth). */
@@ -53,6 +57,8 @@ export interface BleTransport {
   readonly kind: TransportKind;
   /** Bluetooth exists and is switched on (as far as the platform says). */
   isAvailable(): Promise<boolean>;
+  /** True when the last failure was the person refusing the Bluetooth (Nearby devices) permission, not Bluetooth being off. */
+  permissionDenied?(): boolean;
   /** Find a ring and connect to it. On the web this must be called inside the click. */
   requestDevice(query: DeviceQuery, opts?: RequestOptions): Promise<RingLink>;
   /** Connect to a ring found before, without asking again. Absent where the platform cannot (web today). */
@@ -61,8 +67,10 @@ export interface BleTransport {
 
 /** Thrown when nothing was chosen or found; screens show it as "No ring found" rather than as a failure. */
 export class NoDeviceError extends Error {
-  constructor(readonly reason: 'cancelled' | 'not_found' | 'unavailable') {
-    super(reason === 'cancelled' ? 'No ring chosen' : reason === 'not_found' ? 'No ring found nearby' : 'Bluetooth is not available');
+  constructor(readonly reason: 'cancelled' | 'not_found' | 'unavailable' | 'permission') {
+    super(
+      reason === 'cancelled' ? 'No ring chosen' : reason === 'not_found' ? 'No ring found nearby' : reason === 'permission' ? 'Bluetooth permission was refused' : 'Bluetooth is not available',
+    );
     this.name = 'NoDeviceError';
   }
 }

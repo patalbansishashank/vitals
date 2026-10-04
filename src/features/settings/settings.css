@@ -1,0 +1,33 @@
+.settings-section {
+  scroll-margin-top: var(--lm-space-2);
+}
+
+.settings-unit-rows > div,
+.settings-appearance-rows > div {
+  row-gap: var(--lm-space-3);
+}
+
+.settings-unit-rows > div > :first-child {
+  flex-basis: 6.5rem;
+}
+
+.settings-unit-rows > div > :last-child,
+.settings-appearance-rows > div > :last-child {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 63.999rem) {
+  .settings-section {
+    /* The rail is 44 px targets + two 8 px gutters + its border. The
+       document already reserves a second top-bar height for subnavigation. */
+    scroll-margin-top: calc(44px + var(--lm-space-2) * 2 + 1px - var(--lm-topbar-h) + var(--lm-space-2));
+  }
+}
+
+@media (max-width: 30rem) {
+  .settings-appearance-rows > div:has(.lm-bank) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

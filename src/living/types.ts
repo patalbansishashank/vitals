@@ -236,7 +236,7 @@ export type LogEntry = LogEntryBase &
     | { kind: 'subjective'; difficulty?: 1 | 2 | 3 | 4 | 5; hunger?: number; energy?: number; mood?: number; stress?: StressLevel; illness?: boolean }
     | { kind: 'event'; event: 'illness' | 'travel' | 'noTraining' | 'socialMeal' | 'busy' | 'dietBreak' | 'creatineStart'; to?: LocalDate }
     | { kind: 'note' }
-    | { kind: 'retract'; target: Id }
+    | { kind: 'retract'; target: Id; keep?: Id; overrides?: Id[] }
   );
 
 export type LogKind = LogEntry['kind'];
@@ -259,6 +259,8 @@ export interface MeasurementEntry {
   /** (E5 additive) backfilled/assumed entries are kept but never estimated from. */
   assumed?: boolean;
 }
+
+export type MeasurementEntryView = MeasurementEntry & { conflict?: { parentId: Id; versions: MeasurementEntry[] } };
 
 export type Mark = 'asPlanned' | 'partly' | 'not';
 export type MarkBlock = 'food' | 'train' | 'fast' | 'all';
@@ -374,6 +376,8 @@ export interface LogEntrySummary {
   source: EntrySource['by'];
   aiEstimated: boolean;
   confidence?: number;
+  /** Effective descendants of one original entry; each version keeps its real command target id. */
+  conflict?: { parentId: Id; versions: LogEntrySummary[] };
 }
 
 export interface TodayChecklistItem {
@@ -396,6 +400,7 @@ export interface TodayView {
   prescription: PrescribedDaySnapshot | null;
   logged: {
     entries: LogEntrySummary[];
+    measurements?: MeasurementEntryView[];
     totals: { energyKcal: Est; proteinG: Est; carbG: Est; fatG: Est; fibreG: Est };
     items: Array<{ itemId: string; status: 'done' | 'partial' | 'skipped' | 'unknown'; credit?: number }>;
     fast?: { state: 'notStarted' | 'running' | 'done' | 'broken'; sinceH?: number; remainingH?: number };

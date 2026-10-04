@@ -13,6 +13,7 @@
 import type { RingEvent, SleepStage } from '../types';
 import { GROUP, CMD, HEADER_SIZE, MAX_HISTORY_DAY, frameLength, isFrameStart, timingByCmd } from './commands';
 import { zoneDayIndex, zoneMidnightMs } from '../zone';
+import { plausibleAggregate } from '../plausibility';
 
 export type CrpStage = 'AWAKE' | 'LIGHT' | 'DEEP' | 'REM' | 'UNKNOWN';
 export type CrpKind = 'HEART_RATE' | 'SPO2' | 'HRV' | 'STRESS' | 'TEMPERATURE';
@@ -35,7 +36,10 @@ export type CrpDecoded =
   | { kotlin: 'FramePending'; startsFrame: boolean };
 
 export interface CrpDecodeContext {
+  /** Command clock anchors history day indexes. */
   nowMs: number;
+  /** Notification arrival clock stamps live measurements and bounds future history. */
+  receivedMs?: number;
   /** IANA zone (per-day daylight-saving offset); absent = the fixed `tzOffsetS`. */
   tz?: string;
   tzOffsetS: number;
@@ -80,7 +84,7 @@ const le3 = (b: Uint8Array, o: number): number => b[o]! | (b[o + 1]! << 8) | (b[
 
 /** `CRPDriver.ingest` + `CRPDecoder.decode` for a whole frame or an `fdd1` push; `channel` is the notifying UUID. */
 export function decodeCrp(data: Uint8Array, channel: string, ctx: CrpDecodeContext): CrpDecoded[] {
-  if (channel.toLowerCase().includes('fdd1')) return decodeCurrentSteps(data, ctx.nowMs);
+  if (channel.toLowerCase().includes('fdd1')) return decodeCurrentSteps(data, ctx.receivedMs ?? ctx.nowMs);
   if (isFrameStart(data)) return decodeFramedReply(data, ctx);
   return [];
 }
@@ -99,14 +103,14 @@ function decodeFramedReply(frame: Uint8Array, ctx: CrpDecodeContext): CrpDecoded
   const group = frame[4]!;
   const cmd = frame[5]!;
   const payload = frame.subarray(HEADER_SIZE);
-  if (group === GROUP.DEVICE) return decodeVitalResult(cmd, payload, ctx.nowMs);
+  if (group === GROUP.DEVICE) return decodeVitalResult(cmd, payload, ctx.receivedMs ?? ctx.nowMs);
   if (group === GROUP.HISTORY) {
     if (cmd === CMD.HISTORY_SLEEP) return decodeSleep(payload, ctx);
     if (cmd === CMD.QUERY_SUPPORT_SPO2_TYPE) return decodeSpo2Support(payload);
     return decodeTimingHistory(cmd, payload, ctx) ?? [ack(group, cmd)];
   }
   if (group === GROUP.POWER) {
-    if (cmd === CMD.WEAR_STATE && payload.length > 0) return [{ kotlin: 'WearingStatus', t: ctx.nowMs, worn: payload[0] !== 0 }];
+    if (cmd === CMD.WEAR_STATE && payload.length > 0) return [{ kotlin: 'WearingStatus', t: ctx.receivedMs ?? ctx.nowMs, worn: payload[0] !== 0 }];
     if (cmd === CMD.QUERY_FIRMWARE) {
       const fw = decodeFirmwareVersion(payload);
       if (fw !== null) return [{ kotlin: 'FirmwareRevision', version: fw }];
@@ -186,6 +190,8 @@ function decodeTimingHistory(cmd: number, payload: Uint8Array, ctx: CrpDecodeCon
   const midnight = zoneMidnightMs(zoneDayIndex(ctx.nowMs, ctx) - day, ctx);
   const step = vital.twoByte ? 2 : 1;
   const perFrame = vital.twoByte ? 72 : 144;
+  // A frame outside this vital's daily range cannot be part of the history walk.
+  if (frameIndex > vital.terminalFrame || payload.length > 2 + perFrame * step) return [ack(GROUP.HISTORY, cmd)];
   const out: CrpDecoded[] = [];
   for (let i = 2, slot = 0; i + step - 1 < payload.length; i += step, slot++) {
     const v = vital.twoByte ? payload[i]! | (payload[i + 1]! << 8) : payload[i]!;
@@ -280,6 +286,8 @@ export interface CrpMapContext extends CrpDecodeContext {
  */
 export function toCrpRingEvents(decoded: readonly CrpDecoded[], ctx: CrpMapContext): RingEvent[] {
   const out: RingEvent[] = [];
+  const bound = ctx.receivedMs ?? ctx.nowMs;
+  const plausibleTime = (t: number): boolean => Number.isFinite(t) && (bound <= 0 || t <= bound);
   for (const d of decoded) {
     switch (d.kotlin) {
       case 'ActivityUpdate':
@@ -296,21 +304,23 @@ export function toCrpRingEvents(decoded: readonly CrpDecoded[], ctx: CrpMapConte
         out.push({ type: 'sample', stream: 'spo2', t: d.t, value: d.value, unit: 'pct', origin: 'live' });
         break;
       case 'StressSample':
-        out.push({ type: 'vendor', key: 'stress', t: d.t, value: d.value, unit: 'score', origin: 'live' });
+        if (d.value >= 1 && d.value <= 100) out.push({ type: 'vendor', key: 'stress', t: d.t, value: d.value, unit: 'score', origin: 'live' });
         break;
       case 'TemperatureSample':
-        out.push({ type: 'sample', stream: 'skin_temp', t: d.t, value: d.celsius, unit: 'degC', origin: 'live' });
+        if (d.celsius >= 30 && d.celsius <= 45) out.push({ type: 'sample', stream: 'skin_temp', t: d.t, value: d.celsius, unit: 'degC', origin: 'live' });
         break;
       case 'HistoryMeasurement':
-        if (d.kind === 'STRESS') out.push({ type: 'vendor', key: 'stress', t: d.t, value: d.value, unit: 'score', origin: 'history' });
-        else {
+        if (!plausibleTime(d.t) || (d.kind === 'SPO2' && (d.value < 70 || d.value > 100)) || (d.kind === 'TEMPERATURE' && (d.value < 30 || d.value > 45))) break;
+        if (d.kind === 'STRESS') {
+          if (d.value >= 1 && d.value <= 100) out.push({ type: 'vendor', key: 'stress', t: d.t, value: d.value, unit: 'score', origin: 'history' });
+        } else {
           const m = { HEART_RATE: ['hr', 'bpm'], SPO2: ['spo2', 'pct'], HRV: ['hrv', 'ms'], TEMPERATURE: ['skin_temp', 'degC'] } as const;
           const [stream, unit] = m[d.kind];
           out.push({ type: 'sample', stream, t: d.t, value: d.value, unit, origin: 'history' });
         }
         break;
       case 'SleepTimeline':
-        out.push({ type: 'sleepEpochs', start: d.t, epochS: 60, stages: d.stages.map((s) => LOWER[s]), rawCodes: d.rawCodes, firmware: ctx.firmware, complete: d.dayIndex >= 1 });
+        if (d.stages.length <= 1440 && plausibleTime(d.t + d.stages.length * 60_000)) out.push({ type: 'sleepEpochs', start: d.t, epochS: 60, stages: d.stages.map((s) => LOWER[s]), rawCodes: d.rawCodes, firmware: ctx.firmware, complete: d.dayIndex >= 1 });
         break;
       case 'WearingStatus':
         // No `worn` status key: off the finger is reported as an error (open question 3); worn needs no event.
@@ -331,5 +341,5 @@ export function toCrpRingEvents(decoded: readonly CrpDecoded[], ctx: CrpMapConte
         break;
     }
   }
-  return out;
+  return out.filter(plausibleAggregate);
 }

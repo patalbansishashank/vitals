@@ -1,25 +1,25 @@
 /**
  * Settings › Devices and streams (design/screens/settings-sync-ai.md §8): one block per source with its tier, what it
- * brought in and its stream policy (bring in · my scores · my plan · Coach sees); vendor scores for the person; importing a file and connecting a ring. Every change goes through the bus with literal ids:
- * `bio.sources` (read), `bio.setPolicy`, `bio.import` (job), `bio.deviceConnect` /
- * `bio.deviceSync` (Bluetooth inside the click, then a job), `bio.deleteSource` (typed confirmation).
+ * brought in and its stream policy (bring in · my scores · my plan · Coach sees); vendor scores for the person; importing a file. Every change goes through the bus with literal ids:
+ * `bio.sources` (read), `bio.setPolicy`, `bio.import` (job), `bio.deleteSource` (typed confirmation). Rings are found,
+ * connected and read by the ring service (`RingsBlock`); the ring data master switch is `RingSharingSwitch`.
  */
-import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react';
+import { useRef, useState, useSyncExternalStore, type ChangeEvent } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Dialog, Engraved, Field, Key, KeyBank, KeyLink, Switch, TextInput, toast } from '@/components';
 import { dispatch, jobs, mintConfirmation, type CommandResult } from '@/commands';
-import { sendCommand } from '@/features/lib/sendCommand';
-import { getDocumentStore } from '@/state/runtime';
-import { sharedBioIndex } from '@/biometrics/store/docIndex';
 import { bioActivity } from '@/biometrics/app/activity';
-import { stageBleLink, stageFile } from '@/biometrics/app/handoff';
+import { stageFile } from '@/biometrics/app/handoff';
 import { engineEligible } from '@/biometrics/core/policy';
-import type { BleDriver } from '@/biometrics/core/ble/types';
 import type { PolicyStream, StreamPolicy } from '@/biometrics/core/types';
+import { platform } from '@/platform';
 import { SettingsSection } from '../sections';
 import { useSettingsStore } from '@/state/settingsStore';
 import { DEV, formatDay, streamName } from './copy';
 import { MqttCard } from './MqttCard';
+import { RingsBlock } from './RingsBlock';
+import { RingSharingSwitch } from './RingSharingSwitch';
+import { useBioSources } from './useBioSources';
 
 type Tier = 'A' | 'B' | 'C';
 type Coach = StreamPolicy['coach'];
@@ -40,32 +40,8 @@ interface SourcesView {
   sources: SourceView[];
   policies: StreamPolicy[];
 }
-type Ble = {
-  drivers: readonly BleDriver[];
-  available: boolean;
-  requestDevice: (d: BleDriver) => Promise<Parameters<typeof stageBleLink>[0]>;
-};
 
-const output = <T,>(r: CommandResult): T | null => (r.ok && 'output' in r ? (r.output as T) : null);
 const message = (r: CommandResult): string => (!r.ok ? r.error.message : DEV.failed);
-
-/** `bio.sources`, read again whenever a biometrics document changes. */
-function useBioSources(): SourcesView | null {
-  const [view, setView] = useState<SourcesView | null>(null);
-  const [rev, setRev] = useState(0);
-  useEffect(() => sharedBioIndex(getDocumentStore()).subscribe(() => setRev((r) => r + 1)), []);
-  useEffect(() => {
-    let live = true;
-    void sendCommand('bio.sources', {}, { silent: true }).then((r) => {
-      const v = output<SourcesView>(r);
-      if (live && v) setView(v);
-    });
-    return () => {
-      live = false;
-    };
-  }, [rev]);
-  return view;
-}
 
 const activitySub = (l: () => void) => bioActivity.subscribe(l);
 const activityGet = () => bioActivity.get();
@@ -98,7 +74,7 @@ function PolicyRows({ policies, sourceKey }: { policies: readonly StreamPolicy[]
   if (policies.length === 0) return null;
   // five columns do not fit 390 px: the table scrolls inside its card instead of widening the page
   return (
-    <div className="mt-3 overflow-x-auto">
+    <div className="mt-3 overflow-x-auto" role="region" aria-label={DEV.policyTable} tabIndex={0}>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-ink-2">
@@ -216,29 +192,8 @@ function RemoveDialog({ source, onClose }: { source: SourceView | null; onClose:
   );
 }
 
-function SourceBlock({
-  s,
-  ble,
-  onRemove,
-}: {
-  s: SourceView;
-  ble: Ble | null;
-  onRemove: (s: SourceView) => void;
-}) {
+function SourceBlock({ s, onRemove }: { s: SourceView; onRemove: (s: SourceView) => void }) {
   const dateStyle = useSettingsStore((x) => x.dateStyle);
-  const driver = s.driver ? ble?.drivers.find((d) => d.id === s.driver) : undefined;
-  const sync = async () => {
-    if (!ble || !driver) return;
-    try {
-      const link = await ble.requestDevice(driver); // inside the click: Web Bluetooth needs the gesture
-      const linkRef = stageBleLink(link, driver.id);
-      await runJob(await dispatch('bio.deviceSync', { sourceKey: s.sourceKey, linkRef }), (rep) =>
-        DEV.imported(rep as Parameters<typeof DEV.imported>[0], useSettingsStore.getState().dateStyle),
-      );
-    } catch (e) {
-      toast(e instanceof Error ? e.message : DEV.failed);
-    }
-  };
   return (
     <section className="min-w-0 border-t border-line pt-4" aria-label={s.label}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -252,18 +207,6 @@ function SourceBlock({
         {DEV.lastData(s.lastDate ? formatDay(s.lastDate, dateStyle) : null)} · {DEV.records(s.records)}
         {s.streams.length ? ` · ${s.streams.map(streamName).join(' · ')}` : ''}
       </p>
-      {s.driver ? (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Key
-            size="sm"
-            disabledReason={ble?.available && driver ? undefined : DEV.ringUnavailable}
-            onClick={() => void sync()}
-          >
-            {DEV.syncNow}
-          </Key>
-          <span className="text-xs text-ink-2">{DEV.syncHelp}</span>
-        </div>
-      ) : null}
       <PolicyRows policies={s.policies} sourceKey={s.sourceKey} />
       <div className="mt-2">
         <Key size="sm" variant="quiet" onClick={() => onRemove(s)}>
@@ -319,67 +262,11 @@ function ImportFile() {
   );
 }
 
-function ConnectRing({ ble }: { ble: Ble | null }) {
-  if (!ble) return null;
-  const connect = async (d: BleDriver) => {
-    try {
-      const link = await ble.requestDevice(d); // inside the click
-      const linkRef = stageBleLink(link, d.id);
-      await runJob(await dispatch('bio.deviceConnect', { driver: d.id, linkRef }), (rep) =>
-        DEV.imported(rep as Parameters<typeof DEV.imported>[0], useSettingsStore.getState().dateStyle),
-      );
-    } catch (e) {
-      toast(e instanceof Error ? e.message : DEV.failed);
-    }
-  };
-  return (
-    <div className="mt-4 border-t border-line pt-4">
-      <Engraved as="p" className="m-0">
-        {DEV.ringTitle}
-      </Engraved>
-      <p className="m-0 mt-1 text-xs text-ink-2">{ble.available ? DEV.ringHelp : DEV.ringUnavailable}</p>
-      {ble.available ? (
-        <div className="mt-2 grid gap-2">
-          {ble.drivers.map((d) => (
-            <div key={d.id} className="flex flex-wrap items-end gap-2">
-              <Key size="sm" onClick={() => void connect(d)}>
-                {DEV.ringKey(d.label)}
-              </Key>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** The Bluetooth modules, loaded when the section mounts (so the click can open the browser's device window at once). */
-function useBle(): Ble | null {
-  const [ble, setBle] = useState<Ble | null>(null);
-  useEffect(() => {
-    let live = true;
-    void Promise.all([import('@/biometrics/ble/registry'), import('@/biometrics/ble/webBluetooth')]).then(
-      ([reg, wb]) => {
-        if (live)
-          setBle({
-            drivers: reg.BLE_DRIVERS,
-            available: wb.isWebBluetoothAvailable(),
-            requestDevice: wb.requestDevice,
-          });
-      },
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, []);
-  return ble;
-}
-
 export function DevicesSection() {
-  const view = useBioSources();
-  const ble = useBle();
+  const { view } = useBioSources<SourcesView>();
   const [removing, setRemoving] = useState<SourceView | null>(null);
+  const where = platform();
+  const isApp = where === 'android' || where === 'electron';
   const vendor: StreamPolicy = view?.policies.find((p) => p.stream === 'vendor_scores') ?? {
     stream: 'vendor_scores',
     imported: false,
@@ -390,12 +277,14 @@ export function DevicesSection() {
   return (
     <SettingsSection id="devices" title={DEV.title}>
       <p className="m-0 text-sm text-ink-2">{DEV.intro}</p>
-      <p className="m-0 mt-1 text-xs text-ink-2">{DEV.limits}</p>
+      <p className="m-0 mt-1 text-xs text-ink-2">{isApp ? DEV.limitsApp : DEV.limits}</p>
       <div className="mt-3">
         <KeyLink to="/onboarding/devices" size="sm" trailingIcon={ChevronRight}>
           {DEV.chooseInIntake}
         </KeyLink>
       </div>
+      <RingsBlock />
+      <RingSharingSwitch className="mt-4 border-t border-line pt-4" />
       <MqttCard onImportFile={(f) => void importFile(f)} />
       <div className="mt-4 grid gap-4">
         {view === null ? (
@@ -403,7 +292,7 @@ export function DevicesSection() {
         ) : view.sources.length === 0 ? (
           <p className="m-0 text-sm text-ink-2">{DEV.none}</p>
         ) : (
-          view.sources.map((s) => <SourceBlock key={s.sourceKey} s={s} ble={ble} onRemove={setRemoving} />)
+          view.sources.map((s) => <SourceBlock key={s.sourceKey} s={s} onRemove={setRemoving} />)
         )}
       </div>
       <div className="mt-4 border-t border-line pt-4">
@@ -415,7 +304,6 @@ export function DevicesSection() {
         <p className="m-0 mt-1 text-xs text-ink-2">{DEV.vendorHelp}</p>
       </div>
       <ImportFile />
-      <ConnectRing ble={ble} />
       <RemoveDialog source={removing} onClose={() => setRemoving(null)} />
     </SettingsSection>
   );

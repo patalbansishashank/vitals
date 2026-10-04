@@ -1,3 +1,4 @@
+import { plausibleAggregate } from '../plausibility';
 /**
  * The LuckRing `Protocol`: a pure state machine over 20-byte packets. Tier P: no timers here; the session runs the
  * settle / stall timers and calls `timeout`. Ported from Lumen's `LuckRingDriver.kt` (ACK before decode),
@@ -21,6 +22,7 @@ import {
   userInfoBytes, type CmdName, type LogicalFrame, type LuckRingProfile,
 } from './commands';
 import { assemble, decodeFrame, type PartialFrame } from './decoder';
+import { zoneDayIndex } from '../zone';
 
 /** `LuckRingHistorySync` timers: settle after the last frame of the type, stall when nothing arrived. */
 export const SETTLE_MS = 1_500;
@@ -63,6 +65,7 @@ export interface LuckRingState extends ProtocolState {
   inflight: Inflight | null;
   nowMs: number;
   tzOffsetS: number;
+  tz?: string;
 }
 
 export const initialLuckRingState = (): LuckRingState => ({
@@ -87,7 +90,7 @@ function profileOf(p: RingCommand['params']): LuckRingProfile {
 }
 
 /** `YYYY-MM-DD` of the phone's local day. */
-const localDay = (nowMs: number, tzOffsetS: number): string => new Date(nowMs + tzOffsetS * 1000).toISOString().slice(0, 10);
+const localDay = (nowMs: number, tzOffsetS: number, tz?: string): string => new Date(zoneDayIndex(nowMs, { tz, tzOffsetS }) * 86_400_000).toISOString().slice(0, 10);
 
 /** Ops that wait for a reply, and which data types complete them by default. */
 const replyTypes = (cmd: RingCommand): number[] => {
@@ -153,7 +156,7 @@ function finishHistory(st: LuckRingState, partial: boolean): IngestResult {
   if (!h || h.kind !== 'history') return { events: [], state: next, done: true };
   const events: RingEvent[] = partial
     ? [{ type: 'status', key: 'error', value: `partial:${h.stream}`, stream: h.stream }]
-    : [{ type: 'status', key: 'cursor', value: `lr1:${localDay(st.nowMs, st.tzOffsetS)}`, stream: h.stream }];
+    : [{ type: 'status', key: 'cursor', value: `lr1:${localDay(st.nowMs, st.tzOffsetS, st.tz)}`, stream: h.stream }];
   return { events, state: next, done: true };
 }
 
@@ -174,7 +177,7 @@ export function createLuckRingProtocol(): Protocol {
       return packets(logical(cmd, seq)).map((bytes) => ({ bytes }));
     },
 
-    ingest(bytes, state): IngestResult {
+    ingest(bytes, state, _channel, receivedMs): IngestResult {
       const st = state as LuckRingState;
       const a = assemble(st.partial, bytes);
       let next: LuckRingState = { ...st, partial: a.partial };
@@ -182,7 +185,7 @@ export function createLuckRingProtocol(): Protocol {
       if (!f) return { events: [], state: next };
       // `LuckRingDriver.ingest`: ACK a device SEND before decoding; never an ACK or a SEND_NO_ACK.
       const send: RingCommand[] | undefined = f.cmdType === CMD.SEND ? [{ op: 'ack', params: { dataType: f.dataType, seq: f.seq, devType: f.devType } }] : undefined;
-      const events = decodeFrame(f, { firmware: next.firmware });
+      const events = decodeFrame(f, { firmware: next.firmware, nowMs: receivedMs ?? (next.nowMs > 0 ? next.nowMs : undefined) }).filter(plausibleAggregate);
       for (const e of events) {
         if (e.type === 'status' && e.key === 'firmware') next = { ...next, firmware: String(e.value) };
         if (e.type === 'status' && e.key === 'battery' && typeof e.value === 'number') next = { ...next, battery: e.value };
@@ -220,7 +223,7 @@ export function createLuckRingProtocol(): Protocol {
 
     begin(cmd, state): CommandPlan {
       const st0 = state as LuckRingState;
-      const st: LuckRingState = { ...st0, nowMs: num(cmd.params?.nowMs, st0.nowMs), tzOffsetS: num(cmd.params?.tzOffsetS, st0.tzOffsetS) };
+      const st: LuckRingState = { ...st0, nowMs: num(cmd.params?.nowMs, st0.nowMs), tzOffsetS: num(cmd.params?.tzOffsetS, st0.tzOffsetS), tz: typeof cmd.params?.tz === 'string' ? cmd.params.tz : st0.tz };
       const nowMs = num(cmd.params?.nowMs, 0);
       if (cmd.op === 'ack' || cmd.op === 'frame') return { state: { ...st, out: null }, expectReply: false };
       if (cmd.op === 'history') {

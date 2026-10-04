@@ -21,6 +21,7 @@
 import { applyMergePatch, ulid, type BlobStore } from '@/store';
 import { chunkIdFor, chunkKeyString, chunkStats, contentHashOf, decodeChunk, encodeChunk, mergeSamples, sampleKey } from '../core/chunks';
 import { PERSON_POLICY_ID } from '../core/effective';
+import { reconcileSleep } from '../core/reconcileSleep';
 import { compareVersions } from '../core/scores/rescore';
 import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, ChunkKey, DecisionLogEntry, LocalDate, RawSample, ScoreResult, StreamPolicy } from '../core/types';
 import { dayKey, recordDocId, scoreDocId, type BioCollection, type BioDocIndex, type ManifestBody, type PersonPolicyBody, type RecordBody, type SourceBody } from './docIndex';
@@ -218,8 +219,8 @@ export class DocBioStore implements BioStore {
     await this.ready();
     const kinds = q.kind === undefined ? null : new Set(Array.isArray(q.kind) ? q.kind : [q.kind]);
     const o = this.overlay.get('bioRecords');
-    const rids = new Set<string>();
-    for (const e of this.index.latestRecords(q.from, q.to)) rids.add(e.record.record_id);
+    // Resolve only after applying the overlay: a buffered revision/removal may change which tail is superseded.
+    const rids = new Set(this.index.latest.keys());
     if (o) for (const [docId, b] of o) rids.add(b ? (b as unknown as RecordBody).record_id : (this.index.recDocs.get(docId)?.record.record_id ?? ''));
     const out: Array<{ sourceKey: string; record: BioRecord }> = [];
     for (const rid of rids) {
@@ -231,15 +232,14 @@ export class DocBioStore implements BioStore {
       })();
       if (!e) continue;
       const r = e.record;
-      if (kinds && !kinds.has(r.kind)) continue;
-      if (q.sourceKey !== undefined && e.sourceKey !== q.sourceKey) continue;
-      if (q.from !== undefined && r.time.local_date < q.from) continue;
-      if (q.to !== undefined && r.time.local_date > q.to) continue;
       out.push({ sourceKey: e.sourceKey, record: r });
     }
     const when = (r: BioRecord): string => r.time.start ?? r.time.at ?? '';
     out.sort((a, b) => a.record.time.local_date.localeCompare(b.record.time.local_date) || when(a.record).localeCompare(when(b.record)) || a.record.record_id.localeCompare(b.record.record_id));
-    return out.map((e) => clone(e));
+    return reconcileSleep(out).filter(({ sourceKey, record: r }) =>
+      (!kinds || kinds.has(r.kind)) && (q.sourceKey === undefined || sourceKey === q.sourceKey)
+      && (q.from === undefined || r.time.local_date >= q.from) && (q.to === undefined || r.time.local_date <= q.to),
+    ).map((e) => clone(e));
   }
 
   /** Soft-deletes every stored version of the given record ids (`bio.deleteSource`, undo of a manual value). */
@@ -257,6 +257,22 @@ export class DocBioStore implements BioStore {
       }
     }
     return n;
+  }
+
+  /**
+   * Rewrites one stored record document under another source (`biometrics.ringFold`): the same document id
+   * (`${record_id}@${version}`), the given record and source key, as a remove and a put in one transaction (IMM allows
+   * a put on an id removed in the same transaction). No version check: every stored version stays, whatever other
+   * versions of the record id this or another source holds. Returns false when the document is already as given.
+   */
+  async moveRecordDoc(rec: BioRecord, sourceKey: string): Promise<boolean> {
+    await this.ready();
+    const id = recordDocId(rec);
+    const cur = this.body('bioRecords', id) as RecordBody | null;
+    if (cur && cur.sourceKey === sourceKey) return false;
+    if (cur) await this.queue({ kind: 'remove', col: 'bioRecords', id });
+    await this.queue({ kind: 'put', col: 'bioRecords', id, body: { ...(clone(rec) as unknown as Body), sourceKey } });
+    return true;
   }
 
   // ------------------------------------------------------------------------------------- chunks

@@ -124,7 +124,7 @@ export interface SyncRuntime {
 
 export class SyncError extends Error {
   constructor(
-    readonly code: 'not_paired' | 'already_paired' | 'invalid_code' | 'invalid_relay' | 'engine_failed' | 'not_supported',
+    readonly code: 'not_paired' | 'already_paired' | 'invalid_code' | 'invalid_relay' | 'engine_failed' | 'relay_unreachable' | 'not_supported',
     message: string,
   ) {
     super(message);
@@ -421,7 +421,13 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
       if (joining || (mode === 'resume' && !(await hasSyncedDocs(e)))) {
         // joining (or a local engine database that is gone): fetch everything the owner has before deciding
         if (cfg.enabled) await settleRemote(e, deps.joinSettle ?? JOIN_SETTLE);
-        if (!(await hasSyncedDocs(e))) effective = 'push';
+        if (!(await hasSyncedDocs(e))) {
+          // nothing came back: that means "no data yet" only if the relay answered. Pushing on silence would write this
+          // device's documents, newer by the clock, over the person's own on every device (R2-01)
+          if (joining && cfg.enabled && !e.status().lastSyncedAt)
+            throw new SyncError('relay_unreachable', "The sync server didn't answer, so your data couldn't be fetched. Nothing was changed. Try again when it's reachable.");
+          effective = 'push';
+        }
       }
       const b = createSyncedBackend({ synced: e, local: deps.localBackend(), isSynced: isSyncedCollection });
       const transfer = async (from: DocumentStore, to: DocumentStore) => {
@@ -446,6 +452,11 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
     } catch (err) {
       offStatus();
       await e.close().catch(() => undefined);
+      // a first pair or join that failed leaves this device unpaired: its next start must not treat it as paired
+      if (mode !== 'resume') {
+        stopTrackingUnsynced();
+        setSyncPairedHint(false);
+      }
       fail('attach_failed', err);
       throw err;
     }

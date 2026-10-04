@@ -10,6 +10,7 @@
  */
 import type { CollectionId, Doc, StoreChange } from '@/store';
 import { PERSON_POLICY_ID } from '../core/effective';
+import { reconcileSleep } from '../core/reconcileSleep';
 import { sourceKeyOf } from '../core/source';
 import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, DecisionLogEntry, DeviceType, LocalDate, ScoreResult, StreamPolicy } from '../core/types';
 
@@ -33,11 +34,18 @@ export type ManifestBody = BioChunkManifest & { superseded?: boolean; replacedBy
 /** Bluetooth state kept on a device source. */
 export interface BleSourceState {
   driver: string;
-  /** Page cursors per stream (`status:cursor` events). */
-  cursor: Partial<Record<BioStream, string>>;
+  /** Page cursors per stream (`status:cursor` events). Pre-v0.5.0; the ring service keeps cursors device-local. */
+  cursor?: Partial<Record<BioStream, string>>;
+  /** The ring's own id (`serial:…` / `mac:…`) as the driver read it; never part of the key of an older source. */
+  ringId?: string;
+  /** Bluetooth address where a platform saw one, so a read that could not see the serial still finds this source. */
+  address?: string;
   firmware?: string;
   battery?: number;
+  charging?: boolean;
   lastSyncAt?: string;
+  /** Label of the device that synced last (SUITE_SPEC §15.2). */
+  lastSyncBy?: string;
   /** Ring clock minus phone clock at the last sync, seconds. */
   clockOffsetS?: number;
 }
@@ -80,6 +88,7 @@ export interface IndexedRecord {
 
 export class BioDocIndex {
   private loaded = false;
+  private failed = false;
   private rev = 0;
   private readonly listeners = new Set<() => void>();
   private readonly off: () => void;
@@ -90,8 +99,8 @@ export class BioDocIndex {
   private readonly versions = new Map<string, Set<string>>();
   /** record_id → the newest version's docId. */
   readonly latest = new Map<string, string>();
-  /** local date → record_ids whose newest version falls on it. */
-  private readonly byDate = new Map<LocalDate, Set<string>>();
+  /** Reconciled read projection, invalidated only when a record changes. */
+  private resolvedRecords: IndexedRecord[] | null = null;
   private sortedDates: LocalDate[] | null = null;
   /** First device type seen per source (for labels). */
   readonly deviceTypes = new Map<string, DeviceType>();
@@ -117,7 +126,10 @@ export class BioDocIndex {
     });
     void store.ready.then(
       () => this.build(),
-      () => undefined,
+      () => {
+        this.failed = true; // nothing will load: readers waiting on the first build may stop waiting
+        this.bump();
+      },
     );
   }
 
@@ -130,6 +142,11 @@ export class BioDocIndex {
 
   get isLoaded(): boolean {
     return this.loaded;
+  }
+
+  /** True once the first build ran or the store failed to open (then the index stays empty). */
+  get isSettled(): boolean {
+    return this.loaded || this.failed;
   }
 
   /** Bumps on every change to a biometrics collection. */
@@ -196,22 +213,12 @@ export class BioDocIndex {
     }
   }
 
-  private dateSet(d: LocalDate): Set<string> {
-    let s = this.byDate.get(d);
-    if (!s) {
-      this.byDate.set(d, (s = new Set()));
-      this.sortedDates = null;
-    }
-    return s;
-  }
-
   private applyRecord(docId: string, b: RecordBody | null): void {
     const prev = this.recDocs.get(docId);
     const rid = b?.record_id ?? prev?.record.record_id;
     if (!rid) return;
-    const oldLatest = this.latest.get(rid);
-    const oldDate = oldLatest ? this.recDocs.get(oldLatest)?.record.time.local_date : undefined;
-    if (oldDate) this.byDate.get(oldDate)?.delete(rid);
+    this.resolvedRecords = null;
+    this.sortedDates = null;
     if (b) {
       const { sourceKey, ...record } = b;
       const sk = sourceKey ?? sourceKeyOf(record.provenance);
@@ -233,7 +240,6 @@ export class BioDocIndex {
     }
     if (best) {
       this.latest.set(rid, best.docId);
-      this.dateSet(best.record.time.local_date).add(rid);
     } else {
       this.latest.delete(rid);
       this.versions.delete(rid);
@@ -256,24 +262,28 @@ export class BioDocIndex {
 
   // ------------------------------------------------------------------------------------- reads (no cloning)
 
+  private canonicalRecords(): IndexedRecord[] {
+    if (!this.resolvedRecords) {
+      const records: IndexedRecord[] = [];
+      for (const id of this.latest.values()) {
+        const entry = this.recDocs.get(id);
+        if (entry) records.push(entry);
+      }
+      this.resolvedRecords = reconcileSleep(records).sort((a, b) => a.record.time.local_date.localeCompare(b.record.time.local_date));
+    }
+    return this.resolvedRecords;
+  }
+
   /** Dates that have records, ascending. */
   dates(): LocalDate[] {
-    if (!this.sortedDates) this.sortedDates = [...this.byDate.entries()].filter(([, s]) => s.size > 0).map(([d]) => d).sort();
+    if (!this.sortedDates) this.sortedDates = [...new Set(this.canonicalRecords().map((e) => e.record.time.local_date))];
     return this.sortedDates;
   }
 
-  /** Newest version of every record on dates in [from, to] (inclusive; open ends allowed). Not cloned: do not mutate. */
+  /** Newest records with contained provisional sleep superseded, then dates filtered. Not cloned: do not mutate. */
   latestRecords(from?: LocalDate, to?: LocalDate): IndexedRecord[] {
-    const out: IndexedRecord[] = [];
-    for (const d of this.dates()) {
-      if (from !== undefined && d < from) continue;
-      if (to !== undefined && d > to) break;
-      for (const rid of this.byDate.get(d) ?? []) {
-        const e = this.recDocs.get(this.latest.get(rid)!);
-        if (e) out.push(e);
-      }
-    }
-    return out;
+    return this.canonicalRecords().filter(({ record: r }) =>
+      (from === undefined || r.time.local_date >= from) && (to === undefined || r.time.local_date <= to));
   }
 
   /** Doc ids of every stored version of a record id. */

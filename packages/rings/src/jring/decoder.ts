@@ -12,6 +12,8 @@
  */
 import type { RingEvent, SleepStage } from '../types';
 import { CMD, PACKET_SIZE, jringCapabilities } from './commands';
+import { zoneMidnightMs } from '../zone';
+import { plausibleAggregate } from '../plausibility';
 
 /** `MeasurementKind` values this family produces. */
 export type JringMeasurement = 'HEART_RATE' | 'BLOOD_PRESSURE_SYSTOLIC' | 'BLOOD_PRESSURE_DIASTOLIC' | 'FATIGUE' | 'BLOOD_SUGAR';
@@ -173,15 +175,17 @@ const within = (v: number, [lo, hi]: readonly [number, number]): boolean => Numb
 const withinInt = (v: number, r: readonly [number, number]): boolean => within(Math.trunc(v), r);
 
 /** `isWithinHistoryWindow`: [now - horizon days, now + 1 h]. Skipped while the phone time is unknown (nowMs 0). */
-function inHistoryWindow(tMs: number, nowMs: number, horizonDays = HISTORY_HORIZON_DAYS): boolean {
+function inHistoryWindow(tMs: number, nowMs: number, horizonDays = HISTORY_HORIZON_DAYS, strictNow = false): boolean {
   if (nowMs <= 0) return true;
   const days = Math.min(3650, Math.max(1, horizonDays));
-  return tMs >= nowMs - days * 86_400_000 && tMs <= nowMs + 3_600_000;
+  return tMs >= nowMs - days * 86_400_000 && tMs <= nowMs + (strictNow ? 0 : 3_600_000);
 }
 
 export interface MapContext {
   nowMs: number;
   clockOffsetS: number | null;
+  tz?: string;
+  strictNow?: boolean;
   /** Firmware string for `sleepEpochs.firmware`. */
   firmware: string;
 }
@@ -196,17 +200,21 @@ const VENDOR: Record<Exclude<JringMeasurement, 'HEART_RATE'>, { key: string; uni
 
 /** One Kotlin event -> `RingEvent`s after the bridge gates. Bind, band function and unknown packets map to nothing here. */
 export function toJringRingEvents(d: JringDecoded, ctx: MapContext): RingEvent[] {
+  const futureLimit = ctx.nowMs;
+  const liveClock = ctx.strictNow === true;
   switch (d.kind) {
     case 'TimeSyncAck':
       return [{ type: 'status', key: 'ack', value: 'time_sync' }];
     case 'CommandAck':
       return [{ type: 'status', key: 'ack', value: `cmd_0x${d.commandId.toString(16).padStart(2, '0')}` }];
     case 'ActivityUpdate': {
+      if (liveClock && d.tMs > futureLimit) return [];
       // Cumulative totals for the ring-local day. `localDay` is the instant of that day's local midnight (what
       // `records.ts` expects): the raw ring time is local wall-clock, so its day start minus the offset. Calories unit UNVERIFIED.
       const off = ctx.clockOffsetS ?? 0;
       const localS = d.rawS > 0 ? d.rawS : Math.floor(ctx.nowMs / 1000) + off;
-      return [{ type: 'dailyTotal', localDay: (Math.floor(localS / 86_400) * 86_400 - off) * 1000, steps: d.steps, distanceM: d.distanceMeters, kcal: d.calories }];
+      const total: RingEvent = { type: 'dailyTotal', localDay: zoneMidnightMs(Math.floor(localS / 86_400), { tz: ctx.tz, tzOffsetS: off }), steps: d.steps, distanceM: d.distanceMeters, kcal: d.calories };
+      return plausibleAggregate(total) ? [total] : [];
     }
     case 'Battery':
       if (!within(d.percent, GATES.battery)) return [];
@@ -218,17 +226,17 @@ export function toJringRingEvents(d: JringDecoded, ctx: MapContext): RingEvent[]
       return out;
     }
     case 'ActivityBucket':
-      if (!within(d.steps, GATES.bucketSteps) || !within(d.distanceMeters, GATES.bucketDistance)) return [];
+      if (!within(d.steps, GATES.bucketSteps) || !within(d.distanceMeters, GATES.bucketDistance) || (liveClock && d.tMs > futureLimit)) return [];
       return [{ type: 'activityBucket', start: d.tMs, durS: 60, steps: d.steps }];
     case 'SleepTimeline':
-      if (!inHistoryWindow(d.tMs, ctx.nowMs, d.historyHorizonDays) || d.stages.length === 0) return [];
+      if (!inHistoryWindow(d.tMs + d.stages.length * 60_000, ctx.nowMs, d.historyHorizonDays, liveClock) || d.stages.length === 0) return [];
       // `completeSession` is never set by this family; the raw codes are kept so a corrected map can rescore.
       return [{ type: 'sleepEpochs', start: d.tMs, epochS: 60, stages: d.stages, rawCodes: d.codes, firmware: ctx.firmware, complete: false }];
     case 'HeartRateSample':
-      if (d.isError || !within(d.bpm, GATES.hr)) return [];
+      if (d.isError || !within(d.bpm, GATES.hr) || (liveClock && d.tMs > futureLimit)) return [];
       return [{ type: 'sample', stream: 'hr', t: d.tMs, value: d.bpm, unit: 'bpm', origin: d.source === 'combined' ? 'spot' : 'live' }];
     case 'HistoryMeasurement': {
-      if (!inHistoryWindow(d.tMs, ctx.nowMs, d.historyHorizonDays)) return [];
+      if (!inHistoryWindow(d.tMs, ctx.nowMs, d.historyHorizonDays, liveClock)) return [];
       const origin = d.source === 'combined' ? 'spot' : 'history';
       if (d.measurement === 'HEART_RATE') return withinInt(d.value, GATES.hr) ? [{ type: 'sample', stream: 'hr', t: d.tMs, value: d.value, unit: 'bpm', origin }] : [];
       const v = VENDOR[d.measurement];
@@ -257,4 +265,3 @@ export function toJringRingEvents(d: JringDecoded, ctx: MapContext): RingEvent[]
       return [];
   }
 }
-

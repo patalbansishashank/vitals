@@ -8,6 +8,8 @@ export const DOWNLOADS = {
   onlySystem: (label: string) => `Download for ${label}`,
   otherSystems: 'Other systems',
   chooseSystem: 'Choose your system',
+  androidChecking: 'Checking for the Android app…',
+  androidUnavailable: 'The Android app is not ready to install yet. You can keep using the website.',
   unavailable: 'The first download is not ready yet. Until then, keep using the website.',
   allReleases: 'All releases',
   iphone: 'On iPhone, use the website and add it to your home screen.',

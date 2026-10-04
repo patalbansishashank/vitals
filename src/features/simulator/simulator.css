@@ -583,6 +583,17 @@
     }
   }
 
+  /* Keep the first pair fully readable when the mobile rail is narrower than two panels. */
+  @media (max-width: 23.99rem) {
+    .sim-summary .lm-strip__item {
+      flex: 0 0 50%;
+      min-width: 0;
+    }
+    .sim-summary__big {
+      white-space: normal;
+    }
+  }
+
   /* ---- raster faceplate + bar ------------------------------------------------ */
   .sim-rasterface {
     overflow: visible;

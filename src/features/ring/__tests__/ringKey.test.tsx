@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,6 +67,18 @@ describe('RingKey (§4.2)', () => {
     const mark = container.querySelector('.rg-light');
     expect(mark?.tagName.toLowerCase()).toBe('svg');
     expect(mark?.querySelector('path')).not.toBeNull();
+  });
+
+  it('J6-04: a standard icon key, so the shared 44 px touch extension applies (the painted cap stays 40 px like its neighbours)', () => {
+    renderKey('connected');
+    const key = screen.getByRole('link', { name: 'Ring: connected' });
+    expect(key.classList.contains('lm-key')).toBe(true);
+    expect(key.getAttribute('data-icon-only')).toBe('true');
+    expect(key.getAttribute('data-size')).toBe('md');
+    const root = resolve(__dirname, '../../..');
+    // .lm-key::after is the coarse-pointer 44 px hit area; the ring styles must not take it away or shrink it
+    expect(readFileSync(resolve(root, 'styles/components.css'), 'utf8')).toMatch(/\.lm-key::after[\s\S]*?width: max\(100%, 44px\);[\s\S]*?height: max\(100%, 44px\)/);
+    expect(readFileSync(resolve(root, 'features/ring/ring-page.css'), 'utf8')).not.toMatch(/rg-key[^{]*::after/);
   });
 
   it('looks pressed on /ring', () => {

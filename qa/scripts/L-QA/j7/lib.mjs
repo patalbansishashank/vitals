@@ -5,10 +5,10 @@ import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 export const here = path.dirname(fileURLToPath(import.meta.url));
 export const repo = path.resolve(here, '..', '..', '..', '..');
-export const out = path.join(repo, 'qa', 'results', 'L-QA', 'j7');
-export const BASE = process.env.J7_BASE || 'http://127.0.0.1:4327';
+export const out = path.join(repo, 'qa', 'results', 'L-QA', 'round2', 'j7');
+export const BASE = process.env.J7_BASE || 'http://127.0.0.1:4337';
 mkdirSync(out, { recursive: true });
-const req = createRequire(path.join(repo, '..', 'L-DESKTOP', 'apps', 'desktop', 'package.json'));
+const req = createRequire(path.join(repo, '.e6-tmp', 'cand', 'package.json'));
 export const { chromium } = req('playwright-core');
 export const results = [];
 export const rec = (id, verdict, note) => { results.push({ id, verdict, note }); console.log(`${verdict}  ${id}  ${note}`); };
@@ -87,6 +87,7 @@ window.__j7.ready = true;
 export async function bootApp(page, route = '/') {
   await page.goto(BASE + route, { waitUntil: 'load' });
   await page.waitForFunction(() => (document.querySelector('#root')?.childElementCount ?? 0) > 0, null, { timeout: 60000 });
+  await page.waitForFunction(() => document.querySelectorAll('button, a[href]').length > 0, null, { timeout: 90000 }).catch(() => {});
 }
 export async function install(page) { await page.evaluate(TOOLKIT); }
 export const goRoute = async (page, r) => { await page.evaluate((x) => { history.pushState({}, '', x); dispatchEvent(new PopStateEvent('popstate')); }, r); await page.waitForTimeout(1500); };

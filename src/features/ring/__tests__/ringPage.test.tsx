@@ -21,8 +21,10 @@ vi.mock('../Sharing', async () => {
 vi.mock('../RingSettings', async () => {
   const { createElement } = await import('react');
   return {
-    RingSettings: ({ ring, onAddRing }: { ring: { ringKey: string }; onAddRing: () => void }) =>
-      createElement('section', { 'data-testid': 'settings', 'data-ring': ring.ringKey }, createElement('button', { type: 'button', onClick: onAddRing }, 'Add another ring')),
+    RingSettings: ({ ring, onAddRing }: { ring: { ringKey: string }; onAddRing: (trigger: HTMLButtonElement) => void }) =>
+      createElement('section', { 'data-testid': 'settings', 'data-ring': ring.ringKey },
+        createElement('div', { 'data-forget-ring': true }, createElement('button', { type: 'button' }, 'Forget this ring')),
+        createElement('button', { type: 'button', onClick: (event: { currentTarget: HTMLButtonElement }) => onAddRing(event.currentTarget) }, 'Add another ring')),
   };
 });
 
@@ -64,9 +66,10 @@ describe('Ring page (§5.1, §5.8)', () => {
     const page = q('.rg-page')!;
     if (s === 'none') {
       expect(page.getAttribute('data-layout')).toBe('pairing');
-      expect(testIds(page)).toEqual(['rg-span']);
+      expect(testIds(page)).toEqual(['rg-span', 'rg-span']);
       expect(q('.rg-span .rg-pair')).not.toBeNull();
-      expect(screen.queryByTestId('today')).toBeNull();
+      // today's rows sit under the flow (imported history shows; the section hides itself when nothing was read)
+      expect(screen.getByTestId('today').getAttribute('data-ring')).toBe('none');
       expect(screen.queryByTestId('sharing')).toBeNull();
       expect(screen.queryByTestId('settings')).toBeNull();
     } else {
@@ -89,6 +92,13 @@ describe('Ring page (§5.1, §5.8)', () => {
     renderScenario('elsewhere');
     expect(screen.getByRole('button', { name: 'Connect here instead' })).toBeTruthy();
     expect(screen.queryByTestId('check-now')).toBeNull();
+  });
+
+  it('Forget shortcut moves keyboard focus to the matching ring settings action', () => {
+    renderScenario('error');
+    fireEvent.click(screen.getByRole('button', { name: 'Forget…' }));
+    const settings = screen.getByTestId('settings');
+    expect(within(settings).getByRole('button', { name: 'Forget this ring' })).toHaveFocus();
   });
 
   it('Check now and today rows get the connected ring', () => {
@@ -167,15 +177,30 @@ describe('Ring page (§5.1, §5.8)', () => {
 
   it('Add another ring opens the pairing flow in place of the card; Cancel returns', () => {
     renderScenario('connected');
-    fireEvent.click(screen.getByRole('button', { name: 'Add another ring' }));
+    const trigger = screen.getByRole('button', { name: 'Add another ring' });
+    trigger.focus();
+    fireEvent.click(trigger);
     const main = q('.rg-main') as HTMLElement;
     expect(main.querySelector('.rg-pair')).not.toBeNull();
+    expect(within(main).getByRole('button', { name: 'Look for rings' })).toHaveFocus();
     expect(main.querySelector('.rg-card')).toBeNull();
     expect(screen.getByTestId('check-now')).toBeTruthy();
     expect(screen.getByTestId('sharing')).toBeTruthy();
-    fireEvent.click(within(main).getByRole('button', { name: 'Cancel' }));
+    const cancel = within(main).getByRole('button', { name: 'Cancel' });
+    cancel.focus();
+    fireEvent.click(cancel);
     expect(main.querySelector('.rg-pair')).toBeNull();
     expect(main.querySelector('.rg-card')).not.toBeNull();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('a live ring update does not move focus when pairing is closed', () => {
+    const fake = createFakeRingService('connected', { now: NOW });
+    renderPage(fake, scenarioPlatform('connected'));
+    const trigger = screen.getByRole('button', { name: 'Add another ring' });
+    trigger.focus();
+    act(() => fake.setRings(fake.rings().map((r) => ({ ...r, battery: 64 }))));
+    expect(trigger).toHaveFocus();
   });
 
   it('error: Forget… scrolls to the ring settings', () => {
@@ -190,6 +215,59 @@ describe('Ring page (§5.1, §5.8)', () => {
     } finally {
       Element.prototype.scrollIntoView = orig;
     }
+  });
+
+  describe('while the first Bluetooth check runs (J6-13)', () => {
+    const WEB_BT: Partial<RingPlatform> = { platform: 'web', ble: 'web-bluetooth', installedApp: false, keepAlive: false, here: 'this browser' };
+    /** The real service's shape: 'unsupported' until the check answers. */
+    function checking() {
+      const fake = createFakeRingService('none', { now: NOW });
+      let known = false;
+      let avail: ReturnType<NonNullable<RingService['availability']>> = 'unsupported';
+      const svc: RingService = { ...fake, availability: () => avail, availabilityKnown: () => known };
+      const answer = (a: typeof avail) => {
+        avail = a;
+        known = true;
+        fake.setRings([]); // the service publishes after its check
+      };
+      return { svc, answer };
+    }
+    const cantReach = () => document.body.textContent?.match(/can’t (connect here|reach)/);
+
+    it('pending: a quiet loading rule, no "can’t connect here" and no pairing flow yet', () => {
+      const { svc } = checking();
+      renderPage(svc, WEB_BT);
+      expect(cantReach()).toBeNull();
+      expect(q('.rg-page')?.getAttribute('data-layout')).toBe('checking');
+      expect(screen.getByRole('progressbar')).toBeTruthy();
+      expect(q('.rg-card')).toBeNull();
+      expect(q('.rg-pair')).toBeNull();
+    });
+
+    it('the check says no: the can’t-connect card', () => {
+      const { svc, answer } = checking();
+      renderPage(svc, WEB_BT);
+      act(() => answer('unsupported'));
+      expect(q('.rg-card__word-now')?.textContent).toBe('can’t connect here');
+      expect(screen.queryByRole('progressbar')).toBeNull();
+    });
+
+    it('the check says yes: Connect your ring', () => {
+      const { svc, answer } = checking();
+      renderPage(svc, WEB_BT);
+      act(() => answer('ready'));
+      expect(cantReach()).toBeNull();
+      expect(q('.rg-pair')).not.toBeNull();
+      expect(screen.getByRole('heading', { name: 'Connect your ring' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Look for rings' })).toBeTruthy();
+    });
+
+    it('a browser with no Bluetooth at all: the can’t-connect card at once', () => {
+      const { svc } = checking();
+      renderPage(svc, UNSUPPORTED);
+      expect(q('.rg-card__word-now')?.textContent).toBe('can’t connect here');
+      expect(screen.queryByRole('progressbar')).toBeNull();
+    });
   });
 
   it('a ring that appears (another device paired it) replaces the pairing flow', () => {

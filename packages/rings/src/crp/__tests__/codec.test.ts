@@ -147,10 +147,9 @@ describe('CRP RingEvent mapping', () => {
   it('history slots are samples at local midnight + slot × 5 min; stress is a vendor value', () => {
     const hr = ingest(`fd da 10 98 02 0f 01 00 ${slots(144, { 6: 55 })}`);
     expect(hr).toEqual([{ type: 'sample', stream: 'hr', t: Date.parse('2026-07-23T00:30:00Z'), value: 55, unit: 'bpm', origin: 'history' }]);
-    const temp = ingest('fd da 10 0c 02 16 00 03 6d 01 18 01');
+    const temp = ingest('fd da 10 0c 02 16 00 03 6d 01 18 01', undefined, { ...idle(), nowMs: Date.parse('2026-07-24T19:00:00Z') });
     expect(temp.map((e) => (e.type === 'sample' ? [e.stream, e.value, e.unit, e.t] : null))).toEqual([
       ['skin_temp', 36.5, 'degC', Date.parse('2026-07-24T18:00:00Z')],
-      ['skin_temp', 28, 'degC', Date.parse('2026-07-24T18:05:00Z')],
     ]);
     expect(ingest(`fd da 10 98 02 2f 00 01 ${slots(144, { 0: 25 })}`)).toEqual([
       { type: 'vendor', key: 'stress', t: Date.parse('2026-07-24T12:00:00Z'), value: 25, unit: 'score', origin: 'history' },

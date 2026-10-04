@@ -15,17 +15,19 @@ import {
   addDays,
   compareDates,
   daysBetween,
-  effectiveEntries,
   headAdopted,
   openProposals,
   isLive,
   planDay,
   projectLiving,
+  projectEntries,
   summarise,
   weekdayOf,
   type DriftReport,
   type LivingDocs,
   type LivingProjection,
+  type LogEntry,
+  type MeasurementEntry,
   type LocalDate,
   type PlanItemType,
   type PlanVersionDoc,
@@ -38,10 +40,10 @@ import { getDocumentStore, onDocumentStoreSwitch } from '@/state/runtime';
 import { useSafetyStore } from '@/state/safetyStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import { currentDay, systemClock, type LivingClock } from '../clock';
-import { fmtDateRange, fmtWeekday } from '../format';
+import { fmtClock, fmtDateRange, fmtWeekday } from '../format';
 import type { ChangeCardModel } from '../model/changeCard';
 import type { LivingDataSource } from './source';
-import type { AdherenceSummary, BodyComposition, CheckInModel, DayGlance, DriftCard, HistoryDay, PlanVersionRow } from './types';
+import type { AdherenceSummary, BodyComposition, CheckInModel, DayGlance, DriftCard, HistoryConflict, HistoryDay, PlanVersionRow } from './types';
 
 /** Collections whose changes move what Living screens show. */
 export const LIVING_COLLECTIONS: ReadonlySet<string> = new Set(['activePlan', 'plans', 'planVersions', 'dailyLogs', 'measurements', 'dayStatus', 'anchors', 'settings']);
@@ -75,6 +77,13 @@ export function proposalCardId(planId: string, version: number): string {
 export function parseProposalCardId(id: string): { planId: string; version: number } | null {
   const m = /^version:(.+):(\d+)$/.exec(id);
   return m ? { planId: m[1]!, version: Number(m[2]) } : null;
+}
+
+/** Include logged dates outside the active plan so a moved conflict stays reviewable. */
+export function historyDates(planDates: readonly LocalDate[], entries: readonly { date: LocalDate }[], measurements: readonly { date: LocalDate }[], from: LocalDate, to: LocalDate): LocalDate[] {
+  return [...new Set([...planDates, ...entries.map((e) => e.date), ...measurements.map((m) => m.date)])]
+    .filter((date) => compareDates(date, from) >= 0 && compareDates(date, to) <= 0)
+    .sort((a, b) => compareDates(b, a));
 }
 
 export interface DocumentLivingOptions {
@@ -171,7 +180,7 @@ export function createDocumentLivingSource(opts: DocumentLivingOptions = {}): Li
     return d.entries.some((e) => e.date === date && e.kind !== 'retract') || d.measurements.some((m) => m.date === date) || d.dayStatus.some((s) => s.date === date && s.marks !== undefined && !s.assumed);
   };
   const weighIns = (from: LocalDate, to: LocalDate) =>
-    effectiveEntries(docs().measurements)
+    projectEntries(docs().measurements)
       .filter((m) => m.metric === 'weightKg' && compareDates(m.date, from) >= 0 && compareDates(m.date, to) <= 0)
       .sort((a, b) => ((a.at ?? '') < (b.at ?? '') ? -1 : 1));
 
@@ -298,22 +307,91 @@ export function createDocumentLivingSource(opts: DocumentLivingOptions = {}): Li
   }
 
   function history(from: LocalDate, to: LocalDate): HistoryDay[] {
-    if (!livePlan()) return [];
     const t = today();
     const d = docs();
-    const entries = effectiveEntries(d.entries);
+    const entries = projectEntries(d.entries).filter((e) => e.kind !== 'retract');
+    const measurements = projectEntries(d.measurements);
     const assumed = new Set(d.dayStatus.filter((s) => s.assumed).map((s) => s.date));
-    return project()
-      .days.filter((x) => compareDates(x.date, from) >= 0 && compareDates(x.date, to) <= 0)
-      .reverse()
-      .map((x) => ({
-        date: x.date,
-        score: x.result.score,
-        final: compareDates(x.date, t) < 0 || x.result.score.final,
-        assumed: assumed.has(x.date),
-        paused: !!x.prescription.paused,
-        entries: entries.filter((e) => e.date === x.date && e.kind !== 'retract').map(summarise),
-      }));
+    const versionLabel = (e: LogEntry): string => {
+      const parts = [e.date, summarise(e).label];
+      if ('clockH' in e && typeof e.clockH === 'number') parts.push(fmtClock(e.clockH));
+      if (e.kind === 'meal') {
+        if (e.slot) parts.push(e.slot.replace(/([a-z])(\d)/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()));
+        if (e.complete !== undefined) parts.push(e.complete ? 'meal complete' : 'meal unfinished');
+      }
+      if (e.kind === 'session') {
+        if (e.startH !== undefined) parts.push(fmtClock(e.startH));
+        if (e.durationMin !== undefined) parts.push(`${e.durationMin} min`);
+        if (e.rpe !== undefined) parts.push(`effort ${e.rpe}`);
+        if (e.performed.length) parts.push(e.performed.map((p) => [p.freeText ?? p.exerciseId, p.setCount ? `${p.setCount} sets` : undefined, p.loadKg !== undefined ? `${p.loadKg} kg` : undefined].filter(Boolean).join(' ')).join(', '));
+      }
+      if (e.kind === 'sleep') parts.push(`${e.bedAt}–${e.wakeAt}${e.quality ? ` · ${e.quality}` : ''}`);
+      if (e.kind === 'fast') {
+        parts.push(`${e.lastIntakeAt}–${e.firstIntakeAt ?? 'ongoing'}`);
+        if (e.electrolytes !== undefined) parts.push(e.electrolytes ? 'with electrolytes' : 'without electrolytes');
+      }
+      if (e.kind === 'substance') parts.push(`${e.amount} ${e.unit}`);
+      if (e.kind === 'supplement') parts.push(`${e.dose} ${e.unit}`);
+      if (e.kind === 'subjective') {
+        for (const field of ['difficulty', 'hunger', 'energy', 'mood', 'stress'] as const) {
+          if (e[field] !== undefined) parts.push(`${field} ${e[field]}`);
+        }
+        if (e.illness !== undefined) parts.push(e.illness ? 'feeling ill' : 'not feeling ill');
+      }
+      if (e.kind === 'event' && e.to) parts.push(`through ${e.to}`);
+      if (e.text) parts.push(e.text);
+      return parts.join(' · ');
+    };
+    const measurementLabel = (m: MeasurementEntry): string => {
+      const units: Record<string, string> = { Kg: 'kg', Cm: 'cm', Pct: '%', MmHg: 'mmHg', MmolL: 'mmol/L', MgL: 'mg/L', gL: 'g/L' };
+      const suffix = Object.keys(units).find((u) => m.metric.endsWith(u));
+      const metric = (suffix ? m.metric.slice(0, -suffix.length) : m.metric).replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+      return [
+        m.date,
+        `${metric} ${m.value}${suffix ? ` ${units[suffix]}` : ''}`,
+        m.method,
+        m.context?.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase(),
+        m.repeats?.length ? `${m.repeats.length} readings` : undefined,
+      ].filter(Boolean).join(' · ');
+    };
+    const conflictsOn = (date: LocalDate): HistoryConflict[] => [
+      ...entries.filter((e) => e.date === date && e.conflict).map((e): HistoryConflict => ({
+        parentId: e.conflict!.parentId,
+        kind: e.kind === 'meal' ? 'meal' : e.kind === 'session' ? 'workout' : 'entry',
+        versions: e.conflict!.versions.map((v) => {
+          const summary = summarise(v);
+          return { id: v.id, label: versionLabel(v), ...(v.at ? { at: v.at } : {}), source: summary.source, ...(v.kind === 'meal' ? { energyKcal: v.totals.energyKcal.value } : {}) };
+        }),
+      })),
+      ...measurements.filter((m) => m.date === date && m.conflict).map((m): HistoryConflict => ({
+        parentId: m.conflict!.parentId,
+        kind: 'measurement',
+        versions: m.conflict!.versions.map((v) => ({
+          id: v.id,
+          label: measurementLabel(v),
+          ...(v.at ? { at: v.at } : {}),
+          source: v.source.by,
+        })),
+      })),
+    ];
+    const entriesOn = (date: LocalDate) => entries.filter((e) => e.date === date).map((e) => ({
+      ...summarise(e),
+      ...(e.conflict ? { conflict: { parentId: e.conflict.parentId, versions: e.conflict.versions.map(summarise) } } : {}),
+    }));
+    const planDays = livePlan() ? project().days : [];
+    const byDate = new Map(planDays.map((x) => [x.date, x] as const));
+    return historyDates(planDays.map((x) => x.date), entries, measurements, from, to).map((date) => {
+      const x = byDate.get(date);
+      return {
+        date,
+        score: x?.result.score ?? null,
+        final: compareDates(date, t) < 0 || !!x?.result.score.final,
+        assumed: assumed.has(date),
+        paused: !!x?.prescription.paused,
+        entries: entriesOn(date),
+        conflicts: conflictsOn(date),
+      };
+    });
   }
 
   function composition(): BodyComposition | null {
@@ -321,7 +399,7 @@ export function createDocumentLivingSource(opts: DocumentLivingOptions = {}): Li
     if (!plan) return null;
     const d = docs();
     const label: Record<string, string> = { waistCm: 'waist', hipCm: 'hip', neckCm: 'neck', chestCm: 'chest', armCm: 'arm', thighCm: 'thigh' };
-    const girths = effectiveEntries(d.measurements)
+    const girths = projectEntries(d.measurements)
       .filter((m) => label[m.metric])
       .map((m) => ({ label: label[m.metric]!, value: m.value, method: m.method ?? 'tape', date: m.date, repeats: m.repeats?.length ?? 1 }));
     const records = [...d.records].sort((a, b) => a.anchorDay - b.anchorDay);

@@ -35,6 +35,25 @@ describe('living executors (E5) on the command bus', () => {
     expect((await dispatch('log.measurement', { metric: 'shoeSize', value: 44 })).ok).toBe(false);
   });
 
+  it('log.get returns one flagged measurement when two devices edit the same reading', async () => {
+    const store = getDocumentStore();
+    await store.ready;
+    const date = '2026-10-05';
+    const source = { by: 'user', method: 'typed' };
+    await store.transact(mintWriteToken('migration', { label: 'synthetic fork' }), async (tx) => {
+      await tx.append('measurements', { _id: 'reading', date, at: '2026-10-05T10:00:00Z', metric: 'weightKg', value: 70, source });
+      await tx.append('measurements', { _id: 'reading-a', date, at: '2026-10-05T11:00:00Z', metric: 'weightKg', value: 71, source, supersedes: 'reading' });
+      await tx.append('measurements', { _id: 'reading-b', date, at: '2026-10-05T12:00:00Z', metric: 'weightKg', value: 72, source, supersedes: 'reading' });
+    });
+    const all = outputOf<Array<{ id: string; kind: string; value: number; conflict?: { versions: Array<{ id: string }> } }>>(
+      await dispatch('log.get', { from: date, to: date }),
+    );
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ id: 'reading-b', kind: 'measurement', value: 72 });
+    expect(all[0]?.conflict?.versions.map((v) => v.id)).toEqual(['reading-b', 'reading-a']);
+    expect(outputOf<unknown[]>(await dispatch('log.get', { from: date, to: date, kinds: ['meal'] }))).toEqual([]);
+  });
+
   it('with a running plan: a mark scores the day and Today shows the prescription', async () => {
     const store = getDocumentStore();
     await store.ready;

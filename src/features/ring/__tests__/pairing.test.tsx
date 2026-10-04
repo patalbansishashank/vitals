@@ -12,7 +12,13 @@ import { signalOf, sortCandidates } from '../ScanList';
 vi.mock('../CheckNow', () => ({ CheckNow: () => null }));
 vi.mock('../TodayReadings', () => ({ TodayReadings: () => null }));
 vi.mock('../Sharing', () => ({ Sharing: () => null }));
-vi.mock('../RingSettings', () => ({ RingSettings: () => null }));
+vi.mock('../RingSettings', async () => {
+  const { createElement } = await import('react');
+  return {
+    RingSettings: ({ onAddRing }: { onAddRing: (trigger: HTMLButtonElement) => void }) =>
+      createElement('button', { type: 'button', onClick: (event: { currentTarget: HTMLButtonElement }) => onAddRing(event.currentTarget) }, 'Add another ring'),
+  };
+});
 
 const NOW = new Date(2026, 9, 4, 13, 41).getTime();
 const FORBIDDEN = [/password/i, /passcode/i, /\bPIN\b/, /mqtt/i, /\blease\b/i, /gatt/i, /credential/i, /advanced/i, /\bkey\b/i];
@@ -70,6 +76,37 @@ afterEach(() => {
 });
 
 describe('pairing flow (§5.5)', () => {
+  it.each([ANDROID, DESKTOP])('keeps the chooser alive until the selected ring is paired ($ble)', async (platform) => {
+    let signal: AbortSignal | undefined;
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => { finish = resolve; });
+    const base = createFakeRingService('none', { now: NOW });
+    const fake: FakeRingService = {
+      ...base,
+      async *scan(s) {
+        signal = s;
+        yield* base.scan(s);
+      },
+      async pair(id) {
+        // Native and desktop transports cancel the pending selection as soon as this scan is aborted.
+        if (signal?.aborted) throw new Error('Chooser cancelled before selection');
+        await pending;
+        return base.pair(id);
+      },
+    };
+    renderPage(fake, platform);
+    fireEvent.click(screen.getByRole('button', { name: 'Look for rings' }));
+    await flush();
+    fireEvent.click(screen.getByRole('button', { name: /ending 4F2A/ }));
+    await flush(SCAN_MS);
+    expect(signal?.aborted).toBe(false);
+    expect(pair().textContent).not.toContain('Couldn’t connect.');
+    finish();
+    await flush();
+    expect(signal?.aborted).toBe(true);
+    expect(pair().textContent).toContain('Connected.');
+  });
+
   it('step 1 → scan list → tap → connected, toast, back to the page', async () => {
     const fake = createFakeRingService('none', { now: NOW });
     renderPage(fake);
@@ -87,6 +124,7 @@ describe('pairing flow (§5.5)', () => {
     await flush();
     expect(fake.calls).toContain('scan');
     expect(within(pair()).getByRole('status').textContent).toBe('looking for rings…');
+    expect(within(pair()).getByRole('status')).toHaveFocus();
     expect(rowNames()).toEqual(['J-Style 2301 · ending 4F2A', 'J-Style 2301 · ending 91C0']);
     const rows = screen.getAllByRole('button', { name: /J-Style 2301 · ending/ });
     expect(rows[0]!.textContent).toContain('near');
@@ -100,12 +138,34 @@ describe('pairing flow (§5.5)', () => {
     await flush();
     expect(fake.calls).toContain('pair:cand-1');
     expect(pair().textContent).toContain('Connected.');
+    expect(within(pair()).getByRole('status')).toHaveFocus();
     expectClean();
     await flush(DONE_HOLD_MS);
     expect(document.querySelector('.rg-pair')).toBeNull();
     expect(document.querySelector('.rg-page')?.getAttribute('data-layout')).toBe('split');
     expect(document.querySelector('.rg-card .rg-card__word-now')?.textContent).toBe('connected');
+    expect(within(document.querySelector('.rg-card') as HTMLElement).getByRole('heading', { level: 2 })).toHaveFocus();
     expect(screen.getByText('Your ring is connected')).toBeTruthy();
+  });
+
+  it('adding a ring moves focus into the flow and then to the connected card', async () => {
+    const fake = createFakeRingService('connected', { now: NOW });
+    renderPage(fake);
+    const trigger = screen.getByRole('button', { name: 'Add another ring' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const look = screen.getByRole('button', { name: 'Look for rings' });
+    expect(look).toHaveFocus();
+    fireEvent.click(look);
+    await flush();
+    const candidate = screen.getAllByRole('button', { name: /ending 4F2A/ })[0]!;
+    candidate.focus();
+    fireEvent.click(candidate);
+    await flush();
+    expect(within(pair()).getByRole('status')).toHaveFocus();
+    await flush(DONE_HOLD_MS);
+    expect(pair()).toBeNull();
+    expect(within(document.querySelector('.rg-card') as HTMLElement).getByRole('heading', { level: 2 })).toHaveFocus();
   });
 
   it('a failed pair offers Try again and Choose another ring', async () => {
@@ -119,7 +179,11 @@ describe('pairing flow (§5.5)', () => {
     expect(pair().textContent).toContain('Couldn’t connect. Keep the ring close and try again.');
     expect(screen.getByRole('button', { name: 'Choose another ring' })).toBeTruthy();
     expectClean();
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    expect(retry).toHaveFocus();
+    fireEvent.click(retry);
+    expect(within(pair()).getByRole('status')).toHaveFocus();
     await flush();
     expect(fake.calls.filter((c) => c === 'pair:cand-2')).toHaveLength(2);
     expect(pair().textContent).toContain('Connected.');
@@ -318,7 +382,7 @@ describe('pairing step 1 when the platform is not ready', () => {
     const fake = createFakeRingService('permission_needed', { now: NOW });
     fake.setRings([]);
     renderPage(fake);
-    expect(pair().querySelector('.lm-inline-warn')?.textContent).toContain('Vitals needs permission to find and connect to nearby devices. It doesn’t use your location.');
+    expect(pair().querySelector('.lm-inline-warn')?.textContent).toContain('Vitals needs the Nearby devices permission to find your ring. Allow it in Android settings for Vitals.');
     expect(screen.queryByRole('button', { name: 'Look for rings' })).toBeNull();
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Allow' })));
     expect(fake.calls).toContain('requestPermission');

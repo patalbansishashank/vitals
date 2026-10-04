@@ -16,7 +16,7 @@ import {
   sleepDayMap,
   sleepNight,
   sleepStats,
-  spo2Band,
+  spo2NormalPct,
   tempNormalC,
   valueIn,
   yCeiling,
@@ -278,8 +278,12 @@ describe('normals', () => {
     expect(tempNormalC(null, nights(14))).toBeCloseTo(34.2);
   });
 
-  it('blood-oxygen band only from 14 nights', () => {
-    expect(spo2Band([{ metric: 'spo2', unit: '%', mean: 96, lo: 95, hi: 97, nights: 9, forming: true }])).toBeNull();
-    expect(spo2Band([{ metric: 'spo2', unit: '%', mean: 96, lo: 95, hi: 97, nights: 14, forming: false }])).toEqual({ lo: 95, hi: 97 });
+  it('blood-oxygen normal only from 14 nights (bio.baselines, else the stored nights)', () => {
+    expect(spo2NormalPct([{ metric: 'spo2', unit: '%', mean: 96, lo: 95, hi: 97, nights: 9, forming: true }], [])).toBeNull();
+    expect(spo2NormalPct([{ metric: 'spo2', unit: '%', mean: 96, lo: 95, hi: 97, nights: 14, forming: false }], [])).toBe(96);
+    const d = (date: string, v: number): ResolvedDay => ({ ...day(date, []), daily: { kind: 'daily', record_id: date, version: 1, time: { tz_offset_s: OFF, local_date: date }, provenance: prov, quality: { validation: 'measured', confidence: null, flags: [] }, spo2_avg_pct: v } });
+    const nights = (n: number) => Array.from({ length: n }, (_, i) => d(`2026-09-${String(i + 1).padStart(2, '0')}`, 96 + (i % 2)));
+    expect(spo2NormalPct(null, nights(13))).toBeNull();
+    expect(spo2NormalPct([], nights(14))).toBeCloseTo(96.5);
   });
 });

@@ -15,7 +15,8 @@ import { collect, utc } from './helpers';
 
 const QUIET = 30;
 const STALL = 80;
-const opts = { timers: { quietMs: QUIET, stallMs: STALL }, clock: utc };
+let notificationNow = utc.now();
+const opts = { timers: { quietMs: QUIET, stallMs: STALL }, clock: { now: () => notificationNow, tzOffsetS: utc.tzOffsetS } };
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const hrSamples = (evs: RingEvent[]): number => evs.filter((e) => e.type === 'sample' && e.stream === 'hr').length;
 const statuses = (evs: RingEvent[], key: string): string[] => evs.flatMap((e) => (e.type === 'status' && e.key === key ? [String(e.value)] : []));
@@ -28,12 +29,14 @@ const jlHandshake: FakeStep[] = [{ expect: toHex(jlFrame(JL.DEVICE_INFO)) }, { e
 const body = Uint8Array.from([0, 1, 2, 3, 4].flatMap((i) => [0x2e, 0x45, 0xa1, 0x40 + i * 30, 60 + i, 0]));
 const frame = jlFrame(jlHistoryTriple(0x03), body);
 const packets = [frame.subarray(0, 20), frame.subarray(20)].map((p) => toHex(p));
-const HR_READ = { op: 'history', params: { type: 'heart_rate', stream: 'hr' } };
+const HR_READ = { op: 'history', params: { type: 'heart_rate', stream: 'hr', nowMs: utc.now() + 5 * 60_000 } };
 
 describe('RWfit JL history read across a mid-body pause', () => {
   it('keeps waiting through a pause longer than the quiet timer and decodes the whole body', async () => {
+    notificationNow = utc.now();
     const fake = new FakePeripheral([...jlHandshake, { expect: toHex(jlFrame(jlHistoryTriple(0x03))), reply: [packets[0]!] }], { services: JL_SERVICES });
     const s = await openRingSession(rwfit, fake, opts);
+    notificationNow = utc.now() + 5 * 60_000;
     fake.script({ expect: 'ab 11 00 03 3d 11 05 03 10' }); // the ACK of the completed frame
     const read = collect(s.runtime.exchange(HR_READ));
     await sleep(QUIET * 4); // silent for several quiet periods, then the rest of the body
@@ -48,8 +51,10 @@ describe('RWfit JL history read across a mid-body pause', () => {
   });
 
   it('a body that stays short ends as a partial read: error reported, no cursor', async () => {
+    notificationNow = utc.now();
     const fake = new FakePeripheral([...jlHandshake, { expect: toHex(jlFrame(jlHistoryTriple(0x03))), reply: [packets[0]!] }], { services: JL_SERVICES });
     const s = await openRingSession(rwfit, fake, opts);
+    notificationNow = utc.now() + 5 * 60_000;
     const t0 = Date.now();
     const evs = await collect(s.runtime.exchange({ ...HR_READ, params: { ...HR_READ.params, 'prev:hr': 'rw1:100' } }));
     expect(Date.now() - t0).toBeGreaterThanOrEqual(QUIET * (Math.ceil(SILENCE_MAX_MS / QUIET_MS) - 1));
@@ -70,6 +75,7 @@ const hrPayload = fromHex('66 b2 e4 c0 00 02 66 b2 e4 fc 48 66 b2 e5 38 58');
 
 describe('RWfit legacy history read across a pause between chunks', () => {
   it('a pause longer than the stall timer after a chunk ACK does not end the read', async () => {
+    notificationNow = utc.now();
     const fake = new FakePeripheral(
       [
         ...legacyHandshake,
@@ -79,6 +85,7 @@ describe('RWfit legacy history read across a pause between chunks', () => {
       { services: [uuid16(0xa00a)] },
     );
     const s = await openRingSession(rwfit, fake, opts);
+    notificationNow = utc.now() + 5 * 60_000;
     fake.script({ expect: { prefix: '7e 01 ff 00 04 00 06' } });
     const read = collect(s.runtime.exchange(HR_READ));
     // Longer than one stall, shorter than the bounded silence (the stall step counts HISTORY_STALL_MS against it).

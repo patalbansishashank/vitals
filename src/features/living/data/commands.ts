@@ -192,7 +192,7 @@ export function createCommandLivingActions(source: LivingDataSource): LivingActi
     logSleep,
     logSupplement: (date, supplementId, dose, unit) => run(dispatch('log.supplement', { date, supplementId, dose, unit })),
     logDifficulty: (date, difficulty) => run(dispatch('log.subjective', { date, difficulty })),
-    retract: (entryId) => run(dispatch('log.retract', { entryId })),
+    retract: (entryId, keepEntryId) => run(dispatch('log.retract', { entryId, ...(keepEntryId ? { keepEntryId } : {}) })),
     backfill: (dates) => run(dispatch('log.bulk', { days: dates.map((date) => ({ date, entries: [] })) as never })),
     applyChange: (id) => {
       const v = parseProposalCardId(id);

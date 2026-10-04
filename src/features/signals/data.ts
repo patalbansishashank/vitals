@@ -59,6 +59,9 @@ export interface SignalsSource {
   /** Bumps whenever stored records change (charts update in place). */
   subscribe(fn: () => void): () => void;
   revision(): number;
+  /** False while stored records are still loading at start (nothing below is an answer yet); absent = ready. A change
+   * to true bumps `revision()`. */
+  ready?(): boolean;
   /** Resolved days in [from, to] (inclusive), oldest first; days without any record are absent. */
   days(from: LocalDate, to: LocalDate): ResolvedDay[];
   /** Raw samples of one stream in [fromMs, toMs]. `dates` are the local dates the window touches. */
@@ -129,6 +132,7 @@ export function storeSignalsSource(): SignalsSource {
   return {
     subscribe: (fn) => index().subscribe(fn),
     revision: () => index().revision(),
+    ready: () => index().isSettled,
     days(from, to) {
       const ix = index();
       return resolveDays(broughtIn(ix, from, to), ix.sources(), { from, to }).filter(
@@ -223,6 +227,15 @@ export function useSignalsSource(): SignalsSource {
 /** Re-renders when stored records change. */
 export function useSignalsRevision(src: SignalsSource): number {
   return useSyncExternalStore(src.subscribe, src.revision, () => 0);
+}
+
+/** False while the source's stored records are still loading (an empty answer then is not "nothing stored"). */
+export function useSignalsReady(src: SignalsSource): boolean {
+  const rev = useSignalsRevision(src);
+  return useMemo(() => {
+    void rev;
+    return src.ready?.() ?? true;
+  }, [src, rev]);
 }
 
 /** Resolved days in [from, to]. */

@@ -23,7 +23,9 @@ const cursor = (evs: RingEvent[]): boolean => evs.some((e) => e.type === 'status
 
 async function hrRead() {
   const fake = new RecordingFake([], { name: 'TK18' });
-  const s = await openRingSession(luckring, fake, fast);
+  let now = 1_700_000_000_000;
+  const s = await openRingSession(luckring, fake, { ...fast, clock: { ...fast.clock, now: () => now } });
+  now += 3_600_000; // the two recorded samples arrive after the byte-golden startup bundle
   const base = fake.writes.length;
   const evs: RingEvent[] = [];
   const read = (async () => {

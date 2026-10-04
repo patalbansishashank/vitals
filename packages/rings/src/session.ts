@@ -61,7 +61,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
   let dropped = false;
   let dropReason: string | undefined;
   let busy = false;
-  const inbox: Array<{ bytes: Uint8Array; channel: Uuid }> = [];
+  const inbox: Array<{ bytes: Uint8Array; channel: Uuid; receivedMs: number }> = [];
   const listeners = new Set<Listener>();
   let wake: (() => void) | null = null;
   const poke = (): void => {
@@ -73,14 +73,14 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
     for (const l of listeners) l(ev);
   };
 
-  const onTransport = (ev: TransportEvent): void => {
+  const onTransport = (ev: TransportEvent, receivedMs = clock.now()): void => {
     if (ev.type === 'notification') {
       if (busy) {
-        inbox.push({ bytes: ev.bytes, channel: ev.characteristic });
+        inbox.push({ bytes: ev.bytes, channel: ev.characteristic, receivedMs });
         poke();
       } else if (!closed) {
         // Nothing in flight: the ring spoke on its own (live sample, battery). Decode now; never buffer unbounded.
-        const r = protocol.ingest(ev.bytes, state, ev.characteristic);
+        const r = protocol.ingest(ev.bytes, state, ev.characteristic, receivedMs);
         state = r.state;
         for (const e of r.events) emit(e);
         if (r.send?.length) void writeCommands(r.send).catch(() => {});
@@ -133,7 +133,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
   const writeCommands = (cmds: RingCommand[]): Promise<void> => writeFrames(cmds.flatMap((c) => protocol.frame(stamp(c), state)));
 
   /** Waits for a packet, the timer, abort or disconnect. */
-  const nextPacket = (ms: number | undefined, signal?: AbortSignal): Promise<{ bytes: Uint8Array; channel: Uuid } | 'timeout'> =>
+  const nextPacket = (ms: number | undefined, signal?: AbortSignal): Promise<{ bytes: Uint8Array; channel: Uuid; receivedMs: number } | 'timeout'> =>
     new Promise((resolve, reject) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const cleanup = (): void => {
@@ -182,7 +182,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
             ? protocol.timeout
               ? protocol.timeout(state, kind)
               : { events: [{ type: 'status', key: 'error', value: `timeout:${cmd.op}` }], state, done: true }
-            : protocol.ingest(got.bytes, state, got.channel);
+            : protocol.ingest(got.bytes, state, got.channel, got.receivedMs);
         // The ceiling ends the command whatever the protocol says; one still mid-reply gets the plain timeout error.
         if (got === 'timeout' && ceiling && !r.done) r = { ...r, events: [...r.events, { type: 'status', key: 'error', value: `timeout:${cmd.op}` }], send: undefined, done: true };
         // A timer the protocol answered with `done: false` means "still mid-reply, keep the quiet timer": the real ring
@@ -209,7 +209,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
     } finally {
       busy = false;
       // Packets that arrived in the last moments of the command belong to the idle stream now.
-      for (const p of inbox.splice(0)) onTransport({ type: 'notification', service: gatt.service, characteristic: p.channel, bytes: p.bytes });
+      for (const p of inbox.splice(0)) onTransport({ type: 'notification', service: gatt.service, characteristic: p.channel, bytes: p.bytes }, p.receivedMs);
     }
   }
 
@@ -256,25 +256,36 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
   let info: HandshakeInfo;
   try {
     info = await family.handshake(runtime, { signal: opts.signal, credential: opts.credential, profile: opts.profile });
+    if (info.battery !== undefined && (!Number.isFinite(info.battery) || info.battery < 0 || info.battery > 100)) {
+      info = { ...info };
+      delete info.battery;
+    }
   } catch (e) {
     await teardown();
     throw e instanceof RingError ? e : new RingError('handshake failed', 'transport', e);
   }
 
   inHandshake = false;
+  let identity: RingIdentity;
+  try {
+    identity = ringIdentity({
+      family: family.id,
+      model: info.model,
+      serial: info.serial,
+      address: transport.peripheral.address,
+      // Never the advertised name: it is not an identity and must not reach a key or a label.
+      advertisedId: transport.peripheral.id,
+    });
+  } catch (e) {
+    await teardown();
+    throw e;
+  }
   // Opt-in keepalive (Jring 0x3A every 15 s): written outside the `busy` lock through the serialised write path, so it
   // reaches the ring between frames of a sync too. The protocol's `begin` is never called: the read in flight keeps its state.
   const keepalive = family.keepalive;
   if (keepalive) keepaliveTimer = setInterval(() => {
     if (!closed && !dropped) void writeCommands([keepalive.command]).catch(() => {});
   }, keepalive.intervalMs);
-  const identity: RingIdentity = ringIdentity({
-    family: family.id,
-    model: info.model,
-    serial: info.serial,
-    address: transport.peripheral.address,
-    advertisedId: transport.peripheral.id ?? transport.peripheral.name,
-  });
 
   async function* sync(cursor: SyncCursor, onProgress: (p: SyncProgress) => void, signal: AbortSignal, only?: BioStream): AsyncGenerator<RingEvent> {
     if (info.historyBlocked) {
@@ -313,7 +324,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
       for (;;) {
         const left = ceilingMs === undefined ? undefined : Math.max(0, ceilingMs - (clock.now() - startedAt));
         if (left === 0) return;
-        let got: { bytes: Uint8Array; channel: Uuid } | 'timeout';
+        let got: { bytes: Uint8Array; channel: Uuid; receivedMs: number } | 'timeout';
         try {
           got = await nextPacket(left, signal);
         } catch (e) {
@@ -321,7 +332,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
           throw e;
         }
         if (got === 'timeout') return;
-        const r = protocol.ingest(got.bytes, state, got.channel);
+        const r = protocol.ingest(got.bytes, state, got.channel, got.receivedMs);
         state = r.state;
         // Readings during an on-demand measurement are spot readings whatever opcode carries them (J-Style sends them on 0x09).
         for (const e of r.events) yield origin && e.type === 'sample' && e.origin !== 'history' ? { ...e, origin } : e;
@@ -351,6 +362,7 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
         const bytes = await runtime.read(gatt.battery.service, gatt.battery.characteristic);
         if (bytes && bytes.length > 0) value = bytes[0];
       }
+      if (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 100)) value = undefined;
       if (value !== undefined) info = { ...info, battery: value };
       return value;
     },
@@ -360,7 +372,12 @@ export async function openRingSession(family: RingFamily, transport: Transport, 
     liveHeartRate(signal) {
       const live = family.liveHeartRate;
       if (!live) throw new RingError(`${family.label} has no live heart rate`, 'unsupported');
-      return stream([live.start], [live.stop], signal);
+      const m = live.measure;
+      if (!m) return stream([live.start], [live.stop], signal);
+      // A timed measurement ends on the ring: stop it cleanly at the window's end and start it again while the caller watches.
+      return (async function* () {
+        while (!signal.aborted && !closed && !dropped) yield* stream([live.start, m.start], [m.stop, live.stop], signal, m.windowMs, m.gapMs);
+      })();
     },
     spot(kind, signal) {
       const cmd = family.spot?.[kind];

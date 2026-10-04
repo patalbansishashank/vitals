@@ -1,7 +1,7 @@
 // J3 binding tests with the real apps (plan 04 item 3 "Tests (binding)"): A = the candidate desktop app (Electron),
 // B = the candidate website build in Chromium (site origin served locally), S = the test person on the real server
 // (MCP, agent token, scope log). Both apps sit behind their own switchable CONNECT proxy: goOffline() cuts every socket
-// to the server. Run qa/scripts/L-QA/j3/setup.mjs first (pairs both apps to the person). Results: qa/results/L-QA/j3/T*.json.
+// to the server. Run qa/scripts/L-QA/j3/setup.mjs first (pairs both apps to the person). Results: qa/results/L-QA/round2/j3/T*.json.
 //   node qa/scripts/L-QA/j3/run.mjs [T2 T1 T3 T5 T6]     J3_OFFLINE_S=30 (T1's offline period)
 import fs from 'node:fs';
 import { ROOT, TMP, ensurePreview, log, openApp, redact, sleep, SERVER } from './apps.mjs';
@@ -40,8 +40,8 @@ function results(test, meta = {}) {
     save(extra = {}) {
       const failed = rows.filter((r) => !r.ok).length;
       const out = { test, at: new Date().toISOString(), replicas: { A: 'desktop app (candidate Electron, real)', B: 'website (candidate web build in Chromium, real)', S: 'server person (real server, MCP agent token)' }, ...meta, passed: rows.length - failed, failed, timingsMs: timings, observed, ...extra, checks: rows };
-      fs.mkdirSync(`${ROOT}/qa/results/L-QA/j3`, { recursive: true });
-      fs.writeFileSync(`${ROOT}/qa/results/L-QA/j3/${test}.json`, JSON.stringify(out, null, 1) + '\n');
+      fs.mkdirSync(`${ROOT}/qa/results/L-QA/round2/j3`, { recursive: true });
+      fs.writeFileSync(`${ROOT}/qa/results/L-QA/round2/j3/${test}${process.env.J3_SUFFIX ?? ""}.json`, JSON.stringify(out, null, 1) + '\n');
       return out;
     },
   };
@@ -271,12 +271,14 @@ async function T6({ A, B, S }) {
     const ids = [];
     const t1 = Date.now();
     for (let i = 0; i < 12; i++) ids.push((await A.write({ op: 'logFood', date: burstDates[i % 2], text: `J3 T6 burst ${i + 1}`, food: 'cooked rice' })).id);
+    const written = ids.filter(Boolean); // round 2: the bus caps writes per tool per turn; count only writes that made an entry
+    r.observe('burst writes that produced an entry (of 12)', written.length);
     r.time('12 desktop writes', Date.now() - t1);
     const readAll = async (x) => Object.assign({}, ...(await Promise.all(burstDates.map((d) => x.read({ col: 'dailyLogs', date: d })))));
     let got = 0;
     const tStart = Date.now();
     while (Date.now() - tStart < 20000) {
-      got = Object.keys(await readAll(B).catch(() => ({}))).filter((k) => ids.includes(k)).length;
+      got = Object.keys(await readAll(B).catch(() => ({}))).filter((k) => written.includes(k)).length;
       if (got > 0) break;
       await sleep(50);
     }
@@ -287,7 +289,7 @@ async function T6({ A, B, S }) {
     let all = null;
     while (Date.now() - t2 < 60000) {
       const d = await readAll(B).catch(() => ({}));
-      if (ids.every((id) => d[id])) {
+      if (written.every((id) => d[id])) {
         all = Date.now() - t2;
         break;
       }
@@ -299,7 +301,7 @@ async function T6({ A, B, S }) {
     const t3 = Date.now();
     while (Date.now() - t3 < 30000) {
       const d = await readAll(S).catch(() => ({}));
-      if (ids.every((id) => d[id])) {
+      if (written.every((id) => d[id])) {
         srv = Date.now() - t1;
         break;
       }
@@ -326,9 +328,9 @@ try {
   const S = await openReplica('server', { name: 'server', serverBaseUrl: SERVER, token: tok.token });
   reps.push(S);
   await S.read({ col: 'dailyLogs', date: day(0) });
-  const A = await openApp('desktop', { name: 'desktop', dir: `${TMP}/j3/desktop` });
+  const A = await openApp('desktop', { name: 'desktop', dir: `${TMP}/r2j3/desktop` });
   reps.push(A);
-  const B = await openApp('browser', { name: 'website', dir: `${TMP}/j3/website` });
+  const B = await openApp('browser', { name: 'website', dir: `${TMP}/r2j3/website` });
   reps.push(B);
   for (const x of [A, B]) {
     let s = null;
@@ -353,7 +355,7 @@ try {
 } finally {
   for (const x of reps) await x.close().catch(() => undefined);
   if (tok) log(`agent token revoked: ${await revokeToken(st.personId, tok.id).catch((e) => e.message)}`);
-  fs.writeFileSync(`${ROOT}/qa/results/L-QA/j3/apps-summary.json`, JSON.stringify({ at: new Date().toISOString(), scenarios: summary }, null, 1) + '\n');
+  fs.writeFileSync(`${ROOT}/qa/results/L-QA/round2/j3/apps-summary${process.env.J3_SUFFIX ?? ""}.json`, JSON.stringify({ at: new Date().toISOString(), scenarios: summary }, null, 1) + '\n');
   console.table(Object.fromEntries(Object.entries(summary).filter(([, v]) => !Array.isArray(v)).map(([k, v]) => [k, { passed: v.passed, failed: v.failed }])));
 }
 process.exit(0);

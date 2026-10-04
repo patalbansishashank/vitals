@@ -9,6 +9,7 @@
  * so a day before a daylight-saving change keeps its own offset (`LocalDate.minusDays(n).atStartOfDay(zone)`).
  */
 import type { RingEvent, SleepStage } from '../types';
+import { plausibleAggregate } from '../plausibility';
 import {
   BIG, NOTIF_BATTERY, NOTIF_LIVE_ACTIVITY, OP, PREF_READ, RT_SPO2, civilDay, isValidFrame,
 } from './commands';
@@ -183,7 +184,8 @@ function decodeActivity(v: Uint8Array, ctx: HistoryContext): ColmiDecoded[] {
   // A non-BCD or impossible date: the Kotlin throws (non-BCD) or drops the packet (impossible date); here both drop it.
   if (!Number.isFinite(day)) return [];
   const slot = Math.min(95, Math.max(0, v[4]!));
-  const t = zoneMidnightMs(day, ctx) + slot * 15 * 60_000;
+  // Kotlin uses LocalDate.atTime(...).atZone(zone): the slot is wall time, including on a DST change.
+  const t = zoneWallToMs(day * 86_400 + slot * 15 * 60, ctx);
   if (t < ctx.nowMs - 8 * 86_400_000 || t > ctx.nowMs + 3_600_000) return [];
   // Bytes 7..8 are calories; the Kotlin ignores them.
   return [{ kotlin: 'ActivityBucket', steps: u16(v, 9), distanceMeters: u16(v, 11), t }];
@@ -346,8 +348,9 @@ export function sleepStage(code: number): SleepStage {
 }
 
 /** `zone` places a live activity total on its local day (`dailyTotal.localDay` = epoch ms of that local midnight). */
-export function toRingEvents(decoded: readonly ColmiDecoded[], firmware: string, zone: Zone = { tzOffsetS: 0 }): RingEvent[] {
+export function toRingEvents(decoded: readonly ColmiDecoded[], firmware: string, zone: Zone & { nowMs?: number } = { tzOffsetS: 0 }): RingEvent[] {
   const out: RingEvent[] = [];
+  const plausibleTime = (t: number): boolean => Number.isFinite(t) && (zone.nowMs === undefined || zone.nowMs <= 0 || t <= zone.nowMs);
   for (const d of decoded) {
     switch (d.kotlin) {
       case 'Battery':
@@ -367,23 +370,25 @@ export function toRingEvents(decoded: readonly ColmiDecoded[], firmware: string,
         out.push({ type: 'dailyTotal', localDay: zoneMidnightMs(zoneDayIndex(d.t, zone), zone), steps: d.steps, distanceM: d.distanceMeters, kcal: d.calories });
         break;
       case 'HistoryMeasurement':
-        if (d.kind_field === 'HEART_RATE') out.push({ type: 'sample', stream: 'hr', t: d.t, value: d.value, unit: 'bpm', origin: 'history' });
-        else if (d.kind_field === 'HRV') out.push({ type: 'sample', stream: 'hrv', t: d.t, value: d.value, unit: 'ms', origin: 'history' }); // UNVERIFIED unit
-        else if (d.kind_field === 'SPO2') out.push({ type: 'sample', stream: 'spo2', t: d.t, value: d.value, unit: 'pct', origin: 'history' });
-        else out.push({ type: 'vendor', key: d.kind_field === 'BLOOD_PRESSURE_SYSTOLIC' ? 'blood_pressure_systolic' : 'blood_pressure_diastolic', t: d.t, value: d.value, unit: 'mmHg', origin: 'history' });
+        if (!plausibleTime(d.t)) break;
+        if (d.kind_field === 'HEART_RATE' && inRange(d.value, 30, 220)) out.push({ type: 'sample', stream: 'hr', t: d.t, value: d.value, unit: 'bpm', origin: 'history' });
+        else if (d.kind_field === 'HRV' && inRange(d.value, 1, 300)) out.push({ type: 'sample', stream: 'hrv', t: d.t, value: d.value, unit: 'ms', origin: 'history' }); // UNVERIFIED unit
+        else if (d.kind_field === 'SPO2' && inRange(d.value, 70, 100)) out.push({ type: 'sample', stream: 'spo2', t: d.t, value: d.value, unit: 'pct', origin: 'history' });
+        else if ((d.kind_field === 'BLOOD_PRESSURE_SYSTOLIC' && inRange(d.value, 60, 250)) || (d.kind_field === 'BLOOD_PRESSURE_DIASTOLIC' && inRange(d.value, 30, 150))) out.push({ type: 'vendor', key: d.kind_field === 'BLOOD_PRESSURE_SYSTOLIC' ? 'blood_pressure_systolic' : 'blood_pressure_diastolic', t: d.t, value: d.value, unit: 'mmHg', origin: 'history' });
         break;
       case 'StressSample':
-        out.push({ type: 'vendor', key: 'stress', t: d.t, value: d.value, unit: 'vendor_units', origin: 'history' }); // UNVERIFIED scale
+        if (plausibleTime(d.t) && inRange(d.value, 1, 100)) out.push({ type: 'vendor', key: 'stress', t: d.t, value: d.value, unit: 'vendor_units', origin: 'history' }); // UNVERIFIED scale
         break;
       case 'ActivityBucket':
-        out.push({ type: 'activityBucket', start: d.t, durS: 900, steps: d.steps, distanceM: d.distanceMeters });
+        // RingEventBridge rejects implausible quarter-hour buckets before persistence.
+        if (plausibleTime(d.t) && inRange(d.steps, 0, 5_000) && inRange(d.distanceMeters, 0, 6_000)) out.push({ type: 'activityBucket', start: d.t, durS: 900, steps: d.steps, distanceM: d.distanceMeters });
         break;
       case 'TemperatureSample':
-        out.push({ type: 'sample', stream: 'skin_temp', t: d.t, value: d.celsius, unit: 'degC', origin: 'history' });
+        if (plausibleTime(d.t) && inRange(d.celsius, 30, 45)) out.push({ type: 'sample', stream: 'skin_temp', t: d.t, value: d.celsius, unit: 'degC', origin: 'history' });
         break;
       case 'SleepTimeline':
         // `complete` stays false like the Kotlin: whether the ring has closed last night at sync time is open (doc §14).
-        out.push({ type: 'sleepEpochs', start: d.t, epochS: 60, stages: d.codes.map(sleepStage), rawCodes: [...d.codes], firmware, complete: false });
+        if (d.codes.length <= 1440 && plausibleTime(d.t + d.codes.length * 60_000)) out.push({ type: 'sleepEpochs', start: d.t, epochS: 60, stages: d.codes.map(sleepStage), rawCodes: [...d.codes], firmware, complete: false });
         break;
       case 'SportTelemetry':
       case 'CommandAck':
@@ -391,5 +396,5 @@ export function toRingEvents(decoded: readonly ColmiDecoded[], firmware: string,
         break;
     }
   }
-  return out;
+  return out.filter(plausibleAggregate);
 }

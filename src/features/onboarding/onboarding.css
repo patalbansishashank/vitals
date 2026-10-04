@@ -6,6 +6,10 @@
    ========================================================================== */
 
 @layer components {
+  /* The sticky footer can wrap its help text. Keep focused questions and links above it. */
+  html:has(.lm-onb-foot) {
+    scroll-padding-bottom: calc(160px + var(--lm-safe-bottom));
+  }
   /* ---- setup frame: no tab bar, no rail (spec §3) ------------------------ */
   .lm-onb {
     display: flex;

@@ -21,6 +21,14 @@ const QUERY_TOKEN = /[?&](token|access_token|bearer|auth)=/i;
 const LOOPBACK_HOST = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])$/i;
 const TS_NET = /^[a-z0-9-]+\.[a-z0-9-]+\.ts\.net$/i;
 
+/** Trust the last forwarded address only when the request came through a local reverse proxy. */
+export function pairingClientAddress(remoteAddress: string | undefined, forwardedFor: string | undefined): string {
+  const peer = remoteAddress ?? '?';
+  const fromLocalProxy = peer === '::1' || LOOPBACK_HOST.test(peer.replace(/^::ffff:/i, ''));
+  if (!fromLocalProxy || !forwardedFor) return peer;
+  return forwardedFor.split(',').at(-1)?.trim() || peer;
+}
+
 /** What every person-scoped handler receives (§14.2). E26 builds its routes on this. */
 export interface PersonContext {
   personId: string;
@@ -96,9 +104,8 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
   flushTimer.unref();
 
   const ipOf = (req: IncomingMessage) => {
-    // a proxy appends the address it saw, so the LAST entry is the one a client cannot choose (the first is whatever the client sent)
     const f = req.headers['x-forwarded-for'];
-    return (typeof f === 'string' ? f.split(',').at(-1)!.trim() : '') || req.socket.remoteAddress || '?';
+    return pairingClientAddress(req.socket.remoteAddress, typeof f === 'string' ? f : undefined);
   };
   const limit = (key: string, l = limiter) => {
     const r = l.take(key);
@@ -249,7 +256,9 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
             if (mark === 'window_closed') throw new HttpError(410, 'window_closed', 'Pair this device again to get the sync key');
             throw new HttpError(401, 'unauthorized', 'Pair this device with the server first', { 'WWW-Authenticate': 'Bearer' });
           }
-          sendJson(res, 200, { key: Buffer.from(secret).toString('base64url'), format: 'owner-secret-v1' }, { Pragma: 'no-cache' });
+          // a view over the bytes, not `Buffer.from(secret)`: that copy lands in Node's shared buffer pool and is never zeroed
+          const key = Buffer.from(secret.buffer, secret.byteOffset, secret.byteLength).toString('base64url');
+          sendJson(res, 200, { key, format: 'owner-secret-v1' }, { Pragma: 'no-cache' });
           ctx.log('sync key handed over');
           return;
         } finally {

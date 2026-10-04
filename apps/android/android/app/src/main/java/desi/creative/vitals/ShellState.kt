@@ -20,6 +20,9 @@ object ShellState {
     /** The foreground service is in the foreground (set by the service itself). */
     @Volatile var keepAliveOn: Boolean = false
 
+    /** The app's window is really on screen (RingWebView reports it visible to Chromium while the service runs). */
+    @Volatile var onScreen: Boolean = true
+
     /** The plugin instance while the bridge is loaded, so native code can fire events. */
     @Volatile var plugin: VitalsShellPlugin? = null
 

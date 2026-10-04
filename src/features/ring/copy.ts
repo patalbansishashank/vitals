@@ -57,7 +57,7 @@ export const RING_PAGE_COPY = {
         'This browser can’t reach Bluetooth rings. Use the Vitals app for Android or your computer, or Chrome on a computer. Your ring’s data still shows here once another device reads it.',
       bluetoothOff: 'Turn on Bluetooth to reach your ring.',
       bluetoothOffComputer: 'Turn on Bluetooth in your computer’s settings to reach your ring.',
-      permissionAndroid: 'Vitals needs permission to find and connect to nearby devices. It doesn’t use your location.',
+      permissionAndroid: 'Vitals needs the Nearby devices permission to find your ring. Allow it in Android settings for Vitals.',
       permissionWeb: 'Your browser needs your permission to connect. Choose your ring in the list it shows.',
       searchingLong: 'Keep it close. If it doesn’t appear, put it on its charger for a moment to wake it.',
       elsewhere: (device: string, since: string) => `Your ring talks to one device at a time. It’s connected to ${device} since ${since}.`,

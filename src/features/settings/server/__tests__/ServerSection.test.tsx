@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
+import { setPlatformForTests } from '@/platform';
 import { SERVER_MESSAGES, type ServerClient } from '@/net/server';
 import { OFF_STATUS } from '@/sync/types';
 import { ServerClientContext } from '../hooks';
@@ -14,18 +15,34 @@ const fake = vi.hoisted(() => ({
   listeners: new Set<() => void>(),
   local: null as string | null,
   joins: [] as Array<Record<string, unknown>>,
+  /** The next `sync.join` fails with this message (the sync relay did not answer, say). */
+  joinFails: null as string | null,
+  unpairs: 0,
 }));
-vi.mock('@/commands', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  dispatch: async (id: string, input: Record<string, unknown>) => {
-    if (id !== 'sync.join') throw new Error(`unexpected ${id}`);
-    fake.joins.push(input);
-    const relayUrl = new URLSearchParams(String(input.code).split('?')[1]).get('u');
-    fake.view = { status: { ...OFF_STATUS, state: 'synced' }, paired: true, enabled: true, relayUrl, label: null, deviceId: 'ABCDEFGHIJKLMNOP' };
+// `sync.unpair` and `sync.join` through either door: the page sends through sendCommand (src/commands/bus), helpers use @/commands
+const dispatchMock = vi.hoisted(() => ({ impl: null as null | ((id: string, input: Record<string, unknown>) => Promise<unknown>) }));
+vi.mock('@/commands', async (importOriginal) => ({ ...(await importOriginal<object>()), dispatch: (id: string, input: Record<string, unknown>) => dispatchMock.impl!(id, input) }));
+vi.mock('@/commands/bus', async (importOriginal) => ({ ...(await importOriginal<object>()), dispatch: (id: string, input: Record<string, unknown>) => dispatchMock.impl!(id, input) }));
+const fakeDispatch = async (id: string, input: Record<string, unknown>) => {
+  if (id === 'sync.unpair') {
+    fake.unpairs += 1;
+    fake.view = syncOff();
     fake.listeners.forEach((l) => l());
     return { ok: true, output: {}, changeSet: null, notices: [] };
-  },
-}));
+  }
+  if (id !== 'sync.join') throw new Error(`unexpected ${id}`);
+  fake.joins.push(input);
+  if (fake.joinFails) {
+    const message = fake.joinFails;
+    fake.joinFails = null;
+    return { ok: false, error: { code: 'precondition_failed', message } };
+  }
+  const relayUrl = new URLSearchParams(String(input.code).split('?')[1]).get('u');
+  fake.view = { status: { ...OFF_STATUS, state: 'synced' }, paired: true, enabled: true, relayUrl, label: null, deviceId: 'ABCDEFGHIJKLMNOP' };
+  fake.listeners.forEach((l) => l());
+  return { ok: true, output: {}, changeSet: null, notices: [] };
+};
+dispatchMock.impl = fakeDispatch;
 vi.mock('@/state/sync', async () => {
   const react = await import('react');
   return {
@@ -38,6 +55,8 @@ beforeEach(() => {
   fake.view = syncOff();
   fake.local = null;
   fake.joins = [];
+  fake.joinFails = null;
+  fake.unpairs = 0;
 });
 
 function wrap(client: ServerClient, ui: ReactNode = <ServerSection />) {
@@ -55,9 +74,19 @@ async function enterCode(user: ReturnType<typeof userEvent.setup>, address: stri
   await user.click(screen.getByRole('button', { name: 'Pair' }));
 }
 
-afterEach(() => window.history.replaceState(null, '', '/'));
+afterEach(() => {
+  window.history.replaceState(null, '', '/');
+  setPlatformForTests(undefined);
+});
 
 describe('Settings › Server, not paired', () => {
+  it.each(['android', 'electron'] as const)('in the %s app says nothing about a browser prompt or a site (J4-06)', (p) => {
+    setPlatformForTests(p);
+    const { container } = wrap(fakeClient().client);
+    expect(container.textContent).toMatch(/small program on a computer you own/);
+    expect(container.textContent).not.toMatch(/local network|this site|browser/i);
+  });
+
   it('explains the server, the local-network question, and offers Enter code and Scan QR', () => {
     wrap(fakeClient().client);
     expect(screen.getByText(/small program on a computer you own/)).toBeInTheDocument();
@@ -192,9 +221,37 @@ describe('Settings › Server, pairing turns sync on', () => {
     const { client, server } = fakeClient();
     wrap(client);
     await enterCode(user, BASE, '12345678');
-    expect(await screen.findByText("This device already syncs with another key. Stop syncing here first to use your server's.")).toBeInTheDocument();
+    expect(await screen.findByText(/This device already syncs with another key, so it was left as it is\. To use your server's instead, stop syncing in Settings › Sync, then forget this server and pair again\./)).toBeInTheDocument();
     expect(server.state.calls.some((c) => c.path === '/v1/sync/key')).toBe(false);
     expect(server.state.keyIssued).toBe(false);
+    expect(fake.joins).toHaveLength(0);
+  });
+
+  it('a join that fails shows the reason with Try again, which joins with the same key and asks the server once', async () => {
+    const user = userEvent.setup();
+    fake.joinFails = "The sync server didn't answer.";
+    const { client, server, storage } = fakeClient();
+    wrap(client);
+    await enterCode(user, BASE, '12345678');
+    expect(await screen.findByText("Sync didn't start: The sync server didn't answer.")).toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain(SYNC_KEY);
+    const stored = (st: Storage) => Array.from({ length: st.length }, (_, i) => `${st.key(i)}=${st.getItem(st.key(i)!)}`).join('\n');
+    expect(stored(storage) + stored(localStorage) + stored(sessionStorage)).not.toContain(SYNC_KEY);
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('on · through vitals.example.ts.net:8443')).toBeInTheDocument();
+    expect(fake.joins).toHaveLength(2);
+    expect(fake.joins[1]).toEqual(fake.joins[0]);
+    expect(server.state.calls.filter((c) => c.path === '/v1/sync/key')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+  });
+
+  it('a key already handed over (409) says how to turn sync on, without a Try again', async () => {
+    const user = userEvent.setup();
+    const { client } = fakeClient({ server: fakeServer({ keyIssued: true }) });
+    wrap(client);
+    await enterCode(user, BASE, '12345678');
+    expect(await screen.findByText(`Sync didn't start: ${SERVER_MESSAGES.key_used}`)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     expect(fake.joins).toHaveLength(0);
   });
 
@@ -253,6 +310,24 @@ describe('Settings › Server, paired', () => {
     expect(await screen.findByText('This device no longer uses your server. Its data is still here.')).toBeInTheDocument();
     expect(client.isPaired()).toBe(false);
     expect(screen.getByRole('button', { name: 'Enter code' })).toBeInTheDocument();
+    expect(fake.unpairs).toBe(0);
+  });
+
+  it('Forget this server stops sync through it, as the confirm says (data stays); sync with another key is left alone', async () => {
+    const user = userEvent.setup();
+    fake.view = { ...syncOff(), status: { ...OFF_STATUS, state: 'synced' }, paired: true, enabled: true, relayUrl: BASE };
+    const first = wrap(fakeClient({ paired: true }).client);
+    await user.click(await screen.findByRole('button', { name: 'Forget this server' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('This device stops syncing');
+    await user.click(screen.getByRole('button', { name: 'Forget server' }));
+    await waitFor(() => expect(fake.unpairs).toBe(1));
+    first.unmount();
+    fake.view = { ...syncOff(), status: { ...OFF_STATUS, state: 'synced' }, paired: true, enabled: true, relayUrl: 'https://relay.example.ts.net' };
+    wrap(fakeClient({ paired: true }).client);
+    await user.click(await screen.findByRole('button', { name: 'Forget this server' }));
+    await user.click(screen.getByRole('button', { name: 'Forget server' }));
+    expect(await screen.findByText('This device no longer uses your server. Its data is still here.')).toBeInTheDocument();
+    expect(fake.unpairs).toBe(1);
   });
 
   it('unreachable: says so with Try again', async () => {

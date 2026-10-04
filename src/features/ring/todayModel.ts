@@ -12,6 +12,7 @@
 import { formatNumber, formatSigned, THIN_SPACE } from '@/components/lib/format';
 import type { DailyRecord, ResolvedDay, SleepRecord } from '@/biometrics/core/types';
 import type { LocalDate } from '@/living';
+import { spo2Normal } from '@/features/signals/charts/heartModels';
 import { clockAt, localOffsetS, nightDates, nightModel } from '@/features/signals/charts/ringData';
 import { referenceDay, signalsHref, type SignalsTab } from '@/features/signals/models';
 import type { SignalBaseline, SignalsPerson } from '@/features/signals/data';
@@ -173,12 +174,15 @@ export function todayRows(input: TodayInput): TodayRow[] {
     }
   }
 
-  // blood oxygen: the night's average, lowest
+  // blood oxygen (tier C): the night's average as change from the normal once it has formed, else the average itself
   if (measured('spo2')) {
     const avg = daily?.spo2_avg_pct ?? todaySleep?.night?.spo2_avg_pct;
-    const min = daily?.spo2_min_pct;
     if (typeof avg !== 'number') missing('spo2');
-    else row('spo2', { readout: C.spo2Night(n0(avg)), missing: null, secondary: typeof min === 'number' ? C.spo2Lowest(n0(min)) : null });
+    else {
+      const normal = spo2Normal(baselines, []);
+      if (normal && !normal.forming) row('spo2', { readout: C.spo2FromNormal(formatSigned(avg - normal.mean, 0)), missing: null, secondary: join(C.lastNight, C.tierC) });
+      else row('spo2', { readout: C.spo2Night(n0(avg)), missing: null, secondary: join(normal?.forming && C.forming(normal.nights), C.tierC) });
+    }
   }
 
   // skin temperature (tier C): change from the normal

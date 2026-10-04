@@ -10,7 +10,7 @@ import { fmtDay } from '@/features/living/format';
 import type { LocalDate } from '@/living';
 import { coverageText, type PeriodKind } from '../models';
 import { SLEEP_COPY as S, clockRange } from './copySleep';
-import { ChartShell, MissingStub, TwinTable, useChartSizes, useSlotCrosshair } from './kit';
+import { CHART_DRILL_HELP, ChartShell, MissingStub, TwinTable, useChartSizes, useSlotCrosshair } from './kit';
 import { clockAt } from './ringData';
 import { SlotTicks, bedWakeText } from './StageBars';
 import { actoMinutes, actoSpanH, sixToClock, type NightColumn, type OtherSleep, type SleepStats } from './sleepModels';
@@ -115,6 +115,7 @@ export function SleepWindow({ kind, anchor, nights, stats, onDrill }: SleepWindo
           className="sl-plot"
           role="img"
           aria-label={summary}
+          aria-description={CHART_DRILL_HELP}
           tabIndex={past ? 0 : undefined}
           onKeyDown={(e) => ch.onKeyDown(e, drill)}
           onFocus={past ? ch.onFocus : undefined}

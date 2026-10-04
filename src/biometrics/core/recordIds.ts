@@ -8,8 +8,8 @@
  * CloudEvents file key, so ids of Lumen data imported before the live stream existed stay the same.
  * - series: kind 'series', metric `<stream>|<origin>`, start local_date — one record per day window, samples merge by
  *   (origin, t);
- * - sleep:  kind 'sleep', metric 'session', start = session start — provisional and complete nights are versions of
- *   one record;
+ * - sleep: kind 'sleep', metric 'session', start = session start — same-start reads are versions of one record;
+ *   the read projection also supersedes contained provisional sessions when a fuller read changes the start;
  * - daily:  kind 'daily', metric, start local_date;
  * - workout: kind 'workout', metric 'session', start.
  *

@@ -6,7 +6,7 @@
  */
 import { useId } from 'react';
 import { Check, ChevronRight } from 'lucide-react';
-import { Engraved, Glyphs, Icon, IconKey, Key, Spinner, cx, energyInText } from '@/components';
+import { Chip, Engraved, Glyphs, Icon, IconKey, Key, Spinner, cx, energyInText } from '@/components';
 import { useEnergyUnit } from '@/state/settingsStore';
 import type { LogEntrySummary } from '@/living';
 import { EstimateReadout, SourceChip, sourceLabel } from '../../components/Estimate';
@@ -55,6 +55,7 @@ export function LoggedRow({ entry, quiet }: { entry: LogEntrySummary; quiet: boo
   return (
     <li className="lv-food-logged">
       <span className="lv-food-logged__label">{entry.label}</span>
+      {entry.conflict ? <Chip>{entry.conflict.versions.length} versions</Chip> : null}
       {quiet ? (
         <SourceChip source={source} />
       ) : known ? (

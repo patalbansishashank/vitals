@@ -637,6 +637,7 @@ export function createFixtureSignalsSource(scenario: SignalsScenario, opts: Fixt
       { metric: 'hrv_rmssd_ms', unit: 'ms', get: (d) => (d.daily?.hrv?.metric === 'rmssd' ? d.daily.hrv.value_ms : undefined) },
       { metric: 'sleep_h', unit: 'h', get: (d) => (d.mainSleep ? d.mainSleep.asleep_s / 3600 : undefined) },
       { metric: 'skin_temp_delta_c', unit: '°C', get: (d) => d.daily?.skin_temp_delta_c },
+      { metric: 'spo2_avg_pct', unit: '%', get: (d) => d.daily?.spo2_avg_pct },
     ];
     const out: SignalBaseline[] = [];
     for (const s of specs) {

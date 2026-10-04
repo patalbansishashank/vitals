@@ -9,9 +9,9 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CAND, ROOT, log } from './config.mjs';
 
-export const LABEL_PREFIX = 'L-QA-J3-';
+export const LABEL_PREFIX = 'L-QA-R2J3-';
 const VS = 'node ~/vitals-server/current/bin/vitals-server.mjs';
-const PRIVATE = `${ROOT}/.e6-tmp/j3-harness`;
+const PRIVATE = `${ROOT}/.e6-tmp/r2j3-harness`;
 
 export function sshRun(sshHost, cmd, input = null, timeout = 60000) {
   return new Promise((resolve) => {
@@ -43,7 +43,7 @@ export async function personsList(sshHost) {
 export async function addPerson(sshHost, label, phrase, tz = 'Asia/Kolkata') {
   mustOwn(label);
   const r = await sshRun(sshHost, `${VS} persons add ${safeArg(label)} --tz ${safeArg(tz)} --join`, `${phrase}\n`);
-  const m = r.stdout.match(/([0-9a-f]{16})\s+L-QA-J3-/);
+  const m = r.stdout.match(/([0-9a-f]{16})\s+L-QA-R2J3-/);
   if (!m) throw new Error(`persons add failed: ${r.stderr.split(phrase).join('[phrase]').slice(0, 200)}`);
   fs.mkdirSync(PRIVATE, { recursive: true, mode: 0o700 });
   fs.appendFileSync(`${PRIVATE}/persons.txt`, `${m[1]} ${label}\n`, { mode: 0o600 });
@@ -52,7 +52,7 @@ export async function addPerson(sshHost, label, phrase, tz = 'Asia/Kolkata') {
 
 /** Agent token (scope log) for the person; `{ id, token }`, the token kept in memory only. */
 export async function agentToken(sshHost, personId) {
-  const r = await sshRun(sshHost, `${VS} agent-token create ${personId} --client claude --scope log --label 'L-QA-J3 harness'`);
+  const r = await sshRun(sshHost, `${VS} agent-token create ${personId} --client claude --scope log --label 'L-QA-R2J3 harness'`);
   const lines = r.stdout.split('\n');
   const i = lines.findIndex((l) => /shown only once/.test(l));
   const id = lines[i]?.match(/, id ([^\s]+?)\. It is shown/)?.[1];

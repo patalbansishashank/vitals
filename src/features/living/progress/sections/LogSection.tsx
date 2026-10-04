@@ -5,12 +5,13 @@
  */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { Chip, Faceplate, Key, Notice, Section, toast } from '@/components';
+import { Chip, Faceplate, Section } from '@/components';
 import { AdherenceDial } from '@/features/charts/living/AdherenceDial';
 import { addDays, compareDates } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import type { ActivePlan } from '../../activePlan';
 import { SourceChip, sourceLabel } from '../../components/Estimate';
+import { LogConflict } from '../../components/LogConflict';
 import type { HistoryDay } from '../../data/types';
 import { useLiving } from '../../data/source';
 import { dayOfMonth, fmtDay, quietWord, weekdayKey } from '../../format';
@@ -135,28 +136,12 @@ function PlanLog({ plan, today, quiet }: { plan: ActivePlan; today: LocalDate; q
                   {d.entries.map((e) => (
                     <li key={e.id}>
                       <span>{e.label}</span> <SourceChip source={{ label: sourceLabel(e.source) }} />
+                      {e.conflict ? <Chip>{e.conflict.versions.length} versions</Chip> : null}
                     </li>
                   ))}
                 </ul>
               ) : null}
-              {d.conflict ? (
-                // TODO(E4): resolve through the sync conflict command once it exists; the keys only acknowledge for now
-                <Notice
-                  severity="caution"
-                  layout="ruled"
-                  title={d.conflict}
-                  actions={
-                    <>
-                      <Key size="sm" onClick={() => toast(C.keptVersion('phone’s'))}>
-                        {C.keepPhone}
-                      </Key>
-                      <Key size="sm" onClick={() => toast(C.keptVersion('laptop’s'))}>
-                        {C.keepLaptop}
-                      </Key>
-                    </>
-                  }
-                />
-              ) : null}
+              {d.conflicts?.map((conflict) => <LogConflict key={conflict.parentId} conflict={conflict} quiet={quiet} />)}
             </li>
           ))}
         </ol>

@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type AnimationEvent, type CSSProperties, type ReactNode } from 'react';
 import { useReducedMotion } from '../lib/hooks';
-import { DRAW_ON } from './geometry';
 import { RingMark } from './RingMark';
 import './brand.css';
 
@@ -10,9 +9,7 @@ export const launchTiming = {
   markPx: 88,
   /** Only pages younger than this get the overlay; later, the app shows at once. */
   continueUntilMs: 600,
-  /** The dot has popped: ring 0–500, dot 420–640. */
-  drawnMs: DRAW_ON.dotDelayMs + DRAW_ON.dotMs,
-  /** Overlay fade. */
+  /** Overlay fade, started the moment the app is in the document (brand.css `lm-launch-fade` uses the same value). */
   fadeMs: 150,
   /** Gone by this whatever happens. */
   hardLimitMs: 1000,
@@ -21,53 +18,57 @@ export const launchTiming = {
 /** True when index.html's pre-JS start screen is (still) in the document, i.e. this is a cold load of the page. */
 export const hadStartScreen = (): boolean => typeof document !== 'undefined' && document.querySelector('.vitals-launch') !== null;
 
-const sinceNavigation = (): number => Math.round(performance.now());
+/**
+ * False only when the browser can tell that the start screen has not reached the screen yet: its ring animation is
+ * still pending (an animation leaves `pending` in the first frame that renders it). Then the app simply replaces it and
+ * there is nothing to hand over. Paint timing is no use here: Chromium files `first-contentful-paint` tens of ms after
+ * the paint. Without the Web Animations API, or with a still mark, it counts as painted.
+ */
+export const startScreenPainted = (): boolean => {
+  const ring = typeof document === 'undefined' ? null : document.querySelector('.vitals-launch__ring');
+  if (!ring || typeof ring.getAnimations !== 'function') return true;
+  const running = ring.getAnimations();
+  return running.length === 0 || running.some((a) => !a.pending);
+};
 
-type Phase = 'draw' | 'fade' | 'done';
+const sinceNavigation = (): number => Math.round(performance.now());
 
 /**
  * Seamless hand-over from the pre-JS start screen. Mounted once at the app root around the app, which it renders
- * unchanged and interactive at once. When the start screen was in the HTML and the page is still young, the same mark
- * is drawn over the app with its animation shifted back by the elapsed time, so the ring keeps drawing where the
- * static screen left it; once the dot has popped the overlay fades and unmounts. Older pages and reduced motion get
- * nothing. It never delays the app.
+ * unchanged and interactive at once. The app is ready when this mounts (it commits together with its children), so
+ * the overlay never waits for the draw-on: when the start screen was on screen and the page is still young, the same
+ * mark (its animation shifted back by the elapsed time, so the ring carries on from where the static screen was) is
+ * put over the app already fading, and unmounts after `fadeMs`. Older pages, a start screen that was never painted,
+ * background tabs and reduced motion get nothing. It never delays the app.
  */
 export function LaunchScreen({ children }: { children?: ReactNode }) {
   // Read before React commits: the commit replaces #root's children, taking the static screen with it. A page opened
   // in a background tab gets nothing: its timers are throttled, so the overlay could outlive the 1 s limit.
   const [elapsed] = useState(() =>
-    hadStartScreen() && document.visibilityState !== 'hidden' ? sinceNavigation() : Number.POSITIVE_INFINITY,
+    hadStartScreen() && document.visibilityState !== 'hidden' && startScreenPainted() ? sinceNavigation() : Number.POSITIVE_INFINITY,
   );
   const reduced = useReducedMotion();
-  const [phase, setPhase] = useState<Phase>('draw');
+  const [done, setDone] = useState(false);
   const overlay = useRef<HTMLDivElement>(null);
-  const show = phase !== 'done' && !reduced && elapsed < launchTiming.continueUntilMs;
+  const show = !done && !reduced && elapsed < launchTiming.continueUntilMs;
 
   // The offset is set again just before paint: the first render of a whole app takes a few frames.
   useLayoutEffect(() => {
     overlay.current?.style.setProperty('--lm-ringmark-t0', `${-sinceNavigation()}ms`);
   }, [show]);
 
+  // animationend normally ends the fade; the timers cover a tab that paused its animations, and the hard limit holds
+  // whatever happens.
   useEffect(() => {
     if (!show) return;
     const now = sinceNavigation();
-    const fade = window.setTimeout(() => setPhase('fade'), Math.max(0, launchTiming.drawnMs - now));
-    const hard = window.setTimeout(() => setPhase('done'), Math.max(0, launchTiming.hardLimitMs - now));
-    return () => {
-      window.clearTimeout(fade);
-      window.clearTimeout(hard);
-    };
+    const end = Math.max(0, Math.min(launchTiming.fadeMs + 50, launchTiming.hardLimitMs - now));
+    const t = window.setTimeout(() => setDone(true), end);
+    return () => window.clearTimeout(t);
   }, [show]);
 
-  // animationend normally ends the fade; the timer covers a tab that paused its animations.
-  useEffect(() => {
-    if (phase !== 'fade') return;
-    const t = window.setTimeout(() => setPhase('done'), launchTiming.fadeMs + 50);
-    return () => window.clearTimeout(t);
-  }, [phase]);
-
   const onAnimationEnd = (e: AnimationEvent<HTMLDivElement>) => {
-    if (e.animationName === 'lm-launch-fade') setPhase('done');
+    if (e.animationName === 'lm-launch-fade') setDone(true);
   };
 
   return (
@@ -77,7 +78,7 @@ export function LaunchScreen({ children }: { children?: ReactNode }) {
         <div
           ref={overlay}
           className="lm-launch"
-          data-phase={phase}
+          data-phase="fade"
           aria-hidden="true"
           style={{ '--lm-ringmark-t0': `${-elapsed}ms` } as CSSProperties}
           onAnimationEnd={onAnimationEnd}

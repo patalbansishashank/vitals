@@ -7,9 +7,10 @@
 import { seriesToSamples, splitByLocalDayAndStream } from '../core/chunks';
 import type { SampleGroup } from '../core/chunks';
 import { recordId } from '../core/hash';
+import { isRingSource, ringStartPolicy, type RingChoice } from '../core/policy';
 import { newSourceDoc, policyOf, policyStreamOf, sourceKeyOf, suggestedPolicies } from '../core/source';
 import { validateBatch } from '../core/validate';
-import type { BioBatch, BioProvenance, BioSourceDoc, DeviceTier, IngestReport, Instant, LocalDate, PolicyStream, RawSample, SampleOrigin, SeriesRecord, StreamPolicy } from '../core/types';
+import type { BioBatch, BioProvenance, BioRecord, BioSourceDoc, DeviceTier, IngestReport, Instant, LocalDate, PolicyStream, RawSample, SampleOrigin, SeriesRecord, StreamPolicy } from '../core/types';
 import { localDateOf, tzOffsetSeconds } from '../importers/util';
 import type { BioStore } from '../store/types';
 import { addDaysIso } from './dates';
@@ -28,11 +29,42 @@ export interface IngestOpts {
   /** When given, only streams whose policy has `imported: true` are stored. One list for every source, or per source key
    * (a source without an entry imports nothing). When omitted everything is imported (the user chose to import the file). */
   policies?: StreamPolicy[] | Record<string, StreamPolicy[]>;
+  /** The person's ring master switch (`ringSharing:me`; 'on' when not given): a new ring source, or a stream new to one,
+   * starts from it. */
+  ringSharing?: RingChoice;
+  /** Sources folded into another (SUITE_SPEC §15.2 "one ring = one source"): a record whose provenance would file it
+   * under a key here is re-provenanced to the target before anything else (`lumenFold`). */
+  fold?: Record<string, FoldTarget>;
+}
+
+/** Where a folded source's records go: the ring key, and the maker and model its provenance then names. */
+export interface FoldTarget {
+  key: string;
+  maker: string;
+  model: string;
+}
+
+function folded(rec: BioRecord, f: FoldTarget): BioRecord {
+  const p = rec.provenance;
+  return { ...rec, provenance: { ...p, channel: f.key as BioProvenance['channel'], device: { ...(p.device ?? {}), type: 'ring', manufacturer: f.maker, model: f.model, tier: p.device?.tier ?? 'C' } } };
+}
+
+/** The batch with every record that falls under a folded source re-provenanced to its target (what `ingestBatches` does
+ * first; callers that compare a batch with stored records before ingesting it, like the Lumen main-night recompute,
+ * apply it themselves). */
+export function foldBatch(batch: BioBatch, fold: Record<string, FoldTarget>): BioBatch {
+  return { ...batch, records: batch.records.map((r) => {
+    const f = fold[sourceKeyOf(r.provenance)];
+    return f ? folded(r, f) : r;
+  }) };
 }
 
 function originOf(rec: SeriesRecord): SampleOrigin {
   if (rec.sampling.mode === 'spot') return 'spot';
-  if (rec.provenance.channel.startsWith('ble:')) return 'history';
+  if (rec.provenance.channel.startsWith('ble:')) {
+    if (rec.sampling.mode === 'continuous') return rec.context === 'exercise' ? 'workout_stream' : 'live';
+    return 'history';
+  }
   return 'import';
 }
 
@@ -65,7 +97,9 @@ export async function ingestBatches(batches: AsyncIterable<BioBatch> | Iterable<
     out.rejected += chk.rejected.length;
     const series: Array<{ sourceKey: string; stream: SeriesRecord['metric']; tz_offset_s: number; samples: RawSample[]; decoder?: string; prov: BioProvenance }> = [];
 
-    for (const rec of chk.batch.records) {
+    for (const raw of chk.batch.records) {
+      const f = opts.fold?.[sourceKeyOf(raw.provenance)];
+      const rec = f ? folded(raw, f) : raw;
       const sourceKey = sourceKeyOf(rec.provenance);
       const stream = policyStreamOf(rec);
       const pols = policiesFor(opts, sourceKey);
@@ -118,12 +152,14 @@ export async function ingestBatches(batches: AsyncIterable<BioBatch> | Iterable<
   for (const [sk, e] of seen) {
     const doc = await store.getSource(sk);
     if (!doc) {
-      const d: BioSourceDoc = newSourceDoc(e.prov, nextPriority++, [...e.streams]);
+      const d: BioSourceDoc = newSourceDoc(e.prov, nextPriority++, [...e.streams], opts.ringSharing);
       d.baselineEpochs = [[...e.dates].sort()[0]!];
       await store.putSource(d);
     } else {
       const missing = [...e.streams].filter((s) => !policyOf(doc.policies, s));
-      if (missing.length > 0) await store.putSource({ ...doc, policies: [...doc.policies, ...suggestedPolicies(missing)] });
+      // a stream new to a ring source starts as a new ring source would (the ring defaults, or off with the switch off)
+      const add = isRingSource(doc) ? missing.map((s) => ringStartPolicy(s, opts.ringSharing)) : suggestedPolicies(missing);
+      if (missing.length > 0) await store.putSource({ ...doc, policies: [...doc.policies, ...add] });
     }
     out.sources.push(sk);
   }
@@ -199,4 +235,3 @@ export async function exportCanonicalJsonl(store: BioStore, range: { from: Local
 }
 
 const UNIT: Partial<Record<string, string>> = { hr: 'bpm', ibi: 'ms', hrv: 'ms', spo2: 'pct', skin_temp: 'degC', body_temp: 'degC', resp_rate: 'brpm', steps: 'count', distance: 'm', active_kcal: 'kcal' };
-

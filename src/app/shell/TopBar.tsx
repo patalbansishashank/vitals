@@ -16,6 +16,8 @@ export interface TopBarProps {
   back?: BackTarget | true;
   /** Local sub-navigation next to the title (e.g. <LinkBank> "schedule | results"). */
   tabs?: ReactNode;
+  /** Completion scale at the content edge; a separate centered row below 768 px. */
+  progress?: ReactNode;
   /** Key parameters, desktop only (hidden < 1024 px): horizon bank, date span, last-run text. */
   params?: ReactNode;
   /**
@@ -41,7 +43,7 @@ export interface TopBarProps {
  *
  *   <TopBar title="Your body" actions={<Engraved>saved on this device</Engraved>} />
  */
-export function TopBar({ title, documentTitle, back, tabs, params, actions, titleId, compactOnMobile = false }: TopBarProps) {
+export function TopBar({ title, documentTitle, back, tabs, progress, params, actions, titleId, compactOnMobile = false }: TopBarProps) {
   const shell = useShell();
   const navigate = useNavigate();
   const backTarget: BackTarget | null = back === true ? {} : (back ?? null);
@@ -94,6 +96,7 @@ export function TopBar({ title, documentTitle, back, tabs, params, actions, titl
           <RingKey />
         </span>
       ) : null}
+      {progress ? <div className="lm-ctx__progress">{progress}</div> : null}
     </div>
   );
   if (!shell?.contextSlot) return shell ? null : bar;

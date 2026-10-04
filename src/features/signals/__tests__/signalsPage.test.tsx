@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
@@ -267,6 +267,55 @@ describe('Body signals page: calendar', () => {
 });
 
 describe('Body signals page: whole-page states', () => {
+  /** A store still loading at start: answers nothing (as the real index does) until `finish()`. */
+  function loadingSource(loaded: SignalsSource): SignalsSource & { finish: () => void } {
+    let done = false;
+    let rev = 0;
+    const subs = new Set<() => void>();
+    return {
+      ...loaded,
+      subscribe: (fn) => (subs.add(fn), () => void subs.delete(fn)),
+      revision: () => rev,
+      ready: () => done,
+      days: (from, to) => (done ? loaded.days(from, to) : []),
+      firstDate: () => (done ? loaded.firstDate() : null),
+      datesWithData: () => (done ? loaded.datesWithData() : []),
+      finish() {
+        done = true;
+        rev++;
+        subs.forEach((fn) => fn());
+      },
+    };
+  }
+
+  it('stored records still loading: the loading rule, not "Nothing measured yet"; then the readings', () => {
+    const source = loadingSource(fakeSource({ labels: ['an Apple Health import'], lastReadAt: null }));
+    renderPage('/signals?tab=heart', { ring: 'none', source });
+    expect(screen.getByRole('progressbar', { name: 'Loading screen' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Nothing measured yet.' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    act(() => source.finish());
+    expect(screen.queryByRole('progressbar', { name: 'Loading screen' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Nothing measured yet.' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Body signals' })).toBeInTheDocument();
+    expect(screen.getByText(/^From an Apple Health import/)).toBeInTheDocument();
+  });
+
+  it('a store that finishes loading empty: then the empty stage', () => {
+    const source = loadingSource(fakeSource({ days: [], first: null, dates: [], labels: [], lastReadAt: null }));
+    renderPage('/signals', { ring: 'none', source });
+    expect(screen.queryByRole('heading', { name: 'Nothing measured yet.' })).not.toBeInTheDocument();
+    act(() => source.finish());
+    expect(screen.getByRole('heading', { name: 'Nothing measured yet.' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('a ready empty store shows the empty stage at once', () => {
+    renderPage('/signals', { ring: 'none', source: { ...fakeSource({ days: [], first: null, dates: [], labels: [], lastReadAt: null }), ready: () => true } });
+    expect(screen.getByRole('heading', { name: 'Nothing measured yet.' })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
   it('nothing measured and no ring: the empty stage with Connect a ring and Import a file', () => {
     renderPage('/signals', { ring: 'none', source: fakeSource({ days: [], first: null, dates: [], labels: [], lastReadAt: null }) });
     expect(screen.getByRole('heading', { name: 'Nothing measured yet.' })).toBeInTheDocument();
@@ -321,16 +370,16 @@ describe('Body signals page: source line', () => {
     expect(line.textContent).toMatch(/^From J-Style 2301 and an Apple Health import · read 6\smin ago$/);
   });
 
-  it('heart and recovery adds the tier note', () => {
+  it('heart and recovery explains how to use relative readings', () => {
     renderPage('/signals?tab=heart');
-    expect(document.querySelector('.sp-source')!.textContent).toMatch(/read 6\smin ago · tier C: shown as change from your own normal$/);
+    expect(document.querySelector('.sp-source')!.textContent).toMatch(/read 6\smin ago · These readings are most useful as changes from your own normal\.$/);
   });
 
-  it('activity has no tier note; one source has no "and"', () => {
+  it('activity has no relative-reading note; one source has no "and"', () => {
     renderPage('/signals?tab=activity', { source: fakeSource({ labels: ['J-Style 2301'] }) });
     const text = document.querySelector('.sp-source')!.textContent!;
     expect(text).toMatch(/^From J-Style 2301 · read/);
-    expect(text).not.toMatch(/tier C/);
+    expect(text).not.toMatch(/changes from your own normal/);
   });
 
   it('never names the ring by anything but its driver label', () => {

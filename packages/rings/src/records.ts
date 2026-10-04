@@ -12,15 +12,16 @@ import { dailyRecordId, seriesRecordId, sleepRecordId, sleepVersion, workoutReco
 import type { BioBatch, BioProvenance, BioRecord } from '../../../src/biometrics/core/types';
 import type { RingEvent, RingFamily, RingIdentity } from './types';
 import { ringSourceKey } from './types';
+import { zoneOffsetAtS } from './zone';
 
 export interface RingRecordContext {
   identity: RingIdentity;
   family: RingFamily;
   firmware: string;
-  /** IANA zone of the device doing the read (informational) and its fixed offset for local dates. */
+  /** IANA zone of the ring clock; the fixed offset is a fallback for unknown zones. */
   tz: string;
   tzOffsetS: number;
-  /** Epoch seconds when the read happened: versions sleep records so a later re-sync supersedes an earlier one. */
+  /** Epoch seconds when read: versions sleep and daily totals so later reads can supersede earlier ones. */
   receivedS: number;
   ingestedAt: string;
   producer: { name: string; version: string };
@@ -36,24 +37,19 @@ export function toDecodedEvents(events: readonly RingEvent[]): RingDecodedEvent[
   for (const e of events) {
     switch (e.type) {
       case 'sample':
-        out.push({ type: 'sample', stream: e.stream, t: e.t, value: e.value, unit: e.unit, origin: e.origin === 'workout_stream' ? 'live' : e.origin });
+        out.push({ ...e });
         break;
       case 'vendor':
         out.push({ type: 'vendor', key: e.key, t: e.t, value: e.value, unit: e.unit });
         break;
       case 'sleepEpochs':
-        if (e.epochS === 60) out.push({ type: 'sleepEpochs', start: e.start, epochS: 60, stages: [...e.stages], rawCodes: [...e.rawCodes], firmware: e.firmware, complete: e.complete });
-        else {
-          // Spread coarser epochs to minutes so one sleep record shape serves every family.
-          const n = Math.max(1, Math.round(e.epochS / 60));
-          out.push({ type: 'sleepEpochs', start: e.start, epochS: 60, stages: e.stages.flatMap((s) => Array<string>(n).fill(s)), rawCodes: e.rawCodes.flatMap((c) => Array<number>(n).fill(c)), firmware: e.firmware, complete: e.complete });
-        }
+        out.push({ ...e, stages: [...e.stages], rawCodes: [...e.rawCodes] });
         break;
       case 'activityBucket':
-        out.push({ type: 'activityBucket', start: e.start, durS: e.durS, steps: e.steps, ...(e.distanceM !== undefined ? { distanceM: e.distanceM } : {}) });
+        out.push({ ...e });
         break;
       case 'workout':
-        out.push({ type: 'workout', start: e.start, end: e.end, kind: e.kind });
+        out.push({ ...e });
         break;
       case 'status':
         if (e.key === 'battery' || e.key === 'firmware' || e.key === 'clock_offset_s' || e.key === 'cursor' || e.key === 'ack' || e.key === 'error')
@@ -78,6 +74,7 @@ export function ringRecords(events: readonly RingEvent[], ctx: RingRecordContext
   const mapCtx: EventMapContext = {
     tz: ctx.tz,
     tzOffsetS: ctx.tzOffsetS,
+    offsetAtMs: (t) => zoneOffsetAtS(ctx, t),
     channel: source,
     device: ringDevice(ctx),
     decoder: ctx.family.decoderTag(ctx.firmware),
@@ -89,15 +86,24 @@ export function ringRecords(events: readonly RingEvent[], ctx: RingRecordContext
   };
   const batch = mapEventsToBatch(toDecodedEvents(events), mapCtx);
   const seen = new Map<string, BioRecord>();
+  const series: BioRecord[] = [];
   for (const r of batch.records) {
     const id = contentId(r, source);
+    // Series are wire envelopes, stored as samples rather than records. Keep both offset windows on a DST day;
+    // merging them into a single fixed-offset envelope would move midnight samples onto the wrong calendar day.
+    if (r.kind === 'series') {
+      series.push({ ...r, record_id: id });
+      continue;
+    }
+    const version = r.kind === 'sleep' ? sleepVersion(!r.quality.flags.includes('provisional_stages'), ctx.receivedS) : r.version;
     const prev = seen.get(id);
-    seen.set(id, prev && prev.version > r.version ? prev : { ...r, record_id: id, ...(r.kind === 'sleep' ? { version: sleepVersion(r.quality.confidence !== 'low', ctx.receivedS) } : {}) });
+    seen.set(id, prev && prev.version > version ? prev : { ...r, record_id: id, version });
   }
   // Day totals the ring reports itself (J-Style 0x51, Colmi 0x43 and the like) complete the daily record of that day.
   for (const e of events) {
     if (e.type !== 'dailyTotal') continue;
-    const localDate = localDateAt(e.localDay, ctx.tzOffsetS);
+    const off = zoneOffsetAtS(ctx, e.localDay);
+    const localDate = localDateAt(e.localDay, off);
     const id = dailyRecordId({ source, metric: 'activity', localDate });
     const base = seen.get(id);
     const rec: BioRecord =
@@ -105,25 +111,28 @@ export function ringRecords(events: readonly RingEvent[], ctx: RingRecordContext
         ? { ...base }
         : {
             kind: 'daily', record_id: id, version: 1,
-            time: { tz_offset_s: ctx.tzOffsetS, local_date: localDate },
+            time: { tz_offset_s: off, local_date: localDate },
             provenance: { channel: source, device: mapCtx.device, recording_method: 'automatic', modality: 'sensed', ingested_at: ctx.ingestedAt, decoder: mapCtx.decoder },
             quality: { validation: 'measured', confidence: null, flags: [] },
           };
     if (rec.kind !== 'daily') continue;
+    // A ring's cumulative total outranks a partial sum; later reads can revise distance or energy even if steps match.
+    rec.version = sleepVersion(true, ctx.receivedS);
+    rec.quality = { ...rec.quality, flags: rec.quality.flags.filter((f) => f !== 'partial_day') };
     if (e.steps !== undefined) rec.steps = e.steps;
     if (e.distanceM !== undefined) rec.distance_m = e.distanceM;
     if (e.kcal !== undefined) rec.active_kcal = e.kcal;
     if (e.activeS !== undefined) rec.active_min = { light: 0, moderate: Math.floor(e.activeS / 60), vigorous: 0 };
     seen.set(id, rec);
   }
-  return { ...batch, records: [...seen.values()] };
+  return { ...batch, records: [...series, ...seen.values()] };
 }
 
 /** One id rule for every platform (`recordIds.ts`): what the record is and when, never which device read it. */
 export function contentId(r: BioRecord, source: string): string {
   switch (r.kind) {
     case 'series': {
-      const origin = r.sampling.mode === 'spot' ? 'spot' : r.sampling.mode === 'continuous' ? 'live' : 'history';
+      const origin = r.sampling.mode === 'spot' ? 'spot' : r.sampling.mode === 'continuous' ? (r.context === 'exercise' ? 'workout_stream' : 'live') : 'history';
       return seriesRecordId({ source, stream: r.metric, origin, localDate: r.time.local_date });
     }
     case 'sleep':

@@ -127,6 +127,19 @@ describe('device tokens', () => {
 });
 
 describe('limits', () => {
+  it('ignores forwarded addresses on direct connections', async () => {
+    const { pairingClientAddress } = await import('./home.ts');
+    const loopbackV4 = [127, 0, 0, 1].join('.');
+    const directV6 = ['2001', 'db8', '', '1'].join(':');
+    expect(pairingClientAddress('direct-peer', 'chosen-peer, chosen-peer-2')).toBe('direct-peer');
+    expect(pairingClientAddress('localhost', 'chosen-peer, proxy-saw-peer')).toBe('proxy-saw-peer');
+    expect(pairingClientAddress('localhost', undefined)).toBe('localhost');
+    expect(pairingClientAddress('::1', 'chosen-peer, proxy-saw-peer')).toBe('proxy-saw-peer');
+    expect(pairingClientAddress(`::ffff:${loopbackV4}`, 'chosen-peer, proxy-saw-peer')).toBe('proxy-saw-peer');
+    expect(pairingClientAddress(directV6, 'chosen-peer')).toBe(directV6);
+    expect(pairingClientAddress(undefined, 'chosen-peer')).toBe('?');
+  });
+
   it('a NaN, zero or negative daily cap or per-minute limit is no setting, never a block', async () => {
     const { createUsageLog } = await import('../usage.ts');
     const { positiveInt } = await import('../providers.ts');

@@ -12,6 +12,19 @@
 // does, copied here because that module pulls in the browser runtime.
 import './tsResolve.mjs';
 
+// A controllable wall clock in this child only. Timings in the parent remain real time.
+const RealDate = Date;
+let clockOffsetMs = 0;
+globalThis.Date = class extends RealDate {
+  constructor(...args) {
+    if (args.length) super(...args);
+    else super(RealDate.now() + clockOffsetMs);
+  }
+  static now() {
+    return RealDate.now() + clockOffsetMs;
+  }
+};
+
 process.removeAllListeners('warning'); // stripTypeScriptTypes is "experimental"; the parent keeps stderr for errors only
 const { installPolyfills } = await import('@evolu/common/polyfills');
 installPolyfills();
@@ -26,6 +39,45 @@ const arrived = new Map();
 const statusLog = [];
 
 const ops = {
+  async clock({ offsetMs }) {
+    if (!Number.isFinite(offsetMs) || Math.abs(offsetMs) > 600000)
+      throw new Error('Clock offset exceeds test bounds');
+    clockOffsetMs = offsetMs;
+    return { offsetMs };
+  },
+  async delete({ col, id }) {
+    await store.delete(col, id);
+    return { at: RealDate.now() };
+  },
+  async reconnect() {
+    await store.reconnect();
+    return true;
+  },
+  async bioCorrect(args) {
+    const { bioCorrect } = await import('../adversarial/ringOps.mjs');
+    return bioCorrect({ store, bio: await bioStore() }, args);
+  },
+  async bioResolve({ date }) {
+    const { bioResolve } = await import('../adversarial/ringOps.mjs');
+    return bioResolve({ bio: await bioStore() }, date);
+  },
+  async quarantine() {
+    const { readdirSync } = await import('node:fs');
+    const { DatabaseSync } = await import('node:sqlite');
+    const file = readdirSync(opened.dataDir).find((name) => name.endsWith('.db'));
+    if (!file) throw new Error('Replica database missing');
+    const db = new DatabaseSync(`${opened.dataDir}/${file}`, { readOnly: true });
+    try {
+      // Counts only: never expose encrypted messages, owner keys or mutation payloads.
+      return db
+        .prepare(
+          'SELECT reason, origin, count(*) AS count FROM evolu_message_quarantine GROUP BY reason, origin',
+        )
+        .all();
+    } finally {
+      db.close();
+    }
+  },
   async open({ secret, relayUrl, dataDir, appName, deviceId, instance }) {
     store = createEvoluSyncStore({ platform: () => createNodeEvoluPlatform({ dataDir, instance }), appName });
     store.subscribe((c) => {
@@ -87,14 +139,31 @@ const ops = {
       const rep = await b.mod.ingestBatches([batch], b.store, { now: cmd.ctx.ingestedAt });
       await b.store.flush();
       const sleep = batch.records.find((r) => r.kind === 'sleep');
-      return { records: rep.records, samples: rep.samples, chunks: rep.chunks, duplicates: rep.duplicates, sources: rep.sources, sleep: sleep ? { record_id: sleep.record_id, version: sleep.version, asleep_s: sleep.asleep_s } : null, pendingUploads: b.blobs.store.pending() };
+      return {
+        records: rep.records,
+        samples: rep.samples,
+        chunks: rep.chunks,
+        duplicates: rep.duplicates,
+        sources: rep.sources,
+        sleep: sleep
+          ? { record_id: sleep.record_id, version: sleep.version, asleep_s: sleep.asleep_s }
+          : null,
+        pendingUploads: b.blobs.store.pending(),
+      };
     }
-    if (cmd.op === 'flush') return { uploaded: await b.blobs.store.flush(), pending: b.blobs.store.pending(), lastError: b.blobs.store.lastError?.code ?? null };
+    if (cmd.op === 'flush')
+      return {
+        uploaded: await b.blobs.store.flush(),
+        pending: b.blobs.store.pending(),
+        lastError: b.blobs.store.lastError?.code ?? null,
+      };
     if (cmd.op === 'share') {
       // what the person does in Settings › Devices: share these streams with the Coach (agents read them through MCP)
       const src = await b.store.getSource(cmd.sourceKey);
       if (!src) throw new Error(`no source ${cmd.sourceKey}`);
-      const policies = src.policies.map((p) => (cmd.streams[p.stream] ? { ...p, imported: true, coach: cmd.streams[p.stream] } : p));
+      const policies = src.policies.map((p) =>
+        cmd.streams[p.stream] ? { ...p, imported: true, coach: cmd.streams[p.stream] } : p,
+      );
       await b.store.putSource({ ...src, policies });
       await b.store.flush();
       return policies.filter((p) => cmd.streams[p.stream]);
@@ -104,15 +173,28 @@ const ops = {
   /** What this replica holds for one source, stream and day (the S5 assertions read only this). */
   async bioView({ sourceKey, stream, date, recordId }) {
     const b = await bioStore();
-    const records = (await b.store.records({ kind: 'sleep', from: date, to: date })).filter((r) => r.sourceKey === sourceKey).map((r) => ({ record_id: r.record.record_id, version: r.record.version, asleep_s: r.record.asleep_s, is_main: r.record.is_main }));
-    const recordDocs = recordId ? (await store.list('bioRecords')).filter((d) => !d._deleted && d.value?.record_id === recordId).map((d) => d._id) : [];
+    const records = (await b.store.records({ kind: 'sleep', from: date, to: date }))
+      .filter((r) => r.sourceKey === sourceKey)
+      .map((r) => ({
+        record_id: r.record.record_id,
+        version: r.record.version,
+        asleep_s: r.record.asleep_s,
+        is_main: r.record.is_main,
+      }));
+    const recordDocs = recordId
+      ? (await store.list('bioRecords'))
+          .filter((d) => !d._deleted && d.value?.record_id === recordId)
+          .map((d) => d._id)
+      : [];
     const q = { stream, from: date, to: date };
     let samples = [];
     let partial = null;
     let readError = null;
     try {
       const r = await b.store.readSamples({ ...q, strict: false });
-      samples = r.samples.filter((x) => x.sourceKey === sourceKey).map((x) => ({ t: x.t, value: x.value, origin: x.origin }));
+      samples = r.samples
+        .filter((x) => x.sourceKey === sourceKey)
+        .map((x) => ({ t: x.t, value: x.value, origin: x.origin }));
       partial = r.partial;
     } catch (e) {
       readError = e instanceof Error ? e.message : String(e);
@@ -124,7 +206,9 @@ const ops = {
       strictError = e instanceof Error ? e.message : String(e);
     }
     const day = (m) => m.local_date === date;
-    const live = (await b.store.manifests({ sourceKey, stream })).filter(day).map((m) => ({ chunkId: m.chunkId, n: m.n, supersedes: m.supersedes ?? null }));
+    const live = (await b.store.manifests({ sourceKey, stream }))
+      .filter(day)
+      .map((m) => ({ chunkId: m.chunkId, n: m.n, supersedes: m.supersedes ?? null }));
     const all = (await b.store.manifests({ sourceKey, stream, includeSuperseded: true })).filter(day).length;
     return { records, recordDocs, samples, partial, readError, strictError, live, all };
   },
@@ -133,7 +217,16 @@ const ops = {
 /** The biometrics store over this replica's Evolu store (opened on first use, again after a restart). */
 async function bioStore() {
   if (bio) return bio;
-  const [{ createDocumentStore, mintWriteToken, revokeWriteToken }, { DocBioStore }, { BioDocIndex }, { openFileChunkStore }, { createRemoteBlobBackend }, { relayHttpBase }, { mapEventsToBatch }, { ingestBatches }] = await Promise.all([
+  const [
+    { createDocumentStore, mintWriteToken, revokeWriteToken },
+    { DocBioStore },
+    { BioDocIndex },
+    { openFileChunkStore },
+    { createRemoteBlobBackend },
+    { relayHttpBase },
+    { mapEventsToBatch },
+    { ingestBatches },
+  ] = await Promise.all([
     import('../../../../src/store/index.ts'),
     import('../../../../src/biometrics/store/docStore.ts'),
     import('../../../../src/biometrics/store/docIndex.ts'),
@@ -147,7 +240,15 @@ async function bioStore() {
   await docs.ready;
   const blobs = openFileChunkStore(`${opened.dataDir}/blobs`);
   const nodeNet = { fetch: (input, init) => globalThis.fetch(input, init), assertAllowed: () => {} };
-  if (store.keys) await blobs.store.attachRemote({ seal: store.keys.blob, backend: createRemoteBlobBackend({ baseUrl: relayHttpBase(opened.relayUrl), keys: store.keys, net: nodeNet }) });
+  if (store.keys)
+    await blobs.store.attachRemote({
+      seal: store.keys.blob,
+      backend: createRemoteBlobBackend({
+        baseUrl: relayHttpBase(opened.relayUrl),
+        keys: store.keys,
+        net: nodeNet,
+      }),
+    });
   const apply = async (tx, op) => {
     if (op.kind === 'put') return tx.put(op.col, { ...op.body, _id: op.id });
     if (op.kind === 'append') return tx.append(op.col, { ...op.body, _id: op.id });
@@ -169,7 +270,12 @@ async function bioStore() {
     },
   };
   const index = new BioDocIndex(docs);
-  bio = { docs, blobs, store: new DocBioStore({ index, blobs: blobs.store, writer }), mod: { mapEventsToBatch, ingestBatches } };
+  bio = {
+    docs,
+    blobs,
+    store: new DocBioStore({ index, blobs: blobs.store, writer }),
+    mod: { mapEventsToBatch, ingestBatches },
+  };
   return bio;
 }
 

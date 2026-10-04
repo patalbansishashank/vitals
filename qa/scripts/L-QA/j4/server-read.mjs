@@ -8,11 +8,12 @@ import { createRequire } from 'node:module';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..', '..', '..');
-const req = createRequire(path.join(repo, '.e6-tmp', 'cand', 'apps', 'desktop', 'package.json'));
+const R2 = process.env.J4_ROUND === '2'; // round 2: the app built in the worktree itself, results under round2/
+const req = createRequire(path.join(R2 ? repo : path.join(repo, '.e6-tmp', 'cand'), 'apps', 'desktop', 'package.json'));
 const { Client } = req('@modelcontextprotocol/sdk/client/index.js');
 const { StreamableHTTPClientTransport } = req('@modelcontextprotocol/sdk/client/streamableHttp.js');
 const local = JSON.parse(readFileSync(path.join(repo, 'qa', 'local.config.json'), 'utf8'));
-const token = readFileSync(path.join(repo, '.e6-tmp', 'j4-secret', 'readtoken'), 'utf8').trim();
+const token = readFileSync(path.join(repo, '.e6-tmp', R2 ? 'r2j4-secret' : 'j4-secret', 'readtoken'), 'utf8').trim();
 const hide = [token, local.serverUrl, new URL(local.serverUrl).host].filter(Boolean);
 const redact = (s) => hide.reduce((t, x) => t.split(x).join('[redacted]'), String(s)).replace(/[A-Za-z0-9_-]{32,}/g, '[key-shaped]');
 

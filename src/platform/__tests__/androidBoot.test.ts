@@ -37,6 +37,20 @@ describe('dropServiceWorker', () => {
     expect(f.reload).toHaveBeenCalledTimes(1);
   });
 
+  it('does not reload when sessionStorage is unavailable or forgets the mark, and survives a failing cache list', async () => {
+    const f = fakeServiceWorker({ regs: 1, controlled: true });
+    f.cacheStore.keys.mockRejectedValue(new Error('no caches'));
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    await expect(dropServiceWorker()).resolves.toBeUndefined();
+    expect(f.reload).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => undefined);
+    await dropServiceWorker();
+    expect(f.reload).not.toHaveBeenCalled();
+  });
+
   it('does nothing without a registration, and does not reload a page no worker served', async () => {
     const none = fakeServiceWorker({ regs: 0, controlled: false });
     await dropServiceWorker();

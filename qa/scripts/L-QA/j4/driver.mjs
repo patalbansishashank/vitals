@@ -10,18 +10,19 @@ import { createRequire } from 'node:module';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..', '..', '..');
-const cand = path.join(repo, '.e6-tmp', 'cand');
+const R2 = process.env.J4_ROUND === '2'; // round 2: the app built in the worktree itself, results under round2/
+const cand = R2 ? repo : path.join(repo, '.e6-tmp', 'cand');
 const APP = path.join(cand, 'apps', 'desktop', 'release', 'linux-unpacked', 'vitals');
 const req = createRequire(path.join(cand, 'apps', 'desktop', 'package.json'));
 const { _electron } = req('playwright-core');
 const PORT = Number(process.argv[2] || 47304);
-const priv = path.join(repo, 'qa', 'results', 'L-QA', 'private', 'j4');
-const pub = path.join(repo, 'qa', 'results', 'L-QA', 'j4');
+const priv = R2 ? path.join(repo, 'qa', 'results', 'L-QA', 'round2', 'private', 'j4') : path.join(repo, 'qa', 'results', 'L-QA', 'private', 'j4');
+const pub = R2 ? path.join(repo, 'qa', 'results', 'L-QA', 'round2', 'j4') : path.join(repo, 'qa', 'results', 'L-QA', 'j4');
 mkdirSync(priv, { recursive: true });
 mkdirSync(pub, { recursive: true });
 
 const local = JSON.parse(readFileSync(path.join(repo, 'qa', 'local.config.json'), 'utf8'));
-const secretDir = path.join(repo, '.e6-tmp', 'j4-secret');
+const secretDir = path.join(repo, '.e6-tmp', R2 ? 'r2j4-secret' : 'j4-secret');
 function secrets() {
   const out = [];
   for (const k of ['serverUrl', 'serverHost', 'serverIp4', 'serverIp6', 'pcHost', 'pcIp4']) if (local[k]) out.push(String(local[k]));
@@ -41,10 +42,11 @@ function secrets() {
 export function redact(text) {
   let t = String(text);
   for (const x of secrets()) t = t.split(x).join('[redacted]');
+  t = t.replace(/\b(https?|wss?):\/\/(?!localhost|127\.0\.0\.1)[A-Za-z0-9.-]+(:\d+)?/g, '$1://[host]'); // any other address too
   return t.replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[key-shaped]').replace(/\b\d{4}[ -]?\d{4}\b/g, '[8 digits]');
 }
 
-const base = process.env.J4_BASE || path.join(repo, '.e6-tmp', `j4-${Date.now()}`);
+const base = process.env.J4_BASE || path.join(repo, '.e6-tmp', `${R2 ? 'r2j4' : 'j4'}-${Date.now()}`);
 const home = path.join(base, 'home');
 const bin = path.join(base, 'bin');
 for (const d of [home, path.join(home, '.config'), path.join(home, '.local', 'share'), bin, path.join(base, 'tmp')]) mkdirSync(d, { recursive: true });

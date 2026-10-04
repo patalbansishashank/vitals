@@ -13,7 +13,7 @@ import { weekdayOf } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import type { PeriodWindow } from '../models';
 import { niceTicks } from './heartModels';
-import { ChartShell, MissingStub, useChartSizes, useSlotCrosshair } from './kit';
+import { CHART_DRILL_HELP, ChartShell, MissingStub, useChartSizes, useSlotCrosshair } from './kit';
 import './heart.css';
 
 /* ------------------------------------------------------------------------------------------------ slot frame */
@@ -141,6 +141,7 @@ export function SlotChart(p: SlotChartProps) {
           className="hr-plot"
           role="img"
           aria-label={p.summary}
+          aria-description={CHART_DRILL_HELP}
           tabIndex={0}
           onKeyDown={(e) => cross.onKeyDown(e, drill)}
           onFocus={cross.onFocus}

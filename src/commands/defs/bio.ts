@@ -10,7 +10,7 @@
  */
 import { T, type TSchema } from '../schema';
 import type { CommandDef } from '../types';
-import { CONSENT, DEVICE, UI_ONLY, UNDO, stub, type StubSpec } from './_shared';
+import { CONSENT, DEVICE, SCREEN, UI_ONLY, UNDO, stub, type StubSpec } from './_shared';
 import { defineCommand, getCommand } from '../registry';
 
 const OWNER = 'E10 (biometrics)';
@@ -19,6 +19,7 @@ const Range = { from: T.Optional(LocalDate), to: T.Optional(LocalDate) };
 const job = { kind: 'job' as const, softTimeoutMs: 25_000 };
 const Tier = T.Enum(['A', 'B', 'C']);
 const Coach = T.Enum(['hidden', 'daily', 'daily+series']);
+const RingSharing = T.Enum(['on', 'off', 'some', 'none']);
 
 /** E10's `StreamPolicy` (§4.5). */
 export const StreamPolicySchema = T.Object({ stream: T.String({ minLength: 1 }), imported: T.Boolean(), coach: Coach, engine: T.Boolean(), scores: T.Boolean() });
@@ -184,7 +185,14 @@ export const bioSources = def({
   title: 'Data sources',
   description: 'Connected sources (devices, imports, entries by hand) with tier, what each brought in and the sharing policy per stream; plus the person’s own stream choices.',
   input: T.Object({}),
-  output: T.Object({ sources: T.Array(SourceView), policies: T.Array(StreamPolicySchema) }),
+  output: T.Object({
+    sources: T.Array(SourceView),
+    policies: T.Array(StreamPolicySchema),
+    /** The ring master switch over every ring source: on (ring defaults), off (not used or shared), some (any other mix), none (no ring). */
+    ringSharing: RingSharing,
+    /** Show the one-time notice that existing ring data moved to the ring defaults (until dismissed). */
+    ringDefaultsNotice: T.Boolean(),
+  }),
   perm: 'read',
   owner: OWNER,
 });
@@ -235,7 +243,7 @@ export const bioDeviceConnect = def({
   perm: 'write',
   impact: 'low',
   surfaces: UI_ONLY.surfaces,
-  excludedReason: UI_ONLY.excludedReason(DEVICE),
+  excludedReason: { ...UI_ONLY.excludedReason(DEVICE), ui: 'the ring service (src/biometrics/service) reads rings; kept for a staged browser link' },
   undo: UNDO.TS,
   idempotency: 'key',
   longRunning: job,
@@ -250,7 +258,7 @@ export const bioDeviceSync = def({
   perm: 'write',
   impact: 'low',
   surfaces: UI_ONLY.surfaces,
-  excludedReason: UI_ONLY.excludedReason(DEVICE),
+  excludedReason: { ...UI_ONLY.excludedReason(DEVICE), ui: 'the ring service (src/biometrics/service) reads rings; kept for a staged browser link' },
   undo: UNDO.TS,
   idempotency: 'key',
   longRunning: job,
@@ -272,6 +280,80 @@ export const bioSetPolicy = def({
   surfaces: UI_ONLY.surfaces,
   excludedReason: UI_ONLY.excludedReason(CONSENT),
   undo: UNDO.IP,
+  idempotency: 'natural',
+  owner: OWNER,
+});
+export const bioSetRingSharing = def({
+  id: 'bio.setRingSharing',
+  title: 'Use my ring data in my plan and Coach',
+  description:
+    'The ring master switch (plan 04 item 11). On: every stream of every ring source is brought in, used in scores and the plan where it can be, and the Coach sees daily values and detail. Off: still brought in and shown on the Ring pages, but not used in scores or the plan and hidden from the Coach. Returns the switch state over all ring sources.',
+  input: T.Object({ on: T.Boolean() }),
+  output: T.Object({ state: RingSharing }),
+  perm: 'write',
+  impact: 'consequential',
+  surfaces: UI_ONLY.surfaces,
+  excludedReason: UI_ONLY.excludedReason(CONSENT),
+  undo: UNDO.IP,
+  idempotency: 'natural',
+  owner: OWNER,
+});
+export const bioDismissRingDefaultsNotice = def({
+  id: 'bio.dismissRingDefaultsNotice',
+  title: 'Hide the ring data notice',
+  description: 'Hides the one-time notice on the Ring page that existing ring data now feeds the plan, scores and Coach.',
+  input: T.Object({}),
+  output: T.Object({ dismissed: T.Boolean() }),
+  perm: 'write',
+  impact: 'low',
+  surfaces: UI_ONLY.surfaces,
+  excludedReason: UI_ONLY.excludedReason(SCREEN),
+  undo: UNDO.none,
+  idempotency: 'natural',
+  owner: OWNER,
+});
+export const biometricsRingFold = def({
+  id: 'biometrics.ringFold',
+  title: 'One ring, one source',
+  description:
+    'Migration the app runs itself: a ring source keyed from what the ring advertised, or a Lumen source under an old key, moves into the ring’s one source; with exactly one J-Style 2301 ring, Lumen data folds into it. Nothing is duplicated.',
+  input: T.Object({}),
+  output: T.Object({
+    ran: T.Boolean(),
+    moved: T.Array(T.Object({ from: T.String(), to: T.String() })),
+    lumen: T.Union([T.String(), T.Null()]),
+    ambiguous: T.Boolean(),
+  }),
+  perm: 'write',
+  impact: 'low',
+  surfaces: ['ui'],
+  excludedReason: {
+    ui: 'a migration the app runs itself (system actor)',
+    ai: 'a migration the app runs itself',
+    webmcp: 'a migration the app runs itself',
+    mcp: 'a migration the app runs itself',
+  },
+  undo: UNDO.none,
+  idempotency: 'natural',
+  owner: OWNER,
+});
+export const biometricsRingDefaults = def({
+  id: 'biometrics.ringDefaults',
+  title: 'Move ring data to the ring defaults',
+  description:
+    'One-time migration the app runs itself: every ring source whose sharing the person never changed gets the ring defaults (plan, scores, Coach), with a notice on the Ring page.',
+  input: T.Object({}),
+  output: T.Object({ ran: T.Boolean(), moved: T.Array(T.String()), kept: T.Array(T.String()) }),
+  perm: 'write',
+  impact: 'low',
+  surfaces: ['ui'],
+  excludedReason: {
+    ui: 'a one-time migration the app runs itself (system actor)',
+    ai: 'a one-time migration the app runs itself',
+    webmcp: 'a one-time migration the app runs itself',
+    mcp: 'a one-time migration the app runs itself',
+  },
+  undo: UNDO.none,
   idempotency: 'natural',
   owner: OWNER,
 });
@@ -310,8 +392,10 @@ export const bioRescore = def({
 });
 
 // Settings › Devices (src/features/settings/devices/DevicesSection.tsx) calls these; `bio.setPolicy` also the intake's
-// devices chapter. `bio.rescore` is dispatched by the app itself (SYSTEM actor, `../bio/index.ts`), never from a screen.
-onScreen('bio.sources', 'bio.setPolicy', 'bio.import', 'bio.deviceConnect', 'bio.deviceSync', 'bio.deleteSource');
+// devices chapter; the Ring page and Settings › Devices the ring master switch and its notice. `bio.rescore` is
+// dispatched by the app itself (SYSTEM actor, `../bio/index.ts`), never from a screen, and so is the migration
+// `biometrics.ringDefaults`.
+onScreen('bio.sources', 'bio.setPolicy', 'bio.import', 'bio.deleteSource', 'bio.setRingSharing', 'bio.dismissRingDefaultsNotice');
 
 declare module '../types' {
   interface CommandMap {
@@ -327,5 +411,9 @@ declare module '../types' {
     'bio.setPolicy': typeof bioSetPolicy;
     'bio.deleteSource': typeof bioDeleteSource;
     'bio.rescore': typeof bioRescore;
+    'bio.setRingSharing': typeof bioSetRingSharing;
+    'bio.dismissRingDefaultsNotice': typeof bioDismissRingDefaultsNotice;
+    'biometrics.ringDefaults': typeof biometricsRingDefaults;
+    'biometrics.ringFold': typeof biometricsRingFold;
   }
 }

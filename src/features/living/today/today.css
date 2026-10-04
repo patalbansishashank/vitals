@@ -9,7 +9,6 @@
   .lv-today {
     display: grid;
     gap: 16px;
-    padding-top: 12px;
   }
   .lv-today__context {
     display: flex;

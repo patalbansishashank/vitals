@@ -6,14 +6,16 @@
 import { sourceKeyOf } from '../core/source';
 import type { BioBatch, SleepRecord } from '../core/types';
 import { addDaysIso } from '../ingest/dates';
-import { ingestBatches } from '../ingest/pipeline';
+import { foldBatch, ingestBatches } from '../ingest/pipeline';
 import type { IngestOpts, IngestOutcome } from '../ingest/pipeline';
 import type { BioStore } from '../store/types';
 import { recomputeMainSleep } from './lumenCloudEvents';
 
 /** Sets `is_main` on the batch's nights against the stored nights of the same source and nearby wake dates, and adds
- * re-versioned stored nights whose `is_main` flips. Read the store after the previous batch was ingested. */
-export async function withLumenMainSleep(batch: BioBatch, store: BioStore): Promise<BioBatch> {
+ * re-versioned stored nights whose `is_main` flips. Read the store after the previous batch was ingested. The fold
+ * (§15.2, Lumen data filed under the ring key) is applied first, so the batch's nights and the stored ones share a key. */
+export async function withLumenMainSleep(raw: BioBatch, store: BioStore, fold?: IngestOpts['fold']): Promise<BioBatch> {
+  const batch = fold ? foldBatch(raw, fold) : raw;
   const sleeps = batch.records.filter((r): r is SleepRecord => r.kind === 'sleep');
   if (sleeps.length === 0) return batch;
   const dates = sleeps.map((r) => r.time.local_date).sort();
@@ -25,11 +27,11 @@ export async function withLumenMainSleep(batch: BioBatch, store: BioStore): Prom
   return { ...batch, records: [...batch.records.filter((r) => r.kind !== 'sleep'), ...recomputeMainSleep(stored, sleeps)] };
 }
 
-export async function* withLumenMainSleep$(batches: AsyncIterable<BioBatch> | Iterable<BioBatch>, store: BioStore): AsyncGenerator<BioBatch> {
-  for await (const b of batches) yield await withLumenMainSleep(b, store);
+export async function* withLumenMainSleep$(batches: AsyncIterable<BioBatch> | Iterable<BioBatch>, store: BioStore, fold?: IngestOpts['fold']): AsyncGenerator<BioBatch> {
+  for await (const b of batches) yield await withLumenMainSleep(b, store, fold);
 }
 
 /** `ingestBatches` for Lumen batches (from `mapLumenEvents` or the file importer). */
 export function ingestLumenBatches(batches: AsyncIterable<BioBatch> | Iterable<BioBatch>, store: BioStore, opts: IngestOpts): Promise<IngestOutcome> {
-  return ingestBatches(withLumenMainSleep$(batches, store), store, opts);
+  return ingestBatches(withLumenMainSleep$(batches, store, opts.fold), store, opts);
 }

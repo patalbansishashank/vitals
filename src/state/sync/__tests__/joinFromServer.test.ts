@@ -12,7 +12,7 @@ const SERVER = 'https://home.example.ts.net:8443';
 type Hub = ReturnType<typeof createMemoryHub>;
 
 /** One simulated device with its own module graph, the way the app starts (as in runtime.test.ts). */
-async function boot(hub: Hub, name: string) {
+async function boot(hub: Hub, name: string, relay: { down: boolean } = { down: false }) {
   vi.resetModules();
   const store = await import('@/store');
   const rt = await import('@/state/runtime');
@@ -27,10 +27,12 @@ async function boot(hub: Hub, name: string) {
     vault: createMemoryVault(),
     createEngine: async () => {
       const e = createMemorySyncStore();
-      e.link(hub);
+      // a relay that does not answer: the engine never completes a round
+      if (!relay.down) e.link(hub);
       return e;
     },
     localBackend: () => local,
+    joinSettle: { quietMs: 0, maxMs: 50 },
   });
   const put = (col: string, id: string, body: Record<string, unknown>) =>
     rt.getDocumentStore().transact(store.mintWriteToken('command'), (tx) => tx.put(col as never, { _id: id, ...body } as never));
@@ -68,6 +70,33 @@ describe('joining with the key a home server hands over', { timeout: 60_000 }, (
     expect(await b.get('recipes', R1)).toMatchObject({ name: 'from the server' });
     expect(await b.get('recipes', R2)).toMatchObject({ name: 'only here' });
     await b.sync.syncNow();
+    expect(hubDoc(hub, 'recipes', R2)?.value).toMatchObject({ name: 'only here' });
+  });
+
+  it('a relay that does not answer: the join fails, nothing is pushed over the group, and Try again merges', async () => {
+    const hub: Hub = new Map();
+    const key = newOwnerSecret();
+    const srv = await boot(hub, 'S');
+    await srv.put('recipes', R1, { name: 'from the server' });
+    await srv.sync.join(formatPairingUri(SERVER, key), 'merge');
+    const before = structuredClone(hubDoc(hub, 'recipes', R1));
+    const relay = { down: true };
+    const b = await boot(hub, 'B', relay);
+    await b.put('recipes', R1, { name: 'stale copy on this device' });
+    await b.put('recipes', R2, { name: 'only here' });
+    await expect(b.sync.join(formatPairingUri(SERVER, key), 'merge')).rejects.toMatchObject({ code: 'relay_unreachable' });
+    expect(b.sync.view().paired).toBe(false);
+    expect(localStorage.getItem('vitals-sync.paired')).toBeNull();
+    // this device keeps its data; the group is untouched
+    expect(await b.get('recipes', R2)).toMatchObject({ name: 'only here' });
+    expect(hubDoc(hub, 'recipes', R1)).toEqual(before);
+    expect(hubDoc(hub, 'recipes', R2)).toBeUndefined();
+    // the relay answers again: the same key merges as usual (the group's value stands, this device's own doc is added)
+    relay.down = false;
+    await b.sync.join(formatPairingUri(SERVER, key), 'merge');
+    expect(await b.get('recipes', R1)).toMatchObject({ name: 'from the server' });
+    await b.sync.syncNow();
+    expect(hubDoc(hub, 'recipes', R1)?.value).toMatchObject({ name: 'from the server' });
     expect(hubDoc(hub, 'recipes', R2)?.value).toMatchObject({ name: 'only here' });
   });
 });

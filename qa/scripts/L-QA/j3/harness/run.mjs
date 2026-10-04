@@ -1,5 +1,5 @@
-// J3 copy of the candidate's qa/scripts/sync (L-SYNC harness) for L-QA journey 3: label prefix L-QA-J3-, results in
-// qa/results/L-QA/j3/, app modules resolved from the QA candidate tree .e6-tmp/cand (see lib/config.mjs CAND).
+// J3 copy of the candidate's qa/scripts/sync (L-SYNC harness) for L-QA journey 3: label prefix L-QA-R2J3-, results in
+// qa/results/L-QA/round2/j3/, app modules resolved from the QA candidate tree .e6-tmp/cand (see lib/config.mjs CAND).
 // Four-replica sync harness (plan 04 item 3): three Node replicas running the app's sync code (A = desktop app, B =
 // phone app, C = website profile stand-ins) and the server person on the real Vitals Server, one sync group. Scenarios
 // print PASS/FAIL lines and write qa/results/sync/<scenario>.json; the test person is removed at the end, also on failure.
@@ -12,8 +12,8 @@ import { canonical, converged, todayIn } from './lib/docs.mjs';
 import { openReplica } from './lib/replica.mjs';
 import { LABEL_PREFIX, addPerson, agentToken, removePerson } from './lib/server.mjs';
 
-const { newOwnerSecret, secretToWords } = await import('../../../../../.e6-tmp/cand/src/sync/pairing.ts');
-const { ulid } = await import('../../../../../.e6-tmp/cand/src/store/ids.ts');
+const { newOwnerSecret, secretToWords } = await import('../../../../../src/sync/pairing.ts');
+const { ulid } = await import('../../../../../src/store/ids.ts');
 
 const TZ = 'Asia/Kolkata';
 const OFFLINE_S = Number(process.env.SYNC_OFFLINE_S ?? 60);
@@ -537,8 +537,8 @@ try {
   summary.setup = { passed: 0, failed: 1, error: e.message.slice(0, 300) };
 } finally {
   await cleanup();
-  fs.mkdirSync(`${ROOT}/qa/results/L-QA/j3`, { recursive: true });
-  fs.writeFileSync(`${ROOT}/qa/results/L-QA/j3/harness-summary.json`, JSON.stringify({ at: new Date().toISOString(), server: 'real', scenarios: summary }, null, 1) + '\n');
+  fs.mkdirSync(`${ROOT}/qa/results/L-QA/round2/j3`, { recursive: true });
+  fs.writeFileSync(`${ROOT}/qa/results/L-QA/round2/j3/harness-summary.json`, JSON.stringify({ at: new Date().toISOString(), server: 'real', scenarios: summary }, null, 1) + '\n');
   console.table(Object.fromEntries(Object.entries(summary).map(([k, v]) => [k, { passed: v.passed, failed: v.failed }])));
 }
 process.exit(exitCode);

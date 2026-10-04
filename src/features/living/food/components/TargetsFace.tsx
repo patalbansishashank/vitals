@@ -86,7 +86,7 @@ export function TargetsFace({ rx, totals, logged, quiet, quietKey }: TargetsFace
                 <span className="lv-food-line__eaten">
                   <span className="lm-eng">{T.eaten} </span>
                   {logged ? <EstimateReadout value={r.eaten.value} sd={r.eaten.sd} unit={r.unit} approx short /> : <span className="lv-food-note">{T.nothingYet}</span>}
-                  <span className="lv-food-note lm-num"> {T.ofTarget(r.targetText)}</span>
+                  <span className="lv-food-note lm-num whitespace-nowrap"> {T.ofTarget(r.targetText)}</span>
                 </span>
                 <MacroBar what={r.what} target={r.target} eaten={r.eaten} unit={r.unit} color={r.color} logged={logged} />
               </div>

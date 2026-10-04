@@ -25,6 +25,8 @@ export class RecordedLink implements BleLink {
   private steps: RecordedStep[];
   connected = true;
   mtu?: number;
+  /** A platform id, as every real link has one (the ring's identity never comes from its advertised name). */
+  deviceId?: string = 'recorded-link';
 
   constructor(
     steps: RecordedStep[],

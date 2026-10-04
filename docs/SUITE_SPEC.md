@@ -2753,7 +2753,15 @@ the ring still holds. Synced
 - A device that meets a ring whose identity basis it cannot see (for example no address in a browser) looks for the
   person's ring sources of the same family and model; if there is exactly one it uses that key, else it asks once "Is this your J-Style 2301 from <device>?" (no typing).
 - `manufacturer` and `model` come from the driver (`J-Style`, `2301`), never from the advertised name (decision 10).
-  The advertised name is not stored or shown.
+  The advertised name is not stored or shown, and it is never a `ringId`: a peripheral that gives only a name has no
+  identity (the session refuses it; a browser id gives `adv:<id>`).
+- One ring = one source. `biometrics.ringFold` (system actor, at boot and after a ring is paired, idempotent) moves a
+  `ble:` source keyed from what a ring advertised (neither a ring key nor its driver's canonical legacy key) into the
+  ring's canonical source, a Lumen source under an old key into the one Lumen key, and, when the person has exactly one
+  J-Style 2301 ring source, the Lumen source into it; from then on `bioSources/ringFold:me` `{ lumen: <ringKey> }` makes
+  the ingest pipeline file new Lumen data (MQTT, files, archive) under the ring key. Records keep their ids and samples
+  merge by `(origin, t)`, so nothing is duplicated; the old source goes as `bio.deleteSource` removes one. With two or
+  more J-Style 2301 rings nothing folds. Every case is detected by key structure, never by a name.
 - Record ids come from content, never from the read window: A5a's `ringRecords` uses `seriesRecordId`,
   `sleepRecordId` (versioned by `sleepVersion`), `dailyRecordId` and `workoutRecordId` from
   `src/biometrics/core/recordIds.ts` with `source = ringKey` (not today's `mapEventsToBatch`, which keys series by their
@@ -2771,8 +2779,10 @@ model, firmware, tier }` from the family (`J-Style`, `2301`); `recording_method:
 devices must produce identical records); the job log keeps it.
 
 **Item 11 defaults and the master switch.**
-- A **ring source** is a source whose `deviceType` is `'ring'`, whose channel starts with `ble:`, or the Lumen source
-  (`file:lumen_cloudevents`). New function `ringDefaultPolicies(): StreamPolicy[]` in `src/biometrics/core/source.ts`
+- A **ring source** is a source whose channel starts with `ble:`, or the Lumen source (`file:lumen_cloudevents`): one
+  test, `isRingSource` in `src/biometrics/core/policy.ts`, for the commands, the migration, `newSourceDoc` and the Ring
+  page. A `ring` device type alone does not count (Apple Health, Health Connect and Gadgetbridge files mark rings too;
+  those imports stay opt-in, §4.5). New function `ringDefaultPolicies(): StreamPolicy[]` in `src/biometrics/core/source.ts`
   (beside `defaultPolicies` and `suggestedPolicies`) = `imported: true`, `scores: true`, `engine: true` where
   `engineEligible`, `coach: 'daily+series'`, for every stream in `POLICY_STREAMS`. The ring job creates ring sources
   with it and does not apply `adoptPersonPolicies` to them; every other source keeps `suggestedPolicies` plus the
@@ -2781,7 +2791,10 @@ devices must produce identical records); the job log keeps it.
   { on: boolean }` (perm write, impact consequential, undo RT): on → the ring defaults on every ring source; off →
   `engine: false`, `scores: false`, `coach: 'hidden'` on every stream of every ring source (`imported` stays on, so the
   Ring pages still show the data). The switch reads **on**, **off** or **some** (any other mix; "Some of it is shared"
-  with a link to Settings › Devices). Per-stream switches stay in Settings › Devices (`bio.setPolicy`).
+  with a link to Settings › Devices). Per-stream switches stay in Settings › Devices (`bio.setPolicy`). The command
+  also stores the choice once per person in `bioSources/ringSharing:me` (`choice: 'on' | 'off'`, synced; part of the
+  same change, so Undo restores it), and every ring source created later (`newSourceDoc`, a stream new to a ring source,
+  the Lumen broker) starts from it: the ring defaults, or with the switch off what off writes.
 - A plain line under the switch: "Your ring data is used for your plan and scores, and the Coach and your AI tools can
   see it. Turn it off here or per signal in Settings › Devices."
 - MCP read tools and `briefing_get` (item 12) apply the same visibility rule as the Coach (`coachSees` in
@@ -2789,7 +2802,8 @@ devices must produce identical records); the job log keeps it.
 - **Existing data:** migration `biometrics.ringDefaults` (registered like `biometrics.dropPriorities` in
   `src/commands/biometrics/index.ts`; once, system actor): a ring source whose policies were never
   changed by the person (no policy change with a `user` actor in the ledger) gets the ring defaults and a one-time
-  notice on the Ring page; a source the person changed is left alone.
+  notice on the Ring page; a source the person changed is left alone. It records itself (`ringDefaults:me`) only once
+  it moved or kept a ring source, so a device whose ring source has not synced in yet does not stop it for every device.
 
 ### 15.3 Ring page and Body signals page · owner **L-PAGES**
 
@@ -2981,7 +2995,7 @@ No feature imports Capacitor or Electron directly: only `src/platform/` and the 
 
 | Key | Asset | Label |
 |---|---|---|
-| android | `Vitals-android.apk` (else `Vitals-android-unsigned.apk`) | Android |
+| android | `Vitals-android.apk` (signed only: an unsigned APK cannot be installed, so none is offered; until a signed one is published the block offers the desktop builds and the website) | Android |
 | linux-appimage | `Vitals-linux-x86_64.AppImage` | Linux (AppImage) |
 | linux-deb | `Vitals-linux-amd64.deb` | Linux (deb) |
 | windows | `Vitals-windows-x64-setup.exe` | Windows |
@@ -2991,7 +3005,8 @@ No feature imports Capacitor or Electron directly: only `src/platform/` and the 
   chromeos, other → no main key, all links listed, and "On iPhone, use the website and add it to your home screen".
 - **Shows:** the main key ("Download for Android") with version and size in MB, the other systems under it, "or keep
   using the website" beneath, and one plain note per unsigned build ("Windows may warn that the app is from an unknown
-  publisher. Choose More info, then Run anyway."; similar lines for macOS and Android "install unknown apps").
+  publisher. Choose More info, then Run anyway."; a similar line for macOS; Android's "install unknown apps" note
+  goes with the signed APK). Cached release data from a build that listed an unsigned APK is dropped.
 - **No layout shift:** the block reserves its height before the release data arrives. "Not now" folds it to one line
   ("Get the app"), remembered in `localStorage` `vitals.downloads.v1`.
 

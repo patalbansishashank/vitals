@@ -353,7 +353,7 @@ function ChoiceSheet({ anchor }: { anchor: boolean }) {
             </Tab>
           </TabList>
           <TabPanel value="overview" className="pt-3 text-sm text-ink-2">
-            Plan A holds a 22 % deficit for 12 weeks with a diet break in week 5.
+            This plan holds a 22 % deficit for 12 weeks with a diet break in week 5.
           </TabPanel>
           <TabPanel value="days" className="pt-3 text-sm text-ink-2">
             84 days · 3 programs.

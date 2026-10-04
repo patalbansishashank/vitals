@@ -44,7 +44,7 @@
     letter-spacing: -0.01em;
   }
   .lm-unit {
-    font-size: 0.62em;
+    font-size: max(var(--lm-text-2xs), 0.62em);
     color: var(--lm-ink-2);
     font-weight: 500;
     font-stretch: 100%;
@@ -655,6 +655,13 @@
   .lm-bank[data-orientation='vertical'] > .lm-bank__key {
     height: 36px;
     padding: 0 12px;
+  }
+  @media (pointer: coarse) and (max-width: 47.99rem) {
+    /* The selected ::after is the indicator, so the key itself is the target. */
+    .lm-bank__key {
+      min-height: var(--lm-hit-touch);
+      min-width: var(--lm-hit-touch);
+    }
   }
 
   /* ------------------------------------------------------------------------
@@ -1360,7 +1367,8 @@
   a.lm-chip:hover {
     background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 5%);
   }
-  .lm-chip[data-kind='filter'][aria-pressed='true'] {
+  .lm-chip[data-kind='filter'][aria-pressed='true'],
+  .lm-chip[data-kind='filter'][aria-current='true'] {
     background: var(--lm-ink);
     border-color: var(--lm-ink);
     color: var(--lm-ink-inverse);
@@ -1394,6 +1402,14 @@
   .lm-chip[aria-disabled='true'] {
     color: var(--lm-ink-faint);
     border-color: var(--lm-line);
+  }
+  @media (pointer: coarse) and (max-width: 47.99rem) {
+    /* Anchor rails have page-local sticky offsets; keep their sizing local. */
+    button.lm-chip,
+    a.lm-chip:not([href^='#']) {
+      min-height: var(--lm-hit-touch);
+      min-width: var(--lm-hit-touch);
+    }
   }
   /* metric swatches: line key (10×3) or bar key (8×8) in the category hue */
   .lm-swatch {

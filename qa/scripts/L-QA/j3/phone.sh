@@ -10,13 +10,13 @@ set -u
 cd "$(dirname "$0")/../../../.."
 export TMPDIR="$PWD/.e6-tmp"
 A=$HOME/.local/share/codex-android/sdk/platform-tools/adb
-APK="$PWD/.e6-tmp/cand/apps/android/android/app/build/outputs/apk/debug/app-debug.apk"
+APK="$PWD/apps/android/android/app/build/outputs/apk/debug/app-debug.apk"
 PKG=desi.creative.vitals
 front() { $A shell dumpsys window | grep mCurrentFocus | grep -q "$PKG"; }
 date +%T
 $A shell am force-stop com.pulseloop.debug
 $A shell am force-stop $PKG
-if [ "${J3_SKIP_INSTALL:-0}" != 1 ]; then $A install -r "$APK" 2>&1 | tail -1; date +%T > .e6-tmp/j3/apk-installed-at; fi
+if [ "${J3_SKIP_INSTALL:-0}" != 1 ]; then $A install -r "$APK" 2>&1 | tail -1; date +%T > .e6-tmp/r2j3/apk-installed-at; fi
 $A shell am start -n $PKG/.MainActivity >/dev/null; sleep 8
 front || { echo "Vitals not in front"; exit 3; }
 timeout 120 node qa/scripts/L-QA/j3/phone.mjs prep 2>&1 | grep -v "Warning\|trace-warn"
@@ -28,11 +28,11 @@ import("./qa/scripts/L-QA/j3/server.mjs").then(async (s) => {
   const qr = await s.pairQr(st.personId, "J3 phone");
   if (!qr) process.exit(2);
   const site = JSON.parse(require("fs").readFileSync("qa/local.config.json", "utf8")).siteUrl.replace(/\/$/, "");
-  require("fs").writeFileSync(".e6-tmp/j3/link", `${site}/settings?section=server#${qr}`, { mode: 0o600 });
+  require("fs").writeFileSync(".e6-tmp/r2j3/link", `${site}/settings?section=server#${qr}`, { mode: 0o600 });
   process.exit(0);
 });' || { echo "no pairing link"; exit 2; }
-$A shell am start -n $PKG/.MainActivity -a android.intent.action.VIEW -d "'$(cat .e6-tmp/j3/link)'" >/dev/null
-rm -f .e6-tmp/j3/link
+$A shell am start -n $PKG/.MainActivity -a android.intent.action.VIEW -d "'$(cat .e6-tmp/r2j3/link)'" >/dev/null
+rm -f .e6-tmp/r2j3/link
 sleep 6
 front || { echo "Vitals not in front"; exit 3; }
 timeout 420 node qa/scripts/L-QA/j3/phone.mjs main 2>&1 | grep -v "Warning\|trace-warn"

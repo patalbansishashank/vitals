@@ -13,6 +13,7 @@ import type {
   WorkoutRecord, CorrectionTarget,
 } from './types';
 import { inferTier } from './source';
+import { reconcileSleep } from './reconcileSleep';
 
 /** Daily-record fields grouped into metrics; each group is resolved as a unit. Key = metric name in sourceByMetric. */
 export const DAILY_METRIC_GROUPS: Readonly<Record<string, readonly (keyof DailyRecord)[]>> = {
@@ -109,7 +110,7 @@ export function resolveDays(
     if (!prev || sr.record.version > prev.record.version) latest.set(sr.record.record_id, sr);
   }
   const byDate = new Map<LocalDate, SourcedRecord[]>();
-  for (const sr of latest.values()) {
+  for (const sr of reconcileSleep([...latest.values()])) {
     const k = sr.record.kind;
     if (k === 'series' || k === 'device_profile') continue;
     const d = sr.record.time.local_date;

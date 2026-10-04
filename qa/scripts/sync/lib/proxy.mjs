@@ -8,6 +8,7 @@ import http from 'node:http';
 import https from 'node:https';
 import net from 'node:net';
 import tls from 'node:tls';
+import { Transform } from 'node:stream';
 
 export async function startProxy(target) {
   const t = new URL(target);
@@ -16,14 +17,26 @@ export async function startProxy(target) {
   let offline = false;
   const open = new Set();
   let upgrades = 0;
+  let blobPause = null;
+  let syncPause = null;
   const track = (s) => {
     open.add(s);
     s.on('close', () => open.delete(s));
   };
   const srv = http.createServer((req, res) => {
     if (offline) return void req.socket.destroy();
+    const pause =
+      blobPause?.armed && req.method === 'PUT' && req.url?.startsWith('/blobs/') ? blobPause : null;
+    if (pause) pause.armed = false;
     const up = (secure ? https : http).request(
-      { host: t.hostname, port, path: req.url, method: req.method, headers: { ...req.headers, host: t.host }, servername: t.hostname },
+      {
+        host: t.hostname,
+        port,
+        path: req.url,
+        method: req.method,
+        headers: { ...req.headers, host: t.host },
+        servername: t.hostname,
+      },
       (r) => {
         res.writeHead(r.statusCode ?? 502, r.headers);
         r.pipe(res);
@@ -33,7 +46,38 @@ export async function startProxy(target) {
       if (!res.headersSent) res.writeHead(502);
       res.end();
     });
-    req.pipe(up);
+    req.on('aborted', () => up.destroy());
+    if (!pause) return void req.pipe(up);
+    // Forward the first bytes, then hold the rest. The server has an incomplete PUT with its original Content-Length.
+    // The test kills the client at this point, before the relay can acknowledge the upload.
+    let held = null;
+    let intercepted = false;
+    req.on('data', (chunk) => {
+      if (intercepted) {
+        if (held) held.push(chunk);
+        else up.write(chunk);
+        return;
+      }
+      intercepted = true;
+      const n = Math.max(1, Math.floor(chunk.length / 2));
+      up.write(chunk.subarray(0, n));
+      held = [chunk.subarray(n)];
+      req.pause();
+      pause.bytesForwarded = n;
+      pause.hit();
+    });
+    req.on('end', () => {
+      if (held) held.push(null);
+      else up.end();
+    });
+    pause.release = () => {
+      if (!held) return;
+      for (const chunk of held)
+        if (chunk === null) up.end();
+        else up.write(chunk);
+      held = null;
+      req.resume();
+    };
   });
   srv.on('connection', track);
   srv.on('upgrade', (req, sock, head) => {
@@ -41,11 +85,35 @@ export async function startProxy(target) {
     upgrades += 1;
     const onUp = () => {
       const headers = { ...req.headers, host: t.host };
-      up.write(`${req.method} ${req.url} HTTP/1.1\r\n${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\n\r\n`);
+      up.write(
+        `${req.method} ${req.url} HTTP/1.1\r\n${Object.entries(headers)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\r\n')}\r\n\r\n`,
+      );
       if (head?.length) up.write(head);
-      sock.pipe(up).pipe(sock);
+      // Hold a single client sync frame after forwarding its first byte. A WebSocket
+      // frame needs at least two header bytes, so the server cannot process it yet.
+      const clientFrames = new Transform({
+        transform(chunk, _encoding, callback) {
+          const pause = syncPause?.armed && req.url?.startsWith('/sync') ? syncPause : null;
+          if (!pause) return callback(null, chunk);
+          pause.armed = false;
+          up.write(chunk.subarray(0, 1));
+          pause.bytesForwarded = 1;
+          pause.release = () => callback(null, chunk.subarray(1));
+          pause.hit();
+        },
+      });
+      sock.pipe(clientFrames).pipe(up);
+      up.pipe(sock);
+      clientFrames.on('error', () => {
+        sock.destroy();
+        up.destroy();
+      });
     };
-    const up = secure ? tls.connect({ host: t.hostname, port, servername: t.hostname }, onUp) : net.connect({ host: t.hostname, port }, onUp);
+    const up = secure
+      ? tls.connect({ host: t.hostname, port, servername: t.hostname }, onUp)
+      : net.connect({ host: t.hostname, port }, onUp);
     track(sock);
     track(up);
     const done = () => {
@@ -68,8 +136,62 @@ export async function startProxy(target) {
     get upgrades() {
       return upgrades;
     },
+    pauseNextBlobUpload() {
+      if (blobPause?.armed) throw new Error('blob upload pause already armed');
+      let hit;
+      const promise = new Promise((resolve) => {
+        hit = resolve;
+      });
+      blobPause = { armed: true, bytesForwarded: 0, promise, hit, release: () => {} };
+    },
+    async waitForPausedBlobUpload(timeoutMs = 15000) {
+      const pause = blobPause;
+      if (!pause) throw new Error('blob upload pause not armed');
+      let timer;
+      const seen = await Promise.race([
+        pause.promise.then(() => true),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), timeoutMs);
+        }),
+      ]);
+      clearTimeout(timer);
+      return { started: seen, bytesForwarded: pause.bytesForwarded };
+    },
+    releasePausedBlobUpload() {
+      blobPause?.release();
+      blobPause = null;
+    },
+    pauseNextSyncUpload() {
+      if (syncPause?.armed) throw new Error('sync upload pause already armed');
+      let hit;
+      const promise = new Promise((resolve) => {
+        hit = resolve;
+      });
+      syncPause = { armed: true, bytesForwarded: 0, promise, hit, release: () => {} };
+    },
+    async waitForPausedSyncUpload(timeoutMs = 15000) {
+      const pause = syncPause;
+      if (!pause) throw new Error('sync upload pause not armed');
+      let timer;
+      const seen = await Promise.race([
+        pause.promise.then(() => true),
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(false), timeoutMs);
+        }),
+      ]);
+      clearTimeout(timer);
+      return { started: seen, bytesForwarded: pause.bytesForwarded };
+    },
+    releasePausedSyncUpload() {
+      syncPause?.release();
+      syncPause = null;
+    },
     off() {
       offline = true;
+      blobPause?.release();
+      blobPause = null;
+      syncPause?.release();
+      syncPause = null;
       for (const s of open) s.destroy();
       open.clear();
     },
@@ -78,6 +200,10 @@ export async function startProxy(target) {
     },
     close() {
       offline = true;
+      blobPause?.release();
+      blobPause = null;
+      syncPause?.release();
+      syncPause = null;
       for (const s of open) s.destroy();
       open.clear();
       return new Promise((r) => srv.close(() => r()));

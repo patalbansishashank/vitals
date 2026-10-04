@@ -18,7 +18,7 @@ const json = <T,>(f: string): T => JSON.parse(readFileSync(join(FIX, f), 'utf8')
 const NOW_MS = 1_700_000_000_000;
 const NOW_S = NOW_MS / 1000;
 const P = jring.protocol;
-const state0 = (over: Partial<JringState> = {}): JringState => ({ ...(P.initialState() as JringState), nowMs: NOW_MS, ...over });
+const state0 = (over: Partial<JringState> = {}): JringState => ({ ...(P.initialState() as JringState), nowMs: NOW_MS + 20 * 60_000, ...over });
 const pad20 = (b: number[]): Uint8Array => Uint8Array.from([...b, ...new Array(20 - b.length).fill(0)]);
 
 function deepFreeze<T>(o: T): T {
@@ -101,7 +101,8 @@ describe('verify: decode vectors through protocol.ingest (independent bridge gat
   it('replays all 55 vectors; exact vectors give exactly the gated data records, others at least the listed ones', () => {
     expect(vectors.length).toBe(55);
     for (const v of vectors) {
-      let st: JringState = state0({ clockOffsetS: v.context.clockOffsetS });
+      // One fixture's negative offset makes a raw local timestamp eight hours ahead of NOW_MS.
+      let st: JringState = state0({ clockOffsetS: v.context.clockOffsetS, nowMs: NOW_MS + 9 * 3_600_000 });
       const got: RingEvent[] = [];
       for (const hex of v.bytesSequence ?? [v.bytes ?? '']) {
         const r = P.ingest(fromHex(hex), st);

@@ -16,7 +16,7 @@ import { isJSONRPCRequest, isJSONRPCResponse, type JSONRPCMessage } from '@model
 import { checkCall, idempotencyKeyFor } from '../../../../packages/companion/src/agentHub.ts';
 import { createMcpServer, type McpBackend } from '../../../../packages/companion/src/mcp.ts';
 import { parseToolManifest, rejected, toMcpTools, type ToolManifest } from '../../../../packages/companion/src/toolManifest.ts';
-import { AI_TOOL_IDS, type AiToolId } from '../shared/bridge';
+import { AI_TOOL_IDS, isServerMcpUrl, type AiToolId } from '../shared/bridge';
 import { isNamedPipe, parseHello } from '../shared/mcpSocket';
 import type { PageRelay } from './pageRelay';
 
@@ -241,7 +241,11 @@ export function createMcpHost(o: McpHostOptions): McpHost {
     const resolveTarget = async (): Promise<RemoteTarget | null> => {
       const id = isAiToolId(client) ? client : null;
       try {
-        return await o.remote(id);
+        const t = await o.remote(id);
+        if (!t || isServerMcpUrl(t.mcpUrl)) return t;
+        // the key is never sent in clear text over a network, or to an address that is not a server
+        log('mcp: the server address is not https; running locally');
+        return null;
       } catch (e) {
         log(`mcp: no server details for ${id ?? 'this tool'} (${e instanceof Error ? e.message : 'error'})`);
         return null;

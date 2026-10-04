@@ -47,7 +47,7 @@ export class FakePeripheral implements Transport {
   readonly mtu?: number;
   /** Every frame written, in order (bytes only; see `redactedWrites`). */
   readonly writes: Uint8Array[] = [];
-  /** Writes no step expected, as hex of the first two bytes only (enough to debug an order problem, never a passcode). */
+  /** Unexpected writes show two header bytes, or only the opcode for an authentication frame. */
   readonly errors: string[] = [];
   connected = true;
   private steps: FakeStep[];
@@ -85,7 +85,8 @@ export class FakePeripheral implements Transport {
     this.writes.push(b);
     const step = this.steps[0];
     if (!step || !matches(step.expect, b)) {
-      this.errors.push(`unexpected write ${Array.from(b.subarray(0, 2), (x) => x.toString(16).padStart(2, '0')).join(' ')} …`);
+      const prefix = b.subarray(0, b[0] === 0x3c ? 1 : 2);
+      this.errors.push(`unexpected write ${Array.from(prefix, (x) => x.toString(16).padStart(2, '0')).join(' ')} …`);
       return;
     }
     this.steps.shift();

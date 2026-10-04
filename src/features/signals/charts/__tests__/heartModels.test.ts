@@ -15,6 +15,7 @@ import {
   monthAggregates,
   niceTicks,
   normalOf,
+  spo2Normal,
   spo2Slots,
   tempNormal,
   tempSlots,
@@ -204,5 +205,25 @@ describe('per day, per month, nights', () => {
     // forming normal: no deviation, the night still counts as recorded
     const f = tempSlots(w, days, tempNormal(days));
     expect(f[0]).toMatchObject({ recorded: true, dev: null, abs: 34.6 });
+  });
+
+  it('blood oxygen: change from the person’s normal once it has formed (tier C, as heart-rate variability)', () => {
+    const days = [day('2026-09-28', { spo2_avg_pct: 96, spo2_min_pct: 91 }), day('2026-09-29', { spo2_avg_pct: 98 })];
+    // bio.baselines wins and knows when it has formed
+    const formed = spo2Normal([{ metric: 'spo2_avg_pct', mean: 97, lo: 96, hi: 98, nights: 30, forming: false }], days)!;
+    expect(formed).toMatchObject({ mean: 97, forming: false });
+    const s = spo2Slots(w, days, formed);
+    expect(s[0]).toMatchObject({ avg: 96, lowest: 91, avgDev: -1, lowestDev: -6, recorded: true });
+    expect(s[1]).toMatchObject({ avgDev: 1, lowestDev: null });
+    expect(s[2]).toMatchObject({ recorded: false, avgDev: null });
+    // fewer than 14 nights: forming, no change is taken
+    expect(spo2Normal([{ metric: 'spo2_avg_pct', mean: 97, lo: 96, hi: 98, nights: 9, forming: false }], days)!.forming).toBe(true);
+    const local = spo2Normal(null, days)!;
+    expect(local).toMatchObject({ mean: 97, nights: 2, forming: true });
+    expect(spo2Slots(w, days, local)[0]).toMatchObject({ avg: 96, avgDev: null });
+    // a normal from the stored nights once there are 14
+    const hist = Array.from({ length: 14 }, (_, i) => day(`2026-09-${String(10 + i).padStart(2, '0')}`, { spo2_avg_pct: 97 }));
+    expect(spo2Normal([], hist)).toMatchObject({ mean: 97, forming: false });
+    expect(spo2Normal(null, [])).toBeNull();
   });
 });

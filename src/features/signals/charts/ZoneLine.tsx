@@ -11,7 +11,7 @@ import { formatNumber } from '@/components/lib/format';
 import { useElementWidth } from '@/features/charts/core/hooks';
 import { HEART_COPY as C } from './copyHeart';
 import { downsampleFor, hrDayModel, hugDomain, lineSegments, niceTicks } from './heartModels';
-import { ChartShell, TwinTable, useChartSizes, useSlotCrosshair } from './kit';
+import { CHART_NAV_HELP, ChartShell, TwinTable, useChartSizes, useSlotCrosshair } from './kit';
 import { clockAt, type SeriesPoint } from './ringData';
 import { ZoneBar } from './ZoneBar';
 import { timeInZones, zoneLabel, zoneOf, type ZoneModel } from './zones';
@@ -225,6 +225,7 @@ export const ZoneLine = memo(function ZoneLine(props: ZoneLineProps) {
           className="hr-plot"
           role="img"
           aria-label={summary}
+          aria-description={CHART_NAV_HELP}
           tabIndex={0}
           onKeyDown={(e) => cross.onKeyDown(e)}
           onFocus={cross.onFocus}

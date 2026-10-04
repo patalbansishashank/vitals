@@ -12,9 +12,9 @@ const LATEST_DOWNLOAD = `${RELEASES_URL}/latest/download/`;
 
 export type AssetKey = 'android' | 'linux-appimage' | 'linux-deb' | 'windows' | 'macos';
 
-/** Names in order of preference (the signed APK before the unsigned one). */
+/** Only an installable, signed Android package may be offered. */
 export const ASSET_NAMES: Record<AssetKey, readonly string[]> = {
-  android: ['Vitals-android.apk', 'Vitals-android-unsigned.apk'],
+  android: ['Vitals-android.apk'],
   'linux-appimage': ['Vitals-linux-x86_64.AppImage'],
   'linux-deb': ['Vitals-linux-amd64.deb'],
   windows: ['Vitals-windows-x64-setup.exe'],
@@ -49,13 +49,13 @@ export type ReleaseState =
   | { kind: 'none' };
 
 export function fallbackAssets(): ReleaseAsset[] {
-  return ASSET_ORDER.map((key) => ({ key, name: ASSET_NAMES[key][0]!, url: LATEST_DOWNLOAD + ASSET_NAMES[key][0]! }));
+  // A failed release read cannot establish whether Android signing succeeded.
+  return ASSET_ORDER.filter((key) => key !== 'android').map((key) => ({ key, name: ASSET_NAMES[key][0]!, url: LATEST_DOWNLOAD + ASSET_NAMES[key][0]! }));
 }
 
 interface ApiAsset {
   name?: unknown;
   size?: unknown;
-  browser_download_url?: unknown;
 }
 
 /** Keeps the files the page offers, in display order; a file the release lacks is left out. */
@@ -71,15 +71,16 @@ export function parseRelease(body: unknown): ReleaseState | null {
     for (const name of ASSET_NAMES[key]) {
       const a = byName.get(name);
       if (!a) continue;
-      const url = typeof a.browser_download_url === 'string' && a.browser_download_url.startsWith('https://') ? a.browser_download_url : LATEST_DOWNLOAD + name;
-      assets.push({ key, name, url, size: typeof a.size === 'number' && a.size > 0 ? a.size : undefined });
+      // Release metadata supplies availability and size only. Keep download links on our own repository.
+      assets.push({ key, name, url: LATEST_DOWNLOAD + name, size: typeof a.size === 'number' && a.size > 0 ? a.size : undefined });
       break;
     }
   }
   return { kind: 'release', version: tag.replace(/^v/, ''), assets };
 }
 
-const CACHE_KEY = 'vitals.release.v1';
+// v1 cached API supplied download URLs, so do not reuse it after narrowing links.
+const CACHE_KEY = 'vitals.release.v2';
 const CACHE_MS = 60 * 60 * 1000;
 
 function readCache(now: number): ReleaseState | null {
@@ -87,7 +88,14 @@ function readCache(now: number): ReleaseState | null {
     const raw = window.sessionStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const c = JSON.parse(raw) as { at?: number; state?: ReleaseState };
-    return typeof c.at === 'number' && now - c.at < CACHE_MS && c.state ? c.state : null;
+    if (typeof c.at !== 'number' || now - c.at >= CACHE_MS || !c.state) return null;
+    if (c.state.kind === 'none') return c.state;
+    if (c.state.kind === 'links') return { kind: 'links', assets: fallbackAssets() };
+    if (c.state.kind !== 'release' || !Array.isArray(c.state.assets) || typeof c.state.version !== 'string') return null;
+    const assets = c.state.assets.filter((asset) =>
+      asset && ASSET_NAMES[asset.key]?.includes(asset.name) && typeof asset.url === 'string' && asset.url.startsWith('https://'),
+    ).map((asset) => ({ ...asset, url: LATEST_DOWNLOAD + asset.name }));
+    return assets.length ? { kind: 'release', version: c.state.version, assets } : { kind: 'none' };
   } catch {
     return null;
   }
@@ -146,7 +154,8 @@ async function readRelease(fetchImpl: typeof fetch, now: number): Promise<Releas
     }
     if (!res.ok) return { kind: 'links', assets: fallbackAssets() };
     const state = parseRelease(await res.json());
-    if (!state || (state.kind === 'release' && state.assets.length === 0)) return { kind: 'links', assets: fallbackAssets() };
+    if (!state) return { kind: 'links', assets: fallbackAssets() };
+    if (state.kind === 'release' && state.assets.length === 0) return { kind: 'none' };
     writeCache(now, state);
     return state;
   } catch {

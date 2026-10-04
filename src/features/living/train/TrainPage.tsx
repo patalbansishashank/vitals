@@ -14,6 +14,7 @@ import { addDays, compareDates, daysBetween, isLocalDate } from '@/living/dates'
 import { TopBar } from '@/app/shell';
 import { EmptyStage, Faceplate, Key, KeyBank, MQ, Page, formatNumber, toast, useMediaQuery } from '@/components';
 import { DateStrip } from '../components/DateStrip';
+import { LogConflict } from '../components/LogConflict';
 import { useToday } from '../clock';
 import { useLivingActions } from '../data/actions';
 import { useLiving } from '../data/source';
@@ -89,6 +90,7 @@ function TrainScreen() {
   const setup: TrainSetup = useMemo(() => ({ profile, ctx, catalogue }), [profile, ctx, catalogue]);
 
   const view = useLiving((s) => s.today(date), [date]);
+  const dayConflicts = useLiving((s) => s.history(date, date)[0]?.conflicts ?? [], [date]);
   const week = useMemo(() => weekOf(date), [date]);
   const monday = strip && strip.date === date ? strip.monday : week[0]!;
   const shown = useMemo(() => weekOf(monday), [monday]);
@@ -315,6 +317,7 @@ function TrainScreen() {
             ) : null}
           </div>
         ) : null}
+        {dayConflicts.filter((conflict) => conflict.kind === 'workout').map((conflict) => <LogConflict key={conflict.parentId} conflict={conflict} quiet={quiet} />)}
         {mode === 'week' ? (
           <WeekView
             title={weekTitle}

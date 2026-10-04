@@ -33,7 +33,7 @@ export function fakeWorkers() {
   return { factory, calls, opened, ingested: (id: string) => (calls.get(id) ?? []).filter((r) => r.op === 'ingestLumen') };
 }
 
-export async function startTestHome(o: { dataDir?: string; mqtt?: boolean; mqttTls?: { certFile: string; keyFile: string }; factory?: WorkerFactory } = {}) {
+export async function startTestHome(o: { dataDir?: string; mqtt?: boolean; mqttTls?: { certFile: string; keyFile: string }; factory?: WorkerFactory; log?: (line: string) => void } = {}) {
   const dataDir = o.dataDir ?? (await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), 'home-')));
   const fake = fakeWorkers();
   const c: Companion = await startCompanion({
@@ -41,6 +41,7 @@ export async function startTestHome(o: { dataDir?: string; mqtt?: boolean; mqttT
     dataDir: join(dataDir, 'relay'),
     allowedOrigins: [],
     relay: false,
+    ...(o.log ? { log: o.log } : {}),
     home: { dataDir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', mqtt: { enabled: o.mqtt ?? true, ...(o.mqttTls ? { tls: { listen: [{ host: '127.0.0.1', port: 0 }], ...o.mqttTls } } : {}) }, rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: o.factory ?? fake.factory },
   });
   const home = c.home!;

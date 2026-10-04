@@ -1,13 +1,13 @@
 // J3 phone part (run ONLY through phone.sh, inside the ring + phone locks): C = the Vitals app on the phone (candidate
 // APK), driven over its WebView's DevTools socket (adb forward to 127.0.0.1:9334), with the desktop app (A), the
 // website (B) and the server person (S) as in run.mjs. The phone has no network switch for us (never a phone setting):
-// it is an always-online replica plus force-stop/restart. Results: qa/results/L-QA/j3/P-phone.json.
+// it is an always-online replica plus force-stop/restart. Results: qa/results/L-QA/round2/j3/P-phone.json.
 //   node qa/scripts/L-QA/j3/phone.mjs            (phone.sh has paired nothing yet: this script presses "Pair this device")
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { CAND, ROOT, SERVER, TMP, busRead, ensurePreview, log, openApp, redact, sleep, tool, webmcpPolyfill } from './apps.mjs';
-import { revokeToken, state, token as newToken } from './server.mjs';
+import { pairCode, revokeToken, state, token as newToken } from './server.mjs';
 import { openReplica } from './harness/lib/replica.mjs';
 
 const ADB = `${process.env.HOME}/.local/share/codex-android/sdk/platform-tools/adb`;
@@ -150,7 +150,7 @@ async function ring() {
   const C = await openPhone();
   reps.push(C);
   const page = C.page;
-  const A = await openApp('desktop', { name: 'desktop', dir: `${TMP}/j3/desktop` });
+  const A = await openApp('desktop', { name: 'desktop', dir: `${TMP}/r2j3/desktop` });
   reps.push(A);
   const srcA0 = await busRead(A.page, 'bio.sources', {}).catch((e) => ({ error: e.message }));
   const count = (x) => (Array.isArray(x) ? x.length : Array.isArray(x?.sources) ? x.sources.length : null);
@@ -159,9 +159,14 @@ async function ring() {
     const t = m.text();
     if (/ingestRingBatch|ring|error/i.test(t)) observed.ringConsole = [...(observed.ringConsole ?? []), redact(t).replace(/[0-9a-f]{12,}/gi, '<hex>').slice(0, 200)].slice(-12);
   });
-  await C.go('/settings?section=devices');
+  await C.go('/ring'); // round 2: the Ring page's connection card has "Sync now"
   await sleep(2500);
-  const block = page.getByRole('group', { name: 'rings' });
+  let block = page.getByRole('main');
+  if (!(await block.getByRole('button', { name: 'Sync now', exact: true }).count())) {
+    await C.go('/settings?section=devices');
+    await sleep(2500);
+    block = page.getByRole('group', { name: 'rings' });
+  }
   const text0 = (await block.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300);
   observe('ring: Devices › rings before', text0);
   const t0 = Date.now();
@@ -206,6 +211,11 @@ async function ring() {
   await A.go('/ring');
   const ui = (await A.page.evaluate(() => document.body.innerText).catch(() => '')).includes('J-Style');
   observe('ring: desktop /ring page names the J-Style ring', ui);
+  await A.go('/signals');
+  await sleep(2000);
+  const sig = (await A.page.evaluate(() => document.body.innerText).catch(() => '')).replace(/\s+/g, ' ');
+  // no values: only whether the page shows a sleep night and the ring as a source
+  observe('ring: desktop /signals (sleep shown, J-Style named, no-data text)', { sleep: /sleep/i.test(sig), jstyle: /J-Style/.test(sig), noData: /no (data|readings)|nothing yet/i.test(sig) });
 }
 
 try {
@@ -222,8 +232,44 @@ try {
   reps.push(C);
   // pairing: phone.sh opened the pairing link; press "Pair this device", answer the existing-data question with Merge
   const page = C.page;
+  if (process.env.J3_PAIR_BY_CODE === '1') {
+    // round 2: pair through Settings › Server by typing a CLI pairing code (and the server address the phone can reach,
+    // read from a 0600 file; neither is printed)
+    const code = await pairCode(st.personId, 'R2J3 phone');
+    const addrFile = `${TMP}/r2j3/phone-server`;
+    const address = fs.existsSync(addrFile) ? fs.readFileSync(addrFile, 'utf8').trim() : null;
+    await C.go('/settings?section=server');
+    if (!focused()) throw new Error('Vitals not in front');
+    const enter = page.getByRole('button', { name: 'Enter code' });
+    if (await enter.count()) await enter.first().click();
+    const addr = page.getByLabel('server address').first();
+    if (address && (await addr.isEditable().catch(() => false))) await addr.fill(address);
+    await page.getByLabel('first 4 digits').fill(code.slice(0, 4));
+    await page.getByLabel('last 4 digits').fill(code.slice(4));
+    const n = page.getByLabel('name this device');
+    if (await n.count()) await n.fill('R2J3 phone');
+    if (!focused()) throw new Error('Vitals not in front');
+    await page.getByRole('button', { name: /^Pair( this device)?$/ }).first().click();
+    observe('pairing', 'typed code in Settings › Server');
+    const t = Date.now();
+    let asked = null;
+    while (Date.now() - t < 30000) {
+      const dlg = page.getByRole('alertdialog');
+      if (await dlg.count()) {
+        asked = (await dlg.first().innerText()).replace(/\s+/g, ' ').slice(0, 200);
+        if (!focused()) throw new Error('Vitals not in front');
+        await dlg.first().getByRole('button', { name: 'Merge', exact: true }).click();
+        break;
+      }
+      if ((await C.syncStatus().catch(() => ({})))?.paired) break;
+      await sleep(400);
+    }
+    observe('existing-data question at pairing', asked);
+  }
   const pairBtn = page.getByRole('button', { name: /^Pair this device$/ }).first();
-  if (await pairBtn.waitFor({ timeout: 20000 }).then(() => true, () => false)) {
+  if (process.env.J3_PAIR_BY_CODE === '1') {
+    // paired above
+  } else if (await pairBtn.waitFor({ timeout: 20000 }).then(() => true, () => false)) {
     if (!focused()) throw new Error('Vitals not in front');
     await pairBtn.click();
     const t = Date.now();
@@ -251,9 +297,9 @@ try {
   tok = await newToken(st.personId);
   const S = await openReplica('server', { name: 'server', serverBaseUrl: SERVER, token: tok.token });
   reps.push(S);
-  const A = await openApp('desktop', { name: 'desktop', dir: `${TMP}/j3/desktop` });
+  const A = await openApp('desktop', { name: 'desktop', dir: `${TMP}/r2j3/desktop` });
   reps.push(A);
-  const B = await openApp('browser', { name: 'website', dir: `${TMP}/j3/website` });
+  const B = await openApp('browser', { name: 'website', dir: `${TMP}/r2j3/website` });
   reps.push(B);
 
   // history: every meal the earlier runs logged (days 0..5) is on the phone
@@ -314,7 +360,11 @@ try {
   // the force-stop reaches everyone
   const d3 = day(3);
   const ids = [];
-  for (let i = 0; i < 8; i++) ids.push((await A.write({ op: 'logFood', date: d3, text: `J3 P burst ${i + 1}`, food: 'cooked rice' })).id);
+  for (let i = 0; i < 8; i++) {
+    const w = await A.write({ op: 'logFood', date: d3, text: `J3 P burst ${i + 1}`, food: 'cooked rice' });
+    if (w.id) ids.push(w.id); // the bus caps WebMCP writes per tool per turn: count only writes that made an entry
+  }
+  observe('T6: burst writes that made an entry (of 8)', ids.length);
   const wk = await C.write({ date: d3, text: 'J3 P phone before force-stop', food: 'banana' });
   await sleep(100);
   const held = Object.keys(await C.read({ col: 'dailyLogs', date: d3 })).filter((k) => ids.includes(k)).length;
@@ -338,13 +388,13 @@ try {
   const [ka, ks] = await Promise.all([visible(A, d3, wk.id, t0, 45000), visible(S, d3, wk.id, t0, 45000)]);
   check(`T6: the phone's write from just before the force-stop reaches the desktop and the server (${fmt(ka)}, ${fmt(ks)})`, ka !== null && ks !== null);
   for (const x of [A, B, C]) observe(`${x.name} sync status at the end`, await x.syncStatus().catch((e) => e.message));
-  fs.writeFileSync(`${TMP}/j3/phone-ok`, new Date().toISOString());
+  fs.writeFileSync(`${TMP}/r2j3/phone-ok`, new Date().toISOString());
 } catch (e) {
   if (e !== null) check(`phone ${MODE} error`, false, e.stack ?? e.message);
 } finally {
   for (const x of reps) await x.close().catch(() => undefined);
   if (tok) log(`agent token revoked: ${await revokeToken(st.personId, tok.id).catch((e) => e.message)}`);
   const failed = rows.filter((r) => !r.ok).length;
-  fs.writeFileSync(`${ROOT}/qa/results/L-QA/j3/P-phone-${MODE}.json`, JSON.stringify({ test: `P-phone-${MODE}`, at: new Date().toISOString(), replicas: { C: 'phone app (candidate APK, real device, always online; force-stop for kill)', A: 'desktop app (real)', B: 'website (real)', S: 'server person (real, MCP)' }, passed: rows.length - failed, failed, timingsMs: timings, observed, checks: rows }, null, 1) + '\n');
+  fs.writeFileSync(`${ROOT}/qa/results/L-QA/round2/j3/P-phone-${MODE}.json`, JSON.stringify({ test: `P-phone-${MODE}`, at: new Date().toISOString(), replicas: { C: 'phone app (candidate APK, real device, always online; force-stop for kill)', A: 'desktop app (real)', B: 'website (real)', S: 'server person (real, MCP)' }, passed: rows.length - failed, failed, timingsMs: timings, observed, checks: rows }, null, 1) + '\n');
 }
 process.exit(0);

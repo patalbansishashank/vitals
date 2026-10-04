@@ -115,7 +115,7 @@ const CASES: Case[] = [
   {
     s: 'permission_needed',
     word: 'needs permission',
-    line: 'Vitals needs permission to find and connect to nearby devices. It doesn’t use your location.',
+    line: 'Vitals needs the Nearby devices permission to find your ring. Allow it in Android settings for Vitals.',
     keys: ['Allow'],
   },
   {
@@ -200,6 +200,8 @@ describe('connection card: every state (§5.2)', () => {
     const bar = within(card).getByRole('progressbar');
     expect(bar.getAttribute('aria-valuenow')).toBe('34');
     expect(within(card).getByRole('button', { name: 'reading…' })).toBeDisabled();
+    // the words carry the state: tertiary ink, not the disabled-only faint ink (J6-09)
+    expect(within(card).getByRole('button', { name: 'reading…' }).classList.contains('rg-statuskey')).toBe(true);
     expect(card.querySelector('.rg-light')?.getAttribute('data-light')).toBe('reading');
   });
 

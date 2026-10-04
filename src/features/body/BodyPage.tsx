@@ -279,7 +279,7 @@ export default function BodyPage() {
     <>
       <TopBar
         title={TITLE}
-        tabs={setupView ? <SetupProgress step={setupView} /> : undefined}
+        progress={setupView ? <SetupProgress step={setupView} /> : undefined}
         actions={
           <>
             <SafetyModeChip context={bodyContext} />
@@ -290,7 +290,7 @@ export default function BodyPage() {
           </>
         }
       />
-      {setupView ? <ActionBar>{setupKeys(setupView, 'bar')}</ActionBar> : null}
+      {setupView ? <ActionBar><div className="lm-body-setup-actions">{setupKeys(setupView, 'bar')}</div></ActionBar> : null}
       <Page>
         <div className="lm-body" data-mode={mode}>
           {mode === 'start' ? (

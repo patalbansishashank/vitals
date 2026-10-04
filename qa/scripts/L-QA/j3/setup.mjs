@@ -1,6 +1,6 @@
 // J3 setup: creates the test person, opens the desktop app and the website with fresh profiles, onboards both, pairs
 // both through Settings › Server with a code from the server CLI, and records whether pairing turned sync on by itself
-// (decision 5). Writes qa/results/L-QA/j3/setup.json. The profiles stay in .e6-tmp/j3/ for run.mjs.
+// (decision 5). Writes qa/results/L-QA/round2/j3/setup.json. The profiles stay in .e6-tmp/r2j3/ for run.mjs.
 //   node qa/scripts/L-QA/j3/setup.mjs
 import fs from 'node:fs';
 import { ROOT, TMP, ensurePreview, log, openApp, redact, sleep } from './apps.mjs';
@@ -15,7 +15,7 @@ const st = state();
 await ensurePreview();
 if (!st.personId) {
   const hhmm = new Date().toTimeString().slice(0, 5).replace(':', '');
-  st.label = `L-QA-J3-${hhmm}`;
+  st.label = `L-QA-R2J3-${hhmm}`;
   st.personId = await addPerson(st.label);
   saveState(st);
 }
@@ -25,7 +25,7 @@ const reps = [];
 try {
   for (const [kind, name] of [['desktop', 'desktop'], ['browser', 'website']]) {
     const t0 = Date.now();
-    const x = await openApp(kind, { name, dir: `${TMP}/j3/${name}` });
+    const x = await openApp(kind, { name, dir: `${TMP}/r2j3/${name}` });
     reps.push(x);
     step(`${name}: app started`, true, `${Date.now() - t0} ms, url ${x.page.url().replace(/\?.*/, '')}`);
     const welcomed = await x.onboard().catch((e) => `welcome failed: ${e.message}`);
@@ -56,7 +56,7 @@ try {
   step('setup error', false, e.stack ?? e.message);
 } finally {
   for (const x of reps) await x.close().catch(() => undefined);
-  fs.mkdirSync(`${ROOT}/qa/results/L-QA/j3`, { recursive: true });
-  fs.writeFileSync(`${ROOT}/qa/results/L-QA/j3/setup.json`, JSON.stringify(out, null, 1) + '\n');
+  fs.mkdirSync(`${ROOT}/qa/results/L-QA/round2/j3`, { recursive: true });
+  fs.writeFileSync(`${ROOT}/qa/results/L-QA/round2/j3/setup.json`, JSON.stringify(out, null, 1) + '\n');
 }
 process.exit(0);

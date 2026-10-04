@@ -2,20 +2,35 @@
 
 All notable changes to Vitals. Dates are release dates (IST).
 
-## Unreleased
+## [0.5.0] - 2026-10-04
+
+Vitals now has a shared website, desktop app and Android app, with ring readings and sync available in the same interface.
 
 ### Added
-- **MQTT over TLS for phones that cannot resolve tailnet names.** The server's broker can also listen on TLS (`ssl://`) on the
-  server's tailnet addresses, using a certificate Caddy already keeps for a public name that points at the tailnet. Lumen Health
-  on a phone with Tailscale DNS off connects to `ssl://hermes.example.com:8883` as before; only the login changes.
-  `deploy/vitals-cert-sync.*` copies Caddy's certificate hourly and restarts the server when it is renewed. Documented in
-  `docs/SERVER.md`; four broker tests cover it (valid client, bad password, untrusted certificate, plain text).
+- Ring support for seven protocol families: **J-Style 2301, Colmi, CRP, Jring, LuckRing, RWfit and YCBT**. The Ring page handles connection, readings and sharing; Body signals shows sleep, heart and activity over day, week, month and year.
+- Linux, Windows and macOS desktop installers and an Android APK. The website offers the relevant download and keeps the website option. The desktop app has a tray, updates and a consent-based **Connect your AI tools** setup.
+- Android background ring checks while its ring service is running, with connection and battery notices. A screen-off background read was observed on the phone; the unplugged overnight case remains to be checked.
+- Pairing with a home server can turn sync on and hand the new device its sync key. Settings shows sync progress, queued changes and errors. Agents can request the same briefing the Coach uses, subject to the person's sharing choices.
+- A shared rotating Body figure, refreshed app icons, and a public MIT source snapshot. The release pipeline produced and checked Linux, Windows, macOS and Android artifacts together in a green CI run; publishing the v0.5.0 release is a separate step.
 
 ### Changed
-- **A ring never asks for a password.** The J-Style 2301 driver now sends V0789 firmware's passcode on its own: it is a
-  protocol constant built into the driver (`src/biometrics/core/ble/jstyle2301/passcode.ts`, stored as bytes). The "Ring key"
-  field in Settings › Devices, the staged credential and the "type the key" messages are gone. The passcode is never shown,
-  logged or captured, and a test scans every tracked file to keep it in that one file.
+- Vitals supplies the built-in J-Style 2301 firmware passcode during connection; there is no ring key field to fill in. Ring sharing starts on for scores and Coach, with a master switch and per-stream controls.
+- The apps use one ring library and keep the same ring's readings together across devices. A revised sleep night replaces its earlier version in normal views. A joined device with a complete profile skips body setup; local writes are saved before sync acknowledges them.
+- Lumen Health's archive remains importable while Vitals takes over the phone's ring role after the owner checks the new app.
+
+### Fixed
+- J-Style history reads tolerate a pause within a page and report an incomplete read instead of silently losing the rest.
+- Reconnecting after a network outage flushes queued changes promptly. Concurrent log edits show both choices and support resolution and Undo; clock drift no longer gives a false **Synced** status.
+- MCP briefing and profile tools work after a tool list; tool limits recover. Android excludes app data from system backup. Mobile layouts, keyboard focus and download controls received release fixes.
+
+### Known limits
+- Windows installers are unsigned: in SmartScreen, choose **More info › Run anyway**. The macOS app is ad-hoc signed and not notarised: use **System Settings › Privacy & Security › Open Anyway**. Windows and macOS built and smoke-launched in CI but were not hand-tested through full flows.
+- Mixed-family pairing and provisional-to-complete sleep merging still need their final integration fixes and a rebuild. These app paths are not release-proven yet.
+- Only **J-Style 2301** was read from a real ring. The other six families passed recorded-packet and fake-peripheral tests only. Its built-in firmware passcode worked on one ring; other rings with that firmware may differ.
+- A phone screen-off read was observed, but an **unplugged overnight** background read has not been observed. Fresh-start phone connection and desktop live heart rate also need another real-device check; the latest full hardware journeys did not pass those cases.
+- Clock drift over five minutes holds affected sync changes back; the status explains the delay. Server compaction of replaced ring chunks is not built yet.
+- Living plan commands do not yet read ring observations directly; some derived body-signal flags still need source-level Coach hiding. Resolving a conflicting lab result can leave its separate summary showing the other version. When a meal needs a food choice, an agent must check the returned question before treating it as logged.
+- Colmi sport sessions and its live heart-rate keepalive, live workout recording, Health Connect and Strava are outside this release. The website may ask you to pick the ring again, and phone 3D figure speed is unmeasured.
 
 ## [0.4.0] - 2026-10-03
 

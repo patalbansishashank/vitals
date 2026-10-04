@@ -187,6 +187,7 @@ export default function Figure3DCanvas(props: Figure3DCanvasProps) {
       if (
         !s.visible ||
         document.hidden ||
+        document.activeElement === canvas ||
         L.reducedMotion ||
         L.autoRotate === false ||
         L.views.length !== 1 ||
@@ -195,7 +196,7 @@ export default function Figure3DCanvas(props: Figure3DCanvasProps) {
         return;
       const dt = s.lastTick ? Math.max(0, now - s.lastTick) : 0;
       s.lastTick = now;
-      if (!s.dragging && now >= s.resumeAt) {
+      if (!s.dragging && document.activeElement !== canvas && now >= s.resumeAt) {
         s.angle = (s.angle + dt * ((Math.PI * 2) / 75_000)) % (Math.PI * 2);
         s.draw();
       }
@@ -209,6 +210,7 @@ export default function Figure3DCanvas(props: Figure3DCanvasProps) {
       if (
         s.visible &&
         !document.hidden &&
+        document.activeElement !== canvas &&
         !L.reducedMotion &&
         L.autoRotate !== false &&
         L.views.length === 1 &&
@@ -434,6 +436,11 @@ export default function Figure3DCanvas(props: Figure3DCanvasProps) {
     s.dragging = false;
     s.resumeAt = performance.now() + 2000;
   };
+  const onBlur = () => {
+    st.current.resumeAt = performance.now() + 2000;
+    st.current.spinControl();
+  };
+  const onFocus = () => st.current.spinControl();
   const onKeyDown = (e: KeyboardEvent<HTMLCanvasElement>) => {
     if (latest.current.interactive === false) return;
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -459,6 +466,8 @@ export default function Figure3DCanvas(props: Figure3DCanvasProps) {
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onLostPointerCapture={endDrag}
+      onFocus={onFocus}
+      onBlur={onBlur}
       onKeyDown={onKeyDown}
     />
   );

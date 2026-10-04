@@ -27,17 +27,17 @@ describe('first scenario in gentle mode (QA: an ED-risk user landed on a pre-pai
   it('swaps the untouched default deficit for the maintenance starter', async () => {
     seedClearedSafety({ ...STANDARD_ANSWERS, eatingDisorder: 'yes' });
     renderAt('/simulate/starter/schedule');
-    await screen.findByRole('heading', { level: 1 }, { timeout: 8000 });
+    await screen.findByRole('heading', { level: 1 }, { timeout: 20_000 });
     await waitFor(() => expect(starter().name).toBe('Maintenance + training'));
     // no deficit programs: the maintenance starter's rest days sit at 95 %, lifting days at 100 %
     const pcts = starter().schedule.programs.map((p) => (p.energy.kind === 'pctMaintenance' ? p.energy.pct : 100));
     expect(Math.min(...pcts)).toBeGreaterThanOrEqual(95);
-  }, 20_000);
+  }, 40_000); // the first test cold-loads the simulator screen: ~8 s alone on a busy machine
 
   it('keeps the default in standard mode', async () => {
     seedClearedSafety();
     renderAt('/simulate/starter/schedule');
-    await screen.findByRole('heading', { level: 1 }, { timeout: 8000 });
+    await screen.findByRole('heading', { level: 1 }, { timeout: 20_000 });
     expect(starter().name).toBe('Moderate deficit');
-  }, 20_000);
+  }, 40_000); // the first test cold-loads the simulator screen: ~8 s alone on a busy machine
 });

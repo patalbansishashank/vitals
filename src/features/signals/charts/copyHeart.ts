@@ -16,7 +16,7 @@ export const HEART_COPY = {
     hrPerDay: 'heart rate per day',
     hrPerMonth: 'heart rate per month',
     resting: 'resting heart rate',
-    hrvHistory: 'heart-rate variability · tier C',
+    hrvHistory: 'heart-rate variability',
     spo2PerNight: 'blood oxygen per night',
     spo2PerMonth: 'blood oxygen per month',
     tempPerNight: 'skin temperature per night',
@@ -54,9 +54,12 @@ export const HEART_COPY = {
   hrvValue: (v: string) => `${v}${T}ms last night`,
   forming: (n: number) => `Building your normal: ${n} of 14 nights.`,
   hrvNone: 'No heart-rate variability recorded last night.',
-  tier: 'tier C: shown as change from your own normal',
+  /** Said where a chart shows change from the person's normal (the plain words for tier C). */
+  tier: 'shown as change from your own normal',
   /* night lines (§7.4.4) */
+  /** While the normal forms (D6: the absolute line until 14 nights). */
   spo2Readout: (avg: string, low: string, at: string) => `average ${avg}${T}% · lowest ${low}${T}% at ${at}`,
+  spo2ChangeReadout: (avg: string, at: string) => `average ${avg}${T}% from your normal · lowest at ${at}`,
   tempReadout: (avg: string, unit: string, hi: string, at: string) => `average ${avg}${T}${unit} from your normal · highest ${hi}${T}${unit} at ${at}`,
   tempAbsReadout: (lo: string, hi: string, unit: string) => `${lo}–${hi}${T}${unit}`,
   yourNormal: 'your normal',
@@ -87,7 +90,10 @@ export const HEART_COPY = {
   meansTableCols: (unit: string) => ['month', `mean (${unit})`, 'nights recorded'] as const,
   spo2Slot: (avg: string, low: string | null) => (low ? `average ${avg}${T}% · lowest ${low}${T}%` : `average ${avg}${T}%`),
   spo2PeriodReadout: (avg: string) => `average ${avg}${T}% (recorded nights)`,
+  spo2SlotChange: (avg: string, low: string | null) => (low ? `average ${avg}${T}% from your normal · lowest ${low}${T}%` : `average ${avg}${T}% from your normal`),
+  spo2PeriodChange: (avg: string) => `average ${avg}${T}% from your normal (recorded nights)`,
   spo2TableCols: ['date', 'average', 'lowest'] as const,
+  spo2TableColsChange: ['date', 'average', 'lowest', 'average change from your normal'] as const,
   tempSlot: (dev: string, unit: string) => `${dev}${T}${unit} from your normal`,
   tempAbs: (v: string, unit: string) => `${v}${T}${unit}`,
   tempPeriodReadout: (dev: string, unit: string) => `average ${dev}${T}${unit} from your normal (recorded nights)`,

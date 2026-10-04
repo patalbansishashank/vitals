@@ -3,7 +3,7 @@ import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const BASE = process.env.J5_BASE ?? 'http://127.0.0.1:4315';
+export const BASE = process.env.J5_BASE ?? 'http://127.0.0.1:4335';
 export const OUT = path.resolve(process.env.J5_OUT ?? 'qa/results/L-QA/j5');
 fs.mkdirSync(OUT, { recursive: true });
 

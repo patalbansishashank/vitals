@@ -137,8 +137,8 @@ export interface TransportFactory {
   available(): Promise<boolean>;
   /** Streams advertisements until `signal` aborts; `families` narrows platform filters where the platform has any. */
   scan(families: readonly RingFamily[], onFound: (ad: Advertisement) => void, signal: AbortSignal): Promise<void>;
-  /** Connects to a peripheral seen in `scan` (or remembered by its `platformId`); resolves once GATT is up. */
-  connect(target: { platformId: string }, family: RingFamily, signal?: AbortSignal): Promise<Transport>;
+  /** Connects to a peripheral seen in `scan` (or remembered by its `platformId`); family may be unknown until GATT discovery. */
+  connect(target: { platformId: string }, family: RingFamily | undefined, signal?: AbortSignal): Promise<Transport>;
 }
 
 // ---------------------------------------------------------------- commands, events, protocol (pure)
@@ -239,7 +239,8 @@ export type SyncCursor = Partial<Record<BioStream, string>>;
 export interface Protocol {
   initialState(): ProtocolState;
   frame(cmd: RingCommand, state: ProtocolState): OutboundFrame[];
-  ingest(bytes: Uint8Array, state: ProtocolState, channel?: Uuid): IngestResult;
+  /** Receipt time stamps live readings and bounds future data; state keeps the command's history-day anchor. */
+  ingest(bytes: Uint8Array, state: ProtocolState, channel?: Uuid, receivedMs?: number): IngestResult;
   planSync(cursor: SyncCursor, state: ProtocolState): RingCommand[];
   /** Called right before `cmd` is written; sets the reply expectation and the timers. */
   begin?(cmd: RingCommand, state: ProtocolState): CommandPlan;
@@ -349,8 +350,12 @@ export interface RingFamily {
   priority: PriorityPolicy;
   /** Runs once after subscribing: battery, firmware, authentication, clock, profile. Throws `RingError` on refusal. */
   handshake(rt: SessionRuntime, opts: HandshakeOptions): Promise<HandshakeInfo>;
-  /** Commands for a live heart-rate stream (`start` / `stop`); undefined when the family has none. */
-  liveHeartRate?: { start: RingCommand; stop: RingCommand };
+  /**
+   * Commands for a live heart-rate stream (`start` / `stop`); undefined when the family has none. `measure`: a timed
+   * measurement the stream needs to carry heart rate (J-Style: `0x28` inside the `0x09` stream), written `gapMs` after
+   * `start` and stopped before `stop`; the session starts it again every `windowMs` until the caller stops.
+   */
+  liveHeartRate?: { start: RingCommand; stop: RingCommand; measure?: { start: RingCommand; stop: RingCommand; gapMs: number; windowMs: number } };
   /** One-shot measurements the family offers ('hr', 'spo2', 'hrv', …) and the command(s) that start each, in order. */
   spot?: Partial<Record<SpotKind, RingCommand | RingCommand[]>>;
   /** The command(s) that end a spot measurement, per kind, when the family has one. */

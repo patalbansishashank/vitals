@@ -19,7 +19,7 @@ import { mcpSocketPath } from '../shared/mcpSocket';
 import { createNodeAiTools } from './aiTools';
 import { APP_ORIGIN, CHANNELS, FLAGS, type AiToolId, type DesktopOs, type McpServerInfo } from '../shared/bridge';
 import { createAutostart } from './autostart';
-import { registerIpc } from './ipc';
+import { registerIpc, watchRealInput } from './ipc';
 import { DOWNLOAD_URL, packageKind, resourcePaths, secretsFile, selfCommand, windowStateFile } from './paths';
 import { SCHEME_PRIVILEGES, createAppHandler } from './protocol';
 import { WEB_PREFERENCES, applySecurity } from './security';
@@ -166,7 +166,7 @@ function startShell(): void {
     };
     const unregisterIpc = registerIpc({
       ipcMain,
-      info: { version: app.getVersion(), os: osName },
+      info: { version: app.getVersion(), os: osName, secretsPersistent: secrets.persistent },
       tray: () => trayHandle,
       autostart,
       updates,
@@ -175,6 +175,7 @@ function startShell(): void {
       setServer: (info) => void (serverInfo = info),
       secrets,
       keepAlive,
+      realInput: watchRealInput(win.webContents),
     });
 
     trayHandle = createTray({

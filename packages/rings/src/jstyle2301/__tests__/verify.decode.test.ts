@@ -204,7 +204,7 @@ describe('decoder details the vectors do not assert', () => {
     ]);
   });
 
-  it('a 0x28 type-2 result is not range-gated (Kotlin gates it later, HRSampleWindow.PLAUSIBLE 40..220)', () => {
-    expect(decodePacket(fromHex('28 02 ff'), ctx).events).toEqual([{ type: 'sample', stream: 'hr', t: ctx.nowMs, value: 255, unit: 'bpm', origin: 'spot' }]);
+  it('a 0x28 type-2 result is range-gated before becoming a public sample', () => {
+    expect(decodePacket(fromHex('28 02 ff'), ctx).events).toEqual([]);
   });
 });

@@ -24,16 +24,28 @@
     color: var(--lm-ink);
   }
   .lm-dl__body {
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
     /* the tallest state (main key, note, two rows of others) so the data arriving moves nothing */
-    min-height: 15rem;
-    align-content: start;
+    min-height: 18rem;
   }
   .lm-dl__main {
     display: grid;
     gap: 6px;
     justify-items: start;
+  }
+  .lm-dl__pending-main {
+    position: relative;
+  }
+  .lm-dl__pending-main > :not(.lm-dl__checking),
+  .lm-dl__pending-asset {
+    visibility: hidden;
+  }
+  .lm-dl__checking {
+    position: absolute;
+    top: 0;
+    left: 0;
   }
   .lm-dl__key {
     text-decoration: none;
@@ -59,11 +71,14 @@
   }
   .lm-dl__others li {
     display: grid;
-    min-height: 2.5rem;
+    min-height: 3.75rem;
     align-content: start;
   }
   .lm-dl__link {
+    display: inline-flex;
+    align-items: center;
     justify-self: start;
+    min-height: 44px;
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
     color: var(--lm-ink);
@@ -82,7 +97,7 @@
     align-items: center;
     gap: 8px;
     justify-self: start;
-    min-height: 32px;
+    min-height: 44px;
     padding: 0;
     border: 0;
     background: none;
@@ -98,9 +113,13 @@
   .lm-dl__fold:hover {
     color: var(--lm-ink);
   }
+  .lm-dl__keep {
+    margin-top: auto;
+    align-self: flex-start;
+  }
   @media (min-width: 40rem) {
     .lm-dl__body {
-      min-height: 12.5rem;
+      min-height: 17rem;
     }
     .lm-dl__others {
       grid-template-columns: repeat(3, minmax(0, 1fr));

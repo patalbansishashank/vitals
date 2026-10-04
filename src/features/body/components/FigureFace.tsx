@@ -10,7 +10,7 @@ import {
   type DragRegion,
   type RegionDragDelta,
 } from '@/features/body/avatar';
-import { Figure3D, VisceralView, askDetailedFigure, saveDataPreferred } from '@/features/body/figure3d';
+import { Figure3D, VisceralView, askDetailedFigure, isSlowDevice, saveDataPreferred, webgl2Available } from '@/features/body/figure3d';
 import { BODY_RANGES, useProfileStore, type BodyProfileValues, type ShapeKey } from '@/state/profileStore';
 import type { UnitSystem } from '@/state/settingsStore';
 import { FIGURE, SHAPE } from '../copy';
@@ -94,6 +94,7 @@ export function FigureFace({
   const { hash } = useLocation();
   const [stage, setStage] = useState<StageView>(() => (hash === '#visceral' ? 'visceral' : 'figure'));
   const [saveData, setSaveData] = useState(saveDataPreferred);
+  const [fallback, setFallback] = useState(() => !webgl2Available() || isSlowDevice());
   // the slice is drawn from the estimate (not the figure as set), at the drawing's frame
   const visceralParams = useMemo(
     () => stateToAvatarParams(summary.estimate, { frame: view.frame }),
@@ -214,7 +215,7 @@ export function FigureFace({
       variant="flush"
       className="lm-body-figure"
       title={FIGURE.title}
-      caption={visceral ? undefined : 'Drag the figure to turn it. Use the sliders to change its shape.'}
+      caption={visceral ? undefined : saveData || fallback ? 'Drag the figure to change its shape, or use the sliders.' : 'Drag the figure to turn it. Use the sliders to change its shape.'}
       actions={
         <div className="lm-body-row">
           <KeyBank<StageView>
@@ -262,6 +263,7 @@ export function FigureFace({
             caption={caption}
             forceSvg={saveData}
             onFallback={(reason) => {
+              setFallback(true);
               if (reason === 'slow device' && !slowToastShown) {
                 slowToastShown = true;
                 toast(FIGURE.slowSwitch);

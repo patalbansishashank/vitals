@@ -169,10 +169,47 @@ export function ownedFamilies(sources: readonly Pick<BioSourceDoc, 'sourceKey' |
 
 /* ---------------------------------------------------------------- ring sources (SUITE_SPEC §15.2, plan 04 item 11) */
 
-/** A ring connected through Vitals: a `ring` device, a Bluetooth channel, or the same ring's data from Lumen. */
-export function isRingSource(src: Pick<BioSourceDoc, 'sourceKey'> & { deviceType?: string }): boolean {
+/** A ring connected through Vitals: a Bluetooth channel (`ble:<driver>|…` and `ble:<family>/<model>/<ringId>`), or the
+ * same ring's data from Lumen (MQTT, its events file and its archive share `file:lumen_cloudevents`). The channel decides,
+ * not a `ring` device type (the doc's `deviceType`, or `seenType` read off its records): Apple Health, Health Connect and
+ * Gadgetbridge files mark rings too, and those imports stay opt-in (§4.5). The ring sources Vitals creates itself carry
+ * a `ble:` channel as well as `deviceType: 'ring'`. The one test for the commands, the migration, `newSourceDoc` and the
+ * Ring page. */
+export function isRingSource(src: Pick<BioSourceDoc, 'sourceKey'> & { deviceType?: string }, _seenType?: string): boolean {
   const ch = channelOfSourceKey(src.sourceKey);
-  return src.deviceType === 'ring' || ch.startsWith('ble:') || ch === 'file:lumen_cloudevents';
+  return ch.startsWith('ble:') || ch === 'file:lumen_cloudevents';
+}
+
+/** Id of the person's master-switch choice in `bioSources` (synced, one per person; not a source: it has no label). */
+export const RING_SHARING_ID = 'ringSharing:me';
+/** Id of the one-time migration's record beside it (`biometrics.ringDefaults`; it also holds the Ring page's notice). */
+export const RING_DEFAULTS_ID = 'ringDefaults:me';
+/** Id of the ring fold (`biometrics.ringFold`): `{ lumen: <ringKey> }` when Lumen data is filed under the person's one
+ * J-Style 2301 ring source (SUITE_SPEC §15.2 "one ring = one source"). */
+export const RING_FOLD_ID = 'ringFold:me';
+
+export interface RingFold {
+  /** The ring source key Lumen data belongs to; absent while the person has no ring, or more than one. */
+  lumen?: string;
+}
+
+/** The stored fold (the `ringFold:me` body), or undefined when there is none. */
+export function ringFoldOf(body: unknown): RingFold | undefined {
+  const lumen = (body as { lumen?: unknown } | null | undefined)?.lumen;
+  return typeof lumen === 'string' && lumen.startsWith('ble:') ? { lumen } : undefined;
+}
+
+/** The migration's notice is waiting (the `ringDefaults:me` body). */
+export function ringDefaultsNoticeOf(body: unknown): boolean {
+  return (body as { notice?: unknown } | null | undefined)?.notice === 'show';
+}
+
+/** The master switch as the person last turned it; 'off' holds for rings connected later. */
+export type RingChoice = 'on' | 'off';
+
+/** The choice stored in the `ringSharing:me` body: 'on' (the default) until the person turns the switch off. */
+export function ringChoiceOf(body: unknown): RingChoice {
+  return (body as { choice?: unknown } | null | undefined)?.choice === 'off' ? 'off' : 'on';
 }
 
 /** Ring data is first-party: every stream in, scores and plan where eligible, the Coach sees daily + detail. */
@@ -189,9 +226,19 @@ export function ringSharingOffPolicy(stream: PolicyStream, current?: StreamPolic
   return normalizePolicy({ stream, imported: current?.imported ?? true, coach: 'hidden', engine: false, scores: false });
 }
 
+/** What a ring stream starts with (a new ring source, a stream new to one): the ring default, or with the master switch
+ * off what the switch writes. */
+export function ringStartPolicy(stream: PolicyStream, choice: RingChoice = 'on'): StreamPolicy {
+  return choice === 'off' ? ringSharingOffPolicy(stream) : ringDefaultPolicy(stream);
+}
+
+export function ringStartPolicies(choice: RingChoice = 'on'): StreamPolicy[] {
+  return POLICY_STREAMS.map((s) => ringStartPolicy(s, choice));
+}
+
 /** What the master switch reads over the person's ring sources: 'none' when there is no ring source. */
 export function ringSharing(sources: readonly (Pick<BioSourceDoc, 'sourceKey' | 'policies'> & { deviceType?: string })[]): 'on' | 'off' | 'some' | 'none' {
-  const rings = sources.filter(isRingSource);
+  const rings = sources.filter((s) => isRingSource(s));
   if (rings.length === 0) return 'none';
   const same = (a: StreamPolicy, b: StreamPolicy) => JSON.stringify(normalizePolicy(a)) === JSON.stringify(normalizePolicy(b));
   const each = (want: (s: PolicyStream, cur: StreamPolicy | undefined) => StreamPolicy) =>
@@ -202,4 +249,14 @@ export function ringSharing(sources: readonly (Pick<BioSourceDoc, 'sourceKey' | 
   if (each((s) => ringDefaultPolicy(s))) return 'on';
   if (each((s, cur) => ringSharingOffPolicy(s, cur))) return 'off';
   return 'some';
+}
+
+/**
+ * Whether a ring source's stored policies are still a default the person never chose (migration `biometrics.ringDefaults`):
+ * every entry is the old "device turned on" suggestion (which the intake's recommended choices match too) or the ring
+ * default. An entry that is neither shows a choice made for this stream, and the source is left alone.
+ */
+export function ringPoliciesAtDefault(policies: readonly StreamPolicy[]): boolean {
+  const same = (a: StreamPolicy, b: StreamPolicy) => JSON.stringify(normalizePolicy(a)) === JSON.stringify(normalizePolicy(b));
+  return policies.every((p) => same(p, suggestedOnPolicy(p.stream)) || same(p, ringDefaultPolicy(p.stream)));
 }

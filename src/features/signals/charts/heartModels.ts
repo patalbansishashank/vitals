@@ -242,6 +242,31 @@ export function normalOf(values: ReadonlyArray<number | null | undefined>): Norm
   return { mean, median: medianOf(xs)!, lo: mean - 0.5 * sd, hi: mean + 0.5 * sd, nights: xs.length, forming: xs.length < NORMAL_NIGHTS };
 }
 
+/** A personal normal as the charts use it (bio.baselines or `normalOf`). */
+export interface PersonalNormal {
+  mean: number;
+  lo: number;
+  hi: number;
+  nights: number;
+  forming: boolean;
+}
+
+/** `bio.baselines` ids a blood-oxygen normal may come under (the service's id first). */
+export const SPO2_BASELINE_IDS = ['spo2_avg_pct', 'spo2_pct', 'spo2'] as const;
+
+/** The night's average blood oxygen (%): the day's figure, else the main sleep's. */
+export const spo2NightOf = (d: ResolvedDay): number | undefined => d.daily?.spo2_avg_pct ?? d.mainSleep?.night?.spo2_avg_pct;
+
+/**
+ * The person's blood-oxygen normal (tier C: shown as change from it, ring-pages.md D6): bio.baselines first (it knows
+ * device epochs), else one computed from the nightly averages given. Forming until 14 nights; null without any.
+ */
+export function spo2Normal(baselines: ReadonlyArray<{ metric: string; mean: number; lo: number; hi: number; nights: number; forming: boolean }> | null, history: readonly ResolvedDay[]): PersonalNormal | null {
+  const b = SPO2_BASELINE_IDS.map((id) => baselines?.find((x) => x.metric === id && finite(x.mean))).find(Boolean);
+  if (b) return { mean: b.mean, lo: b.lo, hi: b.hi, nights: b.nights, forming: b.forming || b.nights < NORMAL_NIGHTS };
+  return normalOf(history.map(spo2NightOf));
+}
+
 /* ------------------------------------------------------------------------------------------------ per day / month */
 
 export interface DayAgg {
@@ -353,20 +378,30 @@ export function mean7(values: ReadonlyArray<number | null>, prior: ReadonlyArray
 export interface NightSpo2 {
   date: LocalDate;
   future: boolean;
+  /** Absolute average and lowest (%), table only once the normal has formed. */
   avg: number | null;
   lowest: number | null;
+  /** Change of the average and of the lowest from the person's normal (% points); null while the normal forms. */
+  avgDev: number | null;
+  lowestDev: number | null;
   recorded: boolean;
 }
 
-/** Blood oxygen per night (week, month) or per month (year: mean of nightly averages, lowest of nightly lows). */
-export function spo2Slots(w: PeriodWindow, days: readonly ResolvedDay[]): NightSpo2[] {
-  const avg = slotValues(w, days, (d) => d.daily?.spo2_avg_pct ?? d.mainSleep?.night?.spo2_avg_pct);
+/**
+ * Blood oxygen per night (week, month) or per month (year: mean of nightly averages, lowest of nightly lows), with the
+ * change from the person's normal once it has formed.
+ */
+export function spo2Slots(w: PeriodWindow, days: readonly ResolvedDay[], normal: PersonalNormal | null = null): NightSpo2[] {
+  const avg = slotValues(w, days, spo2NightOf);
+  const ref = normal && !normal.forming ? normal.mean : null;
+  const dev = (v: number | null) => (v !== null && ref !== null ? v - ref : null);
   return w.slots.map((s, i) => {
-    if (s.future) return { date: s.start, future: true, avg: null, lowest: null, recorded: false };
+    if (s.future) return { date: s.start, future: true, avg: null, lowest: null, avgDev: null, lowestDev: null, recorded: false };
     const inSlot = days.filter((d) => d.localDate >= s.start && d.localDate < s.end);
     const lows = inSlot.map((d) => d.daily?.spo2_min_pct).filter(finite);
     const a = avg[i]!.value;
-    return { date: s.start, future: false, avg: a, lowest: lows.length ? Math.min(...lows) : null, recorded: a !== null || lows.length > 0 };
+    const lowest = lows.length ? Math.min(...lows) : null;
+    return { date: s.start, future: false, avg: a, lowest, avgDev: dev(a), lowestDev: dev(lowest), recorded: a !== null || lows.length > 0 };
   });
 }
 

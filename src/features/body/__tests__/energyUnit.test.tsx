@@ -35,6 +35,15 @@ afterEach(() => {
 });
 
 describe('Your body with Settings › energy in kJ', () => {
+  it('exposes the mobile estimates rail as a named keyboard scroll region', async () => {
+    const router = createMemoryRouter(routes, { initialEntries: ['/body'] });
+    render(<RouterProvider router={router} />);
+    const rail = await screen.findByRole('region', { name: 'Body estimates' });
+    expect(rail).toHaveClass('lm-body-est__rail');
+    expect(rail).toHaveAttribute('tabindex', '0');
+    expect(within(rail).getByText('kJ/day')).toBeInTheDocument();
+  });
+
   it('shows maintenance in kJ and the fibre density per 1 000 kJ (stored per 1 000 kcal)', async () => {
     const router = createMemoryRouter(routes, { initialEntries: ['/body'] });
     render(<RouterProvider router={router} />);

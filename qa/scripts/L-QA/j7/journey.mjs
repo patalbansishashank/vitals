@@ -5,7 +5,7 @@ import { onboard } from '../j1/onboard.mjs';
 import path from 'node:path';
 const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
 const { page, errs } = await newPage(browser);
-const ev = (fn, arg) => page.evaluate(fn, arg);
+const ev = async (fn, arg) => { for (let i = 0; i < 4; i++) { try { if (i) { await page.waitForLoadState('load'); await page.waitForFunction(() => document.querySelectorAll('button').length > 0, null, { timeout: 60000 }).catch(() => {}); if (!(await page.evaluate(() => !!window.__j7?.ready))) await install(page); } return await page.evaluate(fn, arg); } catch (e) { if (!/context was destroyed|navigation/.test(e.message) || i === 3) throw e; console.log('(page reloaded under the script, retrying)'); await page.waitForTimeout(2000); } } };
 const ELIGIBLE = ['sleep_sessions', 'steps', 'workouts', 'body', 'daily_summary', 'hr', 'ibi', 'hrv', 'skin_temp'];
 const ringSrc = (s) => s.sources.filter((x) => /^ble:|^file:lumen_cloudevents/.test(x.sourceKey));
 const checkDefaults = (p) => p.length >= 18 && p.every((x) => x.imported && x.coach === 'daily+series' && x.scores === (x.stream !== 'vendor_scores') && x.engine === (ELIGIBLE.includes(x.stream)));
@@ -116,7 +116,7 @@ await masterSw.click({ force: true }).catch(() => {}); await page.waitForTimeout
 // a ring connected AFTER the person turned the master switch off: what does it start with?
 
 // ---- S6 non-ring import (Apple Health file)
-const xml = readFileSync(path.join(repo, '.e6-tmp', 'j7cand', 'src', 'biometrics', 'importers', '__fixtures__', 'export.xml'), 'utf8');
+const xml = readFileSync(path.join(repo, 'src', 'biometrics', 'importers', '__fixtures__', 'export.xml'), 'utf8');
 const before = (await ev(() => __j7.sources())).sources.map((x) => x.sourceKey);
 const imp = await ev(async (x) => { const h = await import('/src/biometrics/app/handoff.ts'); const ref = h.stageFile(new Blob([x], { type: 'text/xml' }), 'export.xml'); const r = await __j7.dispatch('bio.import', { fileRef: ref }); return r; }, xml);
 let nu = [];

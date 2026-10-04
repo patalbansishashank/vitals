@@ -56,6 +56,7 @@ function day(date: string, d?: DailyRecord, s?: SleepRecord): ResolvedDay {
 const BASELINES: SignalBaseline[] = [
   { metric: 'hrv_rmssd_ms', unit: 'ms', mean: 54, lo: 50, hi: 58, nights: 30, forming: false },
   { metric: 'skin_temp_delta_c', unit: '°C', mean: 0.1, lo: 0, hi: 0.2, nights: 30, forming: false },
+  { metric: 'spo2_avg_pct', unit: '%', mean: 97, lo: 96, hi: 98, nights: 30, forming: false },
 ];
 
 function source(opts: { days: ResolvedDay[]; series?: Partial<Record<SeriesMetric, SeriesPoint[]>>; baselines?: SignalBaseline[]; person?: Partial<SignalsPerson> }): SignalsSource {
@@ -104,9 +105,11 @@ describe('Today from your ring', () => {
     expect(readout('heart')).toBe('resting 58 bpm');
     // live from the ring while connected and visible (the fake reports 72 bpm), stamped with the page clock
     expect(secondary('heart')).toBe('now 72 bpm · 13:41');
-    expect(secondary('hrv')).toBe('48 ms last night · tier C');
-    expect(readout('spo2')).toBe('96 % at night');
-    expect(secondary('spo2')).toBe('lowest 91 %');
+    expect(secondary('hrv')).toBe('48 ms last night · best for trends');
+    // blood oxygen is tier C: change from the normal, no absolute percentage in the row
+    expect(readout('spo2')).toBe('−1 % from your normal at night');
+    expect(secondary('spo2')).toBe('last night · best for trends');
+    expect(rowEl('spo2')!.textContent).not.toMatch(/9\d\s?%/);
     expect(readout('skin_temp')).toBe('+0.3 °C from your normal');
     expect(secondary('skin_temp')).toBe('last night');
     expect(secondary('activity')).toBe('6 420 steps · 34 active min · 280 kcal');
@@ -204,7 +207,19 @@ describe('todayModel', () => {
   it('heart-rate variability while the normal forms: the value first, the nights so far', () => {
     const r = row({ ...base, baselines: [{ ...BASELINES[0]!, forming: true, nights: 9 }] }, 'hrv');
     expect(norm(r.readout)).toBe('48 ms last night');
-    expect(r.secondary).toBe('building your normal: 9 of 14 nights · tier C');
+    expect(r.secondary).toBe('building your normal: 9 of 14 nights · best for trends');
+  });
+
+  it('blood oxygen while the normal forms: the night’s average, the nights so far; no tier words', () => {
+    const r = row({ ...base, baselines: [{ ...BASELINES[2]!, forming: true, nights: 9 }] }, 'spo2');
+    expect(norm(r.readout)).toBe('96 % at night');
+    expect(r.secondary).toBe('building your normal: 9 of 14 nights · best for trends');
+    const none = row({ ...base, baselines: [] }, 'spo2');
+    expect(norm(none.readout)).toBe('96 % at night');
+    expect(none.secondary).toBe('best for trends');
+    const formed = row(base, 'spo2');
+    expect(norm(formed.readout)).toBe('−1 % from your normal at night');
+    expect(`${formed.readout} ${formed.secondary}`).not.toMatch(/tier/i);
   });
 
   it('uses the reference night when last night is missing, with its age', () => {

@@ -81,6 +81,17 @@ describe('import and reads', () => {
     expect(src.sources.some((s) => s.streams.includes('hr'))).toBe(true);
   });
 
+  it('bio.baselines includes a blood-oxygen normal (the Ring row and Check now compare with it)', async () => {
+    const head = 'kind,metric,start,end,local_date,tz_offset_s,value,unit,source,context,native_id,version';
+    const rows = ['2026-03-08', '2026-03-09', '2026-03-10'].map((d, i) => `daily,spo2_avg_pct,,,${d},,${0.95 + i * 0.01},fraction,ring,,,`);
+    const fileRef = stageFile(new Blob([[head, ...rows].join('\n')], { type: 'text/csv' }), 'spo2.csv');
+    await job(await dispatch('bio.import', { fileRef }));
+    const b = out<{ baselines: Array<{ metric: string; unit: string; mean: number; nights: number; forming: boolean }> }>(await dispatch('bio.baselines', {}));
+    const spo2 = b.baselines.find((x) => x.metric === 'spo2_avg_pct');
+    expect(spo2).toMatchObject({ unit: '%', nights: 3, forming: true });
+    expect(spo2!.mean).toBeCloseTo(96, 5);
+  });
+
   it('a staged file is taken once; an unknown reference fails cleanly', async () => {
     const r = await dispatch('bio.import', { fileRef: 'file:nothing' });
     expect(r.ok).toBe(false);
@@ -197,14 +208,18 @@ describe('Bluetooth ring (J-Style 2301 through its @vitals/rings family)', () =>
   const bcd = (v: number): number => (Math.floor(v / 10) << 4) | v % 10;
   const hrRec = (bpm: number, min: number): Uint8Array => Uint8Array.of(0x55, 0, 0, ...[26, 3, 11, 8, min, 0].map(bcd), bpm);
   /** V0525: firmware and battery, then one page per history stream; only heart rate has records. */
+  // the ring service keys a ring by what the link can tell (here its address, as on Android and the desktop)
   const ringLink = (hr: Uint8Array): RecordedLink =>
-    new RecordedLink(
-      [
-        { expect: command(0x27), reply: [Uint8Array.of(0x27, 0, 5, 2, 5)] },
-        { expect: command(0x13), reply: [Uint8Array.of(0x13, 88)] },
-        ...HISTORY_CATALOG.map((s) => ({ expect: command(s.opcode, 0), reply: s.opcode === 0x55 ? [hr, Uint8Array.of(0x55, 0xff)] : [Uint8Array.of(s.opcode, 0xff)] })),
-      ],
-      'Ring 2301',
+    Object.assign(
+      new RecordedLink(
+        [
+          { expect: command(0x27), reply: [Uint8Array.of(0x27, 0, 5, 2, 5)] },
+          { expect: command(0x13), reply: [Uint8Array.of(0x13, 88)] },
+          ...HISTORY_CATALOG.map((s) => ({ expect: command(s.opcode, 0), reply: s.opcode === 0x55 ? [hr, Uint8Array.of(0x55, 0xff)] : [Uint8Array.of(s.opcode, 0xff)] })),
+        ],
+        'Ring 2301',
+      ),
+      { deviceId: 'aa:bb:cc:dd:ee:03' },
     );
   type RingRep = { sourceKey: string; driver: string; firmware: string; battery: number | null; samples: number };
 
@@ -226,13 +241,20 @@ describe('Bluetooth ring (J-Style 2301 through its @vitals/rings family)', () =>
     expect(again.remaining).toBe(0);
   });
 
-  it('a refused passcode keeps its plain-words precondition, and the link is let go', async () => {
-    const link = new RecordedLink([
-      { expect: command(0x27), reply: [Uint8Array.of(0x27, 0, 7, 8, 9)] },
-      { expect: { prefix: '3c' }, reply: [Uint8Array.of(0x3c, 0)] },
-    ]);
+  it('a refused passcode fails the job in plain words, and the link is let go', async () => {
+    const link = Object.assign(
+      new RecordedLink([
+        { expect: command(0x27), reply: [Uint8Array.of(0x27, 0, 7, 8, 9)] },
+        { expect: { prefix: '3c' }, reply: [Uint8Array.of(0x3c, 0)] },
+      ]),
+      { deviceId: 'aa:bb:cc:dd:ee:04' },
+    );
+    // the ring service reads the ring in the command's job (SUITE_SPEC §15.2), so the refusal ends the job
     const r = await dispatch('bio.deviceConnect', { driver: 'jstyle2301', linkRef: stageBleLink(link, 'jstyle2301') });
-    expect(!r.ok && r.error).toMatchObject({ code: 'precondition_failed', message: expect.stringContaining('refused'), detail: { rule: 'ble:auth_rejected' } });
+    if (!r.ok || !('job' in r)) throw new Error(`expected a job: ${JSON.stringify(r)}`);
+    const st = await jobs.wait(r.job.jobId);
+    expect(st.state).toBe('failed');
+    expect(JSON.stringify(st.error)).toContain('refused');
     expect(link.connected).toBe(false);
   });
 });

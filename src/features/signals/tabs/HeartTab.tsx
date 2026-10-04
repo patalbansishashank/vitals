@@ -5,8 +5,10 @@
  * - week / month: heart rate per day (main) → resting heart rate → heart-rate variability → blood oxygen per night →
  *   skin temperature per night (→ your ring says). Year: the same five at monthly points.
  * Secondary charts pair up 6/6 at ≥ 1280 px (`.sp-pair`, the page shell's class). Heart-rate variability, blood
- * oxygen and skin temperature are tier C: shown against the person's own normal; the tier note is said once, in the
- * page's source line (SourceLine), as is "your ring hasn't been read since …".
+ * oxygen and skin temperature are tier C (ring-pages.md D6): shown as change from the person's own normal once it
+ * has formed (14 nights), absolute values only in the table twins; until then the absolute line with "Building your
+ * normal: 9 of 14 nights.". The tier note is said once, in the page's source line (SourceLine), as is "your ring
+ * hasn't been read since …".
  * Missing is never zero, averages are over recorded slots only and say so, future slots draw nothing.
  */
 import { useMemo, type ReactNode } from 'react';
@@ -34,12 +36,14 @@ import {
   monthAggregates,
   normalOf,
   slotValues,
+  spo2Normal,
   spo2Slots,
   tempNormal,
   tempSlots,
   toTempDelta,
   toTempUnit,
   type Normal,
+  type PersonalNormal,
 } from '../charts/heartModels';
 import { TwinTable, useChartSizes } from '../charts/kit';
 import { NightRanges, type NightRangeDatum } from '../charts/NightRanges';
@@ -257,13 +261,36 @@ interface NightLineProps {
   height: number;
 }
 
-/** §7.4.4 blood oxygen: absolute %, the person's normal band, "average 96 % · lowest 91 % at 03:12". */
+/**
+ * §7.4.4 blood oxygen: change from the person's normal (% points) around "your normal", "average −1 % from your normal ·
+ * lowest at 03:12", absolute values only in the table; while the normal forms, the absolute line and the night count.
+ */
 function Spo2Night({ points, status, bed, wake, offsetS, history, baselines, height }: NightLineProps) {
-  const normal = pickNormal(baselines, 'spo2_avg_pct', normalOf(history.map((d) => d.daily?.spo2_avg_pct)));
-  const band = normal && !normal.forming ? { lo: normal.lo, hi: Math.min(100, normal.hi) } : undefined;
+  const normal = spo2Normal(baselines, history);
   if (bed === null || wake === null) return <DayLine points={[]} from={0} to={1} offsetS={offsetS} unit="%" title={C.title.spo2Night} hue="recovery" empty={C.noNight} interactive />;
   const avg = meanOf(points.map((p) => p.v));
   const low = points.reduce<SeriesPoint | null>((a, p) => (!a || p.v < a.v ? p : a), null);
+  if (!normal || normal.forming) {
+    return (
+      <>
+        <DayLine
+          points={points}
+          status={status}
+          from={bed}
+          to={wake}
+          offsetS={offsetS}
+          unit="%"
+          title={C.title.spo2Night}
+          hue="recovery"
+          empty={C.spo2Empty}
+          interactive
+          height={height}
+          {...(avg !== null && low ? { note: C.spo2Readout(formatNumber(avg), formatNumber(low.v), clockAt(low.t, offsetS)) } : {})}
+        />
+        {points.length ? <p className="hr-text" data-forming="true">{C.forming(Math.min(normal?.nights ?? 0, 13))}</p> : null}
+      </>
+    );
+  }
   return (
     <DayLine
       points={points}
@@ -275,10 +302,10 @@ function Spo2Night({ points, status, bed, wake, offsetS, history, baselines, hei
       title={C.title.spo2Night}
       hue="recovery"
       empty={C.spo2Empty}
+      change={{ normal: normal.mean }}
       interactive
       height={height}
-      {...(band ? { band } : {})}
-      {...(avg !== null && low ? { note: C.spo2Readout(formatNumber(avg), formatNumber(low.v), clockAt(low.t, offsetS)) } : {})}
+      {...(avg !== null && low ? { note: C.spo2ChangeReadout(formatSigned(avg - normal.mean, 0), clockAt(low.t, offsetS)) } : {})}
     />
   );
 }
@@ -483,8 +510,8 @@ function HeartPeriod({ window: w, today, onDrill }: TabProps) {
   const hrvNormal = pickNormal(hrvMetric === 'rmssd' ? baselines : null, 'hrv_rmssd_ms', normalOf(history.filter((d) => hrvMetricOf(d) === hrvMetric).map(hrvOf)));
 
   /* blood oxygen and skin temperature per night (§7.4.7) */
-  const spo2 = useMemo(() => spo2Slots(w, inWin), [w, inWin]);
-  const spo2Normal = pickNormal(baselines, 'spo2_avg_pct', normalOf(history.map((d) => d.daily?.spo2_avg_pct)));
+  const spo2N = useMemo(() => spo2Normal(baselines, history), [baselines, history]);
+  const spo2 = useMemo(() => spo2Slots(w, inWin, spo2N), [w, inWin, spo2N]);
   const tNormal = useMemo(() => tempNormal(history, baselines?.find((b) => b.metric === 'skin_temp_delta_c') ?? null), [history, baselines]);
   const temps = useMemo(() => tempSlots(w, inWin, tNormal), [w, inWin, tNormal]);
 
@@ -552,7 +579,7 @@ function HeartPeriod({ window: w, today, onDrill }: TabProps) {
       </Pair>
       <Pair>
         <Face>
-          <Spo2Period w={w} slots={spo2} normal={spo2Normal} nDays={nDays} height={sizes.secondary} onDrill={drill} />
+          <Spo2Period w={w} slots={spo2} normal={spo2N} nDays={nDays} height={sizes.secondary} onDrill={drill} />
         </Face>
         <Face>
           <TempPeriod w={w} slots={temps} normal={tNormal} unit={person.tempUnit} u={tempU} nDays={nDays} height={sizes.secondary} onDrill={drill} />
@@ -654,37 +681,67 @@ function History({ w, all, inWin, get, sourceKey, normal, title, label, unit, ca
   );
 }
 
-function Spo2Period({ w, slots, normal, nDays, height, onDrill }: { w: PeriodWindow; slots: ReturnType<typeof spo2Slots>; normal: { lo: number; hi: number; forming: boolean } | null; nDays: number; height: number; onDrill: (i: number) => void }) {
+/**
+ * §7.4.7 blood oxygen per night (per month on the year): the night's average change from the person's normal as a dot,
+ * a range line down to the lowest reading's change, around "your normal"; absolute values only in the table. While
+ * the normal forms, the absolute chart and the night count.
+ */
+function Spo2Period({ w, slots, normal, nDays, height, onDrill }: { w: PeriodWindow; slots: ReturnType<typeof spo2Slots>; normal: PersonalNormal | null; nDays: number; height: number; onDrill: (i: number) => void }) {
   const title = w.kind === 'year' ? C.title.spo2PerMonth : C.title.spo2PerNight;
+  const relative = !!normal && !normal.forming;
   const recorded = w.kind === 'year' ? null : slots.filter((s) => s.recorded).length;
-  const avg = meanOf(slots.map((s) => s.avg));
   const coverage = recorded !== null ? coverageText(recorded, nDays, 'nights') : coverageText(slots.filter((s) => s.recorded).length, slots.filter((s) => !s.future).length, 'months');
-  const readout = avg !== null ? C.spo2PeriodReadout(formatNumber(avg)) : C.noData;
-  const data: NightRangeDatum[] = slots.map((s) => ({
-    start: s.date,
-    future: s.future,
-    recorded: s.recorded,
-    avg: s.avg,
-    lowest: s.lowest,
-    readout: C.slotReadout(slotLabel(w, s.date), s.avg !== null ? [C.spo2Slot(formatNumber(s.avg), s.lowest !== null ? formatNumber(s.lowest) : null)] : [C.noData]),
-  }));
+  const pct = (v: number) => formatNumber(v);
+  const dev = (v: number) => formatSigned(v, 0);
+  let readout: string;
+  let data: NightRangeDatum[];
+  if (relative) {
+    const avgDev = meanOf(slots.map((s) => s.avgDev));
+    readout = avgDev !== null ? C.spo2PeriodChange(dev(avgDev)) : C.noData;
+    data = slots.map((s) => ({
+      start: s.date,
+      future: s.future,
+      recorded: s.recorded,
+      avg: s.avgDev,
+      lowest: s.lowestDev,
+      readout: C.slotReadout(slotLabel(w, s.date), s.avgDev !== null ? [C.spo2SlotChange(dev(s.avgDev), s.lowestDev !== null ? dev(s.lowestDev) : null)] : [C.noData]),
+    }));
+  } else {
+    const avg = meanOf(slots.map((s) => s.avg));
+    readout = avg !== null ? C.spo2PeriodReadout(pct(avg)) : C.noData;
+    data = slots.map((s) => ({
+      start: s.date,
+      future: s.future,
+      recorded: s.recorded,
+      avg: s.avg,
+      lowest: s.lowest,
+      readout: C.slotReadout(slotLabel(w, s.date), s.avg !== null ? [C.spo2Slot(pct(s.avg), s.lowest !== null ? pct(s.lowest) : null)] : [C.noData]),
+    }));
+  }
   const any = slots.some((s) => s.recorded);
+  const past = slots.filter((s) => !s.future);
   return (
     <NightRanges
       kind="spo2"
+      relative={relative}
       window={w}
       data={data}
-      normal={normal && !normal.forming ? { lo: normal.lo, hi: normal.hi } : null}
       title={title}
       header={<span data-coverage="true">{`${coverage} · ${readout}`}</span>}
-      summary={C.rangeSummary(title, coverage, readout)}
+      summary={C.rangeSummary(title, coverage, relative ? `${readout}, ${C.tier}` : readout)}
       height={height}
       emptyLine={any ? null : C.emptyNights(w.kind)}
+      {...(any && !relative ? { footer: <p className="hr-text" data-forming="true">{C.forming(Math.min(normal?.nights ?? 0, 13))}</p> } : {})}
       table={
         <TwinTable
           caption={title}
-          head={C.spo2TableCols}
-          rows={slots.filter((s) => !s.future).map((s) => [slotLabel(w, s.date), s.avg !== null ? `${formatNumber(s.avg)}` : C.noData, s.lowest !== null ? formatNumber(s.lowest) : C.noData])}
+          head={relative ? C.spo2TableColsChange : C.spo2TableCols}
+          rows={past.map((s) => [
+            slotLabel(w, s.date),
+            s.avg !== null ? pct(s.avg) : C.noData,
+            s.lowest !== null ? pct(s.lowest) : C.noData,
+            ...(relative ? [s.avgDev !== null ? dev(s.avgDev) : C.noData] : []),
+          ])}
         />
       }
       onDrill={onDrill}

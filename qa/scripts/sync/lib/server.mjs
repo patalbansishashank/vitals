@@ -9,14 +9,19 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ROOT, log } from './config.mjs';
 
-export const LABEL_PREFIX = 'L-SYNC-';
+export const LABEL_PREFIX = process.env.SYNC_LABEL_PREFIX ?? 'L-SYNC-';
+if (!/^[A-Z][A-Z0-9-]*-$/.test(LABEL_PREFIX)) throw new Error('Invalid harness label prefix');
 const VS = 'node ~/vitals-server/current/bin/vitals-server.mjs';
 const PRIVATE = `${ROOT}/.e6-tmp/sync-harness`;
 
 export function sshRun(sshHost, cmd, input = null, timeout = 60000) {
   return new Promise((resolve) => {
-    const c = execFile('ssh', ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', sshHost, cmd], { timeout, maxBuffer: 4 << 20 }, (err, stdout, stderr) =>
-      resolve({ code: err ? (err.code ?? 1) : 0, stdout: String(stdout), stderr: String(stderr) }),
+    const c = execFile(
+      'ssh',
+      ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15', sshHost, cmd],
+      { timeout, maxBuffer: 4 << 20 },
+      (err, stdout, stderr) =>
+        resolve({ code: err ? (err.code ?? 1) : 0, stdout: String(stdout), stderr: String(stderr) }),
     );
     if (input !== null) c.stdin.end(input);
     else c.stdin.end();
@@ -27,11 +32,13 @@ const safeArg = (s) => {
   return `'${s}'`;
 };
 const mustOwn = (label) => {
-  if (!label.startsWith(LABEL_PREFIX)) throw new Error(`refusing to touch a person not labelled ${LABEL_PREFIX}…`);
+  if (!label.startsWith(LABEL_PREFIX))
+    throw new Error(`refusing to touch a person not labelled ${LABEL_PREFIX}…`);
 };
 
 export async function personsList(sshHost) {
   const r = await sshRun(sshHost, `${VS} persons list`);
+  if (r.code !== 0) throw new Error('Could not list harness persons');
   return r.stdout
     .split('\n')
     .map((l) => l.match(/^([0-9a-f]{16})\s+(.+?)\s+(\S+)$/))
@@ -42,9 +49,13 @@ export async function personsList(sshHost) {
 /** Adds an `L-SYNC-…` person that joins the sync group of `phrase` (24 words, on stdin). Returns its id. */
 export async function addPerson(sshHost, label, phrase, tz = 'Asia/Kolkata') {
   mustOwn(label);
-  const r = await sshRun(sshHost, `${VS} persons add ${safeArg(label)} --tz ${safeArg(tz)} --join`, `${phrase}\n`);
-  const m = r.stdout.match(/([0-9a-f]{16})\s+L-SYNC-/);
-  if (!m) throw new Error(`persons add failed: ${r.stderr.split(phrase).join('[phrase]').slice(0, 200)}`);
+  const r = await sshRun(
+    sshHost,
+    `${VS} persons add ${safeArg(label)} --tz ${safeArg(tz)} --join`,
+    `${phrase}\n`,
+  );
+  const m = r.stdout.match(new RegExp(`([0-9a-f]{16})\\s+${LABEL_PREFIX}`));
+  if (r.code !== 0 || !m) throw new Error(`persons add failed (exit ${r.code})`);
   fs.mkdirSync(PRIVATE, { recursive: true, mode: 0o700 });
   fs.appendFileSync(`${PRIVATE}/persons.txt`, `${m[1]} ${label}\n`, { mode: 0o600 });
   return m[1];
@@ -52,12 +63,18 @@ export async function addPerson(sshHost, label, phrase, tz = 'Asia/Kolkata') {
 
 /** Agent token (scope log) for the person; `{ id, token }`, the token kept in memory only. */
 export async function agentToken(sshHost, personId) {
-  const r = await sshRun(sshHost, `${VS} agent-token create ${personId} --client claude --scope log --label 'L-SYNC harness'`);
+  const person = (await personsList(sshHost)).find((p) => p.id === personId);
+  if (!person) throw new Error('Harness person not found');
+  mustOwn(person.label);
+  const r = await sshRun(
+    sshHost,
+    `${VS} agent-token create ${personId} --client claude --scope log --label '${LABEL_PREFIX}harness'`,
+  );
   const lines = r.stdout.split('\n');
   const i = lines.findIndex((l) => /shown only once/.test(l));
   const id = lines[i]?.match(/, id ([^\s]+?)\. It is shown/)?.[1];
   const token = lines[i + 1]?.trim();
-  if (i < 0 || !id || !token) throw new Error(`agent-token create failed (exit ${r.code})`);
+  if (r.code !== 0 || i < 0 || !id || !token) throw new Error(`agent-token create failed (exit ${r.code})`);
   return { id, token };
 }
 
@@ -66,17 +83,26 @@ export async function removePerson(sshHost, personId, tokenId = null) {
   const p = (await personsList(sshHost)).find((x) => x.id === personId);
   if (!p) return 'not found';
   mustOwn(p.label);
-  if (tokenId) await sshRun(sshHost, `${VS} agent-token revoke ${personId} ${safeArg(tokenId)}`);
+  if (tokenId) {
+    const revoked = await sshRun(sshHost, `${VS} agent-token revoke ${personId} ${safeArg(tokenId)}`);
+    if (revoked.code !== 0) throw new Error('Harness token revocation failed');
+  }
   const r = await sshRun(sshHost, `${VS} persons remove ${personId}`);
-  return r.stdout.trim() || r.stderr.trim().slice(0, 200);
+  if (r.code !== 0) throw new Error('Harness person removal failed');
+  if ((await personsList(sshHost)).some((x) => x.id === personId))
+    throw new Error('Harness person remains after removal');
+  return 'removed';
 }
 
 const req = createRequire(join(ROOT, 'packages/companion/package.json'));
 let sdk = null;
 async function loadSdk() {
   sdk ??= {
-    Client: (await import(pathToFileURL(req.resolve('@modelcontextprotocol/sdk/client/index.js')).href)).Client,
-    Transport: (await import(pathToFileURL(req.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href)).StreamableHTTPClientTransport,
+    Client: (await import(pathToFileURL(req.resolve('@modelcontextprotocol/sdk/client/index.js')).href))
+      .Client,
+    Transport: (
+      await import(pathToFileURL(req.resolve('@modelcontextprotocol/sdk/client/streamableHttp.js')).href)
+    ).StreamableHTTPClientTransport,
   };
   return sdk;
 }
@@ -88,7 +114,11 @@ async function loadSdk() {
 export async function mcpClient(serverBaseUrl, token, clientName = 'l-sync-harness') {
   const { Client, Transport } = await loadSdk();
   const c = new Client({ name: clientName, version: '1.0.0' });
-  await c.connect(new Transport(new URL(`${serverBaseUrl}/mcp`), { requestInit: { headers: { authorization: `Bearer ${token}` } } }));
+  await c.connect(
+    new Transport(new URL(`${serverBaseUrl}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${token}` } },
+    }),
+  );
   return {
     async tools() {
       return (await c.listTools()).tools.map((t) => t.name);

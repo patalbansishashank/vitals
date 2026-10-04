@@ -11,7 +11,7 @@ import { useElementWidth } from '@/features/charts/core/hooks';
 import { fmtDay, fmtMonth } from '@/features/living/format';
 import { weekdayOf } from '@/living/dates';
 import type { LocalDate } from '@/living';
-import { ChartShell, MissingStub, TwinTable, useSlotCrosshair, type ChartStatus } from './kit';
+import { CHART_DRILL_HELP, ChartShell, MissingStub, TwinTable, useSlotCrosshair, type ChartStatus } from './kit';
 import { columnPath, columnScale, compactTick } from './activityModels';
 import { ACTIVITY_COPY as C } from './copyActivity';
 import './activity.css';
@@ -173,6 +173,7 @@ export function DayColumns({
           className="ac-plotarea"
           role="img"
           aria-label={summary}
+          aria-description={CHART_DRILL_HELP}
           tabIndex={0}
           onKeyDown={(e) => cross.onKeyDown(e, drill)}
           onFocus={cross.onFocus}

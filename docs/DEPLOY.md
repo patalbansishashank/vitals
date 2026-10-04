@@ -48,7 +48,18 @@ pnpm --package=netlify-cli@27 dlx netlify deploy --prod --no-build --dir=dist \
 
 Both values come from the repository secrets `NETLIFY_SITE_ID` and `NETLIFY_AUTH_TOKEN`. Deploys share the concurrency group `production` and queue rather than cancel each other. The run summary lists the deploy id, the unique deploy URL and the Netlify log link. On Netlify the deploy title is `Release vX.Y.Z`.
 
-The workflow does not typecheck, lint or test. That gate runs locally in `pnpm release <patch|minor|major>`, before the version commit and tag are created; then `git push --follow-tags origin main` pushes the tag that deploys. Details, re-deploys and rollbacks are in [`RELEASING.md`](RELEASING.md).
+The workflow does not typecheck, lint or test. That gate runs locally in `pnpm release <patch|minor|major>`, before the version commit and tag are created; then the tag reaches the public repository (from v0.5.0 on, with `scripts/publish/publish-public.sh <message> --tag vX.Y.Z`, see `docs/RELEASING.md` and `docs/HANDOFF.md`), where it deploys. Details, re-deploys and rollbacks are in [`RELEASING.md`](RELEASING.md).
+
+## The apps (desktop and Android)
+
+The desktop and Android apps are not deployed to Netlify. The same `vX.Y.Z` tag also runs `.github/workflows/release.yml`, which builds them and publishes them as a GitHub Release. How that works, the asset names and the Android signing key are in [`RELEASING.md`](RELEASING.md), section "The apps".
+
+Before the v0.5.0 tag, a non-publishing CI run built all five installers, verified their checksums and native formats,
+smoke-launched the Linux, Windows and macOS apps, and verified the Android release signature. This proves the release
+pipeline; the Windows and macOS user flows still need hands-on checks. A candidate run does not deploy the website or
+publish a release. The public version tag starts both production workflows.
+
+`deploy.yml` runs only in the public repository `patalbansishashank/vitals`: its job is guarded with `github.repository == 'patalbansishashank/vitals' && !github.event.repository.private`. The private repository's workflow is disabled, so a tag pushed there deploys nothing.
 
 ## Credentials on this PC
 

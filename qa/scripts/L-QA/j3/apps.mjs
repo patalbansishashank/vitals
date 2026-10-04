@@ -14,17 +14,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-export const CAND = `${ROOT}/.e6-tmp/cand`;
+export const CAND = ROOT; // round 2: this worktree's code and builds
 export const TMP = `${ROOT}/.e6-tmp`;
 const req = createRequire(`${CAND}/package.json`);
 const { _electron, chromium } = req('playwright-core');
 export const cfg = JSON.parse(fs.readFileSync(`${ROOT}/qa/local.config.json`, 'utf8'));
 export const SERVER = cfg.serverUrl.replace(/\/$/, '');
 export const SITE = cfg.siteUrl.replace(/\/$/, '');
-export const PREVIEW = 'http://127.0.0.1:4321';
+export const PREVIEW = 'http://127.0.0.1:4361';
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const T0 = Date.now();
-const SECRETS = [SERVER, new URL(SERVER).host, SITE, new URL(SITE).host];
+const PHONE_SERVER = fs.existsSync(`${ROOT}/.e6-tmp/r2j3/phone-server`) ? fs.readFileSync(`${ROOT}/.e6-tmp/r2j3/phone-server`, 'utf8').trim() : null;
+const SECRETS = [SERVER, new URL(SERVER).host, SITE, new URL(SITE).host, ...(PHONE_SERVER ? [PHONE_SERVER, new URL(PHONE_SERVER).host, new URL(PHONE_SERVER).hostname] : [])];
 export const redact = (t) => {
   let s = String(t);
   for (const x of SECRETS) s = s.split(x).join('<server>');
@@ -170,7 +171,7 @@ export async function openApp(kind, { name, dir }) {
   const errors = [];
   let env = null;
   let mcp = null;
-  const APP = `${CAND}/apps/desktop/release/linux-unpacked/vitals`;
+  const APP = `${TMP}/r2j3/linux-unpacked/vitals`; // round 2: copy of this worktree's build
   /**
    * Desktop writes: the app's own page relay (what its MCP host uses: main sends `vitals:mcp:call` to the page, the
    * page runs it through `guardedCall` as actor mcp/<client>, answers on `vitals:mcp:result`). Driven from Electron main
@@ -391,8 +392,8 @@ export async function ensurePreview() {
     }
   };
   if (await up()) return null;
-  const out = fs.openSync(`${TMP}/j3-preview.log`, 'a');
-  const child = spawn(process.execPath, [`${CAND}/node_modules/vite/bin/vite.js`, 'preview', '--outDir', `${TMP}/web-cand`, '--port', '4321', '--strictPort', '--host', '127.0.0.1'], { cwd: CAND, detached: true, stdio: ['ignore', out, out] });
+  const out = fs.openSync(`${TMP}/r2j3/preview.log`, 'a');
+  const child = spawn(process.execPath, [`${CAND}/node_modules/vite/bin/vite.js`, 'preview', '--outDir', `${TMP}/web-r2j3`, '--port', '4361', '--strictPort', '--host', '127.0.0.1'], { cwd: CAND, detached: true, stdio: ['ignore', out, out] });
   child.unref();
   for (let i = 0; i < 80 && !(await up()); i++) await sleep(500);
   if (!(await up())) throw new Error('vite preview did not start');

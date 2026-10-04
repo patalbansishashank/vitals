@@ -54,11 +54,10 @@
 
   /* ---- chapter scale (design v3 §3.4): own centred row < 768 px; right-aligned on the title row from 768 px ---- */
   .lm-ik-progress {
-    order: 10;
-    flex: 1 0 100%;
     display: grid;
     justify-items: center;
     gap: 4px;
+    width: 100%;
     min-width: 0;
     min-height: 32px;
     align-content: center;
@@ -138,9 +137,7 @@
   }
   @media (min-width: 48rem) {
     .lm-ik-progress {
-      order: 0;
-      flex: 0 0 420px;
-      margin-left: auto;
+      width: 420px;
       justify-items: stretch;
     }
     .lm-ik-progress__segs {
@@ -160,18 +157,9 @@
       display: none;
     }
   }
-  /* the shell's spacer would share the free space with the auto margin: the progress takes it instead */
-  @media (min-width: 48rem) {
-    .lm-ctx:has(> .lm-ik-progress) > .lm-ctx__grow {
-      display: none;
-    }
-  }
   @media (min-width: 64rem) {
     .lm-ik-progress {
-      flex-basis: 440px;
-    }
-    .lm-ik-progress ~ .lm-ctx__actions {
-      margin-left: 12px;
+      width: 440px;
     }
   }
 
@@ -839,6 +827,56 @@
   }
   .lm-ik-table .lm-ik-table__part {
     width: 30%;
+  }
+  /* Narrow rows keep the amount aligned and give its source a readable measure. */
+  @media (max-width: 47.99rem) {
+    .lm-ik-table,
+    .lm-ik-table caption,
+    .lm-ik-table thead,
+    .lm-ik-table tbody {
+      display: block;
+    }
+    .lm-ik-table tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) max-content;
+      gap: var(--lm-space-1) var(--lm-space-2);
+      padding-block: var(--lm-space-2);
+      border-bottom: 1px solid var(--lm-line);
+      align-items: start;
+    }
+    .lm-ik-table th,
+    .lm-ik-table td {
+      width: auto;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      overflow-wrap: normal;
+    }
+    .lm-ik-table .lm-ik-table__part,
+    .lm-ik-table .lm-ik-table__label {
+      grid-column: 1;
+      grid-row: 1;
+      width: auto;
+    }
+    .lm-ik-table .lm-ik-num {
+      grid-column: 2;
+      grid-row: 1;
+      width: auto;
+      white-space: nowrap;
+    }
+    .lm-ik-table .lm-ik-table__source {
+      grid-column: 1;
+      grid-row: 2;
+    }
+    .lm-ik-table .lm-ik-table__act {
+      grid-column: 2;
+      grid-row: 2;
+      width: auto;
+      justify-self: end;
+    }
+    .lm-ik-table__act .lm-key {
+      min-height: var(--lm-hit-touch);
+    }
   }
   /* Your body › Maintenance: chapter A's answers fold under a disclosure (inline, never a sheet) */
   .lm-ik-fold {

@@ -13,6 +13,7 @@
 import { MEASUREMENT_METRICS } from '../defs/living';
 import { bodyOf, type Doc } from '@/store';
 import { getDocumentStore } from '@/state/runtime';
+import { effectivePolicy } from '@/biometrics/core/effective';
 import { sharedBioIndex } from '@/biometrics/store/docIndex';
 import { appDay, rolloverOf } from '@/living/appDay';
 import * as planner from '@/state/internal/planner';
@@ -38,10 +39,13 @@ import {
   RUNG_OF_OPTION,
   startFromRung,
   startFromScenario,
+  todayWithout,
+  HIDDEN_WHY,
   weeklyCheckIn,
   weighInsFor,
   aiEnergyShare,
   effectiveEntries,
+  projectEntries,
   type Actor as LivingActor,
   type ConfirmedStateRecord,
   type DayStatusDoc,
@@ -59,6 +63,7 @@ import {
   type StartOutcome,
   type Weekday,
 } from '@/living';
+import { coachHiddenEntryIds } from '../bio/observations';
 import { defineCommand, fail, getCommand } from '../registry';
 import { T, Value, type JsonSchema } from '../schema';
 import type { CommandContext, CommandDef } from '../types';
@@ -154,9 +159,20 @@ async function appendEntry(ctx: CommandContext, e: Omit<LogEntry, 'id'> & { id?:
 }
 
 // ------------------------------------------------------------------------------------------- reads
+/** Device entries an agent (the Coach, MCP, WebMCP) does not see: their stream is hidden from the Coach (plan 04 item 11). */
+async function hiddenFromAgent(ctx: CommandContext, entries: readonly LogEntry[]): Promise<ReadonlySet<string>> {
+  if (ctx.actor.kind === 'user' || ctx.actor.kind === 'system' || !entries.some((e) => e.source.by === 'device')) return new Set();
+  const ix = sharedBioIndex(getDocumentStore());
+  await ix.ready;
+  return coachHiddenEntryIds(ix, entries);
+}
+
 implement('today.get', async (ctx, input: { date?: string }) => {
   const docs = await readDocs();
-  return projectLiving({ docs, today: input.date ?? ctx.today, tz: ctx.tz, now: ctx.now }).today;
+  const date = input.date ?? ctx.today;
+  const view = projectLiving({ docs, today: date, tz: ctx.tz, now: ctx.now }).today;
+  const entries = effectiveEntries(docs.entries).filter((e) => e.date === date);
+  return todayWithout(view, entries, await hiddenFromAgent(ctx, entries));
 });
 
 implement('day.get', async (ctx, input: { date?: string }) => {
@@ -164,14 +180,24 @@ implement('day.get', async (ctx, input: { date?: string }) => {
   const date = input.date ?? ctx.today;
   const p = projectLiving({ docs, today: date > ctx.today ? date : ctx.today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
   const day = p.days.find((d) => d.date === date) ?? null;
+  // forked versions of one entry are shown once, with their conflict (C-CONFLICT)
+  const entries = projectEntries(docs.entries).filter((e) => e.date === date);
+  // an agent does not see device entries whose stream the person hides from the Coach, nor the lines that quote them
+  const hidden = await hiddenFromAgent(ctx, entries);
+  const gone = new Set(entries.filter((e) => hidden.has(e.id)).map((e) => e.kind));
+  const quiet = <T extends { type: string; credit: number | null; why?: string }>(it: T): T =>
+    it.credit !== null && it.why !== undefined && ((it.type === 'steps' && gone.has('steps')) || (it.type === 'sleep' && gone.has('sleep'))) ? { ...it, why: HIDDEN_WHY } : it;
+  const items = (day?.result.loggedDay.items ?? []).map(quiet);
+  const score = day?.result.score ?? null;
   return {
     date,
     planDay: day?.planDay ?? null,
     prescription: day?.prescription ?? null,
-    entries: effectiveEntries(docs.entries).filter((e) => e.date === date),
+    entries: hidden.size ? entries.filter((e) => !hidden.has(e.id)) : entries,
+    measurements: projectEntries(docs.measurements).filter((m) => m.date === date),
     marks: docs.dayStatus.find((s) => s.date === date)?.marks ?? {},
-    score: day?.result.score ?? null,
-    items: day?.result.loggedDay.items ?? [],
+    score: score && gone.size ? { ...score, items: score.items.map(quiet) } : score,
+    items,
   };
 });
 
@@ -208,9 +234,15 @@ implement('plan.drift', async (ctx) => {
   return projectLiving({ docs, today: ctx.today, tz: ctx.tz, now: ctx.now }).drift ?? { asOf: ctx.today, goals: [] };
 });
 
-implement('log.get', async (_ctx, input: { from: string; to: string; kinds?: string[] }) => {
+implement('log.get', async (ctx, input: { from: string; to: string; kinds?: string[] }) => {
   const docs = await readDocs();
-  return effectiveEntries(docs.entries).filter((e) => e.date >= input.from && e.date <= input.to && (!input.kinds || input.kinds.includes(e.kind)));
+  const inRange = (e: { date: string; kind: string }) => e.date >= input.from && e.date <= input.to && (!input.kinds || input.kinds.includes(e.kind));
+  const entries = projectEntries(docs.entries).filter(inRange);
+  // an agent does not see device entries whose stream the person hides from the Coach (plan 04 item 11)
+  const hidden = await hiddenFromAgent(ctx, entries);
+  const measurements = projectEntries(docs.measurements).map((m) => ({ ...m, kind: 'measurement' as const })).filter(inRange);
+  return [...(hidden.size ? entries.filter((e) => !hidden.has(e.id)) : entries), ...measurements]
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.at ?? '').localeCompare(b.at ?? '') || a.id.localeCompare(b.id));
 });
 
 // ------------------------------------------------------------------------------------------- plan lifecycle
@@ -362,10 +394,10 @@ implement('plan.checkIn', async (ctx) => {
   const p = projectLiving({ docs, today: ctx.today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
   const past = p.days.filter((d) => d.date < ctx.today);
   const schedule = realisedSchedule(plan, head, past.map((d) => d.result), ctx.today);
-  const entries = effectiveEntries(docs.entries);
+  const entries = projectEntries(docs.entries);
   const ci = weeklyCheckIn({
     plan, schedule, records: docs.records, today: ctx.today,
-    weighIns: weighInsFor(plan, docs.measurements, docs.observations ?? [], entries, blockStartsOf(head.schedule)),
+    weighIns: weighInsFor(plan, projectEntries(docs.measurements), docs.observations ?? [], entries, blockStartsOf(head.schedule)),
     intakeDays: past.filter((d) => d.result.intakeLogged).map((d) => d.planDay),
     aiEnergyShare: aiEnergyShare(entries.filter((e) => e.date >= addDays(ctx.today, -20))),
   });
@@ -476,15 +508,48 @@ function current<E extends { id: string; supersedes?: string; kind?: string; tar
   return target;
 }
 
-implement('log.retract', async (ctx, input: { entryId: string }) => {
+implement('log.retract', async (ctx, input: { entryId: string; keepEntryId?: string }) => {
   const docs = await readDocs();
   const found = docs.entries.find((e) => e.id === input.entryId);
+  const sameOpenConflict = <E extends { id: string; at?: string; supersedes?: string; kind?: string; target?: string }>(all: readonly E[]) =>
+    projectEntries(all).some((e) => e.conflict?.versions.some((v) => v.id === input.entryId) && e.conflict.versions.some((v) => v.id === input.keepEntryId));
+  if (input.keepEntryId && (input.keepEntryId === input.entryId || !(found ? sameOpenConflict(docs.entries) : sameOpenConflict(docs.measurements))))
+    fail('conflict', 'One of these versions changed. Look at them again before choosing.');
+  if (found?.kind === 'retract') {
+    if (!effectiveEntries(docs.entries, true).some((e) => e.id === found.id)) fail('conflict', 'That removal was already undone. Look at it again first.');
+    const restored = docs.entries.find((e) => e.id === found.target) ?? fail('not_found', 'The removed entry is missing.');
+    const { id: _old, ...copy } = restored;
+    void _old;
+    const id = ctx.newId();
+    await ctx.docs.append('dailyLogs', { ...copy, at: ctx.now, supersedes: found.id, _id: id });
+    return { entryId: id };
+  }
   const target = found ? current(docs.entries, found) : undefined;
-  if (target) return appendEntry(ctx, { ...base(ctx, target.date), kind: 'retract', target: target.id } as LogEntry);
+  // a conflict choice names the version kept, so two opposite choices made at once cancel out (L-REV2 R3-02); it also
+  // names the earlier choices over this pair it overrides, so a choice after a crossing settles it
+  const over = <E extends { id: string; kind?: string; target?: string; keep?: string }>(all: readonly E[]) =>
+    all.filter((e) => e.kind === 'retract' && e.keep && ((e.target === input.entryId && e.keep === input.keepEntryId) || (e.target === input.keepEntryId && e.keep === input.entryId))).map((e) => e.id);
+  const keepIn = (all: readonly { id: string; kind?: string; target?: string; keep?: string }[]) => {
+    if (!input.keepEntryId) return {};
+    const overrides = over(all);
+    return { keep: input.keepEntryId, ...(overrides.length ? { overrides } : {}) };
+  };
+  const keep = keepIn(found ? docs.entries : docs.measurements);
+  if (target) return appendEntry(ctx, { ...base(ctx, target.date), kind: 'retract', target: target.id, ...keep } as LogEntry);
   // a weigh-in or measurement: the retract entry goes into the (append-only) measurements collection
+  const marker = docs.measurements.find((e) => e.id === input.entryId) as (MeasurementEntry & { kind?: string; target?: string }) | undefined;
+  if (marker?.kind === 'retract' && marker.target) {
+    if (!effectiveEntries(docs.measurements, true).some((e) => e.id === marker.id)) fail('conflict', 'That removal was already undone. Look at it again first.');
+    const restored = docs.measurements.find((e) => e.id === marker.target) ?? fail('not_found', 'The removed measurement is missing.');
+    const id = ctx.newId();
+    const { id: _old, ...copy } = restored;
+    void _old;
+    await ctx.docs.append('measurements', { ...copy, at: ctx.now, supersedes: marker.id, _id: id });
+    return { entryId: id };
+  }
   const m = current(docs.measurements, docs.measurements.find((e) => e.id === input.entryId) ?? fail('not_found', 'There is no such entry.'));
   const id = ctx.newId();
-  await ctx.docs.append('measurements', { date: m.date, at: ctx.now, metric: m.metric, value: m.value, kind: 'retract', target: m.id, source: sourceOf(ctx), _id: id });
+  await ctx.docs.append('measurements', { date: m.date, at: ctx.now, metric: m.metric, value: m.value, kind: 'retract', target: m.id, ...keep, source: sourceOf(ctx), _id: id });
   return { entryId: id };
 });
 
@@ -549,20 +614,41 @@ implement('log.fromBiometrics', async (ctx, input: { date?: string }) => {
     entries: docs.entries,
     corrections: ix.corrections(),
   });
-  const created = [];
+  const written: Array<{ c: (typeof plan.create)[number]; entry: LogEntry }> = [];
   for (const c of plan.create) {
     const source = { ...c.entry.source, actorId: ctx.actor.id };
-    const { entryId } = await appendEntry(ctx, { ...c.entry, tz: ctx.tz, at: ctx.now, source, ...(c.supersedes ? { supersedes: c.supersedes } : {}) } as LogEntry);
-    const e = c.entry as Record<string, unknown>;
-    const wk = e.workout as { exerciseType?: string; activeKcal?: number } | undefined;
-    created.push({
-      entryId,
+    const draft = { ...c.entry, tz: ctx.tz, at: ctx.now, source, ...(c.supersedes ? { supersedes: c.supersedes } : {}) } as LogEntry;
+    const { entryId } = await appendEntry(ctx, draft);
+    written.push({ c, entry: { ...draft, id: entryId } });
+  }
+  // an agent caller is not told the values of streams the person hides from the Coach (MCP-01): the entries are still
+  // written (the plan uses them) and listed with their ids, without steps, bed/wake times or workout figures
+  const hidden = await hiddenFromAgent(ctx, written.map((w) => w.entry));
+  // and, per source policy (L-REV2 R3-08), a stream that is not brought in or is hidden from the Coach
+  const agent = ctx.actor.kind !== 'user' && ctx.actor.kind !== 'system';
+  const hiddenByPolicy = (sourceKey: string, stream: (typeof plan.create)[number]['stream']): boolean => {
+    const p = effectivePolicy(ix.source(sourceKey) ?? { policies: [] }, ix.personPolicies, stream);
+    return !p.imported || p.coach === 'hidden';
+  };
+  const created = [];
+  for (const { c, entry } of written) {
+    const base = {
+      entryId: entry.id,
       kind: c.entry.kind as 'steps' | 'sleep' | 'session',
       stream: c.stream,
       key: c.key,
       recordId: c.recordId,
       source: ix.source(c.sourceKey)?.label ?? c.sourceKey,
       ...(c.supersedes ? { supersedes: c.supersedes } : {}),
+    };
+    if (hidden.has(entry.id) || (agent && hiddenByPolicy(c.sourceKey, c.stream))) {
+      created.push(base);
+      continue;
+    }
+    const e = c.entry as Record<string, unknown>;
+    const wk = e.workout as { exerciseType?: string; activeKcal?: number } | undefined;
+    created.push({
+      ...base,
       ...(typeof e.steps === 'number' ? { steps: e.steps } : {}),
       ...(typeof e.bedAt === 'string' ? { bedAt: e.bedAt, wakeAt: e.wakeAt as string } : {}),
       ...(wk ? { exerciseType: wk.exerciseType, startH: e.startH as number, durationMin: e.durationMin as number, ...(wk.activeKcal !== undefined ? { activeKcal: wk.activeKcal } : {}) } : {}),

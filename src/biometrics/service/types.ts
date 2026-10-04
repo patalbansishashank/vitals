@@ -3,9 +3,11 @@
  *
  * One service per app (`getRingService()`), started at boot after the store opens. It finds, connects and reads the
  * person's rings through whatever transport the platform has, writes records with provenance into the biometrics store
- * (so sync carries them to every device), and keeps "who holds the ring" in the ring's synced source document (the
- * lease). Screens read `rings()` / `subscribe()` and call the actions; history goes through `bio.*` commands.
+ * (so sync carries them to every device), and keeps "who holds the ring" in a lease document beside the ring's source
+ * (`bioSources/lease:<ringKey>`). Screens read `rings()` / `subscribe()` and call the actions; history goes through
+ * `bio.*` commands.
  */
+import type { BleLink } from '@/biometrics/core/ble/types';
 import type { Instant } from '@/biometrics/core/types';
 import type { Platform } from '@/platform';
 
@@ -58,6 +60,8 @@ export interface RingStatus {
   heldBy?: RingHolder;
   /** The person pressed Disconnect on this device: auto-connect is paused here. */
   paused?: boolean;
+  /** What the ring can read on demand (`checkNow`). */
+  caps?: { checks: CheckMetric[] };
   /** Plain words; never names a passcode or a retail brand. */
   error?: { code: RingServiceErrorCode; message: string };
 }
@@ -71,9 +75,30 @@ export interface RingCandidate {
   rssi?: number;
   /** Already one of the person's rings. */
   known: boolean;
+  /** Last 4 hex of the ring's own id when the platform can see it (tells two rings apart; never the advertised name). */
+  idTail?: string;
+  /**
+   * The person has several possible saved rings: those of the advertised family, or all saved rings when the chooser
+   * cannot identify a family until connecting. The chosen key is checked against the discovered family before ingest.
+   */
+  matches?: Array<{ ringKey: string; lastSyncBy?: string; lastSyncAt?: Instant }>;
 }
 
 export type CheckMetric = 'hr' | 'spo2' | 'hrv' | 'skin_temp';
+
+/** What one read of a ring brought in (the `bio.deviceConnect` / `bio.deviceSync` job result). */
+export interface RingSyncReport {
+  sourceKey: string;
+  driver: string;
+  firmware: string;
+  battery: number | null;
+  records: number;
+  samples: number;
+  duplicates: number;
+  days: { from: string; to: string } | null;
+  warnings: string[];
+  scored: number;
+}
 
 export interface RingService {
   /** Starts auto-connect (idempotent). */
@@ -83,32 +108,57 @@ export interface RingService {
   subscribe(cb: (rings: RingStatus[]) => void): () => void;
   /** What the platform can do right now (drives the Ring page's first card). */
   availability(): 'ready' | 'unsupported' | 'bluetooth_off' | 'permission_needed';
+  /** False until `start()` has asked the platform once (`availability()` reads 'unsupported' until then). */
+  availabilityKnown?(): boolean;
   /** The pairing list. On the web this opens the browser's chooser and must run inside a click. */
   scan(signal: AbortSignal): AsyncIterable<RingCandidate>;
-  /** First connect and the full history the ring holds. */
-  pair(candidateId: string): Promise<RingStatus>;
+  /** First connect and the full history the ring holds. `ringKey` answers a candidate's `matches` question. */
+  pair(candidateId: string, ringKey?: string): Promise<RingStatus>;
   /** "Connect here instead". */
   connectHere(ringKey: string): Promise<void>;
   syncNow(ringKey: string): Promise<void>;
+  /** Rejects with an Error whose `code` is 'no_reading' or 'off_finger' when the ring says so. */
   checkNow(ringKey: string, metric: CheckMetric): Promise<{ value: number; unit: string; at: Instant }>;
+  /** Ends a running `checkNow`; nothing is stored. Optional so a test fake needs nothing more. */
+  stopCheck?(ringKey: string): Promise<void>;
   /** Live heart rate while the returned function is not called (the Ring page while visible). */
   watchLiveHeartRate(ringKey: string): () => void;
   /** Stays known; auto-connect paused on this device until Connect is pressed here. */
   disconnect(ringKey: string): Promise<void>;
   /** Removes the ring from this person (its data stays). */
   forget(ringKey: string): Promise<void>;
+  /**
+   * The web chooser path (`bio.deviceConnect` / `bio.deviceSync`): a link the screen opened inside the click and
+   * staged with `stageBleLink`. The service takes the link over, reads history (all of it for a new ring, since the
+   * last read otherwise) and stays connected afterwards. Resolves with the job's report.
+   */
+  syncLink(link: BleLink, driverId: string, opts?: { ringKey?: string; create?: boolean; signal?: AbortSignal; onProgress?: (p: number, stage: string) => void }): Promise<RingSyncReport>;
 }
 
-/** The lease on a ring's synced source document (`SourceBody.ble.link`). */
-export interface RingLease {
-  deviceId: string;
-  deviceLabel: string;
-  platform: Platform;
-  since: Instant;
-  heartbeatAt: Instant;
-  takeover?: { deviceId: string; deviceLabel: string; at: Instant };
+/**
+ * The lease on a ring: `bioSources` document `lease:<ringKey>`. `bioSources` merges per top-level field, so the holder
+ * writes `holder` and `heartbeatAt`, the taker writes `takeover`, and a merge never loses either.
+ */
+export interface RingLeaseBody {
+  kind: 'ringLease';
+  ringKey: string;
+  holder: RingHolder | null;
+  /** Written by the holder only. */
+  heartbeatAt: Instant | null;
+  /** Written by the taker only. */
+  takeover: { deviceId: string; deviceLabel: string; at: Instant } | null;
 }
+/** @deprecated first draft's name; the lease is `RingLeaseBody`. */
+export type RingLease = RingLeaseBody;
 
-export const LEASE_HEARTBEAT_MS = 60_000;
-export const LEASE_STALE_MS = 180_000;
+export const leaseDocId = (ringKey: string): string => `lease:${ringKey}`;
+export const isLeaseDocId = (id: string): boolean => id.startsWith('lease:');
+
+/** The holder's heartbeat: each write is a synced change kept forever, so not more often than this. */
+export const LEASE_HEARTBEAT_MS = 300_000;
+export const LEASE_STALE_MS = 900_000;
 export const SYNC_EVERY_MS = 30 * 60_000;
+/** After `connectHere` the taker keeps trying for this long (BLE needs a few seconds to free the link). */
+export const TAKEOVER_RETRY_MS = 60_000;
+/** A holder that lost the ring to another device leaves it alone for this long (or until Connect is pressed). */
+export const TAKEOVER_PAUSE_MS = 12 * 60 * 60_000;

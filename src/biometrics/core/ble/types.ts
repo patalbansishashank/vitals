@@ -19,10 +19,10 @@ export interface RingCommand {
 }
 
 export type RingDecodedEvent =
-  | { type: 'sample'; stream: BioStream; t: number; value: number; unit: string; origin: 'history' | 'spot' | 'live' }
-  | { type: 'sleepEpochs'; start: number; epochS: 60; stages: string[]; rawCodes: number[]; firmware: string; complete: boolean }
-  | { type: 'activityBucket'; start: number; durS: number; steps: number; distanceM?: number }
-  | { type: 'workout'; start: number; end: number; kind: string }
+  | { type: 'sample'; stream: BioStream; t: number; value: number; unit: string; origin: 'history' | 'spot' | 'live' | 'workout_stream' }
+  | { type: 'sleepEpochs'; start: number; epochS: number; stages: string[]; rawCodes: number[]; firmware: string; complete: boolean }
+  | { type: 'activityBucket'; start: number; durS: number; steps: number; distanceM?: number; kcal?: number }
+  | { type: 'workout'; start: number; end: number; kind: string; distanceM?: number; kcal?: number; hrAvg?: number; hrMax?: number }
   | { type: 'vendor'; key: string; t: number; value: number; unit: string }
   /** Device housekeeping (battery, firmware, clock, page cursors); not mapped to records. */
   | { type: 'status'; key: 'battery' | 'firmware' | 'clock_offset_s' | 'cursor' | 'ack' | 'error'; value: number | string; stream?: BioStream };
@@ -59,7 +59,7 @@ export interface CommandPlan {
 
 export interface BleProtocol {
   frame(cmd: RingCommand): Uint8Array[];
-  ingest(bytes: Uint8Array, state: ProtocolState): IngestResult;
+  ingest(bytes: Uint8Array, state: ProtocolState, channel?: string, receivedMs?: number): IngestResult;
   /** One page per stream per open + resumable backfill (R10 §4.4). */
   planSync(cursor: Partial<Record<BioStream, string>>): RingCommand[];
   initialState(): ProtocolState;

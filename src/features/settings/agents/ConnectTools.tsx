@@ -4,10 +4,11 @@
  * may do; nothing is written before the person confirms. With a server paired, each added tool gets its own agent key
  * (scope `edit`), handed straight to the app's secret store: never shown, never kept in React state.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Engraved, Faceplate, FaceplateHeader, InlineWarning, Key, Dialog } from '@/components';
-import type { AgentClient, ServerClient } from '@/net/server';
+import { ServerError, type AgentClient, type ServerClient } from '@/net/server';
 import { useServerClient, useServerPairing } from '../server/hooks';
+import { agentKeyIds, setAgentKeyIds } from './agentKeyIds';
 import { CONNECT_TOOLS_COPY as C } from './copy';
 import { desktopBridge, type AiToolId, type AiToolRow, type DesktopMcpBridge } from './desktop';
 
@@ -15,15 +16,28 @@ const wrap = 'break-words [overflow-wrap:anywhere]';
 const CLIENT: Record<AiToolId, AgentClient> = { 'claude-code': 'claude', codex: 'codex', opencode: 'opencode', 'chatgpt-desktop': 'chatgpt-desktop' };
 const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e));
 
-/** Revokes this tool's earlier desktop keys on the server (best effort): one live key per tool. */
+/** A label as the server lists it: the home server drops characters such as "·", and both cut it to 40 characters. */
+const serverLabel = (s: string) => s.replace(/[^\p{L}\p{N} ._:/@()'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 40);
+
+/** Keeps a key's id when revoking it failed, so the next Add or Remove tries again. */
+const keepForRetry = (tool: AiToolId, id: string) => setAgentKeyIds(tool, [...agentKeyIds(tool), id]);
+
+/**
+ * Revokes this tool's earlier keys on the server, all but `keep`: by the ids this computer kept, or, when it kept none
+ * (keys made before it kept ids), by this app's label for the tool. Ids that could not be revoked stay kept for the
+ * next try; the first failure is thrown.
+ */
 async function revokeOldKeys(client: ServerClient, row: AiToolRow, keep?: string): Promise<void> {
-  try {
-    const label = C.agentLabel(row.label);
-    const old = (await client.agentTokens()).filter((t) => t.label === label && t.client === CLIENT[row.id] && t.id !== keep);
-    await Promise.all(old.map((t) => client.revokeAgentToken(t.id).catch(() => undefined)));
-  } catch {
-    // the person can still revoke it in the keys list above
+  let ids = agentKeyIds(row.id).filter((id) => id !== keep);
+  if (!ids.length) {
+    const label = serverLabel(C.agentLabel(row.label));
+    ids = (await client.agentTokens()).filter((t) => t.client === CLIENT[row.id] && serverLabel(t.label) === label && t.id !== keep).map((t) => t.id);
   }
+  const results = await Promise.allSettled(ids.map((id) => client.revokeAgentToken(id)));
+  // a key the server does not know any more is gone already
+  const failed = results.flatMap((r, i) => (r.status === 'rejected' && !(r.reason instanceof ServerError && r.reason.code === 'not_found') ? [{ id: ids[i]!, reason: r.reason as unknown }] : []));
+  setAgentKeyIds(row.id, [...(keep ? [keep] : []), ...failed.map((f) => f.id)]);
+  if (failed.length) throw failed[0]!.reason;
 }
 
 export function ConnectTools() {
@@ -39,37 +53,55 @@ function ConnectToolsBlock({ bridge }: { bridge: DesktopMcpBridge }) {
   const [consent, setConsent] = useState<AiToolRow | null>(null);
   const [removing, setRemoving] = useState<AiToolRow | null>(null);
   const [busy, setBusy] = useState(false);
+  const toolList = useRef<HTMLUListElement>(null);
+  const focusAfterLoad = useRef<AiToolId | null>(null);
 
-  const load = useCallback(() => {
-    bridge.mcp.tools().then(setRows, () => setError(C.loadFailed));
+  const load = useCallback((focusTool?: AiToolId) => {
+    bridge.mcp.tools().then((next) => {
+      if (focusTool) focusAfterLoad.current = focusTool;
+      setRows(next);
+    }, () => setError(C.loadFailed));
   }, [bridge]);
+
+  useLayoutEffect(() => {
+    const id = focusAfterLoad.current;
+    if (!id) return;
+    toolList.current?.querySelector<HTMLButtonElement>(`button[data-tool-id="${id}"]`)?.focus();
+    focusAfterLoad.current = null;
+  }, [rows]);
 
   useEffect(() => {
     load();
-    window.addEventListener('focus', load);
-    return () => window.removeEventListener('focus', load);
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
   }, [load]);
 
   const finishAdd = async (row: AiToolRow, added: Promise<AiToolRow>, minted: Promise<{ token: string; id: string } | null>) => {
     const [a, m] = await Promise.allSettled([added, minted]);
     const key = m.status === 'fulfilled' ? m.value : null;
     if (a.status === 'rejected') {
-      if (key) void client.revokeAgentToken(key.id).catch(() => undefined);
+      if (key) void client.revokeAgentToken(key.id).catch(() => keepForRetry(row.id, key.id));
       setError(message(a.reason));
     } else if (m.status === 'rejected') {
       setError(C.keyFailed(row.label, message(m.reason)));
     } else if (key) {
+      let stored = false;
       try {
         await bridge.secrets.set(`agentToken:${row.id}`, key.token);
-        void revokeOldKeys(client, row, key.id);
+        stored = true;
       } catch (e) {
-        void client.revokeAgentToken(key.id).catch(() => undefined);
+        void client.revokeAgentToken(key.id).catch(() => keepForRetry(row.id, key.id));
         setError(C.keyFailed(row.label, message(e)));
+      }
+      if (stored) {
+        keepForRetry(row.id, key.id);
+        await revokeOldKeys(client, row, key.id).catch((e: unknown) => setError(C.oldKeyLeft(row.label, message(e))));
       }
     }
     setBusy(false);
     setConsent(null);
-    load();
+    load(row.id);
   };
 
   const confirmAdd = (row: AiToolRow) => {
@@ -91,13 +123,13 @@ function ConnectToolsBlock({ bridge }: { bridge: DesktopMcpBridge }) {
     try {
       await bridge.mcp.remove(row.id);
       await bridge.secrets.set(`agentToken:${row.id}`, null);
-      if (pairing) void revokeOldKeys(client, row);
+      if (pairing) await revokeOldKeys(client, row).catch((e: unknown) => setError(C.keyLeft(row.label, message(e))));
     } catch (e) {
       setError(message(e));
     }
     setBusy(false);
     setRemoving(null);
-    load();
+    load(row.id);
   };
 
   return (
@@ -105,7 +137,8 @@ function ConnectToolsBlock({ bridge }: { bridge: DesktopMcpBridge }) {
       <FaceplateHeader title={C.title} titleId="settings-connect-tools-title" />
       <div className="grid gap-3">
         <p className="m-0 text-sm leading-[1.5] text-ink">{C.intro}</p>
-        <ul className="m-0 grid list-none gap-3 p-0">
+        {pairing && bridge.secrets.persistent === false ? <InlineWarning severity="caution">{C.keysNotKept}</InlineWarning> : null}
+        <ul ref={toolList} className="m-0 grid list-none gap-3 p-0">
           {(rows ?? []).map((row) => (
             <ToolRow key={row.id} row={row} onAdd={() => setConsent(row)} onRemove={() => setRemoving(row)} />
           ))}
@@ -193,11 +226,11 @@ function ToolRow({ row, onAdd, onRemove }: { row: AiToolRow; onAdd: () => void; 
           <span className="text-xs text-ink-2"> · {status}</span>
         </span>
         {row.added ? (
-          <Key size="sm" variant="quiet" aria-label={C.removeName(row.label)} onClick={onRemove}>
+          <Key data-tool-id={row.id} size="sm" variant="quiet" aria-label={C.removeName(row.label)} onClick={onRemove}>
             {C.remove}
           </Key>
         ) : canAdd ? (
-          <Key size="sm" aria-label={C.addName(row.label)} onClick={onAdd}>
+          <Key data-tool-id={row.id} size="sm" aria-label={C.addName(row.label)} onClick={onAdd}>
             {C.add}
           </Key>
         ) : null}

@@ -44,6 +44,15 @@
       min-width: min(200px, 62vw);
     }
   }
+  @media (max-width: 23.99rem) {
+    .rs-strip .lm-strip__item {
+      flex: 0 0 50%;
+      min-width: 0;
+    }
+    .rs-strip .lm-readout__value {
+      white-space: normal;
+    }
+  }
   .rs-strip__name {
     all: unset;
     display: inline-flex;

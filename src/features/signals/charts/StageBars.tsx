@@ -15,7 +15,7 @@ import type { LocalDate } from '@/living';
 import { coverageText, type PeriodKind } from '../models';
 import { RING_COPY } from './copy';
 import { SLEEP_COPY as S, clockRange, durShort } from './copySleep';
-import { ChartShell, HatchDefs, MissingStub, TwinTable, useChartSizes, useSlotCrosshair } from './kit';
+import { CHART_DRILL_HELP, ChartShell, HatchDefs, MissingStub, TwinTable, useChartSizes, useSlotCrosshair } from './kit';
 import { useHatchId } from './NightStages';
 import { clockAt } from './ringData';
 import { STACK_STAGES, sharePercents, yCeiling, type MonthColumn, type NightColumn, type SleepNight, type SleepStats, type StageMinutes } from './sleepModels';
@@ -259,6 +259,7 @@ export function StageBars({ kind, anchor, nights = [], months = [], goalH, stats
           className="sl-plot"
           role="img"
           aria-label={summary}
+          aria-description={CHART_DRILL_HELP}
           tabIndex={past ? 0 : undefined}
           onKeyDown={(e) => ch.onKeyDown(e, drill)}
           onFocus={past ? ch.onFocus : undefined}

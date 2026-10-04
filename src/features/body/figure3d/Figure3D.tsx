@@ -177,7 +177,7 @@ export function Figure3D({
               units={units}
               heightText={heightText}
               showMeasures={showMeasures}
-              interactive={interactive}
+              interactive={useSvg && !decorative ? interactive : undefined}
               ruler={ruler}
               tween={tween}
               caption={false}
@@ -196,7 +196,7 @@ export function Figure3D({
                     layers={layers}
                     anatomyLayers={anatomyLayers}
                     autoRotate={controls && !compact && rotating && !reduced}
-                    interactive={!decorative}
+                    interactive={!decorative && ready}
                     reducedMotion={reduced}
                     tween={tween}
                     layout={null}

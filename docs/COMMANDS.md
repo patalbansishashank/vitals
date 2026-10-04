@@ -374,7 +374,7 @@ Perm: R read, W write (low impact), W·c consequential write (staged for agents)
 Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Idem: N natural, K key, — none.
 
 <!-- commands:start -->
-165 commands (165 implemented, 0 stubs) in 32 domains: agents 1 · ai 2 · app 1 · bio 12 · biometrics 3 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 18 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 4 · profile 5 · safety 9 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
+169 commands (169 implemented, 0 stubs) in 32 domains: agents 1 · ai 2 · app 1 · bio 14 · biometrics 5 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 18 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 4 · profile 5 · safety 9 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
 
 | Command | Tool name | Perm | Surfaces | Undo | Idem | Run | Status | Title |
 |---|---|---|---|---|---|---|---|---|
@@ -387,16 +387,20 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `bio.deleteSource` | `bio_delete_source` | D | ui | — | N |  | implemented | Delete a source |
 | `bio.deviceConnect` | `bio_device_connect` | W | ui | TS | K | job | implemented | Connect a device |
 | `bio.deviceSync` | `bio_device_sync` | W | ui | TS | K | job | implemented | Sync a device |
+| `bio.dismissRingDefaultsNotice` | `bio_dismiss_ring_defaults_notice` | W | ui | — | N |  | implemented | Hide the ring data notice |
 | `bio.import` | `bio_import` | W | ui | TS | K | job | implemented | Import health data |
 | `bio.manual` | `bio_manual` | W | all | TS | K |  | implemented | Enter a device value |
 | `bio.rescore` | `bio_rescore` | W | ui | — | N | job | implemented | Recompute scores |
 | `bio.scores` | `bio_scores` | R | all | — | — |  | implemented | Scores |
 | `bio.series` | `bio_series` | R | all | — | — |  | implemented | Biometric series |
 | `bio.setPolicy` | `bio_set_policy` | W·c | ui | IP | N |  | implemented | Sharing policy |
+| `bio.setRingSharing` | `bio_set_ring_sharing` | W·c | ui | IP | N |  | implemented | Use my ring data in my plan and Coach |
 | `bio.sources` | `bio_sources` | R | all | — | — |  | implemented | Data sources |
 | `biometrics.clearCorrection` | `biometrics_clear_correction` | W | all | RT | N |  | implemented | Use the device value again |
 | `biometrics.correct` | `biometrics_correct` | W·c | all | RT | K |  | implemented | Correct a device value |
 | `biometrics.dropPriorities` | `biometrics_drop_priorities` | W | ui | — | N |  | implemented | Drop source priorities |
+| `biometrics.ringDefaults` | `biometrics_ring_defaults` | W | ui | — | N |  | implemented | Move ring data to the ring defaults |
+| `biometrics.ringFold` | `biometrics_ring_fold` | W | ui | — | N |  | implemented | One ring, one source |
 | `briefing.get` | `briefing_get` | R | ui webmcp mcp | — | — |  | implemented | Read the person’s briefing |
 | `catalogue.addEquipment` | `catalogue_add_equipment` | W | all | TS | K |  | implemented | Add equipment |
 | `catalogue.addExercise` | `catalogue_add_exercise` | W | all | TS | K |  | implemented | Add an exercise |

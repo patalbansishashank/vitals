@@ -371,12 +371,12 @@ function moreExpected(h: History, st: ColmiState): boolean {
 
 const BIG_DATA_UUID = COLMI_UUIDS.bigData;
 
-function mapEvents(decoded: ColmiDecoded[], st: ColmiState): RingEvent[] {
-  return toRingEvents(decoded, st.firmware, st);
+function mapEvents(decoded: ColmiDecoded[], st: ColmiState, receivedMs = st.nowMs): RingEvent[] {
+  return toRingEvents(decoded, st.firmware, { ...st, nowMs: receivedMs });
 }
 
 /** Normal channel: history frames go to the walk, everything else to `decodeNormal` plus the engine's side effects. */
-function ingestNormal(bytes: Uint8Array, state: ColmiState): IngestResult {
+function ingestNormal(bytes: Uint8Array, state: ColmiState, receivedMs = state.nowMs): IngestResult {
   let st = state;
   const op = bytes[0];
   const h = st.inflight?.kind === 'history' ? st.inflight : null;
@@ -384,21 +384,21 @@ function ingestNormal(bytes: Uint8Array, state: ColmiState): IngestResult {
     const stageOp = h ? stageInfo(h.stage)?.opcode : undefined;
     if (!h || stageOp !== op) {
       // A history frame outside its stage: decoded on today's grid, it advances nothing.
-      const today = zoneDayIndex(st.nowMs, st);
-      return { events: mapEvents(decodeHistory(bytes, { day: today, tz: st.tz, tzOffsetS: st.tzOffsetS, nowMs: st.nowMs, slotMinutes: null }), st), state: st };
+      const today = zoneDayIndex(receivedMs, st);
+      return { events: mapEvents(decodeHistory(bytes, { day: today, tz: st.tz, tzOffsetS: st.tzOffsetS, nowMs: receivedMs, slotMinutes: null }), st, receivedMs), state: st };
     }
     let cur = captureMetadata(h, bytes, st);
     const packetNr = bytes[1] ?? 0;
     const highest = op === OP.SYNC_ACTIVITY ? cur.highest : packetNr !== 0xff ? Math.max(cur.highest, packetNr) : cur.highest;
     cur = { ...cur, highest, packets: cur.packets + 1, quietMs: 0 };
-    const events = mapEvents(decodeHistory(bytes, { day: cur.syncDay, tz: st.tz, tzOffsetS: st.tzOffsetS, nowMs: st.nowMs, slotMinutes: cur.slot }), st);
+    const events = mapEvents(decodeHistory(bytes, { day: cur.syncDay, tz: st.tz, tzOffsetS: st.tzOffsetS, nowMs: receivedMs, slotMinutes: cur.slot }), st, receivedMs);
     st = { ...st, inflight: cur };
     if (packetNr === 0xff || isTerminal(bytes, cur)) return nextDay(st, cur, events);
     return { events, state: st };
   }
 
-  const decoded = decodeNormal(bytes, st.nowMs);
-  const events = mapEvents(decoded, st);
+  const decoded = decodeNormal(bytes, receivedMs);
+  const events = mapEvents(decoded, st, receivedMs);
   let send: RingCommand[] | undefined;
   let done: boolean | undefined;
 
@@ -444,7 +444,7 @@ function ingestNormal(bytes: Uint8Array, state: ColmiState): IngestResult {
 }
 
 /** Big-data channel (`ColmiDriver.ingestBigData` + `completeAndDecode` + `handleBigDataComplete`). */
-function ingestBig(bytes: Uint8Array, state: ColmiState): IngestResult {
+function ingestBig(bytes: Uint8Array, state: ColmiState, receivedMs = state.nowMs): IngestResult {
   let st = state;
   const h = st.inflight?.kind === 'history' ? st.inflight : null;
   if (h) st = { ...st, inflight: { ...h, packets: h.packets + 1, quietMs: 0 } };
@@ -464,7 +464,7 @@ function ingestBig(bytes: Uint8Array, state: ColmiState): IngestResult {
   st = { ...st, bigData: null };
   const frame = Uint8Array.from(buffer);
   const type = frame[1]!;
-  const ctx = { nowMs: st.nowMs, tz: st.tz, tzOffsetS: st.tzOffsetS };
+  const ctx = { nowMs: h || st.inflight?.kind === 'sleepOnly' ? st.nowMs : receivedMs, tz: st.tz, tzOffsetS: st.tzOffsetS };
 
   let decoded: ColmiDecoded[];
   if (type === BIG.INTERVAL_TEMPERATURE) {
@@ -476,7 +476,7 @@ function ingestBig(bytes: Uint8Array, state: ColmiState): IngestResult {
   } else {
     decoded = decodeBigData(frame, ctx);
   }
-  const events = mapEvents(decoded, st);
+  const events = mapEvents(decoded, st, receivedMs);
   return handleBigDataComplete(type, frame, st, events);
 }
 
@@ -552,10 +552,10 @@ export function createColmiProtocol(): Protocol {
       return { state: st, expectReply: false };
     },
 
-    ingest(bytes, state, channel?: Uuid): IngestResult {
+    ingest(bytes, state, channel?: Uuid, receivedMs?: number): IngestResult {
       const st = state as ColmiState;
-      if (channel !== undefined && normalizeUuid(channel) === BIG_DATA_UUID) return ingestBig(bytes, st);
-      return ingestNormal(bytes, st);
+      if (channel !== undefined && normalizeUuid(channel) === BIG_DATA_UUID) return ingestBig(bytes, st, receivedMs);
+      return ingestNormal(bytes, st, receivedMs);
     },
 
     timeout(state, kind): IngestResult {

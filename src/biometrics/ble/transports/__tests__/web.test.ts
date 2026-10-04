@@ -215,6 +215,14 @@ describe('web transport: requestDevice', () => {
 describe('web transport: link behaviour', () => {
   const frame = Uint8Array.of(1, 2, 3);
 
+  it('reports the chosen peripheral\'s discovered GATT service UUIDs', async () => {
+    const dev = new FakeDevice('d', 'Unlabelled ring');
+    Object.assign(dev.gatt, { getPrimaryServices: vi.fn(async () => [{ uuid: SVC }]) });
+    stubDevice(dev);
+    const link = await webTransport.requestDevice(query);
+    expect(await link.services?.()).toEqual([SVC]);
+  });
+
   it('writes with response when the characteristic supports write', async () => {
     const dev = new FakeDevice('d', 'Ring 1');
     stubDevice(dev);

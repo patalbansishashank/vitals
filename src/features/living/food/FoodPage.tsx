@@ -11,6 +11,7 @@ import { addDays, compareDates, isLocalDate } from '@/living/dates';
 import type { LocalDate, PrescribedDaySnapshot } from '@/living';
 import { clockHourOf, useLivingClock, useToday } from '../clock';
 import { DateStrip } from '../components/DateStrip';
+import { LogConflict } from '../components/LogConflict';
 import { useLivingActions, type ActionOutcome, type ManualMealInput } from '../data/actions';
 import { useLiving } from '../data/source';
 import { fmtDateRange, fmtDay, weekOf } from '../format';
@@ -62,6 +63,7 @@ function FoodScreen() {
   const weekDates = useMemo(() => weekOf(date), [date]);
 
   const view = useLiving((s) => s.today(date), [date]);
+  const dayConflicts = useLiving((s) => s.history(date, date)[0]?.conflicts ?? [], [date]);
   const yesterday = useLiving((s) => s.today(addDays(date, -1)), [date]);
   const days = useLiving((s) => s.days(weekDates), [weekDates]);
   const weekViews = useLiving((s) => weekDates.filter((d) => compareDates(d, today) <= 0).map((d) => s.today(d)), [weekDates, today]);
@@ -359,6 +361,7 @@ function FoodScreen() {
         {notices.map((n) => (
           <Notice key={n.id} severity={n.level} title={n.text} layout="ruled" />
         ))}
+        {dayConflicts.filter((conflict) => conflict.kind === 'meal').map((conflict) => <LogConflict key={conflict.parentId} conflict={conflict} quiet={quiet} />)}
 
         {!rx ? (
           <Faceplate className="lv-food-empty" title={M.title}>

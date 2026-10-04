@@ -26,7 +26,7 @@ function fakeBridge() {
       setManifest: vi.fn(),
       setServer: vi.fn(),
     },
-    secrets: { get: vi.fn(async () => null), set: vi.fn(async () => undefined) },
+    secrets: { set: vi.fn(async () => undefined) },
   } satisfies DesktopMcpBridge;
   return { bridge, host };
 }

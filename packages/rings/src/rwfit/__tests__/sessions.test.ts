@@ -15,13 +15,14 @@ import { collect, fixture, kotlinEvents, sameAsKotlin, utc } from './helpers';
 type Session = FixtureSession & { framing: 'legacy' | 'jl'; expectEvents?: Array<Record<string, unknown>> };
 const sessions = fixture<{ sessions: Session[] }>('sessions.json').sessions;
 const TIMERS = { quietMs: 30, stallMs: 80 };
-const open = (fake: FakePeripheral) => openRingSession(rwfit, fake, { timers: TIMERS, clock: utc });
+const open = (fake: FakePeripheral, now = utc.now) => openRingSession(rwfit, fake, { timers: TIMERS, clock: { now, tzOffsetS: utc.tzOffsetS } });
 
 describe('rwfit sessions', () => {
   for (const s of sessions) {
     it(s.name, async () => {
       const fake = fakeFromSession(s, { frameLength: 0 });
-      const session = await open(fake);
+      let testNow = utc.now();
+      const session = await open(fake, () => testNow);
       expect((session.runtime.state as RWfitState).framing).toBe(s.framing);
       expect(session.info()).toEqual({ firmware: s.framing, battery: undefined, clockOffsetS: 0 });
       expect(session.identity).toMatchObject({ family: 'rwfit', basis: 'advertised' });
@@ -34,6 +35,8 @@ describe('rwfit sessions', () => {
         await session.close();
         return;
       }
+      // This Kotlin golden history reply is from epoch 2000; align the synthetic receive clock to its capture.
+      if (s.name === 'jl connect and history burst') testNow = 947_454_900_000;
       const evs = await collect(session.sync({}, () => {}, new AbortController().signal));
       expect(fake.writes.map(toHex)).toEqual(s.steps.map((x) => x.expectWrite));
       expect(fake.errors).toEqual([]);

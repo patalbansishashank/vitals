@@ -4,7 +4,7 @@
   .lv-food {
     display: grid;
     gap: var(--lm-space-4);
-    padding-block: var(--lm-space-4) var(--lm-space-8);
+    padding-bottom: var(--lm-space-8);
   }
 
   .lv-food-ctxdate {

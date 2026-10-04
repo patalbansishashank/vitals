@@ -6,6 +6,7 @@
 import { chunkIdFor, chunkKeyString, chunkStats, contentHashOf, decodeChunk, encodeChunk, mergeSamples, sampleKey } from '../core/chunks';
 import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, ChunkKey, DecisionLogEntry, LocalDate, RawSample, ScoreResult } from '../core/types';
 import type { BioStore, BlobStore, ChunkQuery, RecordQuery } from './types';
+import { reconcileSleep } from '../core/reconcileSleep';
 
 /** In-memory `BlobStore`. The caller-supplied `aadId` is used as the chunk id (E11 derives ids with an HMAC instead;
  * the BioStore passes `chunkIdFor(...)` as the aadId). */
@@ -100,15 +101,14 @@ export class InMemoryBioStore implements BioStore {
     for (const e of this.recs.values()) {
       const r = e.record;
       if (this.latest.get(r.record_id) !== r.version) continue;
-      if (kinds && !kinds.has(r.kind)) continue;
-      if (q.sourceKey !== undefined && e.sourceKey !== q.sourceKey) continue;
-      if (q.from !== undefined && r.time.local_date < q.from) continue;
-      if (q.to !== undefined && r.time.local_date > q.to) continue;
       out.push(e);
     }
     const when = (r: BioRecord): string => r.time.start ?? r.time.at ?? '';
     out.sort((a, b) => a.record.time.local_date.localeCompare(b.record.time.local_date) || when(a.record).localeCompare(when(b.record)) || a.record.record_id.localeCompare(b.record.record_id));
-    return Promise.resolve(out.map((e) => clone(e)));
+    return Promise.resolve(reconcileSleep(out).filter(({ sourceKey, record: r }) =>
+      (!kinds || kinds.has(r.kind)) && (q.sourceKey === undefined || sourceKey === q.sourceKey)
+      && (q.from === undefined || r.time.local_date >= q.from) && (q.to === undefined || r.time.local_date <= q.to),
+    ).map((e) => clone(e)));
   }
 
   // ------------------------------------------------------------ chunks

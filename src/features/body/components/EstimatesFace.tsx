@@ -104,7 +104,21 @@ export function EstimatesFace({ summary: s, muscleWords: words, energyUnit, unit
       <p className="lm-sr" aria-live="polite" aria-atomic="true">
         {spoken}
       </p>
-      {wide ? <div className="lm-body-est__grid">{cells}</div> : <ScrollRail className="lm-body-est__rail" bleed={false} padding={16} gap={0}>{cells}</ScrollRail>}
+      {wide ? (
+        <div className="lm-body-est__grid">{cells}</div>
+      ) : (
+        <ScrollRail
+          className="lm-body-est__rail"
+          bleed={false}
+          padding={16}
+          gap={0}
+          role="region"
+          aria-label="Body estimates"
+          tabIndex={0}
+        >
+          {cells}
+        </ScrollRail>
+      )}
       {gentle ? (
         <div className="lm-body-row lm-body-est__gentle">
           <span className="text-xs text-ink-2">{EST.gentleNote}</span>

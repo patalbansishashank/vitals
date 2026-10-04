@@ -242,7 +242,7 @@ function ChapterView({ chapter, section, from }: { chapter: ChapterId; section: 
       <TopBar
         title={CHAPTER_NAME[chapter]}
         back={leave}
-        tabs={<ChapterProgress chapters={CHAPTERS} current={chapter} fill={curShares.fill} later={curShares.later} position={prog.position} total={prog.total} />}
+        progress={<ChapterProgress chapters={CHAPTERS} current={chapter} fill={curShares.fill} later={curShares.later} position={prog.position} total={prog.total} />}
         actions={
           !complete ? (
             <span className="max-lg:hidden">
@@ -352,7 +352,7 @@ function SummaryView({ from }: { from: IntakeFrom | undefined }) {
       <TopBar
         title={SUMMARY.title}
         back={from === 'setup' ? { to: intakePath(CHAPTER_ROUTE[last], { from }), label: CHAPTER_NAME[last] } : { to: '/body#habits', label: BAR.backToBody }}
-        tabs={<ChapterProgress chapters={CHAPTERS} current={null} fill={shares.fill} later={shares.later} position={0} total={0} />}
+        progress={<ChapterProgress chapters={CHAPTERS} current={null} fill={shares.fill} later={shares.later} position={0} total={0} />}
       />
       <Page>
         <div className="lm-ik-summary">

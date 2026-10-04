@@ -22,7 +22,9 @@ const { newDeviceId } = await import('../../../../src/store/ids.ts');
 export async function openReplica(kind, opts) {
   if (kind === 'node') return openNodeReplica(opts);
   if (kind === 'server') return openServerReplica(opts);
-  throw new Error(`replica kind "${kind}" is not built yet (L-QA plugs the real apps in through this contract)`);
+  throw new Error(
+    `replica kind "${kind}" is not built yet (L-QA plugs the real apps in through this contract)`,
+  );
 }
 
 /**
@@ -55,7 +57,11 @@ async function openNodeReplica({ name, secret, relayTarget, dir }) {
       for (const [id, w] of waiting) {
         waiting.delete(id);
         clearTimeout(w.timer);
-        w.reject(new Error(`${name}: process exited${errTail ? ` (${errTail.split('\n').filter(Boolean).slice(-1)[0]})` : ''}`));
+        w.reject(
+          new Error(
+            `${name}: process exited${errTail ? ` (${errTail.split('\n').filter(Boolean).slice(-1)[0]})` : ''}`,
+          ),
+        );
       }
     });
     await new Promise((resolve, reject) => {
@@ -63,11 +69,19 @@ async function openNodeReplica({ name, secret, relayTarget, dir }) {
       c.once('exit', (code) => reject(new Error(`${name}: child exited ${code}: ${errTail.slice(-300)}`)));
     });
     child = c;
-    await call('open', { secret: secretB64, relayUrl: proxy.url, dataDir: dir, appName: `vitals-${name}`, deviceId, instance: name });
+    await call('open', {
+      secret: secretB64,
+      relayUrl: proxy.url,
+      dataDir: dir,
+      appName: `vitals-${name}`,
+      deviceId,
+      instance: name,
+    });
   };
   const call = (op, args, timeoutMs = 30000) =>
     new Promise((resolve, reject) => {
-      if (!child || child.exitCode !== null || child.signalCode) return reject(new Error(`${name} is not running`));
+      if (!child || child.exitCode !== null || child.signalCode)
+        return reject(new Error(`${name} is not running`));
       const id = ++seq;
       const timer = setTimeout(() => {
         waiting.delete(id);
@@ -90,9 +104,13 @@ async function openNodeReplica({ name, secret, relayTarget, dir }) {
     name,
     deviceId,
     async write(cmd) {
-      if (cmd.op === 'logFood') return call('put', { col: 'dailyLogs', id: cmd.id, value: mealEntry(cmd), schema: 1 });
-      if (cmd.op === 'patch') return call('patch', { col: cmd.col, id: cmd.id, fields: cmd.fields, schema: cmd.schema ?? 1 });
-      if (cmd.op === 'put') return call('put', { col: cmd.col, id: cmd.id, value: cmd.value, schema: cmd.schema ?? 1 });
+      if (cmd.op === 'logFood')
+        return call('put', { col: 'dailyLogs', id: cmd.id, value: mealEntry(cmd), schema: 1 });
+      if (cmd.op === 'patch')
+        return call('patch', { col: cmd.col, id: cmd.id, fields: cmd.fields, schema: cmd.schema ?? 1 });
+      if (cmd.op === 'put')
+        return call('put', { col: cmd.col, id: cmd.id, value: cmd.value, schema: cmd.schema ?? 1 });
+      if (cmd.op === 'delete') return call('delete', { col: cmd.col, id: cmd.id });
       throw new Error(`unknown write op ${cmd.op}`);
     },
     async read(query) {
@@ -121,10 +139,22 @@ async function openNodeReplica({ name, secret, relayTarget, dir }) {
       await spawnChild();
     },
     async status() {
-      const s = child && child.exitCode === null && !child.signalCode ? await call('status', {}).catch((e) => ({ state: 'error', error: e.message })) : { state: 'killed' };
+      const s =
+        child && child.exitCode === null && !child.signalCode
+          ? await call('status', {}).catch((e) => ({ state: 'error', error: e.message }))
+          : { state: 'killed' };
       return { ...s, proxy: proxy.offline ? 'off' : 'on', upgrades: proxy.upgrades };
     },
     pull: () => call('pull', {}),
+    invoke: (op, args) => call(op, args),
+    clock: (offsetMs) => call('clock', { offsetMs }),
+    reconnect: () => call('reconnect', {}),
+    pauseNextBlobUpload: () => proxy.pauseNextBlobUpload(),
+    waitForPausedBlobUpload: (timeoutMs) => proxy.waitForPausedBlobUpload(timeoutMs),
+    releasePausedBlobUpload: () => proxy.releasePausedBlobUpload(),
+    pauseNextSyncUpload: () => proxy.pauseNextSyncUpload(),
+    waitForPausedSyncUpload: (timeoutMs) => proxy.waitForPausedSyncUpload(timeoutMs),
+    releasePausedSyncUpload: () => proxy.releasePausedSyncUpload(),
     /** Ring data through the app's own code: `{ op: 'read', events, ingestedAt, … }` (offline-safe), `{ op: 'flush' }` (uploads chunk bytes, what a sync round does), `{ op: 'share', … }`. */
     ring: (cmd) => call('ring', cmd, 60000),
     /** `{ records, recordDocs, samples, partial, strictError, live, all }` for one source, stream and day. */
@@ -215,8 +245,16 @@ async function openServerReplica({ name = 'server', serverBaseUrl, token }) {
     async write(cmd) {
       const at = Date.now();
       let r;
-      if (cmd.op === 'logFood') r = await call('log_meal', { date: cmd.date, text: cmd.text, components: [{ name: cmd.text, grams: 150 }], method: 'typed', confidence: 1 });
-      else if (cmd.op === 'patch' && cmd.col === 'settings') r = await call('settings_update', { patch: cmd.fields });
+      if (cmd.op === 'logFood')
+        r = await call('log_meal', {
+          date: cmd.date,
+          text: cmd.text,
+          components: [{ name: cmd.text, grams: 150 }],
+          method: 'typed',
+          confidence: 1,
+        });
+      else if (cmd.op === 'patch' && cmd.col === 'settings')
+        r = await call('settings_update', { patch: cmd.fields });
       else throw new Error(`${name}: write ${cmd.op} ${cmd.col ?? ''} has no MCP tool`);
       return { at, result: r };
     },
@@ -228,13 +266,15 @@ async function openServerReplica({ name = 'server', serverBaseUrl, token }) {
         const list = Array.isArray(data) ? data : Array.isArray(data?.partial) ? data.partial : null;
         if (!list) throw new Error(`${name}: log_get answered ${JSON.stringify(r).slice(0, 200)}`);
         const docs = Object.fromEntries(list.map(({ id, ...rest }) => [id, rest]));
-        if (!Array.isArray(data)) Object.defineProperty(docs, 'truncated', { value: true, enumerable: false });
+        if (!Array.isArray(data))
+          Object.defineProperty(docs, 'truncated', { value: true, enumerable: false });
         return docs;
       }
       if (query.col === 'settings') {
         const r = await call('settings_get', {});
         const v = out(r);
-        if (!v || typeof v !== 'object') throw new Error(`${name}: settings_get answered ${JSON.stringify(r).slice(0, 200)}`);
+        if (!v || typeof v !== 'object')
+          throw new Error(`${name}: settings_get answered ${JSON.stringify(r).slice(0, 200)}`);
         return { me: v };
       }
       throw new Error(`${name}: no MCP tool reads ${query.col}`);
@@ -248,10 +288,16 @@ async function openServerReplica({ name = 'server', serverBaseUrl, token }) {
       if (query.daily) {
         const r = await call('bio_daily', { from: query.daily, to: query.daily });
         const v = out(r);
-        if (!v || !Array.isArray(v.days)) throw new Error(`${name}: bio_daily answered ${JSON.stringify(r).slice(0, 200)}`);
+        if (!v || !Array.isArray(v.days))
+          throw new Error(`${name}: bio_daily answered ${JSON.stringify(r).slice(0, 200)}`);
         return { day: v.days.find((d) => d.date === query.daily) ?? null, hidden: v.hidden };
       }
-      const r = await call('bio_series', { metric: query.metric, from: query.date, to: query.date, resolution: 'raw' });
+      const r = await call('bio_series', {
+        metric: query.metric,
+        from: query.date,
+        to: query.date,
+        resolution: 'raw',
+      });
       const v = out(r);
       const points = Array.isArray(v?.points) ? v.points : Array.isArray(v?.partial) ? v.partial : null;
       if (!points) throw new Error(`${name}: bio_series answered ${JSON.stringify(r).slice(0, 200)}`);

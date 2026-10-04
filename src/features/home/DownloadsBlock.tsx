@@ -1,9 +1,9 @@
 /**
  * The desktop and Android downloads on a first-time visitor's first screen (the welcome intro) and in Settings;
- * owned by L-WEB. The links are the stable release names, so the block works before the release data arrives;
- * the data only adds the version and the sizes. It is not shown in the apps or the PWA.
+ * owned by L-WEB. Desktop links use stable release names while metadata loads; Android waits for a signed package.
+ * Release data also adds the version and sizes. It is not shown in the apps or the PWA.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { RingMark } from '@/components/brand/RingMark';
 import { Icon } from '@/components/icons/Icon';
@@ -59,16 +59,26 @@ export function DownloadsBlock({ caps = platformCaps() }: DownloadsBlockProps = 
 function Block({ os }: { os: OsName }) {
   const release = useRelease();
   const [folded, setFolded] = useState(readFolded);
+  const foldButton = useRef<HTMLButtonElement>(null);
+  const expandedHeading = useRef<HTMLHeadingElement>(null);
+  const focusAfterFold = useRef(false);
 
   const fold = (next: boolean) => {
+    focusAfterFold.current = true;
     writeFolded(next);
     setFolded(next);
   };
 
+  useLayoutEffect(() => {
+    if (!focusAfterFold.current) return;
+    (folded ? foldButton : expandedHeading).current?.focus();
+    focusAfterFold.current = false;
+  }, [folded]);
+
   if (folded) {
     return (
       <div className="lm-dl" data-folded="true">
-        <button type="button" className="lm-dl__fold" onClick={() => fold(false)}>
+        <button ref={foldButton} type="button" className="lm-dl__fold" onClick={() => fold(false)}>
           <RingMark />
           {DOWNLOADS.title}
         </button>
@@ -87,7 +97,7 @@ function Block({ os }: { os: OsName }) {
 
   return (
     <section className="lm-dl" aria-label={DOWNLOADS.title} aria-busy={release === 'loading'}>
-      <h2 className="lm-dl__title">
+      <h2 ref={expandedHeading} tabIndex={-1} className="lm-dl__title">
         <RingMark />
         {DOWNLOADS.title}
       </h2>
@@ -110,10 +120,26 @@ function Block({ os }: { os: OsName }) {
                 <p className="lm-dl__meta">{meta(version, main.size) || '\u00a0'}</p>
                 <p className="lm-dl__note">{DOWNLOADS.unsigned[main.key]}</p>
               </div>
+            ) : os === 'android' && release === 'loading' ? (
+              <div className="lm-dl__main lm-dl__pending-main">
+                <span aria-hidden="true" className="lm-key lm-dl__key" data-variant="solid" data-size="lg" data-has-icon="true">
+                  <Icon icon={Download} size={20} />
+                  <span className="lm-key__label">{DOWNLOADS.onlySystem(ASSET_LABEL.android)}</span>
+                </span>
+                <p aria-hidden="true" className="lm-dl__meta">{'\u00a0'}</p>
+                <p aria-hidden="true" className="lm-dl__note">{DOWNLOADS.unsigned.android}</p>
+                <p className="lm-dl__note lm-dl__checking">{DOWNLOADS.androidChecking}</p>
+              </div>
             ) : (
-              <p className="lm-dl__note">{os === 'ios' ? DOWNLOADS.iphone : DOWNLOADS.chooseSystem}</p>
+              <p className="lm-dl__note">{os === 'ios' ? DOWNLOADS.iphone : os === 'android' ? (release === 'loading' ? DOWNLOADS.androidChecking : DOWNLOADS.androidUnavailable) : DOWNLOADS.chooseSystem}</p>
             )}
             <ul className="lm-dl__others" aria-label={DOWNLOADS.otherSystems}>
+              {release === 'loading' && os !== 'android' ? (
+                <li aria-hidden="true" className="lm-dl__pending-asset">
+                  <span className="lm-dl__link">{ASSET_LABEL.android}</span>
+                  <span className="lm-dl__size">{'\u00a0'}</span>
+                </li>
+              ) : null}
               {others.map((a) => (
                 <li key={a.key}>
                   <a className="lm-dl__link" href={a.url}>

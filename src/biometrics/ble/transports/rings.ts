@@ -3,13 +3,13 @@
  * per platform for scanning and (re)connecting. The links underneath are the same ones the app's current Bluetooth path
  * uses, so both paths share one adapter per platform.
  */
-import type { Advertisement, FamilyId, RingFamily, Transport, TransportEvent, TransportFactory, Uuid } from '../../../../packages/rings/src/types';
+import type { Advertisement, RingFamily, Transport, TransportEvent, TransportFactory, Uuid } from '../../../../packages/rings/src/types';
 import { normalizeUuid } from '../../../../packages/rings/src/types';
 import type { CapBleClient, CapScanResult } from './capacitor';
 import type { BleTransport, DeviceQuery, FoundDevice, RingLink } from './types';
 
-/** A ring seen through a platform chooser: the chooser did the matching, so the families it was asked for ride along. */
-export type ChooserAdvertisement = Advertisement & { matchedFamilies?: FamilyId[] };
+/** A chooser entry may need connected GATT discovery before its family is known. */
+export type ChooserAdvertisement = Advertisement & { needsDiscovery?: true };
 
 /** A Bluetooth address (Android, Linux, Windows ids); a browser's opaque `device.id` is never one. */
 const addressOf = (id: string | undefined): string | undefined => (id && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(id) ? id : undefined);
@@ -44,7 +44,7 @@ export function linkTransport(link: RingLink, extra: { address?: string; service
       const off = await link.subscribe(s, c, (bytes) => emit({ type: 'notification', service, characteristic, bytes: bytes.slice() }));
       return async () => off();
     },
-    ...(extra.services ? { services: extra.services } : {}),
+    ...(extra.services || link.services ? { services: extra.services ?? (() => link.services!().then((s) => s.map(normalizeUuid))) } : {}),
     on(l) {
       listeners.add(l);
       return () => listeners.delete(l);
@@ -100,6 +100,7 @@ export function capacitorFactory(client: () => Promise<CapBleClient>, transport:
       await ble.stopLEScan().catch(() => {});
     },
     async connect(target, family, signal) {
+      if (!family) throw new Error('A family is required to reconnect this ring');
       const link = await transport.reconnect!(target.platformId, familiesQuery([family]), { signal });
       const ble = await client();
       return linkTransport(link, {
@@ -112,22 +113,23 @@ export function capacitorFactory(client: () => Promise<CapBleClient>, transport:
 
 /**
  * Chooser platforms (browser, desktop app): `scan` opens one request for all the families; each ring the platform lists
- * is reported with the families it was asked for. On the web the browser's window lists them and `scan` ends with the
+ * is reported with its own advertisement hints. On the web the browser's window lists them and `scan` ends with the
  * one the person picked; `connect` then hands over that already-open link. On the desktop the bridge lists them and
  * `connect` answers the open request (or opens a new one that picks the remembered ring).
  */
 export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth' | 'electron'): TransportFactory {
   const picked = new Map<string, RingLink>();
+  let scannedFamilies: readonly RingFamily[] = [];
   let pending: { list: FoundDevice[]; pick: (id: string | null) => void; link: Promise<RingLink> } | undefined;
-  const ids = (fs: readonly RingFamily[]): FamilyId[] => fs.map((f) => f.id);
   const wrap = (link: RingLink): Transport => linkTransport(link);
 
   return {
     platform,
     available: () => transport.isAvailable(),
     async scan(families, onFound, signal) {
+      scannedFamilies = families;
       const query = familiesQuery(families);
-      const report = (d: FoundDevice): void => onFound({ ...(d.name ? { name: d.name } : {}), serviceUuids: [], manufacturerData: [], platformId: d.id, matchedFamilies: ids(families) } as ChooserAdvertisement);
+      const report = (d: FoundDevice): void => onFound({ ...(d.name ? { name: d.name } : {}), serviceUuids: d.serviceUuids ?? [], manufacturerData: d.manufacturerData ?? [], platformId: d.id, needsDiscovery: true } as ChooserAdvertisement);
       if (platform === 'web-bluetooth') {
         const link = await transport.requestDevice(query, { signal });
         // a ring picked earlier but never connected is let go
@@ -135,7 +137,8 @@ export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth
         picked.clear();
         const id = link.deviceId ?? 'web:picked';
         picked.set(id, link);
-        report({ id, ...(link.deviceName ? { name: link.deviceName } : {}) });
+        const serviceUuids = await link.services?.().catch(() => []) ?? [];
+        report({ id, ...(link.deviceName ? { name: link.deviceName } : {}), serviceUuids });
         return;
       }
       let pick!: (id: string | null) => void;
@@ -190,7 +193,9 @@ export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth
         await p.link.catch(() => {});
       }
       if (!transport.reconnect) throw new Error('choose the ring again: this browser cannot reconnect by itself');
-      return wrap(await transport.reconnect(target.platformId, familiesQuery([family]), { signal }));
+      const candidates = family ? [family] : scannedFamilies;
+      if (!candidates.length) throw new Error('No family filters available to find this ring');
+      return wrap(await transport.reconnect(target.platformId, familiesQuery(candidates), { signal }));
     },
   };
 }

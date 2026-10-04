@@ -1,5 +1,6 @@
 import { Engraved, Faceplate, FaceplateHeader, Key, KeyLink } from '@/components';
 import { MIN_SERVER_VERSION } from '@/net/server';
+import { platformCaps } from '@/platform';
 import { DownloadsBlock } from '@/features/home/DownloadsBlock';
 import { ServerPill } from '@/features/settings/server/ServerSection';
 import { useServerConnection, useServerPairing } from '@/features/settings/server/hooks';
@@ -46,7 +47,9 @@ export function InstallSection() {
   const install = useInstallState();
   const sw = useSwState();
   const synced = useSyncView().paired;
-  const line = installLine(install);
+  // the Android and desktop apps are installed by definition: no web-install steps, and no service-worker status
+  const app = platformCaps().installedApp;
+  const line = app ? null : installLine(install);
   const canInstall = install.phase === 'promptable' || install.phase === 'prompting';
   return (
     <Faceplate as="section" id="install" aria-labelledby={TITLE_ID} className="scroll-mt-2">
@@ -62,14 +65,16 @@ export function InstallSection() {
                 {PWA_COPY.installKey}
               </Key>
             ) : (
-              <span className="text-sm text-ink">{install.phase === 'installed' ? PWA_COPY.installStatus.installed : PWA_COPY.installStatus.notInstalled}</span>
+              <span className="text-sm text-ink">{app || install.phase === 'installed' ? PWA_COPY.installStatus.installed : PWA_COPY.installStatus.notInstalled}</span>
             )
           }
         </SettingRow>
         {line ? <p className="mb-2.5 mt-1 max-w-[68ch] text-sm leading-[1.5] text-ink-2">{line}</p> : null}
-        <SettingRow label={PWA_COPY.offlineLabel} help={synced ? PWA_COPY.offlineHelpSynced : PWA_COPY.offlineHelp}>
-          {() => <OfflineStatus offline={sw.offline} />}
-        </SettingRow>
+        {app ? null : (
+          <SettingRow label={PWA_COPY.offlineLabel} help={synced ? PWA_COPY.offlineHelpSynced : PWA_COPY.offlineHelp}>
+            {() => <OfflineStatus offline={sw.offline} />}
+          </SettingRow>
+        )}
         {sw.needRefresh ? (
           <SettingRow label={PWA_COPY.updateLabel} help={PWA_COPY.updateHelp}>
             {() => <ReloadKey onReload={() => void applyUpdate()} />}
