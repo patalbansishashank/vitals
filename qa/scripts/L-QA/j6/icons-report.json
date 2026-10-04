@@ -1,0 +1,3674 @@
+{
+ "assets": [
+  {
+   "id": "public/favicon.svg",
+   "group": "Web favicon",
+   "kind": "svg",
+   "w": 32,
+   "h": 32,
+   "bytes": 613,
+   "src": "../../../../public/favicon.svg"
+  },
+  {
+   "id": "public/favicon.ico [frame 0: 16x16 png]",
+   "group": "Web favicon",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 0,
+   "declaredW": 16,
+   "src": "(data)"
+  },
+  {
+   "id": "public/favicon.ico [frame 1: 32x32 png]",
+   "group": "Web favicon",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 0,
+   "declaredW": 32,
+   "src": "(data)"
+  },
+  {
+   "id": "public/favicon.ico [frame 2: 48x48 png]",
+   "group": "Web favicon",
+   "kind": "raster",
+   "w": 48,
+   "h": 48,
+   "bytes": 0,
+   "declaredW": 48,
+   "src": "(data)"
+  },
+  {
+   "id": "public/icons/apple-touch-icon-180.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 180,
+   "h": 180,
+   "bytes": 4412,
+   "maskable": false,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/apple-touch-icon-180.png"
+  },
+  {
+   "id": "public/icons/badge-96.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 96,
+   "h": 96,
+   "bytes": 1878,
+   "maskable": false,
+   "mono": false,
+   "badge": true,
+   "src": "../../../../public/icons/badge-96.png"
+  },
+  {
+   "id": "public/icons/favicon-16.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 550,
+   "maskable": false,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/favicon-16.png"
+  },
+  {
+   "id": "public/icons/favicon-32.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 1118,
+   "maskable": false,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/favicon-32.png"
+  },
+  {
+   "id": "public/icons/favicon-48.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 48,
+   "h": 48,
+   "bytes": 1718,
+   "maskable": false,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/favicon-48.png"
+  },
+  {
+   "id": "public/icons/icon-192-maskable.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 192,
+   "h": 192,
+   "bytes": 5031,
+   "maskable": true,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/icon-192-maskable.png"
+  },
+  {
+   "id": "public/icons/icon-192.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 192,
+   "h": 192,
+   "bytes": 5895,
+   "maskable": false,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/icon-192.png"
+  },
+  {
+   "id": "public/icons/icon-512-maskable.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 15761,
+   "maskable": true,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/icon-512-maskable.png"
+  },
+  {
+   "id": "public/icons/icon-512-monochrome.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 10529,
+   "maskable": false,
+   "mono": true,
+   "badge": false,
+   "src": "../../../../public/icons/icon-512-monochrome.png"
+  },
+  {
+   "id": "public/icons/icon-512.png",
+   "group": "Web icons (public/icons)",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 18326,
+   "maskable": false,
+   "mono": false,
+   "badge": false,
+   "src": "../../../../public/icons/icon-512.png"
+  },
+  {
+   "id": "public/brand/lockup-dark.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 733.63,
+   "h": 162.64,
+   "bytes": 3682,
+   "src": "../../../../public/brand/lockup-dark.svg"
+  },
+  {
+   "id": "public/brand/lockup-light-512w.png",
+   "group": "Brand (public/brand)",
+   "kind": "raster",
+   "w": 512,
+   "h": 114,
+   "bytes": 13634,
+   "src": "../../../../public/brand/lockup-light-512w.png"
+  },
+  {
+   "id": "public/brand/lockup-light.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 733.63,
+   "h": 162.64,
+   "bytes": 3718,
+   "src": "../../../../public/brand/lockup-light.svg"
+  },
+  {
+   "id": "public/brand/lockup-mono.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 733.63,
+   "h": 162.64,
+   "bytes": 3697,
+   "src": "../../../../public/brand/lockup-mono.svg"
+  },
+  {
+   "id": "public/brand/mark-small.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 108,
+   "h": 108,
+   "bytes": 830,
+   "src": "../../../../public/brand/mark-small.svg"
+  },
+  {
+   "id": "public/brand/mark.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 108,
+   "h": 108,
+   "bytes": 1050,
+   "src": "../../../../public/brand/mark.svg"
+  },
+  {
+   "id": "public/brand/og-image.png",
+   "group": "Brand (public/brand)",
+   "kind": "raster",
+   "w": 1200,
+   "h": 630,
+   "bytes": 28675,
+   "src": "../../../../public/brand/og-image.png"
+  },
+  {
+   "id": "public/brand/readme-header-dark.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 1280,
+   "h": 320,
+   "bytes": 22624,
+   "src": "../../../../public/brand/readme-header-dark.svg"
+  },
+  {
+   "id": "public/brand/readme-header.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 1280,
+   "h": 320,
+   "bytes": 22660,
+   "src": "../../../../public/brand/readme-header.svg"
+  },
+  {
+   "id": "public/brand/social-preview.png",
+   "group": "Brand (public/brand)",
+   "kind": "raster",
+   "w": 1280,
+   "h": 640,
+   "bytes": 28978,
+   "src": "../../../../public/brand/social-preview.png"
+  },
+  {
+   "id": "public/brand/wordmark.svg",
+   "group": "Brand (public/brand)",
+   "kind": "svg",
+   "w": 2849,
+   "h": 736,
+   "bytes": 3599,
+   "src": "../../../../public/brand/wordmark.svg"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [icp4]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [icp5]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic07]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 128,
+   "h": 128,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic08]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 256,
+   "h": 256,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic09]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic10]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 1024,
+   "h": 1024,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic11]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic12]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 64,
+   "h": 64,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic13]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 256,
+   "h": 256,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic14]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 0,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 0: 16x16 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 0,
+   "declaredW": 16,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 1: 20x20 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 20,
+   "h": 20,
+   "bytes": 0,
+   "declaredW": 20,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 2: 24x24 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 24,
+   "h": 24,
+   "bytes": 0,
+   "declaredW": 24,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 3: 32x32 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 0,
+   "declaredW": 32,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 4: 40x40 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 40,
+   "h": 40,
+   "bytes": 0,
+   "declaredW": 40,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 5: 48x48 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 48,
+   "h": 48,
+   "bytes": 0,
+   "declaredW": 48,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 6: 64x64 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 64,
+   "h": 64,
+   "bytes": 0,
+   "declaredW": 64,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 7: 96x96 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 96,
+   "h": 96,
+   "bytes": 0,
+   "declaredW": 96,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 8: 128x128 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 128,
+   "h": 128,
+   "bytes": 0,
+   "declaredW": 128,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 9: 256x256 png]",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 256,
+   "h": 256,
+   "bytes": 0,
+   "declaredW": 256,
+   "tray": false,
+   "template": false,
+   "src": "(data)"
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 1024,
+   "h": 1024,
+   "bytes": 41568,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/icon.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/1024x1024.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 1024,
+   "h": 1024,
+   "bytes": 41568,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/1024x1024.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/128x128.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 128,
+   "h": 128,
+   "bytes": 3817,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/128x128.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/16x16.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 550,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/16x16.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/24x24.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 24,
+   "h": 24,
+   "bytes": 856,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/24x24.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/256x256.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 256,
+   "h": 256,
+   "bytes": 8208,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/256x256.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/32x32.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 1118,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/32x32.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/48x48.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 48,
+   "h": 48,
+   "bytes": 1718,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/48x48.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/512x512.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 18326,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/512x512.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/png/64x64.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 64,
+   "h": 64,
+   "bytes": 1902,
+   "tray": false,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/png/64x64.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-16.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 439,
+   "tray": true,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/tray/tray-16.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-32.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 830,
+   "tray": true,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/tray/tray-32.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-dark-16.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 465,
+   "tray": true,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/tray/tray-dark-16.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-dark-32.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 931,
+   "tray": true,
+   "template": false,
+   "src": "../../../../apps/desktop/build/icons/tray/tray-dark-32.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/trayTemplate.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 16,
+   "h": 16,
+   "bytes": 333,
+   "tray": true,
+   "template": true,
+   "src": "../../../../apps/desktop/build/icons/tray/trayTemplate.png"
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/trayTemplate@2x.png",
+   "group": "Desktop build icons",
+   "kind": "raster",
+   "w": 32,
+   "h": 32,
+   "bytes": 639,
+   "tray": true,
+   "template": true,
+   "src": "../../../../apps/desktop/build/icons/tray/trayTemplate@2x.png"
+  },
+  {
+   "id": "apps/android/brand/playstore-512.png",
+   "group": "Android store/previews",
+   "kind": "raster",
+   "w": 512,
+   "h": 512,
+   "bytes": 14865,
+   "src": "../../../../apps/android/brand/playstore-512.png"
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-circle.png",
+   "group": "Android store/previews",
+   "kind": "raster",
+   "w": 432,
+   "h": 432,
+   "bytes": 18581,
+   "src": "../../../../apps/android/brand/preview/launcher-circle.png"
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-rounded-square.png",
+   "group": "Android store/previews",
+   "kind": "raster",
+   "w": 432,
+   "h": 432,
+   "bytes": 13262,
+   "src": "../../../../apps/android/brand/preview/launcher-rounded-square.png"
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-squircle.png",
+   "group": "Android store/previews",
+   "kind": "raster",
+   "w": 432,
+   "h": 432,
+   "bytes": 18317,
+   "src": "../../../../apps/android/brand/preview/launcher-squircle.png"
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-teardrop.png",
+   "group": "Android store/previews",
+   "kind": "raster",
+   "w": 432,
+   "h": 432,
+   "bytes": 17725,
+   "src": "../../../../apps/android/brand/preview/launcher-teardrop.png"
+  }
+ ],
+ "manifestCheck": [
+  {
+   "src": "/icons/icon-192.png",
+   "declared": "192x192",
+   "purpose": "any",
+   "type": "image/png",
+   "present": true,
+   "real": "192x192",
+   "ok": true
+  },
+  {
+   "src": "/icons/icon-512.png",
+   "declared": "512x512",
+   "purpose": "any",
+   "type": "image/png",
+   "present": true,
+   "real": "512x512",
+   "ok": true
+  },
+  {
+   "src": "/icons/icon-192-maskable.png",
+   "declared": "192x192",
+   "purpose": "maskable",
+   "type": "image/png",
+   "present": true,
+   "real": "192x192",
+   "ok": true
+  },
+  {
+   "src": "/icons/icon-512-maskable.png",
+   "declared": "512x512",
+   "purpose": "maskable",
+   "type": "image/png",
+   "present": true,
+   "real": "512x512",
+   "ok": true
+  },
+  {
+   "src": "/icons/icon-512-monochrome.png",
+   "declared": "512x512",
+   "purpose": "monochrome",
+   "type": "image/png",
+   "present": true,
+   "real": "512x512",
+   "ok": true
+  },
+  {
+   "src": "/favicon.svg",
+   "declared": "any",
+   "purpose": "any",
+   "type": "image/svg+xml",
+   "present": true,
+   "real": "svg",
+   "ok": true
+  }
+ ],
+ "linkCheck": [
+  {
+   "rel": "icon",
+   "href": "/favicon.ico",
+   "declared": null,
+   "present": true,
+   "real": null
+  },
+  {
+   "rel": "icon",
+   "href": "/favicon.svg",
+   "declared": null,
+   "present": true,
+   "real": null
+  },
+  {
+   "rel": "apple-touch-icon",
+   "href": "/icons/apple-touch-icon-180.png",
+   "declared": null,
+   "present": true,
+   "real": "180x180"
+  }
+ ],
+ "androidColors": {
+  "fg": [
+   "#191c20",
+   "#f5d336"
+  ],
+  "mono": [
+   "#ffffff"
+  ],
+  "stat": [
+   "#ffffff"
+  ]
+ },
+ "pixel": [
+  {
+   "id": "public/favicon.svg",
+   "w": 150,
+   "h": 150,
+   "transparentShare": 0.038,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.616
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.277
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.017
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/favicon.ico [frame 0: 16x16 png]",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.016,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.438
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.129
+    },
+    {
+     "rgb": [
+      208,
+      216,
+      216
+     ],
+     "share": 0.027
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.027
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/favicon.ico [frame 1: 32x32 png]",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.023,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.517
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.198
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.015
+    },
+    {
+     "rgb": [
+      32,
+      40,
+      40
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/favicon.ico [frame 2: 48x48 png]",
+   "w": 48,
+   "h": 48,
+   "transparentShare": 0.03,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.555
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.23
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.014
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/icons/apple-touch-icon-180.png",
+   "w": 180,
+   "h": 180,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.83
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.131
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.01
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.002
+    }
+   ]
+  },
+  {
+   "id": "public/icons/badge-96.png",
+   "w": 96,
+   "h": 96,
+   "transparentShare": 0.632,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      248,
+      248,
+      248
+     ],
+     "share": 0.311
+    }
+   ],
+   "contrast": {
+    "white": 1.06,
+    "paper": 1.06,
+    "black": 19.77,
+    "charcoal": 16.91
+   }
+  },
+  {
+   "id": "public/icons/favicon-16.png",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.016,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.438
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.129
+    },
+    {
+     "rgb": [
+      208,
+      216,
+      216
+     ],
+     "share": 0.027
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.027
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/icons/favicon-32.png",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.023,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.517
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.198
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.015
+    },
+    {
+     "rgb": [
+      32,
+      40,
+      40
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/icons/favicon-48.png",
+   "w": 48,
+   "h": 48,
+   "transparentShare": 0.03,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.555
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.23
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.014
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/icons/icon-192-maskable.png",
+   "w": 192,
+   "h": 192,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.801
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.156
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.012
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.001
+    }
+   ]
+  },
+  {
+   "id": "public/icons/icon-192.png",
+   "w": 192,
+   "h": 192,
+   "transparentShare": 0.038,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.784
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.132
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.01
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.002
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/icons/icon-512-maskable.png",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.81
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.166
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.013
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0
+    }
+   ]
+  },
+  {
+   "id": "public/icons/icon-512-monochrome.png",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0.815,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      248,
+      248,
+      248
+     ],
+     "share": 0.176
+    }
+   ],
+   "contrast": {
+    "white": 1.06,
+    "paper": 1.06,
+    "black": 19.77,
+    "charcoal": 16.91
+   }
+  },
+  {
+   "id": "public/icons/icon-512.png",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0.04,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.795
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.14
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/brand/lockup-dark.svg",
+   "w": 1467,
+   "h": 325,
+   "transparentShare": 0.666,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      240,
+      240
+     ],
+     "share": 0.314
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      56
+     ],
+     "share": 0.005
+    },
+    {
+     "rgb": [
+      232,
+      232,
+      240
+     ],
+     "share": 0
+    },
+    {
+     "rgb": [
+      240,
+      200,
+      56
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 1.16,
+    "paper": 1.03,
+    "black": 18.15,
+    "charcoal": 15.52
+   }
+  },
+  {
+   "id": "public/brand/lockup-light-512w.png",
+   "w": 512,
+   "h": 114,
+   "transparentShare": 0.647,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.285
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      24
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.003
+    },
+    {
+     "rgb": [
+      16,
+      24,
+      24
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 17.64,
+    "paper": 15.64,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/brand/lockup-light.svg",
+   "w": 1467,
+   "h": 325,
+   "transparentShare": 0.665,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.316
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.004
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      24
+     ],
+     "share": 0
+    },
+    {
+     "rgb": [
+      176,
+      152,
+      40
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 17.64,
+    "paper": 15.64,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/brand/lockup-mono.svg",
+   "w": 1467,
+   "h": 325,
+   "transparentShare": 0.666,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      0,
+      0,
+      0
+     ],
+     "share": 0.32
+    }
+   ],
+   "contrast": {
+    "white": 21,
+    "paper": 18.62,
+    "black": 1,
+    "charcoal": 1.17
+   }
+  },
+  {
+   "id": "public/brand/mark-small.svg",
+   "w": 150,
+   "h": 150,
+   "transparentShare": 0.814,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.148
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.009
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      24
+     ],
+     "share": 0.001
+    },
+    {
+     "rgb": [
+      112,
+      96,
+      40
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 17.64,
+    "paper": 15.64,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "public/brand/mark.svg",
+   "error": "not loaded"
+  },
+  {
+   "id": "public/brand/og-image.png",
+   "w": 1200,
+   "h": 630,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.935
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.048
+    },
+    {
+     "rgb": [
+      72,
+      80,
+      80
+     ],
+     "share": 0.006
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.001
+    }
+   ]
+  },
+  {
+   "id": "public/brand/readme-header-dark.svg",
+   "w": 1280,
+   "h": 320,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      16,
+      16,
+      24
+     ],
+     "share": 0.949
+    },
+    {
+     "rgb": [
+      232,
+      240,
+      240
+     ],
+     "share": 0.033
+    },
+    {
+     "rgb": [
+      176,
+      176,
+      184
+     ],
+     "share": 0.005
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      56
+     ],
+     "share": 0.001
+    }
+   ]
+  },
+  {
+   "id": "public/brand/readme-header.svg",
+   "w": 1280,
+   "h": 320,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.949
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.033
+    },
+    {
+     "rgb": [
+      72,
+      80,
+      80
+     ],
+     "share": 0.005
+    },
+    {
+     "rgb": [
+      184,
+      184,
+      184
+     ],
+     "share": 0
+    }
+   ]
+  },
+  {
+   "id": "public/brand/social-preview.png",
+   "w": 1280,
+   "h": 640,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.94
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.045
+    },
+    {
+     "rgb": [
+      72,
+      80,
+      80
+     ],
+     "share": 0.005
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.001
+    }
+   ]
+  },
+  {
+   "id": "public/brand/wordmark.svg",
+   "w": 300,
+   "h": 78,
+   "transparentShare": 0.544,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      0,
+      0,
+      0
+     ],
+     "share": 0.391
+    }
+   ],
+   "contrast": {
+    "white": 21,
+    "paper": 18.62,
+    "black": 1,
+    "charcoal": 1.17
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [icp4]",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.281,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.176
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.074
+    },
+    {
+     "rgb": [
+      216,
+      216,
+      216
+     ],
+     "share": 0.027
+    },
+    {
+     "rgb": [
+      224,
+      224,
+      224
+     ],
+     "share": 0.023
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [icp5]",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.359,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.258
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.123
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.023
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.012
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic07]",
+   "w": 128,
+   "h": 128,
+   "transparentShare": 0.369,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.49
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.078
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.006
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.002
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic08]",
+   "w": 256,
+   "h": 256,
+   "transparentShare": 0.379,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.507
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.086
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.007
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic09]",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0.38,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.512
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.09
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.007
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic10]",
+   "w": 1024,
+   "h": 1024,
+   "transparentShare": 0.38,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.515
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.092
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.007
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic11]",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.359,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.258
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.123
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.023
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.012
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic12]",
+   "w": 64,
+   "h": 64,
+   "transparentShare": 0.366,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.456
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.062
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.005
+    },
+    {
+     "rgb": [
+      224,
+      224,
+      224
+     ],
+     "share": 0.004
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic13]",
+   "w": 256,
+   "h": 256,
+   "transparentShare": 0.379,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.507
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.086
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.007
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.icns [ic14]",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0.38,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.512
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.09
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.007
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 0: 16x16 png]",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.016,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.438
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.129
+    },
+    {
+     "rgb": [
+      208,
+      216,
+      216
+     ],
+     "share": 0.027
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.027
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 1: 20x20 png]",
+   "w": 20,
+   "h": 20,
+   "transparentShare": 0.01,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.415
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.14
+    },
+    {
+     "rgb": [
+      224,
+      224,
+      232
+     ],
+     "share": 0.04
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.025
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 2: 24x24 png]",
+   "w": 24,
+   "h": 24,
+   "transparentShare": 0.021,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.453
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.163
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.033
+    },
+    {
+     "rgb": [
+      224,
+      224,
+      224
+     ],
+     "share": 0.026
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 3: 32x32 png]",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.023,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.517
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.198
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.015
+    },
+    {
+     "rgb": [
+      32,
+      40,
+      40
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 4: 40x40 png]",
+   "w": 40,
+   "h": 40,
+   "transparentShare": 0.03,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.548
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.217
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.013
+    },
+    {
+     "rgb": [
+      216,
+      216,
+      216
+     ],
+     "share": 0.008
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 5: 48x48 png]",
+   "w": 48,
+   "h": 48,
+   "transparentShare": 0.03,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.555
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.23
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.014
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 6: 64x64 png]",
+   "w": 64,
+   "h": 64,
+   "transparentShare": 0.033,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.748
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.108
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.009
+    },
+    {
+     "rgb": [
+      40,
+      40,
+      48
+     ],
+     "share": 0.004
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 7: 96x96 png]",
+   "w": 96,
+   "h": 96,
+   "transparentShare": 0.036,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.766
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.118
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.009
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.003
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 8: 128x128 png]",
+   "w": 128,
+   "h": 128,
+   "transparentShare": 0.037,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.775
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.125
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.01
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.003
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.ico [frame 9: 256x256 png]",
+   "w": 256,
+   "h": 256,
+   "transparentShare": 0.039,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.788
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.136
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/icon.png",
+   "w": 1024,
+   "h": 1024,
+   "transparentShare": 0.041,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.798
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/1024x1024.png",
+   "w": 1024,
+   "h": 1024,
+   "transparentShare": 0.041,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.798
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/128x128.png",
+   "w": 128,
+   "h": 128,
+   "transparentShare": 0.037,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.775
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.125
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.01
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.003
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/16x16.png",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.016,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.438
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.129
+    },
+    {
+     "rgb": [
+      208,
+      216,
+      216
+     ],
+     "share": 0.027
+    },
+    {
+     "rgb": [
+      32,
+      32,
+      40
+     ],
+     "share": 0.027
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/24x24.png",
+   "w": 24,
+   "h": 24,
+   "transparentShare": 0.021,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.453
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.163
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.033
+    },
+    {
+     "rgb": [
+      224,
+      224,
+      224
+     ],
+     "share": 0.026
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/256x256.png",
+   "w": 256,
+   "h": 256,
+   "transparentShare": 0.039,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.788
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.136
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/32x32.png",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.023,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.517
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.198
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.015
+    },
+    {
+     "rgb": [
+      32,
+      40,
+      40
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/48x48.png",
+   "w": 48,
+   "h": 48,
+   "transparentShare": 0.03,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.555
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.23
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.014
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.011
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/512x512.png",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0.04,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.795
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.14
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/png/64x64.png",
+   "w": 64,
+   "h": 64,
+   "transparentShare": 0.033,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.748
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.108
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.009
+    },
+    {
+     "rgb": [
+      40,
+      40,
+      48
+     ],
+     "share": 0.004
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-16.png",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.535,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      240,
+      240
+     ],
+     "share": 0.121
+    },
+    {
+     "rgb": [
+      232,
+      232,
+      240
+     ],
+     "share": 0.066
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      56
+     ],
+     "share": 0.008
+    },
+    {
+     "rgb": [
+      232,
+      200,
+      56
+     ],
+     "share": 0.004
+    }
+   ],
+   "contrast": {
+    "white": 1.16,
+    "paper": 1.03,
+    "black": 17.23,
+    "charcoal": 14.74
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-32.png",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.595,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      240,
+      240
+     ],
+     "share": 0.207
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      56
+     ],
+     "share": 0.017
+    },
+    {
+     "rgb": [
+      232,
+      232,
+      240
+     ],
+     "share": 0.014
+    },
+    {
+     "rgb": [
+      232,
+      200,
+      56
+     ],
+     "share": 0.003
+    }
+   ],
+   "contrast": {
+    "white": 1.16,
+    "paper": 1.03,
+    "black": 18.15,
+    "charcoal": 15.52
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-dark-16.png",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.527,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.137
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      24
+     ],
+     "share": 0.051
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.008
+    },
+    {
+     "rgb": [
+      176,
+      160,
+      48
+     ],
+     "share": 0.004
+    }
+   ],
+   "contrast": {
+    "white": 17.64,
+    "paper": 15.64,
+    "black": 1.18,
+    "charcoal": 1.01
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/tray-dark-32.png",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.582,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.221
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.013
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.002
+    },
+    {
+     "rgb": [
+      232,
+      200,
+      48
+     ],
+     "share": 0.002
+    }
+   ],
+   "contrast": {
+    "white": 17.64,
+    "paper": 15.64,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/trayTemplate.png",
+   "w": 16,
+   "h": 16,
+   "transparentShare": 0.535,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      0,
+      0,
+      0
+     ],
+     "share": 0.199
+    }
+   ],
+   "contrast": {
+    "white": 21,
+    "paper": 18.62,
+    "black": 1,
+    "charcoal": 1.17
+   }
+  },
+  {
+   "id": "apps/desktop/build/icons/tray/trayTemplate@2x.png",
+   "w": 32,
+   "h": 32,
+   "transparentShare": 0.595,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      0,
+      0,
+      0
+     ],
+     "share": 0.241
+    }
+   ],
+   "contrast": {
+    "white": 21,
+    "paper": 18.62,
+    "black": 1,
+    "charcoal": 1.17
+   }
+  },
+  {
+   "id": "apps/android/brand/playstore-512.png",
+   "w": 512,
+   "h": 512,
+   "transparentShare": 0,
+   "fullBleed": true,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.835
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0
+    }
+   ]
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-circle.png",
+   "w": 432,
+   "h": 432,
+   "transparentShare": 0.211,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.615
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-rounded-square.png",
+   "w": 432,
+   "h": 432,
+   "transparentShare": 0.005,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.828
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      24,
+      32,
+      32
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-squircle.png",
+   "w": 432,
+   "h": 432,
+   "transparentShare": 0.113,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.713
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  },
+  {
+   "id": "apps/android/brand/preview/launcher-teardrop.png",
+   "w": 432,
+   "h": 432,
+   "transparentShare": 0.163,
+   "fullBleed": false,
+   "top": [
+    {
+     "rgb": [
+      232,
+      232,
+      232
+     ],
+     "share": 0.664
+    },
+    {
+     "rgb": [
+      24,
+      24,
+      32
+     ],
+     "share": 0.143
+    },
+    {
+     "rgb": [
+      240,
+      208,
+      48
+     ],
+     "share": 0.011
+    },
+    {
+     "rgb": [
+      224,
+      232,
+      232
+     ],
+     "share": 0.001
+    }
+   ],
+   "contrast": {
+    "white": 1.23,
+    "paper": 1.09,
+    "black": 1.19,
+    "charcoal": 1.02
+   }
+  }
+ ],
+ "consoleErrors": []
+}

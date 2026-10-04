@@ -1,20 +1,18 @@
 /*
- * Where this copy of Vitals is running; owned by L-WEB. Best-effort today: the desktop and Android shells will expose
- * their own marker, and this reads what they have now.
+ * Where this copy of Vitals runs and what that device can do; owned by L-WEB (SUITE_SPEC §15.1). Features import
+ * this, never Capacitor or Electron directly.
  */
 
-export type Platform = 'web' | 'pwa' | 'electron' | 'android';
+import { detectPlatform } from './detect';
 
-interface ShellGlobals {
-  Capacitor?: { getPlatform?: () => string };
-}
+export { detectPlatform, setPlatformForTests } from './detect';
+export type { Platform } from './detect';
+export { platformCaps } from './caps';
+export type { PlatformCaps } from './caps';
+export { detectOs } from './os';
+export type { OsName } from './os';
+export { shell } from './shell';
+export type { ShellBridge } from './shell';
 
-export function platform(): Platform {
-  if (typeof window === 'undefined') return 'web';
-  const shell = window as Window & ShellGlobals;
-  if (shell.Capacitor?.getPlatform?.() === 'android') return 'android';
-  if (/\bElectron\//.test(window.navigator.userAgent)) return 'electron';
-  // `standalone` only, as in src/app/pwa/install.ts: `fullscreen` also matches F11 in an ordinary tab
-  if (window.matchMedia?.('(display-mode: standalone)').matches) return 'pwa';
-  return 'web';
-}
+/** The same as `detectPlatform()`; the name the first callers use. */
+export const platform = detectPlatform;

@@ -40,7 +40,9 @@ export type CommandDomain =
   | 'data'
   // batch 02 (SUITE_SPEC §13): kitchen and pantry (E17)
   | 'kitchen'
-  | 'pantry';
+  | 'pantry'
+  // plan 04 item 12: the Coach's briefing for agents over MCP
+  | 'briefing';
 export type CommandId = `${CommandDomain}.${string}`;
 export type Perm = 'read' | 'write' | 'destructive';
 export type Impact = 'low' | 'consequential';

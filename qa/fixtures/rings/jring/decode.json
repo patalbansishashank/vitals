@@ -1,0 +1,1511 @@
+{
+  "family": "jring",
+  "source": "RingDecoderTest.kt (decoder assertions) and JringClockTest.kt; vectors marked asserted:false come from reading RingDecoder.kt and RingDecodedEvent.kt. Synthetic only.",
+  "contextKeys": {
+    "clockOffsetS": "null = RingDecoder(clock = null); a number = the offset latched by JringClock (seconds east of UTC)"
+  },
+  "matchModes": {
+    "exact": "output list equals the expected list, in order, comparing the listed fields (and \"also\" fields)",
+    "first": "only the first output event is compared",
+    "contains": "every expected event appears somewhere in the output; output has at least minCount events"
+  },
+  "vectors": [
+    {
+      "name": "decode activity update from valid packet",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "03 00 00 00 00 e8 03 00 00 c4 09 00 00 96 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "steps": 1000,
+          "distanceMeters": 2500,
+          "calories": 150,
+          "also": {
+            "timestampS": 0,
+            "activeMinutes": null,
+            "replaceActiveMinutes": false
+          }
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode activity update from valid packet",
+      "asserted": true,
+      "note": "bytes 1..4 timestamp (zero here), 5..8 steps, 9..12 distance m, 13..16 calories, all u32le. Test asserts the three counters and that exactly one event comes back."
+    },
+    {
+      "name": "decode battery from valid packet",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0b 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "percent": 85,
+          "charging": false
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode battery from valid packet",
+      "asserted": true
+    },
+    {
+      "name": "decode battery with charging",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0b 64 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "charging": true,
+          "also": {
+            "percent": 100
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode battery with charging",
+      "asserted": true,
+      "note": "charging is byte 2 == 1 exactly (2 would read as not charging)."
+    },
+    {
+      "name": "decode heart rate sample from valid packet",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "14 01 00 00 00 48 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 72,
+          "also": {
+            "timestampS": 1,
+            "sleepStatus": 0,
+            "isError": false,
+            "measurementResult": false,
+            "measurementStream": false
+          }
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode heart rate sample from valid packet",
+      "asserted": true,
+      "note": "Timestamp (bytes 1..4) must be non-zero or the reading is an error. bpm is byte 5, sleepStatus byte 6. The Kotlin does not apply the clock offset to this timestamp."
+    },
+    {
+      "name": "decode heart rate with timestamp zero marks error",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "14 00 00 00 00 48 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "isError": true,
+          "also": {
+            "bpm": 0,
+            "timestamp": "now"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode heart rate with timestamp zero marks error",
+      "asserted": true,
+      "note": "Timestamp zero = ring could not measure; bpm is forced to 0 and the timestamp is the phone clock."
+    },
+    {
+      "name": "decode 0x24 combined sensor produces multiple events",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "24 48 6e 46 61 28 1e 33 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 72
+        },
+        {
+          "kotlin": "Spo2Result",
+          "value": 97
+        },
+        {
+          "kotlin": "StressSample",
+          "value": 30
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "FATIGUE",
+          "value": 40
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_SUGAR",
+          "value": 91.88,
+          "tolerance": 0.01
+        }
+      ],
+      "match": "contains",
+      "minCount": 6,
+      "test": "RingDecoderTest.kt: decode 0x24 combined sensor produces multiple events",
+      "asserted": true,
+      "note": "Byte map: 1 HR, 2 systolic, 3 diastolic, 4 SpO2, 5 fatigue, 6 stress, 7 blood sugar x10 mmol/L. Test asserts at least 6 events and these five; the full ordered list is in the derived vector below."
+    },
+    {
+      "name": "decode 0x24 skips zero values",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "24 00 00 00 62 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 98
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode 0x24 skips zero values",
+      "asserted": true
+    },
+    {
+      "name": "decode 0x3F spo2 result",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "3f 62 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 98
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode 0x3F spo2 result",
+      "asserted": true
+    },
+    {
+      "name": "decode 0x10 activity history produces 15 buckets",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "10 00 00 00 00 00 0a 14 1e 28 32 3c 46 50 5a 64 6e 78 82 8c",
+      "events": [
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 10,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 60
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 20,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 120
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 30,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 180
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 40,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 240
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 50,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 300
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 60,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 360
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 70,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 420
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 80,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 480
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 90,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 540
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 100,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 600
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 110,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 660
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 120,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 720
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 130,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 780
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 140,
+          "also": {
+            "distanceMeters": 0,
+            "timestampS": 840
+          }
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode 0x10 activity history produces 15 buckets",
+      "asserted": true,
+      "note": "Test asserts 15 events, all ActivityBucket, steps of the first (0) and the last (140). Bytes 1..4 = base timestamp (zero here), bytes 5..19 = steps per minute, one byte each."
+    },
+    {
+      "name": "decode 0x16 hr history data block with averaging",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 a0 00 00 00 00 00 00 46 48 47 49 46 48 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 71,
+          "also": {
+            "timestampS": 0,
+            "historyHorizonDays": 8,
+            "provenance": "device_history"
+          }
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode 0x16 hr history data block with averaging",
+      "asserted": true,
+      "note": "Bytes 8..13 average to 71.33, rounded 71; bytes 14..19 are zero so the second reading is skipped (a zero average is never emitted)."
+    },
+    {
+      "name": "decode 0x16 header packet",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 f0 00 00 00 00 0a 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistorySyncProgress",
+          "also": {
+            "stage": "hr_header"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode 0x16 header packet",
+      "asserted": true,
+      "note": "Total packet count is at bytes 6..7 (little-endian) per the Kotlin comment, but the decoder ignores it; only the progress marker is produced."
+    },
+    {
+      "name": "decode 0x16 end packet",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistorySyncFinished"
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode 0x16 end packet",
+      "asserted": true
+    },
+    {
+      "name": "decode SpO2 progress for 0x3F with low values",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "3f 46 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Spo2Progress",
+          "also": {
+            "percent": null,
+            "timestamp": "now"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode SpO2 progress for 0x3F with low values",
+      "asserted": true,
+      "note": "Values outside 80..100 are \"still measuring\"."
+    },
+    {
+      "name": "decode heart rate complete",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "27 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateComplete",
+          "also": {
+            "timestamp": "now"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode heart rate complete",
+      "asserted": true
+    },
+    {
+      "name": "decode SpO2 complete",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "28 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Spo2Complete",
+          "also": {
+            "timestamp": "now"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode SpO2 complete",
+      "asserted": true
+    },
+    {
+      "name": "decode time sync ack",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "01 00 f1 53 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "TimeSyncAck",
+          "timestampS": 1700000000
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode time sync ack",
+      "asserted": true
+    },
+    {
+      "name": "decode status packet",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0c aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa",
+      "events": [
+        {
+          "kotlin": "Status",
+          "addressNotNull": true,
+          "also": {
+            "address": "AA:AA:AA:AA:AA:AA",
+            "firmware": "AAAAAAAAV43690"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode status packet",
+      "asserted": true,
+      "note": "Test asserts only that address is not null. Address = bytes 3..8 as upper-case hex joined by colons; firmware = CID(bytes 9..10 LE) + DID(bytes 11..12 LE) + \"V\" + version(bytes 1..2 LE) as %04X%04XV%d."
+    },
+    {
+      "name": "decode command ack",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 2
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode command ack",
+      "asserted": true
+    },
+    {
+      "name": "decode empty array returns unknown",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 0,
+          "raw": ""
+        }
+      ],
+      "match": "exact",
+      "test": "RingDecoderTest.kt: decode empty array returns unknown",
+      "asserted": true,
+      "note": "Empty input: commandId 0, raw empty."
+    },
+    {
+      "name": "decode unknown command id returns unknown",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "fe 01 02 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 254,
+          "raw": "fe 01 02 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode unknown command id returns unknown",
+      "asserted": true
+    },
+    {
+      "name": "decode truncated activity update returns unknown",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "03 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 3,
+          "raw": "03 00 00 00 00"
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode truncated activity update returns unknown",
+      "asserted": true,
+      "note": "Any packet whose length is not exactly 20 is Unknown (commandId = first byte), whatever its id."
+    },
+    {
+      "name": "decode truncated status returns status without address",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Status",
+          "addressNotNull": true,
+          "also": {
+            "address": "00:00:00:00:00:00",
+            "firmware": "00000000V0"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode truncated status returns status without address",
+      "asserted": true,
+      "note": "The packet is a full 20 bytes of zeros, so the decoder reports an all-zero address, not null. The port should treat an all-zero address as absent."
+    },
+    {
+      "name": "decode sleep timeline with threshold-based stages",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "11 00 00 00 00 00 01 28 50 63 7f 01 01 01 01 01 01 01 01 01",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "stageCount": 15,
+          "stagesPrefix": [
+            "AWAKE",
+            "LIGHT",
+            "LIGHT",
+            "DEEP",
+            "DEEP",
+            "DEEP"
+          ],
+          "also": {
+            "timestampS": 0,
+            "stages": [
+              "AWAKE",
+              "LIGHT",
+              "LIGHT",
+              "DEEP",
+              "DEEP",
+              "DEEP",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT",
+              "LIGHT"
+            ],
+            "completeSession": false,
+            "historyHorizonDays": 8
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode sleep timeline with threshold-based stages",
+      "asserted": true,
+      "note": "Bytes 1..4 timestamp, bytes 5..19 = 15 one-minute stage bytes. Stage: 0 = AWAKE, 1..79 = LIGHT, >= 80 (0x50) = DEEP. Test asserts the first six of 15."
+    },
+    {
+      "name": "decode truncated sleep timeline returns unknown",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "11 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 17,
+          "raw": "11 00 00 00"
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode truncated sleep timeline returns unknown",
+      "asserted": true
+    },
+    {
+      "name": "decode 0x20 band function reply",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "20 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "BandFunction",
+          "separateBloodOxygenMode": true,
+          "hasTemperature": false,
+          "also": {
+            "capabilityBytes": "00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00"
+          }
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode 0x20 band function reply",
+      "asserted": true,
+      "note": "Capability bits index the 19 bytes after the id; bit n is byte n/8, mask 1 << (n % 8) (LSB first, unverified against hardware). Bit 65 = byte 8 of the payload = packet byte 9."
+    },
+    {
+      "name": "decode without a clock treats ring epoch as true UTC",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "01 00 f1 53 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "TimeSyncAck",
+          "timestampS": 1700000000
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode without a clock treats ring epoch as true UTC",
+      "asserted": true
+    },
+    {
+      "name": "decode with a clock subtracts the latched offset from a ring-stamped epoch",
+      "context": {
+        "clockOffsetS": -28800
+      },
+      "bytes": "01 80 80 53 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "TimeSyncAck",
+          "timestampS": 1700000000
+        }
+      ],
+      "match": "first",
+      "test": "RingDecoderTest.kt: decode with a clock subtracts the latched offset from a ring-stamped epoch",
+      "asserted": true
+    },
+    {
+      "name": "0x24 combined sensor, full ordered output",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "24 48 6e 46 61 28 1e 33 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 72,
+          "also": {
+            "timestamp": "now"
+          }
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 110
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 70
+        },
+        {
+          "kotlin": "Spo2Result",
+          "value": 97
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "FATIGUE",
+          "value": 40
+        },
+        {
+          "kotlin": "StressSample",
+          "value": 30
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_SUGAR",
+          "value": 91.8816,
+          "tolerance": 0.0001
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeCombinedSensor)",
+      "asserted": false,
+      "note": "Blood sugar = 51 / 10 * 18.016 mg/dL. All timestamps are the phone clock at decode time. Byte 8 (HRV in the official app) is not decoded."
+    },
+    {
+      "name": "0x24 with only diastolic non-zero still emits a systolic of 0",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "24 00 00 46 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 0
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 70
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeCombinedSensor)",
+      "asserted": false,
+      "note": "Quirk: systolic is emitted when systolic > 0 OR diastolic > 0. The later bridge gate (systolic 60..250) drops the 0. A port should gate both values."
+    },
+    {
+      "name": "0x24 SpO2 below 80 is dropped",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "24 46 00 00 4f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 70
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeCombinedSensor)",
+      "asserted": false
+    },
+    {
+      "name": "0x24 all zero produces no events",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "24 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeCombinedSensor)",
+      "asserted": false
+    },
+    {
+      "name": "0x3F spo2 boundaries: 80 and 100 are results",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytesSequence": [
+        "3f 50 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "3f 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 80
+        },
+        {
+          "kotlin": "Spo2Result",
+          "value": 100
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeSpo2Result)",
+      "asserted": false,
+      "note": "bytesSequence: each packet decoded in turn; events are concatenated."
+    },
+    {
+      "name": "0x3F spo2 boundaries: 79 and 101 are progress",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytesSequence": [
+        "3f 4f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "3f 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "Spo2Progress",
+          "also": {
+            "percent": null
+          }
+        },
+        {
+          "kotlin": "Spo2Progress",
+          "also": {
+            "percent": null
+          }
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeSpo2Result)",
+      "asserted": false
+    },
+    {
+      "name": "0x0C status with the vendor example: firmware 003A002AV138",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0c 8a 00 11 22 33 44 55 66 3a 00 2a 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Status",
+          "address": "11:22:33:44:55:66",
+          "firmware": "003A002AV138"
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeStatus)",
+      "asserted": false,
+      "note": "Example from the Kotlin comment (0c 8a 00 .. 3a 00 2a 00). The MAC here is synthetic. Whether bytes 3..8 are in over-the-air byte order is unverified."
+    },
+    {
+      "name": "0x0B battery: charging flag other than 1 is not charging",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0b 28 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "percent": 40,
+          "charging": false
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeBattery)",
+      "asserted": false
+    },
+    {
+      "name": "0x03 activity update applies the clock to its timestamp",
+      "context": {
+        "clockOffsetS": -28800
+      },
+      "bytes": "03 80 80 53 65 d2 04 00 00 84 03 00 00 2d 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "steps": 1234,
+          "distanceMeters": 900,
+          "calories": 45,
+          "timestampS": 1700000000
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeActivity)",
+      "asserted": false,
+      "note": "Cumulative totals for the ring-local day so far."
+    },
+    {
+      "name": "0x10 activity history: the clock offset is applied to the bucket timestamps (port; Kotlin leaves them raw)",
+      "context": {
+        "clockOffsetS": -28800
+      },
+      "bytes": "10 80 80 53 65 04 08 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 4,
+          "also": {
+            "timestampS": 1700000000,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 8,
+          "also": {
+            "timestampS": 1700000060,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000120,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000180,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000240,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000300,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000360,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000420,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000480,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000540,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000600,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000660,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000720,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000780,
+            "distanceMeters": 0
+          }
+        },
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 0,
+          "also": {
+            "timestampS": 1700000840,
+            "distanceMeters": 0
+          }
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeActivityHistory), with ringDate applied as for 0x11",
+      "asserted": false,
+      "note": "Kotlin decodeActivityHistory uses Instant.ofEpochSecond(raw) and never calls ringDate, while 0x03, 0x11, 0x16 and the time-sync ack do. The port applies the offset here too: the JringClock header says every ring timestamp has it taken off, and the port reads 0x10 as local when deciding a read is caught up (docs/jring.md, port note 1). Raw base 1699971200 at offset -28800 is 1700000000."
+    },
+    {
+      "name": "0x11 sleep timeline applies the clock to its timestamp",
+      "context": {
+        "clockOffsetS": -28800
+      },
+      "bytes": "11 80 80 53 65 00 05 5a 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700000000,
+          "stageCount": 15,
+          "stagesPrefix": [
+            "AWAKE",
+            "LIGHT",
+            "DEEP",
+            "AWAKE"
+          ]
+        }
+      ],
+      "match": "first",
+      "test": "derived from RingDecoder.kt (decodeSleepTimeline)",
+      "asserted": false
+    },
+    {
+      "name": "0x11 sleep stage boundaries: 0x4f is light, 0x50 is deep",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "11 00 00 00 00 4f 50 ff 01 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "stagesPrefix": [
+            "LIGHT",
+            "DEEP",
+            "DEEP",
+            "LIGHT",
+            "AWAKE"
+          ]
+        }
+      ],
+      "match": "first",
+      "test": "derived from RingDecoder.kt (SleepStage.fromByte)",
+      "asserted": false
+    },
+    {
+      "name": "0x14 live heart rate with timestamp and sleep status",
+      "context": {
+        "clockOffsetS": -28800
+      },
+      "bytes": "14 64 f1 53 65 40 01 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 64,
+          "timestampS": 1700028900,
+          "sleepStatus": 1,
+          "isError": false
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeLiveHeartRate), with ringDate applied",
+      "asserted": false,
+      "note": "Kotlin uses the timestamp raw even with a clock; the port subtracts the offset like every other ring time (docs/jring.md, port note 1). Raw 1700000100 at offset -28800 is 1700028900. Unverified on a real ring."
+    },
+    {
+      "name": "0x16 header and index block markers",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytesSequence": [
+        "16 f0 00 00 00 00 0a 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "16 aa 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistorySyncProgress",
+          "stage": "hr_header"
+        },
+        {
+          "kotlin": "HistorySyncProgress",
+          "stage": "hr_index"
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeHeartRateHistory)",
+      "asserted": false,
+      "note": "Header carries the total packet count at bytes 6..7; index block carries the current index and the last block count. The Kotlin reads neither."
+    },
+    {
+      "name": "0x16 data block: two averaged readings one minute apart",
+      "context": {
+        "clockOffsetS": -28800
+      },
+      "bytes": "16 a0 80 80 53 65 00 00 3e 40 3f 41 3d 3f 46 48 47 47 48 46",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 63,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 71,
+          "timestampS": 1700000060
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeHrDataBlock)",
+      "asserted": false,
+      "note": "Base timestamp at bytes 2..5 (u32le, clock applied). Bytes 8..13 and 14..19 are six samples each; each group is averaged and rounded half up. The second reading is stamped 60 s after the first. Bytes 6..7 are not read."
+    },
+    {
+      "name": "0x16 data block with all samples zero produces no events",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 a0 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeHrDataBlock)",
+      "asserted": false
+    },
+    {
+      "name": "0x16 data block rounding: 70.5 rounds to 71",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 a0 00 00 00 00 00 00 46 47 46 47 46 47 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 71
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeHrDataBlock)",
+      "asserted": false,
+      "note": "Math.round: .5 goes up."
+    },
+    {
+      "name": "0x16 legacy sub-type: first non-zero byte from byte 8 becomes one heart-rate reading",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 01 00 f1 53 65 00 00 00 3a 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 58,
+          "timestampS": 1700000000
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeHeartRateHistory fallback branch)",
+      "asserted": false
+    },
+    {
+      "name": "0x16 legacy sub-type with no non-zero byte is a CommandAck",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "16 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 22
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeHeartRateHistory fallback branch)",
+      "asserted": false
+    },
+    {
+      "name": "0x4B bind notifications",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytesSequence": [
+        "4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "4b 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "4b 06 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "BindNotify",
+          "action": 0,
+          "state": 0
+        },
+        {
+          "kotlin": "BindNotify",
+          "action": 2,
+          "state": 0
+        },
+        {
+          "kotlin": "BindNotify",
+          "action": 6,
+          "state": 1
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeBindNotify)",
+      "asserted": false,
+      "note": "action: 0 INIT, 1 APP_START, 2 ACK, 3 ACK_CANCEL, 4 SUCCESS, 5 UNBOND, 6 UNBOND_ACK; state: 0 BOND_STATE_NO, 1 BOND_STATE_YES."
+    },
+    {
+      "name": "0xF6 firmware number is bytes 4..5 little-endian",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "f6 00 00 00 8a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "FirmwareVersion",
+          "version": 138
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeFirmwareVersion)",
+      "asserted": false,
+      "note": "The ring streams two kinds of 0xF6 record; one decodes to a bogus 2704. Lumen ignores the event for firmware; the port should too."
+    },
+    {
+      "name": "0x20 capability bits 10, 81, 83 and not 65",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "20 00 04 00 00 00 00 00 00 00 00 0a 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "BandFunction",
+          "hasTemperature": true,
+          "separateBloodOxygenMode": false,
+          "hasOxygenOfflineHistory": true,
+          "hasPressureHistory": true
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (JringBandCapabilities)",
+      "asserted": false,
+      "note": "Bit 10 = payload byte 1 mask 0x04 (packet byte 2); bit 81 = payload byte 10 mask 0x02 and bit 83 = mask 0x08 (packet byte 11 = 0x0a)."
+    },
+    {
+      "name": "0x01 time sync ack with a zero epoch",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "TimeSyncAck",
+          "timestampS": 0
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeTimeSync)",
+      "asserted": false
+    },
+    {
+      "name": "0x02 ack ignores its payload",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "02 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 2
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decode)",
+      "asserted": false
+    },
+    {
+      "name": "keepalive echo 0x3A is Unknown (the ring does not echo it)",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "3a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 58,
+          "raw": "3a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeUnsafe else branch)",
+      "asserted": false
+    },
+    {
+      "name": "wrong length: 19 bytes is Unknown even with a known id",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0b 32 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 11,
+          "raw": "0b 32 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (RingPacket.fromData)",
+      "asserted": false
+    },
+    {
+      "name": "wrong length: 21 bytes is Unknown even with a known id",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytes": "0b 32 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 11,
+          "raw": "0b 32 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (RingPacket.fromData)",
+      "asserted": false,
+      "note": "The 20-byte rule is exact: longer packets are not truncated (relevant if a platform delivers a larger MTU payload)."
+    },
+    {
+      "name": "command ids the decoder does not know are Unknown (0x04, 0x05, 0x12, 0x13, 0x15, 0x19, 0x21, 0x23, 0x3E, 0x44, 0x48)",
+      "context": {
+        "clockOffsetS": null
+      },
+      "bytesSequence": [
+        "04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "13 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "15 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "19 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "21 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "3e 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "44 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "48 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 4,
+          "raw": "04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 5,
+          "raw": "05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 18,
+          "raw": "12 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 19,
+          "raw": "13 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 21,
+          "raw": "15 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 25,
+          "raw": "19 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 33,
+          "raw": "21 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 35,
+          "raw": "23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 62,
+          "raw": "3e 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 68,
+          "raw": "44 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "kotlin": "Unknown",
+          "commandId": 72,
+          "raw": "48 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ],
+      "match": "exact",
+      "test": "derived from RingDecoder.kt (decodeUnsafe else branch)",
+      "asserted": false,
+      "note": "Command echoes and settings acks are not decoded; only the ids in RingDecoder.decodeUnsafe are."
+    }
+  ],
+  "clockVectors": [
+    {
+      "name": "offset is captured at construction",
+      "test": "JringClockTest.kt",
+      "asserted": true,
+      "steps": [
+        {
+          "do": "construct",
+          "zone": "America/Los_Angeles",
+          "atS": 1768478400,
+          "expectOffsetS": -28800
+        }
+      ]
+    },
+    {
+      "name": "capture re-latches the offset",
+      "test": "JringClockTest.kt",
+      "asserted": true,
+      "steps": [
+        {
+          "do": "construct",
+          "zone": "UTC",
+          "atS": 1768478400,
+          "expectOffsetS": 0
+        },
+        {
+          "do": "capture",
+          "zone": "America/Los_Angeles",
+          "atS": 1768478400,
+          "expectOffsetS": -28800
+        }
+      ]
+    },
+    {
+      "name": "date subtracts the latched offset from a ring-stamped epoch",
+      "test": "JringClockTest.kt",
+      "asserted": true,
+      "steps": [
+        {
+          "do": "construct",
+          "zone": "America/Los_Angeles",
+          "atS": 1768478400,
+          "expectOffsetS": -28800
+        },
+        {
+          "do": "date",
+          "ringEpochS": 1768449600,
+          "expectEpochS": 1768478400
+        }
+      ]
+    },
+    {
+      "name": "offset follows daylight saving time at the instant used",
+      "test": "derived from JringClock (TimeZone.getOffset at the instant)",
+      "asserted": false,
+      "steps": [
+        {
+          "do": "construct",
+          "zone": "America/Los_Angeles",
+          "atS": 1784116800,
+          "expectOffsetS": -25200
+        }
+      ]
+    },
+    {
+      "name": "the offset is not refreshed on its own: it stays at the last capture until the next capture",
+      "test": "derived from JringClock",
+      "asserted": false,
+      "steps": [
+        {
+          "do": "construct",
+          "zone": "America/Los_Angeles",
+          "atS": 1768478400,
+          "expectOffsetS": -28800
+        },
+        {
+          "do": "date",
+          "ringEpochS": 1784088000,
+          "expectEpochS": 1784116800,
+          "note": "still subtracts the winter offset after the zone is in daylight time, until capture() runs again (JringSyncEngine.enqueueTimeSync)"
+        }
+      ]
+    }
+  ]
+}

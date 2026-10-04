@@ -1,0 +1,25 @@
+Vitals 3D figure: model sources and licences
+
+Outer body: derived from MakeHuman hm08 and bundled morph/rig assets (CC0 1.0).
+Source: https://github.com/makehumancommunity/makehuman
+Commit: a8bc2d54ff0ac92e78ff71431b1023eda42bf482
+Licence: https://creativecommons.org/publicdomain/zero/1.0/
+Changes: adult shape blending, relaxed pose, mesh reduction, quantization,
+compression and runtime fitting to illustrative body proportions.
+
+Bones and muscles: BodyParts3D 4.0, official IS-A tree reduced OBJ atlas.
+BodyParts3D, © The Database Center for Life Science licensed under CC Attribution 4.0 International.
+Source: https://dbarchive.biosciencedbc.jp/en/bodyparts3d/download.html
+Current source licence: https://dbarchive.biosciencedbc.jp/en/bodyparts3d/lic.html
+Licence terms: https://creativecommons.org/licenses/by/4.0/
+The official licence was updated on 27 February 2025; historical OBJ headers
+retain the earlier CC BY-SA 2.1 Japan text.
+Changes: selection of bones and skeletal muscles, coordinate conversion,
+reference-pose registration, mesh reduction, grouping, quantization, compression,
+and illustrative runtime scaling. The derived anatomy asset is CC BY 4.0.
+
+These are adapted reference models, not personal scans. Neither source endorses
+Vitals. Fat layers are schematic illustrations of the app's estimates.
+
+The independent Vitals application code is MIT. Complete provenance, archive
+checksums and reproducible fetch/bake scripts are included in its source tree.

@@ -30,6 +30,8 @@ export interface DeviceRecord {
   createdAt: string;
   lastSeenAt: string | null;
   revokedAt?: string;
+  /** When `POST /v1/sync/key` handed this device the person's sync key (once per device, R20-PAIR). */
+  syncKeyIssuedAt?: string;
 }
 
 interface CodeRecord {
@@ -48,6 +50,7 @@ export interface Principal {
   label: string;
 }
 
+export type SyncKeyMark = 'ok' | 'already_issued' | 'window_closed' | 'not_found';
 export type ResolveResult = { ok: true; principal: Principal } | { ok: false; error: 'unauthorized' | 'revoked' };
 export type PairOutcome =
   | { ok: true; token: string; deviceId: string; personId: string }
@@ -66,6 +69,11 @@ export interface DeviceStore {
   resolve(token: string | null): Promise<ResolveResult>;
   list(personId: string): Promise<DeviceRecord[]>;
   revoke(personId: string, deviceId: string): Promise<boolean>;
+  /**
+   * Records that the device got the sync key: once per device, and only within `CODE_TTL_MS` of its pairing (the key
+   * window closes with the code window). Returns why not otherwise.
+   */
+  markSyncKeyIssued(personId: string, deviceId: string): Promise<SyncKeyMark>;
   touch(p: Principal): void;
   /** Admin bearer: `<dataDir>/admin.token` holds its SHA-256 only. */
   mintAdminToken(): Promise<string>;
@@ -191,6 +199,18 @@ export function createDeviceStore(o: { dataDir: string; persons: PersonRegistry;
         d.revokedAt = new Date(now()).toISOString();
         await writeDevices(personId, list);
         return true;
+      }),
+    markSyncKeyIssued: (personId, deviceId) =>
+      serial(async (): Promise<SyncKeyMark> => {
+        const list = await readDevices(personId);
+        const d = list.find((x) => x.id === deviceId && !x.revokedAt);
+        if (!d) return 'not_found';
+        if (d.syncKeyIssuedAt) return 'already_issued';
+        const created = Date.parse(d.createdAt);
+        if (!Number.isFinite(created) || now() > created + CODE_TTL_MS) return 'window_closed';
+        d.syncKeyIssuedAt = new Date(now()).toISOString();
+        await writeDevices(personId, list);
+        return 'ok';
       }),
     touch(p) {
       seen.set(p.deviceId, { personId: p.personId, at: new Date(now()).toISOString() });

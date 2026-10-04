@@ -1,0 +1,403 @@
+{
+  "family": "jring",
+  "source": "RingDecoderTest.kt (encoder assertions) and ExistingFamilyRefreshContractTest.kt; frames marked asserted:false come from reading RingEncoder.kt (no Kotlin test checks them). Synthetic only.",
+  "vectors": [
+    {
+      "name": "time sync command encodes local wall-clock, not true UTC",
+      "command": {
+        "op": "timeSync",
+        "params": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": -28800
+        }
+      },
+      "frame": "01 80 80 53 65 f8 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt",
+      "asserted": true,
+      "note": "Test asserts bytes 1..4 = u32le(epoch + offset) = 1699971200 and byte 5 = -8 (0xf8); the instant is 2023-11-14T22:13:20Z in a fixed UTC-8 zone. Bytes 6..19 are zero."
+    },
+    {
+      "name": "time sync, whole-hour byte truncates (UTC+05:30)",
+      "command": {
+        "op": "timeSync",
+        "params": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": 19800
+        }
+      },
+      "frame": "01 58 3e 54 65 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeTimeSyncCommand",
+      "asserted": false,
+      "note": "offsetSeconds / 3600 is integer division toward zero, so +05:30 sends 5 and -03:30 would send -3; the u32 keeps the full 19800 s."
+    },
+    {
+      "name": "time sync, UTC",
+      "command": {
+        "op": "timeSync",
+        "params": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": 0
+        }
+      },
+      "frame": "01 00 f1 53 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeTimeSyncCommand",
+      "asserted": false
+    },
+    {
+      "name": "goal command encode produces valid output",
+      "command": {
+        "op": "goal",
+        "params": {
+          "steps": 10000
+        }
+      },
+      "frame": "1a 10 27 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt",
+      "asserted": true,
+      "note": "Test asserts bytes 0..2 (1a 10 27); bytes 3..4 are the high bytes of the u32le (zero); Protocol.md quoted in RingEncoder: 1a 10 27 00 00 sets 10000 steps."
+    },
+    {
+      "name": "goal command, 100000 steps (u32le uses all four bytes)",
+      "command": {
+        "op": "goal",
+        "params": {
+          "steps": 100000
+        }
+      },
+      "frame": "1a a0 86 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeGoalCommand",
+      "asserted": false
+    },
+    {
+      "name": "status command (hex to bytes roundtrip literal)",
+      "command": {
+        "op": "status"
+      },
+      "frame": "0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt: hex to bytes roundtrip",
+      "asserted": true,
+      "note": "The test round-trips this literal; RingEncoder.makeStatusCommand() returns exactly it."
+    },
+    {
+      "name": "keepalive command is 0x3A",
+      "command": {
+        "op": "keepalive"
+      },
+      "frame": "3a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt",
+      "asserted": true,
+      "note": "Test builds ByteArray(20) with byte 0 = 0x3a and asserts bytes 0 and 1. The engine sends it from JringSyncEngine.sendKeepalive and RingBLEClient every 15 s."
+    },
+    {
+      "name": "automatic heart rate command's trailing byte is 0x01",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": true,
+          "cadenceMinutes": 30
+        }
+      },
+      "frame": "19 00 00 17 3b 01 1e 01 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt",
+      "asserted": true,
+      "note": "Test asserts bytes 0, 5, 6, 7. Bytes 1..4 are the fixed 00:00 to 23:59 window (00 00 17 3b) from RingEncoder."
+    },
+    {
+      "name": "automatic heart rate, disabled, cadence below 1 is raised to 1",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": false,
+          "cadenceMinutes": 0
+        }
+      },
+      "frame": "19 00 00 17 3b 00 01 01 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeAutomaticHeartRateCommand",
+      "asserted": false
+    },
+    {
+      "name": "spo2 start command uses mode 2 of the 0x23 selector",
+      "command": {
+        "op": "spo2Start"
+      },
+      "frame": "23 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt",
+      "asserted": true,
+      "note": "Test asserts bytes 0 and 1. Mode 1 would be a blood-pressure run."
+    },
+    {
+      "name": "spo2 stop command",
+      "command": {
+        "op": "spo2Stop"
+      },
+      "frame": "23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt: combined measurement rides the same command as spot spo2",
+      "asserted": true
+    },
+    {
+      "name": "combined measurement start equals spo2 start",
+      "command": {
+        "op": "combinedStart"
+      },
+      "frame": "23 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt: combined measurement rides the same command as spot spo2",
+      "asserted": true,
+      "note": "assertArrayEquals(makeSpO2StartCommand(), makeCombinedMeasurementStart())."
+    },
+    {
+      "name": "combined measurement stop equals spo2 stop",
+      "command": {
+        "op": "combinedStop"
+      },
+      "frame": "23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt: combined measurement rides the same command as spot spo2",
+      "asserted": true
+    },
+    {
+      "name": "band function query command is 0x20",
+      "command": {
+        "op": "bandFunction"
+      },
+      "frame": "20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "RingDecoderTest.kt",
+      "asserted": true,
+      "note": "Test asserts byte 0 only; the rest is zero in RingEncoder."
+    },
+    {
+      "name": "history query, first pass of a connection (3 days)",
+      "command": {
+        "op": "historyQuery",
+        "params": {
+          "days": 3
+        }
+      },
+      "frame": "10 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "ExistingFamilyRefreshContractTest.kt: Jring pulls a deeper history window once per connection, then one day per pass",
+      "asserted": true,
+      "note": "Test asserts byte 0 = 0x10 and byte 1 = 3 on the first runStartup of a connection."
+    },
+    {
+      "name": "history query, every later pass (1 day)",
+      "command": {
+        "op": "historyQuery",
+        "params": {
+          "days": 1
+        }
+      },
+      "frame": "10 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "ExistingFamilyRefreshContractTest.kt: Jring pulls a deeper history window once per connection, then one day per pass",
+      "asserted": true
+    },
+    {
+      "name": "history query day count is clamped to 0..27 (upper)",
+      "command": {
+        "op": "historyQuery",
+        "params": {
+          "days": 40
+        }
+      },
+      "frame": "10 1b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeHistoryQueryCommand (coerceIn(0, 27)); ExistingFamilyRefreshContractTest only checks 3 is inside the range",
+      "asserted": false
+    },
+    {
+      "name": "history query day count is clamped to 0..27 (lower)",
+      "command": {
+        "op": "historyQuery",
+        "params": {
+          "days": -2
+        }
+      },
+      "frame": "10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeHistoryQueryCommand",
+      "asserted": false
+    },
+    {
+      "name": "history measurement query",
+      "command": {
+        "op": "historyMeasurementQuery"
+      },
+      "frame": "16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeHistoryMeasurementQueryCommand (literal 16 00 ...)",
+      "asserted": false
+    },
+    {
+      "name": "heart rate start (live stream)",
+      "command": {
+        "op": "heartRateStart"
+      },
+      "frame": "14 b4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeHeartRateStartCommand (literal 14 b4 00 ...)",
+      "asserted": false,
+      "note": "Byte 1 = 0xb4 (180) is a constant copied from the vendor app; its meaning is not documented in the Kotlin."
+    },
+    {
+      "name": "heart rate stop",
+      "command": {
+        "op": "heartRateStop"
+      },
+      "frame": "15 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeHeartRateStopCommand",
+      "asserted": false
+    },
+    {
+      "name": "find ring",
+      "command": {
+        "op": "findRing"
+      },
+      "frame": "04 0a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeFindRingCommand (literal 04 0a 00 ...)",
+      "asserted": false
+    },
+    {
+      "name": "locale en-US",
+      "command": {
+        "op": "locale",
+        "params": {
+          "locale": "en-US"
+        }
+      },
+      "frame": "21 65 6e 2d 55 53 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeLocaleCommand (ASCII, up to 19 bytes, zero padded)",
+      "asserted": false
+    },
+    {
+      "name": "default user info (age 25, male, 184 cm, 90 kg)",
+      "command": {
+        "op": "userInfo",
+        "params": {
+          "ageYears": 25,
+          "isMale": true,
+          "heightCm": 184,
+          "weightKg": 90
+        }
+      },
+      "frame": "02 99 b8 5a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeDefaultUserInfoCommand (literal 02 99 b8 5a 00 ...)",
+      "asserted": false,
+      "note": "byte 1 = age (low 7 bits) | 0x80 when male; bytes 2 and 3 = height cm and weight kg; byte 4 = 0 (metric). The same frame is the Kotlin fallback profile sent on every connect."
+    },
+    {
+      "name": "user info, female, values clamped",
+      "command": {
+        "op": "userInfo",
+        "params": {
+          "ageYears": 200,
+          "isMale": false,
+          "heightCm": 300,
+          "weightKg": 60
+        }
+      },
+      "frame": "02 7f ff 3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeUserInfoCommand (age 0..127, height 0..255, weight 0..255)",
+      "asserted": false
+    },
+    {
+      "name": "user info, synthetic profile (age 30, male, 180 cm, 75 kg)",
+      "command": {
+        "op": "userInfo",
+        "params": {
+          "ageYears": 30,
+          "isMale": true,
+          "heightCm": 180,
+          "weightKg": 75
+        }
+      },
+      "frame": "02 9e b4 4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeUserInfoCommand",
+      "asserted": false
+    },
+    {
+      "name": "app identifier \"abc123\"",
+      "command": {
+        "op": "appId",
+        "params": {
+          "appId": "abc123"
+        }
+      },
+      "frame": "48 61 62 63 31 32 33 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeAppIdCommand (ASCII, at most 18 bytes at bytes 1..18)",
+      "asserted": false
+    },
+    {
+      "name": "app identifier longer than 18 bytes is cut at 18",
+      "command": {
+        "op": "appId",
+        "params": {
+          "appId": "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        }
+      },
+      "frame": "48 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 00",
+      "test": "derived from RingEncoder.makeAppIdCommand",
+      "asserted": false
+    },
+    {
+      "name": "bind: app start",
+      "command": {
+        "op": "bind",
+        "params": {
+          "action": 1,
+          "state": 0,
+          "type": 1
+        }
+      },
+      "frame": "4b 01 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeBindAppStartCommand",
+      "asserted": false
+    },
+    {
+      "name": "bind: success",
+      "command": {
+        "op": "bind",
+        "params": {
+          "action": 4,
+          "state": 0,
+          "type": 1
+        }
+      },
+      "frame": "4b 04 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeBindSuccessCommand",
+      "asserted": false
+    },
+    {
+      "name": "bind: unbind (forget)",
+      "command": {
+        "op": "bind",
+        "params": {
+          "action": 5,
+          "state": 0,
+          "type": 1
+        }
+      },
+      "frame": "4b 05 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeUnbindCommand",
+      "asserted": false
+    },
+    {
+      "name": "blood pressure adjust 120/80 (two u16le)",
+      "command": {
+        "op": "bpAdjust",
+        "params": {
+          "systolic": 120,
+          "diastolic": 80
+        }
+      },
+      "frame": "33 78 00 50 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeBPAdjustCommand",
+      "asserted": false
+    },
+    {
+      "name": "blood pressure adjust 300/200 (high bytes used)",
+      "command": {
+        "op": "bpAdjust",
+        "params": {
+          "systolic": 300,
+          "diastolic": 200
+        }
+      },
+      "frame": "33 2c 01 c8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "test": "derived from RingEncoder.makeBPAdjustCommand",
+      "asserted": false
+    }
+  ]
+}

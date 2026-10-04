@@ -1,0 +1,2521 @@
+{
+  "family": "ycbt",
+  "source": "app/src/test/java/com/pulseloop/ring/YCBTHistoryTransferTest.kt (and the per-session source)",
+  "sessions": [
+    {
+      "name": "connect: subscription gate, post-subscription handshake, startup with a SupportFunction reply (R10M profile)",
+      "source": "SubscriptionSetupGateTest.kt + YCBTEncoderTest.kt + YCBTSyncEngineTest.kt + YCBTDecoderTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "instant": "2026-07-06T12:34:14Z",
+        "tz": "UTC",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "profileValues": {
+          "heightCm": 175,
+          "weightKg": 70,
+          "sex": "other",
+          "ageYears": 25,
+          "metric": true
+        },
+        "measurement": {
+          "hrEnabled": true,
+          "hrIntervalMinutes": 5,
+          "spo2Enabled": true,
+          "hrvEnabled": true,
+          "temperatureEnabled": true
+        }
+      },
+      "steps": [
+        {
+          "gatt": [
+            {
+              "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+              "properties": [
+                "write",
+                "indicate"
+              ],
+              "localEnabled": true,
+              "hasCccd": true
+            },
+            {
+              "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+              "properties": [
+                "indicate"
+              ],
+              "localEnabled": true,
+              "hasCccd": true
+            }
+          ],
+          "expectTopologyFailure": null
+        },
+        {
+          "cccdWritten": {
+            "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+            "value": "02 00",
+            "ok": true
+          },
+          "expectReady": false
+        },
+        {
+          "cccdWritten": {
+            "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+            "value": "02 00",
+            "ok": true
+          },
+          "expectReady": true,
+          "note": "Connected only now. 02 00 is the CCCD \"enable indications\" value."
+        },
+        {
+          "expectWrite": "02 03 08 00 47 50 ef 20",
+          "note": "Post-subscription handshake: device name request, written before anything else."
+        },
+        {
+          "expectWrite": "01 00 0e 00 ea 07 07 06 0c 22 0e 00 26 c7",
+          "note": "setTime at the session instant (local wall clock)."
+        },
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrite": "02 00 08 00 47 43 6f ec",
+          "notify": [
+            "02 00 1e 00 a3 00 12 01 00 64 00 01 00 03 00 00 00 00 01 00 00 00 01 00 00 00 00 00 ef 10"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "Status",
+              "firmware": "1.18"
+            },
+            {
+              "kotlin": "Battery",
+              "percent": 100
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "02 01 08 00 47 46 9b 16",
+          "notify": [
+            "02 01 14 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 13 38"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "SupportFunctions",
+              "capabilities": [
+                "BLOOD_PRESSURE",
+                "TEMPERATURE"
+              ]
+            }
+          ],
+          "match": "exact",
+          "note": "Synthetic 14-byte SupportFunction bitmap: byte 0 bit 0 (blood pressure), byte 8 bit 0 (temperature). Adds TEMPERATURE monitor 01 20 and history types 08 and 1e."
+        },
+        {
+          "expectWrite": "02 07 08 00 43 46 da 17"
+        },
+        {
+          "expectWrite": "01 12 07 00 00 02 c8"
+        },
+        {
+          "expectWrite": "01 04 0c 00 00 00 00 00 00 00 24 03"
+        },
+        {
+          "expectWrite": "01 0c 08 00 01 1e 96 85"
+        },
+        {
+          "expectWrite": "01 26 08 00 01 1e 8c cb"
+        },
+        {
+          "expectWrite": "01 03 0a 00 af 46 00 19 e0 3a"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de"
+        },
+        {
+          "expectWrite": "05 02 06 00 43 fc",
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ],
+          "expectEvents": [],
+          "match": "exact",
+          "note": "History starts with sport. \"05 02 00\" = no data: advance without an ack."
+        },
+        {
+          "expectWrite": "01 20 08 00 01 1e 09 06",
+          "note": "Temperature monitor, queued by the 02 01 reply behind the already-queued startup batch."
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ]
+        },
+        {
+          "expectWrite": "05 08 06 00 82 3b",
+          "notify": [
+            "05 08 07 00 00 08 32"
+          ]
+        },
+        {
+          "expectWrite": "05 1e 06 00 41 ca",
+          "notify": [
+            "05 1e 07 00 00 36 0e"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "note": "Live status asked once more after the startup history walk."
+        }
+      ],
+      "note": "Assembled from several Kotlin tests; the wire order assumes Lumen's FIFO write queue (the whole startup batch and the first history query are queued before any reply is handled). The ring's replies to 02 03, 01 00, 02 07 and the settings writes are not modelled (no Kotlin vector). Notifications are put on the stream channel as the Kotlin tests do; which channel the real ring answers each command on is unverified."
+    },
+    {
+      "name": "YCBT is ready only after both declared CCCDs succeed",
+      "source": "SubscriptionSetupGateTest.kt",
+      "context": {
+        "layer": "gate",
+        "required": [
+          {
+            "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          },
+          {
+            "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "gatt": [
+            {
+              "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": true,
+              "hasCccd": true
+            },
+            {
+              "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": true,
+              "hasCccd": true
+            }
+          ],
+          "expectTopologyFailure": null
+        },
+        {
+          "cccdWritten": {
+            "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+            "ok": true
+          },
+          "expectReady": false
+        },
+        {
+          "cccdWritten": {
+            "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+            "ok": true
+          },
+          "expectReady": true
+        }
+      ]
+    },
+    {
+      "name": "missing required channel gives a useful topology failure",
+      "source": "SubscriptionSetupGateTest.kt",
+      "context": {
+        "layer": "gate",
+        "required": [
+          {
+            "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          },
+          {
+            "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "gatt": [
+            {
+              "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": true,
+              "hasCccd": true
+            }
+          ],
+          "expectTopologyFailure": {
+            "contains": "BE940003"
+          }
+        }
+      ],
+      "note": "Kotlin message: \"Required ring indication channel unavailable: BE940003\". The connect attempt fails before any CCCD is written."
+    },
+    {
+      "name": "missing CCCD cannot satisfy topology",
+      "source": "SubscriptionSetupGateTest.kt",
+      "context": {
+        "layer": "gate",
+        "required": [
+          {
+            "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          },
+          {
+            "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "gatt": [
+            {
+              "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": true,
+              "hasCccd": true
+            },
+            {
+              "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": true,
+              "hasCccd": false
+            }
+          ],
+          "expectTopologyFailure": {
+            "contains": "BE940003"
+          }
+        }
+      ],
+      "note": "Kotlin asserts only that a failure is reported."
+    },
+    {
+      "name": "failed local enable cannot satisfy topology",
+      "source": "SubscriptionSetupGateTest.kt",
+      "context": {
+        "layer": "gate",
+        "required": [
+          {
+            "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          },
+          {
+            "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+            "mode": "indicate"
+          }
+        ]
+      },
+      "steps": [
+        {
+          "gatt": [
+            {
+              "characteristic": "be940001-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": true,
+              "hasCccd": true
+            },
+            {
+              "characteristic": "be940003-7333-be46-b7ae-689e71722bd5",
+              "localEnabled": false,
+              "hasCccd": true
+            }
+          ],
+          "expectTopologyFailure": {
+            "contains": "BE940003"
+          }
+        }
+      ],
+      "note": "Kotlin asserts only that a failure is reported."
+    },
+    {
+      "name": "full cycle acks and advances to next type",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncProgress",
+              "stage": "Syncing heart rate…"
+            }
+          ],
+          "match": "prefix"
+        },
+        {
+          "notify": [
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06"
+          ],
+          "expectEvents": [],
+          "match": "exact",
+          "note": "Data frames use the type's ack key (heart 0x15) as cmd."
+        },
+        {
+          "notify": [
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 71,
+              "_timestamp": {
+                "ringSeconds": 836694044
+              }
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 66,
+              "_timestamp": {
+                "ringSeconds": 836697626
+              }
+            }
+          ],
+          "match": "contains",
+          "note": "Terminal 05 80: u16 packets, u16 byte count, u16 CRC16 of the reassembled data."
+        },
+        {
+          "expectWrite": "05 80 07 00 00 f3 6a"
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c"
+        }
+      ]
+    },
+    {
+      "name": "record straddling two data frames survives",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 02 00 00 00 0c 00 00 00 8b 89",
+            "05 15 0f 00 1c f0 de 31 00 47 1a fe de c7 c9",
+            "05 15 09 00 31 00 42 83 e3",
+            "05 80 0c 00 02 00 0c 00 1a 8b 65 85"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 71,
+              "_timestamp": {
+                "ringSeconds": 836694044
+              }
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 66,
+              "_timestamp": {
+                "ringSeconds": 836697626
+              }
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "05 80 07 00 00 f3 6a"
+        }
+      ]
+    },
+    {
+      "name": "a header packet count the ring contradicts does not fail the transfer",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 05 00 00 00 0c 00 00 00 93 4e",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 06 00 0c 00 1a 8b c4 83"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 71,
+              "_timestamp": {
+                "ringSeconds": 836694044
+              }
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 66,
+              "_timestamp": {
+                "ringSeconds": 836697626
+              }
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "05 80 07 00 00 f3 6a"
+        }
+      ],
+      "note": "Packet counts (header and terminal) are never compared; only the terminal byte count and CRC decide."
+    },
+    {
+      "name": "a terminal reporting more bytes than arrived still nacks",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 0c 00 1c f0 de 31 00 47 12 f8",
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "absent": true
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "05 80 07 00 04 77 2a"
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "note": "Derived: the first failure re-requests the same type once (Kotlin asserts only the nack here)."
+        }
+      ]
+    },
+    {
+      "name": "CRC mismatch nacks and retries the type once",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 01 00 0c 00 ad de 4f c6"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "absent": true
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "05 80 07 00 04 77 2a"
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 01 00 0c 00 ad de 4f c6"
+          ]
+        },
+        {
+          "expectWrite": "05 80 07 00 04 77 2a"
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "note": "Second failure skips to the next type."
+        }
+      ]
+    },
+    {
+      "name": "missing data frame nacks and retries the type once",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 02 00 00 00 0c 00 00 00 8b 89",
+            "05 15 0c 00 1c f0 de 31 00 47 12 f8",
+            "05 80 0c 00 02 00 0c 00 ce e0 4b 81"
+          ]
+        },
+        {
+          "expectWrite": "05 80 07 00 04 77 2a"
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 02 00 00 00 0c 00 00 00 8b 89",
+            "05 15 0c 00 1c f0 de 31 00 47 12 f8",
+            "05 80 0c 00 02 00 0c 00 ce e0 4b 81"
+          ]
+        },
+        {
+          "expectWrite": "05 80 07 00 04 77 2a"
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c"
+        }
+      ]
+    },
+    {
+      "name": "no data header advances without acking",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "note": "A header payload shorter than 10 bytes means no data; no ack is written."
+        }
+      ]
+    },
+    {
+      "name": "error frame advances and unsupported type is not requested again",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 fc c1 be"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 fc 2f 6a"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectNoWrite": true,
+          "expectEvents": [],
+          "match": "exact",
+          "note": "fb/fc are permanent: those types are dropped for the life of this transfer object. The second start writes nothing, and because start() discards advance()'s return value it emits no HistorySyncFinished either (a Lumen quirk; a port may prefer to report done)."
+        }
+      ]
+    },
+    {
+      "name": "late terminal from skipped type causes only a bounded retry",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 fc c1 be"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 10 00 01 00 02 00 00 00 14 00 00 00 72 67",
+            "05 18 1a 00 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 51 b8",
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ],
+          "expectEvents": [],
+          "match": "exact",
+          "note": "A stale heart terminal (12 bytes) arrives during the ALL transfer (20 bytes buffered)."
+        },
+        {
+          "expectWrite": "05 80 07 00 04 77 2a"
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "note": "Transfer still active."
+        }
+      ]
+    },
+    {
+      "name": "start is ignored while a transfer is in flight",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41"
+          ]
+        },
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "sleep"
+            }
+          },
+          "expectNoWrite": true
+        },
+        {
+          "notify": [
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 71,
+              "_timestamp": {
+                "ringSeconds": 836694044
+              }
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 66,
+              "_timestamp": {
+                "ringSeconds": 836697626
+              }
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "05 80 07 00 00 f3 6a"
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c"
+        }
+      ]
+    },
+    {
+      "name": "append preserves the active transfer and adds new types once",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20"
+        },
+        {
+          "send": {
+            "op": "historyAppend",
+            "params": {
+              "types": "heart,all,sleep,sleep"
+            }
+          },
+          "expectNoWrite": true
+        },
+        {
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        }
+      ]
+    },
+    {
+      "name": "append while idle starts the added history",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "historyAppend",
+            "params": {
+              "types": "sleep"
+            }
+          },
+          "expectWrite": "05 04 06 00 e3 4e"
+        }
+      ]
+    },
+    {
+      "name": "frames while idle are ignored",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "notify": [
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 01 00 00 00 ff ff e3 d5"
+          ],
+          "expectEvents": [],
+          "match": "exact",
+          "expectNoWrite": true
+        }
+      ]
+    },
+    {
+      "name": "duplicate final terminal after completion is ignored",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ]
+        },
+        {
+          "expectWrite": "05 80 07 00 00 f3 6a",
+          "notify": [
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ],
+          "expectEvents": [],
+          "match": "exact",
+          "expectNoWrite": true
+        }
+      ]
+    },
+    {
+      "name": "terminal after cancel is ignored",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 10000,
+        "absoluteCapMs": 30000,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06"
+          ]
+        },
+        {
+          "send": {
+            "op": "historyCancel"
+          },
+          "notify": [
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ],
+          "expectEvents": [],
+          "match": "exact",
+          "expectNoWrite": true
+        }
+      ]
+    },
+    {
+      "name": "watchdog skips a stalled type and never acks",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 50,
+        "absoluteCapMs": 200,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06"
+          ]
+        },
+        {
+          "timer": "inactivity",
+          "afterMs": 50,
+          "expectWrite": "05 09 06 00 b2 0c",
+          "note": "No 05 80 ack is ever written for the skipped type."
+        }
+      ],
+      "note": "Kotlin runs with inactivity 0.05 s and cap 0.2 s; production values are 10 s since the last packet and 30 s per type."
+    },
+    {
+      "name": "watchdog is not armed after completion",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 50,
+        "absoluteCapMs": 200,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 10 00 02 00 01 00 00 00 0c 00 00 00 fe 41",
+            "05 15 12 00 1c f0 de 31 00 47 1a fe de 31 00 42 ee 06",
+            "05 80 0c 00 01 00 0c 00 1a 8b 85 4b"
+          ]
+        },
+        {
+          "expectWrite": "05 80 07 00 00 f3 6a"
+        },
+        {
+          "timer": "inactivity",
+          "afterMs": 300,
+          "expectNoWrite": true
+        }
+      ]
+    },
+    {
+      "name": "cancel stops the watchdog from walking the queue",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 50,
+        "absoluteCapMs": 200,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart,all"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20"
+        },
+        {
+          "send": {
+            "op": "historyCancel"
+          },
+          "timer": "inactivity",
+          "afterMs": 300,
+          "expectNoWrite": true
+        }
+      ]
+    },
+    {
+      "name": "final watchdog completion is emitted through the out of band event sink",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "transfer",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "inactivityMs": 50,
+        "absoluteCapMs": 100,
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "history",
+            "params": {
+              "types": "heart"
+            }
+          },
+          "expectWrite": "05 06 06 00 83 20"
+        },
+        {
+          "timer": "inactivity",
+          "afterMs": 200,
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "exact",
+          "note": "Exactly one HistorySyncFinished, delivered outside any ingest call."
+        }
+      ]
+    },
+    {
+      "name": "startup requests only baseline history until capabilities arrive",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de"
+          ]
+        },
+        {
+          "expectWrite": "05 02 06 00 43 fc",
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "note": "Derived: live status again after the startup history walk (asserted separately in \"startup requests current activity again when history finishes\")."
+        }
+      ],
+      "note": "R10M baseline: sport (STEPS), sleep, heart, all (always). SpO2 history 1a is not requested on this profile."
+    },
+    {
+      "name": "sync vitals history uses heart and combined records",
+      "source": "YCBTHistoryTransferTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "syncVitalsHistory"
+          }
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        }
+      ]
+    },
+    {
+      "name": "full refresh requests live status before sport history",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "refresh"
+          },
+          "expectWrites": [
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        }
+      ],
+      "note": "Also asserted as \"sync history reruns the full catalog\" (YCBTHistoryTransferTest)."
+    },
+    {
+      "name": "post workout refresh begins with recent heart history",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "syncVitalsHistory"
+          },
+          "expectWrites": [
+            "05 06 06 00 83 20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sleep refresh requests only sleep history first",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "syncSleepNow"
+          },
+          "expectWrites": [
+            "05 04 06 00 e3 4e"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "legacy query sleep action is history only for YCBT",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "querySleep"
+          },
+          "expectWrites": [
+            "05 04 06 00 e3 4e"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "startup excludes the immediate name and time handshake",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        }
+      ],
+      "note": "Kotlin asserts no 01 00 and no 02 03 in runStartup and monitor keys [0c, 26] only; the full list is derived."
+    },
+    {
+      "name": "startup requests current activity again when history finishes",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        },
+        {
+          "inject": {
+            "kotlin": "HistorySyncFinished"
+          },
+          "expectWrite": "03 09 09 00 01 00 02 a0 de"
+        },
+        {
+          "inject": {
+            "kotlin": "HistorySyncFinished"
+          },
+          "expectNoWrite": true
+        }
+      ],
+      "note": "\"inject\" hands the event straight to the engine (no wire frame), as the Kotlin test does."
+    },
+    {
+      "name": "support bitmap appends only declared optional history",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        },
+        {
+          "notify": [
+            "02 01 1e 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 24 e2"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "SupportFunctions",
+              "capabilities": [
+                "BLOOD_PRESSURE",
+                "TEMPERATURE"
+              ]
+            }
+          ],
+          "match": "exact",
+          "note": "Kotlin injects SupportFunctions({BLOOD_PRESSURE, TEMPERATURE}); this 24-byte bitmap decodes to exactly that set."
+        },
+        {
+          "expectWrite": "01 20 08 00 01 1e 09 06",
+          "note": "Temperature monitor only: no 01 1c (R10M profile has no BP monitor) and no 01 45."
+        },
+        {
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ]
+        },
+        {
+          "expectWrite": "05 08 06 00 82 3b",
+          "notify": [
+            "05 08 07 00 00 08 32"
+          ]
+        },
+        {
+          "expectWrite": "05 1e 06 00 41 ca",
+          "notify": [
+            "05 1e 07 00 00 36 0e"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "note": "Derived: live status again once the startup history walk finishes."
+        }
+      ]
+    },
+    {
+      "name": "repeated support bitmap does not duplicate optional history",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        },
+        {
+          "notify": [
+            "02 01 1e 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4a",
+            "02 01 1e 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4a"
+          ],
+          "note": "No monitor write: R10M profile sends no BP monitor."
+        },
+        {
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ]
+        },
+        {
+          "expectWrite": "05 08 06 00 82 3b",
+          "notify": [
+            "05 08 07 00 00 08 32"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "note": "Derived: live status again once the startup history walk finishes."
+        }
+      ]
+    },
+    {
+      "name": "late HRV capability requeues body data and combined history sources",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de"
+          ]
+        },
+        {
+          "expectWrite": "05 02 06 00 43 fc",
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "notify": [
+            "02 01 1e 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 15 b7"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "SupportFunctions",
+              "capabilities": [
+                "HRV"
+              ]
+            }
+          ],
+          "match": "exact"
+        },
+        {
+          "expectWrite": "01 45 0b 00 01 1e 00 00 00 bc 15",
+          "note": "HRV monitor for the newly added capability."
+        },
+        {
+          "expectWrite": "05 33 06 00 d6 0e",
+          "notify": [
+            "05 33 07 00 00 fe 00"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        }
+      ],
+      "note": "HRV arriving after the walk starts an idle transfer of body data (33) and ALL (09) again."
+    },
+    {
+      "name": "refresh uses the complete capability-filtered history catalog",
+      "source": "YCBTSyncEngineTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        },
+        {
+          "notify": [
+            "02 01 1e 00 01 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 08 00 00 00 00 40 00 45 7c"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "SupportFunctions",
+              "capabilities": [
+                "BLOOD_PRESSURE",
+                "TEMPERATURE",
+                "BLOOD_SUGAR",
+                "STRESS",
+                "FATIGUE"
+              ]
+            }
+          ],
+          "match": "exact",
+          "note": "Kotlin injects {BLOOD_PRESSURE, TEMPERATURE, BLOOD_SUGAR, STRESS}; the stress bit also sets FATIGUE, which changes nothing here (no monitor, same body-data type)."
+        },
+        {
+          "expectWrite": "01 20 08 00 01 1e 09 06",
+          "note": "Only the temperature monitor is new (no BP monitor on the R10M profile; stress, fatigue and sugar have none)."
+        },
+        {
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ]
+        },
+        {
+          "expectWrite": "05 08 06 00 82 3b",
+          "notify": [
+            "05 08 07 00 00 08 32"
+          ]
+        },
+        {
+          "expectWrite": "05 1e 06 00 41 ca",
+          "notify": [
+            "05 1e 07 00 00 36 0e"
+          ]
+        },
+        {
+          "expectWrite": "05 2f 06 00 d4 38",
+          "notify": [
+            "05 2f 07 00 00 6b 54"
+          ]
+        },
+        {
+          "expectWrite": "05 33 06 00 d6 0e",
+          "notify": [
+            "05 33 07 00 00 fe 00"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "note": "Derived: live status again once the startup history walk finishes."
+        },
+        {
+          "send": {
+            "op": "refresh"
+          },
+          "expectWrite": "03 09 09 00 01 00 02 a0 de"
+        },
+        {
+          "expectWrite": "05 02 06 00 43 fc",
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 08 06 00 82 3b",
+          "notify": [
+            "05 08 07 00 00 08 32"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ]
+        },
+        {
+          "expectWrite": "05 1e 06 00 41 ca",
+          "notify": [
+            "05 1e 07 00 00 36 0e"
+          ]
+        },
+        {
+          "expectWrite": "05 2f 06 00 d4 38",
+          "notify": [
+            "05 2f 07 00 00 6b 54"
+          ]
+        },
+        {
+          "expectWrite": "05 33 06 00 d6 0e",
+          "notify": [
+            "05 33 07 00 00 fe 00"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        }
+      ]
+    },
+    {
+      "name": "warm pass omits configuration but preserves supported whole-type history requests",
+      "source": "YCBTSyncEngineGateTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de"
+          ]
+        },
+        {
+          "expectWrite": "05 02 06 00 43 fc",
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de"
+        },
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "03 09 09 00 01 00 02 a0 de"
+          ],
+          "note": "Second pass on the same connection: no configuration, only live status, then the same whole-type history."
+        },
+        {
+          "expectWrite": "05 02 06 00 43 fc",
+          "notify": [
+            "05 02 07 00 00 a3 5a"
+          ]
+        },
+        {
+          "expectWrite": "05 04 06 00 e3 4e",
+          "notify": [
+            "05 04 07 00 00 3a 7d"
+          ]
+        },
+        {
+          "expectWrite": "05 06 06 00 83 20",
+          "notify": [
+            "05 06 07 00 00 52 90"
+          ]
+        },
+        {
+          "expectWrite": "05 09 06 00 b2 0c",
+          "notify": [
+            "05 09 07 00 00 bc 44"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistorySyncFinished"
+            }
+          ],
+          "match": "contains"
+        },
+        {
+          "expectWrite": "03 09 09 00 01 00 02 a0 de",
+          "note": "runStartup re-arms the after-history live status request on every pass."
+        },
+        {
+          "send": {
+            "op": "engineReset"
+          }
+        },
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ],
+          "note": "After reset the full preamble is sent again."
+        }
+      ],
+      "note": "There is no day selector: every pass reads every type in full (a known Lumen limitation)."
+    },
+    {
+      "name": "reentrant startup sends no additional configuration or history",
+      "source": "YCBTSyncEngineGateTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectWrites": [
+            "02 00 08 00 47 43 6f ec",
+            "02 01 08 00 47 46 9b 16",
+            "02 07 08 00 43 46 da 17",
+            "01 12 07 00 00 02 c8",
+            "01 04 0c 00 00 00 00 00 00 00 24 03",
+            "01 0c 08 00 01 1e 96 85",
+            "01 26 08 00 01 1e 8c cb",
+            "01 03 0a 00 af 46 00 19 e0 3a",
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        },
+        {
+          "send": {
+            "op": "runStartup"
+          },
+          "expectNoWrite": true
+        }
+      ]
+    },
+    {
+      "name": "connectionDidEnd abandons the in flight history transfer",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "tz": "UTC"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "refresh"
+          },
+          "expectWrites": [
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        },
+        {
+          "send": {
+            "op": "refresh"
+          },
+          "expectWrites": [
+            "03 09 09 00 01 00 02 a0 de"
+          ],
+          "note": "Transfer in flight: only live status."
+        },
+        {
+          "reconnect": "end",
+          "send": {
+            "op": "refresh"
+          },
+          "expectWrites": [
+            "03 09 09 00 01 00 02 a0 de",
+            "05 02 06 00 43 fc"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "spot heart rate ending in 04 0e",
+      "source": "YCBTDecoderTest.kt + YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "kind": "hr",
+        "ceilingS": 45,
+        "signalsMeasurementCompletion": true
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 0
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 00 4f 1b",
+          "notify": [
+            "03 2f 07 00 00 ee 99"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "exact",
+          "note": "Start accepted (status 00)."
+        },
+        {
+          "notify": [
+            "04 13 09 00 00 01 48 ed b6"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 72
+            }
+          ],
+          "match": "exact"
+        },
+        {
+          "expectWrite": "04 13 07 00 00 e1 9d",
+          "note": "Every 04 push is acknowledged with 04 <key> 00."
+        },
+        {
+          "notify": [
+            "04 0e 08 00 00 01 fb 52"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementComplete",
+              "mode": 0,
+              "success": true
+            }
+          ],
+          "match": "exact",
+          "note": "The ring ends the measurement itself (mode 00, status 01 = success)."
+        },
+        {
+          "expectWrite": "04 0e 07 00 00 c0 bf"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": false,
+              "mode": 0
+            }
+          },
+          "expectWrite": "03 2f 08 00 00 00 7e 28",
+          "note": "The app always writes the stop, even after the ring ended it."
+        }
+      ],
+      "note": "Synthetic: the frames are the decoder/driver test vectors stitched together. On hardware the ring ended a spot HR at about 35 s; the 45 s ceiling only applies when 04 0e never comes. Lumen settles the value from the samples it collected (the vendor app re-syncs history instead)."
+    },
+    {
+      "name": "spot SpO2 ending in 04 0e",
+      "source": "YCBTDecoderTest.kt + YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5",
+        "kind": "spo2",
+        "ceilingS": 75,
+        "signalsMeasurementCompletion": true
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 2
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 02 0d 3b",
+          "notify": [
+            "03 2f 07 00 00 ee 99"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "exact"
+        },
+        {
+          "notify": [
+            "04 13 09 00 02 01 62 a5 5d"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "Spo2Result",
+              "value": 98
+            }
+          ],
+          "match": "exact"
+        },
+        {
+          "expectWrite": "04 13 07 00 00 e1 9d"
+        },
+        {
+          "notify": [
+            "04 0e 08 00 02 01 99 34"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementComplete",
+              "mode": 2,
+              "success": true
+            }
+          ],
+          "match": "exact"
+        },
+        {
+          "expectWrite": "04 0e 07 00 00 c0 bf"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": false,
+              "mode": 2
+            }
+          },
+          "expectWrite": "03 2f 08 00 00 02 3c 08"
+        }
+      ],
+      "note": "Raised SpO2 ceiling: 75 s (default 60). Five hardware captures ended with 04 0e at about 63 s."
+    },
+    {
+      "name": "driver pairs a refusal with the start it sent and only once",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 10
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 0a 05 ba",
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementRejected",
+              "mode": 10
+            }
+          ],
+          "match": "prefix"
+        },
+        {
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "prefix"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": false,
+              "mode": 10
+            }
+          },
+          "expectWrite": "03 2f 08 00 00 0a 34 89",
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "prefix",
+          "note": "A stop records no started mode, so its reply can never be a refusal."
+        }
+      ]
+    },
+    {
+      "name": "a stops reply does not consume the mode of the start queued behind it",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": false,
+              "mode": 2
+            }
+          },
+          "expectWrite": "03 2f 08 00 00 02 3c 08"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 0
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 00 4f 1b"
+        },
+        {
+          "notify": [
+            "03 2f 07 00 00 ee 99"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "prefix"
+        },
+        {
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementRejected",
+              "mode": 0
+            }
+          ],
+          "match": "prefix"
+        }
+      ]
+    },
+    {
+      "name": "a NAKed stop cannot cancel the measurement started behind it",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": false,
+              "mode": 10
+            }
+          },
+          "expectWrite": "03 2f 08 00 00 0a 34 89"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 0
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 00 4f 1b"
+        },
+        {
+          "notify": [
+            "03 2f 07 00 02 ac b9"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "prefix"
+        },
+        {
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementRejected",
+              "mode": 0
+            }
+          ],
+          "match": "prefix"
+        }
+      ]
+    },
+    {
+      "name": "a reconnect drops the commands the old link never answered",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 10
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 0a 05 ba"
+        },
+        {
+          "reconnect": "end+start",
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 47
+            }
+          ],
+          "match": "prefix"
+        }
+      ]
+    },
+    {
+      "name": "measurement data clears a lost start reply before the next command",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 0
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 00 4f 1b"
+        },
+        {
+          "notify": [
+            "04 13 09 00 00 00 48 dc 85"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 72
+            }
+          ],
+          "match": "prefix",
+          "note": "A real HR value proves the HR start worked; its pending reply slot is discarded."
+        },
+        {
+          "expectWrite": "04 13 07 00 00 e1 9d"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 2
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 02 0d 3b",
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementRejected",
+              "mode": 2
+            }
+          ],
+          "match": "exact"
+        }
+      ]
+    },
+    {
+      "name": "measurement data preserves pending replies for other modes",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver+engine",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "steps": [
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 0
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 00 4f 1b"
+        },
+        {
+          "send": {
+            "op": "liveMeasurement",
+            "params": {
+              "enable": true,
+              "mode": 2
+            }
+          },
+          "expectWrite": "03 2f 08 00 01 02 0d 3b"
+        },
+        {
+          "notify": [
+            "04 13 09 00 00 00 48 dc 85"
+          ]
+        },
+        {
+          "expectWrite": "04 13 07 00 00 e1 9d",
+          "notify": [
+            "03 2f 07 00 01 cf 89"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "MeasurementRejected",
+              "mode": 2
+            }
+          ],
+          "match": "exact"
+        }
+      ],
+      "note": "Pending start replies are FIFO, capped at 8 (the oldest is dropped)."
+    }
+  ]
+}

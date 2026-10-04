@@ -1,0 +1,323 @@
+{
+  "family": "jstyle2301",
+  "source": "app/src/test/java/com/pulseloop/ring/JStyle2301ProtocolTest.kt",
+  "vectors": [
+    {
+      "name": "vendor manual HR frames are exact 16 byte SDK commands: prepare",
+      "command": {
+        "op": "realtimeSteps",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "09 01 00 00 00 00 00 00 00 00 00 00 00 00 00 0a"
+    },
+    {
+      "name": "vendor manual HR frames are exact 16 byte SDK commands: prepare stop",
+      "command": {
+        "op": "realtimeSteps",
+        "params": {
+          "enable": false
+        }
+      },
+      "frame": "09 00 00 00 00 00 00 00 00 00 00 00 00 00 00 09"
+    },
+    {
+      "name": "vendor manual HR frames are exact 16 byte SDK commands: start",
+      "command": {
+        "op": "hrMeasure",
+        "params": {
+          "start": true,
+          "seconds": 30
+        }
+      },
+      "frame": "28 02 01 1e 00 00 00 00 00 00 00 00 00 00 00 49"
+    },
+    {
+      "name": "vendor manual HR frames are exact 16 byte SDK commands: stop",
+      "command": {
+        "op": "hrMeasure",
+        "params": {
+          "start": false,
+          "seconds": 30
+        }
+      },
+      "frame": "28 02 00 1e 00 00 00 00 00 00 00 00 00 00 00 48"
+    },
+    {
+      "name": "vendor walk and run sport frames preserve exact mode and lifecycle bytes: run start",
+      "command": {
+        "op": "sportMode",
+        "params": {
+          "mode": 0,
+          "state": 1
+        }
+      },
+      "frame": "19 01 00 00 02 00 00 00 00 00 00 00 00 00 00 1c"
+    },
+    {
+      "name": "vendor walk and run sport frames preserve exact mode and lifecycle bytes: walk start",
+      "command": {
+        "op": "sportMode",
+        "params": {
+          "mode": 9,
+          "state": 1
+        }
+      },
+      "frame": "19 01 09 00 02 00 00 00 00 00 00 00 00 00 00 25"
+    },
+    {
+      "name": "vendor walk and run sport frames preserve exact mode and lifecycle bytes: walk stop",
+      "command": {
+        "op": "sportMode",
+        "params": {
+          "mode": 9,
+          "state": 4
+        }
+      },
+      "frame": "19 04 09 00 02 00 00 00 00 00 00 00 00 00 00 28"
+    },
+    {
+      "name": "authenticated walk workout uses vendor sport mode and stop while unsupported types no op: pause",
+      "command": {
+        "op": "sportMode",
+        "params": {
+          "mode": 9,
+          "state": 2
+        }
+      },
+      "frame": "19 02 09 00 02 00 00 00 00 00 00 00 00 00 00 26",
+      "note": "asserted through JStyle2301SyncEngine.pauseWorkoutHeartRate (first 5 bytes)"
+    },
+    {
+      "name": "authenticated walk workout uses vendor sport mode and stop while unsupported types no op: resume",
+      "command": {
+        "op": "sportMode",
+        "params": {
+          "mode": 9,
+          "state": 3
+        }
+      },
+      "frame": "19 03 09 00 02 00 00 00 00 00 00 00 00 00 00 27",
+      "note": "asserted through JStyle2301SyncEngine.resumeWorkoutHeartRate (first 5 bytes)"
+    },
+    {
+      "name": "history commands are 16 bytes with the verified cursor mode and checksum: first page",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 85
+        }
+      },
+      "frame": "55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 55"
+    },
+    {
+      "name": "history commands are 16 bytes with the verified cursor mode and checksum: continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 85
+        }
+      },
+      "frame": "55 02 00 00 00 00 00 00 00 00 00 00 00 00 00 57"
+    },
+    {
+      "name": "V0789 authentication command is exact and its stored diagnostic copy is redacted",
+      "command": {
+        "op": "authenticate",
+        "params": {
+          "credential": "TESTKEY1"
+        }
+      },
+      "frame": "3c 54 45 53 54 4b 45 59 31 00 00 00 00 00 00 96",
+      "note": "test credential only: the Kotlin test uses its own placeholder; replaced with TESTKEY1 under the fixture rule. \"redacted\" is what redactOutbound must return: opcode kept, bytes 1..14 zero.",
+      "redacted": "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c"
+    },
+    {
+      "name": "V0789 gates all history until authentication succeeds: battery query",
+      "command": {
+        "op": "battery"
+      },
+      "frame": "13 00 00 00 00 00 00 00 00 00 00 00 00 00 00 13",
+      "note": "the test asserts the opcode only; the rest is JStyle2301Protocol.command(0x13)"
+    },
+    {
+      "name": "V0789 gates all history until authentication succeeds: firmware query",
+      "command": {
+        "op": "firmware"
+      },
+      "frame": "27 00 00 00 00 00 00 00 00 00 00 00 00 00 00 27",
+      "note": "the test asserts the opcode only; the rest is JStyle2301Protocol.command(0x27)"
+    },
+    {
+      "name": "V0525 begins history without authentication: first catalogue stream",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 81
+        }
+      },
+      "frame": "51 00 00 00 00 00 00 00 00 00 00 00 00 00 00 51",
+      "note": "the test asserts the opcode only"
+    },
+    {
+      "name": "one-page startup budget advances instead of requesting a continuation: next stream",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 102
+        }
+      },
+      "frame": "66 00 00 00 00 00 00 00 00 00 00 00 00 00 00 66",
+      "note": "the test asserts opcode 0x66 and mode 0"
+    },
+    {
+      "name": "derived: chip query",
+      "command": {
+        "op": "chip"
+      },
+      "frame": "21 00 00 00 00 00 00 00 00 00 00 00 00 00 00 21",
+      "note": "derived from JStyle2301Protocol.command; defined in Kotlin but never sent by its driver"
+    },
+    {
+      "name": "derived: name query",
+      "command": {
+        "op": "name"
+      },
+      "frame": "3e 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+      "note": "derived from JStyle2301Protocol.command; defined in Kotlin but never sent by its driver"
+    },
+    {
+      "name": "derived: history 0x51 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 81
+        }
+      },
+      "frame": "51 02 00 00 00 00 00 00 00 00 00 00 00 00 00 53",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x52 first page",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 82
+        }
+      },
+      "frame": "52 00 00 00 00 00 00 00 00 00 00 00 00 00 00 52",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x52 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 82
+        }
+      },
+      "frame": "52 02 00 00 00 00 00 00 00 00 00 00 00 00 00 54",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x53 first page",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 83
+        }
+      },
+      "frame": "53 00 00 00 00 00 00 00 00 00 00 00 00 00 00 53",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x53 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 83
+        }
+      },
+      "frame": "53 02 00 00 00 00 00 00 00 00 00 00 00 00 00 55",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x54 first page",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 84
+        }
+      },
+      "frame": "54 00 00 00 00 00 00 00 00 00 00 00 00 00 00 54",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x54 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 84
+        }
+      },
+      "frame": "54 02 00 00 00 00 00 00 00 00 00 00 00 00 00 56",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x56 first page",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 86
+        }
+      },
+      "frame": "56 00 00 00 00 00 00 00 00 00 00 00 00 00 00 56",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x56 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 86
+        }
+      },
+      "frame": "56 02 00 00 00 00 00 00 00 00 00 00 00 00 00 58",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x62 first page",
+      "command": {
+        "op": "history",
+        "params": {
+          "opcode": 98
+        }
+      },
+      "frame": "62 00 00 00 00 00 00 00 00 00 00 00 00 00 00 62",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x62 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 98
+        }
+      },
+      "frame": "62 02 00 00 00 00 00 00 00 00 00 00 00 00 00 64",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    },
+    {
+      "name": "derived: history 0x66 continuation",
+      "command": {
+        "op": "historyContinue",
+        "params": {
+          "opcode": 102
+        }
+      },
+      "frame": "66 02 00 00 00 00 00 00 00 00 00 00 00 00 00 68",
+      "note": "derived from JStyle2301Protocol.historyRequest"
+    }
+  ]
+}

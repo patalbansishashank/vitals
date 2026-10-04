@@ -3,6 +3,7 @@ import type { RingDecodedEvent } from '../ble/types';
 import { mapEventsToBatch } from '../events';
 import type { EventMapContext } from '../events';
 import { flattenStages, parseStamp, sleepMetrics } from '../importKit';
+import { SLEEP_COMPLETE, sleepVersion } from '../recordIds';
 
 const T0 = Date.UTC(2026, 8, 29, 22, 0, 0); // 2026-09-30 00:00 at +02:00
 const ctx: EventMapContext = {
@@ -72,7 +73,9 @@ describe('mapEventsToBatch', () => {
     const e: RingDecodedEvent = { type: 'sleepEpochs', start: T0, epochS: 60, stages: ['light', 'deep'], rawCodes: [2, 1], firmware: 'x', complete: true };
     const r = mapEventsToBatch([e], ctx).records[0]!;
     expect(r.quality.flags).toEqual([]);
-    expect(r.version).toBe(2);
+    // R20-ID-03: complete beats provisional, and a later read beats an earlier one
+    expect(r.version).toBe(sleepVersion(true, Date.parse(ctx.ingestedAt) / 1000));
+    expect(r.version).toBeGreaterThan(SLEEP_COMPLETE);
   });
 });
 

@@ -1,0 +1,25 @@
+// J5 check 3 (desktop): packaged Linux app, temporary user-data-dir, read-only use of the build. No Bluetooth.
+import { _electron as electron } from 'playwright-core';
+import fs from 'node:fs';
+import path from 'node:path';
+import { OUT } from './lib.mjs';
+const dir = '/media/DEV/Hobby/vitals-wt/L-DESKTOP/apps/desktop/release/linux-unpacked';
+const exe = fs.readdirSync(dir).find((f) => /^vitals/i.test(f) && !f.includes('.'));
+console.log('exe', exe);
+const ud = fs.mkdtempSync(path.join(path.resolve('.e6-tmp'), 'j5-electron-'));
+const env = { ...process.env };
+for (const k of ['VITALS_SMOKE', 'ELECTRON_RUN_AS_NODE', 'APPIMAGE', 'DISPLAY']) delete env[k];
+const home = path.join(ud, 'home'); fs.mkdirSync(path.join(home, '.config'), { recursive: true }); fs.mkdirSync(path.join(home, '.local/share'), { recursive: true }); fs.mkdirSync(path.join(ud, 'tmp'), { recursive: true });
+Object.assign(env, { HOME: home, XDG_CONFIG_HOME: path.join(home, '.config'), XDG_DATA_HOME: path.join(home, '.local/share'), XDG_CACHE_HOME: path.join(home, '.cache'), TMPDIR: path.join(ud, 'tmp'), WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || 'wayland-1', XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid()}` });
+const app = await electron.launch({ executablePath: path.join(dir, exe), args: ['--ozone-platform=wayland', '--hidden', `--user-data-dir=${path.join(ud, 'data')}`], env, timeout: 60000 });
+const win = await app.firstWindow({ timeout: 60000 });
+await win.waitForLoadState('load');
+await win.waitForTimeout(5000);
+const r = await win.evaluate(() => ({ url: location.href, h1: document.querySelector('h1')?.textContent, block: !!document.querySelector('.lm-dl'), text: document.body.innerText.includes('Get the app'), bridge: typeof window.vitalsDesktop, ua: navigator.userAgent.slice(0, 80) }));
+console.log(JSON.stringify(r));
+await win.screenshot({ path: path.join(OUT, 'electron-first-screen.png'), timeout: 8000 }).catch((e) => console.log('screenshot unavailable (hidden window):', e.name));
+await win.goto(win.url().replace(/#.*$/, '').replace(/\/[^/]*$/, '/') + 'settings#install').catch(() => {});
+await win.waitForTimeout(2500);
+console.log('settings install:', JSON.stringify(await win.evaluate(() => ({ url: location.href, h1: document.querySelector('h1')?.textContent, block: !!document.querySelector('.lm-dl'), text: document.body.innerText.includes('Get the app') }))));
+await app.close();
+fs.rmSync(ud, { recursive: true, force: true });

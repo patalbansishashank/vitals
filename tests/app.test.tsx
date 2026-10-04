@@ -54,11 +54,11 @@ describe('app shell', () => {
 
   it('moves focus to the new screen title after client-side navigation (lazy screens included)', async () => {
     const router = renderAt('/settings');
-    await screen.findByRole('heading', { level: 1, name: 'Settings' }, { timeout: 5000 });
+    await screen.findByRole('heading', { level: 1, name: 'Settings' }, { timeout: 10_000 });
     await router.navigate('/body');
-    const h1 = await screen.findByRole('heading', { level: 1, name: 'Your body' }, { timeout: 5000 });
+    const h1 = await screen.findByRole('heading', { level: 1, name: 'Your body' }, { timeout: 10_000 });
     await waitFor(() => expect(document.activeElement).toBe(h1), { timeout: 3000 });
-  });
+  }, 30_000); // two lazy screens load in turn; slow when the whole suite runs on a busy machine
 
   it('catches a screen that throws and keeps the navigation working', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);

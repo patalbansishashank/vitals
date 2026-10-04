@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '@/app/App';
 import { APP_VERSION } from '@/app/version';
 import { initPwa } from '@/app/pwa';
+import { detectPlatform } from '@/platform/detect';
 import { setAppVersion } from '@/state/persistence';
 
 initTheme();
@@ -21,6 +22,11 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+// The Android app (SUITE_SPEC §15.7): files shared in and saved out, the foreground service and ring alerts that follow
+// the ring service, and no service worker. Nothing is loaded for this elsewhere.
+if (detectPlatform() === 'android')
+  void Promise.all([import('@/platform/androidBoot'), import('@/biometrics/service')]).then(([m, s]) => m.installAndroidShell({ ringService: s.getRingService() }));
 
 // Sync is off until the user pairs; this chunk only checks the device vault and, when paired, loads the engine.
 void import('@/state/sync').then((m) => m.initSync());

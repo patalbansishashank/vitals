@@ -6,6 +6,7 @@
  * Chrome exposes no ATT MTU, so `mtu` stays undefined (Chrome Android negotiation UNVERIFIED, R10 §4.4).
  */
 import type { BleDriver, BleLink, BluetoothServiceUUID } from '@/biometrics/core/ble/types';
+import type { RingLink } from './transports/types';
 
 // Minimal Web Bluetooth surface (the DOM lib does not ship these types).
 interface GattCharacteristic extends EventTarget {
@@ -27,6 +28,7 @@ interface GattServer {
   getPrimaryService(s: BluetoothServiceUUID): Promise<GattService>;
 }
 interface BtDevice extends EventTarget {
+  readonly id?: string;
   readonly name?: string;
   readonly gatt?: GattServer;
 }
@@ -44,10 +46,17 @@ export function isWebBluetoothAvailable(): boolean {
   return bluetooth() !== undefined;
 }
 
+/** Web Bluetooth exists and the browser says an adapter is there (false also when it is switched off). */
+export async function webBluetoothAvailability(): Promise<boolean> {
+  const bt = bluetooth();
+  if (!bt) return false;
+  return bt.getAvailability ? bt.getAvailability().catch(() => false) : true;
+}
+
 /** Copies a notification DataView (Chrome reuses the buffer). */
 const copy = (v: DataView): Uint8Array => new Uint8Array(v.buffer.slice(v.byteOffset, v.byteOffset + v.byteLength) as ArrayBuffer);
 
-export class WebBluetoothLink implements BleLink {
+export class WebBluetoothLink implements BleLink, RingLink {
   private services = new Map<string, Promise<GattService>>();
   private chars = new Map<string, Promise<GattCharacteristic>>();
   private dropListeners = new Set<() => void>();
@@ -65,9 +74,20 @@ export class WebBluetoothLink implements BleLink {
     return this.device.name;
   }
 
+  /** Set by a transport that knows a better id than Chromium's opaque one (the desktop app gets the Bluetooth address). */
+  platformId?: string;
+
+  get deviceId(): string | undefined {
+    return this.platformId ?? this.device.id;
+  }
+
+  private dropped = false;
+
   private onDrop = (): void => {
     this.services.clear();
     this.chars.clear();
+    if (this.dropped) return;
+    this.dropped = true;
     for (const l of this.dropListeners) l();
   };
 
@@ -137,7 +157,7 @@ export class WebBluetoothLink implements BleLink {
 }
 
 /** Shows the chooser filtered by the driver and connects. Call from a user gesture. */
-export async function requestDevice(driver: BleDriver): Promise<WebBluetoothLink> {
+export async function requestDevice(driver: Pick<BleDriver, 'requestOptions'>): Promise<WebBluetoothLink> {
   const bt = bluetooth();
   if (!bt) throw new Error('Web Bluetooth is not available in this browser');
   if (bt.getAvailability && !(await bt.getAvailability())) throw new Error('Bluetooth adapter unavailable');

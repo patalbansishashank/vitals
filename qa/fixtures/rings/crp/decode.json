@@ -1,0 +1,1615 @@
+{
+  "family": "crp",
+  "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt (+ app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt; derived vectors marked)",
+  "excluded": [
+    {
+      "name": "sleep history reply decodes a full night into per-minute stages",
+      "reason": "payload is a real night captured from a person's ring; replaced by \"synthetic evening night for yesterday with an invalid record skipped\""
+    },
+    {
+      "name": "HR timing frame decodes one bpm per 5-minute slot at the right time-of-day",
+      "reason": "real all-day heart-rate capture; replaced by the synthetic HR timing frames"
+    },
+    {
+      "name": "HRV timing frame decodes little-endian two-byte samples per slot",
+      "reason": "real HRV capture; replaced by the synthetic HRV timing frame"
+    },
+    {
+      "name": "temperature history frame decodes little-endian tenths of a degree per slot",
+      "reason": "real temperature capture; replaced by the synthetic temperature timing frame"
+    },
+    {
+      "name": "wear state maps to a PulseEvent WearState / firmware version reaches the device record / TimingHistoryFrame produces no PulseEvent / CRP keeps SpO2 as an unconditional capability",
+      "reason": "Lumen event-bus or capability assertions, no bytes; covered in crp.md \"Mapping to RingEvent\""
+    },
+    {
+      "name": "connect is held until the command-reply channel is live",
+      "reason": "topology assertion, no bytes; in crp.md and sessions.json (requiredSubscriptions)"
+    }
+  ],
+  "vectors": [
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "current-steps push decodes little-endian steps distance calories",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd1-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "e8 03 00 f4 01 00 2a 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "steps": 1000,
+          "distanceMeters": 500,
+          "calories": 42
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "steps push with only the step triple still decodes, distance and calories zero",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd1-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "0a 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "steps": 10,
+          "distanceMeters": 0,
+          "calories": 0
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "steps push of non-multiple-of-three length is rejected",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd1-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "01 02",
+      "match": "exact",
+      "events": []
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 cmd9 framed reply decodes heart rate from payload0",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 09 4a",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 74
+        }
+      ],
+      "note": "Single-byte spot reply; the Kotlin test quotes it as the frame shape a ring returned. No date, no person: kept."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 cmd9 out-of-range bpm is dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 09 00",
+      "match": "exact",
+      "events": []
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 cmd10 decodes hrv from payload0",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0a 2d",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "HrvSample",
+          "value": 45
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 cmd11 decodes spo2 from payload0",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0b 62",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 98
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 cmd14 decodes stress from payload0",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0e 25",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "StressSample",
+          "value": 37
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 cmd32 decodes temperature as two-byte tenths of a degree",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 08 01 20 6d 01",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "TemperatureSample",
+          "celsius": 36.5
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group1 out-of-range temperature is dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 08 01 20 64 00",
+      "match": "exact",
+      "events": []
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group3 cmd7 payload0 zero decodes wear state not worn",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 03 07 00",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "WearingStatus",
+          "worn": false
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "group3 cmd7 payload0 nonzero decodes wear state worn",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 03 07 01",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "WearingStatus",
+          "worn": true
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "firmware version decodes as the UTF-8 string the vendor reads",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 14 03 03 4d 4f 59 2d 52 31 4b 33 2d 32 2e 31 2e 36",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "FirmwareRevision",
+          "version": "MOY-R1K3-2.1.6"
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "firmware version tolerates NUL padding",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 16 03 03 4d 4f 59 2d 52 31 4b 33 2d 32 2e 31 2e 36 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "FirmwareRevision",
+          "version": "MOY-R1K3-2.1.6"
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "empty firmware payload is acked, not reported as a blank version",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 03 03 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 51
+        }
+      ],
+      "note": "commandId is Kotlin's lossy (group << 4) | (cmd & 0x0f); the test asserts the class only."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a non-text firmware payload is acked rather than coerced into a version (invalid UTF-8)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 0a 03 03 c3 28 a0 ff",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 51
+        }
+      ],
+      "note": "commandId is Kotlin's lossy (group << 4) | (cmd & 0x0f); the test asserts the class only."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a non-text firmware payload is acked rather than coerced into a version (valid UTF-8, binary)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 0a 03 03 01 02 03 41",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 51
+        }
+      ],
+      "note": "The vendor trim would have published \"A\"; the port must not. commandId is Kotlin's lossy (group << 4) | (cmd & 0x0f); the test asserts the class only."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "unrecognised group3 cmd is acked, not dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 03 02 00",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 50
+        }
+      ],
+      "note": "commandId is Kotlin's lossy (group << 4) | (cmd & 0x0f); the test asserts the class only."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "unrecognised group1 cmd is acked, not dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 00 00",
+      "match": "first",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 16
+        }
+      ],
+      "note": "commandId is Kotlin's lossy (group << 4) | (cmd & 0x0f); the test asserts the class only."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "name": "isFrameStart recognises the FD DA magic",
+      "context": {
+        "layer": "header"
+      },
+      "bytes": "fd da 10 06",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPProtocol.isFrameStart",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "name": "isFrameStart rejects FD 00",
+      "context": {
+        "layer": "header"
+      },
+      "bytes": "fd 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPProtocol.isFrameStart",
+          "value": false
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "name": "isFrameStart rejects a lone DA",
+      "context": {
+        "layer": "header"
+      },
+      "bytes": "da",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPProtocol.isFrameStart",
+          "value": false
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "name": "frameLength reads byte3 (short frame)",
+      "context": {
+        "layer": "header"
+      },
+      "bytes": "fd da 10 14",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPProtocol.frameLength",
+          "value": 20
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "name": "frameLength takes the 9th bit from byte2 bit0 (long frame)",
+      "context": {
+        "layer": "header"
+      },
+      "bytes": "fd da 11 05",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPProtocol.frameLength",
+          "value": 261
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "assembler returns a single-packet frame immediately",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "fd da 10 07 01 09 50"
+      ],
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPFrameAssembler.frame",
+          "bytes": "fd da 10 07 01 09 50"
+        }
+      ],
+      "eventsPerChunk": [
+        [
+          {
+            "kotlin": "CRPFrameAssembler.frame",
+            "bytes": "fd da 10 07 01 09 50"
+          }
+        ]
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "assembler reassembles a frame split across two notifications",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "fd da 10 0a 02 05",
+        "01 02 03 04"
+      ],
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CRPFrameAssembler.frame",
+          "bytes": "fd da 10 0a 02 05 01 02 03 04"
+        }
+      ],
+      "eventsPerChunk": [
+        [],
+        [
+          {
+            "kotlin": "CRPFrameAssembler.frame",
+            "bytes": "fd da 10 0a 02 05 01 02 03 04"
+          }
+        ]
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "assembler drops a continuation with no in-progress frame",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "01 02 03 04"
+      ],
+      "match": "exact",
+      "events": [],
+      "eventsPerChunk": [
+        []
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "driver routes fdd1 to steps and reassembles fdd3 replies (fdd1 part)",
+      "context": {
+        "layer": "driver",
+        "channel": "0000fdd1-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "05 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate"
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "driver routes fdd1 to steps and reassembles fdd3 replies (fdd3 split 4 + 3)",
+      "context": {
+        "layer": "driver",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytesSequence": [
+        "fd da 10 07",
+        "01 09 50"
+      ],
+      "match": "counts",
+      "events": [
+        {
+          "kotlin": "FramePending",
+          "startsFrame": true
+        },
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 80
+        }
+      ],
+      "eventsPerChunk": [
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": true
+          }
+        ],
+        [
+          {
+            "kotlin": "HeartRateSample",
+            "bpm": 80
+          }
+        ]
+      ],
+      "note": "Kotlin asserts chunk 1 -> one FramePending(startsFrame=true), chunk 2 -> exactly one event; the bpm 80 is derived."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "sleep reply with only the day byte yields no timeline",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 0e 00",
+      "match": "none:SleepTimeline",
+      "events": []
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "post-midnight night anchors on the query day",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T11:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 0d 02 0e 00 01 01 00 00 08 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "t": "2026-07-22T01:00:00Z",
+          "stagesCount": 420,
+          "firstStage": "LIGHT"
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "evening-start night rolls back before midnight",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T11:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 0d 02 0e 00 01 17 00 00 06 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "t": "2026-07-21T23:00:00Z",
+          "stagesCount": 420
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a night and a nap split into separate sessions on the long awake gap",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 13 02 0e 00 01 01 00 00 03 00 01 05 00 00 06 00",
+      "match": "only:SleepTimeline",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "t": "2026-07-22T01:00:00Z",
+          "stagesCount": 120
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "t": "2026-07-22T05:00:00Z",
+          "stagesCount": 60
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a brief mid-night wake stays inside one session",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 13 02 0e 00 01 01 00 00 02 00 02 02 1e 00 04 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "stagesCount": 180,
+          "stageCounts": {
+            "LIGHT": 60,
+            "AWAKE": 30,
+            "DEEP": 90
+          }
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "malformed sleep reply length is rejected",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 0a 02 0e 00 01 02 03",
+      "match": "none:SleepTimeline",
+      "events": []
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "temperature slots outside the vendor's plausible range are dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 10 02 16 00 00 00 00 0f 01 f5 01 6d 01",
+      "match": "only:HistoryMeasurement",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 36.5
+        }
+      ],
+      "note": "0 (empty), 271 (27.1, low), 501 (50.1, high), 365 (kept). Kotlin uses the system clock, so t is not asserted."
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "temperature history frame emits the follow-up marker",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 98 02 16 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "only:TimingHistoryFrame",
+      "events": [
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 22,
+          "frameIndex": 2
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "an all-zero timing frame yields no samples, only the follow-up marker",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 98 02 11 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "none:HistoryMeasurement+only:TimingHistoryFrame",
+      "events": [
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 17,
+          "frameIndex": 0
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a timing frame emits a TimingHistoryFrame marker carrying its cmd, day and index",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 98 02 0f 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "only:TimingHistoryFrame",
+      "events": [
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 15,
+          "day": 1,
+          "frameIndex": 0
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a NOT_SUPPORT reply grants no SpO2 capability",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 25 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": []
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a real SpO2 type is decoded as a claim of support (type 1)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 25 01",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": [
+            "SPO2",
+            "MANUAL_SPO2"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "a real SpO2 type is decoded as a claim of support (type 2)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 25 02",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": [
+            "SPO2",
+            "MANUAL_SPO2"
+          ]
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "an unknown support type is not treated as a claim of support (type 0xff)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 25 ff",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": []
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "an unknown support type is not treated as a claim of support (type 0x03)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 25 03",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": []
+        }
+      ]
+    },
+    {
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "name": "an unknown support type is not treated as a claim of support (type 0x09)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 25 09",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": []
+        }
+      ]
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic HR timing frame (day 0, frame 0) with edge and invalid slots",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 0f 00 00 3e 27 00 00 00 00 00 00 00 00 00 00 47 c9 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 c8 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 28",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 62,
+          "t": "2026-07-24T00:00:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 71,
+          "t": "2026-07-24T01:00:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 200,
+          "t": "2026-07-24T08:20:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 40,
+          "t": "2026-07-24T11:55:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 15,
+          "day": 0,
+          "frameIndex": 0
+        }
+      ],
+      "derived": true,
+      "note": "Stand-in for the capture-derived Kotlin test \"HR timing frame decodes one bpm per 5-minute slot\". One byte per slot, valid 40..200, slot k at local midnight + 5k min."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic HR timing frame (day 0, frame 1, terminal)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 0f 00 01 58 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 5f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 88,
+          "t": "2026-07-24T12:00:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 95,
+          "t": "2026-07-24T16:10:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 15,
+          "day": 0,
+          "frameIndex": 1
+        }
+      ],
+      "derived": true,
+      "note": "Frame 1 starts at 12:00 (144 slots x 5 min)."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic HR timing frame for yesterday (day 1)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 0f 01 00 00 00 00 00 00 00 37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 55,
+          "t": "2026-07-23T00:30:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 15,
+          "day": 1,
+          "frameIndex": 0
+        }
+      ],
+      "derived": true,
+      "note": "Day 1 hangs off the previous local midnight."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic SpO2 timing frame: 0xff and 101 dropped, 1 kept",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 11 00 00 00 00 00 61 ff 65 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "SPO2",
+          "value": 97,
+          "t": "2026-07-24T00:15:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "SPO2",
+          "value": 1,
+          "t": "2026-07-24T00:30:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 17,
+          "day": 0,
+          "frameIndex": 0
+        }
+      ],
+      "derived": true,
+      "note": "History SpO2 validity is 1..100 (vendor e1/d), wider than the spot 70..100. A port may want to tighten it; flagged in crp.md."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic HRV timing frame (day 0, frame 2): 2-byte LE slots, 300 kept, 301 dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 10 00 02 2a 00 2c 01 2d 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HRV",
+          "value": 42,
+          "t": "2026-07-24T12:00:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HRV",
+          "value": 300,
+          "t": "2026-07-24T12:05:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HRV",
+          "value": 1,
+          "t": "2026-07-24T17:55:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 16,
+          "day": 0,
+          "frameIndex": 2
+        }
+      ],
+      "derived": true,
+      "note": "Stand-in for the capture-derived Kotlin HRV test. 72 slots per frame; frame 2 starts at 12:00."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic stress timing frame (day 0, frame 1)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 2f 00 01 19 00 64 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "STRESS",
+          "value": 25,
+          "t": "2026-07-24T12:00:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "STRESS",
+          "value": 100,
+          "t": "2026-07-24T12:10:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 47,
+          "day": 0,
+          "frameIndex": 1
+        }
+      ],
+      "derived": true,
+      "note": "Stress history valid 1..100; 0 is no reading."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic temperature timing frame (day 0, frame 3, terminal)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 16 00 03 6d 01 18 01 f4 01 f5 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 36.5,
+          "t": "2026-07-24T18:00:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 28,
+          "t": "2026-07-24T18:05:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 50,
+          "t": "2026-07-24T18:10:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 22,
+          "day": 0,
+          "frameIndex": 3
+        }
+      ],
+      "derived": true,
+      "note": "Stand-in for the capture-derived Kotlin temperature test. Tenths of a degree C, valid 28.0..50.0; frame 3 starts at 18:00."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "timing frame with a corrupt day index (15) is acked, no samples",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 98 02 0f 0f 00 46 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 47
+        }
+      ],
+      "derived": true,
+      "note": "day > 14 -> CommandAck((2<<4)|(15&0xf) = 0x2f)."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "timing frame with a 1-byte payload is ignored",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 07 02 0f 00",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "payload < 2 bytes -> no events at all (not even an ack)."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "HRV timing frame with a dangling odd byte decodes only whole pairs",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 0b 02 10 00 00 2a 00 33",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HRV",
+          "value": 42,
+          "t": "2026-07-24T00:00:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 16,
+          "day": 0,
+          "frameIndex": 0
+        }
+      ],
+      "derived": true,
+      "note": "The trailing 0x33 is ignored."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "sleep reply with a corrupt day index (15) yields nothing",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T11:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 0d 02 0e 0f 01 01 00 00 08 00",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "dayIndex > 14 -> empty list."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic evening night for yesterday with an invalid record skipped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T11:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 2b 02 0e 01 01 16 32 02 17 23 01 19 00 01 00 28 03 01 37 01 02 1e 00 03 0a 01 03 1e 02 04 00 03 05 0f 01 06 00 00 06 2d",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "t": "2026-07-20T22:50:00Z",
+          "stagesCount": 475,
+          "firstStage": "LIGHT",
+          "stageCounts": {
+            "LIGHT": 235,
+            "DEEP": 140,
+            "REM": 80,
+            "AWAKE": 20
+          },
+          "stagesRle": [
+            [
+              "LIGHT",
+              45
+            ],
+            [
+              "DEEP",
+              65
+            ],
+            [
+              "LIGHT",
+              75
+            ],
+            [
+              "REM",
+              35
+            ],
+            [
+              "LIGHT",
+              40
+            ],
+            [
+              "AWAKE",
+              20
+            ],
+            [
+              "LIGHT",
+              30
+            ],
+            [
+              "DEEP",
+              75
+            ],
+            [
+              "REM",
+              45
+            ],
+            [
+              "LIGHT",
+              45
+            ]
+          ]
+        }
+      ],
+      "derived": true,
+      "note": "Stand-in for the capture-derived Kotlin \"full night\" test. dayIndex 1 = the wake day is yesterday; first record 22:50 > last 06:45 so the night starts the evening before. The [1,25,0] record (hour 25) is skipped. The 20-minute wake at 03:10 stays inside the bout."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "synthetic night with an unknown state code",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-22T11:00:00Z",
+        "zone": "UTC"
+      },
+      "bytes": "fd da 10 13 02 0e 00 01 00 1e 05 01 00 02 01 14 00 02 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "t": "2026-07-22T00:30:00Z",
+          "stagesCount": 90,
+          "firstStage": "LIGHT",
+          "stageCounts": {
+            "LIGHT": 30,
+            "UNKNOWN": 20,
+            "DEEP": 40
+          },
+          "stagesRle": [
+            [
+              "LIGHT",
+              30
+            ],
+            [
+              "UNKNOWN",
+              20
+            ],
+            [
+              "DEEP",
+              40
+            ]
+          ]
+        }
+      ],
+      "derived": true,
+      "note": "State 5 maps to UNKNOWN (rawCodes keep the 5)."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "spot SpO2 no-reading sentinel 0xff is dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0b ff",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "Every failed spot SpO2 answers 1/11 [ff]; it yields nothing, so the leg times out."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "spot HR at the band edges: 40 kept",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 09 28",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 40
+        }
+      ],
+      "derived": true,
+      "note": ""
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "spot HR above the band: 201 dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 09 c9",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": ""
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "live HRV below the band: 19 dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0a 13",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "Live HRV valid 20..200."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "live SpO2 below the band: 69 dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0b 45",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "Spot SpO2 valid 70..100."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "live stress above the band: 101 dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 0e 65",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": ""
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "temperature reply with a single byte is dropped",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 01 20 6d",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "Needs two bytes."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "group-1 reply with no payload is an ack",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 06 01 09",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 25
+        }
+      ],
+      "derived": true,
+      "note": "Empty group-1 payload -> CommandAck(0x19)."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "timing-state read-back reply is acked (layout unverified)",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 02 06 05",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 38
+        }
+      ],
+      "derived": true,
+      "note": "Vendor says payload carries the interval in minutes; Kotlin only acks it."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "group-7 (Gomore) frame is acked",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "fd da 10 07 07 01 00",
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 113
+        }
+      ],
+      "derived": true,
+      "note": "Nothing sends group 7; an unsolicited one is acked."
+    },
+    {
+      "source": "derived from app/src/main/java/com/pulseloop/ring/CRPDecoder.kt",
+      "name": "a non-frame on fdd3 decodes to nothing",
+      "context": {
+        "layer": "decoder",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytes": "01 02 03",
+      "match": "exact",
+      "events": [],
+      "derived": true,
+      "note": "Decoder level (the driver would first ask the assembler, which drops it)."
+    },
+    {
+      "source": "derived from CRPDriver.ingest + CRPFrameAssembler",
+      "name": "a 152-byte history frame over 20-byte notifications reassembles once",
+      "context": {
+        "layer": "driver",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "now": "2026-07-24T12:00:00Z",
+        "zone": "UTC"
+      },
+      "bytesSequence": [
+        "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "FramePending",
+          "startsFrame": true
+        },
+        {
+          "kotlin": "FramePending",
+          "startsFrame": false
+        },
+        {
+          "kotlin": "FramePending",
+          "startsFrame": false
+        },
+        {
+          "kotlin": "FramePending",
+          "startsFrame": false
+        },
+        {
+          "kotlin": "FramePending",
+          "startsFrame": false
+        },
+        {
+          "kotlin": "FramePending",
+          "startsFrame": false
+        },
+        {
+          "kotlin": "FramePending",
+          "startsFrame": false
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 61,
+          "t": "2026-07-24T00:10:00Z"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 77,
+          "t": "2026-07-24T02:30:00Z"
+        },
+        {
+          "kotlin": "TimingHistoryFrame",
+          "cmd": 15,
+          "day": 0,
+          "frameIndex": 0
+        }
+      ],
+      "eventsPerChunk": [
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": true
+          }
+        ],
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": false
+          }
+        ],
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": false
+          }
+        ],
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": false
+          }
+        ],
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": false
+          }
+        ],
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": false
+          }
+        ],
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": false
+          }
+        ],
+        [
+          {
+            "kotlin": "HistoryMeasurement",
+            "kind": "HEART_RATE",
+            "value": 61,
+            "t": "2026-07-24T00:10:00Z"
+          },
+          {
+            "kotlin": "HistoryMeasurement",
+            "kind": "HEART_RATE",
+            "value": 77,
+            "t": "2026-07-24T02:30:00Z"
+          },
+          {
+            "kotlin": "TimingHistoryFrame",
+            "cmd": 15,
+            "day": 0,
+            "frameIndex": 0
+          }
+        ]
+      ],
+      "derived": true,
+      "note": "Default ATT MTU 23 gives 20-byte notifications; Lumen asks for MTU 512, so a ring that honours it sends one notification."
+    },
+    {
+      "source": "derived from CRPFrameAssembler",
+      "name": "a new frame start mid-frame discards the partial one",
+      "context": {
+        "layer": "driver",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytesSequence": [
+        "fd da 10 0a 02 05",
+        "fd da 10 07 01 09 50"
+      ],
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "FramePending",
+          "startsFrame": true
+        },
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 80
+        }
+      ],
+      "eventsPerChunk": [
+        [
+          {
+            "kotlin": "FramePending",
+            "startsFrame": true
+          }
+        ],
+        [
+          {
+            "kotlin": "HeartRateSample",
+            "bpm": 80
+          }
+        ]
+      ],
+      "derived": true
+    },
+    {
+      "source": "derived from CRPFrameAssembler",
+      "name": "bytes past the declared length are cut off",
+      "context": {
+        "layer": "driver",
+        "channel": "0000fdd3-0000-1000-8000-00805f9b34fb"
+      },
+      "bytesSequence": [
+        "fd da 10 07 01 09 50 aa bb"
+      ],
+      "match": "exact",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 80
+        }
+      ],
+      "eventsPerChunk": [
+        [
+          {
+            "kotlin": "HeartRateSample",
+            "bpm": 80
+          }
+        ]
+      ],
+      "derived": true,
+      "note": "The assembler returns copyOf(expected); the trailing aa bb are dropped, not kept for a next frame."
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+/* ==========================================================================
+   Vitals mark (RingMark) and the launch hand-over (LaunchScreen).
+   Geometry comes from geometry.ts as inline attributes; this file only holds
+   Lumen's draw-on: ring from 5 % to full over 500 ms, fast-out-slow-in, then
+   the dot pops from its own centre with one damped overshoot (ends at 640 ms).
+   public/brand/launch.css repeats the same numbers for the pre-JS start screen.
+   Reduced motion (OS or the settings override) shows the still mark.
+   ========================================================================== */
+@layer components {
+  .lm-ringmark {
+    display: inline-block;
+    flex: none;
+    overflow: visible;
+    vertical-align: middle;
+  }
+
+  /* --lm-ringmark-t0 shifts the whole sequence: LaunchScreen sets it negative to resume where the start screen was. */
+  .lm-ringmark[data-animate] .lm-ringmark__ring {
+    stroke-dashoffset: 0;
+    animation: lm-ringmark-draw 500ms cubic-bezier(0.4, 0, 0.2, 1) var(--lm-ringmark-t0, 0ms) both;
+  }
+  .lm-ringmark[data-animate] .lm-ringmark__dot {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: lm-ringmark-pop 220ms var(--lm-ease-needle, cubic-bezier(0.34, 1.36, 0.64, 1)) calc(420ms + var(--lm-ringmark-t0, 0ms)) both;
+  }
+  @keyframes lm-ringmark-draw {
+    from {
+      stroke-dashoffset: var(--lm-ringmark-trim);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  @keyframes lm-ringmark-pop {
+    from {
+      transform: scale(0);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  /* Still mark under reduced motion: the settings override wins, else the OS preference. */
+  :root[data-motion='reduce'] .lm-ringmark__ring,
+  :root[data-motion='reduce'] .lm-ringmark__dot {
+    animation: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion='full']) .lm-ringmark__ring,
+    :root:not([data-motion='full']) .lm-ringmark__dot {
+      animation: none;
+    }
+  }
+
+  /* ---- launch hand-over: the pre-JS start screen's twin, drawn over the live app, then faded away ----------------- */
+  .lm-launch {
+    position: fixed;
+    inset: 0;
+    z-index: 900; /* above tooltips: nothing of the app may show through until the mark has drawn */
+    display: grid;
+    place-items: center;
+    background: var(--lm-chassis);
+    pointer-events: none;
+  }
+  .lm-launch[data-phase='fade'] {
+    animation: lm-launch-fade 150ms var(--lm-ease-out) forwards;
+  }
+  @keyframes lm-launch-fade {
+    to {
+      opacity: 0;
+    }
+  }
+}

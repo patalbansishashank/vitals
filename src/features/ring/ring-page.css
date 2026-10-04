@@ -1,0 +1,357 @@
+/* ==========================================================================
+   Ring page frame, connection card, pairing flow and the top-bar ring key
+   (design/screens/ring-pages.md §4.1, §4.2, §5.2, §5.5). Achromatic chrome:
+   ink, wells and hairlines; the only colour is the caution mark (amber, never
+   red, never yellow). Tokens only, so both themes come from tokens.css.
+   ========================================================================== */
+
+@layer components {
+  /* ---- page layout (§4.1): 390 one column · 768 one 640 px column · ≥ 1280 7/12 + 5/12 ---- */
+  .rg-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding-bottom: 24px;
+  }
+  .rg-main,
+  .rg-side {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-content: start;
+    min-width: 0;
+  }
+  .rg-span {
+    min-width: 0;
+  }
+  .rg-settings {
+    scroll-margin-top: calc(var(--lm-topbar-h) + 72px);
+  }
+  @media (min-width: 48rem) {
+    .rg-page {
+      width: 100%;
+      max-width: 640px;
+      margin-inline: auto;
+    }
+  }
+  @media (min-width: 80rem) {
+    .rg-page {
+      max-width: none;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 20px;
+    }
+    .rg-main {
+      grid-column: span 7;
+      gap: 20px;
+    }
+    .rg-side {
+      grid-column: span 5;
+      gap: 20px;
+    }
+    .rg-span {
+      grid-column: 1 / -1;
+    }
+  }
+
+  /* ---- indicator light (card header and ring key) ---- */
+  .rg-light {
+    display: inline-block;
+    flex: none;
+    box-sizing: border-box;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--lm-radius-full);
+  }
+  .rg-light[data-light='connected'],
+  .rg-light[data-light='reading'] {
+    background: var(--lm-ink);
+  }
+  .rg-light[data-light='reading'] {
+    animation: rg-pulse 1.2s var(--lm-ease-in-out) infinite alternate;
+  }
+  .rg-light[data-light='elsewhere'] {
+    border: 1.5px solid var(--lm-ink);
+  }
+  .rg-light[data-light='off'] {
+    border: 1px solid var(--lm-ink-3);
+  }
+  svg.rg-light[data-light='attention'] {
+    width: 8px;
+    height: 7px;
+    border-radius: 0;
+    fill: var(--lm-caution-mark);
+  }
+  .rg-caution {
+    color: var(--lm-caution-fg);
+  }
+
+  /* ---- the top-bar ring key (an icon key; the cap and hit area come from .lm-key) ---- */
+  .rg-key .rg-light {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
+  .rg-key svg.rg-light[data-light='attention'] {
+    top: 7px;
+    right: 7px;
+  }
+
+  /* ---- connection card (§5.2) ---- */
+  .rg-card__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-height: 28px;
+  }
+  .rg-card__head[data-open] {
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .rg-card__glyph {
+    color: var(--lm-ink);
+  }
+  .rg-card__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--lm-text-md);
+    line-height: 1.5rem;
+    font-weight: 600;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  .rg-card__state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .rg-card__word {
+    display: inline-grid;
+    font-variant-numeric: tabular-nums;
+  }
+  .rg-card__word > * {
+    grid-area: 1 / 1;
+  }
+  .rg-card__word-now[data-fade] {
+    animation: rg-fade-in 150ms var(--lm-ease-out) both;
+  }
+  .rg-card__word-prev {
+    animation: rg-fade-out 150ms var(--lm-ease-out) both;
+  }
+  .rg-card__body {
+    display: grid;
+    gap: 14px;
+  }
+  .rg-card__line {
+    margin: 0;
+    max-width: var(--lm-measure-prose);
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    color: var(--lm-ink);
+  }
+  .rg-card__kv {
+    grid-template-columns: max-content minmax(0, 1fr);
+    column-gap: 24px;
+    align-items: center;
+  }
+  .rg-card__kv dd {
+    text-align: left;
+  }
+  .rg-card__keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .rg-linkbtn {
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--lm-text-sm);
+    cursor: pointer;
+  }
+
+  /* ---- battery scale: 10 segments 4 × 10 px, 2 px gaps, ink fill, empty = wells ---- */
+  .rg-batt {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+  .rg-batt__scale {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .rg-batt__seg {
+    width: 4px;
+    height: 10px;
+    border-radius: 1px;
+    background: var(--lm-well);
+    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+  }
+  .rg-batt__seg[data-on] {
+    background: var(--lm-ink);
+    box-shadow: none;
+  }
+  .rg-batt__value {
+    font-stretch: 112%;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .rg-batt__low {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--lm-ink);
+  }
+  .rg-batt__note,
+  .rg-batt__none {
+    color: var(--lm-ink-2);
+    font-weight: 500;
+  }
+
+  /* ---- pairing flow (§5.5) ---- */
+  .rg-pair__step {
+    display: grid;
+    gap: 14px;
+  }
+  .rg-pair__lines {
+    display: grid;
+    gap: 8px;
+  }
+  .rg-pair__line {
+    margin: 0;
+    max-width: var(--lm-measure-prose);
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    color: var(--lm-ink);
+  }
+  .rg-pair__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .rg-pair__scanhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+  }
+  .rg-pair__status {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .rg-pair__hint {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .rg-scan {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--lm-line);
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .rg-scan > li + li {
+    border-top: 1px solid var(--lm-line);
+  }
+  .rg-scan__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 0 4px;
+    border: 0;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .rg-scan__row:hover {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+  }
+  .rg-scan__row:active {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 8%);
+  }
+  .rg-scan__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .rg-scan__signal {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .rg-scan__chev {
+    color: var(--lm-ink-3);
+  }
+  .rg-meter {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .rg-meter__bar {
+    width: 4px;
+    height: 10px;
+    border-radius: 1px;
+    background: var(--lm-well);
+    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+  }
+  .rg-meter__bar[data-on] {
+    background: var(--lm-ink);
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rg-light[data-light='reading'],
+    .rg-card__word-now[data-fade],
+    .rg-card__word-prev {
+      animation: none;
+    }
+  }
+}
+
+@keyframes rg-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+@keyframes rg-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes rg-fade-out {
+  to {
+    opacity: 0;
+  }
+}

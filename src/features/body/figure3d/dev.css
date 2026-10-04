@@ -25,6 +25,9 @@
   grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
   gap: 1rem;
 }
+.lm-devfig__stage > * {
+  min-width: 0;
+}
 .lm-devfig__svg {
   min-height: 20rem;
 }
@@ -40,4 +43,29 @@
 .lm-devfig__benchcanvas {
   width: 320px;
   height: 200px;
+  max-width: 100%;
+}
+@media (max-width: 1100px) {
+  .lm-devfig__stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lm-devfig__svg,
+  .lm-devfig__fig .lm-fig3d__visceral {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .lm-devfig {
+    padding: 0.75rem;
+  }
+  .lm-devfig__controls label {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .lm-devfig__fig .lm-fig3d__row {
+    display: block;
+  }
+  .lm-devfig__stats {
+    overflow-x: auto;
+  }
 }

@@ -1,5 +1,6 @@
 import { Engraved, Faceplate, FaceplateHeader, Key, KeyLink } from '@/components';
 import { MIN_SERVER_VERSION } from '@/net/server';
+import { DownloadsBlock } from '@/features/home/DownloadsBlock';
 import { ServerPill } from '@/features/settings/server/ServerSection';
 import { useServerConnection, useServerPairing } from '@/features/settings/server/hooks';
 import { SERVER_COPY } from '@/features/settings/server/copy';
@@ -74,6 +75,7 @@ export function InstallSection() {
             {() => <ReloadKey onReload={() => void applyUpdate()} />}
           </SettingRow>
         ) : null}
+        <DownloadsBlock />
         <YourServer />
       </div>
     </Faceplate>

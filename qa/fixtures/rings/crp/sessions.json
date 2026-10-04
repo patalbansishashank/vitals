@@ -1,0 +1,727 @@
+{
+  "family": "crp",
+  "write": {
+    "service": "0000fdda-0000-1000-8000-00805f9b34fb",
+    "characteristic": "0000fdd2-0000-1000-8000-00805f9b34fb"
+  },
+  "defaultNotifyChar": "0000fdd3-0000-1000-8000-00805f9b34fb",
+  "sessions": [
+    {
+      "name": "reroute: advertised as SMART_RING with no service, fdda discovered after connect",
+      "source": "RingBLEClient.onServicesDiscovered (CRP block); DriverRerouteTest \"does not fire for a ring with no 56ff service\"",
+      "advertisement": {
+        "name": "SMART_RING",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "scanFamily": "jring",
+      "services": [
+        "00001800-0000-1000-8000-00805f9b34fb",
+        "00001801-0000-1000-8000-00805f9b34fb",
+        "0000fdda-0000-1000-8000-00805f9b34fb",
+        "0000180a-0000-1000-8000-00805f9b34fb",
+        "0000180d-0000-1000-8000-00805f9b34fb",
+        "0000180f-0000-1000-8000-00805f9b34fb"
+      ],
+      "expectFamily": "crp",
+      "expectSubscribe": [
+        "0000fdd1-0000-1000-8000-00805f9b34fb",
+        "0000fdd3-0000-1000-8000-00805f9b34fb",
+        "0000fdd6-0000-1000-8000-00805f9b34fb",
+        "00002a37-0000-1000-8000-00805f9b34fb"
+      ],
+      "requiredBeforeHandshake": [
+        "0000fdd3-0000-1000-8000-00805f9b34fb"
+      ],
+      "order": "kotlin-fifo",
+      "note": "The fdda service with no Colmi UART service, while the jring (or colmi) family is installed, switches the session to crp before any subscription or write. The jring 56ff reroute must not fire (no 56ff). The services list is synthetic (DriverRerouteTest uses fdda + 180a).",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 0b 01 01",
+          "prefix": true,
+          "notify": [],
+          "note": "set_time; the 5 bytes after the prefix depend on nowMs (see encode.json). No reply is decoded for it."
+        },
+        {
+          "expectWrite": "fd da 10 06 03 03",
+          "notify": [
+            "fd da 10 14 03 03 4d 4f 59 2d 52 31 4b 33 2d 32 2e 31 2e 36"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "FirmwareRevision",
+              "version": "MOY-R1K3-2.1.6"
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 06 02 25",
+          "notify": [
+            "fd da 10 07 02 25 02"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "SupportFunctions",
+              "capabilities": [
+                "SPO2",
+                "MANUAL_SPO2"
+              ]
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 06 02 06",
+          "notify": [],
+          "note": "timing-state read-backs: reply layout unverified; the fake sends none"
+        },
+        {
+          "expectWrite": "fd da 10 06 02 07",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 06 02 08",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 06 02 2d",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 06 02 15",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 06 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 07 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 27 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 08 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 0d 01",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "no reroute: fdda next to the Colmi UART service",
+      "source": "RingBLEClient.onServicesDiscovered (!hasColmiService guard)",
+      "advertisement": {
+        "name": "SMART_RING",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "scanFamily": "jring",
+      "services": [
+        "00001800-0000-1000-8000-00805f9b34fb",
+        "00001801-0000-1000-8000-00805f9b34fb",
+        "6e40fff0-b5a3-f393-e0a9-e50e24dcca9e",
+        "0000fdda-0000-1000-8000-00805f9b34fb",
+        "0000180f-0000-1000-8000-00805f9b34fb"
+      ],
+      "expectFamily": "colmi",
+      "note": "The Colmi block runs first and wins; CRP never takes a ring that also exposes the Colmi UART.",
+      "steps": []
+    },
+    {
+      "name": "no reroute: fdda next to the jring 56ff service under the jring driver",
+      "source": "RingBLEClient.onServicesDiscovered",
+      "advertisement": {
+        "name": "SMART_RING",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "scanFamily": "jring",
+      "services": [
+        "00001800-0000-1000-8000-00805f9b34fb",
+        "00001801-0000-1000-8000-00805f9b34fb",
+        "000056ff-0000-1000-8000-00805f9b34fb",
+        "0000fdda-0000-1000-8000-00805f9b34fb",
+        "0000180f-0000-1000-8000-00805f9b34fb"
+      ],
+      "expectFamily": "crp",
+      "note": "Unverified edge: Kotlin re-routes JRING -> CRP whenever fdda is present without the Colmi UART, even if 56ff is also present (the 56ff reroute only fires when the active driver's own services are absent, and CRP's fdda is present). No such ring is known. A port may prefer to keep jring here; open question.",
+      "steps": []
+    },
+    {
+      "name": "scan match: an R100 advertises a usable name",
+      "source": "WearableModel.R100 (^R100(_[0-9A-Fa-f]+)?$)",
+      "advertisement": {
+        "name": "R100_1A2B",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "scanFamily": "crp",
+      "services": [
+        "00001800-0000-1000-8000-00805f9b34fb",
+        "00001801-0000-1000-8000-00805f9b34fb",
+        "0000fdda-0000-1000-8000-00805f9b34fb",
+        "0000180a-0000-1000-8000-00805f9b34fb",
+        "0000180f-0000-1000-8000-00805f9b34fb"
+      ],
+      "expectFamily": "crp",
+      "note": "R100 1A2B (space) must NOT match: that shape belongs to another family.",
+      "steps": []
+    },
+    {
+      "name": "connect handshake and first history pass (default monitors, no profile)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt \"runStartup sends set-time, the connection queries, user info, default monitor enables, then the history pull\" + follow-up tests",
+      "services": [
+        "00001800-0000-1000-8000-00805f9b34fb",
+        "00001801-0000-1000-8000-00805f9b34fb",
+        "0000fdda-0000-1000-8000-00805f9b34fb",
+        "0000180a-0000-1000-8000-00805f9b34fb",
+        "0000180d-0000-1000-8000-00805f9b34fb",
+        "0000180f-0000-1000-8000-00805f9b34fb"
+      ],
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "order": "kotlin-fifo",
+      "note": "Kotlin enqueues all 25 startup writes before any reply is handled; each timing reply below frame-terminal appends its next-frame query to the end of the queue. Replies are synthetic. A port that waits for each reply may write a follow-up straight after its reply instead; match writes by content if so.",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 0b 01 01",
+          "prefix": true,
+          "notify": [],
+          "note": "set_time; the 5 bytes after the prefix depend on nowMs (see encode.json). No reply is decoded for it."
+        },
+        {
+          "expectWrite": "fd da 10 06 03 03",
+          "notify": [
+            "fd da 10 14 03 03 4d 4f 59 2d 52 31 4b 33 2d 32 2e 31 2e 36"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "FirmwareRevision",
+              "version": "MOY-R1K3-2.1.6"
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 06 02 25",
+          "notify": [
+            "fd da 10 07 02 25 02"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "SupportFunctions",
+              "capabilities": [
+                "SPO2",
+                "MANUAL_SPO2"
+              ]
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 06 02 06",
+          "notify": [],
+          "note": "timing-state read-backs: reply layout unverified; the fake sends none"
+        },
+        {
+          "expectWrite": "fd da 10 06 02 07",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 06 02 08",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 06 02 2d",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 06 02 15",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 06 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 07 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 27 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 08 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 0d 01",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 00",
+          "notify": [
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 11 00 00",
+          "notify": [
+            "fd da 10 98 02 11 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 00",
+          "notify": [
+            "fd da 10 98 02 10 00 00 00 00 00 00 2f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 2f 00 00",
+          "notify": [
+            "fd da 10 98 02 2f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 00",
+          "notify": [
+            "fd da 10 98 02 16 00 00 00 00 00 00 00 00 00 00 6b 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 00",
+          "notify": [
+            "fd da 10 16 02 0e 00 01 17 0a 02 00 14 03 02 00 01 03 0f 00 06 1e"
+          ],
+          "note": "synthetic night 23:10 -> 06:30"
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 01",
+          "notify": [],
+          "note": "days the ring has no record of get no reply at all"
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 02",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 03",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 04",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 05",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 06",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 01",
+          "notify": [
+            "fd da 10 98 02 0f 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "HR terminal frame 1: nothing further"
+        },
+        {
+          "expectWrite": "fd da 10 08 02 11 00 01",
+          "notify": [
+            "fd da 10 98 02 11 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 01",
+          "notify": [
+            "fd da 10 98 02 10 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 2f 00 01",
+          "notify": [
+            "fd da 10 98 02 2f 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 01",
+          "notify": [
+            "fd da 10 98 02 16 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 02",
+          "notify": [
+            "fd da 10 98 02 10 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 02",
+          "notify": [
+            "fd da 10 98 02 16 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 03",
+          "notify": [
+            "fd da 10 98 02 10 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "HRV terminal frame 3"
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 03",
+          "notify": [
+            "fd da 10 98 02 16 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "temperature terminal frame 3; the pass is now idle (Kotlin has no done signal)"
+        }
+      ]
+    },
+    {
+      "name": "second poll pass on the same connection (profile now set)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt (second runStartup)",
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "order": "kotlin-fifo",
+      "note": "Only set_time, user info and the six today queries: no connection queries, no monitor enables, no sleep backfill. Replies omitted.",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 0b 01 01",
+          "prefix": true,
+          "notify": [],
+          "note": "set_time; the 5 bytes after the prefix depend on nowMs (see encode.json). No reply is decoded for it."
+        },
+        {
+          "expectWrite": "fd da 10 0b 01 00 b4 4b 1e 01 4d",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 11 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 2f 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 07 02 0e 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "history: HR walks two frames",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt \"a timing-history frame drives the next-frame pull until the vital's terminal frame\"",
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 00",
+          "notify": [
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind": "HEART_RATE",
+              "value": 61,
+              "t": "2026-07-24T00:10:00Z"
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind": "HEART_RATE",
+              "value": 77,
+              "t": "2026-07-24T02:30:00Z"
+            },
+            {
+              "kotlin": "TimingHistoryFrame",
+              "cmd": 15,
+              "day": 0,
+              "frameIndex": 0
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 01",
+          "notify": [
+            "fd da 10 98 02 0f 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "TimingHistoryFrame",
+              "cmd": 15,
+              "day": 0,
+              "frameIndex": 1
+            }
+          ]
+        }
+      ],
+      "expectNoFurtherWrites": true
+    },
+    {
+      "name": "history: HRV walks four frames",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt \"HRV walks four frames, others two\"",
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "fd da 10 08 02 10 00 00",
+          "notify": [
+            "fd da 10 98 02 10 00 00 00 00 00 00 2f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 01",
+          "notify": [
+            "fd da 10 98 02 10 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 02",
+          "notify": [
+            "fd da 10 98 02 10 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 10 00 03",
+          "notify": [
+            "fd da 10 98 02 10 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        }
+      ],
+      "expectNoFurtherWrites": true
+    },
+    {
+      "name": "history: temperature walks four frames like HRV",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt \"temperature walks four frames like HRV\"",
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "fd da 10 08 02 16 00 00",
+          "notify": [
+            "fd da 10 98 02 16 00 00 00 00 00 00 00 00 00 00 6b 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 01",
+          "notify": [
+            "fd da 10 98 02 16 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 02",
+          "notify": [
+            "fd da 10 98 02 16 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 16 00 03",
+          "notify": [
+            "fd da 10 98 02 16 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        }
+      ],
+      "expectNoFurtherWrites": true
+    },
+    {
+      "name": "history: a repeated frame does not spam duplicate follow-ups",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt \"a repeated frame does not spam duplicate follow-up requests\"",
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 00",
+          "notify": [
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 01",
+          "notify": []
+        }
+      ],
+      "expectNoFurtherWrites": true,
+      "note": "Exactly one frame-1 query. The guard resets at the start of each poll pass, so the next pass may ask again."
+    },
+    {
+      "name": "history: the follow-up guard distinguishes days",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt \"the follow-up guard distinguishes days\"",
+      "context": {
+        "nowMs": 1784894400000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 00",
+          "notify": [
+            "fd da 10 98 02 0f 00 00 00 00 3d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 4d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 01 00",
+          "notify": [
+            "fd da 10 98 02 0f 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "not sent by Kotlin today (timing vitals only pull day 0); shows the guard keyed on day"
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 00 01",
+          "notify": []
+        },
+        {
+          "expectWrite": "fd da 10 08 02 0f 01 01",
+          "notify": []
+        }
+      ],
+      "order": "kotlin-fifo"
+    },
+    {
+      "name": "spot SpO2: one value after about 48 s, then stop",
+      "source": "RingSyncCoordinator.measureSpO2 + CRPSyncEngine.startSpO2/stopSpO2; WearableDriver.signalsMeasurementCompletion doc",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 07 01 0b 01",
+          "notify": [
+            "fd da 10 07 01 0b 60"
+          ],
+          "delayMs": 48000,
+          "expectEvents": [
+            {
+              "kotlin": "Spo2Result",
+              "value": 96
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 07 01 0b 00",
+          "notify": [],
+          "note": "stop sent as soon as the first plausible value lands"
+        }
+      ],
+      "note": "Value synthetic. Ceiling 60 s (DEFAULT_SPOT_SPO2_SECONDS); link priority high for the leg."
+    },
+    {
+      "name": "spot SpO2: no reading (0xff) runs to the 60 s ceiling",
+      "source": "CRPDecoder (70..100 band) + RingSyncCoordinator.pollForValue",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 07 01 0b 01",
+          "notify": [
+            "fd da 10 07 01 0b ff"
+          ],
+          "delayMs": 48000,
+          "expectEvents": []
+        },
+        {
+          "expectWrite": "fd da 10 07 01 0b 00",
+          "notify": [],
+          "atMs": 60000
+        }
+      ]
+    },
+    {
+      "name": "spot SpO2: ring not worn aborts early",
+      "source": "RingSyncCoordinator WearState handler (CRP only)",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 07 01 0b 01",
+          "notify": [
+            "fd da 10 07 03 07 00"
+          ],
+          "delayMs": 2000,
+          "expectEvents": [
+            {
+              "kotlin": "WearingStatus",
+              "worn": false
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 07 01 0b 00",
+          "notify": [],
+          "note": "abort -> stop, measurement reported as not worn"
+        }
+      ]
+    },
+    {
+      "name": "spot HR: start, reply, stop at the 30 s window",
+      "source": "RingSyncCoordinator.measureHR + CRPSyncEngine.startHeartRate/stopHeartRate",
+      "steps": [
+        {
+          "expectWrite": "fd da 10 07 01 09 01",
+          "notify": [
+            "fd da 10 07 01 09 48"
+          ],
+          "delayMs": 20000,
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 72
+            }
+          ]
+        },
+        {
+          "expectWrite": "fd da 10 07 01 09 00",
+          "notify": [],
+          "atMs": 30000
+        }
+      ],
+      "note": "Unverified: how many HR replies the ring sends per start and when. Lumen drops samples in the first 5 s (cached echo) and samples the full 30 s window."
+    },
+    {
+      "name": "steps push on fdd1 needs no command",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "steps": [
+        {
+          "notifyChar": "0000fdd1-0000-1000-8000-00805f9b34fb",
+          "notify": [
+            "e8 03 00 f4 01 00 2a 00 00"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "ActivityUpdate",
+              "steps": 1000,
+              "distanceMeters": 500,
+              "calories": 42
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

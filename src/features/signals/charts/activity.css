@@ -1,0 +1,382 @@
+/* ==========================================================================
+   Body signals › Activity (design/screens/ring-pages.md §7.5, §6.4): goal
+   meters (a printed scale without a thumb), steps by hour, columns per day
+   and per month, the workouts list and the workout sheet. Colour only on
+   data marks: the performance hue for steps, active minutes and active
+   energy; sleep shading is the recovery hue at 10 %; chrome stays
+   achromatic. Tokens only; both themes come from them.
+   ========================================================================== */
+
+@layer components {
+  /* ---- tab layout: faceplates stacked; secondary pieces pair 6/6 at 1280+ */
+  .ac-tab {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+  .ac-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+  @media (min-width: 80rem) {
+    .ac-pair {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+  }
+  .ac-face {
+    min-width: 0;
+  }
+  .ac-face__title {
+    margin: 0 0 8px;
+  }
+  .ac-face__headrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 16px;
+  }
+  .ac-face__caption {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .ac-chart {
+    min-width: 0;
+  }
+  .ac-plotarea {
+    position: relative;
+    outline: none;
+    touch-action: pan-y;
+  }
+  .ac-plotarea:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .ac-head {
+    display: inline;
+  }
+
+  /* the crosshair readout line above a plot (reserved height: no layout shift) */
+  .ac-xline {
+    margin: 0 0 2px;
+    min-height: 16px;
+    font-size: var(--lm-text-xs);
+    line-height: 16px;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---- marks */
+  .ac-col {
+    fill: var(--lm-cat-performance);
+  }
+  .ac-band rect {
+    fill: color-mix(in srgb, var(--lm-cat-recovery) 10%, transparent);
+  }
+  .ac-band__label {
+    font-size: 11px;
+    fill: var(--lm-ink-2);
+  }
+  .ac-xtick[data-selected='true'] .sg-tick,
+  .sg-tick.ac-xtick[data-selected='true'] {
+    fill: var(--lm-ink);
+    font-weight: 600;
+  }
+  /* the goal label stays legible where it crosses a column */
+  .ac-goal .sg-goal-label {
+    paint-order: stroke;
+    stroke: var(--lm-face);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+  .ac-cov {
+    font-size: 10px;
+  }
+
+  /* ---- goal meter (§7.5.1): the ScaleSlider's printed well, no thumb */
+  .ac-meters {
+    display: grid;
+    gap: 14px;
+  }
+  .ac-meter {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .ac-meter__top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-height: 22px;
+  }
+  .ac-meter__top .lm-eng {
+    flex: 1;
+    min-width: 0;
+  }
+  .ac-meter__value {
+    color: var(--lm-ink);
+    font-stretch: 112%;
+    font-weight: 600;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-variant-numeric: tabular-nums slashed-zero;
+    white-space: nowrap;
+  }
+  .ac-meter__unit {
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    font-stretch: 100%;
+    color: var(--lm-ink-2);
+  }
+  .ac-meter__none {
+    font-size: var(--lm-text-sm);
+    font-weight: 400;
+    font-stretch: 100%;
+    color: var(--lm-ink-3);
+  }
+  .ac-meter__well {
+    position: relative;
+    display: block;
+    height: 22px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    box-shadow: var(--lm-shadow-well);
+    border: 1px solid var(--lm-line-strong);
+  }
+  .ac-meter__ticks {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .ac-meter__ticks line {
+    stroke: var(--lm-line-strong);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .ac-meter__ticks line[data-major='true'] {
+    stroke: var(--lm-edge);
+  }
+  .ac-meter__bar {
+    position: absolute;
+    left: 0;
+    bottom: 4px;
+    height: 6px;
+    max-width: 100%;
+    border-radius: 0 4px 4px 0;
+    background: var(--lm-cat-performance);
+    pointer-events: none;
+  }
+  .ac-meter__goal {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 1px;
+    margin-left: -0.5px;
+    background: var(--lm-ink);
+    pointer-events: none;
+  }
+  .ac-meter__nums {
+    position: relative;
+    height: 14px;
+  }
+  .ac-meter__nums span {
+    position: absolute;
+    white-space: nowrap;
+    transform: translateX(-50%);
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    font-stretch: 84%;
+    color: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .ac-meter__nums span[data-edge='start'] {
+    transform: none;
+  }
+  .ac-meter__nums span[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  .ac-meter__nums span[data-goal='true'] {
+    color: var(--lm-ink);
+    font-weight: 500;
+  }
+  .ac-meter__note {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.45;
+    color: var(--lm-ink-2);
+  }
+  /* mini (Ring page today row): 120 px, 4 px bar, the goal tick only */
+  .ac-meter[data-mini='true'] {
+    display: inline-block;
+    width: 120px;
+    vertical-align: middle;
+  }
+  .ac-meter[data-mini='true'] .ac-meter__well {
+    height: 10px;
+  }
+  .ac-meter[data-mini='true'] .ac-meter__bar {
+    bottom: 2px;
+    height: 4px;
+    border-radius: 0 2px 2px 0;
+  }
+  .ac-meter[data-mini='true'] .ac-meter__goal {
+    top: -3px;
+    bottom: -3px;
+  }
+
+  /* ---- workouts list (§7.5.4) */
+  .ac-wlist {
+    display: grid;
+    gap: 12px;
+  }
+  .ac-wday__head {
+    margin: 0 0 2px;
+  }
+  .ac-wrows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .ac-wrows > li + li {
+    border-top: 1px solid var(--lm-line);
+  }
+  .ac-wrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    width: 100%;
+    min-height: 48px;
+    padding: 6px 4px;
+    border: 0;
+    border-radius: var(--lm-radius-xs);
+    background: none;
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .ac-wrow:hover {
+    background: var(--lm-well);
+  }
+  .ac-wrow:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .ac-wrow__main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ac-wrow__type {
+    font-weight: 600;
+  }
+  .ac-wrow__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .ac-wrow__side {
+    display: grid;
+    justify-items: end;
+    gap: 4px;
+    flex: none;
+  }
+  .ac-wrow__zones {
+    display: block;
+    width: 64px;
+  }
+  .ac-wrow__src {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .ac-wempty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+  }
+  .ac-wempty p {
+    margin: 0;
+  }
+
+  /* ---- numbers (§6.4): 2 per row at 390, 4 at 768, one row at 1440 */
+  .ac-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 8px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .ac-strip__item {
+    min-width: 0;
+    padding: 10px 12px 10px 0;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  @media (min-width: 48rem) {
+    .ac-strip {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 80rem) {
+    .ac-strip {
+      grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+      grid-auto-flow: column;
+    }
+    .ac-strip__item {
+      border-bottom: 0;
+    }
+    .ac-strip__item + .ac-strip__item {
+      padding-left: 16px;
+      border-left: 1px solid var(--lm-line);
+    }
+  }
+
+  /* ---- workout sheet */
+  .ac-sheet__body {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    padding: 4px 16px 24px;
+  }
+  .ac-strip[data-cols='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: row;
+    margin-top: 0;
+  }
+  .ac-strip[data-cols='2'] .ac-strip__item {
+    padding: 10px 12px 10px 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .ac-sheet__source {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .ac-sheet__correct {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+  }
+  .ac-sheet__hint {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+}

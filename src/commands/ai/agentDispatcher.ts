@@ -99,6 +99,9 @@ export interface BusAgentDispatcherOptions {
   manifest?: () => ToolManifest;
 }
 
+/** How long an agent's "turn" lasts for the bus's per-turn tool limits. */
+export const AGENT_TURN_MS = 60_000;
+
 export function createBusAgentDispatcher(options: BusAgentDispatcherOptions = {}): AgentDispatcher {
   const allowDirect = options.directApply ?? ((a) => directApplyFromSettings(a));
   return {
@@ -123,6 +126,8 @@ export function createBusAgentDispatcher(options: BusAgentDispatcherOptions = {}
         const { dispatch } = await import('../bus');
         const r = await dispatch(commandId, args, {
           actor,
+          // an agent has no conversation turns: its per-turn limit counts per minute (without this it never reset)
+          correlationId: `agent-${Math.floor(Date.now() / AGENT_TURN_MS)}`,
           ...(opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey.slice(0, 64) } : {}),
           ...(opts.signal ? { signal: opts.signal } : {}),
         });

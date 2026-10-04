@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "desi.creative.vitals",
+      "sha256_cert_fingerprints": ["C6:B6:02:6E:D0:A2:B8:AE:D4:9D:7A:5E:2F:94:4B:65:9F:FC:47:2F:69:B6:16:E0:34:27:FF:AD:A9:86:BB:70"]
+    }
+  }
+]

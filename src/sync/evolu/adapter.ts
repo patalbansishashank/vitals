@@ -35,7 +35,7 @@ import { deriveVitalsKeys } from '../crypto';
 import { relayHost, relaySocketUrl } from '../pairing';
 import { OFF_STATUS, type BackendOp, type Doc, type DocChange, type NetPort, type OpenOptions, type SyncStatus, type SyncStore, type VitalsKeys } from '../types';
 import { createHlc, decode, encode, flatten, legacyClock, maxClock, merge, sameState, stamp, valueOf, type FieldState, type HlcClock } from './fieldMerge';
-import { docRowId, vitalsEvoluSchema, type VitalsEvoluSchema } from './schema';
+import { docRowId, unsentRowId, vitalsEvoluSchema, type VitalsEvoluSchema } from './schema';
 
 // Evolu's own compatibility fixes (DisposableStack and friends for Safari, Map/WeakMap upsert): idempotent, installs
 // only what the runtime lacks. The Companion bin calls the same function; this is the browser's entry to sync.
@@ -65,6 +65,8 @@ export interface EvoluStoreOptions {
    * nested object merges as one top-level field.
    */
   deepFields?: Readonly<Record<string, readonly string[]>>;
+  /** How long `put`/`delete`/`batch` wait for Evolu to report the write stored before they reject. */
+  storedTimeoutMs?: number;
 }
 
 /**
@@ -205,12 +207,21 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
   let unuse: UnuseOwner | null = null;
   let endpoint: string | undefined;
   let current: SyncStatus = OFF_STATUS;
-  let pending = 0;
+  /**
+   * Documents written here that the relay has not acknowledged (`col/key` → row of the device-local `_unsent` table).
+   * Loaded on `open`, so the count survives a reload; cleared when the owner's status is Synced.
+   */
+  const unsent = new Map<string, ReturnType<typeof unsentRowId>>();
   let received = 0;
+  /** Bumped by `reconnect`, so the next transport is a new one instead of the socket waiting out its back-off. */
+  let generation = 0;
+  let relay: string | null = null;
   const cleanups: Array<() => void> = [];
 
   const createQuery = createQueryBuilder(vitalsEvoluSchema);
   const allRows = createQuery((db) => db.selectFrom('doc').selectAll());
+  const unsentRows = createQuery((db) => db.selectFrom('_unsent').select(['id', 'doc']));
+  const drainQuery = createQuery((db) => db.selectFrom('_unsent').select(['id']).limit(1));
 
   const setStatus = (s: SyncStatus) => {
     current = s;
@@ -307,19 +318,39 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
     states.clear();
   };
 
+  /** The relay acknowledged everything: forget the unsent rows. */
+  const clearUnsent = () => {
+    if (unsent.size === 0) return;
+    const e = evolu;
+    for (const id of unsent.values()) e?.update('_unsent', { id, isDeleted: sqliteTrue });
+    unsent.clear();
+  };
+  const noteUnsent = (col: string, key: string) => {
+    const k = rowKey(col, key);
+    if (unsent.has(k)) return;
+    const id = unsentRowId(col, key);
+    unsent.set(k, id);
+    need().upsert('_unsent', { id, doc: `${col}/${key}` });
+  };
+
   const connect = (relayUrl: string | null) => {
     unuse?.();
     unuse = null;
     endpoint = undefined;
+    relay = relayUrl;
     if (!evolu || !owner || !relayUrl) {
-      setStatus({ ...OFF_STATUS, pendingChanges: pending });
+      setStatus({ ...OFF_STATUS, pendingChanges: unsent.size });
       return;
     }
     const url = relaySocketUrl(relayUrl);
     options.net?.assertAllowed(url);
     endpoint = relayHost(relayUrl);
-    unuse = evolu.useOwner(owner, [createOwnerWebSocketTransport({ url, ownerId: owner.id })]);
-    setStatus({ ...current, state: 'connecting', endpoint, lastError: undefined });
+    const base = createOwnerWebSocketTransport({ url, ownerId: owner.id });
+    // Evolu shares sockets by transport URL and keeps an unused one for 3 s, so a reconnect needs a URL of its own:
+    // `?r<n>&ownerId=…` reaches the same relay (which reads only `ownerId`, the last parameter).
+    const transport = generation > 0 ? { ...base, url: base.url.replace('?ownerId=', `?r${generation}&ownerId=`) as typeof base.url } : base;
+    unuse = evolu.useOwner(owner, [transport]);
+    setStatus({ ...current, state: 'connecting', endpoint, lastError: undefined, pendingChanges: unsent.size });
   };
 
   interface Pending {
@@ -360,9 +391,40 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
     return values;
   };
 
-  const write = (w: Pending, values: ReturnType<typeof prepare>, now: string): Row => {
+  /** Settles every `whenStored` wait still open (close, erase), so none waits out its timeout. */
+  const storing = new Set<(error?: Error) => void>();
+  /**
+   * A wait for one Evolu mutation: pass `onComplete` to the last upsert of a write, and await `done`. Evolu calls
+   * `onComplete` once its DbWorker has committed the batch that holds the upsert (all upserts of one tick are one batch
+   * and one SQLite transaction), so a process killed after `done` resolves keeps the write (R20-OUTBOX-09). Evolu never
+   * calls it when the database is gone or the batch failed; the wait then rejects after `storedTimeoutMs`.
+   */
+  const whenStored = () => {
+    let onComplete: () => void = () => {};
+    const done = new Promise<void>((resolve, reject) => {
+      const settle = (error?: Error) => {
+        clearTimeout(timer);
+        storing.delete(settle);
+        if (error) reject(error);
+        else resolve();
+      };
+      const timer = setTimeout(
+        () => settle(Object.assign(new Error('This device did not confirm that the change was saved. Try again.'), { code: 'store_write_timeout' })),
+        options.storedTimeoutMs ?? 5_000,
+      );
+      storing.add(settle);
+      onComplete = () => settle();
+    });
+    done.catch(() => undefined); // a write that threw before it was queued is never awaited
+    return { onComplete, done };
+  };
+  const settleStoring = (why: string) => {
+    for (const settle of [...storing]) settle(Object.assign(new Error(why), { code: 'store_closed' }));
+  };
+
+  const write = (w: Pending, values: ReturnType<typeof prepare>, now: string, onComplete?: () => void): Row => {
     const { col, key, json, schema, deleted } = w;
-    need().upsert('doc', { ...values, isDeleted: deleted ? sqliteTrue : 0 });
+    need().upsert('doc', { ...values, isDeleted: deleted ? sqliteTrue : 0 }, onComplete ? { onComplete } : undefined);
     const k = rowKey(col, key);
     states.set(k, { json, deleted: deleted ? sqliteTrue : 0, st: w.st });
     const row: Row = {
@@ -381,9 +443,9 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
     const queue = inflight.get(k) ?? [];
     queue.push({ marker: markerOf(row), at: Date.now() });
     inflight.set(k, queue);
-    pending += 1;
-    if (endpoint && current.state === 'synced') setStatus({ ...current, state: 'syncing', pendingChanges: pending });
-    else setStatus({ ...current, pendingChanges: pending });
+    noteUnsent(col, key);
+    if (endpoint && current.state === 'synced') setStatus({ ...current, state: 'syncing', pendingChanges: unsent.size });
+    else setStatus({ ...current, pendingChanges: unsent.size });
     return row;
   };
 
@@ -453,16 +515,24 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       inflight.clear();
       dbSeen.clear();
       states.clear();
+      unsent.clear();
+      generation = 0;
       absorb((await startedOrFailed(evolu.loadQuery(allRows), platform.deps, options.startTimeoutMs ?? 20_000)) as ReadonlyArray<Row>);
       cleanups.push(evolu.subscribeQuery(allRows)(() => absorb(evolu!.getQueryRows(allRows) as ReadonlyArray<Row>)));
+      // documents written before the last reload that the relay has not acknowledged (the database is up by now)
+      for (const r of (await evolu.loadQuery(unsentRows)) as ReadonlyArray<{ id: ReturnType<typeof unsentRowId>; doc: string | null }>) {
+        const slash = r.doc?.indexOf('/') ?? -1;
+        if (r.doc && slash > 0) unsent.set(rowKey(r.doc.slice(0, slash), r.doc.slice(slash + 1)), r.id);
+      }
       const name = evolu.name;
       const ownerId = owner.id;
       const syncState = platform.deps.syncState;
       cleanups.push(
         syncState.subscribe(() => {
           if (!endpoint) return;
-          setStatus(mapStatus(syncStateToOwnerSyncStatus(syncState.get(), name, ownerId), current, endpoint, pending));
-          if (current.state === 'synced') pending = 0;
+          const next = mapStatus(syncStateToOwnerSyncStatus(syncState.get(), name, ownerId), current, endpoint, unsent.size);
+          if (next.state === 'synced') clearUnsent();
+          setStatus(next);
         }),
       );
       connect(o.relayUrl);
@@ -474,8 +544,14 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       unuse = null;
       for (const c of cleanups.splice(0)) c();
       const e = evolu;
+      // Evolu applies mutations in its DbWorker after `put` returns; a query sent now is answered after them, so a write
+      // made just before a close (or a reload) is on disk. Bounded: a stuck worker must not block the close.
+      if (e) await Promise.race([e.loadQuery(drainQuery), new Promise((r) => setTimeout(r, 2_000))]).catch(() => undefined);
+      settleStoring('The sync store closed before the change was confirmed as saved.');
       evolu = null;
       endpoint = undefined;
+      relay = null;
+      unsent.clear();
       if (e) await e[Symbol.asyncDispose]();
       await platform?.dispose();
       platform = null;
@@ -502,11 +578,15 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       return out.sort((a, b) => (a._id < b._id ? -1 : a._id > b._id ? 1 : 0));
     },
 
+    /** Resolves once Evolu has stored the write (see `whenStored`); readers and listeners see it at once. */
     async put<T>(col: string, id: string, value: T, opts?: { schema?: number }) {
       const now = new Date().toISOString();
       const w = nextVersion(col, id, undefined, { value, schema: opts?.schema ?? 1 })!;
-      const doc = rowToDoc(write(w, prepare(w, now), now)) as Doc<T>;
+      const values = prepare(w, now);
+      const stored = whenStored();
+      const doc = rowToDoc(write(w, values, now, stored.onComplete)) as Doc<T>;
       emit({ col, id, doc, origin: 'local' });
+      await stored.done;
       return doc;
     },
 
@@ -514,11 +594,17 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
       const w = nextVersion(col, id, undefined, null);
       if (!w) return;
       const now = new Date().toISOString();
-      const doc = rowToDoc(write(w, prepare(w, now), now));
+      const values = prepare(w, now);
+      const stored = whenStored();
+      const doc = rowToDoc(write(w, values, now, stored.onComplete));
       emit({ col, id, doc, origin: 'local' });
+      await stored.done;
     },
 
-    /** Atomic: sizes are checked first, then every upsert is queued in this tick (one Evolu transaction). */
+    /**
+     * Atomic: sizes are checked first, then every upsert is queued in this tick (one Evolu transaction). Resolves once
+     * that transaction is stored: one `onComplete` on the last upsert covers the batch.
+     */
     async batch(ops: readonly BackendOp[]) {
       const now = new Date().toISOString();
       const writes: Pending[] = [];
@@ -531,8 +617,10 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
         writes.push(w);
       }
       const prepared = writes.map((w) => prepare(w, now));
-      const docs = writes.map((w, i) => rowToDoc(write(w, prepared[i]!, now))!);
+      const stored = writes.length > 0 ? whenStored() : null;
+      const docs = writes.map((w, i) => rowToDoc(write(w, prepared[i]!, now, i === writes.length - 1 ? stored?.onComplete : undefined))!);
       for (const d of docs) emit({ col: d._col, id: d._id, doc: d, origin: 'local' });
+      await stored?.done;
       return docs;
     },
 
@@ -544,6 +632,17 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
     async setRelay(url) {
       need();
       connect(url);
+    },
+
+    /**
+     * A fresh socket to the relay now. Evolu's own socket retries with a back-off of up to 30 s and listens to no
+     * network event, so the app calls this when the network comes back or the person taps "Sync now".
+     */
+    async reconnect() {
+      need();
+      if (!relay) return;
+      generation += 1;
+      connect(relay);
     },
 
     async pull() {
@@ -559,7 +658,7 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
     },
 
     async push() {
-      const sent = pending;
+      const sent = unsent.size;
       await round();
       return { sent: current.state === 'synced' ? sent : 0 };
     },
@@ -582,10 +681,13 @@ export function createEvoluSyncStore(options: EvoluStoreOptions): SyncStore {
         await evolu[Symbol.asyncDispose]();
         evolu = null;
       }
+      settleStoring('The local data was erased before the change was confirmed as saved.');
       if (name && p?.deleteDatabase) await p.deleteDatabase(name);
       await p?.dispose();
       platform = null;
       snapshot.clear();
+      unsent.clear();
+      relay = null;
       keys = null;
       owner = null;
       setStatus(OFF_STATUS);

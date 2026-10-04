@@ -833,6 +833,10 @@ const BLE_MESSAGES: Record<string, string> = {
   disconnected: 'The ring disconnected. Close the ring’s own app, keep the ring close and try again.',
   aborted: 'Stopped.',
   closed: 'The connection closed. Try again.',
+  transport: 'Vitals couldn’t talk to the ring. Close the ring’s own app, keep the ring close and try again.',
+  timeout: 'The ring didn’t answer. Keep the ring close and try again.',
+  unsupported_firmware: 'This ring’s firmware isn’t supported yet.',
+  bond_required: 'The ring has to be paired first. Accept the pairing request when it appears, then try again.',
 };
 
 async function openRing(ctx: CommandContext, driverId: string, linkRef: string | undefined) {

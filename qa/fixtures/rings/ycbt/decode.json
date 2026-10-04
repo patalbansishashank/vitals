@@ -1,0 +1,1689 @@
+{
+  "family": "ycbt",
+  "source": "app/src/test/java/com/pulseloop/ring/YCBTDecoderTest.kt (and the per-vector source)",
+  "vectors": [
+    {
+      "name": "validating accepts the captured setTime frame",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "frame"
+      },
+      "bytes": "01 00 0e 00 ea 07 07 06 0c 22 0e 00 26 c7",
+      "frame": {
+        "type": 1,
+        "cmd": 0,
+        "payload": "ea 07 07 06 0c 22 0e 00"
+      },
+      "events": [],
+      "match": "exact",
+      "note": "Derived positive case for the two negatives below."
+    },
+    {
+      "name": "validating rejects bad CRC",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "frame"
+      },
+      "bytes": "01 00 0e 00 ea 07 07 06 0c 22 0e 00 26 38",
+      "frame": null,
+      "events": [],
+      "match": "exact",
+      "note": "Last CRC byte xor 0xff. The driver turns a frame that fails validation into RingDecodedEvent.Unknown(commandId = first byte, raw)."
+    },
+    {
+      "name": "validating rejects wrong declared length",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "frame"
+      },
+      "bytes": "01 00 ff 00 ea 07 07 06 0c 22 0e 00 26 c7",
+      "frame": null,
+      "events": [],
+      "match": "exact"
+    },
+    {
+      "name": "validating rejects a frame shorter than six bytes (derived)",
+      "source": "YCBTProtocol.kt",
+      "context": {
+        "layer": "frame"
+      },
+      "bytes": "06 01 05 00 52",
+      "frame": null,
+      "events": [],
+      "match": "exact",
+      "note": "Not asserted by a Kotlin test: size < 6 returns null before any other check."
+    },
+    {
+      "name": "frame split across three notifications is reassembled",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "05 15 42 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa",
+        "aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa",
+        "aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa 1c 1e"
+      ],
+      "channels": [
+        "be940003-7333-be46-b7ae-689e71722bd5",
+        "be940003-7333-be46-b7ae-689e71722bd5",
+        "be940003-7333-be46-b7ae-689e71722bd5"
+      ],
+      "framesPerAppend": [
+        [],
+        [],
+        [
+          "05 15 42 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa 1c 1e"
+        ]
+      ],
+      "events": [],
+      "match": "exact",
+      "note": "The completed frame also passes validating()."
+    },
+    {
+      "name": "two frames in one notification both emerge",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "05 15 0c 00 aa aa aa aa aa aa b9 03 05 18 1a 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa 01 c9"
+      ],
+      "channels": [
+        "be940003-7333-be46-b7ae-689e71722bd5"
+      ],
+      "framesPerAppend": [
+        [
+          "05 15 0c 00 aa aa aa aa aa aa b9 03",
+          "05 18 1a 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa 01 c9"
+        ]
+      ],
+      "events": [],
+      "match": "exact"
+    },
+    {
+      "name": "fragment then whole frame in one notification",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "05 15 24 00 aa aa aa aa aa aa",
+        "aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa af 16 05 18 0a 00 aa aa aa aa c1 45"
+      ],
+      "channels": [
+        "be940003-7333-be46-b7ae-689e71722bd5",
+        "be940003-7333-be46-b7ae-689e71722bd5"
+      ],
+      "framesPerAppend": [
+        [],
+        [
+          "05 15 24 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa af 16",
+          "05 18 0a 00 aa aa aa aa c1 45"
+        ]
+      ],
+      "events": [],
+      "match": "exact"
+    },
+    {
+      "name": "garbage prefix resyncs to next valid frame",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "ff 00 ff ff 7f 05 15 0c 00 aa aa aa aa aa aa b9 03"
+      ],
+      "channels": [
+        "be940003-7333-be46-b7ae-689e71722bd5"
+      ],
+      "framesPerAppend": [
+        [
+          "05 15 0c 00 aa aa aa aa aa aa b9 03"
+        ]
+      ],
+      "events": [],
+      "match": "exact",
+      "note": "A byte is dropped while the first byte is not a group 01..06 or the declared length is outside 6..1024."
+    },
+    {
+      "name": "channels buffer independently",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "05 15 24 00 aa aa aa aa aa aa",
+        "02 00 0c 00 00 00 00 00 00 64 26 02",
+        "aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa af 16"
+      ],
+      "channels": [
+        "be940003-7333-be46-b7ae-689e71722bd5",
+        "be940001-7333-be46-b7ae-689e71722bd5",
+        "be940003-7333-be46-b7ae-689e71722bd5"
+      ],
+      "framesPerAppend": [
+        [],
+        [
+          "02 00 0c 00 00 00 00 00 00 64 26 02"
+        ],
+        [
+          "05 15 24 00 aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa af 16"
+        ]
+      ],
+      "events": [],
+      "match": "exact"
+    },
+    {
+      "name": "reset drops partial frames",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "05 15 24 00 aa aa aa aa aa aa",
+        "RESET",
+        "aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa aa af 16"
+      ],
+      "channels": [
+        "be940003-7333-be46-b7ae-689e71722bd5",
+        null,
+        "be940003-7333-be46-b7ae-689e71722bd5"
+      ],
+      "framesPerAppend": [
+        [],
+        [],
+        []
+      ],
+      "events": [],
+      "match": "exact",
+      "note": "\"RESET\" stands for assembler.reset() (every connect and disconnect)."
+    },
+    {
+      "name": "find device capability follows its support bit (clear)",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 01 14 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 d2 06",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilitiesExclude": [
+            "FIND_DEVICE"
+          ]
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "find device capability follows its support bit (set)",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 01 14 00 00 00 00 00 00 00 10 00 00 00 00 00 00 00 66 3b",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilitiesInclude": [
+            "FIND_DEVICE"
+          ]
+        }
+      ],
+      "match": "contains",
+      "note": "Byte 6 bit 4 (LSB = bit 0)."
+    },
+    {
+      "name": "pressure support bit enables both body-data scores",
+      "source": "YCBTProtocolTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 01 1d 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 40 59 e3",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilitiesInclude": [
+            "STRESS",
+            "FATIGUE"
+          ]
+        }
+      ],
+      "match": "contains",
+      "note": "Byte 22 bit 6; only read when the payload is at least 23 bytes."
+    },
+    {
+      "name": "support bitmap with blood pressure and HRV bits",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 01 1e 00 01 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 16 80",
+      "events": [
+        {
+          "kotlin": "SupportFunctions",
+          "capabilities": [
+            "BLOOD_PRESSURE",
+            "HRV"
+          ]
+        }
+      ],
+      "match": "exact",
+      "note": "The bitmap used by \"optional live values are discarded until support function declares them\". Exact set derived from YCBTSupportFunction (byte 0 bit 0 = BP, byte 1 bit 1 = HRV)."
+    },
+    {
+      "name": "live heart rate decodes",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "06 01 07 00 52 1a 55",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 82
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "live status decodes steps distance calories",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "06 00 0c 00 7b 02 97 01 1a 00 b6 0d",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "steps": 635,
+          "distanceMeters": 407,
+          "calories": 26
+        }
+      ],
+      "match": "prefix",
+      "note": "u16 LE steps, distance (m), calories (kcal); cumulative for today, stamped with the phone time."
+    },
+    {
+      "name": "live vitals decodes BP shape",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "06 03 14 00 6f 4a 44 00 00 00 00 00 00 00 00 00 00 00 74 f1",
+      "events": [
+        {
+          "kotlin": "BloodPressureSample",
+          "systolic": 111,
+          "diastolic": 74
+        },
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 68
+        }
+      ],
+      "match": "contains",
+      "note": "Kotlin asserts events[0] is the BP sample and some HeartRateSample is 68."
+    },
+    {
+      "name": "live vitals decodes HRV shape",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "06 03 14 00 00 00 00 b1 00 00 00 00 00 00 00 00 00 00 15 79",
+      "events": [
+        {
+          "kotlin": "HrvSample",
+          "value": 177
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "live vitals decodes SpO2 and temperature tail",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "06 03 0d 00 76 4f 46 2a 61 24 04 a5 e5",
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 97
+        },
+        {
+          "kotlin": "TemperatureSample",
+          "celsius": 36.4,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "contains",
+      "note": "Payload: sys, dia, HR, HRV, SpO2, temp integer, temp fraction digit. Temperature is the string \"36\" + \".\" + \"4\"."
+    },
+    {
+      "name": "battery push decodes",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "06 15 08 00 01 5b 90 f9",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "percent": 91
+        }
+      ],
+      "match": "prefix",
+      "note": "Percent is payload byte 1; byte 0 is not read."
+    },
+    {
+      "name": "wearing status push decodes worn",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "tz": "UTC"
+      },
+      "bytes": "06 13 0b 00 1c f0 de 31 01 38 b4",
+      "events": [
+        {
+          "kotlin": "WearingStatus",
+          "worn": true,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        }
+      ],
+      "match": "prefix",
+      "note": "Kotlin stamps the frame with ringSeconds(now); pinned here to a fixed ring time. The timestamp is not asserted in Kotlin."
+    },
+    {
+      "name": "wearing status push decodes not worn",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "tz": "UTC"
+      },
+      "bytes": "06 13 0b 00 1c f0 de 31 00 19 a4",
+      "events": [
+        {
+          "kotlin": "WearingStatus",
+          "worn": false,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement status push decodes heart rate",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 09 00 00 01 48 ed b6",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 72
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement status push decodes blood pressure",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 0a 00 01 01 76 4f f8 0d",
+      "events": [
+        {
+          "kotlin": "BloodPressureSample",
+          "systolic": 118,
+          "diastolic": 79
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement status push decodes SpO2",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 09 00 02 01 62 a5 5d",
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 98
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement status push decodes temperature",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 0a 00 04 01 24 05 ee 30",
+      "events": [
+        {
+          "kotlin": "TemperatureSample",
+          "celsius": 36.5,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement status push decodes blood sugar",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 0a 00 05 01 05 05 8d 73",
+      "events": [
+        {
+          "kotlin": "BloodSugarSample",
+          "mgdl": 99.088,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "prefix",
+      "note": "(5*10+5) tenths of mmol/L = 5.5 mmol/L x 18.016 (unverified scaling)."
+    },
+    {
+      "name": "measurement status push with no value acks (heart rate 0)",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 09 00 00 00 00 10 4c",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 19
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement status push with no value acks (unknown mode 3)",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 09 00 03 01 10 40 34",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 19
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement result push: heart rate success",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 0e 08 00 00 01 fb 52",
+      "events": [
+        {
+          "kotlin": "MeasurementComplete",
+          "mode": 0,
+          "success": true
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "measurement result push: SpO2 failed",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 0e 08 00 02 02 fa 04",
+      "events": [
+        {
+          "kotlin": "MeasurementComplete",
+          "mode": 2,
+          "success": false
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "measurement result push: cancelled",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 0e 08 00 00 03 b9 72",
+      "events": [
+        {
+          "kotlin": "MeasurementComplete",
+          "mode": 0,
+          "success": false
+        }
+      ],
+      "match": "exact",
+      "note": "Only status 1 is success; 2 failed, anything else cancelled."
+    },
+    {
+      "name": "a measurement result too short to name a mode stays an ack",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 0e 07 00 01 e1 af",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 14
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "HRV status tail remains undecoded without a captured layout",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "04 13 09 00 0a 01 2a c8 3d",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 19
+        },
+        {
+          "kotlin": "HrvSample",
+          "absent": true
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "measurement start reply: refusal of the started mode",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "startedMode": 10
+      },
+      "bytes": "03 2f 07 00 01 cf 89",
+      "events": [
+        {
+          "kotlin": "MeasurementRejected",
+          "mode": 10
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement start reply: acceptance",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "startedMode": 10
+      },
+      "bytes": "03 2f 07 00 00 ee 99",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 47
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "measurement start reply: refusal with no start on record",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "startedMode": null
+      },
+      "bytes": "03 2f 07 00 01 cf 89",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 47
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "device info decodes battery and firmware",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 00 1e 00 a3 00 12 01 00 64 00 01 00 03 00 00 00 00 01 00 00 00 01 00 00 00 00 00 ef 10",
+      "events": [
+        {
+          "kotlin": "Status",
+          "firmware": "1.18"
+        },
+        {
+          "kotlin": "Battery",
+          "percent": 100
+        }
+      ],
+      "match": "contains",
+      "note": "firmware = \"<payload[3]>.<payload[2] two digits>\", battery = payload[5]. Payload bytes 0..1 (a3 00) are not read; Kotlin reads no serial or model from this reply."
+    },
+    {
+      "name": "firmware sub version is zero padded",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 00 0c 00 a3 00 05 01 00 64 9b a6",
+      "events": [
+        {
+          "kotlin": "Status",
+          "firmware": "1.05"
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "chip scheme reply (derived)",
+      "source": "YCBTDecoder.kt",
+      "context": {
+        "layer": "decoder"
+      },
+      "bytes": "02 1b 07 00 04 23 95",
+      "events": [
+        {
+          "kotlin": "ChipScheme",
+          "value": 4
+        }
+      ],
+      "match": "exact",
+      "note": "Not asserted by a Kotlin test. Values >= 240 read as 0; 3..5 mean a JieLi chip. Diagnostic only."
+    },
+    {
+      "name": "DevControl push is acked and decoded",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "bytes": "04 13 09 00 00 01 48 ed b6",
+      "writes": [
+        "04 13 00"
+      ],
+      "writesFramed": [
+        "04 13 07 00 00 e1 9d"
+      ],
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 72
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "unhandled DevControl push is still acked",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "bytes": "04 00 07 00 01 bb 0d",
+      "writes": [
+        "04 00 00"
+      ],
+      "writesFramed": [
+        "04 00 07 00 00 9a 1d"
+      ],
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 0
+        }
+      ],
+      "match": "prefix"
+    },
+    {
+      "name": "DevControl error frame is not acked",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "bytes": "04 13 07 00 fc 72 b3",
+      "writes": [],
+      "events": [],
+      "match": "ignore",
+      "note": "A one-byte payload fb..ff is the ring refusing a command (fb unsupported command, fc unsupported key, fd length, fe data, ff CRC); no ack is written. Events not asserted."
+    },
+    {
+      "name": "live stream frames are not acked",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "bytes": "06 01 07 00 52 1a 55",
+      "writes": [],
+      "events": [],
+      "match": "ignore"
+    },
+    {
+      "name": "optional live values are discarded until support function declares them",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "bytesSequence": [
+        "06 03 0d 00 78 50 46 2a 62 24 05 db 41",
+        "02 01 1e 00 01 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 16 80",
+        "06 03 0d 00 78 50 46 2a 62 24 05 db 41"
+      ],
+      "events": [
+        [
+          {
+            "kotlin": "BloodPressureSample",
+            "absent": true
+          },
+          {
+            "kotlin": "HrvSample",
+            "absent": true
+          },
+          {
+            "kotlin": "TemperatureSample",
+            "absent": true
+          },
+          {
+            "kotlin": "HeartRateSample"
+          },
+          {
+            "kotlin": "Spo2Result"
+          }
+        ],
+        "ignore",
+        [
+          {
+            "kotlin": "BloodPressureSample"
+          },
+          {
+            "kotlin": "HrvSample"
+          },
+          {
+            "kotlin": "TemperatureSample",
+            "absent": true
+          }
+        ]
+      ],
+      "match": "contains",
+      "note": "events[i] is the expectation for bytesSequence[i]. R10M baseline has HR and SpO2; BP, HRV and temperature need the 02 01 bitmap."
+    },
+    {
+      "name": "reconnect forgets optional capabilities learned on the old link",
+      "source": "YCBTDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "profile": "ycbt",
+        "channel": "be940003-7333-be46-b7ae-689e71722bd5"
+      },
+      "bytesSequence": [
+        "02 01 14 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 b3 7d",
+        "04 13 0a 00 01 00 78 50 19 fa",
+        "RECONNECT",
+        "04 13 0a 00 01 00 78 50 19 fa"
+      ],
+      "events": [
+        "ignore",
+        [
+          {
+            "kotlin": "BloodPressureSample"
+          }
+        ],
+        "ignore",
+        [
+          {
+            "kotlin": "BloodPressureSample",
+            "absent": true
+          }
+        ]
+      ],
+      "match": "contains",
+      "note": "\"RECONNECT\" = connectionDidEnd() then connectionDidStart(): capabilities fall back to the baseline."
+    },
+    {
+      "name": "heart rate drops zero samples",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "heart",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 00 1a fe de 31 00 42",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 66,
+          "_timestamp": {
+            "ringSeconds": 836697626
+          }
+        }
+      ],
+      "match": "count",
+      "count": 1,
+      "note": "Kotlin asserts the count only; the value and time are derived. 6-byte record: u32 ring seconds, 1 byte unread, HR."
+    },
+    {
+      "name": "partial trailing record is dropped",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "heart",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 47 1a fe de 31 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 71,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        }
+      ],
+      "match": "count",
+      "count": 1
+    },
+    {
+      "name": "combined vitals decodes temperature and blood sugar when present",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "all",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 72 10 46 76 4f 61 0f 3a 03 24 06 15 04 37 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "TEMPERATURE",
+          "value": 36.6,
+          "tolerance": 0.001
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_SUGAR",
+          "value": 99.088,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "contains",
+      "note": "20-byte record: 0..3 time, 7 sys, 8 dia, 9 SpO2, 10 respiratory rate, 11 HRV, 13/14 temperature integer/fraction, 17 blood sugar tenths of mmol/L. Bytes 4..6, 12, 15, 16, 18, 19 unread (Kotlin notes byte 4..6 carry a lagging step field it ignores on purpose)."
+    },
+    {
+      "name": "unworn combined vitals record produces no activity",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "all",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 08 0d 47 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "match": "exact"
+    },
+    {
+      "name": "SpO2 records decode",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "spo2",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 61 1a fe de 31 01 00 26 0c df 31 00 5f",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "SPO2",
+          "value": 97,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "SPO2",
+          "value": 95
+        }
+      ],
+      "match": "exact",
+      "note": "Zero SpO2 records are dropped. Only the first timestamp is asserted."
+    },
+    {
+      "name": "blood pressure records decode",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "blood",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 01 76 4f 40 1a fe de 31 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "BloodPressureSample",
+          "systolic": 118,
+          "diastolic": 79,
+          "isHistory": true,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 64,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        }
+      ],
+      "match": "contains",
+      "note": "8-byte record: time, 1 byte unread, sys, dia, HR."
+    },
+    {
+      "name": "body data decodes HRV in ms and stress fatigue on apps hundred scale",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "body_data",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 03 02 3e 05 05 03 04 02 05 05 30 00 2a 0c 37 00 b0 04 84 03 0d 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HRV",
+          "value": 62.5,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          },
+          "tolerance": 0.001
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "STRESS",
+          "value": 53,
+          "tolerance": 0.001
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "FATIGUE",
+          "value": 42,
+          "tolerance": 0.001
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "VO2MAX",
+          "value": 42,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "contains",
+      "note": "One 28-byte record from the Kotlin test (a single reading). HRV = \"62\" + \".\" + \"5\" from bytes 6/7; stress = digits \"5\"+\"3\" from bytes 8/9; fatigue = \"4\"+\"2\" from 10/11; VO2max byte 16. The digit-concatenation scale for stress and fatigue is marked UNVERIFIED in Kotlin."
+    },
+    {
+      "name": "short body data record is dropped not misread",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "body_data",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 03 02 3e 05 05 03 04 02 05 05 30 00 2a 0c 37 00 b0 04 84 03 0d 00 00 00 1c f0 de 31 03 02 3e 05 05 03 04 02 05 05 30 00 2a",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "HRV",
+          "value": 62.5,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          },
+          "tolerance": 0.001
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "VO2MAX",
+          "value": 42
+        }
+      ],
+      "match": "contains",
+      "note": "Kotlin asserts exactly one HRV value and VO2MAX values == [42]."
+    },
+    {
+      "name": "sport records decode to activity buckets",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sport",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 a0 f3 de 31 80 02 e0 01 19 00 1a fe de 31 9e 01 df 31 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "ActivityBucket",
+          "steps": 640,
+          "distanceMeters": 480,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        }
+      ],
+      "match": "exact",
+      "note": "14-byte record: u32 start, u32 end (0x31def3a0 = start + 900 s here), u16 steps, u16 distance m, u16 at 12 (0x19 = 25, probably kcal; not decoded). Records with no steps and no distance are dropped."
+    },
+    {
+      "name": "temperature records decode with string concat fraction",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "temperature",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 24 05 1a fe de 31 00 24 19 26 0c df 31 00 00 0f",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "TEMPERATURE",
+          "value": 36.5,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          },
+          "tolerance": 0.001
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "TEMPERATURE",
+          "value": 36.25,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "exact",
+      "note": "7-byte record: time, 1 unread, integer, fraction digits (0x19 = 25 -> \"36.25\"). Integer 0 or fraction 15 (filler) is dropped."
+    },
+    {
+      "name": "temperature filler fraction is dropped even with non zero integer",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "temperature",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 24 0f 1a fe de 31 00 00 0f",
+      "events": [],
+      "match": "exact"
+    },
+    {
+      "name": "comprehensive decodes blood sugar as mgdl",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "comprehensive",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 01 05 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 1a fe de 31 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind_field": "BLOOD_SUGAR",
+          "value": 99.088,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          },
+          "tolerance": 0.001
+        }
+      ],
+      "match": "exact",
+      "note": "44-byte record: time, 1 unread, integer and tenth digit of mmol/L at 5/6 (5, 5 -> 55 tenths) x 18.016. Rest unread."
+    },
+    {
+      "name": "every catalog type decodes through the type table (spo2)",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "spo2",
+        "via": "decode(buffer, type)",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 61 1a fe de 31 01 00 26 0c df 31 00 5f",
+      "events": [],
+      "match": "count",
+      "count": 2
+    },
+    {
+      "name": "every catalog type decodes through the type table (blood)",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "blood",
+        "via": "decode(buffer, type)",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 01 76 4f 40 1a fe de 31 00 00 00 00",
+      "events": [],
+      "match": "count",
+      "count": 2
+    },
+    {
+      "name": "every catalog type decodes through the type table (sport)",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sport",
+        "via": "decode(buffer, type)",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 a0 f3 de 31 80 02 e0 01 19 00 1a fe de 31 9e 01 df 31 00 00 00 00 00 00",
+      "events": [],
+      "match": "count",
+      "count": 1
+    },
+    {
+      "name": "every catalog type decodes through the type table (temperature)",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "temperature",
+        "via": "decode(buffer, type)",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 00 24 05 1a fe de 31 00 24 19 26 0c df 31 00 00 0f",
+      "events": [],
+      "match": "count",
+      "count": 2
+    },
+    {
+      "name": "every catalog type decodes through the type table (body_data)",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "body_data",
+        "via": "decode(buffer, type)",
+        "tz": "UTC"
+      },
+      "bytes": "1c f0 de 31 03 02 3e 05 05 03 04 02 05 05 30 00 2a 0c 37 00 b0 04 84 03 0d 00 00 00",
+      "events": [],
+      "match": "count",
+      "count": 4
+    },
+    {
+      "name": "two adjacent sessions decode as two timelines with their own starts",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 24 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 10 1d 00 f1 2c fe de 31 88 0e 00 af fa 24 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 68 1c df 31 e4 1b 00 f1 78 2a df 31 10 1d 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 186,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "index": 1,
+          "stagesSize": 243,
+          "_timestamp": {
+            "ringSeconds": 836705384
+          }
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "count": 2
+        }
+      ],
+      "match": "contains",
+      "note": "Headers carry no bounds (zeros), so each session is its segments concatenated; each segment start is base + index*3600 by the helper."
+    },
+    {
+      "name": "a record with a wrong declared length does not swallow the next session",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 10 0e 00 af fa 1c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f1 1c f0 de 31 08 07 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "count": 1
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 30
+        }
+      ],
+      "match": "contains",
+      "note": "The parser resynchronises on the next \"af fa\"."
+    },
+    {
+      "name": "nap segment does not truncate the night",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 2c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 10 0e 00 f5 2c fe de 31 b0 04 00 f1 3c 0c df 31 08 07 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stageCounts": {
+            "LIGHT": 60,
+            "UNKNOWN": 20,
+            "DEEP": 30
+          }
+        }
+      ],
+      "match": "contains",
+      "note": "Stage = tag & 0x0f: 1 deep, 2 light, 3 REM, 4 awake, 5 unknown (nap); other values skip the segment."
+    },
+    {
+      "name": "segment duration is u24",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 1c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 40 19 01",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 1200
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "malformed sleep durations are bounded to one day",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 24 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 ff ff ff f1 2c fe de 31 10 0e 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 1440,
+          "stageCounts": {
+            "LIGHT": 1440
+          }
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "repeated segment is counted once",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 34 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 08 07 00 f1 2c fe de 31 08 07 00 f3 3c 0c df 31 08 07 00 f1 2c fe de 31 08 07 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 90,
+          "stageCounts": {
+            "DEEP": 30
+          }
+        }
+      ],
+      "match": "contains",
+      "note": "De-duplication is on the segment start time."
+    },
+    {
+      "name": "truncated session is clamped",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 24 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 58 02 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 10
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "a record whose segments round long still ends at its declared end",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 3c 00 1c f0 de 31 94 3b df 31 00 00 00 00 00 00 00 00 f2 1c f0 de 31 00 4b 00 f1 1c 3b df 31 14 00 00 f1 30 3b df 31 14 00 00 f1 44 3b df 31 14 00 00 f1 58 3b df 31 14 00 00 af fa 1c 00 d0 3b df 31 34 5f df 31 00 00 00 00 00 00 00 00 f2 d0 3b df 31 64 23 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "count": 2
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 322,
+          "_timestamp": {
+            "ringSeconds": 836694044
+          }
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "index": 1,
+          "_timestamp": {
+            "ringSeconds": 836713424
+          }
+        }
+      ],
+      "match": "contains",
+      "note": "With header bounds the timeline spans exactly start..end (rounded minutes), each segment placed at its own start. Kotlin asserts timeline[1] starts 60 s after timeline[0] start + 322 min."
+    },
+    {
+      "name": "minutes no segment claims read as awake",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 1c 00 1c f0 de 31 2c fe de 31 00 00 00 00 00 00 00 00 f2 1c f0 de 31 08 07 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 60,
+          "stageCounts": {
+            "LIGHT": 30,
+            "AWAKE": 30
+          },
+          "firstStages": {
+            "count": 30,
+            "stage": "LIGHT"
+          }
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "a zero-length segment does not shadow a real segment sharing its start",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 2c 00 1c f0 de 31 74 f2 de 31 00 00 00 00 00 00 00 00 f2 1c f0 de 31 2c 01 00 f1 48 f1 de 31 00 00 00 f3 48 f1 de 31 2c 01 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stageCounts": {
+            "LIGHT": 5,
+            "REM": 5
+          },
+          "stagesExclude": [
+            "AWAKE"
+          ]
+        }
+      ],
+      "match": "contains"
+    },
+    {
+      "name": "a record with no header bounds falls back to concatenated segments",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "healthRecords",
+        "historyType": "sleep",
+        "tz": "UTC"
+      },
+      "bytes": "af fa 24 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 f2 1c f0 de 31 08 07 00 f1 2c fe de 31 08 07 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "index": 0,
+          "stagesSize": 60,
+          "completeSession": true
+        }
+      ],
+      "match": "contains",
+      "note": "completeSession is always true for YCBT sleep (asserted on the captured night in Kotlin; set unconditionally in the decoder)."
+    },
+    {
+      "name": "stress score is digit concatenated not a decimal composite (score(5, 3))",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "helper",
+        "fn": "score"
+      },
+      "bytes": "05 03",
+      "events": [
+        {
+          "kotlin": "Double",
+          "value": 53,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "stress score is digit concatenated not a decimal composite (score(7, 0))",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "helper",
+        "fn": "score"
+      },
+      "bytes": "07 00",
+      "events": [
+        {
+          "kotlin": "Double",
+          "value": 70,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "stress score is digit concatenated not a decimal composite (score(10, 0))",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "helper",
+        "fn": "score"
+      },
+      "bytes": "0a 00",
+      "events": [
+        {
+          "kotlin": "Double",
+          "value": 100,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "stress score is digit concatenated not a decimal composite (composite(5, 3))",
+      "source": "YCBTHealthRecordsTest.kt",
+      "context": {
+        "layer": "helper",
+        "fn": "composite"
+      },
+      "bytes": "05 03",
+      "events": [
+        {
+          "kotlin": "Double",
+          "value": 5.3,
+          "tolerance": 0.001
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "u24 reads three bytes little endian",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "helper",
+        "fn": "u24"
+      },
+      "bytes": "40 19 01",
+      "events": [
+        {
+          "kotlin": "Int",
+          "value": 72000
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "u24 on a short buffer is zero",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "helper",
+        "fn": "u24"
+      },
+      "bytes": "00 00",
+      "events": [
+        {
+          "kotlin": "Int",
+          "value": 0
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "date decode uses the record instant DST offset (winter)",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "clock",
+        "tz": "America/New_York",
+        "instant": "2026-01-15T17:00:00Z"
+      },
+      "bytes": "40 93 fb 30",
+      "ringSeconds": 821793600,
+      "events": [
+        {
+          "kotlin": "Instant",
+          "value": "2026-01-15T17:00:00Z"
+        }
+      ],
+      "match": "exact",
+      "note": "Local 12:00 EST. bytes = u32 LE ring seconds = local wall clock seconds since 2000-01-01."
+    },
+    {
+      "name": "date decode uses the record instant DST offset (summer)",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "clock",
+        "tz": "America/New_York",
+        "instant": "2026-07-15T16:00:00Z"
+      },
+      "bytes": "c0 32 ea 31",
+      "ringSeconds": 837432000,
+      "events": [
+        {
+          "kotlin": "Instant",
+          "value": "2026-07-15T16:00:00Z"
+        }
+      ],
+      "match": "exact",
+      "note": "Local 12:00 EDT."
+    },
+    {
+      "name": "date round trips across spring DST boundary (before)",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "clock",
+        "tz": "America/New_York",
+        "instant": "2026-03-08T06:30:00Z"
+      },
+      "bytes": "98 8d 3f 31",
+      "ringSeconds": 826248600,
+      "events": [
+        {
+          "kotlin": "Instant",
+          "value": "2026-03-08T06:30:00Z"
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "date round trips across spring DST boundary (after)",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "clock",
+        "tz": "America/New_York",
+        "instant": "2026-03-08T07:30:00Z"
+      },
+      "bytes": "b8 a9 3f 31",
+      "ringSeconds": 826255800,
+      "events": [
+        {
+          "kotlin": "Instant",
+          "value": "2026-03-08T07:30:00Z"
+        }
+      ],
+      "match": "exact"
+    },
+    {
+      "name": "fall DST overlap deterministically chooses the earlier offset",
+      "source": "YCBTDecoderTest.kt",
+      "context": {
+        "layer": "clock",
+        "tz": "America/New_York",
+        "instant": "2026-11-01T05:30:00Z"
+      },
+      "bytes": "98 52 79 32",
+      "ringSeconds": 846811800,
+      "events": [
+        {
+          "kotlin": "Instant",
+          "value": "2026-11-01T05:30:00Z"
+        }
+      ],
+      "match": "exact",
+      "note": "Local 01:30 EDT. 2026-11-01T06:30:00Z (01:30 EST) encodes to the same ring seconds; decoding picks the earlier offset, i.e. this instant."
+    }
+  ]
+}

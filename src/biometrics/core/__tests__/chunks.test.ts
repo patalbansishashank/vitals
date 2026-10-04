@@ -70,6 +70,24 @@ describe('mergeSamples', () => {
     const again = mergeSamples(r.samples, incoming);
     expect(again.added).toBe(1); // only the previously tombstoned one without a tombstone list
   });
+
+  it("prefer: 'incoming' lets a new value replace the stored one at the same (origin, t); equal values stay duplicates", () => {
+    const a = regular(3, (i) => 60 + i);
+    const incoming: RawSample[] = [
+      { t: a[0]!.t, value: 60, origin: 'history' }, // same value
+      { t: a[1]!.t, value: 99, origin: 'history' }, // revised
+      { t: a[1]!.t, value: 98, origin: 'history' }, // repeat inside incoming: the first wins
+      { t: a[2]!.t, value: 62, origin: 'history', quality: 3 }, // same value, other quality
+    ];
+    const r = mergeSamples(a, incoming, [], { prefer: 'incoming' });
+    expect(r).toMatchObject({ added: 0, duplicates: 2, replaced: 2 });
+    expect(r.samples.map((s) => [s.value, s.quality ?? 0])).toEqual([[60, 0], [99, 0], [62, 3]]);
+    // a value that only differs below Float32 precision is the same stored sample
+    const f = mergeSamples([{ t: T0, value: Math.fround(36.6), origin: 'history' }], [{ t: T0, value: 36.6, origin: 'history' }], [], { prefer: 'incoming' });
+    expect(f).toMatchObject({ duplicates: 1, replaced: 0 });
+    // the default keeps the existing sample
+    expect(mergeSamples(a, incoming).samples[1]!.value).toBe(61);
+  });
 });
 
 describe('splitting', () => {

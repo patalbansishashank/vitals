@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { PersonInit, PersonRequest, PersonResponse } from './personRpc.ts';
 import type { PersonRegistry } from './persons.ts';
 import { memoryLines } from './serverCli.ts';
+import { loopbackRelayUrl } from './serverConfig.ts';
+import { fakeWorkers } from './testHome.ts';
 import { createWorkerPool, isImport, personErrorStatus, threadWorkerFactory, timeoutOf, type PersonWorker, type WorkerFactory, type WorkerPool } from './workers.ts';
 
 const FIXTURE = new URL('./workers.fixture.mjs', import.meta.url);
@@ -100,6 +102,33 @@ describe('open-person cap', () => {
   });
 });
 
+describe('relay URL of a person worker (R20-WRITERS-04)', () => {
+  it('is asked at each open, so a person stored with relayUrl null syncs once the server listens; null falls back to the stored one', async () => {
+    const fake = fakeWorkers();
+    let url: string | null = null;
+    const stored = { ...persons, get: async (id: string) => ({ ...(await persons.get(id))!, relayUrl: id === B ? 'wss://stored.example/sync' : null }) } as PersonRegistry;
+    const { p } = pool({ factory: fake.factory, persons: stored, relayUrl: () => url });
+    await p.call(A, cmd('x'));
+    await p.call(B, cmd('x'));
+    expect(fake.opened.map((i) => i.relayUrl)).toEqual([null, 'wss://stored.example/sync']);
+    await p.closeAll();
+    url = loopbackRelayUrl({ host: '127.0.0.1', port: 4870 });
+    await p.call(A, cmd('x'));
+    await p.call(B, cmd('x'));
+    expect(fake.opened.slice(2).map((i) => i.relayUrl)).toEqual(['ws://127.0.0.1:4870/sync', 'ws://127.0.0.1:4870/sync']);
+  });
+
+  it('takes the loopback listener when the server binds loopback or every address, else none', () => {
+    expect(loopbackRelayUrl({ host: '127.0.0.1', port: 4870 })).toBe('ws://127.0.0.1:4870/sync');
+    expect(loopbackRelayUrl({ host: 'localhost', port: 4870 })).toBe('ws://localhost:4870/sync');
+    expect(loopbackRelayUrl({ host: '0.0.0.0', port: 4870 })).toBe('ws://127.0.0.1:4870/sync');
+    expect(loopbackRelayUrl({ host: '::', port: 4870 })).toBe('ws://[::1]:4870/sync');
+    expect(loopbackRelayUrl({ host: '[::1]', port: 4870 })).toBe('ws://[::1]:4870/sync');
+    // a tailnet address only: its Host would not pass the Host rule, so the public origin (or the stored URL) is used
+    expect(loopbackRelayUrl({ host: '100.64.0.1', port: 4870 })).toBeNull();
+  });
+});
+
 describe('real workers', () => {
   it('a worker that runs out of heap dies alone; the request answers person_restarting and the next one reopens', async () => {
     let opens = 0;
@@ -160,6 +189,51 @@ describe('real workers', () => {
     expect(m.persons.map((x) => x.id).sort()).toEqual([A, B]);
     expect(m.persons[0]!.heapUsedMb).toBeGreaterThan(0);
   }, 30_000);
+});
+
+describe('a removed person', () => {
+  it('has its worker closed on the next minute check, and the sample no longer lists it', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises');
+    const { createPersonRegistry } = await import('./persons.ts');
+    const dataDir = await mkdtemp(join(process.env.TMPDIR ?? '/tmp', 'workers-removed-'));
+    try {
+      const registry = createPersonRegistry(dataDir);
+      const add = (label: string) => registry.add({ label, timeZone: 'UTC', secret: new Uint8Array(32).fill(7), relayUrl: null });
+      const [keep, drop] = [(await add('keep')).id, (await add('drop')).id];
+      const h = heldWorkers();
+      const file = join(dataDir, 'memory.json');
+      const { p, lines } = pool({ persons: registry, factory: h.factory, memoryLogMs: 50, memoryFile: file });
+      await p.call(keep, cmd('x'));
+      await p.call(drop, cmd('x'));
+      await new Promise((r) => setTimeout(r, 120));
+      expect(h.closed).toEqual([]); // both exist: nothing closes
+      // `vitals-server persons remove` runs in another process: same files, another registry
+      expect(await createPersonRegistry(dataDir).remove(drop)).toBe(true);
+      await until(() => h.closed.length > 0);
+      expect(h.closed).toEqual([drop]);
+      expect([p.isOpen(keep), p.isOpen(drop)]).toEqual([true, false]);
+      expect(lines).toContain(`person ${drop}: removed; closing its worker`);
+      await new Promise((r) => setTimeout(r, 150)); // the next sample rewrites memory.json
+      const m = JSON.parse(await readFile(file, 'utf8')) as Awaited<ReturnType<WorkerPool['memory']>>;
+      expect(m.persons.map((x) => x.id)).toEqual([keep]);
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  it('a sample written before the check shows the removed person as closing and does not count it', async () => {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const dir = join(process.env.TMPDIR ?? '/tmp', `workers-status-removed-${process.pid}`);
+    await mkdir(dir, { recursive: true });
+    const at = '2026-10-03T10:00:00.000Z';
+    await writeFile(join(dir, 'memory.json'), JSON.stringify({ at, rssMb: 443, heapUsedMb: 53, maxOpenPersons: 4, persons: [{ id: A, busy: 0, idleSec: 40 }, { id: B, busy: 0, idleSec: 300 }, { id: C, busy: 0, idleSec: 900 }] }));
+    expect(await memoryLines(dir, Date.parse(at) + 10_000, new Set([A]))).toEqual([
+      'Memory (10 s ago): server rss 443 MB, main heap 53 MB, 1 of at most 4 persons open',
+      `  ${A}  heap unknown, idle 40 s`,
+      `  ${B}  heap unknown, removed (its worker closes within a minute)`,
+      `  ${C}  heap unknown, removed (its worker closes within a minute)`,
+    ]);
+  });
 });
 
 describe('diagnostics (loopback route)', () => {

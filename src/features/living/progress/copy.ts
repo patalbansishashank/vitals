@@ -47,7 +47,7 @@ export const PROGRESS_COPY = {
     adherence: 'adherence',
     body: 'body',
     signals: 'body signals',
-    activity: 'activity', // E29: ring
+    activity: 'from your ring', // plan 04: the link card to Body signals
     markers: 'blood markers', // E20: markers
     log: 'log',
     checkins: 'check-ins',
@@ -59,7 +59,7 @@ export const PROGRESS_COPY = {
     adherence: 'Adherence',
     body: 'Body',
     signals: 'Body signals',
-    activity: 'Activity', // E29: ring
+    activity: 'From your ring', // plan 04: the link card to Body signals
     markers: 'Blood markers', // E20: markers
     log: 'Log',
     checkins: 'Check-ins',

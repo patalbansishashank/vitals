@@ -1,0 +1,98 @@
+/* ==========================================================================
+   Vitals start screen: the mark, drawn on before any JavaScript runs.
+   index.html puts a static copy of the mark inside #root; React replaces it on
+   its first render and src/components/brand/LaunchScreen.tsx carries the same
+   animation on from where this one was. No tokens here (tokens.css arrives with
+   the app), so the chassis, ink and signal colours are written out:
+   light #e8eaec / #191c20 / #f5d336 with a 1.5 ink edge on the dot,
+   dark  #151618 / #eff0f2 / #f0d03c with no edge — the same values as --lm-chassis,
+   --lm-ink, --lm-signal and --lm-signal-edge. Theme: html[data-theme] (set by
+   theme-boot.js before paint), else the OS. Numbers match geometry.ts: ring arc
+   176.21 units, 5 % trim = offset 167.40, ring 500 ms, dot 220 ms from 420 ms.
+   ========================================================================== */
+html {
+  background: #e8eaec;
+}
+.vitals-launch {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  background: #e8eaec;
+  --vl-ink: #191c20;
+  --vl-signal: #f5d336;
+  --vl-edge: #191c20;
+  --vl-edge-width: 1.5;
+}
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) {
+    background: #151618;
+  }
+  html:not([data-theme='light']) .vitals-launch {
+    background: #151618;
+    --vl-ink: #eff0f2;
+    --vl-signal: #f0d03c;
+    --vl-edge: transparent;
+  }
+}
+html[data-theme='dark'] {
+  background: #151618;
+}
+html[data-theme='dark'] .vitals-launch {
+  background: #151618;
+  --vl-ink: #eff0f2;
+  --vl-signal: #f0d03c;
+  --vl-edge: transparent;
+}
+
+.vitals-launch__mark {
+  display: block;
+  overflow: visible;
+}
+.vitals-launch__ring {
+  fill: none;
+  stroke: var(--vl-ink);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 176.21;
+  stroke-dashoffset: 0;
+  animation: vitals-launch-draw 500ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.vitals-launch__dot {
+  fill: var(--vl-signal);
+  stroke: var(--vl-edge);
+  stroke-width: var(--vl-edge-width);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: vitals-launch-pop 220ms cubic-bezier(0.34, 1.36, 0.64, 1) 420ms both;
+}
+@keyframes vitals-launch-draw {
+  from {
+    stroke-dashoffset: 167.4;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes vitals-launch-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Reduced motion shows the still mark: the settings override (data-motion) wins, else the OS preference. */
+html[data-motion='reduce'] .vitals-launch__ring,
+html[data-motion='reduce'] .vitals-launch__dot {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-motion='full']) .vitals-launch__ring,
+  html:not([data-motion='full']) .vitals-launch__dot {
+    animation: none;
+  }
+}

@@ -1,0 +1,16 @@
+import { chromium, newPage, bootApp, install, shot, BASE } from './lib.mjs';
+import { onboard } from '../j1/onboard.mjs';
+const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
+const { page, errs } = await newPage(browser);
+await bootApp(page);
+console.log('onboard', JSON.stringify(await onboard(page, () => {})));
+await bootApp(page, '/');
+await install(page);
+console.log('before', JSON.stringify(await page.evaluate(() => __j7.sources())).slice(0, 400));
+console.log('ring', JSON.stringify(await page.evaluate(() => __j7.ring('jstyle2301', 'QA0001'))));
+const s = await page.evaluate(() => __j7.sources());
+console.log(JSON.stringify({ ...s, sources: s.sources.map((x) => ({ k: x.sourceKey, n: x.policies.length, sample: x.policies.slice(0, 3) })) }).slice(0, 1500));
+console.log(JSON.stringify(await page.evaluate(() => __j7.coachAndMcp()), null, 1).slice(0, 2500));
+console.log(errs.slice(0, 5));
+await shot(page, 'probe.png');
+await browser.close();

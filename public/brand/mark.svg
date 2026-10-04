@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!--
+    Vitals mark (direction C): the source of truth for every logo, icon and splash.
+    An open ring (Lumen's arc, recentred on 54,54, radius 30, stroke 7, round caps) whose short inward tail
+    became the signal dot: the dot of the "vitals" wordmark, sitting on the bisector of the ring's opening.
+    Ink on light grounds, light ink on dark; the dot keeps a thin ink edge on light grounds (as --lm-signal-edge).
+    scripts/brand/generate.mjs reads the ids, the d, cx, cy, r and stroke widths from this file.
+  -->
+  <style>
+    .ring { fill: none; stroke: #191c20; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+    .dot { fill: #f5d336; stroke: #191c20; stroke-width: 1.5; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #eff0f2; }
+      .dot { fill: #f0d03c; stroke: none; }
+    }
+  </style>
+  <path id="ring" class="ring" d="M74.56,75.84 A30,30 0,1 1,81.56,65.85"/>
+  <circle id="dot" class="dot" cx="67.93" cy="63.75" r="6.5"/>
+</svg>

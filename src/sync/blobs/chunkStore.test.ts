@@ -107,6 +107,23 @@ describe('chunk store · local bytes and the upload queue', () => {
   });
 });
 
+describe('chunk store · hasRemote', () => {
+  it('is false while a chunk waits for upload or unpaired, true once uploaded or when the endpoint has it', async () => {
+    const { store, remote, seal } = setup();
+    const { chunkId } = await store.put(bytesOf(1, 2, 3), { purpose: 'bio', aadId: 'h1' });
+    expect(await store.hasRemote(chunkId)).toBe(false);
+    await store.attachRemote({ seal, backend: remote });
+    expect(await store.hasRemote(chunkId)).toBe(false);
+    await store.flush();
+    expect(await store.hasRemote(chunkId)).toBe(true);
+    // another device's chunk: asked of the endpoint
+    const other = setup();
+    await other.store.attachRemote({ seal, backend: remote });
+    expect(await other.store.hasRemote(chunkId)).toBe(true);
+    expect(await other.store.hasRemote('AAAAAAAAAAAAAAAAAAAAAA')).toBe(false);
+  });
+});
+
 describe('chunk store · sealing and authentication', () => {
   it('opens an evicted chunk from the relay and caches it again', async () => {
     const { store, remote, seal, local } = setup();

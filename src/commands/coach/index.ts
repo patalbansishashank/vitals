@@ -3,5 +3,7 @@ import './conversations';
 import './logSession';
 import './intakeQuestions';
 import './explain';
+// plan 04 item 12: the Coach's briefing as a tool for agents over MCP
+import './briefing';
 
 export * from './store';

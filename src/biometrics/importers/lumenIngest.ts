@@ -20,7 +20,7 @@ export async function withLumenMainSleep(batch: BioBatch, store: BioStore): Prom
   const keys = new Set(sleeps.map((r) => sourceKeyOf(r.provenance)));
   // ±1 day: a re-synced night may end on another date than its stored version
   const stored = (await store.records({ kind: 'sleep', from: addDaysIso(dates[0]!, -1), to: addDaysIso(dates[dates.length - 1]!, 1) }))
-    .filter((e) => keys.has(e.sourceKey) && e.record.kind === 'sleep')
+    .filter((e) => e.record.kind === 'sleep' && keys.has(sourceKeyOf(e.record.provenance)))
     .map((e) => e.record as SleepRecord);
   return { ...batch, records: [...batch.records.filter((r) => r.kind !== 'sleep'), ...recomputeMainSleep(stored, sleeps)] };
 }

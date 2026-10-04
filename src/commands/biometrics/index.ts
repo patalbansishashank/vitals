@@ -62,6 +62,11 @@ export async function correct(ctx: CommandContext, input: CorrectInput) {
   const ix = await readyIndex();
   const key = correctionKey(input.target);
   const replaced = deviceRecordFor(input.target, sourcedOn(ix, input.target.localDate), ix.sources());
+  // A put stamps only the fields whose value changed (`fieldMerge.stamp`), so writing the same `clearedAt: null` the
+  // replica already holds would leave an older offline clear from another device in force. Flip between null and
+  // absent (both mean active) so this put always owns `clearedAt` and the later correction wins (R20-WRITERS-02).
+  const cur = await ctx.docs.get<BioCorrection>('bioCorrections', key);
+  const active = cur && cur.clearedAt === null ? {} : { clearedAt: null };
   const doc: BioCorrection = {
     correctionId: correctionIdOf(key, ctx.now),
     key,
@@ -71,6 +76,7 @@ export async function correct(ctx: CommandContext, input: CorrectInput) {
     createdAt: ctx.now,
     actor: actorLabel(ctx.actor),
     replaced,
+    ...active,
   };
   await ctx.docs.put('bioCorrections', { ...doc, _id: key });
   scheduleRescore(input.target.localDate);

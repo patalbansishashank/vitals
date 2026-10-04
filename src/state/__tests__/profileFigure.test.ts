@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BODY_VERSION,
   DEFAULT_BODY,
+  bodyFromDocs,
   FRAME_RANGE,
   defaultFigureFrame,
   figureFrameOf,
@@ -17,6 +18,7 @@ import {
   migrateBody,
   migrateProfileDocBody,
   pickBodyValues,
+  profileDocOf,
 } from '@/state/internal/profileModel';
 
 const NOW = '2026-10-01T09:00:00.000Z';
@@ -137,6 +139,22 @@ describe('Frame: sanitiser and v1 → v2 migration', () => {
     const doc = { sex: 'female', figureBase: 'neutral', weightKg: 70, shape: { belly: 0.2 }, revision: 3 };
     expect(migrateProfileDocBody(doc)).toEqual({ sex: 'female', weightKg: 70, shape: { belly: 0.2 }, revision: 3, figure: { frame: 0.5 } });
     expect(migrateProfileDocBody({ sex: 'male', figure: { frame: 0.3 }, figureBase: 'female' })).toEqual({ sex: 'male', figure: { frame: 0.3 } });
+  });
+});
+
+describe('bodyFromDocs: setup progress', () => {
+  const done = { ...DEFAULT_BODY, sex: 'male' as const, ageYears: 40, heightCm: 180, weightKg: 80, setup: 'done' as const, shapeSkipped: true };
+  const synced = profileDocOf(done) as unknown as Record<string, unknown>;
+
+  it('a complete synced profile with no uiPrefs is setup done', () => {
+    // a joined device receives the profile but not the device-local uiPrefs (R20-LOCAL-01)
+    expect(bodyFromDocs(synced, null)).toMatchObject({ setup: 'done', shapeSkipped: false, habitsSkipped: false });
+    expect(bodyFromDocs(synced, {})).toMatchObject({ setup: 'done' });
+  });
+
+  it('this device\'s own setup progress wins, and an incomplete profile still starts at basics', () => {
+    expect(bodyFromDocs(synced, { bodySetup: 'shape', shapeSkipped: true })).toMatchObject({ setup: 'shape', shapeSkipped: true });
+    expect(bodyFromDocs({ ...synced, weightKg: null }, null)?.setup).toBe('basics');
   });
 });
 

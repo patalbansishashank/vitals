@@ -1,9 +1,15 @@
 import { useMemo, useState, type Ref } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Faceplate, InlineWarning, Key, KeyBank, KeyLink, Switch, formatNumber, toast } from '@/components';
+import { Faceplate, InlineWarning, Key, KeyBank, KeyLink, formatNumber, toast } from '@/components';
 import { paths } from '@/app/paths';
 import { stateToAvatarParams } from '@/engine/body';
-import { DEFAULT_CAPTION, type AvatarInteraction, type DragChannel, type DragRegion, type RegionDragDelta } from '@/features/body/avatar';
+import {
+  DEFAULT_CAPTION,
+  type AvatarInteraction,
+  type DragChannel,
+  type DragRegion,
+  type RegionDragDelta,
+} from '@/features/body/avatar';
 import { Figure3D, VisceralView, askDetailedFigure, saveDataPreferred } from '@/features/body/figure3d';
 import { BODY_RANGES, useProfileStore, type BodyProfileValues, type ShapeKey } from '@/state/profileStore';
 import type { UnitSystem } from '@/state/settingsStore';
@@ -51,7 +57,12 @@ export interface FigureFaceProps {
 /** Nudge a shape slider from its current value (touched, or the figure's own when untouched). */
 function nudge(key: ShapeKey, delta: number, shownValue: number) {
   const st = useProfileStore.getState();
-  const range = key === 'bodyFatPct' ? BODY_RANGES.bodyFatPct : key.startsWith('muscle') ? BODY_RANGES.muscle : BODY_RANGES.distribution;
+  const range =
+    key === 'bodyFatPct'
+      ? BODY_RANGES.bodyFatPct
+      : key.startsWith('muscle')
+        ? BODY_RANGES.muscle
+        : BODY_RANGES.distribution;
   patchProfile({ shape: { [key]: clamp((st.shape[key] ?? shownValue) + delta, range[0], range[1]) } });
 }
 
@@ -82,10 +93,12 @@ export function FigureFace({
 }: FigureFaceProps) {
   const { hash } = useLocation();
   const [stage, setStage] = useState<StageView>(() => (hash === '#visceral' ? 'visceral' : 'figure'));
-  const [adjust, setAdjust] = useState(false);
   const [saveData, setSaveData] = useState(saveDataPreferred);
   // the slice is drawn from the estimate (not the figure as set), at the drawing's frame
-  const visceralParams = useMemo(() => stateToAvatarParams(summary.estimate, { frame: view.frame }), [summary.estimate, view.frame]);
+  const visceralParams = useMemo(
+    () => stateToAvatarParams(summary.estimate, { frame: view.frame }),
+    [summary.estimate, view.frame],
+  );
   const waistLocked = v.waist.use && v.waist.cm !== null;
 
   if (hidden) {
@@ -116,17 +129,27 @@ export function FigureFace({
     else onLive();
     if (d.amount === 0) return;
     if (region === 'body') return nudge('bodyFatPct', d.amount, s.bodyFatPct);
-    if (d.channel === 'muscle') return nudge(region === 'hips' ? 'muscleLower' : 'muscleUpper', d.amount, region === 'hips' ? s.muscleLower : s.muscleUpper);
+    if (d.channel === 'muscle')
+      return nudge(
+        region === 'hips' ? 'muscleLower' : 'muscleUpper',
+        d.amount,
+        region === 'hips' ? s.muscleLower : s.muscleUpper,
+      );
     if (region === 'waist') return nudge('belly', d.amount, s.belly);
     if (region === 'hips') return nudge('hips', d.amount, s.hips);
     return nudge(region, d.amount, s[region]);
   };
   const describe = (region: DragRegion, channel: DragChannel): string => {
     if (region === 'body') return SHAPE.dragBody(formatNumber(view.bodyFatPct, 1));
-    if (channel === 'muscle') return region === 'hips' ? SHAPE.dragMuscle('lower', view.muscle.words(s.muscleLower)) : SHAPE.dragMuscle('upper', view.muscle.words(s.muscleUpper));
+    if (channel === 'muscle')
+      return region === 'hips'
+        ? SHAPE.dragMuscle('lower', view.muscle.words(s.muscleLower))
+        : SHAPE.dragMuscle('upper', view.muscle.words(s.muscleUpper));
     if (region === 'waist') return SHAPE.dragBelly(Math.round(shares.belly));
     if (region === 'hips') return SHAPE.dragHips(Math.round(shares.hips));
-    return region === 'chest' ? SHAPE.dragChest(Math.round(shares.chest)) : SHAPE.dragArms(Math.round(shares.arms));
+    return region === 'chest'
+      ? SHAPE.dragChest(Math.round(shares.chest))
+      : SHAPE.dragArms(Math.round(shares.arms));
   };
   const lock = waistLocked ? SHAPE.bellyLocked : undefined;
   const interaction: AvatarInteraction = {
@@ -135,13 +158,33 @@ export function FigureFace({
     handles: coarse ? 'always' : 'hover',
     disabled: { waist: lock, hips: lock },
     values: {
-      waist: { value: s.belly, min: -1, max: 1, text: `belly and waist: ${Math.round(shares.belly)} percent of your fat` },
-      hips: { value: s.hips, min: -1, max: 1, text: `hips and thighs: ${Math.round(shares.hips)} percent of your fat` },
-      chest: { value: s.chest, min: -1, max: 1, text: `chest: ${Math.round(shares.chest)} percent of your fat, drawing only` },
-      arms: { value: s.arms, min: -1, max: 1, text: `arms: ${Math.round(shares.arms)} percent of your fat, drawing only` },
+      waist: {
+        value: s.belly,
+        min: -1,
+        max: 1,
+        text: `belly and waist: ${Math.round(shares.belly)} percent of your fat`,
+      },
+      hips: {
+        value: s.hips,
+        min: -1,
+        max: 1,
+        text: `hips and thighs: ${Math.round(shares.hips)} percent of your fat`,
+      },
+      chest: {
+        value: s.chest,
+        min: -1,
+        max: 1,
+        text: `chest: ${Math.round(shares.chest)} percent of your fat, drawing only`,
+      },
+      arms: {
+        value: s.arms,
+        min: -1,
+        max: 1,
+        text: `arms: ${Math.round(shares.arms)} percent of your fat, drawing only`,
+      },
     },
   };
-  const interactive = readOnly ? undefined : coarse ? (adjust ? interaction : undefined) : interaction;
+  const interactive = readOnly ? undefined : interaction;
   const visceral = stage === 'visceral';
   const caption = (
     <>
@@ -171,11 +214,16 @@ export function FigureFace({
       variant="flush"
       className="lm-body-figure"
       title={FIGURE.title}
-      caption={visceral ? undefined : readOnly ? FIGURE.captionTouch : coarse ? FIGURE.captionTouch : FIGURE.captionPointer}
+      caption={visceral ? undefined : 'Drag the figure to turn it. Use the sliders to change its shape.'}
       actions={
         <div className="lm-body-row">
-          <KeyBank<StageView> size="sm" label={FIGURE.viewLabel} value={stage} onChange={setStage} options={FIGURE.views} />
-          {coarse && !readOnly && !visceral ? <Switch label={FIGURE.adjust} checked={adjust} onChange={setAdjust} /> : null}
+          <KeyBank<StageView>
+            size="sm"
+            label={FIGURE.viewLabel}
+            value={stage}
+            onChange={setStage}
+            options={FIGURE.views}
+          />
           {!visceral && saveData ? (
             <Key
               size="sm"
@@ -201,7 +249,7 @@ export function FigureFace({
           <VisceralView params={visceralParams} caption={FIGURE.visceralCaption} how={how} />
         </div>
       ) : (
-        <div ref={stageRef} className="lm-body-stage" data-adjusting={(coarse && adjust && !readOnly) || undefined}>
+        <div ref={stageRef} className="lm-body-stage">
           <Figure3D
             params={view.params}
             frame={view.frame}
@@ -224,7 +272,9 @@ export function FigureFace({
       )}
       {view.diverges && !visceral ? (
         <div className="lm-body-figure__notes">
-          <InlineWarning severity="info">{FIGURE.diverges(formatNumber(view.bodyFatPct, 1), formatNumber(summary.bodyFatPct, 1))}</InlineWarning>
+          <InlineWarning severity="info">
+            {FIGURE.diverges(formatNumber(view.bodyFatPct, 1), formatNumber(summary.bodyFatPct, 1))}
+          </InlineWarning>
         </div>
       ) : null}
     </Faceplate>

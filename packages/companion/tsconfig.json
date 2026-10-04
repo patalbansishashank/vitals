@@ -18,5 +18,5 @@
   },
   "include": ["src", "bin", "../../src/sync"],
   // the person program runs the app's own graph (`@/` alias, React types): tsconfig.app.json checks these
-  "exclude": ["src/home/identicalBatch.test.ts", "src/home/freshReplica.test.ts", "src/home/personProgram.ts", "src/home/personProgram.test.ts", "src/home/personWorkerEntry.ts", "src/home/chunkCopies.test.ts", "src/home/syncedScores.test.ts", "src/home/notOnServer.test.ts"]
+  "exclude": ["src/home/identicalBatch.test.ts", "src/home/freshReplica.test.ts", "src/home/personProgram.ts", "src/home/personProgram.test.ts", "src/home/personWorkerEntry.ts", "src/home/chunkCopies.test.ts", "src/home/syncedScores.test.ts", "src/home/notOnServer.test.ts", "src/home/agentWrites.test.ts"]
 }

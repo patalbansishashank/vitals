@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { allocateRegional, stateToAvatarParams, type BodyEstimate, type BodyState } from '@/engine/body';
 import type { SimulationResult } from '@/engine';
-import { BodyAvatar } from '@/features/body/avatar';
+import { Figure3D } from '@/features/body/figure3d';
 import { formatNumber } from '@/components';
 import { figureFrameOf, useProfileStore } from '@/state/profileStore';
 
@@ -20,8 +20,19 @@ export function endBodyState(start: BodyEstimate, sim: SimulationResult): BodySt
   const dLean = leanEnd !== null && lean0 !== undefined && Number.isFinite(lean0) ? leanEnd - lean0 : 0;
   const smEnd = last(sim.daily.skeletalMuscle) ?? start.skeletalMuscleKg + dLean * 0.5;
   const ffm = start.fatFreeMassKg + dLean;
-  const regional = allocateRegional({ fat: start.fat, muscle: start.muscle }, { fatMassKg: Math.max(1, fm), skeletalMuscleKg: Math.max(5, smEnd) });
-  return { ...start, fatMassKg: fm, fatFreeMassKg: ffm, weightKg: fm + ffm, skeletalMuscleKg: smEnd, fat: regional.fat, muscle: regional.muscle };
+  const regional = allocateRegional(
+    { fat: start.fat, muscle: start.muscle },
+    { fatMassKg: Math.max(1, fm), skeletalMuscleKg: Math.max(5, smEnd) },
+  );
+  return {
+    ...start,
+    fatMassKg: fm,
+    fatFreeMassKg: ffm,
+    weightKg: fm + ffm,
+    skeletalMuscleKg: smEnd,
+    fat: regional.fat,
+    muscle: regional.muscle,
+  };
 }
 
 /**
@@ -29,12 +40,26 @@ export function endBodyState(start: BodyEstimate, sim: SimulationResult): BodySt
  * plan with the start silhouette as a ghost — neutral material, no labels. Hidden when Settings › "Show figure" is off
  * (gentle mode). Ladder cards carry no figure.
  */
-export function PlanFigure({ start, sim, planTitle, size = 'xs' }: { start: BodyEstimate; sim: SimulationResult; planTitle: string; size?: 'xs' | 'sm' | 'md' }) {
+export function PlanFigure({
+  start,
+  sim,
+  planTitle,
+  size = 'xs',
+}: {
+  start: BodyEstimate;
+  sim: SimulationResult;
+  planTitle: string;
+  size?: 'xs' | 'sm' | 'md';
+}) {
   const params = useMemo(() => {
     try {
       const end = endBodyState(start, sim);
       if (!end) return null;
-      return { from: stateToAvatarParams(start), to: stateToAvatarParams(end, { baseline: start }), fat: end.fatMassKg - start.fatMassKg };
+      return {
+        from: stateToAvatarParams(start),
+        to: stateToAvatarParams(end, { baseline: start }),
+        fat: end.fatMassKg - start.fatMassKg,
+      };
     } catch {
       return null;
     }
@@ -43,12 +68,10 @@ export function PlanFigure({ start, sim, planTitle, size = 'xs' }: { start: Body
   const frame = useProfileStore((st) => figureFrameOf(st));
   if (!params) return null;
   return (
-    <div className="lp-card__figure">
-      <BodyAvatar
+    <div className="lp-card__figure" style={{ width: size === 'xs' ? 56 : 112, overflow: 'visible' }}>
+      <Figure3D
         params={params.to}
         compareTo={params.from}
-        appearance="silhouette"
-        view="front"
         frame={frame}
         size={size}
         caption={false}

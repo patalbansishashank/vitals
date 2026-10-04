@@ -69,6 +69,10 @@ export interface ChunkStore extends BlobStore {
   flush(): Promise<number>;
   /** Chunks waiting for upload. */
   pending(): number;
+  /** Calls `fn` with the new count whenever the upload queue changes (the sync status follows it). */
+  onPendingChange(fn: (n: number) => void): () => void;
+  /** True when the endpoint holds the chunk (its index row says uploaded, else the endpoint is asked). */
+  hasRemote(chunkId: string): Promise<boolean>;
   /**
    * Fetch every evicted chunk back from the endpoint, plus `known` chunks this device never stored (manifests other
    * devices wrote), so the device keeps them after unpairing and can re-upload them under a new key.
@@ -114,7 +118,11 @@ export function createChunkStore(options: ChunkStoreOptions): ChunkStore {
   let flushing: Promise<number> | null = null;
   let lastError: ChunkStore['lastError'] = null;
 
-  const notify = () => options.onPending?.(pending.size);
+  const pendingListeners = new Set<(n: number) => void>();
+  const notify = () => {
+    options.onPending?.(pending.size);
+    for (const fn of pendingListeners) fn(pending.size);
+  };
 
   const fetchRemote = async (chunkId: string): Promise<Uint8Array | null> => {
     if (!remote) return null;
@@ -304,6 +312,16 @@ export function createChunkStore(options: ChunkStoreOptions): ChunkStore {
     },
 
     pending: () => pending.size,
+    onPendingChange(fn) {
+      pendingListeners.add(fn);
+      return () => void pendingListeners.delete(fn);
+    },
+
+    async hasRemote(chunkId) {
+      if (pending.has(chunkId)) return false;
+      if ((await index.get(chunkId))?.uploaded) return true;
+      return remote ? remote.backend.has(chunkId).catch(() => false) : false;
+    },
 
     async restoreLocal(known = []) {
       let restored = 0;

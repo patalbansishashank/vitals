@@ -248,9 +248,50 @@ export function toMcpTools(manifest: ToolManifest): McpToolDescriptor[] {
     // MCP requires `outputSchema.type === "object"`; strict clients (OpenCode 2.0) drop the whole server otherwise.
     // Tools whose data is an array keep no output schema (their structuredContent is then the envelope). Staged tools
     // keep none either: their usual answer is `pending_user` with no data, which no output schema can describe.
-    ...(t.outputSchema && (t.outputSchema as { type?: unknown }).type === 'object' && !mustStage(t) ? { outputSchema: t.outputSchema } : {}),
+    // Clients check answers against it with their own validator: hence `portableSchema` (inputs are checked by the app).
+    ...(t.outputSchema && (t.outputSchema as { type?: unknown }).type === 'object' && !mustStage(t) ? { outputSchema: portableSchema(t.outputSchema) } : {}),
     annotations: { ...t.annotations, title: t.title },
   }));
+}
+
+/** Keywords whose value is one schema, a list of schemas or a map of schemas (everything else is copied as it is). */
+const ONE_SCHEMA = new Set(['items', 'additionalItems', 'additionalProperties', 'not', 'contains', 'if', 'then', 'else', 'propertyNames', 'unevaluatedItems', 'unevaluatedProperties']);
+const SCHEMA_LIST = new Set(['anyOf', 'oneOf', 'allOf', 'prefixItems']);
+const SCHEMA_MAP = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas']);
+
+/**
+ * A schema every MCP client reads the same way. The manifest is draft 2020-12, but clients compile the schemas with
+ * their validator's default draft: the MCP SDK's client (and the agents built on it) uses Ajv's draft-07, which ignores
+ * a tuple's `prefixItems` and reads its `items: false` as "no items at all". Every answer carrying a tuple then failed
+ * the client's output check (`profile_get`'s `estimate.maintenanceBand80`, "Structured content does not match the
+ * tool's output schema"). A tuple becomes an array of the union of its item types with the same length bounds, which
+ * reads the same in every draft. Unchanged nodes are returned as they are.
+ */
+export function portableSchema(s: JsonSchema): JsonSchema {
+  const fix = (v: unknown): unknown => (isObj(v) ? portableSchema(v) : v);
+  let out: JsonSchema | null = null;
+  const set = (k: string, v: unknown) => {
+    if (v !== s[k]) (out ??= { ...s })[k] = v;
+  };
+  for (const [k, v] of Object.entries(s)) {
+    if (ONE_SCHEMA.has(k)) set(k, fix(v));
+    else if (SCHEMA_LIST.has(k) && Array.isArray(v)) {
+      const next = v.map(fix);
+      if (next.some((x, i) => x !== v[i])) set(k, next);
+    } else if (SCHEMA_MAP.has(k) && isObj(v)) {
+      const next = Object.fromEntries(Object.entries(v).map(([n, x]) => [n, fix(x)]));
+      if (Object.keys(v).some((n) => next[n] !== v[n])) set(k, next);
+    }
+  }
+  const cur: JsonSchema = out ?? s;
+  if (!Array.isArray(cur.prefixItems)) return cur;
+  const { prefixItems, items: rest, ...base } = cur;
+  // an open tuple (no `items`, or `items: true`) takes anything after its prefix: no item schema can say that
+  if (rest === undefined || rest === true) return base;
+  const seen = new Map<string, unknown>();
+  for (const x of [...(prefixItems as unknown[]), ...(isObj(rest) ? [rest] : [])]) seen.set(canonicalJson(x), x);
+  const kinds = [...seen.values()];
+  return { ...base, items: kinds.length === 0 ? false : kinds.length === 1 ? kinds[0] : { anyOf: kinds } };
 }
 
 /** SUITE_SPEC §1.8 tool result envelope, as returned by the app's dispatcher bridge. */

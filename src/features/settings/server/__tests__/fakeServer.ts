@@ -3,11 +3,17 @@ import { createServerClient, SERVER_KEY, type ServerClient } from '@/net/server'
 
 export const BASE = 'https://vitals.example.ts.net:8443';
 export const TOKEN = 'tok-device-1-secret';
+/** The person's sync key the fake home server hands over once (base64url of 32 bytes of 0x2a). */
+export const SYNC_KEY = 'KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio';
 
 export interface FakeServerState {
   code: string;
   attempts: number;
   version: string;
+  /** `home` hands the sync key over; anything else has no `/v1/sync/key` (404). */
+  role: string;
+  syncKey: string | null;
+  keyIssued: boolean;
   devices: Array<{ id: string; kind: string; label: string; scope: string; createdAt: string; lastSeenAt: string; current: boolean }>;
   presets: Array<{ id: string; label: string; ready: boolean }>;
   siwc: { signedIn: boolean; plan?: string };
@@ -26,6 +32,9 @@ export function fakeServer(overrides: Partial<FakeServerState> = {}) {
     code: '12345678',
     attempts: 5,
     version: '0.4.0',
+    role: 'home',
+    syncKey: SYNC_KEY,
+    keyIssued: false,
     devices: [
       { id: 'dev-1', kind: 'device', label: 'Chrome on Linux', scope: 'full', createdAt: '2026-10-03T08:00:00.000Z', lastSeenAt: '2026-10-03T09:00:00.000Z', current: true },
       { id: 'dev-2', kind: 'device', label: 'Laptop · Firefox', scope: 'full', createdAt: '2026-10-03T07:00:00.000Z', lastSeenAt: '2026-10-03T07:30:00.000Z', current: false },
@@ -56,7 +65,7 @@ export function fakeServer(overrides: Partial<FakeServerState> = {}) {
         s.attempts -= 1;
         return err(401, 'invalid_code', { attemptsLeft: s.attempts });
       }
-      return json({ token: TOKEN, deviceId: 'dev-1', person: { id: 'p1', label: 'Sam' }, server: { version: s.version, role: 'home' } });
+      return json({ token: TOKEN, deviceId: 'dev-1', person: { id: 'p1', label: 'Sam' }, server: { version: s.version, role: s.role } });
     }
     if (s.fail === 'network') throw new TypeError('Failed to fetch');
     if (auth !== `Bearer ${TOKEN}`) return err(401, 'unauthorized');
@@ -64,6 +73,12 @@ export function fakeServer(overrides: Partial<FakeServerState> = {}) {
     if (method === 'GET' && path === '/v1/pair/status')
       return json({ deviceId: 'dev-1', label: 'Chrome on Linux', kind: 'device', scope: 'full', person: { id: 'p1', label: 'Sam' }, createdAt: '2026-10-03T08:00:00.000Z', lastSeenAt: '2026-10-03T09:00:00.000Z', server: { version: s.version, role: 'home', mqtt: null } });
     if (method === 'GET' && path === '/v1/devices') return json({ devices: s.devices });
+    if (method === 'POST' && path === '/v1/sync/key') {
+      if (s.role !== 'home' || !s.syncKey) return err(404, 'not_found');
+      if (s.keyIssued) return json({ error: 'already_issued', message: 'already_issued' }, 409);
+      s.keyIssued = true;
+      return json({ key: s.syncKey, format: 'owner-secret-v1' });
+    }
     if (method === 'DELETE' && path.startsWith('/v1/devices/')) {
       s.devices = s.devices.filter((d) => d.id !== decodeURIComponent(path.slice('/v1/devices/'.length)));
       return new Response(null, { status: 204 });

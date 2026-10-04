@@ -126,7 +126,7 @@ describe('checkLumenEvent', () => {
     const first = mapLumenEvents([ce('health.device.identified', { observed_at: '2026-09-14T10:00:00Z', device_type: 'ring', model_id: 'R99' }), ce('health.device.firmware.updated', { observed_at: '2026-09-14T10:00:00Z', version: 'V1' })], { tz: TZ, now, channel: 'mqtt:lumen' });
     expect(first.installations.abc).toMatchObject({ deviceType: 'ring', modelId: 'R99', firmware: 'V1' });
     const r = mapLumenEvents([ce('health.vendor_metric.observed', { observed_at: '2026-09-14T12:30:00Z', metric: 'Vascular Age', value: 39, unit: 'years' })], { tz: TZ, now, channel: 'mqtt:lumen', installations: first.installations });
-    expect(r.batch.records[0]).toMatchObject({ metric: 'vendor:vascular_age', provenance: { device: { model: 'R99', firmware: 'V1', tier: 'C' } } });
+    expect(r.batch.records[0]).toMatchObject({ metric: 'vendor:vascular_age', provenance: { device: { model: 'J-Style 2301', firmware: 'V1', tier: 'C' } } }); // the reported model stays out (R20-ID-01)
     expect(r.streams).toEqual({ 'vendor:vascular_age': 1 });
   });
 });

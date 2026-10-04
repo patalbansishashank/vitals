@@ -93,7 +93,7 @@ const PURE_IMPORTS = [
 const TIER_P = ['src/engine/**/*.ts', 'src/catalogues/**/*.ts', 'src/living/**/*.ts', 'src/biometrics/core/**/*.ts', 'src/ai/briefing/**/*.ts', 'src/commands/schema/**/*.ts'];
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'docs', 'research', 'design', 'coverage', '.tmp-bundle', '.e6-tmp/**', 'apps/*/dist/**', 'apps/*/release/**', 'apps/android/android/**'] },
+  { ignores: ['dist', 'node_modules', 'docs', 'research', 'design', 'coverage', '.tmp-bundle', '.e6-tmp/**', 'apps/*/dist/**', 'apps/*/release/**', 'apps/android/android/**', 'qa/scripts/L-QA/j2/*.js', 'qa/scripts/L-QA/j4/hypr.js'] }, // the L-QA .js files are page snippets (a top-level return), not modules
   {
     files: ['**/*.{ts,tsx}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

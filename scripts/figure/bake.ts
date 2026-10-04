@@ -1,4 +1,4 @@
-// Bakes public/figure/figure.bin + figure.json from the cached MakeHuman sources (run fetch.ts first).
+// Bakes public/figure/figure-v2.bin from the cached MakeHuman sources (run fetch.ts first).
 // Steps (R2 sec. 5.5): read the hm08 body group and the chosen targets -> compose the two adult frame shapes -> lower the
 // arms to ARM_ANGLE_DEG with MakeHuman's rig weights -> decimate (vertex-preserving) -> close the eye/mouth holes ->
 // derive the tape-measure rings -> quantise to int16 -> write one binary + JSON manifest, and print the sizes.
@@ -34,11 +34,11 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const cache = join(here, '.cache');
 const outDir = join(here, '../../public/figure');
-const TARGET_VERTICES = Number(process.argv[2] ?? 3500);
+const TARGET_VERTICES = Number(process.argv[2] ?? 9000);
 const ARM_ANGLE_DEG = 10;
 const FOREARM_BEND_DEG = 12;
 /** Gzip-compressed pack (see lib/encode.ts packFile). Bump the version when the format or the bake changes. */
-const FILE = 'figure-v1.bin';
+const FILE = 'figure-v2.bin';
 const DM_TO_CM = 10;
 const FRAME_OF: Record<Sex, FrameEnd> = { female: 'hipsLed', male: 'shouldersLed' };
 const LEVEL_KEY: Record<Level, MacroLevel> = { min: 'min', average: 'average', max: 'max' };

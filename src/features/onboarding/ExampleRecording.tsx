@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { GradeBadge, Swatch } from '@/components';
-import { AvatarMorph } from '@/features/body/avatar';
+import { FigureMorph } from '@/features/body/figure3d';
 import { allocateRegional, liveEstimate, stateToAvatarParams, type BodyState } from '@/engine/body';
 import { WELCOME } from './copy';
 import './onboarding.css';
@@ -20,13 +20,14 @@ function series() {
   const ket: number[] = [];
   for (let d = 0; d < DAYS; d++) {
     const t = d / (DAYS - 1);
-    fat.push(24.1 - 4.3 * (1 - Math.exp(-t * 1.6)) / (1 - Math.exp(-1.6)));
+    fat.push(24.1 - (4.3 * (1 - Math.exp(-t * 1.6))) / (1 - Math.exp(-1.6)));
     band.push(0.15 + 0.95 * t);
     const fastDay = FAST.indexOf(d);
     const sinceFast = d - FAST[FAST.length - 1]!;
     let g = 405 + 5 * Math.sin(d * 0.45) + 3 * Math.sin(d * 0.17);
     if (fastDay >= 0) g = [250, 150, 110][fastDay]!;
-    else if (sinceFast > 0 && sinceFast < 6) g = 110 + (475 - 110) * (1 - Math.exp(-sinceFast * 1.1)) - (sinceFast > 2 ? (sinceFast - 2) * 18 : 0);
+    else if (sinceFast > 0 && sinceFast < 6)
+      g = 110 + (475 - 110) * (1 - Math.exp(-sinceFast * 1.1)) - (sinceFast > 2 ? (sinceFast - 2) * 18 : 0);
     gly.push(g);
     let k = 0.14 + 0.015 * Math.sin(d * 0.4);
     if (fastDay >= 0) k = [0.45, 1.6, 2.6][fastDay]!;
@@ -40,7 +41,12 @@ function series() {
 /** Path in a 0–100 × 0–40 box (the SVG stretches; strokes do not). */
 function toPath(values: readonly number[], lo: number, hi: number): string {
   const n = values.length;
-  return values.map((v, i) => `${i ? 'L' : 'M'}${((i / (n - 1)) * 100).toFixed(2)},${(40 - ((v - lo) / (hi - lo)) * 40).toFixed(2)}`).join('');
+  return values
+    .map(
+      (v, i) =>
+        `${i ? 'L' : 'M'}${((i / (n - 1)) * 100).toFixed(2)},${(40 - ((v - lo) / (hi - lo)) * 40).toFixed(2)}`,
+    )
+    .join('');
 }
 function toBand(mid: readonly number[], half: readonly number[], lo: number, hi: number): string {
   const n = mid.length;
@@ -57,7 +63,10 @@ function toBand(mid: readonly number[], half: readonly number[], lo: number, hi:
 
 function changedState(s: BodyState, dFatKg: number): BodyState {
   const fm = Math.max(s.fatMassKg + dFatKg, 0.05 * s.weightKg);
-  const r = allocateRegional({ fat: s.fat, muscle: s.muscle }, { fatMassKg: fm, skeletalMuscleKg: s.skeletalMuscleKg });
+  const r = allocateRegional(
+    { fat: s.fat, muscle: s.muscle },
+    { fatMassKg: fm, skeletalMuscleKg: s.skeletalMuscleKg },
+  );
   return { ...s, fatMassKg: fm, weightKg: fm + s.fatFreeMassKg, fat: r.fat, muscle: r.muscle };
 }
 
@@ -95,7 +104,15 @@ export function ExampleRecording() {
         path: toPath(s.fat, fatLo, fatHi),
         band: toBand(s.fat, s.band, fatLo, fatHi),
       },
-      { id: 'glycogen', name: WELCOME.lanes.glycogen, value: String(Math.round(s.gly[DAYS - 1]!)), unit: 'g', category: 'fuel', grade: 'B', path: toPath(s.gly, 60, 520) },
+      {
+        id: 'glycogen',
+        name: WELCOME.lanes.glycogen,
+        value: String(Math.round(s.gly[DAYS - 1]!)),
+        unit: 'g',
+        category: 'fuel',
+        grade: 'B',
+        path: toPath(s.gly, 60, 520),
+      },
       {
         id: 'ketones',
         name: WELCOME.lanes.ketones,
@@ -133,7 +150,10 @@ export function ExampleRecording() {
                 <span className="flex items-center gap-1.5">
                   <span className="lm-onb-rec__value">
                     {l.value}
-                    <span className="lm-unit">{' '}{l.unit}</span>
+                    <span className="lm-unit">
+                      {' '}
+                      {l.unit}
+                    </span>
                   </span>
                   <GradeBadge grade={l.grade} size="sm" tooltip={false} className="lm-onb-rec__grade" />
                 </span>
@@ -142,11 +162,33 @@ export function ExampleRecording() {
                 <div className="lm-onb-rec__inner">
                   <svg viewBox="0 0 100 40" preserveAspectRatio="none" focusable="false">
                     {l.threshold ? (
-                      <line x1="0" x2="100" y1={l.threshold.y} y2={l.threshold.y} stroke="var(--lm-ink-3)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                      <line
+                        x1="0"
+                        x2="100"
+                        y1={l.threshold.y}
+                        y2={l.threshold.y}
+                        stroke="var(--lm-ink-3)"
+                        strokeWidth="1"
+                        vectorEffect="non-scaling-stroke"
+                      />
                     ) : null}
                     <g className="lm-onb-rec__draw">
-                      {l.band ? <path d={l.band} fill={`var(--lm-cat-${l.category})`} style={{ fillOpacity: 'var(--lm-chart-band-alpha)' }} /> : null}
-                      <path d={l.path} fill="none" stroke={`var(--lm-cat-${l.category})`} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                      {l.band ? (
+                        <path
+                          d={l.band}
+                          fill={`var(--lm-cat-${l.category})`}
+                          style={{ fillOpacity: 'var(--lm-chart-band-alpha)' }}
+                        />
+                      ) : null}
+                      <path
+                        d={l.path}
+                        fill="none"
+                        stroke={`var(--lm-cat-${l.category})`}
+                        strokeWidth="2"
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
                     </g>
                   </svg>
                   {l.threshold ? (
@@ -171,7 +213,16 @@ export function ExampleRecording() {
         </div>
       </div>
       <div className="lm-onb-stage__figure">
-        <AvatarMorph from={avatar.from} to={avatar.to} autoPlay durationMs={1200} size="fill" view="front" ruler={false} caption={false} ghost label={WELCOME.exampleLabel} />
+        <FigureMorph
+          from={avatar.from}
+          to={avatar.to}
+          size="fill"
+          ruler={false}
+          caption={false}
+          controls={false}
+          decorative
+          label={WELCOME.exampleLabel}
+        />
       </div>
     </div>
   );

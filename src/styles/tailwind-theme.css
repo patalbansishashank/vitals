@@ -111,6 +111,11 @@
   --color-keto-1: var(--lm-keto-1);
   --color-keto-2: var(--lm-keto-2);
   --color-keto-3: var(--lm-keto-3);
+  --color-hr-zone-1: var(--lm-hr-zone-1);
+  --color-hr-zone-2: var(--lm-hr-zone-2);
+  --color-hr-zone-3: var(--lm-hr-zone-3);
+  --color-hr-zone-4: var(--lm-hr-zone-4);
+  --color-hr-zone-5: var(--lm-hr-zone-5);
 
   --color-chart-grid: var(--lm-chart-grid);
   --color-chart-axis: var(--lm-chart-axis);

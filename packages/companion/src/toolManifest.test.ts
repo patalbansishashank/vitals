@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { readFileSync } from 'node:fs';
+import { AjvJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/ajv';
 import {
   buildToolManifest,
   canonicalJson,
@@ -7,6 +8,7 @@ import {
   ManifestError,
   mustStage,
   parseToolManifest,
+  portableSchema,
   toMcpTools,
   toolNameOf,
   toolsFor,
@@ -96,5 +98,44 @@ describe('external agents (SUITE_SPEC §1.4, §7.3)', () => {
     for (const t of mcp) if (t.outputSchema) expect((t.outputSchema as { type?: unknown }).type).toBe('object');
     const staged = { ...m, tools: m.tools.map((t) => (t.name === 'plan_shift' ? { ...t, outputSchema: { type: 'object', properties: {} } } : t)) };
     expect(toMcpTools(staged).find((t) => t.name === 'plan_shift')!.outputSchema).toBeUndefined();
+  });
+});
+
+describe('schemas as MCP clients read them', () => {
+  // T.Tuple([T.Number(), T.Number()]) as the app writes it (draft 2020-12)
+  const band = { type: 'array', prefixItems: [{ type: 'number' }, { type: 'number' }], items: false, minItems: 2, maxItems: 2 };
+  const profileOut = { type: 'object', properties: { estimate: { type: 'object', properties: { bmi: { type: 'number' }, maintenanceBand80: band }, required: ['bmi', 'maintenanceBand80'], additionalProperties: false } }, required: ['estimate'], additionalProperties: false };
+  // what the MCP SDK's Client checks structuredContent with (Ajv, draft-07)
+  const clientCheck = (schema: Record<string, unknown>, data: unknown) => new AjvJsonSchemaValidator().getValidator(schema)(data).valid;
+
+  it('the 2020-12 tuple fails the SDK client check, the portable one passes and still bounds the length (profile_get over MCP)', () => {
+    const answer = { estimate: { bmi: 27.1, maintenanceBand80: [1912, 2607] } };
+    expect(clientCheck(profileOut, answer)).toBe(false);
+    const portable = portableSchema(profileOut);
+    expect(JSON.stringify(portable)).not.toContain('prefixItems');
+    expect(clientCheck(portable, answer)).toBe(true);
+    expect(clientCheck(portable, { estimate: { bmi: 27.1, maintenanceBand80: [1912] } })).toBe(false);
+    expect(clientCheck(portable, { estimate: { bmi: 27.1, maintenanceBand80: ['a', 'b'] } })).toBe(false);
+  });
+
+  it('keeps every item type of a mixed tuple, inside lists and nullable branches, and leaves other nodes as they are', () => {
+    const mixed = { type: 'array', prefixItems: [{ type: 'string' }, { type: 'number' }, { type: 'string' }], items: false, minItems: 3, maxItems: 3 };
+    const s = { type: 'object', properties: { a: { anyOf: [mixed, { type: 'null' }] }, b: { type: 'array', items: band }, c: { type: 'string' } }, additionalProperties: false };
+    const p = portableSchema(s) as { properties: Record<string, { anyOf?: unknown[]; items?: unknown }> };
+    expect(p.properties.a!.anyOf![0]).toEqual({ type: 'array', items: { anyOf: [{ type: 'string' }, { type: 'number' }] }, minItems: 3, maxItems: 3 });
+    expect(p.properties.b!.items).toEqual({ type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 });
+    expect(p.properties.c).toBe(s.properties.c);
+    const plain = { type: 'object', properties: { x: { type: 'array', items: { type: 'number' } } } };
+    expect(portableSchema(plain)).toBe(plain);
+  });
+
+  it('toMcpTools lists portable output schemas (input schemas stay as the app wrote them; the app checks inputs)', async () => {
+    const m = await parseToolManifest(fixtureJson);
+    const input = { type: 'object', properties: { days: band } };
+    const withTuple = { ...m, tools: m.tools.map((t) => (t.name === 'today_get' ? { ...t, inputSchema: input, outputSchema: profileOut } : t)) };
+    const today = toMcpTools(withTuple).find((t) => t.name === 'today_get')!;
+    expect(JSON.stringify(today.outputSchema)).not.toContain('prefixItems');
+    expect(today.inputSchema).toEqual(input);
+    expect(clientCheck(today.outputSchema!, { estimate: { bmi: 1, maintenanceBand80: [1, 2] } })).toBe(true);
   });
 });

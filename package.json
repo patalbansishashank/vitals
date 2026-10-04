@@ -19,9 +19,12 @@
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"*.{ts,js,json}\"",
-    "spike:sync": "vitest run --config packages/companion/spike/vitest.config.ts"
+    "spike:sync": "vitest run --config packages/companion/spike/vitest.config.ts",
+    "brand": "node scripts/brand/generate.mjs"
   },
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^8.3.0",
+    "@capacitor/core": "^8.5.2",
     "@evolu/common": "8.14.0",
     "@evolu/web": "3.4.0",
     "@fontsource-variable/archivo": "^5.3.0",

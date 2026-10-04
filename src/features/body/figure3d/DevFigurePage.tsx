@@ -115,8 +115,8 @@ export default function DevFigurePage() {
     <main className="lm-devfig">
       <h1>Figure 3D · dev</h1>
       <p className="lm-devfig__note">
-        MakeHuman hm08 mesh (CC0) fitted to the engine&apos;s girths at runtime. The SVG figure is the fallback and is shown on the right for
-        comparison.
+        The outer body uses a MakeHuman CC0 mesh fitted to the engine&apos;s proportions. The anatomy layers use an attributed BodyParts3D
+        model. The SVG figure remains as a fallback and appears beside the 3D view on wide screens.
       </p>
       <section className="lm-devfig__controls" aria-label="Controls">
         <label>
@@ -206,9 +206,9 @@ export default function DevFigurePage() {
       </section>
 
       <section className="lm-devfig__bench" aria-label="Benchmark">
-        <h2>Morph benchmark</h2>
+        <h2>Outer body morph benchmark</h2>
         <button type="button" onClick={runBench} disabled={benching}>
-          {benching ? 'running 3 s…' : 'Run 3 s morph benchmark'}
+          {benching ? 'running 3 s…' : 'Run 3 s outer body morph benchmark'}
         </button>
         {bench ? (
           <p data-testid="bench">

@@ -44,7 +44,8 @@ export class RecordedLink implements BleLink {
     this.writes.push(b);
     const step = this.steps[0];
     if (!step || !matches(step.expect, b)) {
-      this.errors.push(`unexpected write ${toHex(b)}`);
+      // a J-Style 0x3C write carries the passcode: only its opcode is ever shown
+      this.errors.push(`unexpected write ${b[0] === 0x3c ? '3c …' : toHex(b)}`);
       return;
     }
     this.steps.shift();

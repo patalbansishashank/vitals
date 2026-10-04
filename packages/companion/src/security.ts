@@ -7,6 +7,8 @@ import { isIP } from 'node:net';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export const PUBLIC_APP_ORIGIN = 'https://vitals.creative.desi';
+/** The packaged apps' own origins (SUITE_SPEC §15.5): Electron's `app://vitals`, the Capacitor WebView on Android and iOS. Always allowed. */
+export const APP_SHELL_ORIGINS = ['app://vitals', 'https://localhost', 'capacitor://localhost'] as const;
 
 export class HttpError extends Error {
   status: number;
@@ -64,7 +66,7 @@ export interface OriginPolicy {
 }
 
 export function createOriginPolicy(opts: { allowedOrigins: readonly string[]; bindHost: string }): OriginPolicy {
-  const allowed = new Set([PUBLIC_APP_ORIGIN, ...opts.allowedOrigins].map(normalizeOrigin));
+  const allowed = new Set([PUBLIC_APP_ORIGIN, ...APP_SHELL_ORIGINS, ...opts.allowedOrigins].map(normalizeOrigin));
   const bind = hostName(opts.bindHost.includes(':') && !opts.bindHost.startsWith('[') ? `[${opts.bindHost}]` : opts.bindHost);
   const wildcardBind = bind === '0.0.0.0' || bind === '[::]';
 
@@ -222,7 +224,7 @@ const PATTERNS: RegExp[] = [
   /\bnvapi-[A-Za-z0-9_-]{8,}/g,
   /\boaiapp_[A-Za-z0-9_-]{4,}/g,
   /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]*\.?[A-Za-z0-9_-]*/g,
-  /"(access_token|refresh_token|id_token|token|code|apiKey|api_key)"\s*:\s*"[^"]*"/gi,
+  /"(access_token|refresh_token|id_token|token|code|apiKey|api_key|key|secret)"\s*:\s*"[^"]*"/gi,
 ];
 
 /** Wraps a sink so nothing secret reaches it: registered values, bearer/cookie headers, token-shaped strings, callback queries. */

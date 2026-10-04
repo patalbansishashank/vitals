@@ -1,0 +1,632 @@
+{
+  "family": "jstyle2301",
+  "source": "app/src/test/java/com/pulseloop/ring/JStyle2301ProtocolTest.kt",
+  "vectors": [
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "manual HR reply decodes vendor byte two and rejects invalid values: bpm 72",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "28 02 48",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "kind": "hr_sample",
+          "bpm": 72,
+          "timestampMs": 1789552800000,
+          "measurementResult": true,
+          "measurementStream": false
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "manual HR reply decodes vendor byte two and rejects invalid values: zero is an ack",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "28 02 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "kind": "hr_sample",
+          "bpm": 0,
+          "timestampMs": 1789552800000,
+          "measurementResult": true,
+          "measurementStream": false
+        }
+      ],
+      "note": "decodes to hr_sample with bpm 0; RingEventBridge drops it, so no reading is published"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "manual HR reply decodes vendor byte two and rejects invalid values: other measurement type",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "28 03 62",
+      "events": [
+        {
+          "kotlin": "SportTelemetry",
+          "kind": "sport_telemetry",
+          "bpm": 0,
+          "timestampMs": 1789552800000
+        }
+      ],
+      "note": "any 0x28 reply whose type byte is not 2 is health-classified as sport_telemetry and carries no value"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "sport telemetry is always health named and publishes plausible HR separately: warm-up",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "18 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SportTelemetry",
+          "kind": "sport_telemetry",
+          "bpm": 0,
+          "timestampMs": 1789552800000
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "sport telemetry is always health named and publishes plausible HR separately: reading",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "18 51 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SportTelemetry",
+          "kind": "sport_telemetry",
+          "bpm": 81,
+          "timestampMs": 1789552800000
+        },
+        {
+          "kotlin": "HeartRateSample",
+          "kind": "hr_sample",
+          "bpm": 81,
+          "timestampMs": 1789552800000,
+          "measurementResult": false,
+          "measurementStream": false
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "sport telemetry is always health named and publishes plausible HR separately: short 0x09 reply",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "09 01 00",
+      "events": [
+        {
+          "kotlin": "SportTelemetry",
+          "kind": "sport_telemetry",
+          "bpm": 0,
+          "timestampMs": 1789552800000
+        }
+      ],
+      "note": "no byte 21, so no heart rate"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "sport telemetry is always health named and publishes plausible HR separately: realtime 0x09 stream",
+      "firmware": "V0789",
+      "nowMs": 1789552800000,
+      "bytes": "09 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 5c",
+      "events": [
+        {
+          "kotlin": "SportTelemetry",
+          "kind": "sport_telemetry",
+          "bpm": 0,
+          "timestampMs": 1789552800000
+        },
+        {
+          "kotlin": "HeartRateSample",
+          "kind": "hr_sample",
+          "bpm": 92,
+          "timestampMs": 1789552800000,
+          "measurementResult": false,
+          "measurementStream": true
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "V0789 firmware and authentication result decode without exposing a credential: firmware",
+      "firmware": null,
+      "nowMs": null,
+      "bytes": "27 00 07 08 09",
+      "events": [
+        {
+          "kotlin": "FirmwareRevision",
+          "kind": "firmware_revision",
+          "version": "V0789"
+        }
+      ],
+      "note": "the decoder switches to the V0789 profile"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "V0789 firmware and authentication result decode without exposing a credential: accepted",
+      "firmware": "V0789",
+      "nowMs": null,
+      "bytes": "3c 01",
+      "events": [
+        {
+          "kotlin": "AuthenticationResult",
+          "kind": "authentication_result",
+          "accepted": true
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "V0789 firmware and authentication result decode without exposing a credential: rejected",
+      "firmware": "V0789",
+      "nowMs": null,
+      "bytes": "3c 00",
+      "events": [
+        {
+          "kotlin": "AuthenticationResult",
+          "kind": "authentication_result",
+          "accepted": false
+        }
+      ]
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "V0789 firmware and authentication result decode without exposing a credential: HRV transform",
+      "firmware": null,
+      "prelude": [
+        "27 00 07 08 09"
+      ],
+      "nowMs": null,
+      "bytes": "56 00 00 26 09 14 12 34 56 5b 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "HRV",
+          "value": 50,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "vendor_history"
+        }
+      ]
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "V0789 firmware and authentication result decode without exposing a credential: activity seconds",
+      "firmware": null,
+      "prelude": [
+        "27 00 07 08 09"
+      ],
+      "nowMs": null,
+      "bytes": "51 00 26 09 15 4d 00 00 00 22 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "kind": "activity",
+          "activeMinutes": 0,
+          "replaceActiveMinutes": true
+        }
+      ],
+      "counts": {
+        "ActivityUpdate": 1
+      },
+      "note": "only activeMinutes and replaceActiveMinutes are asserted: 34 s is 0 whole minutes"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "battery and V0525 firmware decode without inventing connection events: battery",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "13 64",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "kind": "battery",
+          "percent": 100,
+          "charging": false
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "battery and V0525 firmware decode without inventing connection events: firmware",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "27 00 05 02 05",
+      "events": [
+        {
+          "kotlin": "FirmwareRevision",
+          "kind": "firmware_revision",
+          "version": "V0525"
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "heart rate SpO2 and temperature history preserve local timestamps: heart rate",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "55 00 00 26 09 14 12 34 56 48",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "HEART_RATE",
+          "value": 72,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "device_history"
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "heart rate SpO2 and temperature history preserve local timestamps: SpO2",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "66 00 00 26 09 14 12 34 56 62",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "SPO2",
+          "value": 98,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "device_history"
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "heart rate SpO2 and temperature history preserve local timestamps: temperature",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "62 00 00 26 09 14 12 34 56 70 01",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "TEMPERATURE",
+          "value": 36.8,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "device_history"
+        }
+      ],
+      "note": "u16le tenths of a degree Celsius; compare with 1e-4 tolerance"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "V0525 one minute sleep packet maps all four observed vendor stages",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "53 00 00 26 09 14 12 34 56 04 05 01 02 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "kind": "sleep_timeline",
+          "timestampMs": 1789389296000,
+          "stages": [
+            "AWAKE",
+            "DEEP",
+            "LIGHT",
+            "REM"
+          ],
+          "historyHorizonDays": 3650
+        }
+      ]
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "V0525 HRV bundle retains raw value and publishes the vendor-app compatible transform",
+      "nameNote": "test name reworded: the Kotlin test name carries the retail brand, left out here",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "56 00 00 26 09 14 12 34 56 2f 27 46 1f 76 4c",
+      "events": [
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "hrv_raw",
+          "value": 47,
+          "unit": "vendor_units",
+          "timestampMs": 1789389296000,
+          "isHistory": true
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "HRV",
+          "value": 28,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "vendor_history"
+        },
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "vascular_age",
+          "value": 39,
+          "unit": "years",
+          "timestampMs": 1789389296000,
+          "isHistory": true
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "HEART_RATE",
+          "value": 70,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "device_history"
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "STRESS",
+          "value": 31,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "vendor_history"
+        },
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "blood_pressure_systolic_estimate",
+          "value": 118,
+          "unit": "mmHg",
+          "timestampMs": 1789389296000,
+          "isHistory": true
+        },
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "blood_pressure_diastolic_estimate",
+          "value": 76,
+          "unit": "mmHg",
+          "timestampMs": 1789389296000,
+          "isHistory": true
+        }
+      ],
+      "note": "the test asserts each event is present; listed in the decoder emission order"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "V0789 maps resolved byte five and marker bytes to awake",
+      "firmware": null,
+      "prelude": [
+        "27 00 07 08 09"
+      ],
+      "nowMs": null,
+      "bytes": "53 00 00 26 09 14 12 34 56 05 01 02 03 0a 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "kind": "sleep_timeline",
+          "timestampMs": 1789389296000,
+          "stages": [
+            "DEEP",
+            "LIGHT",
+            "REM",
+            "AWAKE",
+            "AWAKE"
+          ],
+          "historyHorizonDays": 3650
+        }
+      ]
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "unknown firmware preserves opaque HRV and refuses invented sleep labels: HRV",
+      "firmware": null,
+      "nowMs": null,
+      "bytes": "56 00 00 26 09 14 12 34 56 2f 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "hrv_raw",
+          "value": 47,
+          "unit": "vendor_units",
+          "timestampMs": 1789389296000,
+          "isHistory": true
+        }
+      ],
+      "absent": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "measurementKind": "HRV"
+        }
+      ]
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "unknown firmware preserves opaque HRV and refuses invented sleep labels: sleep",
+      "firmware": null,
+      "nowMs": null,
+      "bytes": "53 00 00 26 09 14 12 34 56 04 01 02 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "kind": "sleep_timeline",
+          "timestampMs": 1789389296000,
+          "stages": [
+            "UNKNOWN",
+            "UNKNOWN",
+            "UNKNOWN",
+            "UNKNOWN"
+          ],
+          "historyHorizonDays": 3650
+        }
+      ]
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "unknown firmware preserves opaque HRV and refuses invented sleep labels: V0525 reply then HRV",
+      "firmware": null,
+      "prelude": [
+        "27 00 05 02 05"
+      ],
+      "nowMs": null,
+      "bytes": "56 00 00 26 09 14 12 34 56 2f 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "history_measurement",
+          "measurementKind": "HRV",
+          "value": 28,
+          "timestampMs": 1789389296000,
+          "historyHorizonDays": 3650,
+          "provenance": "vendor_history"
+        }
+      ]
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "activity total converts vendor hundredth-km field to metres",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "51 00 26 09 14 f0 20 00 00 df 02 00 00 6f 02 00 00 90 97 00 00 10 27 3e 00 00 00",
+      "events": [
+        {
+          "kotlin": "ActivityUpdate",
+          "kind": "activity",
+          "steps": 8432,
+          "distanceMeters": 6230,
+          "calories": 388,
+          "activeMinutes": 12,
+          "replaceActiveMinutes": true
+        },
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "exercise_duration_raw",
+          "unit": "s"
+        }
+      ],
+      "counts": {
+        "ActivityUpdate": 1
+      },
+      "note": "distance field is 10 m units; kcal field is hundredths; exercise field is seconds (735 s = 12 whole minutes)"
+    },
+    {
+      "match": "contains",
+      "tzOffsetS": 0,
+      "name": "activity detail preserves exact block calories as a vendor metric",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "52 00 00 26 09 14 12 34 56 64 00 b3 01 07 00 3c 28 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "VendorMetric",
+          "kind": "vendor_metric",
+          "key": "activity_detail_calories",
+          "value": 4.35,
+          "unit": "kcal",
+          "timestampMs": 1789389296000,
+          "isHistory": true
+        }
+      ],
+      "counts": {
+        "ActivityBucket": 2
+      },
+      "note": "compare kcal with 1e-9 tolerance; the test asserts two minute buckets but not their fields"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "derived: unknown opcode",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "aa 01",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "kind": "unknown",
+          "commandId": 170,
+          "raw": "aa 01"
+        }
+      ],
+      "note": "derived from JStyle2301Decoder.decode, not asserted in the Kotlin tests"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "derived: empty packet",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "",
+      "events": [],
+      "note": "derived, not asserted"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "derived: HR record with an invalid BCD minute is dropped",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "55 00 00 26 09 14 12 6a 56 48",
+      "events": [],
+      "note": "derived, not asserted"
+    },
+    {
+      "match": "exact",
+      "tzOffsetS": 0,
+      "name": "derived: standalone terminal carries no records",
+      "firmware": "V0525",
+      "nowMs": null,
+      "bytes": "55 ff",
+      "events": [],
+      "note": "derived, not asserted"
+    }
+  ],
+  "terminal": [
+    {
+      "name": "terminal marker is recognized whether standalone or appended: standalone",
+      "streamOpcode": 83,
+      "bytes": "53 ff",
+      "terminal": true
+    },
+    {
+      "name": "terminal marker is recognized whether standalone or appended: appended to a 130-byte sleep packet",
+      "streamOpcode": 83,
+      "bytes": "53 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 53 ff",
+      "terminal": true
+    },
+    {
+      "name": "terminal marker is recognized whether standalone or appended: not terminal",
+      "streamOpcode": 83,
+      "bytes": "53 00",
+      "terminal": false
+    }
+  ]
+}

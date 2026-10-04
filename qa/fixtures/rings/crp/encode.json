@@ -1,0 +1,721 @@
+{
+  "family": "crp",
+  "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt (+ app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt, app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt)",
+  "vectors": [
+    {
+      "name": "frame lays out FD DA 10 len group cmd payload",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "group": 1,
+          "cmd": 9,
+          "payload": "01"
+        }
+      },
+      "frame": "fd da 10 07 01 09 01"
+    },
+    {
+      "name": "frame length equals payload plus six-byte header (no payload)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "group": 3,
+          "cmd": 0,
+          "payload": ""
+        }
+      },
+      "frame": "fd da 10 06 03 00",
+      "note": "Kotlin asserts size 6 only."
+    },
+    {
+      "name": "frame length equals payload plus six-byte header (5-byte payload)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "group": 1,
+          "cmd": 0,
+          "payload": "00 00 00 00 00"
+        }
+      },
+      "frame": "fd da 10 0b 01 00 00 00 00 00 00",
+      "note": "Kotlin asserts size 11 only."
+    },
+    {
+      "name": "setUserInfo matches vendor b1_k_a layout",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "set_user_info",
+        "params": {
+          "heightCm": 175,
+          "weightKg": 70,
+          "ageYears": 30,
+          "gender": 1,
+          "strideCm": 75
+        }
+      },
+      "frame": "fd da 10 0b 01 00 af 46 1e 01 4b"
+    },
+    {
+      "name": "setTime is group1 cmd1 with 4-byte little-endian epoch and tz byte 8 (phone at UTC+1)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "set_time",
+        "params": {
+          "nowMs": 1784709000000,
+          "tzOffsetS": 3600
+        }
+      },
+      "frame": "fd da 10 0b 01 01 18 1d 60 6a 08",
+      "note": "Kotlin asserts only the header, len 11, group 1, cmd 1, tz byte 8 and a 2020s epoch (it uses LocalDateTime.now()). Bytes here derived from the rule: local wall clock 2026-07-22 09:30:00 encoded as if at UTC+8, so the epoch field is 2026-07-22T01:30:00Z = 1784683800."
+    },
+    {
+      "name": "setTime: phone at UTC-5 across a date line",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "set_time",
+        "params": {
+          "nowMs": 1767654900000,
+          "tzOffsetS": -18000
+        }
+      },
+      "frame": "fd da 10 0b 01 01 24 8f 5b 69 08",
+      "note": "Derived from the rule, not asserted in Kotlin: local wall clock 2026-01-05 18:15:00 encoded as if at UTC+8 -> epoch field 2026-01-05T10:15:00Z = 1767608100."
+    },
+    {
+      "name": "setTime: phone at UTC+8 sends the true epoch",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "set_time",
+        "params": {
+          "nowMs": 1784683800000,
+          "tzOffsetS": 28800
+        }
+      },
+      "frame": "fd da 10 0b 01 01 18 1d 60 6a 08",
+      "note": "Derived: at UTC+8 the vendor quirk is a no-op, the epoch field equals the real epoch (1784683800)."
+    },
+    {
+      "name": "heart rate start toggles the enable byte on group1 cmd9",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_hr",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 09 01"
+    },
+    {
+      "name": "heart rate stop toggles the enable byte on group1 cmd9",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_hr",
+        "params": {
+          "enable": false
+        }
+      },
+      "frame": "fd da 10 07 01 09 00"
+    },
+    {
+      "name": "spo2 uses group1 cmd11",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_spo2",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 0b 01"
+    },
+    {
+      "name": "spo2 stop (derived)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_spo2",
+        "params": {
+          "enable": false
+        }
+      },
+      "frame": "fd da 10 07 01 0b 00",
+      "note": "Derived from CRPProtocol.measureSpO2(false); CRPSyncEngine.stopSpO2 sends it at the end of every spot SpO2."
+    },
+    {
+      "name": "timing history HR today frame 0",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_hr",
+        "params": {
+          "day": 0,
+          "frameIndex": 0
+        }
+      },
+      "frame": "fd da 10 08 02 0f 00 00"
+    },
+    {
+      "name": "timing history HRV today frame 0",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_hrv",
+        "params": {
+          "day": 0,
+          "frameIndex": 0
+        }
+      },
+      "frame": "fd da 10 08 02 10 00 00"
+    },
+    {
+      "name": "timing history SpO2 today frame 0",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_spo2",
+        "params": {
+          "day": 0,
+          "frameIndex": 0
+        }
+      },
+      "frame": "fd da 10 08 02 11 00 00"
+    },
+    {
+      "name": "timing history stress today frame 0",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_stress",
+        "params": {
+          "day": 0,
+          "frameIndex": 0
+        }
+      },
+      "frame": "fd da 10 08 02 2f 00 00"
+    },
+    {
+      "name": "timing history HR yesterday frame 0",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_hr",
+        "params": {
+          "day": 1,
+          "frameIndex": 0
+        }
+      },
+      "frame": "fd da 10 08 02 0f 01 00"
+    },
+    {
+      "name": "timing history HR today frame 1 (follow-up)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_hr",
+        "params": {
+          "day": 0,
+          "frameIndex": 1
+        }
+      },
+      "frame": "fd da 10 08 02 0f 00 01"
+    },
+    {
+      "name": "timing history HRV today frame 2 (follow-up)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "history_hrv",
+        "params": {
+          "day": 0,
+          "frameIndex": 2
+        }
+      },
+      "frame": "fd da 10 08 02 10 00 02"
+    },
+    {
+      "name": "spot measure HRV start",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_hrv",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 0a 01"
+    },
+    {
+      "name": "spot measure HRV stop",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_hrv",
+        "params": {
+          "enable": false
+        }
+      },
+      "frame": "fd da 10 07 01 0a 00"
+    },
+    {
+      "name": "spot measure stress start",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_stress",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 0e 01"
+    },
+    {
+      "name": "spot measure temperature start",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "measure_temp",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 20 01"
+    },
+    {
+      "name": "temp all-day timing enable is cmd13",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "timing_temp",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 0d 01"
+    },
+    {
+      "name": "temp all-day timing disable is cmd13",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "timing_temp",
+        "params": {
+          "enable": false
+        }
+      },
+      "frame": "fd da 10 07 01 0d 00"
+    },
+    {
+      "name": "findDevice is group9 cmd2",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "find_device",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 09 02 01"
+    },
+    {
+      "name": "factoryReset is group3 cmd0 with no payload",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPProtocolTest.kt",
+      "command": {
+        "op": "factory_reset"
+      },
+      "frame": "fd da 10 06 03 00"
+    },
+    {
+      "name": "the firmware query targets group 3 cmd 3, not the group-7 Gomore opcode",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPDecoderTest.kt",
+      "command": {
+        "op": "query_firmware"
+      },
+      "frame": "fd da 10 06 03 03",
+      "note": "Kotlin asserts bytes [4] and [5] only."
+    },
+    {
+      "name": "runStartup honours a saved config: HR enabled at interval 10",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_hr",
+        "params": {
+          "intervalMin": 10
+        }
+      },
+      "frame": "fd da 10 07 01 06 0a",
+      "note": "Kotlin asserts payload byte 10."
+    },
+    {
+      "name": "runStartup honours a saved config: SpO2 disabled",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_spo2",
+        "params": {
+          "intervalMin": 0
+        }
+      },
+      "frame": "fd da 10 07 01 08 00",
+      "note": "Disable = interval 0. Kotlin asserts payload byte 0."
+    },
+    {
+      "name": "runStartup honours a saved config: stress disabled",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_stress",
+        "params": {
+          "intervalMin": 0
+        }
+      },
+      "frame": "fd da 10 07 01 27 00",
+      "note": "Kotlin asserts payload byte 0."
+    },
+    {
+      "name": "runStartup honours a saved config: HRV enabled at interval 10",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_hrv",
+        "params": {
+          "intervalMin": 10
+        }
+      },
+      "frame": "fd da 10 07 01 07 0a",
+      "note": "Kotlin asserts the opcode only; the interval byte is the shared HR interval (derived)."
+    },
+    {
+      "name": "default monitor enables: HR at 5 min",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_hr",
+        "params": {
+          "intervalMin": 5
+        }
+      },
+      "frame": "fd da 10 07 01 06 05",
+      "note": "ALL_ON_DEFAULT interval 5; Kotlin asserts the opcode order only."
+    },
+    {
+      "name": "default monitor enables: HRV at 5 min",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_hrv",
+        "params": {
+          "intervalMin": 5
+        }
+      },
+      "frame": "fd da 10 07 01 07 05",
+      "note": "Opcode asserted; payload derived."
+    },
+    {
+      "name": "default monitor enables: stress at 5 min",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_stress",
+        "params": {
+          "intervalMin": 5
+        }
+      },
+      "frame": "fd da 10 07 01 27 05",
+      "note": "Opcode asserted; payload derived."
+    },
+    {
+      "name": "default monitor enables: SpO2 at 5 min",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_spo2",
+        "params": {
+          "intervalMin": 5
+        }
+      },
+      "frame": "fd da 10 07 01 08 05",
+      "note": "Opcode asserted; payload derived."
+    },
+    {
+      "name": "default monitor enables: temperature on",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "timing_temp",
+        "params": {
+          "enable": true
+        }
+      },
+      "frame": "fd da 10 07 01 0d 01",
+      "note": "Opcode asserted; payload derived."
+    },
+    {
+      "name": "applyUserProfile pushes user info immediately (stride ~0.43 x height)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "set_user_info",
+        "params": {
+          "heightCm": 165,
+          "weightKg": 60,
+          "ageYears": 25,
+          "gender": 0,
+          "strideCm": 70
+        }
+      },
+      "frame": "fd da 10 0b 01 00 a5 3c 19 00 46",
+      "note": "Kotlin asserts opcode, height byte 165 and stride byte (165*0.43).toInt() = 70. Weight, age and gender bytes derived from the layout."
+    },
+    {
+      "name": "second poll pass user info (profile 180 cm / 75 kg / 30 y / gender 1)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "set_user_info",
+        "params": {
+          "heightCm": 180,
+          "weightKg": 75,
+          "ageYears": 30,
+          "gender": 1,
+          "strideCm": 77
+        }
+      },
+      "frame": "fd da 10 0b 01 00 b4 4b 1e 01 4d",
+      "note": "Kotlin asserts the opcode (1,0) only; bytes derived. stride = (180*0.43).toInt() = 77."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 0)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 0
+        }
+      },
+      "frame": "fd da 10 07 02 0e 00",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 1)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 1
+        }
+      },
+      "frame": "fd da 10 07 02 0e 01",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 2)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 2
+        }
+      },
+      "frame": "fd da 10 07 02 0e 02",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 3)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 3
+        }
+      },
+      "frame": "fd da 10 07 02 0e 03",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 4)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 4
+        }
+      },
+      "frame": "fd da 10 07 02 0e 04",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 5)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 5
+        }
+      },
+      "frame": "fd da 10 07 02 0e 05",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "the sleep backfill asks for consecutive prior days (daysAgo 6)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_sleep",
+        "params": {
+          "daysAgo": 6
+        }
+      },
+      "frame": "fd da 10 07 02 0e 06",
+      "note": "Kotlin asserts opcode (2,14) and payload[0] = daysAgo."
+    },
+    {
+      "name": "temperature history today frame 0",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_temp",
+        "params": {
+          "day": 0,
+          "frameIndex": 0
+        }
+      },
+      "frame": "fd da 10 08 02 16 00 00",
+      "note": "Opcode (2,22) asserted; payload [day, frameIndex] derived."
+    },
+    {
+      "name": "temperature walks four frames like HRV (frame 1)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_temp",
+        "params": {
+          "day": 0,
+          "frameIndex": 1
+        }
+      },
+      "frame": "fd da 10 08 02 16 00 01",
+      "note": "Kotlin asserts opcode (2,22) and payload[1]."
+    },
+    {
+      "name": "temperature walks four frames like HRV (frame 2)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_temp",
+        "params": {
+          "day": 0,
+          "frameIndex": 2
+        }
+      },
+      "frame": "fd da 10 08 02 16 00 02",
+      "note": "Kotlin asserts opcode (2,22) and payload[1]."
+    },
+    {
+      "name": "temperature walks four frames like HRV (frame 3)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_temp",
+        "params": {
+          "day": 0,
+          "frameIndex": 3
+        }
+      },
+      "frame": "fd da 10 08 02 16 00 03",
+      "note": "Kotlin asserts opcode (2,22) and payload[1]."
+    },
+    {
+      "name": "HRV walks four frames (frame 1)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_hrv",
+        "params": {
+          "day": 0,
+          "frameIndex": 1
+        }
+      },
+      "frame": "fd da 10 08 02 10 00 01",
+      "note": "Kotlin asserts payload[1]."
+    },
+    {
+      "name": "HRV walks four frames (frame 2)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_hrv",
+        "params": {
+          "day": 0,
+          "frameIndex": 2
+        }
+      },
+      "frame": "fd da 10 08 02 10 00 02",
+      "note": "Kotlin asserts payload[1]."
+    },
+    {
+      "name": "HRV walks four frames (frame 3)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_hrv",
+        "params": {
+          "day": 0,
+          "frameIndex": 3
+        }
+      },
+      "frame": "fd da 10 08 02 10 00 03",
+      "note": "Kotlin asserts payload[1]."
+    },
+    {
+      "name": "the follow-up guard distinguishes days (day 1 frame 1)",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "history_hr",
+        "params": {
+          "day": 1,
+          "frameIndex": 1
+        }
+      },
+      "frame": "fd da 10 08 02 0f 01 01",
+      "note": "Kotlin asserts payload[0] = 1; frame index 1 derived."
+    },
+    {
+      "name": "query SpO2 support type",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "query_spo2_support"
+      },
+      "frame": "fd da 10 06 02 25",
+      "note": "Opcode (2,37) asserted."
+    },
+    {
+      "name": "query timing state hr",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "query_timing_state",
+        "params": {
+          "kind": "hr"
+        }
+      },
+      "frame": "fd da 10 06 02 06",
+      "note": "Opcode (2,6) asserted."
+    },
+    {
+      "name": "query timing state hrv",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "query_timing_state",
+        "params": {
+          "kind": "hrv"
+        }
+      },
+      "frame": "fd da 10 06 02 07",
+      "note": "Opcode (2,7) asserted."
+    },
+    {
+      "name": "query timing state spo2",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "query_timing_state",
+        "params": {
+          "kind": "spo2"
+        }
+      },
+      "frame": "fd da 10 06 02 08",
+      "note": "Opcode (2,8) asserted."
+    },
+    {
+      "name": "query timing state stress",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "query_timing_state",
+        "params": {
+          "kind": "stress"
+        }
+      },
+      "frame": "fd da 10 06 02 2d",
+      "note": "Opcode (2,45) asserted."
+    },
+    {
+      "name": "query timing state temp",
+      "source": "app/src/test/java/com/pulseloop/ring/CRPSyncEngineTest.kt",
+      "command": {
+        "op": "query_timing_state",
+        "params": {
+          "kind": "temp"
+        }
+      },
+      "frame": "fd da 10 06 02 15",
+      "note": "Opcode (2,21) asserted."
+    }
+  ]
+}

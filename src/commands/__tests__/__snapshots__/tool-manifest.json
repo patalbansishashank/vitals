@@ -1,12 +1,12 @@
 {
  "version": 1,
  "format": "vitals.tools/1",
- "agentToolsetHash": "7c1ecd952e4f1a6d7e0d2c0f9efca388b8695c90851e72b2f1d9c6e45eca30fd",
+ "agentToolsetHash": "6821eb68bedf53a88128473e18bae533fd42a6260f679fb24a263e187c5a85d5",
  "toolsetHash": {
-  "ui": "471d24f58e2fd7a13e7ef4a9f56f4903de64d63cbe83fadaccadcf3a66197600",
+  "ui": "1257cc3d4ab091acc3e91638f7924faf40282eb9dd37b0b2b91cace5e5b6ed64",
   "ai": "7c1ecd952e4f1a6d7e0d2c0f9efca388b8695c90851e72b2f1d9c6e45eca30fd",
-  "webmcp": "d9d7a6726717b6aeeeaf92edfa44854a464b0948e51ac637596a60a7df33695e",
-  "mcp": "8033cbc41390685bf8307b81853694ff7ad16a4861a5830d4da8eb1455f3b7e2"
+  "webmcp": "a9f942bdcaa01773f83849bc688b42542d32354a68c3e0c724ee7aced76fc4f8",
+  "mcp": "a7324de606eab142f2e12f117def71f64b5a48c18aaaa2bcf1855941e378460f"
  },
  "surfaces": {
   "ui": {
@@ -173,6 +173,14 @@
      "impact": "low",
      "confirm": "log",
      "schemaHash": "c99f7ec42e2c4a76"
+    },
+    {
+     "name": "briefing_get",
+     "commandId": "briefing.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "1ae68e764156db4d"
     },
     {
      "name": "catalogue_add_equipment",
@@ -2621,6 +2629,10 @@
      "reason": "a one-time migration the app runs itself"
     },
     {
+     "commandId": "briefing.get",
+     "reason": "the Coach already receives this briefing every turn"
+    },
+    {
      "commandId": "coach.applyPending",
      "reason": "requires the person's own consent in the app"
     },
@@ -2782,6 +2794,14 @@
      "impact": "consequential",
      "confirm": "edit",
      "schemaHash": "1dc03b967d1e856d"
+    },
+    {
+     "name": "briefing_get",
+     "commandId": "briefing.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "1ae68e764156db4d"
     },
     {
      "name": "catalogue_add_equipment",
@@ -4024,6 +4044,14 @@
      "impact": "consequential",
      "confirm": "edit",
      "schemaHash": "1dc03b967d1e856d"
+    },
+    {
+     "name": "briefing_get",
+     "commandId": "briefing.get",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "1ae68e764156db4d"
     },
     {
      "name": "catalogue_add_equipment",

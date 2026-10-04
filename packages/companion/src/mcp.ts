@@ -4,14 +4,28 @@
  * through unchanged. Two transports:
  * - Streamable HTTP at `/mcp` on the Companion's port (stateful sessions bound to the token that opened them);
  * - stdio via `vitals-companion mcp`, a thin process that forwards to the running Companion with the admin token.
+ * Every server sends the standing rules as its `instructions` (`MCP_INSTRUCTIONS`, `./briefingRules.ts`) and offers the
+ * person's briefing (`briefing_get`) as the `coach` prompt and the `vitals://briefing` resource too.
  */
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { CallToolRequestSchema, isInitializeRequest, ListToolsRequestSchema, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  ErrorCode,
+  GetPromptRequestSchema,
+  isInitializeRequest,
+  ListPromptsRequestSchema,
+  ListResourcesRequestSchema,
+  ListToolsRequestSchema,
+  McpError,
+  ReadResourceRequestSchema,
+  type CallToolResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { checkCall, noTabEnvelope, type AgentHub } from './agentHub.ts';
 import type { Principal } from './auth.ts';
+import { MCP_INSTRUCTIONS } from './briefingRules.ts';
 import type { Logger } from './security.ts';
 import { parseToolManifest, toMcpTools, type McpToolDescriptor, type ToolManifest, type ToolResultEnvelope } from './toolManifest.ts';
 
@@ -41,15 +55,66 @@ export function toCallToolResult(envelope: ToolResultEnvelope, hasOutputSchema: 
   return { content, structuredContent: envelope as unknown as Record<string, unknown>, isError: !envelope.ok };
 }
 
+/** The briefing tool, the prompt that carries it and the resource that serves it (plan 04 item 12). */
+export const BRIEFING_TOOL = 'briefing_get';
+export const COACH_PROMPT = 'coach';
+export const BRIEFING_URI = 'vitals://briefing';
+const NO_BRIEFING_TOOL = 'This version of the Vitals app cannot share the briefing yet. Update Vitals, then try again.';
+
+/** The person's briefing text through `briefing_get`, or the reason it is not available, in plain words. */
+async function readBriefing(backend: McpBackend, ctx: McpCallContext): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+  try {
+    const tools = await backend.listTools();
+    // no tools at all: no tab or app yet; the call below answers with the right message ("open Vitals")
+    if (tools.length && !tools.some((t) => t.name === BRIEFING_TOOL)) return { ok: false, reason: NO_BRIEFING_TOOL };
+    const envelope = await backend.call(BRIEFING_TOOL, {}, ctx);
+    const data = envelope.data as { text?: unknown } | undefined;
+    if (envelope.ok && typeof data?.text === 'string') return { ok: true, text: data.text };
+    return { ok: false, reason: envelope.ok ? 'Vitals returned an empty briefing.' : envelope.summary || 'Vitals could not read the briefing.' };
+  } catch {
+    return { ok: false, reason: 'Vitals could not read the briefing. Try again in a moment.' };
+  }
+}
+
 export function createMcpServer(backend: McpBackend, opts: { version: string; fallbackClientName: string; scope: () => string }): Server {
-  const server = new Server({ name: 'vitals', title: 'Vitals', version: opts.version }, { capabilities: { tools: { listChanged: true } } });
+  const server = new Server(
+    { name: 'vitals', title: 'Vitals', version: opts.version },
+    { capabilities: { tools: { listChanged: true }, prompts: {}, resources: {} }, instructions: MCP_INSTRUCTIONS },
+  );
+  const ctxOf = (requestId: string | number): McpCallContext => ({
+    clientName: (server.getClientVersion()?.name ?? '').replace(/[^\w .:@/-]/g, '').slice(0, 64) || opts.fallbackClientName,
+    scope: opts.scope(),
+    requestId,
+  });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: await backend.listTools() }));
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const { name, arguments: args } = request.params;
     const tools = await backend.listTools();
-    const clientName = (server.getClientVersion()?.name ?? '').replace(/[^\w .:@/-]/g, '').slice(0, 64) || opts.fallbackClientName;
-    const envelope = await backend.call(name, args ?? {}, { clientName, scope: opts.scope(), requestId: extra.requestId });
+    const envelope = await backend.call(name, args ?? {}, ctxOf(extra.requestId));
     return toCallToolResult(envelope, Boolean(tools.find((t) => t.name === name)?.outputSchema));
+  });
+
+  // the same briefing as a prompt and a resource, for clients that use those; the tool works in every client
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: [{ name: COACH_PROMPT, title: 'Vitals Coach', description: 'Work like the Coach in Vitals: the rules and the person’s briefing (today’s plan, what is logged, kitchen).' }],
+  }));
+  server.setRequestHandler(GetPromptRequestSchema, async (request, extra) => {
+    if (request.params.name !== COACH_PROMPT) throw new McpError(ErrorCode.InvalidParams, `There is no prompt called ${JSON.stringify(request.params.name)}.`);
+    const b = await readBriefing(backend, ctxOf(extra.requestId));
+    const briefing = b.ok ? `The person’s briefing:\n${b.text}` : `The person’s briefing is not available: ${b.reason}`;
+    return {
+      description: 'The Vitals rules and the person’s briefing',
+      messages: [{ role: 'user' as const, content: { type: 'text' as const, text: `${MCP_INSTRUCTIONS}\n\n${briefing}` } }],
+    };
+  });
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [{ uri: BRIEFING_URI, name: 'briefing', title: 'Your Vitals briefing', description: 'Today’s plan, what is logged, kitchen and the rest of the briefing the Coach works from.', mimeType: 'text/plain' }],
+  }));
+  server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
+    if (request.params.uri !== BRIEFING_URI) throw new McpError(ErrorCode.InvalidParams, `There is no resource at ${JSON.stringify(request.params.uri)}.`);
+    const b = await readBriefing(backend, ctxOf(extra.requestId));
+    if (!b.ok) throw new McpError(ErrorCode.InternalError, b.reason);
+    return { contents: [{ uri: BRIEFING_URI, mimeType: 'text/plain', text: b.text }] };
   });
   return server;
 }

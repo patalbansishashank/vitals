@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vitals</string>
+    <string name="title_activity_main">Vitals</string>
+    <string name="package_name">desi.creative.vitals</string>
+    <string name="custom_url_scheme">desi.creative.vitals</string>
+
+    <!-- Notification channels -->
+    <string name="channel_ring_link">Ring connection</string>
+    <string name="channel_ring_alerts">Ring alerts</string>
+
+    <!-- Notification texts -->
+    <string name="ring_connected">Ring connected</string>
+    <string name="ring_tap_to_connect">Tap to connect your ring</string>
+</resources>

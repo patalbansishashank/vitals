@@ -1,7 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { pairingCodeOf } from '@/sync/pairing';
 import { OFF_STATUS, type SyncStatus } from '@/sync/types';
+import { BASE, fakeClient } from '../server/__tests__/fakeServer';
+import { ServerClientContext } from '../server/hooks';
 import { AUTO_HIDE_MS } from './PairingCodePanel';
 import { qrPath } from './QrCode';
 import { describeStatus } from './status';
@@ -288,6 +291,48 @@ describe('Settings › Sync, paired', () => {
     expect(screen.getByRole('alert')).toHaveTextContent("Can't reach your sync server. Is Tailscale on? (last synced 14:02, 37 changes waiting)");
     emit({ state: 'needs-permission' });
     expect(screen.getByRole('alert')).toHaveTextContent(/devices on your local network/);
+  });
+});
+
+describe('Settings › Sync with a paired home server', () => {
+  const withServer = () =>
+    render(
+      <MemoryRouter>
+        <ServerClientContext.Provider value={fakeClient({ paired: true }).client}>
+          <SyncSection />
+        </ServerClientContext.Provider>
+      </MemoryRouter>,
+    );
+
+  it('with sync through the server the page is a backup area (words, QR, Sync now, no Set up)', async () => {
+    const user = userEvent.setup();
+    const { calls } = fakeController({ paired: true, status: { state: 'synced' } });
+    fake.view = { ...(fake.view as object), relayUrl: BASE };
+    withServer();
+    // a true sentence for a home server, never "only ever holds encrypted data"
+    expect(screen.getByText('Your home server holds a readable copy of your data and syncs your devices. The 24 words are the backup.')).toBeInTheDocument();
+    expect(screen.queryByText(/only ever holds encrypted data/)).toBeNull();
+    expect(screen.getByText(/On · through your server/)).toBeInTheDocument();
+    expect(screen.getByText(/A device that already synced keeps the sync key/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Set up sync on this device' })).toBeNull();
+    expect(screen.queryByLabelText('sync server address')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Sync now' }));
+    expect(calls.now).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Show pairing code' }));
+    expect(within(await screen.findByRole('list', { name: 'The 24 words' })).getAllByRole('listitem')).toHaveLength(24);
+    expect(screen.getByTestId('pairing-qr')).toBeInTheDocument();
+    expect(screen.getByText('Anyone with these words can read and change your Vitals data.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Stop syncing on this device' })).toBeInTheDocument();
+  });
+
+  it('a paired home server that gave no key: join by words or QR only, never a new group', () => {
+    fakeController();
+    withServer();
+    expect(screen.getByText('Your home server holds a readable copy of your data and syncs your devices. The 24 words are the backup.')).toBeInTheDocument();
+    expect(screen.queryByText(/only ever holds encrypted data/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Set up sync on this device' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Join with a pairing code' })).toBeInTheDocument();
+    expect(screen.getByLabelText('sync server address')).toHaveValue(BASE);
   });
 });
 

@@ -42,7 +42,7 @@
     transform: none;
   }
 
-  /* ---- wordmark: lowercase vitals + the yellow indicator dot ------------- */
+  /* ---- wordmark: the ring mark + lowercase vitals ------------------------ */
   .lm-wordmark {
     display: inline-flex;
     align-items: center;
@@ -55,14 +55,6 @@
     color: var(--lm-ink);
     text-decoration: none;
     border-radius: var(--lm-radius-xs);
-  }
-  .lm-wordmark__dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
-    flex: none;
   }
 
   /* ---- mobile top bar ---------------------------------------------------- */
@@ -149,10 +141,6 @@
     border-radius: var(--lm-radius-sm);
     text-decoration: none;
     color: var(--lm-ink);
-  }
-  .lm-rail__brand .lm-wordmark__dot {
-    width: 10px;
-    height: 10px;
   }
   .lm-rail__brand span:last-child {
     font-stretch: 120%;

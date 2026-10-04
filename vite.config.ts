@@ -32,9 +32,25 @@ const PDF_RUNTIME_URL = new RegExp(`/assets/(?:${PDF_PREFIXES.map((prefix) => pr
 // the app without a second edit (0.1.0 stayed on screen through v0.2.0 and v0.3.0).
 const PKG_VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
+// The cascade layer order index.html declares before any stylesheet (L-QA J5-01): a split CSS chunk linked before the
+// main one would otherwise fix the order with `components` first, below Tailwind's `base`. The build fails without it.
+const LAYER_ORDER = 'properties,theme,base,components,utilities';
+
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(PKG_VERSION) },
   plugins: [
+    {
+      name: 'layer-order-first',
+      apply: 'build',
+      enforce: 'post',
+      writeBundle(_options, bundle) {
+        const page = bundle['index.html'];
+        const html = page && page.type === 'asset' ? String(page.source) : '';
+        const first = /<style[^>]*>([\s\S]*?)<\/style>|<link[^>]*rel="stylesheet"[^>]*>/.exec(html);
+        const text = (first?.[1] ?? first?.[0] ?? '').replace(/\s+/g, '');
+        if (text !== `@layer${LAYER_ORDER};`) this.error(`vite.config.ts: the first stylesheet in index.html must be "@layer ${LAYER_ORDER.split(',').join(', ')};" (found ${JSON.stringify(text.slice(0, 80))}).`);
+      },
+    },
     {
       name: 'evolu-chunks',
       apply: 'build',
@@ -65,7 +81,7 @@ export default defineConfig({
         // first use: the Body page draws it for everyone, it is small next to the rest of the shell, and "works offline"
         // should not depend on having opened that page once. Its file name is versioned, so the revision never churns.
         // No `.wasm` here: the only WebAssembly is Evolu's, which is runtime-cached below.
-        globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest}', 'figure/*.bin'],
+        globPatterns: ['**/*.{js,css,html,woff2,svg,png,ico,webmanifest}', 'figure/*.bin'],
         // sourcemaps are never precached (and are off in this build anyway); Evolu stays out of the precache (see EVOLU_PREFIXES).
         globIgnores: ['**/*.map', ...EVOLU_PRECACHE_IGNORES, ...PDF_PRECACHE_IGNORES],
         // 5 MiB per file. The largest precached file is the engine worker, ~1.3 MB; the default 2 MiB leaves too little
@@ -73,7 +89,7 @@ export default defineConfig({
         // that log: `pnpm build` must not print "greater than maximumFileSizeToCacheInBytes".
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         navigateFallback: '/index.html', // the SPA: every navigation is served the shell, the router renders the route
-        navigateFallbackDenylist: [/^\/sw\.js$/, /^\/workbox-[^/]+\.js$/, /^\/manifest\.webmanifest$/, /^\/assets\//, /^\/icons\//, /^\/figure\//],
+        navigateFallbackDenylist: [/^\/sw\.js$/, /^\/\.well-known\//, /^\/workbox-[^/]+\.js$/, /^\/manifest\.webmanifest$/, /^\/assets\//, /^\/icons\//, /^\/figure\//],
         cleanupOutdatedCaches: true,
         clientsClaim: true, // first visit: the worker controls the page at once, so "works offline" is true without a reload
         // Same-origin only, Evolu only. Cache-first is safe because every file has a content hash in its name: a new

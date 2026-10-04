@@ -190,6 +190,13 @@
   --lm-keto-2: #d26e3e;
   --lm-keto-3: #b44c0d;
 
+  /* heart-rate effort zones (ordinal, cardio hue): zone 1 → 5 (ring-pages.md §7.4.1) */
+  --lm-hr-zone-1: #cf9a22;
+  --lm-hr-zone-2: #ae7c14;
+  --lm-hr-zone-3: #8e600c;
+  --lm-hr-zone-4: #6e4707;
+  --lm-hr-zone-5: #4f3104;
+
   /* ---------------------------------------------------------------------
      9. CHART CHROME
      --------------------------------------------------------------------- */
@@ -369,6 +376,7 @@
     --lm-energy-surplus-1: #37281e; --lm-energy-surplus-2: #462d1e; --lm-energy-surplus-3: #58341e; --lm-energy-surplus-4: #6d3e1f;
     --lm-energy-fast: #eff0f2;
     --lm-keto-1: #84492d; --lm-keto-2: #b05e36; --lm-keto-3: #e17c4c;
+    --lm-hr-zone-1: #7d5408; --lm-hr-zone-2: #a2700f; --lm-hr-zone-3: #c48e1c; --lm-hr-zone-4: #dfae3c; --lm-hr-zone-5: #f2d27a;
     --lm-chart-grid: #292b2e; --lm-chart-axis: #45484c; --lm-chart-crosshair: #b7bbc0; --lm-chart-phase-alt: rgb(255 255 255 / 0.03);
     --lm-chart-band-alpha: 0.20; --lm-chart-area-alpha: 0.14; --lm-chart-dim-alpha: 0.32;
     --lm-avatar-lean: #5f7698; --lm-avatar-fat: #373e48; --lm-avatar-outline: #b8c5d8; --lm-avatar-ghost: #95999e;
@@ -410,6 +418,7 @@
   --lm-energy-surplus-1: #37281e; --lm-energy-surplus-2: #462d1e; --lm-energy-surplus-3: #58341e; --lm-energy-surplus-4: #6d3e1f;
   --lm-energy-fast: #eff0f2;
   --lm-keto-1: #84492d; --lm-keto-2: #b05e36; --lm-keto-3: #e17c4c;
+  --lm-hr-zone-1: #7d5408; --lm-hr-zone-2: #a2700f; --lm-hr-zone-3: #c48e1c; --lm-hr-zone-4: #dfae3c; --lm-hr-zone-5: #f2d27a;
   --lm-chart-grid: #292b2e; --lm-chart-axis: #45484c; --lm-chart-crosshair: #b7bbc0; --lm-chart-phase-alt: rgb(255 255 255 / 0.03);
   --lm-chart-band-alpha: 0.20; --lm-chart-area-alpha: 0.14; --lm-chart-dim-alpha: 0.32;
   --lm-avatar-lean: #5f7698; --lm-avatar-fat: #373e48; --lm-avatar-outline: #b8c5d8; --lm-avatar-ghost: #95999e;

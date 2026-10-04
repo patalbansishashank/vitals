@@ -295,13 +295,14 @@ describe('2301 paging, planner and cursor', () => {
     expect(decodeCursor((st as J2301State).cursors.hr)[0x55]?.flag).toBe('more');
   });
 
-  it('settle timer finishes the stream and keeps the previous newest time when nothing arrived', () => {
+  it('settle timer finishes the stream and keeps the previous newest time and the round when nothing arrived', () => {
     const prev = encodeCursor({ 0x55: { seq: 2, newestS: 1_700_000_000, flag: 'more' }, 0x54: { seq: 2, newestS: null, flag: 'end' } });
     const st = start(0x55, 1, prev);
     const r = proto.timeout!(st, 'stall');
     expect(r.done).toBe(true);
     const c = decodeCursor((r.state as J2301State).cursors.hr);
-    expect(c[0x55]).toEqual({ seq: 4, newestS: 1_700_000_000, flag: 'more' });
+    // A read that got nothing is not "refreshed this round": the planner reads it first next time (L-REV RINGS-08).
+    expect(c[0x55]).toEqual({ seq: 2, newestS: 1_700_000_000, flag: 'more' });
     expect(c[0x54]).toEqual({ seq: 2, newestS: null, flag: 'end' });
     expect(r.events.some((e) => e.type === 'status' && e.key === 'error')).toBe(true);
   });

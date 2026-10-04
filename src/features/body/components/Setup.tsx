@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Faceplate, KeyLink } from '@/components';
-import { BodyAvatar } from '@/features/body/avatar';
+import { Figure3D } from '@/features/body/figure3d';
 import type { AvatarParams } from '@/engine/body';
 import { paths } from '@/app/paths';
 import { CONTINUE, FIGURE, SETUP } from '../copy';
@@ -13,7 +13,11 @@ export function SetupProgress({ step }: { step: SetupView }) {
   return (
     <ol className="lm-body-steps" aria-label={SETUP.progressLabel}>
       {SETUP.steps.map((s, i) => (
-        <li key={s.id} data-state={i < idx ? 'done' : i === idx ? 'current' : 'todo'} aria-current={i === idx ? 'step' : undefined}>
+        <li
+          key={s.id}
+          data-state={i < idx ? 'done' : i === idx ? 'current' : 'todo'}
+          aria-current={i === idx ? 'step' : undefined}
+        >
           <span className="lm-body-steps__bar" aria-hidden="true" />
           <span className="lm-body-steps__label">{s.label}</span>
         </li>
@@ -69,11 +73,41 @@ export const ContinueFace = memo(function ContinueFace() {
  * Sticky mini figure (mobile, your-body.md §3): docks under the top bar while a shape slider is dragged with the
  * stage out of view; fades 1.5 s after the last input; tap scrolls back to the stage.
  */
-export function MiniFigure({ params, frame, visible, onReturn }: { params: AvatarParams; frame: number; visible: boolean; onReturn: () => void }) {
+export function MiniFigure({
+  params,
+  frame,
+  visible,
+  onReturn,
+}: {
+  params: AvatarParams;
+  frame: number;
+  visible: boolean;
+  onReturn: () => void;
+}) {
   return (
-    <button type="button" className="lm-body-mini" data-visible={visible || undefined} aria-label={FIGURE.miniLabel} tabIndex={visible ? 0 : -1} aria-hidden={!visible} onClick={onReturn}>
+    <button
+      type="button"
+      className="lm-body-mini"
+      data-visible={visible || undefined}
+      aria-label={FIGURE.miniLabel}
+      tabIndex={visible ? 0 : -1}
+      aria-hidden={!visible}
+      onClick={onReturn}
+    >
       <span aria-hidden="true" className="lm-body-mini__fig">
-        <BodyAvatar params={params} frame={frame} size={108} view="front" caption={false} ruler={false} tween={false} label="Figure" />
+        {visible ? (
+          <Figure3D
+            params={params}
+            frame={frame}
+            size={108}
+            caption={false}
+            ruler={false}
+            tween={false}
+            controls={false}
+            decorative
+            label="Figure"
+          />
+        ) : null}
       </span>
     </button>
   );

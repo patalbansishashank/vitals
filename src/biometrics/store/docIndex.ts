@@ -1,7 +1,7 @@
 /**
  * Synchronous index over the biometrics documents of a `DocumentStore` (tier H, no React): `bioRecords` (IMM,
  * `${record_id}@${version}` → the canonical record plus its `sourceKey`), `bioChunks` (BLOB manifests; a superseded one
- * carries `superseded: true`), `bioSources` (`BioSourceDoc` plus `tombstones` and device fields; `policy:me` holds the
+ * carries `superseded: true` and `replacedBy`), `bioSources` (`BioSourceDoc` plus `tombstones` and device fields; `policy:me` holds the
  * person's stream policies), `bioScores` (DER `ScoreResult`s) and `decisionLog` (APP).
  *
  * Built once from the store's cache when it is ready, then kept current from the change feed (local commits, sync
@@ -27,8 +27,9 @@ export const isBioCollection = (col: string): col is BioCollection => BIO_SET.ha
 
 /** Stored body of a `bioRecords` document. */
 export type RecordBody = BioRecord & { sourceKey: string };
-/** Stored body of a `bioChunks` document. */
-export type ManifestBody = BioChunkManifest & { superseded?: boolean };
+/** Stored body of a `bioChunks` document. A replaced chunk stays, marked, until its replacement's bytes are on the relay
+ * (`DocBioStore.pruneSuperseded`); `replacedBy` names the chunk that holds its samples now. */
+export type ManifestBody = BioChunkManifest & { superseded?: boolean; replacedBy?: string; supersededAt?: string };
 /** Bluetooth state kept on a device source. */
 export interface BleSourceState {
   driver: string;

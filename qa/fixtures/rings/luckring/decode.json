@@ -1,0 +1,1193 @@
+{
+  "family": "luckring",
+  "source": "LuckRingDecoderTest.kt, LuckRingDriverTest.kt, LuckRingProtocolTest.kt (Kotlin, upstream PulseLoopAndroid; synthetic packets only)",
+  "conventions": {
+    "packets": "bytes / bytesSequence are on-air 20-byte packets built from the logical frame in context (the Kotlin decoder tests build LuckRingFrame objects, so the packets are derived with the Kotlin packetizer rules).",
+    "events": "Fields the Kotlin test asserts, only. Timestamps are epoch seconds (timestampS). A port test should match them as a subset.",
+    "derived": "The full decoder output for the vector, computed from the Kotlin source (not asserted by Kotlin).",
+    "kotlinClasses": "RingDecodedEvent class names; see the doc section \"Mapping to RingEvent\"."
+  },
+  "vectors": [
+    {
+      "name": "battery",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 3,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 03 00 00 02 00 55 01 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "percent": 85
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "Battery",
+          "percent": 85,
+          "charging": false
+        }
+      ],
+      "note": "The charging byte (payload[1]) is not decoded by Kotlin (Battery.charging stays false)."
+    },
+    {
+      "name": "firmware string joins bytes one to five",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 2,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 02 00 00 06 00 06 01 02 03 04 05 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Status",
+          "firmware": "1.2.3.4.5"
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "Status",
+          "address": null,
+          "firmware": "1.2.3.4.5"
+        }
+      ]
+    },
+    {
+      "name": "device ack decodes to command ack",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "ACK",
+        "dataType": 111,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 04 6f 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 111
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 111
+        }
+      ],
+      "note": "The Kotlin test builds the logical frame directly. On the wire this ACK is the head packet below; the assembler reads the status byte at [10]."
+    },
+    {
+      "name": "heart rate history fans out per record",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 8,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 00 01 08 00 00 0d 00 02 00 02 00 f1 53 65 48 3c f1",
+        "01 53 65 4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 72,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 75
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 72,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 75,
+          "timestampS": 1700000060
+        }
+      ],
+      "note": "Kotlin asserts the value list [72, 75] and the first timestamp only."
+    },
+    {
+      "name": "spo2 history decodes",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 40,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 28 00 00 08 00 01 00 01 00 f1 53 65 61 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "SPO2",
+          "value": 97
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "SPO2",
+          "value": 97,
+          "timestampS": 1700000000
+        }
+      ]
+    },
+    {
+      "name": "blood pressure history fans out systolic and diastolic",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 41,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 29 00 00 09 00 01 00 01 00 f1 53 65 78 50 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 120
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 80
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 120,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 80,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "Kotlin asserts exactly two rows and that both (kind, value) pairs are present (order not asserted; Kotlin emits systolic first)."
+    },
+    {
+      "name": "hrv history decodes",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 42,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 2a 00 00 08 00 01 00 01 00 f1 53 65 2d 00 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HRV",
+          "value": 45
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HRV",
+          "value": 45,
+          "timestampS": 1700000000
+        }
+      ]
+    },
+    {
+      "name": "temperature scales by ten from the wide record",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 47,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 00 01 2f 00 00 0b 00 01 00 01 00 f1 53 65 6d 01 00",
+        "01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 36.5
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 36.5,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "8-byte record [time u32][value u16 LE]/10 + 2 pad; Kotlin compares with delta 0.001."
+    },
+    {
+      "name": "live heart rate sample",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 7,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 07 00 00 08 00 01 00 01 00 f1 53 65 42 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 66
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 66,
+          "timestampS": 1700000000
+        }
+      ]
+    },
+    {
+      "name": "live heart rate ended marker (empty envelope)",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 7,
+        "seq": 0,
+        "devType": 1,
+        "nowS": 1700000100
+      },
+      "bytes": "00 01 00 00 01 07 00 00 03 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateComplete"
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HeartRateComplete",
+          "timestampS": 1700000100
+        }
+      ],
+      "note": "Empty envelope (items 0) = measurement ended; HeartRateComplete is stamped with the decoder clock (nowS), which the Kotlin test does not assert."
+    },
+    {
+      "name": "live blood pressure decodes",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 18,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 12 00 00 09 00 01 00 01 00 f1 53 65 76 4c 00",
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 118
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 76
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 118,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 76,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "Live BP also fans out as HistoryMeasurement rows in Kotlin (no live BP event class)."
+    },
+    {
+      "name": "sport record decodes u24 fields",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 5,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 00 01 05 00 00 17 00 01 00 01 00 f1 53 65 d2 04 00",
+        "01 00 88 13 00 00 2c 01 00 00 58 02 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "ActivityBucket",
+          "timestampS": 1700000000,
+          "steps": 1234,
+          "distanceMeters": 5000
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "ActivityBucket",
+          "timestampS": 1700000000,
+          "steps": 1234,
+          "distanceMeters": 5000
+        }
+      ],
+      "note": "Calories (u24 at record offset 12) and duration (u24 at offset 16) are present in the synthetic record but dropped by Kotlin."
+    },
+    {
+      "name": "sleep single session expands to per minute stages",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 6,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 04 00 01 06 00 00 4f 00 00 00 01 03 01 00 f1 53 65 02",
+        "01 2c f2 53 65 04 84 f4 53 65 00 00 00 00 00 00 00 00 00 00",
+        "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700000000,
+          "stages": [
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP"
+          ]
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700000000,
+          "stages": [
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP"
+          ]
+        }
+      ],
+      "note": "One page: [valid=3] + 15 slots of [type][time u32 LE], unused slots zero. 79-byte payload = head + 4 continuations."
+    },
+    {
+      "name": "sleep multi session and movement mapping",
+      "source": "LuckRingDecoderTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 6,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 08 00 01 06 00 00 9b 00 00 00 02 03 01 00 f1 53 65 05",
+        "01 78 f1 53 65 04 2c f2 53 65 00 00 00 00 00 00 00 00 00 00",
+        "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "04 00 00 00 00 00 00 00 00 00 00 00 00 03 01 10 ff 53 65 02",
+        "05 88 ff 53 65 04 3c 00 54 65 00 00 00 00 00 00 00 00 00 00",
+        "06 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "07 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "allStages": "LIGHT"
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700003600
+        }
+      ],
+      "derived": [
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700000000,
+          "stages": [
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT"
+          ]
+        },
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700003600,
+          "stages": [
+            "LIGHT",
+            "LIGHT",
+            "DEEP",
+            "DEEP",
+            "DEEP"
+          ]
+        }
+      ],
+      "note": "Kotlin asserts 2 sessions, the first all LIGHT (start and movement both light), the second starting at base+3600."
+    },
+    {
+      "name": "device send is acked and decoded",
+      "source": "LuckRingDriverTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 3,
+        "seq": 5,
+        "devType": 2
+      },
+      "bytes": "00 02 00 05 01 03 00 00 02 00 5a 01 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Battery",
+          "percent": 90
+        }
+      ],
+      "writes": [
+        "00 02 00 05 04 03 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts one write: cmdType 4, echoes dataType 3, seq 5, devType 2 (full ACK frame shown); then Battery 90.",
+      "derived": [
+        {
+          "kotlin": "Battery",
+          "percent": 90,
+          "charging": false
+        }
+      ]
+    },
+    {
+      "name": "device ack is not acked",
+      "source": "LuckRingDriverTest.kt",
+      "context": {
+        "layer": "driver",
+        "cmdType": "ACK",
+        "dataType": 110,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 04 6e 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 110
+        }
+      ],
+      "writes": [],
+      "derived": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 110
+        }
+      ],
+      "note": "Negative: an ACK must never be ACKed. Kotlin asserts writes is empty (event not asserted; CommandAck derived)."
+    },
+    {
+      "name": "send no ack is not acked",
+      "source": "LuckRingDriverTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND_NO_ACK",
+        "dataType": 7,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 02 07 00 00 08 00 01 00 01 00 f1 53 65 46 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 70,
+          "timestampS": 1700000000
+        }
+      ],
+      "writes": [],
+      "note": "Negative: a SEND_NO_ACK expects no reply. Kotlin asserts writes is empty only; the event is derived.",
+      "derived": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 70,
+          "timestampS": 1700000000
+        }
+      ]
+    },
+    {
+      "name": "multi packet frame only acks and decodes once complete",
+      "source": "LuckRingDriverTest.kt",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 8,
+        "seq": 1,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 01 01 08 00 00 0d 00 02 00 02 00 f1 53 65 48 3c f1",
+        "01 53 65 4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 72,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 75,
+          "timestampS": 1700000060
+        }
+      ],
+      "writes": [
+        "00 01 00 01 04 08 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "perPacket": [
+        {
+          "events": [],
+          "writes": []
+        },
+        {
+          "events": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "count": 2
+            }
+          ],
+          "writes": [
+            "00 01 00 01 04 08 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+          ]
+        }
+      ],
+      "note": "Kotlin asserts: first packet yields no events and no write; after the continuation exactly one ACK write and 2 events.",
+      "derived": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 72,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 75,
+          "timestampS": 1700000060
+        }
+      ]
+    },
+    {
+      "name": "assembler round trips a single packet",
+      "source": "LuckRingProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "00 01 00 09 01 03 00 00 02 00 58 01 00 00 00 00 00 00 00 00"
+      ],
+      "frames": [
+        {
+          "cmdType": "SEND",
+          "dataType": 3,
+          "seq": 9,
+          "devType": 1,
+          "payload": "58 01"
+        }
+      ],
+      "note": "Feeding the packet completes the frame."
+    },
+    {
+      "name": "assembler round trips a multi packet frame",
+      "source": "LuckRingProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "00 01 03 04 01 6e 00 00 43 00 00 01 02 03 04 05 06 07 08 09",
+        "01 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c",
+        "02 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f",
+        "03 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42"
+      ],
+      "frames": [
+        null,
+        null,
+        null,
+        {
+          "cmdType": "SEND",
+          "dataType": 110,
+          "seq": 4,
+          "devType": 1,
+          "payload": "00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42"
+        }
+      ],
+      "note": "frames[i] is the assembler result after packet i: null until the last continuation."
+    },
+    {
+      "name": "assembler trims padding when payload does not fill the last page",
+      "source": "LuckRingProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "00 01 01 03 01 2f 00 00 19 00 01 02 03 04 05 06 07 08 09 0a",
+        "01 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 00 00 00 00"
+      ],
+      "frames": [
+        null,
+        {
+          "cmdType": "SEND",
+          "dataType": 47,
+          "seq": 3,
+          "devType": 1,
+          "payload": "01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19"
+        }
+      ],
+      "note": "The last continuation is zero-padded on the wire; the payload is cut to the head-declared length (25)."
+    },
+    {
+      "name": "assembler recovers from a stale head",
+      "source": "LuckRingProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "00 01 02 01 01 05 00 00 1e 00 00 01 02 03 04 05 06 07 08 09",
+        "00 01 00 02 01 03 00 00 02 00 4d 00 00 00 00 00 00 00 00 00"
+      ],
+      "frames": [
+        null,
+        {
+          "cmdType": "SEND",
+          "dataType": 3,
+          "seq": 2,
+          "devType": 1,
+          "payload": "4d 00"
+        }
+      ],
+      "note": "A head that promises 2 continuations, then a new head: the partial is dropped and the new frame completes."
+    },
+    {
+      "name": "assembler drops a continuation with no head",
+      "source": "LuckRingProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "frames": [
+        null
+      ],
+      "note": "Negative: continuation index 1 with no head open is ignored."
+    },
+    {
+      "name": "assembler parses a device ack",
+      "source": "LuckRingProtocolTest.kt",
+      "context": {
+        "layer": "assembler"
+      },
+      "bytesSequence": [
+        "00 01 00 06 04 6f 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "frames": [
+        {
+          "cmdType": "ACK",
+          "dataType": 111,
+          "seq": 6,
+          "devType": 1,
+          "payload": "01"
+        }
+      ],
+      "note": "ACK head is self-contained: payload = the status byte at [10]."
+    },
+    {
+      "name": "battery with empty payload is a command ack",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 3,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 3
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "device info shorter than six bytes is a command ack",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 2,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 02 00 00 03 00 06 01 02 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 2
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "unknown data type is surfaced as unknown",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 200,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 c8 00 00 03 00 01 02 03 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Unknown",
+          "commandId": 200,
+          "rawHex": "01 02 03"
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "handshake/echo data types are command acks (pair finish)",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 120,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 78 00 00 02 00 01 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 120
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "live spo2 sample",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND_NO_ACK",
+        "dataType": 20,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 02 14 00 00 08 00 01 00 01 00 f1 53 65 61 00 00",
+      "events": [
+        {
+          "kotlin": "Spo2Result",
+          "value": 97,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "live spo2 ended marker",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND_NO_ACK",
+        "dataType": 20,
+        "seq": 0,
+        "devType": 1,
+        "nowS": 1700000100
+      },
+      "bytes": "00 01 00 00 02 14 00 00 03 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "Spo2Complete",
+          "timestampS": 1700000100
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "live hrv sample",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 45,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 2d 00 00 08 00 01 00 01 00 f1 53 65 2d 00 00",
+      "events": [
+        {
+          "kotlin": "HrvSample",
+          "value": 45,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "live stress sample",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 52,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 34 00 00 08 00 01 00 01 00 f1 53 65 21 00 00",
+      "events": [
+        {
+          "kotlin": "StressSample",
+          "value": 33,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "stress history",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 53,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 00 01 35 00 00 0d 00 02 00 02 00 f1 53 65 1e 10 ff",
+        "01 53 65 23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "STRESS",
+          "value": 30,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "STRESS",
+          "value": 35,
+          "timestampS": 1700003600
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "live temperature, 5-byte record (value byte / 10)",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 46,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 2e 00 00 08 00 01 00 01 00 f1 53 65 24 00 00",
+      "events": [
+        {
+          "kotlin": "TemperatureSample",
+          "celsius": 3.6,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. A 5-byte record reads one value byte: 36 -> 3.6 C, which is below the bridge range; see the doc.",
+      "derivedVector": true
+    },
+    {
+      "name": "history temperature, 6-byte record",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 47,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 00 01 2f 00 00 0f 00 02 00 02 00 f1 53 65 6e 01 58",
+        "01 f3 53 65 73 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 36.6,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "TEMPERATURE",
+          "value": 37.1,
+          "timestampS": 1700000600
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "exercise heart uses the live heart decoder",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 17,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 11 00 00 08 00 01 00 01 00 f1 53 65 8c 00 00",
+      "events": [
+        {
+          "kotlin": "HeartRateSample",
+          "bpm": 140,
+          "timestampS": 1700000000
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "real blood pressure with empty envelope is a command ack",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 18,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 12 00 00 03 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 18
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "history blood pressure with empty envelope yields nothing",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 41,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 29 00 00 03 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "envelope declaring more items than the body holds keeps whole records only",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 8,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 01 00 01 08 00 00 0d 00 03 00 03 00 f1 53 65 46 3c f1",
+        "01 53 65 47 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 70,
+          "timestampS": 1700000000
+        },
+        {
+          "kotlin": "HistoryMeasurement",
+          "kind": "HEART_RATE",
+          "value": 71,
+          "timestampS": 1700000060
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "sport history with empty envelope is a command ack",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 5,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytes": "00 01 00 00 01 05 00 00 03 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "CommandAck",
+          "commandId": 5
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. ",
+      "derivedVector": true
+    },
+    {
+      "name": "sleep session without a wake entry: last entry has no duration",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 6,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 04 00 01 06 00 00 4f 00 00 00 01 03 03 00 f1 53 65 02",
+        "01 58 f3 53 65 03 b0 f5 53 65 00 00 00 00 00 00 00 00 00 00",
+        "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [
+        {
+          "kotlin": "SleepTimeline",
+          "timestampS": 1700000000,
+          "stages": [
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "LIGHT",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP",
+            "DEEP"
+          ]
+        }
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. Two 10-minute segments; the final entry contributes nothing and the session is still flushed.",
+      "derivedVector": true
+    },
+    {
+      "name": "sleep gap under one minute adds no stage minutes",
+      "source": "derived from LuckRingDecoder.kt (no Kotlin test)",
+      "context": {
+        "layer": "decoder",
+        "cmdType": "SEND",
+        "dataType": 6,
+        "seq": 0,
+        "devType": 1
+      },
+      "bytesSequence": [
+        "00 01 04 00 01 06 00 00 4f 00 00 00 01 03 01 00 f1 53 65 02",
+        "01 1e f1 53 65 04 3c f1 53 65 00 00 00 00 00 00 00 00 00 00",
+        "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+        "04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "events": [],
+      "note": "NOT asserted by a Kotlin test; derived from the decoder source. floor((next - this) / 60) minutes: 30 s -> 0 minutes, 30 s -> 0; the session has no stages so nothing is emitted.",
+      "derivedVector": true
+    }
+  ]
+}

@@ -345,6 +345,17 @@ items not confirmed for 14 days, which the Coach may ask about when a recipe dep
   review table passes (`CardActionExtra.markers`) or else the confident, matched rows with the sample date. The
   briefing carries `markers: [{id, value, unit, date, state, notes: rule ids}]` (≤ 300 tokens).
 
+## 9e. The Coach's briefing for agents (`briefing.get`, plan 04 item 12, `src/commands/coach/briefing.ts`)
+
+- **`briefing.get`** (R; ui, webmcp, mcp; not `ai`, the Coach gets the briefing every turn): `{}` → `{text, sections,
+  dropped, truncated, tokens, quiet, noPlanning, today, generatedAt}`. It calls the Coach's own `gatherBriefingData` and
+  `buildBriefing` (`src/ai/coach/briefing.ts`) with the command's `now`, `today` and the person's time zone (`ctx.tz`),
+  so `text` is the Coach's briefing text. The reads inside run as the `ai` actor, so the "Change what it can see"
+  switches hide the same data from both.
+- **MCP.** The server's `instructions` are `MCP_INSTRUCTIONS` (`packages/companion/src/briefingRules.ts`, shared with
+  the Coach's `STATIC_BRIEFING` and `KITCHEN_RULE`); the same briefing is the `coach` prompt and the `vitals://briefing`
+  resource (`packages/companion/src/mcp.ts`).
+
 ## 10. Stubs (ids, schemas and policies fixed; executors return `precondition_failed` with `detail.owner`)
 
 - Living plan (E5; need E6/E8/E9/E10 ports): `log.meal`, `log.mealFromPhoto`, `log.session`, `log.bulk`,
@@ -363,7 +374,7 @@ Perm: R read, W write (low impact), W·c consequential write (staged for agents)
 Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Idem: N natural, K key, — none.
 
 <!-- commands:start -->
-164 commands (164 implemented, 0 stubs) in 31 domains: agents 1 · ai 2 · app 1 · bio 12 · biometrics 3 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 18 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 4 · profile 5 · safety 9 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
+165 commands (165 implemented, 0 stubs) in 32 domains: agents 1 · ai 2 · app 1 · bio 12 · biometrics 3 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 18 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 4 · profile 5 · safety 9 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
 
 | Command | Tool name | Perm | Surfaces | Undo | Idem | Run | Status | Title |
 |---|---|---|---|---|---|---|---|---|
@@ -386,6 +397,7 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `biometrics.clearCorrection` | `biometrics_clear_correction` | W | all | RT | N |  | implemented | Use the device value again |
 | `biometrics.correct` | `biometrics_correct` | W·c | all | RT | K |  | implemented | Correct a device value |
 | `biometrics.dropPriorities` | `biometrics_drop_priorities` | W | ui | — | N |  | implemented | Drop source priorities |
+| `briefing.get` | `briefing_get` | R | ui webmcp mcp | — | — |  | implemented | Read the person’s briefing |
 | `catalogue.addEquipment` | `catalogue_add_equipment` | W | all | TS | K |  | implemented | Add equipment |
 | `catalogue.addExercise` | `catalogue_add_exercise` | W | all | TS | K |  | implemented | Add an exercise |
 | `catalogue.addFood` | `catalogue_add_food` | W | all | TS | K |  | implemented | Add a food |

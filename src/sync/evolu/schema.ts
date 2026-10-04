@@ -8,6 +8,8 @@ import { createIdFromString, id, NonNegativeInt, String as EvoluString } from '@
 
 export const DocId = id('Doc');
 export type DocId = typeof DocId.Output;
+export const UnsentId = id('Unsent');
+export type UnsentId = typeof UnsentId.Output;
 
 export const vitalsEvoluSchema = {
   doc: {
@@ -26,9 +28,22 @@ export const vitalsEvoluSchema = {
      */
     created: EvoluString,
   },
+  /**
+   * Device-local (the `_` prefix: Evolu never syncs it): one row per document written on this device and not yet
+   * acknowledged by the relay, so "N changes waiting" survives a reload. Cleared when the owner's status is Synced.
+   */
+  _unsent: {
+    id: UnsentId,
+    /** `col/key` of the document. */
+    doc: EvoluString,
+  },
 };
 export type VitalsEvoluSchema = typeof vitalsEvoluSchema;
 
 export function docRowId(col: string, key: string): DocId {
   return DocId.orThrow(createIdFromString(`${col}/${key}`));
+}
+
+export function unsentRowId(col: string, key: string): UnsentId {
+  return UnsentId.orThrow(createIdFromString(`unsent/${col}/${key}`));
 }

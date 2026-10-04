@@ -8,6 +8,7 @@
  * deterministic, so a re-sync that decodes the same data yields the same ids.
  */
 import { recordId } from './hash';
+import { sleepVersion } from './recordIds';
 import { buildSleepRecord, isoAt, localDateAt, provenanceOf, qualityOf } from './importKit';
 import type { StageSeg } from './importKit';
 import type { RingDecodedEvent } from './ble/types';
@@ -64,6 +65,7 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
   const prov = (extra: Partial<BioProvenance> = {}): BioProvenance =>
     provenanceOf(ctx.channel, ctx.ingestedAt, { device, decoder: ctx.decoder, ...extra });
   const flags = (...f: QualityFlag[]): QualityFlag[] => (drift ? [...f, 'clock_drift'] : f);
+  const readAtS = (Date.parse(ctx.ingestedAt) || 0) / 1000;
 
   const series = new Map<string, { stream: BioStream; unit: string; origin: 'history' | 'spot' | 'live'; agg: 'sample' | 'sum'; interval?: number; pts: Array<[number, number]> }>();
   const addPt = (stream: BioStream, unit: string, origin: 'history' | 'spot' | 'live', agg: 'sample' | 'sum', t: number, v: number, interval?: number): void => {
@@ -111,7 +113,9 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
             confidence: ev.complete ? null : 'low', ...(ev.rawCodes.length > 0 ? { vendor_state: rleCodes(ev.rawCodes) } : {}),
           }),
           isMain: false,
-          version: ev.complete ? 2 : 1,
+          // complete beats provisional; a later read beats an earlier one, so a night the ring re-classifies is stored as a
+          // newer version instead of a duplicate (R20-ID-03). `ingestedAt` is the read time.
+          version: sleepVersion(ev.complete, readAtS),
         });
         sleeps.push({ rec });
         break;
@@ -185,7 +189,8 @@ export function mapEventsToBatch(events: RingDecodedEvent[], ctx: EventMapContex
     const daily: DailyRecord = {
       kind: 'daily',
       record_id: recordId({ source: srcKey, kind: 'daily', metric: 'activity', start: date }),
-      // sums only grow as a re-sync fills the day, so the larger total wins
+      // sums only grow as a re-sync fills the day, so the larger total wins (R20-ID-03, low: two reads with equal steps
+      // and a different distance share a version, and the first one stored is kept)
       version: Math.max(1, Math.round(d.steps)),
       time: { tz_offset_s: off, local_date: date },
       provenance: prov(),

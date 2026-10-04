@@ -4,11 +4,16 @@
  * (./__tests__/conformance.ts runs the same suite against both).
  *
  * - `bioRecords` (IMM) `${record_id}@${version}` → the record plus `sourceKey`; `bioChunks` (BLOB) chunkId → manifest
- *   (`superseded: true` once a merged chunk replaces it; the bytes live in the blob store under the chunkId the blob
- *   store returns); `bioSources` (LWW-F) sourceKey → `BioSourceDoc` plus `tombstones` per stream; `bioScores` (DER);
+ *   (`superseded: true, replacedBy` once a merged chunk replaces it, removed by `pruneSuperseded`; the bytes live in the
+ *   blob store under the chunkId the blob store returns); `bioSources` (LWW-F) sourceKey → `BioSourceDoc` plus `tombstones` per stream; `bioScores` (DER);
  *   `decisionLog` (APP, ULID ids).
  * - Reads come from the shared `BioDocIndex` (./docIndex.ts) plus this session's own writes (an overlay), so a reader
  *   always sees what it wrote.
+ * - Chunks: one value per (source, origin, t). Live chunks are read newest first (`createdAt` desc, then `chunkId`), so
+ *   the newest write wins and every replica shows the same value; a new batch replaces a stored value at the same
+ *   (origin, t). A write folds every live chunk of its key (siblings two devices wrote offline) into one. A chunk
+ *   whose bytes are on neither this device nor the relay yet is skipped: what it replaced is read instead and
+ *   `readSamples` reports `partial: true`.
  * - Writes are buffered and flushed in batches (`batchSize`, default 400 ops; E11 measured batched writes about 4×
  *   faster) through a `BioDocWriter`: the command's transaction (`ctx.docs`) for commands, a derive transaction for
  *   jobs. Call `flush()` when done.
@@ -37,9 +42,12 @@ export interface BioDocWriter {
   readonly durable: boolean;
 }
 
+/** The blob store, plus (chunk store) whether the relay holds a chunk. */
+export type BioBlobStore = BlobStore & { hasRemote?(chunkId: string): Promise<boolean> };
+
 export interface DocBioStoreOptions {
   index: BioDocIndex;
-  blobs: BlobStore;
+  blobs: BioBlobStore;
   writer: BioDocWriter;
   /** Ops buffered before an automatic flush (default 400). */
   batchSize?: number;
@@ -51,6 +59,8 @@ const SOURCE_EXTRAS = ['tombstones', 'deviceType', 'ble', 'createdAt'] as const;
 type Body = Record<string, unknown>;
 /** A local blob without a manifest is kept this long (its manifest may still be on the way into the index). */
 const ORPHAN_AGE_MS = 60 * 60 * 1000;
+/** A replaced manifest is removed once its replacement's bytes are on the relay, or after this long anyway. */
+const SUPERSEDED_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const clone = <T>(x: T): T => structuredClone(x);
 
 function asSourceDoc(b: SourceBody): BioSourceDoc {
@@ -60,17 +70,26 @@ function asSourceDoc(b: SourceBody): BioSourceDoc {
 }
 
 function asManifest(b: ManifestBody): BioChunkManifest {
-  const { superseded: _s, ...m } = b;
+  const { superseded: _s, replacedBy: _r, supersededAt: _a, ...m } = b;
   void _s;
+  void _r;
+  void _a;
   return clone(m);
 }
+
+/** Ids a manifest replaced (one string in older builds). */
+const supersedesOf = (m: BioChunkManifest): string[] => (m.supersedes === undefined ? [] : Array.isArray(m.supersedes) ? m.supersedes : [m.supersedes]);
+/** Read order of chunks: newest write first, then chunkId (the same on every replica: both travel in the manifest). */
+const newestFirst = (a: BioChunkManifest, b: BioChunkManifest): number => b.createdAt.localeCompare(a.createdAt) || a.chunkId.localeCompare(b.chunkId);
+
+type SampleQuery = { sourceKey?: string; stream: BioStream; from: LocalDate; to: LocalDate };
 
 const isRealSource = (b: Body | null | undefined): b is Body & SourceBody => !!b && typeof b.label === 'string' && typeof b.sourceKey === 'string';
 const TIER_RANK: Record<string, number> = { A: 0, B: 1, C: 2 };
 
 export class DocBioStore implements BioStore {
   private readonly index: BioDocIndex;
-  private readonly blobs: BlobStore;
+  private readonly blobs: BioBlobStore;
   private readonly writer: BioDocWriter;
   private readonly batchSize: number;
   /** This session's writes not yet visible in the index: col → id → body (null = removed). */
@@ -251,17 +270,18 @@ export class DocBioStore implements BioStore {
     return out;
   }
 
-  private manifestsOfDay(sourceKey: string, stream: string, localDate: LocalDate): ManifestBody[] {
+  /** Live manifests of one source/stream/day (`superseded`: the replaced ones instead). */
+  private manifestsOfDay(sourceKey: string, stream: string, localDate: LocalDate, superseded = false): ManifestBody[] {
     const o = this.overlay.get('bioChunks');
     const out: ManifestBody[] = [];
     for (const id of this.index.chunksByDay.get(dayKey(sourceKey, stream, localDate)) ?? []) {
       if (o?.has(id)) continue;
       const m = this.index.chunks.get(id);
-      if (m && !m.superseded) out.push(m);
+      if (m && !!m.superseded === superseded) out.push(m);
     }
     if (o) for (const b of o.values()) {
       const m = b as unknown as ManifestBody | null;
-      if (m && !m.superseded && m.sourceKey === sourceKey && m.stream === stream && m.local_date === localDate) out.push(m);
+      if (m && !!m.superseded === superseded && m.sourceKey === sourceKey && m.stream === stream && m.local_date === localDate) out.push(m);
     }
     return out;
   }
@@ -271,33 +291,68 @@ export class DocBioStore implements BioStore {
     return new Set(b?.tombstones?.[stream] ?? []);
   }
 
-  private async load(m: BioChunkManifest): Promise<RawSample[]> {
+  /** The samples of a chunk; null when its bytes are on neither this device nor the relay (`strict`: throws). */
+  private async load(m: BioChunkManifest, strict = false): Promise<RawSample[] | null> {
     try {
       return decodeChunk(await this.blobs.get(m.chunkId)).samples;
     } catch (e) {
       // replaced by another session meanwhile (its bytes are gone with its manifest): the newer chunk holds the samples
       if (!this.body('bioChunks', m.chunkId)) return [];
-      throw e;
+      if (strict) throw e;
+      return null;
     }
   }
 
-  private async write(key: ChunkKey, samples: RawSample[], tz: number, prev: ManifestBody | undefined, opts: { decoder?: string; createdAt: string }): Promise<BioChunkManifest | null> {
-    // the merged chunk replaces the previous one: its manifest is removed and its bytes dropped (no copy per merge)
-    if (prev) {
-      await this.queue({ kind: 'remove', col: 'bioChunks', id: prev.chunkId });
-      this.discards.push(prev.chunkId);
+  private async write(key: ChunkKey, samples: RawSample[], tz: number, prev: readonly ManifestBody[], opts: { decoder?: string; createdAt: string }): Promise<BioChunkManifest | null> {
+    if (samples.length === 0) {
+      // nothing left (every sample deleted): the replaced chunks go now, manifest and bytes
+      for (const p of prev) {
+        await this.queue({ kind: 'remove', col: 'bioChunks', id: p.chunkId });
+        this.discards.push(p.chunkId);
+      }
+      return null;
     }
-    if (samples.length === 0) return null;
     const bytes = encodeChunk(samples, tz, key.stream);
     const contentHash = contentHashOf(bytes);
     const { chunkId } = await this.blobs.put(bytes, { purpose: 'bio', aadId: chunkIdFor(key, contentHash) });
+    // A replaced chunk whose bytes are on the relay stays, marked, until the merged bytes are there too
+    // (`pruneSuperseded`): a replica that gets this manifest before those bytes reads the old chunk meanwhile. One whose
+    // bytes are not (still waiting for upload, or no relay) is no use to anyone else: it goes now, and what it had
+    // replaced points at the new chunk instead. This device has the merged bytes, so its own old copies go either way.
+    const marked = this.manifestsOfDay(key.sourceKey, key.stream, key.local_date, true);
+    const keep: string[] = [];
+    const drop: string[] = [];
+    for (const p of prev) {
+      if (p.chunkId === chunkId) continue;
+      if (await this.onRelay(p.chunkId)) keep.push(p.chunkId);
+      else {
+        drop.push(p.chunkId);
+        for (const q of marked) if (q.replacedBy === p.chunkId) keep.push(q.chunkId);
+      }
+    }
+    const supersedes = [...drop, ...keep];
     const st = chunkStats(samples);
     const m: BioChunkManifest = {
       chunkId, sourceKey: key.sourceKey, stream: key.stream, local_date: key.local_date, ...(key.hourStartUtc ? { hourStartUtc: key.hourStartUtc } : {}),
       n: st.n, min: st.min, max: st.max, bytes: bytes.length, contentHash, schemaVersion: 1, ...(opts.decoder ? { decoder: opts.decoder } : {}), createdAt: opts.createdAt,
-      ...(prev ? { supersedes: prev.chunkId } : {}),
+      ...(supersedes.length ? { supersedes: supersedes.length === 1 ? supersedes[0]! : supersedes } : {}),
     };
     await this.queue({ kind: 'put', col: 'bioChunks', id: chunkId, body: m as unknown as Body });
+    const at = new Date().toISOString();
+    for (const id of keep) {
+      await this.queue({ kind: 'patch', col: 'bioChunks', id, patch: { superseded: true, replacedBy: chunkId, supersededAt: at } });
+      this.discards.push(id);
+    }
+    for (const id of drop) {
+      await this.queue({ kind: 'remove', col: 'bioChunks', id });
+      this.discards.push(id);
+    }
+    // older marked copies of this day whose replacement has reached the relay are no longer needed
+    for (const q of marked) {
+      if (keep.includes(q.chunkId) || !(await this.replacementOnRelay(q))) continue;
+      await this.queue({ kind: 'remove', col: 'bioChunks', id: q.chunkId });
+      this.discards.push(q.chunkId);
+    }
     return m;
   }
 
@@ -306,11 +361,21 @@ export class DocBioStore implements BioStore {
   ): Promise<{ manifest: BioChunkManifest | null; added: number; duplicates: number }> {
     await this.ready();
     const ks = chunkKeyString(key);
-    const day = this.manifestsOfDay(key.sourceKey, key.stream, key.local_date);
-    const mine = day.find((m) => chunkKeyString(m) === ks);
-    // chunks of the same source/stream/day under another key (whole-day vs hour split): dedupe against them too
+    // every live chunk of this key (two devices that wrote the day offline leave siblings: this write folds them into
+    // one), newest first so the newest value wins per (origin, t). Chunks of the same source/stream/day under another
+    // key (whole-day vs hour split): dedupe against them. A chunk whose bytes are not here yet stays live, untouched.
+    const mine: ManifestBody[] = [];
+    let existing: RawSample[] = [];
     const known = new Set<string>();
-    for (const m of day) if (chunkKeyString(m) !== ks) for (const s of await this.load(m)) known.add(sampleKey(s.origin, s.t));
+    for (const m of this.manifestsOfDay(key.sourceKey, key.stream, key.local_date).sort(newestFirst)) {
+      const got = await this.load(m);
+      if (!got) continue;
+      if (chunkKeyString(m) !== ks) for (const s of got) known.add(sampleKey(s.origin, s.t));
+      else {
+        mine.push(m);
+        existing = mine.length === 1 ? got : mergeSamples(existing, got).samples;
+      }
+    }
     let sibDup = 0;
     const fresh = samples.filter((s) => {
       if (known.has(sampleKey(s.origin, s.t))) {
@@ -319,15 +384,15 @@ export class DocBioStore implements BioStore {
       }
       return true;
     });
-    const existing = mine ? await this.load(mine) : [];
     const tombs = [...this.tombSet(key.sourceKey, key.stream)].map((k) => {
       const i = k.indexOf('|');
       return { origin: k.slice(0, i) as RawSample['origin'], t: Number(k.slice(i + 1)) };
     });
-    const merged = mergeSamples(existing, fresh, tombs);
-    if (merged.added === 0) return { manifest: null, added: 0, duplicates: merged.duplicates + sibDup };
+    // a new batch replaces a stored value at the same (origin, t) (counted as a duplicate: the sample was known)
+    const merged = mergeSamples(existing, fresh, tombs, { prefer: 'incoming' });
+    if (merged.added + merged.replaced === 0) return { manifest: null, added: 0, duplicates: merged.duplicates + sibDup };
     const manifest = await this.write(key, merged.samples, opts.tz_offset_s, mine, opts);
-    return { manifest: manifest ? clone(manifest) : null, added: merged.added, duplicates: merged.duplicates + sibDup };
+    return { manifest: manifest ? clone(manifest) : null, added: merged.added, duplicates: merged.duplicates + merged.replaced + sibDup };
   }
 
   async manifests(q: ChunkQuery = {}): Promise<BioChunkManifest[]> {
@@ -344,16 +409,42 @@ export class DocBioStore implements BioStore {
     return out.map(asManifest);
   }
 
-  async samples(q: { sourceKey?: string; stream: BioStream; from: LocalDate; to: LocalDate }): Promise<Array<RawSample & { sourceKey: string }>> {
+  async samples(q: SampleQuery): Promise<Array<RawSample & { sourceKey: string }>> {
+    return (await this.readSamples(q)).samples;
+  }
+
+  /**
+   * `samples()` plus `partial: true` when a live chunk's bytes are on neither this device nor the relay yet (its upload
+   * is still on the way): that chunk is skipped and the chunks it replaced are read while their manifests are still
+   * here. `strict` throws instead.
+   */
+  async readSamples(q: SampleQuery & { strict?: boolean }): Promise<{ samples: Array<RawSample & { sourceKey: string }>; partial: boolean }> {
     await this.ready();
-    const ms = this.allManifests().filter((m) => !m.superseded && m.stream === q.stream && m.local_date >= q.from && m.local_date <= q.to && (q.sourceKey === undefined || m.sourceKey === q.sourceKey));
+    const live = this.allManifests().filter((m) => !m.superseded && m.stream === q.stream && m.local_date >= q.from && m.local_date <= q.to && (q.sourceKey === undefined || m.sourceKey === q.sourceKey));
+    const read: Array<{ m: BioChunkManifest; samples: RawSample[] }> = [];
+    const tried = new Set<string>();
+    let partial = false;
+    const visit = async (m: ManifestBody): Promise<void> => {
+      if (tried.has(m.chunkId)) return;
+      tried.add(m.chunkId);
+      const got = await this.load(m, q.strict);
+      if (got) return void read.push({ m, samples: got });
+      partial = true;
+      for (const id of supersedesOf(m)) {
+        const p = this.body('bioChunks', id) as ManifestBody | null;
+        if (p) await visit(p);
+      }
+    };
+    for (const m of live) await visit(m);
+    // newest chunk first: its value wins for one (source, origin, t) on every replica
+    read.sort((a, b) => newestFirst(a.m, b.m));
     const seen = new Set<string>();
     const out: Array<RawSample & { sourceKey: string }> = [];
     const dead = new Map<string, Set<string>>();
-    for (const m of ms) {
+    for (const { m, samples } of read) {
       let d = dead.get(m.sourceKey);
       if (!d) dead.set(m.sourceKey, (d = this.tombSet(m.sourceKey, m.stream)));
-      for (const s of await this.load(m)) {
+      for (const s of samples) {
         const sk = sampleKey(s.origin, s.t);
         const k = `${m.sourceKey}\u0000${sk}`;
         if (seen.has(k) || d.has(sk)) continue;
@@ -361,7 +452,7 @@ export class DocBioStore implements BioStore {
         out.push({ ...s, sourceKey: m.sourceKey });
       }
     }
-    return out.sort((a, b) => a.t - b.t);
+    return { samples: out.sort((a, b) => a.t - b.t), partial };
   }
 
   async tombstone(sourceKey: string, stream: BioStream, ids: Array<{ origin: RawSample['origin']; t: number }>): Promise<void> {
@@ -371,26 +462,31 @@ export class DocBioStore implements BioStore {
     await this.queue({ kind: 'patch', col: 'bioSources', id: sourceKey, patch: { sourceKey, tombstones: { [stream]: [...set].sort() } } });
     // rewrite affected chunks so deleted samples are gone from storage too
     for (const m of this.allManifests().filter((x) => !x.superseded && x.sourceKey === sourceKey && x.stream === stream)) {
-      const bytes = await this.blobs.get(m.chunkId);
+      // bytes not here yet: readers drop the deleted samples through the tombstones; the rewrite waits for a later write
+      const bytes = await this.blobs.get(m.chunkId).catch(() => null);
+      if (!bytes) continue;
       const decoded = decodeChunk(bytes);
       const kept = decoded.samples.filter((s) => !set.has(sampleKey(s.origin, s.t)));
       if (kept.length === decoded.samples.length) continue;
       const key: ChunkKey = { sourceKey, stream, local_date: m.local_date, ...(m.hourStartUtc ? { hourStartUtc: m.hourStartUtc } : {}) };
-      await this.write(key, kept, decoded.header.tz_offset_s, m, { ...(m.decoder ? { decoder: m.decoder } : {}), createdAt: m.createdAt });
+      await this.write(key, kept, decoded.header.tz_offset_s, [m], { ...(m.decoder ? { decoder: m.decoder } : {}), createdAt: m.createdAt });
     }
   }
 
   /**
-   * Removes manifests an older build kept as `superseded` and drops their bytes, then drops local bio blobs that no
-   * manifest names (replaced on another device, or by a command that rolled back) once they are an hour old. Needs a
-   * durable writer; returns what it removed.
+   * Removes superseded manifests and drops their bytes: one with `replacedBy` once the replacement's bytes are on the
+   * relay (or after 7 days), one an older build marked at once. Then drops local bio blobs that no manifest names
+   * (replaced on another device, or by a command that rolled back) once they are an hour old. Needs a durable writer;
+   * returns what it removed.
    */
   async pruneSuperseded(o: { now?: number } = {}): Promise<{ manifests: number; blobs: number }> {
     await this.ready();
     if (!this.writer.durable) return { manifests: 0, blobs: 0 };
+    const now = o.now ?? Date.now();
     let manifests = 0;
     for (const m of this.allManifests()) {
       if (!m.superseded) continue;
+      if (m.replacedBy && !(Date.parse(m.supersededAt ?? '') < now - SUPERSEDED_KEEP_MS) && !(await this.replacementOnRelay(m))) continue;
       await this.queue({ kind: 'remove', col: 'bioChunks', id: m.chunkId });
       this.discards.push(m.chunkId);
       manifests++;
@@ -399,7 +495,7 @@ export class DocBioStore implements BioStore {
     let blobs = 0;
     if (this.blobs.discard && this.blobs.localChunks) {
       const named = new Set(this.allManifests().map((m) => m.chunkId));
-      const cutoff = (o.now ?? Date.now()) - ORPHAN_AGE_MS;
+      const cutoff = now - ORPHAN_AGE_MS;
       for (const c of await this.blobs.localChunks('bio')) {
         if (named.has(c.chunkId) || !(Date.parse(c.storedAt) < cutoff)) continue;
         await this.blobs.discard(c.chunkId).catch(() => undefined);
@@ -407,6 +503,18 @@ export class DocBioStore implements BioStore {
       }
     }
     return { manifests, blobs };
+  }
+
+  /** True when the relay holds a chunk's bytes (false when the blob store cannot tell: no relay). */
+  private async onRelay(chunkId: string): Promise<boolean> {
+    return (await this.blobs.hasRemote?.(chunkId).catch(() => false)) ?? false;
+  }
+
+  /** True when a superseded manifest is no longer needed: its replacement's bytes are on the relay, or the replacement
+   * is gone as well (deleted, or pruned after its own replacement landed). */
+  private async replacementOnRelay(m: ManifestBody): Promise<boolean> {
+    if (!m.replacedBy || !this.body('bioChunks', m.replacedBy)) return true;
+    return this.onRelay(m.replacedBy);
   }
 
   /** Marks every current manifest of a source superseded (its chunks are no longer read; `bio.deleteSource`). */

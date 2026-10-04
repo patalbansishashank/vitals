@@ -13,23 +13,12 @@ import type { TodayView } from '@/living';
 import { BRIEFING_MAX_TOKENS, fitBriefing, type BriefingSection, type FittedBriefing } from '../tools/budget';
 import type { CoachBus } from './tools';
 import { briefingMarkers } from './markers';
+// the rules are shared with the MCP server's instructions (plan 04 item 12): one text, so the two cannot drift
+import { KITCHEN_RULE, MEDICAL_DISCLAIMER, QUIET_RULE, STATIC_BRIEFING } from '../../../packages/companion/src/briefingRules.ts';
 
 export const BRIEFING_VERSION = 1;
 
-export const MEDICAL_DISCLAIMER =
-  'Vitals is education and self-tracking, not medical advice. Never diagnose or prescribe medication. When the safety rules or a danger warning say so, suggest the person sees a clinician, and quote danger warnings word for word.';
-
-export const STATIC_BRIEFING = [
-  'You are the Coach inside Vitals, a local-first app that simulates and plans body-composition change (fasting, food, training) with uncertainty bands, and then helps the person live the plan day by day.',
-  MEDICAL_DISCLAIMER,
-  'How Vitals works: a physiology engine forecasts weight, fat and lean mass; the Planner finds a ladder of plans (rungs); a running plan prescribes each day (eating window, meals, sessions, fasts, steps). Logs are credited by equivalence of stimulus and nutrients, adherence is scored 0–100, drift compares the trend with the forecast, re-plans return proposals with goal-date ranges.',
-  'Tools: everything goes through the app\'s commands. read tools only look. log tools apply at once and the person can undo them. Tools that change the plan return a proposal: when a result says pending_user, stop and tell the person what the proposal does (goal-date change included); nothing changes until they apply it. Destructive actions (ending or replacing a plan, deleting) need the person\'s typed confirmation in the app: never ask twice, never claim it is done.',
-  'Safety relay rule: when a tool returns safety_blocked, relay the reason in plain words and offer only the allowedAlternatives; never argue around it or retry. You cannot change screening answers, acknowledgements, fasting opt-ins, device sharing, sync, keys, agent permissions or quiet mode, and cannot resume a safety pause. Automatic changes only ever lower load.',
-  'Food: pass components with grams (or portions) to log_meal; the app computes energy and nutrients with bands. Never state nutrient numbers yourself except from a label or the person. For a photo, call log_meal_from_photo with its attachmentId; the app shows the person what was seen.',
-  'Blood tests: a report the person attaches is read with markers_import; the app shows the rows and the person confirms them, nothing is saved before. Explain results in plain words from the notes; never diagnose.',
-  'Units are metric (kg, cm, kcal, g). Dates are YYYY-MM-DD in the person\'s time zone; resolve "tomorrow", "Thursday" against the date below and echo the dates you use.',
-  'Use get_* tools for history beyond this briefing (paged: pass the cursor from "more"). Ask before assuming. Style: short, plain words, numbers with their likely range, one suggested action. No name or email is ever sent to you.',
-].join('\n');
+export { KITCHEN_RULE, MEDICAL_DISCLAIMER, QUIET_RULE, STATIC_BRIEFING };
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -161,7 +150,16 @@ function logLines(entries: Rec[]): string {
 }
 
 /** Pure: sections → fitted text (≤ `max` tokens) and the visible panel input. */
-export function buildBriefing(d: BriefingData, opts: { provider?: { name: string; model: string } | null; max?: number; addDays?: (d: string, n: number) => string } = {}): BuiltBriefing {
+export function buildBriefing(
+  d: BriefingData,
+  opts: {
+    provider?: { name: string; model: string } | null;
+    max?: number;
+    addDays?: (d: string, n: number) => string;
+    /** Agents outside the app (MCP, WebMCP) cannot read proposals (`coach.pending`): they get the count, not the ids. */
+    pendingCountOnly?: boolean;
+  } = {},
+): BuiltBriefing {
   const sections: BriefingSection[] = [];
   const quiet = !!d.todayView?.quietMode;
   const noPlanning = d.safety?.plannerAccess === 'blocked';
@@ -180,7 +178,7 @@ export function buildBriefing(d: BriefingData, opts: { provider?: { name: string
         `Safety: mode ${String(s.modeLabel ?? s.mode ?? 'unknown')}; planner ${String(s.plannerAccess ?? '?')}; longest fast allowed ${String(s.maxFastHours ?? '?')} h${s.fastingTier ? ` (tier ${String(s.fastingTier)})` : ''}.`,
         Array.isArray(s.restrictions) && s.restrictions.length ? `Restrictions: ${(s.restrictions as string[]).join('; ')}.` : '',
         noPlanning ? 'In this safety mode you explain and log but cannot change the plan.' : '',
-        quiet ? 'Quiet mode: no calorie talk, no weight-loss suggestions, no numeric scores.' : '',
+        quiet ? QUIET_RULE : '',
       ].filter(Boolean).join('\n'),
     });
   }
@@ -208,7 +206,14 @@ export function buildBriefing(d: BriefingData, opts: { provider?: { name: string
   // E20: blood markers (≤ 300 tokens ≈ 1 100 characters)
   if (d.markers?.length) sections.push({ id: 'markers', priority: 58, text: `Blood tests (newest per marker; state in/above/below range, old = over 12 months, not planned on; notes = rules that fire): ${compact(d.markers, 1100)}` });
   if (d.pending?.length) {
-    sections.push({ id: 'pending', priority: 55, text: `Proposals waiting for the person: ${d.pending.map((p) => `${String(p.commandId)} (${String(p.pendingId)})`).join(', ')}.` });
+    const n = d.pending.length;
+    sections.push({
+      id: 'pending',
+      priority: 55,
+      text: opts.pendingCountOnly
+        ? `${n} ${n === 1 ? 'proposal waits' : 'proposals wait'} for the person to review in the app.`
+        : `Proposals waiting for the person: ${d.pending.map((p) => `${String(p.commandId)} (${String(p.pendingId)})`).join(', ')}.`,
+    });
   }
   sections.push({ id: 'kitchen', priority: 45, text: kitchenSection(d.kitchen ?? null, d.pantry ?? null) });
   if (d.recentLog?.length) sections.push({ id: 'recent', priority: 40, text: `Last 7 days of logs:\n${logLines(d.recentLog)}` });
@@ -225,10 +230,6 @@ export function buildBriefing(d: BriefingData, opts: { provider?: { name: string
     visible: { today: v ?? null, ...(opts.addDays ? { week: visibleWeek(d, opts.addDays) } : {}), waiting: d.pending?.length ?? 0, provider: opts.provider ?? null, about: aboutLines(d), ask },
   };
 }
-
-/** How the Coach records what the person has at home: the same documents the picker and the Food tab write. */
-export const KITCHEN_RULE =
-  'When the person says they have food at home ("right now I have…"), record it with pantry_add (pantry_parse_list first for a long list); for equipment ("I also have a soda maker") use kitchen_add. Both apply at once with undo: confirm in one line. Ask "still have it?" only when a recipe depends on an item in askStillHave; never remove items yourself unless the person says they are gone (pantry_remove).';
 
 function kitchenSection(kitchen: Rec | null, pantry: Rec | null): string {
   const k = kitchen && Array.isArray(kitchen.equipment) ? (kitchen as unknown as KitchenBlockInput) : null;
@@ -247,8 +248,11 @@ function outputOf(r: Awaited<ReturnType<CoachBus['dispatch']>>): unknown {
 const AI_READ = { kind: 'ai' as const, id: 'coach-briefing' };
 let gathers = 0;
 
-/** Reads the briefing's data through read commands (as the `ai` actor, so the same surface rules apply). */
-export async function gatherBriefingData(bus: CoachBus, now: Date, localToday: string, addDays: (d: string, n: number) => string): Promise<BriefingData> {
+/**
+ * Reads the briefing's data through read commands (as the `ai` actor, so the same surface rules apply). `zone` is the
+ * person's time zone when the caller knows it (the server's `briefing.get`); the Coach leaves it to the host's zone.
+ */
+export async function gatherBriefingData(bus: CoachBus, now: Date, localToday: string, addDays: (d: string, n: number) => string, zone?: string): Promise<BriefingData> {
   // one correlation id per gather: the bus counts agent calls per turn by it
   const correlationId = `briefing-${now.getTime()}-${++gathers}`;
   const read = async (id: string, input: unknown = {}): Promise<unknown> => {
@@ -273,9 +277,9 @@ export async function gatherBriefingData(bus: CoachBus, now: Date, localToday: s
     read('pantry.get'),
     read('markers.get'),
   ]);
-  let tz: string | undefined;
+  let tz: string | undefined = zone;
   try {
-    tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    tz ??= Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch {
     tz = undefined;
   }

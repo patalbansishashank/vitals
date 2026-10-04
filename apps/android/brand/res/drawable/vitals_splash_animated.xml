@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/vitals_splash_mark">
+    <target android:name="ring" android:animation="@animator/vitals_splash_ring_draw" />
+    <target android:name="dot" android:animation="@animator/vitals_splash_dot_pop" />
+</animated-vector>

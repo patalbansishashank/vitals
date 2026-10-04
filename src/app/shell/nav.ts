@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { ChartSpline, MessageSquareText, SunDim, Undo2, Utensils } from 'lucide-react';
+import { Activity, ChartSpline, Circle, MessageSquareText, SunDim, Undo2, Utensils } from 'lucide-react';
 import type { IconComponent } from '@/components/icons/Icon';
 import * as Glyphs from '@/components/icons/glyphs';
 
@@ -8,14 +8,13 @@ export type Destination = 'body' | 'simulate' | 'plan' | 'evidence';
 export type LivingDestination = 'today' | 'food' | 'train' | 'coach' | 'progress';
 
 export interface NavItem {
-  id: Destination | LivingDestination | 'settings' | 'planning';
+  id: Destination | LivingDestination | 'settings' | 'planning' | 'ring' | 'signals';
   to: string;
   label: string;
   icon: IconComponent;
 }
 
 /** The four destinations in journey order (IA §3) + settings. Labels are lowercase engraved. */
-// L-PAGES adds Ring / Body signals here (and to LIVING_DESTINATIONS below).
 export const DESTINATIONS: NavItem[] = [
   { id: 'body', to: '/body', label: 'body', icon: Glyphs.AvatarFront },
   { id: 'simulate', to: '/simulate', label: 'simulate', icon: Glyphs.Channels },
@@ -24,6 +23,10 @@ export const DESTINATIONS: NavItem[] = [
 ];
 
 export const SETTINGS_ITEM: NavItem = { id: 'settings', to: '/settings', label: 'settings', icon: Glyphs.SlidersGlyph };
+
+/** Ring and Body signals (ring-pages.md D2: the ring is a top-bar key, not a tab; neither is in the destination lists). */
+export const RING_ITEM: NavItem = { id: 'ring', to: '/ring', label: 'ring', icon: Circle };
+export const SIGNALS_ITEM: NavItem = { id: 'signals', to: '/signals', label: 'body signals', icon: Activity };
 
 /** Living mode: Today (home) · Food · Train · Coach · Progress (IA §3.5; full words, never abbreviated). */
 export const LIVING_DESTINATIONS: NavItem[] = [

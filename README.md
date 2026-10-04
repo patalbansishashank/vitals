@@ -1,4 +1,9 @@
-# Vitals
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/brand/readme-header-dark.svg">
+    <img src="public/brand/readme-header.svg" alt="Vitals" width="640">
+  </picture>
+</p>
 
 Vitals is a private, local-first health planner. You can simulate how eating, fasting, training and sleep change
 the body, then follow a living plan day by day. An optional server that you host yourself keeps your devices in

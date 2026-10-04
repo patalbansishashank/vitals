@@ -8,6 +8,10 @@
  * synced), is sent only as `Authorization: Bearer …` to the paired server's own origin, never in a URL or body, never
  * logged, and is dropped by "Forget this server" and by any `401`.
  *
+ * The person's sync key (`syncKey()`, `POST /v1/sync/key`, home role only, once per device right after pairing) is
+ * returned to the caller in memory and never written here: the caller hands it to `sync.join`, whose wrapped vault is
+ * the only place it is kept.
+ *
  * Only `https://` server addresses are accepted (R18 §3: the site's CSP blocks plain http to tailnet addresses, and the
  * browser treats the server as "local network" whatever its name).
  */
@@ -47,6 +51,7 @@ export type ServerErrorCode =
   | 'server_unreachable'
   | 'local_network_denied'
   | 'not_vitals'
+  | 'key_unavailable'
   | 'server_error';
 
 /** What the person reads for each error (§14.3 table verbatim, §14.7 and design/screens/server.md §5 for the rest). */
@@ -76,6 +81,7 @@ export const SERVER_MESSAGES: Readonly<Record<ServerErrorCode, string>> = {
   server_unreachable: "Your Vitals server can't be reached. Check that it is running and that this device is on your private network.",
   local_network_denied: 'This browser blocked the connection to your server. Allow "local network" access for this site in the browser\'s site settings.',
   not_vitals: "That address isn't a Vitals server.",
+  key_unavailable: "Your server didn't hand over the sync key.",
   server_error: "Your server answered with an error. Try again in a minute. If it keeps happening, check the server's log.",
 };
 
@@ -205,6 +211,17 @@ export interface ServerEnded {
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+/** base64url → bytes, or null when it is not base64url. */
+function bytesOfBase64Url(text: string): Uint8Array | null {
+  if (!/^[A-Za-z0-9_-]*$/.test(text)) return null;
+  try {
+    const bin = atob(text.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(text.length / 4) * 4, '='));
+    return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A user-entered server address → `https://host[:port][/path]` without a trailing slash. A bare host gets `https://`.
  * `http://` is refused with its own message; anything unparsable is `invalid_address`.
@@ -324,6 +341,12 @@ export interface ServerClient {
   devices(): Promise<ServerDevice[]>;
   revokeDevice(id: string): Promise<void>;
   issueCode(label?: string): Promise<PairCode>;
+  /**
+   * The person's sync key (32 bytes), handed once to a freshly paired device (`POST /v1/sync/key`). Null when this server
+   * gives none: a server without the route (404), a device that already got it (409) or paired too long ago (410).
+   * The bytes are never stored here; the caller zeroes them after use.
+   */
+  syncKey(signal?: AbortSignal): Promise<Uint8Array | null>;
   aiStatus(): Promise<ServerAiPreset[]>;
   setKey(preset: 'nim' | 'opencode-zen', key: string): Promise<void>;
   removeKey(preset: 'nim' | 'opencode-zen'): Promise<void>;
@@ -647,6 +670,19 @@ export function createServerClient(options: ServerClientOptions = {}): ServerCli
       if (!isObj(r) || !normalizeServerCode(str(r.code))) throw new ServerError('server_error');
       const p = load();
       return { code: str(r.code), expiresAt: str(r.expiresAt), qr: str(r.qr) || pairingQr(p?.baseUrl ?? '', str(r.code), label) };
+    },
+    async syncKey(signal) {
+      let r: unknown;
+      try {
+        r = await request<unknown>('/v1/sync/key', { method: 'POST', body: {}, ...(signal ? { signal } : {}) });
+      } catch (e) {
+        if (e instanceof ServerError && (e.status === 404 || e.status === 405 || e.status === 409 || e.status === 410)) return null;
+        throw e;
+      }
+      const key = isObj(r) && r.format === 'owner-secret-v1' ? bytesOfBase64Url(str(r.key)) : null;
+      if (key?.length === 32) return key;
+      key?.fill(0);
+      throw new ServerError('key_unavailable');
     },
     async aiStatus() {
       return list<Record<string, unknown>>(await request<unknown>('/v1/ai/status'), 'presets').flatMap((p): ServerAiPreset[] =>

@@ -1,0 +1,28 @@
+{
+  "family": "jstyle2301",
+  "source": "app/src/test/java/com/pulseloop/ring/JStyle2301ProtocolTest.kt",
+  "vectors": [
+    {
+      "name": "coordinator recognizes manufacturer marker",
+      "advertisement": {
+        "name": "white label",
+        "serviceUuids": [],
+        "manufacturerData": [
+          "34 12 44 23 01"
+        ]
+      },
+      "match": true,
+      "note": "company id 0x1234 little-endian first, payload ends 23 01"
+    },
+    {
+      "name": "coordinator does not claim the generic SMART_RING name",
+      "advertisement": {
+        "name": "SMART_RING",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "match": false
+    }
+  ],
+  "note": "the Kotlin test also matches a brand-bearing name prefix; that vector is left out and Vitals does not match on it"
+}

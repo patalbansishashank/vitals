@@ -66,8 +66,8 @@ describe('origin, host and CORS', () => {
     expect((await call('GET', '/health', { Origin: 'null' })).status).toBe(403);
   });
 
-  it('allows the public app, loopback dev servers and the same origin', async () => {
-    for (const origin of [APP, 'http://localhost:5173', 'http://127.0.0.1:9999', `http://127.0.0.1:${companion.port}`]) {
+  it('allows the public app, the packaged apps, loopback dev servers and the same origin', async () => {
+    for (const origin of [APP, 'app://vitals', 'https://localhost', 'capacitor://localhost', 'http://localhost:5173', 'http://127.0.0.1:9999', `http://127.0.0.1:${companion.port}`]) {
       const res = await call('OPTIONS', '/v1/pair/status', { Origin: origin, 'Access-Control-Request-Method': 'GET' });
       expect(res.status, origin).toBe(204);
       expect(res.headers['access-control-allow-origin']).toBe(origin);

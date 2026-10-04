@@ -1,0 +1,291 @@
+/* ==========================================================================
+   Body signals page frame (design/screens/ring-pages.md §4.1, §6.2–6.4, §7.1)
+   and the Progress link card (§6.9). The toolbar (tabs, then the period bar)
+   is sticky under the top bar; at ≥ 1280 px both share one row (tabs left,
+   period right) and the content is a 12-column grid where `.sp-pair` puts two
+   secondary faceplates side by side (6/6). Tokens only, achromatic chrome;
+   44 px touch targets; no transitions of our own.
+   ========================================================================== */
+
+@layer components {
+  /* ---- sticky toolbar ------------------------------------------------------ */
+  .sp-toolbar {
+    position: sticky;
+    top: calc(var(--lm-topbar-h) + var(--lm-safe-top, 0px));
+    z-index: var(--lm-z-lane-label);
+    background: var(--lm-chassis);
+    border-bottom: 1px solid var(--lm-line);
+  }
+  @media (min-width: 64rem) {
+    /* the desktop context bar is the sticky row above (one top-bar height) */
+    .sp-toolbar {
+      top: var(--lm-topbar-h);
+    }
+  }
+  .sp-toolbar__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: var(--lm-content-max);
+    margin: 0 auto;
+    padding: 8px calc(var(--lm-gutter) + var(--lm-safe-right, 0px)) 8px calc(var(--lm-gutter) + var(--lm-safe-left, 0px));
+  }
+  @media (min-width: 64rem) {
+    .sp-toolbar__inner {
+      padding: 8px var(--lm-gutter-lg);
+    }
+  }
+
+  /* tabs: full width below 1280 px (the three labels fit at 390), natural width beside the period bar above it */
+  .sp-tabs.lm-bank {
+    display: flex;
+    width: 100%;
+  }
+  .sp-tabs.lm-bank > .lm-bank__key {
+    flex: 1 1 auto;
+  }
+
+  /* ---- period bar ---------------------------------------------------------- */
+  .sp-period {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    min-width: 0;
+  }
+  .sp-period__kinds.lm-bank {
+    flex: none;
+  }
+  .sp-period__nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .sp-period__label.lm-key {
+    min-width: 11.5rem;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .sp-period__today.lm-key {
+    margin-left: 4px;
+  }
+  @media (max-width: 29.99rem) {
+    /* phone: the bank on its own row, the navigator below it, centred */
+    .sp-period__kinds.lm-bank {
+      display: flex;
+      width: 100%;
+    }
+    .sp-period__kinds.lm-bank > .lm-bank__key {
+      flex: 1 1 0;
+    }
+    .sp-period__nav {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .sp-period__label.lm-key {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+  /* 44 px targets on touch: 36 px keys in a 3 px well with a 1 px edge */
+  @media (pointer: coarse) {
+    .sp-toolbar .lm-bank > .lm-bank__key {
+      height: 36px;
+    }
+  }
+
+  @media (min-width: 80rem) {
+    .sp-toolbar__inner {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .sp-tabs.lm-bank {
+      display: inline-flex;
+      width: auto;
+      flex: none;
+    }
+    .sp-period {
+      flex: 0 1 auto;
+      flex-wrap: nowrap;
+    }
+  }
+
+  /* ---- calendar popover ---------------------------------------------------- */
+  .sp-cal {
+    display: grid;
+    gap: 8px;
+    width: min(332px, calc(100vw - 2 * var(--lm-gutter) - 24px));
+  }
+  .sp-cal__title {
+    margin: 0;
+  }
+  .sp-cal__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .sp-cal__month {
+    font-size: var(--lm-text-base);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .sp-cal__grid {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .sp-cal__grid th {
+    padding: 0 0 4px;
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    font-stretch: var(--lm-wdth-condensed, 87.5%);
+    color: var(--lm-ink-2);
+    text-align: center;
+  }
+  .sp-cal__grid td {
+    padding: 0;
+    text-align: center;
+  }
+  .sp-cal__day {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-sm);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .sp-cal__day:hover:not(:disabled) {
+    background: var(--lm-face-hover);
+  }
+  .sp-cal__day[data-today='true'] {
+    font-weight: 700;
+  }
+  .sp-cal__day[data-selected='true'] {
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-key);
+  }
+  .sp-cal__day:disabled {
+    color: var(--lm-ink-faint);
+    cursor: default;
+  }
+  .sp-cal__dot {
+    position: absolute;
+    bottom: 7px;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+    background: var(--lm-ink);
+  }
+  .sp-cal__hint {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- content ------------------------------------------------------------- */
+  .sp-panel {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    padding-bottom: 24px;
+  }
+  .sp-panel:focus-visible {
+    outline-offset: 4px;
+  }
+  .sp-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+  .sp-grid > *,
+  .sp-pair > * {
+    min-width: 0;
+  }
+  .sp-pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    min-width: 0;
+  }
+  @media (min-width: 80rem) {
+    .sp-grid {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+    .sp-grid > * {
+      grid-column: 1 / -1;
+    }
+    .sp-pair {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .sp-ringline {
+    align-items: center;
+  }
+  .sp-source {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .sp-source__tier {
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- Progress link card (§6.9) -------------------------------------------- */
+  .sp-link__readouts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .sp-link__readouts > li {
+    min-width: 0;
+    padding: 4px 12px;
+  }
+  .sp-link__readouts > li:first-child {
+    padding-left: 0;
+  }
+  .sp-link__readouts > li + li {
+    border-left: 1px solid var(--lm-line);
+  }
+  .sp-link__value {
+    white-space: normal;
+  }
+  .lm-readout[data-unknown='true'] .sp-link__value {
+    font-size: var(--lm-text-sm);
+    font-weight: 400;
+    color: var(--lm-ink-3);
+  }
+  @media (max-width: 29.99rem) {
+    .sp-link__readouts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .sp-link__readouts > li {
+      padding: 8px 0;
+    }
+    .sp-link__readouts > li + li {
+      border-left: 0;
+      border-top: 1px solid var(--lm-line);
+    }
+  }
+}

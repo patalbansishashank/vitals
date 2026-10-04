@@ -281,8 +281,9 @@ export interface BioChunkManifest {
   schemaVersion: 1;
   decoder?: string;
   createdAt: Instant;
-  /** A re-sync with more samples writes a merged chunk that supersedes the old one. */
-  supersedes?: string;
+  /** A re-sync with more samples writes a merged chunk that supersedes the old one (several when it folds same-key
+   * siblings two devices wrote offline). Older builds wrote one id. */
+  supersedes?: string | string[];
 }
 
 /** Decoded chunk header. */
@@ -493,8 +494,8 @@ export interface BioCorrection {
   /** Actor kind and id that made it (`ai:…` when the person applied a Coach proposal). */
   actor: string;
   replaced: { sourceKey: string; recordId: string; version: number } | null;
-  /** Set by `biometrics.clearCorrection`: the device value is used again. */
-  clearedAt?: Instant;
+  /** Set by `biometrics.clearCorrection`: the device value is used again. `null` (or absent) means active. */
+  clearedAt?: Instant | null;
 }
 
 export interface ScoreDef {

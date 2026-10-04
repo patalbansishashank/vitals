@@ -71,6 +71,8 @@ export interface SyncStore extends PersistenceBackend {
 
   /** Change or clear the relay without reopening (null = local only). */
   setRelay(url: string | null): Promise<void>;
+  /** Drop the current relay connection and open a fresh one now (network back, "Sync now"); no-op without a relay. */
+  reconnect?(): Promise<void>;
   /** Ask the relay for anything missing. Resolves when a round completed or failed (never rejects for network errors). */
   pull(): Promise<{ received: number; collections: string[] }>;
   /** Send local changes the relay has not acknowledged (Evolu: the same RBSR round as pull). */

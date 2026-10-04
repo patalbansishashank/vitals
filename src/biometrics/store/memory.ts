@@ -133,7 +133,8 @@ export class InMemoryBioStore implements BioStore {
   }
 
   private async write(key: ChunkKey, samples: RawSample[], tz: number, prev: BioChunkManifest | undefined, opts: { decoder?: string; createdAt: string }): Promise<BioChunkManifest | null> {
-    // the merged chunk replaces the previous one (manifest and bytes), as the document store does
+    // the merged chunk replaces the previous one (manifest and bytes); one device only, so nothing waits for an upload
+    // (the document store keeps the replaced manifest, marked, until the merged bytes are on the relay)
     if (prev) {
       for (let i = this.manifestList.length - 1; i >= 0; i--) if (this.manifestList[i]!.chunkId === prev.chunkId) this.manifestList.splice(i, 1);
       await this.blobs.discard(prev.chunkId);
@@ -174,10 +175,11 @@ export class InMemoryBioStore implements BioStore {
       return true;
     });
     const existing = mine ? await this.load(mine) : [];
-    const merged = mergeSamples(existing, fresh, this.tombList(key.sourceKey, key.stream));
-    if (merged.added === 0) return { manifest: null, added: 0, duplicates: merged.duplicates + sibDup };
+    // a new batch replaces a stored value at the same (origin, t) (counted as a duplicate), as the document store does
+    const merged = mergeSamples(existing, fresh, this.tombList(key.sourceKey, key.stream), { prefer: 'incoming' });
+    if (merged.added + merged.replaced === 0) return { manifest: null, added: 0, duplicates: merged.duplicates + sibDup };
     const manifest = await this.write(key, merged.samples, opts.tz_offset_s, mine, opts);
-    return { manifest: manifest ? clone(manifest) : null, added: merged.added, duplicates: merged.duplicates + sibDup };
+    return { manifest: manifest ? clone(manifest) : null, added: merged.added, duplicates: merged.duplicates + merged.replaced + sibDup };
   }
 
   manifests(q: ChunkQuery = {}): Promise<BioChunkManifest[]> {

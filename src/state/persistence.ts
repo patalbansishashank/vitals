@@ -56,8 +56,10 @@ export interface StoreRegistration {
   /** Re-read the store from storage after an import (e.g. `useStore.persist.rehydrate`). */
   rehydrate?: () => void | Promise<void>;
   /**
-   * Deprecated (E11's localStorage mirror). What syncs is decided per collection now (`COLLECTIONS[col].sync`): the
-   * last route and the results layout live in `uiPrefs`, which is device-local. Kept so existing registrations compile.
+   * Deprecated (E11's localStorage mirror). What syncs is decided per collection now (`COLLECTIONS[col].sync`). The
+   * last route and the results layout are device-local: their primary copies are the `vitals.ui.lastRoute` and
+   * `vitals.results` keys (the first migration copied them once into `uiPrefs`, which nothing reads back). Kept so
+   * existing registrations compile.
    */
   syncable?: boolean;
 }
@@ -156,22 +158,24 @@ export function listStoredKeys(): string[] {
 
 /**
  * One-time rename migration, run when this module loads (before any store hydrates): copies each `lumen.*` key
- * whose `vitals.*` twin is absent. The old keys are kept. It only acts while no `vitals.*` key exists, so data the
- * user later erases or replaces by an import is never copied back. Returns the keys written.
+ * whose `vitals.*` twin is absent. It only copies while no `vitals.*` key exists, so data the user later erases or
+ * replaces by an import is never copied back. A `lumen.*` key whose `vitals.*` twin exists (copied now or by an older
+ * version) is removed. Returns the keys written.
  */
 export function migrateLegacyKeys(): string[] {
   const s = storage();
   if (!s) return [];
   const written: string[] = [];
   try {
-    if (keysWithPrefix(s, STORAGE_PREFIX).length > 0) return written;
+    const fresh = keysWithPrefix(s, STORAGE_PREFIX).length === 0;
     for (const old of keysWithPrefix(s, LEGACY_PREFIX)) {
       const key = STORAGE_PREFIX + old.slice(LEGACY_PREFIX.length);
       const value = s.getItem(old);
-      if (value !== null && s.getItem(key) === null) {
+      if (fresh && value !== null && s.getItem(key) === null) {
         s.setItem(key, value);
         written.push(key);
       }
+      if (s.getItem(key) !== null) s.removeItem(old);
     }
   } catch {
     /* storage blocked or full: the old keys are untouched */
@@ -603,6 +607,8 @@ registerDatabase('vitals-sync');
 registerDatabase('vitals-blobs');
 // The AI layer's database (also registered by Settings › AI; listed here so an erase covers it even if that never loaded).
 registerDatabase('vitals-ai');
+// The planner worker's checkpoints (each keeps the full request, body inputs included).
+registerDatabase('vitals-planner');
 registerEraseHook(async () => {
   await (await import('./sync')).eraseSyncLocal();
   setSyncPairedHint(false);

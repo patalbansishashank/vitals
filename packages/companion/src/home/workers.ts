@@ -10,8 +10,10 @@
  *   `IMPORT_TIMEOUT_MS`); past it the worker is stopped and reopens on the next request;
  * - at most `maxOpenPersons` workers are open; a new person closes the least recently used idle one, and when every
  *   open person is busy the request answers `server_busy` (HTTP 503, `personErrorStatus`);
- * - once a minute every open person logs its worker's heap and the server's RSS, also written to `memory.json`.
+ * - once a minute every open person logs its worker's heap and the server's RSS, also written to `memory.json`; a person
+ *   removed meanwhile (`vitals-server persons remove` runs in another process) has its worker closed first.
  */
+import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { Worker, type ResourceLimits } from 'node:worker_threads';
 import type { PersonInit, PersonRequest, PersonResponse, PersonWorkerOut } from './personRpc.ts';
@@ -228,6 +230,8 @@ export interface WorkerPool {
   closeAll(): Promise<void>;
   /** Heap of every open worker and the process's RSS (what the minute log line and `memory.json` hold). */
   memory(): Promise<PoolMemory>;
+  /** Closes the workers of persons removed since they opened (the minute sample runs it too). */
+  closeRemoved(): Promise<void>;
   /** Every open worker's diagnostics (the loopback control route, `./diag.ts`). */
   diag(): Promise<Array<{ id: string; busy: number; idleSec: number } & Partial<WorkerDiag>>>;
   /** Heap snapshot of one open worker into `file`. */
@@ -246,6 +250,8 @@ export function createWorkerPool(o: {
   memoryLogMs?: number;
   /** Where the minute sample is written (0600) for `vitals-server status`. */
   memoryFile?: string;
+  /** The relay URL for a worker, asked at each open (the server's current listener); null falls back to the person file's. */
+  relayUrl?: () => string | null;
   now?: () => number;
 }): WorkerPool {
   const { persons, factory, idleMs = IDLE_CLOSE_MS, log = () => undefined, memoryLogMs = MEMORY_LOG_MS, now = Date.now } = o;
@@ -265,7 +271,7 @@ export function createWorkerPool(o: {
       await after;
       const p = await persons.get(personId);
       if (!p) throw new Error('Unknown person.');
-      const init: PersonInit = { personId, dir: persons.paths(personId).dir, timeZone: p.timeZone, deviceId: p.deviceId, relayUrl: p.relayUrl, instance: `p${personId}` };
+      const init: PersonInit = { personId, dir: persons.paths(personId).dir, timeZone: p.timeZone, deviceId: p.deviceId, relayUrl: o.relayUrl?.() ?? p.relayUrl, instance: `p${personId}` };
       const t0 = performance.now();
       const worker = await factory(init);
       log(`person ${personId}: opened in ${Math.round(performance.now() - t0)} ms`);
@@ -323,7 +329,17 @@ export function createWorkerPool(o: {
     const m = process.memoryUsage();
     return { at: new Date(t).toISOString(), rssMb: mb(m.rss), heapUsedMb: mb(m.heapUsed), maxOpenPersons: maxOpen, persons: list };
   };
+  /** Closes the worker of every open person that `persons remove` deleted (not in the index, directory gone). */
+  const closeRemoved = async () => {
+    for (const id of [...open.keys()]) {
+      const gone = (await persons.get(id).catch(() => undefined)) === null && !existsSync(persons.paths(id).dir);
+      if (!gone || !open.has(id)) continue;
+      log(`person ${id}: removed; closing its worker`);
+      await close(id);
+    }
+  };
   const sample = async () => {
+    await closeRemoved();
     const m = await memory();
     for (const p of m.persons) {
       const heap = p.heapUsedMb === undefined ? 'heap unknown' : `heap ${p.heapUsedMb}/${p.heapTotalMb} MB, external ${p.externalMb} MB`;
@@ -360,6 +376,7 @@ export function createWorkerPool(o: {
       await Promise.all([...new Set([...open.keys(), ...closing.keys()])].map(close));
     },
     memory,
+    closeRemoved,
     diag: async () => {
       const t = now();
       return Promise.all([...open].map(async ([id, s]) => ({ id, busy: s.busy, idleSec: s.busy ? 0 : Math.round((t - s.lastUsed) / 1000), ...((await s.worker?.diag?.().catch(() => null)) ?? {}) })));

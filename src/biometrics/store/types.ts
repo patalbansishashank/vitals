@@ -30,7 +30,7 @@ export interface ChunkQuery {
   stream?: BioStream;
   from?: LocalDate;
   to?: LocalDate;
-  /** include manifests marked superseded (older builds kept them; a merged chunk now removes the one it replaces) */
+  /** include manifests marked superseded (kept until the chunk that replaced them is on the relay) */
   includeSuperseded?: boolean;
 }
 

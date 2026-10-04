@@ -1,0 +1,3 @@
+# L-QA: private captures (health data, phone screenshots, owner values) never tracked
+results/L-QA/private/
+scripts/L-QA/**/out/

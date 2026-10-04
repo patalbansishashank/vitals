@@ -1,0 +1,128 @@
+{
+  "family": "rwfit",
+  "source": "RWfitDriverTest.kt (coordinator matching), AdvertisementMatcherTest.kt",
+  "layout": "manufacturerData in on-air layout: little-endian company id first",
+  "vectors": [
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "matches the A00A advertisement in either form (16-bit)",
+      "advertisement": {
+        "serviceUuids": [
+          "a00a"
+        ],
+        "manufacturerData": []
+      },
+      "match": true,
+      "note": "Kotlin compares the raw string; the TS contract expands UUIDs first."
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "matches the A00A advertisement in either form (128-bit)",
+      "advertisement": {
+        "serviceUuids": [
+          "0000a00a-0000-1000-8000-00805f9b34fb"
+        ],
+        "manufacturerData": []
+      },
+      "match": true
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "matches the A00A advertisement in either form (upper case)",
+      "advertisement": {
+        "serviceUuids": [
+          "0000A00A-0000-1000-8000-00805F9B34FB"
+        ],
+        "manufacturerData": []
+      },
+      "match": true
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "matches the vendor manufacturer prefixes (d6 05 02 00)",
+      "advertisement": {
+        "serviceUuids": [],
+        "manufacturerData": [
+          "d6 05 02 00"
+        ]
+      },
+      "match": true
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "matches the vendor manufacturer prefixes (d6 05 41 54)",
+      "advertisement": {
+        "serviceUuids": [],
+        "manufacturerData": [
+          "d6 05 41 54"
+        ]
+      },
+      "match": true
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "matches the vendor manufacturer prefixes (d6 06 02 00)",
+      "advertisement": {
+        "serviceUuids": [],
+        "manufacturerData": [
+          "d6 06 02 00"
+        ]
+      },
+      "match": true
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "never matches on the device name (RWfit Ring)",
+      "advertisement": {
+        "name": "RWfit Ring",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "match": false
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "never matches on the device name (RW-01)",
+      "advertisement": {
+        "name": "RW-01",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "match": false
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "never matches on the device name (RWXYZ)",
+      "advertisement": {
+        "name": "RWXYZ",
+        "serviceUuids": [],
+        "manufacturerData": []
+      },
+      "match": false
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "never matches on the device name (unrelated manufacturer data)",
+      "advertisement": {
+        "serviceUuids": [],
+        "manufacturerData": [
+          "01 02"
+        ]
+      },
+      "match": false
+    },
+    {
+      "source": "AdvertisementMatcherTest.kt",
+      "name": "RWfit matches its JieLi company prefix",
+      "advertisement": {
+        "name": "Whatever",
+        "serviceUuids": [],
+        "manufacturerData": [
+          "d6 05 02 00 aa bb"
+        ]
+      },
+      "match": true,
+      "note": "Android entry (0x05d6, 02 00 aa bb) with the company id re-attached little-endian."
+    }
+  ]
+}

@@ -166,3 +166,40 @@ export function ownedFamilies(sources: readonly Pick<BioSourceDoc, 'sourceKey' |
   }
   return out;
 }
+
+/* ---------------------------------------------------------------- ring sources (SUITE_SPEC §15.2, plan 04 item 11) */
+
+/** A ring connected through Vitals: a `ring` device, a Bluetooth channel, or the same ring's data from Lumen. */
+export function isRingSource(src: Pick<BioSourceDoc, 'sourceKey'> & { deviceType?: string }): boolean {
+  const ch = channelOfSourceKey(src.sourceKey);
+  return src.deviceType === 'ring' || ch.startsWith('ble:') || ch === 'file:lumen_cloudevents';
+}
+
+/** Ring data is first-party: every stream in, scores and plan where eligible, the Coach sees daily + detail. */
+export function ringDefaultPolicy(stream: PolicyStream): StreamPolicy {
+  return normalizePolicy({ stream, imported: true, coach: 'daily+series', engine: engineEligible(stream), scores: true });
+}
+
+export function ringDefaultPolicies(): StreamPolicy[] {
+  return POLICY_STREAMS.map(ringDefaultPolicy);
+}
+
+/** The master switch "Use my ring data in my plan and Coach" turned off: still shown, not used or shared. */
+export function ringSharingOffPolicy(stream: PolicyStream, current?: StreamPolicy): StreamPolicy {
+  return normalizePolicy({ stream, imported: current?.imported ?? true, coach: 'hidden', engine: false, scores: false });
+}
+
+/** What the master switch reads over the person's ring sources: 'none' when there is no ring source. */
+export function ringSharing(sources: readonly (Pick<BioSourceDoc, 'sourceKey' | 'policies'> & { deviceType?: string })[]): 'on' | 'off' | 'some' | 'none' {
+  const rings = sources.filter(isRingSource);
+  if (rings.length === 0) return 'none';
+  const same = (a: StreamPolicy, b: StreamPolicy) => JSON.stringify(normalizePolicy(a)) === JSON.stringify(normalizePolicy(b));
+  const each = (want: (s: PolicyStream, cur: StreamPolicy | undefined) => StreamPolicy) =>
+    rings.every((r) => POLICY_STREAMS.every((s) => {
+      const cur = r.policies.find((p) => p.stream === s);
+      return cur ? same(cur, want(s, cur)) : false;
+    }));
+  if (each((s) => ringDefaultPolicy(s))) return 'on';
+  if (each((s, cur) => ringSharingOffPolicy(s, cur))) return 'off';
+  return 'some';
+}

@@ -1,62 +1,210 @@
-/* 3D figure: the SVG BodyAvatar owns the perforated stage, ruler, labels and handles; the WebGL canvas sits in the
-   same stage underneath (`.lm-fig3d__layer`) and fades in over the SVG body (tokens collapse under reduced motion). */
 @layer components {
   .lm-fig3d {
-    margin: 0;
-    min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    min-width: 0;
+    margin: 0;
+    color: var(--lm-ink);
   }
   .lm-fig3d[data-size='fill'] {
+    width: 100%;
     height: 100%;
   }
-
   .lm-fig3d__row {
     display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
     align-items: stretch;
     min-height: 0;
+    min-width: 0;
+    gap: 1rem;
   }
   .lm-fig3d[data-size='fill'] > .lm-fig3d__row {
     flex: 1 1 auto;
+    width: 100%;
   }
-
   .lm-fig3d__stage {
     position: relative;
-    flex: 2 1 18rem;
+    flex: 1 1 auto;
     min-width: 0;
-    min-height: 20rem;
+    min-height: 0;
     aspect-ratio: 4 / 5;
+    overflow: hidden;
+    background-color: var(--lm-avatar-stage);
+    background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1px, transparent 1.4px);
+    background-size: 12px 12px;
   }
   .lm-fig3d[data-size='fill'] .lm-fig3d__stage {
-    min-height: 0;
-    aspect-ratio: auto;
+    width: 100%;
     height: 100%;
+    aspect-ratio: auto;
+  }
+  .lm-fig3d[data-size='xs'] .lm-fig3d__stage {
+    width: 56px;
+  }
+  .lm-fig3d[data-size='sm'] .lm-fig3d__stage {
+    width: 104px;
+  }
+  .lm-fig3d[data-size='md'] .lm-fig3d__stage {
+    width: 220px;
   }
   .lm-fig3d__stage > .lm-avatar {
     height: 100%;
   }
-
+  .lm-fig3d__stage > .lm-avatar .lm-avatar__stage {
+    border-radius: 0;
+  }
   .lm-fig3d__layer {
     position: absolute;
     inset: 0;
     opacity: 0;
-    pointer-events: none;
     transition: opacity var(--lm-dur-base) var(--lm-ease-out);
   }
   .lm-fig3d__layer[data-ready] {
     opacity: 1;
   }
-
+  .lm-fig3d__layer:not([data-ready]) {
+    pointer-events: none;
+  }
   .lm-fig3d__canvas {
     display: block;
     width: 100%;
     height: 100%;
+    touch-action: none;
+    cursor: grab;
   }
-
+  .lm-fig3d__canvas:active {
+    cursor: grabbing;
+  }
+  .lm-fig3d__canvas:focus-visible,
+  .lm-fig3d__chip:focus-visible,
+  .lm-fig3d__motion:focus-visible,
+  .lm-fig3d__details summary:focus-visible {
+    outline: 2px solid var(--lm-ink);
+    outline-offset: -3px;
+  }
+  .lm-fig3d__tools {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.8rem;
+    border-top: 1px solid var(--lm-line);
+    background: var(--lm-face);
+  }
+  .lm-fig3d__details {
+    min-width: 0;
+  }
+  .lm-fig3d__details summary {
+    width: fit-content;
+    padding: 0.15rem 0.25rem;
+    font-size: var(--lm-text-xs);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .lm-fig3d__layers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.45rem 0 0.15rem;
+  }
+  .lm-fig3d__chip,
+  .lm-fig3d__motion {
+    min-height: 32px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-face);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-xs);
+    line-height: 1.25;
+    cursor: pointer;
+  }
+  .lm-fig3d__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.25rem 0.55rem;
+  }
+  .lm-fig3d__chip[aria-pressed='false'] {
+    color: var(--lm-ink-2);
+  }
+  .lm-fig3d__chip[aria-pressed='false'] .lm-fig3d__swatch {
+    background: transparent;
+  }
+  .lm-fig3d__chip:hover,
+  .lm-fig3d__motion:not(:disabled):hover {
+    border-color: var(--lm-ink-2);
+  }
+  .lm-fig3d__motion {
+    flex: none;
+    padding: 0.25rem 0.55rem;
+  }
+  .lm-fig3d__motion:disabled {
+    cursor: default;
+    color: var(--lm-ink-2);
+    opacity: 0.65;
+  }
+  .lm-fig3d__swatch {
+    width: 0.65rem;
+    height: 0.65rem;
+    flex: none;
+    border: 1px solid var(--lm-avatar-outline);
+    border-radius: 50%;
+  }
+  .lm-fig3d__swatch--skin {
+    background: var(--lm-avatar-fat);
+  }
+  .lm-fig3d__swatch--subcutaneousFat {
+    background: #f2bd7a;
+  }
+  .lm-fig3d__swatch--visceralFat {
+    background: #f79e42;
+  }
+  .lm-fig3d__swatch--muscles {
+    background: #a34742;
+  }
+  .lm-fig3d__swatch--skeleton {
+    background: #d6cfb8;
+  }
+  .lm-fig3d__explain {
+    max-width: 40ch;
+    margin: 0.35rem 0 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs);
+    line-height: 1.4;
+  }
+  .lm-fig3d__caption {
+    padding: 0.2rem 0.8rem 0.55rem;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs);
+    line-height: 1.45;
+    background: var(--lm-face);
+  }
   .lm-fig3d__visceral {
     flex: 1 1 16rem;
+  }
+  .lm-fig3d__credit {
+    padding: 0 0.8rem 0.45rem;
+    background: var(--lm-face);
+    font-size: var(--lm-text-xs);
+  }
+  .lm-fig3d__credit a {
+    color: var(--lm-ink-2);
+    text-underline-offset: 0.15em;
+  }
+  .lm-fig3d[data-size='sm'] .lm-fig3d__tools {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.25rem;
+  }
+  .lm-fig3d[data-size='sm'] .lm-fig3d__chip {
+    width: 100%;
+  }
+  .lm-fig3d[data-size='sm'] .lm-fig3d__motion {
+    width: 100%;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lm-fig3d__layer {
+      transition: none;
+    }
   }
 }

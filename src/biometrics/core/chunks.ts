@@ -179,30 +179,52 @@ export interface MergeResult {
   duplicates: number;
   /** Incoming samples dropped because they were tombstoned. */
   tombstoned: number;
+  /** Incoming samples that replaced an existing one with another value (only with `prefer: 'incoming'`). */
+  replaced: number;
 }
 
-/** Union by identity (origin, t); existing wins on conflict; tombstoned samples removed from both sides; sorted by t. */
-export function mergeSamples(existing: readonly RawSample[], incoming: readonly RawSample[], tombstones: Iterable<Tombstone> = []): MergeResult {
+/** The same stored sample once encoded (Float32 values, quality as one byte). */
+const sameStored = (a: RawSample, b: RawSample): boolean =>
+  Math.fround(a.value) === Math.fround(b.value) && Math.min(255, Math.max(0, Math.round(a.quality ?? 0))) === Math.min(255, Math.max(0, Math.round(b.quality ?? 0)));
+
+/**
+ * Union by identity (origin, t); tombstoned samples removed from both sides; sorted by t. On conflict the existing
+ * sample wins, unless `prefer: 'incoming'` (a new batch: the ring's newer reading of the same minute replaces the
+ * stored value). Repeats inside `incoming` keep the first.
+ */
+export function mergeSamples(
+  existing: readonly RawSample[], incoming: readonly RawSample[], tombstones: Iterable<Tombstone> = [], o: { prefer?: 'existing' | 'incoming' } = {},
+): MergeResult {
   const dead = new Set<string>();
   for (const t of tombstones) dead.add(sampleKey(t.origin, t.t));
   const seen = new Map<string, RawSample>();
+  const stored = new Set<string>();
   for (const s of existing) {
     const k = sampleKey(s.origin, s.t);
-    if (!dead.has(k) && !seen.has(k)) seen.set(k, s);
+    if (!dead.has(k) && !seen.has(k)) {
+      seen.set(k, s);
+      stored.add(k);
+    }
   }
   let added = 0;
   let duplicates = 0;
   let tombstoned = 0;
+  let replaced = 0;
   for (const s of incoming) {
     const k = sampleKey(s.origin, s.t);
     if (dead.has(k)) tombstoned++;
-    else if (seen.has(k)) duplicates++;
-    else {
+    else if (seen.has(k)) {
+      if (o.prefer === 'incoming' && stored.has(k) && !sameStored(seen.get(k)!, s)) {
+        seen.set(k, s);
+        stored.delete(k);
+        replaced++;
+      } else duplicates++;
+    } else {
       seen.set(k, s);
       added++;
     }
   }
-  return { samples: [...seen.values()].sort(compareSamples), added, duplicates, tombstoned };
+  return { samples: [...seen.values()].sort(compareSamples), added, duplicates, tombstoned, replaced };
 }
 
 // ---------------------------------------------------------------- splitting

@@ -38,6 +38,7 @@ import { migrateProfileDocBody } from './internal/profileModel';
 import { createScope, runInScope, type DocOpRecord, type ScopeKind } from './scope';
 
 export const DEVICE_KEY = 'vitals.device';
+/** Written by older versions after the first migration and never read; no longer written (stays internal so an old one is never exported). */
 export const MIGRATED_KEY = 'vitals.migratedToStore';
 /** Keys under `vitals.*` that are not user data (never listed, exported or imported). */
 /** Device-local keys under `vitals.` that are never exported, imported or synced (`vitals.server.v1` holds the server pairing, SUITE_SPEC §14.2). */
@@ -349,11 +350,6 @@ async function migrate(s: DocumentStore, at: Instant): Promise<void> {
   } finally {
     revokeWriteToken(token);
   }
-  try {
-    ls()?.setItem(MIGRATED_KEY, at);
-  } catch {
-    /* storage blocked */
-  }
 }
 
 async function reconcile(s: DocumentStore, report: BootReport, prefer: BootOptions['prefer'] = 'auto', writeDefaults = true): Promise<void> {
@@ -440,7 +436,10 @@ function attachFeed(s: DocumentStore): void {
 }
 
 export interface BootOptions {
-  /** 'docs': documents win over the boot cache wherever they exist (used after a sync engine switch). */
+  /**
+   * 'docs': documents win over the boot cache wherever they exist (used after a sync engine switch). Unset on a paired
+   * device: 'docs' with no catch-up (the boot cache is never written back).
+   */
   prefer?: 'auto' | 'docs';
   /**
    * false: never write the in-memory defaults as documents (no first-boot migration, no catch-up). A headless replica
@@ -469,6 +468,10 @@ export function bootDocuments(options: BootOptions = {}): Promise<BootReport> {
           b.known.set(k, { body, owned: ownsDoc(b, col, id), fields: (b.shares ?? []).find((x) => x.col === col)?.fields });
         }
       }
+    } else if (options.prefer === undefined && syncPairedHint()) {
+      // paired app start: the documents carry the group's merged state; the boot cache is for first paint only and is
+      // never written back (a catch-up would carry fresh field clocks into the engine and beat newer remote edits)
+      await reconcile(s, report, 'docs', false);
     } else await reconcile(s, report, options.prefer, options.writeDefaults !== false);
     attachFeed(s);
     return report;

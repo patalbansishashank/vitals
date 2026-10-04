@@ -4,12 +4,20 @@ import type { BioProvenance, BioRecord, BioSourceDoc, DeviceTier, PolicyStream, 
 
 const slug = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, '_');
 
+/** The ring Lumen Health reads, as every Lumen record names it in provenance (never the model id Lumen reports). */
+export const LUMEN_DEVICE_MODEL = 'J-Style 2301';
+
+/** The one source key of Lumen data, whatever path it came through (MQTT, CloudEvents file, archive). Equal to the key
+ * the archive and file importers have always produced, so data imported before stays under it. */
+export const LUMEN_SOURCE_KEY = `file:lumen_cloudevents|:${slug(LUMEN_DEVICE_MODEL)}`;
+
 /** Stable source key: `<channel>|<manufacturer:model>` for device-backed data, `<channel>|app:<source_app>` for app-backed
  * data, `<channel>` alone otherwise. Re-imports from the same device or app map to the same source. */
 export function sourceKeyOf(p: BioProvenance): string {
   // Lumen over MQTT, Lumen's CloudEvents dump and its own archive are one source (§14.5 identical-batch rule): samples
-  // merge into the same chunks
-  const ch = p.channel === 'mqtt:lumen' || p.channel === 'file:lumen_archive' ? 'file:lumen_cloudevents' : p.channel;
+  // merge into the same chunks. The key never depends on the device model Lumen reports (R20-ID-01).
+  if (p.channel === 'mqtt:lumen' || p.channel === 'file:lumen_archive' || p.channel === 'file:lumen_cloudevents') return LUMEN_SOURCE_KEY;
+  const ch = p.channel;
   const d = p.device;
   const dev = d && (d.manufacturer || d.model) ? `${slug(d.manufacturer ?? '')}:${slug(d.model ?? '')}` : '';
   if (dev) return `${ch}|${dev}`;

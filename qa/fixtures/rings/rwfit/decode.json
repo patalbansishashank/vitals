@@ -1,0 +1,1374 @@
+{
+  "family": "rwfit",
+  "source": "RWfitCodecTest.kt, RWfitDecoderTest.kt, RWfitJLHistoryTest.kt, RWfitDriverTest.kt",
+  "timeConvention": "All timestamps are epoch seconds decoded with the zone set to UTC (tzCorrectionS 0). See README.",
+  "vectors": [
+    {
+      "name": "legacy decode yields ack-before-frame in the vendor's order",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "codec"
+      },
+      "bytes": "7e 01 01 00 03 12 34 54 00 01 55",
+      "events": [
+        {
+          "kotlin": "RWfitLegacyInbound.AckNeeded",
+          "cmd": "0x01",
+          "serial": 4660
+        },
+        {
+          "kotlin": "RWfitLegacyInbound.Frame",
+          "cmd": "0x01",
+          "payload": "00 01 55"
+        }
+      ]
+    },
+    {
+      "name": "legacy decode reports a checksum failure instead of the frame",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "codec"
+      },
+      "bytes": "7e 01 01 00 02 00 09 7f 11 22",
+      "events": [
+        {
+          "kotlin": "RWfitLegacyInbound.ChecksumFailed",
+          "cmd": "0x01",
+          "serial": 9
+        }
+      ],
+      "note": "Negative: XOR of 11 22 is 0x33, header says 0x7f."
+    },
+    {
+      "name": "legacy device ack is parsed and never itself acked",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "codec"
+      },
+      "bytes": "7e 01 fe 00 04 00 05 0b 00 2a 21 00",
+      "events": [
+        {
+          "kotlin": "RWfitLegacyInbound.DeviceAck",
+          "cmd": "0x21",
+          "serial": 42,
+          "status": "0x00"
+        }
+      ]
+    },
+    {
+      "name": "legacy multi-packet frames reassemble in index order",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "codec"
+      },
+      "bytesSequence": [
+        "7e 01 a3 08 02 00 01 33 00 02 00 01 11 22",
+        "7e 01 a3 08 01 00 02 33 00 02 00 02 33"
+      ],
+      "eventsPerPacket": [
+        [
+          {
+            "kotlin": "RWfitLegacyInbound.AckNeeded",
+            "cmd": "0xa3",
+            "serial": 1
+          }
+        ],
+        [
+          {
+            "kotlin": "RWfitLegacyInbound.AckNeeded",
+            "cmd": "0xa3",
+            "serial": 2
+          },
+          {
+            "kotlin": "RWfitLegacyInbound.Frame",
+            "cmd": "0xa3",
+            "payload": "11 22 33"
+          }
+        ]
+      ],
+      "events": [
+        {
+          "kotlin": "RWfitLegacyInbound.AckNeeded",
+          "cmd": "0xa3",
+          "serial": 1
+        },
+        {
+          "kotlin": "RWfitLegacyInbound.AckNeeded",
+          "cmd": "0xa3",
+          "serial": 2
+        },
+        {
+          "kotlin": "RWfitLegacyInbound.Frame",
+          "cmd": "0xa3",
+          "payload": "11 22 33"
+        }
+      ],
+      "note": "Header serial = chunk index in this test. Packet 2: the test asserts size 2 and events[1]; events[0] (AckNeeded serial 2) follows from the codec source."
+    },
+    {
+      "name": "legacy reset drops a half-assembled frame",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "codec",
+        "resetBeforePacket": [
+          1
+        ]
+      },
+      "bytesSequence": [
+        "7e 01 a3 08 01 00 01 11 00 02 00 01 11",
+        "7e 01 a3 08 01 00 02 22 00 02 00 02 22"
+      ],
+      "eventsPerPacket": [
+        [
+          {
+            "kotlin": "RWfitLegacyInbound.AckNeeded",
+            "cmd": "0xa3",
+            "serial": 1
+          }
+        ],
+        [
+          {
+            "kotlin": "RWfitLegacyInbound.AckNeeded",
+            "cmd": "0xa3",
+            "serial": 2
+          }
+        ]
+      ],
+      "events": [
+        {
+          "kotlin": "RWfitLegacyInbound.AckNeeded",
+          "cmd": "0xa3",
+          "serial": 1
+        },
+        {
+          "kotlin": "RWfitLegacyInbound.AckNeeded",
+          "cmd": "0xa3",
+          "serial": 2
+        }
+      ],
+      "note": "Codec reset (connect/disconnect) between the packets; the stale chunk must not complete the frame. Asserted: packet 2 yields exactly one AckNeeded."
+    },
+    {
+      "name": "legacy decode ignores non-7E notifications",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "codec"
+      },
+      "bytes": "ab 01 00 03",
+      "events": [],
+      "note": "Negative: wrong magic and too short."
+    },
+    {
+      "name": "jieli round-trips through decode",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "codec"
+      },
+      "bytes": "ab 01 00 05 64 f9 02 04 10 01 02",
+      "events": [
+        {
+          "kotlin": "RWfitJLInbound.Frame",
+          "flag": "0x01",
+          "triple": "02 04 10",
+          "payload": "01 02",
+          "isAck": false
+        }
+      ]
+    },
+    {
+      "name": "jieli reports a crc failure",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "codec"
+      },
+      "bytes": "ab 01 00 03 fd a0 02 03 10",
+      "events": [
+        {
+          "kotlin": "RWfitJLInbound.ChecksumFailed",
+          "triple": "02 03 10"
+        }
+      ],
+      "note": "Negative: CRC high byte incremented by 1."
+    },
+    {
+      "name": "jieli reassembles a body split across continuation packets",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "codec"
+      },
+      "bytesSequence": [
+        "ab 01 00 21 17 c6 05 03 10 01 02 03 04 05 06 07 08 09 0a 0b",
+        "0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e"
+      ],
+      "eventsPerPacket": [
+        [],
+        [
+          {
+            "kotlin": "RWfitJLInbound.Frame",
+            "flag": "0x01",
+            "triple": "05 03 10",
+            "payload": "01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e",
+            "isAck": false
+          }
+        ]
+      ],
+      "events": [
+        {
+          "kotlin": "RWfitJLInbound.Frame",
+          "flag": "0x01",
+          "triple": "05 03 10",
+          "payload": "01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e",
+          "isAck": false
+        }
+      ],
+      "note": "Header packet carries the first 14 body bytes; the continuation has no header."
+    },
+    {
+      "name": "battery percent is payload byte 2, not byte 0",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0x01",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 00 53",
+      "frame": "7e 01 01 00 03 00 01 53 00 00 53",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.Battery",
+          "percent": 83,
+          "charging": false
+        }
+      ]
+    },
+    {
+      "name": "battery reports charging from powerStatus",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0x01",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "01 01 2a",
+      "frame": "7e 01 01 00 03 00 01 2a 01 01 2a",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.Battery",
+          "percent": 42,
+          "charging": true
+        }
+      ]
+    },
+    {
+      "name": "battery ignores a short frame",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0x01",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00",
+      "frame": "7e 01 01 00 01 00 01 00 00",
+      "events": [],
+      "note": "Negative: payload shorter than 3 bytes."
+    },
+    {
+      "name": "sync manifest decodes its bit flags",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa0",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 2a 15 01",
+      "frame": "7e 01 a0 00 04 00 01 3e 00 2a 15 01",
+      "events": [
+        {
+          "kotlin": "RWfitDecoder.SyncManifest",
+          "totalDataCount": 42,
+          "hasSteps": true,
+          "hasSleep": false,
+          "hasHeartRate": true,
+          "hasBloodPressure": false,
+          "hasSpo2": true,
+          "hasTemperature": false,
+          "hasSport": true
+        }
+      ],
+      "note": "Return value, not an event: it drives the cascade. Fields not listed (breathe, ecg) are not asserted (both false here)."
+    },
+    {
+      "name": "pending streams follow the vendor cascade order",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa0",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 05 ff 00",
+      "frame": "7e 01 a0 00 04 00 01 fa 00 05 ff 00",
+      "events": [
+        {
+          "kotlin": "RWfitDecoder.SyncManifest.pendingStreams",
+          "streams": [
+            "STEPS",
+            "SLEEP",
+            "HEART_RATE",
+            "BLOOD_PRESSURE",
+            "SPO2",
+            "TEMPERATURE",
+            "BREATHE"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "sync manifest rejects a short frame",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa0",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 01",
+      "frame": "7e 01 a0 00 02 00 01 01 00 01",
+      "events": [],
+      "note": "Negative: decodeSyncManifest returns null (payload < 4 bytes)."
+    },
+    {
+      "name": "heart rate history decodes day header plus 5-byte items",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa3",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 02 66 b2 e4 fc 48 66 b2 e5 38 58",
+      "frame": "7e 01 a3 00 10 00 01 27 66 b2 e4 c0 00 02 66 b2 e4 fc 48 66 b2 e5 38 58",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 72,
+          "timestampS": 1723000060
+        },
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 88,
+          "timestampS": 1723000120
+        }
+      ],
+      "note": "Asserted: 2 events, kind and value of both, timestamp of the first."
+    },
+    {
+      "name": "heart rate history drops out-of-range samples",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa3",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 02 66 b2 e4 c0 00 66 b2 e4 fc 41",
+      "frame": "7e 01 a3 00 10 00 01 8f 66 b2 e4 c0 00 02 66 b2 e4 c0 00 66 b2 e4 fc 41",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 65,
+          "timestampS": 1723000060
+        }
+      ],
+      "note": "Asserted: 1 event. Valid range 25..250 bpm."
+    },
+    {
+      "name": "spo2 history decodes and clamps",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa5",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 02 66 b2 e4 c0 61 66 b2 e4 fc 00",
+      "frame": "7e 01 a5 00 10 00 01 af 66 b2 e4 c0 00 02 66 b2 e4 c0 61 66 b2 e4 fc 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "SPO2",
+          "value": 97,
+          "timestampS": 1723000000
+        }
+      ],
+      "note": "Valid range 50..100."
+    },
+    {
+      "name": "blood pressure history emits systolic and diastolic from a 6-byte item",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa4",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 01 66 b2 e4 de 78 4e",
+      "frame": "7e 01 a4 00 0c 00 01 29 66 b2 e4 c0 00 01 66 b2 e4 de 78 4e",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 120,
+          "timestampS": 1723000030
+        },
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 78,
+          "timestampS": 1723000030
+        }
+      ],
+      "note": "Timestamp equality of the pair is asserted, not its value."
+    },
+    {
+      "name": "temperature is offset-encoded as raw plus 200 over 10",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa6",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 01 66 b2 e4 c0 a5",
+      "frame": "7e 01 a6 00 0b 00 01 a4 66 b2 e4 c0 00 01 66 b2 e4 c0 a5",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "TEMPERATURE",
+          "value": 36.5,
+          "timestampS": 1723000000
+        }
+      ],
+      "note": "degC = (raw + 200) / 10; only the value is asserted."
+    },
+    {
+      "name": "multiple day records in one payload all decode",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa3",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 01 66 b2 e4 c0 3c 66 b4 36 40 00 01 66 b4 36 40 3e",
+      "frame": "7e 01 a3 00 16 00 01 02 66 b2 e4 c0 00 01 66 b2 e4 c0 3c 66 b4 36 40 00 01 66 b4 36 40 3e",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 60,
+          "timestampS": 1723000000
+        },
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 62,
+          "timestampS": 1723086400
+        }
+      ],
+      "note": "Asserted: 2 events."
+    },
+    {
+      "name": "a truncated record stops decoding instead of reading past the end",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa3",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 05 66 b2 e4 c0 3c",
+      "frame": "7e 01 a3 00 0b 00 01 39 66 b2 e4 c0 00 05 66 b2 e4 c0 3c",
+      "events": [],
+      "note": "Negative: claims 5 items, carries 1."
+    },
+    {
+      "name": "step history decodes the 15-byte day header and skips its items",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa1",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 20 e5 00 01 36 00 18 38 00 02 00 00 64 00 00 04 00 46 01 00 fa 00 00 09 00 b4",
+      "frame": "7e 01 a1 00 1f 00 01 40 66 b2 e4 c0 00 20 e5 00 01 36 00 18 38 00 02 00 00 64 00 00 04 00 46 01 00 fa 00 00 09 00 b4",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.ActivityUpdate",
+          "timestampS": 1723000000,
+          "steps": 8421,
+          "calories": 310,
+          "distanceMeters": 6200
+        }
+      ]
+    },
+    {
+      "name": "sleep history expands runs into per-minute stages",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa2",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 f0 66 b2 f2 d0 66 b3 63 50 00 03 1e 01 14 02 0a 03",
+      "frame": "7e 01 a2 00 16 00 01 13 66 b2 e4 c0 00 f0 66 b2 f2 d0 66 b3 63 50 00 03 1e 01 14 02 0a 03",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723003600,
+          "stageRuns": [
+            [
+              "LIGHT",
+              30
+            ],
+            [
+              "DEEP",
+              20
+            ],
+            [
+              "REM",
+              10
+            ]
+          ],
+          "stageCount": 60,
+          "completeSession": true
+        }
+      ],
+      "note": "Asserted: 60 stages, [0] LIGHT, [30] DEEP, [50] REM, timestamp, complete."
+    },
+    {
+      "name": "stage type 0 is awake",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa2",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 3c 66 b2 f2 d0 66 b3 00 e0 00 02 05 00 0a 01",
+      "frame": "7e 01 a2 00 14 00 01 03 66 b2 e4 c0 00 3c 66 b2 f2 d0 66 b3 00 e0 00 02 05 00 0a 01",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723003600,
+          "stageRuns": [
+            [
+              "AWAKE",
+              5
+            ],
+            [
+              "LIGHT",
+              10
+            ]
+          ],
+          "stageCount": 15,
+          "completeSession": true
+        }
+      ],
+      "note": "Asserted: [0] AWAKE, [5] LIGHT."
+    },
+    {
+      "name": "an all-awake record is not a sleep session",
+      "source": "RWfitDecoderTest.kt",
+      "framing": "legacy",
+      "context": {
+        "layer": "legacy-payload",
+        "cmd": "0xa2",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "66 b2 e4 c0 00 00 66 b2 f2 d0 66 b2 f2 d0 00 01 14 00",
+      "frame": "7e 01 a2 00 12 00 01 e5 66 b2 e4 c0 00 00 66 b2 f2 d0 66 b2 f2 d0 00 01 14 00",
+      "events": [],
+      "note": "Negative: an all-awake record emits nothing."
+    },
+    {
+      "name": "steps decodes 16-byte records with 3-byte count and decimetre distance",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 02 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 00 00 20 e5 00 00 0c 1c 00 01 e4 60 2e 45 af 50 00 00 00 00 00 00 00 00 00 00 00 00 2e 45 bd 60 00 00 04 d2 00 00 01 c2 00 00 07 d0",
+      "frame": "ab 01 00 33 4f 70 05 02 10 2e 45 a1 40 00 00 20 e5 00 00 0c 1c 00 01 e4 60 2e 45 af 50 00 00 00 00 00 00 00 00 00 00 00 00 2e 45 bd 60 00 00 04 d2 00 00 01 c2 00 00 07 d0",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.ActivityBucket",
+          "timestampS": 1723000000,
+          "steps": 8421,
+          "distanceMeters": 12400
+        },
+        {
+          "kotlin": "RingDecodedEvent.ActivityBucket",
+          "timestampS": 1723007200,
+          "steps": 1234,
+          "distanceMeters": 200
+        }
+      ],
+      "note": "The zero-step record is dropped. Calories (raw/10 kcal) are read by the vendor but not emitted."
+    },
+    {
+      "name": "steps timestamp is epoch-2000 base minus the getOffset correction",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 02 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00",
+      "frame": "ab 01 00 13 21 6d 05 02 10 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.ActivityBucket",
+          "timestampS": 946684800,
+          "steps": 1,
+          "distanceMeters": 0
+        }
+      ],
+      "note": "Raw stamp 0 = 2000-01-01T00:00:00Z minus the zone correction. Only the timestamp is asserted."
+    },
+    {
+      "name": "steps ignores a partial 16-byte tail",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 02 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 00 00 01 f4 00 00 00 0a 00 00 00 64 2e 45 a1 40 00 00 01 f4 00 00",
+      "frame": "ab 01 00 1d 33 76 05 02 10 2e 45 a1 40 00 00 01 f4 00 00 00 0a 00 00 00 64 2e 45 a1 40 00 00 01 f4 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.ActivityBucket",
+          "timestampS": 1723000000,
+          "steps": 500,
+          "distanceMeters": 10
+        }
+      ],
+      "note": "Asserted: 1 event (fields from source)."
+    },
+    {
+      "name": "steps ignores a partial 16-byte tail (empty body)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 02 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 ad 10 05 02 10",
+      "events": [],
+      "note": "Same test, second assertion: an empty body decodes to nothing."
+    },
+    {
+      "name": "heart rate decodes 6-byte records and drops zero bpm",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 03 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 48 00 2e 45 a1 7c 00 00 2e 45 a1 b8 58 00 de ad be",
+      "frame": "ab 01 00 18 84 62 05 03 10 2e 45 a1 40 48 00 2e 45 a1 7c 00 00 2e 45 a1 b8 58 00 de ad be",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 72,
+          "timestampS": 1723000000
+        },
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 88,
+          "timestampS": 1723000120
+        }
+      ],
+      "note": "Torn 3-byte tail dropped."
+    },
+    {
+      "name": "blood pressure emits systolic and diastolic from a 6-byte record",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 04 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 78 4e 2e 45 a1 7c 00 4e 2e 45 a1 b8 78 00",
+      "frame": "ab 01 00 15 e4 ed 05 04 10 2e 45 a1 40 78 4e 2e 45 a1 7c 00 4e 2e 45 a1 b8 78 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_SYSTOLIC",
+          "value": 120,
+          "timestampS": 1723000000
+        },
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "BLOOD_PRESSURE_DIASTOLIC",
+          "value": 78,
+          "timestampS": 1723000000
+        }
+      ],
+      "note": "A zero in either field drops the record."
+    },
+    {
+      "name": "sleep reconstructs a session from stage-transition records",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 05 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 11 00 00 2e 45 a3 98 01 00 00 2e 45 a5 f0 02 00 00 2e 45 a8 48 22 00 00",
+      "frame": "ab 01 00 1f 0f 25 05 05 10 2e 45 a1 40 11 00 00 2e 45 a3 98 01 00 00 2e 45 a5 f0 02 00 00 2e 45 a8 48 22 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723000000,
+          "stageRuns": [
+            [
+              "LIGHT",
+              10
+            ],
+            [
+              "DEEP",
+              10
+            ],
+            [
+              "LIGHT",
+              10
+            ]
+          ],
+          "stageCount": 30,
+          "completeSession": true
+        }
+      ],
+      "note": "Asserted: 30 stages, [0] LIGHT, [10] DEEP, [20] LIGHT, anchored at the 0x11 marker, complete."
+    },
+    {
+      "name": "sleep maps the vendor stage bytes 1 deep 2 light 0 and 3 awake 4 rem",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 05 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 11 00 00 2e 45 a1 7c 02 00 00 2e 45 a1 b8 01 00 00 2e 45 a1 f4 04 00 00 2e 45 a2 30 03 00 00 2e 45 a2 6c 00 00 00 2e 45 a2 a8 22 00 00",
+      "frame": "ab 01 00 34 b7 69 05 05 10 2e 45 a1 40 11 00 00 2e 45 a1 7c 02 00 00 2e 45 a1 b8 01 00 00 2e 45 a1 f4 04 00 00 2e 45 a2 30 03 00 00 2e 45 a2 6c 00 00 00 2e 45 a2 a8 22 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723000000,
+          "stageRuns": [
+            [
+              "LIGHT",
+              2
+            ],
+            [
+              "DEEP",
+              1
+            ],
+            [
+              "REM",
+              1
+            ],
+            [
+              "AWAKE",
+              2
+            ]
+          ],
+          "stageCount": 6,
+          "completeSession": true
+        }
+      ]
+    },
+    {
+      "name": "sleep counts the session-start marker segment as light like the vendor",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 05 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 11 00 00 2e 45 a1 7c 00 00 00 2e 45 a1 b8 22 00 00",
+      "frame": "ab 01 00 18 0c d3 05 05 10 2e 45 a1 40 11 00 00 2e 45 a1 7c 00 00 00 2e 45 a1 b8 22 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723000000,
+          "stageRuns": [
+            [
+              "LIGHT",
+              1
+            ],
+            [
+              "AWAKE",
+              1
+            ]
+          ],
+          "stageCount": 2,
+          "completeSession": true
+        }
+      ]
+    },
+    {
+      "name": "sleep emits nothing for a marker pair with no minutes and an unclosed tail",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 05 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 11 00 00 2e 45 a1 40 22 00 00 2e 45 bd 60 11 00 00 2e 45 bd d8 01 00 00",
+      "frame": "ab 01 00 1f a7 f2 05 05 10 2e 45 a1 40 11 00 00 2e 45 a1 40 22 00 00 2e 45 bd 60 11 00 00 2e 45 bd d8 01 00 00",
+      "events": [],
+      "note": "Negative."
+    },
+    {
+      "name": "sleep decodes two closed sessions and drops a torn 7-byte tail",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 05 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 11 00 00 2e 45 a1 b8 01 00 00 2e 45 a2 30 22 00 00 2e 45 af 50 11 00 00 2e 45 af c8 02 00 00 2e 45 b0 40 22 00 00 2e 45 bd 60",
+      "frame": "ab 01 00 31 51 d8 05 05 10 2e 45 a1 40 11 00 00 2e 45 a1 b8 01 00 00 2e 45 a2 30 22 00 00 2e 45 af 50 11 00 00 2e 45 af c8 02 00 00 2e 45 b0 40 22 00 00 2e 45 bd 60",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723000000,
+          "stageRuns": [
+            [
+              "LIGHT",
+              2
+            ],
+            [
+              "DEEP",
+              2
+            ]
+          ],
+          "stageCount": 4,
+          "completeSession": true
+        },
+        {
+          "kotlin": "RingDecodedEvent.SleepTimeline",
+          "timestampS": 1723003600,
+          "stageRuns": [
+            [
+              "LIGHT",
+              4
+            ]
+          ],
+          "stageCount": 4,
+          "completeSession": true
+        }
+      ],
+      "note": "Asserted: 2 timelines and their timestamps; stage lists from source."
+    },
+    {
+      "name": "temperature is raw u16 over 10 with no legacy plus-200 offset",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 08 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 01 6d 2e 45 a1 7c 00 00",
+      "frame": "ab 01 00 0f 15 ec 05 08 10 2e 45 a1 40 01 6d 2e 45 a1 7c 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "TEMPERATURE",
+          "value": 36.5,
+          "timestampS": 1723000000
+        }
+      ]
+    },
+    {
+      "name": "spo2 decodes byte 4 and drops zero",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 09 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 61 00 2e 45 a1 7c 00 00",
+      "frame": "ab 01 00 0f 3a 56 05 09 10 2e 45 a1 40 61 00 2e 45 a1 7c 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "SPO2",
+          "value": 97,
+          "timestampS": 1723000000
+        }
+      ]
+    },
+    {
+      "name": "hrv decodes byte 4 and drops zero",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 0a 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 2a 00 2e 45 a1 7c 00 00",
+      "frame": "ab 01 00 0f ba 10 05 0a 10 2e 45 a1 40 2a 00 2e 45 a1 7c 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HRV",
+          "value": 42,
+          "timestampS": 1723000000
+        }
+      ],
+      "note": "Timestamp not asserted (from source)."
+    },
+    {
+      "name": "stress decodes byte 4 and drops zero like the vendor",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 0d 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 21 00 2e 45 a1 7c 00 00",
+      "frame": "ab 01 00 0f ce 57 05 0d 10 2e 45 a1 40 21 00 2e 45 a1 7c 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "STRESS",
+          "value": 33,
+          "timestampS": 1723000000
+        }
+      ],
+      "note": "Timestamp not asserted (from source)."
+    },
+    {
+      "name": "blood sugar is u16 over 10 mmol converted to the app unit mg per dL",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 10 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "2e 45 a1 40 00 38 2e 45 a1 7c 00 00",
+      "frame": "ab 01 00 0f c4 30 05 10 10 2e 45 a1 40 00 38 2e 45 a1 7c 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "BLOOD_SUGAR",
+          "value": 100.88959999999999,
+          "timestampS": 1723000000,
+          "valueTolerance": 1e-9,
+          "valueMmolL": 5.6
+        }
+      ],
+      "note": "Kotlin converts mmol/L to mg/dL with 18.016; raw/10 is mmol/L."
+    },
+    {
+      "name": "unknown 05 keys decode to null so the driver keeps logging them (key 0x0e)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 0e 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 00 00 00 00 00 00 00 00 00 00 00",
+      "frame": "ab 01 00 0f 5d f4 05 0e 10 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "note": "decode() returns null (not ported); through the driver: no events, frame still acked."
+    },
+    {
+      "name": "unknown 05 keys decode to null so the driver keeps logging them (key 0x14)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 14 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 00 00 00 00 00 00 00 00 00 00 00",
+      "frame": "ab 01 00 0f 87 ef 05 14 10 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "note": "decode() returns null (not ported); through the driver: no events, frame still acked."
+    },
+    {
+      "name": "unknown 05 keys decode to null so the driver keeps logging them (key 0x17)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 17 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "00 00 00 00 00 00 00 00 00 00 00 00",
+      "frame": "ab 01 00 0f 84 ec 05 17 10 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "note": "decode() returns null (not ported); through the driver: no events, frame still acked."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (steps)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 02 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 ad 10 05 02 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (sleep)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 05 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 9d 12 05 05 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (heart_rate)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 03 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 3d 11 05 03 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (blood_pressure)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 04 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 0d 13 05 04 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (spo2)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 09 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 9d 17 05 09 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (temperature)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 08 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 0d 16 05 08 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (hrv)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 0a 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 6d 17 05 0a 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (stress)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 0d 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 5d 15 05 0d 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "name": "every ported key answers through the shared dispatch (blood_sugar)",
+      "source": "RWfitJLHistoryTest.kt",
+      "framing": "jl",
+      "context": {
+        "layer": "jl-history-payload",
+        "triple": "05 10 10",
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "",
+      "frame": "ab 01 00 03 0d 1c 05 10 10",
+      "events": [],
+      "note": "Bare-triple reply = the ring holds nothing for this stream."
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "every inbound legacy frame is app-ACKed",
+      "framing": "legacy",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb"
+        ],
+        "freshDriver": true
+      },
+      "bytes": "7e 01 01 00 03 00 09 4d 00 00 4d",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.Battery",
+          "percent": 77,
+          "charging": false
+        }
+      ],
+      "writes": [
+        "7e 01 ff 00 04 00 01 08 00 09 01 00"
+      ],
+      "note": "Asserted: one write, byte 2 = 0xff, bytes 8..11 = 00 09 01 00. The event follows from the battery test below."
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "a bad checksum is NACKed with status 2",
+      "framing": "legacy",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb"
+        ],
+        "freshDriver": true
+      },
+      "bytes": "7e 01 01 00 03 00 03 4e 00 00 4d",
+      "events": [],
+      "writes": [
+        "7e 01 ff 00 04 00 01 00 00 03 01 02"
+      ],
+      "note": "Negative: XOR byte off by one. Asserted: no events, write byte 11 = 0x02."
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "a device ACK is not itself ACKed",
+      "framing": "legacy",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb"
+        ],
+        "freshDriver": true
+      },
+      "bytes": "7e 01 fe 00 04 00 01 24 00 05 21 00",
+      "events": [],
+      "writes": []
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "battery decodes through the driver",
+      "framing": "legacy",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb"
+        ],
+        "freshDriver": true
+      },
+      "bytes": "7e 01 01 00 03 00 01 4d 00 00 4d",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.Battery",
+          "percent": 77,
+          "charging": false
+        }
+      ],
+      "writes": [
+        "7e 01 ff 00 04 00 01 00 00 01 01 00"
+      ],
+      "note": "Writes not asserted in this test (the app ACK follows from the codec)."
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "a JieLi history reply decodes through the driver and is acked",
+      "framing": "jl",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb",
+          "0000ae00-0000-1000-8000-00805f9b34fb"
+        ],
+        "tz": "UTC",
+        "tzCorrectionS": 0
+      },
+      "bytes": "ab 01 00 0f d3 84 05 03 10 00 0b c0 00 48 00 00 0b c0 3c 00 00",
+      "events": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 72,
+          "timestampS": 947454848
+        }
+      ],
+      "writes": [
+        "ab 11 00 03 3d 11 05 03 10"
+      ],
+      "note": "Asserted: one HEART_RATE 72 (timestamp from source), one write with flag 0x11 and triple 05 03 10."
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "an unported JieLi history key still decodes to nothing and the frame is still acked",
+      "framing": "jl",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb",
+          "0000ae00-0000-1000-8000-00805f9b34fb"
+        ]
+      },
+      "bytes": "ab 01 00 13 fd 84 05 14 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "events": [],
+      "writes": [
+        "ab 11 00 03 cd 1e 05 14 10"
+      ]
+    },
+    {
+      "source": "RWfitDriverTest.kt",
+      "name": "reconnect clears the cascade",
+      "framing": "legacy",
+      "context": {
+        "layer": "driver",
+        "services": [
+          "0000a00a-0000-1000-8000-00805f9b34fb"
+        ],
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0,
+        "script": "connect, startup (4 writes), manifest notify (ack + steps request), disconnect, connect, then the steps reply below"
+      },
+      "bytes": "7e 01 a1 00 00 00 01 00",
+      "events": [],
+      "writes": [
+        "7e 01 ff 00 04 00 07 a0 00 01 a1 00"
+      ],
+      "note": "Asserted: only the app ACK (cmd 0xff) is written; no further history request. Its header serial is 7 because the legacy serial counter survives reconnects (6 frames went out on the first link)."
+    }
+  ]
+}

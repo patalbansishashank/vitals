@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft } from 'lucide-react';
 import { IconKey } from '@/components/Key';
 import { useNavigate } from 'react-router';
+import { RingKey } from '@/features/ring/RingKey';
+import { HeaderSync } from './HeaderSync';
 import { useShell, type BackTarget } from './ShellContext';
 
 export interface TopBarProps {
@@ -84,6 +86,14 @@ export function TopBar({ title, documentTitle, back, tabs, params, actions, titl
       <div className="lm-ctx__grow" />
       {params ? <div className="lm-ctx__params">{params}</div> : null}
       {actions ? <div className="lm-ctx__actions">{actions}</div> : null}
+      {/* desktop: the sync chip and the ring key at the right of the context bar (§15.4, ring-pages.md D2; phones have
+          them in the top bar); shell only */}
+      {shell?.contextSlot ? (
+        <span className="inline-flex items-center gap-2 max-lg:hidden">
+          <HeaderSync />
+          <RingKey />
+        </span>
+      ) : null}
     </div>
   );
   if (!shell?.contextSlot) return shell ? null : bar;

@@ -1,0 +1,769 @@
+{
+  "family": "jring",
+  "source": "Scripted from JringSyncEngine, RingBLEClient, RingSyncCoordinator and the decoder layouts. No ring capture was available: every notification is synthetic, so replies the ring may not really send are marked in the notes. Expected RingEvents follow docs/jring.md \"Mapping to RingEvent\"; entries with proposed:true are design suggestions, not Kotlin behaviour.",
+  "gatt": {
+    "service": "000056ff-0000-1000-8000-00805f9b34fb",
+    "write": "000033f3-0000-1000-8000-00805f9b34fb",
+    "notify": "000033f4-0000-1000-8000-00805f9b34fb",
+    "battery": "00002a19-0000-1000-8000-00805f9b34fb"
+  },
+  "stepKinds": {
+    "do": "harness action: handshake, sync, liveHeartRateStart, liveHeartRateStop, spot:hr, spot:spo2, spot:combined, resyncTime, forget, or a RingCommand object",
+    "expectSubscribe": "the session subscribes to this notify characteristic (16-bit alias)",
+    "expectRead": "the session reads this characteristic (16-bit alias); readReply is the value returned",
+    "expectWrite": "next write on 33f3. Hex of fewer than 20 bytes is a prefix match; 20 bytes is exact. nowMs and tzOffsetS come from the session context",
+    "notify": "packets the peripheral sends on 33f4 right after that write, in order",
+    "notifyUnsolicited": "packets the peripheral sends with no preceding write",
+    "advanceMs": "the virtual clock moves forward (timers fire)",
+    "setContext": "replaces nowMs and tzOffsetS from here on",
+    "expectEvents": "RingEvents produced by the step (listed fields must match; tolerance is an absolute numeric tolerance; proposed:true marks a design suggestion)"
+  },
+  "sessions": [
+    {
+      "name": "connect handshake (first pass of a connection)",
+      "note": "Order is JringSyncEngine.runStartup after the notify subscription. Kotlin fire-and-forgets every write; a port may wait for a reply. Replies marked synthetic are built from the decoder layouts, not captured. The 0x48 app-identifier write is only sent when an app id is configured, so it is absent here. The ring volunteers 0x03 on connect (RingEncoder comment); unverified timing.",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": -28800,
+        "firstPassOnConnection": true,
+        "profile": null
+      },
+      "steps": [
+        {
+          "expectSubscribe": "33f4"
+        },
+        {
+          "expectRead": "2a19",
+          "readReply": "55",
+          "expectEvents": [
+            {
+              "type": "status",
+              "key": "battery",
+              "value": 85
+            }
+          ]
+        },
+        {
+          "do": "handshake"
+        },
+        {
+          "expectWrite": "0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "0c 8a 00 11 22 33 44 55 66 3a 00 2a 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "status",
+              "key": "firmware",
+              "value": "003A002AV138"
+            },
+            {
+              "type": "status",
+              "key": "serial",
+              "value": "11:22:33:44:55:66",
+              "proposed": true
+            }
+          ]
+        },
+        {
+          "expectWrite": "01 80 80 53 65 f8 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "01 80 80 53 65 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "time sync for nowMs 1700000000000, tzOffsetS -28800; the echo is synthetic (unverified that the ring answers)",
+          "expectEvents": [
+            {
+              "type": "status",
+              "key": "ack",
+              "value": "time_sync",
+              "proposed": true
+            }
+          ]
+        },
+        {
+          "expectWrite": "21 65 6e 2d 55 53 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "02 99 b8 5a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "default profile; the ack is synthetic",
+          "expectEvents": [
+            {
+              "type": "status",
+              "key": "ack",
+              "value": "cmd_0x02",
+              "proposed": true
+            }
+          ]
+        },
+        {
+          "expectWrite": "19 00 00 17 3b 01 1e 01 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "20 00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "note": "capabilities reply is synthetic (bit 65 set)",
+          "expectEvents": [
+            {
+              "type": "status",
+              "key": "capabilities",
+              "value": "00 00 00 00 00 00 00 00 02 00 00 00 00 00 00 00 00 00 00"
+            }
+          ]
+        },
+        {
+          "notifyUnsolicited": [
+            "03 80 80 53 65 d2 04 00 00 84 03 00 00 2d 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "dailyTotal",
+              "localDay": 1699920000000,
+              "steps": 1234,
+              "distanceM": 900,
+              "kcal": 45,
+              "proposed": true
+            }
+          ],
+          "note": "0x03 cumulative day totals; localDay is the ring-local date (2023-11-14) at UTC midnight in ms; the calories unit is unverified"
+        },
+        {
+          "expectWrite": "10 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ],
+      "expectHandshake": {
+        "firmware": "003A002AV138",
+        "battery": 85,
+        "serial": "11:22:33:44:55:66",
+        "clockOffsetS": 0,
+        "note": "serial and clockOffsetS are proposals (see docs/jring.md)"
+      }
+    },
+    {
+      "name": "ring-driven bind handshake (0x4B)",
+      "note": "The ring sends INIT, the app answers APP_START, the ring ACKs, the app answers SUCCESS. When the ring starts it is unverified; JringSyncEngine.handle reacts to whichever arrives.",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "notifyUnsolicited": [
+            "4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "4b 01 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "4b 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "4b 04 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "history read, first pass (3 days): activity, sleep and heart-rate history",
+      "note": "tzOffsetS is +05:30 on purpose: every ring time (0x10, 0x11, 0x16) is local wall-clock, so the raw times in the packets are the expected UTC times plus 19800 s and a decoder that leaves any stream raw fails here. Packet contents are synthetic. Sleep arrives as consecutive 15-minute packets; activity as 15 one-minute buckets per packet; 0x16 ends with ff.",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 19800,
+        "firstPassOnConnection": true,
+        "firmware": "003A002AV138"
+      },
+      "steps": [
+        {
+          "do": "sync"
+        },
+        {
+          "expectWrite": "10 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "10 58 76 53 65 00 00 03 0c 12 14 0f 09 04 00 00 00 00 00 00",
+            "11 78 fc 52 65 00 01 01 28 28 50 50 63 63 50 01 01 01 00 00",
+            "11 fc ff 52 65 01 01 01 01 01 01 01 01 01 01 01 01 01 01 01"
+          ],
+          "expectEvents": [
+            {
+              "type": "activityBucket",
+              "start": 1699948800000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699948860000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699948920000,
+              "durS": 60,
+              "steps": 3
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699948980000,
+              "durS": 60,
+              "steps": 12
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949040000,
+              "durS": 60,
+              "steps": 18
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949100000,
+              "durS": 60,
+              "steps": 20
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949160000,
+              "durS": 60,
+              "steps": 15
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949220000,
+              "durS": 60,
+              "steps": 9
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949280000,
+              "durS": 60,
+              "steps": 4
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949340000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949400000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949460000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949520000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949580000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "activityBucket",
+              "start": 1699949640000,
+              "durS": 60,
+              "steps": 0
+            },
+            {
+              "type": "sleepEpochs",
+              "start": 1699917600000,
+              "epochS": 60,
+              "stages": [
+                "awake",
+                "light",
+                "light",
+                "light",
+                "light",
+                "deep",
+                "deep",
+                "deep",
+                "deep",
+                "deep",
+                "light",
+                "light",
+                "light",
+                "awake",
+                "awake"
+              ],
+              "rawCodes": [
+                0,
+                1,
+                1,
+                40,
+                40,
+                80,
+                80,
+                99,
+                99,
+                80,
+                1,
+                1,
+                1,
+                0,
+                0
+              ],
+              "complete": false,
+              "note": "one event per packet shown; a port may coalesce contiguous packets (start + 15 min) into one event"
+            },
+            {
+              "type": "sleepEpochs",
+              "start": 1699918500000,
+              "epochS": 60,
+              "stages": [
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light",
+                "light"
+              ],
+              "rawCodes": [
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1
+              ],
+              "complete": false
+            }
+          ]
+        },
+        {
+          "expectWrite": "16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "16 f0 00 00 00 00 0a 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "16 aa 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "16 a0 58 76 53 65 00 00 3e 40 3f 41 3d 3f 46 48 47 47 48 46",
+            "16 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "progress",
+              "stage": "hr_header",
+              "done": false
+            },
+            {
+              "type": "progress",
+              "stage": "hr_index",
+              "done": false
+            },
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1699948800000,
+              "value": 63,
+              "unit": "bpm",
+              "origin": "history"
+            },
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1699948860000,
+              "value": 71,
+              "unit": "bpm",
+              "origin": "history"
+            },
+            {
+              "type": "progress",
+              "stage": "hr_history",
+              "done": true,
+              "note": "Kotlin turns 16 ff into the sync-finished event"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "history read, later pass on the same connection (1 day)",
+      "context": {
+        "nowMs": 1700001800000,
+        "tzOffsetS": 0,
+        "firstPassOnConnection": false
+      },
+      "steps": [
+        {
+          "do": "sync"
+        },
+        {
+          "expectWrite": "10 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "16 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "16 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "progress",
+              "stage": "hr_history",
+              "done": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "live heart rate: start, samples, stop",
+      "note": "Samples are 0x14 pushes (about one a second). A zero timestamp means the ring could not read: no event. Stop writes 0x15 and then re-arms the background logging with 0x19 (JringSyncEngine.stopHeartRate). tzOffsetS is 0 because the Kotlin uses the raw 0x14 timestamp.",
+      "context": {
+        "nowMs": 1700000100000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "do": "liveHeartRateStart"
+        },
+        {
+          "expectWrite": "14 b4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "14 65 f1 53 65 48 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "14 66 f1 53 65 4a 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "14 00 00 00 00 48 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "14 68 f1 53 65 4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1700000101000,
+              "value": 72,
+              "unit": "bpm",
+              "origin": "live"
+            },
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1700000102000,
+              "value": 74,
+              "unit": "bpm",
+              "origin": "live"
+            },
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1700000104000,
+              "value": 75,
+              "unit": "bpm",
+              "origin": "live",
+              "note": "the all-zero-timestamp packet between is dropped"
+            }
+          ]
+        },
+        {
+          "do": "liveHeartRateStop"
+        },
+        {
+          "expectWrite": "15 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "19 00 00 17 3b 01 1e 01 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "spot measurement: combined (SpO2, blood pressure, fatigue, stress, glucose estimate)",
+      "note": "Start 0x23 mode 2; the ring answers with one 0x24 packet. Stop writes 0x23 00. The coordinator runs the window for 45 s. Reply is synthetic. Events carry the session nowMs as t (0x24 has no timestamp).",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "do": "spot:combined"
+        },
+        {
+          "expectWrite": "23 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "24 48 6e 46 61 28 1e 33 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1700000000000,
+              "value": 72,
+              "unit": "bpm",
+              "origin": "spot"
+            },
+            {
+              "type": "vendor",
+              "key": "bp_sys",
+              "t": 1700000000000,
+              "value": 110,
+              "unit": "mmHg",
+              "origin": "spot"
+            },
+            {
+              "type": "vendor",
+              "key": "bp_dia",
+              "t": 1700000000000,
+              "value": 70,
+              "unit": "mmHg",
+              "origin": "spot"
+            },
+            {
+              "type": "sample",
+              "stream": "spo2",
+              "t": 1700000000000,
+              "value": 97,
+              "unit": "pct",
+              "origin": "spot"
+            },
+            {
+              "type": "vendor",
+              "key": "fatigue",
+              "t": 1700000000000,
+              "value": 40,
+              "unit": "",
+              "origin": "spot"
+            },
+            {
+              "type": "vendor",
+              "key": "stress",
+              "t": 1700000000000,
+              "value": 30,
+              "unit": "",
+              "origin": "spot"
+            },
+            {
+              "type": "vendor",
+              "key": "glucose",
+              "t": 1700000000000,
+              "value": 91.8816,
+              "unit": "mg/dL",
+              "origin": "spot",
+              "tolerance": 0.0001
+            }
+          ]
+        },
+        {
+          "advanceMs": 45000
+        },
+        {
+          "expectWrite": "23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "spot heart rate rides the live stream (0x14), then stops",
+      "note": "measureHeartRateSpot is startHeartRate; the coordinator samples a 30 s window, ignores the first 5 s (cached echo) and then stops. Origin is spot for the port because the session asked for a spot measurement.",
+      "context": {
+        "nowMs": 1700000100000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "do": "spot:hr"
+        },
+        {
+          "expectWrite": "14 b4 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "14 6a f1 53 65 44 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "sample",
+              "stream": "hr",
+              "t": 1700000106000,
+              "value": 68,
+              "unit": "bpm",
+              "origin": "spot"
+            }
+          ]
+        },
+        {
+          "advanceMs": 30000
+        },
+        {
+          "expectWrite": "15 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "19 00 00 17 3b 01 1e 01 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "spot SpO2 (0x23 mode 2) reads the SpO2 out of the 0x24 reply",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "do": "spot:spo2"
+        },
+        {
+          "expectWrite": "23 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "24 00 00 00 62 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "type": "sample",
+              "stream": "spo2",
+              "t": 1700000000000,
+              "value": 98,
+              "unit": "pct",
+              "origin": "spot"
+            }
+          ]
+        },
+        {
+          "expectWrite": "23 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "keepalive every 15 s",
+      "note": "The ring does not answer 0x3A. Only while connected; the link is declared stale after 50 s without any GATT activity.",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "advanceMs": 15000
+        },
+        {
+          "expectWrite": "3a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "advanceMs": 15000
+        },
+        {
+          "expectWrite": "3a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "clock re-push after the phone timezone changes",
+      "note": "JringSyncEngine.resyncTime re-latches the offset and writes 0x01 again; the decoder then subtracts the new offset. Instants: 2023-11-14T22:13:20Z in UTC-8, then one hour later in UTC-7.",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": -28800
+      },
+      "steps": [
+        {
+          "do": "resyncTime"
+        },
+        {
+          "expectWrite": "01 80 80 53 65 f8 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        },
+        {
+          "advanceMs": 3600000,
+          "setContext": {
+            "nowMs": 1700003600000,
+            "tzOffsetS": -25200
+          }
+        },
+        {
+          "do": "resyncTime"
+        },
+        {
+          "expectWrite": "01 a0 9c 53 65 f9 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "profile push after the handshake",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 0,
+        "profile": {
+          "ageYears": 30,
+          "isMale": true,
+          "heightCm": 180,
+          "weightKg": 75
+        }
+      },
+      "steps": [
+        {
+          "do": {
+            "op": "userInfo",
+            "params": {
+              "ageYears": 30,
+              "isMale": true,
+              "heightCm": 180,
+              "weightKg": 75
+            }
+          }
+        },
+        {
+          "expectWrite": "02 9e b4 4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": []
+        }
+      ]
+    },
+    {
+      "name": "forget: unbind and wait for the ring acknowledgement",
+      "note": "RingBLEClient.forgetAndWait writes 0x4B 05 and waits up to 1.5 s for UNBOND_ACK (action 6) or ACK_CANCEL (action 3) before tearing the link down.",
+      "context": {
+        "nowMs": 1700000000000,
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "do": "forget"
+        },
+        {
+          "expectWrite": "4b 05 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "notify": [
+            "4b 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        }
+      ]
+    }
+  ]
+}

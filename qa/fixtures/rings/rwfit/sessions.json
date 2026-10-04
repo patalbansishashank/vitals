@@ -1,0 +1,232 @@
+{
+  "family": "rwfit",
+  "sessions": [
+    {
+      "name": "legacy connect and manifest-gated history cascade",
+      "source": "RWfitDriverTest.kt: startup asks for device info..., only the streams the manifest claims are requested, each history reply advances the cascade one stream at a time",
+      "framing": "legacy",
+      "services": [
+        "0000a00a-0000-1000-8000-00805f9b34fb"
+      ],
+      "clock": {
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "7e 01 00 00 00 00 01 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "7e 01 21 00 07 00 02 cd 07 e8 08 07 03 06 28",
+          "notify": []
+        },
+        {
+          "expectWrite": "7e 01 01 00 00 00 03 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "7e 01 a0 00 00 00 04 00",
+          "notify": [
+            "7e 01 a0 00 04 00 01 07 00 02 05 00"
+          ]
+        },
+        {
+          "expectWrite": "7e 01 ff 00 04 00 05 a1 00 01 a0 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "7e 01 a1 00 00 00 06 00",
+          "notify": [
+            "7e 01 a1 00 00 00 01 00"
+          ]
+        },
+        {
+          "expectWrite": "7e 01 ff 00 04 00 07 a0 00 01 a1 00",
+          "notify": []
+        },
+        {
+          "expectWrite": "7e 01 a3 00 00 00 08 00",
+          "notify": [
+            "7e 01 a3 00 00 00 01 00"
+          ]
+        },
+        {
+          "expectWrite": "7e 01 ff 00 04 00 09 a2 00 01 a3 00",
+          "notify": []
+        }
+      ],
+      "end": "no further writes",
+      "note": "Manifest claims steps + heart rate only. Ring replies are empty (no records), every inbound frame uses ring serial 1, as in the test. Writes are not gated on the ring's 0xfe ACKs (the port only logs them)."
+    },
+    {
+      "name": "jl connect and history burst",
+      "source": "RWfitDriverTest.kt: a JieLi link requests its history streams as bare triples after the handshake, a JieLi history reply decodes through the driver and is acked, an unported JieLi history key still decodes to nothing",
+      "framing": "jl",
+      "services": [
+        "0000a00a-0000-1000-8000-00805f9b34fb",
+        "0000ae00-0000-1000-8000-00805f9b34fb"
+      ],
+      "clock": {
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "ab 01 00 03 cc a2 02 04 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 09 7f c8 02 01 00 18 08 07 03 06 28",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 fc a0 02 03 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 ad 10 05 02 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 9d 12 05 05 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 3d 11 05 03 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 0d 13 05 04 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 9d 17 05 09 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 0d 16 05 08 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 6d 17 05 0a 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 5d 15 05 0d 10",
+          "notify": []
+        },
+        {
+          "expectWrite": "ab 01 00 03 0d 1c 05 10 10",
+          "notify": [
+            "ab 01 00 0f d3 84 05 03 10 00 0b c0 00 48 00 00 0b c0 3c 00 00"
+          ]
+        },
+        {
+          "expectWrite": "ab 11 00 03 3d 11 05 03 10",
+          "notify": [
+            "ab 01 00 13 fd 84 05 14 10 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ]
+        },
+        {
+          "expectWrite": "ab 11 00 03 cd 1e 05 14 10",
+          "notify": []
+        }
+      ],
+      "expectEvents": [
+        {
+          "kotlin": "RingDecodedEvent.HistoryMeasurement",
+          "kind_field": "HEART_RATE",
+          "value": 72,
+          "timestampS": 947454848
+        }
+      ],
+      "end": "no further writes",
+      "note": "All 12 requests go out without waiting for replies. The heart-rate reply and an unported sport reply each get an app ACK."
+    },
+    {
+      "name": "jl framing from the Telink OTA service",
+      "source": "RWfitDriverTest.kt: Telink and PixArt OTA services also mean JieLi / service matching is case-insensitive",
+      "framing": "jl",
+      "services": [
+        "0000a00a-0000-1000-8000-00805f9b34fb",
+        "00010203-0405-0607-0809-0a0b0c0d1912"
+      ],
+      "clock": {
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "ab 01 00 03 cc a2 02 04 10",
+          "notify": []
+        }
+      ],
+      "note": "Only the first write is asserted (0xab framing); the rest is the same burst as above."
+    },
+    {
+      "name": "jl framing from the PixArt OTA service",
+      "source": "RWfitDriverTest.kt: Telink and PixArt OTA services also mean JieLi / service matching is case-insensitive",
+      "framing": "jl",
+      "services": [
+        "0000a00a-0000-1000-8000-00805f9b34fb",
+        "0000ff00-0000-1000-8000-00805f9b34fb"
+      ],
+      "clock": {
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "ab 01 00 03 cc a2 02 04 10",
+          "notify": []
+        }
+      ],
+      "note": "Only the first write is asserted (0xab framing); the rest is the same burst as above."
+    },
+    {
+      "name": "jl framing matches services case-insensitively",
+      "source": "RWfitDriverTest.kt: Telink and PixArt OTA services also mean JieLi / service matching is case-insensitive",
+      "framing": "jl",
+      "services": [
+        "0000AE00-0000-1000-8000-00805F9B34FB"
+      ],
+      "clock": {
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "ab 01 00 03 cc a2 02 04 10",
+          "notify": []
+        }
+      ],
+      "note": "Only the first write is asserted (0xab framing); the rest is the same burst as above."
+    },
+    {
+      "name": "legacy framing for a bare A00A ring",
+      "source": "RWfitDriverTest.kt: a bare A00A ring speaks legacy",
+      "framing": "legacy",
+      "services": [
+        "0000a00a-0000-1000-8000-00805f9b34fb"
+      ],
+      "clock": {
+        "nowMs": 1723000000000,
+        "tz": "UTC",
+        "tzOffsetS": 0
+      },
+      "steps": [
+        {
+          "expectWrite": "7e 01 00 00 00 00 01 00",
+          "notify": []
+        }
+      ],
+      "note": "Asserted: every startup frame starts 0x7e."
+    }
+  ]
+}

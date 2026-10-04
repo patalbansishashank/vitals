@@ -6,6 +6,8 @@ import { IconKey, IconKeyLink } from '@/components/Key';
 import * as Glyphs from '@/components/icons/glyphs';
 import { Menu } from '@/components/Menu';
 import { RingMark } from '@/components/brand/RingMark';
+import { RingKey } from '@/features/ring/RingKey';
+import { HeaderSync } from './HeaderSync';
 import { useSettingsStore } from '@/state/settingsStore';
 import { resolveTheme, toggleTheme } from '../theme';
 import { COACH_ITEM, EVIDENCE_ITEM, SETTINGS_ITEM, useNavBadges, type NavItem } from './nav';
@@ -13,7 +15,7 @@ import { backToToday, enterPlanningTools, PlanDayReadout, useShellNav } from './
 import type { MobileHeader } from './ShellContext';
 import './modeNav.css';
 
-/** Lowercase "vitals" wordmark with the yellow indicator dot. */
+/** The ring mark beside the lowercase "vitals" wordmark. */
 export function Wordmark({ to = '/' }: { to?: string }) {
   return (
     <Link to={to} className="lm-wordmark" aria-label="Vitals, home">
@@ -72,7 +74,7 @@ export function NavRail() {
   return (
     <nav className="lm-rail" aria-label="Main">
       <Link to="/" className="lm-rail__brand" aria-label="Vitals, home">
-        <RingMark />
+        <RingMark size={26} />
         <span aria-hidden="true">vitals</span>
       </Link>
       {nav.plan ? <PlanDayReadout plan={nav.plan} /> : null}
@@ -125,7 +127,7 @@ function LivingOverflow() {
   );
 }
 
-/** Mobile top bar: wordmark (or back chevron / compact title on nested screens) · Coach (Planning) · theme · settings — or the overflow ⋯ in Living mode. */
+/** Mobile top bar: wordmark (or back chevron / compact title on nested screens) · sync chip · ring key · Coach (Planning) · theme · settings — or the overflow ⋯ in Living mode. */
 export function MobileTopBar({ header }: { header: MobileHeader | null }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -154,6 +156,9 @@ export function MobileTopBar({ header }: { header: MobileHeader | null }) {
         </span>
       ) : null}
       <div className="lm-topbar__spacer" />
+      {/* the sync chip, then the ring key: every screen, both modes (SUITE_SPEC §15.4, ring-pages.md D2); each hides itself when it has nothing to say */}
+      <HeaderSync />
+      <RingKey />
       {nav.mode === 'living' ? (
         <LivingOverflow />
       ) : (

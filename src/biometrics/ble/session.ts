@@ -10,6 +10,7 @@
  * (needed for the 2301's ~130-byte history notifications) is UNVERIFIED (R10 §4.4).
  * Foreground only: nothing here schedules background work; a session lives while its caller awaits it.
  */
+import type { RingErrorCode } from '@vitals/rings';
 import type { BioStream } from '@/biometrics/core/types';
 import type { BleDriver, BleLink, BleSession, ProtocolState, RingCommand, RingDecodedEvent } from '@/biometrics/core/ble/types';
 
@@ -52,10 +53,12 @@ export interface SessionRuntime {
   exchange(cmd: RingCommand, signal?: AbortSignal): AsyncGenerator<RingDecodedEvent>;
 }
 
+/** Codes are the `@vitals/rings` `RingError` codes, so a family session's errors keep theirs. */
 export class BleSessionError extends Error {
   constructor(
     message: string,
-    readonly code: 'disconnected' | 'aborted' | 'credential_invalid' | 'auth_rejected' | 'closed',
+    readonly code: RingErrorCode,
+    override readonly cause?: unknown,
   ) {
     super(message);
     this.name = 'BleSessionError';

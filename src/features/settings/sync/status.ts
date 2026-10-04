@@ -50,3 +50,42 @@ export function describeStatus(s: SyncStatus, now = new Date()): StatusView {
       return { label, severity: 'info', detail };
   }
 }
+
+export interface PillView {
+  /** "Synced", "Syncing", "Offline · 3 waiting", "Error · can't reach the server". */
+  text: string;
+  severity: Severity;
+  /** The full sentence from `describeStatus`, for a tooltip. */
+  title?: string;
+}
+
+const REASON_MAX = 40;
+
+/** A few plain words for why sync stopped. */
+function shortReason(s: SyncStatus): string {
+  const err = s.lastError;
+  if (!err || UNREACHABLE.test(`${err.code} ${err.message}`)) return "can't reach the server";
+  const m = err.message.replace(/\s+/g, ' ').replace(/\.$/, '').trim();
+  return m.length > REASON_MAX ? `${m.slice(0, REASON_MAX - 1).trimEnd()}…` : m;
+}
+
+/** The one-line state for places that are not Settings › Sync (the pill). `null` when sync is off. */
+export function describePill(s: SyncStatus, now = new Date()): PillView | null {
+  if (s.state === 'off') return null;
+  const { severity, problem } = describeStatus(s, now);
+  const waiting = s.pendingChanges + s.pendingBlobs;
+  switch (s.state) {
+    case 'synced':
+      return { text: 'Synced', severity };
+    case 'syncing':
+      return { text: 'Syncing', severity };
+    case 'connecting':
+      return { text: 'Connecting', severity };
+    case 'offline':
+      return { text: waiting > 0 ? `Offline · ${waiting} waiting` : 'Offline', severity, title: problem };
+    case 'needs-permission':
+      return { text: 'Blocked · browser permission', severity, title: problem };
+    case 'error':
+      return { text: `Error · ${shortReason(s)}`, severity, title: problem };
+  }
+}

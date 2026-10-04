@@ -1,0 +1,257 @@
+/* ==========================================================================
+   Body signals › Heart and recovery (design/screens/ring-pages.md §7.4):
+   the zone line, the time-in-zones bar, ranges per day, nights, the night
+   lines' normal band and zero line. Colour only on data marks (cardio hue,
+   the effort-zone ramp, the recovery hue); chrome stays achromatic; the
+   only yellow is the now-hand (.sg-nowhand, kit.css).
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Effort-zone ramp (§7.4.1): an ordinal ramp of the cardio hue, validated
+   with the dataviz validator --ordinal (monotone lightness, ΔL ≥ .06, end
+   contrast ≥ 2:1, single hue). In dark mode it runs the other way (higher
+   zone = lighter = more salient). Local until the tokens move to
+   src/styles/tokens.css §8 (requested by the lead); same selector pattern.
+   -------------------------------------------------------------------------- */
+:root,
+[data-theme-scope] {
+  --lm-hr-zone-1: #cf9a22;
+  --lm-hr-zone-2: #ae7c14;
+  --lm-hr-zone-3: #8e600c;
+  --lm-hr-zone-4: #6e4707;
+  --lm-hr-zone-5: #4f3104;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lm-hr-zone-1: #7d5408;
+    --lm-hr-zone-2: #a2700f;
+    --lm-hr-zone-3: #c48e1c;
+    --lm-hr-zone-4: #dfae3c;
+    --lm-hr-zone-5: #f2d27a;
+  }
+}
+
+:root[data-theme="dark"],
+[data-theme-scope="dark"] {
+  --lm-hr-zone-1: #7d5408;
+  --lm-hr-zone-2: #a2700f;
+  --lm-hr-zone-3: #c48e1c;
+  --lm-hr-zone-4: #dfae3c;
+  --lm-hr-zone-5: #f2d27a;
+}
+
+@layer components {
+  /* ------------------------------------------------------------ hues */
+  .hr-chart,
+  [data-hr-hue='cardio'] { --hr-hue: var(--lm-cat-cardio); }
+  [data-hr-hue='recovery'] { --hr-hue: var(--lm-cat-recovery); }
+
+  /* ------------------------------------------------------------ the zone line */
+  .hr-plot {
+    position: relative;
+    outline: none;
+    touch-action: pan-y;
+  }
+  .hr-plot:focus-visible,
+  .hr-dl-plot[tabindex]:focus-visible { outline: 2px solid var(--lm-focus); outline-offset: 2px; }
+  .hr-line {
+    fill: none;
+    stroke: var(--lm-cat-cardio);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .hr-line[data-zone='0'] { stroke: var(--lm-ink-3); }
+  .hr-line[data-zone='1'] { stroke: var(--lm-hr-zone-1); }
+  .hr-line[data-zone='2'] { stroke: var(--lm-hr-zone-2); }
+  .hr-line[data-zone='3'] { stroke: var(--lm-hr-zone-3); }
+  .hr-line[data-zone='4'] { stroke: var(--lm-hr-zone-4); }
+  .hr-line[data-zone='5'] { stroke: var(--lm-hr-zone-5); }
+  .hr-mark { fill: var(--lm-cat-cardio); stroke: var(--lm-chart-ring); stroke-width: 2; }
+  .hr-mark[data-zone='0'] { fill: var(--lm-ink-3); }
+  .hr-mark[data-zone='1'] { fill: var(--lm-hr-zone-1); }
+  .hr-mark[data-zone='2'] { fill: var(--lm-hr-zone-2); }
+  .hr-mark[data-zone='3'] { fill: var(--lm-hr-zone-3); }
+  .hr-mark[data-zone='4'] { fill: var(--lm-hr-zone-4); }
+  .hr-mark[data-zone='5'] { fill: var(--lm-hr-zone-5); }
+  .hr-rest { stroke: var(--lm-ink); stroke-width: 1; }
+  .hr-rest-label {
+    font-size: 11px;
+    fill: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .hr-edge-label {
+    font-size: 11px;
+    font-stretch: condensed;
+    fill: var(--lm-chart-tick);
+    font-variant-numeric: tabular-nums;
+  }
+  .hr-halo {
+    paint-order: stroke;
+    stroke: var(--lm-face);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+  .hr-band[data-kind='sleep'] { fill: color-mix(in srgb, var(--lm-cat-recovery) 10%, transparent); }
+  .hr-band[data-kind='workout'] { fill: color-mix(in srgb, var(--lm-cat-performance) 12%, transparent); }
+  .hr-band-label { font-size: 11px; fill: var(--lm-ink-2); }
+  .hr-noage {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--lm-ink-2);
+  }
+
+  /* the crosshair readout floats beside the line (docked at the top) */
+  .hr-tip {
+    position: absolute;
+    top: 0;
+    z-index: 2;
+    max-width: min(260px, 70%);
+    padding: 3px 8px;
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-raised);
+    color: var(--lm-ink);
+    font-size: 12px;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .hr-tip[data-side='right'] { transform: translateX(8px); }
+  .hr-tip[data-side='left'] { transform: translateX(calc(-100% - 8px)); }
+
+  /* ------------------------------------------------------------ time in zones */
+  .hr-zonebar { min-width: 0; }
+  .hr-zonebar__track {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+  }
+  .hr-zonebar__seg {
+    min-width: 2px;
+    height: 100%;
+    background: var(--lm-cat-cardio);
+  }
+  .hr-zonebar__seg[data-zone='1'] { background: var(--lm-hr-zone-1); }
+  .hr-zonebar__seg[data-zone='2'] { background: var(--lm-hr-zone-2); }
+  .hr-zonebar__seg[data-zone='3'] { background: var(--lm-hr-zone-3); }
+  .hr-zonebar__seg[data-zone='4'] { background: var(--lm-hr-zone-4); }
+  .hr-zonebar__seg[data-zone='5'] { background: var(--lm-hr-zone-5); }
+  .hr-zonebar__seg:first-child { border-radius: 2px 0 0 2px; }
+  .hr-zonebar__seg:last-child { border-radius: 0 2px 2px 0; }
+  .hr-zonebar__seg:only-child { border-radius: 2px; }
+  .hr-zonebar__labels {
+    position: relative;
+    height: 30px;
+    margin-top: 3px;
+  }
+  .hr-zonebar__label {
+    position: absolute;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    line-height: 14px;
+    font-stretch: condensed;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .hr-zonebar__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .hr-zonebar__head p { margin: 0 0 4px; }
+  .hr-zonebar[data-mini='true'] { display: inline-block; vertical-align: middle; }
+  .hr-zonebar[data-mini='true'] .hr-zonebar__track {
+    width: 64px;
+    height: 6px;
+  }
+  .hr-zonebar__well {
+    display: block;
+    width: 64px;
+    height: 6px;
+    border-radius: 2px;
+    background: var(--lm-well);
+    box-shadow: inset 0 0 0 1px var(--lm-line);
+  }
+
+  /* ------------------------------------------------------------ ranges per day, nights */
+  .hr-range {
+    stroke: color-mix(in srgb, var(--hr-hue) 50%, transparent);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .hr-dot { fill: var(--hr-hue); stroke: var(--lm-chart-ring); stroke-width: 2; }
+  .hr-path {
+    fill: none;
+    stroke: var(--hr-hue);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .hr-normal { fill: var(--hr-hue); fill-opacity: var(--lm-chart-band-alpha); stroke: none; }
+  /* the personal normal of a score history (as ScoreHistory draws it): achromatic */
+  .hr-normal[data-tone='ink'] { fill: var(--lm-ink); fill-opacity: 0.12; }
+  .hr-zero { stroke: var(--lm-chart-axis); stroke-width: 1; }
+  .hr-zero-label { font-size: 11px; fill: var(--lm-ink-2); }
+  .hr-col { fill: var(--hr-hue); }
+  .hr-slot-hit { fill: transparent; }
+  .hr-slot-sel { fill: var(--lm-ink); fill-opacity: 0.05; }
+  .hr-dim { opacity: 0.6; }
+
+  /* night lines (DayLine in the change-from-normal and band modes) */
+  .hr-dl-band { fill: var(--lv-ring-hue, var(--lm-cat-recovery)); fill-opacity: var(--lm-chart-band-alpha); }
+  .hr-dl-plot {
+    position: relative;
+    outline: none;
+    touch-action: pan-y;
+  }
+  .hr-dl-xdot { fill: var(--lv-ring-hue, var(--lm-cat-recovery)); stroke: var(--lm-chart-ring); stroke-width: 2; }
+  .hr-dl-tablebar { display: flex; justify-content: flex-end; }
+
+  /* ------------------------------------------------------------ faceplates */
+  .hr-tab {
+    display: grid;
+    gap: var(--lm-space-4);
+    min-width: 0;
+  }
+  .hr-face { min-width: 0; }
+  .hr-text {
+    margin: 8px 0 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .hr-vendor {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    max-height: 320px;
+    overflow: auto;
+  }
+  .hr-vendor li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--lm-line);
+    font-variant-numeric: tabular-nums;
+  }
+  .hr-vendor li:last-child { border-bottom: 0; }
+}
+
+@media (forced-colors: active) {
+  .hr-line,
+  .hr-path,
+  .hr-range { stroke: CanvasText; }
+  .hr-mark,
+  .hr-dot,
+  .hr-col,
+  .hr-zonebar__seg { fill: CanvasText; background: CanvasText; }
+}

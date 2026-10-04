@@ -50,6 +50,7 @@ function privateValues(): PrivateValues {
 const mailAllowed = (f: string, address: string) => {
   const [local, domain] = [address.slice(0, address.lastIndexOf('@')).toLowerCase(), address.slice(address.lastIndexOf('@') + 1).toLowerCase()];
   if (local === 'noreply' || local === 'no-reply' || MAIL_DOMAINS.has(domain)) return true;
+  if (/^\d+(\.\d+)?x\.(png|jpe?g|webp|gif|avif|svg)$/.test(domain)) return true; // a scaled image name (trayTemplate@2x.png), not an address
   if (domain.startsWith('example.') || domain.includes('.example.') || domain.endsWith('.invalid') || domain.endsWith('.test')) return true;
   return IFCT_LICENCE.includes(f) && address.toLowerCase() === IFCT_MAIL;
 };
@@ -99,7 +100,7 @@ describe('private names in the public snapshot', () => {
     const own: PrivateValues = { words: ['zorblat', 'quuxley'], personId: '0123456789abcdef' };
     const ok = [
       'vpn.example.ts.net tail1234 tail0 tail.ts.net tailwind 100.64.0.0/10 100.64.0.1 100.64.0.2 fd7a:115c:a1e0::/48 fd7a:115c:a1e0::1',
-      'a@example.com b@x.example.org c@x.invalid d@x.test noreply@anthropic.com 1+x@users.noreply.github.com no-reply@x.org',
+      'a@example.com b@x.example.org c@x.invalid d@x.test noreply@anthropic.com 1+x@users.noreply.github.com no-reply@x.org trayTemplate@2x.png icon@1.5x.webp',
       `https://${HOST}/ @scope/pkg@1.2.3 github.com/${HANDLE} 100.63.1.1 100.128.0.1 zorblatty unquuxley 0123456789abcde`,
     ];
     expect(scan(ok.map((_, i) => `f${i}`), (f) => ok[Number(f.slice(1))]!, own)).toEqual([]);

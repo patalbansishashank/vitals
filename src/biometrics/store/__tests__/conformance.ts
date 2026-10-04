@@ -76,8 +76,10 @@ export function bioStoreConformance(name: string, make: () => ConformanceSubject
       for (const step of [null, settle]) {
         await step?.();
         expect(await s.manifests()).toHaveLength(1);
-        // the merged chunk replaced the first one: no superseded copy is kept
-        expect((await s.manifests({ includeSuperseded: true })).length).toBe(1);
+        // the merged chunk replaced the first one: at most that one is kept, marked, until the merged bytes are uploaded
+        const all = (await s.manifests({ includeSuperseded: true })).map((m) => m.chunkId);
+        expect(all).toContain(b.manifest!.chunkId);
+        expect(all.filter((id) => id !== b.manifest!.chunkId).every((id) => id === a.manifest!.chunkId)).toBe(true);
         const got = await s.samples({ stream: 'hr', from: '2026-03-10', to: '2026-03-10' });
         expect(got).toHaveLength(15);
         expect(got.every((x, i) => i === 0 || got[i - 1]!.t <= x.t)).toBe(true);

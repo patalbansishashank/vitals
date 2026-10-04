@@ -20,5 +20,5 @@
     "noImplicitOverride": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "tests", "packages/companion/src/home/personProgram.ts", "packages/companion/src/home/personProgram.test.ts", "packages/companion/src/home/personWorkerEntry.ts", "packages/companion/src/home/identicalBatch.test.ts", "packages/companion/src/home/freshReplica.test.ts", "packages/companion/src/home/chunkCopies.test.ts", "packages/companion/src/home/syncedScores.test.ts", "packages/companion/src/home/notOnServer.test.ts"]
+  "include": ["src", "tests", "packages/companion/src/home/personProgram.ts", "packages/companion/src/home/personProgram.test.ts", "packages/companion/src/home/personWorkerEntry.ts", "packages/companion/src/home/identicalBatch.test.ts", "packages/companion/src/home/freshReplica.test.ts", "packages/companion/src/home/chunkCopies.test.ts", "packages/companion/src/home/syncedScores.test.ts", "packages/companion/src/home/notOnServer.test.ts", "packages/companion/src/home/agentWrites.test.ts"]
 }

@@ -40,7 +40,7 @@ import {
   type Tx,
 } from '@/store';
 import { newOwnerSecret, normalizeRelayUrl, pairingCodeOf, parsePairingUri, wordsToSecret } from '@/sync/pairing';
-import { createSyncScheduler, type SyncScheduler, type SyncTrigger } from '@/sync/scheduler';
+import { createSyncScheduler, onEngineBack, type SyncScheduler, type SyncTrigger } from '@/sync/scheduler';
 import { createSyncedBackend, type SyncedBackend } from '@/sync/syncedBackend';
 import type { BlobBackend, PairingCode, SyncConfig, SyncStore, VitalsKeys } from '@/sync/types';
 import type { ChunkStore } from '@/sync/blobs/chunkStore';
@@ -326,6 +326,7 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
   let backend: SyncedBackend | null = null;
   let blobs: ChunkStore | null = null;
   let scheduler: SyncScheduler | null = null;
+  let offBlobPending: (() => void) | null = null;
   let engineStatus: SyncStatus = SYNC_OFF;
   let localError: SyncStatus['lastError'] | undefined;
   let current: SyncStatus = SYNC_OFF;
@@ -363,9 +364,12 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
     return run;
   };
 
-  const round = async (_reason: SyncTrigger): Promise<boolean> => {
+  const round = async (reason: SyncTrigger): Promise<boolean> => {
     const e = engine;
     if (!e || !config?.enabled) return false;
+    // network back or "Sync now" while not connected: a fresh socket instead of waiting out Evolu's back-off (up to 30 s)
+    const state = e.status().state;
+    if ((reason === 'online' || reason === 'manual') && state !== 'synced' && state !== 'syncing') await e.reconnect?.();
     await e.pull();
     await e.push();
     if (blobs?.paired) await blobs.flush();
@@ -394,10 +398,13 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
     trackUnsyncedWrites(previous);
     if (cfg.enabled) deps.allowRelay?.(cfg.relayUrl);
     const e = await deps.createEngine();
+    // back in touch with the relay after offline/error/connecting: the `online` round flushes queued uploads at once
+    const cameBack = onEngineBack(() => void scheduler?.trigger('online'));
     const offStatus = e.onStatus((s) => {
       engineStatus = s;
       if (s.state === 'synced') localError = undefined;
       recompute();
+      cameBack(s.state);
     });
     try {
       await e.open({ secret: key, relayUrl: cfg.enabled ? cfg.relayUrl : null, deviceId: cfg.deviceId, memoryOnly: deps.memoryOnly });
@@ -469,6 +476,15 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
     await cs.attachRemote({ seal: e.keys.blob, backend: deps.remoteBlobs(cfg.relayUrl, e.keys) });
     if (backlog) await cs.queueAll();
     blobs = cs;
+    // a chunk stored between rounds shows in "N uploads waiting" at once
+    offBlobPending?.();
+    offBlobPending = cs.onPendingChange(() => recompute());
+  };
+  const dropBlobs = () => {
+    offBlobPending?.();
+    offBlobPending = null;
+    blobs?.detachRemote();
+    blobs = null;
   };
 
   /** Switch back to the local backend, keeping everything this device has; delete the engine's local database. */
@@ -479,6 +495,8 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
     const e = engine;
     const b = backend;
     const cs = blobs;
+    offBlobPending?.();
+    offBlobPending = null;
     engine = null;
     backend = null;
     blobs = null;
@@ -625,8 +643,7 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
         if (next.enabled) deps.allowRelay?.(next.relayUrl);
         if (engine && relayChanged) {
           await engine.setRelay(next.enabled ? next.relayUrl : null);
-          blobs?.detachRemote();
-          blobs = null;
+          dropBlobs();
           if (next.enabled) await attachBlobs(next, engine, false);
         }
         config = next;

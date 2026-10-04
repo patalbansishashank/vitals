@@ -1,0 +1,155 @@
+/* ==========================================================================
+   Body signals chart shell (design/screens/ring-pages.md §6.3, §7, §7.2):
+   engraved title + readouts, a reserved plot height, "reading…" / failed /
+   no-data states, the stale frame at 40 % with a 2 px progress rule, the
+   missing stub (dashed ink-3) and the unknown-sleep hatch. Tokens only;
+   colour belongs to data marks, chrome stays achromatic.
+   ========================================================================== */
+
+@layer components {
+  .sg-chart {
+    min-width: 0;
+    position: relative;
+  }
+  .sg-chart + .sg-chart { margin-top: 16px; }
+  .sg-chart__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 16px;
+    margin-bottom: 8px;
+  }
+  .sg-chart__title { margin: 0; }
+  .sg-chart__readouts {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .sg-chart__plot {
+    position: relative;
+    min-width: 0;
+  }
+  .sg-chart__frame {
+    position: relative;
+    outline: none;
+  }
+  .sg-chart[data-stale='true'] .sg-chart__frame { opacity: 0.4; }
+  .sg-chart__rule {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--lm-ink-2), transparent);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: sg-rule 1.2s linear infinite;
+    z-index: 1;
+  }
+  @keyframes sg-rule {
+    from { background-position: -40% 0; }
+    to { background-position: 140% 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sg-chart__rule { animation: none; background: var(--lm-ink-3); }
+  }
+  :root[data-motion='reduce'] .sg-chart__rule { animation: none; background: var(--lm-ink-3); }
+  .sg-chart__state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .sg-chart__state p { margin: 0; }
+  .sg-chart__empty {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+    padding: 2px 8px;
+    max-width: 90%;
+    text-align: center;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+    background: var(--lm-face);
+    pointer-events: none;
+  }
+  .sg-chart__foot {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--lm-ink-2);
+  }
+  .sg-chart__tablebar {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+
+  /* svg marks shared by every chart */
+  .sg-svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+    touch-action: pan-y;
+  }
+  .sg-svg:focus-visible { outline: 2px solid var(--lm-focus); outline-offset: 2px; }
+  .sg-grid { stroke: var(--lm-chart-grid); stroke-width: 1; }
+  .sg-axis { stroke: var(--lm-chart-axis); stroke-width: 1; }
+  .sg-tick {
+    font-size: 11px;
+    font-stretch: condensed;
+    fill: var(--lm-chart-tick);
+    font-variant-numeric: tabular-nums;
+  }
+  .sg-label {
+    font-size: 11px;
+    fill: var(--lm-ink-2);
+  }
+  .sg-crosshair { stroke: var(--lm-chart-crosshair); stroke-width: 1; pointer-events: none; }
+  .sg-goal { stroke: var(--lm-ink); stroke-width: 1; }
+  .sg-goal-label { font-size: 11px; fill: var(--lm-ink); }
+  .sg-nowhand { stroke: var(--lm-signal); stroke-width: 1.5; }
+  .sg-missing {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+  .sg-hatch { stroke: var(--lm-ink-3); stroke-width: 1; }
+
+  .sg-twin {
+    margin-top: 8px;
+    max-height: 320px;
+    overflow: auto;
+    border-top: 1px solid var(--lm-line);
+  }
+  .sg-twin__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+  }
+  .sg-twin__table th,
+  .sg-twin__table td {
+    padding: 4px 8px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sg-twin__table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--lm-face);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .sg-twin__table td { font-variant-numeric: tabular-nums; }
+}

@@ -1,0 +1,1627 @@
+{
+  "family": "colmi",
+  "source": "Scripted from the Kotlin unit tests and ColmiSyncEngine.kt of the upstream Android app; synthetic bytes only",
+  "conventions": {
+    "step": "{ expectWrite: exact on-air hex, channel?: \"command\" (big-data requests go to de5bf72a-…; default \"write\" = 6e400002-…), notify: frames the fake ring sends after that write, notifyChannel?: \"bigData\" (de5bf729-…; default \"notify\" = 6e400003-…) }",
+    "action": "What the session caller did to cause the write (handshake, liveHeartRate.start, workout.start, syncSleepNow, …). Steps without an action follow from the previous reply or a timer (afterMs).",
+    "expectEvents": "Kotlin RingDecodedEvent output for the step's notifications (asserted in the test where the source says so, otherwise derived from the Kotlin source).",
+    "clock": "nowMs / tzOffsetS used to build time-dependent frames (set time, HR day requests) and timestamps. Kotlin writes the LOCAL wall clock to the ring.",
+    "ordering": "Kotlin queues writes without waiting for replies. A fake ring that answers right after each write produces the same write order.",
+    "startsAfter": "History sessions start at the first history request (43 00 0f 00 5f 01), which is also the last write of every handshake session."
+  },
+  "sessions": [
+    {
+      "name": "handshake-cold-battery",
+      "source": "ColmiMeasurementSettingsTest.kt (startup with no persisted config), ColmiDecoderTest.kt (battery)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "state": {
+        "measurementSettings": null,
+        "profile": null
+      },
+      "note": "Kotlin enqueues every handshake write at once and never waits for a reply; replies are matched by opcode as they arrive. The ring here reports all-day HR on at 5 min and temperature on, so the engine writes nothing back and seeds the config from the replies.",
+      "steps": [
+        {
+          "expectWrite": "04 02 0a 50 4c 00 00 00 00 00 00 00 00 00 00 ac",
+          "notify": [],
+          "action": "handshake"
+        },
+        {
+          "expectWrite": "01 26 07 17 12 00 00 01 00 00 00 00 00 00 00 58",
+          "notify": [],
+          "note": "Local wall clock in BCD + language byte (01 = English). No reply is consumed."
+        },
+        {
+          "expectWrite": "0a 02 00 00 02 19 af 46 78 5a 00 00 00 00 00 ee",
+          "notify": [],
+          "note": "No profile pushed yet: encoder defaults (metric, gender 2, 25 y, 175 cm, 70 kg)."
+        },
+        {
+          "expectWrite": "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c"
+          ]
+        },
+        {
+          "expectWrite": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03",
+          "notify": [
+            "03 54 00 00 00 00 00 00 00 00 00 00 00 00 00 57"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "Battery",
+              "percent": 84
+            }
+          ]
+        },
+        {
+          "expectWrite": "16 01 00 00 00 00 00 00 00 00 00 00 00 00 00 17",
+          "notify": [
+            "16 01 01 05 00 00 00 00 00 00 00 00 00 00 00 1d"
+          ]
+        },
+        {
+          "expectWrite": "36 01 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "2c 01 00 00 00 00 00 00 00 00 00 00 00 00 00 2d",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "38 01 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "3a 03 01 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+          "notify": [
+            "3a 03 01 01 00 00 00 00 00 00 00 00 00 00 00 3f"
+          ]
+        },
+        {
+          "expectWrite": "21 01 00 00 00 00 00 00 00 00 00 00 00 00 00 22",
+          "notify": [],
+          "note": "Reply not consumed."
+        },
+        {
+          "expectWrite": "2c 02 01 00 00 00 00 00 00 00 00 00 00 00 00 2f",
+          "notify": []
+        },
+        {
+          "expectWrite": "36 02 01 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": []
+        },
+        {
+          "expectWrite": "38 02 01 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": []
+        },
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [],
+          "note": "First history request: the history walk starts here (see the history-walk sessions)."
+        }
+      ],
+      "expectSeededSettings": {
+        "hrEnabled": true,
+        "hrIntervalMinutes": 5,
+        "spo2Enabled": true,
+        "stressEnabled": true,
+        "hrvEnabled": true,
+        "temperatureEnabled": true
+      }
+    },
+    {
+      "name": "handshake-cold-hr-disabled",
+      "source": "ColmiMeasurementSettingsTest.kt (ring-disabled all-day HR is re-enabled keeping the ring's interval; seeded config surfaces the ring's settings)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "state": {
+        "measurementSettings": null,
+        "profile": null
+      },
+      "steps": [
+        {
+          "expectWrite": "04 02 0a 50 4c 00 00 00 00 00 00 00 00 00 00 ac",
+          "notify": [],
+          "action": "handshake"
+        },
+        {
+          "expectWrite": "01 26 07 17 12 00 00 01 00 00 00 00 00 00 00 58",
+          "notify": [],
+          "note": "Local wall clock in BCD + language byte (01 = English). No reply is consumed."
+        },
+        {
+          "expectWrite": "0a 02 00 00 02 19 af 46 78 5a 00 00 00 00 00 ee",
+          "notify": [],
+          "note": "No profile pushed yet: encoder defaults (metric, gender 2, 25 y, 175 cm, 70 kg)."
+        },
+        {
+          "expectWrite": "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c"
+          ]
+        },
+        {
+          "expectWrite": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03",
+          "notify": [
+            "03 54 00 00 00 00 00 00 00 00 00 00 00 00 00 57"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "Battery",
+              "percent": 84
+            }
+          ]
+        },
+        {
+          "expectWrite": "16 01 00 00 00 00 00 00 00 00 00 00 00 00 00 17",
+          "notify": [
+            "16 01 02 3c 00 00 00 00 00 00 00 00 00 00 00 55"
+          ]
+        },
+        {
+          "expectWrite": "36 01 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "2c 01 00 00 00 00 00 00 00 00 00 00 00 00 00 2d",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "38 01 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "3a 03 01 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+          "notify": [
+            "3a 03 01 00 00 00 00 00 00 00 00 00 00 00 00 3e"
+          ]
+        },
+        {
+          "expectWrite": "21 01 00 00 00 00 00 00 00 00 00 00 00 00 00 22",
+          "notify": [],
+          "note": "Reply not consumed."
+        },
+        {
+          "expectWrite": "2c 02 01 00 00 00 00 00 00 00 00 00 00 00 00 2f",
+          "notify": []
+        },
+        {
+          "expectWrite": "36 02 01 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": []
+        },
+        {
+          "expectWrite": "38 02 01 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": []
+        },
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [],
+          "note": "First history request: the history walk starts here (see the history-walk sessions)."
+        },
+        {
+          "expectWrite": "16 02 01 3c 00 00 00 00 00 00 00 00 00 00 00 55",
+          "notify": [],
+          "note": "Queued when the 16 01 reply (HR off, 60 min) is handled, so it lands behind everything already queued, i.e. after the first history request."
+        }
+      ],
+      "expectSeededSettings": {
+        "hrEnabled": true,
+        "hrIntervalMinutes": 60,
+        "spo2Enabled": true,
+        "stressEnabled": true,
+        "hrvEnabled": true,
+        "temperatureEnabled": false
+      }
+    },
+    {
+      "name": "handshake-persisted-settings-and-profile",
+      "source": "ColmiMeasurementSettingsTest.kt (startup emits the configured HR interval and vital toggles; user profile feeds the preferences command; seeding ignores replies when a persisted config exists)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "state": {
+        "measurementSettings": {
+          "hrEnabled": true,
+          "hrIntervalMinutes": 15,
+          "spo2Enabled": true,
+          "stressEnabled": false,
+          "hrvEnabled": true,
+          "temperatureEnabled": false
+        },
+        "profile": {
+          "metric": false,
+          "sex": "female",
+          "ageYears": 42,
+          "heightCm": 160,
+          "weightKg": 55
+        }
+      },
+      "note": "With a saved config the replies are ignored: the 16 01 reply below (HR off, 60 min) does not cause a second 0x16 write.",
+      "steps": [
+        {
+          "expectWrite": "04 02 0a 50 4c 00 00 00 00 00 00 00 00 00 00 ac",
+          "notify": [],
+          "action": "handshake"
+        },
+        {
+          "expectWrite": "01 26 07 17 12 00 00 01 00 00 00 00 00 00 00 58",
+          "notify": [],
+          "note": "Local wall clock in BCD + language byte (01 = English). No reply is consumed."
+        },
+        {
+          "expectWrite": "0a 02 00 01 00 2a a0 37 78 5a 00 00 00 00 00 e0",
+          "notify": [],
+          "note": "Profile from the person's record."
+        },
+        {
+          "expectWrite": "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c"
+          ]
+        },
+        {
+          "expectWrite": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03",
+          "notify": [
+            "03 54 00 00 00 00 00 00 00 00 00 00 00 00 00 57"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "Battery",
+              "percent": 84
+            }
+          ]
+        },
+        {
+          "expectWrite": "16 01 00 00 00 00 00 00 00 00 00 00 00 00 00 17",
+          "notify": [
+            "16 01 02 3c 00 00 00 00 00 00 00 00 00 00 00 55"
+          ]
+        },
+        {
+          "expectWrite": "36 01 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "2c 01 00 00 00 00 00 00 00 00 00 00 00 00 00 2d",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "38 01 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [],
+          "note": "Reply layout unverified; the Kotlin only sees it as CommandAck."
+        },
+        {
+          "expectWrite": "3a 03 01 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+          "notify": [
+            "3a 03 01 00 00 00 00 00 00 00 00 00 00 00 00 3e"
+          ]
+        },
+        {
+          "expectWrite": "21 01 00 00 00 00 00 00 00 00 00 00 00 00 00 22",
+          "notify": [],
+          "note": "Reply not consumed."
+        },
+        {
+          "expectWrite": "16 02 01 0f 00 00 00 00 00 00 00 00 00 00 00 28",
+          "notify": []
+        },
+        {
+          "expectWrite": "2c 02 01 00 00 00 00 00 00 00 00 00 00 00 00 2f",
+          "notify": []
+        },
+        {
+          "expectWrite": "36 02 00 00 00 00 00 00 00 00 00 00 00 00 00 38",
+          "notify": []
+        },
+        {
+          "expectWrite": "38 02 01 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": []
+        },
+        {
+          "expectWrite": "3a 03 02 00 1e 05 0a 00 b9 00 00 00 00 00 00 25",
+          "notify": []
+        },
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [],
+          "note": "First history request: the history walk starts here (see the history-walk sessions)."
+        }
+      ]
+    },
+    {
+      "name": "history-walk-empty-cold",
+      "source": "ColmiSyncEngineGateTest.kt, ColmiSleepSyncTest.kt, ColmiQringParityTest.kt",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "any handshake session (its last write, 43 00 …, is this session's first)",
+      "note": "Every day answers \"no data\" (byte 1 = ff); every big-data reply is empty (length 0). Order: activity 0..7, HR 0..7, stress 0..6, SpO2, sleep, HRV 0..6, temperature (legacy action 37, 6 days because the 0x3C reply did not set supportIntervalTemp). Then the sync is done and nothing more is written.",
+      "steps": [
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 01 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b3",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 02 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b4",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 03 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b5",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 04 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b6",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 05 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b7",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 06 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b8",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 07 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b9",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 1f 58 6a 00 00 00 00 00 00 00 00 00 00 f6",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 cd 56 6a 00 00 00 00 00 00 00 00 00 00 22",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 7c 55 6a 00 00 00 00 00 00 00 00 00 00 50",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 2a 54 6a 00 00 00 00 00 00 00 00 00 00 7d",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 d9 52 6a 00 00 00 00 00 00 00 00 00 00 aa",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 87 51 6a 00 00 00 00 00 00 00 00 00 00 d7",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 36 50 6a 00 00 00 00 00 00 00 00 00 00 05",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 01 00 00 00 00 00 00 00 00 00 00 00 00 00 38",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 02 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 03 00 00 00 00 00 00 00 00 00 00 00 00 00 3a",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 04 00 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 05 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 06 00 00 00 00 00 00 00 00 00 00 00 00 00 3d",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "bc 2a 01 00 ff 00 ff",
+          "channel": "command",
+          "notify": [
+            "bc 2a 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 27 02 00 81 80 ff 01",
+          "channel": "command",
+          "notify": [
+            "bc 27 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "39 00 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 01 00 00 00 00 00 00 00 00 00 00 00 00 00 3a",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 02 00 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 03 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 04 00 00 00 00 00 00 00 00 00 00 00 00 00 3d",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 05 00 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 06 00 00 00 00 00 00 00 00 00 00 00 00 00 3f",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "bc 25 01 00 3f 42 06",
+          "channel": "command",
+          "notify": [
+            "bc 25 00 00 00 00"
+          ],
+          "notifyChannel": "bigData",
+          "expectProgress": "done"
+        }
+      ],
+      "expectNoMoreWrites": true
+    },
+    {
+      "name": "history-walk-empty-warm-today-only",
+      "source": "ColmiSyncEngineGateTest.kt (completed cold pass becomes today only)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "history-walk-empty-cold on the SAME engine (same connection); runStartup is called again",
+      "note": "No handshake is repeated on the same engine. In the Android app a reconnect builds a new engine, so every connection starts cold.",
+      "steps": [
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "bc 2a 01 00 ff 00 ff",
+          "channel": "command",
+          "notify": [
+            "bc 2a 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 27 02 00 81 80 ff 01",
+          "channel": "command",
+          "notify": [
+            "bc 27 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "39 00 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "bc 25 01 00 7e 80 01",
+          "channel": "command",
+          "notify": [
+            "bc 25 00 00 00 00"
+          ],
+          "notifyChannel": "bigData",
+          "expectProgress": "done",
+          "note": "days 0 is clamped to 1."
+        }
+      ],
+      "expectNoMoreWrites": true
+    },
+    {
+      "name": "hr-log-day-read",
+      "source": "ColmiQringParityTest.kt (hr day with data completes at packet size-1 and advances to the next day)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "any handshake session",
+      "note": "Activity days answer empty to reach the HR stage. HR day 0 has three packets; the request carries the local date at 00:00 UTC and the ring echoes it in packet 1.",
+      "steps": [
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 01 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b3",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 02 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b4",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 03 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b5",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 04 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b6",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 05 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b7",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 06 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b8",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 07 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b9",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+          "notify": [
+            "15 00 03 05 00 00 00 00 00 00 00 00 00 00 00 1d",
+            "15 01 80 70 59 6a 46 47 00 00 00 00 00 00 00 56",
+            "15 02 48 49 4a 00 00 00 00 00 00 00 00 00 00 f2"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 70,
+              "_timestamp": "2026-07-16T22:00:00Z"
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 71,
+              "_timestamp": "2026-07-16T22:05:00Z"
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 72,
+              "_timestamp": "2026-07-16T22:45:00Z"
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 73,
+              "_timestamp": "2026-07-16T22:50:00Z"
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind_field": "HEART_RATE",
+              "value": 74,
+              "_timestamp": "2026-07-16T22:55:00Z"
+            }
+          ],
+          "note": "Packet 0: [15 00 size slotMin]. Packet 1: [15 01 echo u32 LE][9 samples]. Packets 2..size-1: [15 n][13 samples]. 0 = no sample. Packet size-1 ends the day. Samples sit at local midnight + slot * index."
+        },
+        {
+          "expectWrite": "15 00 1f 58 6a 00 00 00 00 00 00 00 00 00 00 f6",
+          "notify": [],
+          "note": "Day 0 complete; the engine asks for day 1 (the session stops here)."
+        }
+      ]
+    },
+    {
+      "name": "steps-day-read",
+      "source": "ColmiDecoderTest.kt (activity buckets keep 15-minute slice starts) + ColmiSyncEngine.isTerminalPacket",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "any handshake session",
+      "steps": [
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [
+            "43 f0 02 01 00 00 00 00 00 00 00 00 00 00 00 36",
+            "43 26 07 17 20 00 02 00 00 64 00 50 00 00 00 5d",
+            "43 26 07 17 21 01 02 00 00 fa 00 c8 00 00 00 6d"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "ActivityBucket",
+              "_timestamp": "2026-07-17T06:00:00Z",
+              "steps": 100,
+              "distanceMeters": 80
+            },
+            {
+              "kotlin": "ActivityBucket",
+              "_timestamp": "2026-07-17T06:15:00Z",
+              "steps": 250,
+              "distanceMeters": 200
+            }
+          ],
+          "note": "Header packet (byte 1 = f0) is skipped by the Kotlin; its bytes 2..3 are synthetic here (the MIT client reads byte 3 == 1 as \"new calorie protocol\"). Data packets: BCD date, quarter-hour slot, [5] index, [6] count; the day ends when [5] == [6] - 1. Slot times are LOCAL wall clock."
+        },
+        {
+          "expectWrite": "43 01 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b3",
+          "notify": [],
+          "note": "Day 0 complete; the engine asks for day 1 (the session stops here)."
+        }
+      ]
+    },
+    {
+      "name": "sleep-standalone",
+      "source": "ColmiSleepSyncTest.kt (syncSleepNow from idle fires exactly the standalone sleep request; standalone sleep completion does not advance the pipeline)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "idle engine (no history walk running), e.g. after history-walk-empty-cold",
+      "steps": [
+        {
+          "expectWrite": "bc 27 02 00 81 80 ff 01",
+          "channel": "command",
+          "notify": [
+            "bc 27 19 00 00 00 01 00 16 64 05 a4 01 02 3c 03 2d 02 5a 04",
+            "1e 05 05 02 78 03 1e 04 3c 02 28",
+            "bc 3e 09 00 00 00 01 01 06 0c 03 2a 03 02 1e"
+          ],
+          "action": "syncSleepNow",
+          "notifyChannel": "bigData",
+          "expectEvents": [
+            {
+              "kotlin": "SleepTimeline",
+              "_timestamp": "2026-07-16T21:00:00Z",
+              "stagesRunLength": [
+                {
+                  "stage": "LIGHT",
+                  "minutes": 60
+                },
+                {
+                  "stage": "DEEP",
+                  "minutes": 45
+                },
+                {
+                  "stage": "LIGHT",
+                  "minutes": 90
+                },
+                {
+                  "stage": "REM",
+                  "minutes": 30
+                },
+                {
+                  "stage": "AWAKE",
+                  "minutes": 5
+                },
+                {
+                  "stage": "LIGHT",
+                  "minutes": 120
+                },
+                {
+                  "stage": "DEEP",
+                  "minutes": 30
+                },
+                {
+                  "stage": "REM",
+                  "minutes": 60
+                },
+                {
+                  "stage": "LIGHT",
+                  "minutes": 40
+                }
+              ],
+              "stageCount": 480
+            },
+            {
+              "kotlin": "SleepTimeline",
+              "_timestamp": "2026-07-16T11:00:00Z",
+              "stagesRunLength": [
+                {
+                  "stage": "LIGHT",
+                  "minutes": 30
+                }
+              ],
+              "stageCount": 30
+            }
+          ],
+          "note": "Main sleep (action 0x27) arrives in 20-byte chunks and is reassembled by the length in bytes 2..3. Start 1380 > end 420, so the night starts 60 min before the local midnight of daysAgo 0. The unsolicited nap record (action 0x3e) uses the same layout and never advances anything."
+        }
+      ],
+      "expectNoMoreWrites": true
+    },
+    {
+      "name": "sleep-in-pipeline",
+      "source": "ColmiSleepSyncTest.kt (in-pipeline sleep completion still advances to HRV)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "any handshake session",
+      "steps": [
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 01 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b3",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 02 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b4",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 03 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b5",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 04 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b6",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 05 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b7",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 06 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b8",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 07 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b9",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 1f 58 6a 00 00 00 00 00 00 00 00 00 00 f6",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 cd 56 6a 00 00 00 00 00 00 00 00 00 00 22",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 7c 55 6a 00 00 00 00 00 00 00 00 00 00 50",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 2a 54 6a 00 00 00 00 00 00 00 00 00 00 7d",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 d9 52 6a 00 00 00 00 00 00 00 00 00 00 aa",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 87 51 6a 00 00 00 00 00 00 00 00 00 00 d7",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 36 50 6a 00 00 00 00 00 00 00 00 00 00 05",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 01 00 00 00 00 00 00 00 00 00 00 00 00 00 38",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 02 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 03 00 00 00 00 00 00 00 00 00 00 00 00 00 3a",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 04 00 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 05 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 06 00 00 00 00 00 00 00 00 00 00 00 00 00 3d",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "bc 2a 01 00 ff 00 ff",
+          "channel": "command",
+          "notify": [
+            "bc 2a 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 27 02 00 81 80 ff 01",
+          "channel": "command",
+          "notify": [
+            "bc 27 19 00 00 00 01 00 16 64 05 a4 01 02 3c 03 2d 02 5a 04",
+            "1e 05 05 02 78 03 1e 04 3c 02 28"
+          ],
+          "notifyChannel": "bigData",
+          "expectEvents": [
+            {
+              "kotlin": "SleepTimeline",
+              "_timestamp": "2026-07-16T21:00:00Z",
+              "stagesRunLength": [
+                {
+                  "stage": "LIGHT",
+                  "minutes": 60
+                },
+                {
+                  "stage": "DEEP",
+                  "minutes": 45
+                },
+                {
+                  "stage": "LIGHT",
+                  "minutes": 90
+                },
+                {
+                  "stage": "REM",
+                  "minutes": 30
+                },
+                {
+                  "stage": "AWAKE",
+                  "minutes": 5
+                },
+                {
+                  "stage": "LIGHT",
+                  "minutes": 120
+                },
+                {
+                  "stage": "DEEP",
+                  "minutes": 30
+                },
+                {
+                  "stage": "REM",
+                  "minutes": 60
+                },
+                {
+                  "stage": "LIGHT",
+                  "minutes": 40
+                }
+              ],
+              "stageCount": 480
+            }
+          ]
+        },
+        {
+          "expectWrite": "39 00 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [],
+          "note": "In-pipeline sleep completion advances to HRV day 0 (the session stops here)."
+        }
+      ]
+    },
+    {
+      "name": "live-hr-realtime-rejected-fallback",
+      "source": "ColmiRealtimeHeartRateFallbackTest.kt",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "note": "Rings that refuse 0x1e answer 9e ee. The engine remembers the refusal for the life of the connection and runs live HR on the 0x69 stream; while that stream runs it re-sends 69 01 only after 30 s without a 0x69/1 frame (checked every 20 s).",
+      "steps": [
+        {
+          "expectWrite": "1e 01 00 00 00 00 00 00 00 00 00 00 00 00 00 1f",
+          "notify": [
+            "9e ee 00 00 00 00 00 00 00 00 00 00 00 00 00 8c"
+          ],
+          "action": "liveHeartRate.start",
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateComplete"
+            }
+          ]
+        },
+        {
+          "expectWrite": "69 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6a",
+          "notify": [
+            "69 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6a",
+            "69 01 00 47 00 00 00 00 00 00 00 00 00 00 00 b1",
+            "69 01 00 4a 00 00 00 00 00 00 00 00 00 00 00 b4"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 71
+            },
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 74
+            }
+          ],
+          "note": "The first frame (bpm 0) is warm-up and yields nothing."
+        },
+        {
+          "expectWrite": "6a 01 4a 00 00 00 00 00 00 00 00 00 00 00 00 b5",
+          "notify": [],
+          "action": "liveHeartRate.stop",
+          "note": "The stop carries the last bpm so the ring logs it."
+        },
+        {
+          "expectWrite": "69 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6a",
+          "notify": [],
+          "action": "liveHeartRate.start",
+          "note": "Second session on the same connection: no 0x1e probe."
+        }
+      ]
+    },
+    {
+      "name": "live-hr-realtime-accepted",
+      "source": "ColmiRealtimeHeartRateFallbackTest.kt (a ring that answers 0x1E keeps the realtime path and its continue keepalive)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "steps": [
+        {
+          "expectWrite": "1e 01 00 00 00 00 00 00 00 00 00 00 00 00 00 1f",
+          "notify": [
+            "1e 44 00 00 00 00 00 00 00 00 00 00 00 00 00 62"
+          ],
+          "action": "liveHeartRate.start",
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 68
+            }
+          ]
+        },
+        {
+          "expectWrite": "1e 03 00 00 00 00 00 00 00 00 00 00 00 00 00 21",
+          "notify": [],
+          "afterMs": 20000,
+          "note": "Wall-clock keepalive every 20 s while the stream runs (not per frame)."
+        },
+        {
+          "expectWrite": "1e 02 00 00 00 00 00 00 00 00 00 00 00 00 00 20",
+          "notify": [],
+          "action": "liveHeartRate.stop"
+        }
+      ]
+    },
+    {
+      "name": "spot-hr",
+      "source": "ColmiEncoder.kt / ColmiSyncEngine.measureHeartRateSpot + stopHeartRate; decode per ColmiDecoderTest.kt (manual heart rate ok)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "note": "The caller (RingSyncCoordinator) samples a 30 s window, drops samples in the first 5 s (the ring may echo a cached bpm), then calls stop.",
+      "steps": [
+        {
+          "expectWrite": "69 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6a",
+          "notify": [
+            "69 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6a",
+            "69 01 00 48 00 00 00 00 00 00 00 00 00 00 00 b2"
+          ],
+          "action": "spot.hr",
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 72
+            }
+          ]
+        },
+        {
+          "expectWrite": "6a 01 48 00 00 00 00 00 00 00 00 00 00 00 00 b3",
+          "notify": [],
+          "action": "spot.stop",
+          "afterMs": 30000
+        }
+      ]
+    },
+    {
+      "name": "spot-spo2",
+      "source": "ColmiQringParityTest.kt (manual spo2 start uses the BCD-25 byte); decode per ColmiDecoder.decodeNormal",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "note": "SpO2 values outside 70..100 are warm-up and yield nothing; a nonzero error byte yields Spo2Complete. The caller window is 60 s. 6a also stops any 0x69 heart-rate stream.",
+      "steps": [
+        {
+          "expectWrite": "69 03 25 00 00 00 00 00 00 00 00 00 00 00 00 91",
+          "notify": [
+            "69 03 00 00 00 00 00 00 00 00 00 00 00 00 00 6c",
+            "69 03 00 61 00 00 00 00 00 00 00 00 00 00 00 cd"
+          ],
+          "action": "spot.spo2",
+          "expectEvents": [
+            {
+              "kotlin": "Spo2Result",
+              "value": 97
+            }
+          ]
+        },
+        {
+          "expectWrite": "6a 03 00 00 00 00 00 00 00 00 00 00 00 00 00 6d",
+          "notify": [],
+          "action": "spot.stop",
+          "afterMs": 60000
+        }
+      ]
+    },
+    {
+      "name": "sport-session-cycle",
+      "source": "ColmiSportModeTest.kt (a workout starts a ring-side sport session; ending the workout stops it)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "note": "No keepalive: the ring pushes 0x78 on its own (about every 10 s). After 45 s without a push the engine sends one resume (77 03 type); still silent after another 45 s, it sends stop (77 04 type) and falls back to live HR (1e 01). Checked every 20 s.",
+      "steps": [
+        {
+          "expectWrite": "77 01 09 00 00 00 00 00 00 00 00 00 00 00 00 81",
+          "notify": [
+            "78 00 01 00 05 00 00 01 2c 00 00 64 00 00 00 0f",
+            "78 00 01 00 05 78 00 01 2c 00 00 64 00 00 00 87"
+          ],
+          "action": "workout.start",
+          "params": {
+            "activityType": "cycle"
+          },
+          "expectEvents": [
+            {
+              "kotlin": "SportTelemetry",
+              "bpm": 0
+            },
+            {
+              "kotlin": "SportTelemetry",
+              "bpm": 120
+            },
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 120
+            }
+          ]
+        },
+        {
+          "expectWrite": "77 04 09 00 00 00 00 00 00 00 00 00 00 00 00 84",
+          "notify": [],
+          "action": "workout.stop"
+        }
+      ],
+      "expectNoMoreWrites": true
+    },
+    {
+      "name": "sport-session-rejected",
+      "source": "ColmiSportModeTest.kt (a ring that rejects the sport start falls back to the plain stream, and stays there)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "note": "f7 = 0x77 with the error bit (0x80) set: this firmware has no sport sessions; remembered for the connection.",
+      "steps": [
+        {
+          "expectWrite": "77 01 07 00 00 00 00 00 00 00 00 00 00 00 00 7f",
+          "notify": [
+            "f7 01 00 00 00 00 00 00 00 00 00 00 00 00 00 f8"
+          ],
+          "action": "workout.start",
+          "params": {
+            "activityType": "run"
+          }
+        },
+        {
+          "expectWrite": "1e 01 00 00 00 00 00 00 00 00 00 00 00 00 00 1f",
+          "notify": [],
+          "note": "Fallback to the plain live-HR stream."
+        },
+        {
+          "expectWrite": "1e 02 00 00 00 00 00 00 00 00 00 00 00 00 00 20",
+          "notify": [],
+          "action": "workout.stop"
+        },
+        {
+          "expectWrite": "1e 01 00 00 00 00 00 00 00 00 00 00 00 00 00 1f",
+          "notify": [],
+          "action": "workout.start",
+          "params": {
+            "activityType": "run"
+          },
+          "note": "Next workout skips the sport session."
+        }
+      ]
+    },
+    {
+      "name": "sport-session-ended-by-ring",
+      "source": "ColmiSportModeTest.kt (the ring ending the session itself moves the workout onto the plain stream)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "steps": [
+        {
+          "expectWrite": "77 01 07 00 00 00 00 00 00 00 00 00 00 00 00 7f",
+          "notify": [
+            "78 00 03 00 05 00 00 01 2c 00 00 64 00 00 00 11"
+          ],
+          "action": "workout.start",
+          "params": {
+            "activityType": "run"
+          },
+          "note": "Status byte 3 = the ring ended this session."
+        },
+        {
+          "expectWrite": "1e 01 00 00 00 00 00 00 00 00 00 00 00 00 00 1f",
+          "notify": [],
+          "note": "Rest of this workout on live HR; the next workout tries a sport session again."
+        }
+      ]
+    },
+    {
+      "name": "interval-temperature-paging",
+      "source": "ColmiQringParityTest.kt (interval-temp ring pages temperature per day with packet continuation)",
+      "clock": {
+        "nowMs": 1784282400000,
+        "tzOffsetS": 7200
+      },
+      "startsAfter": "a handshake whose 0x3C reply sets supportIntervalTemp, e.g. 3c reply 3c 00 00 00 00 00 00 00 00 80 00 00 00 00 00 bc",
+      "preconditionState": {
+        "supportsIntervalTemp": true
+      },
+      "note": "After a day's last packet the next day starts at packet 0; after day 6 the sync is done. A reply whose packet index does not advance drops to the next day (no re-request loop). A re-emitted frame after done is ignored.",
+      "steps": [
+        {
+          "expectWrite": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 01 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b3",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 02 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b4",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 03 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b5",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 04 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b6",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 05 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b7",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 06 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b8",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "43 07 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b9",
+          "notify": [
+            "43 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 42"
+          ]
+        },
+        {
+          "expectWrite": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 1f 58 6a 00 00 00 00 00 00 00 00 00 00 f6",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 cd 56 6a 00 00 00 00 00 00 00 00 00 00 22",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 7c 55 6a 00 00 00 00 00 00 00 00 00 00 50",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 2a 54 6a 00 00 00 00 00 00 00 00 00 00 7d",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 d9 52 6a 00 00 00 00 00 00 00 00 00 00 aa",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 80 87 51 6a 00 00 00 00 00 00 00 00 00 00 d7",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "15 00 36 50 6a 00 00 00 00 00 00 00 00 00 00 05",
+          "notify": [
+            "15 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 14"
+          ]
+        },
+        {
+          "expectWrite": "37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 01 00 00 00 00 00 00 00 00 00 00 00 00 00 38",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 02 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 03 00 00 00 00 00 00 00 00 00 00 00 00 00 3a",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 04 00 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 05 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "37 06 00 00 00 00 00 00 00 00 00 00 00 00 00 3d",
+          "notify": [
+            "37 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 36"
+          ]
+        },
+        {
+          "expectWrite": "bc 2a 01 00 ff 00 ff",
+          "channel": "command",
+          "notify": [
+            "bc 2a 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 27 02 00 81 80 ff 01",
+          "channel": "command",
+          "notify": [
+            "bc 27 00 00 00 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "39 00 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 01 00 00 00 00 00 00 00 00 00 00 00 00 00 3a",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 02 00 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 03 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 04 00 00 00 00 00 00 00 00 00 00 00 00 00 3d",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 05 00 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "39 06 00 00 00 00 00 00 00 00 00 00 00 00 00 3f",
+          "notify": [
+            "39 ff 00 00 00 00 00 00 00 00 00 00 00 00 00 38"
+          ]
+        },
+        {
+          "expectWrite": "bc 77 02 00 01 b0 00 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 08 00 00 00 00 1e 02 00 1c 0e 24 0e"
+          ],
+          "notifyChannel": "bigData",
+          "expectEvents": [
+            {
+              "kotlin": "TemperatureSample",
+              "celsius": 36.12,
+              "_timestamp": "2026-07-16T22:00:00Z",
+              "isHistory": true
+            },
+            {
+              "kotlin": "TemperatureSample",
+              "celsius": 36.2,
+              "_timestamp": "2026-07-16T22:30:00Z",
+              "isHistory": true
+            }
+          ],
+          "note": "Reply header [6] day, [7] interval min, [8] packet count, [9] packet index; samples u16 LE centi-degC on the local-day grid."
+        },
+        {
+          "expectWrite": "bc 77 02 00 c0 70 00 01",
+          "channel": "command",
+          "notify": [
+            "bc 77 06 00 00 00 00 1e 02 01 11 0e"
+          ],
+          "notifyChannel": "bigData",
+          "expectEvents": [
+            {
+              "kotlin": "TemperatureSample",
+              "celsius": 36.01,
+              "_timestamp": "2026-07-16T23:00:00Z",
+              "isHistory": true
+            }
+          ],
+          "note": "Packet 1 continues the slot grid of packet 0 (sample offset 2)."
+        },
+        {
+          "expectWrite": "bc 77 02 00 00 20 01 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 04 00 00 00 01 1e 01 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 77 02 00 00 d0 02 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 04 00 00 00 02 1e 01 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 77 02 00 01 40 03 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 04 00 00 00 03 1e 01 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 77 02 00 03 70 04 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 04 00 00 00 04 1e 01 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 77 02 00 02 e0 05 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 04 00 00 00 05 1e 01 00"
+          ],
+          "notifyChannel": "bigData"
+        },
+        {
+          "expectWrite": "bc 77 02 00 02 10 06 00",
+          "channel": "command",
+          "notify": [
+            "bc 77 04 00 00 00 06 1e 01 00"
+          ],
+          "notifyChannel": "bigData",
+          "expectProgress": "done"
+        }
+      ],
+      "expectNoMoreWrites": true
+    }
+  ]
+}

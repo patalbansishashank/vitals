@@ -11,6 +11,7 @@ named export, so a later decision changes one line, not a design.
 19:20: R1, R3 (+ seed), R4 (+ supplement seed), R5, R7, R8, R9, R10, R11; `docs/PLANNER_V2_SPEC.md` (A2) is normative for
 the planner side of every interface shared here (§3.6, §8.4). R7's engine choice is gated by a two-week spike, so the
 store is specified behind an engine-neutral interface (§2).
+**Later batches:** §13 Batch 02 contracts (plan 02) · §14 Batch 03 contracts (plan 03, v0.4.0) · §15 One app everywhere (plan 04, v0.5.0).
 
 ---
 
@@ -2231,10 +2232,15 @@ addresses are accepted.
 | `GET /v1/devices` | device token (kind `device`) | — | `{ devices: Array<{ id, kind, label, scope, createdAt, lastSeenAt, current: boolean }> }` | `401` |
 | `DELETE /v1/devices/{id}` | device token (kind `device`) of the same person, or admin | — | `204`; the revoked device's next request gets `401 revoked` | `401`, `404 not_found` |
 
-**Sync after pairing.** (I3: pairing never fills the sync key, as written.) The pairing response does not carry the sync key. A newly paired browser that is not yet in the
-person's sync group joins it the way it does today (sync phrase or QR from another device, `sync.join`), and Settings ›
-Server says so in one line when `sync.status` shows no sync. Reason: the device token already grants the person's data on
-a `home` server through routes, but the sync key is the person's root secret (R17) and stays out of any HTTP response.
+**Sync after pairing** (plan 04 decision 5, R20-PAIR, L-SYNC). Pairing turns sync on. Right after pairing to a `home`
+server the browser asks once for the person's sync key with `POST /v1/sync/key` (device token of kind `device`, scope
+`full`, body `{}`), answered `200 { key: <base64url 32 B>, format: 'owner-secret-v1' }` with `Cache-Control: no-store`
+and `Pragma: no-cache`, and an audit line with the device id. It works once per device and only inside the pairing
+code's 10-minute window: a second call is `409 already_issued`, a late one `410 window_closed`, another token kind or
+scope `403 wrong_kind`. The key is only ever in that response body (never a URL, query, log line, page or storage
+outside the sync vault). The browser then joins the person's sync group as it would with the 24 words (`sync.join`,
+merge by default when it already holds data; a device that syncs with another key is told so, never switched). A
+`relay`-role server has no such route (`404`) and keeps the words path; the 24 words stay the backup.
 
 **Tokens.**
 - `token` = 32 random bytes base64url. The server keeps only its SHA-256 (constant-time lookup) in `devices.json` with
@@ -2347,6 +2353,14 @@ A test scans every `message` for the forbidden-text list (§9.3 guard tests) and
 | `edit` | `read` + `log` + `edit` | `edit` staged as proposals; never applied by the agent |
 
 (I3: on the server agents never apply edits directly; edits are always staged.)
+
+- **Briefing for agents** (plan 04 item 12, L-MCP): every MCP server built on `packages/companion/src/mcp.ts`
+  sends `instructions` at initialize (`MCP_INSTRUCTIONS` in `packages/companion/src/briefingRules.ts`:
+  the Coach's rules only, no personal data), offers the read tool `briefing_get` (command `briefing.get`: the Coach's own
+  briefing, built by the same builder and filtered by the same Coach visibility switches), the prompt `coach` and the
+  resource `vitals://briefing`; prompts and resources go through the same token scope and limits as tools. `toMcpTools`
+  lists portable output schemas (no `prefixItems` tuples, which MCP clients' draft-07 validation rejects); the toolset
+  hash is still computed over the app's own manifest.
 
 - **Token minting** (from the website, Settings › Agents, device token of kind `device`):
 
@@ -2603,3 +2617,395 @@ browser's permission for the server.
 | **Website through the server, Coach with tools** | E27 + E26 | the binding test rule of PLAN "Final scope" | the built website (Playwright, Chromium) paired to the server by code; Coach on `siwc` (owner's sign-in once, then recorded fixtures replayed by a stub upstream in CI) receives a typed message, streams a reply, calls at least one read tool and one `log` tool, the log entry appears in a second browser profile through sync within 5 s; same journey on oci-arm before the tag |
 | **Agent through the server** | E26 | no tab needed | with no browser open, an MCP client (the SDK client in the test; Codex on the owner's PC for the release proof) lists tools with an agent token, calls a read tool and an `edit` tool; the edit appears as a proposal on the website; destructive tools absent; a `read`-scope token cannot call a `log` tool |
 | **Error wording** | E27 | §14.3 table | every error message renders as specified and passes the forbidden-text scan |
+
+---
+
+## 15. One app everywhere (plan 04, v0.5.0)
+
+**Status:** normative for v0.5.0 (package A5b, 2026-10-04). Plan: `plan/04-next/PLAN.md` items 1–12 and decisions 1–13.
+Owners: `L-RINGSVC` (ring service, item 11 defaults), `L-PAGES` (Ring and Body signals pages), `L-SYNC` (pairing turns
+sync on), `L-DESKTOP` (Electron), `L-ANDROID` (Capacitor), `L-WEB` (downloads block), `S0` (`src/platform/` stub,
+completed by `L-WEB`). The ring library (`packages/rings`: `RingFamily`, `Protocol`, `Transport`, `TransportFactory`,
+`openRingSession`, `RingSession`, `RingError`, `ringIdentity`, `ringSourceKey`, `ringRecords`, `reconnectDelayMs`) is
+A5a's contract (`packages/rings/src/types.ts`, `records.ts`); the platform transports are `L-XPORT`'s
+(`src/biometrics/ble/transports`: `pickTransport()`, `requestDevice`, `reconnect`, `NoDeviceError`). This section uses
+them and does not redefine them. Visual design of every screen named here
+is `L-AUDIT`'s `design/screens/ring-pages.md`. Where this section and §4.5, §4.6 or §14 disagree, this section wins for
+v0.5.0.
+
+**What changes in one paragraph.** One web build runs in four places: the website, the installed PWA, an Electron
+desktop app and a Capacitor Android app. Each place reports what it is (`src/platform/`) and what it can do; nothing
+else in the app branches on user agents. A ring service in the app connects to the person's known rings on its own,
+holds one link per ring, reads history since the last read, and writes records with provenance into the biometrics
+store, so sync carries them to every device. A ring talks to one device at a time; every device shows where it is
+connected and offers "Connect here instead". Ring data is shared with the plan, scores, Coach and agents by default.
+Pairing a server turns sync on. The website's first screen offers the apps; the apps never show that block.
+
+### 15.1 Platform detection (`src/platform/`, tier H) · owner **S0** (stub), **L-WEB**
+
+```ts
+export type Platform = 'web' | 'pwa' | 'electron' | 'android';
+export interface PlatformCaps {
+  platform: Platform;
+  ble: 'web-bluetooth' | 'capacitor' | 'electron' | null;   // the transport `pickTransport()` returns (L-XPORT)
+  keepAlive: boolean;          // the link may outlive the visible window (Android foreground service, desktop tray)
+  installedApp: boolean;       // electron | android: no downloads block, no PWA install section
+  mcpHost: boolean;            // electron only (§15.6)
+  os: 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'chromeos' | 'other';
+}
+export function platform(): Platform;            // decided once at boot, then frozen
+export function platformCaps(): PlatformCaps;
+export function shell(): ShellBridge;            // §15.8; a no-op implementation on web and pwa
+```
+- Order: `window.vitalsDesktop` present (the preload bridge, §15.6; `Electron/` in the user agent until it is) → `electron`; `Capacitor.isNativePlatform()` and
+  `Capacitor.getPlatform() === 'android'` → `android`; standalone display (`isStandalone` in `src/app/pwa/install.ts`,
+  exported for this) → `pwa`; else `web`. No user-agent sniffing for the platform; the user agent and `navigator.userAgentData` are read only for `os`.
+- `ble` follows `pickTransport()`; on web and pwa it is `'web-bluetooth'` only when `isWebBluetoothAvailable()` (`src/biometrics/ble/webBluetooth.ts`)
+  is true, else `null` (the Ring page then says the browser cannot reach rings and offers the apps, §15.3).
+- Files: `src/platform/{index,detect,caps,shell,os}.ts`, `__tests__/detect.test.ts` (each platform from a stubbed
+  `window`). Tier H: pure modules (tier P) never import `src/platform`.
+- Tests may force a platform with `setPlatformForTests(p)`; no URL parameter or setting changes it in a build.
+
+### 15.2 Ring service (`src/biometrics/service/`, tier H) · owner **L-RINGSVC**
+
+One instance per app (`getRingService()`), started at boot after the store opens (`start()`; idempotent). It drives
+A5a sessions over the transport from `pickTransport()` and writes with A5a's `ringRecords` through the existing ingest
+path (`ringJob` in `src/commands/bio/exec.ts` moves here and stays the only writer; `bio.deviceConnect` and
+`bio.deviceSync` remain the UI commands and call the service). The types are `src/biometrics/service/types.ts`
+(`RingService`, `RingStatus`, `RingLinkState`, `RingServiceErrorCode`, `RingCandidate`, `RingHolder`, `CheckMetric`):
+
+```ts
+type RingLinkState = 'unsupported' | 'bluetooth_off' | 'permission_needed'
+  | 'idle'          // known ring, not connected, not trying
+  | 'searching' | 'connecting' | 'connected' | 'syncing'
+  | 'elsewhere'     // another device of this person holds the ring (fresh lease, below)
+  | 'error';
+type RingServiceErrorCode = 'not_found' | 'refused' | 'unsupported_firmware' | 'bond_required' | 'disconnected'
+  | 'bluetooth_off' | 'permission_needed' | 'failed';          // mapped from RingError and NoDeviceError
+interface RingStatus { ringKey: string; label: string /* driver label, never the advertised name */; state: RingLinkState;
+  battery?: number; charging?: boolean; firmware?: string; lastSyncAt?: Instant; lastSyncBy?: string; syncProgress?: number;
+  liveHr?: { bpm: number; at: Instant }; heldBy?: RingHolder; paused?: boolean;
+  error?: { code: RingServiceErrorCode; message: string /* plain words; never names a passcode or a retail brand */ } }
+interface RingService {
+  start(): Promise<void>; stop(): Promise<void>;
+  rings(): RingStatus[]; subscribe(cb: (rings: RingStatus[]) => void): () => void;
+  availability(): 'ready' | 'unsupported' | 'bluetooth_off' | 'permission_needed';
+  scan(signal: AbortSignal): AsyncIterable<RingCandidate>;   // web: opens the browser's chooser, inside a click
+  pair(candidateId: string): Promise<RingStatus>;              // first connect + full history the ring holds
+  connectHere(ringKey: string): Promise<void>;                 // "Connect here instead"
+  syncNow(ringKey: string): Promise<void>;
+  checkNow(ringKey: string, metric: CheckMetric /* 'hr' | 'spo2' | 'hrv' | 'skin_temp' */): Promise<{ value: number; unit: string; at: Instant }>;
+  watchLiveHeartRate(ringKey: string): () => void;             // while the Ring page is visible
+  disconnect(ringKey: string): Promise<void>;                  // stays known; auto-connect paused on this device
+  forget(ringKey: string): Promise<void>;                      // removes the ring from this person (data stays)
+}
+```
+"Stale" (last sync over 24 h ago) is derived by the pages from `lastSyncAt`, not a link state.
+
+**Auto-connect.** At start, on app resume, on Bluetooth on (`shell().onBluetoothState`) and on Android boot, the service
+tries every known ring (a `bioSources` doc with `deviceType: 'ring'`) whose lease is free, stale or held by this device,
+unless the person pressed Disconnect on this device. Reconnect backoff follows the driver's rules (A5a, ported from the
+Android drivers): `reconnectDelayMs(family.reconnect, attempt, gattStatus)`, where `null` means wait for Bluetooth.
+Capacitor and Electron reconnect without a gesture through the transport's `reconnect(platformId, family)`; the
+`platformId` (`link.deviceId`, the Bluetooth address on Android and Linux) is remembered per ring in device-local state
+(`deviceSettings` id `ringLink:<ringKey>`) and is never the ring's identity. On web and pwa `requestDevice` needs a
+click, so the service reconnects on its own only where `navigator.bluetooth.getDevices()` exists and returns the ring;
+else the state is `idle` and the Ring page shows Connect. While connected the service syncs on connect, then every 30 min,
+and on `syncNow`; live heart rate is read only while the Ring page is visible.
+
+**One central at a time: the lease.** The ring allows one connection, so devices take turns through a lease document
+in `bioSources` with id `lease:<ringKey>` (beside `policy:me`; source listings skip both). `bioSources` merges per
+top-level field (`lwwField`), so holder and taker write different fields and never overwrite each other:
+```ts
+interface RingLeaseBody { kind: 'ringLease'; ringKey: string;
+  holder: { deviceId: string /* SyncView.deviceId */; deviceLabel: string; platform: Platform; since: Instant } | null;
+  heartbeatAt: Instant | null;                                     // written by the holder only
+  takeover: { deviceId: string; deviceLabel: string; at: Instant } | null }   // written by the taker only
+```
+- The holder writes `heartbeatAt` every 5 min while connected (each write is a synced change kept forever, so not
+  more often) and sets `holder: null` on a clean disconnect. A lease is **stale** after 15 min without a heartbeat.
+  (`LEASE_HEARTBEAT_MS = 300_000`, `LEASE_STALE_MS = 900_000`. This replaces the first draft's lease inside
+  `SourceBody.ble.link`: one field holding both writers' data would lose a takeover in a merge.)
+- `elsewhere` shows "Connected to <deviceLabel>" with the time since, and the action **Connect here instead**.
+- `connectHere`: writes `takeover`; the holder sees it through sync, disconnects within 10 s, clears `holder` and pauses
+  its own auto-connect for that ring until its person presses Connect there (or 12 h pass); the new device retries the
+  connection for 60 s (BLE needs a few seconds to free the link). If the lease is stale it connects at once.
+- If the ring cannot be found or refuses the connection and no fresh lease explains it, the error says "Your ring may be
+  connected to another app or phone. Close it there, then try again." Nothing else is assumed.
+- Without sync (no server, no sync group) there is no lease: the service connects and the error line above covers
+  another app holding the ring.
+
+**History since the last read.** Each device keeps its own cursor per ring in device-local state (the local-only
+collection `deviceSettings`, document id `ringCursor:<ringKey>`; the synced `SourceBody.ble.cursor` is no longer
+written). Before a sync the
+service may skip ahead to the newest sample the store already holds for that ring and stream, minus 2 hours of overlap;
+correctness never depends on this (PLAN item 1 rule f). A5a's `store.loadCursor(identity)` and `saveCursor` are
+implemented over this document; the cursor is saved only after the batch is ingested. The first `pair` reads everything
+the ring still holds. Synced
+`SourceBody.ble` keeps only facts about the ring: `driver`, `ringId`, `firmware`, `battery`, `lastSyncAt`, `lastSyncBy`
+(device label), `clockOffsetS`.
+
+**Ring identity and source key (PLAN item 1 rules a–e).**
+- `ringKey` = `ringSourceKey(ringIdentity(…))` = `ble:<family>/<model>/<ringId>` (A5a). It is both the record's
+  `provenance.channel` and the source key: `sourceKeyOf` returns such a channel unchanged. `ringId` is `serial:<S>`, else
+  `mac:<address>`, else `adv:<id>`, read from the ring (status events, Device Information, manufacturer data) or the
+  Bluetooth address where the platform exposes it. Web Bluetooth's per-origin device id is never used.
+- A device that meets a ring whose identity basis it cannot see (for example no address in a browser) looks for the
+  person's ring sources of the same family and model; if there is exactly one it uses that key, else it asks once "Is this your J-Style 2301 from <device>?" (no typing).
+- `manufacturer` and `model` come from the driver (`J-Style`, `2301`), never from the advertised name (decision 10).
+  The advertised name is not stored or shown.
+- Record ids come from content, never from the read window: A5a's `ringRecords` uses `seriesRecordId`,
+  `sleepRecordId` (versioned by `sleepVersion`), `dailyRecordId` and `workoutRecordId` from
+  `src/biometrics/core/recordIds.ts` with `source = ringKey` (not today's `mapEventsToBatch`, which keys series by their
+  first sample); series are stored as chunks per (source, stream, local date) and samples merge by `(origin, t)`, §4.2. Two devices reading the same night therefore write the
+  same record; fields that differ per reader (`provenance.ingested_at`) are not part of identity.
+- Keys are never rewritten (record ids and chunk keys embed them). An existing ring source from before v0.5.0
+  (`ble:jstyle2301|…`, `ble:colmi|…`) keeps its key and history; new reads go to the new key. A stored ring
+  source whose label carries another manufacturer name is shown as `J-Style 2301` (`sourceLabel` uses the driver's
+  label for `deviceType: 'ring'`); its key lives only in the person's data. Lumen-imported data keeps its own source
+  (`file:lumen_cloudevents|…`) and record ids; it gets the ring defaults below.
+
+**Provenance on every ring record.** `channel: ringKey` on every platform; `device: { type: 'ring', manufacturer,
+model, firmware, tier }` from the family (`J-Style`, `2301`); `recording_method: 'automatic'`; `modality: 'sensed'`;
+`decoder: family.decoderTag(firmware)`; `source_app: 'Vitals'`. Which device read it is **not** part of the record (two
+devices must produce identical records); the job log keeps it.
+
+**Item 11 defaults and the master switch.**
+- A **ring source** is a source whose `deviceType` is `'ring'`, whose channel starts with `ble:`, or the Lumen source
+  (`file:lumen_cloudevents`). New function `ringDefaultPolicies(): StreamPolicy[]` in `src/biometrics/core/source.ts`
+  (beside `defaultPolicies` and `suggestedPolicies`) = `imported: true`, `scores: true`, `engine: true` where
+  `engineEligible`, `coach: 'daily+series'`, for every stream in `POLICY_STREAMS`. The ring job creates ring sources
+  with it and does not apply `adoptPersonPolicies` to them; every other source keeps `suggestedPolicies` plus the
+  person's matrix (`policy:me`, §4.5).
+- **Master switch** "Use my ring data in my plan and Coach" on the Ring page. UI-only command `bio.setRingSharing
+  { on: boolean }` (perm write, impact consequential, undo RT): on → the ring defaults on every ring source; off →
+  `engine: false`, `scores: false`, `coach: 'hidden'` on every stream of every ring source (`imported` stays on, so the
+  Ring pages still show the data). The switch reads **on**, **off** or **some** (any other mix; "Some of it is shared"
+  with a link to Settings › Devices). Per-stream switches stay in Settings › Devices (`bio.setPolicy`).
+- A plain line under the switch: "Your ring data is used for your plan and scores, and the Coach and your AI tools can
+  see it. Turn it off here or per signal in Settings › Devices."
+- MCP read tools and `briefing_get` (item 12) apply the same visibility rule as the Coach (`coachSees` in
+  `src/commands/bio/exec.ts`), so the same switch hides ring data from agents.
+- **Existing data:** migration `biometrics.ringDefaults` (registered like `biometrics.dropPriorities` in
+  `src/commands/biometrics/index.ts`; once, system actor): a ring source whose policies were never
+  changed by the person (no policy change with a `user` actor in the ledger) gets the ring defaults and a one-time
+  notice on the Ring page; a source the person changed is left alone.
+
+### 15.3 Ring page and Body signals page · owner **L-PAGES**
+
+| Route | Page | Code | Purpose |
+|---|---|---|---|
+| `/ring` | Ring | `src/features/ring/` | the ring itself: connection, pairing, today's tiles, Check now, master switch, ring settings |
+| `/signals` | Body signals | `src/features/signals/` | what the ring measured over time: tabs Sleep, Heart and recovery, Activity |
+
+`/body` stays the existing Body page (`src/features/body/BodyPage`); `L-PAGES` owns `src/features/signals/**` in place
+of the plan's `src/features/body/**`. `S0` created both routes (`src/features/ring/RingPage.tsx`,
+`src/features/signals/SignalsPage.tsx`, helpers `paths.ring`, `paths.signals` in `src/app/paths.ts`) and left the nav
+entry point in `src/app/shell/nav.ts` (`DESTINATIONS`, `LIVING_DESTINATIONS`). Navigation
+placement (a Ring entry in the phone nav, a link from Settings › Devices on desktop) is D4's (`ring-pages.md`).
+
+**Ring page data:** `getRingService().rings()` and `subscribe` for the connection card (state, battery, last sync,
+`heldBy`, actions Connect / Sync now / Connect here instead / Check now); `today.get` and `bio.daily` for today's tiles
+(the resolved view, §14.6, so a correction shows as corrected); `bio.sources` for the master switch state. Pairing flow:
+`scan()` list of `RingCandidate` (driver label, signal), tap to `pair`; no password, key or "advanced" field for any
+ring (decision 13); the only prompt a person may see is the operating system's own pairing dialog, preceded by "Your
+phone may ask to pair with the ring. That's expected."
+
+**Body signals data:** `bio.daily` (resolved days), `bio.series` (chunks: heart rate by hour, SpO2 and temperature at
+night), sleep records (stages; `unknown` time drawn as unknown), workouts; the E29 views in
+`src/features/living/progress/ring/` (`RingViews.tsx`, `ringData.ts`) are moved here and the Progress page links to
+`/signals`. URL state: `?tab=sleep|heart|activity&period=day|week|month|year&date=YYYY-MM-DD`; periods are
+calendar-aligned (ISO week, calendar month); a day with no data is drawn as missing, never as zero. Every value shows its
+source label and, for tier C signals, the change from the person's own normal (§4.4).
+
+**States both pages render** (tested at 390 / 768 / 1440 px in both themes): unsupported browser (offers the apps),
+no ring, Bluetooth off, permission needed, searching, connecting, connected, syncing, connected elsewhere, stale (last
+sync over 24 h), error, unknown sleep stages, missing days.
+
+### 15.4 Pairing turns sync on (decision 5) · owner **L-SYNC**
+
+Contract only; shapes are `L-SYNC`'s and replace the I3 note "pairing never fills the sync key" in §14.2.
+- Pairing a device to a `home` server by code, QR or link (§14.2) ends with the device in the person's sync group:
+  no words, no second QR, no "set up sync" step. The `home` server already holds the person's sync secret (set by the
+  admin CLI today; `L-SYNC` adds a way for an already paired device to hand it over once, over TLS, if the server lacks
+  it). It returns the secret only to a freshly redeemed code, only on the `home` role, and the device stores it in the
+  existing vault (`src/state/sync/vault.ts`).
+- On a `relay`-only server nothing changes (words or QR from another device, `sync.join`).
+- Settings › Server `connecting` shows "Setting up sync…" until `sync.status` reports `synced` or `syncing`; failure
+  leaves the device paired and shows the reason with Try again.
+- The 24 words stay as a backup in Settings › Sync.
+- Status is visible everywhere sync matters (header chip and Settings): `synced`, `syncing`, `offline` with "N changes
+  waiting" (`SyncStatus.pendingChanges`), `error` with a plain reason.
+- Desktop and Android use the same flow; the QR scanner is the existing one in Settings › Server.
+
+### 15.5 Server address on phones without tailnet DNS · owners **L-ANDROID**, orchestrator (server config)
+
+The owner's phone runs Tailscale with its DNS setting off, so `*.ts.net` names do not resolve there.
+- The server gets a public name for its HTTPS address (`publicHosts`, behind Caddy, §14.2) and that address becomes its
+  `publicOrigin`, so pairing QR codes and links (`vitals-server:1?u=…`), agent MCP addresses and the MQTT hint carry an
+  address every device can reach; the tailnet address keeps working where it resolves. Steps and the chosen name are in
+  `L-REL`'s survey (`.jobs/L-REL.server-address.md`), applied by the orchestrator with the owner's approval.
+- The app accepts any `https://` base URL (§14.2 rule unchanged). No hostname, address or tailnet name is written in
+  the source: they come from the server and the pairing code at run time.
+- The server's `allowedOrigins` gain the app origins: `app://vitals` (Electron, `APP_ORIGIN`), `https://localhost`
+  (Capacitor Android) and `capacitor://localhost`. Requests without an `Origin` (Electron main, native HTTP) pass as
+  today.
+
+### 15.6 Desktop shell (Electron, `apps/desktop/`) · owner **L-DESKTOP**
+
+- **Layout:** `apps/desktop/src/main/` (main process), `src/preload/index.ts`, `electron-builder.yml`, packaged by
+  `L-REL`'s CI as Linux AppImage and deb, Windows NSIS installer, macOS dmg (unsigned).
+- **Loading:** the built web app (`dist/`) is served from the privileged scheme `app://vitals/` (`standard`, `secure`,
+  `supportFetchAPI`); unknown paths fall back to `index.html`; responses carry the same CSP as `netlify.toml` plus
+  nothing else. Navigation away from `app://vitals` and `window.open` go to the system browser. `contextIsolation: true`,
+  `sandbox: true`, `nodeIntegration: false`, one window, single-instance lock (a second launch focuses the first).
+- **Bluetooth:** item 1's Electron transport (A5a, `L-XPORT`): `webContents.on('select-bluetooth-device')` in main forwards
+  the device list to the renderer's scan list and returns the person's choice (`L-XPORT`'s `apps/desktop/src/ble/`:
+  `enableWebBluetooth(app)` before ready, `attachBluetooth(win.webContents, ipcMain)` per window, `bluetoothBridge` in
+  the preload, exposed as `window.vitalsDesktop.bluetooth`); a `node-ble` fallback, if R21 needs it, lives behind the
+  same bridge. The ring service itself runs in the renderer.
+- **Tray:** the ring mark; menu: Open Vitals; a status line ("Ring connected · 82 %" / "Ring not connected"); Sync now;
+  Start with my computer (check box); Quit. The tray line comes from `shell().keepAlive` (§15.8). Closing the window hides it to the tray (window kept with
+  `backgroundThrottling: false`, so the ring link and sync go on). Where the desktop has no tray, closing quits.
+- **Autostart:** off by default; set from the tray or Settings › Install (desktop only row). Windows:
+  `app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })`; macOS: `setLoginItemSettings({ openAtLogin })` and a
+  login start is detected with `getLoginItemSettings().wasOpenedAtLogin`; Linux: `~/.config/autostart/vitals.desktop`
+  with `--hidden`. A login start opens in the tray.
+- **Auto-update:** `electron-updater`, provider `github`, the public Vitals repo's Releases (owner and repo set in
+  `electron-builder.yml`, nothing else). Check at start and every 6 h; download in the background; "Restart to update" in
+  the tray and a quiet banner. AppImage and Windows update in place; deb and unsigned macOS show "A new version is
+  ready" with the download link.
+- **MCP host (item 4).** The app binary started with `--mcp` is an Electron process with no window, outside the
+  single-instance lock, that writes nothing but MCP frames to stdout; it runs a stdio MCP server and bridges to:
+  - **with a server paired:** the server's `/mcp` (§14.4) with an agent token the app minted for that AI tool
+    (`ServerClient.createAgentToken` in `src/net/server.ts`, scope `edit`: read, log, edits staged as proposals;
+    destructive tools never listed), one per AI tool (`--client <AiToolId>`). The token stays in the app (Electron
+    `safeStorage`, key `agentToken:<AiToolId>`), never in the AI tool's config.
+  - **without a server:** the running app over a local socket (`<userData>/mcp.sock`; Windows named pipe
+    `\\.\pipe\vitals-mcp-<user>`), started hidden if it is not running. Main relays each call to the renderer, which runs
+    it through the command bus (`dispatch` with `actor: { kind: 'mcp', id: <client> }`) and `createMcpServer` from
+    `packages/companion/src/mcp.ts` with the same tool list, scope `edit`, and the item 12 instructions and
+    `briefing_get`.
+- **"Connect your AI tools"** (desktop only: `src/features/settings/agents/ConnectTools.tsx`, its own `#connect-tools`
+  block after Settings › Agents, rendered when `platform() === 'electron'`): one row per tool, detected from its config or
+  binary: Claude Code, Codex, OpenCode, ChatGPT desktop. Each row: found / not found; **Add Vitals** opens a consent
+  dialog that shows the file or command that will change things, the exact entry, and what the tool will be able to do
+  ("read your data, log food and activity, propose changes you approve"); nothing is written until the person
+  confirms. The entry is the stdio command (`<app path> --mcp`, server name `vitals`); an edited file is backed up once
+  (`<file>.vitals-backup`); **Remove** undoes it. Claude Code: `claude mcp add -s user vitals -- <app path> --mcp`
+  (writes `~/.claude.json`; Remove runs `claude mcp remove -s user vitals`); Codex: `~/.codex/config.toml`
+  `[mcp_servers.vitals]` `command`, `args`; OpenCode: `~/.config/opencode/opencode.json` `"mcp": { "vitals": { "type":
+  "local", "command": ["<app path>", "--mcp"], "enabled": true } }`.
+  ChatGPT desktop takes remote servers only: its row shows the server's MCP address and the token steps from §14.4 when
+  a server is paired, else "Needs your Vitals server".
+- **Preload surface:** `window.vitalsDesktop`, typed by `DesktopBridge` in `apps/desktop/src/shared/bridge.ts` (with
+  `APP_ORIGIN`, `FLAGS` `--hidden` / `--mcp` / `--client`, and `CHANNELS`, every one prefixed `vitals:`; main rejects a
+  call whose sender frame is not `app://vitals`). The page declares the same shape structurally in
+  `src/platform/bridge.ts` and never imports desktop code. Members: `version`, `os`; `bluetooth` (`L-XPORT`); `tray.setStatus`;
+  `autostart.get/set`; `updates.onState/check/restart` (`UpdateState`: idle, checking, downloading, ready, manual, error);
+  `mcp.tools/add/remove` (`AiToolRow`), `mcp.onCall` (main → page tool calls when no server is paired, answered with the
+  `ToolResultEnvelope`), `mcp.setManifest`, `mcp.setServer({ mcpUrl } | null)`; `secrets.get/set` (`agentToken:<AiToolId>`);
+  `keepAlive(on, text)`; `onShow(cb)`. `AiToolId` is `'claude-code' | 'codex' | 'opencode' | 'chatgpt-desktop'`; it maps
+  to the server's `AgentClient` with `'claude-code'` → `'claude'`.
+  `mcp.add` is only callable from the consent dialog's confirm handler (a user gesture); the preview is what is written.
+- **First run** without a server works locally (providers with the person's key); with a server, the Coach providers and
+  ChatGPT sign-in go through it (§14.3).
+
+### 15.7 Android shell (Capacitor, `apps/android/`) · owner **L-ANDROID**
+
+- `apps/android/capacitor.config.ts`: `appId: 'desi.creative.vitals'`, `appName: 'Vitals'`, `webDir: '../../dist'`,
+  `server.androidScheme: 'https'` (origin `https://localhost`). Capacitor 8, `minSdk 26`, `targetSdk 36` (Android 16).
+  `versionName` = the root `package.json` version, `versionCode` = major·10000 + minor·100 + patch.
+- **Bluetooth:** `@capacitor-community/bluetooth-le` 8 through `L-XPORT`'s Capacitor transport. Permissions
+  `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`,
+  `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `RECEIVE_BOOT_COMPLETED`, `CAMERA` (QR); for Android 8–11 also
+  `ACCESS_FINE_LOCATION`, `BLUETOOTH` and `BLUETOOTH_ADMIN` with `maxSdkVersion 30` ("Android needs location access to
+  find Bluetooth devices. Vitals does not use your location."). Each is asked when first needed, with one plain line why.
+- **Native plugin `VitalsShell`** (Kotlin, `apps/android/android/app/src/main/java/desi/creative/vitals/`), the only
+  Vitals native code besides Capacitor's own plugins: `keepAlive({ on, text })` starts or stops a foreground service of
+  type `connectedDevice` with the persistent notification ("Ring connected" / "Reading your ring…" / "Waiting for
+  Bluetooth"); `notify({ kind, title, text })`; events `bluetoothState`, `bootCompleted`, `resume`, `shared` (files
+  shared to Vitals). Android 12+ does not let a Bluetooth-on broadcast start a foreground service from the background,
+  so the service is started from the app or at boot (`BOOT_COMPLETED` is allowed) and **stays running while Bluetooth
+  is off**, reconnecting when it comes back on. The ring link and history sync stay in the web layer; the service keeps
+  the process alive. If R21 shows the WebView stalls with the screen off, `L-ANDROID` reports it and the fallback is
+  decided then (not specified here).
+- **Notifications:** channel `ring_link` (low importance, the persistent one); channel `ring_alerts`: "Ring battery low"
+  at 15 % or less (once per charge), "Ring disconnected" after 10 min without reconnecting (once until it reconnects).
+- **Keep my ring connected** (Ring page, Android only, on by default): when on and a ring is known, the service starts
+  with the app and at boot, and survives Bluetooth off and on.
+- **Pairing to the server:** Settings › Server by code or by QR (the existing scanner, camera through the WebView); the
+  pairing link opens the app when installed (App Link, `/.well-known/assetlinks.json` on the website, requested from
+  `L-WEB`; verified only for the signed build, an unsigned APK opens the link in the browser).
+- **Files:** import through the Android file picker into `bio.import`; "Share to Vitals" (an intent filter delivered by
+  the `shared` event) for the same formats Lumen accepted; export through the system share sheet.
+- **Back button** goes back in the router and leaves the app at the root route.
+- **Build:** `pnpm --filter @vitals/android run build:apk` gives the unsigned release APK; `L-REL`'s CI signs it on the tag
+  (keystore outside the repo; `Vitals-android-unsigned.apk` if CI has no key).
+
+### 15.8 Shell bridge and how the pieces talk
+
+```ts
+// src/platform/shell.ts
+interface ShellBridge {
+  keepAlive(on: boolean, text: string): Promise<void>;     // android: foreground service; electron: tray status; web: no-op
+  notify(n: { kind: 'battery_low' | 'ring_disconnected'; title: string; text: string }): Promise<void>;
+  onBluetoothState(cb: (on: boolean) => void): () => void; // android receiver; web: navigator.bluetooth availability
+  onResume(cb: () => void): () => void;                    // android resume, electron show, web visibilitychange
+}
+```
+
+| From | To | Through |
+|---|---|---|
+| `packages/rings` (A5a) + transports (`L-XPORT`) | ring service | `RingFamily`, `openRingSession`, `ringRecords`; `pickTransport()` |
+| ring service | biometrics store | the ingest path (`mapEventsToBatch` → ingest → rescore), records with provenance, `SourceBody.ble` (lease, facts) |
+| ring service | Ring and Body signals pages | `getRingService().rings()` / `subscribe`; pages read history through `bio.*` commands only |
+| ring service | Android and desktop shells | `shell().keepAlive`, `shell().notify`, `onBluetoothState`, `onResume` |
+| store | every device, the server | sync (§2.6, §14.6); ring leases travel the same way |
+| desktop MCP host | command bus | local socket → main → renderer `dispatch` (no server), or the server's `/mcp` (server) |
+| pairing (§14.2) | sync | §15.4 |
+| `src/platform` | downloads block, Install section, Ring page, Settings › Agents | `platformCaps()` |
+
+No feature imports Capacitor or Electron directly: only `src/platform/` and the transports in `src/biometrics/ble/` do.
+
+### 15.9 Downloads block (`src/features/home/`) · owner **L-WEB**
+
+- `DownloadsBlock` (`src/features/home/DownloadsBlock.tsx`) is mounted by `S0` in `IntroStep` of
+  `src/features/onboarding/WelcomePage.tsx` (a new visitor's first screen) and may also appear in Settings › Install. It
+  renders only when the platform is `web`.
+- **Release data:** `GET https://api.github.com/repos/<owner>/<repo>/releases/latest` (owner and repo in one constant,
+  `PUBLIC_REPO`, in `src/features/home/`); version = `tag_name` without `v`, size = the asset's `size`. Cached in
+  `sessionStorage` for 1 h (the API allows 60 requests per hour per address); on any failure the block falls back to
+  `https://github.com/<owner>/<repo>/releases/latest/download/<name>` links without sizes.
+- **Asset names** (`L-REL`'s `.jobs/L-REL.assets.md`; fixed, no version in the name):
+
+| Key | Asset | Label |
+|---|---|---|
+| android | `Vitals-android.apk` (else `Vitals-android-unsigned.apk`) | Android |
+| linux-appimage | `Vitals-linux-x86_64.AppImage` | Linux (AppImage) |
+| linux-deb | `Vitals-linux-amd64.deb` | Linux (deb) |
+| windows | `Vitals-windows-x64-setup.exe` | Windows |
+| macos | `Vitals-macos-universal.dmg` | macOS |
+
+- **Choice by `os`:** android → APK; windows → installer; macos → dmg; linux → AppImage, with deb second; ios,
+  chromeos, other → no main key, all links listed, and "On iPhone, use the website and add it to your home screen".
+- **Shows:** the main key ("Download for Android") with version and size in MB, the other systems under it, "or keep
+  using the website" beneath, and one plain note per unsigned build ("Windows may warn that the app is from an unknown
+  publisher. Choose More info, then Run anyway."; similar lines for macOS and Android "install unknown apps").
+- **No layout shift:** the block reserves its height before the release data arrives. "Not now" folds it to one line
+  ("Get the app"), remembered in `localStorage` `vitals.downloads.v1`.
+
+### 15.10 Test contracts
+
+| Test | Owner | Pass condition |
+|---|---|---|
+| Platform detection | S0 / L-WEB | each of web, pwa, electron, android from a stubbed `window`; `os` for Android, iOS, Windows, macOS, Linux, ChromeOS user agents |
+| Ring identity | L-RINGSVC | the same fake ring through the three transport fakes gives one `ringKey`; the advertised name never appears in a source key, label or record |
+| Two devices, one ring (PLAN item 1 binding test) | L-SYNC + L-RINGSVC | two replicas read one fake ring while offline (one more, one after a revised night), go online in either order: one record per night, one sample per (stream, time), nothing lost, on every replica and the server |
+| Lease | L-RINGSVC | holder heartbeats; second device shows `elsewhere` with the holder's label; `connectHere` moves the link within 2 min online; concurrent heartbeat and takeover writes both survive a merge; a stale lease is taken at once; no lease without sync |
+| Ring defaults | L-RINGSVC | a new ring source has the ring defaults on every platform; other imports stay off; master off removes ring data from the plan, scores, Coach briefing and `briefing_get` within one sync; `biometrics.ringDefaults` leaves a changed source alone |
+| Pages | L-PAGES | every state of §15.3 at 390 / 768 / 1440 in both themes; missing days are gaps; forbidden-text scan; no password or key text anywhere |
+| Pairing turns sync on | L-SYNC | a fresh device paired by code reaches `synced` with no other step and sees the person's data |
+| Desktop | L-DESKTOP | packaged Linux app under Playwright's Electron driver: loads from `app://vitals`, tray, autostart toggle writes and removes the entry, update check against a fixture feed, "Connect your AI tools" writes nothing before consent and exactly the preview after, `--mcp` lists tools and runs a read and a log call with and without a server |
+| Android | L-ANDROID | install, first run, pair, connect the ring, history sync, foreground notification present, screen off for an hour without losing the link, reconnect after Bluetooth off and on |
+| Downloads | L-WEB | OS choice per platform; links resolve against a recorded release; fallback link on API failure; hidden on pwa, electron, android; no layout shift; both themes at 390 / 768 / 1440 |

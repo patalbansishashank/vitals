@@ -155,3 +155,19 @@ export function createSyncScheduler(options: SchedulerOptions): SyncScheduler {
   };
   return scheduler;
 }
+
+const NOT_CONNECTED: ReadonlySet<string> = new Set(['offline', 'error', 'connecting']);
+
+/**
+ * Feed it every engine state; it calls `back` when the state goes from offline, error or connecting to synced. The
+ * caller runs the `online` round then: the socket came back on its own (a relay restart, a link that flapped without a
+ * browser `online` event), so queued blob uploads go out at once and the back-off resets (`online` bypasses it).
+ */
+export function onEngineBack(back: () => void): (state: string) => void {
+  let prev: string | null = null;
+  return (state) => {
+    const was = prev;
+    prev = state;
+    if (state === 'synced' && was !== null && NOT_CONNECTED.has(was)) back();
+  };
+}

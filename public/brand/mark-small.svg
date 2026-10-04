@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <!--
+    Vitals mark, small-size cut (48 px and under: favicons, tray, small Linux and Windows icons).
+    Same ring and dot as mark.svg, drawn heavier (stroke 10) with the opening widened from 23 to 34 degrees so it
+    stays open at 16 px; the dot stays on the opening's bisector (35 degrees).
+  -->
+  <style>
+    .ring { fill: none; stroke: #191c20; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+    .dot { fill: #f5d336; stroke: #191c20; stroke-width: 2.5; }
+    @media (prefers-color-scheme: dark) {
+      .ring { stroke: #eff0f2; }
+      .dot { fill: #f0d03c; stroke: none; }
+    }
+  </style>
+  <path id="ring" class="ring" d="M72.47,77.64 A30,30 0,1 1,82.53,63.27"/>
+  <circle id="dot" class="dot" cx="66.29" cy="62.60" r="7.5"/>
+</svg>

@@ -101,9 +101,11 @@ async function applyPending(ctx: CommandContext, pendingId: string): Promise<{ a
     fail('conflict', 'That proposal expired.');
   }
   const store = getDocumentStore();
+  // compare the content tag only: the instant and device in `_rev` differ between replicas for the same write (R20-WRITERS-01)
+  const revTag = (r: string) => r.slice(r.lastIndexOf('|') + 1);
   const stale = Object.entries(p.baseRevs).some(([key, rev]) => {
     const [col, ...rest] = key.split('/');
-    return (store.peek(col as never, rest.join('/'))?._rev ?? '') !== rev;
+    return revTag(store.peek(col as never, rest.join('/'))?._rev ?? '') !== revTag(rev);
   });
   if (stale) {
     await ctx.docs.patch('pendingChanges', pendingId, { status: 'stale' });

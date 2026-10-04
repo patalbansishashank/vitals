@@ -87,7 +87,8 @@ describe('MQTT broker', () => {
     const c = await connect();
     await Promise.all(Array.from({ length: 10 }, (_, i) => c.publishAsync(TOPIC, ce(`m${i}`), { qos: 1 })));
     await t.home.broker!.idle();
-    const got = t.fake.ingested(a.id).map((r) => (r.op === 'ingestLumen' ? (r.events[0] as { id: string }).id : ''));
+    // messages that piled up during an import go in one call: count every event of every call
+    const got = t.fake.ingested(a.id).flatMap((r) => (r.op === 'ingestLumen' ? r.events.map((e) => (e as { id: string }).id) : ['']));
     expect(got).toEqual(Array.from({ length: 10 }, (_, i) => `m${i}`));
     const wal = await readFile(t.home.persons.paths(a.id).wal, 'utf8');
     expect(wal).not.toContain('"payload"');

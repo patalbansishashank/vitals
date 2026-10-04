@@ -8,18 +8,18 @@ import type { DriftCard } from '../../data/types';
 import { checkInDates, readTrend, shiftMonth, signedInterval, sliceHistory, trendWindow } from '../model';
 import { createStubScoresSource } from '../../data/scores';
 
-const EIGHT = ['Trend', 'Goals', 'Adherence', 'Body', 'Body signals', 'Log', 'Check-ins', 'Plan'];
+const EIGHT = ['Trend', 'Goals', 'Adherence', 'Body', 'Body signals', 'From your ring', 'Log', 'Check-ins', 'Plan'];
 
 describe('Progress page', () => {
   it('shows all eight sections with anchor chips when a plan is running', async () => {
     renderLiving(<ProgressPage />, { path: '/progress', route: 'progress' });
     expect(await screen.findByRole('heading', { level: 1, name: 'Progress' })).toBeInTheDocument();
-    for (const name of EIGHT) expect(screen.getByRole('heading', { level: 2, name })).toBeInTheDocument();
+    for (const name of EIGHT) expect(screen.getAllByRole('heading', { level: 2, name }).length).toBeGreaterThan(0);
     const navs = screen.getAllByRole('navigation', { name: 'Progress sections' });
     expect(navs.length).toBeGreaterThan(0);
     const chips = within(navs[0]!).getAllByRole('link');
     // E20: markers — the blood markers section follows body signals
-    expect(chips.map((a) => a.textContent)).toEqual(['trend', 'goals', 'adherence', 'body', 'body signals', 'activity', 'blood markers', 'log', 'check-ins', 'plan']);
+    expect(chips.map((a) => a.textContent)).toEqual(['trend', 'goals', 'adherence', 'body', 'body signals', 'from your ring', 'blood markers', 'log', 'check-ins', 'plan']);
     expect(chips[0]).toHaveAttribute('href', '#trend');
     // context row: plan name and the range bank
     expect(screen.getByText('Spring cut')).toBeInTheDocument();
@@ -32,10 +32,16 @@ describe('Progress page', () => {
     renderLiving(<ProgressPage />, { path: '/progress', route: 'progress', plan: null });
     expect(await screen.findByRole('heading', { level: 2, name: 'Body' })).toBeInTheDocument();
     const h2 = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
-    expect(h2).toEqual(['Body', 'Body signals', 'Steps', 'Workouts', 'Blood markers', 'Log']); // E20: markers; E29: steps, workouts
+    expect(h2).toEqual(['Body', 'Body signals', 'From your ring', 'Blood markers', 'Log']); // E20: markers; plan 04: the ring's link card
+    // the link card replaces the E29 steps and workouts faceplates
+    const card = document.getElementById('activity')!;
+    expect(within(card).getByRole('link', { name: 'Open body signals' })).toHaveAttribute('href', '/signals');
+    expect(within(card).getByText('steps today')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Steps' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Workouts' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: 'Trend range' })).not.toBeInTheDocument();
     const chips = within(screen.getAllByRole('navigation', { name: 'Progress sections' })[0]!).getAllByRole('link');
-    expect(chips.map((a) => a.textContent)).toEqual(['body', 'body signals', 'activity', 'blood markers', 'log']); // E20: markers; E29: activity
+    expect(chips.map((a) => a.textContent)).toEqual(['body', 'body signals', 'from your ring', 'blood markers', 'log']); // E20: markers; plan 04: the ring's link card
   });
 
   it('logs a waist girth from three repeats (the action keeps the mean)', async () => {

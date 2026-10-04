@@ -30,7 +30,7 @@ import { isoAt, localDateAt, provenanceOf, qualityOf } from '../core/importKit';
 import { mapEventsToBatch } from '../core/events';
 import type { EventMapContext } from '../core/events';
 import type { RingDecodedEvent } from '../core/ble/types';
-import { sourceKeyOf } from '../core/source';
+import { LUMEN_DEVICE_MODEL, sourceKeyOf } from '../core/source';
 import type { BioBatch, BioProvenance, BioRecord, BiometricsImporter, DailyRecord, ImportContext, SeriesRecord, SleepRecord } from '../core/types';
 import { BIO_SCHEMA } from '../core/types';
 import { chunkRecords } from './recordKit';
@@ -44,7 +44,7 @@ const CHANNEL = 'file:lumen_cloudevents' as const;
  * file imports made before the broker existed stay the same. */
 const ID_SOURCE = LUMEN_SOURCE;
 const SOURCE_APP = 'Lumen';
-const DEFAULT_DEVICE = { type: 'ring', model: 'J-Style 2301', tier: 'C' } as const;
+const DEFAULT_DEVICE = { type: 'ring', model: LUMEN_DEVICE_MODEL, tier: 'C' } as const;
 export { SLEEP_COMPLETE };
 
 type Obj = Record<string, unknown>;
@@ -121,9 +121,10 @@ export interface LumenMapResult {
   streams: Record<string, number>;
 }
 
+/** Provenance device of a Lumen event. The model is always `J-Style 2301`: Lumen's `model_id` / `device_type` carry the
+ * ring's retail name and arrive only with `health.device.identified`, so they never reach a key or a label (R20-ID-01). */
 function deviceOf(s: LumenInstallation | undefined): NonNullable<BioProvenance['device']> {
-  const model = s?.modelId ?? s?.deviceType;
-  return { ...DEFAULT_DEVICE, ...(model ? { model } : {}), ...(s?.firmware ? { firmware: s.firmware } : {}) };
+  return { ...DEFAULT_DEVICE, ...(s?.firmware ? { firmware: s.firmware } : {}) };
 }
 
 /** Keeps the record with the higher version per record_id; on a tie the first one, like the store ('duplicate'). */

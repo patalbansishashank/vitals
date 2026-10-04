@@ -1,0 +1,568 @@
+{
+  "family": "luckring",
+  "source": "LuckRingEncoderTest.kt, LuckRingProtocolTest.kt (Kotlin, upstream PulseLoopAndroid; synthetic packets only)",
+  "clock": "Time-dependent vectors record nowMs and tzOffsetS in params; the frame uses epochSecond = floor(nowMs/1000).",
+  "vectors": [
+    {
+      "name": "user info bytes match K6_SendUserInfo",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "userInfo",
+        "params": {
+          "sex": "male",
+          "ageYears": 30,
+          "heightCm": 175,
+          "weightKg": 70,
+          "userId": 0
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 102,
+      "payload": "00 00 00 00 00 1e af 46 00",
+      "frame": "00 01 00 00 01 66 00 00 09 00 00 00 00 00 00 1e af 46 00 00",
+      "packets": [
+        "00 01 00 00 01 66 00 00 09 00 00 00 00 00 00 1e af 46 00 00"
+      ],
+      "note": "Kotlin asserts the 9 payload bytes (userInfoBytes); the frame wrapper (Encoder.userInfo, seq 0) is derived. sex byte inverted: male -> 0."
+    },
+    {
+      "name": "user info sex inversion and age floor",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "userInfo",
+        "params": {
+          "sex": "female",
+          "ageYears": 0,
+          "heightCm": 160,
+          "weightKg": 55,
+          "userId": 0
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 102,
+      "payload": "00 00 00 00 01 14 a0 37 00",
+      "frame": "00 01 00 00 01 66 00 00 09 00 00 00 00 00 01 14 a0 37 00 00",
+      "packets": [
+        "00 01 00 00 01 66 00 00 09 00 00 00 00 00 01 14 a0 37 00 00"
+      ],
+      "note": "Kotlin asserts only payload[4] == 1 (female) and payload[5] == 20 (age 0 floors to 20); the rest is derived.",
+      "asserted": {
+        "payload[4]": 1,
+        "payload[5]": 20
+      }
+    },
+    {
+      "name": "time bytes are true utc seconds",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "setTime",
+        "params": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": 0
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 104,
+      "payload": "00 f1 53 65 00 00 00 00 00",
+      "frame": "00 01 00 00 01 68 00 00 09 00 00 f1 53 65 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 68 00 00 09 00 00 f1 53 65 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts size 9, u32 abs seconds 1700000000, u32 offset 0, format byte 0 (timeBytes, zone UTC). Frame wrapper derived."
+    },
+    {
+      "name": "time bytes with a negative utc offset (derived)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "setTime",
+        "params": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": -18000
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 104,
+      "payload": "00 f1 53 65 b0 b9 ff ff 00",
+      "frame": "00 01 00 00 01 68 00 00 09 00 00 f1 53 65 b0 b9 ff ff 00 00",
+      "packets": [
+        "00 01 00 00 01 68 00 00 09 00 00 f1 53 65 b0 b9 ff ff 00 00"
+      ],
+      "note": "NOT asserted by a Kotlin test: derived from timeBytes (offset seconds masked to u32, so -18000 = 0xffffb9b0).",
+      "derived": true
+    },
+    {
+      "name": "goal bytes match K6_SendGoal",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "setGoal",
+        "params": {
+          "steps": 8000
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 111,
+      "payload": "40 1f 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "frame": "00 01 01 00 01 6f 00 00 10 00 40 1f 00 00 00 00 00 00 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 01 00 01 6f 00 00 10 00 40 1f 00 00 00 00 00 00 00 00",
+        "01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts size 16, u32 steps 8000 and 12 zero bytes after it (goalBytes). Frame wrapper derived: 16-byte payload = head + 1 continuation."
+    },
+    {
+      "name": "startup bundle has vendor property order and data",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "startupBundle",
+        "params": {
+          "sex": "male",
+          "ageYears": 30,
+          "heightCm": 175,
+          "weightKg": 70,
+          "userId": 0,
+          "goalSteps": 8000,
+          "languageCode": 0,
+          "nowMs": 1700000000000,
+          "tzOffsetS": 0
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 110,
+      "payload": "41 00 07 0c 00 66 00 00 00 00 00 1e af 46 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00 7c 01 ff ff 00 00 04 00 67 00 04 00 6d 01 13 00 6f 40 1f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 78 00 00",
+      "frame": "00 01 03 00 01 6e 00 00 43 00 41 00 07 0c 00 66 00 00 00 00 01 00 1e af 46 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00 02 7c 01 ff ff 00 00 04 00 67 00 04 00 6d 01 13 00 6f 40 1f 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 78 00 00",
+      "packets": [
+        "00 01 03 00 01 6e 00 00 43 00 41 00 07 0c 00 66 00 00 00 00",
+        "01 00 1e af 46 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00",
+        "02 7c 01 ff ff 00 00 04 00 67 00 04 00 6d 01 13 00 6f 40 1f",
+        "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 78 00 00"
+      ],
+      "note": "Kotlin asserts cmd SEND, dataType 110 and the decoded TLV: types 102,104,124,103,109,111,120; 102 = userInfoBytes, 104 = 9 bytes, 124 = 01 ff ff 00 00, 103 = 00, 109 = 01, 111 = goalBytes(8000), 120 = 00 00. 67-byte payload = head + 3 continuations; totalLen field = 65."
+    },
+    {
+      "name": "real time toggle layouts: realHeartRate(true)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realHeartRate",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 24,
+      "payload": "01",
+      "frame": "00 01 00 00 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts cmd, dataType and payload only; seq is the shared encoder counter in test order (0..5)."
+    },
+    {
+      "name": "real time toggle layouts: realSpO2(true)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realSpO2",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 1,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 20,
+      "payload": "01 00 00 00 00",
+      "frame": "00 01 00 01 01 14 00 00 05 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 01 01 14 00 00 05 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts cmd, dataType and payload only; seq is the shared encoder counter in test order (0..5)."
+    },
+    {
+      "name": "real time toggle layouts: realHRV(true)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realHRV",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 2,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 45,
+      "payload": "01",
+      "frame": "00 01 00 02 01 2d 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 02 01 2d 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts cmd, dataType and payload only; seq is the shared encoder counter in test order (0..5)."
+    },
+    {
+      "name": "real time toggle layouts: realBloodPressure(true)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realBloodPressure",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 3,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 18,
+      "payload": "01 00 00 00 00 00",
+      "frame": "00 01 00 03 01 12 00 00 06 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 03 01 12 00 00 06 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts cmd, dataType and payload only; seq is the shared encoder counter in test order (0..5)."
+    },
+    {
+      "name": "real time toggle layouts: realTemperature(true)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realTemperature",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 4,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 46,
+      "payload": "01",
+      "frame": "00 01 00 04 01 2e 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 04 01 2e 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts cmd, dataType and payload only; seq is the shared encoder counter in test order (0..5)."
+    },
+    {
+      "name": "real time toggle layouts: realHeartRate(false)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realHeartRate",
+        "params": {
+          "on": false
+        }
+      },
+      "seq": 5,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 24,
+      "payload": "00",
+      "frame": "00 01 00 05 01 18 00 00 01 00 00 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 05 01 18 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts cmd, dataType and payload only; seq is the shared encoder counter in test order (0..5)."
+    },
+    {
+      "name": "request is an empty request frame",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "request",
+        "params": {
+          "dataType": 3
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "REQUEST",
+      "dataType": 3,
+      "payload": "",
+      "frame": "00 01 00 00 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "auto monitoring matches K6_HEART_AUTO_SWITCH (30 min, on)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "autoMonitoring",
+        "params": {
+          "hrEnabled": true,
+          "hrIntervalMinutes": 30,
+          "spo2Enabled": true
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 128,
+      "payload": "01 00 1e 01 00 00 00 00",
+      "frame": "00 01 00 00 01 80 00 00 08 00 01 00 1e 01 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 80 00 00 08 00 01 00 1e 01 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "auto monitoring matches K6_HEART_AUTO_SWITCH (off, 5 min)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "autoMonitoring",
+        "params": {
+          "hrEnabled": false,
+          "hrIntervalMinutes": 5,
+          "spo2Enabled": false
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 128,
+      "payload": "00 00 05 00 00 00 00 00",
+      "frame": "00 01 00 00 01 80 00 00 08 00 00 00 05 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 80 00 00 08 00 00 00 05 00 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "find device",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "findDevice"
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 11,
+      "payload": "01",
+      "frame": "00 01 00 00 01 0b 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 0b 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "unbind",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "unbind"
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 159,
+      "payload": "01",
+      "frame": "00 01 00 00 01 9f 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 9f 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "sequence counter: first frame",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realHeartRate",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 24,
+      "payload": "01",
+      "frame": "00 01 00 00 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts seq 0, then 1, then 2 on one encoder."
+    },
+    {
+      "name": "sequence counter: second frame",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "realHeartRate",
+        "params": {
+          "on": false
+        }
+      },
+      "seq": 1,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 24,
+      "payload": "00",
+      "frame": "00 01 00 01 01 18 00 00 01 00 00 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 01 01 18 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "sequence counter: third frame",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "request",
+        "params": {
+          "dataType": 3
+        }
+      },
+      "seq": 2,
+      "devType": 1,
+      "cmdType": "REQUEST",
+      "dataType": 3,
+      "payload": "",
+      "frame": "00 01 00 02 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 02 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ]
+    },
+    {
+      "name": "dataSwitch on (derived)",
+      "source": "LuckRingEncoderTest.kt",
+      "command": {
+        "op": "dataSwitch",
+        "params": {
+          "on": true
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 109,
+      "payload": "01",
+      "frame": "00 01 00 00 01 6d 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 01 6d 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "NOT asserted by a Kotlin test; derived from LuckRingEncoder.dataSwitch.",
+      "derived": true
+    },
+    {
+      "name": "head packet golden bytes",
+      "source": "LuckRingProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "cmdType": "REQUEST",
+          "dataType": 2,
+          "seq": 0,
+          "devType": 1,
+          "payloadHex": ""
+        }
+      },
+      "seq": 0,
+      "devType": 1,
+      "cmdType": "REQUEST",
+      "dataType": 2,
+      "payload": "",
+      "frame": "00 01 00 00 03 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 00 03 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin byteArrayOf(0,1,0,0,3,2,0,0,0,0,...) exactly."
+    },
+    {
+      "name": "single packet carries first ten payload bytes",
+      "source": "LuckRingProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "cmdType": "SEND",
+          "dataType": 24,
+          "seq": 7,
+          "devType": 1,
+          "payloadHex": "01"
+        }
+      },
+      "seq": 7,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 24,
+      "payload": "01",
+      "frame": "00 01 00 07 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 07 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin asserts bytes [0]=0 [1]=1 [2]=0 [3]=7 [4]=1 [5]=24 [8]=1 [9]=0 [10]=1."
+    },
+    {
+      "name": "ack golden bytes",
+      "source": "LuckRingProtocolTest.kt",
+      "command": {
+        "op": "ack",
+        "params": {
+          "dataType": 8,
+          "seq": 5,
+          "devType": 1
+        }
+      },
+      "seq": 5,
+      "devType": 1,
+      "cmdType": "ACK",
+      "dataType": 8,
+      "payload": "01",
+      "frame": "00 01 00 05 04 08 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+      "packets": [
+        "00 01 00 05 04 08 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+      ],
+      "note": "Kotlin byteArrayOf(0,1,0,5,4,8,0,0,1,0,1,0,...) exactly. The ACK head carries the frame seq/devType echoed from the ring; it is never ACKed back."
+    },
+    {
+      "name": "multi packet split and page count",
+      "source": "LuckRingProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "cmdType": "SEND",
+          "dataType": 110,
+          "seq": 3,
+          "devType": 1,
+          "payloadHex": "00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18"
+        }
+      },
+      "seq": 3,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 110,
+      "payload": "00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18",
+      "frame": "00 01 01 03 01 6e 00 00 19 00 00 01 02 03 04 05 06 07 08 09 01 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 00 00 00 00",
+      "packets": [
+        "00 01 01 03 01 6e 00 00 19 00 00 01 02 03 04 05 06 07 08 09",
+        "01 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 00 00 00 00"
+      ],
+      "note": "Kotlin asserts continuationPages(25) == 1, 2 packets, head [2] == 1, continuation [0] == 1, continuation bytes 1..15 == payload[10..24]."
+    },
+    {
+      "name": "assembler round trips a multi packet frame (outbound side)",
+      "source": "LuckRingProtocolTest.kt",
+      "command": {
+        "op": "frame",
+        "params": {
+          "cmdType": "SEND",
+          "dataType": 110,
+          "seq": 4,
+          "devType": 1,
+          "payloadHex": "00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42"
+        }
+      },
+      "seq": 4,
+      "devType": 1,
+      "cmdType": "SEND",
+      "dataType": 110,
+      "payload": "00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42",
+      "frame": "00 01 03 04 01 6e 00 00 43 00 00 01 02 03 04 05 06 07 08 09 01 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 02 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 03 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42",
+      "packets": [
+        "00 01 03 04 01 6e 00 00 43 00 00 01 02 03 04 05 06 07 08 09",
+        "01 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c",
+        "02 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f",
+        "03 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42"
+      ],
+      "note": "67-byte payload: head + 3 continuations (4 packets)."
+    }
+  ]
+}

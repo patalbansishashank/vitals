@@ -1,0 +1,304 @@
+# App release. On a version tag (vX.Y.Z) in the public repo: builds the desktop app (Linux AppImage and deb, Windows
+# installer, macOS universal dmg), the Android APK (signed when the keystore secrets exist), a checksums file, and a
+# GitHub Release with the CHANGELOG section as notes. Asset names are stable and listed in docs/RELEASING.md.
+# The website deploy is deploy.yml; both run on the same tag. The test gate runs locally in `pnpm release`.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build, for example v0.5.0'
+        required: true
+        type: string
+      publish:
+        description: 'Publish the GitHub Release (off: build and keep the files as run artifacts only)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  # Manual runs build the tag they name, never the branch the run was started from.
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  prepare:
+    name: Version and notes
+    # Only the public repo builds releases; a tag pushed to a private copy (or this repo while still private) runs nothing.
+    if: github.repository == 'patalbansishashank/vitals' && !github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      # Stable tags publish; release candidates build every platform without publishing.
+      - name: Check the tag name
+        run: |
+          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[1-9][0-9]*)?$ ]]; then
+            echo "::error::'$RELEASE_TAG' is not a vX.Y.Z or vX.Y.Z-rc.N tag"
+            exit 1
+          fi
+
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Node (from .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check the version and publication policy
+        id: version
+        env:
+          RELEASE_EVENT: ${{ github.event_name }}
+          PUBLISH_REQUEST: ${{ github.event.inputs.publish || 'false' }}
+        run: node scripts/release/release-policy.mjs >> "$GITHUB_OUTPUT"
+
+      - name: Release notes from CHANGELOG.md
+        run: node scripts/release/release-notes.mjs "${RELEASE_TAG#v}" > "$RUNNER_TEMP/notes.md"
+
+      - name: Keep the notes
+        uses: actions/upload-artifact@v7
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes.md
+          if-no-files-found: error
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    # Windows and macOS are built but never block the Linux and Android release: a failed optional leg leaves its
+    # files out and the job still counts as passed for `release`. A Linux failure still stops the release.
+    continue-on-error: ${{ matrix.optional && needs.prepare.outputs.publish == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+            targets: --linux AppImage deb --x64
+            names: >-
+              -c.linux.executableName=vitals
+              -c.appImage.artifactName=Vitals-linux-x86_64.AppImage
+              -c.deb.artifactName=Vitals-linux-amd64.deb
+            expected: Vitals-linux-x86_64.AppImage Vitals-linux-amd64.deb
+            optional: false
+          - name: windows
+            os: windows-latest
+            targets: --win nsis --x64
+            names: -c.nsis.artifactName=Vitals-windows-x64-setup.exe
+            expected: Vitals-windows-x64-setup.exe
+            optional: true
+          - name: macos
+            os: macos-latest
+            # Universal: one dmg for Apple silicon and Intel. Ad-hoc signed ("-"), not notarised: signing is an owner purchase.
+            # No hardened runtime, so an ad-hoc signed app still loads its own libraries whatever the entitlements say.
+            targets: --mac dmg --universal -c.mac.identity=- -c.mac.notarize=false -c.mac.hardenedRuntime=false
+            names: -c.dmg.artifactName=Vitals-macos-universal.dmg
+            expected: Vitals-macos-universal.dmg
+            optional: true
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      # No certificate discovery: the builds are unsigned (macOS ad-hoc).
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Set up Node (from .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Only the disposable CI checkout gets the candidate version; the source version is bumped at release time.
+      - name: Set candidate build version
+        if: contains(env.RELEASE_TAG, '-')
+        run: node scripts/release/release-policy.mjs --set-build-version
+
+      - name: Build the app
+        run: pnpm --filter @vitals/desktop run build
+
+      # The overrides pin the version to the tag and the file names to the stable names in docs/RELEASING.md.
+      # electron-builder writes the updater files (latest*.yml, *.blockmap) with the same names.
+      - name: Package
+        working-directory: apps/desktop
+        env:
+          TARGETS: ${{ matrix.targets }}
+          NAMES: ${{ matrix.names }}
+        run: |
+          # shellcheck disable=SC2086 # TARGETS and NAMES are lists of arguments
+          pnpm exec electron-builder --config electron-builder.yml --publish never \
+            -c.extraMetadata.version="$VERSION" $TARGETS $NAMES
+
+      - name: Smoke launch
+        env:
+          SMOKE_REQUIRED: '1'
+        run: bash scripts/release/smoke-desktop.sh apps/desktop/release
+
+      - name: Collect the files
+        env:
+          EXPECTED: ${{ matrix.expected }}
+        run: |
+          bash scripts/release/collect-desktop.sh apps/desktop/release "$RUNNER_TEMP/out"
+          for n in $EXPECTED; do
+            [ -f "$RUNNER_TEMP/out/$n" ] || { echo "::error::$n was not produced"; exit 1; }
+          done
+
+      - name: Keep the files
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.name }}
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          compression-level: 0
+
+  android:
+    name: Android
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11
+
+      - name: Set up Node (from .nvmrc)
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set candidate build version
+        if: contains(env.RELEASE_TAG, '-')
+        run: node scripts/release/release-policy.mjs --set-build-version
+
+      # Web build, `cap sync android` and `gradlew assembleRelease`; the release build type has no signing config.
+      - name: Build the unsigned APK
+        run: pnpm --filter @vitals/android run build:apk
+
+      - name: Sign
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          bash scripts/release/sign-apk.sh \
+            apps/android/android/app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/out"
+
+      - name: Keep the files
+        uses: actions/upload-artifact@v7
+        with:
+          name: android
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    name: GitHub Release
+    needs: [prepare, desktop, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PUBLISH: ${{ needs.prepare.outputs.publish }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      # Named artifacts only: a re-run also finds this job's own release-X.Y.Z artifact from the first attempt.
+      - name: Fetch the files
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/files
+          pattern: '{notes,desktop-*,android}'
+
+      - name: Checksums
+        run: |
+          mkdir -p "$RUNNER_TEMP/assets"
+          find "$RUNNER_TEMP/files" -mindepth 2 -maxdepth 2 -type f ! -name notes.md -exec mv -t "$RUNNER_TEMP/assets" {} +
+          bash scripts/release/checksums.sh "$RUNNER_TEMP/assets"
+          {
+            echo "### Vitals $VERSION assets"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/assets/SHA256SUMS.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the release set
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ env.VERSION }}
+          path: ${{ runner.temp }}/assets/*
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
+
+      # A re-run of the same tag replaces the files of the existing release instead of failing, and publishes a draft
+      # left behind by an upload that died half-way.
+      - name: Publish
+        if: env.PUBLISH == 'true' && !contains(env.RELEASE_TAG, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd "$RUNNER_TEMP/assets"
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" --draft=false --latest --title "Vitals $VERSION" --notes-file "$RUNNER_TEMP/files/notes/notes.md"
+            gh release upload "$RELEASE_TAG" ./* --clobber
+          else
+            gh release create "$RELEASE_TAG" ./* --verify-tag --latest \
+              --title "Vitals $VERSION" --notes-file "$RUNNER_TEMP/files/notes/notes.md"
+          fi
+          echo "Release: $(gh release view "$RELEASE_TAG" --json url --jq .url)" >> "$GITHUB_STEP_SUMMARY"

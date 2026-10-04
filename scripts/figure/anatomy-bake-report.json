@@ -1,0 +1,153 @@
+{
+  "file": "public/figure/anatomy-v1.bin",
+  "selectedMeshes": 590,
+  "sourceVertices": 1541694,
+  "sourceTriangles": 2193348,
+  "vertices": 57481,
+  "triangles": 126562,
+  "groups": [
+    {
+      "kind": "bone",
+      "region": "head",
+      "start": 0,
+      "count": 28863,
+      "anchor": [
+        -0.049,
+        149.626,
+        6.664
+      ],
+      "sideAnchorX": 2.316,
+      "meshes": 43
+    },
+    {
+      "kind": "bone",
+      "region": "trunk",
+      "start": 28863,
+      "count": 52665,
+      "anchor": [
+        0.024,
+        119.232,
+        4.236
+      ],
+      "sideAnchorX": 4.664,
+      "meshes": 75
+    },
+    {
+      "kind": "bone",
+      "region": "arms",
+      "start": 81528,
+      "count": 15474,
+      "anchor": [
+        -0.059,
+        85.121,
+        1.881
+      ],
+      "sideAnchorX": 18.863,
+      "meshes": 60
+    },
+    {
+      "kind": "bone",
+      "region": "legs",
+      "start": 97002,
+      "count": 18054,
+      "anchor": [
+        0.068,
+        9.551,
+        9.524
+      ],
+      "sideAnchorX": 10.664,
+      "meshes": 64
+    },
+    {
+      "kind": "muscle",
+      "region": "head",
+      "start": 115056,
+      "count": 52719,
+      "anchor": [
+        0.099,
+        142.904,
+        3.799
+      ],
+      "sideAnchorX": 2.95,
+      "meshes": 72
+    },
+    {
+      "kind": "muscle",
+      "region": "trunk",
+      "start": 167775,
+      "count": 86100,
+      "anchor": [
+        1.561,
+        121.07,
+        3.074
+      ],
+      "sideAnchorX": 6.884,
+      "meshes": 67
+    },
+    {
+      "kind": "muscle",
+      "region": "arms",
+      "start": 253875,
+      "count": 53601,
+      "anchor": [
+        0.033,
+        96.696,
+        1.148
+      ],
+      "sideAnchorX": 18.917,
+      "meshes": 90
+    },
+    {
+      "kind": "muscle",
+      "region": "legs",
+      "start": 307476,
+      "count": 72210,
+      "anchor": [
+        0.159,
+        43.846,
+        5.249
+      ],
+      "sideAnchorX": 8.153,
+      "meshes": 119
+    }
+  ],
+  "rawBytes": 1198974,
+  "gzipBytes": 705041,
+  "sha256": "27f2b350ce51d9c7893f53edaacd4c9a4e9cb6d6598dacb915e72e02f81202db",
+  "sourceArchiveSha256": "40665852c49f218326590e204db91064a1ecfc3c6f8cbd7bbbcaac62c7cd409e",
+  "registration": {
+    "sourceSkinHeightMm": 1719.4712,
+    "sourceSkinFloorMm": -78.1112,
+    "zShiftCm": -3.0,
+    "anteriorHingeCm": 7.0,
+    "anteriorScale": 0.7,
+    "armXStartCm": 18,
+    "armXFactor": 0.55,
+    "armLandmarks": [
+      [
+        71.0,
+        71.8,
+        4.4,
+        9.8
+      ],
+      [
+        85.0,
+        86.9,
+        2.0,
+        6.0
+      ],
+      [
+        107.0,
+        107.0,
+        1.0,
+        4.0
+      ],
+      [
+        136.0,
+        136.0,
+        0.0,
+        2.4
+      ]
+    ]
+  }
+}

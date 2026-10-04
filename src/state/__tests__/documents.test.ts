@@ -77,7 +77,6 @@ describe('one-time migration from localStorage', { timeout: 30_000 }, () => {
     expect(docs.peek('deviceSettings', 'me')).toMatchObject({ theme: 'dark', chartPatterns: true });
     expect(docs.peekAll('scenarios').map((d) => d._id)).toEqual(['starter']);
     expect(docs.peek('syncState', 'me')).toMatchObject({ migratedFromLocalStorage: NOW });
-    expect(localStorage.getItem('vitals.migratedToStore')).toBe(NOW);
     // the v0.1 keys stay (rollback); the boot cache carries the current versions
     expect(JSON.parse(localStorage.getItem('vitals.settings')!).version).toBe(3);
     expect(localStorage.getItem('vitals.results')).not.toBeNull();
@@ -96,7 +95,15 @@ describe('one-time migration from localStorage', { timeout: 30_000 }, () => {
     const { docs } = await boot();
     expect(docs.peek('profile', 'me')).toMatchObject({ weightKg: 71.5 });
     expect(docs.peek('settings', 'me')).toMatchObject({ units: 'imperial' });
-    expect(localStorage.getItem('lumen.body')).not.toBeNull();
+    // the old keys go once copied
+    expect(localStorage.getItem('lumen.body')).toBeNull();
+  });
+
+  it('no migratedToStore key is written', async () => {
+    seed();
+    const { report } = await boot();
+    expect(report.migrated).toBe(true);
+    expect(localStorage.getItem('vitals.migratedToStore')).toBeNull();
   });
 
   it('migrates a fresh install too, so every projection has its documents', async () => {
@@ -133,6 +140,29 @@ describe('boot reconciliation and remote changes', { timeout: 30_000 }, () => {
     expect(again.report.fromCache).toContain('vitals.planner');
     await again.runtime.settleUnscopedWrites();
     expect(again.docs.peek('goals', 'me')).toMatchObject({ horizonDays: 140 });
+  });
+
+  it('paired: a boot cache newer by clock does not overwrite a remote document', async () => {
+    seed();
+    const first = await boot();
+    // a remote edit merged at 10:00 (the sending device's clock is behind) ...
+    const t = first.store.mintWriteToken('sync');
+    vi.setSystemTime(new Date('2026-10-01T10:00:00.000Z'));
+    await first.docs.transact(t, (tx) => tx.patch('settings', 'me', { units: 'metric' }));
+    // ... while the boot cache still holds the old value, stamped later by this device's clock
+    const cache = JSON.parse(localStorage.getItem('vitals.settings')!);
+    cache.state.units = 'imperial';
+    cache.at = '2026-10-01T11:00:00.000Z';
+    localStorage.setItem('vitals.settings', JSON.stringify(cache));
+    vi.setSystemTime(new Date('2026-10-01T12:00:00.000Z'));
+    localStorage.setItem(first.runtime.SYNC_PAIRED_KEY, '1');
+    const again = await boot(first.backend);
+    await again.runtime.settleUnscopedWrites();
+    expect(again.report.fromCache).toEqual([]);
+    expect(again.report.fromDocs).toContain('vitals.settings');
+    expect(again.docs.peek('settings', 'me')).toMatchObject({ units: 'metric' });
+    const { useSettingsStore } = await import('@/state/settingsStore');
+    expect(useSettingsStore.getState().units).toBe('metric');
   });
 
   it('applies merged remote documents to the projection', async () => {

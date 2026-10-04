@@ -24,6 +24,7 @@
 import { buildSleepRecord, isoAt, localDateAt, provenanceOf, qualityOf } from '../core/importKit';
 import type { StageSeg } from '../core/importKit';
 import { LUMEN_SOURCE, dailyRecordId, seriesRecordId, sleepRecordId, sleepVersion, workoutRecordId } from '../core/recordIds';
+import { LUMEN_DEVICE_MODEL } from '../core/source';
 import type {
   BioBatch, BioProvenance, BioRecord, BioStream, BiometricsImporter, DailyRecord, ImportContext, QualityFlag, SeriesRecord,
   SleepRecord, SleepStageName, WorkoutRecord,
@@ -36,7 +37,7 @@ export const LUMEN_ARCHIVE_PRODUCER = { name: 'vitals-importer-lumen-archive', v
 const CHANNEL = 'file:lumen_archive' as const;
 const SOURCE_APP = 'Lumen';
 const DECODER = 'lumen-archive/1';
-const DEVICE = { type: 'ring', model: 'J-Style 2301', tier: 'C' } as const;
+const DEVICE = { type: 'ring', model: LUMEN_DEVICE_MODEL, tier: 'C' } as const;
 const BATCH_SIZE = 500;
 
 type Obj = Record<string, unknown>;

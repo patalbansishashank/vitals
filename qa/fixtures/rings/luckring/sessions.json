@@ -1,0 +1,687 @@
+{
+  "family": "luckring",
+  "source": "LuckRingSyncEngineGateTest.kt, LuckRingHistorySyncTest.kt, LuckRingDriverTest.kt (Kotlin, upstream PulseLoopAndroid); synthetic packets only",
+  "conventions": {
+    "steps": "Run in order against a fake peripheral and a virtual clock. do = a host call; advanceMs = advance the virtual clock; expectWrite = the next 20-byte packet written (writes are serialised, one packet per step); notify = packets the ring sends (in order); expectEvents = decoded events after the last notified packet (asserted subset); expectProgress = pager progress strings published before the write of the same step; expectNoWrite / expectRunning = state checks.",
+    "derived": "Sessions marked derived are composed from the Kotlin source, not from a Kotlin test."
+  },
+  "sessions": [
+    {
+      "name": "connect handshake, cold (no ring replies)",
+      "source": "LuckRingSyncEngineGateTest.kt (cold pass: 9 packets) + LuckRingEncoder/Protocol sources",
+      "setup": {
+        "kind": "syncEngine",
+        "clock": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": 0
+        },
+        "profile": "engine default (gender other, age 0, height 0, weight 0; user id 0)",
+        "goalSteps": 10000,
+        "autoMonitoring": {
+          "hrEnabled": true,
+          "hrIntervalMinutes": 30,
+          "spo2Enabled": true
+        },
+        "pagerTimers": {
+          "settleMs": 1500,
+          "stallMs": 6000
+        }
+      },
+      "notes": "The device is connected and the notify characteristic subscribed; there are no required subscriptions and no immediate post-subscription commands. The session starts the cold pass with runStartup().",
+      "steps": [
+        {
+          "do": {
+            "runStartup": true
+          }
+        },
+        {
+          "expectWrite": "00 01 03 00 01 6e 00 00 43 00 41 00 07 0c 00 66 00 00 00 00",
+          "comment": "MixInfo binding bundle (110), head packet; 67-byte TLV payload in 4 packets. seq 0."
+        },
+        {
+          "expectWrite": "01 01 14 00 00 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00"
+        },
+        {
+          "expectWrite": "02 7c 01 ff ff 00 00 04 00 67 00 04 00 6d 01 13 00 6f 10 27"
+        },
+        {
+          "expectWrite": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 78 00 00"
+        },
+        {
+          "expectWrite": "00 01 00 01 01 80 00 00 08 00 01 00 1e 01 00 00 00 00 00 00",
+          "comment": "Auto monitoring (128): HR on, 30 min, SpO2 on. seq 1."
+        },
+        {
+          "expectWrite": "00 01 00 02 03 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST device info (2), seq 2."
+        },
+        {
+          "expectWrite": "00 01 00 03 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST battery (3), seq 3."
+        },
+        {
+          "expectWrite": "00 01 00 04 03 09 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST settings sync (9), seq 4."
+        },
+        {
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "comment": "History pager starts: REQUEST activity history (5); the pager has its own seq counter, starting at 0."
+        }
+      ]
+    },
+    {
+      "name": "connect handshake with ring replies",
+      "source": "LuckRingDriverTest.kt, LuckRingDecoderTest.kt (reply frames) composed with the cold pass",
+      "setup": {
+        "kind": "syncEngine",
+        "clock": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": 0
+        },
+        "profile": "engine default (gender other, age 0, height 0, weight 0; user id 0)",
+        "goalSteps": 10000,
+        "autoMonitoring": {
+          "hrEnabled": true,
+          "hrIntervalMinutes": 30,
+          "spo2Enabled": true
+        },
+        "pagerTimers": {
+          "settleMs": 1500,
+          "stallMs": 6000
+        }
+      },
+      "derived": true,
+      "steps": [
+        {
+          "do": {
+            "runStartup": true
+          }
+        },
+        {
+          "expectWrite": "00 01 03 00 01 6e 00 00 43 00 41 00 07 0c 00 66 00 00 00 00",
+          "comment": "MixInfo binding bundle (110), head packet; 67-byte TLV payload in 4 packets. seq 0."
+        },
+        {
+          "expectWrite": "01 01 14 00 00 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00"
+        },
+        {
+          "expectWrite": "02 7c 01 ff ff 00 00 04 00 67 00 04 00 6d 01 13 00 6f 10 27"
+        },
+        {
+          "expectWrite": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 78 00 00"
+        },
+        {
+          "expectWrite": "00 01 00 01 01 80 00 00 08 00 01 00 1e 01 00 00 00 00 00 00",
+          "comment": "Auto monitoring (128): HR on, 30 min, SpO2 on. seq 1."
+        },
+        {
+          "expectWrite": "00 01 00 02 03 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST device info (2), seq 2."
+        },
+        {
+          "expectWrite": "00 01 00 03 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST battery (3), seq 3."
+        },
+        {
+          "expectWrite": "00 01 00 04 03 09 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST settings sync (9), seq 4."
+        },
+        {
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "comment": "History pager starts: REQUEST activity history (5); the pager has its own seq counter, starting at 0."
+        },
+        {
+          "notify": [
+            "00 01 00 05 04 6e 00 00 01 00 01 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 110
+            }
+          ],
+          "expectNoWrite": true,
+          "comment": "Ring ACKs the binding bundle: a device ACK is decoded, never ACKed back."
+        },
+        {
+          "notify": [
+            "00 01 00 00 01 02 00 00 06 00 06 01 02 03 04 05 00 00 00 00"
+          ],
+          "expectWrite": "00 01 00 00 04 02 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "Status",
+              "firmware": "1.2.3.4.5"
+            }
+          ],
+          "comment": "Device info reply (SEND, seq 0): ACK echoes seq and devType, written before the decode."
+        },
+        {
+          "notify": [
+            "00 01 00 01 01 03 00 00 02 00 55 01 00 00 00 00 00 00 00 00"
+          ],
+          "expectWrite": "00 01 00 01 04 03 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "Battery",
+              "percent": 85,
+              "charging": false
+            }
+          ]
+        },
+        {
+          "notify": [
+            "00 01 00 02 01 09 00 00 07 00 05 00 01 04 00 01 00 00 00 00"
+          ],
+          "expectWrite": "00 01 00 02 04 09 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "CommandAck",
+              "commandId": 9
+            }
+          ],
+          "comment": "Settings-sync reply (9) carries a MixInfo TLV that Kotlin does not decode (synthetic TLV here)."
+        }
+      ]
+    },
+    {
+      "name": "history sync: sequential advance on data settle",
+      "source": "LuckRingHistorySyncTest.kt (sequential advance on data settle; frames are synthetic additions)",
+      "setup": {
+        "kind": "historySync",
+        "settleMs": 50,
+        "stallMs": 5000
+      },
+      "steps": [
+        {
+          "do": {
+            "start": [
+              5,
+              6
+            ]
+          },
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "The first type is requested immediately."
+        },
+        {
+          "notify": [
+            "00 01 01 07 01 05 00 00 17 00 01 00 01 00 f1 53 65 d2 04 00",
+            "01 00 88 13 00 00 2c 01 00 00 58 02 00 00 00 00 00 00 00 00"
+          ],
+          "expectWrite": "00 01 00 07 04 05 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "ActivityBucket",
+              "timestampS": 1700000000,
+              "steps": 1234,
+              "distanceMeters": 5000
+            }
+          ],
+          "comment": "A data frame for the in-flight type cancels the stall timer and arms the settle timer (50 ms)."
+        },
+        {
+          "advanceMs": 50,
+          "expectProgress": [
+            "Syncing sleep..."
+          ],
+          "expectWrite": "00 01 00 01 03 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "Settle expired: advance to type 6 (the pager seq is 1)."
+        },
+        {
+          "notify": [
+            "00 01 04 08 01 06 00 00 4f 00 00 00 01 03 01 00 f1 53 65 02",
+            "01 2c f2 53 65 04 84 f4 53 65 00 00 00 00 00 00 00 00 00 00",
+            "02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+            "04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectWrite": "00 01 00 08 04 06 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "SleepTimeline",
+              "timestampS": 1700000000
+            }
+          ]
+        },
+        {
+          "advanceMs": 50,
+          "expectProgress": [
+            "done"
+          ],
+          "expectNoWrite": true,
+          "expectRunning": false,
+          "comment": "Queue drained: not running, completion signalled."
+        }
+      ]
+    },
+    {
+      "name": "history sync: unsupported type is skipped on stall",
+      "source": "LuckRingHistorySyncTest.kt (unsupported type is skipped on stall)",
+      "setup": {
+        "kind": "historySync",
+        "settleMs": 5000,
+        "stallMs": 50
+      },
+      "steps": [
+        {
+          "do": {
+            "start": [
+              42
+            ]
+          },
+          "expectProgress": [
+            "Syncing HRV..."
+          ],
+          "expectWrite": "00 01 00 00 03 2a 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "advanceMs": 50,
+          "expectProgress": [
+            "done"
+          ],
+          "expectNoWrite": true,
+          "expectRunning": false,
+          "comment": "Nothing ever answered: skipped on the stall timeout, then done."
+        }
+      ]
+    },
+    {
+      "name": "history sync: re-entrant start is ignored while running",
+      "source": "LuckRingHistorySyncTest.kt (re entrant start is ignored while running)",
+      "setup": {
+        "kind": "historySync",
+        "settleMs": 5000,
+        "stallMs": 5000
+      },
+      "steps": [
+        {
+          "do": {
+            "start": [
+              5
+            ]
+          },
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "do": {
+            "start": [
+              6
+            ]
+          },
+          "expectNoWrite": true,
+          "expectRunning": true,
+          "comment": "A second start while a pass is in flight is ignored."
+        },
+        {
+          "do": {
+            "cancel": true
+          },
+          "expectNoWrite": true,
+          "expectRunning": false
+        }
+      ]
+    },
+    {
+      "name": "history sync: cancel stops the pass",
+      "source": "LuckRingHistorySyncTest.kt (cancel stops the pass)",
+      "setup": {
+        "kind": "historySync",
+        "settleMs": 50,
+        "stallMs": 50
+      },
+      "steps": [
+        {
+          "do": {
+            "start": [
+              5,
+              6,
+              8
+            ]
+          },
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "do": {
+            "cancel": true
+          },
+          "expectRunning": false
+        },
+        {
+          "advanceMs": 200,
+          "expectNoWrite": true,
+          "expectRunning": false,
+          "comment": "Cancel halts before any further type is requested; no \"done\" progress either (cancel clears silently)."
+        }
+      ]
+    },
+    {
+      "name": "warm pass skips binding and monitoring but keeps the history query",
+      "source": "LuckRingSyncEngineGateTest.kt",
+      "setup": {
+        "kind": "syncEngine",
+        "clock": {
+          "nowMs": 1700000000000,
+          "tzOffsetS": 0
+        },
+        "profile": "engine default (gender other, age 0, height 0, weight 0; user id 0)",
+        "goalSteps": 10000,
+        "autoMonitoring": {
+          "hrEnabled": true,
+          "hrIntervalMinutes": 30,
+          "spo2Enabled": true
+        },
+        "pagerTimers": {
+          "settleMs": 1500,
+          "stallMs": 6000
+        }
+      },
+      "steps": [
+        {
+          "do": {
+            "runStartup": true
+          }
+        },
+        {
+          "expectWrite": "00 01 03 00 01 6e 00 00 43 00 41 00 07 0c 00 66 00 00 00 00",
+          "comment": "MixInfo binding bundle (110), head packet; 67-byte TLV payload in 4 packets. seq 0."
+        },
+        {
+          "expectWrite": "01 01 14 00 00 00 0c 00 68 00 f1 53 65 00 00 00 00 00 08 00"
+        },
+        {
+          "expectWrite": "02 7c 01 ff ff 00 00 04 00 67 00 04 00 6d 01 13 00 6f 10 27"
+        },
+        {
+          "expectWrite": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 05 00 78 00 00"
+        },
+        {
+          "expectWrite": "00 01 00 01 01 80 00 00 08 00 01 00 1e 01 00 00 00 00 00 00",
+          "comment": "Auto monitoring (128): HR on, 30 min, SpO2 on. seq 1."
+        },
+        {
+          "expectWrite": "00 01 00 02 03 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST device info (2), seq 2."
+        },
+        {
+          "expectWrite": "00 01 00 03 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST battery (3), seq 3."
+        },
+        {
+          "expectWrite": "00 01 00 04 03 09 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "REQUEST settings sync (9), seq 4."
+        },
+        {
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "comment": "History pager starts: REQUEST activity history (5); the pager has its own seq counter, starting at 0."
+        },
+        {
+          "do": {
+            "runStartup": true
+          },
+          "expectNoWrite": true,
+          "comment": "A pass already in flight wins: the second runStartup writes nothing."
+        },
+        {
+          "do": {
+            "cancelPager": true
+          }
+        },
+        {
+          "do": {
+            "runStartup": true
+          },
+          "expectWrite": "00 01 00 05 03 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "Warm pass: configurationSent is true, so no bundle, no auto-monitoring, no device info. Encoder seq continues at 5."
+        },
+        {
+          "expectWrite": "00 01 00 06 03 09 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "expectWrite": "00 01 00 01 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "comment": "The pager restarts the catalog; its own seq is now 1."
+        },
+        {
+          "do": {
+            "engineReset": true
+          },
+          "comment": "reset() cancels the pager and clears configurationSent: the next runStartup is cold again (9 packets)."
+        }
+      ]
+    },
+    {
+      "name": "history sync: full catalog with production timers (HR and SpO2 answer, the rest stay silent)",
+      "source": "derived from LuckRingHistorySync.kt (not a Kotlin test); the data frames are synthetic",
+      "derived": true,
+      "setup": {
+        "kind": "historySync",
+        "settleMs": 1500,
+        "stallMs": 6000
+      },
+      "steps": [
+        {
+          "do": {
+            "start": [
+              5,
+              6,
+              8,
+              40,
+              41,
+              42,
+              47,
+              53
+            ]
+          },
+          "expectProgress": [
+            "Syncing activity..."
+          ],
+          "expectWrite": "00 01 00 00 03 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "advanceMs": 6000,
+          "expectProgress": [
+            "Syncing sleep..."
+          ],
+          "expectWrite": "00 01 00 01 03 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+          "comment": "No answer to 5 for the stall time: skipped."
+        },
+        {
+          "advanceMs": 6000,
+          "expectProgress": [
+            "Syncing heart rate..."
+          ],
+          "expectWrite": "00 01 00 02 03 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "notify": [
+            "00 01 01 03 01 08 00 00 0d 00 02 00 02 00 f1 53 65 48 3c f1",
+            "01 53 65 4b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectWrite": "00 01 00 03 04 08 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind": "HEART_RATE",
+              "value": 72,
+              "timestampS": 1700000000
+            },
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind": "HEART_RATE",
+              "value": 75,
+              "timestampS": 1700000060
+            }
+          ]
+        },
+        {
+          "advanceMs": 1500,
+          "expectProgress": [
+            "Syncing blood oxygen..."
+          ],
+          "expectWrite": "00 01 00 03 03 28 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "notify": [
+            "00 01 00 04 01 28 00 00 08 00 01 00 01 00 f1 53 65 61 00 00"
+          ],
+          "expectWrite": "00 01 00 04 04 28 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "expectEvents": [
+            {
+              "kotlin": "HistoryMeasurement",
+              "kind": "SPO2",
+              "value": 97,
+              "timestampS": 1700000000
+            }
+          ]
+        },
+        {
+          "advanceMs": 1500,
+          "expectProgress": [
+            "Syncing blood pressure..."
+          ],
+          "expectWrite": "00 01 00 04 03 29 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "advanceMs": 6000,
+          "expectProgress": [
+            "Syncing HRV..."
+          ],
+          "expectWrite": "00 01 00 05 03 2a 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "advanceMs": 6000,
+          "expectProgress": [
+            "Syncing temperature..."
+          ],
+          "expectWrite": "00 01 00 06 03 2f 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "advanceMs": 6000,
+          "expectProgress": [
+            "Syncing stress..."
+          ],
+          "expectWrite": "00 01 00 07 03 35 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "advanceMs": 6000,
+          "expectProgress": [
+            "done"
+          ],
+          "expectNoWrite": true,
+          "expectRunning": false
+        }
+      ]
+    },
+    {
+      "name": "live heart rate and spot SpO2 (live toggles)",
+      "source": "derived from LuckRingSyncEngine.kt / LuckRingDecoder.kt (not a Kotlin test); the replies are synthetic",
+      "derived": true,
+      "setup": {
+        "kind": "syncEngine",
+        "clock": {
+          "nowMs": 1700000100000,
+          "tzOffsetS": 0
+        },
+        "freshEncoderSeq": 0
+      },
+      "steps": [
+        {
+          "do": {
+            "startHeartRate": true
+          },
+          "expectWrite": "00 01 00 00 01 18 00 00 01 00 01 00 00 00 00 00 00 00 00 00",
+          "comment": "Real HR toggle (24) on, seq 0. A spot HR reading is the first usable sample of this same stream."
+        },
+        {
+          "notify": [
+            "00 01 00 00 02 07 00 00 08 00 01 00 01 05 f1 53 65 42 00 00"
+          ],
+          "expectNoWrite": true,
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateSample",
+              "bpm": 66,
+              "timestampS": 1700000005
+            }
+          ]
+        },
+        {
+          "notify": [
+            "00 01 00 01 02 07 00 00 03 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectNoWrite": true,
+          "expectEvents": [
+            {
+              "kotlin": "HeartRateComplete",
+              "timestampS": 1700000100
+            }
+          ],
+          "comment": "Empty envelope = the measurement ended (stamped with the decoder clock)."
+        },
+        {
+          "do": {
+            "stopHeartRate": true
+          },
+          "expectWrite": "00 01 00 01 01 18 00 00 01 00 00 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "do": {
+            "startSpO2": true
+          },
+          "expectWrite": "00 01 00 02 01 14 00 00 05 00 01 00 00 00 00 00 00 00 00 00"
+        },
+        {
+          "notify": [
+            "00 01 00 02 02 14 00 00 08 00 01 00 01 28 f1 53 65 61 00 00"
+          ],
+          "expectNoWrite": true,
+          "expectEvents": [
+            {
+              "kotlin": "Spo2Result",
+              "value": 97,
+              "timestampS": 1700000040
+            }
+          ]
+        },
+        {
+          "notify": [
+            "00 01 00 03 02 14 00 00 03 00 00 00 00 00 00 00 00 00 00 00"
+          ],
+          "expectNoWrite": true,
+          "expectEvents": [
+            {
+              "kotlin": "Spo2Complete",
+              "timestampS": 1700000100
+            }
+          ]
+        },
+        {
+          "do": {
+            "stopSpO2": true
+          },
+          "expectWrite": "00 01 00 03 01 14 00 00 05 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ]
+    }
+  ]
+}

@@ -4,7 +4,9 @@
  * changes, deleting a source, and the background rescore the app dispatches as the SYSTEM actor.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { stageFile, clearStaged } from '@/biometrics/app/handoff';
+import { stageBleLink, stageFile, clearStaged } from '@/biometrics/app/handoff';
+import { RecordedLink } from '@/biometrics/ble/fakeLink';
+import { HISTORY_CATALOG, command } from '@vitals/rings/jstyle2301/commands';
 import { bioActivity } from '@/biometrics/app/activity';
 import { createMemoryBlobStore, setBlobStore } from '@/state/blobStore';
 import { getDocumentStore } from '@/state/runtime';
@@ -188,6 +190,50 @@ describe('changes', () => {
     const r = await dispatch('bio.deviceConnect', { driver: 'colmi' });
     expect(r.ok).toBe(false);
     expect(['precondition_failed', 'not_found']).toContain(!r.ok && r.error.code);
+  });
+});
+
+describe('Bluetooth ring (J-Style 2301 through its @vitals/rings family)', () => {
+  const bcd = (v: number): number => (Math.floor(v / 10) << 4) | v % 10;
+  const hrRec = (bpm: number, min: number): Uint8Array => Uint8Array.of(0x55, 0, 0, ...[26, 3, 11, 8, min, 0].map(bcd), bpm);
+  /** V0525: firmware and battery, then one page per history stream; only heart rate has records. */
+  const ringLink = (hr: Uint8Array): RecordedLink =>
+    new RecordedLink(
+      [
+        { expect: command(0x27), reply: [Uint8Array.of(0x27, 0, 5, 2, 5)] },
+        { expect: command(0x13), reply: [Uint8Array.of(0x13, 88)] },
+        ...HISTORY_CATALOG.map((s) => ({ expect: command(s.opcode, 0), reply: s.opcode === 0x55 ? [hr, Uint8Array.of(0x55, 0xff)] : [Uint8Array.of(s.opcode, 0xff)] })),
+      ],
+      'Ring 2301',
+    );
+  type RingRep = { sourceKey: string; driver: string; firmware: string; battery: number | null; samples: number };
+
+  it('deviceConnect reads the ring into a new source; deviceSync reads it again from the stored cursors', async () => {
+    const first = ringLink(new Uint8Array([...hrRec(61, 0), ...hrRec(64, 5)]));
+    const a = await job<RingRep>(await dispatch('bio.deviceConnect', { driver: 'jstyle2301', linkRef: stageBleLink(first, 'jstyle2301') }));
+    expect(a).toMatchObject({ driver: 'jstyle2301', firmware: 'V0525', battery: 88, samples: 2 });
+    expect(first.errors).toEqual([]);
+    expect(first.remaining).toBe(0);
+    type Src = { sourceKey: string; driver: string | null; battery: number | null; streams: string[] };
+    const src = out<{ sources: Src[] }>(await dispatch('bio.sources', {})).sources.find((s) => s.sourceKey === a.sourceKey);
+    expect(src).toMatchObject({ driver: 'jstyle2301', battery: 88 });
+    expect(src?.streams).toContain('hr');
+
+    const again = ringLink(hrRec(66, 10));
+    const b = await job<RingRep>(await dispatch('bio.deviceSync', { sourceKey: a.sourceKey, linkRef: stageBleLink(again, 'jstyle2301') }));
+    expect(b).toMatchObject({ sourceKey: a.sourceKey, driver: 'jstyle2301', samples: 1 });
+    expect(again.errors).toEqual([]);
+    expect(again.remaining).toBe(0);
+  });
+
+  it('a refused passcode keeps its plain-words precondition, and the link is let go', async () => {
+    const link = new RecordedLink([
+      { expect: command(0x27), reply: [Uint8Array.of(0x27, 0, 7, 8, 9)] },
+      { expect: { prefix: '3c' }, reply: [Uint8Array.of(0x3c, 0)] },
+    ]);
+    const r = await dispatch('bio.deviceConnect', { driver: 'jstyle2301', linkRef: stageBleLink(link, 'jstyle2301') });
+    expect(!r.ok && r.error).toMatchObject({ code: 'precondition_failed', message: expect.stringContaining('refused'), detail: { rule: 'ble:auth_rejected' } });
+    expect(link.connected).toBe(false);
   });
 });
 

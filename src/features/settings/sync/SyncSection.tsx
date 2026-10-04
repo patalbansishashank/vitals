@@ -25,7 +25,10 @@ function safeNormalize(url: string): string | null {
   }
 }
 
-/** Settings › Sync: status, "Sync now", set up / join, the pairing code and "Stop syncing". Writes are `sync.*` commands. */
+/**
+ * Settings › Sync: status, "Sync now", set up / join, the pairing code and "Stop syncing". Writes are `sync.*` commands.
+ * With sync through a paired home server it is the backup area: the 24 words and QR, "Sync now", "Stop syncing".
+ */
 export function SyncSection() {
   return (
     <SettingsSection id="sync" title="Sync">
@@ -40,26 +43,46 @@ function SyncPanel() {
   const [firstCode, setFirstCode] = useState<PairingCode | null>(null);
   // with a paired server, sync runs through it: its address is the sync address (SUITE_SPEC §14.2)
   const throughServer = Boolean(server && view.relayUrl && originOf(view.relayUrl) === originOf(server.baseUrl));
+  // only the home role pairs devices, and it owns the person's sync group: it can read the data (R20-PAIR-02), it hands
+  // the key over at pairing, and this device joins that group rather than making a new one
+  const homeServer = Boolean(server);
 
   return (
     <div className="grid gap-4">
       <StatusLine status={view.status} />
       {throughServer ? (
-        <div className="flex flex-wrap items-center gap-3 text-sm text-ink">
-          <span>● {SYNC_COPY.throughServer}</span>
-          <KeyLink size="sm" variant="quiet" to="/settings/server">
-            {SYNC_COPY.serverSettings} ›
-          </KeyLink>
-        </div>
+        <>
+          <p className="m-0 text-sm leading-[1.5] text-ink">{SYNC_COPY.introHome}</p>
+          <div className="flex flex-wrap items-center gap-3 text-sm text-ink">
+            <span>● {SYNC_COPY.throughServer}</span>
+            <KeyLink size="sm" variant="quiet" to="/settings/server">
+              {SYNC_COPY.serverSettings} ›
+            </KeyLink>
+          </div>
+        </>
       ) : null}
       {view.paired && view.relayUrl ? (
-        <PairedView key={firstCode ? 'first' : 'later'} view={view} relayUrl={view.relayUrl} firstCode={firstCode} onChanged={() => setFirstCode(null)} />
+        <PairedView
+          key={firstCode ? 'first' : 'later'}
+          view={view}
+          relayUrl={view.relayUrl}
+          firstCode={firstCode}
+          onChanged={() => setFirstCode(null)}
+          throughServer={throughServer}
+        />
       ) : (
         <>
           {server && !view.relayUrl ? <p className="m-0 text-xs leading-[1.45] text-ink-2">{SYNC_COPY.fromServer}</p> : null}
-          <UnpairedView key={server?.baseUrl ?? ''} initialUrl={view.relayUrl ?? server?.baseUrl ?? ''} onPaired={setFirstCode} />
+          <UnpairedView
+            key={server?.baseUrl ?? ''}
+            initialUrl={view.relayUrl ?? server?.baseUrl ?? ''}
+            onPaired={setFirstCode}
+            intro={homeServer ? SYNC_COPY.introHome : SYNC_COPY.intro}
+            canSetUp={!homeServer}
+          />
         </>
       )}
+      {throughServer ? <p className="m-0 max-w-[68ch] text-xs leading-[1.45] text-ink-2">{SYNC_COPY.revokeKeepsKey}</p> : null}
     </div>
   );
 }
@@ -112,11 +135,14 @@ function PairedView({
   relayUrl,
   firstCode,
   onChanged,
+  throughServer,
 }: {
   view: SyncView;
   relayUrl: string;
   firstCode: PairingCode | null;
   onChanged: () => void;
+  /** The sync address is the paired server's: it is set in Settings › Server, so this page is the backup area. */
+  throughServer: boolean;
 }) {
   const [url, setUrl] = useState(relayUrl);
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -173,27 +199,29 @@ function PairedView({
   return (
     <div className="grid gap-4">
       <ServerFacts key={relayUrl} relayUrl={relayUrl} label={config.label} lastSyncedAt={config.status.lastSyncedAt} />
-      <div className="grid gap-2">
-        <Field label={SYNC_COPY.serverLabel} help={SYNC_COPY.serverHelp} error={urlError}>
-          <TextInput
-            type="url"
-            inputMode="url"
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setUrlError(null);
-            }}
-          />
-        </Field>
-        <div>
-          <Key size="sm" loading={saving} disabledReason={changed ? undefined : 'Nothing to save.'} onClick={() => void saveRelay()}>
-            {SYNC_COPY.saveAddress}
-          </Key>
+      {throughServer ? null : (
+        <div className="grid gap-2">
+          <Field label={SYNC_COPY.serverLabel} help={SYNC_COPY.serverHelp} error={urlError}>
+            <TextInput
+              type="url"
+              inputMode="url"
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setUrlError(null);
+              }}
+            />
+          </Field>
+          <div>
+            <Key size="sm" loading={saving} disabledReason={changed ? undefined : 'Nothing to save.'} onClick={() => void saveRelay()}>
+              {SYNC_COPY.saveAddress}
+            </Key>
+          </div>
         </div>
-      </div>
+      )}
       <div className="grid gap-3 border-t border-line pt-4">
         {shown ? (
           <PairingCodePanel code={shown} requireAck={mustAck} onHide={hideCode} />

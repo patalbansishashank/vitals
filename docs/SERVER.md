@@ -13,7 +13,7 @@ owner: a small ARM server) and serves the website, the installed app and the Lum
 A `home` server keeps each person's sync key on its disk (`persons/<id>/owner.key`). Whoever holds that key can read and
 change all of that person's data: logs, plans, ring data, lab values. The server needs it to work while your phone and
 browser are off. Anyone with root on the server, or with a copy of its data folder or backups, can read it too. A
-`relay` server only ever sees encrypted data.
+`relay` server only ever sees encrypted data. Pairing also hands the device the person's sync key; the 24 words remain the backup.
 
 ## Install on the server
 

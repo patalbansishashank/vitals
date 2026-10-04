@@ -1,17 +1,18 @@
 /**
  * Containers for the ring views. `RingDetailExtras` adds the matching view to a score detail: the night stages on the
  * sleep details, the heart-rate day chart on the resting-HR detail, and the overnight blood-oxygen and skin-temperature
- * charts on the night-vitals details. `ActivitySection` is the Progress faceplate with steps per day and workouts.
+ * charts on the night-vitals details. (Progress itself shows only the link card to Body signals, ./BodySignalsLink.)
  * Data: stored records by kind through ./ringData.ts; nothing renders when the person has no such data at all.
  */
 import { useMemo, useState } from 'react';
-import { Faceplate, Key, KeyBank } from '@/components';
+import { Faceplate, Key } from '@/components';
 import { useToday } from '../../clock';
 import { fmtDay } from '../../format';
-import { RING_COPY as C } from './copy';
-import { DayLine, NightStages, StepsBars, WorkoutsTable } from './RingViews';
-import { localOffsetS, nightDates, nightModel, stepsDays, useResolvedDays, useSeriesWindow, useWorkouts, type NightModel } from './ringData';
-import { addDays } from '@/living/dates';
+import { RING_COPY as C } from '@/features/signals/charts/copy';
+import { DayLine } from '@/features/signals/charts/DayLine';
+import { dayBounds } from '@/features/signals/charts/heartModels';
+import { NightStages } from '@/features/signals/charts/NightStages';
+import { localOffsetS, nightDates, nightModel, useResolvedDays, useSeriesWindow, type NightModel } from '@/features/signals/charts/ringData';
 import type { LocalDate } from '@/living';
 
 const NIGHT_WINDOW = 60;
@@ -70,10 +71,8 @@ function HrDayFace({ restingFallback }: { restingFallback?: number }) {
   const dates = withRest.length ? withRest : [today];
   const [picked, setPicked] = useState<LocalDate | null>(null);
   const date = picked && dates.includes(picked) ? picked : dates[0]!;
-  const from = Date.parse(`${date}T00:00:00Z`) - localOffsetS(Date.parse(`${date}T12:00:00Z`)) * 1000;
-  // the next midnight, not +24 h: a day with a clock change is 23 or 25 hours long
-  const next = addDays(date, 1);
-  const to = Date.parse(`${next}T00:00:00Z`) - localOffsetS(Date.parse(`${next}T12:00:00Z`)) * 1000;
+  // local midnight to the next local midnight (23 or 25 h on a clock change), each at its own offset
+  const { from, to } = dayBounds(date);
   const s = useSeriesWindow('hr', from, to, [date]);
   const day = days.find((d) => d.localDate === date);
   const rest = day?.daily?.resting_hr_bpm ?? (date === dates[0] ? restingFallback : undefined);
@@ -121,39 +120,4 @@ export function RingDetailExtras({ scoreId, lastNight, unit }: { scoreId: string
   if (view === 'hr') return <HrDayFace {...(lastNight !== undefined && unit === 'bpm' ? { restingFallback: lastNight } : {})} />;
   if (view === 'vitals') return <NightVitalsFace />;
   return null;
-}
-
-type StepsRange = '7d' | '28d';
-const WORKOUT_DAYS = 90;
-
-export function ActivitySection({ id = 'activity' }: { id?: string }) {
-  const today = useToday();
-  const [range, setRange] = useState<StepsRange>('7d');
-  const n = range === '7d' ? 7 : 28;
-  const days = useResolvedDays(today, 28);
-  const steps = useMemo(() => stepsDays(days, today, n), [days, today, n]);
-  const workouts = useWorkouts(today, WORKOUT_DAYS);
-  return (
-    <>
-      <Faceplate
-        id={id}
-        className="lv-prog-face"
-        title={C.steps}
-        actions={
-          <KeyBank<StepsRange>
-            size="sm"
-            label={C.stepsRangeLabel}
-            value={range}
-            onChange={setRange}
-            options={(['7d', '28d'] as const).map((r) => ({ value: r, label: C.stepsRange[r] }))}
-          />
-        }
-      >
-        <StepsBars days={steps} today={steps[steps.length - 1] ?? null} />
-      </Faceplate>
-      <Faceplate id={`${id}-workouts`} className="lv-prog-face" title={C.workouts}>
-        <WorkoutsTable rows={workouts} />
-      </Faceplate>
-    </>
-  );
 }

@@ -2,12 +2,14 @@
  * Settings › Server (design/screens/server.md; SUITE_SPEC §14.2, §14.7): pair this device with the person's server once,
  * see that it answers, add and remove devices, and read in plain words what the server holds. Every control here is
  * UI-only: pairing, revoking and forgetting are server calls through `src/net/server.ts`, never commands, so neither the
- * Coach nor an agent can reach them.
+ * Coach nor an agent can reach them. Right after pairing, a home server hands this device the person's sync key once and
+ * sync starts on the words' own path (`sync.join`, see `./serverSync.ts`).
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Copy, KeyRound, Link2, RefreshCw, ScanLine, Trash2 } from 'lucide-react';
+import { RingMark } from '@/components/brand/RingMark';
 import { Chip, Dialog, Faceplate, FaceplateHeader, Field, InlineWarning, Key, KeyValueList, Notice, TextInput, toast, type Severity } from '@/components';
-import { useSyncView } from '@/state/sync';
+import { useSyncView, type SyncView } from '@/state/sync';
 import {
   defaultDeviceLabel,
   MIN_SERVER_VERSION,
@@ -22,10 +24,13 @@ import {
   type ServerDevice,
   type ServerPairing,
 } from '@/net/server';
+import { ExistingDataDialog } from '../sync/ExistingDataDialog';
 import { QrCode } from '../sync/QrCode';
+import { SyncPillView } from '../sync/SyncPill';
 import { countdown, formatDay, relativeTime, SERVER_COPY as C } from './copy';
 import { useServerClient, useServerConnection, useServerPairing } from './hooks';
 import { PairingCodeField } from './PairingCodeField';
+import { joinSyncFromServer, syncsThroughServer } from './serverSync';
 
 const ScanDialog = lazy(() => import('../sync/ScanDialog'));
 
@@ -80,18 +85,57 @@ function useLinkFromLocation(): [ParsedPairingLink | null, () => void] {
 }
 
 export function ServerSection() {
+  const client = useServerClient();
   const pairing = useServerPairing();
   const { connection, check } = useServerConnection();
   const [link, clearLink] = useLinkFromLocation();
   const [forgotten, setForgotten] = useState(false);
+  const sync = useSyncView();
+  const syncRef = useRef<SyncView>(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+  }, [sync]);
+  const [existing, setExisting] = useState<{ summary: string; resolve: (c: 'merge' | 'replace') => void } | null>(null);
+  const [joinNote, setJoinNote] = useState<string | null>(null);
+
+  // lives here, not in the pair panel: that panel is gone as soon as the pairing is stored
+  const startSync = useCallback(
+    async (paired: ServerPairing) => {
+      setJoinNote(null);
+      const out = await joinSyncFromServer({
+        client,
+        baseUrl: paired.baseUrl,
+        label: paired.person.label,
+        view: syncRef.current,
+        ask: (summary) => new Promise((resolve) => setExisting({ summary, resolve })),
+      });
+      if (out.kind === 'other_key') setJoinNote(C.alreadyOtherKey);
+      else if (out.kind === 'failed') setJoinNote(C.joinFailed(out.message));
+    },
+    [client],
+  );
 
   return (
     <div id="server" className="grid scroll-mt-2 gap-4">
       {pairing ? (
-        <PairedView pairing={pairing} connection={connection} check={check} onForgot={() => setForgotten(true)} />
+        <PairedView pairing={pairing} connection={connection} check={check} onForgot={() => setForgotten(true)} note={joinNote} />
       ) : (
-        <UnpairedView connection={connection} link={link} onLinkUsed={clearLink} forgotten={forgotten} onDismissForgotten={() => setForgotten(false)} />
+        <UnpairedView
+          connection={connection}
+          link={link}
+          onLinkUsed={clearLink}
+          forgotten={forgotten}
+          onDismissForgotten={() => setForgotten(false)}
+          onPaired={(p) => void startSync(p)}
+        />
       )}
+      <ExistingDataDialog
+        summary={existing?.summary ?? null}
+        onChoose={(choice) => {
+          existing?.resolve(choice);
+          setExisting(null);
+        }}
+      />
     </div>
   );
 }
@@ -104,12 +148,14 @@ function UnpairedView({
   onLinkUsed,
   forgotten,
   onDismissForgotten,
+  onPaired,
 }: {
   connection: ServerConnection;
   link: ParsedPairingLink | null;
   onLinkUsed: () => void;
   forgotten: boolean;
   onDismissForgotten: () => void;
+  onPaired: (p: ServerPairing) => void;
 }) {
   const client = useServerClient();
   const ended = client.ended();
@@ -154,9 +200,12 @@ function UnpairedView({
         {forgotten ? (
           <Notice severity="info" layout="ruled" title={C.forgotten} onDismiss={onDismissForgotten} />
         ) : null}
-        <div className="grid gap-1">
-          <p className="m-0 text-[15px] leading-[1.5] text-ink">{C.intro}</p>
-          <p className="m-0 text-sm text-ink-2">{C.introOnce}</p>
+        <div className="flex items-start gap-3">
+          <RingMark size={36} className="mt-0.5 shrink-0" />
+          <div className="grid gap-1">
+            <p className="m-0 text-[15px] leading-[1.5] text-ink">{C.intro}</p>
+            <p className="m-0 text-sm text-ink-2">{C.introOnce}</p>
+          </div>
         </div>
         <p className="m-0 max-w-[68ch] text-xs leading-[1.45] text-ink-2">{C.localNetwork}</p>
         {open ? (
@@ -166,6 +215,7 @@ function UnpairedView({
             fromLink={Boolean(link) && prefill === link}
             autoPair={autoPair}
             onCancel={close}
+            onPaired={onPaired}
           />
         ) : (
           <div className="grid gap-2 sm:flex sm:flex-wrap">
@@ -208,7 +258,19 @@ function UnpairedView({
 
 type Step = 'reach' | 'code' | null;
 
-function PairPanel({ initial, fromLink, autoPair, onCancel }: { initial: ParsedPairingLink | null; fromLink: boolean; autoPair: boolean; onCancel: () => void }) {
+function PairPanel({
+  initial,
+  fromLink,
+  autoPair,
+  onCancel,
+  onPaired,
+}: {
+  initial: ParsedPairingLink | null;
+  fromLink: boolean;
+  autoPair: boolean;
+  onCancel: () => void;
+  onPaired: (p: ServerPairing) => void;
+}) {
   const client = useServerClient();
   const [address, setAddress] = useState(initial?.baseUrl ?? '');
   const [code, setCode] = useState(initial?.code ?? '');
@@ -242,6 +304,7 @@ function PairPanel({ initial, fromLink, autoPair, onCancel }: { initial: ParsedP
       try {
         const done = await client.pair({ baseUrl: base, code: digits, label: name, signal: ac.signal });
         toast(C.paired(done.person.label || hostOf(done.baseUrl)));
+        onPaired(done);
       } catch (e) {
         if (e instanceof DOMException && e.name === 'AbortError') return;
         const err = e instanceof ServerError ? e : new ServerError('server_unreachable');
@@ -258,7 +321,7 @@ function PairPanel({ initial, fromLink, autoPair, onCancel }: { initial: ParsedP
         setStep(null);
       }
     },
-    [address, client, code, name],
+    [address, client, code, name, onPaired],
   );
 
   // a scanned code carries the address and the code: pair at once, no second tap
@@ -334,7 +397,20 @@ function PairPanel({ initial, fromLink, autoPair, onCancel }: { initial: ParsedP
 
 /* ---- paired ---------------------------------------------------------------------------------------------------- */
 
-function PairedView({ pairing, connection, check, onForgot }: { pairing: ServerPairing; connection: ServerConnection; check: () => Promise<void>; onForgot: () => void }) {
+function PairedView({
+  pairing,
+  connection,
+  check,
+  onForgot,
+  note,
+}: {
+  pairing: ServerPairing;
+  connection: ServerConnection;
+  check: () => Promise<void>;
+  onForgot: () => void;
+  /** Why pairing did not turn sync on (another key on this device, or the join failed). */
+  note: string | null;
+}) {
   const client = useServerClient();
   const sync = useSyncView();
   const [checking, setChecking] = useState(false);
@@ -353,7 +429,22 @@ function PairedView({ pairing, connection, check, onForgot }: { pairing: ServerP
     setDevicesRev((n) => n + 1);
   };
 
-  const syncState = sync.paired ? (sync.status.state === 'synced' || sync.status.state === 'syncing' ? C.syncOn : sync.status.state) : C.syncOff;
+  // on and working: "on"; anything else (offline, error, waiting) shows the sync pill with its count or reason
+  const syncWord: ReactNode = sync.status.state === 'synced' || sync.status.state === 'syncing' ? C.syncOn : <SyncPillView status={sync.status} />;
+  const syncState: ReactNode = !sync.paired ? (
+    C.syncOff
+  ) : syncsThroughServer(sync, pairing.baseUrl) ? (
+    typeof syncWord === 'string' ? (
+      C.syncThrough(syncWord, hostOf(pairing.baseUrl))
+    ) : (
+      <span className="inline-flex flex-wrap items-center gap-x-2">
+        {syncWord}
+        <span>{C.syncThrough('', hostOf(pairing.baseUrl)).trim()}</span>
+      </span>
+    )
+  ) : (
+    syncWord
+  );
   const role = status?.server.role === 'home' ? C.roleHome : (status?.server.role ?? '');
   const items: Array<{ key: string; value: ReactNode }> = [
     { key: C.keys.address, value: <span className={wrap}>{pairing.baseUrl}</span> },
@@ -393,6 +484,7 @@ function PairedView({ pairing, connection, check, onForgot }: { pairing: ServerP
             <div className="grid gap-2">
               <KeyValueList items={items} />
               <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.readable}</p>
+              {note ? <InlineWarning severity="caution">{note}</InlineWarning> : null}
               {!sync.paired ? <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.syncHint}</p> : null}
               <div>
                 <Key size="sm" icon={RefreshCw} loading={checking || connection.state === 'checking'} onClick={() => void checkNow()}>
@@ -660,6 +752,7 @@ function DevicesFaceplate({ rev, disabled }: { rev: number; disabled: boolean })
         }
       >
         <p className="m-0">{confirm?.kind === 'agent' ? C.revokeAgentBody : C.revokeBody}</p>
+        {confirm?.kind === 'agent' ? null : <p className="m-0 text-sm text-ink-2">{C.revokeKeepsKey}</p>}
       </Dialog>
     </Faceplate>
   );

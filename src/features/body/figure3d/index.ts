@@ -2,6 +2,7 @@
 // WebGL renderer, fitter and asset load lazily (Figure3DCanvas).
 
 export { Figure3D, webgl2Available } from './Figure3D';
+export { FigureMorph } from './FigureMorph';
 export { askDetailedFigure, isSlowDevice, saveDataPreferred } from './device';
 export type { Figure3DProps } from './Figure3D';
 export type { FigureView, FigureLayout } from './renderer';

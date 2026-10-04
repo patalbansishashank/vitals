@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSyncScheduler, type SyncTrigger } from './scheduler';
+import { createSyncScheduler, onEngineBack, type SyncTrigger } from './scheduler';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -121,3 +121,40 @@ describe('sync scheduler', () => {
   });
 });
 
+
+describe('engine back (offline or error to synced)', () => {
+  const feed = (states: string[]) => {
+    let back = 0;
+    const on = onEngineBack(() => (back += 1));
+    for (const s of states) on(s);
+    return back;
+  };
+
+  it('fires once when the engine goes from offline, error or connecting to synced', () => {
+    expect(feed(['synced', 'offline', 'synced'])).toBe(1);
+    expect(feed(['synced', 'error', 'synced'])).toBe(1);
+    expect(feed(['connecting', 'synced'])).toBe(1);
+    expect(feed(['offline', 'offline', 'synced', 'synced'])).toBe(1);
+  });
+
+  it('stays quiet while synced, syncing, or when the first state is already synced', () => {
+    expect(feed(['synced', 'syncing', 'synced', 'syncing', 'synced'])).toBe(0);
+    expect(feed(['synced'])).toBe(0);
+    expect(feed(['offline', 'syncing'])).toBe(0);
+  });
+
+  it('an online round resets the back-off, so queued uploads go out at once', async () => {
+    const { s, calls } = setup([false, false, false, true]);
+    s.start();
+    await s.trigger('manual');
+    await s.trigger('manual');
+    expect(s.backoffMs).toBeGreaterThan(0);
+    const on = onEngineBack(() => void s.trigger('online'));
+    on('offline');
+    on('synced');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.at(-1)).toBe('online');
+    expect(s.backoffMs).toBe(0);
+    s.stop();
+  });
+});

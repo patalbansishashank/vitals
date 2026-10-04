@@ -1,11 +1,12 @@
 import { lazy, Suspense, useState } from 'react';
 import { ScanLine } from 'lucide-react';
-import { Dialog, Field, InlineWarning, Key, TextInput, useField } from '@/components';
+import { Field, InlineWarning, Key, TextInput, useField } from '@/components';
 import { dispatch } from '@/commands';
 import { describeLocalData } from '@/state/sync';
 import { normalizeRelayUrl, parsePairingUri, wordsToSecret } from '@/sync/pairing';
 import type { PairingCode } from '@/sync/types';
 import { SYNC_COPY } from './copy';
+import { ExistingDataDialog } from './ExistingDataDialog';
 import { unwrap } from './unwrap';
 import { testRelay, type RelayTestResult } from './relayTest';
 
@@ -32,38 +33,18 @@ function CodeArea({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
-/** "This device already has data. Merge it, or replace it with the synced data?" */
-function ExistingDataDialog({ summary, onChoose }: { summary: string | null; onChoose: (choice: 'merge' | 'replace') => void }) {
-  return (
-    <Dialog
-      open={summary !== null}
-      onClose={() => undefined}
-      dismissible={false}
-      role="alertdialog"
-      title={SYNC_COPY.existingTitle}
-      footer={
-        <>
-          <Key variant="danger" onClick={() => onChoose('replace')}>
-            {SYNC_COPY.replace}
-          </Key>
-          <Key variant="solid" onClick={() => onChoose('merge')}>
-            {SYNC_COPY.merge}
-          </Key>
-        </>
-      }
-    >
-      {summary ? <p className="m-0 text-sm text-ink-2">{summary}</p> : null}
-      <p className="m-0">{SYNC_COPY.existingBody}</p>
-    </Dialog>
-  );
-}
-
 export function UnpairedView({
   initialUrl = '',
   onPaired,
+  intro = SYNC_COPY.intro,
+  canSetUp = true,
 }: {
   initialUrl?: string;
   onPaired: (code: PairingCode) => void;
+  /** The first sentence (a home server holds a readable copy, a relay does not). */
+  intro?: string;
+  /** False with a paired home server: the server owns the sync group, so this device joins it and never makes a new one. */
+  canSetUp?: boolean;
 }) {
   const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string | null>(null);
@@ -156,7 +137,7 @@ export function UnpairedView({
 
   return (
     <div className="grid gap-4">
-      <p className="m-0 text-sm leading-[1.5] text-ink">{SYNC_COPY.intro}</p>
+      <p className="m-0 text-sm leading-[1.5] text-ink">{intro}</p>
       <p className="m-0 text-xs leading-[1.45] text-ink-2">{SYNC_COPY.lnaHint}</p>
       <Field label={SYNC_COPY.serverLabel} help={SYNC_COPY.serverHelp} error={urlError ?? (tested && !tested.ok ? tested.message : null)}>
         <TextInput
@@ -173,7 +154,7 @@ export function UnpairedView({
             setTested(null);
           }}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !joinOpen) void onPair();
+            if (e.key === 'Enter' && !joinOpen && canSetUp) void onPair();
           }}
         />
       </Field>
@@ -186,9 +167,11 @@ export function UnpairedView({
         <Key loading={busy === 'test'} disabledReason={busy === 'pair' || busy === 'join' ? SYNC_COPY.testing : undefined} onClick={() => void onTest()}>
           {SYNC_COPY.test}
         </Key>
-        <Key variant="solid" loading={busy === 'pair'} disabledReason={busy === 'join' ? 'Joining…' : undefined} onClick={() => void onPair()}>
-          {SYNC_COPY.setUp}
-        </Key>
+        {canSetUp ? (
+          <Key variant="solid" loading={busy === 'pair'} disabledReason={busy === 'join' ? 'Joining…' : undefined} onClick={() => void onPair()}>
+            {SYNC_COPY.setUp}
+          </Key>
+        ) : null}
         <Key pressed={joinOpen} aria-expanded={joinOpen} onClick={() => setJoinOpen((o) => !o)}>
           {SYNC_COPY.join}
         </Key>

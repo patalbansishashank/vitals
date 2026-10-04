@@ -14,7 +14,7 @@ import { createIngestState, type IngestState } from './ingest.ts';
 import type { PersonRequest, PersonResponse } from './personRpc.ts';
 import { createPersonRegistry, type PersonRegistry } from './persons.ts';
 import { createWorkerPool, type WorkerFactory, type WorkerPool } from './workers.ts';
-import { bearerOf, createRateLimiter, hostName, HttpError, normalizeOrigin, PUBLIC_APP_ORIGIN, readJson, sendError, sendJson, type Logger } from '../security.ts';
+import { APP_SHELL_ORIGINS, bearerOf, createRateLimiter, hostName, HttpError, normalizeOrigin, PUBLIC_APP_ORIGIN, readJson, sendError, sendJson, type Logger } from '../security.ts';
 
 export const HOME_ALLOW_HEADERS = 'authorization, content-type, mcp-session-id';
 const QUERY_TOKEN = /[?&](token|access_token|bearer|auth)=/i;
@@ -42,6 +42,8 @@ export interface HomeOptions {
   publicOrigin?: string;
   mqtt?: { enabled: boolean; tcp?: { host: string; port: number }; tls?: { listen: Array<{ host: string; port: number }>; certFile: string; keyFile: string } };
   workerFactory: WorkerFactory;
+  /** Where person workers reach the relay of this process, asked at each worker open (loopback listener); else the person file's `relayUrl`. */
+  relayUrl?: () => string | null;
   idleMs?: number;
   /** `server.json` `maxOpenPersons` (default 4): person workers open at once. */
   maxOpenPersons?: number;
@@ -62,7 +64,7 @@ export interface HomeServer {
   resolvePerson(req: IncomingMessage, kinds?: Array<'device' | 'agent'>): Promise<PersonContext>;
   originCheck(req: IncomingMessage): 'none' | 'allowed' | 'forbidden';
   hostAllowed(req: IncomingMessage): boolean;
-  /** Answers `/v1/pair/*`, `/v1/devices*`, `/v1/mqtt/*`; false when the path is not one of them. */
+  /** Answers `/v1/pair/*`, `/v1/sync/key`, `/v1/devices*`, `/v1/mqtt/*`; false when the path is not one of them. */
   handle(req: IncomingMessage, res: ServerResponse, path: string, query: string): Promise<boolean>;
   upgrade(req: IncomingMessage, socket: Duplex, head: Buffer, path: string): boolean;
   health(): Promise<{ persons: number; mqtt: 'on' | 'off'; memoryMb: number }>;
@@ -75,10 +77,11 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
   const devices = createDeviceStore({ dataDir: o.dataDir, persons, ...(o.now ? { now: o.now } : {}) });
   const pool = createWorkerPool({
     persons, factory: o.workerFactory, log, memoryFile: join(o.dataDir, 'memory.json'),
+    ...(o.relayUrl ? { relayUrl: o.relayUrl } : {}),
     ...(o.idleMs ? { idleMs: o.idleMs } : {}), ...(o.maxOpenPersons ? { maxOpenPersons: o.maxOpenPersons } : {}),
   });
   const ingest = createIngestState({ persons, ...(o.now ? { now: o.now } : {}) });
-  const origins = new Set((o.allowedOrigins?.length ? o.allowedOrigins : [PUBLIC_APP_ORIGIN]).map(normalizeOrigin));
+  const origins = new Set([...(o.allowedOrigins?.length ? o.allowedOrigins : [PUBLIC_APP_ORIGIN]), ...APP_SHELL_ORIGINS].map(normalizeOrigin));
   const hosts = new Set((o.publicHosts ?? []).map((h) => h.toLowerCase()));
   const limiter = createRateLimiter(o.rateLimit ?? { capacity: 30, perMinute: 120 });
   const ipLimiter = createRateLimiter({ capacity: 60, perMinute: 240 });
@@ -138,7 +141,7 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
       return Boolean(h) && (LOOPBACK_HOST.test(h) || TS_NET.test(h) || hosts.has(h));
     },
     async handle(req, res, path) {
-      if (!path.startsWith('/v1/pair/') && path !== '/v1/devices' && !path.startsWith('/v1/devices/') && !path.startsWith('/v1/mqtt/')) return false;
+      if (!path.startsWith('/v1/pair/') && path !== '/v1/sync/key' && path !== '/v1/devices' && !path.startsWith('/v1/devices/') && !path.startsWith('/v1/mqtt/')) return false;
       if (req.method === 'OPTIONS') {
         res.writeHead(204, {
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
@@ -218,6 +221,40 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
           deviceId: ctx.deviceId, label: d?.label ?? '', kind: ctx.kind, scope: ctx.scope, person: await personOut(ctx.personId),
           createdAt: d?.createdAt ?? null, lastSeenAt: d?.lastSeenAt ?? null, server: { ...serverOut(), mqtt: broker ? 'on' : 'off' },
         });
+      }
+      case path === '/v1/sync/key': {
+        // Pairing turns sync on (plan decision 5): a freshly paired browser gets the person's sync key once, within the
+        // code window, so it joins the group the server already holds. Home role only: a relay holds no key. The key is
+        // only ever in this POST response body (never a URL or a log line); the buffer is zeroed after sending.
+        method(req, 'POST');
+        limit(`ip:${ipOf(req)}`, ipLimiter);
+        let ctx: PersonContext;
+        try {
+          ctx = await home.resolvePerson(req, ['device']);
+        } catch (e) {
+          if (e instanceof HttpError && e.code === 'wrong_kind') log('sync key refused: wrong_kind');
+          throw e;
+        }
+        await readJson(req, 4096);
+        if (ctx.scope !== 'full') {
+          ctx.log('sync key refused: wrong_kind');
+          throw new HttpError(403, 'wrong_kind', 'This token cannot use this route');
+        }
+        const secret = await persons.readSecret(ctx.personId);
+        try {
+          const mark = await devices.markSyncKeyIssued(ctx.personId, ctx.deviceId);
+          if (mark !== 'ok') {
+            ctx.log(`sync key refused: ${mark}`);
+            if (mark === 'already_issued') throw new HttpError(409, 'already_issued', 'This device already got the sync key');
+            if (mark === 'window_closed') throw new HttpError(410, 'window_closed', 'Pair this device again to get the sync key');
+            throw new HttpError(401, 'unauthorized', 'Pair this device with the server first', { 'WWW-Authenticate': 'Bearer' });
+          }
+          sendJson(res, 200, { key: Buffer.from(secret).toString('base64url'), format: 'owner-secret-v1' }, { Pragma: 'no-cache' });
+          ctx.log('sync key handed over');
+          return;
+        } finally {
+          secret.fill(0);
+        }
       }
       case path === '/v1/devices': {
         method(req, 'GET');

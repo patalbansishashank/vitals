@@ -1,0 +1,10 @@
+import { chromium, newPage, bootApp, install, goRoute } from './lib.mjs';
+import { onboard } from '../j1/onboard.mjs';
+const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
+const { page } = await newPage(browser);
+await bootApp(page); await onboard(page, () => {}); await bootApp(page, '/'); await install(page);
+await page.evaluate(() => __j7.ring('jstyle2301', 'QA0001'));
+await goRoute(page, '/settings#devices'); await page.waitForTimeout(1000);
+console.log(await page.evaluate(() => { const x = [...document.querySelectorAll('*')].filter((e) => e.children.length < 8 && e.childElementCount && /^Use my ring data/.test(e.innerText || '')).pop(); const r = x.closest('[class]'); return x.parentElement.parentElement.outerHTML.slice(0, 1500); }));
+console.log(await page.evaluate(() => document.querySelector('tr [aria-label^="my plan"]')?.closest('tr')?.outerHTML.slice(0, 1800)));
+await browser.close();

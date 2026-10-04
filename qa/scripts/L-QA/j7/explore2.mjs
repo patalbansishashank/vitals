@@ -1,0 +1,10 @@
+import { chromium, newPage, bootApp, install, shot, goRoute } from './lib.mjs';
+import { onboard } from '../j1/onboard.mjs';
+const browser = await chromium.launch({ executablePath: '/usr/bin/chromium', args: ['--no-sandbox'] });
+const { page } = await newPage(browser);
+await bootApp(page); await onboard(page, () => {}); await bootApp(page, '/'); await install(page);
+await page.evaluate(() => __j7.ring('jstyle2301', 'QA0001'));
+await goRoute(page, '/settings#devices'); await page.waitForTimeout(1500);
+const t = await page.evaluate(() => { const el = [...document.querySelectorAll('*')].filter((x) => x.children.length < 6 && /Use my ring data/.test(x.innerText ?? '')).pop(); const sec = el?.closest('section') ?? el?.parentElement?.parentElement; return sec ? sec.innerText : 'none'; });
+console.log(t.replace(/\n+/g, ' | ').slice(0, 3500));
+await browser.close();

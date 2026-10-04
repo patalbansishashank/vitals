@@ -1,9 +1,12 @@
 // @vitest-environment node
 /** `home` role (SUITE_SPEC §14.2, §14.9 "Token rules", "Two-person isolation"): pairing, tokens, routes, isolation. */
-import { readdir, stat } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createRedactingLogger } from '../security.ts';
+import { startCompanion } from '../server.ts';
 import { startTestHome } from './testHome.ts';
 
 let stop: Array<() => Promise<void>> = [];
@@ -64,6 +67,7 @@ describe('pairing and device tokens', () => {
     const a = await t.person('Ana');
     expect((await t.api('/v1/pair/status', { token: a.token, origin: 'https://evil.example' })).status).toBe(403);
     expect((await t.api('/v1/pair/status', { token: a.token, origin: null })).status).toBe(200);
+    for (const origin of ['app://vitals', 'https://localhost', 'capacitor://localhost']) expect((await t.api('/v1/pair/status', { token: a.token, origin })).status, origin).toBe(200);
     expect(await rawGet(t.c.url, '/v1/pair/status', { host: 'evil.example', authorization: `Bearer ${a.token}` })).toBe(403);
     expect(await rawGet(t.c.url, '/v1/pair/status', { host: 'box.tail0.ts.net', authorization: `Bearer ${a.token}` })).toBe(200);
     expect((await t.api(`/v1/pair/status?token=${a.token}`)).status).toBe(401);
@@ -83,6 +87,72 @@ describe('pairing and device tokens', () => {
     const r = await t.api('/v1/pair/code', { method: 'POST', token: admin, origin: null, body: { person: a.id } });
     expect(r.status).toBe(200);
     expect((await t.api('/v1/pair/code', { method: 'POST', token: admin, body: { person: a.id } })).status).toBe(401);
+  });
+});
+
+describe('the sync key after pairing (plan decision 5)', () => {
+  it('hands the sync key once to a fresh device, refuses agents, revoked devices and after 10 minutes', async () => {
+    const t = await boot();
+    const secret = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
+    const p = await t.home.persons.add({ label: 'Ana', timeZone: 'UTC', secret, relayUrl: null });
+    const pairOne = async (label: string) => {
+      const { code } = await t.home.devices.issueCode(p.id);
+      const r = await t.api('/v1/pair/device', { method: 'POST', body: { code, label } });
+      return { token: r.body.token as unknown as string, deviceId: r.body.deviceId as unknown as string };
+    };
+    const a = await pairOne('Phone');
+    // GET is refused (no cache or history may hold the key)
+    expect((await t.api('/v1/sync/key', { token: a.token })).status).toBe(405);
+    const r = await t.api('/v1/sync/key', { method: 'POST', token: a.token, body: {} });
+    expect(r.status).toBe(200);
+    expect(r.body.format).toBe('owner-secret-v1');
+    expect(Buffer.from(r.body.key as unknown as string, 'base64url')).toEqual(Buffer.from(secret));
+    expect(r.headers.get('cache-control')).toBe('no-store');
+    expect(r.headers.get('pragma')).toBe('no-cache');
+    // the device record says so; the key is not in it
+    const devicesFile = t.home.persons.paths(p.id).devices;
+    const onDisk = await readFile(devicesFile, 'utf8');
+    expect(onDisk).toContain('syncKeyIssuedAt');
+    expect(onDisk).not.toContain(r.body.key as unknown as string);
+    // once per device
+    const again = await t.api('/v1/sync/key', { method: 'POST', token: a.token, body: {} });
+    expect([again.status, again.body.error]).toEqual([409, 'already_issued']);
+    // no token, an agent token, a revoked device
+    expect((await t.api('/v1/sync/key', { method: 'POST', body: {} })).status).toBe(401);
+    const agent = await t.home.devices.mint(p.id, { kind: 'agent', label: 'Agent', scope: 'read' });
+    const ag = await t.api('/v1/sync/key', { method: 'POST', token: agent.token, origin: null, body: {} });
+    expect([ag.status, ag.body.error]).toEqual([403, 'wrong_kind']);
+    const b = await pairOne('Laptop');
+    expect((await t.api(`/v1/devices/${b.deviceId}`, { method: 'DELETE', token: a.token })).status).toBe(204);
+    const gone = await t.api('/v1/sync/key', { method: 'POST', token: b.token, body: {} });
+    expect([gone.status, gone.body.error]).toEqual([401, 'revoked']);
+    // a device token that is not `full` scope
+    const narrow = await t.home.devices.mint(p.id, { kind: 'device', label: 'Kiosk', scope: 'read' });
+    expect((await t.api('/v1/sync/key', { method: 'POST', token: narrow.token, body: {} })).status).toBe(403);
+    // the window closes with the code window: a device paired 11 minutes ago gets nothing
+    const c = await pairOne('Tablet');
+    const list = JSON.parse(await readFile(devicesFile, 'utf8')) as Array<{ id: string; createdAt: string }>;
+    list.find((d) => d.id === c.deviceId)!.createdAt = new Date(Date.now() - 11 * 60_000).toISOString();
+    await writeFile(devicesFile, JSON.stringify(list));
+    const late = await t.api('/v1/sync/key', { method: 'POST', token: c.token, body: {} });
+    expect([late.status, late.body.error]).toEqual([410, 'window_closed']);
+    // a foreign origin never reaches the route
+    const d = await pairOne('Other');
+    expect((await t.api('/v1/sync/key', { method: 'POST', token: d.token, origin: 'https://evil.example', body: {} })).status).toBe(403);
+    expect((await t.api('/v1/sync/key', { method: 'POST', token: d.token, body: {} })).status).toBe(200);
+  });
+
+  it('a relay-only server has no such route', async () => {
+    const dir = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), 'relay-'));
+    const c = await startCompanion({ port: 0, dataDir: join(dir, 'relay'), allowedOrigins: [], log: () => {} });
+    stop.push(() => c.close());
+    const r = await fetch(`${c.url}/v1/sync/key`, { method: 'POST', headers: { authorization: 'Bearer abcdefghijklmnop', 'content-type': 'application/json' }, body: '{}' });
+    expect(r.status).toBe(404);
+  });
+
+  it('redacts key and secret fields in log lines', () => {
+    const log = createRedactingLogger();
+    expect(log.redact('{"key":"AAAABBBBCCCC","secret":"DDDDEEEE","format":"owner-secret-v1"}')).not.toMatch(/AAAABBBBCCCC|DDDDEEEE/);
   });
 });
 
@@ -117,6 +187,7 @@ describe('two persons on one server', () => {
       (tok: string, other: string) => t.api(`/v1/ai/usage?person=${other}`, { token: tok }),
       (tok: string) => t.api('/v1/agents/tokens', { token: tok }),
       (tok: string) => t.api('/v1/agents/activity', { token: tok }),
+      (tok: string, other: string) => t.api('/v1/sync/key', { method: 'POST', token: tok, body: { person: other } }),
     ];
     for (let i = 0; i < 60; i++) {
       const me = rnd(2) ? A : B;

@@ -106,7 +106,7 @@ describe('persistence registry', () => {
     expect(exportFileName(new Date(2026, 8, 30, 12))).toBe('vitals-2026-09-30.json');
   });
 
-  it('copies data saved under the former lumen.* keys once, keeping the old keys', () => {
+  it('copies data saved under the former lumen.* keys once', () => {
     localStorage.setItem('lumen.settings', JSON.stringify({ state: { units: 'imperial' }, version: 3 }));
     localStorage.setItem('lumen.raw', 'plain text');
     localStorage.setItem('other.app', 'not ours');
@@ -114,13 +114,29 @@ describe('persistence registry', () => {
     expect(migrateLegacyKeys().sort()).toEqual(['vitals.raw', SETTINGS_KEY].sort());
     expect(localStorage.getItem('vitals.raw')).toBe('plain text');
     expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).state.units).toBe('imperial');
-    expect(localStorage.getItem('lumen.raw')).toBe('plain text');
-    expect(localStorage.getItem('lumen.settings')).not.toBeNull();
+    expect(localStorage.getItem('other.app')).toBe('not ours');
 
-    // once vitals.* data exists the migration never runs again (nothing erased or replaced is copied back)
+    // once vitals.* data exists the migration never copies again (nothing erased or replaced is copied back)
+    localStorage.setItem('lumen.raw', 'plain text');
     localStorage.removeItem('vitals.raw');
     expect(migrateLegacyKeys()).toEqual([]);
     expect(localStorage.getItem('vitals.raw')).toBeNull();
+  });
+
+  it('legacy lumen keys are removed after the copy', () => {
+    localStorage.setItem('lumen.settings', JSON.stringify({ state: { units: 'imperial' }, version: 3 }));
+    localStorage.setItem('lumen.raw', 'plain text');
+    migrateLegacyKeys();
+    expect(localStorage.getItem('lumen.settings')).toBeNull();
+    expect(localStorage.getItem('lumen.raw')).toBeNull();
+
+    // an install that copied before this version: the stale old key goes; one without a vitals.* twin stays
+    localStorage.setItem('lumen.settings', JSON.stringify({ state: { units: 'metric' }, version: 3 }));
+    localStorage.setItem('lumen.notes', 'erased since');
+    expect(migrateLegacyKeys()).toEqual([]);
+    expect(localStorage.getItem('lumen.settings')).toBeNull();
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).state.units).toBe('imperial');
+    expect(localStorage.getItem('lumen.notes')).toBe('erased since');
   });
 
   it('imports files exported before the rename and erases the old keys with everything else', async () => {

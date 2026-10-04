@@ -64,6 +64,19 @@ const isTailnet = (h: string) => {
   return m !== null && Number(m[1]) >= 64 && Number(m[1]) <= 127;
 };
 
+/**
+ * The in-process relay (`/sync`) through the server's own loopback listener, or null when it listens on one other
+ * address only (a tailnet IP: its Host would not pass the Host rule). Person workers sync through this, not through the
+ * public front (R20-WRITERS-04).
+ */
+export function loopbackRelayUrl(listen: { host: string; port: number }): string | null {
+  const h = listen.host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (!listen.port) return null;
+  if (h === '0.0.0.0' || h === 'localhost' || /^127(?:\.\d{1,3}){3}$/.test(h)) return `ws://${h === '0.0.0.0' ? '127.0.0.1' : h}:${listen.port}/sync`;
+  if (h === '::' || h === '::1') return `ws://[::1]:${listen.port}/sync`;
+  return null;
+}
+
 /** `home` refuses a public bind without TLS (§14.1): its routes hand out health data. */
 export function bindAllowed(c: Pick<ServerConfig, 'role' | 'listen' | 'tls'>): boolean {
   if (c.role !== 'home' || c.tls) return true;

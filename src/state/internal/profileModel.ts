@@ -410,5 +410,8 @@ export function migrateProfileDocBody(body: Record<string, unknown>): Record<str
  */
 export function bodyFromDocs(profile: Record<string, unknown> | null, ui: Record<string, unknown> | null): BodyProfileValues | null {
   if (!profile) return null;
+  // uiPrefs is device-local: a device that joined with a complete synced profile has finished setup
+  if (ui?.bodySetup === undefined && oneOf(profile.sex, SEXES) && [profile.ageYears, profile.heightCm, profile.weightKg].every(finite))
+    return pickBodyValues({ ...profile, setup: 'done', shapeSkipped: false, habitsSkipped: false });
   return pickBodyValues({ ...profile, setup: ui?.bodySetup, shapeSkipped: ui?.shapeSkipped, habitsSkipped: ui?.habitsSkipped });
 }

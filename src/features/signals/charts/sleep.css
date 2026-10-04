@@ -1,0 +1,184 @@
+/* ==========================================================================
+   Body signals › Sleep (design/screens/ring-pages.md §6.4, §7.2, §7.3):
+   the night channel stack, stacked stage bars, the actogram, the summary
+   strip, stage minutes and naps. Tokens only; chrome stays achromatic and
+   colour sits on data marks: the recovery hue for sleep, blood oxygen and
+   temperature, the cardio hue for heart rate. Unknown is hatched (pattern
+   set inline), missing is the dashed stub of kit.css. No transitions.
+   ========================================================================== */
+
+@layer components {
+  /* ---------------------------------------------------------------- layout */
+  .sl-tab {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+  }
+  .sl-pair {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  @media (min-width: 80rem) {
+    .sl-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  .sl-channels,
+  .sl-bars,
+  .sl-window,
+  .sl-minutes,
+  .sl-naps { min-width: 0; }
+
+  .sl-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 12px;
+  }
+  .sl-note {
+    margin: 4px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--lm-ink-2);
+  }
+
+  /* ---------------------------------------------------------------- plot + crosshair readout */
+  .sl-readout {
+    margin: 0 0 2px;
+    min-height: calc(2 * 1.4em);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  @media (min-width: 64rem) {
+    .sl-readout { min-height: 1.4em; }
+  }
+  /* the night's readout ("02:14 · deep · 54 bpm · 95 % · +0.2 °C") fits one line at 390 */
+  .sl-channels .sl-readout { min-height: 1.4em; }
+  .sl-plot {
+    position: relative;
+    min-width: 0;
+    touch-action: pan-y;
+    outline: none;
+    border-radius: 2px;
+  }
+  .sl-plot:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .sl-eng {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    fill: var(--lm-ink-2);
+  }
+
+  /* ---------------------------------------------------------------- overnight lanes */
+  .sl-lane[data-lane='hr'],
+  .sl-line[data-lane='hr'] { --sl-hue: var(--lm-cat-cardio); }
+  .sl-lane[data-lane='spo2'],
+  .sl-lane[data-lane='temp'],
+  .sl-line[data-lane='spo2'],
+  .sl-line[data-lane='temp'] { --sl-hue: var(--lm-cat-recovery); }
+  .sl-line polyline {
+    fill: none;
+    stroke: var(--sl-hue);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .sl-point { fill: var(--sl-hue); }
+  .sl-band {
+    fill: var(--lm-cat-recovery);
+    fill-opacity: var(--lm-chart-band-alpha);
+  }
+  .sl-normal { fill: var(--lm-ink-2); }
+  .sl-lowest__dot {
+    fill: var(--lm-cat-cardio);
+    stroke: var(--lm-chart-ring);
+    stroke-width: 2;
+  }
+  .sl-lane-note { fill: var(--lm-ink-2); }
+  .sl-dot {
+    stroke: var(--lm-chart-ring);
+    stroke-width: 2;
+    pointer-events: none;
+  }
+  .sl-dot[data-lane='hr'] { fill: var(--lm-cat-cardio); }
+  .sl-dot[data-lane='spo2'],
+  .sl-dot[data-lane='temp'] { fill: var(--lm-cat-recovery); }
+
+  /* ---------------------------------------------------------------- stage bars (same tints as ring.css) */
+  .sl-seg { fill: var(--lm-cat-recovery); }
+  .sl-seg[data-stage='light'] { fill: color-mix(in srgb, var(--lm-cat-recovery) 60%, transparent); }
+  .sl-seg[data-stage='rem'] { fill: color-mix(in srgb, var(--lm-cat-recovery) 35%, var(--lm-ink-2)); }
+  .sl-seg[data-stage='unknown'] {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+  }
+  .sl-ticks [data-selected='true'] {
+    fill: var(--lm-ink);
+    font-weight: 600;
+  }
+  .sl-cov { font-size: 10px; }
+
+  /* ---------------------------------------------------------------- actogram */
+  .sl-win-night { fill: color-mix(in srgb, var(--lm-cat-recovery) 60%, transparent); }
+  .sl-win-other { fill: var(--lm-ink-3); }
+  .sl-usual line {
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+  }
+
+  /* ---------------------------------------------------------------- readout strip (§6.4)
+     Columns fit the faceplate, not the window: 2 per row on a phone, 4 at tablet width, one row when there is room
+     (a half-width faceplate at 1440 wraps instead of squeezing). Hairlines are each item's left and top shadow in the
+     1 px gaps; the ones on the outer edge are clipped, so any column count gets a clean grid. */
+  .lm-strip.sl-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+    gap: 1px;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+  .sl-strip > .lm-strip__item {
+    min-width: 0;
+    padding: 10px 12px;
+    border-right: 0;
+    box-shadow: -1px 0 0 var(--lm-line), 0 -1px 0 var(--lm-line);
+  }
+  .sl-summary__note { padding: 0 12px 10px; }
+
+  /* ---------------------------------------------------------------- stage minutes, naps */
+  .sl-table {
+    width: 100%;
+    max-width: 420px;
+    border-collapse: collapse;
+    font-size: var(--lm-text-sm);
+  }
+  .sl-table th,
+  .sl-table td {
+    padding: 4px 8px 4px 0;
+    text-align: left;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sl-table thead th {
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .sl-table td,
+  .sl-table thead th:not(:first-child) { text-align: right; }
+  .sl-table td { font-variant-numeric: tabular-nums; }
+  .sl-table tr.sl-sep > * { border-top: 1px solid var(--lm-line-strong); }
+  .sl-naps__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    font-variant-numeric: tabular-nums;
+  }
+  .sl-naps__list li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sl-naps__list li:last-child { border-bottom: 0; }
+}

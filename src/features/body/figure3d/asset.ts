@@ -1,11 +1,11 @@
-// Decodes the baked figure pack (public/figure/figure-v1.bin, written by scripts/figure/bake.ts).
+// Decodes the baked figure pack (public/figure/figure-v2.bin, written by scripts/figure/bake.ts).
 // File = gzip([u32 magic 'VFIG'][u32 jsonLength][manifest json][pad 4][binary sections]). Positions and deltas are
 // planar int16 (all x, all y, all z) times a step in cm; indices uint16.
 
 import { netFetch } from '@/net/net';
 import type { FigureManifest, TargetEntry } from './manifest';
 
-export const FIGURE_URL = `${import.meta.env.BASE_URL}figure/figure-v1.bin`;
+export const FIGURE_URL = `${import.meta.env.BASE_URL}figure/figure-v2.bin`;
 const MAGIC = 0x47494656;
 
 export interface DecodedTarget {

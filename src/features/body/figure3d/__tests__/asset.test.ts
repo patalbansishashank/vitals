@@ -5,8 +5,8 @@ import { FigureModel, macroFactors } from '../model';
 import { RING_IDS } from '../manifest';
 import { loadTestAsset, readPackGz } from './loadAsset';
 
-/** Lazy-chunk gate (R2 sec. 9): code + asset <= 350 kB gzip. The asset alone gets 250 kB of it. */
-const ASSET_GZIP_BUDGET = 250_000;
+/** Detailed outer body stays below 600 kB; anatomy + lazy code have a separate total 3 MB gate. */
+const ASSET_GZIP_BUDGET = 600_000;
 
 describe('figure pack', () => {
   const asset = loadTestAsset();
@@ -26,8 +26,8 @@ describe('figure pack', () => {
   });
 
   it('is a closed 2-manifold triangle mesh with in-range indices', () => {
-    expect(m.vertexCount).toBeGreaterThan(3000);
-    expect(m.vertexCount).toBeLessThan(4000);
+    expect(m.vertexCount).toBeGreaterThanOrEqual(9000);
+    expect(m.vertexCount).toBeLessThan(10000);
     const idx = asset.indices;
     expect(idx.length).toBe(3 * m.triangleCount);
     const count = new Map<number, number>();

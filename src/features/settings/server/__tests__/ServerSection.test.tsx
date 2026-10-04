@@ -3,9 +3,42 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { SERVER_MESSAGES, type ServerClient } from '@/net/server';
+import { OFF_STATUS } from '@/sync/types';
 import { ServerClientContext } from '../hooks';
 import { ServerSection } from '../ServerSection';
-import { BASE, fakeClient, fakeServer, TOKEN } from './fakeServer';
+import { BASE, fakeClient, fakeServer, SYNC_KEY, TOKEN } from './fakeServer';
+
+// The sync view and `dispatch('sync.join')` are a small fake device: pairing a home server must join its sync group.
+const fake = vi.hoisted(() => ({
+  view: null as unknown,
+  listeners: new Set<() => void>(),
+  local: null as string | null,
+  joins: [] as Array<Record<string, unknown>>,
+}));
+vi.mock('@/commands', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  dispatch: async (id: string, input: Record<string, unknown>) => {
+    if (id !== 'sync.join') throw new Error(`unexpected ${id}`);
+    fake.joins.push(input);
+    const relayUrl = new URLSearchParams(String(input.code).split('?')[1]).get('u');
+    fake.view = { status: { ...OFF_STATUS, state: 'synced' }, paired: true, enabled: true, relayUrl, label: null, deviceId: 'ABCDEFGHIJKLMNOP' };
+    fake.listeners.forEach((l) => l());
+    return { ok: true, output: {}, changeSet: null, notices: [] };
+  },
+}));
+vi.mock('@/state/sync', async () => {
+  const react = await import('react');
+  return {
+    useSyncView: () => react.useSyncExternalStore((l: () => void) => (fake.listeners.add(l), () => void fake.listeners.delete(l)), () => fake.view),
+    describeLocalData: () => fake.local,
+  };
+});
+const syncOff = () => ({ status: OFF_STATUS, paired: false, enabled: false, relayUrl: null, label: null, deviceId: 'ABCDEFGHIJKLMNOP' });
+beforeEach(() => {
+  fake.view = syncOff();
+  fake.local = null;
+  fake.joins = [];
+});
 
 function wrap(client: ServerClient, ui: ReactNode = <ServerSection />) {
   return render(
@@ -111,7 +144,65 @@ describe('Settings › Server, not paired', () => {
     expect(screen.getByText(/keeps a readable copy of your data/)).toBeInTheDocument();
     expect(await screen.findByText('Laptop · Firefox')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'What your server holds' })).toBeInTheDocument();
-    expect(screen.getByText(/Sync is off on this device/)).toBeInTheDocument();
+    // pairing turned sync on (plan decision 5): no hint to go and join by hand
+    expect(await screen.findByText('on · through vitals.example.ts.net:8443')).toBeInTheDocument();
+    expect(screen.queryByText(/Sync is off on this device/)).toBeNull();
+  });
+});
+
+describe('Settings › Server, pairing turns sync on', () => {
+  it('pairing fetches the sync key once and joins without a prompt', async () => {
+    const user = userEvent.setup();
+    const { client, server } = fakeClient();
+    wrap(client);
+    await enterCode(user, BASE, '12345678');
+    await waitFor(() => expect(fake.joins).toHaveLength(1));
+    expect(fake.joins[0]).toEqual({ code: `vitals-sync:1?u=${encodeURIComponent(BASE)}&s=${SYNC_KEY}&n=Sam`, onExisting: 'merge' });
+    expect(server.state.calls.filter((c) => c.path === '/v1/sync/key').map((c) => [c.method, c.auth])).toEqual([['POST', `Bearer ${TOKEN}`]]);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(await screen.findByText('on · through vitals.example.ts.net:8443')).toBeInTheDocument();
+  });
+
+  it('asks merge or replace first when this device already holds data', async () => {
+    const user = userEvent.setup();
+    fake.local = '3 scenarios and your body';
+    wrap(fakeClient().client);
+    await enterCode(user, BASE, '12345678');
+    const dialog = await screen.findByRole('alertdialog', { name: 'This device already has data' });
+    expect(dialog).toHaveTextContent('3 scenarios and your body');
+    expect(fake.joins).toHaveLength(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Replace with synced data' }));
+    await waitFor(() => expect(fake.joins).toEqual([expect.objectContaining({ onExisting: 'replace' })]));
+  });
+
+  it('a relay-only server gives no key: the Sync hint stays', async () => {
+    const user = userEvent.setup();
+    const { client, server } = fakeClient({ server: fakeServer({ role: 'relay' }) });
+    wrap(client);
+    await enterCode(user, BASE, '12345678');
+    expect(await screen.findByText(/Sync is off on this device\. To bring your data across/)).toBeInTheDocument();
+    await waitFor(() => expect(server.state.calls.some((c) => c.path === '/v1/sync/key')).toBe(true));
+    expect(fake.joins).toHaveLength(0);
+    expect(screen.getByText('off on this device')).toBeInTheDocument();
+  });
+
+  it('a device that already syncs with another key is told, not switched', async () => {
+    const user = userEvent.setup();
+    fake.view = { ...syncOff(), status: { ...OFF_STATUS, state: 'synced' }, paired: true, enabled: true, relayUrl: 'https://relay.example.ts.net' };
+    const { client, server } = fakeClient();
+    wrap(client);
+    await enterCode(user, BASE, '12345678');
+    expect(await screen.findByText("This device already syncs with another key. Stop syncing here first to use your server's.")).toBeInTheDocument();
+    expect(server.state.calls.some((c) => c.path === '/v1/sync/key')).toBe(false);
+    expect(server.state.keyIssued).toBe(false);
+    expect(fake.joins).toHaveLength(0);
+  });
+
+  it('removing a device says that a device that already synced keeps the sync key', async () => {
+    const user = userEvent.setup();
+    wrap(fakeClient({ paired: true }).client);
+    await user.click(await screen.findByRole('button', { name: 'Revoke Laptop · Firefox' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(/A device that already synced keeps the sync key, like anyone who has the 24 words/);
   });
 });
 
@@ -206,5 +297,22 @@ describe('Settings › Server, secrets', () => {
     expect(await screen.findByText('reachable')).toBeInTheDocument();
     expect(document.body.innerHTML).not.toContain(TOKEN);
     expect(server.state.calls.every((c) => !c.path.includes(TOKEN))).toBe(true);
+  });
+
+  it('the sync key is nowhere in the page or storage', async () => {
+    const user = userEvent.setup();
+    const { client, server, storage } = fakeClient();
+    wrap(client);
+    await enterCode(user, BASE, '12345678');
+    expect(await screen.findByText('on · through vitals.example.ts.net:8443')).toBeInTheDocument();
+    expect(server.state.keyIssued).toBe(true);
+    // it went to sync.join (whose wrapped vault keeps it), and nowhere else
+    expect(String(fake.joins[0]?.code)).toContain(SYNC_KEY);
+    expect(document.body.innerHTML).not.toContain(SYNC_KEY);
+    const stored = (s: Storage) => Array.from({ length: s.length }, (_, i) => `${s.key(i)}=${s.getItem(s.key(i)!)}`).join('\n');
+    expect(stored(storage)).not.toContain(SYNC_KEY);
+    expect(stored(localStorage)).not.toContain(SYNC_KEY);
+    expect(stored(sessionStorage)).not.toContain(SYNC_KEY);
+    expect(server.state.calls.every((c) => !c.path.includes(SYNC_KEY))).toBe(true);
   });
 });

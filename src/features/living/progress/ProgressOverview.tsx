@@ -20,7 +20,7 @@ import { GoalsSection } from './sections/GoalsSection';
 import { LogSection } from './sections/LogSection';
 import { PlanSection } from './sections/PlanSection';
 import { SignalsSection } from './sections/SignalsSection';
-import { ActivitySection } from './ring/RingSections';
+import { BodySignalsLink } from './ring/BodySignalsLink';
 import { TrendSection } from './sections/TrendSection';
 import { MarkerTrendsSection } from '@/markers/ui/MarkerTrends'; // E20: markers
 
@@ -131,8 +131,8 @@ export function ProgressOverview() {
             ) : null}
             <BodySection today={today} quiet={quiet} {...(quietMode ? { onShowNumbers: () => setShowNumbers(true) } : {})} />
             <SignalsSection quiet={quiet} />
-            {/* E29: steps per day and workouts from the ring */}
-            <ActivitySection />
+            {/* plan 04: the ring's link card to Body signals (/signals), in place of the E29 steps and workouts */}
+            <BodySignalsLink id="activity" />
             {/* E20: markers — readings against the plan's projection, retest due lines */}
             <MarkerTrendsSection plan={plan ?? null} />
             <LogSection plan={plan} today={today} quiet={quiet} />

@@ -10,7 +10,7 @@ import { createDeviceStore } from './devices.ts';
 import { pairingQr } from './home.ts';
 import { createIngestState } from './ingest.ts';
 import { createPersonRegistry } from './persons.ts';
-import { bindAllowed, defaultServerConfig, readServerConfig, serverConfigDir, writeServerConfig, type ServerConfig } from './serverConfig.ts';
+import { bindAllowed, defaultServerConfig, loopbackRelayUrl, readServerConfig, serverConfigDir, writeServerConfig, type ServerConfig } from './serverConfig.ts';
 import { threadWorkerFactory, type PoolMemory } from './workers.ts';
 
 const HELP = `vitals-server ${VERSION}
@@ -120,7 +120,7 @@ export async function serverMain(argv: string[], out: (l: string) => void = (l) 
       for (const p of await persons.list()) out(`${p.id}  ${p.label}  devices ${(await devices.list(p.id)).length}`);
       const health = await fetch(`http://${cfg.listen.host}:${cfg.listen.port}/health`).then((r) => r.json()).catch(() => null);
       out(health ? `Running: ${JSON.stringify(health)}` : 'Not running on the configured port.');
-      if (health) for (const l of await memoryLines(cfg.dataDir)) out(l);
+      if (health) for (const l of await memoryLines(cfg.dataDir, Date.now(), new Set((await persons.list()).map((p) => p.id)))) out(l);
       return 0;
     }
     case 'backup': {
@@ -147,7 +147,7 @@ export async function serverMain(argv: string[], out: (l: string) => void = (l) 
         host: cfg.listen.host, port: cfg.listen.port, dataDir: join(cfg.dataDir, 'relay'), allowedOrigins: cfg.allowedOrigins, log: (l) => out(l),
         ...(v.app ? { serveApp: resolve(v.app) } : {}),
         ...(cfg.role === 'home'
-          ? { home: { dataDir: cfg.dataDir, allowedOrigins: [...cfg.allowedOrigins, ...(cfg.publicOrigin ? [cfg.publicOrigin] : [])], publicHosts: cfg.publicHosts ?? [], publicOrigin: cfg.publicOrigin, mqtt: { enabled: cfg.mqtt?.enabled ?? true, ...(cfg.mqtt?.tcp ? { tcp: cfg.mqtt.tcp } : {}), ...(cfg.mqtt?.tls ? { tls: cfg.mqtt.tls } : {}) }, ai: { ...(cfg.limits?.aiRequestsPerMinute !== undefined ? { requestsPerMinute: cfg.limits.aiRequestsPerMinute } : {}), ...(cfg.limits?.aiRequestsPerDay !== undefined ? { requestsPerDay: cfg.limits.aiRequestsPerDay } : {}) }, workerFactory: threadWorkerFactory(bundle), ...(cfg.maxOpenPersons ? { maxOpenPersons: cfg.maxOpenPersons } : {}) } }
+          ? { home: { dataDir: cfg.dataDir, allowedOrigins: [...cfg.allowedOrigins, ...(cfg.publicOrigin ? [cfg.publicOrigin] : [])], publicHosts: cfg.publicHosts ?? [], publicOrigin: cfg.publicOrigin, mqtt: { enabled: cfg.mqtt?.enabled ?? true, ...(cfg.mqtt?.tcp ? { tcp: cfg.mqtt.tcp } : {}), ...(cfg.mqtt?.tls ? { tls: cfg.mqtt.tls } : {}) }, ai: { ...(cfg.limits?.aiRequestsPerMinute !== undefined ? { requestsPerMinute: cfg.limits.aiRequestsPerMinute } : {}), ...(cfg.limits?.aiRequestsPerDay !== undefined ? { requestsPerDay: cfg.limits.aiRequestsPerDay } : {}) }, workerFactory: threadWorkerFactory(bundle), relayUrl: () => loopbackRelayUrl(cfg.listen) ?? relayUrl(), ...(cfg.maxOpenPersons ? { maxOpenPersons: cfg.maxOpenPersons } : {}) } }
           : {}),
       });
       out(`vitals-server ${VERSION} (${cfg.role}) on ${c.url}`);
@@ -190,7 +190,8 @@ async function secretFromPhrase(phrase: string): Promise<Uint8Array> {
 }
 
 /** The running server's last minute sample (`<dataDir>/memory.json`, written by the person-worker pool). */
-export async function memoryLines(dataDir: string, now = Date.now()): Promise<string[]> {
+/** `persons`: the ids that exist now; a removed person still in the sample is shown as closing and not counted. */
+export async function memoryLines(dataDir: string, now = Date.now(), persons?: ReadonlySet<string>): Promise<string[]> {
   let m: PoolMemory;
   try {
     m = JSON.parse(await readFile(join(dataDir, 'memory.json'), 'utf8')) as PoolMemory;
@@ -198,10 +199,11 @@ export async function memoryLines(dataDir: string, now = Date.now()): Promise<st
     return ['Memory: no sample yet (the server writes one a minute after it starts).'];
   }
   const age = Math.round((now - Date.parse(m.at)) / 1000);
-  const lines = [`Memory (${age} s ago): server rss ${m.rssMb} MB, main heap ${m.heapUsedMb} MB, ${m.persons.length} of at most ${m.maxOpenPersons} persons open`];
+  const removed = (id: string) => persons !== undefined && !persons.has(id);
+  const lines = [`Memory (${age} s ago): server rss ${m.rssMb} MB, main heap ${m.heapUsedMb} MB, ${m.persons.filter((p) => !removed(p.id)).length} of at most ${m.maxOpenPersons} persons open`];
   for (const p of m.persons) {
     const heap = p.heapUsedMb === undefined ? 'heap unknown' : `heap ${p.heapUsedMb}/${p.heapTotalMb} MB, external ${p.externalMb} MB`;
-    lines.push(`  ${p.id}  ${heap}, ${p.busy ? `busy (${p.busy})` : `idle ${p.idleSec} s`}`);
+    lines.push(`  ${p.id}  ${heap}, ${removed(p.id) ? 'removed (its worker closes within a minute)' : p.busy ? `busy (${p.busy})` : `idle ${p.idleSec} s`}`);
   }
   return lines;
 }

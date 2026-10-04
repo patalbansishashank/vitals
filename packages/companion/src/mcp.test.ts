@@ -10,11 +10,12 @@ import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/typ
 import { WebSocket } from 'ws';
 import { clientDisplayName, idempotencyKeyFor, NO_TAB_MESSAGE } from './agentHub.ts';
 import { BRIDGE_CLOSE, BRIDGE_PATH, type CompanionMessage } from './bridgeProtocol.ts';
-import { createMcpServer, remoteBackend } from './mcp.ts';
+import { MCP_INSTRUCTIONS } from './briefingRules.ts';
+import { BRIEFING_URI, createMcpServer, remoteBackend, type McpBackend } from './mcp.ts';
 import { createRedactingLogger, type Logger } from './security.ts';
 import { startCompanion, type Companion } from './server.ts';
 import { rawCall, tempDir } from './testHelpers.ts';
-import { parseToolManifest, toMcpTools, type ToolManifest, type ToolResultEnvelope } from './toolManifest.ts';
+import { parseToolManifest, toMcpTools, type McpToolDescriptor, type ToolManifest, type ToolResultEnvelope } from './toolManifest.ts';
 
 const APP = 'https://vitals.creative.desi';
 const FIXTURE = fileURLToPath(new URL('../fixtures/tool-manifest.json', import.meta.url));
@@ -266,5 +267,117 @@ describe('idempotency keys', () => {
     expect(k).not.toBe(idempotencyKeyFor('claude', 's2', 7));
     expect(k).not.toBe(idempotencyKeyFor('codex', 's1', 7));
     expect(k.length).toBeLessThanOrEqual(64);
+  });
+});
+
+describe('the Coach’s briefing over MCP (plan 04 item 12)', () => {
+  const BRIEFING = 'Now: 2026-10-02T08:00:00.000Z · today 2026-10-02.\nPlan: Medium plan (rung medium), day 5 of 28, active, version 1.';
+  const briefingTool = { name: 'briefing_get', title: 'Read the person’s briefing', description: 'Call this first.', inputSchema: { type: 'object' as const, properties: {} }, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false as const, title: 'Read the person’s briefing' } };
+
+  /** A backend with `tools` and a `briefing_get` that answers `answer()`; records the calls. */
+  function fakeBackend(tools: McpToolDescriptor[], answer: () => ToolResultEnvelope | Promise<ToolResultEnvelope>) {
+    const calls: Array<{ tool: string; args: unknown; clientName: string }> = [];
+    const backend: McpBackend = {
+      listTools: async () => tools,
+      call: async (tool, args, ctx) => {
+        calls.push({ tool, args, clientName: ctx.clientName });
+        return answer();
+      },
+    };
+    return { backend, calls };
+  }
+
+  async function connect(backend: McpBackend) {
+    const server = createMcpServer(backend, { version: '0', fallbackClientName: 'mcp-test', scope: () => 's1' });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await server.connect(a);
+    const client = new Client({ name: 'claude-code', version: '1' });
+    await client.connect(b);
+    return client;
+  }
+
+  const ok = (): ToolResultEnvelope => ({ ok: true, status: 'applied', summary: 'Looked at read the person’s briefing.', data: { text: BRIEFING, sections: ['static', 'date', 'plan'], quiet: false } });
+
+  it('initialize carries the rules as instructions (no personal data) and declares prompts and resources', async () => {
+    const { backend, calls } = fakeBackend([briefingTool], ok);
+    const client = await connect(backend);
+    try {
+      const instructions = client.getInstructions();
+      expect(instructions).toBe(MCP_INSTRUCTIONS);
+      expect(instructions).toContain('briefing_get');
+      expect(instructions).not.toContain('Medium plan');
+      expect(instructions).not.toMatch(/@|\d+(\.\d+)?\s?(kg|kcal|cm)\b/);
+      expect(instructions!.length).toBeLessThanOrEqual(2600);
+      expect(client.getServerCapabilities()).toMatchObject({ tools: { listChanged: true }, prompts: {}, resources: {} });
+      // initialize alone reads nothing of the person
+      expect(calls).toEqual([]);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('prompts/list and prompts/get coach: the rules plus the person’s briefing from briefing_get', async () => {
+    const { backend, calls } = fakeBackend([briefingTool], ok);
+    const client = await connect(backend);
+    try {
+      expect((await client.listPrompts()).prompts).toEqual([expect.objectContaining({ name: 'coach', title: 'Vitals Coach' })]);
+      const p = await client.getPrompt({ name: 'coach' });
+      expect(p.messages).toHaveLength(1);
+      expect(p.messages[0]!.role).toBe('user');
+      const text = (p.messages[0]!.content as { text: string }).text;
+      expect(text.startsWith(MCP_INSTRUCTIONS)).toBe(true);
+      expect(text).toContain(BRIEFING);
+      expect(calls).toEqual([{ tool: 'briefing_get', args: {}, clientName: 'claude-code' }]);
+      await expect(client.getPrompt({ name: 'nope' })).rejects.toThrow(/no prompt called "nope"/);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('resources/list and resources/read vitals://briefing give the briefing text', async () => {
+    const { backend } = fakeBackend([briefingTool], ok);
+    const client = await connect(backend);
+    try {
+      expect((await client.listResources()).resources).toEqual([expect.objectContaining({ uri: BRIEFING_URI, name: 'briefing', mimeType: 'text/plain' })]);
+      const r = await client.readResource({ uri: BRIEFING_URI });
+      expect(r.contents).toEqual([{ uri: BRIEFING_URI, mimeType: 'text/plain', text: BRIEFING }]);
+      await expect(client.readResource({ uri: 'vitals://other' })).rejects.toThrow(/no resource at/);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it('an app without briefing_get, a refused call or a backend that throws: plain words, the session stays up', async () => {
+    const older = fakeBackend([{ ...briefingTool, name: 'today_get' }], ok);
+    let client = await connect(older.backend);
+    try {
+      const text = ((await client.getPrompt({ name: 'coach' })).messages[0]!.content as { text: string }).text;
+      expect(text).toContain(MCP_INSTRUCTIONS);
+      expect(text).toContain('The person’s briefing is not available: This version of the Vitals app cannot share the briefing yet.');
+      await expect(client.readResource({ uri: BRIEFING_URI })).rejects.toThrow(/cannot share the briefing yet/);
+      expect(older.calls).toEqual([]);
+      // tools still work
+      expect((await client.listTools()).tools.map((t) => t.name)).toEqual(['today_get']);
+    } finally {
+      await client.close();
+    }
+
+    const noTab = fakeBackend([], () => ({ ok: false, status: 'rejected', summary: NO_TAB_MESSAGE, error: { code: 'no_tab', message: NO_TAB_MESSAGE } }));
+    client = await connect(noTab.backend);
+    try {
+      await expect(client.readResource({ uri: BRIEFING_URI })).rejects.toThrow(NO_TAB_MESSAGE);
+      expect(((await client.getPrompt({ name: 'coach' })).messages[0]!.content as { text: string }).text).toContain(NO_TAB_MESSAGE);
+    } finally {
+      await client.close();
+    }
+
+    const broken = fakeBackend([briefingTool], () => Promise.reject(new Error('socket hang up')));
+    client = await connect(broken.backend);
+    try {
+      await expect(client.readResource({ uri: BRIEFING_URI })).rejects.toThrow(/could not read the briefing/);
+      expect((await client.listPrompts()).prompts).toHaveLength(1);
+    } finally {
+      await client.close();
+    }
   });
 });

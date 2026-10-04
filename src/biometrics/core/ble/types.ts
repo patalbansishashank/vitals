@@ -39,6 +39,11 @@ export interface IngestResult {
   state: ProtocolState;
   send?: RingCommand[];
   done?: boolean;
+  /**
+   * The packet is not part of the reply to the command in flight (a battery push, a leftover live sample): the session
+   * keeps the stall wait running instead of switching to the quiet timer. Absent = it counts.
+   */
+  unrelated?: boolean;
 }
 
 /** What the session should wait for after writing a command (returned by the optional `BleProtocol.begin`). */

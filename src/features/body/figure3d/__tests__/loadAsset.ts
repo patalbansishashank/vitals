@@ -15,7 +15,7 @@ function node(): NodeMods {
   return { fs: get('node:fs') as NodeMods['fs'], zlib: get('node:zlib') as NodeMods['zlib'], path: get('node:path') as NodeMods['path'] };
 }
 
-export const FIGURE_FILE = 'public/figure/figure-v1.bin';
+export const FIGURE_FILE = 'public/figure/figure-v2.bin';
 
 export function readPackGz(): Uint8Array {
   const { fs, path } = node();

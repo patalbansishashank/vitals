@@ -1,0 +1,501 @@
+{
+  "family": "rwfit",
+  "source": "RWfitCodecTest.kt, RWfitDriverTest.kt (+ derived vectors from RWfitEncoder.kt, marked)",
+  "clock": {
+    "nowMs": 1723000000000,
+    "tz": "UTC",
+    "tzOffsetS": 0
+  },
+  "checksums": {
+    "xor": [
+      {
+        "bytes": "0f 0f",
+        "value": "0x00"
+      },
+      {
+        "bytes": "01",
+        "value": "0x01"
+      },
+      {
+        "bytes": "01 02 04",
+        "value": "0x07"
+      }
+    ],
+    "crc16arc": [
+      {
+        "ascii": "123456789",
+        "value": "0xbb3d"
+      },
+      {
+        "bytes": "",
+        "value": "0x0000"
+      },
+      {
+        "bytes": "01",
+        "value": "0xc0c1"
+      },
+      {
+        "bytes": "02",
+        "value": "0xc181"
+      },
+      {
+        "bytes": "03",
+        "value": "0x0140"
+      }
+    ]
+  },
+  "vectors": [
+    {
+      "name": "legacy encode matches the vendor's 8-byte header",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "command": {
+        "op": "raw",
+        "params": {
+          "cmd": "0x21",
+          "payload": "07 e9 08 09",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 21 00 04 00 01 ef 07 e9 08 09",
+      "note": "Codec-level: cmd 0x21 (set time) with an arbitrary 4-byte payload; first frame of a codec so serial = 1."
+    },
+    {
+      "name": "legacy encode writes zero checksum for an empty payload",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "heart_rate",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a3 00 00 00 01 00"
+    },
+    {
+      "name": "legacy serials increment per frame and wrap at 65535",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "command": {
+        "op": "raw",
+        "params": {
+          "cmd": "0x00",
+          "payload": "",
+          "repeat": 3
+        }
+      },
+      "frames": [
+        "7e 01 00 00 00 00 01 00",
+        "7e 01 00 00 00 00 02 00",
+        "7e 01 00 00 00 00 03 00"
+      ],
+      "note": "The Kotlin test asserts serials 1, 2, 3 only; the wrap 65535 -> 1 is in the codec source, not asserted."
+    },
+    {
+      "name": "legacy app ack carries the inbound serial and a fresh header serial",
+      "source": "RWfitCodecTest.kt",
+      "framing": "legacy",
+      "command": {
+        "op": "appAck",
+        "params": {
+          "cmd": "0x01",
+          "inboundSerial": 4660,
+          "status": 0,
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 ff 00 04 00 01 27 12 34 01 00",
+      "note": "Asserted: byte 2 = 0xff, bytes 5..6 = 00 01, bytes 8..11 = 12 34 01 00."
+    },
+    {
+      "name": "jieli encode matches the vendor's 6-byte header with big-endian crc",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "battery"
+      },
+      "frame": "ab 01 00 03 fc a0 02 03 10"
+    },
+    {
+      "name": "jieli length and crc cover the triple as part of the body",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "raw",
+        "params": {
+          "triple": "05 05 10",
+          "payload": "07"
+        }
+      },
+      "frame": "ab 01 00 04 cf 5c 05 05 10 07",
+      "note": "Codec-level: a sleep history triple with a 1-byte payload (the real request has none). Asserted: length 4, CRC over 05 05 10 07."
+    },
+    {
+      "name": "jieli round-trips through decode",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "raw",
+        "params": {
+          "triple": "02 04 10",
+          "payload": "01 02"
+        }
+      },
+      "frame": "ab 01 00 05 64 f9 02 04 10 01 02",
+      "note": "Encode half of the round trip; the decode half is in decode.json."
+    },
+    {
+      "name": "jieli ack uses flag 0x11 and echoes the triple",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "appAck",
+        "params": {
+          "triple": "02 03 10"
+        }
+      },
+      "frame": "ab 11 00 03 fc a0 02 03 10"
+    },
+    {
+      "name": "jieli ack for the realtime-measure triple carries the extra zero byte",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "appAck",
+        "params": {
+          "triple": "06 09 00"
+        }
+      },
+      "frame": "ab 11 00 04 8a d0 06 09 00 00"
+    },
+    {
+      "name": "jieli reassembles a body split across continuation packets",
+      "source": "RWfitCodecTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "raw",
+        "params": {
+          "triple": "05 03 10",
+          "payload": "01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e"
+        }
+      },
+      "frame": "ab 01 00 21 17 c6 05 03 10 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e",
+      "note": "Encode half; decode.json splits this frame at byte 20."
+    },
+    {
+      "name": "startup asks for device info, time, battery and the manifest",
+      "source": "RWfitDriverTest.kt",
+      "framing": "legacy",
+      "command": {
+        "op": "startup",
+        "params": {
+          "nowMs": 1723000000000,
+          "tz": "UTC",
+          "tzOffsetS": 0
+        }
+      },
+      "frames": [
+        "7e 01 00 00 00 00 01 00",
+        "7e 01 21 00 07 00 02 cd 07 e8 08 07 03 06 28",
+        "7e 01 01 00 00 00 03 00",
+        "7e 01 a0 00 00 00 04 00"
+      ],
+      "note": "The Kotlin test asserts only the command bytes 00, 21, 01, a0; full frames computed from the encoder for nowMs in UTC (local wall clock = UTC)."
+    },
+    {
+      "name": "a JieLi link requests its history streams as bare triples after the handshake",
+      "source": "RWfitDriverTest.kt",
+      "framing": "jl",
+      "command": {
+        "op": "startup",
+        "params": {
+          "nowMs": 1723000000000,
+          "tz": "UTC",
+          "tzOffsetS": 0
+        }
+      },
+      "frames": [
+        "ab 01 00 03 cc a2 02 04 10",
+        "ab 01 00 09 7f c8 02 01 00 18 08 07 03 06 28",
+        "ab 01 00 03 fc a0 02 03 10",
+        "ab 01 00 03 ad 10 05 02 10",
+        "ab 01 00 03 9d 12 05 05 10",
+        "ab 01 00 03 3d 11 05 03 10",
+        "ab 01 00 03 0d 13 05 04 10",
+        "ab 01 00 03 9d 17 05 09 10",
+        "ab 01 00 03 0d 16 05 08 10",
+        "ab 01 00 03 6d 17 05 0a 10",
+        "ab 01 00 03 5d 15 05 0d 10",
+        "ab 01 00 03 0d 1c 05 10 10"
+      ],
+      "note": "Asserted: 12 frames, all 0xab, triples 02 04 10, 02 01 00, 02 03 10, then 05 xx 10 for xx = 02 05 03 04 09 08 0a 0d 10. Full bytes computed for nowMs in UTC. A second startup pass on the same link sends only the first three (asserted: history count stays 9)."
+    },
+    {
+      "name": "derived: legacy time sync",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "timeSync",
+        "params": {
+          "nowMs": 1723000000000,
+          "tz": "UTC",
+          "tzOffsetS": 0,
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 21 00 07 00 01 cd 07 e8 08 07 03 06 28",
+      "note": "Not asserted by a Kotlin test. Full year as BE u16."
+    },
+    {
+      "name": "derived: jl time sync",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "timeSync",
+        "params": {
+          "nowMs": 1723000000000,
+          "tz": "UTC",
+          "tzOffsetS": 0
+        }
+      },
+      "frame": "ab 01 00 09 7f c8 02 01 00 18 08 07 03 06 28",
+      "note": "Not asserted by a Kotlin test. Year - 2000 in one byte."
+    },
+    {
+      "name": "derived: legacy history steps",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "steps",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a1 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy history sleep",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "sleep",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a2 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy history heart_rate",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "heart_rate",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a3 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy history blood_pressure",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "blood_pressure",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a4 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy history spo2",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "spo2",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a5 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy history temperature",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "temperature",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a6 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy history breathe",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "history",
+        "params": {
+          "stream": "breathe",
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a7 00 00 00 01 00",
+      "note": "Not asserted by a Kotlin test (heart_rate is, above)."
+    },
+    {
+      "name": "derived: legacy sync manifest",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "syncManifest",
+        "params": {
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 a0 00 00 00 01 00"
+    },
+    {
+      "name": "derived: legacy unbind",
+      "source": "RWfitEncoder.kt (no test)",
+      "framing": "legacy",
+      "command": {
+        "op": "unbind",
+        "params": {
+          "serial": 1
+        }
+      },
+      "frame": "7e 01 44 00 00 00 01 00",
+      "note": "Sent on Forget only. JL has no confirmed unbind; the Kotlin encoder returns null there."
+    },
+    {
+      "name": "derived: jl realtime measure heart_rate start",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "heart_rate",
+          "enable": true
+        }
+      },
+      "frame": "ab 01 00 06 f7 ee 06 09 00 03 05 01",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure heart_rate stop",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "heart_rate",
+          "enable": false
+        }
+      },
+      "frame": "ab 01 00 06 37 2f 06 09 00 03 05 00",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure spo2 start",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "spo2",
+          "enable": true
+        }
+      },
+      "frame": "ab 01 00 06 f5 ce 06 09 00 09 05 01",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure spo2 stop",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "spo2",
+          "enable": false
+        }
+      },
+      "frame": "ab 01 00 06 35 0f 06 09 00 09 05 00",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure blood_pressure start",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "blood_pressure",
+          "enable": true
+        }
+      },
+      "frame": "ab 01 00 06 36 5f 06 09 00 04 05 01",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure blood_pressure stop",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "blood_pressure",
+          "enable": false
+        }
+      },
+      "frame": "ab 01 00 06 f6 9e 06 09 00 04 05 00",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure hrv start",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "hrv",
+          "enable": true
+        }
+      },
+      "frame": "ab 01 00 06 f5 3e 06 09 00 0a 05 01",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    },
+    {
+      "name": "derived: jl realtime measure hrv stop",
+      "source": "RWfitEncoder.kt / RWfitSyncEngine.kt (no test)",
+      "framing": "jl",
+      "command": {
+        "op": "realtimeMeasure",
+        "params": {
+          "kind": "hrv",
+          "enable": false
+        }
+      },
+      "frame": "ab 01 00 06 35 ff 06 09 00 0a 05 00",
+      "note": "Not asserted by a Kotlin test. Legacy has no such command."
+    }
+  ]
+}

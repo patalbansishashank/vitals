@@ -1,0 +1,1102 @@
+{
+  "family": "colmi",
+  "source": "Kotlin unit tests of the upstream Android app (app/src/test/java/com/pulseloop/ring/Colmi*Test.kt); see each vector's \"test\"",
+  "conventions": {
+    "content": "What ColmiEncoder returns (the Kotlin tests assert this): opcode + sub-data, unframed for normal commands.",
+    "frame": "The bytes on the air. Normal commands: content zero-padded to 15 bytes + checksum (sum of bytes 0..14 & 0xff) = 16 bytes, written to 6e400002-…. Big-data requests (first byte 0xbc): written raw to de5bf72a-… (\"command\").",
+    "asserted": "Which bytes the Kotlin test actually checks; the rest of the frame is computed from ColmiEncoder.kt.",
+    "time": "Time-dependent vectors carry nowMs (UTC epoch ms) and tzOffsetS (local offset east of UTC, seconds). The Kotlin tests use the machine clock; these instants are synthetic."
+  },
+  "vectors": [
+    {
+      "name": "frame appends checksum and is 16 bytes",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "battery",
+        "params": {}
+      },
+      "kotlin": "ColmiPacket.frame(byteArrayOf(0x03))",
+      "content": "03",
+      "frame": "03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03",
+      "channel": "write",
+      "asserted": "framed size 16 and frame[15] == 0x03"
+    },
+    {
+      "name": "encoder phone name",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "phoneName",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.phoneName()",
+      "content": "04 02 0a 50 4c",
+      "frame": "04 02 0a 50 4c 00 00 00 00 00 00 00 00 00 00 ac",
+      "channel": "write",
+      "asserted": "content[0] == 0x04, content[3] == 'P', content[4] == 'L'",
+      "note": "Bytes 1..2 (02 0a) are a constant the Kotlin never explains; the name sent is always \"PL\"."
+    },
+    {
+      "name": "auto heart rate enable carries 0x01 flag, interval and zeroed alarm fields",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": true,
+          "intervalMinutes": 5
+        }
+      },
+      "kotlin": "ColmiEncoder.autoHeartRate(enabled = true, intervalMinutes = 5)",
+      "content": "16 02 01 05 00 00 00 00",
+      "frame": "16 02 01 05 00 00 00 00 00 00 00 00 00 00 00 1e",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "auto heart rate disable uses 0x02 flag",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": false,
+          "intervalMinutes": 5
+        }
+      },
+      "kotlin": "ColmiEncoder.autoHeartRate(enabled = false, intervalMinutes = 5)",
+      "content": "16 02 02 05 00 00 00 00",
+      "frame": "16 02 02 05 00 00 00 00 00 00 00 00 00 00 00 1f",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "auto heart rate interval rounds to 5-minute multiples within 5-60 (7 -> 5)",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": true,
+          "intervalMinutes": 7
+        }
+      },
+      "kotlin": "ColmiEncoder.autoHeartRate(enabled = true, intervalMinutes = 7)",
+      "content": "16 02 01 05 00 00 00 00",
+      "frame": "16 02 01 05 00 00 00 00 00 00 00 00 00 00 00 1e",
+      "channel": "write",
+      "asserted": "content[3] == 5"
+    },
+    {
+      "name": "auto heart rate interval rounds to 5-minute multiples within 5-60 (90 -> 60)",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": true,
+          "intervalMinutes": 90
+        }
+      },
+      "kotlin": "ColmiEncoder.autoHeartRate(enabled = true, intervalMinutes = 90)",
+      "content": "16 02 01 3c 00 00 00 00",
+      "frame": "16 02 01 3c 00 00 00 00 00 00 00 00 00 00 00 55",
+      "channel": "write",
+      "asserted": "content[3] == 60"
+    },
+    {
+      "name": "auto heart rate interval rounds to 5-minute multiples within 5-60 (0 -> 5)",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": true,
+          "intervalMinutes": 0
+        }
+      },
+      "kotlin": "ColmiEncoder.autoHeartRate(enabled = true, intervalMinutes = 0)",
+      "content": "16 02 01 05 00 00 00 00",
+      "frame": "16 02 01 05 00 00 00 00 00 00 00 00 00 00 00 1e",
+      "channel": "write",
+      "asserted": "content[3] == 5"
+    },
+    {
+      "name": "auto heart rate interval rounds to 5-minute multiples within 5-60 (33 -> 30)",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "autoHeartRate",
+        "params": {
+          "enabled": true,
+          "intervalMinutes": 33
+        }
+      },
+      "kotlin": "ColmiEncoder.autoHeartRate(enabled = true, intervalMinutes = 33)",
+      "content": "16 02 01 1e 00 00 00 00",
+      "frame": "16 02 01 1e 00 00 00 00 00 00 00 00 00 00 00 37",
+      "channel": "write",
+      "asserted": "content[3] == 30"
+    },
+    {
+      "name": "colmi routes big data to command channel",
+      "test": "ColmiDecoderTest.kt",
+      "command": {
+        "op": "bigDataSleep",
+        "params": {}
+      },
+      "kotlin": "ColmiDriver.usesCommandChannel(bc 27 …)",
+      "content": "bc 27 02 00 81 80 ff 01",
+      "frame": "bc 27 02 00 81 80 ff 01",
+      "channel": "command",
+      "asserted": "a frame starting 0xBC goes to the command characteristic (de5bf72a-…); a framed 0x03 does not",
+      "note": "Same bytes as the bigDataSleep vector; kept to record the routing rule."
+    },
+    {
+      "name": "temp pref write mirrors the extra 0x03 framing byte (on)",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "writeTempPref",
+        "params": {
+          "enabled": true
+        }
+      },
+      "kotlin": "ColmiEncoder.writeTempPref(enabled = true)",
+      "content": "3a 03 02 01 1e 05 0a 00 b9",
+      "frame": "3a 03 02 01 1e 05 0a 00 b9 00 00 00 00 00 00 26",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "temp pref write mirrors the extra 0x03 framing byte (off)",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "writeTempPref",
+        "params": {
+          "enabled": false
+        }
+      },
+      "kotlin": "ColmiEncoder.writeTempPref(enabled = false)",
+      "content": "3a 03 02 00 1e 05 0a 00 b9",
+      "frame": "3a 03 02 00 1e 05 0a 00 b9 00 00 00 00 00 00 25",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "user profile feeds the preferences command on startup",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "userPreferences",
+        "params": {
+          "metric": false,
+          "sex": "female",
+          "ageYears": 42,
+          "heightCm": 160,
+          "weightKg": 55
+        }
+      },
+      "kotlin": "userPreferencesCommand() with UserProfileValues.from(false, \"female\", 42, 160.0, 55.0)",
+      "content": "0a 02 00 01 00 2a a0 37 78 5a 00",
+      "frame": "0a 02 00 01 00 2a a0 37 78 5a 00 00 00 00 00 e0",
+      "channel": "write",
+      "asserted": "content[3] == 0x01 (imperial), [4] == 0x00 (female), [5] == 42, [6] == 160, [7] == 55"
+    },
+    {
+      "name": "profile values map sex to the colmi gender byte (male)",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "userPreferences",
+        "params": {
+          "metric": true,
+          "sex": "male",
+          "ageYears": 30,
+          "heightCm": 180,
+          "weightKg": 80
+        }
+      },
+      "kotlin": "UserProfileValues.from(true, \"male\", 30, 180.0, 80.0)",
+      "content": "0a 02 00 00 01 1e b4 50 78 5a 00",
+      "frame": "0a 02 00 00 01 1e b4 50 78 5a 00 00 00 00 00 01",
+      "channel": "write",
+      "asserted": "gender byte 0x01 (content[4])"
+    },
+    {
+      "name": "profile values map sex to the colmi gender byte (unspecified)",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "userPreferences",
+        "params": {
+          "metric": true,
+          "ageYears": 30,
+          "heightCm": 180,
+          "weightKg": 80
+        }
+      },
+      "kotlin": "UserProfileValues.from(true, null, 30, 180.0, 80.0)",
+      "content": "0a 02 00 00 02 1e b4 50 78 5a 00",
+      "frame": "0a 02 00 00 02 1e b4 50 78 5a 00 00 00 00 00 02",
+      "channel": "write",
+      "asserted": "gender byte 0x02 (content[4])"
+    },
+    {
+      "name": "profile values clamp to byte ranges with neutral fallbacks (defaults)",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "userPreferences",
+        "params": {
+          "metric": true
+        }
+      },
+      "kotlin": "UserProfileValues.from(true, null, null, null, null)",
+      "content": "0a 02 00 00 02 19 af 46 78 5a 00",
+      "frame": "0a 02 00 00 02 19 af 46 78 5a 00 00 00 00 00 ee",
+      "channel": "write",
+      "asserted": "age 25, height 175, weight 70 (content[5..7])"
+    },
+    {
+      "name": "profile values clamp to byte ranges with neutral fallbacks (clamped)",
+      "test": "ColmiMeasurementSettingsTest.kt",
+      "command": {
+        "op": "userPreferences",
+        "params": {
+          "metric": false,
+          "sex": "male",
+          "ageYears": 300,
+          "heightCm": 300,
+          "weightKg": 300
+        }
+      },
+      "kotlin": "UserProfileValues.from(false, \"male\", 300, 300.0, 300.0)",
+      "content": "0a 02 00 01 01 ff ff ff 78 5a 00",
+      "frame": "0a 02 00 01 01 ff ff ff 78 5a 00 00 00 00 00 dd",
+      "channel": "write",
+      "asserted": "age, height, weight clamp to 255"
+    },
+    {
+      "name": "syncStress carries the day index like QRing PressureReq (day 0)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncStress",
+        "params": {
+          "daysAgo": 0
+        }
+      },
+      "kotlin": "ColmiEncoder.syncStress(0)",
+      "content": "37 00",
+      "frame": "37 00 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "syncStress carries the day index like QRing PressureReq (day 4)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncStress",
+        "params": {
+          "daysAgo": 4
+        }
+      },
+      "kotlin": "ColmiEncoder.syncStress(4)",
+      "content": "37 04",
+      "frame": "37 04 00 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "heart rate request sends the calendar date at midnight UTC (local date equals UTC date)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncHeartRate",
+        "params": {
+          "daysAgo": 0,
+          "nowMs": 1784282400000,
+          "tzOffsetS": 7200
+        }
+      },
+      "kotlin": "ColmiEncoder.syncHeartRate(2026-07-17 at 00:00 UTC = 1784246400)",
+      "content": "15 80 70 59 6a",
+      "frame": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+      "channel": "write",
+      "asserted": "u32 LE at content[1..4] == LocalDate.now(systemDefault).atStartOfDay(UTC).epochSecond",
+      "localDay": "2026-07-17",
+      "note": "The test uses the machine clock; the instant and offset here are synthetic. The value is the person's LOCAL calendar date at 00:00 UTC, not local midnight."
+    },
+    {
+      "name": "heart rate request sends the calendar date at midnight UTC (east of UTC just after local midnight: local date is a day ahead of UTC)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncHeartRate",
+        "params": {
+          "daysAgo": 0,
+          "nowMs": 1784232000000,
+          "tzOffsetS": 19800
+        }
+      },
+      "kotlin": "ColmiEncoder.syncHeartRate(2026-07-17 at 00:00 UTC = 1784246400)",
+      "content": "15 80 70 59 6a",
+      "frame": "15 80 70 59 6a 00 00 00 00 00 00 00 00 00 00 c8",
+      "channel": "write",
+      "asserted": "u32 LE at content[1..4] == LocalDate.now(systemDefault).atStartOfDay(UTC).epochSecond",
+      "localDay": "2026-07-17",
+      "note": "The test uses the machine clock; the instant and offset here are synthetic. The value is the person's LOCAL calendar date at 00:00 UTC, not local midnight."
+    },
+    {
+      "name": "heart rate request sends the calendar date at midnight UTC (west of UTC in the evening: local date is a day behind UTC)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncHeartRate",
+        "params": {
+          "daysAgo": 0,
+          "nowMs": 1784253600000,
+          "tzOffsetS": -25200
+        }
+      },
+      "kotlin": "ColmiEncoder.syncHeartRate(2026-07-16 at 00:00 UTC = 1784160000)",
+      "content": "15 00 1f 58 6a",
+      "frame": "15 00 1f 58 6a 00 00 00 00 00 00 00 00 00 00 f6",
+      "channel": "write",
+      "asserted": "u32 LE at content[1..4] == LocalDate.now(systemDefault).atStartOfDay(UTC).epochSecond",
+      "localDay": "2026-07-16",
+      "note": "The test uses the machine clock; the instant and offset here are synthetic. The value is the person's LOCAL calendar date at 00:00 UTC, not local midnight."
+    },
+    {
+      "name": "heart rate request sends the calendar date at midnight UTC (three days back)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncHeartRate",
+        "params": {
+          "daysAgo": 3,
+          "nowMs": 1784282400000,
+          "tzOffsetS": 7200
+        }
+      },
+      "kotlin": "ColmiEncoder.syncHeartRate(2026-07-14 at 00:00 UTC = 1783987200)",
+      "content": "15 00 7c 55 6a",
+      "frame": "15 00 7c 55 6a 00 00 00 00 00 00 00 00 00 00 50",
+      "channel": "write",
+      "asserted": "u32 LE at content[1..4] == LocalDate.now(systemDefault).atStartOfDay(UTC).epochSecond",
+      "localDay": "2026-07-14",
+      "note": "The test uses the machine clock; the instant and offset here are synthetic. The value is the person's LOCAL calendar date at 00:00 UTC, not local midnight."
+    },
+    {
+      "name": "big data temperature request asks for six days with a valid CRC",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "bigDataTemperature",
+        "params": {
+          "days": 6
+        }
+      },
+      "kotlin": "ColmiEncoder.bigDataTemperature()",
+      "content": "bc 25 01 00 3f 42 06",
+      "frame": "bc 25 01 00 3f 42 06",
+      "channel": "command",
+      "asserted": "full frame (CRC16/MODBUS([06]) = 0x423f, LE)"
+    },
+    {
+      "name": "interval temperature request frames dayIndex and packetIndex",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "bigDataIntervalTemperature",
+        "params": {
+          "daysAgo": 3,
+          "packetIndex": 2
+        }
+      },
+      "kotlin": "ColmiEncoder.bigDataIntervalTemperature(daysAgo = 3, packetIndex = 2)",
+      "content": "bc 77 02 00 80 81 03 02",
+      "frame": "bc 77 02 00 80 81 03 02",
+      "channel": "command",
+      "asserted": "frame[0] bc, [1] 77, [2..3] 02 00, [6..7] 03 02 (CRC bytes not asserted; computed here)"
+    },
+    {
+      "name": "manual spo2 start uses QRing's BCD-25 action byte",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "manualSpo2",
+        "params": {
+          "enable": true
+        }
+      },
+      "kotlin": "ColmiEncoder.manualSpO2(enable = true)",
+      "content": "69 03 25",
+      "frame": "69 03 25 00 00 00 00 00 00 00 00 00 00 00 00 91",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "manual heart rate stop reports the final reading",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "manualHeartRateStop",
+        "params": {
+          "lastBpm": 72
+        }
+      },
+      "kotlin": "ColmiEncoder.manualHeartRate(enable = false, lastBpm = 72)",
+      "content": "6a 01 48 00",
+      "frame": "6a 01 48 00 00 00 00 00 00 00 00 00 00 00 00 b3",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "setDateTime carries the language byte",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "setTime",
+        "params": {
+          "nowMs": 1784283630000,
+          "tzOffsetS": 7200,
+          "language": "en"
+        }
+      },
+      "kotlin": "ColmiEncoder.setDateTime(Instant 2026-07-17T10:20:30Z, zone +02:00, locale en)",
+      "content": "01 26 07 17 12 20 30 01",
+      "frame": "01 26 07 17 12 20 30 01 00 00 00 00 00 00 00 a8",
+      "channel": "write",
+      "asserted": "content size 8, content[7] == 0x01 for a non-Chinese locale",
+      "note": "Fields 1..6 are BCD of the LOCAL wall clock (yy mm dd hh mm ss); the test uses the machine clock, the instant here is synthetic. 0x00 = Chinese, 0x01 = English."
+    },
+    {
+      "name": "user preferences carry the 120-90 BP reference like QRing",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "userPreferences",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.userPreferences()",
+      "content": "0a 02 00 00 02 19 af 46 78 5a 00",
+      "frame": "0a 02 00 00 02 19 af 46 78 5a 00 00 00 00 00 ee",
+      "channel": "write",
+      "asserted": "content[8] == 0x78, content[9] == 0x5a",
+      "note": "Encoder defaults: metric, gender 0x02, age 25, 175 cm, 70 kg."
+    },
+    {
+      "name": "stress pages over seven days before advancing to spo2 (third request)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "syncStress",
+        "params": {
+          "daysAgo": 2
+        }
+      },
+      "kotlin": "writer.commands.last() after two empty stress days",
+      "content": "37 02",
+      "frame": "37 02 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "stress pages over seven days before advancing to spo2 (spo2 request)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "bigDataSpo2",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.bigDataSpo2()",
+      "content": "bc 2a 01 00 ff 00 ff",
+      "frame": "bc 2a 01 00 ff 00 ff",
+      "channel": "command",
+      "asserted": "frame[0] == 0xbc, frame[1] == 0x2a"
+    },
+    {
+      "name": "interval-temp ring pages temperature per day with packet continuation (day 0 packet 0)",
+      "test": "ColmiQringParityTest.kt",
+      "command": {
+        "op": "bigDataIntervalTemperature",
+        "params": {
+          "daysAgo": 0,
+          "packetIndex": 0
+        }
+      },
+      "kotlin": "first TEMPERATURE request when the 0x3C reply set supportIntervalTemp",
+      "content": "bc 77 02 00 01 b0 00 00",
+      "frame": "bc 77 02 00 01 b0 00 00",
+      "channel": "command",
+      "asserted": "frame[1] == 0x77, frame[6..7] == 00 00"
+    },
+    {
+      "name": "bigDataSleep builds the New_Sleep_Protocol frame byte-for-byte",
+      "test": "ColmiSleepSyncTest.kt",
+      "command": {
+        "op": "bigDataSleep",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.bigDataSleep()",
+      "content": "bc 27 02 00 81 80 ff 01",
+      "frame": "bc 27 02 00 81 80 ff 01",
+      "channel": "command",
+      "asserted": "full frame",
+      "note": "The older one-byte payload (bc 27 01 00 ff 00 ff) is ignored by the ring."
+    },
+    {
+      "name": "completed cold pass becomes today only (temperature request)",
+      "test": "ColmiSyncEngineGateTest.kt",
+      "command": {
+        "op": "bigDataTemperature",
+        "params": {
+          "days": 0
+        }
+      },
+      "kotlin": "ColmiEncoder.bigDataTemperature(days = 0)",
+      "content": "bc 25 01 00 7e 80 01",
+      "frame": "bc 25 01 00 7e 80 01",
+      "channel": "command",
+      "asserted": "the warm pass sends exactly this frame",
+      "note": "days is clamped to 1..255, so the today-only pass sends a payload of 01."
+    },
+    {
+      "name": "a rejected realtime request falls the session over to the 0x69 stream (probe)",
+      "test": "ColmiRealtimeHeartRateFallbackTest.kt",
+      "command": {
+        "op": "realtimeHeartRate",
+        "params": {
+          "enable": true
+        }
+      },
+      "kotlin": "ColmiEncoder.realtimeHeartRate(enable = true)",
+      "content": "1e 01",
+      "frame": "1e 01 00 00 00 00 00 00 00 00 00 00 00 00 00 1f",
+      "channel": "write",
+      "asserted": "opcode 0x1e"
+    },
+    {
+      "name": "a rejected realtime request falls the session over to the 0x69 stream (fallback start)",
+      "test": "ColmiRealtimeHeartRateFallbackTest.kt",
+      "command": {
+        "op": "manualHeartRate",
+        "params": {
+          "enable": true
+        }
+      },
+      "kotlin": "ColmiEncoder.manualHeartRate(enable = true)",
+      "content": "69 01",
+      "frame": "69 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6a",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "the fallback stop reports the last bpm on 0x6A like QRing",
+      "test": "ColmiRealtimeHeartRateFallbackTest.kt",
+      "command": {
+        "op": "manualHeartRateStop",
+        "params": {
+          "lastBpm": 74
+        }
+      },
+      "kotlin": "ColmiEncoder.manualHeartRate(enable = false, lastBpm = 74)",
+      "content": "6a 01 4a 00",
+      "frame": "6a 01 4a 00 00 00 00 00 00 00 00 00 00 00 00 b5",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "a ring that answers 0x1E keeps the realtime path (stop)",
+      "test": "ColmiRealtimeHeartRateFallbackTest.kt",
+      "command": {
+        "op": "realtimeHeartRate",
+        "params": {
+          "enable": false
+        }
+      },
+      "kotlin": "ColmiEncoder.realtimeHeartRate(enable = false)",
+      "content": "1e 02",
+      "frame": "1e 02 00 00 00 00 00 00 00 00 00 00 00 00 00 20",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "a workout starts a ring-side sport session, not an HR stream",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "cycle"
+        }
+      },
+      "kotlin": "ColmiEncoder.phoneSport(SPORT_START, sportType(\"cycle\"))",
+      "content": "77 01 09",
+      "frame": "77 01 09 00 00 00 00 00 00 00 00 00 00 00 00 81",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (walk)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "walk"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"walk\")",
+      "content": "77 01 04",
+      "frame": "77 01 04 00 00 00 00 00 00 00 00 00 00 00 00 7c",
+      "channel": "write",
+      "asserted": "sportType == 0x04 (frame built here with status 1)"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (run)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "run"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"run\")",
+      "content": "77 01 07",
+      "frame": "77 01 07 00 00 00 00 00 00 00 00 00 00 00 00 7f",
+      "channel": "write",
+      "asserted": "sportType == 0x07 (frame built here with status 1)"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (cycle)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "cycle"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"cycle\")",
+      "content": "77 01 09",
+      "frame": "77 01 09 00 00 00 00 00 00 00 00 00 00 00 00 81",
+      "channel": "write",
+      "asserted": "sportType == 0x09 (frame built here with status 1)"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (hike)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "hike"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"hike\")",
+      "content": "77 01 08",
+      "frame": "77 01 08 00 00 00 00 00 00 00 00 00 00 00 00 80",
+      "channel": "write",
+      "asserted": "sportType == 0x08 (frame built here with status 1)"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (yoga)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "yoga"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"yoga\")",
+      "content": "77 01 16",
+      "frame": "77 01 16 00 00 00 00 00 00 00 00 00 00 00 00 8e",
+      "channel": "write",
+      "asserted": "sportType == 0x16 (frame built here with status 1)"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (gym)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "gym"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"gym\")",
+      "content": "77 01 0a",
+      "frame": "77 01 0a 00 00 00 00 00 00 00 00 00 00 00 00 82",
+      "channel": "write",
+      "asserted": "sportType == 0x0a (frame built here with status 1)"
+    },
+    {
+      "name": "activity types map onto the vendor sport list (other)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 1,
+          "activityType": "other"
+        }
+      },
+      "kotlin": "ColmiEncoder.sportType(\"other\")",
+      "content": "77 01 0a",
+      "frame": "77 01 0a 00 00 00 00 00 00 00 00 00 00 00 00 82",
+      "channel": "write",
+      "asserted": "sportType == 0x0a (frame built here with status 1)"
+    },
+    {
+      "name": "ending the workout stops the sport session",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 4,
+          "activityType": "walk"
+        }
+      },
+      "kotlin": "ColmiEncoder.phoneSport(SPORT_STOP, 0x04)",
+      "content": "77 04 04",
+      "frame": "77 04 04 00 00 00 00 00 00 00 00 00 00 00 00 7f",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "the watchdog resumes a silent session once (resume)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 3,
+          "activityType": "cycle"
+        }
+      },
+      "kotlin": "ColmiEncoder.phoneSport(SPORT_RESUME, 0x09)",
+      "content": "77 03 09",
+      "frame": "77 03 09 00 00 00 00 00 00 00 00 00 00 00 00 83",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "the watchdog resumes a silent session once, then gives it up (stop)",
+      "test": "ColmiSportModeTest.kt",
+      "command": {
+        "op": "phoneSport",
+        "params": {
+          "status": 4,
+          "activityType": "cycle"
+        }
+      },
+      "kotlin": "ColmiEncoder.phoneSport(SPORT_STOP, 0x09)",
+      "content": "77 04 09",
+      "frame": "77 04 09 00 00 00 00 00 00 00 00 00 00 00 00 84",
+      "channel": "write",
+      "asserted": "full content"
+    },
+    {
+      "name": "device support read",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "deviceSupport",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.deviceSupport()",
+      "content": "3c",
+      "frame": "3c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 3c",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "read auto HR pref",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "readPref",
+        "params": {
+          "pref": 22
+        }
+      },
+      "kotlin": "ColmiEncoder.readPref(0x16)",
+      "content": "16 01",
+      "frame": "16 01 00 00 00 00 00 00 00 00 00 00 00 00 00 17",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "read auto stress pref",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "readPref",
+        "params": {
+          "pref": 54
+        }
+      },
+      "kotlin": "ColmiEncoder.readPref(0x36)",
+      "content": "36 01",
+      "frame": "36 01 00 00 00 00 00 00 00 00 00 00 00 00 00 37",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "read auto SpO2 pref",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "readPref",
+        "params": {
+          "pref": 44
+        }
+      },
+      "kotlin": "ColmiEncoder.readPref(0x2c)",
+      "content": "2c 01",
+      "frame": "2c 01 00 00 00 00 00 00 00 00 00 00 00 00 00 2d",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "read auto HRV pref",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "readPref",
+        "params": {
+          "pref": 56
+        }
+      },
+      "kotlin": "ColmiEncoder.readPref(0x38)",
+      "content": "38 01",
+      "frame": "38 01 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "write auto SpO2 pref on",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "writePref",
+        "params": {
+          "pref": 44,
+          "enabled": true
+        }
+      },
+      "kotlin": "ColmiEncoder.writePref(0x2c, enabled = true)",
+      "content": "2c 02 01",
+      "frame": "2c 02 01 00 00 00 00 00 00 00 00 00 00 00 00 2f",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "write auto stress pref on",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "writePref",
+        "params": {
+          "pref": 54,
+          "enabled": true
+        }
+      },
+      "kotlin": "ColmiEncoder.writePref(0x36, enabled = true)",
+      "content": "36 02 01",
+      "frame": "36 02 01 00 00 00 00 00 00 00 00 00 00 00 00 39",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "write auto HRV pref on",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "writePref",
+        "params": {
+          "pref": 56,
+          "enabled": true
+        }
+      },
+      "kotlin": "ColmiEncoder.writePref(0x38, enabled = true)",
+      "content": "38 02 01",
+      "frame": "38 02 01 00 00 00 00 00 00 00 00 00 00 00 00 3b",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "read temperature pref",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "readTempPref",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.readTempPref()",
+      "content": "3a 03 01",
+      "frame": "3a 03 01 00 00 00 00 00 00 00 00 00 00 00 00 3e",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "read goals",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "readGoals",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.readGoals()",
+      "content": "21 01",
+      "frame": "21 01 00 00 00 00 00 00 00 00 00 00 00 00 00 22",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "realtime heart rate continue (20 s keepalive)",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "realtimeHeartRateContinue",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.realtimeHeartRateContinue()",
+      "content": "1e 03",
+      "frame": "1e 03 00 00 00 00 00 00 00 00 00 00 00 00 00 21",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "manual SpO2 stop",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "manualSpo2Stop",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.manualSpO2(enable = false)",
+      "content": "6a 03 00 00",
+      "frame": "6a 03 00 00 00 00 00 00 00 00 00 00 00 00 00 6d",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "manual heart rate stop with no reading",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "manualHeartRateStop",
+        "params": {
+          "lastBpm": 0
+        }
+      },
+      "kotlin": "ColmiEncoder.manualHeartRate(enable = false)",
+      "content": "6a 01 00 00",
+      "frame": "6a 01 00 00 00 00 00 00 00 00 00 00 00 00 00 6b",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "find device",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "findDevice",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.findDevice()",
+      "content": "50 55 aa",
+      "frame": "50 55 aa 00 00 00 00 00 00 00 00 00 00 00 00 4f",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "power off",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "powerOff",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.powerOff()",
+      "content": "08 01",
+      "frame": "08 01 00 00 00 00 00 00 00 00 00 00 00 00 00 09",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "factory reset",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "factoryReset",
+        "params": {}
+      },
+      "kotlin": "ColmiEncoder.factoryReset()",
+      "content": "ff 66 66",
+      "frame": "ff 66 66 00 00 00 00 00 00 00 00 00 00 00 00 cb",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "activity (steps) day 0",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "syncActivity",
+        "params": {
+          "daysAgo": 0
+        }
+      },
+      "kotlin": "ColmiEncoder.syncActivity(0)",
+      "content": "43 00 0f 00 5f 01",
+      "frame": "43 00 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b2",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "activity (steps) day 7",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "syncActivity",
+        "params": {
+          "daysAgo": 7
+        }
+      },
+      "kotlin": "ColmiEncoder.syncActivity(7)",
+      "content": "43 07 0f 00 5f 01",
+      "frame": "43 07 0f 00 5f 01 00 00 00 00 00 00 00 00 00 b9",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "HRV day 0",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "syncHrv",
+        "params": {
+          "daysAgo": 0
+        }
+      },
+      "kotlin": "ColmiEncoder.syncHRV(0)",
+      "content": "39 00 00 00 00",
+      "frame": "39 00 00 00 00 00 00 00 00 00 00 00 00 00 00 39",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "HRV day 6",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "syncHrv",
+        "params": {
+          "daysAgo": 6
+        }
+      },
+      "kotlin": "ColmiEncoder.syncHRV(6)",
+      "content": "39 06 00 00 00",
+      "frame": "39 06 00 00 00 00 00 00 00 00 00 00 00 00 00 3f",
+      "channel": "write",
+      "asserted": "none",
+      "unasserted": true
+    },
+    {
+      "name": "interval temperature day 0 packet 1",
+      "test": "ColmiEncoder.kt (source only, no test assertion)",
+      "command": {
+        "op": "bigDataIntervalTemperature",
+        "params": {
+          "daysAgo": 0,
+          "packetIndex": 1
+        }
+      },
+      "kotlin": "ColmiEncoder.bigDataIntervalTemperature(0, 1)",
+      "content": "bc 77 02 00 c0 70 00 01",
+      "frame": "bc 77 02 00 c0 70 00 01",
+      "channel": "command",
+      "asserted": "none",
+      "unasserted": true
+    }
+  ]
+}

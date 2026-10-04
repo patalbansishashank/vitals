@@ -1,6 +1,8 @@
 /** Settings › Sync copy. Plain and short, like the rest of Settings. */
 export const SYNC_COPY = {
   intro: 'Your data stays on this device until you set up sync. Your sync server only ever holds encrypted data it cannot read.',
+  /** With a paired home server (R20-PAIR-02): that server can read the data, so the relay sentence above is not true. */
+  introHome: 'Your home server holds a readable copy of your data and syncs your devices. The 24 words are the backup.',
   lnaHint: 'Chrome may ask to “connect to devices on your local network”. Allow it so Vitals can reach your server.',
   serverLabel: 'sync server address',
   serverHelp: 'The address of your Vitals server, for example https://myserver.tailnet.ts.net',
@@ -8,7 +10,8 @@ export const SYNC_COPY = {
   setUp: 'Set up sync on this device',
   throughServer: 'On · through your server',
   serverSettings: 'Server settings',
-  fromServer: 'The address of your paired server is filled in. Set up sync here if this is your first device, or join with the words or QR from another device.',
+  fromServer: 'The address of your paired server is filled in. Join with the words or QR from another device.',
+  revokeKeepsKey: "Removing a device stops it using your server. A device that already synced keeps the sync key, like anyone who has the 24 words, and can keep syncing. Locking it out takes a new sync key on every device, which this page can't make yet.",
   test: 'Test',
   testing: 'Testing…',
   testOk: (version: string | null, ms: number) => `Reached the server${version ? ` · version ${version}` : ''} · ${ms} ms`,
