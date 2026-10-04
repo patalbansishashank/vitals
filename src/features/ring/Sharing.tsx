@@ -10,7 +10,7 @@ import { Link } from 'react-router';
 import { Faceplate, Key, Notice, Switch, toast } from '@/components';
 import { paths } from '@/app/paths';
 import { useRingEnv, type RingSharing, type SharingState } from './data';
-import { defaultRingSharing } from './sharing';
+import { defaultRingSharing } from './sharingPolicy';
 import { RING_SECTIONS_COPY } from './copySections';
 import './ring-sections.css';
 

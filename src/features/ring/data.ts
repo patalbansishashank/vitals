@@ -6,7 +6,7 @@
  * for tests.
  *
  * The master sharing switch (`bio.setRingSharing`, §15.2) follows the same pattern: `RingSharing` is the page's
- * interface; the default reads `bio.sources` (./sharing.ts).
+ * interface; the default reads `bio.sources` (./sharingPolicy.ts).
  */
 import { createContext, createElement, useCallback, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { platform, type Platform } from '@/platform';

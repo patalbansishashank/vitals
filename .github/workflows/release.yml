@@ -60,6 +60,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Check source module names across platforms
+        run: node --test scripts/release/source-paths.test.mjs
+
       - name: Check the version and publication policy
         id: version
         env:

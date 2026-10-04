@@ -8,7 +8,7 @@ import type { CommandResult } from '@/commands/types';
 import { RingServiceProvider, type RingSharing } from '../data';
 import { createFakeRingService, createFakeSharing, scenarioPlatform } from '../fixtures';
 import { Sharing } from '../Sharing';
-import { createRingSharing, isRingSource, ringSharingState, type RingSourceLike } from '../sharing';
+import { createRingSharing, isRingSource, ringSharingState, type RingSourceLike } from '../sharingPolicy';
 
 function setup(sharing: RingSharing) {
   return render(
