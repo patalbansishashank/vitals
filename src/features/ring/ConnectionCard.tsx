@@ -153,7 +153,7 @@ export function ConnectionCard({ ring, showTail = false, collapsible = false, de
   let line: string | null;
   switch (state) {
     case 'unsupported':
-      line = C.body.unsupported;
+      line = platform.installedApp ? C.body.unsupportedApp : C.body.unsupported;
       break;
     case 'bluetooth_off':
       line = android ? C.body.bluetoothOff : C.body.bluetoothOffComputer;

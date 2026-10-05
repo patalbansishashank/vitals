@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { effectiveEntries, type LogEntry } from '@/living';
 import { planDeviceLogs, type DeviceLogInput } from '../deviceLogs';
+import { LUMEN_SOURCE, workoutRecordId } from '../recordIds';
 import type { SourcedRecord } from '../resolve';
 import type { BioSourceDoc, StreamPolicy, WorkoutRecord } from '../types';
 import { daily, prov, sleep } from './factory';
@@ -107,6 +108,24 @@ describe('planDeviceLogs', () => {
     const after = planDeviceLogs(base(records, { entries: retracted }));
     expect(after.create).toEqual([]);
     expect(after.skipped.find((s) => s.stream === 'steps')?.reason).toBe('removed');
+  });
+
+  // L-REV2 R1-7: the ring fold re-ids a Lumen workout with the ring key; the entry made under its Lumen id is the same workout
+  it('a workout re-id’d under the ring key: the entry made under its Lumen id is updated once, never doubled, and stays removed', () => {
+    const start = '2026-10-01T17:30:00.000Z';
+    const lumenId = workoutRecordId({ source: LUMEN_SOURCE, start });
+    const stored = planDeviceLogs(base([sr(workout(lumenId, start, { active_kcal: 410 }))])).create.map((c) => entry({ ...c.entry }));
+    const records = [sr(workout('ring-id', start, { active_kcal: 410 }))];
+    const p = planDeviceLogs(base(records, { entries: stored }));
+    expect(p.create.map((c) => [c.key, c.recordId, c.supersedes])).toEqual([[`${D}:workouts:ring-id`, 'ring-id', stored[0]!.id]]);
+    const updated = [...stored, entry({ ...p.create[0]!.entry, supersedes: stored[0]!.id })];
+    const again = planDeviceLogs(base(records, { entries: updated }));
+    expect(again.create).toEqual([]);
+    expect(again.skipped.map((s) => s.reason)).toEqual(['unchanged']);
+    const retracted = [...stored, entry({ kind: 'retract', target: stored[0]!.id })];
+    const after = planDeviceLogs(base(records, { entries: retracted }));
+    expect(after.create).toEqual([]);
+    expect(after.skipped.map((s) => s.reason)).toEqual(['removed']);
   });
 
   // L-REV2 R3-01: two devices updated the same device entry; the re-run compares with the one that is counted

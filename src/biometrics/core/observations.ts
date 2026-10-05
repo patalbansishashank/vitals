@@ -11,6 +11,7 @@ import { observationsFromBioRecords, type DayObservations, type ObservedWorkout 
 import { effectivePolicy, personMatrix } from './effective';
 import { toActivityInputs, toSleepInputs, toVo2Observation, toVo2TestObservation } from './engineAdapter';
 import { engineOn, type PolicyMatrix } from './policy';
+import { contentRecordId, LUMEN_SOURCE } from './recordIds';
 import { resolveDays, type SourcedRecord } from './resolve';
 import type { BioCorrection, BioRecord, BioSourceDoc, LocalDate, PolicyStream, ResolvedDay, ScoreResult, StreamPolicy } from './types';
 
@@ -93,8 +94,11 @@ export function buildObservations(i: ObservationInputs): DayObservations[] {
         .map((w): ObservedWorkout => {
           const rec = byId.get(w.recordId);
           const t = w.exerciseType || 'other';
+          // the id the workout had under Lumen's rule before the ring fold re-id'd it: entries logged under it are its
+          const was = rec ? contentRecordId(rec, LUMEN_SOURCE) : w.recordId;
           return {
             recordId: w.recordId,
+            ...(was !== w.recordId ? { aliases: [was] } : {}),
             startH: w.startH!,
             durationMin: w.durationMin,
             exerciseType: t,

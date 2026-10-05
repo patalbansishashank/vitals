@@ -209,7 +209,24 @@ export type MealLogResult =
       saw?: string;
       attachmentIds?: string[];
     }
-  | { status: 'ask'; question: string; components: ComponentView[]; confidence: number; saw?: string };
+  | {
+      status: 'ask';
+      /** Nothing was written: an agent must not tell the person the meal is logged. */
+      saved: false;
+      question: string;
+      components: ComponentView[];
+      confidence: number;
+      /** Table foods that nearly match the components that need a choice (empty: the table has nothing close). */
+      candidates: FoodChoice[];
+      saw?: string;
+    };
+
+/** A table food to pick for a component: pass `foodId` in that component and log again. */
+export interface FoodChoice {
+  component: string;
+  foodId: string;
+  name: string;
+}
 
 const r2 = (x: number): number => Math.round(x * 100) / 100;
 
@@ -236,6 +253,26 @@ function questionFor(e: MealEstimate): string {
   return weakest.idConfidence < 0.7 ? `Was "${weakest.name}" what you had, and roughly how much (grams, katori or pieces)?` : `Roughly how much ${weakest.name} was it (grams, katori or pieces)?`;
 }
 
+const CHOICES_PER_COMPONENT = 4;
+
+/** The table's near matches for each component that was not placed with confidence (best first), for a caller to pick from. */
+function choicesFor(e: MealEstimate, table: FoodTable): FoodChoice[] {
+  const out: FoodChoice[] = [];
+  e.components.forEach((c, i) => {
+    if (c.idConfidence >= CONFIRM_AT && !e.unresolved.includes(i)) return;
+    const ids = new Set<string>();
+    for (const q of [c.localName, c.name]) {
+      for (const f of q ? table.search(q, CHOICES_PER_COMPONENT) : []) {
+        if (ids.size < CHOICES_PER_COMPONENT && !ids.has(f.id)) {
+          ids.add(f.id);
+          out.push({ component: c.name, foodId: f.id, name: f.name });
+        }
+      }
+    }
+  });
+  return out;
+}
+
 interface WriteMeal {
   date: string;
   clockH?: number;
@@ -255,7 +292,7 @@ async function commitMeal(ctx: CommandContext, e: MealEstimate, w: WriteMeal, ta
   const confidence = r2(Math.min(e.confidence, w.confidence ?? 1));
   const components = viewOf(e, table);
   if (confidence < ASK_BELOW || e.unresolved.length > 0 || e.components.length === 0) {
-    return { status: 'ask', question: questionFor(e), components, confidence, ...(w.saw ? { saw: w.saw } : {}) };
+    return { status: 'ask', saved: false, question: questionFor(e), components, confidence, candidates: choicesFor(e, table), ...(w.saw ? { saw: w.saw } : {}) };
   }
   const day: DayView = await readDay(ctx, w.date);
   const rx = day.prescription;

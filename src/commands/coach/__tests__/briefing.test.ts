@@ -92,10 +92,16 @@ describe('shared rules (briefingRules.ts)', () => {
     expect(buildBriefing({ now: '2026-10-02T08:00:00.000Z', today: '2026-10-02' }).sections[0]).toEqual({ id: 'static', text: rules.STATIC_BRIEFING });
   });
 
+  it('both rule sets tell the agent that needs_choice means nothing was saved (J3-02)', () => {
+    for (const text of [rules.STATIC_BRIEFING, rules.MCP_INSTRUCTIONS]) {
+      expect(text).toMatch(/needs_choice.*nothing was saved.*call log_meal again/);
+    }
+  });
+
   it('every tool the MCP instructions name is an MCP tool; briefing_get is a read for every agent token', () => {
     const mcp = toolManifest('mcp').tools;
     const names = new Set(mcp.map((t) => t.name));
-    const named = [...new Set(rules.MCP_INSTRUCTIONS.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [])].filter((w) => !['safety_blocked', 'pending_user'].includes(w));
+    const named = [...new Set(rules.MCP_INSTRUCTIONS.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [])].filter((w) => !['safety_blocked', 'pending_user', 'needs_choice'].includes(w));
     expect(named.length).toBeGreaterThan(5);
     expect(named.filter((n) => !names.has(n))).toEqual([]);
     expect(rules.MCP_INSTRUCTIONS.length).toBeLessThanOrEqual(2600);

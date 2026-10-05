@@ -6,11 +6,14 @@ import { main } from './cli.ts';
 import { startCompanion, VERSION, type Companion } from './server.ts';
 import { rawCall, tempDir } from './testHelpers.ts';
 
+/** `--version` prints the package's own version (it follows every release). */
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
 describe('vitals-companion CLI', () => {
   it('prints the version and help', async () => {
     const out: string[] = [];
     expect(await main(['--version'], (l) => out.push(l))).toBe(0);
-    expect(out).toEqual(['0.4.0']);
+    expect(out).toEqual([PKG_VERSION]);
     expect(await main(['--help'], (l) => out.push(l))).toBe(0);
     expect(out[1]).toContain('vitals-companion sync [options]');
     expect(out[1]).toContain('--serve-app <dist>');

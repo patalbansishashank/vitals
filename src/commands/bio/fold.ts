@@ -12,9 +12,15 @@
  * model from the family table) and re-put under the target, chunk samples merge into the target's chunks as stored, both
  * de-duplicated (by record id and version, by sample); then the old source goes the way `bio.deleteSource` removes one.
  * Data under a key that has lost its source document moves too. Idempotent: an interrupted run finishes on the next.
+ *
+ * Record ids: a record under a §15.2 ring key carries the key's own content id (`recordIds.ts` `contentRecordId`, the
+ * rule the ring's Bluetooth reads use), so the night Lumen relays and the night the ring reads itself are one record.
+ * A record moved into a ring key is re-id'd on the way; Lumen records already under a ring key with Lumen's id (as the
+ * v0.5.0 fold left them) are re-id'd document by document on every run (`reidRingRecords`).
  * Loaded lazily by `./index.ts`.
  */
 import { channelOfSourceKey, isRingSource, RING_FOLD_ID, ringFoldOf, ringStartPolicies, ringStartPolicy, type RingFold } from '@/biometrics/core/policy';
+import { contentRecordId } from '@/biometrics/core/recordIds';
 import { LUMEN_DEVICE_MODEL, LUMEN_SOURCE_KEY, newSourceDoc, policyOf, policyStreamOf, sourceKeyOf, suggestedPolicies } from '@/biometrics/core/source';
 import type { BioChannel, BioProvenance, BioRecord, BioStream, LocalDate, PolicyStream, RawSample } from '@/biometrics/core/types';
 import { tzOffsetSeconds } from '@/biometrics/importers/util';
@@ -94,6 +100,17 @@ function reprovenance(p: BioProvenance, to: string, fam: FamilyIdentity): BioPro
 /** Records per flush: a transaction always carries whole remove-and-put pairs, so an interruption loses nothing. */
 const MOVE_BATCH = 100;
 
+/** A §15.2 ring key (`ble:<family>/<model>/<ringId>`): its records carry its own content ids. */
+function isRingKey(key: string): boolean {
+  const p = parseRingKey(key);
+  return !!p && !p.legacy;
+}
+
+/** The id a record carries once filed under `key`: the key's content id for a ring key; unchanged for any other. */
+function filedId(r: BioRecord, key: string): string {
+  return isRingKey(key) ? contentRecordId(r, key) : r.record_id;
+}
+
 /** The origin a moved sample keeps. Under a ring key `import` does not exist: the ring's own history reads and the
  * server's folded Lumen path store the same minutes as `history`, so the overlap merges instead of doubling. */
 function movedOrigin(origin: RawSample['origin'], to: string): RawSample['origin'] {
@@ -121,11 +138,12 @@ async function moveSource(ctx: CommandContext, m: Move): Promise<{ records: numb
     e.dates.add(date);
   };
   // records: every stored version is rewritten under the target (no version check: a lower version must not go because
-  // a higher one exists under either source; readers pick the highest), MOVE_BATCH at a time
+  // a higher one exists under either source; readers pick the highest), with the target's own id when the target is a
+  // ring key, MOVE_BATCH at a time
   for (let i = 0; i < old.length; i += MOVE_BATCH) {
     for (const e of old.slice(i, i + MOVE_BATCH)) {
-      const rec: BioRecord = { ...e.record, provenance: reprovenance(e.record.provenance, m.to, m.fam) };
-      if (await store.moveRecordDoc(rec, m.to)) note(rec.provenance, policyStreamOf(rec), rec.time.local_date);
+      const rec: BioRecord = { ...e.record, record_id: filedId(e.record, m.to), provenance: reprovenance(e.record.provenance, m.to, m.fam) };
+      if (await store.moveRecordDoc(rec, m.to, e.docId)) note(rec.provenance, policyStreamOf(rec), rec.time.local_date);
     }
     await store.flush();
   }
@@ -188,6 +206,37 @@ async function moveSource(ctx: CommandContext, m: Move): Promise<{ records: numb
   return { records: old.length, samples };
 }
 
+/** A record Lumen produced: its importers mark every record (the ring's own reads carry `source_app: 'Vitals'`). */
+function fromLumen(p: BioProvenance): boolean {
+  return p.source_app === 'Lumen' || (p.decoder?.startsWith('lumen-') ?? false);
+}
+
+/**
+ * Every Lumen record under a ring source whose id is not the key's own content id, re-id'd in place: the v0.5.0 fold
+ * moved Lumen records with Lumen's ids, so a night both paths read was two records under one source. Only Lumen's
+ * records are hashed (the ring's own reads carry the key's id by construction), so a boot costs one hash per Lumen
+ * record under the ring, not per record. One remove-and-put per document (`moveRecordDoc`, which keeps a record that
+ * differs from the one it meets at one id and version), MOVE_BATCH per transaction; a run that finds nothing changes
+ * nothing. Returns the number of documents rewritten.
+ */
+async function reidRingRecords(): Promise<number> {
+  const ix = await bioIndex();
+  const keys = new Set(ix.sources().map((s) => s.sourceKey).filter(isRingKey));
+  const stale = [...ix.recDocs.values()].filter((e) => keys.has(e.sourceKey) && fromLumen(e.record.provenance) && contentRecordId(e.record, e.sourceKey) !== e.record.record_id);
+  if (stale.length === 0) return 0;
+  const store = await openBioStore({ writer: deriveWriter(undefined, 'ring fold'), batchSize: MOVE_BATCH * 4 });
+  let n = 0;
+  for (let i = 0; i < stale.length; i += MOVE_BATCH) {
+    for (const e of stale.slice(i, i + MOVE_BATCH)) {
+      if (await store.moveRecordDoc({ ...e.record, record_id: contentRecordId(e.record, e.sourceKey) }, e.sourceKey, e.docId)) n++;
+    }
+    await store.flush();
+  }
+  // scores built on the old ids are recomputed from the earliest day touched
+  scheduleRescore(stale.map((e) => e.record.time.local_date).sort()[0]!);
+  return n;
+}
+
 interface RingFoldBody extends RingFold {
   kind: 'ringFold';
   ranAt: string;
@@ -225,9 +274,11 @@ export async function ringFoldMigration(ctx: CommandContext) {
     // a move that could not read every chunk is finished on a later run; the old source is still there
     if (!r.partial) moved.push({ from: m.from, to: m.to });
   }
+  // records a ring source holds under another id (the v0.5.0 fold's, an older build's) take the key's own
+  const reid = await reidRingRecords();
   const stored = storedRingFold(ix);
   const changed = moved.length > 0 || (stored?.lumen ?? null) !== (fold.lumen ?? null);
-  if (!changed) return { ran: false, moved, lumen: fold.lumen ?? null, ambiguous: fold.ambiguous };
+  if (!changed) return { ran: reid > 0, moved, lumen: fold.lumen ?? null, ambiguous: fold.ambiguous };
   const body: RingFoldBody = { kind: 'ringFold', ranAt: ctx.now, moved: moved.length, ...(fold.lumen ? { lumen: fold.lumen } : {}) };
   await ctx.docs.put('bioSources', { ...body, _id: RING_FOLD_ID });
   return { ran: true, moved, lumen: fold.lumen ?? null, ambiguous: fold.ambiguous };

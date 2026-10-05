@@ -30,12 +30,24 @@ export interface LaunchOptions {
 
 const SIGNALS: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 
-/** argv without the `--mcp` / `--client <id>` flags (the rest, like a dev app directory, is kept). */
+/**
+ * Lets `--mcp` start with no display (an AI tool run over ssh). Chromium picks its display platform before any script
+ * runs, so `app.commandLine.appendSwitch` in main is too late and the process exits with an X11 error: the flag has to
+ * be on the command line itself, which is why the entry an AI tool runs carries it (Linux only).
+ */
+export const HEADLESS_FLAG = '--ozone-platform=headless';
+
+/** The arguments an AI tool runs after the app path: `[...base, <headless flag on Linux>, '--mcp', '--client', id]`. */
+export function mcpArgs(base: readonly string[], client: string, platform: NodeJS.Platform): string[] {
+  return [...base, ...(platform === 'linux' ? [HEADLESS_FLAG] : []), FLAGS.mcp, FLAGS.client, client];
+}
+
+/** argv without the `--mcp` / `--client <id>` flags and the headless flag (the rest, like a dev app directory, is kept). */
 export function argsWithoutMcp(argv: readonly string[]): string[] {
   const out: string[] = [];
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i]!;
-    if (a === FLAGS.mcp) continue;
+    if (a === FLAGS.mcp || a === HEADLESS_FLAG) continue;
     if (a === FLAGS.client) {
       i++;
       continue;

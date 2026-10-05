@@ -24,6 +24,8 @@ export interface AgentCallOptions {
    * when the person let this client apply plan edits directly (`directApplyAllowed`).
    */
   stage: boolean;
+  /** The turn this call belongs to for the bus's per-turn limits. Without one every call of the current minute shares a turn. */
+  correlationId?: string;
   signal?: AbortSignal;
 }
 

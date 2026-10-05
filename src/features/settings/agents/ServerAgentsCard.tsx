@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Copy, Trash2 } from 'lucide-react';
 import { Dialog, Engraved, Field, InlineWarning, Key, KeyLink, RadioGroup, Select, TextInput, toast } from '@/components';
 import type { AgentClient, AgentRecipe, AgentScope, AgentTokenCreated, AgentTokenInfo } from '@/net/server';
+import { platformCaps } from '@/platform';
 import { useServerClient, useServerConnection, useServerPairing } from '../server/hooks';
 import { formatDay, relativeTime } from '../server/copy';
 import { AGENTS_COPY as C } from './copy';
@@ -55,7 +56,7 @@ export function ServerAgentsCard() {
         <Engraved as="p" className="m-0">
           {C.serverHeading}
         </Engraved>
-        <p className="m-0 text-xs leading-[1.45] text-ink-2">{pairing ? C.serverIntro : C.serverNotPaired}</p>
+        <p className="m-0 text-xs leading-[1.45] text-ink-2">{pairing ? (platformCaps().installedApp ? C.serverIntroApp : C.serverIntro) : C.serverNotPaired}</p>
       </div>
       {pairing ? (
         <PairedAgents mcpUrl={`${pairing.baseUrl}/mcp`} />

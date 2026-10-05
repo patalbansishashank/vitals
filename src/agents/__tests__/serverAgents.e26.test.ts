@@ -33,7 +33,7 @@ async function connect(token: string, name = 'claude-code') {
   await client.connect(new StreamableHTTPClientTransport(new URL(`${server.url}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
   return client;
 }
-const envelopeOf = (r: unknown) => JSON.parse((r as { content: Array<{ text: string }> }).content[0]!.text) as { ok: boolean; status: string; changeId?: string; error?: { code: string }; summary: string };
+const envelopeOf = (r: unknown) => JSON.parse((r as { content: Array<{ text: string }> }).content[0]!.text) as { ok: boolean; status: string; changeId?: string; saved?: boolean; candidates?: unknown[]; error?: { code: string }; summary: string };
 
 beforeAll(async () => {
   // the whole registry first: the worker's manifest is built once from every registered command
@@ -120,6 +120,30 @@ describe('MCP on the server, no browser tab', () => {
     expect(JSON.stringify(pending)).toContain(edit.changeId!);
     const profile = await dispatch('profile.get', {});
     expect(JSON.stringify(profile)).not.toContain('0.9');
+    await c.close();
+  }, 120_000);
+
+  it('log_meal for a food that needs a choice: needs_choice, saved false, no entry, and the activity does not count it as logged (J3-02)', async () => {
+    const c = await connect(toks.edit!, 'codex-mcp-client');
+    const raw = await c.callTool({ name: 'log_meal', arguments: { date: '2026-10-03', components: [{ name: 'xyzzy pie', grams: 100 }], method: 'typed' } });
+    const asked = envelopeOf(raw);
+    expect(asked, JSON.stringify(asked)).toMatchObject({ ok: true, status: 'needs_choice', saved: false });
+    // a client that reads only the structured content also sees that nothing was saved, and the status and summary
+    expect(raw.structuredContent).toMatchObject({ status: 'needs_choice', saved: false, summary: asked.summary, question: expect.stringMatching(/xyzzy pie/) });
+    expect(asked.summary).toMatch(/^Nothing logged yet\..*xyzzy pie/);
+    expect(asked.changeId).toBeUndefined();
+    const { dispatch } = await import('@/commands');
+    expect(JSON.stringify(await dispatch('log.get', { from: '2026-10-03', to: '2026-10-03' }))).not.toContain('xyzzy');
+    const h = { Authorization: `Bearer ${toks.device}` };
+    const askedRow = ((await (await http(`${server.url}/v1/agents/activity`, { headers: h })).json()) as { activity: Array<Record<string, unknown>> }).activity[0];
+    expect(askedRow).toMatchObject({ tool: 'log_meal', outcome: 'needs_choice' });
+    // a known food still says applied, with its entry, and counts as ok
+    const logged = envelopeOf(await c.callTool({ name: 'log_meal', arguments: { date: '2026-10-03', components: [{ name: 'rice', foodId: 'rice_white_cooked', grams: 150 }], method: 'typed' } }));
+    expect(logged, JSON.stringify(logged)).toMatchObject({ ok: true, status: 'applied', summary: 'Log a meal: done.' });
+    expect(logged).not.toHaveProperty('saved');
+    expect(JSON.stringify(await dispatch('log.get', { from: '2026-10-03', to: '2026-10-03' }))).toContain('rice_white_cooked');
+    const loggedRow = ((await (await http(`${server.url}/v1/agents/activity`, { headers: h })).json()) as { activity: Array<Record<string, unknown>> }).activity[0];
+    expect(loggedRow).toMatchObject({ tool: 'log_meal', outcome: 'ok' });
     await c.close();
   }, 120_000);
 

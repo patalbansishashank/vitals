@@ -123,11 +123,13 @@ export interface AgentActivity {
   at: string;
   tokenId: string;
   tool: string;
-  outcome: 'ok' | 'staged' | 'rejected' | 'error';
+  outcome: 'ok' | 'staged' | 'needs_choice' | 'rejected' | 'error';
 }
 
 export function outcomeOf(e: ToolResultEnvelope): AgentActivity['outcome'] {
   if (e.status === 'pending_user') return 'staged';
+  // the call was fine but wrote nothing: not "ok", which reads as "it was logged"
+  if (e.status === 'needs_choice') return 'needs_choice';
   if (e.ok) return 'ok';
   return e.error?.code === 'internal' ? 'error' : 'rejected';
 }

@@ -8,6 +8,7 @@ import { seriesToSamples, splitByLocalDayAndStream } from '../core/chunks';
 import type { SampleGroup } from '../core/chunks';
 import { recordId } from '../core/hash';
 import { isRingSource, ringStartPolicy, type RingChoice } from '../core/policy';
+import { contentRecordId } from '../core/recordIds';
 import { newSourceDoc, policyOf, policyStreamOf, sourceKeyOf, suggestedPolicies } from '../core/source';
 import { validateBatch } from '../core/validate';
 import type { BioBatch, BioProvenance, BioRecord, BioSourceDoc, DeviceTier, IngestReport, Instant, LocalDate, PolicyStream, RawSample, SampleOrigin, SeriesRecord, StreamPolicy } from '../core/types';
@@ -44,9 +45,11 @@ export interface FoldTarget {
   model: string;
 }
 
+/** The record as filed under the target: its provenance names the ring, and its id is the ring key's own content id
+ * (`recordIds.ts`), the one the ring's Bluetooth reads give the same night, day or workout. */
 function folded(rec: BioRecord, f: FoldTarget): BioRecord {
   const p = rec.provenance;
-  return { ...rec, provenance: { ...p, channel: f.key as BioProvenance['channel'], device: { ...(p.device ?? {}), type: 'ring', manufacturer: f.maker, model: f.model, tier: p.device?.tier ?? 'C' } } };
+  return { ...rec, record_id: contentRecordId(rec, f.key), provenance: { ...p, channel: f.key as BioProvenance['channel'], device: { ...(p.device ?? {}), type: 'ring', manufacturer: f.maker, model: f.model, tier: p.device?.tier ?? 'C' } } };
 }
 
 /** The batch with every record that falls under a folded source re-provenanced to its target (what `ingestBatches` does
@@ -193,7 +196,8 @@ export async function exportCanonicalJsonl(store: BioStore, range: { from: Local
   const tz = opts.tz ?? 'UTC';
   const now = opts.now ?? `${range.to}T00:00:00.000Z`;
   const lines: string[] = [];
-  for (const { record } of await store.records({ from: range.from, to: range.to })) lines.push(JSON.stringify(record));
+  // raw: the records as stored (a stitched night is a view; re-imported it would overwrite its first piece)
+  for (const { record } of await store.records({ from: range.from, to: range.to, raw: true })) lines.push(JSON.stringify(record));
   const sources = new Map((await store.sources()).map((s) => [s.sourceKey, s]));
   const manifests = await store.manifests({ from: addDaysIso(range.from, -1), to: addDaysIso(range.to, 1) });
   const streams = [...new Set(manifests.map((m) => m.stream))].sort();

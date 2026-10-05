@@ -8,17 +8,17 @@ import { POLICY_STREAMS, ringDefaultPolicies, ringDefaultPolicy, ringSharingOffP
 import { suggestedPolicies } from '@/biometrics/core/source';
 import type { BioProvenance, BioSourceDoc, StreamPolicy } from '@/biometrics/core/types';
 import { createMemoryBlobStore, setBlobStore } from '@/state/blobStore';
-import { getDocumentStore, setDocumentStore } from '@/state/runtime';
+import { getDocumentStore, installPersistenceBackend, setDocumentStore } from '@/state/runtime';
 import { COLLECTIONS, createDocumentStore, createMemoryBackend, isCollectionId } from '@/store';
 import { createMemoryHub, createMemorySyncStore } from '@/sync/memoryStore';
 import { createSyncedBackend } from '@/sync/syncedBackend';
 import { dispatch, getCommand, settleCommits, type CommandResult } from '../..';
 import { SYSTEM_ACTOR } from '../../types';
-import { freshState } from '../../__tests__/harness';
+import { freshState, MCP } from '../../__tests__/harness';
 import { ingestRingBatch } from '../exec';
 import { deriveWriter, openBioStore } from '../store';
-import { resetBioRuntime } from '../runtime';
-import { RING_DEFAULTS_ID, RING_SHARING_ID } from '../sharing';
+import { resetBioRuntime, ringSharingOnRemote } from '../runtime';
+import { applyRingSharingOff, RING_DEFAULTS_ID, RING_SHARING_ID } from '../sharing';
 
 const BLE = 'ble:jstyle|j-style:2301';
 const LUMEN = 'file:lumen_cloudevents|:j-style_2301';
@@ -373,5 +373,215 @@ describe('ring policies survive a second device joining (J7-03)', () => {
     a.use();
     await a.sync();
     expect(await snapshot()).toEqual(before);
+  });
+});
+
+/* =============================================================================== R3-09: the switch reaches rings made elsewhere */
+
+/** A device the app runs on as it does once sync attaches: its store installed through `installPersistenceBackend`, so
+ * what the app does with synced documents follows it. `use()` opens the app there again (a restart on that device). */
+async function paired(name: string, hub: ReturnType<typeof createMemoryHub>) {
+  const id = `DEVICE${name}`.padEnd(16, '0');
+  const engine = createMemorySyncStore();
+  await engine.open({ secret: new Uint8Array(32).fill(7), relayUrl: 'memory://relay', deviceId: id as never, memoryOnly: true });
+  engine.link(hub);
+  const backend = createSyncedBackend({ synced: engine, local: createMemoryBackend({ device: id }), isSynced: (c) => isCollectionId(c) && COLLECTIONS[c].sync === 'yes' });
+  return {
+    use: () => installPersistenceBackend(backend, { copy: false, prefer: 'docs', writeDefaults: false }),
+    async sync(from: ReturnType<typeof createMemoryHub> = hub) {
+      await settleCommits();
+      engine.link(from);
+      await engine.pull();
+      engine.link(hub);
+      await engine.push();
+      await backend.settled();
+      await new Promise((r) => setTimeout(r, 5));
+    },
+  };
+}
+
+/** Real time (Date is faked): the app re-applies the switch 3 s after the last synced change. */
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function eventually(check: () => Promise<void>, ms = 6000) {
+  const end = performance.now() + ms;
+  for (;;) {
+    try {
+      return await check();
+    } catch (e) {
+      if (performance.now() > end) throw e;
+    }
+    await pause(25);
+  }
+}
+
+type AgentDaily = { days: Array<{ values: Record<string, unknown>; sleep?: unknown }>; hidden: string[] };
+/** `bio.daily` as an MCP client over the day `connect` writes. */
+async function agentSees() {
+  const d = out<AgentDaily>(await dispatch('bio.daily', { from: '2026-10-03', to: '2026-10-03' }, { actor: MCP }));
+  return { values: d.days.flatMap((x) => [...Object.keys(x.values), ...(x.sleep ? ['sleep'] : [])]), hidden: d.hidden };
+}
+const withoutSwitch = (hub: ReturnType<typeof createMemoryHub>) => new Map([...hub].filter(([k]) => !k.endsWith(`\u0000${RING_SHARING_ID}`)));
+
+describe('the switch off reaches a ring another device made before it had the switch (R3-09)', () => {
+  /** Device A turns the switch off and syncs; device B's first sync brings everything but the switch, B pairs a ring
+   * (the ring defaults: B cannot know), then B syncs fully. */
+  async function ringPairedBeforeTheSwitch(hub: ReturnType<typeof createMemoryHub>) {
+    const a = await paired('A', hub);
+    const aDocs = await a.use();
+    await seed({ sourceKey: BLE, policies: ringDefaultPolicies() });
+    out(await dispatch('bio.setRingSharing', { on: false }));
+    await settleCommits();
+    await a.sync();
+
+    const b = await paired('B', hub);
+    const bDocs = await b.use();
+    await b.sync(withoutSwitch(hub));
+    expect(choice()).toBeUndefined();
+    await connect(NEW_RING);
+    expect(isOn(await policiesOf(NEW_RING))).toBe(true);
+    await b.sync();
+    expect(choice()).toBe('off');
+    return { a, aDocs, b, bDocs };
+  }
+
+  it('B turns the ring off once the switch arrives, A gets it off, and an agent gets none of its values on either', { timeout: 30_000 }, async () => {
+    const hub = createMemoryHub();
+    const { a, aDocs, b } = await ringPairedBeforeTheSwitch(hub);
+    await eventually(async () => expect(isOff(await policiesOf(NEW_RING))).toBe(true));
+    expect((await sources()).ringSharing).toBe('off');
+    expect(await agentSees()).toEqual({ values: [], hidden: expect.arrayContaining(['hr', 'steps']) });
+    // the person still sees the ring's data
+    expect(out<AgentDaily>(await dispatch('bio.daily', { from: '2026-10-03', to: '2026-10-03' })).days[0]?.values).toHaveProperty('steps');
+    await b.sync();
+
+    setDocumentStore(aDocs);
+    await a.sync();
+    expect(isOff(await policiesOf(NEW_RING))).toBe(true);
+    expect(isOff(await policiesOf(BLE))).toBe(true);
+    expect(await agentSees()).toEqual({ values: [], hidden: expect.arrayContaining(['hr', 'steps']) });
+  });
+
+  it('A turns off a ring that arrives from a device that never applied the switch (an older build)', { timeout: 30_000 }, async () => {
+    const hub = createMemoryHub();
+    const a = await paired('A', hub);
+    const aDocs = await a.use();
+    out(await dispatch('bio.setRingSharing', { on: false }));
+    await settleCommits();
+    await a.sync();
+
+    // B as an older build: it does not react to synced documents, so the ring keeps the defaults there
+    const b = await device('B', hub);
+    b.use();
+    await b.sync(withoutSwitch(hub));
+    await connect(NEW_RING);
+    await b.sync();
+    expect(choice()).toBe('off');
+    expect(isOn(await policiesOf(NEW_RING))).toBe(true);
+
+    setDocumentStore(aDocs);
+    await a.sync();
+    await eventually(async () => expect(isOff(await policiesOf(NEW_RING))).toBe(true));
+    expect(await agentSees()).toEqual({ values: [], hidden: expect.arrayContaining(['hr', 'steps']) });
+    await a.sync();
+    b.use();
+    await b.sync();
+    expect(isOff(await policiesOf(NEW_RING))).toBe(true);
+  });
+
+  it('a ring whose new stream B adds with its older policy list (which wins the merge) goes off too', { timeout: 30_000 }, async () => {
+    const hub = createMemoryHub();
+    // a ring both devices know, from before every stream had an entry: no `hr` yet
+    const a = await paired('A', hub);
+    const aDocs = await a.use();
+    await seed({ sourceKey: NEW_RING, policies: ringDefaultPolicies().filter((p) => p.stream !== 'hr') });
+    await a.sync();
+    const b = await paired('B', hub);
+    await b.use();
+    await b.sync();
+    expect((await policiesOf(NEW_RING)).length).toBe(POLICY_STREAMS.length - 1);
+
+    setDocumentStore(aDocs);
+    out(await dispatch('bio.setRingSharing', { on: false }));
+    await settleCommits();
+    await a.sync();
+
+    // B, before it syncs again, reads the ring: its first heart rate adds `hr` to B's own (older) list
+    await b.use();
+    await connect(NEW_RING);
+    expect(isOn(await policiesOf(NEW_RING))).toBe(true);
+    await b.sync();
+    expect(choice()).toBe('off');
+    await eventually(async () => expect(isOff(await policiesOf(NEW_RING))).toBe(true));
+    await b.sync();
+    setDocumentStore(aDocs);
+    await a.sync();
+    expect(isOff(await policiesOf(NEW_RING))).toBe(true);
+    expect(await agentSees()).toEqual({ values: [], hidden: expect.arrayContaining(['hr', 'steps']) });
+  });
+
+  it('keeps what the person chooses for that ring afterwards; on again shares it on both devices', { timeout: 30_000 }, async () => {
+    const hub = createMemoryHub();
+    const { a, aDocs, b } = await ringPairedBeforeTheSwitch(hub);
+    await eventually(async () => expect(isOff(await policiesOf(NEW_RING))).toBe(true));
+
+    // one stream shown to the Coach again, on B
+    out(await dispatch('bio.setPolicy', { stream: 'hrv', sourceKey: NEW_RING, policy: { coach: 'daily' } }));
+    await settleCommits();
+    await b.sync();
+    await b.use();
+    await pause(800);
+    expect((await policiesOf(NEW_RING)).find((p) => p.stream === 'hrv')).toMatchObject({ coach: 'daily' });
+    // every stream back to the ring default by hand, on B: the ring reads on, and stays so on B
+    for (const s of POLICY_STREAMS) out(await dispatch('bio.setPolicy', { stream: s, sourceKey: NEW_RING, policy: { coach: 'daily+series', engine: true, scores: true } }));
+    await settleCommits();
+    expect(isOn(await policiesOf(NEW_RING))).toBe(true);
+    await b.use();
+    await pause(800);
+    expect(isOn(await policiesOf(NEW_RING))).toBe(true);
+
+    // on again, from A: every ring shared; A's synced changes do not turn anything off again
+    setDocumentStore(aDocs);
+    await a.sync();
+    out(await dispatch('bio.setRingSharing', { on: true }));
+    await settleCommits();
+    expect((await sources()).ringSharing).toBe('on');
+    await a.sync();
+    await b.use();
+    await b.sync();
+    await pause(3500);
+    expect(choice()).toBe('on');
+    expect((await sources()).ringSharing).toBe('on');
+    expect((await agentSees()).values).toEqual(expect.arrayContaining(['steps']));
+  });
+
+  it('a ring missing one stream’s entry, the rest at the ring default, goes off with every stream listed', async () => {
+    out(await dispatch('bio.setRingSharing', { on: false }));
+    await settleCommits();
+    // made elsewhere before every stream had an entry: the stream without one reads as the ring default
+    await seed({ sourceKey: NEW_RING, policies: ringDefaultPolicies().filter((p) => p.stream !== 'spo2') });
+    expect(await applyRingSharingOff()).toEqual([NEW_RING]);
+    expect(isOff(await policiesOf(NEW_RING))).toBe(true);
+  });
+
+  it('a switch-on row that lands a second after the ring’s "on" row (another burst) does not turn the ring off', async () => {
+    const { backend } = freshState({ cleared: true });
+    out(await dispatch('bio.setRingSharing', { on: false }));
+    await settleCommits();
+    await seed({ sourceKey: NEW_RING, policies: ringDefaultPolicies() });
+    const off = ringSharingOnRemote(getDocumentStore(), (s) => applyRingSharingOff(s));
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+    vi.setSystemTime(new Date('2026-10-04T12:05:00.000Z'));
+    // another device turned the switch on: its ring row arrives first, the switch's row in the next burst
+    const ring = (await backend.get('bioSources', NEW_RING))!;
+    backend.remote({ ...ring, _rev: '9999999999999-0000-REMOTE0000000001' });
+    await vi.advanceTimersByTimeAsync(1000);
+    const sw = (await backend.get<Record<string, unknown>>('bioSources', RING_SHARING_ID))!;
+    backend.remote({ ...sw, value: { ...sw.value, choice: 'on', updatedAt: '2026-10-04T12:04:59.000Z' }, _rev: '9999999999999-0001-REMOTE0000000001' });
+    await vi.advanceTimersByTimeAsync(10_000);
+    vi.useRealTimers();
+    await pause(50);
+    off();
+    expect(choice()).toBe('on');
+    expect(isOn(await policiesOf(NEW_RING))).toBe(true);
   });
 });

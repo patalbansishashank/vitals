@@ -9,16 +9,18 @@
  * overwrites it), and every new ring source starts from that choice. Loaded lazily by `./index.ts`.
  */
 import {
-  isRingSource, normalizePolicy, POLICY_STREAMS, RING_DEFAULTS_ID, RING_SHARING_ID, ringChoiceOf, ringDefaultPolicy, ringDefaultsNoticeOf, ringPoliciesAtDefault,
+  isRingSource, normalizePolicy, POLICY_STREAMS, RING_DEFAULTS_ID, RING_SHARING_ID, ringChoiceOf, ringDefaultPolicy, ringDefaultsNoticeOf, ringPoliciesAtDefault, ringPoliciesFullyOn,
   ringSharing, ringSharingOffPolicy, ringStartPolicy, type RingChoice,
 } from '@/biometrics/core/policy';
 import { addDays } from '@/biometrics/core/scores/util';
 import type { BioSourceDoc, PolicyStream, StreamPolicy } from '@/biometrics/core/types';
+import { localDateOf } from '@/biometrics/importers/util';
 import type { BioDocIndex } from '@/biometrics/store/docIndex';
 import { getDocumentStore } from '@/state/runtime';
+import type { DocumentStore } from '@/store';
 import { fail } from '../registry';
 import type { Actor, CommandContext } from '../types';
-import { bioIndex, commandWriter, openBioStore } from './store';
+import { bioIndex, commandWriter, deriveWriter, openBioStore } from './store';
 import { scheduleRescore } from './runtime';
 
 /** Ids of the migration's record and of the person's choice in `bioSources` (never source keys: those start with a
@@ -93,11 +95,13 @@ export async function setRingSharing(ctx: CommandContext, input: { on: boolean }
 
 const PERSON_POLICY_COMMANDS = new Set(['bio.setPolicy', 'bio.setRingSharing']);
 
-/** Sources a policy change by the person wrote (this device's change log; undone changes do not count). */
-export function changedByPerson(): Set<string> {
+/** Sources a policy change by the person wrote (this device's change log; undone changes do not count). With `since`:
+ * only their stream choices (`bio.setPolicy`) at or after it. */
+export function changedByPerson(since?: string, store: DocumentStore = getDocumentStore()): Set<string> {
   const out = new Set<string>();
-  for (const d of getDocumentStore().peekAll<{ commandId?: string; actor?: Actor; undoneBy?: string; ops?: Array<{ col: string; id: string }> }>('changeLog')) {
+  for (const d of store.peekAll<{ commandId?: string; actor?: Actor; undoneBy?: string; at?: string; ops?: Array<{ col: string; id: string }> }>('changeLog')) {
     if (!d.commandId || !PERSON_POLICY_COMMANDS.has(d.commandId) || d.actor?.kind !== 'user' || d.undoneBy) continue;
+    if (since !== undefined && (d.commandId !== 'bio.setPolicy' || !d.at || d.at < since)) continue;
     for (const op of d.ops ?? []) if (op.col === 'bioSources') out.add(op.id);
   }
   return out;
@@ -139,6 +143,34 @@ export async function ringDefaultsMigration(ctx: CommandContext) {
   await ctx.docs.put('bioSources', { ...body, _id: RING_DEFAULTS_ID });
   if (moved.length) scheduleRescore(addDays(ctx.today, -89));
   return { ran: true, moved, kept };
+}
+
+/* =============================================================================== the switch off, whatever the sync order */
+
+/**
+ * The master switch off reaches every ring source, whatever order sync brings things in (R3-09). A ring another device
+ * paired (or read) before it had the switch starts from the ring defaults, and so does that device's older policy list
+ * when it adds a stream (it wins the merge over the switch's rewrite). With the stored choice off, a ring source whose
+ * entries are all the ring default (`ringPoliciesFullyOn`) gets what the switch writes on every stream, unless the person set its streams on this device since the switch
+ * (the change log; elsewhere only the policies show it). A per-stream choice leaves a source not fully on, so it is
+ * kept; with the switch on nothing changes. A derived write (no Undo, like a new ring starting off): `./index.ts` runs
+ * it when `ringSharing:me` or a ring source arrives by sync and when the app opens a store (`./runtime.ts`).
+ */
+export async function applyRingSharingOff(store: DocumentStore = getDocumentStore()): Promise<string[]> {
+  const ix = await bioIndex(store);
+  const stored = ix.sourceDocs.get(RING_SHARING_ID) as { updatedAt?: string } | undefined;
+  if (ringChoiceOf(stored) !== 'off') return [];
+  const chosen = changedByPerson(stored?.updatedAt ?? '', store);
+  const due = ix.sources().filter((s) => isRingSource(s) && ringPoliciesFullyOn(s.policies) && !chosen.has(s.sourceKey)).map((s) => s.sourceKey);
+  if (!due.length) return [];
+  const bio = await openBioStore({ store, writer: deriveWriter(store, 'ring sharing') });
+  for (const sk of due) {
+    const src = await bio.getSource(sk);
+    if (src) await bio.putSource({ ...src, policies: ringPolicies(src, (s, cur) => ringSharingOffPolicy(s, cur)) });
+  }
+  await bio.flush();
+  scheduleRescore(addDays(localDateOf(Date.now(), Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'), -89));
+  return due;
 }
 
 /* =============================================================================== bio.dismissRingDefaultsNotice */

@@ -442,7 +442,7 @@ try {
     await dialog.getByRole('button', { name: 'Add Vitals' }).click();
     await section.getByRole('button', { name: 'Remove Vitals from Claude Code' }).waitFor({ timeout: 15_000 });
     const calls = read(claudeLog).trim().split('\n').map((l) => JSON.parse(l));
-    const want = ['mcp', 'add', '-s', 'user', 'vitals', '--', APP, '--mcp', '--client', 'claude-code'];
+    const want = ['mcp', 'add', '-s', 'user', 'vitals', '--', APP, ...(process.platform === 'linux' ? ['--ozone-platform=headless'] : []), '--mcp', '--client', 'claude-code'];
     assert(calls.some((c) => JSON.stringify(c) === JSON.stringify(want)), `claude got ${JSON.stringify(calls)}`);
     assert(preview.includes('claude mcp add -s user vitals --'), `preview is ${preview}`);
     await section.getByRole('button', { name: 'Remove Vitals from Claude Code' }).click();

@@ -170,10 +170,11 @@ describe('DownloadsBlock', () => {
     expect(screen.queryByRole('link', { name: /Download for/ })).toBeNull();
   });
 
-  it('on iPhone has no main key and points to the home screen', async () => {
+  it('on iPhone or iPad has no main key and points to the home screen', async () => {
     vi.stubGlobal('fetch', vi.fn(reply(200, RELEASE)));
     render(<DownloadsBlock caps={caps('ios')} />);
-    expect(await screen.findByText(/add it to your home screen/)).toBeInTheDocument();
+    // 'ios' is iPhone and iPad (an iPad asking for the desktop site too): the line names both (J5-06)
+    expect(await screen.findByText('On iPhone or iPad, use the website and add it to your home screen.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Download for/ })).toBeNull();
     expect(screen.getByRole('list', { name: 'Other systems' }).querySelectorAll('a')).toHaveLength(5);
   });

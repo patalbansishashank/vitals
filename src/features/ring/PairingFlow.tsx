@@ -236,7 +236,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
     body = (
       <div ref={introStep} className="rg-pair__step" role="group" aria-label={P.title} tabIndex={-1}>
         <p className="rg-pair__line">{P.intro(near)}</p>
-        {platform.ble === 'web-bluetooth' || platform.ble === 'electron' ? <p className="rg-pair__line">{P.chooserLine}</p> : null}
+        {chooser ? <p className="rg-pair__line">{P.chooserLine}</p> : null}
         {blocker ? <InlineWarning severity="caution">{blocker}</InlineWarning> : null}
         {keys ? <div className="rg-pair__keys">{keys}</div> : null}
       </div>

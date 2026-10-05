@@ -83,6 +83,26 @@ describe('server client', () => {
     await expect(c.pair({ baseUrl: BASE, code: '12345678' })).rejects.toMatchObject({ code: 'local_network_denied' });
   });
 
+  it('does not blame a browser permission inside the installed apps', async () => {
+    const { setPlatformForTests } = await import('@/platform');
+    const unreachable = (async () => { throw new TypeError('Failed to fetch'); }) as typeof fetch;
+    try {
+      for (const platform of ['electron', 'android'] as const) {
+        setPlatformForTests(platform);
+        // the desktop app's permission handlers refuse what they do not list, so the probe says "denied" there
+        const c = createServerClient({ storage: null, fetchImpl: unreachable, localNetworkDenied: async () => true });
+        const e = await c.pair({ baseUrl: BASE, code: '12345678' }).catch((x: unknown) => x);
+        expect(e).toMatchObject({ code: 'server_unreachable' });
+        expect((e as Error).message).not.toMatch(/browser|site setting|this site/i);
+      }
+      setPlatformForTests('web');
+      const web = createServerClient({ storage: null, fetchImpl: unreachable, localNetworkDenied: async () => true });
+      await expect(web.pair({ baseUrl: BASE, code: '12345678' })).rejects.toMatchObject({ code: 'local_network_denied', message: SERVER_MESSAGES.local_network_denied });
+    } finally {
+      setPlatformForTests(undefined);
+    }
+  });
+
   it('clears the pairing on any 401 and remembers that the device was removed', async () => {
     const { client, server, storage } = fakeClient({ paired: true });
     let changes = 0;
@@ -197,6 +217,14 @@ describe('server client: V2 review', () => {
     const ok: typeof fetch = async () => new Response('<html>', { status: 200 });
     const c2 = createServerClient({ storage, fetchImpl: ok, localNetworkDenied: async () => false });
     await expect(c2.status()).rejects.toMatchObject({ code: 'server_error' });
+  });
+
+  it('keeps the needs_choice outcome of an agent call (not logged), and still turns an unknown outcome into error (J3-02)', async () => {
+    const { storage } = fakeClient({ paired: true });
+    const rows = ['ok', 'staged', 'needs_choice', 'rejected', 'error', 'surprise'].map((outcome, i) => ({ at: `2026-10-04T10:0${i}:00.000Z`, tokenId: 'at-1', tool: 'log_meal', outcome }));
+    const f: typeof fetch = async () => new Response(JSON.stringify({ activity: rows }), { status: 200, headers: { 'content-type': 'application/json' } });
+    const client = createServerClient({ storage, fetchImpl: f, localNetworkDenied: async () => false });
+    expect((await client.agentActivity()).map((r) => r.outcome)).toEqual(['ok', 'staged', 'needs_choice', 'rejected', 'error', 'error']);
   });
 
   it('a status answer that arrives after Forget does not show reachable', async () => {

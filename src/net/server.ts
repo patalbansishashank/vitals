@@ -15,6 +15,7 @@
  * Only `https://` server addresses are accepted (R18 §3: the site's CSP blocks plain http to tailnet addresses, and the
  * browser treats the server as "local network" whatever its name).
  */
+import { platformCaps } from '@/platform/caps';
 import { allowOrigin, NetBlockedError, netFetch, originOf } from './net';
 
 export const SERVER_KEY = 'vitals.server.v1';
@@ -199,7 +200,7 @@ export interface AgentActivityRow {
   at: string;
   tokenId: string;
   tool: string;
-  outcome: 'ok' | 'staged' | 'rejected' | 'error';
+  outcome: 'ok' | 'staged' | 'needs_choice' | 'rejected' | 'error';
 }
 
 /** Why the last pairing ended, kept so the page can say so and offer "Connect again" with the address filled. */
@@ -470,7 +471,10 @@ export function createServerClient(options: ServerClientOptions = {}): ServerCli
     if (e instanceof ServerError) throw e;
     if (e instanceof DOMException && e.name === 'AbortError') throw e;
     if (e instanceof NetBlockedError) throw new ServerError('http_address');
-    throw new ServerError((await lnaDenied().catch(() => false)) ? 'local_network_denied' : 'server_unreachable');
+    // the installed apps are not a browser, and the desktop app's permission handlers refuse what they do not list:
+    // there the probe always says "denied", so a server that is simply off or far away must not blame a site setting
+    const blocked = !platformCaps().installedApp && (await lnaDenied().catch(() => false));
+    throw new ServerError(blocked ? 'local_network_denied' : 'server_unreachable');
   }
 
   async function errorOf(res: Response, authed: boolean, token?: string): Promise<ServerError> {
@@ -752,7 +756,7 @@ export function createServerClient(options: ServerClientOptions = {}): ServerCli
       const rows = Array.isArray(r) ? r : list<unknown>(r, 'activity');
       return rows.flatMap((x): AgentActivityRow[] =>
         isObj(x) && str(x.at) && str(x.tool)
-          ? [{ at: str(x.at), tokenId: str(x.tokenId), tool: str(x.tool), outcome: (['ok', 'staged', 'rejected', 'error'].includes(str(x.outcome)) ? x.outcome : 'error') as AgentActivityRow['outcome'] }]
+          ? [{ at: str(x.at), tokenId: str(x.tokenId), tool: str(x.tool), outcome: (['ok', 'staged', 'needs_choice', 'rejected', 'error'].includes(str(x.outcome)) ? x.outcome : 'error') as AgentActivityRow['outcome'] }]
           : [],
       );
     },

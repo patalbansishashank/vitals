@@ -15,4 +15,7 @@ Bluetooth and the Vitals MCP built in, so AI tools on the same computer can read
   not running. The app answers with the page's tools through the command bus, or forwards to the paired server's
   `/mcp` with the agent key it minted for that tool (kept with Electron `safeStorage`, never in the tool's config).
   Settings › Agents › "Connect your AI tools" adds or removes the entry in Claude Code, Codex, OpenCode and ChatGPT.
+  On Linux the entry also carries `--ozone-platform=headless` (before `--mcp`), so it starts with no display, for
+  example an AI tool run over ssh; the switch has to be on the command line, `app.commandLine` in main is too late.
+  Entries added by an older version lack it: Settings › Agents shows them as out of date, and Add replaces them.
 - Tests: unit tests run with the repo's vitest (`apps/desktop/src/**/*.test.ts`); the packaged-app checks are in `e2e/`.

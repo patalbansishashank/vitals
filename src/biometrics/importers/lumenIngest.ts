@@ -21,7 +21,8 @@ export async function withLumenMainSleep(raw: BioBatch, store: BioStore, fold?: 
   const dates = sleeps.map((r) => r.time.local_date).sort();
   const keys = new Set(sleeps.map((r) => sourceKeyOf(r.provenance)));
   // ±1 day: a re-synced night may end on another date than its stored version
-  const stored = (await store.records({ kind: 'sleep', from: addDaysIso(dates[0]!, -1), to: addDaysIso(dates[dates.length - 1]!, 1) }))
+  // raw: the stored pieces, never the read projection, so a re-write of `is_main` never stores a stitched night
+  const stored = (await store.records({ kind: 'sleep', from: addDaysIso(dates[0]!, -1), to: addDaysIso(dates[dates.length - 1]!, 1), raw: true }))
     .filter((e) => e.record.kind === 'sleep' && keys.has(sourceKeyOf(e.record.provenance)))
     .map((e) => e.record as SleepRecord);
   return { ...batch, records: [...batch.records.filter((r) => r.kind !== 'sleep'), ...recomputeMainSleep(stored, sleeps)] };

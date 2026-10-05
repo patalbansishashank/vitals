@@ -163,6 +163,22 @@ describe('toLoggedDay (§3.4)', () => {
     expect(r.loggedDay.items.find((i) => i.type === 'rtSession')).toMatchObject({ status: 'done' });
   });
 
+  // L-REV2 R1-7: the ring fold re-ids a Lumen workout; the device entry logged under its old id is that workout, not another
+  it('a device-logged session whose workout was re-id’d is the observed workout, not a second one', () => {
+    const d = '2026-10-05';
+    const w = { startH: 18.2, durationMin: 46, exerciseType: 'strength_training', kind: 'resistance' as const, source: 'ring' };
+    const stimulus = { effectiveSetsByRegion: {}, pattern: 'complex', loadClass: 'moderate', netKcal: 0, mem: 0, hiMinutes: 0, mobilityMinutes: {} };
+    const logged = {
+      id: 'dev', date: d, tz: TZ, source: { by: 'device', method: 'biometrics', bioRecordId: 'w-lumen', deviceKey: `${d}:workouts:w-lumen` },
+      kind: 'session', status: 'done', startH: 18.2, durationMin: 46, performed: [], bioWorkoutId: 'w-lumen', stimulus, catalogueVersion: 'device',
+      workout: { exerciseType: 'strength_training', kind: 'resistance' },
+    } as unknown as LogEntry;
+    const alone = toLoggedDay(base(d, { observations: { date: d, workouts: [{ recordId: 'w-ring', ...w }] } })).loggedDay.inputs.exercise;
+    const r = toLoggedDay(base(d, { observations: { date: d, workouts: [{ recordId: 'w-ring', aliases: ['w-lumen'], ...w }] }, entries: [logged] }));
+    expect(r.loggedDay.inputs.exercise).toEqual(alone);
+    expect(r.loggedDay.items.find((i) => i.type === 'rtSession')).toMatchObject({ status: 'done' });
+  });
+
   it('a backfilled ("assumed") day replays as planned but is never scored nor counted as logged intake', () => {
     const r = toLoggedDay(base('2026-10-06', { status: { date: '2026-10-06', marks: { all: 'asPlanned' }, assumed: true } }));
     expect(r.assumedDay).toBe(true);

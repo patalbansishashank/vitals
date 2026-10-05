@@ -14,6 +14,10 @@
  *   complete night beats every provisional one whatever the arrival order, a later re-sync beats an earlier one, and
  *   the last two digits stay free for `is_main` re-writes (+1 each, `recomputeMainSleep`).
  * - daily: UUIDv5(ID_SOURCE, metric, local_date), version = received_s (the latest snapshot wins).
+ * Once Lumen data is folded into the person's ring source (§15.2), the ingest pipeline re-derives every id with the ring
+ * key as the source (`contentRecordId`): the night the ring read itself and Lumen's relay of it are one record. On a
+ * shared daily id the ring's own total (versioned above any received time) wins the fields both carry, and readers
+ * fill the rest from Lumen's version (`mergeDailyVersions`).
  *
  * Mapping: health.metric.observed hr/spo2/temp->skin_temp/hrv ('hrv_vendor_defined')/resp_rate -> series; stress,
  * fatigue, bp, glucose -> `vendor:<key>` series; vo2max -> daily vo2max {method:'vendor_estimate'}.
@@ -40,8 +44,8 @@ export const LUMEN_CE_PRODUCER = { name: 'vitals-importer-lumen-cloudevents', ve
 const BATCH_SIZE = 500;
 const EVENT_BUFFER = 20000;
 const CHANNEL = 'file:lumen_cloudevents' as const;
-/** Record-id namespace for every Lumen record whatever the channel. It equals the first channel's name so daily ids of
- * file imports made before the broker existed stay the same. */
+/** Record-id namespace for every Lumen record whatever the channel, while the data has no ring source to be filed under.
+ * It equals the first channel's name so daily ids of file imports made before the broker existed stay the same. */
 const ID_SOURCE = LUMEN_SOURCE;
 const SOURCE_APP = 'Lumen';
 const DEFAULT_DEVICE = { type: 'ring', model: LUMEN_DEVICE_MODEL, tier: 'C' } as const;

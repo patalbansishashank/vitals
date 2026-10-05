@@ -27,7 +27,7 @@ import { checkCall, noTabEnvelope, type AgentHub } from './agentHub.ts';
 import type { Principal } from './auth.ts';
 import { MCP_INSTRUCTIONS } from './briefingRules.ts';
 import type { Logger } from './security.ts';
-import { parseToolManifest, toMcpTools, type McpToolDescriptor, type ToolManifest, type ToolResultEnvelope } from './toolManifest.ts';
+import { parseToolManifest, toMcpTools, type JsonSchema, type McpToolDescriptor, type ToolManifest, type ToolResultEnvelope } from './toolManifest.ts';
 
 export interface McpCallContext {
   clientName: string;
@@ -40,16 +40,30 @@ export interface McpBackend {
   call(tool: string, args: unknown, ctx: McpCallContext): Promise<ToolResultEnvelope>;
 }
 
+/** True when an output schema is a plain object schema that takes more fields and does not declare the ones `needs_choice` adds. */
+function takesChoiceFields(schema: JsonSchema): boolean {
+  const props = (schema.properties ?? {}) as Record<string, unknown>;
+  const composite = ['anyOf', 'oneOf', 'allOf', 'not', 'if', 'patternProperties'].some((k) => k in schema);
+  return schema.type === 'object' && !composite && schema.additionalProperties !== false && schema.unevaluatedProperties !== false && !['status', 'summary', 'saved', 'candidates'].some((k) => k in props);
+}
+
 /**
  * Envelope → MCP result: text content always carries the full envelope. `structuredContent` is the envelope, except
  * for tools that declare an `outputSchema` (MCP clients validate `structuredContent` against it): there it is the
- * envelope's `data` on success and omitted on error.
+ * envelope's `data` on success and omitted on error. A `needs_choice` answer also puts its status, summary and
+ * candidates there, when the schema takes extra fields, so a client that reads only the structured part sees that
+ * nothing was saved; a strict schema keeps the data as it is.
  */
-export function toCallToolResult(envelope: ToolResultEnvelope, hasOutputSchema: boolean): CallToolResult {
+export function toCallToolResult(envelope: ToolResultEnvelope, outputSchema?: JsonSchema): CallToolResult {
   const content = [{ type: 'text' as const, text: JSON.stringify(envelope) }];
-  if (hasOutputSchema) {
+  if (outputSchema) {
     const data = envelope.data;
-    if (envelope.ok && data && typeof data === 'object' && !Array.isArray(data)) return { content, structuredContent: data as Record<string, unknown> };
+    if (envelope.ok && data && typeof data === 'object' && !Array.isArray(data)) {
+      const choice = envelope.status === 'needs_choice' && takesChoiceFields(outputSchema)
+        ? { status: envelope.status, saved: false, summary: envelope.summary, ...(envelope.candidates ? { candidates: envelope.candidates } : {}) }
+        : {};
+      return { content, structuredContent: { ...(data as Record<string, unknown>), ...choice } };
+    }
     return { content, isError: !envelope.ok };
   }
   return { content, structuredContent: envelope as unknown as Record<string, unknown>, isError: !envelope.ok };
@@ -91,7 +105,7 @@ export function createMcpServer(backend: McpBackend, opts: { version: string; fa
     const { name, arguments: args } = request.params;
     const tools = await backend.listTools();
     const envelope = await backend.call(name, args ?? {}, ctxOf(extra.requestId));
-    return toCallToolResult(envelope, Boolean(tools.find((t) => t.name === name)?.outputSchema));
+    return toCallToolResult(envelope, tools.find((t) => t.name === name)?.outputSchema);
   });
 
   // the same briefing as a prompt and a resource, for clients that use those; the tool works in every client

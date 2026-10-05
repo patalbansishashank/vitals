@@ -24,6 +24,7 @@ const ANY = { type: 'object', additionalProperties: true };
 const SPECS: Spec[] = [
   { id: 'log.meal', title: 'Log a meal', description: 'Log a meal as components with grams.', perm: 'write', impact: 'low', output: (i) => mealOut(i) },
   { id: 'log.mealFromPhoto', title: 'Log a meal from a photo', description: 'Log a meal from an attached photo.', perm: 'write', impact: 'low', output: () => ({ ...mealOut({ components: [{ name: 'dal tadka', grams: 150 }, { name: 'rice', grams: 250 }] }), saw: 'a steel thali with dal, rice and two roti' }) },
+  { id: 'log.bulk', title: 'Log several days', description: 'Log entries for up to 14 days at once.', perm: 'write', impact: 'low', output: () => [{ date: '2026-09-30', index: 0, status: 'logged', entryId: 'e1' }, { date: '2026-09-30', index: 1, status: 'ask', saved: false, question: 'q', components: [{ name: 'xyzzy pie', grams: 50 }], confidence: 0, candidates: [] }] },
   { id: 'log.retract', title: 'Remove an entry', description: 'Remove a logged entry.', perm: 'write', impact: 'low', output: () => ({ retracted: true }) },
   { id: 'log.session', title: 'Log a training session', description: 'Log a session.', perm: 'write', impact: 'low' },
   { id: 'log.sleep', title: 'Log sleep', description: 'Log last night’s sleep.', perm: 'write', impact: 'low', output: () => ({}) },
@@ -64,6 +65,17 @@ function swapOut(i: Record<string, unknown>) {
 
 function mealOut(i: Record<string, unknown>) {
   const comps = (i.components as Array<{ name: string; grams: number }>) ?? [];
+  // an unknown food: log.meal asks and writes nothing (`status: 'ask'`, with the table's near matches)
+  if (comps.some((c) => c.name === 'xyzzy pie')) {
+    return {
+      status: 'ask',
+      saved: false,
+      question: 'I couldn’t find "xyzzy pie" in the food table. What is it, or what does the label say per 100 g?',
+      components: comps.map((c) => ({ name: c.name, grams: c.grams, gramsLow: c.grams * 0.8, gramsHigh: c.grams * 1.3, confidence: 0 })),
+      confidence: 0.1,
+      candidates: [{ component: 'xyzzy pie', foodId: 'lentils_cooked', name: 'Lentils, boiled' }],
+    };
+  }
   return {
     status: 'logged',
     entryId: `entry-${comps.length}`,
@@ -194,6 +206,27 @@ describe('Coach conversation', () => {
     expect(retract.input).toEqual({ entryId: 'entry-2' });
     expect(retract.opts.actor).toMatchObject({ kind: 'user', onBehalfOf: { kind: 'ai' } });
     expect(adapter.history('coach').at(-1)!.cards[0]!.state).toBe('undone');
+  });
+
+  it('a food that needs a choice: the model is told needs_choice, saved false and the candidates; the card stays pending (J3-02)', async () => {
+    const { adapter, ff } = setup([toolTurn({ id: 'u1', name: 'log_meal', args: { components: [{ name: 'xyzzy pie', grams: 100 }], method: 'aiText' } }), textTurn('Which food is it?')]);
+    const { cards } = await send(adapter, 'had some xyzzy pie');
+    expect(cards[0]).toMatchObject({ class: 'log', state: 'pending' });
+    const sent = JSON.stringify(ff.requests[1]!.body);
+    expect(sent).toContain('"status\\":\\"needs_choice');
+    expect(sent).toContain('"saved\\":false');
+    expect(sent).toContain('Nothing logged yet');
+    expect(sent).toContain('lentils_cooked');
+    expect(sent).not.toContain('"status\\":\\"applied');
+    expect(sent).not.toContain('"status\\":\\"pending_user');
+  });
+
+  it('a bulk log that saved some entries but not all: the model is told the counts, not "done" (J3-02)', async () => {
+    const { adapter, ff } = setup([toolTurn({ id: 'k1', name: 'log_bulk', args: { days: [{ date: '2026-09-30', entries: [{ text: 'dal' }, { text: 'xyzzy pie' }] }] } }), textTurn('One needs a food.')]);
+    await send(adapter, 'catch up yesterday');
+    const sent = JSON.stringify(ff.requests[1]!.body);
+    expect(sent).toContain('1 of 2 logged; 1 needs a food choice');
+    expect(sent).not.toContain('Log several days: done');
   });
 
   it('photo flow: stores the photo, logs from it, shows "what I saw"; edited grams re-log as photo + your grams', async () => {

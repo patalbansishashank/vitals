@@ -17,6 +17,7 @@ import { getDocumentStore } from '@/state/runtime';
 import { sharedBioIndex, type BioDocIndex } from '@/biometrics/store/docIndex';
 import { isManualSource, resolveDays } from '@/biometrics/core/resolve';
 import { ownedFamilies, streamOwner, type OwnedFamily } from '@/biometrics/core/policy';
+import { ringAliases, ringSourceLabel } from '@/biometrics/service/identity';
 import type { BioCorrection, BioRecord, DailyRecord, LocalDate, SleepRecord, SpotRecord } from '@/biometrics/core/types';
 import { setRedirectReady, setRedirectRule, dispatch, type RedirectDecision } from '../bus';
 import { defineCommand, fail } from '../registry';
@@ -80,7 +81,9 @@ export async function correct(ctx: CommandContext, input: CorrectInput) {
   };
   await ctx.docs.put('bioCorrections', { ...doc, _id: key });
   scheduleRescore(input.target.localDate);
-  return { correctionId: doc.correctionId, key, replaced: replaced ? { sourceKey: replaced.sourceKey, recordId: replaced.recordId } : null };
+  // the output goes back to the agent when the person lets it apply corrections directly: a ring key as its alias
+  const sourceKey = (sk: string) => (forAgent(ctx.actor) ? ringAliases(ix.sources())(sk) : sk);
+  return { correctionId: doc.correctionId, key, replaced: replaced ? { sourceKey: sourceKey(replaced.sourceKey), recordId: replaced.recordId } : null };
 }
 
 export const biometricsCorrect = defineCommand({
@@ -257,6 +260,8 @@ declare module '../types' {
 /* ---------------------------------------------------------------- redirect rules (§14.6 a) */
 
 const AGENT_KINDS = new Set(['ai', 'webmcp', 'mcp', 'companion']);
+/** Who reads the outcome: an agent, or the person applying what an agent proposed (it goes back to the agent). */
+const forAgent = (a: Actor): boolean => AGENT_KINDS.has(a.kind) || !!a.onBehalfOf;
 const FAMILY_WORDS: Record<OwnedFamily, string> = {
   sleep_sessions: 'sleep',
   steps: 'steps',
@@ -274,13 +279,20 @@ function ownerNow(family: OwnedFamily): { sourceKey: string; label: string } | n
 
 setRedirectReady(() => sharedBioIndex(getDocumentStore()).ready);
 
-const deviceOwned = (c: { family: OwnedFamily }, owner: { sourceKey: string; label: string }): RedirectDecision => ({
-  refuse: {
-    code: 'precondition_failed' as const,
-    message: `${owner.label} records your ${FAMILY_WORDS[c.family]}. Use Correct on the value instead.`,
-    detail: { reason: 'device_owned', rule: `device_owned:${c.family}`, sourceKey: owner.sourceKey },
-  },
-});
+/** The refusal for a stream a device owns. An agent (or the person applying what one proposed: the refusal goes back to
+ * it) gets a ring by its table label and alias, never a stored label or the ring's own id (L-REV2 R3-10, R3-11). */
+const deviceOwned = (c: { family: OwnedFamily }, owner: { sourceKey: string; label: string }, actor: Actor): RedirectDecision => {
+  const agent = forAgent(actor);
+  const ix = sharedBioIndex(getDocumentStore());
+  const label = (agent ? ringSourceLabel(ix.source(owner.sourceKey) ?? owner) : undefined) ?? owner.label;
+  return {
+    refuse: {
+      code: 'precondition_failed' as const,
+      message: `${label} records your ${FAMILY_WORDS[c.family]}. Use Correct on the value instead.`,
+      detail: { reason: 'device_owned', rule: `device_owned:${c.family}`, sourceKey: agent ? ringAliases(ix.sources())(owner.sourceKey) : owner.sourceKey },
+    },
+  };
+};
 
 /** `log.bulk` can append steps entries and `log.edit` can supersede a steps or sleep entry: both would write a hand
  * entry for a stream a device owns without going through `log.steps` / `log.sleep`. */
@@ -289,7 +301,7 @@ setRedirectRule('log.bulk' as CommandId, (input, actor) => {
   const days = (input as { days?: Array<{ entries?: Array<Record<string, unknown>> }> }).days ?? [];
   const hasSteps = days.some((d) => (d.entries ?? []).some((e) => e?.kind === 'steps'));
   const owner = hasSteps ? ownerNow('steps') : null;
-  return owner ? deviceOwned({ family: 'steps' }, owner) : null;
+  return owner ? deviceOwned({ family: 'steps' }, owner, actor) : null;
 });
 setRedirectRule('log.edit' as CommandId, (input, actor, at): RedirectDecision => {
   if (actor.kind === 'system') return null;
@@ -305,7 +317,7 @@ setRedirectRule('log.edit' as CommandId, (input, actor, at): RedirectDecision =>
   const owner = c ? ownerNow(c.family) : null;
   if (!c || !owner) return null;
   if (AGENT_KINDS.has(actor.kind)) return { stage: { id: 'biometrics.correct' as CommandId, input: c.input } };
-  return deviceOwned(c, owner);
+  return deviceOwned(c, owner, actor);
 });
 
 for (const id of ['log.sleep', 'log.steps', 'log.measurement', 'bio.manual'] as CommandId[]) {
@@ -316,7 +328,7 @@ for (const id of ['log.sleep', 'log.steps', 'log.measurement', 'bio.manual'] as 
     const owner = ownerNow(c.family);
     if (!owner || familyOfTarget(c.input.target) !== c.family) return null;
     if (AGENT_KINDS.has(actor.kind)) return { stage: { id: 'biometrics.correct' as CommandId, input: c.input } };
-    return deviceOwned(c, owner);
+    return deviceOwned(c, owner, actor);
   });
 }
 

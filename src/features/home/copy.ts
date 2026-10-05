@@ -12,7 +12,7 @@ export const DOWNLOADS = {
   androidUnavailable: 'The Android app is not ready to install yet. You can keep using the website.',
   unavailable: 'The first download is not ready yet. Until then, keep using the website.',
   allReleases: 'All releases',
-  iphone: 'On iPhone, use the website and add it to your home screen.',
+  iphone: 'On iPhone or iPad, use the website and add it to your home screen.',
   /** What the person sees once, for a build that is not signed. */
   unsigned: {
     windows: 'Windows may warn that the app is from an unknown publisher. Choose More info, then Run anyway.',

@@ -1,6 +1,10 @@
 /** E9b meal logging through the bus: log.meal thresholds and nutrient rules, log.mealFromPhoto with a fake recognizer, log.bulk. */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { getAgentActivity, resetAgentActivityForTests } from '@/agents/activity';
 import { guardedCall } from '@/agents/dispatcher';
+import { createFoodTable } from '@/catalogues';
+import type { FoodRecord } from '@/catalogues/types';
+import { FOOD_FIXTURE } from '@/content/catalogues/foods.fixture';
 import { createBusAgentDispatcher } from '@/commands/ai/agentDispatcher';
 import { toolManifest } from '@/commands/manifest';
 import { dispatch, settleCommits, type CommandResult } from '@/commands';
@@ -9,7 +13,7 @@ import { installAiPorts, type PhotoRecognition } from '@/commands/aiPorts';
 import type { LogEntry } from '@/living';
 import { createMemoryBlobStore, setBlobStore } from '@/state/blobStore';
 import { getDocumentStore } from '@/state/runtime';
-import type { MealLogResult } from '..';
+import { setFoodTable, type MealLogResult } from '..';
 import { PLAN_ID, seedPlan } from './seed';
 
 function out<T = MealLogResult>(r: CommandResult): T {
@@ -23,6 +27,7 @@ const meals = () => getDocumentStore().peekAll<LogEntry>('dailyLogs').filter((d)
 beforeEach(() => {
   freshState({ cleared: true });
   installAiPorts({});
+  resetAgentActivityForTests();
 });
 afterEach(() => {
   installAiPorts({});
@@ -89,23 +94,56 @@ describe('log.meal', () => {
     expect(meals()).toHaveLength(0);
   });
 
-  it('tells an MCP agent that nothing was logged for an unknown food, and why (J3-02)', async () => {
+  it('says "needs_choice, saved false" to an agent for an unknown food, and nothing is written (J3-02)', async () => {
     const dispatcher = createBusAgentDispatcher({ directApply: () => false });
     let n = 0;
     const call = (args: Record<string, unknown>) => guardedCall(dispatcher, toolManifest(), 'mcp', 'log_meal', args, { actor: { kind: 'mcp', id: 't' }, idempotencyKey: `k${n++}` });
     const a = await call({ components: [{ name: 'xyzzy pie', grams: 100 }], method: 'typed' });
-    expect(a, JSON.stringify(a)).toMatchObject({ status: 'pending_user' });
-    expect(a.summary).toMatch(/^Not logged: .*xyzzy pie/);
-    expect(a.summary).toMatch(/Nothing was saved/);
+    expect(a, JSON.stringify(a)).toMatchObject({ ok: true, status: 'needs_choice', saved: false });
+    expect(a.summary).toMatch(/^Nothing logged yet\..*xyzzy pie/);
+    expect(a.summary).toMatch(/call log_meal again/);
     expect(a.summary).not.toMatch(/done/);
+    // the food table has nothing close: no candidates to pick from, and the activity shows it was not logged
+    expect(a.candidates).toBeUndefined();
+    expect(getAgentActivity()[0]).toMatchObject({ tool: 'log_meal', status: 'needs_choice' });
     await settleCommits();
     expect(meals()).toHaveLength(0);
-    // a meal that is logged still says so
+    // a meal that is logged still says so, without the new fields
     const b = await call({ components: [{ name: 'rice', foodId: 'rice_white_cooked', grams: 150 }], method: 'typed' });
-    expect(b.status).toBe('applied');
-    expect(b.summary).toMatch(/done/);
+    expect(b).toMatchObject({ ok: true, status: 'applied', summary: 'Log a meal: done.' });
+    expect(b).not.toHaveProperty('saved');
+    expect(b).not.toHaveProperty('candidates');
+    expect(getAgentActivity()[0]).toMatchObject({ tool: 'log_meal', status: 'applied' });
     await settleCommits();
     expect(meals()).toHaveLength(1);
+  });
+
+  it('offers the foods that nearly match, per component, for the agent to pick from (J3-02)', async () => {
+    const base = FOOD_FIXTURE[0]!;
+    const poha = (id: string, name: string): FoodRecord => ({ ...base, id, name, aliases: [] });
+    setFoodTable(createFoodTable([poha('poha_thick', 'Poha, thick'), poha('poha_thin', 'Poha, thin'), ...FOOD_FIXTURE], 'test'));
+    try {
+      const dispatcher = createBusAgentDispatcher({ directApply: () => false });
+      const a = await guardedCall(dispatcher, toolManifest(), 'mcp', 'log_meal', { components: [{ name: 'poha flakes', grams: 100 }], method: 'typed' }, { actor: { kind: 'mcp', id: 't' }, idempotencyKey: 'k-poha' });
+      expect(a, JSON.stringify(a)).toMatchObject({ ok: true, status: 'needs_choice', saved: false });
+      expect(a.candidates).toEqual([
+        { component: 'poha flakes', foodId: 'poha_thick', name: 'Poha, thick' },
+        { component: 'poha flakes', foodId: 'poha_thin', name: 'Poha, thin' },
+      ]);
+      expect(a.summary).toMatch(/^Nothing logged yet\./);
+      expect(a.summary).toMatch(/Pick one of these foods .* call log_meal again/);
+      // the command's own answer carries the same list, for callers that are not agents
+      expect(a.data).toMatchObject({ status: 'ask', saved: false, candidates: a.candidates });
+      await settleCommits();
+      expect(meals()).toHaveLength(0);
+      // picking one of them logs it
+      const b = await guardedCall(dispatcher, toolManifest(), 'mcp', 'log_meal', { components: [{ name: 'poha flakes', foodId: 'poha_thin', grams: 100 }], method: 'typed' }, { actor: { kind: 'mcp', id: 't' }, idempotencyKey: 'k-poha-2' });
+      expect(b).toMatchObject({ ok: true, status: 'applied' });
+      await settleCommits();
+      expect(meals().map((m) => m.components[0]!.foodId)).toEqual(['poha_thin']);
+    } finally {
+      setFoodTable(null);
+    }
   });
 
   it('rejects nutrient numbers unless they come from a label', async () => {
@@ -183,6 +221,17 @@ describe('log.mealFromPhoto', () => {
     expect(b.needsConfirmation).toBe(true);
   });
 
+  it('a photo that needs a choice tells the agent to call log_meal with the components, not the photo tool again (J3-02)', async () => {
+    await withPhoto(rec(0.3));
+    const dispatcher = createBusAgentDispatcher({ directApply: () => false });
+    const a = await guardedCall(dispatcher, toolManifest(), 'webmcp', 'log_meal_from_photo', { attachmentId: 'photo-1' }, { actor: { kind: 'webmcp', id: 'webmcp' }, idempotencyKey: 'k-photo' });
+    expect(a, JSON.stringify(a)).toMatchObject({ ok: true, status: 'needs_choice', saved: false });
+    expect(a.summary).toMatch(/call log_meal with the components/);
+    expect(a.summary).not.toMatch(/log_meal_from_photo/);
+    await settleCommits();
+    expect(meals()).toHaveLength(0);
+  });
+
   it('reports a missing photo', async () => {
     setBlobStore(createMemoryBlobStore());
     installAiPorts({ recognizePhoto: async () => rec(0.9) });
@@ -216,5 +265,33 @@ describe('log.bulk', () => {
     expect(m.every((x) => x.source.method === 'backfill')).toBe(true);
     // each entry is undoable on its own
     expect((await dispatch('log.retract', { entryId: ids[0]! })).ok).toBe(true);
+  });
+
+  it('tells an agent how many entries were logged: none → needs_choice and saved false; some → counts; all → done (J3-02)', async () => {
+    // direct apply on (the person let this client apply plan edits): the call runs and answers per entry
+    const dispatcher = createBusAgentDispatcher({ directApply: () => true });
+    let n = 0;
+    const call = (args: Record<string, unknown>) => dispatcher.call('log.bulk', args, { actor: { kind: 'webmcp', id: 'webmcp' }, idempotencyKey: `bulk-${n++}`, stage: false });
+    const dal = { kind: 'meal', components: [{ name: 'dal', foodId: 'lentils_cooked', grams: 200 }], clockH: 13 };
+    const none = await call({ days: [{ date: '2026-09-30', entries: [{ components: [{ name: 'xyzzy pie', grams: 50 }] }, { components: [{ name: 'plugh stew', grams: 50 }] }] }] });
+    expect(none, JSON.stringify(none)).toMatchObject({ ok: true, status: 'needs_choice', saved: false });
+    expect(none.summary).toMatch(/^0 of 2 logged; 2 need a food choice: "xyzzy pie", "plugh stew"\./);
+    expect(none.summary).toMatch(/Nothing was saved for those entries\..* call log_bulk again with only those entries/);
+    expect(none.summary).not.toMatch(/done/);
+    await settleCommits();
+    expect(meals()).toHaveLength(0);
+
+    const some = await call({ days: [{ date: '2026-09-30', entries: [dal, { components: [{ name: 'xyzzy pie', grams: 50 }] }, { kind: 'steps', steps: 9000 }, { kind: 'session', status: 'done', performed: [] }] }] });
+    expect(some, JSON.stringify(some)).toMatchObject({ ok: true, status: 'applied' });
+    expect(some.summary).toMatch(/^2 of 4 logged; 1 needs a food choice: "xyzzy pie"; 1 skipped\./);
+    expect(some.summary).not.toMatch(/done/);
+    expect(some).not.toHaveProperty('saved');
+    await settleCommits();
+    expect(meals()).toHaveLength(1);
+
+    const all = await call({ days: [{ date: '2026-10-01', entries: [dal, { kind: 'steps', steps: 1000 }] }] });
+    expect(all).toMatchObject({ ok: true, status: 'applied', summary: 'Log several days: done.' });
+    await settleCommits();
+    expect(meals()).toHaveLength(2);
   });
 });

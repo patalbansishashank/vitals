@@ -13,7 +13,8 @@
  */
 import { rejected, type ToolManifest, type ToolResultEnvelope } from '@/agents/manifest';
 import type { AgentCallOptions, AgentDispatcher } from '@/agents/registry';
-import { toolManifest } from '../manifest';
+import { needsChoice, partlyLogged } from '@/ai/tools/choice';
+import { toolManifest, toolName } from '../manifest';
 import { getCommand } from '../registry';
 import type { Actor, CommandDef, CommandError, CommandResult } from '../types';
 import { directApplyFromSettings } from './settings';
@@ -49,14 +50,6 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-/** Why a write logged nothing, when its own output says so (`status: 'ask'` with a question, or `logged: false`). */
-function notLogged(def: CommandDef, output: unknown): string | null {
-  if (def.perm !== 'write' || typeof output !== 'object' || output === null) return null;
-  const o = output as { status?: unknown; logged?: unknown; question?: unknown };
-  if (o.status !== 'ask' && o.logged !== false) return null;
-  return typeof o.question === 'string' && o.question ? o.question : 'one answer is needed from the person.';
-}
-
 async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSignal): Promise<ToolResultEnvelope> {
   if (!r.ok) return fromError(r.error);
   if ('pending' in r && r.redirected) {
@@ -82,28 +75,26 @@ async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSigna
     const wait = Math.min(def.longRunning?.softTimeoutMs ?? MAX_JOB_WAIT_MS, MAX_JOB_WAIT_MS);
     const settled = await Promise.race([jobs.wait(r.job.jobId), sleep(wait, signal).then(() => null)]);
     if (settled?.state === 'done') {
-      return { ok: true, status: 'applied', jobId: r.job.jobId, summary: `${def.title}: done.`, data: await capped(jobs.result(r.job.jobId)) };
+      // as `job.result` gives it to an agent: a ring key as its alias (L-REV2 R3-10)
+      const { ringKeysForAgent } = await import('../bio/agentView');
+      return { ok: true, status: 'applied', jobId: r.job.jobId, summary: `${def.title}: done.`, data: await capped(await ringKeysForAgent(jobs.result(r.job.jobId))) };
     }
     if (settled && settled.error) return { ...fromError(settled.error), jobId: r.job.jobId };
     if (settled) return { ok: false, status: 'rejected', jobId: r.job.jobId, summary: `${def.title} stopped (${settled.state}).`, error: { code: 'cancelled', message: `${def.title} stopped.` } };
     return { ok: true, status: 'running', jobId: r.job.jobId, summary: `${def.title} is running. Check progress with the job status tool.` };
   }
   const output = def.toModel ? def.toModel(r.output as never) : r.output;
-  const unlogged = notLogged(def, r.output);
-  if (unlogged) {
-    // the command asked a question instead of writing (an unknown food, a low-confidence meal): nothing is saved
-    return {
-      ok: true,
-      status: 'pending_user',
-      summary: `Not logged: ${unlogged} Nothing was saved. Ask the person, then call ${def.title} again with the answer.`.slice(0, 400),
-      ...(output !== undefined ? { data: await capped(output) } : {}),
-    };
-  }
+  // the command asked a question instead of writing (an unknown food, a low-confidence meal): nothing is saved
+  const choice = def.perm === 'write' ? needsChoice(toolName(def.id), r.output) : null;
+  if (choice) return { ok: true, ...choice, ...(output !== undefined ? { data: await capped(output) } : {}) };
+  // a bulk write that logged some entries but not all says how many, never "done"
+  const partly = def.perm === 'write' ? partlyLogged(toolName(def.id), r.output) : null;
   const notes = r.notices.filter((n) => n.level !== 'info').map((n) => n.text);
-  const base = def.perm === 'read' ? `Looked at ${lowerFirst(def.title)}.` : `${def.title}: done.`;
+  const base = partly?.summary ?? (def.perm === 'read' ? `Looked at ${lowerFirst(def.title)}.` : `${def.title}: done.`);
   return {
     ok: true,
     status: 'applied',
+    ...(partly?.candidates ? { candidates: partly.candidates } : {}),
     ...(r.changeSet ? { changeId: r.changeSet.id } : {}),
     summary: notes.length ? `${base} ${notes.join(' ')}`.slice(0, 280) : base,
     ...(output !== undefined ? { data: await capped(output) } : {}),
@@ -144,8 +135,9 @@ export function createBusAgentDispatcher(options: BusAgentDispatcherOptions = {}
         const { dispatch } = await import('../bus');
         const r = await dispatch(commandId, args, {
           actor,
-          // an agent has no conversation turns: its per-turn limit counts per minute (without this it never reset)
-          correlationId: `agent-${Math.floor(Date.now() / AGENT_TURN_MS)}`,
+          // an agent has no conversation turns: its per-turn limit counts per minute (without this it never reset),
+          // unless the caller says what a turn is (the server: one MCP call)
+          correlationId: opts.correlationId ?? `agent-${Math.floor(Date.now() / AGENT_TURN_MS)}`,
           ...(opts.idempotencyKey ? { idempotencyKey: opts.idempotencyKey.slice(0, 64) } : {}),
           ...(opts.signal ? { signal: opts.signal } : {}),
         });

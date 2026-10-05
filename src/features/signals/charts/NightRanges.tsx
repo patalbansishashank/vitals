@@ -19,6 +19,7 @@ import type { LocalDate } from '@/living';
 import type { PeriodWindow } from '../models';
 import { HEART_COPY as C } from './copyHeart';
 import { SlotChart, type SlotGeometry } from './DailyRange';
+import { lineLabelSpot, type MarkBox } from './kit';
 import './heart.css';
 
 export interface NightRangeDatum {
@@ -72,14 +73,6 @@ export function columnPath(x: number, w: number, y0: number, y1: number, r = 4):
   ].join(' ');
 }
 
-/** Pixel box of the marks in one slot (for keeping the "your normal" label clear of them). */
-export interface MarkBox {
-  x0: number;
-  x1: number;
-  top: number;
-  bottom: number;
-}
-
 /** Width of the 11 px "your normal" label plus a little air. */
 export const ZERO_LABEL_W = 66;
 
@@ -88,22 +81,7 @@ export const ZERO_LABEL_W = 66;
  * below, left above, left below); with none clear, the top margin at the right, over the plot area.
  */
 export function zeroLabelSpot(g: SlotGeometry, boxes: readonly MarkBox[], labelW = ZERO_LABEL_W): { x: number; y: number; anchor: 'start' | 'end' } {
-  const y0 = g.Y(0);
-  const spots = [
-    { x: g.right - 2, anchor: 'end' as const, above: true },
-    { x: g.right - 2, anchor: 'end' as const, above: false },
-    { x: g.padL + 2, anchor: 'start' as const, above: true },
-    { x: g.padL + 2, anchor: 'start' as const, above: false },
-  ];
-  for (const s of spots) {
-    const lx0 = s.anchor === 'end' ? s.x - labelW : s.x, lx1 = s.anchor === 'end' ? s.x : s.x + labelW;
-    // text box: 11 px tall, baseline 4 px above the line, or its top 3 px below it
-    const ly0 = s.above ? y0 - 14 : y0 + 3, ly1 = s.above ? y0 - 2 : y0 + 15;
-    if (ly0 < 0 || ly1 > g.bottom) continue;
-    const hit = boxes.some((b) => b.x1 > lx0 && b.x0 < lx1 && b.bottom > ly0 && b.top < ly1);
-    if (!hit) return { x: s.x, y: s.above ? y0 - 4 : y0 + 12, anchor: s.anchor };
-  }
-  return { x: g.right - 2, y: g.top - 3, anchor: 'end' };
+  return lineLabelSpot(g.Y(0), { left: g.padL, right: g.right, top: g.top, bottom: g.bottom }, boxes, labelW);
 }
 
 /** The zero line and its "your normal" label, drawn over the marks so nothing hides it. */

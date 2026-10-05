@@ -294,13 +294,29 @@ export function portableSchema(s: JsonSchema): JsonSchema {
   return { ...base, items: kinds.length === 0 ? false : kinds.length === 1 ? kinds[0] : { anyOf: kinds } };
 }
 
-/** SUITE_SPEC §1.8 tool result envelope, as returned by the app's dispatcher bridge. */
+/** A food an agent can pick for a meal component that `log_meal` could not place (`needs_choice`). */
+export interface FoodCandidate {
+  /** The component's name as the agent sent it. */
+  component: string;
+  /** Pass this as the component's `foodId` when calling the tool again. */
+  foodId: string;
+  name: string;
+}
+
+/**
+ * SUITE_SPEC §1.8 tool result envelope, as returned by the app's dispatcher bridge. `needs_choice`: the call was
+ * understood but wrote nothing (`saved: false`) because one answer is missing; `candidates` lists foods to pick from.
+ */
 export interface ToolResultEnvelope {
   ok: boolean;
-  status: 'applied' | 'pending_user' | 'rejected' | 'running';
+  status: 'applied' | 'pending_user' | 'needs_choice' | 'rejected' | 'running';
   changeId?: string;
   jobId?: string;
   summary: string;
+  /** Set with `needs_choice`: false, nothing was saved. */
+  saved?: boolean;
+  /** With `needs_choice`, when the app has foods to offer. */
+  candidates?: FoodCandidate[];
   data?: unknown;
   error?: { code: string; message: string; detail?: Record<string, unknown> };
 }

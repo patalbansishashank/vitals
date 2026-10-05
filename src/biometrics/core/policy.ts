@@ -251,6 +251,12 @@ export function ringSharing(sources: readonly (Pick<BioSourceDoc, 'sourceKey' | 
   return 'some';
 }
 
+/** Every entry a ring source has is the ring default (a stream without one reads as the default too, so an older list
+ * missing a stream, or one from before a stream was added, still counts): the switch off has not reached it. */
+export function ringPoliciesFullyOn(policies: readonly StreamPolicy[]): boolean {
+  return policies.length > 0 && policies.every((p) => JSON.stringify(normalizePolicy(p)) === JSON.stringify(ringDefaultPolicy(p.stream)));
+}
+
 /**
  * Whether a ring source's stored policies are still a default the person never chose (migration `biometrics.ringDefaults`):
  * every entry is the old "device turned on" suggestion (which the intake's recommended choices match too) or the ring

@@ -1,4 +1,5 @@
 /** `job.*` (SUITE_SPEC §1.7). */
+import { ringKeysForAgent } from '../bio/agentView';
 import { defineCommand, fail } from '../registry';
 import { T } from '../schema';
 import { ALL, UNDO } from './_shared';
@@ -46,9 +47,12 @@ export const jobResult = defineCommand({
   undo: UNDO.none,
   idempotency: 'natural',
   sideEffects: [],
-  execute: (ctx, input) => {
+  execute: async (ctx, input) => {
     const status = ctx.jobs.status(input.jobId) ?? fail('not_found', 'No such job.');
-    return { status: status as never, result: ctx.jobs.result(input.jobId) ?? null };
+    const result = ctx.jobs.result(input.jobId) ?? null;
+    if (ctx.actor.kind === 'user' || ctx.actor.kind === 'system') return { status: status as never, result };
+    // a ring sync's or an import's result names a ring by its key: an agent gets the alias (L-REV2 R3-10)
+    return { status: status as never, result: await ringKeysForAgent(result) };
   },
 });
 

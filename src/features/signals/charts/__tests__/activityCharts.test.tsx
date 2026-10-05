@@ -162,6 +162,19 @@ describe('DayColumns', () => {
       [...g.querySelectorAll('text')].map((t) => t.textContent).join('/'),
     );
     expect(ticks).toEqual(['M/28', 'T/29', 'W/30', 'T/1', 'F/2', 'S/3', 'S/4']);
+    // nothing at the right reaches the label: it stays at the right, above the line
+    expect(container.querySelector('.sg-goal-label')?.getAttribute('text-anchor')).toBe('end');
+  });
+
+  it('the goal label never sits on a column (J6-06): over the goal at the right, it moves to the left', () => {
+    const past = periodWindow('week', '2026-09-21', '2026-10-01');
+    const full: ColumnSlot[] = past.slots.map((s, i) => ({ start: s.start, value: [5000, 6000, 7000, 5000, 6000, 7000, 9500][i]!, future: s.future }));
+    const { container } = render(<DayColumns {...base} period="week" slots={full} selected="2026-09-21" goal={8000} height={180} />);
+    const label = container.querySelector('.sg-goal-label')!;
+    const lineY = Number(container.querySelector('.sg-goal')!.getAttribute('y1'));
+    expect(label.getAttribute('text-anchor')).toBe('start');
+    expect(Number(label.getAttribute('x'))).toBeLessThan(60);
+    expect(Number(label.getAttribute('y'))).toBeLessThan(lineY);
   });
 
   it('Enter on a slot drills down to that day; a tap on a future slot does nothing', () => {

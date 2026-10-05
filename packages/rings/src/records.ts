@@ -8,7 +8,7 @@
 import type { RingDecodedEvent } from '../../../src/biometrics/core/ble/types';
 import { mapEventsToBatch, type EventMapContext } from '../../../src/biometrics/core/events';
 import { localDateAt } from '../../../src/biometrics/core/importKit';
-import { dailyRecordId, seriesRecordId, sleepRecordId, sleepVersion, workoutRecordId } from '../../../src/biometrics/core/recordIds';
+import { contentRecordId, dailyRecordId, sleepVersion } from '../../../src/biometrics/core/recordIds';
 import type { BioBatch, BioProvenance, BioRecord } from '../../../src/biometrics/core/types';
 import type { RingEvent, RingFamily, RingIdentity } from './types';
 import { ringSourceKey } from './types';
@@ -128,20 +128,6 @@ export function ringRecords(events: readonly RingEvent[], ctx: RingRecordContext
   return { ...batch, records: [...series, ...seen.values()] };
 }
 
-/** One id rule for every platform (`recordIds.ts`): what the record is and when, never which device read it. */
-export function contentId(r: BioRecord, source: string): string {
-  switch (r.kind) {
-    case 'series': {
-      const origin = r.sampling.mode === 'spot' ? 'spot' : r.sampling.mode === 'continuous' ? (r.context === 'exercise' ? 'workout_stream' : 'live') : 'history';
-      return seriesRecordId({ source, stream: r.metric, origin, localDate: r.time.local_date });
-    }
-    case 'sleep':
-      return sleepRecordId({ source, start: r.time.start ?? r.time.local_date });
-    case 'daily':
-      return dailyRecordId({ source, metric: 'activity', localDate: r.time.local_date });
-    case 'workout':
-      return workoutRecordId({ source, start: r.time.start ?? r.time.local_date });
-    default:
-      return r.record_id;
-  }
-}
+/** One id rule for every platform (`recordIds.ts` `contentRecordId`): what the record is and when, never which device
+ * read it. Lumen data folded into a ring source gets the same ids from the same rule, so both paths meet in one record. */
+export const contentId = contentRecordId;

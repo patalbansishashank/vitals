@@ -55,6 +55,7 @@ export const RING_PAGE_COPY = {
     body: {
       unsupported:
         'This browser can’t reach Bluetooth rings. Use the Vitals app for Android or your computer, or Chrome on a computer. Your ring’s data still shows here once another device reads it.',
+      unsupportedApp: 'Bluetooth isn’t available to Vitals on this device, so it can’t reach rings. Your ring’s data still shows here once another device reads it.',
       bluetoothOff: 'Turn on Bluetooth to reach your ring.',
       bluetoothOffComputer: 'Turn on Bluetooth in your computer’s settings to reach your ring.',
       permissionAndroid: 'Vitals needs the Nearby devices permission to find your ring. Allow it in Android settings for Vitals.',

@@ -248,18 +248,20 @@ export interface BusModules {
     surface: 'mcp',
     toolName: string,
     args: unknown,
-    opts: { actor: { kind: 'mcp'; id: string }; idempotencyKey?: string; stage?: boolean },
+    opts: { actor: { kind: 'mcp'; id: string }; idempotencyKey?: string; stage?: boolean; correlationId?: string },
   ) => Promise<ToolResultEnvelope>;
   createBusAgentDispatcher: (o: { directApply: () => boolean }) => { manifest(): ToolManifest | Promise<ToolManifest> };
 }
 
 /**
  * `PersonDispatch` for the person worker. Direct apply is always off: on the server an agent's consequential write
- * is always staged as a proposal the person applies in the app (SUITE_SPEC §14.4).
+ * is always staged as a proposal the person applies in the app (SUITE_SPEC §14.4). Each call is its own turn for the
+ * bus's per-turn limits (an MCP tools/call has no turn around it; the per-token calls a minute is the throttle).
  */
 export function busPersonDispatch(mods: BusModules): PersonDispatch {
   const dispatcher = mods.createBusAgentDispatcher({ directApply: () => false });
   let manifest: ToolManifest | null = null;
+  let calls = 0;
   const getManifest = async () => (manifest ??= await dispatcher.manifest());
   return {
     manifest: getManifest,
@@ -268,6 +270,7 @@ export function busPersonDispatch(mods: BusModules): PersonDispatch {
       const entry = m.tools.find((t) => t.id === commandId);
       return mods.guardedCall(dispatcher, m, 'mcp', entry?.name ?? commandId, input, {
         actor,
+        correlationId: `mcp-call-${++calls}`,
         ...(o.idempotencyKey ? { idempotencyKey: o.idempotencyKey } : {}),
         ...(o.stage ? { stage: true } : {}),
       });

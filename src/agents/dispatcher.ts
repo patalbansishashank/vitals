@@ -44,7 +44,7 @@ const isEnvelope = (v: unknown): v is ToolResultEnvelope =>
   isPlainObject(v) &&
   typeof v.ok === 'boolean' &&
   typeof v.summary === 'string' &&
-  (v.status === 'applied' || v.status === 'pending_user' || v.status === 'rejected' || v.status === 'running');
+  (v.status === 'applied' || v.status === 'pending_user' || v.status === 'needs_choice' || v.status === 'rejected' || v.status === 'running');
 
 /** Finds a tool by name (`log_meal`) or command id (`log.meal`). */
 export function findTool(manifest: ToolManifest, nameOrId: string): ToolManifestEntry | undefined {
@@ -61,7 +61,7 @@ export async function guardedCall(
   surface: ExternalSurface,
   toolName: string,
   args: unknown,
-  opts: { actor: AgentActor; idempotencyKey?: string; stage?: boolean; signal?: AbortSignal },
+  opts: { actor: AgentActor; idempotencyKey?: string; stage?: boolean; correlationId?: string; signal?: AbortSignal },
 ): Promise<ToolResultEnvelope> {
   const actorId = typeof opts.actor?.id === 'string' && opts.actor.id ? opts.actor.id.slice(0, 128) : surface;
   const finish = (envelope: ToolResultEnvelope, tool = toolName): ToolResultEnvelope => {
@@ -84,6 +84,7 @@ export async function guardedCall(
       actor: { kind: surface, id: actorId },
       ...(idempotencyKey ? { idempotencyKey } : {}),
       stage: opts.stage === true || (mustStage(tool) && !directApplyAllowed({ kind: surface, id: actorId })),
+      ...(opts.correlationId ? { correlationId: opts.correlationId.slice(0, 64) } : {}),
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     if (!isEnvelope(envelope)) return finish(rejected('internal', 'Vitals returned an unexpected result.'), tool.name);

@@ -10,6 +10,7 @@ import { loadAllStores } from './stores';
 import { dispatch } from '@/commands';
 import { sendCommand } from '@/features/lib/sendCommand';
 import { useSyncView } from '@/state/sync';
+import { platformCaps } from '@/platform';
 import { DATA_LINE } from './copy';
 
 const DAY = 86_400_000;
@@ -106,6 +107,8 @@ export function DataSection() {
   };
 
   const synced = useSyncView().paired;
+  // the Android and desktop apps keep data on the device, not in a browser
+  const app = platformCaps().installedApp;
   const contentsLine = usage.contents.length > 0 ? usage.contents.join(' · ') : 'Nothing saved yet.';
   const usedText = `${formatBytes(usage.bytes)} of ${Math.round(LOCAL_STORAGE_QUOTA / 1_000_000)} MB used`;
 
@@ -148,7 +151,7 @@ export function DataSection() {
           />
         </div>
         {age !== null && age > 30 ? (
-          <InlineWarning severity="caution">Last export was {age} days ago. Browsers can clear site data.</InlineWarning>
+          <InlineWarning severity="caution">Last export was {age} days ago.{app ? null : ' Browsers can clear site data.'}</InlineWarning>
         ) : (
           <p className="m-0 text-xs text-ink-2">last export: {lastExport ? formatDate(lastExport) : 'never'}</p>
         )}
@@ -156,7 +159,7 @@ export function DataSection() {
           <Key variant="danger" onClick={() => setResetOpen(true)}>
             Reset everything
           </Key>
-          <span className="text-xs text-ink-2">Deletes everything Vitals stored in this browser.</span>
+          <span className="text-xs text-ink-2">Deletes everything Vitals stored {app ? 'on this device' : 'in this browser'}.</span>
         </div>
       </div>
       <ImportDialog state={importState} onClose={() => setImportState(null)} onChooseAnother={() => fileRef.current?.click()} />

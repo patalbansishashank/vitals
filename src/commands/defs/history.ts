@@ -4,6 +4,7 @@ import { effectiveEntries } from '@/living';
 import { bindingsFor, docKey, getBindings, knownReader, ownsDoc } from '@/state/bridge';
 import { getDocumentStore, storeReader } from '@/state/runtime';
 import * as sched from '@/state/internal/schedule';
+import { ringKeysForAgent } from '../bio/agentView';
 import { changeSets, getChangeSet, markUndone, planUndo, seal, summary } from '../history';
 import { defineCommand, fail } from '../registry';
 import { T } from '../schema';
@@ -36,12 +37,16 @@ export const historyList = defineCommand({
   undo: UNDO.none,
   idempotency: 'natural',
   sideEffects: [],
-  execute: (_ctx, input) =>
-    changeSets()
+  execute: async (ctx, input) => {
+    const list = changeSets()
       .map(summary)
       .filter((s) => !input.scenarioId || s.docs.some((d) => d.col === 'scenarios' && d.id === input.scenarioId))
       .reverse()
-      .slice(0, input.limit ?? 20) as never,
+      .slice(0, input.limit ?? 20);
+    if (ctx.actor.kind === 'user' || ctx.actor.kind === 'system') return list as never;
+    // a ring source's document id is its key: an agent gets the alias (L-REV2 R3-10)
+    return (await ringKeysForAgent(list)) as never;
+  },
 });
 
 /**

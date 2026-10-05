@@ -1,6 +1,6 @@
 {
   "name": "@vitals/rings",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Ring drivers for every supported family.",
   "license": "MIT",

@@ -329,7 +329,8 @@ describe('pairing flow (§5.5)', () => {
       },
     };
     renderPage(fake, DESKTOP);
-    expect(pair().textContent).toContain('Your browser will show a list of nearby devices. Choose your ring there.');
+    // the desktop app shows its own list after Look for rings: no browser chooser line (J1-08)
+    expect(pair().textContent).not.toMatch(/browser/i);
     expect(pair().textContent).toContain('keep it near this computer');
     fireEvent.click(screen.getByRole('button', { name: 'Look for rings' }));
     await flush();

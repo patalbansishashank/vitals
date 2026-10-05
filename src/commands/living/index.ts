@@ -14,6 +14,7 @@ import { MEASUREMENT_METRICS } from '../defs/living';
 import { bodyOf, type Doc } from '@/store';
 import { getDocumentStore } from '@/state/runtime';
 import { effectivePolicy } from '@/biometrics/core/effective';
+import { ringSourceLabel } from '@/biometrics/service/identity';
 import { sharedBioIndex } from '@/biometrics/store/docIndex';
 import { appDay, rolloverOf } from '@/living/appDay';
 import * as planner from '@/state/internal/planner';
@@ -630,6 +631,8 @@ implement('log.fromBiometrics', async (ctx, input: { date?: string }) => {
     const p = effectivePolicy(ix.source(sourceKey) ?? { policies: [] }, ix.personPolicies, stream);
     return !p.imported || p.coach === 'hidden';
   };
+  // an agent gets a ring named from the family table, never a stored label or the key itself (L-REV2 R3-10, R3-11)
+  const sourceName = (sk: string): string => (agent ? ringSourceLabel(ix.source(sk) ?? { sourceKey: sk }) : undefined) ?? ix.source(sk)?.label ?? sk;
   const created = [];
   for (const { c, entry } of written) {
     const base = {
@@ -638,7 +641,7 @@ implement('log.fromBiometrics', async (ctx, input: { date?: string }) => {
       stream: c.stream,
       key: c.key,
       recordId: c.recordId,
-      source: ix.source(c.sourceKey)?.label ?? c.sourceKey,
+      source: sourceName(c.sourceKey),
       ...(c.supersedes ? { supersedes: c.supersedes } : {}),
     };
     if (hidden.has(entry.id) || (agent && hiddenByPolicy(c.sourceKey, c.stream))) {

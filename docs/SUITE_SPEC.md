@@ -246,10 +246,12 @@ state in local `jobs` (E6 defines the payload).
     original schema.
   - `toAnthropicTools` (`{name, description, input_schema}`), `toWebMcpTools` (`registerTool({…, annotations:{readOnlyHint,
     destructiveHint}, execute})`), `toMcpTools` (`annotations: {readOnlyHint, destructiveHint, idempotentHint, openWorldHint:false}`).
-- **Tool result envelope** (all adapters): `{ ok: boolean; status: 'applied'|'pending_user'|'rejected'|'running'; changeId?;
-  jobId?; summary: string /* ≤ 2 lines, human words */; data?: unknown /* toModel(), ≤ 4k tokens, paged with nextCursor */;
-  error?: CommandError }`. `pending_user` tells the model to stop and wait; the next turn carries a system note
-  "proposal P applied/discarded".
+- **Tool result envelope** (all adapters): `{ ok: boolean; status: 'applied'|'pending_user'|'needs_choice'|'rejected'|'running';
+  changeId?; jobId?; summary: string /* ≤ 2 lines, human words */; saved?: boolean; candidates?: Array<{component; foodId; name}>;
+  data?: unknown /* toModel(), ≤ 4k tokens, paged with nextCursor */; error?: CommandError }`. `pending_user` tells the model
+  to stop and wait; the next turn carries a system note "proposal P applied/discarded". `needs_choice` (`log_meal` for a
+  food the table cannot place) means the call was understood but nothing was saved (`saved: false`): the model picks one of
+  `candidates` or asks the person, then calls the tool again; it is never reported as logged.
 - **Groups.** Every `ai`-surface command is a tool (parity), but the Coach sends by default only the **core group**
   (≈ 28 tools, ≤ 6k tokens, inside the cached prefix): `app_status`, `nav_open`, `history_undo`, `job_status`,
   `profile_get`, `profile_patch`, `intake_answer`, `today_get`, `log_get`, `log_meal`, `log_meal_from_photo`, `log_session`,
@@ -2369,7 +2371,7 @@ A test scans every `message` for the forbidden-text list (§9.3 guard tests) and
 | `POST /v1/agents/tokens` | `{ client: 'codex'|'opencode'|'claude'|'chatgpt-desktop'|'other'; label?: string; scope: AgentScope }` | `200 { token, id, mcpUrl, recipes: AgentRecipe[] }` (token shown once) |
 | `GET /v1/agents/tokens` | — | `{ tokens: Array<{ id, client, label, scope, createdAt, lastUsedAt }> }` |
 | `DELETE /v1/agents/tokens/{id}` | — | `204` |
-| `GET /v1/agents/activity` | — | last 50 tool calls: `{ at, tokenId, tool, outcome: 'ok'|'staged'|'rejected'|'error' }` (no arguments) |
+| `GET /v1/agents/activity` | — | last 50 tool calls: `{ at, tokenId, tool, outcome: 'ok'|'staged'|'needs_choice'|'rejected'|'error' }` (no arguments; `needs_choice`: the call wrote nothing) |
 
 ```ts
 interface AgentRecipe { client: string; title: string; steps: string[]; config?: { file: string; snippet: string } }
@@ -3002,7 +3004,7 @@ No feature imports Capacitor or Electron directly: only `src/platform/` and the 
 | macos | `Vitals-macos-universal.dmg` | macOS |
 
 - **Choice by `os`:** android → APK; windows → installer; macos → dmg; linux → AppImage, with deb second; ios,
-  chromeos, other → no main key, all links listed, and "On iPhone, use the website and add it to your home screen".
+  chromeos, other → no main key, all links listed, and "On iPhone or iPad, use the website and add it to your home screen".
 - **Shows:** the main key ("Download for Android") with version and size in MB, the other systems under it, "or keep
   using the website" beneath, and one plain note per unsigned build ("Windows may warn that the app is from an unknown
   publisher. Choose More info, then Run anyway."; a similar line for macOS; Android's "install unknown apps" note

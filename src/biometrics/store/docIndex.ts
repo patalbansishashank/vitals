@@ -11,8 +11,10 @@
 import type { CollectionId, Doc, StoreChange } from '@/store';
 import { PERSON_POLICY_ID } from '../core/effective';
 import { reconcileSleep } from '../core/reconcileSleep';
+import { mergeDailyVersions } from '../core/resolve';
+import { recordOrder } from './order';
 import { sourceKeyOf } from '../core/source';
-import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, DecisionLogEntry, DeviceType, LocalDate, ScoreResult, StreamPolicy } from '../core/types';
+import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, DailyRecord, DecisionLogEntry, DeviceType, LocalDate, ScoreResult, StreamPolicy } from '../core/types';
 
 /** The part of `DocumentStore` the index reads. */
 export interface BioDocSource {
@@ -267,11 +269,23 @@ export class BioDocIndex {
       const records: IndexedRecord[] = [];
       for (const id of this.latest.values()) {
         const entry = this.recDocs.get(id);
-        if (entry) records.push(entry);
+        if (entry) records.push(entry.record.kind === 'daily' ? { ...entry, record: this.mergedDaily(entry.record) } : entry);
       }
-      this.resolvedRecords = reconcileSleep(records).sort((a, b) => a.record.time.local_date.localeCompare(b.record.time.local_date));
+      this.resolvedRecords = reconcileSleep(records).sort(recordOrder);
     }
     return this.resolvedRecords;
+  }
+
+  /** A daily id's versions as one record (`mergeDailyVersions`); the newest alone when it is the only one. */
+  private mergedDaily(newest: DailyRecord): DailyRecord {
+    const vs = this.versions.get(newest.record_id);
+    if (!vs || vs.size < 2) return newest;
+    const list: DailyRecord[] = [];
+    for (const v of vs) {
+      const e = this.recDocs.get(v);
+      if (e && e.record.kind === 'daily') list.push(e.record);
+    }
+    return mergeDailyVersions(list);
   }
 
   /** Dates that have records, ascending. */

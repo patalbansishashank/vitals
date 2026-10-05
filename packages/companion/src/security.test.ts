@@ -9,6 +9,8 @@ import { rawCall, tempDir } from './testHelpers.ts';
 
 const APP = 'https://vitals.creative.desi';
 const EVIL = 'https://evil.example';
+/** The version /health reports is the package's own (it follows every release). */
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 let tmp: ReturnType<typeof tempDir>;
 let companion: Companion;
@@ -44,7 +46,7 @@ describe('origin, host and CORS', () => {
   it('answers /health without auth, with roles', async () => {
     const res = await call('GET', '/health', { Origin: APP });
     expect(res.status).toBe(200);
-    expect(res.json()).toEqual({ version: '0.4.0', role: 'relay', roles: ['proxy', 'agent'], ownerCount: 0, persons: 0, mqtt: 'off' });
+    expect(res.json()).toEqual({ version: PKG_VERSION, role: 'relay', roles: ['proxy', 'agent'], ownerCount: 0, persons: 0, mqtt: 'off' });
     expect(res.headers['access-control-allow-origin']).toBe(APP);
   });
 
@@ -132,7 +134,7 @@ describe('bearer auth', () => {
     expect(status.status).toBe(200);
     expect(status.json()).toEqual({
       ok: true,
-      version: '0.4.0',
+      version: PKG_VERSION,
       roles: ['proxy', 'agent'],
       presets: { siwc: { signedIn: false }, nim: { configured: false }, 'opencode-zen': { configured: false } },
       tab: { connected: false, toolCount: 0 },

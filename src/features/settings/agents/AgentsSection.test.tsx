@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { recordAgentActivity, resetAgentActivityForTests } from '@/agents/activity';
 import { setServerClientForTests } from '@/net/server';
+import { setPlatformForTests } from '@/platform';
 import { BASE, fakeClient, TOKEN } from '../server/__tests__/fakeServer';
 import { isWebMcpEnabled } from '@/agents/webmcp';
 import { AgentActivityIndicator } from './AgentActivityIndicator';
@@ -36,9 +37,26 @@ beforeEach(() => {
   setServerClientForTests(fakeClient().client);
 });
 
-afterEach(() => setServerClientForTests(null));
+afterEach(() => {
+  setServerClientForTests(null);
+  setPlatformForTests(undefined);
+});
 
 describe('AgentsSection', () => {
+  it('says app, not browser or tab, inside the installed apps', async () => {
+    for (const platform of ['electron', 'android'] as const) {
+      setPlatformForTests(platform);
+      setServerClientForTests(fakeClient({ paired: true }).client);
+      act(() => recordAgentActivity({ surface: 'webmcp', actor: 'webmcp', tool: 'today_get', status: 'applied' }));
+      const { container, unmount } = render(<AgentsSection />, { wrapper: MemoryRouter });
+      expect((await screen.findAllByRole('switch', { name: /agents in this app/i })).length).toBeGreaterThan(0);
+      await screen.findByText(/even when no Vitals window is open/i);
+      expect(container.textContent).not.toMatch(/browser|\btab\b/i);
+      unmount();
+      resetAgentActivityForTests();
+    }
+  });
+
   it('WebMCP toggle is off by default and disabled when unsupported', async () => {
     render(<AgentsSection />, { wrapper: MemoryRouter });
     const toggle = screen.getByRole('switch', { name: /agents in this browser/i });

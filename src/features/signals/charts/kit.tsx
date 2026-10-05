@@ -41,6 +41,41 @@ export function MissingStub({ x, width, baseline, label }: { x: number; width: n
   );
 }
 
+/** Pixel box of the marks in one slot (for keeping a line's label clear of them). */
+export interface MarkBox {
+  x0: number;
+  x1: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Where an 11 px label for the horizontal line at `y0` goes: the first spot beside the line that no mark covers (right
+ * above, right below, left above, left below); with none clear, the top margin at the right, over the plot area.
+ */
+export function lineLabelSpot(
+  y0: number,
+  area: { left: number; right: number; top: number; bottom: number },
+  boxes: readonly MarkBox[],
+  labelW: number,
+): { x: number; y: number; anchor: 'start' | 'end' } {
+  const spots = [
+    { x: area.right - 2, anchor: 'end' as const, above: true },
+    { x: area.right - 2, anchor: 'end' as const, above: false },
+    { x: area.left + 2, anchor: 'start' as const, above: true },
+    { x: area.left + 2, anchor: 'start' as const, above: false },
+  ];
+  for (const s of spots) {
+    const lx0 = s.anchor === 'end' ? s.x - labelW : s.x, lx1 = s.anchor === 'end' ? s.x : s.x + labelW;
+    // text box: 11 px tall, baseline 4 px above the line, or its top 3 px below it
+    const ly0 = s.above ? y0 - 14 : y0 + 3, ly1 = s.above ? y0 - 2 : y0 + 15;
+    if (ly0 < 0 || ly1 > area.bottom) continue;
+    const hit = boxes.some((b) => b.x1 > lx0 && b.x0 < lx1 && b.bottom > ly0 && b.top < ly1);
+    if (!hit) return { x: s.x, y: s.above ? y0 - 4 : y0 + 12, anchor: s.anchor };
+  }
+  return { x: area.right - 2, y: area.top - 3, anchor: 'end' };
+}
+
 /** Hatch pattern for unknown sleep (45°, 1 px ink-3 lines, 5 px pitch). Put once inside an <svg>; fill `url(#id)`. */
 export function HatchDefs({ id }: { id: string }) {
   return (

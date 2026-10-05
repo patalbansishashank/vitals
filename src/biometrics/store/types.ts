@@ -23,6 +23,9 @@ export interface RecordQuery {
   from?: LocalDate;
   to?: LocalDate;
   sourceKey?: string;
+  /** Without the sleep read projection (`reconcileSleep`): every sleep record's latest version as stored. For code that
+   * writes records back (the Lumen main-night recompute) and for exports: a projected night is never stored. */
+  raw?: boolean;
 }
 
 export interface ChunkQuery {
@@ -37,7 +40,8 @@ export interface ChunkQuery {
 export interface BioStore {
   /** IMM by `${record_id}@${version}`. 'duplicate' when that exact id+version exists; 'stale' when a higher version exists. */
   putRecord(rec: BioRecord, sourceKey: string): Promise<'inserted' | 'duplicate' | 'stale'>;
-  /** Latest versions with contained provisional sleeps superseded, matching the query, ascending by local date/start. */
+  /** Latest versions through the sleep read projection (`reconcileSleep`: contained provisional pieces superseded, the
+   * pieces of a night stitched) unless `raw`, matching the query, ascending by local date, then start. */
   records(q?: RecordQuery): Promise<Array<{ sourceKey: string; record: BioRecord }>>;
 
   /** Merges samples into the chunk for `key` (identity `(origin, t)`; tombstoned samples dropped). Returns the manifest

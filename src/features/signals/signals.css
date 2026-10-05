@@ -85,9 +85,15 @@
       width: 100%;
       justify-content: space-between;
     }
+    /* tighter quiet keys so "Night to Wed 30 Sep" fits whole at 360 and 390 px (J6-08) */
     .sp-period__label.lm-key {
       flex: 1 1 auto;
       min-width: 0;
+      gap: 4px;
+      padding-inline: 8px;
+    }
+    .sp-period__today.lm-key {
+      padding-inline: 8px;
     }
   }
   /* 44 px targets on touch: 36 px keys in a 3 px well with a 1 px edge */

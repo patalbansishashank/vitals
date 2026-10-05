@@ -4,9 +4,11 @@
  * cannot mutate stored state, like a real persistent store.
  */
 import { chunkIdFor, chunkKeyString, chunkStats, contentHashOf, decodeChunk, encodeChunk, mergeSamples, sampleKey } from '../core/chunks';
-import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, ChunkKey, DecisionLogEntry, LocalDate, RawSample, ScoreResult } from '../core/types';
+import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, ChunkKey, DailyRecord, DecisionLogEntry, LocalDate, RawSample, ScoreResult } from '../core/types';
 import type { BioStore, BlobStore, ChunkQuery, RecordQuery } from './types';
 import { reconcileSleep } from '../core/reconcileSleep';
+import { addsDailyFields, mergeDailyVersions } from '../core/resolve';
+import { recordOrder } from './order';
 
 /** In-memory `BlobStore`. The caller-supplied `aadId` is used as the chunk id (E11 derives ids with an HMAC instead;
  * the BioStore passes `chunkIdFor(...)` as the aadId). */
@@ -80,32 +82,47 @@ export class InMemoryBioStore implements BioStore {
   private readonly sourceDocs = new Map<string, BioSourceDoc>();
   private readonly scoreMap = new Map<string, ScoreResult>();
   private readonly log: DecisionLogEntry[] = [];
+  /** The read projection of the latest versions, computed once per change of the records. */
+  private projected: Array<{ sourceKey: string; record: BioRecord }> | null = null;
 
   constructor(readonly blobs: InMemoryBlobStore = new InMemoryBlobStore()) {}
 
   // ------------------------------------------------------------ records
 
+  /** Every stored version of a daily id (a daily's fields are merged across them, as the document store does). */
+  private dailyVersions(recordId: string): DailyRecord[] {
+    const out: DailyRecord[] = [];
+    for (const e of this.recs.values()) if (e.record.kind === 'daily' && e.record.record_id === recordId) out.push(e.record);
+    return out;
+  }
+
   putRecord(rec: BioRecord, sourceKey: string): Promise<'inserted' | 'duplicate' | 'stale'> {
     const hi = this.latest.get(rec.record_id);
-    if (hi !== undefined && rec.version < hi) return Promise.resolve('stale');
+    // a lower version is stale, unless it is a daily newer than the version readers take some field from that the
+    // newest lacks (`addsDailyFields`, as `DocBioStore.putRecord`)
+    if (hi !== undefined && rec.version < hi && !(rec.kind === 'daily' && addsDailyFields(rec, this.dailyVersions(rec.record_id)))) return Promise.resolve('stale');
     const k = `${rec.record_id}@${rec.version}`;
     if (this.recs.has(k)) return Promise.resolve('duplicate');
     this.recs.set(k, { sourceKey, record: clone(rec) });
-    this.latest.set(rec.record_id, rec.version);
+    if (hi === undefined || rec.version > hi) this.latest.set(rec.record_id, rec.version);
+    this.projected = null;
     return Promise.resolve('inserted');
   }
 
   records(q: RecordQuery = {}): Promise<Array<{ sourceKey: string; record: BioRecord }>> {
     const kinds = q.kind === undefined ? null : new Set(Array.isArray(q.kind) ? q.kind : [q.kind]);
-    const out: Array<{ sourceKey: string; record: BioRecord }> = [];
-    for (const e of this.recs.values()) {
-      const r = e.record;
-      if (this.latest.get(r.record_id) !== r.version) continue;
-      out.push(e);
-    }
-    const when = (r: BioRecord): string => r.time.start ?? r.time.at ?? '';
-    out.sort((a, b) => a.record.time.local_date.localeCompare(b.record.time.local_date) || when(a.record).localeCompare(when(b.record)) || a.record.record_id.localeCompare(b.record.record_id));
-    return Promise.resolve(reconcileSleep(out).filter(({ sourceKey, record: r }) =>
+    const latest = (): Array<{ sourceKey: string; record: BioRecord }> => {
+      const out: Array<{ sourceKey: string; record: BioRecord }> = [];
+      for (const e of this.recs.values()) {
+        const r = e.record;
+        if (this.latest.get(r.record_id) !== r.version) continue;
+        const versions = r.kind === 'daily' ? this.dailyVersions(r.record_id) : [];
+        out.push(versions.length > 1 ? { sourceKey: e.sourceKey, record: mergeDailyVersions(versions) } : e);
+      }
+      return out;
+    };
+    const list = q.raw ? latest().sort(recordOrder) : (this.projected ??= reconcileSleep(latest()).sort(recordOrder));
+    return Promise.resolve(list.filter(({ sourceKey, record: r }) =>
       (!kinds || kinds.has(r.kind)) && (q.sourceKey === undefined || sourceKey === q.sourceKey)
       && (q.from === undefined || r.time.local_date >= q.from) && (q.to === undefined || r.time.local_date <= q.to),
     ).map((e) => clone(e)));

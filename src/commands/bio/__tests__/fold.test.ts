@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { batch, daily, hrSeries, prov } from '@/biometrics/core/__tests__/factory';
 import { RING_FOLD_ID } from '@/biometrics/core/policy';
+import { dailyRecordId, LUMEN_SOURCE } from '@/biometrics/core/recordIds';
 import { LUMEN_SOURCE_KEY } from '@/biometrics/core/source';
 import type { BioProvenance } from '@/biometrics/core/types';
 import { createMemoryBlobStore, setBlobStore } from '@/state/blobStore';
@@ -28,9 +29,11 @@ function out<T>(r: CommandResult): T {
   return r.output as T;
 }
 // the ring's history is periodic samples, whether the driver reads them (origin `history`) or Lumen relays them (`import`
-// under the Lumen key; `history` once filed under the ring key)
+// under the Lumen key; `history` once filed under the ring key). Ids are the content ids each path derives: the ring's
+// with its key, Lumen's with LUMEN_SOURCE until the fold re-derives them with the ring key.
+const dayId = (p: BioProvenance, date: string) => dailyRecordId({ source: p.channel.startsWith('ble:') ? p.channel : LUMEN_SOURCE, metric: 'activity', localDate: date });
 const ingest = (p: BioProvenance, date: string) =>
-  ingestRingBatch(batch([daily(`night-${date}`, date, { steps: 9000, resting_hr_bpm: 55 }, p), hrSeries(`hr-${date}`, `${date}T01:00:00.000Z`, [60, 61, 62], 60, p, { sampling: { mode: 'periodic' } })]), {
+  ingestRingBatch(batch([daily(dayId(p, date), date, { steps: 9000, resting_hr_bpm: 55 }, p), hrSeries(`hr-${date}`, `${date}T01:00:00.000Z`, [60, 61, 62], 60, p, { sampling: { mode: 'periodic' } })]), {
     ringKey: p.channel,
     signal: new AbortController().signal,
     progress: () => {},
@@ -71,33 +74,34 @@ describe('biometrics.ringFold', () => {
     await ingest(lumenProv(), '2026-10-03');
     expect(await fold()).toMatchObject({ ran: false, lumen: null, ambiguous: false });
     expect(await sourceKeys()).toEqual([LUMEN_SOURCE_KEY]);
-    // the same night read over Bluetooth (same record ids: the driver shares Lumen's namespace)
+    // the same night read over Bluetooth: its own id under the ring key, Lumen's under the Lumen key until the fold
     await ingest(ringProv(), '2026-10-03');
     expect(await sourceKeys()).toEqual([RING, LUMEN_SOURCE_KEY].sort());
     const r = await fold();
     expect(r).toMatchObject({ ran: true, lumen: RING, moved: [{ from: LUMEN_SOURCE_KEY, to: RING }] });
     expect(await sourceKeys()).toEqual([RING]);
+    // the moved Lumen record took the ring key's id: one record (the ring's and Lumen's are the same version here)
     expect(await stored('2026-10-03')).toEqual({
-      recs: [`${RING} night-2026-10-03`],
+      recs: [`${RING} ${dayId(ringProv(), '2026-10-03')}`],
       samples: [0, 60_000, 120_000].map((d) => `${RING} ${Date.parse('2026-10-03T01:00:00.000Z') + d}`),
     });
     expect((await bioIndex()).sourceDocs.get(RING_FOLD_ID)).toMatchObject({ lumen: RING });
     // a second run changes nothing
     expect(await fold()).toMatchObject({ ran: false, moved: [] });
-    // Lumen data arriving after the fold lands on the ring
+    // Lumen data arriving after the fold lands on the ring, under the ring key's id
     await ingest(lumenProv(), '2026-10-04');
     expect(await sourceKeys()).toEqual([RING]);
-    expect((await stored('2026-10-04')).recs).toEqual([`${RING} night-2026-10-04`]);
+    expect((await stored('2026-10-04')).recs).toEqual([`${RING} ${dayId(ringProv(), '2026-10-04')}`]);
     expect((await stored('2026-10-04')).samples).toHaveLength(3);
   });
 
   it('Lumen data after the ring: folded on the next run, no duplicates', async () => {
     await ingest(ringProv(), '2026-10-03');
     expect(await fold()).toMatchObject({ ran: true, lumen: RING, moved: [] });
-    // from now on Lumen records file under the ring key straight away
+    // from now on Lumen records file under the ring key straight away, with the ring key's id
     await ingest(lumenProv(), '2026-10-03');
     expect(await sourceKeys()).toEqual([RING]);
-    expect(await stored('2026-10-03')).toMatchObject({ recs: [`${RING} night-2026-10-03`] });
+    expect(await stored('2026-10-03')).toMatchObject({ recs: [`${RING} ${dayId(ringProv(), '2026-10-03')}`] });
     expect((await stored('2026-10-03')).samples).toHaveLength(3);
   });
 
@@ -170,12 +174,12 @@ describe('biometrics.ringFold', () => {
     expect(await fold()).toMatchObject({ ran: true, lumen: RING });
     // the server filed a night under the Lumen key while the removal of that source was still on its way
     const store = await openBioStore({ writer: deriveWriter() });
-    await store.putRecord(daily('night-2026-10-02', '2026-10-02', { steps: 7000 }, lumenProv()), LUMEN_SOURCE_KEY);
+    await store.putRecord(daily(dayId(lumenProv(), '2026-10-02'), '2026-10-02', { steps: 7000 }, lumenProv()), LUMEN_SOURCE_KEY);
     await store.putSamples({ sourceKey: LUMEN_SOURCE_KEY, stream: 'hr', local_date: '2026-10-02' }, [{ t: Date.parse('2026-10-02T01:00:00.000Z'), value: 58, origin: 'history' }], { tz_offset_s: 0, createdAt: '2026-10-02T02:00:00.000Z' });
     await store.flush();
     expect(await sourceKeys()).toEqual([RING]);
     expect(await fold()).toMatchObject({ ran: true, moved: [{ from: LUMEN_SOURCE_KEY, to: RING }] });
-    expect(await stored('2026-10-02')).toEqual({ recs: [`${RING} night-2026-10-02`], samples: [`${RING} ${Date.parse('2026-10-02T01:00:00.000Z')}`] });
+    expect(await stored('2026-10-02')).toEqual({ recs: [`${RING} ${dayId(ringProv(), '2026-10-02')}`], samples: [`${RING} ${Date.parse('2026-10-02T01:00:00.000Z')}`] });
     expect(await fold()).toMatchObject({ ran: false, moved: [] });
   });
 
@@ -183,7 +187,8 @@ describe('biometrics.ringFold', () => {
     const oldKey = `file:lumen_cloudevents|:${ADV.toLowerCase().replace(/\s+/g, '_')}-jstyle-2301`;
     const store = await openBioStore({ writer: deriveWriter() });
     const p = prov({ channel: 'file:lumen_cloudevents', device: { type: 'ring', manufacturer: '', model: `${ADV} J-Style 2301`, tier: 'C' } });
-    await store.putRecord(daily('night-2026-10-03', '2026-10-03', { steps: 9000 }, p), oldKey);
+    // the old build gave the record Lumen's content id too; a move into the Lumen key keeps it
+    await store.putRecord(daily(dayId(lumenProv(), '2026-10-03'), '2026-10-03', { steps: 9000 }, p), oldKey);
     await store.putSamples({ sourceKey: oldKey, stream: 'hr', local_date: '2026-10-03' }, [{ t: Date.parse('2026-10-03T01:00:00.000Z'), value: 60, origin: 'import' }], { tz_offset_s: 0, createdAt: '2026-10-03T02:00:00.000Z' });
     await store.putSource({ sourceKey: oldKey, label: `${ADV} J-Style 2301`, tier: 'C', policies: [], baselineEpochs: [] });
     await store.flush();
@@ -192,7 +197,7 @@ describe('biometrics.ringFold', () => {
     expect(await fold()).toMatchObject({ ran: true, moved: [{ from: oldKey, to: LUMEN_SOURCE_KEY }], lumen: null });
     expect(await sourceKeys()).toEqual([LUMEN_SOURCE_KEY]);
     const got = await stored('2026-10-03');
-    expect(got.recs).toEqual([`${LUMEN_SOURCE_KEY} night-2026-10-03`]);
+    expect(got.recs).toEqual([`${LUMEN_SOURCE_KEY} ${dayId(lumenProv(), '2026-10-03')}`]);
     expect(got.samples).toHaveLength(3);
     expect(JSON.stringify([...(await bioIndex()).sourceDocs.entries()])).not.toMatch(/adv-name|ADV-NAME/);
   });

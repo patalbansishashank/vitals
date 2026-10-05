@@ -62,6 +62,34 @@ export function bioStoreConformance(name: string, make: () => ConformanceSubject
       expect(((await s.records({ kind: 'daily', sourceKey: 'x' }))[0]!.record as ReturnType<typeof daily>).steps).toBe(1);
     });
 
+    it('records: a night stitched from its pieces comes back in date order, raw gives the pieces as stored, a new piece shows at once', async () => {
+      const { store: s, settle } = await make();
+      const piece = (id: string, start: string, end: string, date: string) => {
+        const r = sleep(id, date, (Date.parse(end) - Date.parse(start)) / 1000, false, undefined, start);
+        r.time.end = end;
+        r.stages = [{ start, end, stage: 'light' }];
+        return r;
+      };
+      await s.putRecord(daily('d', '2026-03-09', { steps: 1 }), 'x');
+      await s.putRecord(piece('a', '2026-03-09T22:00:00.000Z', '2026-03-09T23:00:00.000Z', '2026-03-09'), 'x');
+      // another source's session on the first piece's date, starting after it
+      await s.putRecord(sleep('n', '2026-03-09', 600, true, undefined, '2026-03-09T22:30:00.000Z'), 'y');
+      await s.putRecord(piece('b', '2026-03-09T23:10:00.000Z', '2026-03-10T00:10:00.000Z', '2026-03-10'), 'x');
+      const ends = (list: Array<{ record: { record_id: string; time: { end?: string } } }>) => list.map((e) => `${e.record.record_id}:${e.record.time.end?.slice(11, 16) ?? '-'}`);
+      for (const step of [null, settle]) {
+        await step?.();
+        const view = await s.records();
+        expect(ends(view)).toEqual(['d:-', 'n:-', 'a:00:10']);
+        expect(view.map((e) => e.record.time.local_date)).toEqual(['2026-03-09', '2026-03-09', '2026-03-10']);
+        expect(ends(await s.records({ raw: true }))).toEqual(['d:-', 'a:23:00', 'n:-', 'b:00:10']);
+      }
+      await s.putRecord(piece('c', '2026-03-10T00:20:00.000Z', '2026-03-10T01:00:00.000Z', '2026-03-10'), 'x');
+      for (const step of [null, settle]) {
+        await step?.();
+        expect(ends(await s.records({ kind: 'sleep', sourceKey: 'x' }))).toEqual(['a:01:00']);
+      }
+    });
+
     it('samples: a merged re-sync supersedes, dedupes and is idempotent', async () => {
       const { store: s, settle } = await make();
       const a = await s.putSamples(key, mk(0, 10), o);

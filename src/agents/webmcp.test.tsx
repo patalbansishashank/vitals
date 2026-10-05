@@ -1,7 +1,7 @@
 import { act, render, waitFor } from '@testing-library/react';
-import { resetAgentActivityForTests, stopAgents } from './activity';
+import { getAgentActivity, resetAgentActivityForTests, stopAgents } from './activity';
 import { setAgentDispatcher } from './dispatcher';
-import { toolsFor, type ToolManifest } from './manifest';
+import { toolsFor, type ToolManifest, type ToolResultEnvelope } from './manifest';
 import { fixtureManifest } from './testing/fixture';
 import { createMockDispatcher } from './testing/mockDispatcher';
 import {
@@ -103,6 +103,25 @@ describe('registerWebMcpTools', () => {
     const keys = d.calls.map((c) => c.opts.idempotencyKey);
     expect(keys[0]).toMatch(/^webmcp:/);
     expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it('hands a needs_choice answer to the agent whole: nothing saved, the candidates, not "applied" (J3-02)', async () => {
+    setWebMcpEnabled(true);
+    const ctx = fakeModelContext();
+    const d = createMockDispatcher(M);
+    const asked: ToolResultEnvelope = {
+      ok: true,
+      status: 'needs_choice',
+      saved: false,
+      summary: 'Nothing logged yet. Pick one of these foods (or ask the person) and call log_measurement again with its foodId.',
+      candidates: [{ component: 'poha', foodId: 'poha_thin', name: 'Poha, thin' }],
+    };
+    d.respond = () => asked;
+    registerWebMcpTools(M, d, ctx);
+    const r = await ctx.tools.get('log_measurement')!.execute({ kind: 'weight', value: 81 });
+    expect(parse(r)).toEqual(asked);
+    expect(r.isError).toBeUndefined();
+    expect(getAgentActivity()[0]).toMatchObject({ tool: 'log_measurement', status: 'needs_choice' });
   });
 
   it('refuses calls after unregistering or while the setting is off', async () => {

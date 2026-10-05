@@ -65,7 +65,7 @@ export function checkCall(manifest: ToolManifest | null, tool: string) {
   return { ok: true as const, entry };
 }
 
-const STATUSES = new Set(['applied', 'pending_user', 'rejected', 'running']);
+const STATUSES = new Set(['applied', 'pending_user', 'needs_choice', 'rejected', 'running']);
 function validEnvelope(e: unknown): e is ToolResultEnvelope {
   if (!e || typeof e !== 'object') return false;
   const v = e as Record<string, unknown>;

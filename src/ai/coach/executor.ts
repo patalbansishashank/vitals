@@ -11,6 +11,7 @@
 import type { Actor, CommandResult } from '@/commands/types';
 import type { ChatMessage, ToolCall } from '../providers/types';
 import { capToolResult, TOOL_RESULT_MAX_TOKENS } from '../tools/budget';
+import { needsChoice, partlyLogged } from '../tools/choice';
 import { idempotencyKeyFor } from '../tools/proposals';
 import type { PortError, ToolResultEnvelope } from '../tools/types';
 import { formatErrors, stripStrictNulls, validate } from '../tools/validate';
@@ -298,8 +299,13 @@ export class CoachExecutor {
       : logCard(id, tool.title, input, output, { createdAt, state, commandId: tool.id });
     this.records.set(id, { kind: pending ? 'local' : 'log', commandId: tool.id, input, aiActor: actor, ...(changeSetId && !pending ? { changeSetId } : {}), ...(undo ? { undo } : {}), ...(meal ? { meal } : {}) });
     const question = isRec(output) && typeof output.question === 'string' ? output.question : null;
-    const env: ToolResultEnvelope = { ok: true, status: pending ? 'pending_user' : 'applied', summary: pending ? `Not logged yet: ${question ?? 'one answer is needed from the person'}. Ask it, then log again with the answer.` : `${tool.title}: done. The person can undo it from the card.` };
-    if (changeSetId) env.changeId = changeSetId;
+    // a question instead of a write (an unknown food): the model hears needs_choice and that nothing was saved
+    const choice = needsChoice(tool.name, output);
+    // a bulk log that saved some entries but not all says how many, never "done"
+    const partly = partlyLogged(tool.name, output);
+    const env: ToolResultEnvelope = choice ? { ok: true, ...choice } : { ok: true, status: pending ? 'pending_user' : 'applied', summary: pending ? `Not logged yet: ${question ?? 'one answer is needed from the person'}. Ask it, then log again with the answer.` : partly ? `${partly.summary} The person can undo what was logged from the card.` : `${tool.title}: done. The person can undo it from the card.` };
+    if (partly?.candidates) env.candidates = partly.candidates;
+    if (changeSetId && !choice) env.changeId = changeSetId;
     if (output !== undefined) env.data = this.capped(output);
     return this.wrap(call, env, { card });
   }

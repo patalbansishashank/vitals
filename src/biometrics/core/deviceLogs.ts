@@ -23,6 +23,7 @@ import { workoutKindOf } from '@/living/observations';
 import type { DeviceWorkout, EntrySource, LocalDate, LogEntry, StimulusVector } from '@/living';
 import { effectivePolicy } from './effective';
 import { usedByEngine } from './policy';
+import { contentRecordId, LUMEN_SOURCE } from './recordIds';
 import { resolveDays, type SourcedRecord } from './resolve';
 import { reconcileSleep } from './reconcileSleep';
 import type { BioCorrection, BioRecord, BioSourceDoc, PolicyStream, SleepRecord, StreamPolicy, WorkoutRecord } from './types';
@@ -192,19 +193,22 @@ export function planDeviceLogs(i: DeviceLogInput): DeviceLogPlan {
 
   const create: DeviceLogCreate[] = [];
   const skipped: DeviceLogSkip[] = [];
-  const consider = (stream: DeviceLogStream, key: string, sourceKey: string, recordId: string, entry: DeviceEntryDraft, userEntry: LogEntry | undefined): void => {
+  // `was`: the key the entry got while the record carried another id (a Lumen workout before `biometrics.ringFold`
+  // re-id'd it under the ring key); an entry under it is this record's entry, updated once to the current id
+  const consider = (stream: DeviceLogStream, key: string, sourceKey: string, recordId: string, entry: DeviceEntryDraft, userEntry: LogEntry | undefined, was?: string): void => {
     if (userEntry) {
       skipped.push({ key, stream, recordId, reason: 'userEntry', entryId: userEntry.id });
       return;
     }
-    const mine = inForce.find((e) => e.source.deviceKey === key);
+    const keyed = (e: LogEntry): boolean => e.source.deviceKey === key || (was !== undefined && e.source.deviceKey === was);
+    const mine = inForce.find(keyed);
     if (mine) {
       if (valueOf(mine as never) === valueOf(entry as never)) skipped.push({ key, stream, recordId, reason: 'unchanged', entryId: mine.id });
       else create.push({ key, stream, sourceKey, recordId, entry, supersedes: mine.id });
       return;
     }
     // the person removed the device entry for this key: a re-run does not bring it back
-    if (all.some((e) => e.source.deviceKey === key && removed.has(e.id))) {
+    if (all.some((e) => keyed(e) && removed.has(e.id))) {
       skipped.push({ key, stream, recordId, reason: 'removed' });
       return;
     }
@@ -232,7 +236,7 @@ export function planDeviceLogs(i: DeviceLogInput): DeviceLogPlan {
       const entry = workoutEntry(w, D, i.tz, deviceSource(key, w.record_id));
       const startH = (entry as unknown as { startH: number }).startH;
       const user = userSessions.find((s) => s.bioWorkoutId === w.record_id || (s.startH !== undefined && Math.abs(s.startH - startH) <= 1));
-      consider('workouts', key, day.sourceByMetric['workouts'], w.record_id, entry, user);
+      consider('workouts', key, day.sourceByMetric['workouts'], w.record_id, entry, user, `${D}:workouts:${contentRecordId(w, LUMEN_SOURCE)}`);
     }
   }
 

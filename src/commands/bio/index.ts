@@ -13,9 +13,9 @@
 import { implement } from '../implement';
 import { dispatch } from '../bus';
 import { SYSTEM_ACTOR, type CommandContext } from '../types';
-import { installBioPorts, rescoreOnRemoteBio, scheduleRescore, setRescoreRunner } from './runtime';
+import { installBioPorts, rescoreOnRemoteBio, ringSharingOnRemote, scheduleRescore, setRescoreRunner } from './runtime';
 import { getDocumentStore, onDocumentStoreSwitch } from '@/state/runtime';
-import type { LocalDate } from '@/store';
+import type { DocumentStore, LocalDate } from '@/store';
 import type * as ExecModule from './exec';
 import type * as SharingModule from './sharing';
 import type * as FoldModule from './fold';
@@ -54,7 +54,7 @@ const lazy =
 implement('bio.daily', lazy((m) => m.daily), BY);
 implement('bio.series', lazy((m) => m.series), BY);
 implement('bio.baselines', lazy((m) => (ctx) => m.baselines(ctx)), BY);
-implement('bio.sources', lazy((m) => () => m.sources()), BY);
+implement('bio.sources', lazy((m) => (ctx) => m.sources(ctx)), BY);
 implement('bio.scores', lazy((m) => m.scores), BY);
 implement('bio.manual', lazy((m) => m.manual), BY);
 
@@ -71,6 +71,15 @@ const sharing = () => (sharingP ??= import('./sharing'));
 implement('bio.setRingSharing', async (ctx: CommandContext, input: { on: boolean }) => (await sharing()).setRingSharing(ctx, input), BY);
 implement('bio.dismissRingDefaultsNotice', async (ctx: CommandContext) => (await sharing()).dismissRingDefaultsNotice(ctx), BY);
 implement('biometrics.ringDefaults', async (ctx: CommandContext) => (await sharing()).ringDefaultsMigration(ctx), BY);
+
+// the switch off reaches ring sources another device made or wrote before it had the switch (R3-09): on their arrival
+// by sync, and when the app opens a store (a paired device's start, joining sync)
+const applyRingSharing = (s: DocumentStore) => sharing().then((m) => m.applyRingSharingOff(s));
+let ringSharingOff = ringSharingOnRemote(getDocumentStore(), applyRingSharing);
+onDocumentStoreSwitch((s) => {
+  ringSharingOff();
+  ringSharingOff = ringSharingOnRemote(s, applyRingSharing, { atOpen: true });
+});
 
 // one ring = one source (SUITE_SPEC §15.2): sources keyed from an advertised name or an old Lumen key fold into the
 // ring's one source, and Lumen data into the person's one J-Style 2301 ring (./fold.ts)

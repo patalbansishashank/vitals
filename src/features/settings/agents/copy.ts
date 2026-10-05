@@ -5,8 +5,13 @@ export const AGENTS_COPY = {
   webmcpLabel: 'agents in this browser',
   webmcpHelp: 'Agents built into this browser can use Vitals tools while this tab is open.',
   webmcpUnsupported: "This browser can't share tools with agents yet (WebMCP).",
+  // the Android and desktop apps are not a browser and have no tab
+  webmcpLabelApp: 'agents in this app',
+  webmcpHelpApp: 'Agents built into this app can use Vitals tools while it is open.',
+  webmcpUnsupportedApp: "This app can't share tools with agents this way (WebMCP).",
   serverHeading: 'agents on your other computers',
   serverIntro: 'Agents such as Codex, OpenCode, Claude Code or ChatGPT can use Vitals through your server, even when no Vitals tab is open. Plan changes still wait for you.',
+  serverIntroApp: 'Agents such as Codex, OpenCode, Claude Code or ChatGPT can use Vitals through your server, even when no Vitals window is open. Plan changes still wait for you.',
   serverNotPaired: 'Agents on other computers reach Vitals through your server. Pair this device with your server first.',
   pairServer: 'Pair a server',
   addressKey: 'address',
@@ -46,7 +51,7 @@ export const AGENTS_COPY = {
   stopLabel: 'Stop agents: turn off agent access on this device',
   directHeading: 'direct plan changes',
   directHelp: 'Plan changes from agents wait for you as proposals. Turn this on only for an agent you trust: its plan changes then apply at once, and you can still undo them.',
-  directLabel: (name: string) => (name === 'webmcp' ? 'agents in this browser' : name),
+  directLabel: (name: string, app = false) => (name === 'webmcp' ? (app ? 'agents in this app' : 'agents in this browser') : name),
   saveFailed: "Couldn't save that setting.",
 } as const;
 

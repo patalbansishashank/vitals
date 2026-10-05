@@ -36,6 +36,41 @@ export const DAILY_METRIC_GROUPS: Readonly<Record<string, readonly (keyof DailyR
 /** `sourceByMetric` value of a metric that only a correction supplies (no device record that day). */
 export const CORRECTION_SOURCE = 'correction';
 
+/** The fields a daily record carries (every metric group's): what the versions of one daily id are merged over. */
+const DAILY_FIELDS: readonly (keyof DailyRecord)[] = Object.values(DAILY_METRIC_GROUPS).flat();
+
+/**
+ * One daily record from every stored version of its id: the highest version, each field it lacks filled from the
+ * highest lower version that has it. A day's total reaches the store from two paths under one id once Lumen data is
+ * folded into the ring source (SUITE_SPEC §15.2): the ring's own read and Lumen's relay each carry the fields their
+ * path knows, and a later read that lacks a field must not hide what an earlier one reported. The stores apply it to
+ * what they return as the newest record.
+ */
+/**
+ * A lower-version daily worth keeping (`putRecord`): for some field the newest stored version lacks, it is newer than
+ * the stored version readers take that field from (`mergeDailyVersions`), or no stored version has the field. Each
+ * later snapshot of such a field is one more document, as every snapshot was before the fold; an older one is stale.
+ */
+export function addsDailyFields(rec: DailyRecord, versions: readonly DailyRecord[]): boolean {
+  const sorted = [...versions].sort((a, b) => b.version - a.version);
+  const top = sorted[0];
+  if (!top) return true;
+  return DAILY_FIELDS.some((f) => {
+    if (rec[f] === undefined || top[f] !== undefined) return false;
+    const supplier = sorted.find((v) => v[f] !== undefined);
+    return !supplier || rec.version > supplier.version;
+  });
+}
+
+export function mergeDailyVersions(versions: readonly DailyRecord[]): DailyRecord {
+  const sorted = [...versions].sort((a, b) => b.version - a.version);
+  const top = sorted[0]!;
+  if (sorted.length === 1) return top;
+  const out = { ...top } as Record<string, unknown>;
+  for (const r of sorted.slice(1)) for (const f of DAILY_FIELDS) if (out[f] === undefined && r[f] !== undefined) out[f] = r[f];
+  return out as unknown as DailyRecord;
+}
+
 export interface SourcedRecord {
   sourceKey: string;
   record: BioRecord;

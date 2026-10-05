@@ -267,6 +267,18 @@ describe('connection card: every state (§5.2)', () => {
     expect(card.querySelector('svg.rg-light')?.getAttribute('data-light')).toBe('attention');
   });
 
+  it('unsupported inside an installed app does not say browser', () => {
+    for (const platform of [
+      { platform: 'electron', ble: 'electron', installedApp: true, here: 'this computer' },
+      { platform: 'android', ble: 'capacitor', installedApp: true, here: 'this phone' },
+    ] as const) {
+      const { card, unmount } = renderCard('unsupported', { platform });
+      expect(line(card)).toMatch(/^Bluetooth isn’t available to Vitals on this device/);
+      expect(line(card)).not.toMatch(/browser|Chrome/i);
+      unmount();
+    }
+  });
+
   it('unsupported: Get the app and Import a file are links; the readouts show what another device read', () => {
     const { card } = renderCard('unsupported');
     expect(within(card).getByRole('link', { name: 'Get the app' }).getAttribute('href')).toBe('/settings#install');

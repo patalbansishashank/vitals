@@ -21,9 +21,12 @@
 import { applyMergePatch, ulid, type BlobStore } from '@/store';
 import { chunkIdFor, chunkKeyString, chunkStats, contentHashOf, decodeChunk, encodeChunk, mergeSamples, sampleKey } from '../core/chunks';
 import { PERSON_POLICY_ID } from '../core/effective';
+import { stableStringify } from '../core/hash';
 import { reconcileSleep } from '../core/reconcileSleep';
+import { addsDailyFields, mergeDailyVersions } from '../core/resolve';
 import { compareVersions } from '../core/scores/rescore';
-import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, ChunkKey, DecisionLogEntry, LocalDate, RawSample, ScoreResult, StreamPolicy } from '../core/types';
+import type { BioChunkManifest, BioCorrection, BioRecord, BioSourceDoc, BioStream, ChunkKey, DailyRecord, DecisionLogEntry, LocalDate, RawSample, ScoreResult, StreamPolicy } from '../core/types';
+import { recordOrder } from './order';
 import { dayKey, recordDocId, scoreDocId, type BioCollection, type BioDocIndex, type ManifestBody, type PersonPolicyBody, type RecordBody, type SourceBody } from './docIndex';
 import type { BioStore, ChunkQuery, RecordQuery } from './types';
 
@@ -63,6 +66,13 @@ const ORPHAN_AGE_MS = 60 * 60 * 1000;
 /** A replaced manifest is removed once its replacement's bytes are on the relay, or after this long anyway. */
 const SUPERSEDED_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const clone = <T>(x: T): T => structuredClone(x);
+
+/** Two records that meet at one id and version (`moveRecordDoc`) are the same when their bodies agree apart from the
+ * provenance the path that read them stamped. */
+function sameRecord(a: BioRecord, b: RecordBody): boolean {
+  const strip = (r: unknown): string => stableStringify({ ...(r as Record<string, unknown>), provenance: undefined, sourceKey: undefined });
+  return strip(a) === strip(b);
+}
 
 function asSourceDoc(b: SourceBody): BioSourceDoc {
   const out: Record<string, unknown> = { ...b };
@@ -204,10 +214,35 @@ export class DocBioStore implements BioStore {
     return best;
   }
 
+  /** Every version of a daily id, stored and in this session. */
+  private dailyVersions(recordId: string): DailyRecord[] {
+    const list: DailyRecord[] = [];
+    const o = this.overlay.get('bioRecords');
+    const add = (b: Body | null): void => {
+      const body = b as unknown as (RecordBody & { kind?: string }) | null;
+      if (!body || body.record_id !== recordId || body.kind !== 'daily') return;
+      const rec = { ...body } as Record<string, unknown>;
+      delete rec['sourceKey'];
+      list.push(rec as unknown as DailyRecord);
+    };
+    for (const docId of this.index.versionsOf(recordId)) if (!o?.has(docId)) add(this.baseBody('bioRecords', docId));
+    if (o) for (const b of o.values()) add(b);
+    return list;
+  }
+
+  /** A daily id's versions as one record (`mergeDailyVersions`). */
+  private mergedDaily(newest: DailyRecord): DailyRecord {
+    const list = this.dailyVersions(newest.record_id);
+    return list.length > 1 ? mergeDailyVersions(list) : newest;
+  }
+
   async putRecord(rec: BioRecord, sourceKey: string): Promise<'inserted' | 'duplicate' | 'stale'> {
     await this.ready();
-    const hi = this.latestOf(rec.record_id)?.record.version;
-    if (hi !== undefined && rec.version < hi) return 'stale';
+    const top = this.latestOf(rec.record_id)?.record;
+    // a lower version is stale, unless it is a daily newer than the version readers take some field from that the
+    // newest lacks (`addsDailyFields`): the ring's own total and Lumen's relay of the day each know fields the other
+    // does not, and readers merge them (`mergeDailyVersions`); a snapshot stored already is stale again, never kept twice
+    if (top && rec.version < top.version && !(rec.kind === 'daily' && top.kind === 'daily' && addsDailyFields(rec, this.dailyVersions(rec.record_id)))) return 'stale';
     const id = recordDocId(rec);
     if (this.body('bioRecords', id)) return 'duplicate';
     // `put` (not `append`): IMM allows a put when the id is new or was soft-deleted (a re-import after a deletion)
@@ -219,6 +254,12 @@ export class DocBioStore implements BioStore {
     await this.ready();
     const kinds = q.kind === undefined ? null : new Set(Array.isArray(q.kind) ? q.kind : [q.kind]);
     const o = this.overlay.get('bioRecords');
+    const match = ({ sourceKey, record: r }: { sourceKey: string; record: BioRecord }): boolean =>
+      (!kinds || kinds.has(r.kind)) && (q.sourceKey === undefined || sourceKey === q.sourceKey)
+      && (q.from === undefined || r.time.local_date >= q.from) && (q.to === undefined || r.time.local_date <= q.to);
+    // nothing buffered: the index's projection, computed once per change of the stored records (a 90-day rescore reads
+    // it once per day)
+    if (!q.raw && !o?.size) return this.index.latestRecords().filter(match).map((e) => clone({ sourceKey: e.sourceKey, record: e.record }));
     // Resolve only after applying the overlay: a buffered revision/removal may change which tail is superseded.
     const rids = new Set(this.index.latest.keys());
     if (o) for (const [docId, b] of o) rids.add(b ? (b as unknown as RecordBody).record_id : (this.index.recDocs.get(docId)?.record.record_id ?? ''));
@@ -232,14 +273,9 @@ export class DocBioStore implements BioStore {
       })();
       if (!e) continue;
       const r = e.record;
-      out.push({ sourceKey: e.sourceKey, record: r });
+      out.push({ sourceKey: e.sourceKey, record: r.kind === 'daily' ? this.mergedDaily(r) : r });
     }
-    const when = (r: BioRecord): string => r.time.start ?? r.time.at ?? '';
-    out.sort((a, b) => a.record.time.local_date.localeCompare(b.record.time.local_date) || when(a.record).localeCompare(when(b.record)) || a.record.record_id.localeCompare(b.record.record_id));
-    return reconcileSleep(out).filter(({ sourceKey, record: r }) =>
-      (!kinds || kinds.has(r.kind)) && (q.sourceKey === undefined || sourceKey === q.sourceKey)
-      && (q.from === undefined || r.time.local_date >= q.from) && (q.to === undefined || r.time.local_date <= q.to),
-    ).map((e) => clone(e));
+    return (q.raw ? out : reconcileSleep(out)).sort(recordOrder).filter(match).map((e) => clone(e));
   }
 
   /** Soft-deletes every stored version of the given record ids (`bio.deleteSource`, undo of a manual value). */
@@ -260,18 +296,33 @@ export class DocBioStore implements BioStore {
   }
 
   /**
-   * Rewrites one stored record document under another source (`biometrics.ringFold`): the same document id
-   * (`${record_id}@${version}`), the given record and source key, as a remove and a put in one transaction (IMM allows
-   * a put on an id removed in the same transaction). No version check: every stored version stays, whatever other
-   * versions of the record id this or another source holds. Returns false when the document is already as given.
+   * Rewrites one stored record document under another source (`biometrics.ringFold`): the given record and source key
+   * under the document id `${record_id}@${version}`, as a remove and a put in one transaction (IMM allows a put on an id
+   * removed in the same transaction). No version check: every stored version stays, whatever other versions of the
+   * record id this or another source holds. `from` is the document's current id when the record id changes (the fold
+   * re-deriving a Lumen id with the ring key as the source): the old document goes, and the record is put under its new
+   * id unless a document of that id and version exists already. That document stays alone when the record is the same
+   * apart from provenance; otherwise the record goes in at the next free version, so nothing it carries is lost (a
+   * daily's fields are merged across versions on read, `mergeDailyVersions`). Returns false when the document is
+   * already as given.
    */
-  async moveRecordDoc(rec: BioRecord, sourceKey: string): Promise<boolean> {
+  async moveRecordDoc(rec: BioRecord, sourceKey: string, from = recordDocId(rec)): Promise<boolean> {
     await this.ready();
-    const id = recordDocId(rec);
-    const cur = this.body('bioRecords', id) as RecordBody | null;
-    if (cur && cur.sourceKey === sourceKey) return false;
-    if (cur) await this.queue({ kind: 'remove', col: 'bioRecords', id });
-    await this.queue({ kind: 'put', col: 'bioRecords', id, body: { ...(clone(rec) as unknown as Body), sourceKey } });
+    let id = recordDocId(rec);
+    const cur = this.body('bioRecords', from) as RecordBody | null;
+    if (from === id && cur && cur.sourceKey === sourceKey) return false;
+    if (from !== id && !cur) return false;
+    if (cur) await this.queue({ kind: 'remove', col: 'bioRecords', id: from });
+    let put = rec;
+    const taken = from === id ? null : (this.body('bioRecords', id) as RecordBody | null);
+    if (taken) {
+      if (sameRecord(rec, taken)) return true;
+      let version = rec.version + 1;
+      while (this.body('bioRecords', recordDocId({ record_id: rec.record_id, version }))) version++;
+      put = { ...rec, version };
+      id = recordDocId(put);
+    }
+    await this.queue({ kind: 'put', col: 'bioRecords', id, body: { ...(clone(put) as unknown as Body), sourceKey } });
     return true;
   }
 

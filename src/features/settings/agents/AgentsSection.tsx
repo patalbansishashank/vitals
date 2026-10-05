@@ -4,6 +4,7 @@ import { Engraved, InlineWarning, Switch } from '@/components';
 import { dispatch } from '@/commands';
 import { readAgentSettings, type AgentSettings } from '@/commands/ai/settings';
 import { useWebMcpEnabled, useWebMcpSupported } from '@/agents/webmcp';
+import { platformCaps } from '@/platform';
 import { SettingsSection } from '../sections';
 import { SettingRow, useSavedFlash } from '../SettingRow';
 import { AGENTS_COPY } from './copy';
@@ -66,8 +67,13 @@ export function AgentsSection() {
 function WebMcpRow({ configure }: { configure: Configure }) {
   const { webmcp, setWebmcp } = useAgentsSettings();
   const supported = useWebMcpSupported();
+  const app = platformCaps().installedApp;
+  const C = AGENTS_COPY;
   return (
-    <SettingRow label={AGENTS_COPY.webmcpLabel} help={supported ? AGENTS_COPY.webmcpHelp : AGENTS_COPY.webmcpUnsupported}>
+    <SettingRow
+      label={app ? C.webmcpLabelApp : C.webmcpLabel}
+      help={supported ? (app ? C.webmcpHelpApp : C.webmcpHelp) : app ? C.webmcpUnsupportedApp : C.webmcpUnsupported}
+    >
       {({ labelId, helpId }) => (
         <Switch
           checked={supported && webmcp}
@@ -105,7 +111,7 @@ function DirectApplyList({ settings, configure }: { settings: AgentSettings; con
         <p className="m-0 text-xs leading-[1.45] text-ink-2">{AGENTS_COPY.directHelp}</p>
       </div>
       {names.map((name) => (
-        <SettingRow key={name} label={AGENTS_COPY.directLabel(name)}>
+        <SettingRow key={name} label={AGENTS_COPY.directLabel(name, platformCaps().installedApp)}>
           {({ labelId }) => (
             <Switch
               checked={settings.clients[name]?.directApply === true}

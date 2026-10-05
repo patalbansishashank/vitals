@@ -113,7 +113,7 @@ export interface CommandPort {
   undo(undoToken: string): Promise<PortResult>;
 }
 
-export type ToolResultStatus = 'applied' | 'pending_user' | 'rejected' | 'running';
+export type ToolResultStatus = 'applied' | 'pending_user' | 'needs_choice' | 'rejected' | 'running';
 
 /** Tool result envelope (SUITE_SPEC §1.8, R8 §5.3) plus `undoToken`. Serialised as the tool message text. */
 export interface ToolResultEnvelope {
@@ -123,6 +123,10 @@ export interface ToolResultEnvelope {
   jobId?: string;
   /** ≤ 2 lines, human words. */
   summary: string;
+  /** `needs_choice`: false, nothing was saved. */
+  saved?: boolean;
+  /** `needs_choice`: foods the model can pick from (pass `foodId` in the component and call again). */
+  candidates?: Array<{ component: string; foodId: string; name: string }>;
   /** Capped at the tool-result budget (R8 §5.5). */
   data?: unknown;
   error?: PortError;

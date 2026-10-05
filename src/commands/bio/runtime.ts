@@ -1,12 +1,14 @@
 /**
  * Light runtime of the `bio.*` executors (stays in the main chunk; heavy code is in `./exec.ts`, loaded lazily):
  * the `bio` port (`ctx.ports.bio`) through which a command takes what a screen staged (a picked file, a Bluetooth link
- * opened inside a click) and the optional SQLite opener, and the debounced background rescoring after small changes.
+ * opened inside a click) and the optional SQLite opener, the debounced background rescoring after small changes, and
+ * the ring master switch re-applied after sync.
  */
 import type { SqlOpener } from '@/biometrics/importers/sqlite';
 import { takeBleLink, takeFile, type StagedFile, type StagedLink } from '@/biometrics/app/handoff';
+import { isRingSource, RING_SHARING_ID } from '@/biometrics/core/policy';
 import { installPorts, getPorts } from '../bus';
-import type { LocalDate, StoreChange } from '@/store';
+import type { DocumentStore, LocalDate, StoreChange } from '@/store';
 
 export interface BioPorts {
   /** A file the screen staged (`stageFile`), taken once. */
@@ -91,6 +93,36 @@ export function rescoreOnRemoteBio(store: { subscribe(fn: (c: StoreChange) => vo
     const from = remoteBioDate(c.col, c.doc);
     if (from) scheduleRescore(from, delayMs);
   });
+}
+
+/* ---------------------------------------------------------------- the ring master switch, by sync */
+
+/**
+ * The master switch off must reach ring sources made or written without it on another device (R3-09): when the
+ * person's choice (`ringSharing:me`) or a ring source arrives by sync, `run` (`./sharing.ts` `applyRingSharingOff`)
+ * goes over them once nothing more arrived for `delayMs` (3 s, as the rescore waits: a switch turned on elsewhere and
+ * that device's ring rows may come in separate bursts); with `atOpen`, also a moment after the store is ready (the app
+ * opening it). Runs never overlap.
+ */
+export function ringSharingOnRemote(store: DocumentStore, run: (store: DocumentStore) => Promise<unknown>, o: { atOpen?: boolean; delayMs?: number } = {}): () => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let chain: Promise<unknown> = Promise.resolve();
+  const schedule = (ms: number) => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      chain = chain.then(() => run(store)).catch((e: unknown) => console.warn('Vitals: the ring data switch was not applied to every ring', e));
+    }, ms);
+  };
+  if (o.atOpen) void store.ready.then(() => schedule(300), () => undefined);
+  const off = store.subscribe((c) => {
+    if (c.origin === 'remote' && c.col === 'bioSources' && (c.id === RING_SHARING_ID || isRingSource({ sourceKey: c.id }))) schedule(o.delayMs ?? 3000);
+  });
+  return () => {
+    off();
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
 }
 
 /** Run a scheduled rescore now (tests, page hide). */

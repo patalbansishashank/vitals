@@ -188,7 +188,7 @@ export function toLoggedDay(i: LoggedDayInput): LoggedDayResult {
   const observed = i.observations?.workouts ?? [];
   const deviceLogged = allSessions.filter((e) => e.source.by === 'device' && e.bioWorkoutId && e.workout && e.startH !== undefined && e.durationMin !== undefined);
   const sessionLogs = allSessions.filter((e) => !deviceLogged.includes(e));
-  const seen = new Set(observed.map((w) => w.recordId));
+  const seen = new Set(observed.flatMap((w) => [w.recordId, ...(w.aliases ?? [])]));
   const workouts: ObservedWorkout[] = [
     ...observed,
     ...deviceLogged

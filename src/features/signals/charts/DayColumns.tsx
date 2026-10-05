@@ -11,7 +11,7 @@ import { useElementWidth } from '@/features/charts/core/hooks';
 import { fmtDay, fmtMonth } from '@/features/living/format';
 import { weekdayOf } from '@/living/dates';
 import type { LocalDate } from '@/living';
-import { CHART_DRILL_HELP, ChartShell, MissingStub, TwinTable, useSlotCrosshair, type ChartStatus } from './kit';
+import { CHART_DRILL_HELP, ChartShell, MissingStub, TwinTable, lineLabelSpot, useSlotCrosshair, type ChartStatus, type MarkBox } from './kit';
 import { columnPath, columnScale, compactTick } from './activityModels';
 import { ACTIVITY_COPY as C } from './copyActivity';
 import './activity.css';
@@ -109,6 +109,14 @@ export function DayColumns({
   const { max, ticks } = columnScale(Math.max(0, ...known), g, 3, emptyMax);
   const Y = (v: number) => padT + (1 - v / max) * (base - padT);
   const xOf = (i: number) => padL + i * slot;
+  // the goal label takes the first spot beside its line that no column covers (J6-06); about 6 px per 11 px character
+  const goalText = g !== undefined ? C.goalTick(g) : '';
+  const columns: MarkBox[] = slots.flatMap((s, i) => {
+    if (s.future || s.value === null || s.value <= 0) return [];
+    const x0 = xOf(i) + (slot - bw) / 2;
+    return [{ x0, x1: x0 + bw, top: Math.min(base - 1, Y(s.value)), bottom: base }];
+  });
+  const goalSpot = g !== undefined ? lineLabelSpot(Y(g), { left: padL, right: width - padR, top: padT, bottom: base }, columns, goalText.length * 6 + 6) : null;
   const selIdx = slots.findIndex(
     (s, i) => selected >= s.start && selected < (slots[i + 1]?.start ?? '9999-12-31'),
   );
@@ -220,7 +228,7 @@ export function DayColumns({
               );
             })}
             <line className="sg-axis" x1={padL} x2={width - padR} y1={base + 0.5} y2={base + 0.5} />
-            {g !== undefined ? (
+            {g !== undefined && goalSpot ? (
               <g className="ac-goal" data-goal={g}>
                 <line
                   className="sg-goal"
@@ -229,8 +237,8 @@ export function DayColumns({
                   y1={Math.round(Y(g)) + 0.5}
                   y2={Math.round(Y(g)) + 0.5}
                 />
-                <text className="sg-goal-label" x={width - padR} y={Y(g) - 4} textAnchor="end">
-                  {C.goalTick(g)}
+                <text className="sg-goal-label" x={goalSpot.x} y={goalSpot.y} textAnchor={goalSpot.anchor}>
+                  {goalText}
                 </text>
               </g>
             ) : null}

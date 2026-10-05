@@ -4,7 +4,7 @@
  * host and the AI-tools wiring, all behind the `vitals:` channels (ipc.ts). `VITALS_SMOKE=1` loads the page, waits for
  * it to render and exits 0 (or 1 on a failure) within a minute, for the release workflow.
  */
-import { maybeRunMcp } from '../mcp/launch';
+import { maybeRunMcp, mcpArgs } from '../mcp/launch';
 import { statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -37,7 +37,9 @@ const log = (line: string): void => void process.stderr.write(`vitals: ${line}\n
 /** dist/mcp.cjs sits next to this file; electron-builder unpacks it from the asar so Node can run it directly. */
 const mcpScript = path.join(__dirname.replace(/app\.asar(?=[\\/]|$)/, 'app.asar.unpacked'), 'mcp.cjs');
 
-// the `--mcp` parent only waits for its bridge child: it must start without a display (an AI tool run over ssh)
+// the `--mcp` parent only waits for its bridge child: it must start without a display (an AI tool run over ssh).
+// Chromium has already picked its display platform by now, so the switch below does not stop an X11 start from
+// failing; the entries AI tools run carry `--ozone-platform=headless` themselves (mcp/launch.ts `mcpArgs`).
 if (process.argv.includes(FLAGS.mcp)) {
   app.commandLine.appendSwitch('ozone-platform', 'headless');
   app.disableHardwareAcceleration();
@@ -152,7 +154,7 @@ function startShell(): void {
     // the hardened system calls: symlinked configs written through the link, `.cmd` shims on Windows, the tool's own
     // folder first on PATH, the Windows Store ChatGPT package found by listing
     const aiTools = createNodeAiTools({
-      command: { path: self.path, args: (id: AiToolId) => [...self.args, FLAGS.mcp, FLAGS.client, id] },
+      command: { path: self.path, args: (id: AiToolId) => mcpArgs(self.args, id, platform) },
       server: () => serverInfo,
     });
     let blocker: number | null = null;

@@ -11,7 +11,7 @@ import { WebSocket } from 'ws';
 import { clientDisplayName, idempotencyKeyFor, NO_TAB_MESSAGE } from './agentHub.ts';
 import { BRIDGE_CLOSE, BRIDGE_PATH, type CompanionMessage } from './bridgeProtocol.ts';
 import { MCP_INSTRUCTIONS } from './briefingRules.ts';
-import { BRIEFING_URI, createMcpServer, remoteBackend, type McpBackend } from './mcp.ts';
+import { BRIEFING_URI, createMcpServer, remoteBackend, toCallToolResult, type McpBackend } from './mcp.ts';
 import { createRedactingLogger, type Logger } from './security.ts';
 import { startCompanion, type Companion } from './server.ts';
 import { rawCall, tempDir } from './testHelpers.ts';
@@ -170,6 +170,29 @@ describe('MCP over Streamable HTTP', () => {
     }
   });
 
+  it('passes a needs_choice answer from the tab through whole: nothing saved, the candidates, no "applied" (J3-02)', async () => {
+    const asked: ToolResultEnvelope = {
+      ok: true,
+      status: 'needs_choice',
+      saved: false,
+      summary: 'Nothing logged yet. Pick one of these foods and call log_measurement again with its foodId.',
+      candidates: [{ component: 'poha', foodId: 'poha_thin', name: 'Poha, thin' }],
+    };
+    const tab = openTab(browserToken, { answer: () => asked });
+    await tab.ready;
+    const client = await httpClient(admin, 'claude-desktop');
+    try {
+      const r = await client.callTool({ name: 'log_measurement', arguments: { kind: 'weight', value: 82.4 } });
+      expect(r.isError).toBe(false);
+      expect(r.structuredContent).toEqual(asked);
+      expect(envelopeOf(r)).toEqual(asked);
+    } finally {
+      await client.close();
+      tab.ws.close();
+      await tab.closed;
+    }
+  });
+
   it('a newer tab replaces the older (4409); a silent tab times out as running', async () => {
     const older = openTab(browserToken);
     await older.ready;
@@ -258,6 +281,37 @@ describe('stdio bridge', () => {
       await client.close();
     }
   }, 20_000);
+});
+
+describe('toCallToolResult: needs_choice in the structured part (J3-02)', () => {
+  const asked: ToolResultEnvelope = {
+    ok: true,
+    status: 'needs_choice',
+    saved: false,
+    summary: 'Nothing logged yet. Ask the person, then call log_meal again with the answer.',
+    candidates: [{ component: 'poha', foodId: 'poha_thin', name: 'Poha, thin' }],
+    data: { status: 'ask', saved: false, question: 'What is poha?', candidates: [{ component: 'poha', foodId: 'poha_thin', name: 'Poha, thin' }] },
+  };
+  const open = { type: 'object', additionalProperties: true };
+
+  it('an output schema that takes extra fields: the structured part carries the status and the summary beside the command answer', () => {
+    const r = toCallToolResult(asked, open);
+    expect(r.isError).toBeUndefined();
+    expect(r.structuredContent).toEqual({ ...(asked.data as object), status: 'needs_choice', saved: false, summary: asked.summary, candidates: asked.candidates });
+    expect(JSON.parse((r.content[0] as { text: string }).text)).toEqual(asked);
+  });
+
+  it('a strict schema, or one that declares status or summary, gets the command answer unchanged', () => {
+    for (const schema of [{ type: 'object', additionalProperties: false, properties: { status: { type: 'string' }, question: { type: 'string' } } }, { type: 'object', properties: { summary: { type: 'string' } } }, { type: 'object', anyOf: [{ type: 'object' }] }]) {
+      expect(toCallToolResult(asked, schema).structuredContent).toEqual(asked.data);
+    }
+  });
+
+  it('an applied answer is unchanged, with or without a schema', () => {
+    const done: ToolResultEnvelope = { ok: true, status: 'applied', summary: 'Log a meal: done.', data: { status: 'logged', entryId: 'e1' } };
+    expect(toCallToolResult(done, open).structuredContent).toEqual(done.data);
+    expect(toCallToolResult(done, undefined).structuredContent).toEqual(done);
+  });
 });
 
 describe('idempotency keys', () => {

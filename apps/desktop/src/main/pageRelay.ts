@@ -33,7 +33,7 @@ export interface PageRelayOptions {
   timeoutMs?: number;
 }
 
-const STATUSES = new Set(['applied', 'pending_user', 'rejected', 'running']);
+const STATUSES = new Set(['applied', 'pending_user', 'needs_choice', 'rejected', 'running']);
 const validEnvelope = (e: unknown): e is ToolResultEnvelope => {
   if (!e || typeof e !== 'object') return false;
   const v = e as Record<string, unknown>;

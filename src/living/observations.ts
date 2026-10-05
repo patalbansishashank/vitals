@@ -13,6 +13,9 @@ import type { ClockH, LocalDate, PrescribedDaySnapshot, PrescribedSession, Sleep
 
 export interface ObservedWorkout {
   recordId: string;
+  /** Other ids the same workout was stored under (its Lumen id before the ring fold re-id'd it under the ring key): a
+   * device entry logged under one of them is this workout, not another. */
+  aliases?: string[];
   startH: ClockH;
   durationMin: number;
   exerciseType: string;

@@ -33,6 +33,20 @@ describe('pageRelay', () => {
     await expect(a).resolves.toMatchObject({ summary: 'a' });
   });
 
+  it('passes a needs_choice answer through whole: nothing saved, the candidates (J3-02)', async () => {
+    const { sent, relay } = make();
+    const asked = {
+      ok: true,
+      status: 'needs_choice',
+      saved: false,
+      summary: 'Nothing logged yet. Pick one of these foods (or ask the person) and call log_meal again with its foodId.',
+      candidates: [{ component: 'poha', foodId: 'poha_thin', name: 'Poha, thin' }],
+    } as const;
+    const p = relay.call({ client: 'claude-code', tool: 'log_meal', args: {} });
+    relay.handleResult({ callId: sent[0]!.callId, envelope: asked });
+    await expect(p).resolves.toEqual(asked);
+  });
+
   it('a malformed envelope becomes a rejected result', async () => {
     const { sent, relay } = make();
     const p = relay.call({ client: 'c', tool: 'a', args: {} });

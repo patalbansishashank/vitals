@@ -15,6 +15,8 @@ import { startCompanion, type Companion } from './server.ts';
 const OWNER = 'Owner_hash-0123456789a';
 const CHUNK = 'Chunk_id-0123456789abc';
 const TOKEN = Buffer.alloc(32, 7).toString('base64url');
+/** The version /health reports is the package's own (it follows every release). */
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 const APP_ORIGIN = 'https://vitals.creative.desi';
 
 interface Reply {
@@ -194,7 +196,7 @@ describe('companion /health and static app', () => {
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body.toString()) as Record<string, unknown>;
     expect(Object.keys(body).sort()).toEqual(['mqtt', 'ownerCount', 'persons', 'role', 'roles', 'version']);
-    expect(body.version).toBe('0.4.0');
+    expect(body.version).toBe(PKG_VERSION);
     expect(body.roles).toEqual(['relay', 'app']);
     expect(body.ownerCount).toBeGreaterThanOrEqual(1);
   });

@@ -2,7 +2,7 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import { APP_COMMAND_ENV, BRIDGE_ENV } from './env';
-import { argsWithoutMcp, maybeRunMcp } from './launch';
+import { argsWithoutMcp, HEADLESS_FLAG, maybeRunMcp, mcpArgs } from './launch';
 
 class FakeChild extends EventEmitter {
   kill = vi.fn((_s?: NodeJS.Signals) => true);
@@ -58,5 +58,26 @@ describe('maybeRunMcp', () => {
     const e = run(['/opt/Vitals/vitals', '--mcp']);
     e.child.emit('error', new Error('ENOENT'));
     expect(e.exit).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('`--mcp` without a display (an AI tool over ssh)', () => {
+  const HEADLESS = '--ozone-platform=headless';
+  // Chromium picks its display platform before main runs, so app.commandLine.appendSwitch is too late: the entry itself carries the flag
+  it('the entry an AI tool runs starts headless on Linux, with the flag ahead of --mcp, and only on Linux', () => {
+    expect(HEADLESS_FLAG).toBe(HEADLESS);
+    expect(mcpArgs([], 'claude-code', 'linux')).toEqual([HEADLESS, '--mcp', '--client', 'claude-code']);
+    expect(mcpArgs(['/x/app'], 'codex', 'linux')).toEqual(['/x/app', HEADLESS, '--mcp', '--client', 'codex']);
+    expect(mcpArgs([], 'codex', 'win32')).toEqual(['--mcp', '--client', 'codex']);
+    expect(mcpArgs([], 'codex', 'darwin')).toEqual(['--mcp', '--client', 'codex']);
+  });
+
+  it('the app the bridge starts for the person is not started headless', () => {
+    expect(argsWithoutMcp(['/opt/Vitals/vitals', HEADLESS, '--mcp', '--client', 'codex'])).toEqual([]);
+    expect(argsWithoutMcp(['/x/electron', '/x/app', HEADLESS, '--mcp', '--client', 'codex', '--no-sandbox'])).toEqual(['/x/app', '--no-sandbox']);
+    const r = run(['/opt/Vitals/vitals', '--no-sandbox', HEADLESS, '--mcp', '--client', 'codex']);
+    const [, args, opts] = r.spawn.mock.calls[0] as unknown as [string, string[], { env: NodeJS.ProcessEnv }];
+    expect(args).toEqual(['/opt/Vitals/resources/app/dist/mcp.cjs', '--mcp', '--client', 'codex']);
+    expect(JSON.parse(opts.env[APP_COMMAND_ENV]!)).toEqual({ path: '/opt/Vitals/vitals', args: ['--no-sandbox'] });
   });
 });

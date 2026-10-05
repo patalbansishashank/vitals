@@ -12,7 +12,8 @@ import { ingestBatches, type IngestOutcome } from '@/biometrics/ingest/pipeline'
 import { addDays, daysBetween } from '@/biometrics/core/scores/util';
 import { CORRECTION_SOURCE, resolveDays } from '@/biometrics/core/resolve';
 import { isRingSource, normalizePolicy, RING_FOLD_ID, ringDefaultPolicy, ringFoldOf, ringSharing, scoreAllowed, suggestedOnPolicy } from '@/biometrics/core/policy';
-import { lumenFold, sourceKeyOf, suggestedPolicies } from '@/biometrics/core/source';
+import { lumenFold, policyStreamOf, sourceKeyOf, suggestedPolicies } from '@/biometrics/core/source';
+import { ringAliases, ringSourceLabel } from '@/biometrics/service/identity';
 import { recordId } from '@/biometrics/core/hash';
 import { validateBatch, CANONICAL_UNIT } from '@/biometrics/core/validate';
 import { RAW_STREAMS, BIO_SCHEMA } from '@/biometrics/core/types';
@@ -54,8 +55,13 @@ function range(ctx: CommandContext, input: { from?: LocalDate; to?: LocalDate },
   return { from, to };
 }
 
-const labelOf = (ix: BioDocIndex, sk: string | undefined): string =>
-  sk ? (ix.source(sk)?.label ?? (sk === 'manual' ? 'Entered by hand' : sk === CORRECTION_SOURCE ? 'Your correction' : sk)) : 'device';
+/** A source's label. An agent gets a ring's from the family table, never a stored one (an older build stored the ring's
+ * advertised name) nor its key when the document is missing (L-REV2 R3-10, R3-11); other keys hold no hardware id. */
+const labelOf = (ix: BioDocIndex, sk: string | undefined, agent = false): string => {
+  if (!sk) return 'device';
+  const src = ix.source(sk);
+  return (agent ? ringSourceLabel(src ?? { sourceKey: sk }) : undefined) ?? src?.label ?? (sk === 'manual' ? 'Entered by hand' : sk === CORRECTION_SOURCE ? 'Your correction' : sk);
+};
 const tierOf = (ix: BioDocIndex, sk: string | undefined, day?: ResolvedDay, metric?: string): DeviceTier =>
   (metric && day?.tierByMetric[metric]) || (sk ? ix.source(sk)?.tier : undefined) || 'C';
 
@@ -104,12 +110,16 @@ export async function daily(ctx: CommandContext, input: DailyIn) {
   const hidden = new Set<string>();
   const want = input.metrics?.length ? new Set(input.metrics) : null;
   const keep = (k: string) => !want || want.has(k);
+  // an agent gets a ring key as its alias (`…/ring1`: no serial, address or advertised id; L-REV2 R3-10)
+  const agent = isAgent(ctx);
+  const label = (sk: string) => labelOf(ix, sk, agent);
+  const key = agent ? ringAliases(ix.sources()) : (sk: string) => sk;
   const out = [];
   for (const day of days) {
     const values: Record<string, Val> = {};
     const vendor: Array<{ source: string; key: string; value: number; label: 'vendor_opinion' }> = [];
     const put = (k: string, value: number, unit: string, sk: string, metric: string) => {
-      if (keep(k)) values[k] = { value: round(value), unit, source: labelOf(ix, sk), sourceKey: sk, tier: tierOf(ix, sk, day, metric), basis: day.basisByMetric[metric] ?? 'device' };
+      if (keep(k)) values[k] = { value: round(value), unit, source: label(sk), sourceKey: key(sk), tier: tierOf(ix, sk, day, metric), basis: day.basisByMetric[metric] ?? 'device' };
     };
     const correctionIds = new Set(day.corrections.map((c) => c.correctionId));
     const d = day.daily;
@@ -124,19 +134,19 @@ export async function daily(ctx: CommandContext, input: DailyIn) {
       if (g.metric === 'vendor') {
         for (const [key, v] of Object.entries(d.vendor ?? {})) {
           const num = typeof v === 'number' ? v : (v as { value?: number } | undefined)?.value;
-          if (typeof num === 'number' && keep('vendor')) vendor.push({ source: labelOf(ix, sk), key, value: num, label: 'vendor_opinion' });
+          if (typeof num === 'number' && keep('vendor')) vendor.push({ source: label(sk), key, value: num, label: 'vendor_opinion' });
         }
         continue;
       }
       if (g.metric === 'hrv' && d.hrv) {
         if (d.hrv.metric === 'vendor') {
-          if (policyFor(ix, sk, 'vendor_scores').imported && coachSees(ix, ctx, sk, 'vendor_scores') && keep('vendor')) vendor.push({ source: labelOf(ix, sk), key: 'hrv', value: d.hrv.value_ms, label: 'vendor_opinion' });
+          if (policyFor(ix, sk, 'vendor_scores').imported && coachSees(ix, ctx, sk, 'vendor_scores') && keep('vendor')) vendor.push({ source: label(sk), key: 'hrv', value: d.hrv.value_ms, label: 'vendor_opinion' });
         } else put(`hrv_${d.hrv.metric}_ms`, d.hrv.value_ms, 'ms', sk, 'hrv');
         continue;
       }
       if (g.metric === 'vo2max' && d.vo2max) {
         if (d.vo2max.method === 'vendor_estimate') {
-          if (policyFor(ix, sk, 'vendor_scores').imported && coachSees(ix, ctx, sk, 'vendor_scores') && keep('vendor')) vendor.push({ source: labelOf(ix, sk), key: 'vo2max', value: d.vo2max.ml_kg_min, label: 'vendor_opinion' });
+          if (policyFor(ix, sk, 'vendor_scores').imported && coachSees(ix, ctx, sk, 'vendor_scores') && keep('vendor')) vendor.push({ source: label(sk), key: 'vo2max', value: d.vo2max.ml_kg_min, label: 'vendor_opinion' });
         } else put('vo2max_ml_kg_min', d.vo2max.ml_kg_min, 'ml/kg/min', sk, 'vo2max');
         continue;
       }
@@ -165,7 +175,7 @@ export async function daily(ctx: CommandContext, input: DailyIn) {
     const ssk = day.sourceByMetric['sleep'];
     if (day.mainSleep && ssk && policyFor(ix, ssk, 'sleep_sessions').imported) {
       if (coachSees(ix, ctx, ssk, 'sleep_sessions')) {
-        if (keep('sleep')) sleep = { ...sleepView(day.mainSleep, labelOf(ix, ssk), tierOf(ix, ssk, day, 'sleep')), basis: day.basisByMetric['sleep'] ?? 'device' };
+        if (keep('sleep')) sleep = { ...sleepView(day.mainSleep, label(ssk), tierOf(ix, ssk, day, 'sleep')), basis: day.basisByMetric['sleep'] ?? 'device' };
       } else hidden.add('sleep_sessions');
     }
     const wsk = day.sourceByMetric['workouts'];
@@ -180,7 +190,7 @@ export async function daily(ctx: CommandContext, input: DailyIn) {
               durationMin: round(w.active_duration_s / 60, 1),
               ...(w.active_kcal !== undefined ? { activeKcal: round(w.active_kcal, 0) } : {}),
               ...(w.hr_avg_bpm !== undefined ? { avgHrBpm: round(w.hr_avg_bpm, 0) } : {}),
-              source: labelOf(ix, wsk),
+              source: label(wsk),
             });
       } else hidden.add('workouts');
     }
@@ -259,7 +269,7 @@ export async function series(ctx: CommandContext, input: SeriesIn) {
   if (resolution === 'raw') {
     const slice = chosen.length > MAX_RAW ? chosen.slice(-MAX_RAW) : chosen;
     truncated = chosen.length > MAX_RAW;
-    points = slice.map((s) => ({ t: new Date(s.t).toISOString(), value: round(s.value, 3), n: 1, source: labelOf(ix, s.sourceKey) }));
+    points = slice.map((s) => ({ t: new Date(s.t).toISOString(), value: round(s.value, 3), n: 1, source: labelOf(ix, s.sourceKey, isAgent(ctx)) }));
   } else {
     const buckets = new Map<string, { sum: number; n: number; min: number; max: number; sk: string }>();
     for (const s of chosen) {
@@ -274,7 +284,7 @@ export async function series(ctx: CommandContext, input: SeriesIn) {
     }
     points = [...buckets.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([t, b]) => ({ t, value: round(stream === 'steps' || stream === 'distance' || stream === 'active_kcal' ? b.sum : b.sum / b.n, 2), min: round(b.min, 2), max: round(b.max, 2), n: b.n, source: labelOf(ix, b.sk) }));
+      .map(([t, b]) => ({ t, value: round(stream === 'steps' || stream === 'distance' || stream === 'active_kcal' ? b.sum : b.sum / b.n, 2), min: round(b.min, 2), max: round(b.max, 2), n: b.n, source: labelOf(ix, b.sk, isAgent(ctx)) }));
   }
   return { metric: stream, unit: CANONICAL_UNIT[stream] ?? '', resolution, points, truncated, hidden: anyHidden && isAgent(ctx) };
 }
@@ -317,7 +327,7 @@ export async function baselines(ctx: CommandContext) {
     const dec = spec.unit === 'h' || spec.unit === '°C' ? 2 : 1;
     out.push({
       metric: spec.metric, unit: spec.unit, mean: round(mean, dec), lo: round(mean - 0.5 * sd, dec), hi: round(mean + 0.5 * sd, dec), nights: vals.length,
-      forming: vals.length < BASELINE_MIN, since: since < from ? from : since, source: labelOf(ix, current), tier: tierOf(ix, current),
+      forming: vals.length < BASELINE_MIN, since: since < from ? from : since, source: labelOf(ix, current, isAgent(ctx)), tier: tierOf(ix, current),
     });
   }
   return { baselines: out, hidden: [...hidden].sort() };
@@ -325,8 +335,20 @@ export async function baselines(ctx: CommandContext) {
 
 /* =============================================================================== bio.sources */
 
-export async function sources() {
+export async function sources(ctx: CommandContext) {
   const ix = await bioIndex();
+  // an agent learns only what the Coach sees: a source with no stream shared is left out, a partly shared one lists and
+  // counts its shared streams only (L-REV2 R3-12); a ring is named from the table, its key is the alias (R3-10, R3-11)
+  const agent = isAgent(ctx);
+  const alias = agent ? ringAliases(ix.sources()) : (sk: string) => sk;
+  const seen = new Map<string, boolean>();
+  const shared = (sk: string, stream: string): boolean => {
+    if (!agent) return true;
+    const k = `${sk}\u0000${stream}`;
+    let v = seen.get(k);
+    if (v === undefined) seen.set(k, (v = coachSees(ix, ctx, sk, stream as PolicyStream)));
+    return v;
+  };
   const stats = new Map<string, { n: number; first: LocalDate | null; last: LocalDate | null; streams: Set<string> }>();
   const stat = (sk: string) => {
     let s = stats.get(sk);
@@ -338,27 +360,34 @@ export async function sources() {
     if (!s.last || d > s.last) s.last = d;
   };
   for (const e of ix.latestRecords()) {
+    if (!shared(e.sourceKey, policyStreamOf(e.record))) continue;
     const s = stat(e.sourceKey);
     s.n++;
     see(s, e.record.time.local_date);
   }
   for (const m of ix.chunks.values()) {
-    if (m.superseded) continue;
+    if (m.superseded || !shared(m.sourceKey, m.stream)) continue;
     const s = stat(m.sourceKey);
     s.streams.add(m.stream);
     see(s, m.local_date);
   }
-  const list = ix.sources().map((src) => {
+  const rows = ix
+    .sources()
+    .map((src) => ({ src, streams: [...new Set<string>([...(stats.get(src.sourceKey)?.streams ?? []), ...src.policies.map((p) => p.stream)])].filter((st) => shared(src.sourceKey, st)) }))
+    .filter((r) => !agent || r.streams.length > 0);
+  const list = rows.map(({ src, streams }) => {
     const s = stats.get(src.sourceKey);
-    const streams = new Set<string>([...(s?.streams ?? []), ...src.policies.map((p) => p.stream)]);
+    const sourceKey = alias(src.sourceKey);
     return {
-      sourceKey: src.sourceKey,
-      label: src.label,
+      sourceKey,
+      // a ring's label is the table's for everyone (no one renames a source); a driver the table does not know keeps the
+      // stored one for the person only (R1 minor 9)
+      label: ringSourceLabel(src, agent ? undefined : src.label) ?? src.label,
       tier: src.tier,
       kind: src.deviceType ?? ix.deviceTypes.get(src.sourceKey) ?? (src.sourceKey === 'manual' ? 'manual' : 'unknown'),
-      channel: src.sourceKey.split('|')[0]!,
-      policies: src.policies.map(normalizePolicy),
-      streams: [...streams].sort(),
+      channel: sourceKey.split('|')[0]!,
+      policies: src.policies.filter((p) => shared(src.sourceKey, p.stream)).map(normalizePolicy),
+      streams: streams.sort(),
       records: s?.n ?? 0,
       firstDate: s?.first ?? null,
       lastDate: s?.last ?? null,
@@ -369,8 +398,10 @@ export async function sources() {
     };
   });
   list.sort((a, b) => a.tier.localeCompare(b.tier) || a.sourceKey.localeCompare(b.sourceKey));
-  // the Ring page's master switch reads `ringSharing`; `ringDefaultsNotice` is its one-time notice (./sharing.ts)
-  return { sources: list, policies: ix.personPolicies.map(normalizePolicy), ringSharing: ringSharing(ix.sources()), ringDefaultsNotice: ringDefaultsNotice(ix) };
+  // the Ring page's master switch reads `ringSharing`; `ringDefaultsNotice` is its one-time notice (./sharing.ts). For an
+  // agent the switch reads over the sources listed, so a ring it cannot see does not show as "off"; the notice is the
+  // person's
+  return { sources: list, policies: ix.personPolicies.map(normalizePolicy), ringSharing: ringSharing(rows.map((r) => r.src)), ringDefaultsNotice: !agent && ringDefaultsNotice(ix) };
 }
 
 /* =============================================================================== bio.scores */
@@ -399,9 +430,10 @@ export async function scores(ctx: CommandContext, input: ScoresIn) {
   for (const r of [...newest.values()].sort((a, b) => a.scope.localDate.localeCompare(b.scope.localDate) || a.scoreId.localeCompare(b.scoreId))) {
     const def = getScoreDef(r.scoreId, r.version) ?? getScoreDef(r.scoreId);
     const sk = scoreSource(ix, r);
-    // the score's own source decides (a ring's defaults let the Coach see it); without one, the person's matrix
+    // the score's own source decides (a ring's defaults let the Coach see it); without one, the person's matrix. A score
+    // this build does not know has no streams to check: an agent does not get it (L-REV2 R3-12)
     const sees = (s: PolicyStream) => (sk ? coachSees(ix, ctx, sk, s) : matrix[s]?.imported && matrix[s]?.coach !== 'hidden');
-    if (isAgent(ctx) && def && !def.optInStreams.every(sees)) {
+    if (isAgent(ctx) && (!def || !def.optInStreams.every(sees))) {
       hidden.add(r.scoreId);
       continue;
     }
@@ -418,7 +450,7 @@ export async function scores(ctx: CommandContext, input: ScoresIn) {
       ...(r.band && Number.isFinite(r.band.lo) && Number.isFinite(r.band.hi) ? { band: { lo: round(r.band.lo, 3), hi: round(r.band.hi, 3), level: r.band.level } } : {}),
       confidence: r.confidence,
       label: def?.label ?? 'measurement',
-      source: sk ? labelOf(ix, sk) : null,
+      source: sk ? labelOf(ix, sk, isAgent(ctx)) : null,
       tier: sk ? tierOf(ix, sk) : typeof r.detail?.['tier'] === 'string' ? (r.detail['tier'] as DeviceTier) : null,
       ...(r.sourceIds.some((id) => id.startsWith('corr:')) ? { corrected: true } : {}),
     });

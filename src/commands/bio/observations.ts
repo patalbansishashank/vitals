@@ -8,12 +8,14 @@
  * revision and range, so repeated reads during one projection cost nothing.
  */
 import type { DayObservations, LogEntry, ObservationAdapter } from '@/living';
+import { addDays } from '@/living/dates';
 import type { DocumentStore } from '@/store';
 import { getDocumentStore } from '@/state/runtime';
 import { timeZone } from '../bus';
 import { effectivePolicy } from '@/biometrics/core/effective';
 import { buildObservations } from '@/biometrics/core/observations';
-import type { PolicyStream } from '@/biometrics/core/types';
+import { contentRecordId, LUMEN_SOURCE } from '@/biometrics/core/recordIds';
+import type { BioRecord, PolicyStream } from '@/biometrics/core/types';
 import { sharedBioIndex, type BioDocIndex } from '@/biometrics/store/docIndex';
 
 const zone = (): string => timeZone();
@@ -29,19 +31,32 @@ export function observationsFromIndex(ix: BioDocIndex, from: string, to: string,
 }
 
 const DEVICE_STREAM: Partial<Record<LogEntry['kind'], PolicyStream>> = { steps: 'steps', sleep: 'sleep_sessions', session: 'workouts' };
+const DEVICE_KIND: Partial<Record<LogEntry['kind'], BioRecord['kind']>> = { steps: 'daily', sleep: 'sleep', session: 'workout' };
+
+/** The source of the record an entry names by the id it had before `biometrics.ringFold` re-id'd it under the ring
+ * key: the record of the entry's kind, on the entry's day or its neighbours, whose Lumen-form content id is that id. */
+function reidSource(ix: BioDocIndex, e: LogEntry, id: string): string | undefined {
+  const kind = DEVICE_KIND[e.kind];
+  for (const r of ix.latestRecords(addDays(e.date, -1), addDays(e.date, 1))) {
+    if (r.record.kind === kind && contentRecordId(r.record, LUMEN_SOURCE) === id) return r.sourceKey;
+  }
+  return undefined;
+}
 
 /**
  * Ids of the device entries (`log.fromBiometrics`) whose stream the person hides from the Coach (plan 04 item 11): the
- * plan uses them (`engine` on), an agent's read leaves them out. The entry's record names its source; a record no longer
- * stored falls back to the person's own setting. Entries by hand are not device data and are never in it.
+ * plan uses them (`engine` on), an agent's read leaves them out. The entry's record names its source (by its current
+ * id, or by the id it had before the ring fold re-id'd it); a record no longer stored falls back to the person's own
+ * setting. Entries by hand are not device data and are never in it.
  */
 export function coachHiddenEntryIds(ix: BioDocIndex, entries: readonly LogEntry[]): Set<string> {
   const out = new Set<string>();
   for (const e of entries) {
     const stream = DEVICE_STREAM[e.kind];
     if (!stream || e.source.by !== 'device' || e.source.method !== 'biometrics') continue;
-    const doc = e.source.bioRecordId ? ix.latest.get(e.source.bioRecordId) : undefined;
-    const sk = doc ? ix.recDocs.get(doc)?.sourceKey : undefined;
+    const id = e.source.bioRecordId;
+    const doc = id ? ix.latest.get(id) : undefined;
+    const sk = doc ? ix.recDocs.get(doc)?.sourceKey : id ? reidSource(ix, e, id) : undefined;
     const p = effectivePolicy(sk ? (ix.source(sk) ?? { policies: [] }) : null, ix.personPolicies, stream);
     if (!p.imported || p.coach === 'hidden') out.add(e.id);
   }

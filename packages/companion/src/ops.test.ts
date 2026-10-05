@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { codexHasVitals, codexWith, codexWithout, detectAgents, parseAgentId, registerAgent, unregisterAgent } from './agents.ts';
 import { main } from './cli.ts';
@@ -8,6 +8,9 @@ import { doctorPassed, findServeUrl, formatDoctor, nodeSupported, readOpencodeZe
 import { installWrapper, unitFile, wrapperRoot, wrapperScript, writeUnit } from './install.ts';
 import type { FetchResult, RunResult, Sys } from './sys.ts';
 import { tempDir } from './testHelpers.ts';
+
+/** The doctor report carries the package's own version (it follows every release). */
+const PKG_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 const HOME = '/home/owner';
 const CODEX = `${HOME}/.codex/config.toml`;
@@ -335,7 +338,7 @@ describe('doctor', () => {
     const out: string[] = [];
     expect(await main(['doctor', '--json', '--config-dir', '/c'], (l) => out.push(l), { sys })).toBe(1);
     const report = JSON.parse(out.join('\n')) as DoctorReport;
-    expect(report.version).toBe('0.4.0');
+    expect(report.version).toBe(PKG_VERSION);
     expect(report.checks.find((c) => c.id === 'port')!.status).toBe('fail');
     const human: string[] = [];
     expect(await main(['doctor', '--config-dir', '/c', '--port', '4999'], (l) => human.push(l), { sys })).toBe(0);

@@ -2,6 +2,21 @@
 
 All notable changes to Vitals. Dates are release dates (IST).
 
+## Unreleased
+
+## [0.5.1] - 2026-10-05
+
+### Fixed
+- A night of sleep from the ring is shown whole again. Vitals split a night at any short gap in the ring's data (a few minutes awake or out of contact) and showed only the longest piece, so a night could end hours early; Lumen's overnight messages also stayed as separate pieces. Pieces from one ring less than an hour apart are now one night, matching what the ring's own app shows, and a later sleep the same morning is shown as one sleep. Nothing stored changes.
+- A night, day or workout that reached Vitals both from the ring and from Lumen Health was stored twice. Both paths now give it the same id, so it is stored once, with the most complete reading kept. On first start Vitals merges the copies already stored; nothing else changes.
+- Turning ring sharing off now also covers a ring that was first set up on another device before that device had the switch. Once the devices sync, its readings stay hidden from the Coach and agents.
+- Agents no longer see a ring's Bluetooth address, serial or advertised name. They see the ring as "J-Style 2301" (ring 1, ring 2 when you have more than one), and a ring you hid from the Coach is not listed to them at all.
+- Logging a meal through an agent when Vitals needs you to pick the food no longer reads as logged. The agent is told nothing was saved and gets the foods to choose from. Logging several days at once now says how many entries were logged and which need a food choice.
+- An AI tool connected to the server is no longer locked out of a tool after about 20 calls in one session. Each call counts on its own; the limit of 60 calls a minute stays.
+- `vitals --mcp` starts on Linux without a display (an AI tool over ssh no longer sees "Connection closed"). Re-add the tool in Settings › Agents once to pick this up.
+- The desktop and Android apps no longer blame "this browser" when the server cannot be reached, and several Settings, Ring and Your data lines now say app instead of browser or tab.
+- The iPad download note, the goal label on activity charts, and the period label on phones (cut at 390 px) are fixed.
+
 ## [0.5.0] - 2026-10-04
 
 Vitals now has a shared website, desktop app and Android app, with ring readings and sync available in the same interface.
