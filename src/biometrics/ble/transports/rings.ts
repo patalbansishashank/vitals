@@ -6,10 +6,13 @@
 import type { Advertisement, RingFamily, Transport, TransportEvent, TransportFactory, Uuid } from '../../../../packages/rings/src/types';
 import { normalizeUuid } from '../../../../packages/rings/src/types';
 import type { CapBleClient, CapScanResult } from './capacitor';
-import type { BleTransport, DeviceQuery, FoundDevice, RingLink } from './types';
+import { NoDeviceError, type BleTransport, type DeviceQuery, type FoundDevice, type RingLink } from './types';
 
-/** A chooser entry may need connected GATT discovery before its family is known. */
-export type ChooserAdvertisement = Advertisement & { needsDiscovery?: true };
+/**
+ * A chooser entry may need connected GATT discovery before its family is known. `nameOnly`: the platform showed nothing
+ * but the name (Electron's list, a browser's pick without services), not the ring's whole advertisement.
+ */
+export type ChooserAdvertisement = Advertisement & { needsDiscovery?: true; nameOnly?: true };
 
 /** A Bluetooth address (Android, Linux, Windows ids); a browser's opaque `device.id` is never one. */
 const addressOf = (id: string | undefined): string | undefined => (id && /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(id) ? id : undefined);
@@ -111,16 +114,45 @@ export function capacitorFactory(client: () => Promise<CapBleClient>, transport:
   };
 }
 
+/** How long the desktop app's ring list keeps looking, unless the person stops it or taps a ring first. */
+export const DESKTOP_SCAN_MS = 180_000;
+/**
+ * How long one desktop request looks. Chromium stops looking 60 s into a request and Electron never starts it again, so
+ * the desktop list opens one request after another until `DESKTOP_SCAN_MS` (a ring may be heard only a few times a minute).
+ */
+export const CHOOSER_WINDOW_MS = 60_000;
+
+export interface ChooserTiming {
+  windowMs: number;
+  totalMs: number;
+}
+
+/** The desktop looks one request after another for 3 minutes; the Android app's own scan has no such limit: one request. */
+const timingFor = (transport: BleTransport): ChooserTiming =>
+  transport.kind === 'electron' ? { windowMs: CHOOSER_WINDOW_MS, totalMs: DESKTOP_SCAN_MS } : { windowMs: CHOOSER_WINDOW_MS, totalMs: CHOOSER_WINDOW_MS };
+
 /**
  * Chooser platforms (browser, desktop app): `scan` opens one request for all the families; each ring the platform lists
  * is reported with its own advertisement hints. On the web the browser's window lists them and `scan` ends with the
  * one the person picked; `connect` then hands over that already-open link. On the desktop the bridge lists them and
- * `connect` answers the open request (or opens a new one that picks the remembered ring).
+ * `connect` answers the open request (or opens a new one that picks the ring); the list keeps looking, one request
+ * after another, until a ring is tapped, the scan is stopped or `timing.totalMs` has passed.
  */
-export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth' | 'electron'): TransportFactory {
+export function chooserFactory(
+  transport: BleTransport,
+  platform: 'web-bluetooth' | 'electron',
+  timing: ChooserTiming = timingFor(transport),
+): TransportFactory {
   const picked = new Map<string, RingLink>();
   let scannedFamilies: readonly RingFamily[] = [];
   let pending: { list: FoundDevice[]; pick: (id: string | null) => void; link: Promise<RingLink> } | undefined;
+  /** The desktop scan running now: a tap ends its run of requests. */
+  let looking: { stopped: boolean } | undefined;
+  /**
+   * The rings the latest desktop scan listed: the first connect to one that is no longer in an open request (a tap on its
+   * row) waits a whole request for it; later connects (reconnects) wait as long as they always have.
+   */
+  let listedIds = new Set<string>();
   const wrap = (link: RingLink): Transport => linkTransport(link);
 
   return {
@@ -129,7 +161,13 @@ export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth
     async scan(families, onFound, signal) {
       scannedFamilies = families;
       const query = familiesQuery(families);
-      const report = (d: FoundDevice): void => onFound({ ...(d.name ? { name: d.name } : {}), serviceUuids: d.serviceUuids ?? [], manufacturerData: d.manufacturerData ?? [], platformId: d.id, needsDiscovery: true } as ChooserAdvertisement);
+      // the Android app's scan sees the whole advertisement; Electron and a browser show only the name
+      const report = (d: FoundDevice): void => {
+        const serviceUuids = d.serviceUuids ?? [];
+        const manufacturerData = d.manufacturerData ?? [];
+        const nameOnly = transport.kind !== 'capacitor' && !serviceUuids.length && !manufacturerData.length;
+        onFound({ ...(d.name ? { name: d.name } : {}), serviceUuids, manufacturerData, platformId: d.id, needsDiscovery: true, ...(nameOnly ? { nameOnly: true } : {}) } as ChooserAdvertisement);
+      };
       if (platform === 'web-bluetooth') {
         const link = await transport.requestDevice(query, { signal });
         // a ring picked earlier but never connected is let go
@@ -141,37 +179,48 @@ export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth
         report({ id, ...(link.deviceName ? { name: link.deviceName } : {}), serviceUuids });
         return;
       }
-      let pick!: (id: string | null) => void;
-      const chosen = new Promise<string | null>((r) => (pick = r));
       const seen = new Set<string>();
-      const p = { list: [] as FoundDevice[], pick, link: undefined as unknown as Promise<RingLink> };
-      p.link = transport.requestDevice(query, {
-        signal,
-        scanMs: 60_000,
-        chooser: {
-          update(list) {
-            p.list = [...list];
-            for (const d of list) {
-              if (seen.has(d.id)) continue;
-              seen.add(d.id);
-              report(d);
-            }
+      listedIds = seen;
+      const run = { stopped: false };
+      looking = run;
+      const until = Date.now() + timing.totalMs;
+      const aborted = new Promise<void>((resolve) => (signal.aborted ? resolve() : signal.addEventListener('abort', () => resolve(), { once: true })));
+      for (let first = true; ; first = false) {
+        const windowMs = Math.min(timing.windowMs, until - Date.now());
+        // after the first request: not when stopped, or with too little time left for Chromium to start looking
+        if (!first && (signal.aborted || run.stopped || windowMs < Math.min(timing.windowMs, 10_000))) break;
+        let pick!: (id: string | null) => void;
+        const chosen = new Promise<string | null>((r) => (pick = r));
+        const p = { list: [] as FoundDevice[], pick, link: undefined as unknown as Promise<RingLink> };
+        const opened = Date.now();
+        p.link = transport.requestDevice(query, {
+          signal,
+          scanMs: windowMs,
+          chooser: {
+            update(list) {
+              p.list = [...list];
+              for (const d of list) {
+                if (seen.has(d.id)) continue;
+                seen.add(d.id);
+                report(d);
+              }
+            },
+            chosen,
           },
-          chosen,
-        },
-      });
-      pending = p;
-      p.link.catch(() => {});
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) return resolve();
-        signal.addEventListener('abort', () => resolve(), { once: true });
-        void p.link.then(() => resolve(), () => resolve());
-      });
-      // ended by abort or by itself: either way nothing can be chosen from this list any more
-      if (pending === p) {
-        pending = undefined;
-        pick(null);
+        });
+        pending = p;
+        p.link.catch(() => {});
+        const ended = await Promise.race([aborted.then(() => 'aborted' as const), p.link.then(() => 'picked' as const, (e: unknown) => e)]);
+        // ended by abort or by itself: either way nothing can be chosen from this list any more
+        if (pending === p) {
+          pending = undefined;
+          pick(null);
+        }
+        // only a request that looked for its whole time is followed by another; a failure (Bluetooth off) ends the scan
+        const ranOut = ended instanceof NoDeviceError && (ended.reason === 'cancelled' || ended.reason === 'not_found') && Date.now() - opened >= windowMs - 1_000;
+        if (!ranOut) break;
       }
+      if (looking === run) looking = undefined;
     },
     async connect(target, family, signal) {
       const ready = picked.get(target.platformId);
@@ -179,13 +228,19 @@ export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth
         picked.delete(target.platformId);
         return wrap(ready);
       }
+      // a tap ends the desktop list's run of requests
+      if (looking) looking.stopped = true;
       if (pending && pending.list.some((d) => d.id === target.platformId)) {
         const p = pending;
         pending = undefined;
         p.pick(target.platformId);
-        return wrap(await p.link);
-      }
-      if (pending) {
+        try {
+          return wrap(await p.link);
+        } catch (e) {
+          // the request ran out just as the ring was tapped: look for that ring below
+          if (!(e instanceof NoDeviceError) || e.reason === 'unavailable' || e.reason === 'permission' || signal?.aborted) throw e;
+        }
+      } else if (pending) {
         // one request at a time: close the open list before asking for the remembered ring
         const p = pending;
         pending = undefined;
@@ -195,7 +250,9 @@ export function chooserFactory(transport: BleTransport, platform: 'web-bluetooth
       if (!transport.reconnect) throw new Error('choose the ring again: this browser cannot reconnect by itself');
       const candidates = family ? [family] : scannedFamilies;
       if (!candidates.length) throw new Error('No family filters available to find this ring');
-      return wrap(await transport.reconnect(target.platformId, familiesQuery(candidates), { signal }));
+      // a ring the list showed, heard by an earlier request: give it a whole request's time to be heard again (once)
+      const opts = listedIds.delete(target.platformId) ? { signal, scanMs: timing.windowMs } : { signal };
+      return wrap(await transport.reconnect(target.platformId, familiesQuery(candidates), opts));
     },
   };
 }

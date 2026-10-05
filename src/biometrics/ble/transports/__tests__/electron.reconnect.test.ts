@@ -11,7 +11,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { attachBluetooth, type ElectronBluetoothDevice, type IpcMainLike, type WebContentsLike } from '../../../../../apps/desktop/src/ble/main';
 import { bluetoothBridge, type IpcRendererLike } from '../../../../../apps/desktop/src/ble/preload';
 import { jstyle2301 } from '../../../../../packages/rings/src';
-import { createElectronTransport, REOPEN_MS } from '../electron';
+import { createElectronTransport, PICKED_CONNECT_MS, REOPEN_MS } from '../electron';
+import { LINK_RELEASE_MS, OP_TIMEOUT_MS } from '../../webBluetooth';
 import { chooserFactory } from '../rings';
 import { NoDeviceError } from '../types';
 
@@ -56,7 +57,8 @@ function world(script: (n: number) => RequestScript) {
   attachBluetooth(wc, ipcMain);
 
   // ---- the ring and BlueZ
-  const ring = { inReach: true, connectMs: 800 };
+  /** `failConnects`: so many connects fail after `connectMs` as BlueZ's do when the ring is not heard in time. */
+  const ring = { inReach: true, connectMs: 800, failConnects: 0 };
   let granted = false;
   let waiting: (() => void) | undefined;
   const log: string[] = [];
@@ -71,10 +73,15 @@ function world(script: (n: number) => RequestScript) {
         log.push('gatt.connect');
         if (!granted) return Promise.reject(Object.assign(new Error('no permission'), { name: 'SecurityError' }));
         if (this.gatt.connected) return Promise.resolve(this.gatt);
-        this.pending ??= new Promise((resolve) => {
+        this.pending ??= new Promise((resolve, reject) => {
           const go = (): void => {
             setTimeout(() => {
               this.pending = undefined;
+              if (ring.failConnects > 0) {
+                ring.failConnects--;
+                log.push('connect failed');
+                return reject(Object.assign(new Error('Connection attempt failed.'), { name: 'NetworkError' }));
+              }
               this.gatt.connected = true;
               log.push('connected');
               resolve(this.gatt);
@@ -181,9 +188,13 @@ describe('desktop reconnect', () => {
     const link = (await timed(t.requestDevice(query, { scanMs: 20_000 }))).value!;
     await link.disconnect();
     w.requestDevice.mockClear();
+    w.log.length = 0;
     const again = await timed(t.reconnect!(ADDRESS, query));
     expect(again.value?.deviceId).toBe(ADDRESS);
-    expect(again.ms).toBeLessThan(2_000);
+    // BlueZ still holds the link ~2 s after the page lets go: the connect waits for it (Lumen: disconnect, wait, close)
+    expect(again.ms).toBeGreaterThanOrEqual(LINK_RELEASE_MS);
+    expect(again.ms).toBeLessThan(LINK_RELEASE_MS + 2_000);
+    expect(w.log).toEqual(['gatt.connect', 'connected']);
     expect(w.requestDevice).not.toHaveBeenCalled();
     // the new link reports the next drop
     const dropped = vi.fn();
@@ -289,6 +300,21 @@ describe('desktop reconnect', () => {
     expect(w.log.filter((x) => x.startsWith('chose:'))).toEqual([`chose:${ADDRESS}`]);
   });
 
+  it('a write that never completes drops the link after OP_TIMEOUT_MS (Lumen recoverWedgedLink)', async () => {
+    const w = world(() => ({ listAfterMs: 300 }));
+    const link = (await timed(w.transport().requestDevice(query, { scanMs: 20_000 }))).value!;
+    const dropped = vi.fn();
+    link.onDisconnect(dropped);
+    const ch = { properties: { write: true }, writeValueWithResponse: () => new Promise<void>(() => {}), writeValueWithoutResponse: () => new Promise<void>(() => {}) };
+    (w.device.gatt as unknown as { getPrimaryService: unknown }).getPrimaryService = async () => ({ getCharacteristic: async () => ch });
+    const r = await timed(link.write(0xfff0, 0xfff6, Uint8Array.of(1)));
+    expect(r.error).toMatchObject({ name: 'NetworkError' });
+    expect(r.ms).toBeGreaterThanOrEqual(OP_TIMEOUT_MS);
+    expect(r.ms).toBeLessThan(OP_TIMEOUT_MS + 500);
+    expect(dropped).toHaveBeenCalledOnce();
+    expect(w.log.at(-1)).toBe('gatt.disconnect');
+  });
+
   it('the service path (chooser factory): Disconnect then Connect again within the 5 s retry step', async () => {
     const w = world((n) => ({ listAfterMs: n === 0 ? 300 : null }));
     const factory = chooserFactory(w.transport(), 'electron');
@@ -299,6 +325,74 @@ describe('desktop reconnect', () => {
     const again = await timed(factory.connect({ platformId: ADDRESS }, jstyle2301, signal));
     expect(again.value?.peripheral.address).toBe(ADDRESS);
     expect(again.ms).toBeLessThan(5_000);
+  });
+
+  it('a ring listed just before the looking time ends: the connect after the pick is not cut off (DESKSCAN)', async () => {
+    // the reconnect looks 15 s; the ring is heard at 14 s and BlueZ takes 9 s to connect a ring that advertises rarely
+    const w = world(() => ({ listAfterMs: 14_000 }));
+    w.ring.connectMs = 9_000;
+    const t = w.transport();
+    const r = await timed(t.reconnect!(ADDRESS, query));
+    expect(r.value?.deviceId).toBe(ADDRESS);
+    expect(r.ms).toBeGreaterThan(20_000);
+    expect(w.log).toEqual(['requestDevice', `chose:${ADDRESS}`, 'gatt.connect', 'connected']);
+    // no second request was opened over the connect (its scan made BlueZ abort the connect on the real PC)
+    expect(w.requestDevice).toHaveBeenCalledOnce();
+  });
+
+  it('a tapped ring BlueZ does not reach in one 40 s try is tried again within the same tap (DESKSCAN)', async () => {
+    const w = world(() => ({ listAfterMs: 2_000 }));
+    w.ring.connectMs = 40_000;
+    w.ring.failConnects = 1;
+    const factory = chooserFactory(w.transport(), 'electron');
+    const ctl = new AbortController();
+    const scanned = factory.scan([jstyle2301], () => {}, ctl.signal);
+    await vi.advanceTimersByTimeAsync(3_000);
+    const r = await timed(factory.connect({ platformId: ADDRESS }, undefined, ctl.signal));
+    expect(r.value?.peripheral.address).toBe(ADDRESS);
+    expect(w.log).toEqual(['requestDevice', `chose:${ADDRESS}`, 'gatt.connect', 'connect failed', 'gatt.connect', 'connected']);
+    expect(w.requestDevice).toHaveBeenCalledOnce();
+    await timed(scanned);
+  });
+
+  it('a ring BlueZ never reaches: the tap fails once the connect time is up, and no retry runs on', async () => {
+    const w = world(() => ({ listAfterMs: 2_000 }));
+    w.ring.connectMs = 40_000;
+    w.ring.failConnects = 99;
+    const t = w.transport();
+    const r = await timed(t.requestDevice(query, { scanMs: 20_000 }), 400_000);
+    expect(r.error).toBeDefined();
+    expect(r.ms).toBeLessThan(PICKED_CONNECT_MS + 45_000);
+    const tries = w.log.filter((x) => x === 'gatt.connect').length;
+    expect(tries).toBe(3);
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(w.log.filter((x) => x === 'gatt.connect').length).toBe(tries);
+  });
+
+  it('a connect Chromium refuses at once is not tried again and again (no spinning)', async () => {
+    const w = world(() => ({ listAfterMs: 2_000 }));
+    w.ring.connectMs = 0;
+    w.ring.failConnects = 99;
+    const r = await timed(w.transport().requestDevice(query, { scanMs: 20_000 }));
+    expect(r.error).toBeDefined();
+    expect(w.log.filter((x) => x === 'gatt.connect')).toHaveLength(1);
+  });
+
+  it('the desktop list: a tap late in a request connects through it, however long the connect takes (up to its limit)', async () => {
+    const w = world(() => ({ listAfterMs: 50_000 }));
+    w.ring.connectMs = 20_000;
+    const factory = chooserFactory(w.transport(), 'electron');
+    const ctl = new AbortController();
+    const listed: string[] = [];
+    const scanned = factory.scan([jstyle2301], (ad) => listed.push(ad.platformId!), ctl.signal);
+    await vi.advanceTimersByTimeAsync(55_000);
+    expect(listed).toEqual([ADDRESS]);
+    const r = await timed(factory.connect({ platformId: ADDRESS }, undefined, ctl.signal));
+    expect(r.value?.peripheral.address).toBe(ADDRESS);
+    expect(r.ms).toBeGreaterThanOrEqual(20_000);
+    expect(w.requestDevice).toHaveBeenCalledOnce();
+    await timed(scanned);
+    expect(PICKED_CONNECT_MS).toBeGreaterThan(r.ms);
   });
 
   it('a request answered on a stale list whose own list never comes ends at its time limit; later reconnects are not blocked', async () => {

@@ -89,6 +89,8 @@ export const RING = {
   cancel: 'Cancel',
   add: 'Add a ring',
   looking: 'Looking for rings nearby…',
+  stillLooking: 'Still looking…',
+  nearby: (n: number) => `${n} ${n === 1 ? 'ring' : 'rings'} nearby`,
   osPrompt: (device: 'phone' | 'computer') => `Your ${device} may ask to pair with the ring. That’s expected; choose Pair.`,
   candidates: 'rings nearby',
   signal: (rssi: number | undefined) => (rssi === undefined ? null : rssi >= -65 ? 'close by' : rssi >= -80 ? 'nearby' : 'far away'),

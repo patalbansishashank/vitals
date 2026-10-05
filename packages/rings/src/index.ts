@@ -55,3 +55,18 @@ export function familyById(id: string): RingFamily | undefined {
 export function matchFamily(ad: Parameters<RingFamily['scan']['match']>[0], families: readonly RingFamily[] = RING_FAMILIES): RingFamily | undefined {
   return families.find((f) => f.scan.match(ad));
 }
+
+/**
+ * The family a bare name belongs to, through the families' own name-only request filters (`name`, `namePrefix`), in
+ * registry order. For a scan entry that carries nothing but a name (the desktop app's list): the name rules inside
+ * `scan.match` are guesses meant for a full advertisement (YCBT's "words, a space, four hex digits" fits many rings),
+ * so on a name alone they decide nothing and the ring is found out over GATT after the tap.
+ */
+export function matchFamilyByName(name: string | undefined, families: readonly RingFamily[] = RING_FAMILIES): RingFamily | undefined {
+  if (!name) return undefined;
+  return families.find((f) =>
+    f.scan.requestFilters.some(
+      (r) => !r.services && !r.manufacturerData && ((r.name !== undefined && r.name === name) || (r.namePrefix !== undefined && name.startsWith(r.namePrefix))),
+    ),
+  );
+}

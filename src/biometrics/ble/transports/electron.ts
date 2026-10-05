@@ -21,6 +21,14 @@ export function desktopBridge(): DesktopBluetoothBridge | undefined {
 
 /** How long a reconnect waits on the kept device's `gatt.connect()` before it looks for the ring with a new request. */
 export const REOPEN_MS = 10_000;
+/**
+ * Once a ring is picked from a list, Chromium hands the device over and connects to it, which BlueZ may take a while to
+ * do with a ring that advertises rarely (BlueZ gives up one try after 40 s; tries are repeated). From the pick the
+ * request's own looking time no longer counts: Chromium gets `GRANT_MS` to hand the device over (a pick that went to a
+ * stale list, whose callback is dead, never is), then the connect gets `PICKED_CONNECT_MS`.
+ */
+export const GRANT_MS = 5_000;
+export const PICKED_CONNECT_MS = 120_000;
 
 /** A Bluetooth address in one form (case, dashes), so an id kept by another layer still matches the bridge's. */
 const addressKey = (id: string): string | undefined => {
@@ -62,9 +70,16 @@ export function createElectronTransport(bridge: () => DesktopBluetoothBridge | u
     const chooser = wanted ? undefined : opts.chooser;
     const reason = (): 'cancelled' | 'not_found' => (opts.signal?.aborted || (chooser && seen > 0) ? 'cancelled' : 'not_found');
     const send = (id: string | null): void => {
+      const first = !sent;
       chosenId = id;
       sent = { id };
       b.choose(id);
+      // a ring was picked: giving up at the end of the looking time cut off the connect that follows (and the next
+      // request's scan made BlueZ abort it: "le-connection-abort-by-local"), so the pick and the connect get their own time
+      if (first && id !== null && timer !== undefined) {
+        clearTimeout(timer);
+        timer = setTimeout(giveUpSent, GRANT_MS);
+      }
     };
     const stopWaiting = (): void => {
       if (!waitingLate) return;
@@ -131,7 +146,18 @@ export function createElectronTransport(bridge: () => DesktopBluetoothBridge | u
       // Chromium ends the requests given up before (their late lists cannot come any more): every list is this one's
       for (const stop of [...late]) stop();
       // Chromium filters the list by the query, so every device the bridge reports already matches the driver
-      const pending = requestDevice({ requestOptions: queryOf(query) });
+      const pending = requestDevice(
+        { requestOptions: queryOf(query) },
+        {
+          // Chromium handed over the picked ring and connects to it now
+          onGranted: () => {
+            if (!sent?.id || gaveUp) return;
+            clearTimeout(timer);
+            timer = setTimeout(giveUpSent, PICKED_CONNECT_MS);
+          },
+          connectForMs: PICKED_CONNECT_MS,
+        },
+      );
       // Chromium ending the abandoned request on its own (or for the next one) leaves no late list to answer. A late list
       // taken for the next request's may still have answered this one with a ring: nobody owns that link, let it go
       pending.then((link) => {
@@ -181,7 +207,7 @@ export function createElectronTransport(bridge: () => DesktopBluetoothBridge | u
             // out of reach for now, or the platform forgot the device: look for it with a new request
           }
         }
-        return request(query, { ...opts, scanMs: 15_000 }, deviceId);
+        return request(query, { ...opts, scanMs: opts.scanMs ?? 15_000 }, deviceId);
       }),
   };
 }

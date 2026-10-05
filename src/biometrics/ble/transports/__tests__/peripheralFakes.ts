@@ -5,7 +5,10 @@
  *
  * The fakes behave like the real platforms where an adapter could get it wrong: a notification buffer is rewritten
  * right after it is delivered, a service the page never asked for is refused, the Capacitor plugin reports a drop after
- * an app-made disconnect too, and Chromium refuses a request without a click. They never print a frame: bytes only
+ * an app-made disconnect too, and Chromium refuses a request without a click. After a disconnect Chromium hands out new
+ * characteristic objects, but keeps the page's notification subscription (BlueZ turns it back on when the ring
+ * reconnects): `startNotifications()` on a new object then succeeds at once and notifications still go to the old one,
+ * until some object stops them (seen on the owner's ring, DESKSCAN). They never print a frame: bytes only
  * travel to the peripheral, which keeps them (the 0x3C write included) in `writes`.
  */
 import { jstyle2301 } from '../../../../../packages/rings/src/jstyle2301/family';
@@ -110,16 +113,22 @@ class FakeWebChar extends EventTarget {
   };
   startNotifications = async (): Promise<this> => {
     this.check();
-    this.stop = await this.dev.ring.fake.subscribe(this.service, this.uuid, 'notify');
-    this.dev.live.set(`${this.service}/${this.uuid}`, this);
     this.dev.stats.notifyStarts++;
+    const key = `${this.service}/${this.uuid}`;
+    // a subscription the page still holds for this characteristic (from before a drop): Chromium says yes at once
+    if (this.dev.live.has(key)) return this;
+    this.stop = await this.dev.ring.fake.subscribe(this.service, this.uuid, 'notify');
+    this.dev.live.set(key, this);
     return this;
   };
   stopNotifications = async (): Promise<this> => {
     this.dev.stats.notifyStops++;
-    this.dev.live.delete(`${this.service}/${this.uuid}`);
-    await this.stop?.();
-    this.stop = undefined;
+    // Chromium ends the page's subscription for the characteristic, whichever object it was started on
+    const key = `${this.service}/${this.uuid}`;
+    const held = this.dev.live.get(key);
+    this.dev.live.delete(key);
+    await held?.stop?.();
+    if (held) held.stop = undefined;
     return this;
   };
   readValue = async (): Promise<DataView> => {
@@ -147,14 +156,20 @@ class FakeGatt {
   }
   async connect(): Promise<this> {
     this.dev.connected = true;
+    this.dev.ring.fake.connected = true;
     return this;
   }
   disconnect(): void {
     if (!this.dev.connected) return;
     this.dev.connected = false;
     this.dev.stats.disconnects++;
+    this.forget();
     void this.dev.ring.fake.disconnect();
     this.dev.dispatchEvent(new Event('gattserverdisconnected'));
+  }
+  /** Blink drops its attribute objects on every disconnect: the next connection gets new characteristic objects. */
+  forget(): void {
+    this.chars.clear();
   }
   async getPrimaryService(s: BluetoothServiceUUID): Promise<{ getCharacteristic(c: BluetoothServiceUUID): Promise<FakeWebChar> }> {
     if (!this.dev.connected) throw named('NetworkError', 'GATT Server is disconnected. Cannot retrieve services.');
@@ -196,6 +211,7 @@ export class FakeWebDevice extends EventTarget {
   private ringDropped(): void {
     if (!this.connected) return;
     this.connected = false;
+    this.gatt.forget();
     this.dispatchEvent(new Event('gattserverdisconnected'));
   }
 }
@@ -347,6 +363,7 @@ export class FakeCapClient implements CapBleClient {
     if (deviceId !== this.o.deviceId) throw new Error('device not found');
     this.connects.push(deviceId);
     this.connected = true;
+    this.ring.fake.connected = true;
     this.onDrop = onDisconnect;
   }
   /** The plugin reports `onDisconnect` for an app-made disconnect too; with no link it just resolves (Device.kt). */

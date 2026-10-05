@@ -135,6 +135,25 @@ describe('J2-07 a ring never stays stuck after a failed connect or read', () => 
     expect(svc.rings()[0]!.state).toBe('connected');
   });
 
+  it('a desktop reconnect that takes a 15 s look plus most of BlueZ\'s 40 s try is not cut off: one attempt, then the read', async () => {
+    const { svc, ring, clock, ports } = known();
+    expect(CONNECT_ATTEMPT_MS).toBeGreaterThan(40_000);
+    let calls = 0;
+    ports.connector.reconnect = (platformId) => {
+      calls++;
+      return new Promise<RingLinkSession>((r) => clock.setTimeout(() => r(ring.open(platformId, clock)), 41_000));
+    };
+    void svc.start();
+    await settle();
+    await clock.advance(30_000);
+    expect(svc.rings()[0]!.state).toBe('connecting'); // 30 s (Lumen's Android bound) cut this ring off on the owner's PC
+    await clock.advance(11_000);
+    await settle();
+    expect(calls).toBe(1);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    expect(ring.held?.syncCalls).toHaveLength(1);
+  });
+
   it('a late link that does come up after the attempt was given up is closed', async () => {
     const { svc, ring, clock, ports } = known();
     const late: RingLinkSession[] = [];
@@ -161,14 +180,14 @@ describe('J2-07 a ring never stays stuck after a failed connect or read', () => 
     expect(done).toBe(true);
   });
 
-  it('the first retry after a failed start-up connect comes after 2 s, then the Android backoff', async () => {
+  it('the retries after a failed start-up connect follow Lumen\'s backoff: 5, 15, 30 s', async () => {
     const { svc, ring, clock } = known();
     ring.refuse = 'not_found';
     await svc.start();
     await settle();
-    for (const ms of [2_000, 5_000, 15_000]) await clock.advance(ms);
+    for (const ms of [5_000, 15_000, 30_000]) await clock.advance(ms);
     const t0 = ring.connectAttempts[0]!.at;
-    expect(ring.connectAttempts.map((a) => a.at - t0)).toEqual([0, 2_000, 7_000, 22_000]);
+    expect(ring.connectAttempts.map((a) => a.at - t0)).toEqual([0, 5_000, 20_000, 50_000]);
   });
 });
 
@@ -324,14 +343,14 @@ describe('C-RINGX-15 the retry follows the GATT status of the failure', () => {
     expect(toLinkError(new Error('no status here')).gattStatus).toBeUndefined();
   });
 
-  it('GATT 133 gives the 2 s first retry, then two fast 5 s retries, then the usual backoff', async () => {
+  it('GATT 133 gives two fast 5 s retries, then the usual backoff (Lumen ReconnectBackoff)', async () => {
     const { svc, clock, ports } = known();
     const at = gattFailing(ports.connector, clock, [133, 133, 133, 133]);
     await svc.start();
     await settle();
     expect(svc.rings()[0]!.state).toBe('error');
-    for (const ms of [2_000, 5_000, 5_000, 30_000]) await clock.advance(ms);
-    expect(at.map((t) => t - at[0]!)).toEqual([0, 2_000, 7_000, 12_000, 42_000]);
+    for (const ms of [5_000, 5_000, 30_000, 60_000]) await clock.advance(ms);
+    expect(at.map((t) => t - at[0]!)).toEqual([0, 5_000, 10_000, 40_000, 100_000]);
     expect(svc.rings()[0]!.state).toBe('connected');
   });
 

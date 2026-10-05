@@ -96,6 +96,7 @@ export const RING_PAGE_COPY = {
     lookForRings: 'Look for rings',
     cancel: 'Cancel',
     looking: 'looking for rings…',
+    stillLooking: 'still looking…',
     stopped: 'Stopped looking.',
     stop: 'Stop',
     lookAgain: 'Look again',

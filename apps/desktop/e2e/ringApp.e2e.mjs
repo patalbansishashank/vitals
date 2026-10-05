@@ -1,5 +1,6 @@
 // The real ring through the packaged desktop app's own screens and the ring service: first run, Settings › Devices ›
-// "Add a ring", one tap on the J-Style 2301 in the list, the service connects (the built-in passcode, no prompt) and
+// "Add a ring", one tap on the J-Style 2301 in the list (listed as "Ring": the desktop sees only the advertised name, so
+// the family is found over GATT after the tap), the service connects (the built-in passcode, no prompt) and
 // reads the history; the ring card then shows "Last read", the tray keeps the app awake while connected, and the
 // readings are in the app (bio.sources, bio.series through the read-only QA hook). Then Disconnect and Connect again
 // without a list. Counts and times only. Run under the hardware locks (ring, then phone, then pc-ble), ring free:
@@ -75,10 +76,14 @@ try {
       const start = page.getByRole('button', { name: attempt === 1 ? 'Add a ring' : 'Look again' });
       await start.click({ timeout: 30_000 });
       const list = page.locator('[aria-label="rings nearby"] button');
-      await list.first().waitFor({ timeout: 60_000 });
+      // the desktop list looks for up to 3 minutes; this PC may hear the ring only a few times a minute
+      const listed = Date.now();
+      await list.first().waitFor({ timeout: 185_000 });
       const names = (await list.allInnerTexts()).map((x) => x.replace(/\s+/g, ' ').trim());
-      const pick = list.filter({ hasText: /J-Style/i }).first();
-      if (!(await pick.count())) throw new Error(`no J-Style ring in the list (${names.length} rows: ${names.join(' | ')})`);
+      // a name-only row is "Ring" (no family guessed from a name); a J-Style label would come from a name filter
+      const pick = list.filter({ hasText: /^(J-Style|Ring$)/i }).first();
+      if (!(await pick.count())) throw new Error(`no J-Style or "Ring" row in the list (${names.length} rows: ${names.join(' | ')})`);
+      notes.push(`listed after ${secs(listed)}`);
       const label = await pick.innerText();
       await pick.click();
       pairedAt = Date.now();

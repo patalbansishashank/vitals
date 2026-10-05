@@ -23,10 +23,15 @@ import {
 export const TAKEOVER_STEP_MS = 5_000;
 /** A holder that has not let go by then may be gone (app killed, lease still fresh): try the radio; the ring decides. */
 export const TAKEOVER_FORCE_MS = 20_000;
-/** One connect attempt that has not settled by then (the platform never answered) is given up and retried. */
+/**
+ * One connect attempt that has not settled by then (the platform never answered) is given up and retried. Not Lumen's
+ * 30 s `RingBLEClient.CONNECT_TIMEOUT_MS`: that times Android's bare `connectGatt`, while a desktop attempt is a 15 s
+ * look for the ring plus BlueZ's 40 s connect try (the idle ring advertises only every 20–40 s). At 30 s the owner's
+ * relaunch and every reconnect after a drop were cut off before BlueZ reached the ring ("needs attention" 30 s in).
+ */
 export const CONNECT_ATTEMPT_MS = 45_000;
-/** The first retry after a failed attempt: a fresh start should reach the ring within seconds. */
-export const FIRST_RETRY_MS = 2_000;
+/** The first retry after a drop or a failed attempt: Lumen's `ReconnectBackoff.DELAYS[0]`. */
+export const FIRST_RETRY_MS = ANDROID_RECONNECT.delaysMs[0]!;
 export const ANOTHER_APP = 'Your ring may be connected to another app or phone. Close it there, then try again.';
 
 const MESSAGES: Record<RingServiceErrorCode, string> = {
@@ -71,7 +76,17 @@ interface Entry {
   checking?: Promise<unknown>;
   connectAbort?: AbortController;
   abort?: AbortController;
+  /** A read left for later because live heart rate came first (see `LIVE_FIRST_MS`). */
+  readDue?: boolean;
 }
+
+/**
+ * A link that came back by itself while someone watches live heart rate, within this long of the last good read, gets
+ * live heart rate back at once; the read waits until the watching ends (or the periodic read). The ring does one thing
+ * at a time, and on the desktop a read takes about 40 s: reading first left the heart rate blank that long after each
+ * drop (the owner's ring and PC lose the link every few minutes: BlueZ "Connection timeout").
+ */
+export const LIVE_FIRST_MS = 10 * 60_000;
 
 const isRingSource = (s: SourceBody): boolean => s.deviceType === 'ring' && typeof s.ble?.driver === 'string';
 const SPOT: Record<CheckMetric, SpotKind> = { hr: 'hr', spo2: 'spo2', hrv: 'hrv', skin_temp: 'temperature' };
@@ -220,11 +235,12 @@ export function createRingService(ports: RingServicePorts): RingService {
   function scheduleRetry(e: Entry): void {
     e.cancelRetry?.();
     e.cancelRetry = undefined;
-    // a short first retry, then the Android backoff (5, 15, 30, 60, 120, 300 s; 5 s twice after GATT 133). After 257
-    // Bluetooth coming back on reconnects; Android also gives 257 with Bluetooth on, so the slowest step stays as a net
-    const backoff = reconnectDelayMs(ANDROID_RECONNECT, Math.max(0, e.attempt - 1), e.gattStatus);
-    const delay = backoff === null ? ANDROID_RECONNECT.delaysMs[ANDROID_RECONNECT.delaysMs.length - 1]! : e.attempt === 0 ? FIRST_RETRY_MS : backoff;
-    e.attempt++;
+    // Lumen's `ReconnectBackoff.nextDelay`: 5, 15, 30, 60, 120, 300 s (5 s twice after GATT 133/22/62), reset when a
+    // link comes up. After 257 Bluetooth coming back on reconnects; Android also gives 257 with Bluetooth on, so the
+    // slowest step stays as a net
+    const backoff = reconnectDelayMs(ANDROID_RECONNECT, e.attempt, e.gattStatus);
+    const delay = backoff === null ? ANDROID_RECONNECT.delaysMs[ANDROID_RECONNECT.delaysMs.length - 1]! : backoff;
+    e.attempt = Math.min(e.attempt + 1, ANDROID_RECONNECT.delaysMs.length);
     e.cancelRetry = clock.setTimeout(() => {
       e.cancelRetry = undefined;
       void autoConnect(e);
@@ -274,7 +290,7 @@ export function createRingService(ports: RingServicePorts): RingService {
   /** A link that can be opened again without a gesture (Android, desktop; not the web). */
   const canReopen = (e: Entry): boolean => !!connector.reconnect && !!e.local.platformId;
 
-  async function onConnected(e: Entry, session: RingLinkSession, o: { full?: boolean; signal?: AbortSignal; onProgress?: (p: number, stage: string) => void }): Promise<RingSyncReport> {
+  async function onConnected(e: Entry, session: RingLinkSession, o: { auto?: boolean; full?: boolean; signal?: AbortSignal; onProgress?: (p: number, stage: string) => void }): Promise<RingSyncReport> {
     const keyFamily = parseRingKey(e.ringKey)?.family;
     const actualFamily = familyIdentity(session.identity.driverId).family;
     if (keyFamily && familyIdentity(keyFamily).family !== actualFamily) {
@@ -288,9 +304,11 @@ export function createRingService(ports: RingServicePorts): RingService {
       set(e, { label: fam.label, caps: checks?.length ? { checks } : undefined });
     }
     e.session = session;
-    // the backoff starts again only after a good read (a link that comes up but cannot read must not retry every 2 s)
+    // Lumen resets its backoff when a link is up (`resetReconnectBackoff` on CONNECTED): the next drop retries in 5 s
     e.cancelRetry?.();
     e.cancelRetry = undefined;
+    e.attempt = 0;
+    e.gattStatus = undefined;
     e.abort = new AbortController();
     e.offDrop = session.onDisconnected(() => onDropped(e));
     let info: Awaited<ReturnType<RingLinkSession['info']>>;
@@ -332,6 +350,13 @@ export function createRingService(ports: RingServicePorts): RingService {
         });
       }, SYNC_EVERY_MS);
     };
+    const lastRead = e.status.lastSyncAt ? Date.parse(e.status.lastSyncAt) : NaN;
+    if (o.auto && e.liveWatchers > 0 && Number.isFinite(lastRead) && clock.now() - lastRead < LIVE_FIRST_MS) {
+      e.readDue = true;
+      periodic();
+      startLive(e);
+      return { sourceKey: e.ringKey, driver: e.driverId, firmware: info.firmware, battery: info.battery ?? null, records: 0, samples: 0, duplicates: 0, days: null, warnings: [], scored: 0 };
+    }
     try {
       return await runSync(e, o);
     } finally {
@@ -443,6 +468,7 @@ export function createRingService(ports: RingServicePorts): RingService {
         });
         e.attempt = 0;
         e.gattStatus = undefined;
+        e.readDue = false;
         set(e, { state: 'connected', syncProgress: undefined, lastSyncAt: at, lastSyncBy: undefined, firmware: info.firmware, ...(battery !== undefined ? { battery } : {}), ...(folded.charging !== undefined ? { charging: folded.charging } : {}) });
         return { ...rep, sourceKey: e.ringKey, driver: e.driverId, firmware: info.firmware, battery: battery ?? null, warnings: [...folded.errors.filter((x) => !x.startsWith('unsupported_firmware')), ...rep.warnings].slice(0, 50) };
       } catch (err) {
@@ -806,6 +832,8 @@ export function createRingService(ports: RingServicePorts): RingService {
         if (e.liveWatchers === 0) {
           e.liveAbort?.abort();
           e.liveAbort = undefined;
+          // the read live heart rate went before
+          if (e.readDue && e.session) void runSync(e, {}).catch(() => undefined);
         }
       };
     },

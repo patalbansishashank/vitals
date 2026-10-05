@@ -8,7 +8,7 @@ import type { BleLink } from '@/biometrics/core/ble/types';
 import { gattStatusOf } from '@/biometrics/ble/transports/capacitor';
 import { linkTransport, type ChooserAdvertisement } from '@/biometrics/ble/transports/rings';
 import { NoDeviceError, type RingLink } from '@/biometrics/ble/transports/types';
-import { RING_FAMILIES, matchFamily, rerouteAfterDiscovery } from '../../../../packages/rings/src/index';
+import { RING_FAMILIES, matchFamily, matchFamilyByName, rerouteAfterDiscovery } from '../../../../packages/rings/src/index';
 import { openRingSession, type SessionOptions } from '../../../../packages/rings/src/session';
 import { RingError, type Advertisement, type RingFamily, type RingSession, type SpotKind, type Transport, type TransportFactory } from '../../../../packages/rings/src/types';
 import { familyIdentity, macOf } from '../identity';
@@ -24,6 +24,13 @@ export interface RingsConnectorOptions {
   /** What "not available" means on this platform (default: the browser has no Web Bluetooth); asked each time. */
   unavailable?: RingAvailability | (() => RingAvailability);
 }
+
+/**
+ * A chooser entry with nothing but a name (the desktop app's list: Electron gives the page only an id and a name). Such
+ * an entry gets a family only from a family's own name filter; otherwise it is listed as "Ring" and GATT discovery picks
+ * the driver after the tap. The Android app's scan has the whole advertisement and is matched as before.
+ */
+const nameOnly = (ad: Advertisement): boolean => (ad as ChooserAdvertisement).nameOnly === true;
 
 const STREAM_OF: Record<SpotKind, string> = { hr: 'hr', spo2: 'spo2', hrv: 'hrv', temperature: 'skin_temp', stress: 'vendor:stress' };
 const CHECK_OF: Partial<Record<SpotKind, CheckMetric>> = { hr: 'hr', spo2: 'spo2', hrv: 'hrv', temperature: 'skin_temp' };
@@ -197,7 +204,7 @@ export function createRingsConnector(o: RingsConnectorOptions): RingConnector {
         w?.();
       };
       const onFound = (ad: Advertisement): void => {
-        const family = matchFamily(ad, families);
+        const family = nameOnly(ad) ? matchFamilyByName(ad.name, families) : matchFamily(ad, families);
         if (!family && !(ad as ChooserAdvertisement).needsDiscovery) return;
         const candidateId = ad.platformId ?? `ring:${++n}`;
         if (seen.has(candidateId)) return;

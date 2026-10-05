@@ -5,7 +5,8 @@ import { Toaster } from '@/components';
 import { RingServiceProvider, type RingCandidate, type RingPlatform, type RingService, type RingStatus } from '../data';
 import { createFakeRingService, createFakeSharing, scenarioPlatform, type FakeRingService } from '../fixtures';
 import { RingPageBody } from '../RingPage';
-import { DONE_HOLD_MS, SCAN_MS, SETTLE_MS, pairStage } from '../PairingFlow';
+import { DESKTOP_SCAN_MS } from '@/biometrics/ble/transports/rings';
+import { DONE_HOLD_MS, SCAN_MS, SETTLE_MS, STILL_LOOKING_MS, pairStage } from '../PairingFlow';
 import { signalOf, sortCandidates } from '../ScanList';
 
 // The sections are other files' work; the flow is tested on its own.
@@ -233,12 +234,16 @@ describe('pairing flow (§5.5)', () => {
     expect(rowNames()).toHaveLength(2);
   });
 
-  it('stops looking after 30 s; the list stays with Look again', async () => {
+  it('says it is still looking after 15 s, stops looking after 30 s; the list stays with Look again', async () => {
     const fake = createFakeRingService('none', { now: NOW });
     renderPage(fake);
     fireEvent.click(screen.getByRole('button', { name: 'Look for rings' }));
-    await flush(SCAN_MS - 1);
+    await flush(STILL_LOOKING_MS - 1);
     expect(within(pair()).getByRole('status').textContent).toBe('looking for rings…');
+    await flush(1);
+    expect(within(pair()).getByRole('status').textContent).toBe('still looking…');
+    await flush(SCAN_MS - STILL_LOOKING_MS - 1);
+    expect(within(pair()).getByRole('status').textContent).toBe('still looking…');
     await flush(1);
     expect(within(pair()).getByRole('status').textContent).toBe('Stopped looking.');
     expect(rowNames()).toHaveLength(2);
@@ -246,6 +251,24 @@ describe('pairing flow (§5.5)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Look again' }));
     await flush();
     expect(within(pair()).getByRole('status').textContent).toBe('looking for rings…');
+  });
+
+  it('on the desktop it keeps looking for 3 minutes and shows a ring heard late as "Ring"', async () => {
+    const late: RingCandidate = { candidateId: 'E2:80:00:00:73:07', driverId: 'unidentified', label: 'Ring', known: false, idTail: '7307' };
+    const fake = withScan(createFakeRingService('none', { now: NOW }), [late], 40_000);
+    renderPage(fake, DESKTOP);
+    fireEvent.click(screen.getByRole('button', { name: 'Look for rings' }));
+    await flush(SCAN_MS);
+    expect(within(pair()).getByRole('status').textContent).toBe('still looking…');
+    expect(rowNames()).toEqual([]);
+    await flush(40_000 - SCAN_MS);
+    expect(rowNames()).toEqual(['Ring · ending 7307']);
+    expect(within(pair()).getByRole('status').textContent).toBe('still looking…');
+    await flush(DESKTOP_SCAN_MS - 40_000 - 1);
+    expect(within(pair()).getByRole('status').textContent).toBe('still looking…');
+    await flush(1);
+    expect(within(pair()).getByRole('status').textContent).toBe('Stopped looking.');
+    expect(rowNames()).toEqual(['Ring · ending 7307']);
   });
 
   it('nothing found after 30 s says so', async () => {

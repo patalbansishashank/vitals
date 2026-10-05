@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { LEASE_HEARTBEAT_MS, LEASE_STALE_MS, SYNC_EVERY_MS } from '../types';
-import { ANOTHER_APP, createRingService } from '../ringService';
+import { ANOTHER_APP, LIVE_FIRST_MS, createRingService } from '../ringService';
 import { devicePorts, FakeClock, FakeRing, MemoryLocal, RING_KEY, settle, SharedStore } from './fakes';
 
 const ADV_NAME = 'Fake Ring 7307';
@@ -98,16 +98,16 @@ describe('auto-connect and history', () => {
     expect(ring.held?.syncCalls).toHaveLength(3);
   });
 
-  it('retries after 2 s, then with the Android backoff (5, 15, 30, 60, 120, 300 s) while the ring cannot be found, and says why', async () => {
+  it('retries with Lumen\'s backoff (5, 15, 30, 60, 120, 300 s, then 300 s) while the ring cannot be found, and says why', async () => {
     const { svc, ring, clock } = setup();
     ring.refuse = 'not_found';
     await svc.start();
     await settle();
     expect(svc.rings()[0]!.state).toBe('error');
     expect(svc.rings()[0]!.error?.message).toBe(ANOTHER_APP);
-    for (const ms of [2_000, 5_000, 15_000, 30_000, 60_000, 120_000, 300_000, 300_000]) await clock.advance(ms);
+    for (const ms of [5_000, 15_000, 30_000, 60_000, 120_000, 300_000, 300_000]) await clock.advance(ms);
     const t0 = ring.connectAttempts[0]!.at;
-    expect(ring.connectAttempts.map((a) => a.at - t0)).toEqual([0, 2_000, 7_000, 22_000, 52_000, 112_000, 232_000, 532_000, 832_000]);
+    expect(ring.connectAttempts.map((a) => a.at - t0)).toEqual([0, 5_000, 20_000, 50_000, 110_000, 230_000, 530_000, 830_000]);
     ring.refuse = null;
     await clock.advance(300_000);
     expect(svc.rings()[0]!.state).toBe('connected');
@@ -259,13 +259,66 @@ describe('live heart rate, checks, battery', () => {
     expect(s.liveActive).toBe(false);
   });
 
-  it('a watcher at a reconnect: live heart rate starts after the first read, never during it', async () => {
+  it('a watcher at a reconnect soon after a read: live heart rate comes back at once, the read waits until the watching ends', async () => {
     const { svc, ring, clock } = setup();
     await svc.start();
     await settle();
     const stop = svc.watchLiveHeartRate(RING_KEY);
     await settle();
     expect(ring.held!.liveActive).toBe(true);
+    ring.held!.drop();
+    await settle();
+    await clock.advance(5_000);
+    const s = ring.held!;
+    // the reconnect ran the handshake (a new session) but no read: live heart rate first
+    expect(s.syncCalls).toHaveLength(0);
+    expect(s.liveActive).toBe(true);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    stop();
+    await settle();
+    expect(s.liveActive).toBe(false);
+    expect(s.syncCalls).toHaveLength(1);
+    expect(s.overlaps).toEqual([]);
+  });
+
+  it('live heart rate keeps updating for 2 minutes through a drop: Lumen\'s 5 s reconnect, the handshake, then live again', async () => {
+    const { svc, ring, clock } = setup();
+    await svc.start();
+    await settle();
+    const seen: Array<{ at: number; bpm: number }> = [];
+    const off = svc.subscribe((rs) => {
+      const hr = rs[0]?.liveHr;
+      if (hr && seen.at(-1)?.at !== clock.now()) seen.push({ at: clock.now(), bpm: hr.bpm });
+    });
+    const stop = svc.watchLiveHeartRate(RING_KEY);
+    await settle();
+    const t0 = clock.now();
+    const opens = ring.connectAttempts.length;
+    for (let s = 0; s < 120; s += 2) {
+      if (s === 60) {
+        ring.held!.drop();
+        await settle();
+      }
+      ring.held?.pushLive(60 + (s % 7), clock.now());
+      await clock.advance(2_000);
+    }
+    // one reconnect, 5 s after the drop
+    expect(ring.connectAttempts.slice(opens).map((a) => a.at - t0)).toEqual([65_000]);
+    const gaps = seen.slice(1).map((x, i) => x.at - seen[i]!.at);
+    expect(Math.max(...gaps)).toBeLessThanOrEqual(8_000);
+    expect(seen.at(-1)!.at - t0).toBeGreaterThanOrEqual(116_000);
+    expect(ring.held!.liveActive).toBe(true);
+    stop();
+    off();
+  });
+
+  it('a watcher at a reconnect long after the last read: the read comes first, live heart rate after it, never during it', async () => {
+    const { svc, ring, clock } = setup();
+    await svc.start();
+    await settle();
+    const stop = svc.watchLiveHeartRate(RING_KEY);
+    await settle();
+    await clock.advance(LIVE_FIRST_MS);
     ring.held!.drop();
     await settle();
     let open!: () => void;

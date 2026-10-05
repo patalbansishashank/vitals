@@ -43,6 +43,10 @@ export async function j2301Handshake(rt: SessionRuntime, opts: HandshakeOptions 
   // so battery is read after the handshake on firmware that needs one.
   await rt.run({ op: 'firmware' }, opts.signal);
   const firmware = (rt.state as J2301State).firmware;
+  // No answer at all is a link that does not work yet (its notifications are not reaching this session), not an unknown
+  // firmware: carrying on would skip the passcode step on a V0789 and leave the ring silent. Fail the open; the service
+  // connects again.
+  if (firmware === null) throw new RingError('the ring did not answer the firmware request', 'timeout');
   const profile = firmwareProfile(firmware);
   if (profile.requiresAuthentication) {
     const credential = opts.credential ?? builtInPasscode();
@@ -89,7 +93,9 @@ export function createJ2301Family(opts: J2301Options = {}): RingFamily {
     liveHeartRate: {
       start: { op: 'realtimeSteps', params: { enable: true } },
       stop: { op: 'realtimeSteps', params: { enable: false } },
-      measure: { start: { op: 'hrMeasure', params: { start: true, seconds: 30 } }, stop: { op: 'hrMeasure', params: { start: false, seconds: 30 } }, gapMs: 500, windowMs: 30_000 },
+      // Lumen's manual heart rate, window after window: 0x09 on, 500 ms, 0x28 for 30 s, read for 32 s
+      // (`JStyle2301SyncEngine.spotHeartRateSeconds`), then 0x28 off and 0x09 off
+      measure: { start: { op: 'hrMeasure', params: { start: true, seconds: 30 } }, stop: { op: 'hrMeasure', params: { start: false, seconds: 30 } }, gapMs: 500, windowMs: 32_000 },
     },
     // Lumen's manual heart rate: `RealTimeStep(true)`, 500 ms, then `SetDeviceMeasurementWithType(HR, 30 s, start)`; the 0x28
     // replies carry the reading; stop reverses both (R10 §4.2, the manual heart rate note).

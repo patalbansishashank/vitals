@@ -13,11 +13,12 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { jstyle2301 } from '../../../../../packages/rings/src/jstyle2301/family';
 import { openRingSession } from '../../../../../packages/rings/src/session';
-import { loadSessions, type FakeStep, type FixtureSession } from '../../../../../packages/rings/src/testing';
+import { loadSessions, stepFromFixture, type FakeStep, type FixtureSession } from '../../../../../packages/rings/src/testing';
 import {
   RingError, toHex, uuid16,
   type Advertisement, type HandshakeInfo, type RingEvent, type RingFamily, type RingIdentity, type RingSession, type SessionRuntime, type Transport, type TransportEvent,
 } from '../../../../../packages/rings/src/types';
+import { LINK_RELEASE_MS } from '../../webBluetooth';
 import { createCapacitorTransport } from '../capacitor';
 import { createElectronTransport } from '../electron';
 import { capacitorFactory, chooserFactory, familiesQuery, linkTransport } from '../rings';
@@ -494,5 +495,124 @@ describe('electron: the desktop bridge', () => {
     expect(op.bridge!.chose).toEqual([MAC]);
     expect(op.transport.peripheral.address).toBe(MAC);
     await op.transport.disconnect();
+  });
+});
+
+describe('a reconnect after the ring dropped the link: the whole handshake again (DESKSCAN)', () => {
+  /** The V0789 handshake only: firmware, the 0x3C passcode step, battery (and the serial read). */
+  const handshake: FixtureSession = { ...v0789.session, steps: v0789.session.steps.slice(0, 3) };
+  const again = (ring: Ring): void => ring.fake.script(...handshake.steps.map((x) => stepFromFixture(x)).filter((x): x is FakeStep => x !== undefined));
+  /** Opcodes the ring saw from `from` on (first byte only: the 0x3C frame is never shown). */
+  const opsFrom = (ring: Ring, from: number): number[] => ring.fake.writes.slice(from).map((w) => w[0]!);
+
+  it('the desktop app: firmware, 0x3C and battery go out again and the new session hears every answer', async () => {
+    const ring = ringFor(handshake);
+    const bridge = new FakeDesktopBridge(true);
+    const w = fakeWebBluetooth(ring, { desktop: bridge, id: 'opaque-page-id', address: MAC });
+    vi.stubGlobal('navigator', { bluetooth: w.bluetooth });
+    const factory = chooserFactory(createElectronTransport(() => bridge), 'electron');
+    const first = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+    expect(opsFrom(ring, 0)).toEqual([0x27, 0x3c, 0x13]);
+    // the link drops mid-session (a BlueZ supervision timeout); the service closes the session, then reconnects
+    ring.fake.drop('timeout');
+    await first.close();
+    again(ring);
+    const before = ring.fake.writes.length;
+    const second = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+    expect(opsFrom(ring, before)).toEqual([0x27, 0x3c, 0x13]);
+    expect(second.info().firmware).toBe('V0789');
+    expect(ring.fake.errors).toEqual([]);
+    expect(ring.fake.remaining).toBe(0);
+    // reconnected through the device the page already had: no new list, no new request
+    expect(bridge.log.filter((x) => x === 'request')).toHaveLength(1);
+    await second.close();
+  });
+
+  it('the Android app: firmware, 0x3C and battery go out again', async () => {
+    const ring = ringFor(handshake);
+    const client = new FakeCapClient(ring, { deviceId: MAC });
+    const transport = createCapacitorTransport(async () => client);
+    const factory = capacitorFactory(async () => client, transport);
+    const first = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+    expect(opsFrom(ring, 0)).toEqual([0x27, 0x3c, 0x13]);
+    ring.fake.drop('timeout');
+    await first.close();
+    again(ring);
+    const before = ring.fake.writes.length;
+    const second = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+    expect(opsFrom(ring, before)).toEqual([0x27, 0x3c, 0x13]);
+    expect(second.info().firmware).toBe('V0789');
+    expect(ring.fake.errors).toEqual([]);
+    await second.close();
+  });
+
+  describe('the desktop app: every new link runs firmware → 0x3C → battery, then the read finishes', () => {
+    const v0789Full = v0789.session;
+    const page = v0789Full.steps[v0789Full.steps.length - 1]!;
+    /** The V0789 session with the link dropping after two heart-rate packets, before the page ends. */
+    const midRead: FixtureSession = { ...v0789Full, steps: [...v0789Full.steps.slice(0, -1), { ...page, notify: page.notify!.slice(0, 2), disconnectAfter: true }] };
+    const steps = (s: FixtureSession): FakeStep[] => s.steps.map((x) => stepFromFixture(x)).filter((x): x is FakeStep => x !== undefined);
+    const desktop = (ring: Ring) => {
+      const bridge = new FakeDesktopBridge(true);
+      const w = fakeWebBluetooth(ring, { desktop: bridge, id: 'opaque-page-id', address: MAC });
+      vi.stubGlobal('navigator', { bluetooth: w.bluetooth });
+      return chooserFactory(createElectronTransport(() => bridge), 'electron');
+    };
+    /** The second link: the whole handshake again, then the heart-rate read to its end with nothing left over. */
+    async function readsAgain(ring: Ring, factory: ReturnType<typeof desktop>): Promise<void> {
+      ring.fake.script(...steps(v0789Full), workoutHrEmpty);
+      const before = ring.fake.writes.length;
+      const s = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+      const events: RingEvent[] = [];
+      await into(s.readHistory('hr', {}, abort()), events);
+      expect(opsFrom(ring, before).slice(0, 3)).toEqual([0x27, 0x3c, 0x13]);
+      expect(s.info().firmware).toBe('V0789');
+      expect(events.some((e) => e.type === 'sample' && e.stream === 'hr')).toBe(true);
+      expect(events.some((e) => e.type === 'status' && e.key === 'cursor')).toBe(true);
+      expect(events.filter((e) => e.type === 'status' && e.key === 'error')).toEqual([]);
+      expect(ring.fake.errors).toEqual([]);
+      expect(ring.fake.remaining).toBe(0);
+      await s.close();
+    }
+
+    it('first read: firmware, 0x3C, battery, then the whole heart-rate read', async () => {
+      const ring = ringFor({ ...v0789Full, steps: [] });
+      await readsAgain(ring, desktop(ring));
+    });
+
+    it('a drop in the middle of the read', async () => {
+      const ring = ringFor(midRead);
+      const factory = desktop(ring);
+      const first = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+      const err = await into(first.readHistory('hr', {}, abort()), []).then(() => null, (e: unknown) => e);
+      expect((err as RingError).code).toBe('disconnected');
+      await first.close();
+      await readsAgain(ring, factory);
+    });
+
+    it('Disconnect, then Connect (the next connect waits for BlueZ to let the link go)', { timeout: 15_000 }, async () => {
+      const ring = ringFor(handshake);
+      const factory = desktop(ring);
+      const first = await openRingSession(jstyle2301, await factory.connect({ platformId: MAC }, jstyle2301), fast);
+      await first.close();
+      const t0 = Date.now();
+      await readsAgain(ring, factory);
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(LINK_RELEASE_MS - 100);
+    });
+
+    it('a relaunch (a new page that never saw the ring)', async () => {
+      const ring = ringFor(handshake);
+      const first = await openRingSession(jstyle2301, await desktop(ring).connect({ platformId: MAC }, jstyle2301), fast);
+      await first.close();
+      await readsAgain(ring, desktop(ring));
+    });
+  });
+
+  it('a firmware request the session never hears fails the open: no command goes out without the passcode step', async () => {
+    const ring = ringFor({ ...handshake, steps: [{ ...handshake.steps[0]!, notify: [] }] });
+    const err = await openRingSession(jstyle2301, ring.fake, fast).then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(RingError);
+    expect((err as RingError).code).toBe('timeout');
+    expect(opsFrom(ring, 0)).toEqual([0x27]);
   });
 });

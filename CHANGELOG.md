@@ -4,6 +4,25 @@ All notable changes to Vitals. Dates are release dates (IST).
 
 ## Unreleased
 
+## [0.5.2] - 2026-10-05
+
+### Fixed
+- The desktop app can add a J-Style 2301 ring again. It showed the ring under the wrong family ("YCBT ring") because on the
+  desktop only the ring's name is known before connecting; a name alone no longer picks a family, the row reads "Ring", and
+  the ring is recognised once connected.
+- On the desktop, looking for rings keeps going for up to three minutes (a ring can advertise only a few times a minute), and
+  a connect that started is no longer cut off when the looking time ends; a ring the computer misses on the first try is tried
+  again in the same tap.
+
+- The ring connection now follows Lumen Health's proven sequence on every platform: every connection (first, after a drop,
+  after Disconnect/Connect, after a restart) runs the full handshake (firmware, the firmware passcode, battery) before anything
+  else; live heart rate comes back by itself after a drop; reconnect waits use Lumen's backoff (5, 15, 30, 60, 120, 300 s); a
+  write the ring never answers is dropped after 4 s instead of wedging the queue.
+
+### Known limits
+- These connection changes are proven on a simulated ring; the desktop's first read, restart and last-night view were also
+  checked on the real ring. Why a desktop link sometimes drops after the first read is still being looked at; it reconnects.
+
 ## [0.5.1] - 2026-10-05
 
 ### Fixed

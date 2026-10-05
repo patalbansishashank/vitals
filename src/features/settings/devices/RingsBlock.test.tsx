@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setRingServiceForTests, type RingCandidate, type RingService, type RingStatus } from '@/biometrics/service';
 import { platform } from '@/platform';
-import { RingsBlock } from './RingsBlock';
+import { RingsBlock, STILL_LOOKING_MS } from './RingsBlock';
 
 vi.mock('@/platform', () => ({ platform: vi.fn(() => 'web') }));
 
@@ -239,6 +239,39 @@ describe('Settings › Devices › rings', () => {
     f.finishPair(ring({ state: 'connected' }));
     await waitFor(() => expect(signal!.aborted).toBe(true));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Add a ring' })).toBeTruthy());
+  });
+
+  it('on the desktop keeps the list open while it looks: "Still looking…" after 15 s, a ring heard late shows as "Ring"', async () => {
+    vi.mocked(platform).mockReturnValue('electron');
+    const f = fakeService([], []);
+    let signal: AbortSignal | undefined;
+    f.svc.scan.mockImplementation(async function* (s: AbortSignal) {
+      signal = s;
+      await new Promise((r) => setTimeout(r, 40_000));
+      yield { candidateId: 'E2:80:00:00:73:07', driverId: 'unidentified', label: 'Ring', known: false };
+      await new Promise<void>((r) => s.addEventListener('abort', () => r(), { once: true }));
+    } as never);
+    use(f);
+    vi.useFakeTimers();
+    try {
+      render(<RingsBlock />, { wrapper: MemoryRouter });
+      fireEvent.click(screen.getByRole('button', { name: 'Add a ring' }));
+      const status = () => screen.getAllByRole('status').map((x) => x.textContent).join(' | ');
+      await act(() => vi.advanceTimersByTimeAsync(STILL_LOOKING_MS - 1));
+      expect(status()).toBe('Looking for rings nearby…');
+      await act(() => vi.advanceTimersByTimeAsync(1));
+      expect(status()).toBe('Still looking…');
+      await act(() => vi.advanceTimersByTimeAsync(40_000 - STILL_LOOKING_MS));
+      const list = screen.getByRole('list', { name: 'rings nearby' });
+      expect(within(list).getAllByRole('button').map((x) => x.textContent)).toEqual(['Ring']);
+      expect(status()).toBe('Still looking…');
+      expect(signal!.aborted).toBe(false);
+      fireEvent.click(screen.getByRole('button', { name: 'Stop looking' }));
+      expect(signal!.aborted).toBe(true);
+      expect(screen.getByRole('button', { name: 'Add a ring' })).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('says so when no ring answered, and can look again', async () => {

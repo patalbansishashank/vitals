@@ -73,6 +73,32 @@ const inUse = (device: object): boolean => (live.get(device)?.size ?? 0) > 0;
  */
 const connecting = new WeakMap<object, { server: Promise<GattServer>; lost: boolean }>();
 
+/**
+ * Characteristics some link on this device has started notifications on, kept across drops. Chromium keeps a page's
+ * notification subscription per characteristic, and after a drop BlueZ turns it back on by itself when the ring
+ * reconnects. `startNotifications()` on the new connection's characteristic then succeeds at once while every
+ * notification still goes to the old characteristic object: the new session never hears the ring (on the owner's ring a
+ * reconnect sent the firmware request, got no answer it could see, and so never sent the 0x3C passcode step).
+ */
+const notified = new WeakMap<object, Set<string>>();
+
+/**
+ * After the page lets go of a ring, BlueZ keeps the link about 2 s more (its disconnect timer; seen on the owner's PC:
+ * "Connection terminated by local host" 2.3 s after `disconnect()`). A connect inside that window lands on the closing
+ * link (Chromium says connected, then notifications fail) and the attempt is lost. Lumen waits between `disconnect()`
+ * and `close()` for the same reason (`RingBLEClient.GATT_CLOSE_DELAY_MS`, 500 ms on Android); here the next connect to
+ * the device waits until the link is gone.
+ */
+export const LINK_RELEASE_MS = 2_500;
+const releasedAt = new WeakMap<object, number>();
+
+/**
+ * A GATT write that has not completed by then means a wedged link: Lumen's `OP_TIMEOUT_MS`, after which a command write
+ * tears the link down and reconnects (`recoverWedgedLink`). Here the link is dropped, so the session ends and the
+ * service connects again.
+ */
+export const OP_TIMEOUT_MS = 4_000;
+
 export class WebBluetoothLink implements BleLink, RingLink {
   private serviceCache = new Map<string, Promise<GattService>>();
   private chars = new Map<string, Promise<GattCharacteristic>>();
@@ -144,8 +170,32 @@ export class WebBluetoothLink implements BleLink, RingLink {
       // RingBLEClient.kt:1184 rule: with response when the characteristic supports it, else without.
       const withResponse = opts?.withResponse ?? ch.properties.write;
       const buf = bytes.slice();
-      await (withResponse ? ch.writeValueWithResponse(buf) : ch.writeValueWithoutResponse(buf));
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          withResponse ? ch.writeValueWithResponse(buf) : ch.writeValueWithoutResponse(buf),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              reject(Object.assign(new Error('GATT write timed out'), { name: 'NetworkError' }));
+              this.wedged();
+            }, OP_TIMEOUT_MS);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
     });
+  }
+
+  /** A write never completed: drop the link (Lumen `recoverWedgedLink`), so its owner reconnects from scratch. */
+  private wedged(): void {
+    if (this.dropped) return;
+    live.get(this.device)?.delete(this);
+    if (this.server.connected && !inUse(this.device)) {
+      releasedAt.set(this.device, Date.now());
+      this.server.disconnect();
+    }
+    this.onDrop();
   }
 
   subscribe(s: BluetoothServiceUUID, c: BluetoothServiceUUID, cb: (b: Uint8Array) => void): Promise<() => void> {
@@ -156,10 +206,16 @@ export class WebBluetoothLink implements BleLink, RingLink {
         if (v) cb(copy(v));
       };
       ch.addEventListener('characteristicvaluechanged', handler);
+      const key = `${String(s)}/${String(c)}`.toLowerCase();
+      const started = notified.get(this.device) ?? new Set<string>();
+      // an earlier link's subscription (see `notified`): end it, so this characteristic object gets its own
+      if (started.has(key)) await ch.stopNotifications().catch(() => {});
       await ch.startNotifications();
+      notified.set(this.device, started.add(key));
       return () => {
         ch.removeEventListener('characteristicvaluechanged', handler);
-        if (this.server.connected) void ch.stopNotifications().catch(() => {});
+        // a link that dropped has nothing left to stop; stopping now would end a newer link's subscription
+        if (this.server.connected && !this.dropped) void ch.stopNotifications().catch(() => {});
       };
     });
   }
@@ -176,7 +232,10 @@ export class WebBluetoothLink implements BleLink, RingLink {
   async disconnect(): Promise<void> {
     this.device.removeEventListener('gattserverdisconnected', this.onDrop);
     live.get(this.device)?.delete(this);
-    if (this.server.connected && !inUse(this.device)) this.server.disconnect();
+    if (this.server.connected && !inUse(this.device)) {
+      releasedAt.set(this.device, Date.now());
+      this.server.disconnect();
+    }
     this.onDrop();
   }
 
@@ -215,13 +274,20 @@ export class WebBluetoothLink implements BleLink, RingLink {
 function connectOnce(device: BtDevice): { server: Promise<GattServer>; lost: boolean } {
   let p = connecting.get(device);
   if (!p) {
-    if (!device.gatt) throw new Error('device has no GATT server');
-    const attempt = { server: device.gatt.connect(), lost: false };
+    const gatt = device.gatt;
+    if (!gatt) throw new Error('device has no GATT server');
+    // the page let go of this ring a moment ago: wait until BlueZ has really closed the link (`LINK_RELEASE_MS`)
+    const wait = (releasedAt.get(device) ?? -Infinity) + LINK_RELEASE_MS - Date.now();
+    const attempt = { server: wait > 0 ? new Promise<void>((r) => setTimeout(r, wait)).then(() => gatt.connect()) : gatt.connect(), lost: false };
     connecting.set(device, attempt);
     attempt.server.then(
       (server) => {
         connecting.delete(device);
-        if (attempt.lost && !inUse(device)) server.disconnect();
+        if (attempt.lost && !inUse(device)) {
+          // a connect given up is let go like any other link: the next connect waits until BlueZ has closed it
+          releasedAt.set(device, Date.now());
+          server.disconnect();
+        }
       },
       () => connecting.delete(device),
     );
@@ -231,12 +297,33 @@ function connectOnce(device: BtDevice): { server: Promise<GattServer>; lost: boo
   return p;
 }
 
-/** Shows the chooser filtered by the driver and connects. Call from a user gesture. */
-export async function requestDevice(driver: Pick<BleDriver, 'requestOptions'>): Promise<WebBluetoothLink> {
+/** Between two connect tries on the same device. */
+const CONNECT_RETRY_GAP_MS = 1_000;
+/** A connect that failed sooner than this did not wait for the ring at all (Chromium said no at once): no retry. */
+const CONNECT_TRIED_MS = 5_000;
+
+/**
+ * Shows the chooser filtered by the driver and connects. Call from a user gesture. `onGranted` runs when the browser
+ * hands over the chosen device, before the connect. With `connectForMs`, a connect that fails with a NetworkError is
+ * tried again until that much time has passed: BlueZ gives an LE connect 40 s ("le-connection-abort-by-local"), and a
+ * ring that has been idle a long time may advertise only a few times a minute.
+ */
+export async function requestDevice(driver: Pick<BleDriver, 'requestOptions'>, o: { onGranted?: () => void; connectForMs?: number } = {}): Promise<WebBluetoothLink> {
   const bt = bluetooth();
   if (!bt) throw new Error('Web Bluetooth is not available in this browser');
   if (bt.getAvailability && !(await bt.getAvailability())) throw new Error('Bluetooth adapter unavailable');
   const device = await bt.requestDevice({ filters: driver.requestOptions.filters, optionalServices: driver.requestOptions.optionalServices });
-  const server = await connectOnce(device).server;
-  return new WebBluetoothLink(device, server);
+  o.onGranted?.();
+  const until = Date.now() + (o.connectForMs ?? 0);
+  for (;;) {
+    const tried = Date.now();
+    try {
+      return new WebBluetoothLink(device, await connectOnce(device).server);
+    } catch (e) {
+      // only a try that waited for the ring and ran out (BlueZ's 40 s) is worth another; an instant "no" would spin
+      const waited = Date.now() - tried >= CONNECT_TRIED_MS;
+      if ((e as { name?: unknown } | null)?.name !== 'NetworkError' || !waited || Date.now() + CONNECT_RETRY_GAP_MS >= until) throw e;
+      await new Promise((r) => setTimeout(r, CONNECT_RETRY_GAP_MS));
+    }
+  }
 }

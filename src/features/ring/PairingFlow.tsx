@@ -2,8 +2,9 @@
  * The pairing flow (design/screens/ring-pages.md §5.5), inline in the Ring page: one faceplate "Connect your ring"
  * with three steps and no step indicator.
  *   1. before scanning: what to do with the ring, then **Look for rings**;
- *   2. the scan list (`scan()`), which never reorders under the finger, stops after 30 s; on the web the browser's own
- *      chooser replaces the list and the ring it gives back is paired at once;
+ *   2. the scan list (`scan()`), which never reorders under the finger, stops after 30 s (3 minutes in the desktop app,
+ *      which may hear a ring only a few times a minute); on the web the browser's own chooser replaces the list and the
+ *      ring it gives back is paired at once;
  *   3. connecting (`pair()`): connect → (Android: the system pairing prompt announced first) → setting up → reading
  *      what the ring has stored → "Connected." and back to the page with a toast; or "Couldn't connect" with
  *      Try again · Choose another ring.
@@ -11,6 +12,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Faceplate, InlineWarning, Key, ProgressRule, toast } from '@/components';
+import { DESKTOP_SCAN_MS } from '@/biometrics/ble/transports/rings';
 import { ringAvailability, useRingEnv, useRings, type RingCandidate, type RingStatus } from './data';
 import { RING_PAGE_COPY, nearWhat } from './copy';
 import { ScanList, sortCandidates } from './ScanList';
@@ -18,8 +20,10 @@ import { ScanList, sortCandidates } from './ScanList';
 const P = RING_PAGE_COPY.pairing;
 const C = RING_PAGE_COPY.card;
 
-/** Looking stops after this long. */
+/** Looking stops after this long (the desktop app: `DESKTOP_SCAN_MS`). */
 export const SCAN_MS = 30_000;
+/** After this long the status says it is still looking. */
+export const STILL_LOOKING_MS = 15_000;
 /** The list is re-sorted only once it has had no new row for this long. */
 export const SETTLE_MS = 2_000;
 /** "Connected." stays this long before the page returns to normal. */
@@ -27,7 +31,7 @@ export const DONE_HOLD_MS = 1_500;
 
 type Phase =
   | { step: 'intro' }
-  | { step: 'scan'; looking: boolean; timedOut: boolean }
+  | { step: 'scan'; looking: boolean; timedOut: boolean; still?: boolean }
   | { step: 'connect'; candidate: RingCandidate; before: readonly string[]; status: 'working' | 'done' | 'failed' };
 
 type Stage = { stage: 'connect' } | { stage: 'setup' } | { stage: 'reading'; progress?: number };
@@ -59,7 +63,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
   const [rows, setRows] = useState<RingCandidate[]>([]);
   const scanRef = useRef<AbortController | null>(null);
   const seen = useRef(new Set<string>());
-  const timers = useRef<{ stop?: ReturnType<typeof setTimeout>; settle?: ReturnType<typeof setTimeout> }>({});
+  const timers = useRef<{ stop?: ReturnType<typeof setTimeout>; settle?: ReturnType<typeof setTimeout>; still?: ReturnType<typeof setTimeout> }>({});
   const alive = useRef(true);
   /** A pair is in flight: a second tap on the same row (or Try again) must not start another one. */
   const pairing = useRef(false);
@@ -88,6 +92,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
       scanRef.current = null;
       clearTimeout(t.stop);
       clearTimeout(t.settle);
+      clearTimeout(t.still);
     };
   }, []);
 
@@ -101,6 +106,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
     scanRef.current = null;
     clearTimeout(timers.current.stop);
     clearTimeout(timers.current.settle);
+    clearTimeout(timers.current.still);
   }
 
   function addRow(c: RingCandidate) {
@@ -119,6 +125,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
     ctrl.abort();
     scanRef.current = null;
     clearTimeout(timers.current.stop);
+    clearTimeout(timers.current.still);
     setPhase((p) => (p.step === 'scan' ? { step: 'scan', looking: false, timedOut } : p));
   }
 
@@ -145,13 +152,14 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
     seen.current = new Set();
     setRows([]);
     setPhase({ step: 'scan', looking: true, timedOut: false });
-    timers.current.stop = setTimeout(() => stopLooking(ctrl, true), SCAN_MS);
+    timers.current.stop = setTimeout(() => stopLooking(ctrl, true), platform.ble === 'electron' ? DESKTOP_SCAN_MS : SCAN_MS);
+    timers.current.still = setTimeout(() => setPhase((p) => (p.step === 'scan' && p.looking && scanRef.current === ctrl ? { ...p, still: true } : p)), STILL_LOOKING_MS);
     try {
       for await (const c of service.scan(ctrl.signal)) {
         if (ctrl.signal.aborted || !alive.current) return;
         addRow(c);
       }
-      // The service has listed what it found; looking still ends at the 30 s mark.
+      // The service has listed what it found; looking still ends at the 30 s (desktop: 3 minute) mark.
     } catch {
       if (alive.current) stopLooking(ctrl, true);
     }
@@ -165,6 +173,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
     scanRef.current = null;
     clearTimeout(timers.current.stop);
     clearTimeout(timers.current.settle);
+    clearTimeout(timers.current.still);
     const before = service.rings().map((r) => r.ringKey);
     setPhase({ step: 'connect', candidate: c, before, status: 'working' });
     onStart?.();
@@ -246,7 +255,7 @@ export function PairingFlow({ autoFocusIntro = false, onStart, onDone, onCancel 
       <div className="rg-pair__step">
         <div className="rg-pair__scanhead">
           <span ref={setPhaseStatus} className="rg-pair__status" role="status" tabIndex={-1}>
-            {phase.looking ? P.looking : P.stopped}
+            {phase.looking ? (phase.still ? P.stillLooking : P.looking) : P.stopped}
           </span>
           {phase.looking ? (
             <Key size="sm" onClick={() => scanRef.current && stopLooking(scanRef.current, false)}>

@@ -5,7 +5,7 @@ import type { Advertisement, RingFamily, Transport, TransportEvent } from '../..
 import { uuid16 } from '../../../../../packages/rings/src/types';
 import { createCapacitorTransport, type CapBleClient, type CapScanResult, type CapService } from '../capacitor';
 import { createElectronTransport } from '../electron';
-import { capacitorAdvertisement, capacitorFactory, chooserFactory, familiesQuery, linkTransport, onAirBlocks, type ChooserAdvertisement } from '../rings';
+import { CHOOSER_WINDOW_MS, DESKTOP_SCAN_MS, capacitorAdvertisement, capacitorFactory, chooserFactory, familiesQuery, linkTransport, onAirBlocks, type ChooserAdvertisement } from '../rings';
 import type { BleTransport, DeviceChooser, FoundDevice, RequestOptions, RingLink } from '../types';
 import { NoDeviceError, queryOf } from '../types';
 
@@ -414,7 +414,7 @@ describe('chooserFactory, web', () => {
     const f = chooserFactory(transport, 'web-bluetooth');
     const found: ChooserAdvertisement[] = [];
     await f.scan([famA, famB], (ad) => found.push(ad), new AbortController().signal);
-    expect(found).toEqual([{ name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: 'opaque-1', needsDiscovery: true }]);
+    expect(found).toEqual([{ name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: 'opaque-1', needsDiscovery: true, nameOnly: true }]);
     expect(requestDevice).toHaveBeenCalledTimes(1);
     expect(queryOf(requestDevice.mock.calls[0]![0] as never).filters).toHaveLength(3);
     expect(requestDevice.mock.calls[0]![1]!.chooser).toBeUndefined();
@@ -515,8 +515,8 @@ describe('chooserFactory, electron (with a fake transport)', () => {
     const done = f.scan([famA, famB], (ad) => found.push(ad), ctl.signal).then(() => (ended = true));
     await sleep(30);
     expect(found).toEqual([
-      { name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: ringA.id, needsDiscovery: true },
-      { name: 'Ring B', serviceUuids: [], manufacturerData: [], platformId: ringB.id, needsDiscovery: true },
+      { name: 'Ring A', serviceUuids: [], manufacturerData: [], platformId: ringA.id, needsDiscovery: true, nameOnly: true },
+      { name: 'Ring B', serviceUuids: [], manufacturerData: [], platformId: ringB.id, needsDiscovery: true, nameOnly: true },
     ]);
     expect(ended).toBe(false);
     expect(requestDevice).toHaveBeenCalledTimes(1);
@@ -617,6 +617,130 @@ describe('chooserFactory, electron (with a fake transport)', () => {
     expect(found.map((a) => a.needsDiscovery)).toEqual([true]);
     ctl.abort();
     await scanned;
+  });
+
+  /** Chromium looks for 60 s per request: each request here lists `lists[n]` (the n-th request) and ends after `scanMs`. */
+  const windows = (lists: FoundDevice[][]) => {
+    const state = { opened: 0, scanMs: [] as number[], chosenWith: [] as (string | null)[] };
+    const requestDevice = vi.fn(async (_q: unknown, opts: RequestOptions = {}): Promise<RingLink> => {
+      const n = state.opened++;
+      state.scanMs.push(opts.scanMs ?? 0);
+      opts.chooser?.update(lists[n] ?? []);
+      const id = await Promise.race([opts.chooser!.chosen, sleep(opts.scanMs ?? 0).then(() => null)]);
+      state.chosenWith.push(id);
+      if (id === null) throw new NoDeviceError(opts.signal?.aborted ? 'cancelled' : 'not_found');
+      return new FakeLink({ id });
+    });
+    const reconnect = vi.fn(async (id: string, _q: unknown, _o?: { signal?: AbortSignal; scanMs?: number }) => new FakeLink({ id: `re:${id}` }));
+    return { state, requestDevice, reconnect, transport: { kind: 'electron', isAvailable: async () => true, requestDevice, reconnect } satisfies BleTransport };
+  };
+
+  it('the desktop list keeps looking, one request after another, until the time is up; rows add up', async () => {
+    const { state, transport } = windows([[], [ringA], [ringA, ringB]]);
+    const f = chooserFactory(transport, 'electron', { windowMs: 40, totalMs: 130 });
+    const found: string[] = [];
+    let ended = false;
+    const done = f.scan([famA], (ad) => found.push(ad.platformId!), new AbortController().signal).then(() => (ended = true));
+    await sleep(60);
+    expect(found).toEqual([ringA.id]);
+    expect(ended).toBe(false);
+    await done;
+    expect(found).toEqual([ringA.id, ringB.id]);
+    expect(state.opened).toBe(3);
+    expect(state.scanMs[0]).toBe(40);
+  });
+
+  it('the desktop looks 60 s per request for 3 minutes; over the Android app transport one request ends the scan', async () => {
+    expect([CHOOSER_WINDOW_MS, DESKTOP_SCAN_MS]).toEqual([60_000, 180_000]);
+    vi.useFakeTimers();
+    try {
+      const desk = windows([]);
+      let deskEnded = false;
+      void chooserFactory(desk.transport, 'electron').scan([famA], () => {}, new AbortController().signal).then(() => (deskEnded = true));
+      const phone = windows([]);
+      let phoneEnded = false;
+      void chooserFactory({ ...phone.transport, kind: 'capacitor' }, 'electron').scan([famA], () => {}, new AbortController().signal).then(() => (phoneEnded = true));
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect([phoneEnded, phone.state.opened]).toEqual([true, 1]);
+      expect([deskEnded, desk.state.opened]).toEqual([false, 2]);
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect([deskEnded, desk.state.opened]).toEqual([true, 3]);
+      expect(desk.state.scanMs).toEqual([60_000, 60_000, 60_000]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('Stop looking ends the run of requests at once', async () => {
+    const { state, transport } = windows([[ringA], [ringA]]);
+    const ctl = new AbortController();
+    const scanned = chooserFactory(transport, 'electron', { windowMs: 40, totalMs: 400 }).scan([famA], () => {}, ctl.signal);
+    await sleep(10);
+    ctl.abort();
+    await scanned;
+    await sleep(60);
+    expect(state.opened).toBe(1);
+  });
+
+  it('a request that fails early (Bluetooth off) is not followed by another', async () => {
+    const requestDevice = vi.fn(async () => {
+      throw new NoDeviceError('unavailable');
+    });
+    const transport: BleTransport = { kind: 'electron', isAvailable: async () => true, requestDevice };
+    await chooserFactory(transport, 'electron', { windowMs: 40, totalMs: 400 }).scan([famA], () => {}, new AbortController().signal);
+    expect(requestDevice).toHaveBeenCalledTimes(1);
+  });
+
+  it('a tap on a ring the open request lists answers that request and ends the run', async () => {
+    const { state, transport, reconnect } = windows([[], [ringA]]);
+    const f = chooserFactory(transport, 'electron', { windowMs: 40, totalMs: 400 });
+    const ctl = new AbortController();
+    const scanned = f.scan([famA], () => {}, ctl.signal);
+    await sleep(55);
+    const t = await f.connect({ platformId: ringA.id }, undefined, ctl.signal);
+    expect(t.peripheral.id).toBe(ringA.id);
+    await scanned;
+    expect(state.opened).toBe(2);
+    expect(state.chosenWith.at(-1)).toBe(ringA.id);
+    expect(reconnect).not.toHaveBeenCalled();
+  });
+
+  it('a tap on a ring an earlier request listed waits a whole request for it to be heard again', async () => {
+    const { state, transport, reconnect } = windows([[ringA], []]);
+    const f = chooserFactory(transport, 'electron', { windowMs: 40, totalMs: 400 });
+    const ctl = new AbortController();
+    const scanned = f.scan([famA], () => {}, ctl.signal);
+    await sleep(55);
+    const t = await f.connect({ platformId: ringA.id }, undefined, ctl.signal);
+    expect(t.peripheral.id).toBe(`re:${ringA.id}`);
+    expect(reconnect).toHaveBeenCalledWith(ringA.id, familiesQuery([famA]), { signal: ctl.signal, scanMs: 40 });
+    await scanned;
+    await sleep(60);
+    expect(state.opened).toBe(2);
+    // later reconnects of that ring wait as long as they always did
+    await f.connect({ platformId: ringA.id }, famA);
+    expect(reconnect).toHaveBeenLastCalledWith(ringA.id, familiesQuery([famA]), { signal: undefined });
+  });
+
+  it('a tap that lands just as the open request runs out looks for that ring with a new request', async () => {
+    let chooser: DeviceChooser | undefined;
+    let fail!: (e: Error) => void;
+    const requestDevice = vi.fn(async (_q: unknown, opts: RequestOptions = {}) => {
+      chooser = opts.chooser;
+      chooser?.update([ringA]);
+      return new Promise<RingLink>((_, reject) => (fail = reject));
+    });
+    const reconnect = vi.fn(async (id: string) => new FakeLink({ id: `re:${id}` }));
+    const f = chooserFactory({ kind: 'electron', isAvailable: async () => true, requestDevice, reconnect }, 'electron', { windowMs: 1_000, totalMs: 1_000 });
+    const scanned = f.scan([famA], () => {}, new AbortController().signal);
+    await sleep(5);
+    const tapped = f.connect({ platformId: ringA.id }, undefined);
+    // the request had already been answered "nothing chosen" by its timer
+    fail(new NoDeviceError('cancelled'));
+    expect((await tapped).peripheral.id).toBe(`re:${ringA.id}`);
+    expect(reconnect).toHaveBeenCalledWith(ringA.id, familiesQuery([famA]), { signal: undefined, scanMs: 1_000 });
+    await scanned;
+    expect(requestDevice).toHaveBeenCalledTimes(1);
   });
 });
 

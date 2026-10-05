@@ -62,7 +62,7 @@ export interface BleTransport {
   /** Find a ring and connect to it. On the web this must be called inside the click. */
   requestDevice(query: DeviceQuery, opts?: RequestOptions): Promise<RingLink>;
   /** Connect to a ring found before, without asking again. Absent where the platform cannot (web today). */
-  reconnect?(deviceId: string, query: DeviceQuery, opts?: { signal?: AbortSignal }): Promise<RingLink>;
+  reconnect?(deviceId: string, query: DeviceQuery, opts?: { signal?: AbortSignal; scanMs?: number }): Promise<RingLink>;
 }
 
 /** Thrown when nothing was chosen or found; screens show it as "No ring found" rather than as a failure. */

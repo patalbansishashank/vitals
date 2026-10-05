@@ -192,7 +192,7 @@ describe('5. and 6. the periodic sync timer', () => {
     await settle();
     expect(svc.rings()[0]!.state).toBe('error');
     expect(ring.held).toBeNull();
-    await clock.advance(2_000);
+    await clock.advance(5_000);
     expect(svc.rings()[0]!.state).toBe('connected');
     expect(ring.held?.syncCalls).toHaveLength(1);
     await clock.advance(SYNC_EVERY_MS + 1);

@@ -147,14 +147,22 @@ function ForgetDialog({ ring, svc, onClose }: { ring: RingStatus | null; svc: Ri
 
 type Scan =
   | { phase: 'off' }
-  | { phase: 'looking' | 'done' | 'pairing'; found: RingCandidate[] }
+  /** `still`: has been looking for a while (`STILL_LOOKING_MS`). */
+  | { phase: 'looking' | 'done' | 'pairing'; found: RingCandidate[]; still?: boolean }
   /** The device can't tell which of the person's rings of this model it is: ask. */
   | { phase: 'which'; found: RingCandidate[]; candidate: RingCandidate };
 
-/** "Add a ring": the scan list fed by `scan()`; tap a ring to connect it and read its history. */
+/** After this long the list says it is still looking (the desktop app may hear a ring only a few times a minute). */
+export const STILL_LOOKING_MS = 15_000;
+
+/**
+ * "Add a ring": the scan list fed by `scan()`, rows added as rings are heard; tap a ring to connect it and read its
+ * history. The scan ends when the platform stops it (the desktop app looks for 3 minutes), on Stop looking, or on a tap.
+ */
 function AddRing({ svc, rings }: { svc: RingService; rings: readonly RingStatus[] }) {
   const [scan, setScan] = useState<Scan>({ phase: 'off' });
   const abort = useRef<AbortController | null>(null);
+  const stillTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const focusNext = useRef<'scan' | 'which' | 'pair' | 'retry' | 'add' | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
   const scanStatus = useRef<HTMLParagraphElement>(null);
@@ -162,7 +170,13 @@ function AddRing({ svc, rings }: { svc: RingService; rings: readonly RingStatus[
   const firstMatch = useRef<HTMLButtonElement>(null);
   const pairingStatus = useRef<HTMLParagraphElement>(null);
   const retryButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => () => abort.current?.abort(), []);
+  useEffect(
+    () => () => {
+      abort.current?.abort();
+      clearTimeout(stillTimer.current);
+    },
+    [],
+  );
   useLayoutEffect(() => {
     const next = focusNext.current;
     if (next === 'add' && scan.phase === 'off') addButton.current?.focus();
@@ -185,13 +199,15 @@ function AddRing({ svc, rings }: { svc: RingService; rings: readonly RingStatus[
     abort.current = ac;
     const found = new Map<string, RingCandidate>();
     setScan({ phase: 'looking', found: [] });
+    clearTimeout(stillTimer.current);
+    stillTimer.current = setTimeout(() => setScan((cur) => (cur.phase === 'looking' && abort.current === ac ? { ...cur, still: true } : cur)), STILL_LOOKING_MS);
     // once a ring is tapped the list stays as it is ('which', 'pairing') while the scan runs on underneath
     const listing = (next: Scan) => setScan((cur) => (cur.phase === 'looking' ? next : cur));
     try {
       for await (const c of svc.scan(ac.signal)) {
         if (ac.signal.aborted) break;
         found.set(c.candidateId, c);
-        listing({ phase: 'looking', found: [...found.values()] });
+        setScan((cur) => (cur.phase === 'looking' ? { ...cur, found: [...found.values()] } : cur));
       }
     } catch {
       // the chooser was closed or the scan failed: the list says what was found
@@ -200,6 +216,7 @@ function AddRing({ svc, rings }: { svc: RingService; rings: readonly RingStatus[
   };
   const stop = () => {
     abort.current?.abort();
+    clearTimeout(stillTimer.current);
     focusNext.current = 'add';
     setScan({ phase: 'off' });
   };
@@ -260,7 +277,7 @@ function AddRing({ svc, rings }: { svc: RingService; rings: readonly RingStatus[
     <div className="mt-3 grid gap-2">
       {osPrompt ? <p className="m-0 text-xs text-ink-2">{osPrompt}</p> : null}
       <p ref={scanStatus} tabIndex={-1} className="m-0 text-xs text-ink-2" role="status" aria-live="polite">
-        {scan.phase === 'looking' ? RING.looking : scan.found.length === 0 ? RING.noneFound : `${scan.found.length} ${scan.found.length === 1 ? 'ring' : 'rings'} nearby`}
+        {scan.phase === 'looking' ? (scan.still ? RING.stillLooking : RING.looking) : scan.found.length === 0 ? RING.noneFound : RING.nearby(scan.found.length)}
       </p>
       {scan.found.length ? (
         <ul className="m-0 grid list-none gap-2 p-0" aria-label={RING.candidates}>
