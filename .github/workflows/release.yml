@@ -148,6 +148,9 @@ jobs:
         run: node scripts/release/release-policy.mjs --set-build-version
 
       - name: Build the app
+        # The web build can exceed Node's default heap on the 7 GB macOS runner (v0.5.1 ran out of memory there).
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: pnpm --filter @vitals/desktop run build
 
       # The overrides pin the version to the tag and the file names to the stable names in docs/RELEASING.md.
