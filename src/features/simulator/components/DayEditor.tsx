@@ -205,7 +205,7 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
                 : `${usage} day${usage === 1 ? '' : 's'} use it`}
             </div>
           </div>
-          <span className="sim-chip">
+          <span className="sim-chip" title={`${prog.id} ${prog.label}`}>
             <b>{prog.id}</b> {prog.label}
           </span>
           {day !== null ? (

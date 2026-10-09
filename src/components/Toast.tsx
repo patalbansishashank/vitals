@@ -40,6 +40,13 @@ export function dismissToast(id: string): void {
   emit();
 }
 
+/** A new screen opens: confirmations from the last one go (the app shell calls this on every route change). */
+export function dismissAllToasts(): void {
+  if (!items.length) return;
+  items = [];
+  emit();
+}
+
 function subscribe(cb: () => void) {
   listeners.add(cb);
   return () => listeners.delete(cb);

@@ -81,7 +81,6 @@
     font-size: var(--lm-text-sm);
     line-height: 1.5;
     color: var(--lm-ink);
-    max-width: 72ch;
   }
   .lp-plain-list {
     margin: 0;
@@ -91,26 +90,10 @@
     font-size: var(--lm-text-sm);
     line-height: 1.45;
     color: var(--lm-ink);
-    max-width: 72ch;
   }
   .lp-plain-list li::marker {
     color: var(--lm-ink-3);
   }
-  .lp-only-mobile {
-    display: contents;
-  }
-  .lp-only-desktop {
-    display: none;
-  }
-  @media (min-width: 64rem) {
-    .lp-only-mobile {
-      display: none;
-    }
-    .lp-only-desktop {
-      display: block;
-    }
-  }
-
   /* ---------------------------------------------------------------- goals grid */
   .lp-goals-grid {
     display: grid;
@@ -124,9 +107,38 @@
     align-content: start;
     min-width: 0;
   }
+  .lp-goals-grid__wont,
+  .lp-goals-grid__horizon,
+  .lp-goals-grid__preflight,
+  .lp-goals-grid__limits {
+    display: grid;
+    min-width: 0;
+  }
+  /* phones and tablets: one column, read in order: (suggestion) goals · horizon · practical limits · won't do ·
+     before you run (both halves lend their cards to the page grid, which orders them) */
+  @media (max-width: 63.99rem) {
+    .lp-goals-grid__main,
+    .lp-goals-grid__side {
+      display: contents;
+    }
+    .lp-goals-grid__horizon {
+      order: 1;
+    }
+    .lp-goals-grid__limits {
+      order: 2;
+    }
+    .lp-goals-grid__wont {
+      order: 3;
+    }
+    .lp-goals-grid__preflight {
+      order: 4;
+    }
+  }
+  /* wide screens: two equal halves, the same gap and page padding as Your body's halves; left: (suggestion) goals ·
+     won't do; right: horizon · before you run · practical limits */
   @media (min-width: 64rem) {
     .lp-goals-grid {
-      grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
@@ -376,7 +388,6 @@
     font-size: var(--lm-text-xs);
     line-height: 1.45;
     color: var(--lm-ink-2);
-    max-width: 68ch;
   }
   .lp-goal__caveat {
     padding-left: 10px;
@@ -737,15 +748,6 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-    max-width: 1040px;
-    margin: 0 auto;
-  }
-  @media (min-width: 64rem) {
-    .lp-run {
-      grid-template-columns: minmax(0, 720px) 240px;
-      justify-content: center;
-      align-items: start;
-    }
   }
   .lp-run__face {
     display: grid;
@@ -924,40 +926,6 @@
     background: var(--lm-signal);
     box-shadow: 0 0 0 1px var(--lm-signal-edge);
   }
-  .lp-run__goals {
-    display: grid;
-    gap: 8px;
-    padding: 4px 4px;
-  }
-  .lp-run__goals ol {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 6px;
-  }
-  .lp-run__goals li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink);
-  }
-  .lp-run__rank {
-    width: 16px;
-    font-weight: 700;
-    text-align: center;
-  }
-  @media (max-width: 63.99rem) {
-    .lp-run__goals {
-      order: -1;
-    }
-    .lp-run__goals ol {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px 14px;
-    }
-  }
 
   /* ---------------------------------------------------------------- results */
   .lp-confidence {
@@ -968,7 +936,6 @@
     font-size: var(--lm-text-xs);
     line-height: 1.45;
     color: var(--lm-ink-2);
-    max-width: 90ch;
   }
   .lp-results {
     display: grid;
@@ -1162,7 +1129,6 @@
   }
   .lp-cards__disclaimer {
     margin: 0 !important;
-    max-width: 90ch;
   }
   .lp-card__actions {
     display: flex;
@@ -1498,7 +1464,6 @@
     font-weight: 600;
     line-height: 1.4;
     color: var(--lm-ink);
-    max-width: 72ch;
     text-wrap: balance;
   }
   .lp-why-face__plans {
@@ -1515,7 +1480,6 @@
     font-size: var(--lm-text-sm);
     line-height: 1.5;
     color: var(--lm-ink);
-    max-width: 80ch;
   }
   .lp-why-face__plans .lp-letter--inline {
     margin-top: 2px;
@@ -1531,7 +1495,6 @@
     font-size: var(--lm-text-sm);
     line-height: 1.5;
     color: var(--lm-ink);
-    max-width: 80ch;
   }
   .lp-why-face__sub {
     margin: -4px 0 14px;
@@ -1676,7 +1639,6 @@
   }
   .lp-phase-table__why {
     min-width: 260px;
-    max-width: 60ch;
     line-height: 1.45;
   }
   @media (max-width: 47.99rem) {

@@ -51,6 +51,10 @@ export function formatMass(kg: number, sys: UnitSystem, decimals = 1): { value: 
 export function energyIn(kcal: number, unit: EnergyUnit): number {
   return unit === 'kJ' ? kcal * KJ_PER_KCAL : kcal;
 }
+/** The maintenance total as shown everywhere (Estimates, Maintenance card, spoken line): to the nearest 10, rounded once. */
+export function maintenanceShown(kcal: number, unit: EnergyUnit): number {
+  return Math.round(energyIn(kcal, unit) / 10) * 10;
+}
 export function energyToKcal(v: number, unit: EnergyUnit): number {
   return unit === 'kJ' ? v / KJ_PER_KCAL : v;
 }

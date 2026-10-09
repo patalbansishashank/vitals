@@ -45,7 +45,7 @@ export function LadderTable({ v2, goals, units, energy, selected, onSelect, gent
             <tr key={r.id} data-row={r.id} data-group={r.group}>
               <th scope="row">{r.label}</th>
               {kinds.map((k) => (
-                <td key={k} data-rung={k} data-selected={k === selected || undefined}>
+                <td key={k} data-rung={k} data-selected={k === selected || undefined} data-label={r.label}>
                   {r.cells[k] ?? '—'}
                 </td>
               ))}

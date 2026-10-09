@@ -79,6 +79,12 @@ export function formatDateShort(iso: string): string {
   return `${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
 }
 
+/** Cell date: day number and short month with a non-breaking space, "12 Oct". */
+export function formatCellDate(iso: string): string {
+  const d = isoToDate(iso);
+  return `${d.getUTCDate()}\u00a0${MONTH_SHORT[d.getUTCMonth()]}`;
+}
+
 /** "Wednesday 11 November" (screen-reader labels). */
 export function formatDayLong(iso: string): string {
   const d = isoToDate(iso);

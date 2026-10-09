@@ -1,152 +1,352 @@
 /* ==========================================================================
-   Visceral view - waist slice + side cutaway (R2 sec. 3.4). Same design language as the body avatar
-   (avatar.css): grey chassis, flat fills, 1.25 px outline strokes, tokens only. Light and dark come from the tokens
-   (src/styles/tokens.css switches --lm-avatar-* per theme).
+   Visceral view - the waist slice as an axial anatomical plate (R2 sec. 3.4).
+   Same stage as the 3D figure (figure3d.css: dotted --lm-avatar-stage) and the same materials as its layers (fat under
+   skin #f2bd7a, fat around organs #f79e42, muscles #a34742, bones #d6cfb8), muted to the app's instrument palette:
+   fat under the skin a pale cream, the deep fat (the subject) a warm ochre that stands apart from it, muscle a dusty
+   brick with pale fascia lines, bowel a neutral warm grey. Depth comes from an inner rim per layer, not outlines.
    ========================================================================== */
 
 @layer components {
   .lm-visc {
-    --vs-fat: var(--lm-avatar-fat);
-    --vs-deep: var(--lm-avatar-visceral);
-    --vs-wall: var(--lm-avatar-lean);
-    --vs-organs: color-mix(in oklab, var(--lm-avatar-lean) 38%, var(--lm-avatar-stage));
-    --vs-spine: color-mix(in oklab, var(--lm-avatar-outline) 30%, var(--lm-avatar-fat));
+    /* light values first; light-dark() below picks the dark ones where supported */
+    --vs-sat: #f1e4cc;
+    --vs-sat-rim: #e2cfac;
+    --vs-deep: #d49a52;
+    --vs-deep-in: #ddab69;
+    --vs-deep-line: #8f5a1f;
+    --vs-band: rgb(150 90 30 / 0.2);
+    --vs-muscle: #a8645a;
+    --vs-muscle-in: #b5736a;
+    --vs-psoas: #b8746a;
+    --vs-fascia: rgb(255 244 236 / 0.62);
+    --vs-loop: #c4b7b0;
+    --vs-loop-hi: #ddd3cd;
+    --vs-loop-line: #8e7f78;
+    --vs-lumen: #d8cec8;
+    --vs-gas: #f7f4f0;
+    --vs-colon: #c2b4a5;
+    --vs-colon-hi: #d6cbbf;
+    --vs-colon-lumen: #d2c5b7;
+    --vs-aorta: #b45a4f;
+    --vs-ivc: #7c7393;
+    --vs-bone: #ece5d3;
+    --vs-bone-core: #e0d6bd;
+    --vs-bone-edge: #9b917a;
+    --vs-canal: #9b8a82;
     --vs-edge: var(--lm-avatar-outline);
-    --vs-edge-w: 1.25px;
+    --vs-ring: rgb(40 34 30 / 0.7);
+    --vs-shade: rgb(60 30 15 / 0.26);
+    --vs-lift: rgb(25 28 32 / 0.16);
     margin: 0;
     min-width: 0;
-    display: grid;
-    gap: 10px;
     font-family: var(--lm-font-sans);
     color: var(--lm-ink);
   }
   @supports (color: light-dark(#000, #fff)) {
     .lm-visc {
-      /* as avatar.css: on the light stage the fat layer is pulled toward the lean material so it separates from the well */
-      --vs-fat: light-dark(
-        color-mix(in oklab, var(--lm-avatar-fat) 74%, var(--lm-avatar-lean)),
-        var(--lm-avatar-fat)
-      );
+      --vs-sat: light-dark(#f1e4cc, #6e604c);
+      --vs-sat-rim: light-dark(#e2cfac, #5c4f3d);
+      --vs-deep: light-dark(#d49a52, #b98443);
+      --vs-deep-in: light-dark(#ddab69, #c79450);
+      --vs-deep-line: light-dark(#8f5a1f, #f0c58d);
+      --vs-band: light-dark(rgb(150 90 30 / 0.2), rgb(255 214 160 / 0.14));
+      --vs-muscle: light-dark(#a8645a, #82483f);
+      --vs-muscle-in: light-dark(#b5736a, #8f544a);
+      --vs-psoas: light-dark(#b8746a, #915950);
+      --vs-fascia: light-dark(rgb(255 244 236 / 0.62), rgb(255 226 214 / 0.3));
+      --vs-loop: light-dark(#c4b7b0, #5d5452);
+      --vs-loop-hi: light-dark(#ddd3cd, #6d6461);
+      --vs-loop-line: light-dark(#8e7f78, #2f2928);
+      --vs-lumen: light-dark(#d8cec8, #685f5c);
+      --vs-gas: light-dark(#f7f4f0, #8f8884);
+      --vs-colon: light-dark(#c2b4a5, #5a5049);
+      --vs-colon-hi: light-dark(#d6cbbf, #6a5f57);
+      --vs-colon-lumen: light-dark(#d2c5b7, #665c55);
+      --vs-aorta: light-dark(#b45a4f, #a24d43);
+      --vs-ivc: light-dark(#7c7393, #6c6485);
+      --vs-bone: light-dark(#ece5d3, #c9c1ab);
+      --vs-bone-core: light-dark(#e0d6bd, #b5ac94);
+      --vs-bone-edge: light-dark(#9b917a, #ede6d2);
+      --vs-canal: light-dark(#9b8a82, #4a3f3b);
+      --vs-ring: light-dark(rgb(40 34 30 / 0.7), rgb(240 236 230 / 0.75));
+      --vs-shade: light-dark(rgb(60 30 15 / 0.26), rgb(0 0 0 / 0.5));
+      --vs-lift: light-dark(rgb(25 28 32 / 0.16), rgb(0 0 0 / 0.55));
     }
   }
 
-  .lm-visc__panels {
+  /* ---- the view: plate over words; the plate takes the room the words leave ---- */
+  .lm-visc--view,
+  .lm-visc__section {
+    display: flex;
+    flex-direction: column;
+  }
+  .lm-visc--view > figcaption,
+  .lm-visc__section > figcaption {
+    min-width: 0;
+  }
+
+  /* ---- the plate: the 3D figure's stage surface. One margin (--vs-m) for every corner: the locator top left,
+     "front" top centre, the scale bar bottom right ---- */
+  .lm-visc__plate {
+    --vs-m: 12px;
+    --vs-chrome: 14px; /* height of the top and bottom label rows */
+    position: relative;
+    flex: 1 1 auto;
+    min-height: var(--vs-plate-min, 13rem);
+    overflow: hidden;
+    border-radius: var(--lm-radius-lg);
+    background-color: var(--lm-avatar-stage);
+    background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1px, transparent 1.4px);
+    background-size: 12px 12px;
+  }
+  /* The drawing box: absolutely placed, so its size is definite (container units on a flex-sized box resolve against
+     the flex measuring pass in Chromium); the drawing keeps its proportions and fits ("contain"). */
+  .lm-visc__fit {
+    --vs-fit-y: calc(var(--vs-m) + var(--vs-chrome) + 2px);
+    position: absolute;
+    inset: var(--vs-fit-y) var(--vs-m);
+    container-type: size;
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 5fr);
-    gap: 12px;
-    align-items: center;
-    padding: 12px;
-    border-radius: var(--lm-radius-lg);
-    background: var(--lm-avatar-stage);
+    place-items: center;
   }
-  .lm-visc__section > .lm-visc__svg {
-    padding: 12px;
-    border-radius: var(--lm-radius-lg);
-    background: var(--lm-avatar-stage);
-  }
-  .lm-visc__panels .lm-visc__section > .lm-visc__svg {
-    padding: 0;
-    background: none;
+  .lm-visc__panels {
+    position: relative;
+    aspect-ratio: var(--vs-ar, 1.3);
+    width: min(100cqw, 100cqh * var(--vs-ar, 1.3));
+    max-width: 44rem;
   }
   .lm-visc__svg {
     display: block;
     width: 100%;
-    height: auto;
-    min-width: 0;
+    height: 100%;
+    overflow: visible;
   }
-  .lm-visc__section .lm-visc__svg {
-    min-width: 220px;
+
+  /* where the slice is taken: the small figure glyph with the cutting plane */
+  .lm-visc__locator {
+    position: absolute;
+    top: var(--vs-m);
+    left: var(--vs-m);
+    width: 20px;
+    height: 24px;
+    overflow: visible;
+  }
+  .lm-visc__locator-body {
+    fill: color-mix(in oklab, var(--lm-ink) 7%, transparent);
+    stroke: var(--lm-ink-3);
+    stroke-width: 0.9px;
+    stroke-linejoin: round;
+  }
+  .lm-visc__locator-plane {
+    fill: color-mix(in oklab, var(--vs-deep) 70%, transparent);
+    stroke: var(--vs-deep-line);
+    stroke-width: 0.8px;
   }
 
   /* ---- materials ---- */
-  .lm-visc__sat {
-    fill: var(--vs-fat);
-    stroke: var(--vs-edge);
-    stroke-width: var(--vs-edge-w);
+  .lm-visc__fx-lift {
+    flood-color: var(--vs-lift);
+  }
+  .lm-visc__fx-shade {
+    flood-color: var(--vs-shade);
+  }
+  .lm-visc__stop-sat {
+    stop-color: var(--vs-sat);
+  }
+  .lm-visc__stop-sat-rim {
+    stop-color: var(--vs-sat-rim);
+  }
+  .lm-visc__stop-muscle-in {
+    stop-color: var(--vs-muscle-in);
+  }
+  .lm-visc__stop-muscle {
+    stop-color: var(--vs-muscle);
+  }
+  .lm-visc__stop-deep-in {
+    stop-color: var(--vs-deep-in);
+  }
+  .lm-visc__stop-deep {
+    stop-color: var(--vs-deep);
+  }
+  .lm-visc__stop-loop-hi {
+    stop-color: var(--vs-loop-hi);
+  }
+  .lm-visc__stop-loop {
+    stop-color: var(--vs-loop);
+  }
+  .lm-visc__stop-colon-hi {
+    stop-color: var(--vs-colon-hi);
+  }
+  .lm-visc__stop-colon {
+    stop-color: var(--vs-colon);
+  }
+  .lm-visc__psoas {
+    fill: var(--vs-psoas);
+    stroke: var(--vs-fascia);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__fascia {
+    fill: none;
+    stroke: var(--vs-fascia);
+    stroke-width: 0.9px;
+    stroke-linecap: round;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
   }
-  .lm-visc__wall {
-    fill: var(--vs-wall);
+  .lm-visc__band-fill {
+    fill: var(--vs-band);
   }
-  .lm-visc__organs {
-    fill: var(--vs-organs);
-  }
-  .lm-visc__organs-edge {
-    fill: none;
-    stroke: var(--vs-wall);
-    stroke-width: 1px;
+  .lm-visc__loop {
+    stroke: var(--vs-loop-line);
+    stroke-width: 0.8px;
+    stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
   }
-  .lm-visc__deep {
-    fill: var(--vs-deep);
-    fill-rule: evenodd;
+  .lm-visc__lumen {
+    fill: var(--vs-lumen);
   }
-  .lm-visc__spine {
-    fill: var(--vs-spine);
+  .lm-visc__gas {
+    fill: var(--vs-gas);
   }
-  .lm-visc__halo {
-    fill: var(--vs-deep);
-    fill-rule: evenodd;
-    opacity: 0.28;
+  [data-kind='colon'] > .lm-visc__lumen {
+    fill: var(--vs-colon-lumen);
   }
+  .lm-visc__aorta {
+    fill: var(--vs-aorta);
+    stroke: var(--vs-loop-line);
+    stroke-width: 0.8px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__ivc {
+    fill: var(--vs-ivc);
+    stroke: var(--vs-loop-line);
+    stroke-width: 0.8px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__bone-edge {
+    fill: none;
+    stroke: var(--vs-bone-edge);
+    stroke-width: 2px;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__bone-fill {
+    fill: var(--vs-bone);
+  }
+  .lm-visc__bone-core {
+    fill: var(--vs-bone-core);
+  }
+  .lm-visc__canal {
+    fill: var(--vs-canal);
+  }
+  .lm-visc__estimate {
+    fill: none;
+    stroke: var(--vs-deep-line);
+    stroke-width: 1px;
+    stroke-linejoin: round;
+    stroke-opacity: 0.7;
+    vector-effect: non-scaling-stroke;
+  }
+  .lm-visc__skin {
+    fill: none;
+    stroke: var(--vs-edge);
+    stroke-width: 1.1px;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+  /* the reference outlines: hairlines, quieter than every material edge */
   .lm-visc__ref {
     fill: none;
-    stroke: var(--lm-ink-2);
-    stroke-width: 1px;
-    stroke-dasharray: 3 3;
+    stroke: var(--vs-ring);
+    stroke-width: 0.8px;
+    stroke-dasharray: 2 3;
+    stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
   }
   .lm-visc__ref[data-ref='130'] {
-    stroke-dasharray: 7 3;
+    stroke-dasharray: 6 3;
   }
   .lm-visc__ghost {
     fill: none;
     stroke: var(--lm-avatar-ghost);
-    stroke-width: 1px;
+    stroke-width: 1.25px;
     stroke-linejoin: round;
     vector-effect: non-scaling-stroke;
-    opacity: 0.75;
   }
   .lm-visc__ghost[data-ghost='deep'] {
     stroke-dasharray: 2 2;
   }
-  .lm-visc__loop {
-    fill: var(--vs-organs);
-    stroke: var(--vs-wall);
-    stroke-width: 1px;
-    vector-effect: non-scaling-stroke;
-  }
-  .lm-visc__cavity-edge {
-    fill: none;
-    stroke: var(--vs-wall);
-    stroke-width: 1px;
-    vector-effect: non-scaling-stroke;
-  }
-  .lm-visc__slice {
-    stroke: var(--lm-ink);
-    stroke-width: 1.25px;
-    stroke-dasharray: 4 2;
-    vector-effect: non-scaling-stroke;
-  }
-  .lm-visc__scale {
-    stroke: var(--lm-ink-2);
-    stroke-width: 1.25px;
-    vector-effect: non-scaling-stroke;
-  }
-  .lm-visc__svg text {
-    font-family: var(--lm-font-sans);
-    fill: var(--lm-ink-2);
-  }
-  .lm-visc__svg .lm-visc__ref-label {
-    fill: var(--lm-ink-2);
+
+  /* ---- engraved labels (HTML, so the type keeps its size at any width): "front", the key, the scale */
+  .lm-visc__front,
+  .lm-visc__scale > span {
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-2xs);
+    line-height: var(--vs-chrome, 18px);
+    letter-spacing: 0.02em;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  /* "front" sits just above the slice, whatever room the plate leaves around it */
+  .lm-visc__front {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    translate: -50% -85%;
+  }
+  /* the key to the dashed outlines, top right on the margin: a dash sample and its value per row */
+  .lm-visc__key {
+    position: absolute;
+    top: var(--vs-m);
+    right: var(--vs-m);
+    display: grid;
+    justify-items: end;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-visc__key li {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-2xs);
+    line-height: 14px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .lm-visc__key svg {
+    width: 16px;
+    height: 2px;
+    overflow: visible;
+  }
+  /* the scale bar: bottom right on the plate's margin, at the drawing's true scale (fit width x scale / box width) */
+  .lm-visc__scale {
+    position: absolute;
+    right: 0;
+    bottom: calc(-1 * var(--vs-fit-y) + var(--vs-m));
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: var(--vs-chrome, 18px);
+    pointer-events: none;
+  }
+  .lm-visc__scale > i {
+    width: calc(min(100cqw, 100cqh * var(--vs-ar, 1.3), 44rem) * var(--vs-sf, 0.25));
+    height: 5px;
+    border: 1px solid var(--lm-ink-3);
+    border-top: 0;
   }
 
-  /* ---- caption: numbers, band bar, legend ---- */
-  .lm-visc__caption {
+  /* ---- words under the plate: framed like the 3D figure's layer strip ---- */
+  .lm-visc__readout {
     display: grid;
     gap: 8px;
+    padding: 12px 14px 14px;
+    border-top: 1px solid var(--lm-line);
+    background: var(--lm-face);
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
     color: var(--lm-ink-2);
@@ -156,70 +356,105 @@
     color: var(--lm-ink);
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
+    text-wrap: pretty;
   }
   .lm-visc__number strong {
     font-weight: 600;
+    white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
   .lm-visc__range {
     color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
+  .lm-visc__scalebar {
+    position: relative;
+    padding: 14px 0 18px;
+  }
   .lm-visc__bar {
     position: relative;
-    height: 10px;
-    margin: 4px 0 18px;
+    height: 8px;
     border-radius: var(--lm-radius-full);
     background: linear-gradient(
       to right,
       var(--lm-well) 0 var(--vs-t1),
-      color-mix(in oklab, var(--vs-deep) 35%, var(--lm-well)) var(--vs-t1) var(--vs-t2),
-      color-mix(in oklab, var(--vs-deep) 70%, var(--lm-well)) var(--vs-t2) 100%
+      color-mix(in oklab, var(--vs-deep) 32%, var(--lm-well)) var(--vs-t1) var(--vs-t2),
+      color-mix(in oklab, var(--vs-deep) 64%, var(--lm-well)) var(--vs-t2) 100%
     );
     box-shadow: inset 0 0 0 1px var(--lm-line-strong);
   }
+  /* the likely range: a soft band, densest at the estimate, fading to both ends */
   .lm-visc__bar-range {
     position: absolute;
-    top: -3px;
-    bottom: -3px;
+    top: -4px;
+    bottom: -4px;
     border-radius: var(--lm-radius-full);
-    border: 1px solid var(--lm-ink-3);
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      color-mix(in oklab, var(--lm-ink) 24%, transparent) var(--vs-est, 50%),
+      transparent 100%
+    );
   }
   .lm-visc__bar-mark {
     position: absolute;
-    top: -4px;
-    width: 3px;
+    top: -5px;
+    width: 2px;
     height: 18px;
-    margin-left: -1.5px;
-    border-radius: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
     background: var(--lm-ink);
   }
-  .lm-visc__bar-tick {
+  /* threshold values above the scale, each band's word under its own stretch */
+  .lm-visc__ticks {
     position: absolute;
-    top: 12px;
-    transform: translateX(-50%);
-    font-size: var(--lm-text-2xs);
-    line-height: var(--lm-text-2xs--lh);
+    inset: 0 0 auto;
+    height: 12px;
+  }
+  .lm-visc__ticks > span {
+    position: absolute;
+    bottom: 0;
+    translate: -50% 0;
     color: var(--lm-ink-3);
+    font-size: var(--lm-text-2xs);
+    line-height: 1;
     font-variant-numeric: tabular-nums;
   }
   .lm-visc__bands {
+    position: absolute;
+    inset: auto 0 0;
+    height: 15px;
     margin: 0;
-    color: var(--lm-ink-2);
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-xs);
+    line-height: 15px;
+  }
+  .lm-visc__band {
+    position: absolute;
+    top: 0;
+    translate: -50% 0;
+    white-space: nowrap;
   }
   .lm-visc__bands [data-current] {
     color: var(--lm-ink);
     font-weight: 600;
   }
+  .lm-visc__span {
+    margin: 0;
+    color: var(--lm-ink);
+  }
 
   .lm-visc__legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
-    margin: 0;
+    gap: 4px 14px;
+    margin: 2px 0 0;
     padding: 0;
     list-style: none;
+    font-size: var(--lm-text-xs);
+    line-height: 1rem;
   }
   .lm-visc__legend li {
     display: inline-flex;
@@ -227,35 +462,53 @@
     gap: 6px;
   }
   .lm-visc__swatch {
-    width: 14px;
-    height: 14px;
+    width: 0.65rem;
+    height: 0.65rem;
     flex: none;
-    border-radius: var(--lm-radius-xs);
-    box-shadow: inset 0 0 0 1px var(--vs-edge);
+    border: 1px solid var(--lm-avatar-outline);
+    border-radius: 50%;
   }
   .lm-visc__swatch[data-k='sat'] {
-    background: var(--vs-fat);
+    background: var(--vs-sat);
   }
   .lm-visc__swatch[data-k='deep'] {
     background: var(--vs-deep);
   }
   .lm-visc__swatch[data-k='wall'] {
-    background: var(--vs-wall);
+    background: var(--vs-muscle);
   }
   .lm-visc__swatch[data-k='organs'] {
-    background: var(--vs-organs);
+    background: var(--vs-loop);
+  }
+  .lm-visc__swatch[data-k='range'] {
+    border-color: transparent;
+    border-radius: 2px;
+    background: linear-gradient(to right, transparent, var(--vs-band) 50%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--vs-deep-line) 30%, transparent);
   }
   .lm-visc__swatch[data-k='ring'] {
+    border: 1px dashed var(--vs-ring);
     background: none;
-    box-shadow: none;
-    border: 1px dashed var(--lm-ink-2);
-    border-radius: var(--lm-radius-full);
   }
   .lm-visc__swatch[data-k='ghost'] {
+    border: 1.25px solid var(--lm-avatar-ghost);
     background: none;
-    box-shadow: none;
-    border: 1px solid var(--lm-avatar-ghost);
-    border-radius: var(--lm-radius-full);
+  }
+  /* Details and the short "estimate, not a scan" note share a row; open, Details takes the full width below it */
+  .lm-visc__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    font-size: var(--lm-text-xs);
+    line-height: 1rem;
+  }
+  .lm-visc__foot:has(> details[open]) {
+    flex-direction: column;
+  }
+  .lm-visc__foot:has(> details[open]) > .lm-visc__note {
+    flex: none;
+    order: -1;
   }
   .lm-visc__details summary {
     cursor: pointer;
@@ -263,44 +516,55 @@
   }
   .lm-visc__details p {
     margin: 4px 0 0;
-  }
-
-  /* ---- the full view: panels over words, or beside them from 38rem of container width ---- */
-  .lm-visc--view {
-    container-type: inline-size;
-  }
-  .lm-visc__grid {
-    display: grid;
-    gap: 12px;
-    min-width: 0;
-  }
-  .lm-visc__grid > figcaption {
-    min-width: 0;
-  }
-  @container (min-width: 38rem) {
-    .lm-visc__grid {
-      grid-template-columns: minmax(0, 3fr) minmax(15rem, 2fr);
-      align-items: start;
-      gap: 20px;
-    }
-  }
-  .lm-visc__span {
-    margin: 0;
-    color: var(--lm-ink);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    text-wrap: pretty;
   }
   .lm-visc__note {
+    flex: 1 1 14rem;
     margin: 0;
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs, var(--lm-text-sm));
-    line-height: var(--lm-text-xs--lh, var(--lm-text-sm--lh));
+    color: var(--lm-ink-3);
     text-wrap: pretty;
   }
 
-  @media (max-width: 480px) {
-    .lm-visc__panels {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-      padding: 8px;
-      gap: 8px;
+  /* ---- in the Body card's stage: full bleed like the 3D figure, plate fills what the words leave ---- */
+  .lm-body-stage.lm-body-stage--visceral {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    container: lm-visc-stage / inline-size;
+  }
+  .lm-body-stage--visceral > .lm-visc--view {
+    flex: 1 1 auto;
+  }
+  .lm-body-stage--visceral .lm-visc__plate {
+    border-radius: 0;
+  }
+  .lm-body-stage--visceral .lm-visc__readout {
+    padding: 0.6rem 0.8rem 0.75rem;
+  }
+  /* a wide card: the plate on the left, its key beside it (the slice gets the full height, the words a column) */
+  @container lm-visc-stage (min-width: 36rem) {
+    .lm-body-stage--visceral > .lm-visc--view {
+      flex-direction: row;
+    }
+    .lm-body-stage--visceral .lm-visc--view > figcaption {
+      display: flex;
+      flex: 0 0 clamp(16rem, 44%, 21rem);
+    }
+    .lm-body-stage--visceral .lm-visc__readout {
+      flex: 1 1 auto;
+      align-content: start;
+      gap: 10px;
+      padding: 0.9rem 1rem 1rem;
+      border-top: 0;
+      border-left: 1px solid var(--lm-line);
+    }
+  }
+  /* a narrow card: the plate takes a little more height, so the slice is not a thumbnail on a phone */
+  @container lm-visc-stage (max-width: 35.99rem) {
+    .lm-body-stage--visceral .lm-visc__plate {
+      --vs-plate-min: 15rem;
     }
   }
 }

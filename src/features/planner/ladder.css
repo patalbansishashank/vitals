@@ -68,11 +68,6 @@
   .lp-results.is-stale .lp-tabs {
     opacity: 0.6;
   }
-  .lp-viewswitch {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: -6px;
-  }
 
   /* ---- ladder strip (LadderScale) ----------------------------------------------------------------------------- */
   .lp-scale {
@@ -223,7 +218,6 @@
     font-size: var(--lm-text-xs);
     line-height: 1.5;
     color: var(--lm-ink-2);
-    max-width: 110ch;
   }
 
   /* ---- the ladder of cards: only the cards that exist (plan-ladder.md §12.3) -----------------------------------
@@ -371,12 +365,11 @@
     .lp-ladder[data-ideal] {
       grid-auto-flow: column;
       grid-template-rows: repeat(var(--lp-rows), auto);
-      grid-template-columns: repeat(var(--lp-inside), minmax(280px, 440px));
-      justify-content: start;
+      grid-template-columns: repeat(var(--lp-inside), minmax(0, 1fr));
       column-gap: 16px;
     }
     .lp-ladder[data-ideal] {
-      grid-template-columns: repeat(var(--lp-inside), minmax(280px, 440px)) 1px minmax(280px, 440px);
+      grid-template-columns: repeat(var(--lp-inside), minmax(0, 1fr)) 1px minmax(0, 1fr);
     }
     .lp-ladder__col[data-x],
     .lp-ladder__col[data-y] {
@@ -964,7 +957,6 @@
     margin: 2px 0 0;
     font-size: var(--lm-text-xs);
     color: var(--lm-ink-2);
-    max-width: 80ch;
   }
 
   /* ---- limit costs ------------------------------------------------------------------------------------------ */
@@ -1124,6 +1116,36 @@
   .lp-ltable td[data-rung='ideal'],
   .lp-ltable th[data-rung='ideal'] {
     border-left: 1px dashed var(--lm-line-strong);
+  }
+  @media (min-width: 82.5rem) {
+    /* wide: the plans are equal columns that share the width left of the row labels */
+    .lp-ltable {
+      table-layout: fixed;
+    }
+    .lp-ltable td {
+      min-width: 0;
+    }
+    /* the row labels move into each plan's cell, so the plans are four equal quarters of the full width */
+    .lp-ltable tbody th,
+    .lp-ltable .lp-ltable__corner {
+      position: static;
+      width: 0;
+      min-width: 0;
+      padding: 0;
+      overflow: hidden;
+      font-size: 0;
+      border: 0;
+    }
+    .lp-ltable td::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 1px;
+      font-size: var(--lm-text-2xs);
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      text-transform: lowercase;
+      color: var(--lm-ink-3);
+    }
   }
   .lp-ltable__head {
     display: inline-flex;

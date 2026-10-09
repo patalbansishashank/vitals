@@ -11,7 +11,7 @@ import { HeaderSync } from './HeaderSync';
 import { useSettingsStore } from '@/state/settingsStore';
 import { resolveTheme, toggleTheme } from '../theme';
 import { COACH_ITEM, EVIDENCE_ITEM, SETTINGS_ITEM, useNavBadges, type NavItem } from './nav';
-import { backToToday, enterPlanningTools, PlanDayReadout, useShellNav } from './modeNav';
+import { backToToday, enterPlanningTools, useShellNav } from './modeNav';
 import type { MobileHeader } from './ShellContext';
 import './modeNav.css';
 
@@ -77,7 +77,6 @@ export function NavRail() {
         <RingMark size={26} />
         <span aria-hidden="true">vitals</span>
       </Link>
-      {nav.plan ? <PlanDayReadout plan={nav.plan} /> : null}
       {nav.primary.map((d) => (
         <NavKey key={`${fadeKey}:${d.id}`} item={d} badge={badges[d.id as keyof typeof badges]} onClick={click(d, nav.override)} fade />
       ))}

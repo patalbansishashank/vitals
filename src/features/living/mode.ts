@@ -3,9 +3,10 @@
  * Living while a plan is scheduled, active or paused and the planning override is off; Planning otherwise.
  * Shell-safe (no engine imports).
  */
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { daysBetween } from '@/living/dates';
 import type { LocalDate } from '@/living';
+import { useToday } from './clock';
 import { createDocumentActivePlanSource, inMemoryActivePlanSource, isLivePlan, type ActivePlan, type ActivePlanSource } from './activePlan';
 
 export type AppMode = 'planning' | 'living';
@@ -60,8 +61,18 @@ export interface AppModeState {
 /** The current mode, the live plan and the planning override. */
 export function useAppMode(): AppModeState {
   const s = useSyncExternalStore(subscribe, snapshot, snapshot);
-  const plan = isLivePlan(s.plan) ? s.plan : null;
+  const today = useToday();
+  const plan = useMemo(() => (isLivePlan(s.plan) ? planOn(s.plan!, today) : null), [s.plan, today]);
   return { mode: deriveAppMode(plan, s.planningOverride), plan, override: !!plan && s.planningOverride };
+}
+
+/**
+ * The plan as it stands on `today`: a plan stored as 'scheduled' whose start date has come is running (lifecycle
+ * `activateIfDue`; the commands read it the same way and store 'active' on the next plan change). Before this, a plan
+ * started for "tomorrow" stayed a read-only preview forever.
+ */
+export function planOn<P extends Pick<ActivePlan, 'status' | 'startDate'>>(plan: P, today: LocalDate): P {
+  return plan.status === 'scheduled' && today >= plan.startDate ? { ...plan, status: 'active' } : plan;
 }
 
 /** The live plan or null (ignores the override). */

@@ -1,6 +1,6 @@
 import { useMemo, useState, type Ref } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Faceplate, InlineWarning, Key, KeyBank, KeyLink, formatNumber, toast } from '@/components';
+import { Faceplate, Key, KeyBank, KeyLink, formatNumber, toast } from '@/components';
 import { paths } from '@/app/paths';
 import { stateToAvatarParams } from '@/engine/body';
 import {
@@ -17,8 +17,21 @@ import { FIGURE, SHAPE } from '../copy';
 import type { FigureView } from '../figure';
 import type { BodySummary } from '../model';
 import { patchProfile } from '../commands';
+import { useDraftView, useShapeDragging } from '../shapeDraft';
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+
+/**
+ * Figure3D redraws (the whole anatomy is placed again, about half a second) whenever its `views` prop changes
+ * identity; its default is a fresh array each render, so every re-render of this card, a save-status flicker included,
+ * paid for a full redraw. A constant keeps it for real changes only.
+ */
+const FRONT_VIEW = ['front'] as const;
+
+/** How to use the figure, said once in the caption under it (not in the card header). */
+const DRAG_HINT = 'Drag the figure to turn it. Use the sliders to change its shape.';
+/** The flat drawing (data saver, no WebGL, slow device) cannot be turned; dragging reshapes it. */
+const DRAG_HINT_FLAT = 'Drag the figure to change its shape, or use the sliders.';
 
 function heightText(cm: number, units: UnitSystem): string {
   if (units === 'metric') return `${Math.round(cm)} cm`;
@@ -101,6 +114,10 @@ export function FigureFace({
     [summary.estimate, view.frame],
   );
   const waistLocked = v.waist.use && v.waist.cm !== null;
+  // the figure draws the shape sliders as they are being moved (at most once a frame); everything else reads `view`
+  const drawn = useDraftView(v, view);
+  // while a slider's draft is on show: no tween, one draw per update (a tween is a draw per animation frame)
+  const dragging = useShapeDragging();
 
   if (hidden) {
     return (
@@ -189,7 +206,7 @@ export function FigureFace({
   const visceral = stage === 'visceral';
   const caption = (
     <>
-      {DEFAULT_CAPTION}
+      {saveData || fallback ? DRAG_HINT_FLAT : DRAG_HINT} {DEFAULT_CAPTION}
       {onAdjustDrawing && !readOnly ? (
         <>
           {' '}
@@ -200,9 +217,10 @@ export function FigureFace({
       ) : null}
     </>
   );
+  // the readout says once what narrows the range (no waist yet); with a waist, the note says what it sets
   const how = (
     <>
-      {FIGURE.visceralHow} {waistLocked ? FIGURE.visceralWaistSets : FIGURE.visceralAddWaist}{' '}
+      {FIGURE.visceralHow} {waistLocked ? `${FIGURE.visceralWaistSets} ` : ''}
       <Link className="lm-link" to={paths.evidenceTopic('body-composition-estimation')}>
         {FIGURE.visceralHowLink}
       </Link>
@@ -215,7 +233,6 @@ export function FigureFace({
       variant="flush"
       className="lm-body-figure"
       title={FIGURE.title}
-      caption={visceral ? undefined : saveData || fallback ? 'Drag the figure to change its shape, or use the sliders.' : 'Drag the figure to turn it. Use the sliders to change its shape.'}
       actions={
         <div className="lm-body-row">
           <KeyBank<StageView>
@@ -247,13 +264,20 @@ export function FigureFace({
     >
       {visceral ? (
         <div ref={stageRef} id="body-visceral" className="lm-body-stage lm-body-stage--visceral">
-          <VisceralView params={visceralParams} caption={FIGURE.visceralCaption} how={how} />
+          <VisceralView
+            params={visceralParams}
+            caption={FIGURE.visceralCaption}
+            how={how}
+            waistMeasured={waistLocked}
+          />
         </div>
       ) : (
         <div ref={stageRef} className="lm-body-stage">
           <Figure3D
-            params={view.params}
-            frame={view.frame}
+            params={drawn.params}
+            frame={drawn.frame}
+            views={FRONT_VIEW}
+            tween={!dragging}
             layers={twoLayer ? 'two-layer' : 'envelope'}
             size="fill"
             units={units}
@@ -272,13 +296,6 @@ export function FigureFace({
           />
         </div>
       )}
-      {view.diverges && !visceral ? (
-        <div className="lm-body-figure__notes">
-          <InlineWarning severity="info">
-            {FIGURE.diverges(formatNumber(view.bodyFatPct, 1), formatNumber(summary.bodyFatPct, 1))}
-          </InlineWarning>
-        </div>
-      ) : null}
     </Faceplate>
   );
 }

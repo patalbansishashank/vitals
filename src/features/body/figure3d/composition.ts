@@ -40,11 +40,6 @@ export interface BodyComposition {
     massKg: number;
     areaCm2: number;
     areaRangeCm2: [number, number];
-    /** Conservative inner limits from the estimated waist ellipse, in cm. */
-    cavityHalfWidthCm: number;
-    cavityHalfDepthCm: number;
-    /** Radius of the schematic abdominal fill relative to 100 cm². */
-    transverseScale: number;
   };
   /** The engine's hard constraint, reconstructed from its fat and lean indices. */
   weightKg: number;
@@ -112,9 +107,6 @@ export function compositionFromParams(p: AvatarParams, frameOverride = p.figure.
       massKg: f.vat,
       areaCm2: p.visceral.vatAreaCm2,
       areaRangeCm2: [...p.visceral.areaRangeCm2],
-      cavityHalfWidthCm: p.visceral.waist.halfWidthCm * 0.62,
-      cavityHalfDepthCm: p.visceral.waist.halfDepthCm * 0.62,
-      transverseScale: clamp(Math.sqrt(Math.max(0, p.visceral.vatAreaCm2) / 100), 0.25, 2),
     },
     weightKg: fatFreeMassKg + fatMassKg,
     fatFreeMassKg,

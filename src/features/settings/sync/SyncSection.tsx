@@ -82,7 +82,7 @@ function SyncPanel() {
           />
         </>
       )}
-      {throughServer ? <p className="m-0 max-w-[68ch] text-xs leading-[1.45] text-ink-2">{SYNC_COPY.revokeKeepsKey}</p> : null}
+      {throughServer ? <p className="m-0 text-xs leading-[1.45] text-ink-2">{SYNC_COPY.revokeKeepsKey}</p> : null}
     </div>
   );
 }

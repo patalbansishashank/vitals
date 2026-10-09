@@ -27,7 +27,7 @@ export default function PantryPage() {
   return (
     <>
       <TopBar title={PANTRY_TITLE} back={{ to: '/food', label: 'Food' }} />
-      <Page width="narrow">
+      <Page>
         <div className="grid gap-4">
           {stale.length ? (
             <Faceplate as="div" variant="inset" aria-label="Still have these?">
@@ -42,7 +42,7 @@ export default function PantryPage() {
             </Faceplate>
           ) : null}
           <Faceplate>
-            <p className="mb-3 mt-0 max-w-[68ch] text-sm leading-[1.5] text-ink-2">Recipes can start from what you already have. Changes save as you go.</p>
+            <p className="mb-3 mt-0 text-sm leading-[1.5] text-ink-2">Recipes can start from what you already have. Changes save as you go.</p>
             {pantry.loading && !pantry.view ? (
               <p className="m-0 text-sm text-ink-2">Loading…</p>
             ) : pantry.error && !pantry.view ? (

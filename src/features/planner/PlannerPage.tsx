@@ -4,7 +4,6 @@ import {
   Engraved,
   GradeBadge,
   Key,
-  KeyBank,
   KeyLink,
   MQ,
   Notice,
@@ -360,20 +359,6 @@ export default function PlannerPage() {
         actions={
           <span className="lp-bar-actions">
             {chip}
-            {v2 && (v2.status === 'ok' || v2.status === 'noSafePlan') ? (
-              <span className="max-lg:hidden">
-                <KeyBank<LadderView>
-                  size="sm"
-                  label="Show the plans as"
-                  value={ladderView}
-                  onChange={setView}
-                  options={[
-                    { value: 'cards', label: 'cards' },
-                    { value: 'table', label: 'table' },
-                  ]}
-                />
-              </span>
-            ) : null}
             <KeyLink to={paths.planGoals} variant="quiet" size="sm">
               Adjust goals
             </KeyLink>

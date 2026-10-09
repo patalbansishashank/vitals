@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, RotateCcw } from 'lucide-react';
-import { Faceplate, Key, KeyLink, Notice, ProgressRule, Swatch, formatNumber, toast, useReducedMotion } from '@/components';
+import { Faceplate, Key, KeyLink, Notice, ProgressRule, formatNumber, toast, useReducedMotion } from '@/components';
 import { paths } from '@/app/paths';
 import type { ConvergencePoint, PlanKind } from '@/engine/planner/domain/types';
 import type { PlannerRunState } from '@/state/plannerStore';
-import { goalMetric } from './catalogue';
 import { fmtPct, fmtWeeks } from './format';
 import { PLAN_KINDS, RUNG_TITLE } from './ladder';
 import type { PlannerModel } from './model';
@@ -131,6 +130,17 @@ export interface RunViewProps {
 
 type Slot = { title: string; D: number | null; pct: number | null };
 
+/** The one-line summary of a provisional plan ("Steady deficit · effort 18 · goal 1 at 81 %"): only the parts that exist, joined once. */
+export function slotLine(f: Slot, kind: PlanKind): string {
+  return [
+    f.title && f.title !== RUNG_TITLE[kind] ? f.title : '',
+    f.D !== null && Number.isFinite(f.D) ? `effort ${Math.round(f.D * 100)}` : '',
+    f.pct !== null && Number.isFinite(f.pct) ? `goal 1 at ${fmtPct(f.pct)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** Running state (plan-ladder.md §8 "Running"; COMPONENTS §8 OptimiserProgress with four slots). */
 export function RunView({ model, onRetry }: RunViewProps) {
   const { run } = model;
@@ -234,9 +244,7 @@ export function RunView({ model, onRetry }: RunViewProps) {
           <span className="lp-slot__status">{status}</span>
           {f ? (
             <span className="lp-slot__plan" title={f.title}>
-              {f.title && f.title !== RUNG_TITLE[k] ? `${f.title} · ` : ''}
-              {f.D !== null && Number.isFinite(f.D) ? <span className="lm-num">effort {Math.round(f.D * 100)}</span> : null}
-              {f.pct !== null && Number.isFinite(f.pct) ? <span className="lp-slot__pct lm-num">{f.D !== null ? ' · ' : ''}goal 1 at {fmtPct(f.pct)}</span> : null}
+              {slotLine(f, k)}
             </span>
           ) : null}
         </span>
@@ -325,21 +333,6 @@ export function RunView({ model, onRetry }: RunViewProps) {
           {reduced ? null : <span className="lm-eng lp-run__hint">you can leave this screen; a note appears when the plans are ready</span>}
         </div>
       </Faceplate>
-      <aside className="lp-run__goals" aria-label="Goals being planned">
-        <p className="lm-eng">your goals, in order</p>
-        <ol>
-          {goals.map((g, i) => {
-            const m = goalMetric(g.metric);
-            return (
-              <li key={g.metric}>
-                <span className="lm-num lp-run__rank">{i + 1}</span>
-                {m ? <Swatch category={m.category} /> : null}
-                <span>{m?.label ?? g.metric}</span>
-              </li>
-            );
-          })}
-        </ol>
-      </aside>
     </div>
   );
 }

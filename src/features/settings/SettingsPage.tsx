@@ -132,7 +132,7 @@ export default function SettingsPage() {
         </ScrollRail>
       </nav>
       <Page className="settings-page">
-        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,720px)] lg:gap-6">
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-6">
           {/* desktop: vertical key bank with the yellow light on the section in view */}
           <nav aria-label="Settings sections" className="hidden lg:block">
             <div className="sticky" style={{ top: 'calc(var(--lm-topbar-h) + 20px)' }}>

@@ -45,7 +45,8 @@ describe('TrainPage', () => {
   it('keeps a swap on reload (LIV-11)', async () => {
     const user = userEvent.setup();
     const first = renderTrain(`/train/${WED}`);
-    await user.click(await screen.findByRole('button', { name: 'Swap dand' }));
+    await user.click(await screen.findByRole('button', { name: 'More for dand' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Swap for another exercise…' }));
     const sheet = await screen.findByRole('dialog', { name: 'Swap dand' });
     await user.click(within(sheet).getByRole('button', { name: 'Use Dand with gar nal (neck ring)' }));
     expect(await screen.findByRole('heading', { level: 3, name: 'Dand with gar nal (neck ring)' })).toBeInTheDocument();
@@ -68,18 +69,20 @@ describe('TrainPage', () => {
       .map((h) => h.textContent);
     expect(names).toEqual(wedSession().concrete!.items.map((i) => i.name));
     expect(names[0]).toBe('Dand (Hindu push-up)');
-    expect(within(session).getByText('4 × 20 · rest 120 s · leave 2 reps in the tank')).toBeInTheDocument();
+    expect(session.querySelector('[data-text="4 × 20 · rest 120 s · leave 2 reps in the tank"]')).not.toBeNull();
     expect(within(session).getByText('with your 8 kg backpack')).toBeInTheDocument();
     // energy with its likely range
     expect(within(session).getByText(/^\(\d+–\d+\)$/)).toBeInTheDocument();
     expect(within(session).getByRole('button', { name: 'Session done' })).toBeInTheDocument();
-    expect(within(session).getByRole('button', { name: 'Mark dand as done as planned' })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(session).getByRole('button', { name: 'Mark dand as done as planned' })).toHaveTextContent('Done');
+    expect(within(session).getByRole('button', { name: 'More for dand' })).toBeInTheDocument();
   });
 
   it('swaps the first exercise for an equivalent one and logs the session with the catalogue’s credit', async () => {
     const user = userEvent.setup();
     const h = renderTrain(`/train/${WED}`);
-    await user.click(await screen.findByRole('button', { name: 'Swap dand' }));
+    await user.click(await screen.findByRole('button', { name: 'More for dand' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Swap for another exercise…' }));
     const sheet = await screen.findByRole('dialog', { name: 'Swap dand' });
     // every option carries a meter with a percentage and verdict words
     const meters = within(sheet).getAllByRole('meter', { name: 'same stimulus' });
@@ -129,7 +132,8 @@ describe('TrainPage', () => {
   it('shows the partial summary before saving when an exercise is left out', async () => {
     const user = userEvent.setup();
     const h = renderTrain(`/train/${WED}`);
-    await user.click(await screen.findByRole('button', { name: 'Skip reverse lunge' }));
+    await user.click(await screen.findByRole('button', { name: 'More for reverse lunge' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Skip this one' }));
     await user.click(screen.getByRole('button', { name: 'Session done' }));
     expect(screen.getByText(/^2 of 3 exercises · counted \d+ %$/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -140,15 +144,15 @@ describe('TrainPage', () => {
   it('ticks an exercise as planned and logs sets with the quick chips', async () => {
     const user = userEvent.setup();
     const h = renderTrain(`/train/${WED}`);
-    const tick = await screen.findByRole('button', { name: 'Mark dand as done as planned' });
-    await user.click(tick);
-    expect(tick).toHaveAttribute('aria-pressed', 'true');
+    await user.click(await screen.findByRole('button', { name: 'Mark dand as done as planned' }));
+    // done: the row's one key turns into Undo, every set reads done
+    expect(screen.getByRole('button', { name: 'Undo dand done' })).toBeInTheDocument();
     const chips = screen.getByRole('group', { name: 'Sets of dand' });
     expect(within(chips).getAllByRole('button', { pressed: true })).toHaveLength(4);
-    // un-tick one set: the exercise is now partly done
+    // un-tick one set: the exercise is now partly done and offers Done again
     await user.click(within(chips).getByRole('button', { name: 'set 4, 20 reps' }));
-    expect(tick).toHaveAttribute('aria-pressed', 'false');
-    expect(tick).toHaveAttribute('data-state', 'partial');
+    expect(screen.getByRole('button', { name: 'Mark dand as done as planned' })).toBeInTheDocument();
+    expect(chips.closest('li')).toHaveAttribute('data-state', 'partial');
     await user.click(screen.getByRole('button', { name: 'Session done' }));
     expect(screen.getByText(/^3 of 3 exercises · counted \d+ %$/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -160,7 +164,8 @@ describe('TrainPage', () => {
   it('marks a session as skipped with no credit', async () => {
     const user = userEvent.setup();
     const h = renderTrain(`/train/${WED}`);
-    await user.click(await screen.findByRole('button', { name: 'Mark lift as skipped' }));
+    await user.click(await screen.findByRole('button', { name: 'More session options' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Skipped the lift' }));
     await waitFor(() => expect(sessionItem(h, WED, WED_SLOT)?.status).toBe('skipped'));
     expect(sessionItem(h, WED, WED_SLOT)?.credit).toBe(0);
     expect(await screen.findByText('Wednesday’s lift is marked as skipped.')).toBeInTheDocument();
@@ -170,7 +175,8 @@ describe('TrainPage', () => {
   it('logs something else typed as free text, resolved into what it trains', async () => {
     const user = userEvent.setup();
     const h = renderTrain(`/train/${WED}`);
-    await user.click(await screen.findByRole('button', { name: 'I did something else' }));
+    await user.click(await screen.findByRole('button', { name: 'More session options' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'I did something else' }));
     const panel = await screen.findByRole('dialog', { name: 'What did you do instead?' });
     await user.type(within(panel).getByRole('textbox', { name: 'What did you do?' }), 'wooden wheel rollouts 3 × 10');
     await user.click(within(panel).getByRole('button', { name: 'Use “wooden wheel rollouts” as you typed it' }));
@@ -261,7 +267,7 @@ describe('TrainPage', () => {
     });
     expect(within(session).queryAllByText(/kcal/)).toHaveLength(0);
     // sets and reps stay
-    expect(within(session).getByText('4 × 20 · rest 120 s · leave 2 reps in the tank')).toBeInTheDocument();
+    expect(session.querySelector('[data-text="4 × 20 · rest 120 s · leave 2 reps in the tank"]')).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'show numbers' }));
     expect(within(session).queryAllByText(/kcal/).length).toBeGreaterThan(0);
   });

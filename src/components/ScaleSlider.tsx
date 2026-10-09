@@ -16,8 +16,12 @@ export interface ScaleSliderProps {
   value: number;
   /** Fires continuously while dragging (every frame) and on every key step. */
   onChange: (value: number) => void;
-  /** Fires once when a gesture ends (pointer release, key step, typed entry). Use for expensive work. */
-  onCommit?: (value: number) => void;
+  /**
+   * Fires once when a gesture ends: `'drag'` on pointer release, `'step'` for a key press, wheel notch, typed entry or
+   * assistive-technology increment (those can repeat quickly, so a caller may wait a moment before doing the expensive
+   * work). Use for expensive work.
+   */
+  onCommit?: (value: number, via?: 'drag' | 'step') => void;
   min: number;
   max: number;
   step?: number;
@@ -119,7 +123,7 @@ export function ScaleSlider({
   const emit = (v: number, commit: boolean) => {
     const s = snap(v, min, max, step);
     if (s !== latest.current.value) onChange(s);
-    if (commit) onCommit?.(s);
+    if (commit) onCommit?.(s, 'step');
   };
 
   /* ---- pointer ------------------------------------------------------------ */
@@ -169,7 +173,7 @@ export function ScaleSlider({
     drag.current = null;
     setRaw(null);
     setRider(false);
-    if (d.moved) onCommit?.(latest.current.value);
+    if (d.moved) onCommit?.(latest.current.value, 'drag');
   };
 
   /* ---- wheel (horizontal, while focused) --------------------------------- */
@@ -188,7 +192,7 @@ export function ScaleSlider({
         const next = snap(l.value + steps * l.step, l.min, l.max, l.step);
         if (next !== l.value) {
           l.onChange(next);
-          l.onCommit?.(next);
+          l.onCommit?.(next, 'step');
         }
       }
     };

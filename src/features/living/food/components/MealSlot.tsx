@@ -1,16 +1,17 @@
 /**
- * One meal slot (PrescriptionRow look, COMPONENTS §13.10): time · glyph · slot name + target · status · chevron, then
- * the slot body — plain targets, a suggested or accepted recipe, the recipe run state — logged rows with their
- * estimate and source, and the two kinds of action that are never merged: planning (Accept · Swap) and eating
- * (I ate this · I ate something else).
+ * One meal on Food's day rail (the same rail as Today's plan, living.css): time · status node · the meal's name (it
+ * opens the recipe sheet) · its targets as a compact readout, ONE key for eating it as planned and a quiet ⋯ for the
+ * rest (something else, add more, the recipe sheet). A logged meal collapses to what was logged plus Undo. Below the
+ * two lines: the suggested or accepted recipe with its planning keys (Accept · Swap), never merged with eating.
  */
-import { useId } from 'react';
-import { Check, ChevronRight } from 'lucide-react';
-import { Chip, Engraved, Glyphs, Icon, IconKey, Key, Spinner, cx, energyInText } from '@/components';
+import { useId, type ReactNode } from 'react';
+import { Ellipsis } from 'lucide-react';
+import { Chip, Engraved, IconKey, Key, Menu, Spinner, cx, energyInText, type MenuItem } from '@/components';
 import { useEnergyUnit } from '@/state/settingsStore';
 import type { LogEntrySummary } from '@/living';
 import { EstimateReadout, SourceChip, sourceLabel } from '../../components/Estimate';
 import { fmtClock, grams, kcal } from '../../format';
+import { TargetReadout } from '../../components/TargetReadout';
 import { FOOD_COPY } from '../copy';
 import { entryMethod } from '../ledger';
 import type { SlotRun } from '../mealPlanStore';
@@ -37,6 +38,8 @@ export interface MealSlotProps {
   canPlan: boolean;
   familyFoodMode?: boolean;
   busy?: boolean;
+  /** Undo of an "As planned" made here, while it is held. */
+  onUndo?: () => void;
   onAteThis(): void;
   onAteElse(): void;
   onAccept(recipe: RecipeSuggestion): void;
@@ -103,41 +106,85 @@ export function PlainTargets({ target, quiet }: { target: MealSlotTarget; quiet:
 
 export function MealSlot(p: MealSlotProps) {
   const headingId = useId();
+  const subId = useId();
   const eu = useEnergyUnit();
+  const { dietKind } = useFoodProfile();
   const { target, run, accepted, quiet } = p;
   const suggested = run?.state === 'ready' ? run.recipe : undefined;
   const recipe = accepted ?? suggested;
   const working = run?.state === 'working' || run?.state === 'waiting';
   const name = target.name;
-  return (
-    <li className={cx('lv-food-slot', p.done && 'is-done')} aria-labelledby={headingId}>
-      <div className="lv-food-slot__head">
-        <span className="lv-food-slot__time lm-num">{fmtClock(target.clockH)}</span>
-        <Icon icon={Glyphs.MealDot} size={20} className="lv-food-slot__glyph" />
-        <div className="lv-food-slot__label">
-          <h3 id={headingId} className="lv-food-slot__name">
-            {name}
-          </h3>
-          {quiet ? null : <span className="lv-food-slot__target lm-num">{energyInText(C.numbers(kcal(target.energyKcal), grams(target.proteinG)), eu)}</span>}
-        </div>
-        {p.done ? (
-          <span className="lv-food-slot__status">
-            <Icon icon={Check} size={16} /> {C.logged}
-          </span>
-        ) : null}
-        <IconKey icon={ChevronRight} label={C.open(name)} size="sm" onClick={p.onOpen} />
-      </div>
 
-      <div className="lv-food-slot__body">
+  const primary: ReactNode = p.done ? (
+    p.onUndo ? (
+      <Key size="sm" variant="quiet" aria-label={`Undo ${name}`} onClick={p.onUndo}>
+        {FOOD_COPY.toasts.undo}
+      </Key>
+    ) : null
+  ) : p.canLog ? (
+    <Key size="sm" onClick={p.onAteThis} aria-label={C.ateThisName(name)}>
+      {C.ateThis}
+    </Key>
+  ) : null;
+  const more: MenuItem[] = [
+    ...(p.canLog ? [p.done ? { id: 'more', label: C.addMore, onSelect: p.onAteElse } : { id: 'else', label: C.ateElse, onSelect: p.onAteElse }] : []),
+    { id: 'open', label: C.openItem, onSelect: p.onOpen },
+  ];
+
+  return (
+    <li className={cx('lv-item lv-meal', 'is-open', p.done && 'is-done')} data-state={p.done ? 'done' : 'empty'} aria-labelledby={headingId}>
+      <span className="lv-item__time lm-num">{fmtClock(target.clockH)}</span>
+      <span className="lv-item__node" aria-hidden="true" />
+      <h3 id={headingId} className="lv-meal__name">
+        <button type="button" className="lv-item__label" aria-describedby={subId} onClick={p.onOpen}>
+          {name}
+        </button>
+      </h3>
+      <div className="lv-item__sub" id={subId}>
+        {p.done ? (
+          p.entries.length > 0 ? (
+            <ul className="lv-food-logged-list">
+              {p.entries.map((e) => (
+                <LoggedRow key={e.id} entry={e} quiet={quiet} />
+              ))}
+            </ul>
+          ) : (
+            <span className="lv-item__word">{C.markedAsPlanned}</span>
+          )
+        ) : quiet ? (
+          <span>{C.plainQuiet(exampleFoods(target, dietKind))}</span>
+        ) : (
+          <>
+            <TargetReadout text={energyInText(C.numbers(kcal(target.energyKcal), grams(target.proteinG)), eu)} />
+            <TargetReadout text={C.carbsFat(grams(target.carbG), grams(target.fatG))} className="lv-rd--extra" />
+          </>
+        )}
+      </div>
+      <span className="lv-item__keys">
+        {primary}
+        <Menu label={C.moreName(name)} items={more} trigger={(t) => <IconKey {...t} size="sm" icon={Ellipsis} label={C.moreName(name)} />} />
+      </span>
+
+      <div className="lv-item__body">
         {working ? (
           <p className="lv-food-slot__working" role="status">
             <Spinner size={12} /> {FOOD_COPY.meals.progress.working}
           </p>
-        ) : recipe ? (
-          <RecipeCard recipe={recipe} accepted={!!accepted} quiet={quiet} familyFoodMode={p.familyFoodMode} />
-        ) : (
-          <PlainTargets target={target} quiet={quiet} />
-        )}
+        ) : recipe && (!p.done || accepted) ? (
+          <div className="lv-food-recipe-wrap">
+            <RecipeCard recipe={recipe} accepted={!!accepted} quiet={quiet} familyFoodMode={p.familyFoodMode} />
+            {p.canPlan && suggested && !accepted ? (
+              <span className="lv-food-slot__group">
+                <Key size="sm" onClick={() => p.onAccept(suggested)} aria-label={C.acceptName(mainDish(suggested.dish), name)}>
+                  {C.accept}
+                </Key>
+                <Key size="sm" variant="quiet" onClick={p.onSwap} aria-label={C.swapName(name)} disabled={p.busy}>
+                  {C.swap}
+                </Key>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
 
         {!working && !accepted && run?.state === 'error' ? (
           <p className="lv-food-slot__error">
@@ -161,49 +208,6 @@ export function MealSlot(p: MealSlotProps) {
             </Key>
           </div>
         ) : null}
-
-        {p.entries.length > 0 ? (
-          <ul className="lv-food-logged-list">
-            {p.entries.map((e) => (
-              <LoggedRow key={e.id} entry={e} quiet={quiet} />
-            ))}
-          </ul>
-        ) : p.done ? (
-          <p className="lv-food-slot__marked">
-            <Engraved>{C.markedAsPlanned}</Engraved>
-          </p>
-        ) : null}
-
-        <div className="lv-food-slot__actions">
-          {p.canPlan && suggested && !accepted && !working ? (
-            <span className="lv-food-slot__group">
-              <Key size="sm" onClick={() => p.onAccept(suggested)} aria-label={C.acceptName(mainDish(suggested.dish), name)}>
-                {C.accept}
-              </Key>
-              <Key size="sm" onClick={p.onSwap} aria-label={C.swapName(name)} disabled={p.busy}>
-                {C.swap}
-              </Key>
-            </span>
-          ) : null}
-          {p.canLog ? (
-            <span className="lv-food-slot__group">
-              {p.done ? (
-                <Key size="sm" variant="quiet" onClick={p.onAteElse} aria-label={C.addMoreName(name)}>
-                  {C.addMore}
-                </Key>
-              ) : (
-                <>
-                  <Key size="sm" onClick={p.onAteThis} aria-label={C.ateThisName(name)}>
-                    {C.ateThis}
-                  </Key>
-                  <Key size="sm" variant="quiet" onClick={p.onAteElse} aria-label={C.ateElseName(name)}>
-                    {C.ateElse}
-                  </Key>
-                </>
-              )}
-            </span>
-          ) : null}
-        </div>
       </div>
     </li>
   );

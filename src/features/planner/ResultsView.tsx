@@ -564,7 +564,24 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
         </Notice>
       ) : null}
 
-      <Faceplate title="The ladder" className="lp-ladder-face">
+      <Faceplate
+        title="The ladder"
+        className="lp-ladder-face"
+        actions={
+          onView ? (
+            <KeyBank<LadderView>
+              size="sm"
+              label="Show the plans as"
+              value={view}
+              onChange={onView}
+              options={[
+                { value: 'cards', label: 'cards' },
+                { value: 'table', label: 'table' },
+              ]}
+            />
+          ) : undefined
+        }
+      >
         {answersLine ? <p className="lp-plain lp-ladder__answers">{answersLine}</p> : null}
         <LadderScale v2={v2} goal1={g1} units={units} energy={energy} selected={sel} onSelect={select} hideValues={gentle && !showNumbers && !!g1 && /fatMass|scaleWeight|bodyFatPct|waist|visceralFat/.test(g1.metric)} />
         {chips.length ? (
@@ -577,20 +594,6 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
       </Faceplate>
       {/* E20: markers — active blood-marker notes, above the cards */}
       <LadderMarkerBanner request={request} />
-      {onView ? (
-        <div className="lp-viewswitch lg:hidden">
-          <KeyBank<LadderView>
-            size="sm"
-            label="Show the plans as"
-            value={view}
-            onChange={onView}
-            options={[
-              { value: 'cards', label: 'cards' },
-              { value: 'table', label: 'table' },
-            ]}
-          />
-        </div>
-      ) : null}
 
       {view === 'table' ? (
         <>

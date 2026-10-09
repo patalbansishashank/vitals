@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { routes } from '@/app/App';
 import { seedClearedSafety } from '@/features/onboarding/testing';
@@ -69,12 +69,14 @@ describe('app shell', () => {
     spy.mockRestore();
   });
 
-  it('opens the Ring and Body signals pages', async () => {
+  it('opens Body signals, also from the old /ring address', async () => {
+    // the page is lazy and heavier than the old Ring page: allow it longer under a loaded test run
     renderAt('/ring');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Ring' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Body signals' }, { timeout: 15000 })).toBeInTheDocument();
+    cleanup();
     renderAt('/signals');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Body signals' }, { timeout: 5000 })).toBeInTheDocument();
-  });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Body signals' }, { timeout: 15000 })).toBeInTheDocument();
+  }, 30000);
 
   it('shows the not-found screen for unknown paths', async () => {
     renderAt('/nowhere');

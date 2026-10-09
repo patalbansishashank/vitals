@@ -147,7 +147,6 @@
   /* ---------------------------------------------------------------- stage minutes, naps */
   .sl-table {
     width: 100%;
-    max-width: 420px;
     border-collapse: collapse;
     font-size: var(--lm-text-sm);
   }

@@ -235,7 +235,6 @@
   @media (min-width: 64rem) {
     .sim-sched {
       gap: 16px;
-      grid-template-columns: 188px minmax(0, 1fr);
     }
     .sim-sched__main {
       gap: 16px;
@@ -243,10 +242,12 @@
   }
   @media (min-width: 80rem) {
     .sim-sched[data-editor='docked'] {
-      grid-template-columns: 188px minmax(0, 1fr) 372px;
+      /* main 75 % | day editor 25 % */
+      grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
     }
     .sim-sched__editor[data-mode='docked'] {
-      width: 372px;
+      width: auto;
+      min-width: 0;
     }
   }
   .sim-sched--empty {
@@ -274,11 +275,17 @@
   .sim-tray__keys::-webkit-scrollbar {
     display: none;
   }
+  /* the program keys are the first row of the schedule card: a swipeable row on phones, a wrapping row on desktop */
+  .sim-sched__tray {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--lm-line);
+  }
+  .sim-sched__tray .sim-tray__keys {
+    margin: 0 -12px;
+    padding: 2px 12px 6px;
+    scroll-padding-inline: 12px;
+  }
   @media (min-width: 64rem) {
-    .sim-sched__tray {
-      position: sticky;
-      top: calc(var(--lm-topbar-h) + 16px);
-    }
     .sim-sched__tray .sim-tray__head {
       display: flex;
       justify-content: space-between;
@@ -286,10 +293,15 @@
       margin-bottom: 6px;
     }
     .sim-sched__tray .sim-tray__keys {
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       overflow: visible;
       margin: 0;
       padding: 0;
+    }
+    .sim-sched__tray .sim-pkey--new {
+      flex: none;
+      min-height: 76px;
     }
   }
   .sim-tray--sheet .sim-tray__keys {
@@ -302,11 +314,6 @@
     flex: 0 0 148px;
     scroll-snap-align: start;
     min-width: 0;
-  }
-  @media (min-width: 64rem) {
-    .sim-sched__tray .sim-pkey {
-      flex: none;
-    }
   }
   .sim-pkey__cap {
     all: unset;
@@ -501,10 +508,6 @@
     gap: 8px;
     padding: 12px;
     border-right: 1px solid var(--lm-line);
-  }
-  .sim-summary__dates {
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
   }
   .sim-summary__items {
     flex: 1;
@@ -976,20 +979,50 @@
   .sim-cell:hover:not(.sim-cell--blank) {
     box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-ink) 26%, transparent);
   }
+  /* phones: date on its own line above the letter and the percentage; desktop: letter | date | percentage */
   .sim-cell__top {
-    display: flex;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'date date'
+      'letter pct';
     align-items: baseline;
-    gap: 2px;
+    column-gap: 2px;
     min-width: 0;
   }
+  .sim-cell__date {
+    grid-area: date;
+    font-size: 11px;
+    line-height: 13px;
+    color: var(--lm-ink-2);
+    font-stretch: 84%;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  @media (min-width: 64rem) {
+    .sim-cell__top {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: 'letter date pct';
+      column-gap: 4px;
+    }
+    .sim-cell__date {
+      text-align: center;
+      font-size: 12px;
+      line-height: 14px;
+      font-stretch: 90%;
+    }
+  }
   .sim-cell__letter {
+    grid-area: letter;
     font-weight: 700;
     font-size: 12px;
     line-height: 14px;
     font-stretch: 112%;
   }
   .sim-cell__pct {
+    grid-area: pct;
+    text-align: right;
     font-size: 10.5px;
     line-height: 14px;
     font-stretch: 84%;
@@ -1230,8 +1263,9 @@
   }
   .sim-editor__r1 {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    gap: 6px 8px;
     min-width: 0;
   }
   .sim-editor__when {
@@ -1241,8 +1275,18 @@
   /* a long program label (planner programs) truncates instead of squeezing the day line (sweep 2026-10-01) */
   .sim-editor__r1 > .sim-chip {
     flex: 0 1 auto;
-    min-width: 0;
-    max-width: 55%;
+    min-width: min(100%, 9em);
+    max-width: 100%;
+    /* two lines, so the program name stays readable (the full name is also the tooltip) */
+    height: auto;
+    min-height: 24px;
+    padding-block: 3px;
+    white-space: normal;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
   .sim-editor__nav {
     display: inline-flex;
@@ -2111,8 +2155,6 @@
     min-height: 420px;
   }
   .sim-starter__plate {
-    max-width: 520px;
-    margin: 0 auto;
     text-align: left;
   }
   .sim-starter__list {
@@ -2212,4 +2254,15 @@
       transition: none;
     }
   }
+  /* Desktop: the schedule / results switch sits at the right end of the context bar (beside the sync chip), not
+     next to the title. Phones and tablets keep it after the title. */
+  @media (min-width: 64rem) {
+    .lm-ctx:has(> .sim-tabs) > .lm-ctx__grow {
+      flex: 0 0 0;
+    }
+    .lm-ctx > .sim-tabs {
+      margin-inline-start: auto;
+    }
+  }
+
 }

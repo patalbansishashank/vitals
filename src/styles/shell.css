@@ -1,39 +1,57 @@
 /* ==========================================================================
    Vitals — app shell (src/app/shell/*). INFORMATION_ARCHITECTURE.md §3:
-   < 1024 px: sticky top bar + per-screen context bar + bottom tab bar;
-   ≥ 1024 px: 76 px navigation rail + sticky per-screen context bar.
+   < 1024 px: sticky top bar + per-screen context bar + bottom tab bar
+              (+ the contextual action bar above it where a screen has one);
+   ≥ 1024 px: 76 px navigation rail + sticky per-screen context bar
+              (+ the action bar along the bottom of the content column).
    ========================================================================== */
 
 @layer components {
-  /* Keyboard focus must scroll into the space above the fixed navigation. */
+  /* desktop action bar height (IA §3.1: the action bar is 56 px; the phone keeps 64 for its 56 px Run key) */
+  :root {
+    --lm-deskbar-h: calc(var(--lm-bar-control-h) + 16px);
+    /* the phone action bar (sticky above the tab bar): control + 10 px above and below + the hairline */
+    --lm-footbar-h: calc(var(--lm-bar-control-h) + 21px);
+  }
+  /* Keyboard focus must scroll into the space above the fixed navigation (phones: the tab bar only; the
+     action bar is in the page flow there). */
   html:has(.lm-app) {
     scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + 24px);
   }
-  html:has(.lm-app[data-actionbar='true']) {
-    scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + 88px);
+  html:has(.lm-actionbar-slot > .lm-actionbar) {
+    scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-footbar-h) + 24px);
   }
   @media (min-width: 64rem) {
-    html:has(.lm-app),
-    html:has(.lm-app[data-actionbar='true']) {
+    html:has(.lm-app) {
       scroll-padding-bottom: 24px;
     }
+    html:has(.lm-actionbar-slot > .lm-actionbar) {
+      scroll-padding-bottom: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom) + 24px);
+    }
   }
+  /* Phone widths in a desktop window: no reserved scrollbar strip, so the fixed bars reach both window
+     edges like on a phone (their transparent-track gutter otherwise cuts 10 px off the right). */
+  @media (max-width: 47.99rem) {
+    html:has(.lm-app) {
+      scrollbar-width: none;
+    }
+  }
+  /* --lm-actionbar-h: the space the action bar takes at the foot of the viewport (the toast clears it). Desktop: the
+     fixed bar; phones: the sticky bar (set in the phone block below). */
   .lm-app {
     --lm-actionbar-h: 0px;
     min-height: 100vh;
     min-height: 100dvh;
-  }
-  .lm-app[data-actionbar='true'] {
-    --lm-actionbar-h: 64px;
+    padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
   }
   @media (min-width: 64rem) {
     .lm-app {
       display: grid;
       grid-template-columns: var(--lm-rail-w) minmax(0, 1fr);
-      --lm-actionbar-h: 0px;
+      padding-bottom: 0;
     }
-    .lm-app[data-actionbar='true'] {
-      --lm-actionbar-h: 0px;
+    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) {
+      --lm-actionbar-h: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom));
     }
   }
 
@@ -93,7 +111,7 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    height: 40px;
+    height: var(--lm-bar-control-h);
     padding: 0 10px 0 4px;
     border: 0;
     border-radius: var(--lm-radius-sm);
@@ -264,22 +282,21 @@
     }
   }
   /* hidden while the on-screen keyboard is up (IA §3.1) */
-  .lm-app[data-keyboard='true'] .lm-tabbar,
-  .lm-app[data-keyboard='true'] .lm-actionbar {
+  .lm-app[data-keyboard='true'] .lm-tabbar {
     display: none;
   }
 
   /* ---- main column ---------------------------------------------------------- */
   .lm-main {
     min-width: 0;
-    padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-actionbar-h) + 24px);
+    padding-bottom: 24px;
   }
   .lm-main:focus {
     outline: none;
   }
   @media (min-width: 64rem) {
     .lm-main {
-      padding-bottom: 32px;
+      padding-bottom: calc(var(--lm-actionbar-h) + 32px);
     }
   }
 
@@ -297,7 +314,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 10px 12px;
-    min-height: 56px;
+    min-height: calc(var(--lm-bar-control-h) + 20px);
     padding: 10px calc(var(--lm-gutter) + var(--lm-safe-right)) 10px calc(var(--lm-gutter) + var(--lm-safe-left));
     background: var(--lm-chassis);
     border-bottom: 1px solid var(--lm-line);
@@ -307,7 +324,7 @@
       top: 0;
     }
     .lm-ctx {
-      min-height: var(--lm-topbar-h);
+      min-height: calc(var(--lm-bar-control-h) + 16px);
       padding: 8px var(--lm-gutter-lg);
       background: var(--lm-chassis-2);
       border-bottom: 1px solid var(--lm-line-strong);
@@ -342,12 +359,14 @@
   .lm-ctx__grow {
     flex: 1;
   }
+  /* Below 1024 px: the title on the first row, the step scale on a second row across the full width, on the
+     title's left edge. Desktop: one line, the scale at the right end. */
   .lm-ctx:has(> .lm-ctx__progress) {
-    row-gap: 16px;
+    row-gap: 10px;
   }
   .lm-ctx__progress {
     display: grid;
-    justify-items: center;
+    justify-items: stretch;
     flex: 1 0 100%;
     min-width: 0;
     max-width: 100%;
@@ -355,7 +374,17 @@
   .lm-ctx__progress > * {
     max-width: 100%;
   }
-  @media (min-width: 48rem) {
+  @media (max-width: 63.99rem) {
+    .lm-ctx__progress .lm-ik-progress {
+      width: 100%;
+      min-width: 0;
+      justify-items: stretch;
+    }
+    .lm-ctx__progress .lm-ik-progress__segs {
+      width: 100%;
+    }
+  }
+  @media (min-width: 64rem) {
     .lm-ctx__progress {
       flex: 0 1 auto;
       margin-inline-start: auto;
@@ -393,8 +422,6 @@
   .lm-notices {
     display: grid;
     gap: 8px;
-    max-width: var(--lm-content-max);
-    margin: 0 auto;
     padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
   }
   @media (min-width: 64rem) {
@@ -403,10 +430,11 @@
     }
   }
 
-  /* ---- page content column --------------------------------------------------- */
+  /* ---- page content column ---------------------------------------------------
+     The full width of the main column at every viewport, inside the token gutters (16 px phone, 24 px ≥ 1024),
+     the same edges as the context bar and the action bar. Reading pages opt into a narrow column
+     (`<Page width="narrow">`); elsewhere the line length is capped on paragraphs, not on the page. */
   .lm-page {
-    max-width: var(--lm-content-max);
-    margin: 0 auto;
     padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
   }
   @media (min-width: 64rem) {
@@ -416,29 +444,174 @@
   }
   .lm-page[data-width='narrow'] {
     max-width: calc(760px + 2 * var(--lm-gutter-lg));
+    margin: 0 auto;
+  }
+  /* Line length: everything takes the full width (owner, 5 Oct). Text in a card fills the card (a faceplate already
+     bounds it), so per-screen ch caps on card paragraphs give way; centred empty-state copy keeps its measure. Only
+     the long-form reading pages keep a measure (their narrow column, above, and the evidence articles' own). */
+  :where(.lm-page:not([data-width='narrow'])) .lm-face p:not(.lm-empty p) {
+    max-width: none;
   }
 
-  /* ---- mobile contextual action bar (above the tab bar) ------------------- */
+  /* ---- contextual action bar (TopBar.tsx `ActionBarFrame`) -------------------
+     - < 1024 px: full width at the end of the page, sticky to the bottom of the screen above the fixed tab bar; filled by the screen's <ActionBar> (`data-place='foot'`);
+     - ≥ 1024 px: fixed along the bottom of the content column (right of the rail, inner edges on the page
+       grid), filled by the TopBar's key parameters (left) and actions (right) (`data-place='desk'`), so the
+       context bar keeps only identity and status. A screen with an <ActionBar> but no TopBar parameters or
+       actions shows that bar there instead. The page (`.lm-main`), focus scrolling, toasts and the
+       viewport-high docked panels keep clear of it. */
   .lm-actionbar-slot:empty {
     display: none;
   }
   .lm-actionbar {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
-    z-index: var(--lm-z-tabbar);
     display: flex;
     align-items: center;
     gap: 10px;
-    min-height: 64px;
-    padding: 8px calc(var(--lm-gutter) + var(--lm-safe-right)) 8px calc(var(--lm-gutter) + var(--lm-safe-left));
+    min-height: calc(var(--lm-bar-control-h) + 20px);
+    padding: 10px calc(var(--lm-gutter) + var(--lm-safe-right)) 10px calc(var(--lm-gutter) + var(--lm-safe-left));
     background: var(--lm-chassis);
     border-top: 1px solid var(--lm-line-strong);
   }
+  /* a lone item (the Coach composer, the setup keys) spans the bar, so its right edge keeps the gutter too */
+  .lm-actionbar > :only-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* Every word key in the bar is a real key at the one bar height (--lm-bar-control-h, see the block at the end of
+     this file): the screen's quiet keys ("Back", "Skip for now") take the default raised cap, so the solid or
+     yellow key stays the primary and the bar's painted edges sit on the 16 / 24 px gutters. */
+  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']) {
+    background: var(--lm-raised);
+    border-color: var(--lm-edge);
+    box-shadow: var(--lm-shadow-key);
+  }
+  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']):hover {
+    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
+  }
+  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']):active:not([aria-disabled='true']):not(:disabled) {
+    background: var(--lm-raised);
+    box-shadow: var(--lm-shadow-key-pressed);
+  }
+  .lm-actionbar .lm-key[data-variant='quiet'][data-pressed='true']:not([data-icon-only='true']) {
+    background: var(--lm-well);
+    border-color: var(--lm-ink);
+    box-shadow: var(--lm-shadow-key-pressed);
+  }
+  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']):is(:disabled, [aria-disabled='true']:not([data-loading='true'])) {
+    background: var(--lm-well);
+    border-color: var(--lm-line-strong);
+    box-shadow: none;
+  }
+  /* Your body's setup keys (Back · Skip for now · Next) fill the phone bar edge to edge, Next the widest */
+  .lm-actionbar[data-place='foot'] .lm-body-setup-actions > .lm-key {
+    flex: 1 1 auto;
+  }
+  @media (max-width: 63.99rem) {
+    /* Phones and tablets: the bar is in the flow at the end of the page and sticks to the bottom of the screen, just
+       above the tab bar, while the page is longer than the window (it needs no padding: it takes its own room).
+       No ancestor may set overflow or a transform, or sticky stops working (guarded in actionBar.test.tsx). */
+    .lm-app {
+      --lm-foot-offset: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
+    }
+    .lm-app[data-chromeless='true'] {
+      --lm-foot-offset: 0px;
+    }
+    .lm-app[data-keyboard='true'] {
+      --lm-foot-offset: 0px;
+    }
+    .lm-actionbar-slot {
+      position: sticky;
+      bottom: var(--lm-foot-offset);
+      z-index: var(--lm-z-tabbar);
+    }
+    /* toasts sit above the bar and the tab bar; sheets and dialogs (z 500, 600) cover both */
+    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) {
+      --lm-actionbar-h: var(--lm-foot-h, var(--lm-footbar-h));
+    }
+    .lm-app:has(.lm-ctx[data-bottom]) {
+      --lm-actionbar-h: calc(var(--lm-foot-h, 0px) + var(--lm-ctx-h, 0px));
+    }
+    /* The screen's title bar (title left, "…" and actions right) sits at the foot of the screen, in the slot where the
+       Coach's message bar used to be: fixed just above the action bar (or the tab bar), the same solid ground and
+       hairline as the action bar. It stays in the top slot in the DOM, so the h1 keeps its place in the reading
+       order. The shell measures both bars (`--lm-foot-h`, `--lm-ctx-h`, AppShell.tsx) so nothing overlaps whatever
+       height they take; the page keeps the room under its last line. Compact screens (Settings) keep their title in
+       the top bar and are not touched. */
+    .lm-ctx-slot:has(> .lm-ctx[data-bottom]) {
+      position: fixed;
+      top: auto;
+      left: 0;
+      right: 0;
+      bottom: calc(var(--lm-foot-offset) + var(--lm-foot-h, 0px));
+      z-index: var(--lm-z-tabbar);
+    }
+    .lm-ctx[data-bottom] {
+      row-gap: 6px;
+      border-bottom: 0;
+      border-top: 1px solid var(--lm-line-strong);
+    }
+    .lm-main:has(.lm-ctx[data-bottom]) {
+      padding-bottom: calc(var(--lm-ctx-h, 0px) + 24px);
+    }
+    /* chromeless screens (first-run intake) have no tab bar: the lowest bar clears the home indicator itself */
+    .lm-app[data-chromeless='true'] .lm-actionbar-slot,
+    .lm-app[data-chromeless='true']:not(:has(.lm-actionbar-slot > .lm-actionbar)) .lm-ctx-slot:has(> .lm-ctx[data-bottom]) {
+      padding-bottom: var(--lm-safe-bottom);
+      background: var(--lm-chassis);
+    }
+    html:has(.lm-ctx[data-bottom]) {
+      scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-ctx-h, var(--lm-footbar-h)) + 24px);
+    }
+    html:has(.lm-ctx[data-bottom]):has(.lm-actionbar-slot > .lm-actionbar) {
+      scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-foot-h, var(--lm-footbar-h)) + var(--lm-ctx-h, var(--lm-footbar-h)) + 24px);
+    }
+    :root .lm-toaster {
+      bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-actionbar-h, 0px) + 12px);
+    }
+  }
   @media (min-width: 64rem) {
     .lm-actionbar-slot {
+      grid-column: 2;
+    }
+    .lm-actionbar-slot:has(> [data-place='desk']) > [data-place='foot'] {
       display: none;
+    }
+    /* status on the left, keys on the right: the actions span the bar after the parameters, and their first group
+       that holds something to press starts the right-hand cluster ("saved on this device" … Back · Skip · Next) */
+    .lm-actionbar[data-place='desk'] > .lm-ctx__grow {
+      display: none;
+    }
+    .lm-actionbar[data-place='desk'] > .lm-ctx__actions {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .lm-actionbar[data-place='desk'] > .lm-ctx__actions > :is(button, a[href], input, select, :has(button, a[href], input, select)):not(:is(button, a[href], input, select, :has(button, a[href], input, select)) ~ *) {
+      margin-inline-start: auto;
+    }
+    .lm-actionbar {
+      position: fixed;
+      left: var(--lm-rail-w);
+      right: 0;
+      bottom: 0;
+      z-index: var(--lm-z-tabbar);
+      min-height: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom));
+      /* the page column's edges: the full content column inside the 24 px gutters (`.lm-page`) */
+      padding: 8px var(--lm-gutter-lg) calc(8px + var(--lm-safe-bottom));
+    }
+    /* toasts sit above the bar (bottom-left on desktop, IA §3.3) */
+    :root:has(.lm-actionbar-slot > .lm-actionbar) .lm-toaster {
+      bottom: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom) + 16px);
+    }
+    /* docked panels sized to the viewport stop above the bar (same gap above it as under the context bar) */
+    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .lm-sidepanel[data-mode='docked'],
+    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .lv-coach-brief {
+      max-height: calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 24px);
+    }
+    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .sim-sched__editor[data-mode='docked'] {
+      max-height: calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 32px);
+    }
+    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .ev-sticky {
+      max-height: calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 40px);
     }
   }
 
@@ -450,5 +623,76 @@
     right: 0;
     height: 2px;
     z-index: var(--lm-z-toast);
+  }
+
+  /* ---- one control height in the bars -------------------------------------------------------------------------
+     --lm-bar-control-h (tokens.css): 36 px for a fine pointer, 44 px under (pointer: coarse) so touch screens keep
+     the touch target. EVERY control in the top bars (.lm-topbar, the screen's .lm-ctx bar) and in the action bar
+     (.lm-actionbar) is exactly that high: keys, icon keys, key banks (segmented switches), steppers and number
+     fields, inputs, selects, switches, chips (sync and ring status included) and the round run key. Bars centre their items. Guarded by
+     src/app/__tests__/barControlHeight.test.ts and measured per route by scripts/qa/bar-heights.mjs. */
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) {
+    --bar-h: var(--lm-bar-control-h);
+    align-items: center;
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-key:not([data-icon-only='true']) {
+    height: var(--bar-h);
+    min-height: var(--bar-h);
+    padding-inline: 14px;
+    font-size: var(--lm-text-base);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-key[data-icon-only='true'] {
+    width: var(--bar-h);
+    height: var(--bar-h);
+    min-height: var(--bar-h);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-bank {
+    height: var(--bar-h);
+    box-sizing: border-box;
+    align-items: stretch;
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-bank > .lm-bank__key {
+    height: auto;
+    min-height: 0;
+    padding-inline: 12px;
+    font-size: var(--lm-text-sm);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-stepper {
+    height: var(--bar-h);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-stepper__btn {
+    width: var(--bar-h);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-numfield:not(.lm-stepper > .lm-numfield) {
+    height: var(--bar-h);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) :is(.lm-input, .lm-select, .lm-select[data-size='sm']) {
+    height: var(--bar-h);
+    min-height: 0;
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-switch {
+    min-height: var(--bar-h);
+    height: var(--bar-h);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-chip {
+    height: var(--bar-h);
+    padding-inline: 12px;
+  }
+  /* bare text triggers a screen puts in a bar (a name that opens a menu, an evidence link, a date button with a
+     native input over it) get the same height, so the row has one rhythm */
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar)
+    :is(button, a[href], summary, [role='button']):not(.lm-key, .lm-bank__key, .lm-stepper__btn, .lm-select, .lm-chip, .lm-topbar__back, .lm-runkey, [role='radio'], [role='tab'], [role='switch']):not(.lm-bank *, .lm-stepper *, .lm-runkey *, .lm-switch *, .lm-ik-progress *) {
+    box-sizing: border-box;
+    height: var(--bar-h);
+    min-height: var(--bar-h);
+    align-content: center;
+    line-height: 1.15;
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) :has(> input[type='date']) {
+    height: var(--bar-h);
+  }
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-runkey__cap,
+  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-runkey[data-size='lg'] .lm-runkey__cap {
+    --cap: var(--bar-h);
   }
 }

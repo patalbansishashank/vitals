@@ -5,6 +5,7 @@
  */
 import type { BioBatch, BioStream } from '@/biometrics/core/types';
 import type { SourceBody } from '@/biometrics/store/docIndex';
+import type { Platform } from '@/platform';
 import type { RingEvent } from '../../../../packages/rings/src/types';
 import {
   RingLinkError,
@@ -54,6 +55,10 @@ export async function settle(rounds = 20): Promise<void> {
   for (let i = 0; i < rounds; i++) await new Promise<void>((r) => setTimeout(r, 0));
 }
 
+/** One order over connect attempts and lease writes, so a test can tell which came first within the same instant. */
+let order = 0;
+const nextOrder = (): number => ++order;
+
 // ---------------------------------------------------------------- the fake ring and its sessions
 
 export interface FakeRingOptions {
@@ -82,7 +87,27 @@ export class FakeRing {
   gate: Promise<void> | null = null;
   /** The next `sync` fails once. */
   failSyncOnce = false;
-  connectAttempts: Array<{ at: number; platformId: string }> = [];
+  /** `seq` orders an attempt against lease writes (`SharedStore.leaseWrites`) made at the same instant. */
+  connectAttempts: Array<{ at: number; platformId: string; seq: number }> = [];
+  /**
+   * A second central while one is connected: 'refuse' (the default) fails it with `not_found`; 'kick' gives the ring to
+   * the newest central, dropping the one connected (its disconnect listeners fire), as some rings do.
+   */
+  onSecondCentral: 'refuse' | 'kick' = 'refuse';
+  /** Every link the ring dropped for a newer central ('kick'), by platform id. */
+  kicks: Array<{ at: number; from: string; to: string }> = [];
+  /**
+   * A connect comes up only after this much FakeClock time (the idle ring advertises every 20–40 s). Unset: at once, as
+   * before. An abort of the connector's signal ends the wait with `cancelled`.
+   */
+  connectDelayMs?: number;
+  /** The next connect fails once with this code (and GATT status), then clears. */
+  failOnce?: { code: RingLinkError['code']; gattStatus?: number };
+  /**
+   * A history read takes this much FakeClock time (a desktop read takes about 40 s); unset: at once. The read ends with
+   * `disconnected` when the link drops meanwhile, `cancelled` when its signal aborts.
+   */
+  readMs?: number;
   constructor(o: FakeRingOptions = {}) {
     this.driverId = o.driverId ?? 'jstyle2301';
     this.ringId = o.ringId ?? 'mac:aa:bb:cc:dd:ee:01';
@@ -95,10 +120,55 @@ export class FakeRing {
     this.platformIds = new Set(o.platformIds ?? ['aa:bb:cc:dd:ee:01']);
   }
   open(platformId: string, clock: RingClockPort): FakeSession {
-    this.connectAttempts.push({ at: clock.now(), platformId });
+    this.reach(platformId, clock);
+    return this.accept(platformId, clock);
+  }
+  /** `open` on a ring that answers only after `connectDelayMs` (what `fakeConnector` uses when it is set). */
+  openLater(platformId: string, clock: RingClockPort, signal?: AbortSignal): Promise<FakeSession> {
+    try {
+      this.reach(platformId, clock);
+    } catch (err) {
+      return Promise.reject(err);
+    }
+    return new Promise<FakeSession>((resolve, reject) => {
+      if (signal?.aborted) return reject(new RingLinkError('cancelled'));
+      let cancel = (): void => undefined;
+      const onAbort = (): void => {
+        cancel();
+        reject(new RingLinkError('cancelled'));
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+      cancel = clock.setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort);
+        try {
+          resolve(this.accept(platformId, clock));
+        } catch (err) {
+          reject(err);
+        }
+      }, this.connectDelayMs ?? 0);
+    });
+  }
+  /** An attempt reaches the radio: recorded; `refuse` and `failOnce` answer at once. */
+  private reach(platformId: string, clock: RingClockPort): void {
+    this.connectAttempts.push({ at: clock.now(), platformId, seq: nextOrder() });
     if (this.refuse) throw new RingLinkError(this.refuse);
-    if (this.held) throw new RingLinkError('not_found', 'the ring is connected to another central');
-    const s = new FakeSession(this, platformId);
+    const f = this.failOnce;
+    if (f) {
+      this.failOnce = undefined;
+      const err = new RingLinkError(f.code);
+      if (f.gattStatus !== undefined) err.gattStatus = f.gattStatus;
+      throw err;
+    }
+  }
+  /** The link comes up: a second central is refused, or ('kick') takes the ring from the one connected. */
+  private accept(platformId: string, clock: RingClockPort): FakeSession {
+    if (this.held) {
+      if (this.onSecondCentral !== 'kick') throw new RingLinkError('not_found', 'the ring is connected to another central');
+      const old = this.held;
+      this.kicks.push({ at: clock.now(), from: old.platformId, to: platformId });
+      old.drop();
+    }
+    const s = new FakeSession(this, platformId, clock);
     this.held = s;
     return s;
   }
@@ -126,13 +196,41 @@ export class FakeSession implements RingLinkSession {
     if (this.running === name) this.running = null;
   }
   private dropListeners = new Set<() => void>();
+  /** Waits (a timed read) that end when the link goes down. */
+  private closeWaiters = new Set<() => void>();
   private livePush: ((v: { bpm: number; t: number } | null) => void) | null = null;
   constructor(
     readonly ring: FakeRing,
     platformId: string,
+    private readonly clock?: RingClockPort,
   ) {
     this.platformId = platformId;
     this.identity = { driverId: ring.driverId, family: ring.driverId, maker: 'J-Style', model: '2301', ...(ring.ringId ? { ringId: ring.ringId } : {}) };
+  }
+  /** `ms` of FakeClock time; `disconnected` when the link goes down meanwhile, `cancelled` when `signal` aborts. */
+  private pause(ms: number, signal: AbortSignal): Promise<void> {
+    const clock = this.clock;
+    if (!clock) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      if (this.closed) return reject(new RingLinkError('disconnected'));
+      if (signal.aborted) return reject(new RingLinkError('cancelled'));
+      let cancel = (): void => undefined;
+      const end = (err?: RingLinkError): void => {
+        cancel();
+        this.closeWaiters.delete(onClose);
+        signal.removeEventListener('abort', onAbort);
+        if (err) reject(err);
+        else resolve();
+      };
+      const onClose = (): void => end(new RingLinkError('disconnected'));
+      const onAbort = (): void => end(new RingLinkError('cancelled'));
+      this.closeWaiters.add(onClose);
+      signal.addEventListener('abort', onAbort, { once: true });
+      cancel = clock.setTimeout(() => end(), ms);
+    });
+  }
+  private wakeWaiters(): void {
+    for (const w of [...this.closeWaiters]) w();
   }
   async info() {
     return { firmware: this.ring.firmware, battery: this.ring.battery, clockOffsetS: 0 };
@@ -149,6 +247,7 @@ export class FakeSession implements RingLinkSession {
         throw new RingLinkError('failed');
       }
       if (this.ring.gate) await this.ring.gate;
+      if (this.ring.readMs) await this.pause(this.ring.readMs, signal);
       onProgress(0);
       for (const e of this.ring.history) {
         if (signal.aborted) throw new RingLinkError('cancelled');
@@ -197,11 +296,13 @@ export class FakeSession implements RingLinkSession {
     if (this.closed) return;
     this.closed = true;
     if (this.ring.held === this) this.ring.held = null;
+    this.wakeWaiters();
     for (const l of this.dropListeners) l();
   }
   async close(): Promise<void> {
     this.closed = true;
     if (this.ring.held === this) this.ring.held = null;
+    this.wakeWaiters();
   }
 }
 
@@ -215,6 +316,8 @@ export interface FakeConnectorOptions {
 
 export function fakeConnector(o: FakeConnectorOptions): RingConnector {
   const find = (platformId: string): FakeRing | undefined => o.rings.find((r) => r.platformIds.has(platformId));
+  // at once (synchronously, as before) unless the ring advertises slowly
+  const open = (r: FakeRing, platformId: string, signal?: AbortSignal): FakeSession | Promise<FakeSession> => (r.connectDelayMs ? r.openLater(platformId, o.clock, signal) : r.open(platformId, o.clock));
   const c: RingConnector = {
     available: async () => o.availability ?? 'ready',
     async *scan() {
@@ -223,23 +326,23 @@ export function fakeConnector(o: FakeConnectorOptions): RingConnector {
         yield { candidateId: pid, driverId: r.driverId, platformId: pid, rssi: -60 };
       }
     },
-    async connect(hit) {
+    async connect(hit, signal) {
       const r = find(hit.candidateId);
       if (!r) throw new RingLinkError('not_found');
-      return r.open(hit.candidateId, o.clock);
+      return open(r, hit.candidateId, signal);
     },
-    adopt: async (_link, driverId) => {
+    adopt: async (_link, driverId, signal) => {
       const r = o.rings.find((x) => x.driverId === driverId);
       if (!r) throw new RingLinkError('not_found');
-      return r.open('web:opaque', o.clock);
+      return open(r, 'web:opaque', signal);
     },
     driverInfo: (driverId) => (driverId === 'jstyle2301' ? { label: 'J-Style 2301', maker: 'J-Style', model: '2301', streams: ['hr', 'steps'] as BioStream[], checks: ['hr', 'spo2'] } : undefined),
   };
   if (o.canReconnect !== false)
-    c.reconnect = async (platformId) => {
+    c.reconnect = async (platformId, _driverId, signal) => {
       const r = find(platformId);
       if (!r) throw new RingLinkError('not_found');
-      return r.open(platformId, o.clock);
+      return open(r, platformId, signal);
     };
   return c;
 }
@@ -256,22 +359,51 @@ function mergePatch(target: Record<string, unknown>, patch: Record<string, unkno
   return out;
 }
 
+/** One write through a port, as the server applied it (what a lagged view replays). */
+export interface StoreWrite {
+  seq: number;
+  /** The port that wrote it: a lagged view sees its own writes at once. */
+  origin: object | undefined;
+  kind: 'lease' | 'source';
+  key: string;
+  before: unknown;
+  after: unknown;
+  /** The same write over another value of the document (a lagged view's own write over what it still sees). */
+  apply: (cur: unknown) => unknown;
+}
+
+const seedSource = (ringKey: string, label = 'J-Style 2301'): SourceBody => ({ sourceKey: ringKey, label, tier: 'C', priority: 0, policies: [], baselineEpochs: [] });
+// field-level LWW as `bioSources` merges: a top-level field is replaced whole, null included
+const leaseAfter = (cur: unknown, ringKey: string, patch: Partial<RingLeaseBody>): RingLeaseBody =>
+  ({ ...((cur ?? { kind: 'ringLease', ringKey, holder: null, heartbeatAt: null, takeover: null }) as Record<string, unknown>), ...patch }) as unknown as RingLeaseBody;
+const sourceAfter = (cur: unknown, ringKey: string, patch: Record<string, unknown>): SourceBody => mergePatch((cur ?? seedSource(ringKey)) as Record<string, unknown>, patch) as unknown as SourceBody;
+
 /** One "server": every device's service reads and writes the same documents and sees every change at once. */
 export class SharedStore {
   readonly sources = new Map<string, SourceBody>();
   readonly leases = new Map<string, RingLeaseBody>();
   readonly batches: BioBatch[] = [];
-  readonly leaseWrites: Array<{ ringKey: string; patch: Partial<RingLeaseBody> }> = [];
+  /** `seq` orders a write against `FakeRing.connectAttempts`; `at` and `by` are set when the port knows its clock and device. */
+  readonly leaseWrites: Array<{ ringKey: string; patch: Partial<RingLeaseBody>; seq?: number; at?: number; by?: string }> = [];
   readonly sourcePatches: Array<{ ringKey: string; patch: Record<string, unknown> }> = [];
   private listeners = new Set<() => void>();
+  private feed = new Set<(w: StoreWrite) => void>();
   private notify(): void {
     for (const l of [...this.listeners]) l();
+  }
+  private wrote(w: StoreWrite): void {
+    for (const f of [...this.feed]) f(w);
+  }
+  /** Every write through a port, after the store applied it (lagged views: `laggedStorePort`). */
+  onWrite(cb: (w: StoreWrite) => void): () => void {
+    this.feed.add(cb);
+    return () => this.feed.delete(cb);
   }
   addRingSource(ringKey: string, driver: string, extra: Partial<SourceBody> = {}): void {
     this.sources.set(ringKey, { sourceKey: ringKey, label: 'J-Style 2301', tier: 'C', priority: 0, policies: [], baselineEpochs: [], deviceType: 'ring', ble: { driver }, ...extra });
   }
-  port(): RingStorePort {
-    const seed = (ringKey: string, label = 'J-Style 2301'): SourceBody => ({ sourceKey: ringKey, label, tier: 'C', priority: 0, policies: [], baselineEpochs: [] });
+  /** `by` / `clock` label this port's lease writes; `origin` marks its writes for a lagged view. */
+  port(o: { by?: string; clock?: RingClockPort; origin?: object } = {}): RingStorePort {
     return {
       ready: async () => undefined,
       sources: () => [...this.sources.values()],
@@ -282,21 +414,27 @@ export class SharedStore {
       },
       ensureSource: async (ringKey, p) => {
         if (this.sources.has(ringKey)) return;
-        this.sources.set(ringKey, { ...seed(ringKey, p.label), deviceType: 'ring', ble: { driver: p.driverId } });
+        const after: SourceBody = { ...seedSource(ringKey, p.label), deviceType: 'ring', ble: { driver: p.driverId } };
+        this.sources.set(ringKey, after);
+        this.wrote({ seq: nextOrder(), origin: o.origin, kind: 'source', key: ringKey, before: undefined, after, apply: (cur) => cur ?? after });
         this.notify();
       },
       patchSource: async (ringKey, patch) => {
         this.sourcePatches.push({ ringKey, patch });
-        const cur = (this.sources.get(ringKey) ?? seed(ringKey)) as unknown as Record<string, unknown>;
-        this.sources.set(ringKey, mergePatch(cur, patch) as unknown as SourceBody);
+        const before = this.sources.get(ringKey);
+        const after = sourceAfter(before, ringKey, patch);
+        this.sources.set(ringKey, after);
+        this.wrote({ seq: nextOrder(), origin: o.origin, kind: 'source', key: ringKey, before, after, apply: (cur) => sourceAfter(cur, ringKey, patch) });
         this.notify();
       },
       lease: (ringKey) => this.leases.get(ringKey),
       patchLease: async (ringKey, patch) => {
-        this.leaseWrites.push({ ringKey, patch });
-        const cur = (this.leases.get(ringKey) ?? { kind: 'ringLease', ringKey, holder: null, heartbeatAt: null, takeover: null }) as unknown as Record<string, unknown>;
-        // field-level LWW as `bioSources` merges: a top-level field is replaced whole, null included
-        this.leases.set(ringKey, { ...cur, ...patch } as unknown as RingLeaseBody);
+        const seq = nextOrder();
+        this.leaseWrites.push({ ringKey, patch, seq, ...(o.clock ? { at: o.clock.now() } : {}), ...(o.by ? { by: o.by } : {}) });
+        const before = this.leases.get(ringKey);
+        const after = leaseAfter(before, ringKey, patch);
+        this.leases.set(ringKey, after);
+        this.wrote({ seq, origin: o.origin, kind: 'lease', key: ringKey, before, after, apply: (cur) => leaseAfter(cur, ringKey, patch) });
         this.notify();
       },
       subscribe: (cb) => {
@@ -305,6 +443,79 @@ export class SharedStore {
       },
     };
   }
+}
+
+/**
+ * One device's view of the shared store over a sync that takes `lagMs` (FakeClock time, `clock` is the device's): its
+ * own writes are seen here at once, every other device's write (and a test's write through `store.port()`) only `lagMs`
+ * later, when `subscribe` callbacks fire. The store's own maps stay the server's truth. A document a test sets by hand
+ * on `store.leases` / `store.sources` (not through a port) is seen at once.
+ */
+export function laggedStorePort(store: SharedStore, clock: FakeClock, lagMs: number, by?: string): RingStorePort {
+  const origin = {};
+  const inner = store.port({ by, clock, origin });
+  type Kind = StoreWrite['kind'];
+  const server: Record<Kind, Map<string, unknown>> = { lease: store.leases, source: store.sources };
+  // documents another device changed lately, as this device still sees them; absent: the server's value
+  const seen: Record<Kind, Map<string, unknown>> = { lease: new Map(), source: new Map() };
+  const pending: Record<Kind, Map<string, number>> = { lease: new Map(), source: new Map() };
+  const own: StoreWrite[] = [];
+  const listeners = new Set<() => void>();
+  const fire = (): void => {
+    for (const l of [...listeners]) l();
+  };
+  const view = (kind: Kind, key: string): unknown => (seen[kind].has(key) ? seen[kind].get(key) : server[kind].get(key));
+  store.onWrite((w) => {
+    const m = seen[w.kind];
+    if (w.origin === origin) {
+      own.push(w);
+      if (m.has(w.key)) m.set(w.key, w.apply(m.get(w.key)));
+      return;
+    }
+    if (!m.has(w.key)) m.set(w.key, w.before);
+    const n = pending[w.kind];
+    n.set(w.key, (n.get(w.key) ?? 0) + 1);
+    clock.setTimeout(() => {
+      const left = (n.get(w.key) ?? 1) - 1;
+      if (left === 0) {
+        // caught up: the server's value (every foreign write arrived, own writes are in it)
+        n.delete(w.key);
+        m.delete(w.key);
+      } else {
+        n.set(w.key, left);
+        let v = w.after;
+        for (const x of own) if (x.kind === w.kind && x.key === w.key && x.seq > w.seq) v = x.apply(v);
+        m.set(w.key, v);
+      }
+      fire();
+    }, lagMs);
+  });
+  return {
+    ready: () => inner.ready(),
+    sources: () => [...new Set([...store.sources.keys(), ...seen.source.keys()])].map((k) => view('source', k) as SourceBody | undefined).filter((s): s is SourceBody => s !== undefined),
+    source: (k) => view('source', k) as SourceBody | undefined,
+    ingest: (batch, ctx) => inner.ingest(batch, ctx),
+    ensureSource: async (ringKey, p) => {
+      if (view('source', ringKey) !== undefined) return;
+      await inner.ensureSource(ringKey, p);
+      // the server had it already (another device's, not here yet): this device sees the one it made now
+      if (seen.source.has(ringKey) && seen.source.get(ringKey) === undefined) seen.source.set(ringKey, store.sources.get(ringKey));
+      fire();
+    },
+    patchSource: async (ringKey, patch) => {
+      await inner.patchSource(ringKey, patch);
+      fire();
+    },
+    lease: (k) => view('lease', k) as RingLeaseBody | undefined,
+    patchLease: async (ringKey, patch) => {
+      await inner.patchLease(ringKey, patch);
+      fire();
+    },
+    subscribe: (cb) => {
+      listeners.add(cb);
+      return () => listeners.delete(cb);
+    },
+  };
 }
 
 export class MemoryLocal implements RingLocalPort {
@@ -330,17 +541,21 @@ export function syncPort(deviceId: string, deviceLabel: string, syncOn = true): 
 
 export const RING_KEY = 'ble:jstyle2301/2301/mac:aa:bb:cc:dd:ee:01';
 
-/** A device: ports for one service instance over the shared store. */
-export function devicePorts(o: { store: SharedStore; clock: FakeClock; rings: FakeRing[]; deviceId: string; label: string; syncOn?: boolean; canReconnect?: boolean; local?: MemoryLocal; shell?: RingServicePorts['shell'] }): RingServicePorts & { local: MemoryLocal } {
-  const local = o.local ?? new MemoryLocal({ [RING_KEY]: { cursor: {}, platformId: [...o.rings[0]!.platformIds][0] } });
+/**
+ * A device: ports for one service instance over the shared store. `platform` defaults to 'android'; `lagMs` gives the
+ * device a lagged view of the store (`laggedStorePort`); `platformId` is the ring's id on this device (default: the
+ * ring's first) when `local` is not given.
+ */
+export function devicePorts(o: { store: SharedStore; clock: FakeClock; rings: FakeRing[]; deviceId: string; label: string; syncOn?: boolean; canReconnect?: boolean; local?: MemoryLocal; shell?: RingServicePorts['shell']; platform?: Platform; lagMs?: number; platformId?: string }): RingServicePorts & { local: MemoryLocal } {
+  const local = o.local ?? new MemoryLocal({ [RING_KEY]: { cursor: {}, platformId: o.platformId ?? [...o.rings[0]!.platformIds][0] } });
   return {
     connector: fakeConnector({ rings: o.rings, clock: o.clock, canReconnect: o.canReconnect }),
-    store: o.store.port(),
+    store: o.lagMs ? laggedStorePort(o.store, o.clock, o.lagMs, o.deviceId) : o.store.port({ by: o.deviceId, clock: o.clock }),
     local,
     sync: syncPort(o.deviceId, o.label, o.syncOn ?? true),
     clock: o.clock,
     shell: o.shell,
-    platform: 'android',
+    platform: o.platform ?? 'android',
     producer: { name: 'vitals-ring', version: '1' },
   };
 }

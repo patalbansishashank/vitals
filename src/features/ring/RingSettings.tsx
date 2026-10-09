@@ -1,13 +1,13 @@
 /**
- * Ring settings (design/screens/ring-pages.md §5.7), per ring. Rows in order; a row whose capability the driver (or
- * this copy of Vitals) lacks is absent: firmware · keep my ring connected (Android app) · keep running in the tray
- * (desktop app) · how often your ring measures (only drivers with intervals) · battery over time · find my ring ·
- * disconnect · forget this ring (typed confirmation) · reset the ring (only with the capability) · add another ring.
- * There is no credential, password, key, "advanced", calibration or per-firmware row, for any ring (decision 13).
+ * Ring settings (design/screens/ring-pages.md §5.7), per ring, shown in Settings › Devices under the ring's card (owner,
+ * 9 Oct: ring settings live in Settings; the card above them has Connect, Disconnect, Forget and Add a ring). Rows in
+ * order; a row whose capability the driver (or this copy of Vitals) lacks is absent: firmware · keep my ring connected
+ * (Android app) · keep running in the tray (desktop app) · how often your ring measures (only drivers with intervals) ·
+ * battery over time · find my ring · reset the ring (only with the capability). There is no credential, password,
+ * key, "advanced", calibration or per-firmware row, for any ring (decision 13).
  */
 import { useState, type ReactNode } from 'react';
 import { Dialog, Engraved, Faceplate, Key, ScaleSlider, Switch, toast } from '@/components';
-import { TypedConfirmDialog } from '@/features/living/components/TypedConfirmDialog';
 import { useRingEnv, useRings, type RingCaps, type RingService, type RingStatus } from './data';
 import { BatteryHistory } from './BatteryHistory';
 import { RING_SECTIONS_COPY } from './copySections';
@@ -51,9 +51,9 @@ function idTail(ringKey: string): string | null {
   return id && id.length >= 4 ? id.slice(-4).toUpperCase() : null;
 }
 
-function Row({ label, children, help, forget }: { label: string; children?: ReactNode; help?: ReactNode; forget?: boolean }) {
+function Row({ label, children, help }: { label: string; children?: ReactNode; help?: ReactNode }) {
   return (
-    <li className="rs-setting" data-row={label} data-forget-ring={forget || undefined}>
+    <li className="rs-setting" data-row={label}>
       <Engraved>{label}</Engraved>
       {children !== undefined ? <div className="rs-setting__value">{children}</div> : null}
       {help ? <p className="rs-setting__help">{help}</p> : null}
@@ -61,14 +61,13 @@ function Row({ label, children, help, forget }: { label: string; children?: Reac
   );
 }
 
-export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing: (trigger: HTMLButtonElement) => void }) {
+export function RingSettings({ ring }: { ring: RingStatus }) {
   const { service, platform } = useRingEnv();
   const rings = useRings();
   const caps: RingCaps = ring.caps ?? {};
   const key = ring.ringKey;
   const linked = LINKED.has(ring.state);
   const [busy, setBusy] = useState<string | null>(null);
-  const [forgetOpen, setForgetOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [keep, setKeep] = useState(readKeepConnected);
   const measuringSvc = service as RingService & RingMeasuringService;
@@ -132,18 +131,6 @@ export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing:
           </Row>
         ) : null}
 
-        <Row label={C.disconnect}>
-          <Key size="sm" className="rg-statuskey" loading={busy === 'disconnect'} disabledReason={linked ? undefined : C.notConnected} onClick={() => void act('disconnect', () => service.disconnect(key))}>
-            {C.disconnectKey}
-          </Key>
-        </Row>
-
-        <Row label={C.forget} forget>
-          <Key size="sm" variant="danger" onClick={() => setForgetOpen(true)}>
-            {C.forgetKey}
-          </Key>
-        </Row>
-
         {caps.factoryReset && service.factoryReset ? (
           <Row label={C.reset}>
             <Key size="sm" variant="danger" onClick={() => setResetOpen(true)}>
@@ -151,32 +138,7 @@ export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing:
             </Key>
           </Row>
         ) : null}
-
-        <Row label={C.add}>
-          <Key size="sm" onClick={(event) => onAddRing(event.currentTarget)}>
-            {C.addKey}
-          </Key>
-        </Row>
       </ul>
-
-      <TypedConfirmDialog
-        open={forgetOpen}
-        onClose={() => setForgetOpen(false)}
-        title={C.forgetTitle(ring.label)}
-        body={C.forgetBody}
-        word={C.forgetWord}
-        instruction={C.forgetInstruction}
-        confirmLabel={C.forgetConfirm}
-        onConfirm={async () => {
-          try {
-            await service.forget(key);
-            setForgetOpen(false);
-            toast(C.forgotten(ring.label));
-          } catch (e) {
-            toast(errText(e));
-          }
-        }}
-      />
 
       {caps.factoryReset && service.factoryReset ? (
         <Dialog
@@ -207,6 +169,12 @@ export function RingSettings({ ring, onAddRing }: { ring: RingStatus; onAddRing:
       ) : null}
     </Faceplate>
   );
+}
+
+/** Ring settings for one ring by its key (Settings › Devices lists rings from the service; this reads the same ring here). */
+export function RingSettingsFor({ ringKey }: { ringKey: string }) {
+  const ring = useRings().find((r) => r.ringKey === ringKey);
+  return ring ? <RingSettings ring={ring} /> : null;
 }
 
 function MeasuringRow({

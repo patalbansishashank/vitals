@@ -15,7 +15,7 @@ import { PERIOD_KINDS, SIGNALS_TABS, type PeriodKind, type SignalsTab } from '@/
 import SignalsPage from '@/features/signals/SignalsPage';
 import { RingServiceProvider } from '../data';
 import { createFakeRingService, createFakeSharing, RING_SCENARIOS, scenarioPlatform, type RingScenario } from '../fixtures';
-import RingPage from '../RingPage';
+import { RingDevices } from '../RingDevices';
 
 const NEEDLE = String.fromCharCode(71, 97, 98, 105, 116).toLowerCase();
 const UNITS = new RegExp(`(me|gi)${NEEDLE}`, 'g');
@@ -90,11 +90,11 @@ async function settle() {
 function renderRing(ring: RingScenario, signals: SignalsSource) {
   const service = createFakeRingService(ring, { now: NOW });
   return render(
-    <MemoryRouter initialEntries={['/ring']}>
+    <MemoryRouter initialEntries={['/signals']}>
       <LivingClockContext.Provider value={fixtureClock()}>
         <SignalsSourceProvider source={signals}>
           <RingServiceProvider service={service} platform={scenarioPlatform(ring)} sharing={createFakeSharing('on')}>
-            <RingPage />
+            <RingDevices />
           </RingServiceProvider>
         </SignalsSourceProvider>
       </LivingClockContext.Provider>

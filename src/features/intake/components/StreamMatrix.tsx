@@ -7,7 +7,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import { KeyBank, MQ, Switch, cx, useMediaQuery } from '@/components';
-import { STREAM_RULES, setCell } from '../chapters/devices';
+import { STREAM_RULES, recommendedPolicy, setCell } from '../chapters/devices';
 import { D } from '../copy';
 import type { CoachVisibility, StreamId, StreamPolicy } from '../types';
 
@@ -49,7 +49,7 @@ export function StreamMatrix({ policies, onChange, untouched, className }: Strea
     const name = D.matrix.streams[p.stream];
     if (col !== 'imported' && rule[col] === 'na') return <span aria-label={`${D.matrix.cols[col]}: not applicable`}>{D.matrix.na}</span>;
     if (col !== 'imported' && rule[col] === 'never') return <Never stream={p.stream} />;
-    const suggested = untouched?.has(p.stream) && rule.recommend[col];
+    const suggested = untouched?.has(p.stream) && recommendedPolicy(p.stream)[col];
     return (
       <span className="lm-ik-cell" data-suggested={suggested || undefined}>
         <Switch

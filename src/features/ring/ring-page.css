@@ -6,55 +6,30 @@
    ========================================================================== */
 
 @layer components {
-  /* ---- page layout (§4.1): 390 one column · 768 one 640 px column · ≥ 1280 7/12 + 5/12 ---- */
-  .rg-page {
+  /* ---- the ring on Body signals (owner, 9 Oct): cards first, then the Ring settings link ----
+     one column up to 1280 px (Check now's four choices need the width); above, cards and Check now two across */
+  .rg-devices {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding-bottom: 16px;
+  }
+  .rg-devices__cards {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-    padding-bottom: 24px;
-  }
-  .rg-main,
-  .rg-side {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-content: start;
+    align-items: start;
     min-width: 0;
-  }
-  .rg-span {
-    min-width: 0;
-  }
-  /* no rows to show under the pairing flow: no empty grid row either */
-  .rg-span--today:empty {
-    display: none;
-  }
-  .rg-settings {
-    scroll-margin-top: calc(var(--lm-topbar-h) + 72px);
-  }
-  @media (min-width: 48rem) {
-    .rg-page {
-      width: 100%;
-      max-width: 640px;
-      margin-inline: auto;
-    }
   }
   @media (min-width: 80rem) {
-    .rg-page {
-      max-width: none;
-      grid-template-columns: repeat(12, minmax(0, 1fr));
+    .rg-devices__cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 20px;
     }
-    .rg-main {
-      grid-column: span 7;
-      gap: 20px;
-    }
-    .rg-side {
-      grid-column: span 5;
-      gap: 20px;
-    }
-    .rg-span {
-      grid-column: 1 / -1;
-    }
+  }
+  .rg-devices__more {
+    margin: 0;
+    font-size: var(--lm-text-sm, 0.875rem);
   }
 
   /* ---- indicator light (card header and ring key) ---- */
@@ -162,7 +137,6 @@
   }
   .rg-card__line {
     margin: 0;
-    max-width: var(--lm-measure-prose);
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
     color: var(--lm-ink);
@@ -242,7 +216,6 @@
   }
   .rg-pair__line {
     margin: 0;
-    max-width: var(--lm-measure-prose);
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
     color: var(--lm-ink);

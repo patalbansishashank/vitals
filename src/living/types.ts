@@ -117,6 +117,12 @@ export interface PrescribedSession {
   stimulus: StimulusVector | null;
   /** Engine sessions of the prescription (exactly what the forecast simulated). */
   engine: NonNullable<DayTemplate['exercise']>;
+  /**
+   * True on a "training as usual" session (`DayTemplate.habitualTraining`): one of the profile's habitual sessions of the
+   * weekday (`habitualSessionsFor`), shown and logged like any session. The engine adds it to the day's energy itself, so a
+   * day that logs nothing keeps `habitualTraining` and never adds it again (`toLoggedDay`). Slot keys `<day>:u<k>`.
+   */
+  usual?: true;
 }
 
 export interface PrescribedDaySnapshot {

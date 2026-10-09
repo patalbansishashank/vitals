@@ -89,7 +89,7 @@ describe('C-RINGX service handoff', () => {
       const hits = [];
       for await (const hit of connector.scan(new AbortController().signal)) hits.push(hit);
       expect(hits[0]?.driverId).toBe('unidentified');
-      await expect(connector.connect(hits[0]!, new AbortController().signal)).rejects.toMatchObject({ code: failure === 'unsupported' ? 'unsupported' : 'not_found' });
+      await expect(connector.connect(hits[0]!, new AbortController().signal)).rejects.toMatchObject({ code: failure === 'unsupported' ? 'unsupported' : 'failed' });
       expect(disconnect).toHaveBeenCalledOnce();
     });
   }

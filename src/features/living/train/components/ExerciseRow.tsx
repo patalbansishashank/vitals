@@ -1,10 +1,13 @@
 /**
- * One exercise of a session (PrescriptionRow look, COMPONENTS §13.10): name (full on first use), the prescription in
- * plain words, energy for cardio-like items, the log controls, and the keys — tick = done as planned, Swap ›, skip.
+ * One exercise as a stop on the session's rail (the same rail as Today's plan and Food's meals): its number, a status
+ * node, the name (full on first use), the prescription as a readout (sets × reps, rest, the effort cue, energy for
+ * cardio-like items), ONE labelled key — Done, or Undo once done or skipped — and a quiet ⋯ with Swap and Skip. The
+ * per-set log controls and a swap's note sit below.
  */
-import { Check, ChevronRight } from 'lucide-react';
+import { Ellipsis } from 'lucide-react';
 import type { ConcreteItem, EquivalenceResult, ExerciseRecord } from '@/catalogues';
-import { Icon, Key, VisuallyHidden, energyInText } from '@/components';
+import { IconKey, Key, Menu, VisuallyHidden, energyInText, type MenuItem } from '@/components';
+import { TargetReadout } from '../../components/TargetReadout';
 import { useEnergyUnit } from '@/state/settingsStore';
 import { EquivalenceMeter } from '../../components/EquivalenceMeter';
 import { TRAIN_COPY } from '../copy';
@@ -18,6 +21,8 @@ export interface ExerciseRowProps {
   original: ConcreteItem | null;
   /** Display name (full on first use). */
   name: string;
+  /** Position in the session (0-based). */
+  index: number;
   ex: ExerciseRecord | undefined;
   state: ItemState;
   log: ItemLog | undefined;
@@ -41,11 +46,42 @@ export interface ExerciseRowProps {
 export function ExerciseRow(p: ExerciseRowProps) {
   const short = shortName(p.item.name);
   const eu = useEnergyUnit();
+  const rx = energyInText(rxWords(p.item, p.ex, { energy: p.energy }), eu);
+  // the node shows the state: solid = done, half = some sets logged, struck = skipped
+  const node = p.state === 'done' ? 'done' : p.state === 'partial' ? 'partial' : p.state === 'skipped' ? 'skipped' : 'empty';
+  const primary =
+    p.state === 'done' ? (
+      <Key size="sm" variant="quiet" aria-label={TRAIN_COPY.undoName(short)} onClick={p.onTick}>
+        {TRAIN_COPY.undo}
+      </Key>
+    ) : p.state === 'skipped' ? (
+      <Key size="sm" variant="quiet" aria-label={TRAIN_COPY.unskipName(short)} onClick={p.onSkip}>
+        {TRAIN_COPY.undo}
+      </Key>
+    ) : (
+      <Key size="sm" aria-label={TRAIN_COPY.tickName(short)} onClick={p.onTick}>
+        {TRAIN_COPY.done}
+      </Key>
+    );
+  const more: MenuItem[] = [
+    { id: 'swap', label: TRAIN_COPY.swapItem, onSelect: p.onSwap },
+    ...(p.state === 'skipped' ? [] : [{ id: 'skip', label: TRAIN_COPY.skipItem, onSelect: p.onSkip }]),
+  ];
   return (
-    <li className="lv-train-row" data-state={p.state}>
-      <div className="lv-train-row__main">
-        <h3 className="lv-train-row__name">{p.name}</h3>
-        <p className="lv-train-row__rx">{energyInText(rxWords(p.item, p.ex, { energy: p.energy }), eu)}</p>
+    <li className="lv-item lv-train-row" data-state={node} data-item-state={p.state}>
+      <span className="lv-item__time lm-num">{p.index + 1}</span>
+      <span className="lv-item__node" aria-hidden="true" />
+      <h3 className="lv-item__label lv-train-row__name">{p.name}</h3>
+      <span className="lv-item__sub">
+        {p.state === 'done' && !p.log ? <span className="lv-item__word">{TRAIN_COPY.state.done}</span> : p.state === 'skipped' ? <span className="lv-item__word">{TRAIN_COPY.state.skipped}</span> : <TargetReadout text={rx} />}
+      </span>
+      {p.interactive ? (
+        <span className="lv-item__keys">
+          {primary}
+          <Menu label={TRAIN_COPY.moreName(short)} items={more} trigger={(t) => <IconKey {...t} size="sm" icon={Ellipsis} label={TRAIN_COPY.moreName(short)} />} />
+        </span>
+      ) : null}
+      <div className="lv-item__body">
         {p.interactive ? <VisuallyHidden>{TRAIN_COPY.state[p.state]}</VisuallyHidden> : null}
         {p.original ? (
           <div className="lv-train-row__swap">
@@ -67,19 +103,6 @@ export function ExerciseRow(p: ExerciseRowProps) {
           <LogControls item={p.item} ex={p.ex} name={short} style={p.style} log={p.log} ticked={p.state === 'done' && !p.log} {...(p.loadKg !== undefined ? { loadKg: p.loadKg } : {})} onLog={p.onLog} />
         ) : null}
       </div>
-      {p.interactive ? (
-        <div className="lv-train-row__keys">
-          <button type="button" className="lv-train-tick" data-state={p.state} aria-pressed={p.state === 'done'} aria-label={TRAIN_COPY.tickName(short)} onClick={p.onTick}>
-            <Icon icon={Check} size={20} />
-          </button>
-          <Key size="sm" variant="quiet" trailingIcon={ChevronRight} onClick={p.onSwap} aria-label={TRAIN_COPY.swapName(short)}>
-            {TRAIN_COPY.swap}
-          </Key>
-          <Key size="sm" variant="quiet" pressed={p.state === 'skipped'} onClick={p.onSkip} aria-label={TRAIN_COPY.skipName(short)}>
-            {TRAIN_COPY.skip}
-          </Key>
-        </div>
-      ) : null}
     </li>
   );
 }

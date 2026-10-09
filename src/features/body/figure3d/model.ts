@@ -21,12 +21,16 @@ export interface Coefficient {
 }
 
 /**
- * Piecewise-linear macro factors (MakeHuman modifier semantics). Values above 1 extrapolate the upper segment
- * (average -> max) linearly; the fitter uses this for the weight macro only (bodies heavier than MakeHuman's "max").
+ * MakeHuman factors within the authored range. Above max, a C2 saturation bounds the extension to 40% of
+ * the parameter range: derivative 1 at the join, tending smoothly to zero. Both full and subset evaluation use
+ * these coefficients, so the fitter measures the exact same extension that is drawn.
  */
 export function macroFactors(x: number): Record<MacroLevel, number> {
-  const v = Math.max(0, x);
-  return v < 0.5 ? { min: 1 - 2 * v, average: 2 * v, max: 0 } : { min: 0, average: 2 - 2 * v, max: 2 * v - 1 };
+  const nonnegative = Math.max(0, x);
+  const v = nonnegative <= 1 ? nonnegative : 1 + 0.4 * Math.tanh((nonnegative - 1) / 0.4);
+  return v < 0.5
+    ? { min: 1 - 2 * v, average: 2 * v, max: 0 }
+    : { min: 0, average: 2 - 2 * v, max: 2 * v - 1 };
 }
 
 export class FigureModel {
@@ -79,7 +83,10 @@ export class FigureModel {
       }
     }
     for (const l of m.locals) {
-      const v = s.locals[l.id] ?? 0;
+      const raw = s.locals[l.id] ?? 0;
+      // The pregnancy key supplies distribution, not a second unbounded weight macro.
+      // Broad waist/weight keys carry the remaining girth; the fitted and drawn coefficients agree.
+      const v = l.id === 'belly' && raw > 0 ? 1.2 * Math.tanh(raw / 1.2) : raw;
       if (v > 0) push(l.incr, v);
       else if (v < 0) push(l.decr, -v);
     }
@@ -94,7 +101,11 @@ export class FigureModel {
   }
 }
 
-function addTarget(out: Float32Array, t: { indices: Uint16Array | null; deltas: Float32Array }, c: number): void {
+function addTarget(
+  out: Float32Array,
+  t: { indices: Uint16Array | null; deltas: Float32Array },
+  c: number,
+): void {
   const d = t.deltas;
   if (!t.indices) {
     for (let i = 0; i < d.length; i++) out[i] = out[i]! + c * d[i]!;

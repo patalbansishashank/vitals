@@ -164,6 +164,7 @@ function ScenarioPage({ sid }: { sid: string }) {
   const tabs = (
     <LinkBank
       label="Simulator section"
+      className="sim-tabs"
       items={[
         { to: paths.schedule(sid), label: 'schedule' },
         { to: paths.results(sid), label: 'results', badge: sim.stale, badgeLabel: 'out of date' },

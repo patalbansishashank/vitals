@@ -14,7 +14,7 @@ import { SignalsSourceProvider, type SignalsSource } from '@/features/signals/da
 import { RingServiceProvider, type RingPlatform } from '../data';
 import { createFakeSharing, scenarioPlatform } from '../fixtures';
 import { RingKey } from '../RingKey';
-import { RingPageBody } from '../RingPage';
+import { RingDevices } from '../RingDevices';
 
 const TODAY = '2026-10-04';
 const NOW = new Date(2026, 9, 4, 13, 41).getTime();
@@ -129,11 +129,11 @@ function realService(initial: RealRingStatus[], availability: ReturnType<RealRin
 
 function page(real: Real, platform: Partial<RingPlatform> = ANDROID) {
   return render(
-    <MemoryRouter initialEntries={['/ring']}>
+    <MemoryRouter initialEntries={['/signals']}>
       <LivingClockContext.Provider value={clock}>
         <RingServiceProvider service={real.svc} platform={platform} sharing={createFakeSharing()}>
           <SignalsSourceProvider source={emptySource}>
-            <RingPageBody />
+            <RingDevices />
           </SignalsSourceProvider>
         </RingServiceProvider>
       </LivingClockContext.Provider>
@@ -207,7 +207,7 @@ describe('Ring page on the real service contract', () => {
     expect(card().querySelector('.rg-card__keys')).toBeNull();
   });
 
-  it('connected: no render loop on a service that builds a new list per call; battery history says it has too few readings', async () => {
+  it('connected: no render loop on a service that builds a new list per call', async () => {
     const real = realService([ring()]);
     page(real);
     await flush();
@@ -215,40 +215,10 @@ describe('Ring page on the real service contract', () => {
     expect(screen.getByRole('button', { name: 'Sync now' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Check now' })).toBeTruthy();
     expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual(['heart rate']);
-    expect(screen.getByText('Not enough readings yet.')).toBeTruthy();
     // a change from the service arrives once and the page follows
     act(() => real.set([ring({ battery: 40 })]));
     expect(norm(card().textContent)).toContain('40 %');
     expect(document.body.textContent ?? '').not.toMatch(FORBIDDEN);
-  });
-
-  it('live heart rate: watched once while connected and visible, shown from RingStatus.liveHr, released on leaving', async () => {
-    const real = realService([ring()]);
-    const view = page(real);
-    await flush();
-    expect(real.watching()).toBe(1);
-    const sub = () => norm(document.querySelector('a[data-row="heart"] .rs-row__sub')?.textContent);
-    expect(sub()).toBe('');
-    act(() => real.set([ring({ liveHr: { bpm: 72, at: new Date(NOW).toISOString() } })]));
-    expect(sub()).toBe('now 72 bpm · 13:41');
-    // other changes do not resubscribe
-    act(() => real.set([ring({ battery: 70, liveHr: { bpm: 73, at: new Date(NOW).toISOString() } })]));
-    expect(sub()).toBe('now 73 bpm · 13:41');
-    expect(real.watchedEver()).toBe(1);
-    view.unmount();
-    expect(real.watching()).toBe(0);
-  });
-
-  it('live heart rate: a reading that stopped arriving is not "now"; no watch while the ring is not connected', async () => {
-    const real = realService([ring({ liveHr: { bpm: 72, at: ago(5 * 60_000) } })]);
-    const view = page(real);
-    await flush();
-    expect(norm(document.querySelector('a[data-row="heart"] .rs-row__sub')?.textContent)).toBe('');
-    view.unmount();
-    const idle = realService([ring({ state: 'idle' })]);
-    page(idle);
-    await flush();
-    expect(idle.watchedEver()).toBe(0);
   });
 
   it('Check now: no Stop key, the result is shown', async () => {
@@ -308,10 +278,10 @@ describe('Ring page on the real service contract', () => {
 
   it('the app’s placeholder service (no Bluetooth, no rings) renders the "can’t connect here" card and settles', async () => {
     render(
-      <MemoryRouter initialEntries={['/ring']}>
+      <MemoryRouter initialEntries={['/signals']}>
         <LivingClockContext.Provider value={clock}>
           <SignalsSourceProvider source={emptySource}>
-            <RingPageBody />
+            <RingDevices />
           </SignalsSourceProvider>
         </LivingClockContext.Provider>
       </MemoryRouter>,
@@ -319,7 +289,7 @@ describe('Ring page on the real service contract', () => {
     await flush();
     expect(getRingService().availability()).toBe('unsupported');
     expect(word()).toBe('can’t connect here');
-    expect(document.querySelector('.rg-side')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ring settings' })).toBeNull();
   });
 });
 
@@ -336,18 +306,18 @@ describe('RingKey on the real service contract', () => {
   it('names the worst state and follows changes without looping', () => {
     const real = realService([ring()]);
     key(real);
-    expect(screen.getByRole('link', { name: 'Ring: connected' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Body signals · ring connected' })).toBeTruthy();
     act(() => real.set([ring({ state: 'error', error: { code: 'failed', message: 'x' } })]));
-    expect(screen.getByRole('link', { name: 'Ring: needs attention' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Body signals · ring needs attention' })).toBeTruthy();
     act(() => real.set([ring({ state: 'syncing', syncProgress: 0.3 })]));
-    expect(screen.getByRole('link', { name: 'Ring: reading' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Body signals · reading your ring' })).toBeTruthy();
   });
 
-  it('shows nothing on the web with no ring and no Bluetooth; a plain "Ring" with no ring in the apps', () => {
+  it('shows nothing on the web with no ring and no Bluetooth; a plain "Body signals" with no ring in the apps', () => {
     key(realService([], 'unsupported'), WEB);
     expect(screen.queryByRole('link')).toBeNull();
     cleanup();
     key(realService([], 'ready'));
-    expect(screen.getByRole('link', { name: 'Ring' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Body signals' })).toBeTruthy();
   });
 });

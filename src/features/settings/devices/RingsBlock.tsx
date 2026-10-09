@@ -1,8 +1,10 @@
 /**
  * Settings › Devices › rings (SUITE_SPEC §15.2, plan 04 item 1): one card per known ring from the ring service (state in
  * plain words, battery, last read, live heart rate while connected, Connect / Sync now / Connect here instead /
- * Disconnect / Forget) and "Add a ring": the scan list, tap to connect. Rings are named by their driver label only, and
- * nothing asks for a password or code (decision 13); the only prompt a person may see is the system's own pairing dialog.
+ * Disconnect / Forget), its ring settings under it (firmware, battery over time and what the driver can do; moved here
+ * from the old Ring page, owner 9 Oct) and "Add a ring": the scan list, tap to connect. Rings are named by their
+ * driver label only, and nothing asks for a password or code (decision 13); the only prompt a person may see is the
+ * system's own pairing dialog.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
@@ -13,6 +15,7 @@ import { platform } from '@/platform';
 import { relativeTime } from '../server/copy';
 import { RING } from './copy';
 import { whenText } from './RingBatteryLine';
+import { RingSettingsFor } from '@/features/ring/RingSettings';
 
 type Availability = ReturnType<RingService['availability']>;
 
@@ -108,6 +111,9 @@ function RingCard({ r, svc, onForget }: { r: RingStatus; svc: RingService; onFor
         <Link className="lm-link inline-flex min-h-11 items-center text-sm" to={paths.signals()}>
           {RING.seeData}
         </Link>
+      </div>
+      <div className="mt-3">
+        <RingSettingsFor ringKey={r.ringKey} />
       </div>
     </li>
   );
@@ -333,11 +339,6 @@ export function RingsBlock() {
         <p className="m-0 mt-1 text-sm text-ink-2">{unsupportedLine()}</p>
       ) : (
         <>
-          <p className="m-0 mt-1 text-sm">
-            <Link className="lm-link inline-flex min-h-11 items-center" to={paths.ring}>
-              {RING.ringPage}
-            </Link>
-          </p>
           {availability === 'bluetooth_off' || availability === 'permission_needed' ? (
             <p className="m-0 mt-1 text-sm text-ink-2">{availability === 'bluetooth_off' ? RING.bluetoothOff : RING.permission}</p>
           ) : null}

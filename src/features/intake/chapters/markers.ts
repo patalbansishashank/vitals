@@ -265,6 +265,10 @@ export interface GroupReceipt {
   date: string;
   /** "lipids · LDL 192, HDL 41 mg/dL · 14 Sep 2026" */
   text: string;
+  /** The same line in parts: "lipids", "LDL 192, HDL 41 mg/dL", "14 Sep 2026". */
+  label: string;
+  values: string;
+  dateText: string;
 }
 
 /** One receipt line per group (and test date) of the current readings, in group order. */
@@ -280,7 +284,8 @@ export function groupReceipts(readings: readonly MarkerReading[], style: 'day-mo
       const one = units.size === 1;
       const parts = list.map((r) => `${shortLabel(r.id)} ${showNumber(r.id, r.value, r.unit)}${one ? '' : unitSuffix(r.unit)}`);
       const values = `${parts.join(', ')}${one ? unitSuffix(list[0]!.unit) : ''}`;
-      out.push({ group: g, date, text: `${GROUP_LABEL[g]} · ${values} · ${formatMarkerDate(date, style)}` });
+      const dateText = formatMarkerDate(date, style);
+      out.push({ group: g, date, text: `${GROUP_LABEL[g]} · ${values} · ${dateText}`, label: GROUP_LABEL[g], values, dateText });
     }
   }
   return out;

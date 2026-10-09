@@ -2,14 +2,14 @@ import '../boot';
 /**
  * Coach (`/coach`, `/coach/:conversationId`; living-mode.md, Coach). One continuous conversation: rows separated by
  * hairlines, the cards each turn produced inline (read · log · edit · destructive · blocked · UI-only), the composer at
- * the foot, and "What the Coach knows" docked at ≥ 1280 px (a panel or sheet below). Works in both modes — without a
+ * the foot, and "What the Coach knows" in a slide-in panel (a bottom sheet on phones). Works in both modes — without a
  * plan it is the planning helper (IA: the Coach exists in both modes). Everything comes from a `CoachAdapter`; the
  * page never talks to a provider, and destructive cards are completed only by the person in the typed dialog.
  */
 import { useEffect, useEffectEvent, useId, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { BookOpenText } from 'lucide-react';
-import { Engraved, Faceplate, Key, KeyLink, MQ, Page, ResponsivePanel, toast, useMediaQuery } from '@/components';
+import { Engraved, Faceplate, Key, KeyLink, Page, ResponsivePanel, toast } from '@/components';
 import { TopBar } from '@/app/shell';
 import { localDateOf, useLivingClock, useToday } from '../clock';
 import { useLiving } from '../data/source';
@@ -60,7 +60,6 @@ export default function CoachPage() {
   const location = useLocation();
   const { conversationId: param } = useParams();
   const [search] = useSearchParams();
-  const xl = useMediaQuery(MQ.xl);
   const convHeadingId = useId();
 
   const view = useLiving((s) => s.today(todayDate), [todayDate]);
@@ -81,7 +80,6 @@ export default function CoachPage() {
   const [confirmCard, setConfirmCard] = useState<ChangeCardView | null>(null);
   const [showNumbers, setShowNumbers] = useState(false);
   const [briefOpen, setBriefOpen] = useState(() => search.get('briefing') === '1');
-  const [dockClosed, setDockClosed] = useState(false);
   const [prefill, setPrefill] = useState({ text: '', n: 0 });
   // the context of a prefilled draft (Food's slot and date) goes with the next message sent
   const [carried, setCarried] = useState<DraftContext | null>(null);
@@ -224,8 +222,8 @@ export default function CoachPage() {
   };
 
   /* ------------------------------------------------------------------ briefing */
-  const briefingShown = xl ? !dockClosed : briefOpen;
-  const toggleBriefing = () => (xl ? setDockClosed((c) => !c) : setBriefOpen((o) => !o));
+  const briefingShown = briefOpen;
+  const toggleBriefing = () => setBriefOpen((o) => !o);
 
   /* ------------------------------------------------------------------ conversation rows */
   const rows: ReactNode[] = [];
@@ -313,7 +311,7 @@ export default function CoachPage() {
             </Key>
           </div>
         ) : null}
-        <div className="lv-coach-grid" data-docked={xl && briefingShown ? 'true' : undefined}>
+        <div className="lv-coach-grid">
           <div className="lv-coach-main">
             {ready ? <CoachStateNotice status={status} /> : null}
             {quietMode && !showNumbers ? <p className="lv-coach-quiet">{T.quiet}</p> : null}
@@ -373,17 +371,10 @@ export default function CoachPage() {
               {announcement}
             </div>
           </div>
-          {xl && briefingShown ? (
-            <Faceplate as="aside" className="lv-coach-brief" title={BRIEFING_COPY.title} aria-label={BRIEFING_COPY.title}>
-              <BriefingBody model={briefing} />
-            </Faceplate>
-          ) : null}
         </div>
-        {!xl ? (
-          <ResponsivePanel open={briefOpen} onClose={() => setBriefOpen(false)} title={BRIEFING_COPY.title}>
-            <BriefingBody model={briefing} />
-          </ResponsivePanel>
-        ) : null}
+        <ResponsivePanel open={briefOpen} onClose={() => setBriefOpen(false)} title={BRIEFING_COPY.title}>
+          <BriefingBody model={briefing} />
+        </ResponsivePanel>
         {confirmCard && confirm ? (
           <TypedConfirmDialog
             open

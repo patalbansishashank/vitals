@@ -316,11 +316,12 @@ describe('Body signals page: whole-page states', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
-  it('nothing measured and no ring: the empty stage with Connect a ring and Import a file', () => {
+  it('nothing measured and no ring: the pairing flow on top, the empty stage with Import a file', () => {
     renderPage('/signals', { ring: 'none', source: fakeSource({ days: [], first: null, dates: [], labels: [], lastReadAt: null }) });
     expect(screen.getByRole('heading', { name: 'Nothing measured yet.' })).toBeInTheDocument();
     expect(screen.getByText('Connect a ring or import a file to see your sleep, heart and activity here.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Connect a ring' })).toHaveAttribute('href', '/ring');
+    expect(screen.getByRole('heading', { name: 'Connect your ring' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Look for rings' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Import a file' })).toHaveAttribute('href', '/settings#devices');
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tab')).not.toBeInTheDocument();
@@ -340,10 +341,10 @@ describe('Body signals page: whole-page states', () => {
     expect(screen.queryByText(/read .* ago/)).not.toBeInTheDocument();
   });
 
-  it('a ring not read since before the period: a line with Open Ring', () => {
+  it('a ring not read since before the period: a line under the ring card', () => {
     renderPage('/signals?tab=heart', { ring: 'stale' });
     expect(screen.getByText(/Your ring hasn[’']t been read since Thu 1 Oct\./)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Ring' })).toHaveAttribute('href', '/ring');
+    expect(document.querySelector('.rg-devices .rg-card')).not.toBeNull();
   });
 
   it('no ring line for a period before the last read, nor for a ring read just now', () => {
@@ -358,8 +359,19 @@ describe('Body signals page: whole-page states', () => {
 
   it('reading the ring in the background: the source line says so', () => {
     renderPage('/signals?tab=activity', { ring: 'syncing' });
-    expect(screen.getByText(/reading your ring · 34\s%/)).toBeInTheDocument();
+    expect(document.querySelector('.sp-source')?.textContent).toMatch(/reading your ring · 34\s%/);
     expect(screen.queryByText(/read 6\smin ago/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Body signals page: the one ring page', () => {
+  it('the ring card comes first, above the tabs, with a link to Ring settings; no back key to a Ring page', () => {
+    renderPage('/signals?tab=heart', { ring: 'connected' });
+    const card = document.querySelector('.rg-devices .rg-card')!;
+    const tabs = screen.getByRole('tablist', { name: 'Body signals' });
+    expect(card.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Ring settings' })).toHaveAttribute('href', '/settings#devices');
+    expect(document.body.textContent).not.toMatch(/Today from your ring|Use my ring data/);
   });
 });
 

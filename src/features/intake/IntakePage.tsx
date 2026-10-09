@@ -9,7 +9,7 @@
  */
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { Faceplate, Key, KeyLink, Notice, Page, toast, useReducedMotion } from '@/components';
+import { Engraved, Faceplate, Key, KeyLink, Notice, Page, toast, useReducedMotion } from '@/components';
 import { ActionBar, TopBar, useChromeless } from '@/app/shell';
 import { coachDraftState, useCoachAvailable } from '@/features/living/coach/availability';
 import { isStorageAvailable } from '@/state/persistence';
@@ -23,12 +23,12 @@ import { MaintenanceRail, MaintenanceResult, PictureFace } from './components/Ma
 import { QuestionCard } from './components/QuestionCard';
 import { WIDGETS } from './components/widgets';
 import { flowContextOf, useFlowContext } from './context';
-import { A, BAR, CHAPTER_INTRO, CHAPTER_NAME, CHAPTER_SHORT, D, F, SUMMARY, TURN } from './copy';
+import { A, BAR, CHAPTER_INTRO, CHAPTER_NAME, CHAPTER_SHORT, F, SUMMARY, TURN } from './copy';
 import { turnsOf, useIntakeDoc } from './doc';
 import { askedLater, frozenContext, initialFlow, isDone, skipChapter, visibleQuestions, type FlowContext, type Question } from './flow';
 import { intakePath, isIntakeSection, type IntakeFrom } from './paths';
 import { skipChapterSave } from './persist';
-import { allChapterStates, askedLaterCount, chapterLine } from './summary';
+import { allChapterStates, askedLaterCount, chapterLine, chapterRows } from './summary';
 import { useChapterFlow } from './useChapterFlow';
 import { useLiveMaintenance } from './useMaintenance';
 import { CHAPTER_ROUTE, SECTION_CHAPTER, type ChapterId, type IntakeDoc, type IntakeSectionId, type MeasuredEnergy } from './types';
@@ -277,15 +277,6 @@ function ChapterView({ chapter, section, from }: { chapter: ChapterId; section: 
               </p>
             ) : null}
             {!isStorageAvailable() ? <Notice severity="caution" title={BAR.storage} layout="ruled" /> : null}
-            {chapter === 'devices' ? (
-              <div className="lm-ik__privacy">
-                {D.privacy.map((p) => (
-                  <p key={p} className="lm-ik-note">
-                    {p}
-                  </p>
-                ))}
-              </div>
-            ) : null}
             {chapter === 'food' && sctx.safety ? <MedicalLine doc={doc} /> : null}
             <Faceplate className="lm-ik-answers" title={TURN.answersTitle} titleAs="h2" caption={TURN.answersCount(prog.done, prog.total)}>
               <AnsweredList
@@ -335,11 +326,9 @@ function SummaryView({ from }: { from: IntakeFrom | undefined }) {
   const states = allChapterStates(doc, ctx);
   const later = askedLaterCount(doc, ctx);
   const firstLater = CHAPTERS.flatMap((c) => states[c].later.map((q) => ({ c, q })))[0];
-  const rows = CHAPTERS.map((c) => {
-    let value = chapterLine(c, doc, ctx);
-    if (value && c === 'activity' && !ctx.gentle) value = `${value} · ${live.view.headline}`;
-    return { c, value };
-  });
+  const dateStyle = useSettingsStore((s) => s.dateStyle);
+  const energy = ctx.gentle ? null : live.view.headline;
+  const parts = CHAPTERS.map((c) => ({ c, rows: chapterRows(c, doc, ctx, { energy, dateStyle }) }));
   const finish = () => {
     if (from === 'setup') {
       setSetup('done');
@@ -347,45 +336,79 @@ function SummaryView({ from }: { from: IntakeFrom | undefined }) {
     } else navigate('/body#habits');
   };
   const last = CHAPTERS[CHAPTERS.length - 1]!;
+  const backTo = from === 'setup' ? { to: intakePath(CHAPTER_ROUTE[last], { from }), label: CHAPTER_NAME[last] } : { to: '/body#habits', label: BAR.backToBody };
+  const answeredParts = CHAPTERS.filter((c) => states[c].complete).length;
+  // the page's keys live in the shared action bar, once: Back (secondary) then the one primary key last. The screen has no
+  // TopBar actions, so the bar is the foot bar above the tab bar on a phone and runs along the bottom of the content
+  // column on desktop, where the status line sits on its left.
+  const keys = (
+    <>
+      {from === 'setup' ? (
+        <KeyLink to={backTo.to} variant="quiet">
+          {BAR.back}
+        </KeyLink>
+      ) : null}
+      <Key variant="solid" onClick={finish}>
+        {from === 'setup' ? SUMMARY.continue : SUMMARY.backToBody}
+      </Key>
+    </>
+  );
   return (
     <>
       <TopBar
         title={SUMMARY.title}
-        back={from === 'setup' ? { to: intakePath(CHAPTER_ROUTE[last], { from }), label: CHAPTER_NAME[last] } : { to: '/body#habits', label: BAR.backToBody }}
+        back={backTo}
         progress={<ChapterProgress chapters={CHAPTERS} current={null} fill={shares.fill} later={shares.later} position={0} total={0} />}
       />
+      <ActionBar>
+        <div className="lm-ik-summary-actions">
+          <Engraved className="max-lg:hidden">{SUMMARY.status(answeredParts, CHAPTERS.length, later)}</Engraved>
+          <div className="lm-ik-summary-keys">{keys}</div>
+        </div>
+      </ActionBar>
       <Page>
         <div className="lm-ik-summary">
-          <Faceplate
-            className="lm-ik-summary__face"
-            title={SUMMARY.title}
-            footer={
-              <Key variant="solid" className="lm-ik-summary__go" onClick={finish}>
-                {from === 'setup' ? SUMMARY.continue : SUMMARY.backToBody}
-              </Key>
-            }
-          >
+          <Faceplate className="lm-ik-summary__face" title={SUMMARY.title}>
             <p className="lm-ik__intro">{SUMMARY.lead}</p>
-            <dl className="lm-ik-summary__rows">
-              {rows.map(({ c, value }) => (
-                <div key={c} className="lm-ik-summary__row" data-unanswered={value ? undefined : 'true'}>
-                  <dt>{CHAPTER_SHORT[c]}</dt>
-                  <dd>{value ?? SUMMARY.notAnswered}</dd>
-                  <KeyLink className="lm-ik-summary__change" to={intakePath(CHAPTER_ROUTE[c], { from })} variant="quiet" size="sm" aria-label={SUMMARY.changeLabel(CHAPTER_SHORT[c])}>
-                    {value ? SUMMARY.change : SUMMARY.answer}
-                  </KeyLink>
-                </div>
+            <div className="lm-ik-parts">
+              {parts.map(({ c, rows }) => (
+                <section key={c} className="lm-ik-part" aria-labelledby={`ik-part-${c}`} data-unanswered={rows ? undefined : 'true'}>
+                  <div className="lm-ik-part__head">
+                    <h3 id={`ik-part-${c}`} className="lm-ik-part__name">
+                      {CHAPTER_NAME[c]}
+                    </h3>
+                    <KeyLink className="lm-ik-part__change" to={intakePath(CHAPTER_ROUTE[c], { from })} variant="quiet" size="sm" aria-label={SUMMARY.changeLabel(CHAPTER_SHORT[c])}>
+                      {rows ? SUMMARY.change : SUMMARY.answer}
+                    </KeyLink>
+                  </div>
+                  {rows ? (
+                    <dl className="lm-ik-part__rows">
+                      {rows.map((r, i) => (
+                        <div key={`${r.label}-${i}`} className="lm-ik-part__row" data-later={r.later || undefined}>
+                          <dt>{r.label}</dt>
+                          <dd>{r.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <p className="lm-ik-part__none">{SUMMARY.notAnswered}</p>
+                  )}
+                </section>
               ))}
               {later > 0 && firstLater ? (
-                <div className="lm-ik-summary__row">
-                  <dt>{SUMMARY.askedLater}</dt>
-                  <dd>{SUMMARY.askedLaterValue(later)}</dd>
-                  <KeyLink className="lm-ik-summary__change" to={intakePath(CHAPTER_ROUTE[firstLater.c], { from, anchor: firstLater.q.anchor ?? firstLater.q.id })} variant="quiet" size="sm">
-                    {SUMMARY.answerNow}
-                  </KeyLink>
-                </div>
+                <section className="lm-ik-part" aria-labelledby="ik-part-later">
+                  <div className="lm-ik-part__head">
+                    <h3 id="ik-part-later" className="lm-ik-part__name">
+                      {SUMMARY.askedLater}
+                    </h3>
+                    <KeyLink className="lm-ik-part__change" to={intakePath(CHAPTER_ROUTE[firstLater.c], { from, anchor: firstLater.q.anchor ?? firstLater.q.id })} variant="quiet" size="sm">
+                      {SUMMARY.answerNow}
+                    </KeyLink>
+                  </div>
+                  <p className="lm-ik-part__none">{SUMMARY.askedLaterValue(later)}</p>
+                </section>
               ) : null}
-            </dl>
+            </div>
           </Faceplate>
         </div>
       </Page>

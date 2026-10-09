@@ -26,6 +26,14 @@ export const LICENCES: ReadonlyArray<{ name: string; licence: string }> = [
   { name: 'Body mesh', licence: 'derived from MakeHuman (CC0)' },
 ];
 
+/** The BodyParts3D atlas behind the figure's bones and muscles is CC BY 4.0: this is its credit, kept out of the figure card. */
+export const FIGURE_CREDIT = {
+  text: '3D anatomy: BodyParts3D, © The Database Center for Life Science, CC BY 4.0.',
+  link: 'Model sources and changes',
+  /** Static file in public/ (under BASE_URL), not a router path. */
+  file: 'figure/NOTICE.html',
+} as const;
+
 export const PRIVACY_TEXT = 'No accounts, no analytics, no cookies. Data is saved on this device. Coach may send your conversation to the AI provider you choose.';
 /** With sync on (design/screens/settings-sync-ai.md §9): the data is no longer on this device only. */
 export const PRIVACY_TEXT_SYNCED =

@@ -22,6 +22,7 @@ import * as sched from '@/state/internal/schedule';
 import { settingsValues } from '@/state/internal/settings';
 import { simulatorProfileNow } from '@/state/internal/simulatorProfile';
 import {
+  activateIfDue,
   addDays,
   anchorsFromRecords,
   blockStartsOf,
@@ -53,6 +54,7 @@ import {
   type EndReason,
   type EntrySource,
   type LivingDocs,
+  type LocalDate,
   type LogEntry,
   type Mark,
   type MeasurementEntry,
@@ -92,11 +94,20 @@ export function livingImplemented(): readonly string[] {
 export type WithId<T> = T & { id: string };
 const withId = <T>(d: Doc<unknown>): WithId<T> => ({ ...bodyOf<T>(d), id: d._id });
 
-export async function readDocs(): Promise<LivingDocs & { plans: WithId<PlanDoc>[] }> {
+/**
+ * The Living documents. With `today`, a plan still stored as 'scheduled' whose start date has come reads as 'active'
+ * (lifecycle `activateIfDue`, §3.1 "first open on/after the start"): nothing stays locked once day 1 arrives, and the
+ * next command that saves the plan stores the new status.
+ */
+export async function readDocs(today?: LocalDate): Promise<LivingDocs & { plans: WithId<PlanDoc>[] }> {
   const store = getDocumentStore();
   await store.ready;
   const active = store.peek<{ planId: string | null }>('activePlan', 'me');
-  const plans = store.peekAll<PlanDoc>('plans').map((d) => withId<PlanDoc>(d));
+  const plans = store.peekAll<PlanDoc>('plans').map((d) => {
+    const p = withId<PlanDoc>(d);
+    const t = today ? activateIfDue(p, today) : null;
+    return t?.ok ? { ...t.plan, id: p.id } : p;
+  });
   const byActive = active?.planId ? plans.find((p) => p.id === active.planId) : undefined;
   const live = plans.filter(isLive).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const plan = byActive ?? live ?? null;
@@ -150,7 +161,7 @@ export async function savePlan(ctx: CommandContext, p: WithId<PlanDoc>): Promise
 
 async function appendEntry(ctx: CommandContext, e: Omit<LogEntry, 'id'> & { id?: string }): Promise<{ entryId: string }> {
   const id = e.id ?? ctx.newId();
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = docs.plan && isLive(docs.plan) ? docs.plan : null;
   const body = { ...e, ...(plan ? { planId: plan.id, planDay: planDay(plan, e.date) } : {}) } as LogEntry;
   const { id: _drop, ...rest } = body;
@@ -169,7 +180,7 @@ async function hiddenFromAgent(ctx: CommandContext, entries: readonly LogEntry[]
 }
 
 implement('today.get', async (ctx, input: { date?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const date = input.date ?? ctx.today;
   const view = projectLiving({ docs, today: date, tz: ctx.tz, now: ctx.now }).today;
   const entries = effectiveEntries(docs.entries).filter((e) => e.date === date);
@@ -177,7 +188,7 @@ implement('today.get', async (ctx, input: { date?: string }) => {
 });
 
 implement('day.get', async (ctx, input: { date?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const date = input.date ?? ctx.today;
   const p = projectLiving({ docs, today: date > ctx.today ? date : ctx.today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
   const day = p.days.find((d) => d.date === date) ?? null;
@@ -203,7 +214,7 @@ implement('day.get', async (ctx, input: { date?: string }) => {
 });
 
 implement('plan.get', async (ctx) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = docs.plan;
   if (!plan) return { plan: null };
   const head = headAdopted(docs.versions);
@@ -213,8 +224,8 @@ implement('plan.get', async (ctx) => {
   };
 });
 
-implement('plan.versions', async (_ctx, input: { planId?: string }) => {
-  const docs = await readDocs();
+implement('plan.versions', async (ctx, input: { planId?: string }) => {
+  const docs = await readDocs(ctx.today);
   const store = getDocumentStore();
   const pid = input.planId ?? docs.plan?.id;
   const versions = pid ? store.peekAll<PlanVersionDoc>('planVersions').map((d) => bodyOf<PlanVersionDoc>(d)).filter((v) => v.planId === pid) : [];
@@ -224,19 +235,19 @@ implement('plan.versions', async (_ctx, input: { planId?: string }) => {
 });
 
 implement('plan.adherence', async (ctx, input: { from?: string; to?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const p = projectLiving({ docs, today: ctx.today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
   const days = p.days.filter((d) => (!input.from || d.date >= input.from) && (!input.to || d.date <= input.to));
   return { days: days.map((d) => ({ date: d.date, score: d.result.score.score, coverage: d.result.score.coverage, final: d.result.score.final })), trend: p.trend, blocks: p.blocks };
 });
 
 implement('plan.drift', async (ctx) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   return projectLiving({ docs, today: ctx.today, tz: ctx.tz, now: ctx.now }).drift ?? { asOf: ctx.today, goals: [] };
 });
 
 implement('log.get', async (ctx, input: { from: string; to: string; kinds?: string[] }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const inRange = (e: { date: string; kind: string }) => e.date >= input.from && e.date <= input.to && (!input.kinds || input.kinds.includes(e.kind));
   const entries = projectEntries(docs.entries).filter(inRange);
   // an agent does not see device entries whose stream the person hides from the Coach (plan 04 item 11)
@@ -292,13 +303,13 @@ async function startPlan(ctx: CommandContext, input: StartIn): Promise<{ planId:
 }
 
 implement('plan.start', async (ctx, input: StartIn) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   if (docs.plan && isLive(docs.plan)) fail('precondition_failed', 'A plan is already running; end or replace it first.', { precondition: 'noActivePlan' });
   return startPlan(ctx, input);
 });
 
 implement('plan.replace', async (ctx, input: StartIn & { reason: 'replaced' }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = requirePlan(docs);
   const t = endPlan(plan, ctx.now, ctx.today, 'replaced');
   if (!t.ok) fail('precondition_failed', t.reason, { precondition: 'activePlan' });
@@ -309,7 +320,7 @@ implement('plan.replace', async (ctx, input: StartIn & { reason: 'replaced' }) =
 });
 
 implement('plan.discard', async (ctx, input: { planId: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = docs.plans.find((p) => p.id === input.planId) ?? fail('not_found', 'There is no such plan.');
   const hasLogs = effectiveEntries(docs.entries).some((e) => e.planId === plan.id && !e.assumed);
   const can = canDiscard(plan, ctx.now, hasLogs);
@@ -321,7 +332,7 @@ implement('plan.discard', async (ctx, input: { planId: string }) => {
 });
 
 implement('plan.pause', async (ctx, input: { from?: string; reason?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = requirePlan(docs);
   const t = pausePlan(plan, input.from ?? ctx.today, input.reason);
   if (!t.ok) fail('precondition_failed', t.reason, { precondition: 'activePlan' });
@@ -330,7 +341,7 @@ implement('plan.pause', async (ctx, input: { from?: string; reason?: string }) =
 });
 
 implement('plan.resume', async (ctx, input: { from?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = requirePlan(docs);
   const t = resumePlan(plan, input.from ?? ctx.today, ctx.actor.kind === 'user' ? 'user' : 'ai');
   if (!t.ok) fail('precondition_failed', t.reason, { precondition: 'activePlan' });
@@ -348,7 +359,7 @@ implement('plan.resume', async (ctx, input: { from?: string }) => {
 });
 
 implement('plan.end', async (ctx, input: { reason: EndReason; note?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = requirePlan(docs);
   const t = endPlan(plan, ctx.now, ctx.today, input.reason, input.note);
   if (!t.ok) fail('precondition_failed', t.reason, { precondition: 'activePlan' });
@@ -371,7 +382,7 @@ export function nextVersionNumber(plan: { id: string; headVersion: number }): nu
 }
 
 async function setVersionStatus(ctx: CommandContext, input: { planId: string; version: number }, status: 'adopted' | 'rejected'): Promise<unknown> {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = docs.plans.find((p) => p.id === input.planId) ?? fail('not_found', 'There is no such plan.');
   const store = getDocumentStore();
   const v = store.peekAll<PlanVersionDoc>('planVersions').map((d) => bodyOf<PlanVersionDoc>(d)).find((x) => x.planId === plan.id && x.version === input.version) ?? fail('not_found', 'There is no such version.');
@@ -389,7 +400,7 @@ implement('plan.adoptVersion', (ctx, input: { planId: string; version: number })
 implement('plan.rejectVersion', (ctx, input: { planId: string; version: number }) => setVersionStatus(ctx, input, 'rejected'));
 
 implement('plan.checkIn', async (ctx) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = requirePlan(docs);
   const head = headAdopted(docs.versions) ?? fail('internal', 'The plan has no adopted version.');
   const p = projectLiving({ docs, today: ctx.today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
@@ -418,7 +429,7 @@ implement('plan.checkIn', async (ctx) => {
 
 // ------------------------------------------------------------------------------------------- logs
 implement('log.markDay', async (ctx, input: { date: string; marks: Partial<Record<'food' | 'train' | 'fast' | 'all', Mark>> }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const plan = docs.plan && isLive(docs.plan) ? docs.plan : null;
   const prev = docs.dayStatus.find((s) => s.date === input.date);
   const next: DayStatusDoc = { ...prev, date: input.date, ...(plan ? { planId: plan.id, planDay: planDay(plan, input.date) } : {}), marks: { ...prev?.marks, ...input.marks } };
@@ -427,7 +438,7 @@ implement('log.markDay', async (ctx, input: { date: string; marks: Partial<Recor
 });
 
 implement('log.confirmDay', async (ctx, input: { date: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const prev = docs.dayStatus.find((s) => s.date === input.date);
   const p = projectLiving({ docs, today: ctx.today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
   const day = p.days.find((d) => d.date === input.date);
@@ -492,7 +503,7 @@ implement('log.subjective', (ctx, input: { date?: string; difficulty?: 1 | 2 | 3
 implement('log.note', (ctx, input: { date?: string; text: string }) => appendEntry(ctx, { ...base(ctx, day(ctx, input.date)), kind: 'note', text: input.text } as LogEntry));
 
 implement('log.fast', async (ctx, input: { action: 'start' | 'end' | 'broken' | 'record'; lastIntakeAt?: string; firstIntakeAt?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const open = effectiveEntries(docs.entries).filter((e): e is Extract<LogEntry, { kind: 'fast' }> => e.kind === 'fast' && e.firstIntakeAt === null).sort((a, b) => (a.lastIntakeAt < b.lastIntakeAt ? 1 : -1))[0];
   if (input.action === 'start' || input.action === 'record') {
     const last = input.lastIntakeAt ?? ctx.now;
@@ -510,7 +521,7 @@ function current<E extends { id: string; supersedes?: string; kind?: string; tar
 }
 
 implement('log.retract', async (ctx, input: { entryId: string; keepEntryId?: string }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const found = docs.entries.find((e) => e.id === input.entryId);
   const sameOpenConflict = <E extends { id: string; at?: string; supersedes?: string; kind?: string; target?: string }>(all: readonly E[]) =>
     projectEntries(all).some((e) => e.conflict?.versions.some((v) => v.id === input.entryId) && e.conflict.versions.some((v) => v.id === input.keepEntryId));
@@ -555,7 +566,7 @@ implement('log.retract', async (ctx, input: { entryId: string; keepEntryId?: str
 });
 
 implement('log.edit', async (ctx, input: { entryId: string; patch: Record<string, unknown> }) => {
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const target = current(docs.entries, docs.entries.find((e) => e.id === input.entryId) ?? fail('not_found', 'There is no such entry.'));
   const { id: _old, ...rest } = target;
   void _old;
@@ -603,7 +614,7 @@ implement('log.fromBiometrics', async (ctx, input: { date?: string }) => {
   const store = getDocumentStore();
   const ix = sharedBioIndex(store);
   await ix.ready;
-  const docs = await readDocs();
+  const docs = await readDocs(ctx.today);
   const w = deviceLogWindow(date);
   const plan = planDeviceLogs({
     date,

@@ -225,7 +225,7 @@ function UnpairedView({
             <p className="m-0 text-sm text-ink-2">{C.introOnce}</p>
           </div>
         </div>
-        {platformCaps().installedApp ? null : <p className="m-0 max-w-[68ch] text-xs leading-[1.45] text-ink-2">{C.localNetwork}</p>}
+        {platformCaps().installedApp ? null : <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.localNetwork}</p>}
         {open ? (
           <PairPanel
             key={prefill ? `${prefill.baseUrl}|${prefill.code}` : 'blank'}
@@ -545,7 +545,7 @@ function PairedView({
               <li key={h}>{h}</li>
             ))}
           </ul>
-          <p className="m-0 max-w-[68ch] text-sm leading-[1.5] text-ink-2">{C.holdsRead}</p>
+          <p className="m-0 text-sm leading-[1.5] text-ink-2">{C.holdsRead}</p>
           <div className="grid gap-1 border-t border-line pt-4">
             <div>
               <Key variant="danger" onClick={() => setConfirmForget(true)}>

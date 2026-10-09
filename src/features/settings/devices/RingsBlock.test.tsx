@@ -63,6 +63,16 @@ beforeEach(() => vi.mocked(platform).mockReturnValue('web'));
 afterEach(() => setRingServiceForTests(null));
 
 describe('Settings › Devices › rings', () => {
+  it('each ring carries its ring settings (moved here from the old Ring page); no link to a Ring page', async () => {
+    use(fakeService([ring({ state: 'connected', firmware: 'V0789' })]));
+    render(<RingsBlock />, { wrapper: MemoryRouter });
+    expect(await screen.findByRole('heading', { name: 'Ring settings' })).toBeTruthy();
+    expect([...document.querySelectorAll('li.rs-setting')].map((li) => li.getAttribute('data-row'))).toEqual(['firmware', 'battery over time']);
+    expect(screen.getByText('V0789')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /Ring page/ })).toBeNull();
+    expect(screen.getByRole('link', { name: 'See the data' })).toHaveAttribute('href', '/signals');
+  });
+
   it('keeps keyboard focus in the scan flow and returns it after pairing or Stop', async () => {
     const user = userEvent.setup();
     use(fakeService([], [{ candidateId: 'c1', driverId: 'jstyle2301', label: 'J-Style 2301', known: false }]));

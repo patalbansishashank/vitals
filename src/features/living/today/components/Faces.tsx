@@ -44,10 +44,11 @@ export function SoFarFace({ view, quiet, size, daysLogged7, onArc }: { view: Tod
           />
         </button>
         <div className="lv-sofar__lines">
-          {!quiet ? (
+          {/* the dial already says "not enough logged" in its centre: the line only adds what the dial cannot */}
+          {!quiet && score && score.score !== null ? (
             <p className="lv-sofar__head">
-              {!score || score.score === null ? TODAY_COPY.notEnough : score.final ? 'final' : TODAY_COPY.soFarWord}
-              {score && coverageText(score) ? ` · ${coverageText(score)}` : ''}
+              {score.final ? 'final' : TODAY_COPY.soFarWord}
+              {coverageText(score) ? ` · ${coverageText(score)}` : ''}
             </p>
           ) : null}
           {rx && rx.energyKcal > 0 ? (

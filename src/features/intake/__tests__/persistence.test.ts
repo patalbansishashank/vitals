@@ -103,7 +103,7 @@ describe('round trip through intake.answer', () => {
     expect(doc.training).toMatchObject({ skill: 2, owned: [], prefs: { daysPerWeek: 3, minPerSession: 30 } });
     expect(turnsOf(doc, 'training').skippedAll).toBe(true);
 
-    await saveChapter('devices', turns({ has: ['scale'], models: { scale: 'Withings' }, platform: 'ios', routes: 'later', streams: [{ stream: 'weight', imported: true, scores: false, engine: true, coach: 'hidden' }] }), sctx);
+    await saveChapter('devices', turns({ has: ['scale'], models: { scale: 'Withings' }, platform: 'ios', routes: 'seen', streams: [{ stream: 'weight', imported: true, scores: false, engine: true, coach: 'hidden' }] }), sctx);
     await settleIntakeSaves();
     expect(readIntake().devices).toMatchObject({
       has: ['scale'],

@@ -22,6 +22,8 @@ export interface FigureAsset {
   base: Float32Array;
   indices: Uint16Array;
   targets: Map<string, DecodedTarget>;
+  /** Inward skin thickness per vertex in cm at the reference stature (absent in older packs). */
+  thickness?: Float32Array;
 }
 
 function planarToInterleaved(q: Int16Array, step: number): Float32Array {
@@ -60,6 +62,14 @@ export function decodeFigure(bytes: Uint8Array): FigureAsset {
     base: planarToInterleaved(i16(manifest.positions.section), manifest.positions.step),
     indices: u16(manifest.indices.section),
     targets,
+    ...(manifest.shell
+      ? {
+          thickness: Float32Array.from(
+            new Uint8Array(bin, manifest.shell.thickness.offset, manifest.shell.thickness.byteLength),
+            (q) => q * manifest.shell!.step,
+          ),
+        }
+      : {}),
   };
 }
 

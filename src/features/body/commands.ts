@@ -16,7 +16,8 @@ export type ProfileUpdate = {
 
 const GROUPS = new Set(['figure', 'shape', 'waist', 'knownBodyFat', 'training', 'habits', 'cycle', 'labs']);
 
-export function patchProfile(update: ProfileUpdate): void {
+/** `patchProfile`, resolving once the change is committed (or refused), for a caller that has to know. */
+export function patchProfileAsync(update: ProfileUpdate): Promise<unknown> {
   const patch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(update)) {
     if (v === undefined) continue;
@@ -26,5 +27,9 @@ export function patchProfile(update: ProfileUpdate): void {
       patch[k] = group;
     } else patch[k] = v;
   }
-  void sendCommand('profile.patch', patch as never);
+  return sendCommand('profile.patch', patch as never);
+}
+
+export function patchProfile(update: ProfileUpdate): void {
+  void patchProfileAsync(update);
 }

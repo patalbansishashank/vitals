@@ -147,6 +147,12 @@ export interface RingLeaseBody {
   heartbeatAt: Instant | null;
   /** Written by the taker only. */
   takeover: { deviceId: string; deviceLabel: string; at: Instant } | null;
+  /**
+   * The device the person last chose with Connect / "Connect here instead": it gets the head start when the lease is
+   * free (R6). Absent: the phone does, it runs the background service. Written by `connectHere` only; optional so older
+   * lease documents still parse.
+   */
+  preferred?: { deviceId: string; deviceLabel: string; at: Instant } | null;
 }
 /** @deprecated first draft's name; the lease is `RingLeaseBody`. */
 export type RingLease = RingLeaseBody;
@@ -162,3 +168,13 @@ export const SYNC_EVERY_MS = 30 * 60_000;
 export const TAKEOVER_RETRY_MS = 60_000;
 /** A holder that lost the ring to another device leaves it alone for this long (or until Connect is pressed). */
 export const TAKEOVER_PAUSE_MS = 12 * 60 * 60_000;
+/**
+ * A free or stale lease: the preferred device (the phone unless the person chose another) connects at once; every other
+ * device waits this long and looks at the lease again first, so two devices that start together do not both grab the
+ * ring (R6).
+ */
+export const FREE_GRACE_MS = 15_000;
+/** A link that has stayed up this long is a real one: the reconnect ladder starts over at the next drop (R4). */
+export const STABLE_LINK_MS = 60_000;
+/** A holder whose retries failed this many times in a row lets go of the lease, so another device may try (R1). */
+export const RELEASE_AFTER_ATTEMPTS = 3;

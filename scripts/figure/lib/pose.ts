@@ -1,5 +1,5 @@
 // Bakes a lowered-arm pose into the mesh with linear blend skinning, using MakeHuman's own (CC0) default rig weights.
-// MakeHuman's rest pose is an A-pose with the upper arm ~40 deg from vertical; the figure wants ~10 deg (as the SVG avatar).
+// MakeHuman's rest pose is an A-pose with the upper arm ~40 deg from vertical; the shared relaxed pose opens it enough to clear the body.
 // LBS is linear in position, so a target delta d is posed as M_v d with M_v = sum_b w_b R_b (the same per-vertex matrix).
 
 export type Mat3 = [number, number, number, number, number, number, number, number, number];

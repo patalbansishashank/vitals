@@ -4,6 +4,78 @@ All notable changes to Vitals. Dates are release dates (IST).
 
 ## Unreleased
 
+## [0.5.3] - 2026-10-09
+
+### Changed
+- Pages use the full width of the window. On the desktop the page's main buttons sit in a bar at the bottom, like on the phone,
+  with "Saved on this device" on the left; on phones that bar stays at the bottom, above the tab bar. Step pages show the title
+  first, then a full-width progress bar.
+- Your body: opened from the sidebar it has the same two halves as the setup steps (figure and estimates on one side, shape on
+  the other), with the other cards balanced between the two columns so no gaps are left. "Simulate a plan" and "Find a plan"
+  moved into the bottom bar, the "Your setup" card is gone, and the figure's canvas is taller. Maintenance and Estimates show the
+  same number.
+- The 3D figure shares one pose for skin, fat under the skin, muscles and bones, with the arms further from the body. It has zoom,
+  move, turn and pause buttons and works with two fingers. It no longer flashes the old drawing while it loads. Moving a Shape
+  slider is smooth: the skeleton and muscles are placed in the background. The eyes and mouth are closed, with no eyeballs, eyelids
+  or inner mouth inside the head. The "Fat around organs" layer is removed from the 3D figure; the estimate stays as numbers.
+- The visceral view is now a slice through the belly drawn from real anatomy (muscle wall, spine, bowel loops in deep fat), with
+  the scale at the bottom right and the reference outlines kept quiet. Its numbers did not change.
+- Goals: the page is two equal halves on wide screens (Goals and Won't do on the left; Horizon, Before you run and Practical
+  limits on the right). Suggested goals are applied, and undone, from the suggestion card. The run screen no longer repeats your
+  goals. In the results, the four plans share the width in equal quarters in both cards and table view, and the cards / table
+  switch sits in the ladder title.
+- The setup summary is one column with every answer on its own labelled line (what you do each day, training equipment, food,
+  blood markers, devices and what the Coach sees). The data notes on the devices step are shorter, with the rest under "How your
+  data is used". In the simulator the schedule / results switch is right-aligned on the desktop.
+
+- Today, Food and Train use two equal columns on the desktop. The week at the top is a plain card with the days as keys; today's
+  key is yellow. Today's plan is a time line with one clear action per item ("As planned", "Log weight", "Done") and the rest
+  behind "⋯"; logged items keep an Undo. "How hard was today?" is its own card. The "Tell the Coach" box is gone from Today and
+  from phones; the Coach page is where you talk to the Coach. Food's meals use the same time line, Targets show what you ate
+  against each target, Groceries has a simpler list, and Pantry sits on the left. Train shows each exercise with one "Done"
+  key, with Swap and Skip behind "⋯".
+- On phones the page title bar (title and "⋯") sits at the bottom of the screen, above the page buttons and the tab bar.
+- The ring has one page, Body signals, with the ring card (battery, last read, connect) at the top. "Today from your ring" is
+  gone, and the ring's settings and sharing live in Settings › Devices.
+- Every control in the top bars and the bottom bar has one height (36 px with a mouse, 44 px on touch).
+- The Coach's "what it knows" opens as a side panel (a sheet on phones). The plan state ("starts tomorrow", "day 5 of 90")
+  moved from the sidebar to Today's status line.
+- The simulator's schedule shows the program keys in the schedule card, every day cell shows its date, and the page is
+  three quarters schedule, one quarter day editor.
+
+### Fixed
+- The ring no longer jumps between your phone and your computer. With both apps open, each took the ring whenever it was
+  free, so neither kept it and live heart rate never started. Now the device that has the ring keeps it, also through a
+  short drop; the other one says "Connected to <device>" and offers "Connect here instead", and only that tap (or a
+  device that has been silent for 15 minutes) moves the ring, exactly once. When the ring is free, the phone takes it
+  first (it runs in the background and reads the night) unless you chose another device with "Connect here instead";
+  the computer waits 15 seconds and looks again before it tries.
+- A device that loses the ring to another app or phone waits 5, 15, 30, 60, 120, then 300 seconds between tries instead
+  of grabbing it back at once, and a link that is taken away seconds after it came up keeps waiting longer, so two
+  devices cannot swap the ring every few seconds even without sync. Battery and "last read" stay on the card meanwhile.
+- Connecting follows more of Lumen Health's rules: the retry wait starts over when the app comes to the foreground or
+  Bluetooth comes back on; on the phone a reconnect looks for the ring for up to 28 seconds (it advertises only every 20
+  to 40 seconds when idle) and, after a Bluetooth error 133, clears the system's cached view of the ring before using the
+  new link; a link the system kept while the ring stopped answering is noticed when you return to the app, not 30
+  minutes later; "may be connected to another app or phone" is shown only when the ring could not be found or refused,
+  not for every failure.
+
+- 3D figure repairs: the skull sits inside the head and moves as one piece, the shoulder blades and arm bones sit in their sockets,
+  bones and muscles no longer press flat against or stretch through the skin, and the broken edges at the knees, fingers and toes
+  are repaired. The "Fat under skin" layer is a whole layer again, with no holes at the face, knees, fingers or toes, and it is smooth.
+  At full zoom the whole head fits in the view.
+- The phone action bar stays at the bottom of the screen while you scroll. Only one "Suggestion applied · Undo" shows after you apply
+  suggested goals, and notices clear when you change page. The chart on the "Finding plans" screen no longer draws huge text. A bar
+  in the simulator's schedule preview can no longer get a negative width.
+
+- Today no longer stays locked as a preview after the plan's start date: a plan counts as running from its start date, so
+  Log weight, As planned and the other actions work.
+- Plans that keep your usual training show those sessions on Train and Today; before, every day said "Rest day". The plan
+  card's training days were shown a day off (Sunday-first); they now read correctly.
+- Moving a Shape slider on the Body page updates the 3D figure while you drag (it used to freeze until you let go).
+- 3D figure: the skull sits lower, in line with the mouth; the fat under the skin is smooth over the back, neck and chest; the
+  muscles no longer tear in heavy bodies, and hands and feet join the arm and leg muscles.
+
 ## [0.5.2] - 2026-10-05
 
 ### Fixed

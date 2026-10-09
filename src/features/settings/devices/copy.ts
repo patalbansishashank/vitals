@@ -59,7 +59,6 @@ export const DEV = {
  */
 export const RING = {
   title: 'rings',
-  ringPage: 'Open the Ring page',
   seeData: 'See the data',
   unsupported: 'This browser can’t reach rings. Use the Vitals app for Android or your computer.',
   unsupportedApp: 'This device can’t reach rings: Bluetooth isn’t available to Vitals here.',

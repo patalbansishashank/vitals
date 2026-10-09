@@ -9,26 +9,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useShallow } from 'zustand/react/shallow';
-import { Engraved, Key, MQ, Page, useMediaQuery, formatNumber, formatRange } from '@/components';
+import { Engraved, Key, KeyLink, MQ, Page, useMediaQuery, formatNumber, formatRange } from '@/components';
 import { ActionBar, TopBar } from '@/app/shell';
+import { paths } from '@/app/paths';
 import { SafetyModeChip, useSafetyAccess } from '@/features/onboarding';
 import { describeAvatar } from '@/features/body/avatar';
-import { defaultFigureFrame, useBodyValues, useProfileStore, type SetupStep } from '@/state/profileStore';
+import { defaultFigureFrame, useBodyValues, useProfileStore, type BodyProfileValues, type SetupStep } from '@/state/profileStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import { BasicsFace } from './components/BasicsFace';
 import { EstimatesFace } from './components/EstimatesFace';
 import { FigureFace } from './components/FigureFace';
 import { HabitsFace } from './components/HabitsFace';
 import { LabsFace } from './components/LabsFace';
-import { ChooseStart, ContinueFace, MiniFigure, SetupProgress, type SetupView } from './components/Setup';
+import { ChooseStart, MiniFigure, SetupProgress, type SetupView } from './components/Setup';
 import { ShapeFace } from './components/ShapeFace';
-import { EST, SAVE, SETUP, TITLE } from './copy';
+import { CONTINUE, EST, SAVE, SETUP, TITLE } from './copy';
 import { DEFAULTS } from '@/engine/core/defaults';
-import { deriveFigure, withFrame } from './figure';
+import { deriveFigure, withFrame, type FigureView } from './figure';
+import { useDraftView } from './shapeDraft';
 import { useCommittedSnapshot, useSaveStatus } from './hooks';
 import { bodyContextOf, summarizeBody, withIntakeActivity } from './model';
-import { IntakeReminderChip, MaintenanceFace, NormalDaySummary, SetupFace, intakePath, useBodyFlowContext, useIntakeDoc } from '@/features/intake';
-import { energyIn } from './units';
+import { IntakeReminderChip, MaintenanceFace, NormalDaySummary, intakePath, useBodyFlowContext, useIntakeDoc } from '@/features/intake';
+import { maintenanceShown } from './units';
 import { kgToLb } from '@/lib/units';
 import { sendCommand } from '@/features/lib/sendCommand';
 import '@/commands/defs/profile'; // registers the commands dispatched here
@@ -41,6 +43,12 @@ const MISSING_WORD = { sex: 'sex', age: 'age', height: 'height', weight: 'weight
 function modeOf(param: string | null): Mode {
   if (param === 'basics' || param === 'shape' || param === 'habits' || param === 'start') return param;
   return 'normal';
+}
+
+/** The floating figure follows the sliders as they move, without re-rendering the page (see ./shapeDraft). */
+function LiveMiniFigure({ v, view, visible, onReturn }: { v: BodyProfileValues; view: FigureView; visible: boolean; onReturn: () => void }) {
+  const drawn = useDraftView(v, view);
+  return <MiniFigure params={drawn.params} frame={drawn.frame} visible={visible} onReturn={onReturn} />;
 }
 
 export default function BodyPage() {
@@ -115,7 +123,7 @@ export default function BodyPage() {
   /* ---- screen-reader snapshot: the figure's name and the live region change on release, not per frame ---- */
   const heightText = units === 'metric' ? `${Math.round(summary.heightCm)} cm` : `${Math.floor(Math.round(summary.heightCm / 2.54) / 12)} ft ${Math.round(summary.heightCm / 2.54) % 12} in`;
   const needsWeight = summary.missing.includes('weight');
-  const maintText = `${formatNumber(energyIn(summary.maintenance.kcal, energyUnit), 0)} ${energyUnit === 'kJ' ? 'kilojoules' : 'kilocalories'}`;
+  const maintText = `${formatNumber(maintenanceShown(summary.maintenance.kcal, energyUnit), 0)} ${energyUnit === 'kJ' ? 'kilojoules' : 'kilocalories'}`;
   const ctxAge = rawContext.ageYears;
   const ctxBmi = rawContext.bmi === undefined ? undefined : Math.round(rawContext.bmi * 10) / 10;
   const ctxBf = rawContext.bodyFatPct === undefined ? undefined : Math.round(rawContext.bodyFatPct * 10) / 10;
@@ -219,6 +227,18 @@ export default function BodyPage() {
     );
   };
 
+  /** Plain Your body: the way on into the two features; Find a plan is the primary key (it starts nothing, so not yellow). */
+  const planKeys = (size: 'sm' | 'md') => (
+    <>
+      <KeyLink to={paths.simulate} size={size}>
+        {CONTINUE.simulate}
+      </KeyLink>
+      <KeyLink to={paths.planGoals} variant="solid" size={size}>
+        {CONTINUE.plan}
+      </KeyLink>
+    </>
+  );
+
   const scrollToShape = () => document.getElementById('body-shape')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   const openDrawing = () => {
     setDrawingOpen(true);
@@ -287,21 +307,23 @@ export default function BodyPage() {
               {status}
             </Engraved>
             {setupView ? <span className="lm-body-setup-top">{setupKeys(setupView, 'top')}</span> : null}
+            {mode === 'normal' ? <span className="lm-body-setup-top">{planKeys('sm')}</span> : null}
           </>
         }
       />
       {setupView ? <ActionBar><div className="lm-body-setup-actions">{setupKeys(setupView, 'bar')}</div></ActionBar> : null}
+      {mode === 'normal' ? <ActionBar><div className="lm-body-setup-actions">{planKeys('md')}</div></ActionBar> : null}
       <Page>
         <div className="lm-body" data-mode={mode}>
           {mode === 'start' ? (
             <ChooseStart />
           ) : mode === 'basics' ? (
             <>
-              <BasicsFace id="body-basics" v={basics} bmi={summary.bmi} units={units} intro={SETUP.intro.basics} />
               <div className="lm-body-mid">
                 {figure(true)}
                 {estimates}
               </div>
+              <BasicsFace id="body-basics" v={basics} bmi={summary.bmi} units={units} intro={SETUP.intro.basics} />
             </>
           ) : mode === 'shape' ? (
             <>
@@ -328,43 +350,47 @@ export default function BodyPage() {
             <Navigate to={intakePath('activity', { from: 'setup' })} replace />
           ) : (
             <>
-              <BasicsFace id="body-basics" v={basics} bmi={summary.bmi} units={units} />
-              <div className="lm-body-mid">
-                {figure()}
-                {estimates}
+              <div className="lm-body-cols">
+                <div className="lm-body-stack">
+                  {figure()}
+                  {estimates}
+                  <BasicsFace id="body-basics" v={basics} bmi={summary.bmi} units={units} />
+                  <HabitsFace
+                    id="body-habits"
+                    v={habitInputs}
+                    defaults={habitDefaults}
+                    open={habitsOpen}
+                    onOpenChange={setHabitsOpen}
+                    normalDay={normalDayNode}
+                    chip={reminderNode}
+                    resolvedSteps={summary.maintenance.activity?.source === 'intake' ? summary.maintenance.steps : undefined}
+                  />
+                  <LabsFace id="body-labs" labs={v.labs} open={labsOpen} onOpenChange={setLabsOpen} />
+                </div>
+                <div className="lm-body-stack">
+                  <ShapeFace
+                    id="body-shape"
+                    waistId="body-waist"
+                    drawingId="body-drawing"
+                    v={v}
+                    view={view}
+                    summary={summary}
+                    units={units}
+                    onLive={onLive}
+                    onCommit={commit}
+                    drawing={drawing}
+                  />
+                  <div className="lm-body-maintenance">
+                    <MaintenanceFace id="body-maintenance" doc={intakeDoc} ctx={intakeCtx} quiet={gentle} />
+                  </div>
+                </div>
               </div>
-              <ShapeFace
-                id="body-shape"
-                waistId="body-waist"
-                drawingId="body-drawing"
-                v={v}
-                view={view}
-                summary={summary}
-                units={units}
-                onLive={onLive}
-                onCommit={commit}
-                drawing={drawing}
-              />
-              <HabitsFace
-                id="body-habits"
-                v={habitInputs}
-                defaults={habitDefaults}
-                open={habitsOpen}
-                onOpenChange={setHabitsOpen}
-                normalDay={normalDayNode}
-                chip={reminderNode}
-                resolvedSteps={summary.maintenance.activity?.source === 'intake' ? summary.maintenance.steps : undefined}
-              />
-              <MaintenanceFace id="body-maintenance" doc={intakeDoc} ctx={intakeCtx} quiet={gentle} />
-              <SetupFace id="body-setup" doc={intakeDoc} ctx={intakeCtx} />
-              <LabsFace id="body-labs" labs={v.labs} open={labsOpen} onOpenChange={setLabsOpen} />
-              <ContinueFace />
             </>
           )}
         </div>
         {missingBasics.length && mode === 'normal' ? <p className="lm-sr">{SETUP.missing(missingBasics)}</p> : null}
         {!figureHidden && mode !== 'start' && mode !== 'basics' && mode !== 'habits' ? (
-          <MiniFigure params={view.params} frame={view.frame} visible={mini} onReturn={returnToStage} />
+          <LiveMiniFigure v={v} view={view} visible={mini} onReturn={returnToStage} />
         ) : null}
       </Page>
     </>

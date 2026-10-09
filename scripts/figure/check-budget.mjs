@@ -20,7 +20,7 @@ for (const file of ['NOTICE.html', 'NOTICE.txt']) {
   if (!source.equals(built)) throw new Error(`${file} changed after the build; rebuild before measuring.`);
   rows.push({ file: `figure/${file}`, compressedBytes: gzipSync(built, { level: 9 }).length });
 }
-const names = (await readdir(resolve(root, 'dist/assets'))).filter((name) => /^(Figure3D(?:Canvas)?|AvatarMorph|BodyAvatar|renderer|scene|manifest)-.*\.(js|css)$/.test(name));
+const names = (await readdir(resolve(root, 'dist/assets'))).filter((name) => /^(Figure3D(?:Canvas)?|AvatarMorph|BodyAvatar|renderer|scene|manifest|anatomy\.worker)-.*\.(js|css)$/.test(name));
 if (!names.some((name) => name.startsWith('Figure3DCanvas-'))) throw new Error('Build the lazy figure chunk first.');
 for (const file of names.sort()) {
   rows.push({ file: `assets/${file}`, compressedBytes: gzipSync(await readFile(resolve(root, 'dist/assets', file)), { level: 9 }).length });

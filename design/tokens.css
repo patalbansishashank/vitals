@@ -276,6 +276,7 @@
   --lm-lane-label-w:    168px; /* desktop lane label gutter           */
   --lm-hit-touch:       44px;  /* minimum touch target                */
   --lm-hit-pointer:     32px;  /* minimum pointer target (dense UI)   */
+  --lm-bar-control-h:   36px;  /* every control in the top bar and the action bar (pointer) */
   --lm-content-max:     1440px;
 
   /* ---------------------------------------------------------------------
@@ -340,6 +341,13 @@
   --lm-bp-lg:  1024px;  /* rail navigation, persistent metric picker       */
   --lm-bp-xl:  1280px;  /* three-column Your body, explain drawer docked   */
   --lm-bp-2xl: 1536px;
+}
+
+/* touch screens keep the 44 px touch target for bar controls */
+@media (pointer: coarse) {
+  :root {
+    --lm-bar-control-h: 44px;
+  }
 }
 
 /* ==========================================================================

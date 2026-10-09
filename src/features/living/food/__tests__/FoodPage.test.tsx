@@ -37,9 +37,11 @@ describe('Food', () => {
     renderLiving(ui(), { path: '/food', route: 'food' });
     expect(await screen.findByRole('heading', { level: 1, name: /^Food/ })).toHaveTextContent('Food · Thu 1 Oct');
     expect(screen.getByRole('heading', { name: 'Targets' })).toBeInTheDocument();
-    expect(screen.getByText(/1\s\u2060?850 kcal · protein 150 g/)).toBeInTheDocument();
+    // the Targets card is a channel strip: one line per nutrient with its target readout
+    expect(document.getElementById('targets')!.textContent).toMatch(/energy\D*1\s\u2060?850 kcal[\s\S]*protein\D*150 g/);
     for (const slot of ['lunch', 'snack', 'dinner']) expect(screen.getByRole('heading', { level: 3, name: slot })).toBeInTheDocument();
-    expect(screen.getAllByText(/for example/)).toHaveLength(3);
+    // the rows read as a readout; the food examples live in the meal's sheet
+    expect(screen.queryAllByText(/for example/)).toHaveLength(0);
     // the reason is on the page once, and the disabled key is described by that same text (no hidden second copy)
     expect(screen.getAllByText('Connect an AI provider to get recipes.')).toHaveLength(1);
     const planKey = screen.getByRole('button', { name: 'Plan my day' });
@@ -73,7 +75,7 @@ describe('Food', () => {
     await user.click(await screen.findByRole('button', { name: 'Plan my day' }));
     await user.click(await screen.findByRole('button', { name: 'Accept paneer bhurji for lunch' }));
 
-    expect(await within(groceries()).findByText(/paneer 200 g pack/)).toBeInTheDocument();
+    expect(await within(groceries()).findByText((_, el) => !!el?.classList.contains('lv-food-grocery__label') && /paneer\s*200 g pack/.test(el.textContent ?? ''))).toBeInTheDocument();
     expect(within(groceries()).getByRole('heading', { name: 'dairy' })).toBeInTheDocument();
     expect(h.stub.inspect().entries).toHaveLength(0);
     expect(screen.getByText('accepted')).toBeInTheDocument();
@@ -81,7 +83,7 @@ describe('Food', () => {
 
     await user.click(screen.getByRole('button', { name: 'I ate this: lunch as planned' }));
     await waitFor(() => expect(h.stub.inspect().entries).toHaveLength(1));
-    expect(within(groceries()).getByText(/paneer 200 g pack/)).toBeInTheDocument();
+    expect(within(groceries()).getByText((_, el) => !!el?.classList.contains('lv-food-grocery__label') && /paneer\s*200 g pack/.test(el.textContent ?? ''))).toBeInTheDocument();
     expect(screen.getByText('accepted')).toBeInTheDocument();
   });
 
@@ -131,7 +133,7 @@ describe('Food', () => {
     await user.click(await screen.findByRole('button', { name: 'Plan my day' }));
     expect(await screen.findByText('Couldn’t make a recipe this time.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again: snack recipe' })).toBeInTheDocument();
-    expect(screen.getAllByText(/for example/)).toHaveLength(1);
+    expect(screen.queryAllByText(/for example/)).toHaveLength(0);
   });
 
   it('asks for the food rules before recipes', async () => {
@@ -145,7 +147,8 @@ describe('Food', () => {
   it('logs a typed meal from the manual logger', async () => {
     const user = userEvent.setup();
     const h = renderLiving(ui(), { path: '/food', route: 'food' });
-    await user.click(await screen.findByRole('button', { name: 'I ate something else: snack' }));
+    await user.click(await screen.findByRole('button', { name: 'More for snack' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'I ate something else' }));
     await user.type(await screen.findByRole('searchbox', { name: 'Search foods' }), 'dal');
     await user.click(await screen.findByRole('button', { name: 'Add dal' }));
     expect(screen.getByText('estimated composition')).toBeInTheDocument();
@@ -163,7 +166,8 @@ describe('Food', () => {
   it('"Tell the Coach instead" hands the Coach what was typed, with the slot and date (Q4-10)', async () => {
     const user = userEvent.setup();
     const h = renderLiving(ui(), { path: '/food', route: 'food', routes: [{ path: 'coach', element: <p>coach</p> }] });
-    await user.click(await screen.findByRole('button', { name: 'I ate something else: lunch' }));
+    await user.click(await screen.findByRole('button', { name: 'More for lunch' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'I ate something else' }));
     await user.type(await screen.findByRole('searchbox', { name: 'Search foods' }), 'poha and chai');
     await user.click(screen.getByRole('button', { name: 'Tell the Coach instead' }));
     await waitFor(() => expect(h.router.state.location.pathname).toBe('/coach'));
@@ -208,7 +212,8 @@ describe('Food', () => {
     expect(screen.getAllByText(/^For example /)).toHaveLength(3);
 
     await user.click(key);
-    expect(screen.getByText(/1\s\u2060?850 kcal · protein 150 g/)).toBeInTheDocument();
+    // the Targets card is a channel strip: one line per nutrient with its target readout
+    expect(document.getElementById('targets')!.textContent).toMatch(/energy\D*1\s\u2060?850 kcal[\s\S]*protein\D*150 g/);
     expect(screen.getByRole('button', { name: 'hide numbers' })).toHaveAttribute('aria-pressed', 'true');
   });
 

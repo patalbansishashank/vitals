@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { fixedClock, LivingClockContext } from '@/features/living/clock';
 import { RingServiceProvider, type RingPlatform, type RingService, type RingStatus } from '../data';
 import { createFakeRingService, createFakeSharing, scenarioPlatform, type FakeRingService, type RingScenario } from '../fixtures';
@@ -13,17 +13,16 @@ function setup(opts: { scenario?: RingScenario; platform?: Partial<RingPlatform>
   const fake = createFakeRingService(opts.scenario ?? 'connected', { now: NOW });
   const service = opts.extend ? opts.extend(fake) : fake;
   const ring = { ...fake.rings()[0]!, ...opts.patch };
-  const onAddRing = vi.fn();
   const view = render(
     <MemoryRouter>
       <LivingClockContext.Provider value={clock}>
         <RingServiceProvider service={service} platform={{ ...scenarioPlatform('connected'), ...opts.platform }} sharing={createFakeSharing()}>
-          <RingSettings ring={ring} onAddRing={onAddRing} />
+          <RingSettings ring={ring} />
         </RingServiceProvider>
       </LivingClockContext.Provider>
     </MemoryRouter>,
   );
-  return { fake, ring, onAddRing, view };
+  return { fake, ring, view };
 }
 
 const rowLabels = () => [...document.querySelectorAll('li.rs-setting')].map((li) => li.getAttribute('data-row'));
@@ -34,17 +33,17 @@ afterEach(() => {
 });
 
 describe('Ring settings', () => {
-  it('the J-Style 2301 on Android: firmware, keep connected, battery, disconnect, forget, add; no rows it cannot do', async () => {
+  it('the J-Style 2301 on Android: firmware, keep connected, battery; no rows it cannot do, and none the ring card above has', async () => {
     setup();
     expect(screen.getByRole('heading', { name: 'Ring settings' })).toBeTruthy();
-    expect(rowLabels()).toEqual(['firmware', 'keep my ring connected', 'battery over time', 'disconnect', 'forget this ring', 'add another ring']);
+    expect(rowLabels()).toEqual(['firmware', 'keep my ring connected', 'battery over time']);
     expect(screen.getByText('V0789')).toBeTruthy();
     expect((screen.getByRole('switch', { name: 'keep my ring connected' }) as HTMLInputElement).checked).toBe(true);
     expect(screen.getByText('Stays connected in the background. Android shows a small notification while it is.')).toBeTruthy();
     expect(screen.queryByText('how often your ring measures')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Vibrate' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Reset the ring…' })).toBeNull();
-    expect(document.querySelector('[data-forget-ring]')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Disconnect|Forget|Add another ring/ })).toBeNull();
     await waitFor(() => expect(document.querySelector('.rs-batt__line')).toBeTruthy());
     expect(document.body.textContent ?? '').not.toMatch(FORBIDDEN);
   });
@@ -84,7 +83,7 @@ describe('Ring settings', () => {
           setMeasuring: async (_k: string, m: RingMeasuring) => void sent.push(m),
         }),
     });
-    expect(rowLabels()).toEqual(['firmware', 'keep my ring connected', 'how often your ring measures', 'battery over time', 'find my ring', 'disconnect', 'forget this ring', 'reset the ring', 'add another ring']);
+    expect(rowLabels()).toEqual(['firmware', 'keep my ring connected', 'how often your ring measures', 'battery over time', 'find my ring', 'reset the ring']);
     // only the measurements the ring supports get a switch
     const measuring = document.querySelector('li[data-row="how often your ring measures"]') as HTMLElement;
     expect(within(measuring).getAllByRole('switch').map((s) => s.getAttribute('aria-label') ?? s.closest('label')!.textContent)).toEqual(['all-day heart rate', 'blood oxygen']);
@@ -102,39 +101,6 @@ describe('Ring settings', () => {
   it('how often is hidden when the service cannot apply it, even with intervals', () => {
     setup({ patch: { caps: { intervals: { min: 5, max: 60, step: 5 } } } });
     expect(rowLabels()).not.toContain('how often your ring measures');
-  });
-
-  it('forget asks for the typed word, then forgets the ring', async () => {
-    const { fake, ring } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Forget this ring…' }));
-    expect(screen.getByText('Forget J-Style 2301?')).toBeTruthy();
-    expect(screen.getByText('Vitals stops connecting to it on all your devices. The data it already gave stays.')).toBeTruthy();
-    const confirm = screen.getByRole('button', { name: 'Forget ring' });
-    expect(confirm.getAttribute('aria-disabled')).toBe('true');
-    fireEvent.click(confirm);
-    expect(fake.calls).not.toContain(`forget:${ring.ringKey}`);
-    fireEvent.change(screen.getByLabelText('Type forget to confirm.'), { target: { value: 'forget' } });
-    expect(screen.getByRole('button', { name: 'Forget ring' }).getAttribute('aria-disabled')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Forget ring' }));
-    await waitFor(() => expect(fake.calls).toContain(`forget:${ring.ringKey}`));
-  });
-
-  it('disconnect and add another ring', async () => {
-    const { fake, ring, onAddRing } = setup();
-    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
-    await waitFor(() => expect(fake.calls).toContain(`disconnect:${ring.ringKey}`));
-    fireEvent.click(screen.getByRole('button', { name: 'Add another ring' }));
-    expect(onAddRing).toHaveBeenCalledTimes(1);
-  });
-
-  it('disconnect explains itself when the ring is not connected', () => {
-    const { fake, ring } = setup({ scenario: 'idle' });
-    const key = screen.getByRole('button', { name: 'Disconnect' });
-    expect(key.getAttribute('aria-disabled')).toBe('true');
-    // its words carry the state: the status-key class lifts the text out of the disabled-only faint ink (J6-09)
-    expect(key.classList.contains('rg-statuskey')).toBe(true);
-    fireEvent.click(key);
-    expect(fake.calls).not.toContain(`disconnect:${ring.ringKey}`);
   });
 
   it('battery over time: "Not enough readings yet." with fewer than two readings or no history at all', async () => {

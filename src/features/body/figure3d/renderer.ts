@@ -2,6 +2,7 @@
 // Smooth vertex normals give matte lighting; camera turns only change uniforms. No external rendering dependency.
 
 import type { BodyComposition } from './composition';
+import { viewMatrices, type ViewCamera } from './camera';
 
 export type FigureView = 'front' | 'side';
 
@@ -38,14 +39,17 @@ export interface FigureFrame {
   outlinePx?: number;
   /** Camera turn in radians; a front view starts at zero. */
   angleRad?: number;
+  /** Tilt, zoom and pan of the person's view (camera.ts). Absent = the plain front view. */
+  camera?: ViewCamera;
   /** Increment when a reused position buffer has new morph data. */
   geometryRevision?: number;
   anatomy?: {
+    /** Atlas vertices placed in the fitted skin's joint cage, already in cm. */
+    positions?: Float32Array;
     composition: BodyComposition;
     layers: {
       skin: boolean;
       subcutaneousFat: boolean;
-      visceralFat: boolean;
       muscles: boolean;
       skeleton: boolean;
     };
@@ -84,25 +88,9 @@ uniform vec3 u_anchor;
 uniform float u_sideAnchorX;
 uniform vec3 u_translate;
 uniform float u_stature;
-uniform float u_frame;
-uniform float u_armFrame;
-uniform float u_referenceHeight;
 uniform float u_push;      // outline width in clip units (0 for the body)
 uniform vec2 u_px;         // clip units per pixel (x, y)
 out vec3 v_normal;
-float ease(float a, float b, float x) {
-  float t = clamp((x - a) / (b - a), 0.0, 1.0);
-  return t * t * (3.0 - 2.0 * t);
-}
-vec3 armFrameDelta(float y) {
-  // Atlas arms are registered to the hips-led MakeHuman frame at 165.9 cm.
-  vec3 hand = vec3(4.7, -6.1, 8.9);
-  vec3 wrist = vec3(4.6, -4.1, 7.5);
-  vec3 shoulder = vec3(0.5, 2.0, 1.0);
-  if (y < 87.0) return mix(hand, wrist, ease(72.0, 87.0, y));
-  if (y < 129.0) return mix(wrist, shoulder, ease(87.0, 129.0, y));
-  return shoulder * (1.0 - ease(129.0, 136.0, y));
-}
 void main() {
   vec3 anchor = u_anchor;
   if (u_sideAnchorX > 0.0) {
@@ -110,12 +98,7 @@ void main() {
     anchor.x = sign(a_pos.x) * u_sideAnchorX * midline;
   }
   vec3 p = anchor + (a_pos - anchor) * u_scale;
-  if (u_armFrame > 0.0) {
-    vec3 d = armFrameDelta(a_pos.y);
-    p += u_armFrame * vec3(sign(a_pos.x) * d.x, d.y, d.z);
-  }
   p *= u_stature;
-  p.x *= 1.0 + u_frame * (p.y / max(u_referenceHeight * u_stature, 1.0) - 0.5);
   p += u_translate;
   vec4 clip = u_mvp * vec4(p, 1.0);
   vec3 n = normalize(u_rot * (a_nrm / u_scale));
@@ -214,7 +197,6 @@ export class FigureRenderer {
   private readonly meshes: MeshBuffers[] = [];
   private anatomy: { mesh: AnatomyMesh; buffers: MeshBuffers; index: WebGLBuffer; indexType: number } | null =
     null;
-  private vat: { buffers: MeshBuffers; index: WebGLBuffer; count: number } | null = null;
   private readonly shaders: WebGLShader[];
   private readonly u: Record<
     | 'mvp'
@@ -229,10 +211,7 @@ export class FigureRenderer {
     | 'anchor'
     | 'sideAnchorX'
     | 'translate'
-    | 'stature'
-    | 'frame'
-    | 'armFrame'
-    | 'referenceHeight',
+    | 'stature',
     WebGLUniformLocation | null
   >;
   lost = false;
@@ -246,6 +225,7 @@ export class FigureRenderer {
     const gl = canvas.getContext('webgl2', {
       antialias: true,
       alpha: true,
+      stencil: true,
       premultipliedAlpha: false,
       preserveDrawingBuffer: false,
     });
@@ -273,9 +253,6 @@ export class FigureRenderer {
       sideAnchorX: loc('u_sideAnchorX'),
       translate: loc('u_translate'),
       stature: loc('u_stature'),
-      frame: loc('u_frame'),
-      armFrame: loc('u_armFrame'),
-      referenceHeight: loc('u_referenceHeight'),
     };
     this.ibo = gl.createBuffer()!;
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
@@ -339,40 +316,6 @@ export class FigureRenderer {
     gl.bindVertexArray(null);
   }
 
-  private ensureVat(): NonNullable<FigureRenderer['vat']> {
-    if (this.vat) return this.vat;
-    const gl = this.gl;
-    const rings = 14,
-      segments = 20;
-    const P = new Float32Array((rings + 1) * (segments + 1) * 3);
-    const idx: number[] = [];
-    for (let r = 0; r <= rings; r++) {
-      const phi = (Math.PI * r) / rings;
-      for (let s = 0; s <= segments; s++) {
-        const theta = (Math.PI * 2 * s) / segments;
-        const k = 3 * (r * (segments + 1) + s);
-        P[k] = Math.sin(phi) * Math.cos(theta);
-        P[k + 1] = Math.cos(phi);
-        P[k + 2] = Math.sin(phi) * Math.sin(theta);
-        if (r < rings && s < segments) {
-          const a = r * (segments + 1) + s,
-            b = a + segments + 1;
-          idx.push(a, b, a + 1, b, b + 1, a + 1);
-        }
-      }
-    }
-    const indices = new Uint16Array(idx);
-    gl.bindVertexArray(null);
-    const index = gl.createBuffer()!;
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
-    const buffers = this.makeMesh(P.length / 3, index);
-    this.uploadMesh(buffers, P, indices, 0);
-    gl.bindVertexArray(null);
-    this.vat = { buffers, index, count: indices.length };
-    return this.vat;
-  }
-
   private uploadMesh(
     m: MeshBuffers,
     P: Float32Array,
@@ -403,9 +346,11 @@ export class FigureRenderer {
     this.upload(0, frame.positions, revision);
     if (frame.core) this.upload(1, frame.core, revision);
     if (frame.ghost) this.upload(2, frame.ghost, revision);
+    if (this.anatomy && frame.anatomy?.positions)
+      this.uploadMesh(this.anatomy.buffers, frame.anatomy.positions, this.anatomy.mesh.indices, revision);
     gl.viewport(0, 0, W, H);
     gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
     gl.useProgram(this.prog);
     gl.enable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
@@ -419,13 +364,10 @@ export class FigureRenderer {
     const outlinePx = (frame.outlinePx ?? 2) * dpr;
     const L = frame.layout;
     frame.views.forEach((view, i) => {
-      gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.clear(gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
       const cx = frame.centre[view] ?? 0;
       // rotation: side view looks at the body's right side, front (+z) to screen right
       const angle = (frame.angleRad ?? 0) + (view === 'side' ? Math.PI / 2 : 0);
-      const cos = Math.cos(angle),
-        sin = Math.sin(angle);
-      const rot = [cos, 0, -sin, 0, 1, 0, sin, 0, cos];
       // clip = (sx * (r.x - cx) + tx, sy * r.y + ty): either the overlay's pixel layout or an even split
       let sx: number, sy: number, tx: number, ty: number, pxW: number;
       const lx = L?.x[view];
@@ -441,44 +383,28 @@ export class FigureRenderer {
         sx = 1 / halfW;
         sy = 2 / frame.stageCm;
         tx = 0;
-        ty = -1;
+        // Ground inset leaves the outline and toes clear of the stage border.
+        ty = -0.96;
         pxW = vw;
       }
-      const sz = -1 / 200;
-      // column-major mvp = ortho * rot
-      const mvp = new Float32Array([
-        sx * rot[0]!,
-        sy * rot[1]!,
-        sz * rot[2]!,
-        0,
-        sx * rot[3]!,
-        sy * rot[4]!,
-        sz * rot[5]!,
-        0,
-        sx * rot[6]!,
-        sy * rot[7]!,
-        sz * rot[8]!,
-        0,
-        tx - sx * cx,
+      const { mvp, rot } = viewMatrices({
+        yaw: angle,
+        camera: frame.camera,
+        sx,
+        sy,
+        tx,
         ty,
-        0,
-        1,
-      ]);
+        cx,
+        pivotY: frame.stageCm / 2,
+      });
       gl.uniformMatrix4fv(this.u.mvp, false, mvp);
-      gl.uniformMatrix3fv(
-        this.u.rot,
-        false,
-        new Float32Array([rot[0]!, rot[1]!, rot[2]!, rot[3]!, rot[4]!, rot[5]!, rot[6]!, rot[7]!, rot[8]!]),
-      );
+      gl.uniformMatrix3fv(this.u.rot, false, rot);
       gl.uniform2f(this.u.px, 2 / pxW, 2 / H);
       gl.uniform3f(this.u.scale, 1, 1, 1);
       gl.uniform3f(this.u.anchor, 0, 0, 0);
       gl.uniform1f(this.u.sideAnchorX, 0);
       gl.uniform3f(this.u.translate, 0, 0, 0);
       gl.uniform1f(this.u.stature, 1);
-      gl.uniform1f(this.u.frame, 0);
-      gl.uniform1f(this.u.armFrame, 0);
-      gl.uniform1f(this.u.referenceHeight, frame.stageCm);
       gl.uniform1i(this.u.ghostOutline, 0);
       const drawMesh = (
         slot: number,
@@ -507,38 +433,16 @@ export class FigureRenderer {
       const A = frame.anatomy;
       const anatomy = this.anatomy;
       if (A && anatomy) {
-        const { composition: c, layers } = A;
-        const stature = c.skeleton.heightCm / anatomy.mesh.heightCm;
-        gl.uniform1f(this.u.stature, stature);
-        gl.uniform1f(this.u.referenceHeight, anatomy.mesh.heightCm);
-        gl.uniform1f(this.u.frame, c.skeleton.shoulderScale - c.skeleton.hipScale);
+        const { layers } = A;
         gl.cullFace(gl.BACK);
         const drawAnatomy = (kind: 'bone' | 'muscle', colour: [number, number, number]) => {
           gl.bindVertexArray(anatomy.buffers.vao);
           gl.uniform3f(this.u.colour, ...colour);
-          gl.uniform1f(this.u.alpha, kind === 'muscle' && layers.visceralFat ? 0.62 : 1);
+          gl.uniform1f(this.u.alpha, kind === 'muscle' && layers.skeleton ? 0.62 : 1);
           gl.uniform1i(this.u.flat, 0);
           gl.uniform1f(this.u.push, 0);
           for (const group of anatomy.mesh.groups) {
             if (group.kind !== kind) continue;
-            const q =
-              kind === 'muscle'
-                ? Math.max(
-                    0.83,
-                    Math.min(
-                      1.26,
-                      c.muscle[group.region === 'head' ? 'trunk' : group.region].transverseScale,
-                    ),
-                  )
-                : 1;
-            const bilateral = group.region === 'arms' || group.region === 'legs';
-            const cx = bilateral ? (group.anchor?.[0] ?? 0) : 0;
-            const cy = group.anchor?.[1] ?? 0,
-              cz = group.anchor?.[2] ?? 0;
-            gl.uniform3f(this.u.anchor, cx, cy, cz);
-            gl.uniform1f(this.u.sideAnchorX, bilateral ? (group.sideAnchorX ?? 0) : 0);
-            gl.uniform1f(this.u.armFrame, group.region === 'arms' ? c.skeleton.frame : 0);
-            gl.uniform3f(this.u.scale, q, 1, q);
             gl.drawElements(
               gl.TRIANGLES,
               group.count,
@@ -548,43 +452,40 @@ export class FigureRenderer {
           }
         };
         if (layers.skeleton) drawAnatomy('bone', [0.84, 0.81, 0.72]);
-        if (layers.visceralFat) gl.depthMask(false);
+        if (layers.skeleton) gl.depthMask(false);
         if (layers.muscles) drawAnatomy('muscle', [0.64, 0.28, 0.26]);
         gl.depthMask(true);
         gl.uniform3f(this.u.scale, 1, 1, 1);
         gl.uniform3f(this.u.anchor, 0, 0, 0);
         gl.uniform1f(this.u.sideAnchorX, 0);
         gl.uniform1f(this.u.stature, 1);
-        gl.uniform1f(this.u.frame, 0);
-        gl.uniform1f(this.u.armFrame, 0);
-        gl.uniform1f(this.u.referenceHeight, frame.stageCm);
-      }
-      if (A?.layers.visceralFat) {
-        // A bounded abdominal estimate, placed inside the trunk. Volume tracks the estimated visceral area.
-        const vat = this.ensureVat();
-        const q = A.composition.visceral.transverseScale;
-        const radiusX = Math.min(9.8 * q, A.composition.visceral.cavityHalfWidthCm);
-        const radiusZ = Math.min(7.4 * q, A.composition.visceral.cavityHalfDepthCm);
-        gl.bindVertexArray(vat.buffers.vao);
-        gl.uniform3f(this.u.scale, radiusX, (12.2 * A.composition.skeleton.heightCm) / 170, radiusZ);
-        gl.uniform3f(this.u.translate, 0, A.composition.skeleton.heightCm * 0.55, -1.4);
-        gl.uniform3f(this.u.colour, 0.97, 0.62, 0.26);
-        gl.uniform1f(this.u.alpha, 0.83);
-        gl.uniform1i(this.u.flat, 0);
-        gl.uniform1f(this.u.push, 0);
-        gl.depthMask(false);
-        gl.drawElements(gl.TRIANGLES, vat.count, gl.UNSIGNED_SHORT, 0);
-        gl.depthMask(true);
-        gl.uniform3f(this.u.scale, 1, 1, 1);
-        gl.uniform3f(this.u.translate, 0, 0, 0);
       }
       // The surface is a skin boundary. The interval to the inner lean surface stands for subcutaneous fat.
       const showSkin = !A || A.layers.skin;
       const showSat = !!A?.layers.subcutaneousFat;
-      const innerVisible = !!A && (A.layers.skeleton || A.layers.muscles || A.layers.visceralFat);
+      const innerVisible = !!A && (A.layers.skeleton || A.layers.muscles);
       if (showSkin || showSat) {
+        // An inverted hull must draw only outside the skin silhouette. Without
+        // this mask its back-facing facial folds leak through translucent skin.
+        gl.enable(gl.STENCIL_TEST);
+        gl.stencilMask(0xff);
+        gl.stencilFunc(gl.ALWAYS, 1, 0xff);
+        gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE);
+        gl.colorMask(false, false, false, false);
+        gl.depthMask(false);
+        gl.depthFunc(gl.ALWAYS);
+        gl.cullFace(gl.BACK);
+        drawMesh(0, frame.colours.body, 1, false);
+        gl.colorMask(true, true, true, true);
+        gl.depthMask(true);
+        gl.depthFunc(gl.LESS);
+        gl.stencilMask(0);
+        gl.stencilFunc(gl.NOTEQUAL, 1, 0xff);
+        gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
         gl.cullFace(gl.FRONT);
         drawMesh(0, frame.colours.outline, innerVisible ? 0.88 : 0.9, true, outlinePx);
+        gl.disable(gl.STENCIL_TEST);
+        gl.stencilMask(0xff);
         gl.cullFace(gl.BACK);
       }
       if (!A && frame.core) {
@@ -601,10 +502,27 @@ export class FigureRenderer {
         drawMesh(0, frame.colours.body, frame.envelopeAlpha ?? 0.45, false);
         gl.depthFunc(gl.LESS);
       } else if (A) {
-        // Keep depth writes disabled for translucent tissues so the internal anatomy remains legible.
+        // Resolve the nearest surface before blending it. Otherwise opaque
+        // skin-only views and translucent folds depend on triangle draw order.
+        const blendNearest = (slot: number, colour: [number, number, number], alpha: number) => {
+          gl.depthMask(true);
+          gl.colorMask(false, false, false, false);
+          drawMesh(slot, colour, 1, false);
+          gl.colorMask(true, true, true, true);
+          gl.depthMask(false);
+          gl.depthFunc(gl.LEQUAL);
+          drawMesh(slot, colour, alpha, false);
+          gl.depthFunc(gl.LESS);
+        };
+        // Shown alone, the fat layer needs more cover to read on a dark stage.
+        if (showSat && frame.core) blendNearest(1, [0.9, 0.64, 0.4], showSkin ? 0.19 : 0.3);
+        gl.depthMask(true);
+        gl.colorMask(false, false, false, false);
+        drawMesh(0, frame.colours.body, 1, false);
+        gl.colorMask(true, true, true, true);
         gl.depthMask(false);
-        if (showSat && frame.core) drawMesh(1, [0.9, 0.64, 0.4], 0.19, false);
-        if (showSat) drawMesh(0, [0.95, 0.74, 0.48], showSkin ? 0.22 : 0.34, false);
+        gl.depthFunc(gl.LEQUAL);
+        if (showSat) drawMesh(0, [0.95, 0.74, 0.48], showSkin ? 0.22 : 0.5, false);
         if (showSkin) {
           const b = frame.colours.body,
             e = frame.colours.outline;
@@ -613,8 +531,9 @@ export class FigureRenderer {
             0.68 * b[1] + 0.32 * e[1],
             0.68 * b[2] + 0.32 * e[2],
           ];
-          drawMesh(0, skin, innerVisible || showSat ? 0.42 : 1, false);
+          drawMesh(0, skin, innerVisible || showSat ? 0.58 : 1, false);
         }
+        gl.depthFunc(gl.LESS);
         gl.depthMask(true);
       } else drawMesh(0, frame.colours.body, 1, false);
     });
@@ -629,11 +548,6 @@ export class FigureRenderer {
       this.deleteMesh(this.anatomy.buffers);
       gl.deleteBuffer(this.anatomy.index);
       this.anatomy = null;
-    }
-    if (this.vat) {
-      this.deleteMesh(this.vat.buffers);
-      gl.deleteBuffer(this.vat.index);
-      this.vat = null;
     }
     gl.deleteBuffer(this.ibo);
     gl.deleteProgram(this.prog);

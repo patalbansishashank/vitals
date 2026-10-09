@@ -58,17 +58,25 @@ export interface FaceplateHeaderProps {
   className?: string;
 }
 
-/** Title + engraved caption + right-aligned actions, separated from the body by a hairline. */
+/**
+ * Title + engraved caption + right-aligned actions, separated from the body by a hairline.
+ * Title and caption form one label block so the row can centre it against the actions and,
+ * when the two do not fit side by side, stack the actions under it on the same left edge.
+ */
 export function FaceplateHeader({ title, titleAs = 'h2', titleId, caption, actions, className }: FaceplateHeaderProps) {
   const H = titleAs;
   return (
     <div className={cx('lm-face-head', className)}>
-      {title !== undefined ? (
-        <H className="lm-h3" id={titleId}>
-          {title}
-        </H>
+      {title !== undefined || caption !== undefined ? (
+        <div className="lm-face-head__label">
+          {title !== undefined ? (
+            <H className="lm-h3" id={titleId}>
+              {title}
+            </H>
+          ) : null}
+          {caption !== undefined ? <span className="lm-eng">{caption}</span> : null}
+        </div>
       ) : null}
-      {caption !== undefined ? <span className="lm-eng">{caption}</span> : null}
       {actions !== undefined ? <div className="lm-face-head__actions">{actions}</div> : null}
     </div>
   );

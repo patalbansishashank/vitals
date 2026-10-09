@@ -5,7 +5,7 @@
 //   r(x) = s*C_mesh_j - C_engine_j (7 rings)  +  beta*(s*D - D_engine) (waist, chest)  +  beta*(s*B - bideltoid)
 //          + sqrt(lambda)*l_i  +  sqrt(mu)*(m - m0), sqrt(mu)*(w - w0)        s = stature / mesh height
 //   projected Levenberg-Marquardt, forward-difference Jacobian on the measured-vertex subset only.
-// Constants are PROPOSED (R2): lambda 0.05, mu 0.5 as R2; beta 0.5 (R2: 1, see FIT.beta); priors m0 from FFMI, w0 from FMI.
+// Constants are PROPOSED (R2): lambda 0.05, mu 0.5 as R2; beta 0.38 (see FIT.beta); priors m0 from FFMI, w0 from FMI.
 
 import type { AvatarParams } from '@/engine/body';
 import type { RingId } from './manifest';
@@ -16,17 +16,17 @@ import { SubsetModel, type FigureModel, type MorphState } from './model';
 export const FIT = {
   lambda: 0.05,
   mu: 0.5,
-  /** Weight of the depth/breadth residuals relative to girths. R2 proposes 1; 0.5 lets girths (the gate) win when the
-   * engine's depth ratio and girth cannot both be met by the mesh (very high waist girths). PROPOSED. */
-  beta: 0.5,
+  /** Weight of the depth/breadth residuals relative to girths. 0.38 keeps girths (the gate) primary when the
+   * engine's depth ratio and girth conflict on a very large body; calibrated with the rounded keys on the 304-body gate. */
+  beta: 0.38,
   /**
    * Local targets may be extrapolated beyond MakeHuman's own slider range (+-1): the engine reaches bodies (BMI 50,
    * waist 160 cm) that MakeHuman's weight macro does not. Waist and thigh need the most room. PROPOSED.
    */
   localLimit: 2.5,
-  /** The weight macro may extrapolate past MakeHuman's max (1) along its upper segment. PROPOSED. */
+  /** Heavy input range; model.ts saturates the extension beyond the authored max. */
   weightLimit: 1.4,
-  localLimitById: { waist: 6, thigh: 4, belly: 3, neck: 3.5 } as Record<string, number>,
+  localLimitById: { waist: 7, thigh: 4, belly: 3, neck: 3.5 } as Record<string, number>,
   /** FFMI0 19.6 M / 16.0 F (dossier 14), span 4.5 (R2, PROPOSED). */
   ffmi0: { male: 19.6, female: 16.0 },
   ffmiSpan: 4.5,
@@ -249,7 +249,7 @@ export class FigureFitter {
       girths[id] = s * m.rings[id].girth - t.girths[id];
       maxErr = Math.max(maxErr, Math.abs(girths[id]));
     }
-    return {
+    const result: FitResult = {
       state,
       scale: s,
       errors: {
@@ -262,5 +262,12 @@ export class FigureFitter {
       iterations: it,
       ms: performance.now() - t0,
     };
+    // Extreme measured waists can trap a projected solve at several bounds together. Retry from a neutral macro
+    // only when the girth contract was missed; warm slider updates keep their six-iteration path.
+    if (!options.warm && maxErr > 1) {
+      const retry = this.fit(params, frame, { maxIterations: maxIt, warm: { ...result, state: { frame, muscle: prior.muscle, weight: 0.5, locals: {} } } });
+      if (retry.maxGirthErrorCm < result.maxGirthErrorCm) return { ...retry, ms: performance.now() - t0 };
+    }
+    return result;
   }
 }

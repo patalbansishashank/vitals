@@ -62,7 +62,9 @@ export function useAnchoredPosition(
     const ar = a.getBoundingClientRect();
     const fr = f.getBoundingClientRect();
     const width = matchWidth ? Math.max(fr.width, ar.width) : fr.width;
-    const pos = computePosition(ar, { width, height: fr.height }, placement, offset);
+    // a key in a bar at the foot of the screen (phone context bar, action bar) opens its menu upward, never over the bars
+    const up = placement.startsWith('bottom') && a.closest('.lm-actionbar-slot, .lm-ctx[data-bottom]');
+    const pos = computePosition(ar, { width, height: fr.height }, up ? (placement.replace('bottom', 'top') as Placement) : placement, offset);
     setStyle((prev) =>
       prev.top === pos.top && prev.left === pos.left && (!matchWidth || prev.minWidth === ar.width)
         ? prev

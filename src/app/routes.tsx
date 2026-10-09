@@ -19,7 +19,6 @@ const SimulatePage = lazy(() => import('@/features/simulator/SimulatePage'));
 const PlannerPage = lazy(() => import('@/features/planner/PlannerPage'));
 const EvidencePage = lazy(() => import('@/features/evidence/EvidencePage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
-const RingPage = lazy(() => import('@/features/ring/RingPage'));
 const SignalsPage = lazy(() => import('@/features/signals/SignalsPage'));
 const ComponentGalleryPage = lazy(() => import('./dev/ComponentGalleryPage'));
 const PickerDemoPage = lazy(() => import('@/features/components/PickerDemo'));
@@ -61,7 +60,8 @@ export const routes: RouteObject[] = [
             children: [
               { index: true, element: <RootRedirect /> },
               { path: 'body', element: <BodyPage /> },
-              { path: 'ring', element: <RingPage /> },
+              // the ring page is Body signals now (owner, 9 Oct): the old address lands there
+              { path: 'ring', element: <Navigate to="/signals" replace /> },
               { path: 'signals', element: <SignalsPage /> },
               { path: 'simulate', element: <SimulatePage /> },
               { path: 'simulate/:sid', element: <Navigate to="schedule" replace /> },

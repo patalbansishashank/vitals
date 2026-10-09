@@ -16,7 +16,6 @@ export function joinLabels(labels: readonly string[]): string {
 
 export const SIGNALS_PAGE_COPY = {
   title: 'Body signals',
-  backTo: 'Ring',
 
   tabsLabel: 'Body signals',
   tabs: { sleep: 'sleep', heart: 'heart and recovery', activity: 'activity' } satisfies Record<SignalsTab, string>,
@@ -47,10 +46,8 @@ export const SIGNALS_PAGE_COPY = {
   /* whole-page states (§6.3) */
   emptyTitle: 'Nothing measured yet.',
   emptyBody: 'Connect a ring or import a file to see your sleep, heart and activity here.',
-  connectRing: 'Connect a ring',
   importFile: 'Import a file',
   notReadSince: (day: string) => `Your ring hasn’t been read since ${day}.`,
-  openRing: 'Open Ring',
 
   /* source line (§6.2) */
   from: (labels: readonly string[]) => `From ${joinLabels(labels)}`,

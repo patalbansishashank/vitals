@@ -78,12 +78,14 @@ describe('intake chapters render', () => {
     expect(screen.getByRole('checkbox', { name: 'mutton or goat' })).toBeInTheDocument();
   });
 
-  it('devices and data shows the privacy lines', async () => {
+  it('devices and data: the data line sits in the first card, the rest waits for the stream choices', async () => {
     renderAt('/onboarding/devices');
     expect(await screen.findByRole('heading', { level: 1, name: 'Devices and data' })).toBeInTheDocument();
-    expect(screen.getByText(/stays on your own devices, and on your own server if you pair one/)).toBeInTheDocument();
-    expect(screen.getByText(/A ring you connect through Vitals shares its data with your plan, your scores and the Coach from the start/)).toBeInTheDocument();
-    expect(screen.getByText(/Data from files and other apps stays off until you turn it on/)).toBeInTheDocument();
+    // the one short line about where the data stays is the first card's intro, not a block above the answers
+    expect(document.querySelector('.lm-ik-card__intro')).toHaveTextContent(/stays on your own devices, and on your own server if you pair one/);
+    expect(document.querySelector('.lm-ik__privacy')).toBeNull();
+    // the sharing notes are not shown before there is anything to share
+    expect(screen.queryByText(/A ring you connect through Vitals shares its data/)).toBeNull();
     expect(screen.queryByText(/no Vitals server/i)).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'ring' })).toBeInTheDocument();
   });

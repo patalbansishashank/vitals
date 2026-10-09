@@ -1,6 +1,6 @@
 {
   "name": "vitals-companion",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "description": "Vitals Server: sync relay, per-person store (home role), device pairing, MQTT broker for Lumen Health, AI proxy and MCP on one port.",
   "license": "MIT",

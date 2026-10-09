@@ -56,6 +56,47 @@ export function toLinkError(e: unknown): RingLinkError {
   return le;
 }
 
+/**
+ * GATT statuses of a ring that was not reached: 133 GATT_ERROR, 8 the link timed out, 19 the ring ended it, 22 the
+ * phone's stack ended it, 62 it was never established, 147 Android 14's connection timeout. These, a connect or scan
+ * that timed out and a device that was not found keep `not_found` ("may be connected to another app or phone").
+ */
+export const UNREACHED_GATT: ReadonlySet<number> = new Set([133, 8, 19, 22, 62, 147]);
+/** GATT statuses that ask for the OS pairing: 5 insufficient authentication, 15 insufficient encryption, 137 GATT_AUTH_FAIL. */
+const BOND_GATT: ReadonlySet<number> = new Set([5, 15, 137]);
+const BOND_TEXT = /\bbond|\bpairing\b|insufficient (?:authentication|encryption)|status code (?:5|15|137)\b/i;
+/** A link that came up but did not work: a failed subscribe, a missing service or characteristic, no answer. */
+const LINK_TEXT = /subscribe|notification|characteristic|descriptor|service|firmware|handshake|did not answer/i;
+/** The stack refused the connect or it timed out (Android plugin, Chromium, BlueZ), or the device was not found. */
+const UNREACHED_TEXT = /device not found|no device found|no ring found|connection timeout|timed out|connection (?:attempt )?failed|connection refused|no longer in range|le-connection-abort|page timeout|host is down/i;
+
+/** Every message and error name along the cause chain (a ring error may wrap the transport's error). */
+function textIn(e: unknown): string {
+  const parts: string[] = [];
+  for (let x = e, depth = 0; x && depth < 5; x = (x as { cause?: unknown }).cause, depth++) {
+    if (typeof x === 'string') parts.push(x);
+    else if (typeof x === 'object') {
+      const o = x as { name?: unknown; message?: unknown };
+      if (typeof o.name === 'string') parts.push(o.name);
+      if (typeof o.message === 'string') parts.push(o.message);
+    }
+  }
+  return parts.join(' | ');
+}
+
+const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/** A failure the ring code does not name: bond prompt, not reached, or a link that came up and did not work. */
+function classify(e: unknown, status: number | undefined): 'bond_required' | 'not_found' | 'failed' {
+  const text = textIn(e);
+  if ((status !== undefined && BOND_GATT.has(status)) || BOND_TEXT.test(text)) return 'bond_required';
+  if (status !== undefined && UNREACHED_GATT.has(status)) return 'not_found';
+  if (e instanceof RingError || LINK_TEXT.test(text)) return 'failed';
+  // Web Bluetooth's NetworkError is a connect the platform could not make
+  if (UNREACHED_TEXT.test(text) || /\bNetworkError\b/.test(text)) return 'not_found';
+  return 'failed';
+}
+
 function mapError(e: unknown): RingLinkError {
   if (e instanceof NoDeviceError) return new RingLinkError(e.reason === 'cancelled' ? 'cancelled' : e.reason === 'unavailable' ? 'bluetooth_off' : e.reason === 'permission' ? 'permission_needed' : 'not_found', e.message, e);
   if (e instanceof RingError) {
@@ -72,10 +113,11 @@ function mapError(e: unknown): RingLinkError {
       case 'unsupported':
         return new RingLinkError('unsupported', e.message, e);
       default:
-        return new RingLinkError('not_found', e.message, e);
+        // 'timeout' (no firmware answer), 'transport' (a failed subscribe or write), 'closed', 'busy': the link came up
+        return new RingLinkError(classify(e, statusIn(e)), e.message, e);
     }
   }
-  return new RingLinkError('not_found', e instanceof Error ? e.message : String(e), e);
+  return new RingLinkError(classify(e, statusIn(e)), messageOf(e), e);
 }
 
 /** An A5a session as the service sees it. */

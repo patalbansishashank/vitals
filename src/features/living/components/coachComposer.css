@@ -25,8 +25,9 @@
   .lv-composer__field {
     flex: 1;
     min-width: 0;
-    min-height: 40px;
-    padding: 9px 12px;
+    /* one line is exactly the bar control height (22 px line + 2 px border + the padding) */
+    min-height: var(--lm-bar-control-h);
+    padding: calc((var(--lm-bar-control-h) - 24px) / 2) 12px;
     border: 1px solid var(--lm-edge);
     border-radius: var(--lm-radius-sm);
     background: var(--lm-well);

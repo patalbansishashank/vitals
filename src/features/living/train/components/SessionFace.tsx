@@ -5,11 +5,11 @@
  * logged, the verdict with "also trained".
  */
 import { useEffect, useId, useState } from 'react';
-import { Timer } from 'lucide-react';
+import { Ellipsis, Timer } from 'lucide-react';
 import type { EquivalenceResult, PerformedExercise } from '@/catalogues';
 import type { LocalDate, TodayView } from '@/living';
 import { ActionBar } from '@/app/shell';
-import { Faceplate, FaceplateHeader, InlineWarning, Key, KeyBank, VisuallyHidden } from '@/components';
+import { Faceplate, FaceplateHeader, IconKey, InlineWarning, Key, KeyBank, Menu, VisuallyHidden } from '@/components';
 import { EquivalenceMeter, pctOf } from '../../components/EquivalenceMeter';
 import { EstimateReadout } from '../../components/Estimate';
 import { useLivingClock } from '../../clock';
@@ -171,16 +171,34 @@ export function SessionFace(p: SessionFaceProps) {
         title={TRAIN_COPY.sessionTitle(model.noun, model.minutes, place)}
         titleId={titleId}
         actions={
-          p.energy && energy.value > 0 ? (
-            <span className="lv-train-energy">
-              <VisuallyHidden>{TRAIN_COPY.energyName} </VisuallyHidden>
-              <EstimateReadout value={energy.value} range={{ lo: energy.lo, hi: energy.hi }} unit="kcal" approx short />
+          interactive && !review ? (
+            <span className="lv-train-session__keys">
+              <Key size="sm" variant={p.primary ? 'solid' : 'default'} loading={busy} onClick={sessionDone}>
+                {TRAIN_COPY.sessionDone}
+              </Key>
+              <Menu
+                label={TRAIN_COPY.sessionMore}
+                items={[
+                  { id: 'else', label: TRAIN_COPY.somethingElse, onSelect: p.onElse },
+                  { id: 'skipped', label: TRAIN_COPY.skippedItem(model.noun), onSelect: () => void save({ status: 'skipped', performed: [], result: null, ...timing() }) },
+                ]}
+                trigger={(t) => <IconKey {...t} size="sm" icon={Ellipsis} label={TRAIN_COPY.sessionMore} />}
+              />
             </span>
           ) : undefined
         }
       />
       <div className="lv-train-session__meta">
-        <p className="lv-train-session__kit">{phrase ? TRAIN_COPY.withEquipment(phrase) : TRAIN_COPY.noEquipment}</p>
+        <p className="lv-train-session__sum">
+          <span className="lm-num">{TRAIN_COPY.exercisesCount(items.length)}</span>
+          {p.energy && energy.value > 0 ? (
+            <span className="lv-train-energy">
+              <VisuallyHidden>{TRAIN_COPY.energyName} </VisuallyHidden>
+              <EstimateReadout value={energy.value} range={{ lo: energy.lo, hi: energy.hi }} unit="kcal" approx short />
+            </span>
+          ) : null}
+          <span className="lv-train-session__kit">{phrase ? TRAIN_COPY.withEquipment(phrase) : TRAIN_COPY.noEquipment}</span>
+        </p>
         {interactive ? (
           <div className="lv-train-session__controls">
             <KeyBank size="sm" label={TRAIN_COPY.logStyle} options={STYLE_OPTIONS} value={draft.style} onChange={(v) => onDraft((d) => ({ ...d, style: v }))} />
@@ -202,7 +220,8 @@ export function SessionFace(p: SessionFaceProps) {
         ) : null}
       </div>
 
-      <ol className="lv-train-rows" aria-label={TRAIN_COPY.exercises}>
+      <div className="lv-rail-host">
+        <ol className="lv-day lv-train-rows" aria-label={TRAIN_COPY.exercises}>
         {items.map((item, i) => {
           const loadKg = item.equipment.map((q) => setup.profile.loadsKg?.[q]?.[0]).find((v): v is number => v !== undefined);
           return (
@@ -212,6 +231,7 @@ export function SessionFace(p: SessionFaceProps) {
               original={draft.swaps[i] ? model.session.items[i]! : null}
               equivalence={draft.swaps[i] ? { result: draft.swaps[i].equivalence, target: targetOf(p.date, p.today, shortName(model.session.items[i]!.name)) } : undefined}
               name={names[i]!}
+              index={i}
               ex={setup.catalogue.exercise(item.exerciseId)}
               state={itemState(draft, i, item)}
               log={draft.logs[i]}
@@ -229,7 +249,8 @@ export function SessionFace(p: SessionFaceProps) {
             />
           );
         })}
-      </ol>
+        </ol>
+      </div>
 
       {error ? (
         <InlineWarning severity="caution" alert>
@@ -261,19 +282,7 @@ export function SessionFace(p: SessionFaceProps) {
             </Key>
           </div>
         </div>
-      ) : (
-        <div className="lv-train-foot">
-          <div className="lv-train-foot__keys">
-            <Key variant={p.primary ? 'solid' : 'default'} loading={busy} onClick={sessionDone}>
-              {TRAIN_COPY.sessionDone}
-            </Key>
-            <Key onClick={p.onElse}>{TRAIN_COPY.somethingElse}</Key>
-            <Key variant="quiet" aria-label={TRAIN_COPY.skippedName(model.noun)} onClick={() => void save({ status: 'skipped', performed: [], result: null, ...timing() })}>
-              {TRAIN_COPY.skipped}
-            </Key>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {running ? (
         <ActionBar>

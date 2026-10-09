@@ -1,31 +1,14 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RingServiceProvider, type RingPlatform, type RingService } from '../data';
 import { createFakeRingService, createFakeSharing, scenarioPlatform, RING_SCENARIOS, type RingScenario } from '../fixtures';
-import RingPage, { byLastRead, canCheck } from '../RingPage';
+import { byLastRead, canCheck, RingDevices } from '../RingDevices';
 
-// The sections belong to other files; here they are markers that show what the page passes them.
+// Check now belongs to another file; here it is a marker that shows what the area passes it.
 vi.mock('../CheckNow', async () => {
   const { createElement } = await import('react');
   return { CheckNow: ({ ring }: { ring: { ringKey: string } }) => createElement('section', { 'data-testid': 'check-now', 'data-ring': ring.ringKey }) };
-});
-vi.mock('../TodayReadings', async () => {
-  const { createElement } = await import('react');
-  return { TodayReadings: ({ ring }: { ring: { ringKey: string } | null }) => createElement('section', { 'data-testid': 'today', 'data-ring': ring?.ringKey ?? 'none' }) };
-});
-vi.mock('../Sharing', async () => {
-  const { createElement } = await import('react');
-  return { Sharing: () => createElement('section', { 'data-testid': 'sharing' }) };
-});
-vi.mock('../RingSettings', async () => {
-  const { createElement } = await import('react');
-  return {
-    RingSettings: ({ ring, onAddRing }: { ring: { ringKey: string }; onAddRing: (trigger: HTMLButtonElement) => void }) =>
-      createElement('section', { 'data-testid': 'settings', 'data-ring': ring.ringKey },
-        createElement('div', { 'data-forget-ring': true }, createElement('button', { type: 'button' }, 'Forget this ring')),
-        createElement('button', { type: 'button', onClick: (event: { currentTarget: HTMLButtonElement }) => onAddRing(event.currentTarget) }, 'Add another ring')),
-  };
 });
 
 const NOW = new Date(2026, 9, 4, 13, 41).getTime();
@@ -34,11 +17,18 @@ const KEY2 = 'ble:jstyle2301|j-style:2301#5e0a91c0';
 const FORBIDDEN = [/password/i, /passcode/i, /\bPIN\b/, /mqtt/i, /\blease\b/i, /gatt/i, /credential/i, /advanced/i];
 const UNSUPPORTED: Partial<RingPlatform> = scenarioPlatform('unsupported');
 
+function Where() {
+  const { pathname, hash } = useLocation();
+  return <output data-testid="where">{pathname + hash}</output>;
+}
+
 function renderPage(service: RingService, platform: Partial<RingPlatform>) {
   return render(
-    <MemoryRouter initialEntries={['/ring']}>
+    <MemoryRouter initialEntries={['/signals']}>
       <RingServiceProvider service={service} platform={platform} sharing={createFakeSharing()}>
-        <RingPage />
+        <Routes>
+          <Route path="*" element={<><RingDevices /><Where /></>} />
+        </Routes>
       </RingServiceProvider>
     </MemoryRouter>,
   );
@@ -59,28 +49,21 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('Ring page (§5.1, §5.8)', () => {
-  it.each(RING_SCENARIOS.map((s) => [s] as const))('%s: renders, in order, with no forbidden words', (s) => {
+describe('the ring on Body signals', () => {
+  it.each(RING_SCENARIOS.map((s) => [s] as const))('%s: cards first, Check now while live, a link to Ring settings, no forbidden words', (s) => {
     renderScenario(s);
-    expect(screen.getByRole('heading', { level: 1, name: 'Ring' })).toBeTruthy();
-    const page = q('.rg-page')!;
+    const area = q('.rg-devices')!;
+    expect(area.getAttribute('aria-label')).toBe('Your ring');
+    // nothing of the old Ring page's lower sections is here: no today rows, no sharing, no per-ring settings
+    expect(document.body.textContent).not.toMatch(/Today from your ring|Use my ring data|firmware|Forget this ring/);
     if (s === 'none') {
-      expect(page.getAttribute('data-layout')).toBe('pairing');
-      expect(testIds(page)).toEqual(['rg-span', 'rg-span']);
-      expect(q('.rg-span .rg-pair')).not.toBeNull();
-      // today's rows sit under the flow (imported history shows; the section hides itself when nothing was read)
-      expect(screen.getByTestId('today').getAttribute('data-ring')).toBe('none');
-      expect(screen.queryByTestId('sharing')).toBeNull();
-      expect(screen.queryByTestId('settings')).toBeNull();
+      expect(q('.rg-devices .rg-pair')).not.toBeNull();
+      expect(screen.queryByRole('link', { name: 'Ring settings' })).toBeNull();
     } else {
-      expect(page.getAttribute('data-layout')).toBe('split');
-      const main = q('.rg-page > .rg-main');
-      const side = q('.rg-page > .rg-side');
       const live = s === 'connected' || s === 'syncing' || s === 'low_battery' || s === 'sync_failed' || s === 'two_rings';
       const cards = s === 'two_rings' ? ['rg-card', 'rg-card'] : ['rg-card'];
-      expect(testIds(main)).toEqual([...cards, ...(live ? ['check-now'] : []), 'today']);
-      expect(testIds(side)).toEqual(s === 'unsupported' ? ['sharing'] : ['sharing', ...cards.map(() => 'rg-settings')]);
-      if (s !== 'unsupported') expect(within(side as HTMLElement).getAllByTestId('settings')).toHaveLength(cards.length);
+      expect(testIds(q('.rg-devices__cards'))).toEqual([...cards, ...(live ? ['check-now'] : [])]);
+      expect(screen.getByRole('link', { name: 'Ring settings' })).toHaveAttribute('href', '/settings#devices');
     }
     const text = `${document.body.textContent} ${Array.from(document.querySelectorAll('[aria-label]'))
       .map((n) => n.getAttribute('aria-label'))
@@ -94,20 +77,18 @@ describe('Ring page (§5.1, §5.8)', () => {
     expect(screen.queryByTestId('check-now')).toBeNull();
   });
 
-  it('Forget shortcut moves keyboard focus to the matching ring settings action', () => {
+  it('error: Forget… opens Settings › Devices, where Forget lives now', () => {
     renderScenario('error');
     fireEvent.click(screen.getByRole('button', { name: 'Forget…' }));
-    const settings = screen.getByTestId('settings');
-    expect(within(settings).getByRole('button', { name: 'Forget this ring' })).toHaveFocus();
+    expect(screen.getByTestId('where').textContent).toBe('/settings#devices');
   });
 
-  it('Check now and today rows get the connected ring', () => {
+  it('Check now gets the connected ring', () => {
     renderScenario('connected');
     expect(screen.getByTestId('check-now').getAttribute('data-ring')).toBe(KEY);
-    expect(screen.getByTestId('today').getAttribute('data-ring')).toBe(KEY);
   });
 
-  it('unsupported with no ring: the card explains the apps, today rows still show, no sharing', () => {
+  it('unsupported with no ring: the card explains the apps, no settings link', () => {
     const fake = createFakeRingService('unsupported', { now: NOW });
     fake.setRings([]);
     renderPage(fake, UNSUPPORTED);
@@ -117,8 +98,7 @@ describe('Ring page (§5.1, §5.8)', () => {
     expect(within(card).getByRole('link', { name: 'Get the app' })).toBeTruthy();
     expect(within(card).getByRole('link', { name: 'Import a file' })).toBeTruthy();
     expect(q('.rg-pair')).toBeNull();
-    expect(screen.getByTestId('today').getAttribute('data-ring')).toBe('none');
-    expect(q('.rg-side')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Ring settings' })).toBeNull();
   });
 
   it('several rings: one card each by last read; later cards collapse to their header', () => {
@@ -132,7 +112,6 @@ describe('Ring page (§5.1, §5.8)', () => {
     expect(cards[1]!.querySelector('.rg-card__body')).toBeNull();
     fireEvent.click(within(cards[1]!).getByRole('button', { name: 'Show J-Style 2301 · ending 91C0' }));
     expect(cards[1]!.querySelector('.rg-card__body')).not.toBeNull();
-    expect(screen.getAllByTestId('settings').map((e) => e.getAttribute('data-ring'))).toEqual([KEY, KEY2]);
   });
 
   it('a collapsed ring that is read most recently moves to the front and shows its body', () => {
@@ -160,7 +139,6 @@ describe('Ring page (§5.1, §5.8)', () => {
     fake.setRings(fake.rings().map((r) => ({ ...r, caps: { checks: [] } })));
     renderPage(fake, scenarioPlatform('connected'));
     expect(screen.queryByTestId('check-now')).toBeNull();
-    expect(screen.getByTestId('today')).toBeTruthy();
   });
 
   it('a later ring that needs attention starts open', () => {
@@ -173,48 +151,6 @@ describe('Ring page (§5.1, §5.8)', () => {
   it('orders rings by last read, newest first, a never-read ring last', () => {
     const r = (k: string, at?: number) => ({ ringKey: k, label: 'J-Style 2301', state: 'idle' as const, lastSyncAt: at === undefined ? undefined : new Date(at).toISOString() });
     expect(byLastRead([r('a', 1), r('b'), r('c', 3)]).map((x) => x.ringKey)).toEqual(['c', 'a', 'b']);
-  });
-
-  it('Add another ring opens the pairing flow in place of the card; Cancel returns', () => {
-    renderScenario('connected');
-    const trigger = screen.getByRole('button', { name: 'Add another ring' });
-    trigger.focus();
-    fireEvent.click(trigger);
-    const main = q('.rg-main') as HTMLElement;
-    expect(main.querySelector('.rg-pair')).not.toBeNull();
-    expect(within(main).getByRole('button', { name: 'Look for rings' })).toHaveFocus();
-    expect(main.querySelector('.rg-card')).toBeNull();
-    expect(screen.getByTestId('check-now')).toBeTruthy();
-    expect(screen.getByTestId('sharing')).toBeTruthy();
-    const cancel = within(main).getByRole('button', { name: 'Cancel' });
-    cancel.focus();
-    fireEvent.click(cancel);
-    expect(main.querySelector('.rg-pair')).toBeNull();
-    expect(main.querySelector('.rg-card')).not.toBeNull();
-    expect(trigger).toHaveFocus();
-  });
-
-  it('a live ring update does not move focus when pairing is closed', () => {
-    const fake = createFakeRingService('connected', { now: NOW });
-    renderPage(fake, scenarioPlatform('connected'));
-    const trigger = screen.getByRole('button', { name: 'Add another ring' });
-    trigger.focus();
-    act(() => fake.setRings(fake.rings().map((r) => ({ ...r, battery: 64 }))));
-    expect(trigger).toHaveFocus();
-  });
-
-  it('error: Forget… scrolls to the ring settings', () => {
-    const scroll = vi.fn();
-    const orig = Element.prototype.scrollIntoView;
-    Element.prototype.scrollIntoView = scroll;
-    try {
-      renderScenario('error');
-      fireEvent.click(screen.getByRole('button', { name: 'Forget…' }));
-      expect(scroll).toHaveBeenCalledTimes(1);
-      expect((scroll.mock.contexts[0] as Element).classList.contains('rg-settings')).toBe(true);
-    } finally {
-      Element.prototype.scrollIntoView = orig;
-    }
   });
 
   describe('while the first Bluetooth check runs (J6-13)', () => {
@@ -234,12 +170,11 @@ describe('Ring page (§5.1, §5.8)', () => {
     }
     const cantReach = () => document.body.textContent?.match(/can’t (connect here|reach)/);
 
-    it('pending: a quiet loading rule, no "can’t connect here" and no pairing flow yet', () => {
+    it('pending: nothing yet, no "can’t connect here" and no pairing flow', () => {
       const { svc } = checking();
       renderPage(svc, WEB_BT);
       expect(cantReach()).toBeNull();
-      expect(q('.rg-page')?.getAttribute('data-layout')).toBe('checking');
-      expect(screen.getByRole('progressbar')).toBeTruthy();
+      expect(q('.rg-devices')).toBeNull();
       expect(q('.rg-card')).toBeNull();
       expect(q('.rg-pair')).toBeNull();
     });

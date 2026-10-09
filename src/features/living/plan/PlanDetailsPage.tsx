@@ -11,15 +11,13 @@ import { ChangeCard } from '../components/ChangeCard';
 import { TypedConfirmDialog } from '../components/TypedConfirmDialog';
 import { useLivingActions, type ActionOutcome } from '../data/actions';
 import { useLiving } from '../data/source';
-import { fmtClock, fmtDateRange, fmtDay, fmtWeekday } from '../format';
+import { fmtClock, fmtDateRange, fmtDay, fmtWeekday, weekdaysText } from '../format';
 import type { ChangeAction } from '../model/changeCard';
 import { planDayOf, useAppMode } from '../mode';
 import { livingPaths } from '../paths';
 import { PausePanel } from './components/PausePanel';
 import { PLAN_COPY as C } from './copy';
 import './plan.css';
-
-const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 
 /**
  * Plan details (`/plan/active`, `/plan/active/versions/:n`; living-mode.md §9–§10): the plan's facts and intentions,
@@ -62,7 +60,7 @@ function PlanDetails({ plan }: { plan: ActivePlan }) {
 
   const intentions: string[] = [];
   if (plan.intentions.weighInClockH !== undefined) intentions.push(C.weighIn(fmtClock(plan.intentions.weighInClockH)));
-  if (plan.intentions.trainingWeekdays?.length) intentions.push(C.trainingDays(plan.intentions.trainingWeekdays.map((w) => WEEKDAYS[w]).join(' · ')));
+  if (plan.intentions.trainingWeekdays?.length) intentions.push(C.trainingDays(weekdaysText(plan.intentions.trainingWeekdays, true)));
   if (plan.intentions.missedSessionPlan) intentions.push(C.missed[plan.intentions.missedSessionPlan]);
 
   const toggleEase = async (on: boolean) => {

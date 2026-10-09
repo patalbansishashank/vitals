@@ -2725,15 +2725,41 @@ interface RingLeaseBody { kind: 'ringLease'; ringKey: string;
   takeover: { deviceId: string; deviceLabel: string; at: Instant } | null }   // written by the taker only
 ```
 - The holder writes `heartbeatAt` every 5 min while connected (each write is a synced change kept forever, so not
-  more often) and sets `holder: null` on a clean disconnect. A lease is **stale** after 15 min without a heartbeat.
-  (`LEASE_HEARTBEAT_MS = 300_000`, `LEASE_STALE_MS = 900_000`. This replaces the first draft's lease inside
-  `SourceBody.ble.link`: one field holding both writers' data would lose a takeover in a merge.)
+  more often) and sets `holder: null` on a clean disconnect (Disconnect, Forget, app stop, Bluetooth off, a takeover).
+  A lease is **stale** after 15 min without a heartbeat. (`LEASE_HEARTBEAT_MS = 300_000`, `LEASE_STALE_MS = 900_000`.
+  This replaces the first draft's lease inside `SourceBody.ble.link`: one field holding both writers' data would lose a
+  takeover in a merge.)
+- **The holder keeps the ring through a drop** (v0.5.3): an unexpected drop does not release the lease; the holder
+  retries on the ladder and lets go only after `RELEASE_AFTER_ATTEMPTS = 3` failed retries in a row (a browser, which
+  cannot reopen a link on its own, lets go at once). While it holds, the other devices show `elsewhere`, make no
+  attempt, and look again only when the lease would go stale. A takeover reaches the holder whether its link is up or
+  down: its retries stop, it releases and pauses.
 - `elsewhere` shows "Connected to <deviceLabel>" with the time since, and the action **Connect here instead**.
-- `connectHere`: writes `takeover`; the holder sees it through sync, disconnects within 10 s, clears `holder` and pauses
-  its own auto-connect for that ring until its person presses Connect there (or 12 h pass); the new device retries the
-  connection for 60 s (BLE needs a few seconds to free the link). If the lease is stale it connects at once.
+- `connectHere`: writes `preferred` (always: the person chose this device) and `takeover` (lease held or stale) **before
+  any attempt**; the holder sees it through sync, disconnects within 10 s, clears `holder` and pauses its own
+  auto-connect for that ring until its person presses Connect there (or 12 h pass); the new device retries the
+  connection for 60 s (BLE needs a few seconds to free the link). If the lease is stale it connects at once. The ring
+  changes hands exactly once.
+- **Who holds by default** (`preferred`, v0.5.3): when the lease is free or stale, the device named in `preferred`
+  connects at once; with none named, the phone (platform `android`) does, since it runs the background service and reads
+  the night. Every other device waits `FREE_GRACE_MS = 15_000` and reads the lease again before its own attempt. No lease
+  document at all (no device has ever held the ring) means no wait.
+- **A fresh lease that arrives late**: an auto-connect in flight is aborted when the lease turns `held`; a link that
+  comes up after another device's fresh claim landed is closed without claiming; a device whose claim lost the merge
+  (another device's fresh claim shows while its link is open) lets go within one sync round, not at the next heartbeat.
+  A drop while another device holds a fresh lease shows `elsewhere` with no retry.
+- **The ladder never bounces the ring** (`STABLE_LINK_MS = 60_000`): the reconnect counter is reset only once a link
+  has stayed up 60 s or a history read completed, not on connect, so a link another central takes away seconds after it
+  came up keeps climbing 5, 15, 30, 60, 120, 300 s, and two links in a row taken away within 60 s of coming up make the
+  next try wait the slowest step (another central wants the ring; a lone early drop still climbs the ladder as Lumen
+  does). Two devices without a shared lease (sync off, another app) therefore cannot swap the ring every 5 s. The
+  ladder starts over when the app comes to the foreground, Bluetooth comes on, or the person presses Connect (Lumen's
+  rules); on resume an open link is checked with one battery read (registered as a check, so a read or live heart
+  rate waits for it) and reopened only when the ring that gave a battery level at connect gives none now. While the
+  person's scan or pairing runs, the service's own connects wait.
 - If the ring cannot be found or refuses the connection and no fresh lease explains it, the error says "Your ring may be
-  connected to another app or phone. Close it there, then try again." Nothing else is assumed.
+  connected to another app or phone. Close it there, then try again." Nothing else is assumed. The readouts (battery,
+  last read) stay on screen.
 - Without sync (no server, no sync group) there is no lease: the service connects and the error line above covers
   another app holding the ring.
 

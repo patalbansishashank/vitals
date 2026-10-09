@@ -10,11 +10,12 @@ import { RecordedLink } from '@/biometrics/ble/fakeLink';
 import { command } from '@/biometrics/core/ble/jstyle2301/commands';
 import { jstyle2301 } from '../../../../packages/rings/src/jstyle2301/family';
 import { fakeFromSession, type FixtureSession, type SessionsFixture } from '../../../../packages/rings/src/testing';
-import { uuid16, type Advertisement, type RingEvent, type RingFamily, type Transport, type TransportFactory } from '../../../../packages/rings/src/types';
+import { RingError, uuid16, type Advertisement, type RingEvent, type RingFamily, type Transport, type TransportFactory } from '../../../../packages/rings/src/types';
 import { createLegacyConnector } from '../connectors/legacy';
+import { TRANSIENT_GATT } from '@/biometrics/ble/transports/capacitor';
 import { NoDeviceError } from '@/biometrics/ble/transports/types';
-import { createRingsConnector, toLinkError, wrapSession } from '../connectors/rings';
-import { errorOf } from '../ringService';
+import { UNREACHED_GATT, createRingsConnector, toLinkError, wrapSession } from '../connectors/rings';
+import { ANOTHER_APP, errorOf } from '../ringService';
 import { familyIdentity, parseRingKey, ringKeyFromId, ringKeyOf } from '../identity';
 import { buildRingBatch, foldStatus } from '../ingest';
 
@@ -183,5 +184,87 @@ describe('Bluetooth off or permission refused', () => {
     expect(await c.available()).toBe('bluetooth_off');
     denied = true;
     expect(await c.available()).toBe('permission_needed');
+  });
+});
+
+describe('connect failures in the service’s terms (not every failure is "another app")', () => {
+  const status = (message: string, gattStatus: number): Error => Object.assign(new Error(message), { gattStatus });
+  const named = (name: string, message: string): Error => Object.assign(new Error(message), { name });
+
+  it.each<[string, unknown]>([
+    ['a scan that saw no ring', new NoDeviceError('not_found')],
+    ['the plugin’s connect timeout', new Error('Connection timeout.')],
+    ['a device the platform does not know', new Error('device not found')],
+    ['Chromium could not make the connect', named('NetworkError', 'Connection attempt failed.')],
+    ['BlueZ refused the connect', new Error('Connection refused')],
+    ...[133, 8, 19, 22, 62].map((s): [string, unknown] => [`GATT ${s}`, new Error(`Connection failed with status ${s} (GATT_ERROR).`)]),
+  ])('%s stays not_found', (_label, e) => {
+    const le = toLinkError(e);
+    expect(le.code).toBe('not_found');
+    expect(errorOf(le).message).toBe(ANOTHER_APP);
+  });
+
+  it.each<[string, unknown]>([
+    ['a failed subscribe', new RingError('could not subscribe to the ring', 'transport', new Error('Setting notification failed.'))],
+    ['a missing characteristic', new Error('Characteristic not found.')],
+    ['a missing service', named('NotFoundError', 'No Services matching UUID 0000fff0-0000-1000-8000-00805f9b34fb found in Device.')],
+    ['a discovery the plugin could not finish', new Error('Service discovery failed.')],
+    ['no firmware answer', new RingError('the ring did not answer the firmware request', 'timeout')],
+    ['a handshake that failed', new RingError('handshake failed', 'transport', new Error('boom'))],
+    ['a write that failed', new RingError('write failed', 'transport', new Error('Writing characteristic failed.'))],
+    ['something nobody named', new Error('something odd')],
+  ])('%s is failed: "Could not connect to the ring"', (_label, e) => {
+    const le = toLinkError(e);
+    expect(le.code).toBe('failed');
+    expect(errorOf(le).message).toBe('Could not connect to the ring. Try again.');
+  });
+
+  it.each<[string, unknown]>([
+    ['the ring refused the handshake', new RingError('V0789 ring refused the handshake', 'auth_rejected')],
+    ['an invalid handshake value', new RingError('handshake value is invalid', 'credential_invalid')],
+  ])('%s is refused', (_label, e) => {
+    expect(toLinkError(e).code).toBe('refused');
+  });
+
+  it.each<[string, unknown]>([
+    ['the ring code asks for pairing', new RingError('pair first', 'bond_required')],
+    ['a dismissed pairing prompt during subscribe', new RingError('could not subscribe to the ring', 'transport', new Error('Pairing request was cancelled by the user.'))],
+    ['a notification that needs encryption', new RingError('could not subscribe to the ring', 'transport', new Error('Setting notification failed with status code 5.'))],
+    ['a bond the OS could not create', new Error('Creating bond failed.')],
+    ['GATT insufficient authentication', status('Connection failed with status 5 (unnamed).', 5)],
+  ])('%s is bond_required', (_label, e) => {
+    expect(toLinkError(e).code).toBe('bond_required');
+  });
+
+  it('keeps the GATT status in every branch, from the error or from its cause', () => {
+    const cause133 = status('Connection failed with status 133 (GATT_ERROR).', 133);
+    expect(toLinkError(cause133)).toMatchObject({ code: 'not_found', gattStatus: 133 });
+    expect(toLinkError(status('Connection timeout.', 133))).toMatchObject({ code: 'not_found', gattStatus: 133 });
+    expect(toLinkError(new RingError('handshake failed', 'transport', status('x', 257)))).toMatchObject({ code: 'failed', gattStatus: 257 });
+    expect(toLinkError(new RingError('refused', 'auth_rejected', cause133))).toMatchObject({ code: 'refused', gattStatus: 133 });
+    expect(toLinkError(status('Connection failed with status 5 (unnamed).', 5))).toMatchObject({ code: 'bond_required', gattStatus: 5 });
+    expect(toLinkError(new RingError('dropped', 'disconnected', status('y', 8)))).toMatchObject({ code: 'disconnected', gattStatus: 8 });
+    expect(toLinkError(new RingError('handshake failed', 'transport', cause133))).toMatchObject({ code: 'not_found', gattStatus: 133 });
+  });
+
+  it('a reconnect whose session got no firmware answer is failed, one the platform could not reach is not_found', async () => {
+    const transport = { peripheral: { address: 'AA:BB:CC:DD:EE:01' }, disconnect: async () => {} } as unknown as Transport;
+    const noAnswer = createRingsConnector({
+      factory: { platform: 'fake', available: async () => true, scan: async () => {}, connect: async () => transport },
+      families: [jstyle2301],
+      open: async () => {
+        throw new RingError('the ring did not answer the firmware request', 'timeout');
+      },
+    });
+    await expect(noAnswer.reconnect!('AA:BB:CC:DD:EE:01', 'jstyle2301', new AbortController().signal)).rejects.toMatchObject({ code: 'failed' });
+    const unreached = createRingsConnector({
+      factory: { platform: 'fake', available: async () => true, scan: async () => {}, connect: async () => Promise.reject(Object.assign(new Error('Connection timeout.'), { gattStatus: 133 })) },
+      families: [jstyle2301],
+    });
+    await expect(unreached.reconnect!('AA:BB:CC:DD:EE:01', 'jstyle2301', new AbortController().signal)).rejects.toMatchObject({ code: 'not_found', gattStatus: 133 });
+  });
+
+  it('the status sets match the transport’s: every status the transport retries on quickly is "not reached"', () => {
+    for (const s of TRANSIENT_GATT) expect(UNREACHED_GATT.has(s)).toBe(true);
   });
 });

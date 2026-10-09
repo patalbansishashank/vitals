@@ -99,9 +99,16 @@ describe('<TodayPage> rendering the contract', () => {
     expect(within(plan).getByText('this day’s plan as it was')).toBeInTheDocument();
     expect(within(plan).getByRole('button', { name: 'Mark snack as planned' })).toBeInTheDocument();
     expect(within(plan).getByRole('button', { name: 'Mark dinner as planned' })).toBeInTheDocument();
-    expect(within(plan).getByRole('button', { name: /^lunch: as planned/ })).toHaveAttribute('aria-pressed', 'true');
-    expect(within(plan).getByRole('button', { name: /^lift · 45 min: partly/ })).toBeInTheDocument();
-    expect(within(plan).getByText('untimed')).toBeInTheDocument();
+    expect((plan.querySelector('[data-row="meal:lunch"]') as HTMLElement).textContent).toContain('as planned');
+    expect((plan.querySelector('[data-row^="session:"]') as HTMLElement).textContent).toContain('partly');
+    expect(within(plan).getByText('any time')).toBeInTheDocument();
+    // the day rail: one main key per open stop, the rest behind a quiet ⋯, the stop's text opens its sheet
+    const dinner = plan.querySelector('[data-row="meal:dinner"]') as HTMLElement;
+    expect(within(dinner).getByRole('button', { name: 'More for dinner' })).toBeInTheDocument();
+    expect(within(dinner).getByRole('button', { name: 'Details for dinner' })).toBeInTheDocument();
+    expect(within(dinner).queryByRole('button', { name: 'Log dinner' })).toBeNull();
+    expect(dinner.dataset.state).toBe('empty');
+    expect((plan.querySelector('[data-row="meal:lunch"]') as HTMLElement).dataset.state).toBe('done');
     const soFar = screen.getByRole('region', { name: 'So far' });
     expect(within(soFar).getByRole('img', { name: /Adherence so far 62 of 100/ })).toBeInTheDocument();
     expect(within(soFar).getByText(/based on \d of \d+ items/)).toBeInTheDocument();
@@ -127,16 +134,13 @@ describe('<TodayPage> rendering the contract', () => {
 });
 
 describe('<TodayPage> logging through the actions (stand-in)', () => {
-  it('a tick logs "as planned"; a second tap within 5 s undoes it', async () => {
+  it('"As planned" logs the meal in one tap and the row reads as planned', async () => {
     const h = renderLiving(<TodayPage />, { path: '/today', ...routes });
     const plan = await screen.findByRole('region', { name: 'Today’s plan' });
-    const tick = within(plan).getByRole('button', { name: 'Mark lunch as planned' });
-    await act(async () => fireEvent.click(tick));
-    await waitFor(() => expect(within(plan).getByRole('button', { name: /^lunch: as planned/ })).toHaveAttribute('aria-pressed', 'true'));
+    await act(async () => fireEvent.click(within(plan).getByRole('button', { name: 'Mark lunch as planned' })));
+    await waitFor(() => expect(within(plan).queryByRole('button', { name: 'Mark lunch as planned' })).toBeNull());
+    expect((plan.querySelector('[data-row="meal:lunch"]') as HTMLElement).textContent).toContain('as planned');
     expect(h.stub.inspect().entries.filter((e) => e.kind === 'meal')).toHaveLength(1);
-    await act(async () => fireEvent.click(within(plan).getByRole('button', { name: /^lunch: as planned/ })));
-    await waitFor(() => expect(within(plan).getByRole('button', { name: 'Mark lunch as planned' })).toBeInTheDocument());
-    expect(h.stub.inspect().entries.filter((e) => e.kind === 'meal')).toHaveLength(0);
   });
 
   it('"Mark day as planned" ticks every row and scores the day', async () => {
@@ -148,11 +152,14 @@ describe('<TodayPage> logging through the actions (stand-in)', () => {
     expect(within(screen.getByRole('region', { name: 'So far' })).getByRole('img', { name: /Adherence so far 100 of 100/ })).toBeInTheDocument();
   });
 
-  it('a weigh-in typed on the row is logged', async () => {
+  it('Log weight opens a dialog and saves the weigh-in', async () => {
     const h = renderLiving(<TodayPage />, { path: '/today', ...routes });
-    const field = await screen.findByRole('textbox', { name: 'weight' }).catch(() => screen.findByLabelText('weight'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Log weight' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Log weight' });
+    const field = within(dialog).getByLabelText(/^weight/);
     fireEvent.change(field, { target: { value: '83.4' } });
     fireEvent.keyDown(field, { key: 'Enter' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(h.stub.inspect().measurements.map((m) => m.value)).toEqual([83.4]));
   });
 
@@ -160,7 +167,8 @@ describe('<TodayPage> logging through the actions (stand-in)', () => {
     renderLiving(<TodayPage />, { path: '/today/2026-10-03', route: 'today/:date' });
     const plan = await screen.findByRole('region', { name: 'Today’s plan' });
     expect(within(plan).getByText('Preview · the plan may still change')).toBeInTheDocument();
-    for (const b of within(plan).getAllByRole('button', { name: /^Mark .* as planned$/ })) expect(b).toBeDisabled();
+    // a preview shows what to do, without greyed keys
+    expect(within(plan).queryAllByRole('button', { name: /^Mark .* as planned$/ })).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Mark day as planned' })).toBeNull();
   });
 
@@ -183,7 +191,8 @@ describe('<TodayPage> logging through the actions (stand-in)', () => {
     const p = { ...fixturePlan('2026-10-01', { dayIndex: -1 }), status: 'scheduled' as const };
     renderLiving(<TodayPage />, { path: '/today', ...routes, plan: p });
     expect(await screen.findByRole('heading', { name: /Spring cut starts tomorrow \(Fri 2 Oct\)\./ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Discard plan' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discard plan…' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Log weight' }).length).toBeGreaterThan(0);
     expect(screen.getByText('A preview of day 1')).toBeInTheDocument();
   });
 });

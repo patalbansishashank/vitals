@@ -4,6 +4,7 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   allocateRegional,
+  estimateInitialState,
   liveEstimate,
   stateToAvatarParams,
   type AvatarParams,
@@ -12,6 +13,8 @@ import {
   type BodyState,
 } from '@/engine/body';
 import { BodyAvatar } from '@/features/body/avatar';
+import { fatStressState } from './devStress';
+import { engineSliders } from '@/features/body/model';
 import { Figure3D } from './Figure3D';
 import type { FitResult } from './fit';
 import { RING_IDS } from './manifest';
@@ -28,6 +31,28 @@ const SPECIMENS: { id: string; label: string; inputs: BodyInputs }[] = [
   { id: 'g', label: '164 cm · 66 kg', inputs: { sex: 'female', ageYears: 40, heightCm: 164, weightKg: 66 } },
   { id: 'h', label: '162 cm · 118 kg', inputs: { sex: 'female', ageYears: 50, heightCm: 162, weightKg: 118 } },
 ];
+
+/**
+ * A body from the page's query string, for screenshots and QA of exact slider states, e.g.
+ * ?sex=male&age=40&h=176&w=86&bf=57.4&mu=0.5&ml=0.1&belly=0&hips=0&frame=1
+ * (bf = body fat the figure is drawn at; mu/ml = upper/lower muscle slider positions 0..1; belly/hips/chest/arms -1..1).
+ */
+function urlSpecimen(search: string): { inputs: BodyInputs; bodyFatPct?: number; frame?: number; stress: boolean } | null {
+  const q = new URLSearchParams(search);
+  if (!q.has('h') && !q.has('bf')) return null;
+  const num = (key: string) => (q.has(key) ? Number(q.get(key)) : undefined);
+  const sex = q.get('sex') === 'female' ? 'female' : 'male';
+  const sliders = engineSliders(
+    { muscleUpper: num('mu'), muscleLower: num('ml'), belly: num('belly'), hips: num('hips'), chest: num('chest'), arms: num('arms') },
+    sex,
+  );
+  return {
+    inputs: { sex, ageYears: num('age') ?? 40, heightCm: num('h') ?? 176, weightKg: num('w') ?? 86, sliders: Object.keys(sliders).length ? sliders : undefined },
+    bodyFatPct: num('bf'),
+    frame: num('frame'),
+    stress: q.get('stress') === '1',
+  };
+}
 
 function changedState(s: BodyEstimate, dFatKg: number, dFfmKg: number): BodyState {
   const fm = Math.max(s.fatMassKg + dFatKg, 0.03 * s.weightKg);
@@ -57,14 +82,18 @@ export default function DevFigurePage() {
   const [benching, setBenching] = useState(false);
   const benchCanvas = useRef<HTMLCanvasElement>(null);
 
+  const fromUrl = useMemo(() => urlSpecimen(typeof location === 'undefined' ? '' : location.search), []);
   const spec = SPECIMENS.find((s) => s.id === specimen)!;
-  const estimate = useMemo(() => liveEstimate(spec.inputs), [spec]);
-  const start = useMemo(() => stateToAvatarParams(estimate), [estimate]);
+  const estimate = useMemo(
+    () => (fromUrl ? estimateInitialState(fromUrl.inputs, fromUrl.bodyFatPct !== undefined ? { bodyFatPctOverride: fromUrl.bodyFatPct } : {}) : liveEstimate(spec.inputs)),
+    [spec, fromUrl],
+  );
+  const start = useMemo(() => stateToAvatarParams(fromUrl?.stress ? fatStressState(estimate, fromUrl.bodyFatPct ?? 0) : estimate), [estimate, fromUrl]);
   const params: AvatarParams = useMemo(
     () => (dFat === 0 ? start : stateToAvatarParams(changedState(estimate, dFat, 0), { baseline: estimate })),
     [estimate, start, dFat],
   );
-  const frame = frameOverride ?? params.figure.frame;
+  const frame = frameOverride ?? fromUrl?.frame ?? params.figure.frame;
 
   const runBench = async () => {
     const canvas = benchCanvas.current;

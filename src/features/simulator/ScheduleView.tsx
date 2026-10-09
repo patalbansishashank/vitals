@@ -290,10 +290,10 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
 
   return (
     <div ref={rootRef} className="sim-sched" data-editor={xl ? 'docked' : undefined}>
-      {tray}
       <div className="sim-sched__main">
         <SummaryStrip model={model} focusDay={focusDay} />
         <Faceplate variant="flush" className="sim-rasterface" aria-label="Schedule">
+          {tray}
           <RasterBar
             sid={sid}
             model={model}

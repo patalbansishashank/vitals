@@ -71,14 +71,17 @@ describe.each(WALLS)('Today logging on the documents $label', ({ wall, appToday 
     const soFar = await screen.findByRole('region', { name: 'So far' });
     expect(within(soFar).getByText(/^0 of the last 7 days logged/)).toBeInTheDocument();
     expect(source.today(appToday)?.trendWeight).toBeNull();
-    const field = await screen.findByLabelText('weight');
+    fireEvent.click(await screen.findByRole('button', { name: 'Log weight' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Log weight' });
+    const field = within(dialog).getByLabelText(/^weight/);
     fireEvent.change(field, { target: { value: '89.2' } });
+    fireEvent.keyDown(field, { key: 'Enter' });
     await act(async () => {
-      fireEvent.keyDown(field, { key: 'Enter' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
       await settleCommits();
     });
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'So far' })).getByText(/^1 of the last 7 days logged/)).toBeInTheDocument());
-    expect(screen.getByLabelText('weight')).toHaveValue('89.2');
+    expect((document.querySelector('[data-row="weigh"]') as HTMLElement).textContent).toContain('89.2 kg');
   }, 20_000);
 
   it('sleep ticked as planned reads "you · as planned"', async () => {
@@ -88,7 +91,8 @@ describe.each(WALLS)('Today logging on the documents $label', ({ wall, appToday 
       fireEvent.click(within(plan).getByRole('button', { name: 'Mark sleep as planned' }));
       await settleCommits();
     });
-    await waitFor(() => expect(within(plan).getByRole('button', { name: /^sleep: as planned/ })).toBeInTheDocument());
+    // a logged stop collapses: what was logged and the row's own Undo in place of the main key
+    await waitFor(() => expect(within(plan).getByRole('button', { name: 'Undo sleep' })).toBeInTheDocument());
     const row = plan.querySelector('[data-row="sleep"]') as HTMLElement;
     expect(row.textContent).toContain('you · as planned');
     expect(row.textContent).not.toContain('measured');

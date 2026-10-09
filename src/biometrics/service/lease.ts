@@ -19,6 +19,23 @@ export function isStale(lease: Pick<RingLeaseBody, 'heartbeatAt' | 'holder'>, no
   return !Number.isFinite(beat) || nowMs - beat > LEASE_STALE_MS;
 }
 
+/** When a held lease goes stale (ms since the epoch); NaN when there is nothing to wait for. */
+export function staleAt(lease: Pick<RingLeaseBody, 'heartbeatAt' | 'holder'> | undefined): number {
+  if (!lease?.holder) return NaN;
+  const beat = ms(lease.heartbeatAt) || ms(lease.holder.since);
+  return Number.isFinite(beat) ? beat + LEASE_STALE_MS + 1 : NaN;
+}
+
+/**
+ * Whether this device connects at once when the lease is free or stale (R6): the device the person last chose with
+ * Connect / "Connect here instead", else the phone (it runs the background service and reads the night). Every other
+ * device waits `FREE_GRACE_MS` and looks again first.
+ */
+export function preferredHere(lease: Pick<RingLeaseBody, 'preferred'> | undefined, me: string, platform: Platform): boolean {
+  const p = lease?.preferred;
+  return p ? p.deviceId === me : platform === 'android';
+}
+
 /** How this device sees the lease. Without sync there is no lease at all. */
 export function leaseView(lease: RingLeaseBody | undefined, me: string, nowMs: number, syncOn: boolean): LeaseView {
   if (!syncOn || !lease?.holder) return { kind: 'free' };
@@ -44,3 +61,5 @@ export function claimPatch(me: { deviceId: string; deviceLabel: string; platform
 export const heartbeatPatch = (nowIso: string): Partial<RingLeaseBody> => ({ heartbeatAt: nowIso });
 export const releasePatch = (): Partial<RingLeaseBody> => ({ holder: null, heartbeatAt: null });
 export const takeoverPatch = (me: { deviceId: string; deviceLabel: string }, nowIso: string): Partial<RingLeaseBody> => ({ takeover: { ...me, at: nowIso } });
+/** The person chose this device (Connect / "Connect here instead"): it gets the head start on a free lease from now on. */
+export const preferPatch = (me: { deviceId: string; deviceLabel: string }, nowIso: string): Partial<RingLeaseBody> => ({ preferred: { ...me, at: nowIso } });

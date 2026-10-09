@@ -1,22 +1,32 @@
-// Pure geometry of the visceral view (R2 sec. 3.3 / 3.4): the true-to-scale waist slice and the side cutaway pictogram.
+// Pure geometry of the visceral view (R2 sec. 3.3 / 3.4): the true-to-scale waist slice, drawn as an axial plate of the
+// belly at about the navel (L3 to L4), the way a CT slice is read: front at the top, the body's right on the viewer's
+// left.
 //
-// Coordinates: cm, SVG orientation (x right, y DOWN). The slice is centred on the waist ellipse; the FRONT of the body
-// is at the top (negative y). Every contour is a polar function r(theta) sampled on one fixed angle grid around the
-// ellipse centre, so nesting is a per-angle comparison and areas are exact for the drawn polygon:
+// Coordinates: cm, SVG orientation (x right, y DOWN), centred on the waist ellipse. Every contour is a polar function
+// r(theta) on one fixed angle grid around the centre, so nesting is a per-angle comparison and areas are exact for the
+// drawn polygon. The engine's areas (sat + wall + spine + organs + vat = pi*a*b) set the layers:
 //
-//   outer       R(theta)        = waist ellipse (engine a, b)                 area pi*a*b (polygon: within 0.1 %)
-//   wallOuter   R - tau1*dSat   (SAT ring: thicker in front)                  area = outer - satAreaCm2
-//   wallInner   wallOuter - tau2*dWall (thin in front, psoas + erectors back) area = vat + organs + spine
-//   spine       circle on the back of the cavity (half in the wall)
-//   organs      min(s*wallInner, cap)                                          area = organsAreaCm2
-//   vat         min(organs + t*lobe, cap)       (lobulated, fixed harmonics)   area = organs + vatAreaCm2
-//   ref 100/130 min(organs + t*lobe, 0.99 wallOuter) (hypothetical reach of 100 / 130 cm2 of deep fat)
-//   halo        same at areaRangeCm2
+//   outer      body outline: the waist ellipse, squarer at the back, a midline groove behind and a shallow notch in
+//              front (both fade as fat under the skin thickens), rescaled to the waist area exactly
+//   wallOuter  outer - tau1*dSat           thicker over the belly, the flanks and the lower back; area = outer - sat
+//   vertebra   body (an oval, ~0.8 of the spine area) a back-muscle depth in front of the wall's back surface; the
+//              posterior elements (canal, arch, processes) are drawn in the back muscles
+//   psoas      two ovals beside the vertebral body (a share of the muscle area)
+//   cavity     min(wallOuter - tau2*dWall, rays to the vertebra and the psoas): the abdominal cavity; area = organs + vat.
+//              Muscle = wallOuter - cavity - bone: the rectus pair in front, the flat flank layers, quadratus lumborum
+//              and the back muscles behind the spine (dWall profile)
+//   loops      the cavity's Voronoi cells around fixed seeds (small bowel loops, the ascending and descending colon,
+//              aorta and vena cava), rounded and shrunk about their centres by ONE factor so the organs fill exactly
+//              organsAreaCm2: little deep fat = loops packed with thin fat seams; much deep fat = loops apart in fat
+//   refs       cavity outlines at organs + 100 / 130 cm2 of deep fat (hypothetical, never past the muscle's outer
+//              surface)
+//   halo       the same at the two ends of areaRangeCm2 (edges of the likely-range band)
 //
-// Scalars tau1, tau2, s, t are solved by bisection (monotone), so a contour never flickers while params morph.
-// Drawing convention constants (thickness profiles, lobes) are own PROPOSED choices, grade D.
+// Scalars tau1, tau2 and the loop factor are solved by bisection or in closed form (monotone), and the seeds are fixed
+// in cavity-relative coordinates, so nothing flickers while the numbers ease. Shapes and profiles are own PROPOSED
+// drawing conventions from axial CT anatomy, grade D: the areas are the data, the shapes are illustration.
 
-import type { AvatarLevel, AvatarParams, AvatarVisceral } from '@/engine/body';
+import type { AvatarVisceral } from '@/engine/body';
 
 export type Pt = [number, number];
 
@@ -25,6 +35,9 @@ export const SAMPLES = 180;
 const DTHETA = (2 * Math.PI) / SAMPLES;
 const THETA: readonly number[] = Array.from({ length: SAMPLES }, (_, i) => i * DTHETA);
 const SIN_D = Math.sin(DTHETA);
+/** Grid index of straight back (theta = pi/2) and straight front (3pi/2). */
+export const BACK = SAMPLES / 4;
+export const FRONT = (SAMPLES * 3) / 4;
 
 /** Polar radius of an axis-aligned ellipse (semi-axes a along x, b along y) at angle theta. */
 export function ellipseRadius(a: number, b: number, theta: number): number {
@@ -36,13 +49,17 @@ export function ellipseRadius(a: number, b: number, theta: number): number {
 
 /** Area of a closed polygon (shoelace, absolute value). */
 export function polygonArea(pts: readonly Pt[]): number {
+  return Math.abs(signedArea(pts));
+}
+
+function signedArea(pts: readonly Pt[]): number {
   let s = 0;
   for (let i = 0; i < pts.length; i++) {
     const [x0, y0] = pts[i]!;
     const [x1, y1] = pts[(i + 1) % pts.length]!;
     s += x0 * y1 - x1 * y0;
   }
-  return Math.abs(s) / 2;
+  return s / 2;
 }
 
 /** Area of a polar polygon on the fixed angle grid (equals `polygonArea(polarPoints(r))`). */
@@ -54,6 +71,14 @@ export function polarArea(r: readonly number[]): number {
 
 export function polarPoints(r: readonly number[], cx = 0, cy = 0): Pt[] {
   return r.map((ri, i) => [cx + ri * Math.cos(THETA[i]!), cy + ri * Math.sin(THETA[i]!)] as Pt);
+}
+
+/** Radius of a polar contour at any angle (linear between grid samples). */
+export function radiusAt(r: readonly number[], theta: number): number {
+  const t = (((theta % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / DTHETA;
+  const i = Math.floor(t) % SAMPLES;
+  const w = t - Math.floor(t);
+  return (r[i] ?? 0) * (1 - w) + (r[(i + 1) % SAMPLES] ?? 0) * w;
 }
 
 /**
@@ -79,27 +104,32 @@ export function bisect(
   return (a + b) / 2;
 }
 
-/** Fixed lobulation of the deep-fat contour (low harmonics; positive, mean 1). PROPOSED drawing convention. */
-export function lobe(theta: number): number {
-  return (
-    1 + 0.2 * Math.cos(5 * theta + 0.4) + 0.1 * Math.cos(8 * theta + 1.3) + 0.06 * Math.cos(3 * theta + 2.1)
-  );
-}
-const LOBE: readonly number[] = THETA.map(lobe);
-
+const gauss = (t: number, at: number, w: number) => {
+  // shortest angular distance, so a bump near 0 / 2pi wraps
+  const d = Math.atan2(Math.sin(t - at), Math.cos(t - at));
+  return Math.exp(-((d / w) ** 2));
+};
 const ant = (t: number) => Math.max(-Math.sin(t), 0); // front (top)
-const post = (t: number) => Math.max(Math.sin(t), 0); // back (bottom)
-/** SAT thickness profile: front ~2.2x, sides 1x, back 0.8x (R2: anterior 0.55 / lateral 0.25 / posterior 0.20 of SAT). */
-const D_SAT: readonly number[] = THETA.map((t) => 1 + 1.2 * ant(t) ** 2 - 0.2 * post(t) ** 2);
-/** Muscle wall thickness profile: thin rectus in front, obliques at the sides, erectors behind, psoas beside the spine. */
-const PSOAS_ANGLE = 0.62; // rad either side of straight back (PROPOSED)
-const D_WALL: readonly number[] = THETA.map((t) => {
-  const back = Math.PI / 2;
-  const psoas =
-    Math.exp(-(((t - (back - PSOAS_ANGLE)) / 0.22) ** 2)) +
-    Math.exp(-(((t - (back + PSOAS_ANGLE)) / 0.22) ** 2));
-  return 0.55 + 0.45 * Math.abs(Math.cos(t)) + 1.6 * post(t) ** 6 + 1.5 * psoas;
-});
+
+/** Fat under the skin, thickness profile: belly ~2x, flanks and the lower back ("love handles") more than the spine. */
+const D_SAT: readonly number[] = THETA.map(
+  (t) =>
+    0.75 +
+    0.85 * ant(t) ** 1.5 +
+    0.4 * Math.cos(t) ** 2 +
+    0.4 * (gauss(t, Math.PI / 2 - 1.05, 0.4) + gauss(t, Math.PI / 2 + 1.05, 0.4)),
+);
+/**
+ * Muscle wall, thickness profile: the rectus pair in front, the flat flank layers, the
+ * quadratus lumborum behind the flanks, and the back muscles either side of the spine.
+ */
+const D_WALL: readonly number[] = THETA.map(
+  (t) =>
+    0.7 +
+    0.45 * gauss(t, -Math.PI / 2, 0.42) +
+    0.4 * (gauss(t, Math.PI / 2 - 0.9, 0.3) + gauss(t, Math.PI / 2 + 0.9, 0.3)) +
+    0.8 * gauss(t, Math.PI / 2, 0.36),
+);
 
 /** Floor of any inner contour as a fraction of the outer radius (keeps contours star-shaped and finite). */
 const FLOOR = 0.04;
@@ -110,8 +140,13 @@ function inset(
   profile: readonly number[],
   targetArea: number,
   floorFrom: readonly number[],
+  cap?: readonly number[],
 ): number[] {
-  const at = (tau: number) => from.map((r, i) => Math.max(r - tau * profile[i]!, FLOOR * floorFrom[i]!));
+  const at = (tau: number) =>
+    from.map((r, i) => {
+      const v = Math.max(r - tau * profile[i]!, FLOOR * floorFrom[i]!);
+      return cap ? Math.min(v, cap[i]!) : v;
+    });
   const maxR = Math.max(...from);
   const tau = bisect((x) => -polarArea(at(x)), -targetArea, 0, maxR / Math.min(...profile));
   return at(tau);
@@ -123,121 +158,520 @@ export interface Circle {
   r: number;
 }
 
-/** Distance from the origin along angle theta to the first hit of a circle, or Infinity. */
-function rayToCircle(theta: number, c: Circle): number {
+export interface Oval {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+
+/** Distance from the origin along angle theta to the first hit of an axis-aligned oval, or Infinity. */
+function rayToOval(theta: number, o: Oval): number {
+  // scale y so the oval is a circle of radius rx
+  const k = o.rx / o.ry;
+  const dx = Math.cos(theta);
+  const dy = Math.sin(theta) * k;
+  const len = Math.hypot(dx, dy);
+  const ux = dx / len;
+  const uy = dy / len;
+  const cy = o.cy * k;
+  const along = o.cx * ux + cy * uy;
+  const perp2 = o.cx * o.cx + cy * cy - along * along;
+  const disc = o.rx * o.rx - perp2;
+  if (disc < 0 || along <= 0) return Infinity;
+  return Math.max(along - Math.sqrt(disc), 0) / len;
+}
+
+/** Distance from `o` along angle theta to the farthest crossing of a closed polygon (star-shaped from `o`). */
+function rayToPolygon(o: Pt, theta: number, poly: readonly Pt[]): number {
   const dx = Math.cos(theta);
   const dy = Math.sin(theta);
-  const along = c.cx * dx + c.cy * dy;
-  const perp2 = c.cx * c.cx + c.cy * c.cy - along * along;
-  const disc = c.r * c.r - perp2;
-  if (disc < 0 || along <= 0) return Infinity;
-  return Math.max(along - Math.sqrt(disc), 0);
+  let best = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i]!;
+    const q = poly[(i + 1) % poly.length]!;
+    const ex = q[0] - p[0];
+    const ey = q[1] - p[1];
+    const den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-12) continue;
+    const wx = p[0] - o[0];
+    const wy = p[1] - o[1];
+    const u = (wx * ey - wy * ex) / den;
+    const v = (wx * dy - wy * dx) / den;
+    if (u > 0 && v >= 0 && v <= 1) best = Math.max(best, u);
+  }
+  return best;
 }
 
-/** Deep-fat-style contour: min(base + t*lobe, cap), area-matched by bisection on t >= 0 (saturates at the cap). */
-export function growContour(base: readonly number[], cap: readonly number[], targetArea: number): number[] {
-  const at = (t: number) => base.map((r, i) => Math.min(r + t * LOBE[i]!, cap[i]!));
-  const maxCap = Math.max(...cap);
-  const t = bisect((x) => polarArea(at(x)), targetArea, 0, Math.max(maxCap, 1) * 2);
-  return at(t);
+/**
+ * Distance from the origin along theta to the posterior wall beside the psoas (quadratus lumborum): the region
+ * y >= y0 + slope*u + curve*u^2, u = |x| - x0 >= 0, a floor that curves back towards the flanks (where the wall's own
+ * profile takes over). Infinity when missed.
+ */
+function rayToBackWall(theta: number, x0: number, y0: number, slope: number, curve: number): number {
+  const dx = Math.cos(theta);
+  const dy = Math.sin(theta);
+  const ax = Math.abs(dx);
+  if (ax < 1e-9) return Infinity;
+  const t0 = x0 / ax; // where the ray reaches |x| = x0
+  if (t0 * dy >= y0) return t0;
+  // y0 + slope*u + curve*u^2 = (u + x0) * k on the ray, k = dy / |dx|
+  const k = dy / ax;
+  const B = k - slope;
+  const C = x0 * k - y0; // < 0 here
+  const disc = B * B + 4 * curve * C;
+  if (!(curve > 0) || disc < 0 || B <= 0) return Infinity;
+  const u = (B - Math.sqrt(disc)) / (2 * curve);
+  return u >= 0 ? (u + x0) / ax : Infinity;
 }
 
-/** Scaled contour: min(s*base, cap), area-matched by bisection on s in [0, 1]. */
-export function scaleContour(base: readonly number[], cap: readonly number[], targetArea: number): number[] {
-  const at = (s: number) => base.map((r, i) => Math.min(s * r, cap[i]!));
-  const s = bisect((x) => polarArea(at(x)), targetArea, 0, 1);
-  return at(s);
+/** Soften a polar cap's steps (shadow edges): a running minimum, then a running mean, over a few samples. */
+function softenCap(cap: readonly number[], w: number): number[] {
+  const n = cap.length;
+  const big = Math.max(...cap.filter(Number.isFinite), 1) * 4;
+  const c = cap.map((x) => (Number.isFinite(x) ? x : big));
+  const mn = c.map((_, i) => {
+    let m = Infinity;
+    for (let k = -w; k <= w; k++) m = Math.min(m, c[(i + k + n) % n]!);
+    return m;
+  });
+  return mn.map((_, i) => {
+    let s = 0;
+    for (let k = -w; k <= w; k++) s += mn[(i + k + n) % n]!;
+    return s / (2 * w + 1);
+  });
+}
+
+/** Body outline: the waist ellipse, squarer at the back, with midline grooves that fade as `lean` goes to 0. */
+function outline(a: number, b: number, lean: number): number[] {
+  const n = 2.35 + 0.35 * lean; // squarer back on a lean body
+  const r = THETA.map((t) => {
+    const e = ellipseRadius(a, b, t);
+    const c = Math.abs(Math.cos(t)) / a;
+    const s = Math.abs(Math.sin(t)) / b;
+    const se = (c ** n + s ** n) ** (-1 / n);
+    const w = Math.max(Math.sin(t), 0) ** 0.7; // back half only
+    const base = e * (1 - w) + se * w;
+    return (
+      base *
+      (1 -
+        0.03 * lean * gauss(t, -Math.PI / 2, 0.06) -
+        (0.012 + 0.035 * lean) * gauss(t, Math.PI / 2, 0.11) +
+        0.012 * lean * (gauss(t, Math.PI / 2 - 0.3, 0.16) + gauss(t, Math.PI / 2 + 0.3, 0.16)))
+    );
+  });
+  const k = Math.sqrt((Math.PI * a * b) / polarArea(r));
+  return r.map((x) => x * k);
+}
+
+/** Small-bowel seeds, polar in cavity-relative units (angle, share of the cavity radius on that angle). PROPOSED. */
+const BOWEL_SEEDS: readonly [number, number][] = (() => {
+  let seed = 0x2301;
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  // the colon seeds (fixed below) and the spine region are taken: keep the small bowel in the front and middle
+  const placed: Pt[] = [
+    [Math.cos(Math.PI - 0.32) * 0.72, Math.sin(Math.PI - 0.32) * 0.72],
+    [Math.cos(0.36) * 0.74, Math.sin(0.36) * 0.74],
+    [0, 0.62],
+  ];
+  const out: [number, number][] = [];
+  for (let i = 0; i < 16; i++) {
+    let best: Pt = [0, 0];
+    let score = -Infinity;
+    for (let k = 0; k < 80; k++) {
+      const rho = Math.sqrt(rand()) * 0.86;
+      const th = rand() * 2 * Math.PI;
+      const p: Pt = [rho * Math.cos(th), rho * Math.sin(th)];
+      if (p[1] > 0.45 && Math.abs(p[0]) < 0.45) continue; // in front of the spine: vessels and fat
+      const d = Math.min(...placed.map((q) => Math.hypot(q[0] - p[0], q[1] - p[1])), 1.6 * (1 - rho) + 0.05);
+      if (d > score) {
+        score = d;
+        best = p;
+      }
+    }
+    placed.push(best);
+    out.push([Math.atan2(best[1], best[0]), Math.hypot(best[0], best[1])]);
+  }
+  return out;
+})();
+
+export type LoopKind = 'bowel' | 'colon';
+
+export interface Loop {
+  kind: LoopKind;
+  /** Rounded outline of the loop (cm). */
+  pts: Pt[];
+  /** The loop's centre (cm), for its lumen. */
+  c: Pt;
+}
+
+/** Half-plane clip (Sutherland-Hodgman): keep points with (p - m) . n <= 0. */
+function clipHalf(poly: readonly Pt[], m: Pt, n: Pt): Pt[] {
+  const out: Pt[] = [];
+  const side = (p: Pt) => (p[0] - m[0]) * n[0] + (p[1] - m[1]) * n[1];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i]!;
+    const q = poly[(i + 1) % poly.length]!;
+    const sp = side(p);
+    const sq = side(q);
+    if (sp <= 0) out.push(p);
+    if ((sp < 0 && sq > 0) || (sp > 0 && sq < 0)) {
+      const t = sp / (sp - sq);
+      out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+    }
+  }
+  return out;
+}
+
+/** Clip to a disc (a 24-gon) around c. */
+function clipDisc(poly: Pt[], c: Pt, r: number): Pt[] {
+  let out = poly;
+  for (let k = 0; k < 24 && out.length >= 3; k++) {
+    const t = (k / 24) * 2 * Math.PI;
+    const n: Pt = [Math.cos(t), Math.sin(t)];
+    out = clipHalf(out, [c[0] + r * n[0], c[1] + r * n[1]], n);
+  }
+  return out;
+}
+
+/** Clip to a star-shaped region (seen from `c`) by its supporting half-planes at every 6th edge: close enough. */
+function clipConvexish(poly: Pt[], region: readonly Pt[], c: Pt): Pt[] {
+  let out = poly;
+  for (let i = 0; i < region.length && out.length >= 3; i += 6) {
+    const p = region[i]!;
+    const q = region[(i + 6) % region.length]!;
+    // outward normal of the edge p -> q (the region is counter-clockwise or clockwise: pick the side away from c)
+    let n: Pt = [q[1] - p[1], -(q[0] - p[0])];
+    if ((c[0] - p[0]) * n[0] + (c[1] - p[1]) * n[1] > 0) n = [-n[0], -n[1]];
+    out = clipHalf(out, p, n);
+  }
+  return out;
+}
+
+const LOOP_RAYS = 40;
+const LOOP_HARMONICS = 8;
+
+/**
+ * A rounded loop from a convex-ish cell: the cell's radius around its centre, sampled on 40 rays, low-passed (a smooth,
+ * slightly irregular round shape: a loop of bowel, never a wedge). `cutoff` is the soft harmonic limit: ~2.5 gives
+ * round loops, ~6 loops that press into each other's shape, as packed bowel does.
+ */
+function roundCell(cell: readonly Pt[], c: Pt, cutoff: number): Pt[] {
+  const r: number[] = [];
+  for (let k = 0; k < LOOP_RAYS; k++) {
+    const t = (k / LOOP_RAYS) * 2 * Math.PI;
+    const dx = Math.cos(t);
+    const dy = Math.sin(t);
+    let best = 0;
+    for (let i = 0; i < cell.length; i++) {
+      const p = cell[i]!;
+      const q = cell[(i + 1) % cell.length]!;
+      const ex = q[0] - p[0];
+      const ey = q[1] - p[1];
+      const den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-12) continue;
+      const wx = p[0] - c[0];
+      const wy = p[1] - c[1];
+      const u = (wx * ey - wy * ex) / den; // along the ray
+      const v = (wx * dy - wy * dx) / den; // along the edge
+      if (u > 0 && v >= 0 && v <= 1) best = Math.max(best, u);
+    }
+    r.push(best);
+  }
+  const out: Pt[] = [];
+  const coef: [number, number][] = [];
+  for (let h = 0; h <= LOOP_HARMONICS; h++) {
+    let re = 0;
+    let im = 0;
+    r.forEach((v, k) => {
+      const t = (k / LOOP_RAYS) * 2 * Math.PI * h;
+      re += v * Math.cos(t);
+      im += v * Math.sin(t);
+    });
+    coef.push([re / LOOP_RAYS, im / LOOP_RAYS]);
+  }
+  for (let k = 0; k < LOOP_RAYS; k++) {
+    const t = (k / LOOP_RAYS) * 2 * Math.PI;
+    let v = coef[0]![0];
+    for (let h = 1; h <= LOOP_HARMONICS; h++) {
+      const keep = Math.exp(-((h / cutoff) ** 2)); // a soft low-pass: round when loose, closer to the cell when packed
+      v += 2 * keep * (coef[h]![0] * Math.cos(h * t) + coef[h]![1] * Math.sin(h * t));
+    }
+    v = Math.max(v, 0.05 * coef[0]![0]);
+    out.push([c[0] + v * Math.cos(t), c[1] + v * Math.sin(t)]);
+  }
+  return out;
+}
+
+function centroid(pts: readonly Pt[]): Pt {
+  const A = signedArea(pts);
+  if (Math.abs(A) < 1e-12) {
+    const n = Math.max(pts.length, 1);
+    return [pts.reduce((s, p) => s + p[0], 0) / n, pts.reduce((s, p) => s + p[1], 0) / n];
+  }
+  let cx = 0;
+  let cy = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x0, y0] = pts[i]!;
+    const [x1, y1] = pts[(i + 1) % pts.length]!;
+    const f = x0 * y1 - x1 * y0;
+    cx += (x0 + x1) * f;
+    cy += (y0 + y1) * f;
+  }
+  return [cx / (6 * A), cy / (6 * A)];
+}
+
+export interface Vessels {
+  /** Aorta: round, on the viewer's right of the midline (the body's left). */
+  aorta: Circle;
+  /** Inferior vena cava: an oval on the viewer's left. */
+  ivc: Oval;
 }
 
 export interface SliceAreas {
   outer: number;
   wallOuter: number;
-  wallInner: number;
+  /** Abdominal cavity (organs + deep fat). */
+  cavity: number;
+  /** Drawn organs: the loops plus the two vessels. */
   organs: number;
-  /** Deep-fat fill = vat contour area - organs area. */
+  /** Deep fat = cavity - organs. */
   vat: number;
+  /** Muscle = wallOuter - cavity - bone (the vertebral body). */
+  muscle: number;
 }
 
 export interface SliceGeometry {
   a: number;
   b: number;
-  /** Radii per angle (same grid) - for nesting checks. */
+  /**
+   * Radii per angle (same grid), for nesting checks and the drawing's fascia lines. `outer` and `wallOuter` are about
+   * the slice centre; `wallOuterO`, `wallInner` and `cavity` about the cavity's centre `origin`.
+   */
   radii: {
     outer: number[];
     wallOuter: number[];
+    wallOuterO: number[];
+    /** The muscle's inner surface before the spine and psoas cap it. */
     wallInner: number[];
-    organs: number[];
-    vat: number[];
-    cap: number[];
+    cavity: number[];
   };
+  /** Centre of the cavity's polar contours (in front of the spine). */
+  origin: Pt;
   outer: Pt[];
   wallOuter: Pt[];
-  wallInner: Pt[];
-  organs: Pt[];
-  vat: Pt[];
-  spine: Circle;
-  /** Hypothetical deep-fat contours at the band thresholds (100, 130 cm2). */
+  cavity: Pt[];
+  /** Vertebral body (an oval); `r` is its half-width (the posterior elements scale with it). */
+  spine: Oval & { r: number };
+  psoas: [Oval, Oval];
+  vessels: Vessels | null;
+  loops: Loop[];
+  /** The one shrink factor of the loops (1 = packed, the organs fill their cells). */
+  loopScale: number;
+  /** Hypothetical cavity outlines at the band thresholds (100, 130 cm2 of deep fat). */
   refs: [Pt[], Pt[]];
-  /** Deep-fat contours at the low and high end of `areaRangeCm2`. */
+  /** Cavity outlines at the low and high end of `areaRangeCm2`. */
   halo: [Pt[], Pt[]];
   areas: SliceAreas;
 }
 
 const finite = (v: number, fb: number) => (Number.isFinite(v) ? v : fb);
 
-/** Waist-slice geometry from the engine's visceral block. Pure; ~0.2 ms. */
+/** Waist-slice geometry from the engine's visceral block. Pure; about a millisecond. */
 export function sliceGeometry(v: AvatarVisceral): SliceGeometry {
   const a = Math.max(finite(v.waist.halfWidthCm, 15), 1);
   const b = Math.max(finite(v.waist.halfDepthCm, 11), 1);
   const pos = (x: number) => Math.max(finite(x, 0), 0);
-  const R = THETA.map((t) => ellipseRadius(a, b, t));
+  const ellipseArea = Math.PI * a * b;
+  // engine areas are for pi*a*b; the polygon is within 0.1 %: rescale so the drawn proportions are exact
+  const satRaw = pos(v.satAreaCm2);
+  const perimeter = Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+  const lean = Math.min(Math.max((3 - satRaw / Math.max(perimeter, 1)) / 2.4, 0), 1);
+  const R = outline(a, b, lean);
   const aOuter = polarArea(R);
-  // engine areas are for pi*a*b; rescale to the polygon so the drawn proportions are exact
-  const k = aOuter / (Math.PI * a * b);
-  const sat = Math.min(pos(v.satAreaCm2) * k, aOuter * 0.98);
+  const k = aOuter / ellipseArea;
+  const sat = Math.min(satRaw * k, aOuter * 0.98);
   const vatA = pos(v.vatAreaCm2) * k;
   const organsA = pos(v.organsAreaCm2) * k;
   const spineA = pos(v.spineAreaCm2) * k;
+  const wallA = pos(v.wallAreaCm2) * k;
 
   const wallOuterR = inset(R, D_SAT, aOuter - sat, R);
   const aWallOuter = polarArea(wallOuterR);
-  const innerTarget = Math.min(vatA + organsA + spineA, aWallOuter * 0.98);
-  const wallInnerR = inset(wallOuterR, D_WALL, innerTarget, R);
 
-  // spine: circle bulging into the back of the cavity, its centre a third of a radius inside the wall, so the cavity
-  // always has room for organs + deep fat (the cavity target already excludes the full spine area)
-  const back = SAMPLES / 4; // theta = pi/2 (straight back)
-  const rs = Math.sqrt(spineA / Math.PI);
-  const spine: Circle = { cx: 0, cy: wallInnerR[back]! + rs / 3, r: rs };
-  const cap = wallInnerR.map((r, i) => Math.min(r, rayToCircle(THETA[i]!, spine)));
+  // vertebral body: an oval of ~0.8 of the spine area (the posterior elements are the rest), a back-muscle depth in
+  // front of the wall's back surface, never past the middle of the slice
+  const bodyA = Math.max(0.8 * spineA, 1);
+  const rx = Math.sqrt(bodyA / (Math.PI * 0.82));
+  const ry = 0.82 * rx;
+  const backR = wallOuterR[BACK]!;
+  // back-muscle depth behind the body: the back muscles' share of the muscle area spread over their width, so a body
+  // with little muscle has a shallower back block (and its cavity the room the numbers ask for)
+  const behind = Math.min(Math.max((0.3 * wallA) / (5.8 * rx) + rx, 1.6 * rx), 3.1 * rx, 0.55 * backR);
+  const spine = { cx: 0, cy: Math.max(backR - ry - behind, 0.05 * b), rx, ry, r: rx };
+  // psoas: two ovals beside the vertebral body, ~15 % of the muscle area
+  const psA = Math.max(0.075 * wallA, 0.5);
+  const prx = Math.sqrt(psA / (Math.PI * 1.1));
+  const pry = 1.1 * prx;
+  const psoas: [Oval, Oval] = [
+    { cx: -(rx + 0.8 * prx), cy: spine.cy - 0.1 * ry, rx: prx, ry: pry },
+    { cx: rx + 0.8 * prx, cy: spine.cy - 0.1 * ry, rx: prx, ry: pry },
+  ];
+  // the cavity is measured from its own centre O, in front of the spine, so the bones and the psoas shadow only what
+  // lies behind them (from the slice centre, just in front of the spine, they would shadow the whole back half)
+  const wallOuterPts = polarPoints(wallOuterR);
+  const oy = (-wallOuterR[FRONT]! + (spine.cy - ry)) / 2;
+  const O: Pt = [0, oy];
+  const shift = (o: Oval): Oval => ({ ...o, cx: o.cx - O[0], cy: o.cy - O[1] });
+  // behind the psoas, out to the flanks, the quadratus lumborum: a flat back wall a little behind the psoas' middle
+  const capO = softenCap(
+    THETA.map((t) =>
+      Math.min(
+        rayToOval(t, shift(spine)),
+        rayToOval(t, shift(psoas[0])),
+        rayToOval(t, shift(psoas[1])),
+        rayToBackWall(t, psoas[1].cx + 0.55 * prx, psoas[1].cy - 0.25 * pry - O[1], 0.35, 0.16 / rx),
+      ),
+    ),
+    2,
+  );
+  const wallOuterO = THETA.map((t) => rayToPolygon(O, t, wallOuterPts));
 
-  const organsR = scaleContour(wallInnerR, cap, organsA);
-  const aOrgans = polarArea(organsR);
-  const vatR = growContour(organsR, cap, aOrgans + vatA);
-  // hypothetical reaches stay inside the muscle wall's outer surface (never drawn into the pinchable layer)
-  const reachCap = wallOuterR.map((r) => 0.99 * r);
-  const reach = (area: number) => polarPoints(growContour(organsR, reachCap, aOrgans + area * k));
+  // the cavity holds organs + deep fat; the muscle is what is left inside the wall's outer surface
+  const cavityR = inset(wallOuterO, D_WALL, Math.min(organsA + vatA, aWallOuter * 0.97), wallOuterO, capO);
+  // the uncapped inner surface, for the flank layers: tau from the side (theta = 0), which the spine never caps
+  const tau = (wallOuterO[0]! - cavityR[0]!) / D_WALL[0]!;
+  const wallInnerFree = wallOuterO.map((r, i) => Math.max(r - tau * D_WALL[i]!, FLOOR * r));
+  const aCavity = polarArea(cavityR);
+  const cavity = polarPoints(cavityR, O[0], O[1]);
+  const polarAt = (theta: number, rho: number): Pt => {
+    const d = rho * radiusAt(cavityR, theta);
+    return [O[0] + d * Math.cos(theta), O[1] + d * Math.sin(theta)];
+  };
+
+  // vessels just in front of the vertebral body (inside the cavity), sized from the body's width
+  const ra = 0.5 * rx;
+  const aorta: Circle = { cx: 0.42 * rx, cy: spine.cy - ry - 1.08 * ra, r: ra };
+  const ivc: Oval = { cx: -0.78 * rx, cy: spine.cy - ry - 0.82 * ra, rx: 1.12 * ra, ry: 0.72 * ra };
+  const inside = (x: number, y: number, m: number) =>
+    Math.hypot(x - O[0], y - O[1]) + m < radiusAt(cavityR, Math.atan2(y - O[1], x - O[0]));
+  const vessels: Vessels | null =
+    inside(aorta.cx, aorta.cy - aorta.r, 0) && inside(ivc.cx, ivc.cy - ivc.ry, 0) ? { aorta, ivc } : null;
+  const vesselsA = vessels ? Math.PI * ra * ra + Math.PI * ivc.rx * ivc.ry : 0;
+
+  // loops: Voronoi cells of the seeds inside the cavity, rounded, shrunk about their centres by one factor
+  // Bowel keeps its own size: the small bowel packs into a zone in the middle of the cavity, sized from the organ area
+  // (about 80 % packed), and the deep fat fills the rest. Little deep fat: the zone is the whole cavity and the loops
+  // touch with thin seams of fat. Much deep fat: a cluster of loops in a sea of fat. The colon stays at the flanks.
+  const loopTarget = Math.max(organsA - vesselsA, 0);
+  const cavityC = centroid(cavity);
+  // power-diagram weights: the colon's cells are wider than the small bowel's
+  const wColon = 0.012 * aCavity;
+  const weight = (kind: LoopKind | 'vessel') => (kind === 'colon' ? wColon : 0);
+  const PACK = 0.9; // the loops' share of their cells: thin seams of fat between them
+  // how full of organs the cavity is: packed loops take their cells' shape and their cells may be wide
+  const fill = Math.min(Math.max((loopTarget / Math.max(aCavity, 1e-6) - 0.5) / 0.4, 0), 1);
+  const cutoff = 2.6 + 3.6 * fill;
+  const discK = 1 + 1.6 * fill;
+  const build = (zoneScale: number) => {
+    const Z = cavityC;
+    const toZone = ([x, y]: Pt): Pt => [Z[0] + (x - Z[0]) * zoneScale, Z[1] + (y - Z[1]) * zoneScale];
+    const zone = cavity.map(toZone);
+    const cellR = Math.sqrt((aCavity * zoneScale * zoneScale) / ((BOWEL_SEEDS.length + 3) * Math.PI));
+    const seeds: { p: Pt; kind: LoopKind | 'vessel' }[] = [
+      { p: polarAt(Math.PI - 0.32, 0.72), kind: 'colon' },
+      { p: polarAt(0.36, 0.74), kind: 'colon' },
+      ...BOWEL_SEEDS.map(([t, rho]) => ({ p: toZone(polarAt(t, rho)), kind: 'bowel' as const })),
+      ...(vessels
+        ? [
+            { p: [aorta.cx, aorta.cy] as Pt, kind: 'vessel' as const },
+            { p: [ivc.cx, ivc.cy] as Pt, kind: 'vessel' as const },
+          ]
+        : []),
+    ];
+    const cells: { kind: LoopKind; pts: Pt[]; c: Pt }[] = [];
+    seeds.forEach((s, i) => {
+      if (s.kind === 'vessel') return;
+      let cell: Pt[] = cavity;
+      seeds.forEach((o, j) => {
+        if (j === i || cell.length < 3) return;
+        const n: Pt = [o.p[0] - s.p[0], o.p[1] - s.p[1]];
+        const n2 = n[0] * n[0] + n[1] * n[1];
+        if (!(n2 > 1e-12)) return;
+        const shift = (weight(s.kind) - weight(o.kind)) / (2 * n2);
+        const m: Pt = [(s.p[0] + o.p[0]) / 2 + shift * n[0], (s.p[1] + o.p[1]) / 2 + shift * n[1]];
+        cell = clipHalf(cell, m, n);
+      });
+      // a loop is never wider than a loop: small bowel inside its zone and a disc, the colon inside a wider disc
+      if (s.kind === 'bowel' && zoneScale < 1) cell = clipConvexish(cell, zone, Z);
+      cell = clipDisc(cell, s.p, (s.kind === 'colon' ? 1.3 : 1.4) * discK * cellR);
+      if (cell.length < 3 || polygonArea(cell) <= 1e-6) return;
+      const c = centroid(cell);
+      cells.push({ kind: s.kind, pts: roundCell(cell, c, cutoff), c });
+    });
+    // slivers (a seed squeezed against the spine or the wall) are dropped: the rest grow to keep the organ area
+    const sizes = cells.map((c) => polygonArea(c.pts)).sort((x, y) => x - y);
+    const median = sizes[Math.floor(sizes.length / 2)] ?? 0;
+    for (let i = cells.length - 1; i >= 0; i--) if (polygonArea(cells[i]!.pts) < 0.22 * median) cells.splice(i, 1);
+    return { cells, area: cells.reduce((sum, c) => sum + polygonArea(c.pts), 0) };
+  };
+  // the bowel zone: start from the organ area, then let it grow (a few fixed steps, so it eases smoothly) until the
+  // loops, at their packing, hold the organ area; it never grows past the cavity
+  let zoneScale = Math.min(1, Math.sqrt(loopTarget / (PACK * PACK) / Math.max(aCavity, 1e-6)));
+  let built = build(zoneScale);
+  for (let it = 0; it < 4 && zoneScale < 1; it++) {
+    const need = loopTarget / (PACK * PACK);
+    zoneScale = Math.min(1, zoneScale * Math.sqrt(need / Math.max(built.area, 1e-6)));
+    built = build(zoneScale);
+  }
+  const { cells, area: cellsA } = built;
+  const loopScale = cellsA > 0 ? Math.min(Math.sqrt(loopTarget / cellsA), 0.985) : 0;
+  const loops: Loop[] = cells.map((c) => ({
+    kind: c.kind,
+    c: c.c,
+    pts: c.pts.map(([x, y]) => [c.c[0] + (x - c.c[0]) * loopScale, c.c[1] + (y - c.c[1]) * loopScale] as Pt),
+  }));
+  const organsDrawn = cellsA * loopScale * loopScale + vesselsA;
+
+  // hypothetical cavity outlines: never past the muscle's outer surface
+  // the cavity's own outline, scaled about its centre: the same shape, larger or smaller
+  const reachCap = wallOuterO.map((r, i) => Math.min(0.985 * r, capO[i]!));
+  const reach = (area: number) => {
+    const at = (l: number) => cavityR.map((r, i) => Math.min(l * r, reachCap[i]!));
+    const l = bisect((x) => polarArea(at(x)), organsA + area * k, 0, 4);
+    return polarPoints(at(l), O[0], O[1]);
+  };
   const [r100, r130] = v.thresholdsCm2;
-  const [lo, hi] = v.areaRangeCm2;
+  const lo = pos(v.areaRangeCm2[0]);
+  const hi = Math.max(pos(v.areaRangeCm2[1]), lo);
 
   return {
     a,
     b,
-    radii: { outer: R, wallOuter: wallOuterR, wallInner: wallInnerR, organs: organsR, vat: vatR, cap },
+    radii: { outer: R, wallOuter: wallOuterR, wallOuterO, wallInner: wallInnerFree, cavity: cavityR },
+    origin: O,
     outer: polarPoints(R),
-    wallOuter: polarPoints(wallOuterR),
-    wallInner: polarPoints(wallInnerR),
-    organs: polarPoints(organsR),
-    vat: polarPoints(vatR),
+    wallOuter: wallOuterPts,
+    cavity,
     spine,
+    psoas,
+    vessels,
+    loops,
+    loopScale,
     refs: [reach(r100), reach(r130)],
-    halo: [reach(pos(lo)), reach(pos(hi))],
+    halo: [reach(lo), reach(hi)],
     areas: {
       outer: aOuter,
       wallOuter: aWallOuter,
-      wallInner: polarArea(wallInnerR),
-      organs: aOrgans,
-      vat: polarArea(vatR) - aOrgans,
+      cavity: aCavity,
+      organs: organsDrawn,
+      vat: aCavity - organsDrawn,
+      muscle: aWallOuter - aCavity - Math.PI * rx * ry,
     },
   };
 }
@@ -249,7 +683,7 @@ export function polyD(pts: readonly Pt[]): string {
   return `M${pts.map(([x, y]) => `${f(x)} ${f(y)}`).join('L')}Z`;
 }
 
-/** Closed centripetal-ish Catmull-Rom (uniform, tension 0.5) through the points, as cubic Beziers. */
+/** Closed uniform Catmull-Rom (tension 0.5) through the points, as cubic Beziers. */
 export function smoothD(pts: readonly Pt[]): string {
   const n = pts.length;
   if (n < 3) return polyD(pts);
@@ -268,142 +702,9 @@ export function smoothD(pts: readonly Pt[]): string {
   return `${d}Z`;
 }
 
-// ------------------------------------------------------------------------------------------------ side cutaway
-
-export interface CutawayGeometry {
-  /** Side silhouette (front to the RIGHT, +x), chest to crotch, closed. y = -height (cm, up is negative). */
-  skin: Pt[];
-  /** Inside the SAT band (muscle wall outer surface). */
-  wall: Pt[];
-  /** Abdominal cavity (rib cage to pelvis) inside the wall. */
-  cavity: Pt[];
-  /** Bowel loops (circles), to be clipped by the cavity; total area = (1 - vatFraction) of the cavity box. */
-  loops: Circle[];
-  /** Deep fat share of the cavity: A_vat / (A_vat + A_organs). */
-  vatFraction: number;
-  /** Slice line at the waist: y and the x extent of the silhouette there. */
-  slice: { y: number; x0: number; x1: number };
-  extent: { minX: number; maxX: number; minY: number; maxY: number };
-}
-
-function levelOf(params: AvatarParams, id: AvatarLevel['id']): AvatarLevel | undefined {
-  return params.levels.find((l) => l.id === id);
-}
-
-/** Bowel-loop grid (unit square, hex-ish), fixed so the pictogram never jitters. */
-const LOOP_GRID: readonly Pt[] = (() => {
-  const out: Pt[] = [];
-  const rows = 6;
-  const cols = 4;
-  for (let r = 0; r < rows; r++)
-    for (let c = 0; c < cols + (r % 2 ? 0 : 1); c++)
-      out.push([(c + (r % 2 ? 0.5 : 0)) / cols, (r + 0.5) / rows]);
-  return out;
-})();
-const LOOP_CELL = 1 / LOOP_GRID.length; // unit-square area per loop
-
-/**
- * Side cutaway pictogram from the params' side levels (chest, waist, hip, crotch): skin -> SAT band (front / back
- * thickness from the waist slice) -> muscle wall -> cavity with bowel loops; deep fat fills the cavity behind the loops.
- */
-export function cutawayGeometry(
-  params: AvatarParams,
-  slice: SliceGeometry = sliceGeometry(params.visceral),
-): CutawayGeometry {
-  const H = finite(params.heightCm, 170);
-  const get = (id: AvatarLevel['id'], frac: number, F: number, B: number) => {
-    const l = levelOf(params, id);
-    return {
-      y: -finite(l?.yCm ?? frac * H, frac * H),
-      F: Math.max(finite(l?.sideFrontCm ?? F, F), 2),
-      B: Math.max(finite(l?.sideBackCm ?? B, B), 2),
-    };
-  };
-  const chest = get('chest', 0.72, 13, 11);
-  const waist = get('waist', 0.61, 13, 10);
-  const hip = get('hip', 0.52, 9, 15);
-  const crotch = get('crotch', 0.47, 8, 13);
-  const top = { y: chest.y - 0.035 * H, F: chest.F * 0.92, B: chest.B * 0.95 };
-  const levels = [top, chest, waist, hip, crotch];
-
-  // layer thicknesses from the slice (front = top of the slice, theta = -pi/2 -> index 3/4 of the grid)
-  const front = (SAMPLES * 3) / 4;
-  const back = SAMPLES / 4;
-  const rr = slice.radii;
-  const satF = Math.max(rr.outer[front]! - rr.wallOuter[front]!, 0.3);
-  const satB = Math.max(rr.outer[back]! - rr.wallOuter[back]!, 0.3);
-  const wallF = Math.max(rr.wallOuter[front]! - rr.wallInner[front]!, 0.4);
-  const wallB = Math.max(rr.wallOuter[back]! - rr.wallInner[back]! + slice.spine.r, 1);
-
-  const skin: Pt[] = [
-    ...levels.map((l) => [l.F, l.y] as Pt),
-    ...[...levels].reverse().map((l) => [-l.B, l.y] as Pt),
-  ];
-  const wallL = levels.map((l) => ({
-    y: l.y,
-    F: Math.max(l.F - satF, 0.6 * l.F),
-    B: Math.max(l.B - satB, 0.6 * l.B),
-  }));
-  const wall: Pt[] = [
-    ...wallL.map((l) => [l.F, l.y] as Pt),
-    ...[...wallL].reverse().map((l) => [-l.B, l.y] as Pt),
-  ];
-
-  // cavity: diaphragm (between chest and waist) to the pelvic floor (just below the hip level)
-  const yTop = chest.y + 0.35 * (waist.y - chest.y);
-  const yBot = hip.y + 0.45 * (crotch.y - hip.y);
-  const interp = (y: number, key: 'F' | 'B') => {
-    for (let i = 0; i < wallL.length - 1; i++) {
-      const p = wallL[i]!;
-      const q = wallL[i + 1]!;
-      if (y >= p.y && y <= q.y) return p[key] + ((q[key] - p[key]) * (y - p.y)) / (q.y - p.y || 1);
-    }
-    return wallL[wallL.length - 1]![key];
-  };
-  const cavL = [yTop, (yTop + waist.y) / 2, waist.y, (waist.y + hip.y) / 2, hip.y, yBot].map((y) => ({
-    y,
-    F: Math.max(interp(y, 'F') - wallF, 1),
-    B: Math.max(interp(y, 'B') - wallB, 1),
-  }));
-  // dome under the diaphragm and a rounded pelvic floor
-  const domeTop: Pt = [(cavL[0]!.F - cavL[0]!.B) / 2, yTop - 0.35 * (cavL[0]!.F + cavL[0]!.B) * 0.4];
-  const floor: Pt = [(cavL[cavL.length - 1]!.F - cavL[cavL.length - 1]!.B) / 2, yBot + 1.5];
-  const cavity: Pt[] = [
-    domeTop,
-    ...cavL.map((l) => [l.F, l.y] as Pt),
-    floor,
-    ...[...cavL].reverse().map((l) => [-l.B, l.y] as Pt),
-  ];
-
-  // deep-fat fraction and the loops that fill the rest
-  const vatA = Math.max(finite(params.visceral.vatAreaCm2, 0), 0);
-  const orgA = Math.max(finite(params.visceral.organsAreaCm2, 0), 0);
-  const vatFraction = vatA + orgA > 0 ? vatA / (vatA + orgA) : 0;
-  const xs = cavity.map((p) => p[0]);
-  const ys = cavity.map((p) => p[1]);
-  const bx0 = Math.min(...xs);
-  const bx1 = Math.max(...xs);
-  const by0 = Math.min(...ys);
-  const by1 = Math.max(...ys);
-  const w = bx1 - bx0;
-  const h = by1 - by0;
-  const cell = LOOP_CELL * w * h;
-  const r = Math.sqrt(((1 - vatFraction) * cell) / Math.PI);
-  const loops: Circle[] = LOOP_GRID.map(([u, v]) => ({ cx: bx0 + u * w, cy: by0 + v * h, r }));
-
-  const all = [...skin];
-  return {
-    skin,
-    wall,
-    cavity,
-    loops,
-    vatFraction,
-    slice: { y: waist.y, x0: -waist.B, x1: waist.F },
-    extent: {
-      minX: Math.min(...all.map((p) => p[0])),
-      maxX: Math.max(...all.map((p) => p[0])),
-      minY: Math.min(...all.map((p) => p[1])),
-      maxY: Math.max(...all.map((p) => p[1])),
-    },
-  };
+/** Open polyline "M x y L ..." (2 decimals). */
+export function lineD(pts: readonly Pt[]): string {
+  if (!pts.length) return '';
+  const f = (n: number) => (Math.round(finite(n, 0) * 100) / 100).toString();
+  return `M${pts.map(([x, y]) => `${f(x)} ${f(y)}`).join('L')}`;
 }

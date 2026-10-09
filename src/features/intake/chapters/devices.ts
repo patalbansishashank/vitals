@@ -3,8 +3,12 @@
  * would arrive (a computed route card, not a question), and the per-stream matrix (bring in · my scores · my plan ·
  * Coach sees; SUITE_SPEC §4.5 `StreamPolicy`). Nothing connects or imports from here. Skipping leaves every stream off;
  * the recommended cells are only suggested until the person presses "Use recommended" or sets them one by one.
+ * "Use recommended" is the shared ring default (`ringDefaultPolicy`, plan item 11): every stream in, scores and plan
+ * where the engine can use it, the Coach sees daily + detail.
  */
+import { ringDefaultPolicy } from '@/biometrics/core/policy';
 import { D } from '../copy';
+import { POLICY_TARGETS } from '../devicePolicies';
 import { usedValues, type FlowContext, type Question } from '../flow';
 import type { ChapterAnswers, CoachVisibility, DeviceKind, DevicesAnswer, Platform, StreamId, StreamOptIns, StreamPolicy } from '../types';
 
@@ -29,28 +33,35 @@ type Cell = 'yes' | 'na' | 'never';
 export interface StreamRule {
   scores: Cell;
   engine: Cell;
-  /** Suggested when a device is turned on (bring in, scores, plan); the Coach is never suggested. */
-  recommend: { imported: boolean; scores: boolean; engine: boolean };
 }
 
-/** What each stream may do (SUITE_SPEC §4.5 table) and what is suggested. */
+/** What each stream may do (SUITE_SPEC §4.5 table). */
 export const STREAM_RULES: Readonly<Record<StreamId, StreamRule>> = {
-  sleep_sessions: { scores: 'yes', engine: 'yes', recommend: { imported: true, scores: true, engine: true } },
-  heart_rate: { scores: 'yes', engine: 'yes', recommend: { imported: true, scores: true, engine: true } },
-  hrv: { scores: 'yes', engine: 'yes', recommend: { imported: true, scores: true, engine: false } },
-  spo2: { scores: 'yes', engine: 'never', recommend: { imported: true, scores: true, engine: false } },
-  skin_temp: { scores: 'yes', engine: 'yes', recommend: { imported: true, scores: true, engine: false } },
-  steps: { scores: 'na', engine: 'yes', recommend: { imported: true, scores: false, engine: true } },
-  workouts: { scores: 'na', engine: 'yes', recommend: { imported: true, scores: false, engine: true } },
-  weight: { scores: 'na', engine: 'yes', recommend: { imported: true, scores: false, engine: true } },
-  body_fat: { scores: 'na', engine: 'yes', recommend: { imported: true, scores: false, engine: true } },
-  vendor_scores: { scores: 'never', engine: 'never', recommend: { imported: false, scores: false, engine: false } },
+  sleep_sessions: { scores: 'yes', engine: 'yes' },
+  heart_rate: { scores: 'yes', engine: 'yes' },
+  hrv: { scores: 'yes', engine: 'yes' },
+  spo2: { scores: 'yes', engine: 'never' },
+  skin_temp: { scores: 'yes', engine: 'yes' },
+  steps: { scores: 'na', engine: 'yes' },
+  workouts: { scores: 'na', engine: 'yes' },
+  weight: { scores: 'na', engine: 'yes' },
+  body_fat: { scores: 'na', engine: 'yes' },
+  vendor_scores: { scores: 'never', engine: 'never' },
 };
 
 export const offPolicy = (stream: StreamId): StreamPolicy => ({ stream, imported: false, coach: 'hidden', engine: false, scores: false });
+
+/**
+ * What "Use recommended" sets for one stream: the shared ring default (`ringDefaultPolicy`; the stream's first biometric
+ * policy stream decides), kept inside this matrix's cells (a "never" or "—" cell stays off). Also what the hollow
+ * "suggested" dots show on a stream nobody has set yet.
+ */
 export const recommendedPolicy = (stream: StreamId): StreamPolicy => {
-  const r = STREAM_RULES[stream];
-  return { stream, imported: r.recommend.imported, scores: r.recommend.imported && r.recommend.scores, engine: r.recommend.imported && r.recommend.engine, coach: 'hidden' };
+  const d = ringDefaultPolicy(POLICY_TARGETS[stream][0]!);
+  let p = setCell(offPolicy(stream), 'imported', d.imported);
+  p = setCell(p, 'scores', d.scores);
+  p = setCell(p, 'engine', d.engine);
+  return setCell(p, 'coach', d.coach);
 };
 
 /** Streams the named devices offer, in display order. */
@@ -67,11 +78,6 @@ export function setCell(p: StreamPolicy, col: 'imported' | 'scores' | 'engine' |
   if (col === 'coach') return { ...p, coach: value as CoachVisibility };
   if (r[col] !== 'yes') return p;
   return { ...p, [col]: Boolean(value) };
-}
-
-/** "Coach can see daily summaries": every imported stream becomes 'daily' (detail stays as chosen). */
-export function coachDaily(list: readonly StreamPolicy[]): StreamPolicy[] {
-  return list.map((p) => (p.imported && p.coach === 'hidden' ? { ...p, coach: 'daily' } : p));
 }
 
 export type RouteKind = 'healthConnect' | 'direct' | 'directUnavailable' | 'iphone' | 'file' | 'scale';
@@ -156,9 +162,12 @@ export const DEVICES_QUESTIONS: readonly Question[] = [
     widget: 'routes',
     prompt: D.route.prompt,
     short: D.route.short,
-    skipText: D.route.later.toLowerCase(),
+    skipText: D.route.skip,
+    // a card with nothing to answer: Next records that it was seen and moves on, whether or not anything is connected
+    advance: 'seen',
+    askLater: false,
     applies: (v) => has(v).some((d) => BRANDED.includes(d)),
-    receipt: () => D.route.later.toLowerCase(),
+    receipt: () => D.route.receipt,
   },
   {
     id: 'streams',

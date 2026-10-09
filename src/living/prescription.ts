@@ -6,8 +6,8 @@
 // the modules, not the engine index (which loads every model module and the planner): the command registry reaches this file
 import { compileSchedule } from '@/engine/core/compileSchedule';
 import { resolveProfile } from '@/engine/core/resolveProfile';
-import type { CompiledSchedule, DayTemplate, FastEvent, PersonProfile, Schedule } from '@/engine';
-import { mergeTemplate } from '@/engine/core/compileSchedule';
+import type { CompiledSchedule, DayTemplate, ExerciseSession, FastEvent, PersonProfile, ResolvedProfile, Schedule } from '@/engine';
+import { habitualSessionsFor, mergeTemplate } from '@/engine/core/compileSchedule';
 import { addDays, localToInstant, weekdayOf } from './dates';
 import { habitualTemplateFor, planDay } from './calendar';
 import type { PlanItemType, PlanSensitivities } from './plannerContract';
@@ -75,6 +75,20 @@ export function compileVersion(baseline: PersonProfile, schedule: Schedule): Com
   return compileSchedule(schedule, rp);
 }
 
+const resolvedBaselines = new WeakMap<PersonProfile, ResolvedProfile>();
+/**
+ * The "training as usual" sessions of a `habitualTraining` day on `weekday` (0 = Monday): exactly the sessions the engine adds
+ * to that day's energy (`compileSchedule`, `habitualSessionsFor`), so Train and Today show what the forecast counts.
+ */
+export function usualSessionsOn(baseline: PersonProfile, weekday: number): ExerciseSession[] {
+  let rp = resolvedBaselines.get(baseline);
+  if (!rp) {
+    rp = resolveProfile(baseline);
+    resolvedBaselines.set(baseline, rp);
+  }
+  return habitualSessionsFor(rp, weekday);
+}
+
 function weightsFor(types: readonly PlanItemType[], s: PlanSensitivities | undefined): number[] {
   const raw = types.map((t) => Math.max(ITEM_WEIGHT_FLOOR, s?.itemWeights?.[t] ?? DEFAULT_ITEM_WEIGHTS[t]));
   const sum = raw.reduce((a, b) => a + b, 0);
@@ -113,11 +127,24 @@ export function freezePrescription(i: FreezeInput): PrescribedDaySnapshot {
   const win = template.meals?.window;
   const eatWindow = win ? { startH: win.startH, endH: win.startH + win.lengthH } : undefined;
 
+  // "training as usual": the engine trains the day's habitual sessions ahead of the template's own (compileSchedule), so
+  // they are prescribed sessions too (slot `<day>:u<k>`, composed on Train); `toLoggedDay` keeps the energy single-counted
+  const usualEngine = template.habitualTraining === true ? usualSessionsOn(i.plan.baselineProfile, day.weekday) : [];
+  const usual: PrescribedSession[] = usualEngine.map((s, k) => ({
+    slotKey: `${dd}:u${k}`,
+    startH: s.startH,
+    kind: s.kind,
+    durationMin: s.kind === 'cardio' ? s.durationMin : (s.durationMin ?? day.sessions[k]?.durationMin ?? 60),
+    concrete: null,
+    stimulus: null,
+    engine: [s],
+    usual: true,
+  }));
   const engineSessions = template.exercise ?? [];
-  const sessions: PrescribedSession[] = engineSessions.map((s, k) => {
+  const own: PrescribedSession[] = engineSessions.map((s, k) => {
     const slotKey = `${dd}:${k}`;
     const concrete = paused ? null : (i.version.sessions[slotKey] ?? null);
-    const durationMin = s.kind === 'cardio' ? s.durationMin : (s.durationMin ?? day.sessions[k]?.durationMin ?? 60);
+    const durationMin = s.kind === 'cardio' ? s.durationMin : (s.durationMin ?? day.sessions[usual.length + k]?.durationMin ?? 60);
     return {
       slotKey,
       startH: s.startH,
@@ -128,6 +155,7 @@ export function freezePrescription(i: FreezeInput): PrescribedDaySnapshot {
       engine: [s],
     };
   });
+  const sessions = [...usual, ...own];
 
   const fastEvent = paused ? undefined : fastEventOn(schedule, dd);
   let fast: PrescribedDaySnapshot['fast'];
@@ -180,4 +208,34 @@ export function freezePrescription(i: FreezeInput): PrescribedDaySnapshot {
     ...(fastEvent ? { fastEvent } : {}),
     ...(paused ? { paused: true } : {}),
   };
+}
+
+function sessionItemId(s: PrescribedSession): string {
+  return `${s.kind === 'resistance' ? 'rtSession' : 'cardioSession'}:${s.slotKey}`;
+}
+
+/**
+ * A prescription frozen before "training as usual" sessions were prescribed (2026-10-09) lacks them: a `habitualTraining` day
+ * then showed as a rest day although the engine counted its usual sessions. Re-derived on read, never written back: the
+ * frozen snapshot keeps every target, its own sessions and slot keys (logs still match); the day's usual sessions and their
+ * items come from `refreeze` (the same day frozen now), item weights renormalised as a fresh freeze would. Unchanged for any
+ * snapshot that already carries them, is not a `habitualTraining` day, or falls on a habitual rest weekday.
+ */
+export function withUsualSessions(frozen: PrescribedDaySnapshot, baseline: PersonProfile, date: LocalDate, refreeze: () => PrescribedDaySnapshot): PrescribedDaySnapshot {
+  if (frozen.template?.habitualTraining !== true || frozen.sessions.some((s) => s.usual)) return frozen;
+  if (usualSessionsOn(baseline, weekdayOf(date)).length === 0) return frozen;
+  let fresh: PrescribedDaySnapshot;
+  try {
+    fresh = refreeze();
+  } catch {
+    return frozen;
+  }
+  const usual = fresh.sessions.filter((s) => s.usual);
+  if (usual.length === 0) return frozen;
+  const usualIds = new Set(usual.map(sessionItemId));
+  const freshWeight = new Map(fresh.items.map((it) => [it.itemId, it.weight] as const));
+  const merged = [...frozen.items.map((it) => ({ ...it, weight: freshWeight.get(it.itemId) ?? it.weight })), ...fresh.items.filter((it) => usualIds.has(it.itemId))];
+  const sum = merged.reduce((a, it) => a + it.weight, 0);
+  const items = frozen.paused || !(sum > 0) ? merged.map((it) => ({ ...it, weight: frozen.paused ? 0 : it.weight })) : merged.map((it) => ({ ...it, weight: it.weight / sum }));
+  return { ...frozen, sessions: [...usual, ...frozen.sessions], items };
 }

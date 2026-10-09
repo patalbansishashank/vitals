@@ -189,7 +189,7 @@ async function layerShot(context, keep) {
   if (await pause.count()) await pause.click();
   await figure.locator('summary').filter({ hasText: 'Layers' }).click();
   const group = figure.getByRole('group', { name: 'Body layers' });
-  const labels = ['Skin', 'Fat under skin', 'Fat around organs (estimate)', 'Muscles', 'Bones'];
+  const labels = ['Skin', 'Fat under skin', 'Muscles', 'Bones'];
   for (const label of labels) {
     const button = group.getByRole('button', { name: label, exact: true });
     if (await button.getAttribute('aria-pressed') === 'true') await button.click();
@@ -222,7 +222,7 @@ async function frameShot(context, frame) {
   await page.getByLabel(/Frame \(hips-led/i).fill(String(frame));
   await figure.locator('summary').filter({ hasText: 'Layers' }).click();
   const group = figure.getByRole('group', { name: 'Body layers' });
-  for (const label of ['Fat under skin', 'Fat around organs (estimate)', 'Muscles']) {
+  for (const label of ['Fat under skin', 'Muscles']) {
     const button = group.getByRole('button', { name: label, exact: true });
     if (await button.getAttribute('aria-pressed') === 'true') await button.click();
   }
@@ -467,7 +467,7 @@ async function run() {
   for (const width of [390, 768, 1440]) {
     for (const theme of ['light', 'dark']) await shot(context, width, theme);
   }
-  for (const layer of ['Bones', 'Muscles', 'Fat around organs (estimate)']) await layerShot(context, layer);
+  for (const layer of ['Bones', 'Muscles']) await layerShot(context, layer);
   for (const frame of [0, 1]) await frameShot(context, frame);
   for (const width of [390, 1440]) await welcomeShot(context, width);
   await compareShot(context);

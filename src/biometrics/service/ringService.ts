@@ -12,10 +12,10 @@ import type { Instant } from '@/biometrics/core/types';
 import type { SourceBody } from '@/biometrics/store/docIndex';
 import { familyIdentity, knownRingLabel, macOf, parseRingKey, ringKeyFromId } from './identity';
 import { buildRingBatch, foldStatus } from './ingest';
-import { claimPatch, heartbeatPatch, leaseView, releasePatch, takeoverFor, takeoverPatch, type LeaseView } from './lease';
+import { claimPatch, heartbeatPatch, leaseView, preferPatch, preferredHere, releasePatch, staleAt, takeoverFor, takeoverPatch, type LeaseView } from './lease';
 import { RingLinkError, type RingAvailability, type RingLinkSession, type RingLocalState, type RingScanHit, type RingServicePorts } from './ports';
 import {
-  LEASE_HEARTBEAT_MS, SYNC_EVERY_MS, TAKEOVER_PAUSE_MS, TAKEOVER_RETRY_MS,
+  FREE_GRACE_MS, LEASE_HEARTBEAT_MS, RELEASE_AFTER_ATTEMPTS, STABLE_LINK_MS, SYNC_EVERY_MS, TAKEOVER_PAUSE_MS, TAKEOVER_RETRY_MS,
   type CheckMetric, type RingCandidate, type RingService, type RingServiceErrorCode, type RingStatus, type RingSyncReport,
 } from './types';
 
@@ -65,6 +65,27 @@ interface Entry {
   cancelRetry?: () => void;
   cancelHeartbeat?: () => void;
   cancelPeriodic?: () => void;
+  /** Resets the reconnect ladder once the link has stayed up `STABLE_LINK_MS` (R4). */
+  cancelStable?: () => void;
+  /** Re-checks a held lease when it would go stale (R2, R5). */
+  cancelStaleWatch?: () => void;
+  /** When this device started waiting on a free lease (R6); undefined once the grace was served or the lease was taken. */
+  graceAt?: number;
+  cancelGrace?: () => void;
+  /** Ends a takeover pause (12 h) on its own. */
+  cancelPauseEnd?: () => void;
+  /** The attempt in flight is the service's own (auto-connect), not the person's tap: a held lease aborts it (R2). */
+  auto?: boolean;
+  /** This link's claim is written: from here a fresh lease naming another device means theirs won the merge (R1). */
+  claimed?: boolean;
+  /** When the open link came up. */
+  upAt?: number;
+  /** Links in a row that were taken away within `STABLE_LINK_MS` of coming up: two mean another central wants the ring (R4). */
+  shortDrops: number;
+  /** Failed auto attempts in a row (not drops): `RELEASE_AFTER_ATTEMPTS` of them let go of the lease (R1). */
+  failsInRow: number;
+  /** The ring gave a battery level at connect: a later read that gives none means the ring stopped answering. */
+  batteryKnown?: boolean;
   connecting?: Promise<void>;
   syncing?: Promise<RingSyncReport>;
   liveWatchers: number;
@@ -102,6 +123,9 @@ export function createRingService(ports: RingServicePorts): RingService {
   let avail: RingAvailability = 'unsupported';
   let availKnown = false;
   let started: Promise<void> | null = null;
+  /** The person's scan / pairing is under way: the service's own connects wait (MINOR 10, MAJOR 3 of the review). */
+  let scanning = false;
+  let pairing = false;
   let offStore: (() => void) | undefined;
   const offShell: Array<() => void> = [];
 
@@ -168,7 +192,7 @@ export function createRingService(ports: RingServicePorts): RingService {
   async function buildEntry(ringKey: string, driverId: string): Promise<Entry> {
     const fam = familyIdentity(driverId, connector.driverInfo(driverId));
     const checks = connector.driverInfo(driverId)?.checks;
-    const e: Entry = { ringKey, driverId, status: { ringKey, label: fam.label, state: 'idle', ...(checks?.length ? { caps: { checks } } : {}) }, local: (await local.get(ringKey)) ?? { cursor: {} }, attempt: 0, liveWatchers: 0 };
+    const e: Entry = { ringKey, driverId, status: { ringKey, label: fam.label, state: 'idle', ...(checks?.length ? { caps: { checks } } : {}) }, local: (await local.get(ringKey)) ?? { cursor: {} }, attempt: 0, shortDrops: 0, failsInRow: 0, liveWatchers: 0 };
     entries.set(ringKey, e);
     statusFromSource(e, store.source(ringKey));
     if (paused(e)) {
@@ -190,23 +214,72 @@ export function createRingService(ports: RingServicePorts): RingService {
 
   // ---------------------------------------------------------------- connect, drop, retry
 
+  /** Another device holds the ring: show it, stop this device's own tries, and look again when the lease would go stale. */
+  function showElsewhere(e: Entry, holder: Extract<LeaseView, { kind: 'held' }>['holder'], extra: Partial<RingStatus> = {}): void {
+    e.cancelRetry?.();
+    e.cancelRetry = undefined;
+    e.cancelGrace?.();
+    e.cancelGrace = undefined;
+    e.graceAt = undefined;
+    set(e, { state: 'elsewhere', heldBy: holder, error: undefined, ...extra });
+    armStaleWatch(e);
+  }
+
+  /** While another device holds the ring, this device looks again only when that lease would go stale (R2, R5). */
+  function armStaleWatch(e: Entry): void {
+    e.cancelStaleWatch?.();
+    e.cancelStaleWatch = undefined;
+    const at = staleAt(store.lease(e.ringKey));
+    if (!Number.isFinite(at)) return;
+    e.cancelStaleWatch = clock.setTimeout(() => {
+      e.cancelStaleWatch = undefined;
+      void autoConnect(e);
+    }, Math.max(1, at - clock.now()));
+  }
+
+  /** The lease as this device sees it while it has no link: `elsewhere` behind a fresh lease, idle (and its turn) otherwise. */
   function reflectLease(e: Entry): void {
     if (e.session) return;
     const v = view(e);
-    if (v.kind === 'held') set(e, { state: 'elsewhere', heldBy: v.holder, error: undefined });
-    else if (e.status.state === 'elsewhere') set(e, { state: 'idle', heldBy: undefined });
+    if (v.kind === 'held') {
+      if (e.status.state !== 'elsewhere' || e.status.heldBy?.deviceId !== v.holder.deviceId) showElsewhere(e, v.holder);
+      else armStaleWatch(e);
+      return;
+    }
+    e.cancelStaleWatch?.();
+    e.cancelStaleWatch = undefined;
+    if (e.status.state === 'elsewhere') {
+      set(e, { state: 'idle', heldBy: undefined });
+      // the holder let go, or its lease went stale: this device's turn (through the grace of R6)
+      if (!paused(e) && !e.connecting) void autoConnect(e);
+    }
   }
 
   function clearTimers(e: Entry): void {
     e.cancelRetry?.();
     e.cancelHeartbeat?.();
     e.cancelPeriodic?.();
-    e.cancelRetry = e.cancelHeartbeat = e.cancelPeriodic = undefined;
+    e.cancelStable?.();
+    e.cancelRetry = e.cancelHeartbeat = e.cancelPeriodic = e.cancelStable = undefined;
+  }
+
+  /** The timers of an entry without a link (grace, stale watch, pause end): for stop, Forget and a fresh start. */
+  function clearIdleTimers(e: Entry): void {
+    e.cancelGrace?.();
+    e.cancelStaleWatch?.();
+    e.cancelPauseEnd?.();
+    e.cancelGrace = e.cancelStaleWatch = e.cancelPauseEnd = undefined;
+    e.graceAt = undefined;
   }
 
   async function closeSession(e: Entry, release: boolean): Promise<void> {
     const s = e.session;
     clearTimers(e);
+    e.cancelGrace?.();
+    e.cancelGrace = undefined;
+    e.graceAt = undefined;
+    e.cancelStaleWatch?.();
+    e.cancelStaleWatch = undefined;
     e.liveAbort?.abort();
     e.liveAbort = undefined;
     e.connectAbort?.abort();
@@ -216,6 +289,7 @@ export function createRingService(ports: RingServicePorts): RingService {
     e.offDrop?.();
     e.offDrop = undefined;
     e.session = undefined;
+    e.claimed = undefined;
     if (s) await s.close().catch(() => undefined);
     if (release && syncOn() && view(e).kind === 'mine') await store.patchLease(e.ringKey, releasePatch()).catch(() => undefined);
     keepAlive();
@@ -225,9 +299,9 @@ export function createRingService(ports: RingServicePorts): RingService {
   function armPauseEnd(e: Entry): void {
     const until = e.local.pausedUntil ? Date.parse(e.local.pausedUntil) : NaN;
     if (!Number.isFinite(until) || until <= clock.now() || e.local.paused) return;
-    e.cancelRetry?.();
-    e.cancelRetry = clock.setTimeout(() => {
-      e.cancelRetry = undefined;
+    e.cancelPauseEnd?.();
+    e.cancelPauseEnd = clock.setTimeout(() => {
+      e.cancelPauseEnd = undefined;
       void autoConnect(e);
     }, until - clock.now() + 1);
   }
@@ -249,13 +323,54 @@ export function createRingService(ports: RingServicePorts): RingService {
 
   function onDropped(e: Entry): void {
     if (!e.session) return;
+    const short = e.upAt !== undefined && clock.now() - e.upAt < STABLE_LINK_MS;
     void (async () => {
-      await closeSession(e, true);
+      // the lease stays: the holder keeps the ring through a drop and retries (R1); it lets go once the retries fail.
+      // A platform that cannot reopen the link on its own (the web) never retries, so it lets go at once.
+      await closeSession(e, !canReopen(e));
       e.gattStatus = undefined;
       if (paused(e)) return set(e, { state: 'idle', paused: true, error: undefined, liveHr: undefined, syncProgress: undefined });
+      const v = view(e);
+      // another device's fresh claim: the ring is theirs now, no retry (R4)
+      if (v.kind === 'held') return showElsewhere(e, v.holder, { liveHr: undefined, syncProgress: undefined });
       set(e, { state: 'error', error: errorOf(new RingLinkError('disconnected')), liveHr: undefined, syncProgress: undefined });
+      if (!canReopen(e)) return;
+      // one early drop climbs the ladder like any drop (Android drops a fresh link now and then); two links in a row
+      // taken away within a minute of coming up mean another central wants the ring: wait the slowest step rather than
+      // fight (the person's Connect, coming back to the app or Bluetooth coming on start over)
+      e.shortDrops = short ? e.shortDrops + 1 : 0;
+      if (e.shortDrops >= 2) e.attempt = ANDROID_RECONNECT.delaysMs.length - 1;
       scheduleRetry(e);
     })();
+  }
+
+  /**
+   * Lumen's foreground check (`reconnectIfNeeded`): a link the OS kept while the ring stopped answering (Doze, a ring
+   * that left) is found with one small read and reopened, instead of waiting for the 30-minute read to fail. The probe
+   * is one command on the ring (registered as `checking`, so a read or live heart rate waits for it); a ring that gave
+   * a battery level at connect and gives none now is silent; "busy" means another command got there first: alive.
+   */
+  async function probeLink(e: Entry): Promise<void> {
+    const s = e.session;
+    if (!s || e.syncing || e.checking || e.connecting) return;
+    const run = (async (): Promise<boolean> => {
+      await stopLive(e);
+      if (e.session !== s || e.syncing) return true;
+      try {
+        const level = await s.battery();
+        return level !== undefined || !e.batteryKnown;
+      } catch (err) {
+        const code = (err as { code?: unknown } | undefined)?.code;
+        return code === 'busy' || code === 'cancelled';
+      }
+    })();
+    e.checking = run;
+    const alive = await run.finally(() => {
+      if (e.checking === run) e.checking = undefined;
+    });
+    if (e.session !== s) return;
+    if (alive) resumeLive(e, s);
+    else onDropped(e);
   }
 
   /** Rejects with `err` when `p` has not settled within CONNECT_ATTEMPT_MS; a late value goes to `late`. */
@@ -303,20 +418,47 @@ export function createRingService(ports: RingServicePorts): RingService {
       const checks = connector.driverInfo(e.driverId)?.checks;
       set(e, { label: fam.label, caps: checks?.length ? { checks } : undefined });
     }
+    if (o.auto && syncOn()) {
+      // the claim of another device landed while this attempt ran: the ring is theirs (R2); no claim, no retry
+      const v = view(e);
+      if (v.kind === 'held') {
+        await session.close().catch(() => undefined);
+        throw new RingLinkError('cancelled', 'another device holds the ring');
+      }
+    }
     e.session = session;
-    // Lumen resets its backoff when a link is up (`resetReconnectBackoff` on CONNECTED): the next drop retries in 5 s
+    e.failsInRow = 0;
     e.cancelRetry?.();
     e.cancelRetry = undefined;
-    e.attempt = 0;
-    e.gattStatus = undefined;
+    e.cancelGrace?.();
+    e.cancelGrace = undefined;
+    e.graceAt = undefined;
+    e.cancelStaleWatch?.();
+    e.cancelStaleWatch = undefined;
+    // Lumen resets its backoff on CONNECTED; here only once the link has stayed up (or a read completed): a link that
+    // another central takes away seconds after it came up keeps climbing the ladder, so two devices never bounce the
+    // ring every 5 s (R4)
+    e.upAt = clock.now();
+    e.cancelStable?.();
+    e.cancelStable = clock.setTimeout(() => {
+      e.cancelStable = undefined;
+      if (e.session !== session) return;
+      e.attempt = 0;
+      e.gattStatus = undefined;
+      e.shortDrops = 0;
+    }, STABLE_LINK_MS);
     e.abort = new AbortController();
     e.offDrop = session.onDisconnected(() => onDropped(e));
     let info: Awaited<ReturnType<RingLinkSession['info']>>;
     try {
       if (session.platformId && session.platformId !== e.local.platformId) await saveLocal(e, { platformId: session.platformId });
       info = await bounded(session.info(), () => new RingLinkError('failed'), () => undefined);
+      e.batteryKnown = info.battery !== undefined;
       await ensureRingSource(e, info.firmware);
-      if (syncOn()) await store.patchLease(e.ringKey, claimPatch(me(), nowIso(), e.ringKey));
+      if (syncOn()) {
+        await store.patchLease(e.ringKey, claimPatch(me(), nowIso(), e.ringKey));
+        e.claimed = true;
+      }
     } catch (err) {
       // a store or link failure before the first sync: let the link go so the caller shows the error and retries
       await closeSession(e, false);
@@ -330,7 +472,7 @@ export function createRingService(ports: RingServicePorts): RingService {
           const v = view(e);
           if (v.kind === 'held') {
             // another device holds a fresh lease (it took the ring while this one could not see sync): let go
-            void closeSession(e, false).then(() => set(e, { state: 'elsewhere', heldBy: v.holder, error: undefined }));
+            void closeSession(e, false).then(() => showElsewhere(e, v.holder, { liveHr: undefined, syncProgress: undefined }));
             return;
           }
           // the lease may have been lost (a merge, a stale clean-up): claim it again rather than only heartbeat
@@ -366,10 +508,11 @@ export function createRingService(ports: RingServicePorts): RingService {
 
   /** One attempt; a failure sets the error and, when `auto`, arms the backoff. */
   async function connectWith(e: Entry, open: (signal: AbortSignal) => Promise<RingLinkSession>, o: { auto?: boolean; full?: boolean; signal?: AbortSignal; onProgress?: (p: number, stage: string) => void }): Promise<RingSyncReport> {
-    if (e.connecting) await e.connecting;
+    while (e.connecting) await e.connecting;
     if (e.session) return runSync(e, o);
     const ac = new AbortController();
     e.connectAbort = ac;
+    e.auto = o.auto === true;
     o.signal?.addEventListener('abort', () => ac.abort(), { once: true });
     set(e, { state: 'connecting', error: undefined });
     let done!: () => void;
@@ -385,6 +528,7 @@ export function createRingService(ports: RingServicePorts): RingService {
         (late) => void late.close().catch(() => undefined),
       );
       e.connecting = undefined;
+      e.auto = undefined;
       done();
       if (ac.signal.aborted) {
         // Disconnect was pressed while the link came up: let it go again
@@ -396,15 +540,20 @@ export function createRingService(ports: RingServicePorts): RingService {
     } catch (err) {
       if (e.connectAbort === ac) e.connectAbort = undefined;
       e.connecting = undefined;
+      e.auto = undefined;
       done();
       if (!e.session) {
         e.gattStatus = statusOf(err);
         const v = view(e);
         if (paused(e)) set(e, { state: 'idle', paused: true, error: undefined });
-        else if (v.kind === 'held') set(e, { state: 'elsewhere', heldBy: v.holder, error: undefined });
-        else set(e, { state: 'error', error: errorOf(err) });
-        // a failed read may have armed the retry already
-        if (o.auto && !paused(e) && !e.cancelRetry) scheduleRetry(e);
+        else if (v.kind === 'held') showElsewhere(e, v.holder); // a fresh lease explains it: no retry, theirs
+        else {
+          set(e, { state: 'error', error: errorOf(err) });
+          // a failed read may have armed the retry already
+          if (o.auto && !e.cancelRetry) scheduleRetry(e);
+          // a holder that cannot reach its ring lets go of the lease, so another device may try (R1)
+          if (o.auto && ++e.failsInRow >= RELEASE_AFTER_ATTEMPTS && v.kind === 'mine') await store.patchLease(e.ringKey, releasePatch()).catch(() => undefined);
+        }
       }
       throw err;
     }
@@ -414,12 +563,33 @@ export function createRingService(ports: RingServicePorts): RingService {
     // a retry that fires after Forget or stop must not bring the ring back
     if (!started || entries.get(e.ringKey) !== e) return;
     if (e.session || e.connecting) return;
+    // the person is adding a ring: the service's own connects (and their scans) wait until that is over
+    if (scanning || pairing) return;
     if (paused(e)) return set(e, { state: 'idle', paused: true });
     if (avail !== 'ready') return set(e, { state: avail });
     const v = view(e);
-    if (v.kind === 'held') return set(e, { state: 'elsewhere', heldBy: v.holder });
+    if (v.kind === 'held') return showElsewhere(e, v.holder);
+    e.cancelStaleWatch?.();
+    e.cancelStaleWatch = undefined;
     const platformId = e.local.platformId;
     if (!connector.reconnect || !platformId) return set(e, { state: 'idle', heldBy: undefined });
+    // a free or stale lease goes to the preferred device first (the phone, or the one the person chose); every other
+    // device waits once and looks at the lease again before it tries (R6). No lease document at all means no device
+    // has ever held this ring: nothing to wait for.
+    const lease = store.lease(e.ringKey);
+    if (v.kind !== 'mine' && syncOn() && lease && !preferredHere(lease, me().deviceId, ports.platform)) {
+      if (e.graceAt === undefined) {
+        e.graceAt = clock.now();
+        e.cancelGrace?.();
+        e.cancelGrace = clock.setTimeout(() => {
+          e.cancelGrace = undefined;
+          void autoConnect(e);
+        }, FREE_GRACE_MS);
+        if (e.status.state === 'elsewhere' || e.status.state === 'idle') set(e, { state: 'idle', heldBy: undefined });
+        return;
+      }
+      if (clock.now() - e.graceAt < FREE_GRACE_MS) return; // the grace timer calls again
+    }
     await connectWith(e, (signal) => connector.reconnect!(platformId, e.driverId, signal), { auto: true }).catch(() => undefined);
   }
 
@@ -474,12 +644,13 @@ export function createRingService(ports: RingServicePorts): RingService {
       } catch (err) {
         const code = err instanceof RingLinkError ? err.code : 'failed';
         if (e.session === session && code !== 'cancelled' && code !== 'unsupported_firmware' && canReopen(e)) {
-          // the link may be stale (the OS kept it, the ring stopped answering): let it go and reconnect from scratch
-          await closeSession(e, true);
+          // the link may be stale (the OS kept it, the ring stopped answering): let it go and reconnect from scratch,
+          // keeping the lease (R1)
+          await closeSession(e, false);
           // Disconnect may have been pressed while the link closed; another device may hold the ring now
           const v = view(e);
           if (paused(e)) set(e, { state: 'idle', paused: true, error: undefined, syncProgress: undefined, liveHr: undefined });
-          else if (v.kind === 'held') set(e, { state: 'elsewhere', heldBy: v.holder, error: undefined, syncProgress: undefined, liveHr: undefined });
+          else if (v.kind === 'held') showElsewhere(e, v.holder, { syncProgress: undefined, liveHr: undefined });
           else {
             set(e, { state: 'error', syncProgress: undefined, error: errorOf(err), liveHr: undefined });
             e.gattStatus = statusOf(err);
@@ -573,14 +744,28 @@ export function createRingService(ports: RingServicePorts): RingService {
       }
       statusFromSource(e, src);
       const t = takeoverFor(store.lease(e.ringKey), me().deviceId, clock.now());
-      if (e.session && t) {
+      if (t) {
+        // "Connect here instead" on another device, while this one holds the lease: with the link up or down (its
+        // retries would re-claim over the taker) let go, release, pause here for 12 h, tell the person
         await closeSession(e, true);
+        e.cancelRetry?.();
+        e.cancelRetry = undefined;
         await saveLocal(e, { pausedUntil: new Date(clock.now() + TAKEOVER_PAUSE_MS).toISOString() });
         armPauseEnd(e);
         set(e, { state: 'idle', paused: true, error: undefined, liveHr: undefined, syncProgress: undefined });
         quiet(() => shell.notify?.({ kind: 'ring_disconnected', title: 'Ring connected elsewhere', text: `Your ${e.status.label} is now connected to ${t.deviceLabel}.` }));
         continue;
       }
+      const v = view(e);
+      if (e.session && e.claimed && v.kind === 'held') {
+        // another device's fresh claim won the merge while this link is open: the ring is theirs, within one sync
+        // round rather than at the next heartbeat (R1)
+        await closeSession(e, false);
+        showElsewhere(e, v.holder, { liveHr: undefined, syncProgress: undefined });
+        continue;
+      }
+      // a fresh lease that lands while this device's own attempt is in flight ends that attempt (R2)
+      if (e.connecting && e.auto && v.kind === 'held') e.connectAbort?.abort();
       reflectLease(e);
     }
   }
@@ -627,6 +812,21 @@ export function createRingService(ports: RingServicePorts): RingService {
     throw new RingLinkError('failed', 'This browser cannot tell which ring this is. Connect it once from the Vitals app on your phone or computer.');
   }
 
+  /** The pairing list, as `scan` yields it. */
+  async function* scanHits(signal: AbortSignal): AsyncIterable<RingCandidate> {
+    for await (const hit of connector.scan(signal)) {
+      candidates.set(hit.candidateId, hit);
+      const fam = hit.driverId === 'unidentified' ? undefined : familyIdentity(hit.driverId, connector.driverInfo(hit.driverId));
+      const same = store.sources().filter((s) => isRingSource(s) && (!fam || parseRingKey(s.sourceKey)?.family === fam.family));
+      const c: RingCandidate = { candidateId: hit.candidateId, driverId: hit.driverId, label: fam?.label ?? 'Ring', known: same.length > 0, ...(hit.rssi !== undefined ? { rssi: hit.rssi } : {}) };
+      if (!fam) c.known = false;
+      if (same.length > 1) c.matches = same.map((s) => ({ ringKey: s.sourceKey, ...(s.ble?.lastSyncBy ? { lastSyncBy: s.ble.lastSyncBy } : {}), ...(s.ble?.lastSyncAt ? { lastSyncAt: s.ble.lastSyncAt } : {}) }));
+      const tail = hit.candidateId.replace(/[^0-9a-f]/gi, '').slice(-4).toLowerCase();
+      if (hit.platformId && tail.length === 4) c.idTail = tail;
+      yield c;
+    }
+  }
+
   const service: RingService = {
     start() {
       if (started) return started;
@@ -660,6 +860,15 @@ export function createRingService(ports: RingServicePorts): RingService {
                     avail = a;
                     publish();
                   });
+              // Lumen's foreground rules: the ladder starts over (the person is here), and an open link is checked
+              for (const e of entries.values()) {
+                e.shortDrops = 0;
+                if (e.session) void probeLink(e);
+                else {
+                  e.attempt = 0;
+                  e.gattStatus = undefined;
+                }
+              }
               void autoConnectAll();
             }),
           );
@@ -679,6 +888,12 @@ export function createRingService(ports: RingServicePorts): RingService {
                 .then((a) => {
                   avail = a;
                   publish();
+                  // Lumen resets its ladder when Bluetooth comes back on
+                  for (const e of entries.values()) {
+                    e.attempt = 0;
+                    e.gattStatus = undefined;
+                    e.shortDrops = 0;
+                  }
                   if (a === 'ready') void autoConnectAll();
                 });
             }),
@@ -691,7 +906,10 @@ export function createRingService(ports: RingServicePorts): RingService {
       offStore?.();
       offStore = undefined;
       for (const off of offShell.splice(0)) off();
-      for (const e of entries.values()) await closeSession(e, true);
+      for (const e of entries.values()) {
+        await closeSession(e, true);
+        clearIdleTimers(e);
+      }
       started = null;
     },
     rings,
@@ -703,41 +921,69 @@ export function createRingService(ports: RingServicePorts): RingService {
     availabilityKnown: () => availKnown,
     async *scan(signal) {
       candidates.clear();
-      for await (const hit of connector.scan(signal)) {
-        candidates.set(hit.candidateId, hit);
-        const fam = hit.driverId === 'unidentified' ? undefined : familyIdentity(hit.driverId, connector.driverInfo(hit.driverId));
-        const same = store.sources().filter((s) => isRingSource(s) && (!fam || parseRingKey(s.sourceKey)?.family === fam.family));
-        const c: RingCandidate = { candidateId: hit.candidateId, driverId: hit.driverId, label: fam?.label ?? 'Ring', known: same.length > 0, ...(hit.rssi !== undefined ? { rssi: hit.rssi } : {}) };
-        if (!fam) c.known = false;
-        if (same.length > 1) c.matches = same.map((s) => ({ ringKey: s.sourceKey, ...(s.ble?.lastSyncBy ? { lastSyncBy: s.ble.lastSyncBy } : {}), ...(s.ble?.lastSyncAt ? { lastSyncAt: s.ble.lastSyncAt } : {}) }));
-        const tail = hit.candidateId.replace(/[^0-9a-f]/gi, '').slice(-4).toLowerCase();
-        if (hit.platformId && tail.length === 4) c.idTail = tail;
-        yield c;
+      // the service's own reconnects (and the scans inside them) stay out of the person's scan
+      scanning = true;
+      try {
+        yield* scanHits(signal);
+      } finally {
+        scanning = false;
+        if (!pairing) void autoConnectAll();
       }
     },
     async pair(candidateId, ringKey) {
       const hit = candidates.get(candidateId);
       if (!hit) throw new RingLinkError('not_found', 'That ring is no longer in the list. Scan again.');
-      const session = await connector.connect(hit, new AbortController().signal);
-      let key: string;
+      pairing = true;
+      const heldBack: Entry[] = [];
+      let paired: Entry | undefined;
       try {
-        key = resolveRingKey(session, ringKey, true);
-      } catch (err) {
-        await session.close().catch(() => undefined);
-        throw err;
+        // the person's connect wins over the service's own attempt at the same ring (Lumen: one connect at a time),
+        // and its retries wait until the pairing is over
+        for (const x of entries.values())
+          if (hit.platformId !== undefined && x.local.platformId === hit.platformId) {
+            if (x.connecting && x.auto) {
+              x.connectAbort?.abort();
+              await x.connecting;
+            }
+            x.cancelRetry?.();
+            x.cancelRetry = undefined;
+            x.cancelGrace?.();
+            x.cancelGrace = undefined;
+            heldBack.push(x);
+          }
+        const session = await connector.connect(hit, new AbortController().signal);
+        let key: string;
+        try {
+          key = resolveRingKey(session, ringKey, true);
+        } catch (err) {
+          await session.close().catch(() => undefined);
+          throw err;
+        }
+        const e = await entryFor(key, session.identity.driverId);
+        paired = e;
+        await saveLocal(e, { paused: undefined, pausedUntil: undefined });
+        e.shortDrops = 0;
+        const known = store.source(key) !== undefined;
+        await closeSession(e, false);
+        await connectWith(e, async () => session, { full: !known });
+        return { ...e.status };
+      } finally {
+        pairing = false;
+        // a ring this pairing held back (and the paired one when the pairing failed) goes back on its ladder; the rest
+        // get the turn the pairing may have cost them
+        for (const x of entries.values()) {
+          if (x.session || x.connecting || x.cancelRetry || paused(x)) continue;
+          if (x === paired || heldBack.includes(x)) scheduleRetry(x);
+          else void autoConnect(x);
+        }
       }
-      const e = await entryFor(key, session.identity.driverId);
-      await saveLocal(e, { paused: undefined, pausedUntil: undefined });
-      const known = store.source(key) !== undefined;
-      await closeSession(e, false);
-      await connectWith(e, async () => session, { full: !known });
-      return { ...e.status };
     },
     async connectHere(ringKey) {
       const e = entries.get(ringKey);
       if (!e) throw new RingLinkError('not_found', 'No such ring.');
       await saveLocal(e, { paused: undefined, pausedUntil: undefined });
       set(e, { paused: false });
+      e.shortDrops = 0;
       const platformId = e.local.platformId;
       const open = connector.reconnect && platformId ? (signal: AbortSignal) => connector.reconnect!(platformId, e.driverId, signal) : undefined;
       if (e.session) {
@@ -747,8 +993,15 @@ export function createRingService(ports: RingServicePorts): RingService {
         if (!open) return void (await runSync(e, {}).catch(() => undefined));
         await closeSession(e, true);
       }
+      e.cancelGrace?.();
+      e.cancelGrace = undefined;
+      e.cancelStaleWatch?.();
+      e.cancelStaleWatch = undefined;
       let v = view(e);
-      if (v.kind === 'held') await store.patchLease(ringKey, takeoverPatch(me(), nowIso()));
+      // the lease first (R3): the person chose this device, so it gets the head start from now on (only a device that
+      // can reconnect on its own: a browser cannot use a head start); a holder, alive or silent, is told to let go
+      const patch = { ...(open ? preferPatch(me(), nowIso()) : {}), ...(v.kind === 'held' || v.kind === 'stale' ? takeoverPatch(me(), nowIso()) : {}) };
+      if (syncOn() && Object.keys(patch).length > 0) await store.patchLease(ringKey, patch);
       if (!open) return set(e, { state: 'idle', heldBy: undefined }); // the web: the Ring page's Connect opens the chooser
       const t0 = clock.now();
       const until = t0 + TAKEOVER_RETRY_MS;
@@ -766,7 +1019,7 @@ export function createRingService(ports: RingServicePorts): RingService {
         }
         if (clock.now() >= until) {
           v = view(e);
-          if (v.kind === 'held') return set(e, { state: 'elsewhere', heldBy: v.holder, error: undefined });
+          if (v.kind === 'held') return showElsewhere(e, v.holder);
           return set(e, { state: 'error', error: errorOf(new RingLinkError('not_found')) });
         }
         set(e, { state: 'searching', error: undefined });
@@ -783,6 +1036,7 @@ export function createRingService(ports: RingServicePorts): RingService {
       const platformId = e.local.platformId;
       if (!connector.reconnect || !platformId) throw new RingLinkError('not_found', 'Connect the ring first.');
       await saveLocal(e, { paused: undefined, pausedUntil: undefined });
+      e.shortDrops = 0;
       await connectWith(e, (signal) => connector.reconnect!(platformId, e.driverId, signal), {});
     },
     async checkNow(ringKey, metric) {
@@ -848,6 +1102,7 @@ export function createRingService(ports: RingServicePorts): RingService {
       const e = entries.get(ringKey);
       if (e) {
         await closeSession(e, true);
+        clearIdleTimers(e);
         entries.delete(ringKey);
       }
       await store.patchSource(ringKey, { ble: null, deviceType: null });

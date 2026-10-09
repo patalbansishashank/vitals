@@ -1,17 +1,15 @@
 /**
- * <DateStrip> (COMPONENTS §13.8): a week as seven day keys — the instrument's date dial on Today, Food and Train.
- * Today = pressed key + yellow dot; another selected date = 2 px ink ring; past days carry the 16 px adherence glyph,
- * future days a hollow dot; paused days are struck; the plan's first and last days carry a bracket.
+ * <DateStrip> (COMPONENTS §13.8): the week on Today, Food and Train, as a plain card: the week's dates in the head with
+ * small ‹ › keys, then seven day keys ("Mon 5"). The selected day is pressed; today's key is signal yellow. No glyphs
+ * or dots: what a day holds (logged, paused, preview, outside the plan) is in each key's accessible name and tooltip.
  */
 import { useRef, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { IconKey, cx } from '@/components';
-import { AdherenceDial } from '@/features/charts/living/AdherenceDial';
+import { Faceplate, IconKey, cx } from '@/components';
 import { addDays } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import type { DayGlance } from '../data/types';
-import { dayOfMonth, fmtDay, quietWord, weekdayKey } from '../format';
-import { dialItemsOf } from '../model/adherence';
+import { dayOfMonth, fmtDateRange, fmtDay, quietWord, weekdayKey } from '../format';
 
 export interface DateStripProps {
   days: readonly DayGlance[];
@@ -53,14 +51,26 @@ export function DateStrip({ days, selected, today, onSelect, onWeek, quiet = fal
       onSelect(addDays(days[i]!.date, delta));
     }
   };
+  const first = days[0]?.date;
+  const last = days[days.length - 1]?.date;
   return (
-    <div className="lv-datestrip">
-      <IconKey icon={ChevronLeft} label="Previous week" size="sm" variant="quiet" onClick={() => onWeek(-1)} />
+    <Faceplate
+      className="lv-datestrip"
+      title={first && last ? fmtDateRange(first, last) : label}
+      titleAs="h2"
+      aria-label={`${label}: week`}
+      actions={
+        <span className="lv-datestrip__nav">
+          <IconKey icon={ChevronLeft} label="Previous week" size="sm" variant="quiet" onClick={() => onWeek(-1)} />
+          <IconKey icon={ChevronRight} label="Next week" size="sm" variant="quiet" onClick={() => onWeek(1)} />
+        </span>
+      }
+    >
       <div className="lv-datestrip__days" role="radiogroup" aria-label={label}>
         {days.map((d, i) => {
           const isToday = d.date === today;
           const isSel = d.date === selected;
-          const past = d.date <= today;
+          const name = dayLabel(d, today, quiet);
           return (
             <button
               key={d.date}
@@ -71,30 +81,23 @@ export function DateStrip({ days, selected, today, onSelect, onWeek, quiet = fal
               type="button"
               role="radio"
               aria-checked={isSel}
-              aria-label={dayLabel(d, today, quiet)}
+              aria-label={name}
+              title={name}
               tabIndex={isSel ? 0 : -1}
-              className={cx('lv-daykey', isToday && 'is-today', isSel && 'is-selected', d.paused && 'is-paused', !d.inPlan && 'is-outside', d.isStart && 'is-start', d.isEnd && 'is-end', d.assumed && 'is-assumed')}
+              className={cx('lv-daykey', isToday && 'is-today', isSel && 'is-selected', d.paused && 'is-paused', !d.inPlan && 'is-outside')}
               onClick={() => onSelect(d.date)}
               onKeyDown={(e) => onKey(e, i)}
             >
               <span className="lv-daykey__wd" aria-hidden="true">
                 {weekdayKey(d.date)}
-              </span>
+              </span>{' '}
               <span className="lv-daykey__num lm-num" aria-hidden="true">
                 {dayOfMonth(d.date)}
-              </span>
-              <span className="lv-daykey__glyph" aria-hidden="true">
-                {past && d.inPlan && d.score ? (
-                  <AdherenceDial size="glyph" items={dialItemsOf(d.score)} score={d.score.score} final={d.score.final} label="" />
-                ) : d.inPlan ? (
-                  <span className="lv-daykey__dot" />
-                ) : null}
               </span>
             </button>
           );
         })}
       </div>
-      <IconKey icon={ChevronRight} label="Next week" size="sm" variant="quiet" onClick={() => onWeek(1)} />
-    </div>
+    </Faceplate>
   );
 }

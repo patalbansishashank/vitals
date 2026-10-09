@@ -3,7 +3,9 @@
  * the lease between two devices, disconnect/pause, live heart rate, spot checks, battery.
  */
 import { describe, expect, it } from 'vitest';
-import { LEASE_HEARTBEAT_MS, LEASE_STALE_MS, SYNC_EVERY_MS } from '../types';
+import { claimPatch } from '../lease';
+import { RingLinkError, type RingLinkSession } from '../ports';
+import { LEASE_HEARTBEAT_MS, LEASE_STALE_MS, RELEASE_AFTER_ATTEMPTS, SYNC_EVERY_MS } from '../types';
 import { ANOTHER_APP, LIVE_FIRST_MS, createRingService } from '../ringService';
 import { devicePorts, FakeClock, FakeRing, MemoryLocal, RING_KEY, settle, SharedStore } from './fakes';
 
@@ -540,5 +542,203 @@ describe('the lease between two devices', () => {
     await settle();
     expect(b.rings()[0]).toMatchObject({ state: 'error', error: { code: 'not_found', message: ANOTHER_APP } });
     expect(store.leaseWrites).toEqual([]);
+  });
+});
+
+describe('the holder keeps the ring (v0.5.3, R1)', () => {
+  it('a drop keeps the lease: the holder reconnects at 5 s and the lease still names it', async () => {
+    const { svc, ring, store, clock } = setup();
+    await svc.start();
+    await settle();
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+    ring.held!.drop();
+    await settle();
+    expect(svc.rings()[0]!.state).toBe('error');
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+    await clock.advance(5_000);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+  });
+
+  it(`after ${RELEASE_AFTER_ATTEMPTS} failed retries in a row the holder lets go of the lease, so another device may try`, async () => {
+    const { svc, ring, store, clock } = setup();
+    await svc.start();
+    await settle();
+    ring.refuse = 'not_found';
+    ring.held!.drop();
+    await settle();
+    // the drop and the failed retries at 5 s and 20 s keep the lease; the third failed retry, at 50 s, releases it
+    await clock.advance(5_000);
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+    await clock.advance(15_000);
+    expect(ring.connectAttempts).toHaveLength(3);
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+    await clock.advance(30_000);
+    expect(ring.connectAttempts).toHaveLength(4);
+    expect(store.leases.get(RING_KEY)!.holder).toBeNull();
+    expect(svc.rings()[0]).toMatchObject({ state: 'error', error: { code: 'not_found' } });
+    // and claims it again once the ring answers
+    ring.refuse = null;
+    await clock.advance(60_000);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+  });
+
+  it('a claim that lost the merge: another device\'s fresh claim shows while the link is open, so this device lets go within one store change', async () => {
+    const { svc, ring, store, clock } = setup();
+    await svc.start();
+    await settle();
+    const s = ring.held!;
+    await store.port().patchLease(RING_KEY, claimPatch({ deviceId: 'DEVICEB000000002', deviceLabel: 'Desktop', platform: 'electron' }, new Date(clock.now()).toISOString(), RING_KEY));
+    await settle();
+    expect(s.closed).toBe(true);
+    expect(ring.held).toBeNull();
+    expect(svc.rings()[0]).toMatchObject({ state: 'elsewhere', heldBy: { deviceId: 'DEVICEB000000002' } });
+    // the other device's claim stands; this one does not retry
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEB000000002');
+    const n = ring.connectAttempts.length;
+    await clock.advance(10 * 60_000);
+    expect(ring.connectAttempts).toHaveLength(n);
+  });
+
+  it('a browser that cannot reopen the link lets go of the lease on a drop, so the phone takes the ring at once', async () => {
+    const clock = new FakeClock();
+    const store = new SharedStore();
+    const ring = new FakeRing({ platformIds: ['web-opaque-id-0001', 'aa:bb:cc:dd:ee:01'] });
+    store.addRingSource(RING_KEY, 'jstyle2301');
+    const web = createRingService(devicePorts({ store, clock, rings: [ring], deviceId: 'DEVICEW000000003', label: 'Browser', platform: 'web', canReconnect: false, platformId: 'web-opaque-id-0001' }));
+    const phone = createRingService(devicePorts({ store, clock, rings: [ring], deviceId: 'DEVICEA000000001', label: 'Phone', platform: 'android', platformId: 'aa:bb:cc:dd:ee:01' }));
+    await web.start();
+    const found: string[] = [];
+    for await (const c of web.scan(new AbortController().signal)) found.push(c.candidateId);
+    await web.pair(found[0]!);
+    void phone.start();
+    await settle();
+    expect(phone.rings()[0]!.state).toBe('elsewhere');
+    ring.held!.drop();
+    await clock.advance(5_000);
+    expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEA000000001');
+    expect(phone.rings()[0]!.state).toBe('connected');
+    expect(web.rings()[0]).toMatchObject({ state: 'elsewhere', heldBy: { deviceLabel: 'Phone' } });
+  });
+
+  for (const second of ['refuse', 'kick'] as const) {
+    it(`"Connect here instead" while the holder's link is down (ring ${second === 'kick' ? 'takes the newest central' : 'refuses a second one'}): the holder stops retrying, pauses, is told; the ring moves once`, async () => {
+      const clock = new FakeClock();
+      const store = new SharedStore();
+      const ring = new FakeRing({ platformIds: ['aa:bb:cc:dd:ee:01', 'AA:BB:CC:DD:EE:01'] });
+      ring.onSecondCentral = second;
+      store.addRingSource(RING_KEY, 'jstyle2301');
+      store.leases.set(RING_KEY, { kind: 'ringLease', ringKey: RING_KEY, holder: null, heartbeatAt: null, takeover: null });
+      const notices: unknown[] = [];
+      const a = createRingService(devicePorts({ store, clock, rings: [ring], deviceId: 'DEVICEA000000001', label: 'Phone', platform: 'android', platformId: 'aa:bb:cc:dd:ee:01', lagMs: 3000, shell: { notify: (n) => void notices.push(n) } }));
+      const b = createRingService(devicePorts({ store, clock, rings: [ring], deviceId: 'DEVICEB000000002', label: 'Desktop', platform: 'electron', platformId: 'AA:BB:CC:DD:EE:01', lagMs: 3000 }));
+      void a.start();
+      void b.start();
+      await clock.advance(120_000);
+      expect(a.rings()[0]!.state).toBe('connected');
+      expect(b.rings()[0]!.state).toBe('elsewhere');
+      ring.held!.drop();
+      await settle();
+      const moved = b.connectHere(RING_KEY);
+      await clock.advance(70_000);
+      await moved;
+      expect(b.rings()[0]!.state).toBe('connected');
+      expect(ring.held?.platformId).toBe('AA:BB:CC:DD:EE:01');
+      expect(store.leases.get(RING_KEY)!.holder?.deviceId).toBe('DEVICEB000000002');
+      expect(a.rings()[0]).toMatchObject({ state: 'elsewhere', paused: true });
+      expect(notices).toHaveLength(1);
+      await clock.advance(10 * 60_000);
+      expect(ring.held?.platformId).toBe('AA:BB:CC:DD:EE:01');
+      expect(ring.kicks).toEqual([]);
+      expect(a.rings()[0]).toMatchObject({ state: 'elsewhere', paused: true });
+    });
+  }
+
+  it('a slow pairing connect (10 s) is not stolen by the service\'s own retry', async () => {
+    const { svc, ring, ports, clock } = setup();
+    const real = ports.connector.reconnect!;
+    let calls = 0;
+    ports.connector.reconnect = (pid, d, signal) => {
+      if (calls++ > 0) return real(pid, d, signal);
+      return new Promise<RingLinkSession>((_r, reject) => signal.addEventListener('abort', () => reject(new RingLinkError('cancelled')), { once: true }));
+    };
+    void svc.start();
+    await settle();
+    const found: string[] = [];
+    for await (const c of svc.scan(new AbortController().signal)) found.push(c.candidateId);
+    ring.connectDelayMs = 10_000;
+    const p = svc.pair(found[0]!);
+    await clock.advance(30_000);
+    expect((await p).state).toBe('connected');
+    expect(svc.rings()[0]!.state).toBe('connected');
+    expect(ring.connectAttempts).toHaveLength(1);
+    expect(calls).toBe(1);
+  });
+
+  it('on resume, a ring that gives no battery level (it stopped answering) is reopened; a "busy" answer keeps the link', async () => {
+    let resume: (() => void) | undefined;
+    const { svc, ring, clock } = setup({ shell: { onResume: (fn) => ((resume = fn), () => undefined) } });
+    await svc.start();
+    await settle();
+    const live = ring.held!;
+    live.battery = async () => {
+      throw Object.assign(new Error('another command is running on this ring'), { code: 'busy' });
+    };
+    resume!();
+    await settle();
+    expect(ring.held).toBe(live);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    Object.assign(live, { battery: async (): Promise<number | undefined> => undefined });
+    resume!();
+    await settle();
+    expect(live.closed).toBe(true);
+    expect(svc.rings()[0]!.state).toBe('error');
+    await clock.advance(5_000);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    expect(ring.held).not.toBe(live);
+  });
+
+  it('on resume a dead link is found with one battery read and reopened; a live one is kept (Lumen reconnectIfNeeded)', async () => {
+    let resume: (() => void) | undefined;
+    const { svc, ring, clock } = setup({ shell: { onResume: (fn) => ((resume = fn), () => undefined) } });
+    await svc.start();
+    await settle();
+    const live = ring.held!;
+    resume!();
+    await settle();
+    expect(ring.held).toBe(live);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    // the OS kept the link, the ring stopped answering
+    live.battery = async () => {
+      throw new RingLinkError('disconnected');
+    };
+    resume!();
+    await settle();
+    expect(live.closed).toBe(true);
+    expect(svc.rings()[0]!.state).toBe('error');
+    await clock.advance(5_000);
+    expect(svc.rings()[0]!.state).toBe('connected');
+    expect(ring.held).not.toBe(live);
+  });
+
+  it('the person\'s connect from the list wins over the service\'s own attempt at the same ring', async () => {
+    const { svc, ring, ports } = setup();
+    const real = ports.connector.reconnect!;
+    let calls = 0;
+    ports.connector.reconnect = (pid, d, signal) => {
+      if (calls++ > 0) return real(pid, d, signal);
+      return new Promise<RingLinkSession>((_r, reject) => signal.addEventListener('abort', () => reject(new RingLinkError('cancelled')), { once: true }));
+    };
+    // start() waits for the first auto-connect, which the fake holds open until it is aborted
+    void svc.start();
+    await settle();
+    expect(svc.rings()[0]!.state).toBe('connecting');
+    const found: string[] = [];
+    for await (const c of svc.scan(new AbortController().signal)) found.push(c.candidateId);
+    const status = await svc.pair(found[0]!);
+    expect(status.state).toBe('connected');
+    expect(ring.held?.platformId).toBe('aa:bb:cc:dd:ee:01');
+    expect(ring.connectAttempts).toHaveLength(1);
   });
 });

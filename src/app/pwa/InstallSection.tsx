@@ -69,7 +69,7 @@ export function InstallSection() {
             )
           }
         </SettingRow>
-        {line ? <p className="mb-2.5 mt-1 max-w-[68ch] text-sm leading-[1.5] text-ink-2">{line}</p> : null}
+        {line ? <p className="mb-2.5 mt-1 text-sm leading-[1.5] text-ink-2">{line}</p> : null}
         {app ? null : (
           <SettingRow label={PWA_COPY.offlineLabel} help={synced ? PWA_COPY.offlineHelpSynced : PWA_COPY.offlineHelp}>
             {() => <OfflineStatus offline={sw.offline} />}
@@ -112,7 +112,7 @@ function YourServer() {
         </>
       ) : (
         <>
-          <p className="m-0 max-w-[68ch] text-sm leading-[1.5] text-ink-2">{PWA_COPY.serverWhat}</p>
+          <p className="m-0 text-sm leading-[1.5] text-ink-2">{PWA_COPY.serverWhat}</p>
           <div className="flex flex-wrap items-center gap-3">
             <KeyLink size="sm" to="/settings/server">
               {PWA_COPY.serverPair}

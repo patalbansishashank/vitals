@@ -17,7 +17,7 @@ import { burdenMonitor, lapseState, loggedDays, projectEntries } from './logs';
 import { toLoggedDay, type LoggedDayResult, type SessionCompiler } from './loggedDay';
 import type { DayObservations } from './observations';
 import type { BlockAdherence } from './plannerContract';
-import { compileVersion, freezePrescription } from './prescription';
+import { compileVersion, freezePrescription, withUsualSessions } from './prescription';
 import { buildTodayView } from './today';
 import type {
   AdherenceTrend,
@@ -138,7 +138,11 @@ export function projectLiving(i: ProjectionInput): LivingProjection {
     const status = statusByDate.get(date) ?? null;
     const v = versionInForce(versions, d) ?? head;
     const frozen = status?.prescribed !== undefined && status.prescribed.planId === plan.id;
-    const prescription = frozen ? status!.prescribed! : freezePrescription({ plan, version: v, date, tz, compiled: compiledOf(v), ...(paused.has(d) ? { paused: true } : {}) });
+    const freezeWith = (fv: PlanVersionDoc) => () => freezePrescription({ plan, version: fv, date, tz, compiled: compiledOf(fv), ...(paused.has(d) ? { paused: true } : {}) });
+    // a day frozen before usual sessions were prescribed gets them re-derived from its own version (never written back)
+    const prescription = frozen
+      ? withUsualSessions(status!.prescribed!, plan.baselineProfile, date, freezeWith(versions.find((x) => x.version === status!.prescribed!.version) ?? v))
+      : freezeWith(v)();
     const blocks = revealedAdherence(credits, addDays(date, -1));
     const result = toLoggedDay({
       date, planStart: plan.startDate, tz, prescription, entries: entries.filter((e) => e.date === date), status, observations: obsByDate.get(date) ?? null,

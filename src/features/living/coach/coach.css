@@ -1,5 +1,5 @@
 /* Coach (living-mode.md, Coach): one flush faceplate, rows separated by hairlines (no bubbles), engraved speakers in
-   a 64 px gutter on desktop / above the text on mobile; "What the Coach knows" docked at ≥ 1280 px. Achromatic. */
+   a 64 px gutter on desktop / above the text on mobile; "What the Coach knows" in a slide-in panel. Achromatic. */
 @layer components {
   .lv-coach {
     display: grid;
@@ -16,19 +16,7 @@
     gap: 12px;
     align-content: start;
     width: 100%;
-    max-width: 760px;
     min-width: 0;
-    margin-inline: auto;
-  }
-  @media (min-width: 80rem) {
-    .lv-coach-grid[data-docked='true'] {
-      grid-template-columns: minmax(0, 760px) 360px;
-      justify-content: center;
-      align-items: start;
-    }
-    .lv-coach-grid[data-docked='true'] .lv-coach-main {
-      margin-inline: 0;
-    }
   }
 
   /* "1 proposal waiting", pinned under the context row */
@@ -177,7 +165,8 @@
     display: grid;
     gap: 10px;
     justify-items: start;
-    padding: 24px 16px;
+    padding: 16px;
+    max-width: 68ch;
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
     color: var(--lm-ink);
@@ -190,7 +179,7 @@
   }
   @media (min-width: 64rem) {
     .lv-coach-empty {
-      padding: 32px 20px 32px 84px;
+      padding: 20px;
     }
   }
 
@@ -211,18 +200,12 @@
     }
   }
 
-  /* What the Coach knows (docked) */
-  .lv-coach-brief {
-    position: sticky;
-    top: calc(var(--lm-topbar-h) + 12px);
-    max-height: calc(100dvh - var(--lm-topbar-h) - 24px);
-    overflow-y: auto;
-  }
+  /* What the Coach knows (slide-in panel) */
   .lv-coach-brief__body {
     display: grid;
     gap: 16px;
   }
-  /* in the mobile sheet the shared panel body has no padding: inset like the head and foot */
+  /* the shared panel body has no padding: inset like the head and foot */
   .lm-panel__body > .lv-coach-brief__body {
     padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
   }

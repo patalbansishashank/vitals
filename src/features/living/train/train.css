@@ -1,5 +1,13 @@
 /* Train (design/screens/living-mode.md, Train). Tokens only; achromatic chrome; class prefix lv-train-. */
 @layer components {
+  /* the today / week switch sits at the right end of the title row, like the keys in a card head */
+  .lv-train-viewbank {
+    margin-inline-start: auto;
+  }
+  .lm-ctx:has(> .lv-train-viewbank) > .lm-ctx__grow {
+    display: none;
+  }
+
   .lv-train {
     display: grid;
     gap: var(--lm-space-4);
@@ -25,7 +33,6 @@
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
     color: var(--lm-ink-2);
-    max-width: var(--lm-measure-prose);
   }
   .lv-train-footnote {
     font-size: var(--lm-text-xs);
@@ -34,7 +41,7 @@
     padding-inline: var(--lm-space-1);
   }
 
-  /* layout: one column on mobile; 8 | 4 from 1024 px */
+  /* layout: one column on mobile; two equal columns from 1024 px */
   .lv-train-grid {
     display: grid;
     gap: var(--lm-space-4);
@@ -51,11 +58,10 @@
     .lv-train-grid {
       grid-template-columns: repeat(12, minmax(0, 1fr));
     }
-    .lv-train-main {
-      grid-column: span 8;
-    }
+    /* two equal columns on desktop */
+    .lv-train-main,
     .lv-train-aside {
-      grid-column: span 4;
+      grid-column: span 6;
     }
   }
 
@@ -64,6 +70,24 @@
     display: grid;
     gap: var(--lm-space-2);
     padding-block: var(--lm-space-2) var(--lm-space-3);
+  }
+  .lv-train-session__keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .lv-train-session__sum {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 14px;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-train-session__sum > .lm-num {
+    color: var(--lm-ink);
+    font-weight: 600;
   }
   .lv-train-session__kit {
     font-size: var(--lm-text-sm);
@@ -95,33 +119,16 @@
     margin: 0;
     padding: 0;
   }
-  .lv-train-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--lm-space-3);
-    padding-block: var(--lm-space-3);
-    border-top: 1px solid var(--lm-line);
-  }
-  .lv-train-row__main {
-    display: grid;
-    gap: var(--lm-space-1-5);
-    min-width: 0;
-  }
+  /* the exercises ride the shared day rail (living.css): number · node · name + readout · Done + ⋯ */
   .lv-train-row__name {
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
-    font-weight: var(--lm-weight-medium);
-    color: var(--lm-ink);
+    font-weight: 600;
   }
-  .lv-train-row[data-state='skipped'] .lv-train-row__name,
-  .lv-train-row[data-state='skipped'] .lv-train-row__rx {
-    color: var(--lm-ink-3);
-  }
-  .lv-train-row__rx {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+  .lv-train-row[data-state='done'] .lv-train-row__name,
+  .lv-train-row[data-state='skipped'] .lv-train-row__name {
+    font-weight: 500;
     color: var(--lm-ink-2);
-    font-variant-numeric: tabular-nums;
   }
   .lv-train-row__swap {
     display: flex;
@@ -129,56 +136,9 @@
     align-items: center;
     gap: var(--lm-space-1) var(--lm-space-2);
   }
-  .lv-train-row__keys {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: var(--lm-space-1);
-  }
-
-  /* tick key 44 × 44: empty well · done ink fill · partial half fill · skipped hollow with a diagonal */
-  .lv-train-tick {
-    position: relative;
-    display: inline-grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--lm-radius-md);
-    border: 1px solid var(--lm-edge);
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-    color: transparent;
-    cursor: pointer;
-    overflow: hidden;
-    transition:
-      background-color var(--lm-dur-fast) var(--lm-ease-out),
-      color var(--lm-dur-fast) var(--lm-ease-out);
-  }
-  .lv-train-tick[data-state='done'] {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    box-shadow: none;
-  }
-  .lv-train-tick[data-state='partial'] {
-    background: linear-gradient(to top, var(--lm-ink) 50%, var(--lm-well) 50%);
-    color: transparent;
-  }
-  .lv-train-tick[data-state='skipped'] {
-    background: transparent;
-    box-shadow: none;
-  }
-  .lv-train-tick[data-state='skipped']::after {
-    content: '';
-    position: absolute;
-    inset: 50% -4px auto;
-    border-top: 1px solid var(--lm-ink-2);
-    transform: rotate(-45deg);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .lv-train-tick {
-      transition: none;
-    }
+  .lv-train-rows .lv-day,
+  .lv-train-rows.lv-day {
+    --t: 1.5rem;
   }
 
   /* quick log: a chip per planned set */

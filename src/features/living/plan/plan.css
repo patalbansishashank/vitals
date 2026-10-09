@@ -24,7 +24,6 @@
     }
     .lv-plan--version {
       grid-template-columns: minmax(0, 1fr);
-      max-width: 960px;
     }
   }
   .lv-plan-section {
@@ -44,14 +43,12 @@
   }
   .lv-plan-prose {
     margin: 0;
-    max-width: var(--lm-measure-prose);
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
     color: var(--lm-ink-2);
   }
   .lv-plan-note {
     margin: 0;
-    max-width: var(--lm-measure-prose);
     font-size: 12px;
     line-height: 16px;
     color: var(--lm-ink-3);

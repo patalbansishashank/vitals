@@ -1,14 +1,15 @@
 import { create } from 'zustand';
-import { Activity, ChartSpline, Circle, MessageSquareText, SunDim, Undo2, Utensils } from 'lucide-react';
+import { ChartSpline, MessageSquareText, SunDim, Undo2, Utensils } from 'lucide-react';
 import type { IconComponent } from '@/components/icons/Icon';
 import * as Glyphs from '@/components/icons/glyphs';
+import { RingGlyph } from '@/features/ring/RingKey';
 
 export type Destination = 'body' | 'simulate' | 'plan' | 'evidence';
 /** Living-mode destinations (IA §3.5–§3.6). */
 export type LivingDestination = 'today' | 'food' | 'train' | 'coach' | 'progress';
 
 export interface NavItem {
-  id: Destination | LivingDestination | 'settings' | 'planning' | 'ring' | 'signals';
+  id: Destination | LivingDestination | 'settings' | 'planning' | 'signals';
   to: string;
   label: string;
   icon: IconComponent;
@@ -24,9 +25,11 @@ export const DESTINATIONS: NavItem[] = [
 
 export const SETTINGS_ITEM: NavItem = { id: 'settings', to: '/settings', label: 'settings', icon: Glyphs.SlidersGlyph };
 
-/** Ring and Body signals (ring-pages.md D2: the ring is a top-bar key, not a tab; neither is in the destination lists). */
-export const RING_ITEM: NavItem = { id: 'ring', to: '/ring', label: 'ring', icon: Circle };
-export const SIGNALS_ITEM: NavItem = { id: 'signals', to: '/signals', label: 'body signals', icon: Activity };
+/**
+ * Body signals, the one ring page (ring-pages.md D2: a top-bar key, not a tab; not in the destination lists). Same
+ * mark as the top-bar ring key: a ring with a pulse line.
+ */
+export const SIGNALS_ITEM: NavItem = { id: 'signals', to: '/signals', label: 'body signals', icon: RingGlyph };
 
 /** Living mode: Today (home) · Food · Train · Coach · Progress (IA §3.5; full words, never abbreviated). */
 export const LIVING_DESTINATIONS: NavItem[] = [

@@ -15,8 +15,9 @@ Licence terms: https://creativecommons.org/licenses/by/4.0/
 The official licence was updated on 27 February 2025; historical OBJ headers
 retain the earlier CC BY-SA 2.1 Japan text.
 Changes: selection of bones and skeletal muscles, coordinate conversion,
-reference-pose registration, mesh reduction, grouping, quantization, compression,
-and illustrative runtime scaling. The derived anatomy asset is CC BY 4.0.
+joint-based reposing to the body mesh, skin-surface binding, mesh repair and
+reduction, muscles trimmed where their tendons begin, grouping, quantization, compression, and illustrative runtime fitting inside
+the skin. The derived anatomy asset is CC BY 4.0.
 
 These are adapted reference models, not personal scans. Neither source endorses
 Vitals. Fat layers are schematic illustrations of the app's estimates.

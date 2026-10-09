@@ -2,11 +2,11 @@
  * Supplement row (design/COMPONENTS.md §14.4; SUITE_SPEC §13.2): one row per supplement, used in the intake's
  * "which supplements" question, Settings › Supplements and the Food tab.
  *
- * Left: name, evidence badge, the catalogue's usual dose. Right: the dose field with its unit, the four times of day
- * as a multi-toggle bank, and the state (taking · have it, don't take · not for me). The row lays itself out by its
- * own width (container queries in `SupplementRow.css`): one line from 720 px, two lines from 480 px, and below 480 px
- * the times of day take their own line with four equal 44 px keys and the state becomes a Select. Controls never
- * shrink under their minimum width: the row wraps instead, so nothing overlaps.
+ * Left: name, evidence badge, the catalogue's usual dose. Right: the state (taking · have it, don't take · not for me).
+ * Under them, two lines that take the row's full width: the amount (the field grows, then its unit and "each time") and
+ * the four times of day as a multi-toggle bank of equal 44 px keys, at any row width. The row lays itself out by its own
+ * width (container queries in `SupplementRow.css`): below 480 px the state becomes a Select. Controls never shrink
+ * under their minimum width: the row wraps instead, so nothing overlaps.
  *
  * Controlled: every change calls `onChange` with the whole row (callers dispatch `supplements.set` or keep a draft).
  * Variant `today` (Food tab) shows "5 g · morning" with a Taken key and an Edit key that turns the row into `edit`.
@@ -178,7 +178,7 @@ export function SupplementRow({ row, onChange, variant = 'edit', taken = false, 
                     unitText={unit}
                   />
                   {units.length > 1 ? (
-                    <Select<string> size="sm" className="lm-supprow__unit" label={C.unitLabel(name)} value={unit} onChange={(u) => onChange(setRowDose(row, row.dose, u))} options={units.map((u) => ({ value: u, label: u }))} />
+                    <Select<string> size="md" className="lm-supprow__unit" label={C.unitLabel(name)} value={unit} onChange={(u) => onChange(setRowDose(row, row.dose, u))} options={units.map((u) => ({ value: u, label: u }))} />
                   ) : null}
                   <span className="lm-supprow__each">{perDay ?? C.each}</span>
                   {doseErr ? <ErrorText id={doseErrId}>{doseErr}</ErrorText> : null}

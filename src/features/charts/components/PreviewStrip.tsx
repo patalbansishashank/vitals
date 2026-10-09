@@ -22,7 +22,8 @@ export const PreviewStrip = memo(function PreviewStrip({ fat, ketosis, unit = 'k
   const width = useElementWidth(rootRef) || 600;
   const n = fat.length;
   const m = { l: 44, r: 44, t: 6, b: 12 };
-  const pw = width - m.l - m.r;
+  // a container narrower than the two 44 px margins (mid-layout) must not give the ketosis bars a negative width
+  const pw = Math.max(1, width - m.l - m.r);
   const ph = height - m.t - m.b;
   const [lo, hi] = extent(fat);
   const X = (i: number) => m.l + ((i + 0.5) / n) * pw;

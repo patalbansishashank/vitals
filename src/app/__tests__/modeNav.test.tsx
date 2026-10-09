@@ -50,13 +50,13 @@ describe('mode-aware shell navigation (IA §3.4–§3.6)', () => {
     expect(names(rail())).toEqual(expect.arrayContaining(['body', 'simulate', 'plan', 'evidence', 'coach', 'settings']));
   });
 
-  it('Living mode: Today · Food · Train · Coach · Progress, a lower group and the plan-day readout; / goes to Today', async () => {
+  it('Living mode: Today · Food · Train · Coach · Progress, a lower group (no plan status in the rail); / goes to Today', async () => {
     await seedPlan();
     const router = renderAt('/');
     await waitFor(() => expect(router.state.location.pathname).toBe('/today'), { timeout: 5000 });
     expect(names(tabBar())).toEqual(['today', 'food', 'train', 'coach', 'progress']);
     expect(names(rail())).toEqual(['today', 'food', 'train', 'coach', 'progress', 'evidence', 'planning', 'settings']);
-    expect(within(rail()).getByText('day 15 / 84')).toBeInTheDocument();
+    expect(within(rail()).queryByText(/day 15/)).toBeNull();
     expect(tabBar()).toHaveStyle({ gridTemplateColumns: 'repeat(5, 1fr)' });
   });
 

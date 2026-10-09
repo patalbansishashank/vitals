@@ -1,12 +1,12 @@
-// The visceral view (R2 sec. 3.4): side cutaway (where the slice is) + true-to-scale waist slice, one accessible
-// image named by `visceralWords`, with the numbers and plain-word legend underneath. Pure view of AvatarParams;
-// morph it with the same `lerpAvatarParams` timeline as the figure.
+// The visceral view (R2 sec. 3.4): the waist slice as a plate on the same dotted stage as the 3D figure (a small
+// figure in the corner marks where the slice is taken), one accessible image named by `visceralWords`, and the numbers,
+// band scale and legend underneath, framed like the figure's layer strip. Pure view of AvatarParams; the drawing eases
+// to new numbers (reduced motion snaps), the words change at once.
 
 import type { ReactNode } from 'react';
 import type { AvatarParams } from '@/engine/body';
 import { visceralWords } from '@/features/body/avatar/describe';
-import { VisceralCutaway } from './VisceralCutaway';
-import { VisceralLegend, VisceralSection, liveVisceral } from './VisceralSection';
+import { VisceralLegend, VisceralPlate, liveVisceral } from './VisceralSection';
 import './visceral.css';
 
 export interface VisceralViewProps {
@@ -15,37 +15,46 @@ export interface VisceralViewProps {
   compareTo?: AvatarParams;
   /** Accessible name of the image. Default: `visceralWords(params.visceral)` (with the start when comparing). */
   label?: string;
-  /** Numbers, band bar and legend (default true). */
+  /** Numbers, band scale and legend (default true). */
   legend?: boolean;
   /** Caption under the legend. */
   caption?: ReactNode;
   /** How the number is made (with a link to the evidence). */
   how?: ReactNode;
+  /** Whether a waist measurement sets the slice (see `VisceralLegend`): decides the "what narrows it" line. */
+  waistMeasured?: boolean;
   className?: string;
   id?: string;
 }
 
-/**
- * Narrow containers stack the panels over the words; from 38rem the readout, band scale and legend sit in a column
- * beside the slice (body-figure-v2.md §4), via a container query, so the same component fits the Body stage, the
- * Simulator's aside and the dev page.
- */
-export function VisceralView({ params, compareTo, label, legend = true, caption, how, className, id }: VisceralViewProps) {
+/** Plate over words in every container: the plate takes the room the words leave (it fills a fixed-height stage). */
+export function VisceralView({
+  params,
+  compareTo,
+  label,
+  legend = true,
+  caption,
+  how,
+  waistMeasured,
+  className,
+  id,
+}: VisceralViewProps) {
   const live = liveVisceral(params.visceral);
   const name = label ?? visceralWords(live, compareTo ? { compareTo: compareTo.visceral } : {});
   return (
     <figure id={id} className={['lm-visc', 'lm-visc--view', className].filter(Boolean).join(' ')} data-band={live.band}>
-      <div className="lm-visc__grid">
-        <div className="lm-visc__panels" role="img" aria-label={name}>
-          <VisceralCutaway params={params} decorative />
-          <VisceralSection params={params} compareTo={compareTo} legend={false} decorative />
-        </div>
-        {legend ? (
-          <figcaption>
-            <VisceralLegend params={params} compareTo={compareTo} cutaway caption={caption} how={how} />
-          </figcaption>
-        ) : null}
-      </div>
+      <VisceralPlate params={params} compareTo={compareTo} label={name} />
+      {legend ? (
+        <figcaption>
+          <VisceralLegend
+            params={params}
+            compareTo={compareTo}
+            caption={caption}
+            how={how}
+            waistMeasured={waistMeasured}
+          />
+        </figcaption>
+      ) : null}
     </figure>
   );
 }

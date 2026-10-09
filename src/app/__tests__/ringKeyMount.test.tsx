@@ -6,7 +6,7 @@ import { createFakeRingService, scenarioPlatform } from '@/features/ring/fixture
 import { MobileTopBar } from '../shell/Chrome';
 
 describe('the ring key in the shell (ring-pages.md D2)', () => {
-  it('sits in the phone top bar and opens /ring', () => {
+  it('sits in the phone top bar and opens Body signals', () => {
     const fake = createFakeRingService('connected');
     render(
       <MemoryRouter initialEntries={['/today']}>
@@ -15,7 +15,7 @@ describe('the ring key in the shell (ring-pages.md D2)', () => {
         </RingServiceProvider>
       </MemoryRouter>,
     );
-    const key = screen.getByRole('link', { name: /^Ring/ });
-    expect(key).toHaveAttribute('href', '/ring');
+    const key = screen.getByRole('link', { name: /^Body signals/ });
+    expect(key).toHaveAttribute('href', '/signals');
   });
 });

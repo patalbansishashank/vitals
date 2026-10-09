@@ -39,6 +39,7 @@ import {
   type DeclaredEventKind,
   type LivingDocs,
   type PlanDoc,
+  type LocalDate,
   type PlanVersionDoc,
   type ReplanKind,
   type ReplanResult,
@@ -139,8 +140,8 @@ async function runReplan(ctx: CommandContext, docs: LivingDocs, plan: Plan, head
 }
 
 /** The running plan, its adopted head and the documents. */
-async function running(): Promise<{ docs: Awaited<ReturnType<typeof readDocs>>; plan: Plan; head: PlanVersionDoc }> {
-  const docs = await readDocs();
+async function running(today: LocalDate): Promise<{ docs: Awaited<ReturnType<typeof readDocs>>; plan: Plan; head: PlanVersionDoc }> {
+  const docs = await readDocs(today);
   const plan = requirePlan(docs);
   if (plan.status !== 'active' && plan.status !== 'scheduled') fail('precondition_failed', 'The plan is paused; resume it first.', { precondition: 'activePlan' });
   const head = headAdopted(docs.versions) ?? fail('internal', 'The plan has no adopted version.');
@@ -166,7 +167,7 @@ function currentOf(ctx: CommandContext, plan: Plan, head: PlanVersionDoc): (d: n
 
 // ------------------------------------------------------------------------------------------- plan.replan
 implement('plan.replan', async (ctx, input: { reason?: string; tier?: 'S' | 'M' | 'L' | 'X' }) => {
-  const { docs, plan, head } = await running();
+  const { docs, plan, head } = await running(ctx.today);
   return runReplan(ctx, docs, plan, head, { kind: 'event', trigger: 'user', reason: 'user', why: input.reason ?? 'You asked for a new plan from here.', strict: false }, input.tier ? { tier: input.tier } : {});
 });
 
@@ -180,7 +181,7 @@ const EVENT_WORDS: Record<DeclaredEventKind, string> = {
 };
 
 implement('plan.declareEvent', async (ctx, input: { kind: DeclaredEventKind; from: string; to: string; note?: string; extraKcal?: number; extraCarbG?: number }) => {
-  const { docs, plan, head } = await running();
+  const { docs, plan, head } = await running(ctx.today);
   if (input.to < input.from) fail('invalid_input', 'The end date is before the start date.', { path: '/to' });
   if (daysBetween(input.from, input.to) > 27) fail('invalid_input', 'An event can last up to 28 days; pause the plan for longer breaks.', { path: '/to' });
   const fromDay = futureDay(ctx, plan, head, input.from, '/from');
@@ -200,7 +201,7 @@ interface ShiftIn {
 }
 
 implement('plan.shift', async (ctx, input: ShiftIn) => {
-  const { docs, plan, head } = await running();
+  const { docs, plan, head } = await running(ctx.today);
   const fromDay = futureDay(ctx, plan, head, input.from, '/from');
   if (input.mode === 'swap' && !input.withDate) fail('invalid_input', 'Say which date to swap with.', { path: '/withDate' });
   const withDay = input.withDate ? futureDay(ctx, plan, head, input.withDate, '/withDate') : undefined;
@@ -222,7 +223,7 @@ implement('plan.shift', async (ctx, input: ShiftIn) => {
 
 // ------------------------------------------------------------------------------------------- plan.editDay
 implement('plan.editDay', async (ctx, input: { date: string; patch: Record<string, unknown>; scope: 'day' | 'weekday' | 'rest' }) => {
-  const { docs, plan, head } = await running();
+  const { docs, plan, head } = await running(ctx.today);
   const day = futureDay(ctx, plan, head, input.date, '/date');
   if (Object.keys(input.patch).length === 0) fail('invalid_input', 'The change is empty.', { path: '/patch' });
   const edit = editDaysEdit(head.schedule, { day, patch: input.patch, scope: input.scope });
@@ -239,7 +240,7 @@ interface SwapIn {
 }
 
 implement('plan.swapExercise', async (ctx, input: SwapIn) => {
-  const { docs, plan, head } = await running();
+  const { docs, plan, head } = await running(ctx.today);
   const day = futureDay(ctx, plan, head, input.date, '/date');
   const m = await loadCatalogueModules();
   const setup = trainingSetupNow(m);

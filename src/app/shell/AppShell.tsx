@@ -1,6 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, ScrollRestoration, useLocation, useNavigate } from 'react-router';
-import { Toaster } from '@/components/Toast';
+import { Toaster, dismissAllToasts } from '@/components/Toast';
 import { isStorageAvailable } from '@/state/persistence';
 import { rememberRoute } from '../lastRoute';
 import { startSaveFailureNotices } from '../saveNotice';
@@ -30,8 +30,9 @@ function useKeyboardOpen(): boolean {
 
 /**
  * The frame every screen renders into (INFORMATION_ARCHITECTURE §3):
- * desktop = 76 px rail + sticky context bar; mobile = top bar + context bar +
- * bottom tab bar (+ optional action bar). Also: skip link, global notices,
+ * desktop = 76 px rail + sticky context bar (+ the action bar along the bottom of the content column: the screen's
+ * parameters and actions); mobile = top bar + context bar + bottom tab bar (+ optional action bar above it). Also:
+ * skip link, global notices,
  * toasts, scroll restoration, focus on navigation, ⌘/Ctrl 1–4 (Living: 1–5, 0 = Today) shortcuts,
  * the mode-aware navigation and the planning override's plan strip (`./modeNav`), and the agent surfaces with their
  * activity light and Stop key (SUITE_SPEC §7.3; each surface stays off until the person turns it on).
@@ -59,6 +60,30 @@ export function AppShell() {
   const routeChromeless = useRouteChromeless();
   const chromeless = routeChromeless || chromelessCount > 0;
 
+  // The heights of the bars at the foot of the screen (phones: the action bar and the context bar), for the page's bottom
+  // padding, focus scrolling and the toasts (CSS falls back to its estimates where this cannot measure).
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const watch = (el: HTMLElement | null, name: string) => {
+      if (!el) return () => undefined;
+      const set = () => root.style.setProperty(name, `${Math.ceil(el.getBoundingClientRect().height)}px`);
+      set();
+      const ro = new ResizeObserver(set);
+      ro.observe(el);
+      return () => {
+        ro.disconnect();
+        root.style.removeProperty(name);
+      };
+    };
+    const stops = [watch(actionSlot, '--lm-foot-h'), watch(contextSlot, '--lm-ctx-h')];
+    return () => stops.forEach((stop) => stop());
+  }, [actionSlot, contextSlot]);
+
+  // A new screen opens: the last screen's confirmations go (layout effect, so a toast the new screen raises on mount stays)
+  useLayoutEffect(() => {
+    dismissAllToasts();
+  }, [location.pathname]);
   // Remember the destination; after client-side navigation move focus to the new screen's title.
   useEffect(() => {
     rememberRoute(location.pathname);

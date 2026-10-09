@@ -473,7 +473,6 @@
   .lv-detail__flag,
   .lv-detail__prose {
     margin: 0 0 12px;
-    max-width: var(--lm-measure-prose);
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
   }

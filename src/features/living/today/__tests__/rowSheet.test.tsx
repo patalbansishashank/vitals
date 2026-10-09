@@ -25,15 +25,15 @@ describe('Today row sheet shows the logged answer (Q6-12)', () => {
       source: (stub) => ({ ...stub.source, today: (d) => (d === CONTRACT_DATE ? view : stub.source.today(d)) }),
     });
     const plan = await screen.findByRole('region', { name: 'Today’s plan' });
-    fireEvent.click(within(plan).getByRole('button', { name: 'More for lunch' }));
+    fireEvent.click(within(plan).getByRole('button', { name: 'Details for lunch' }));
     expect(checked(/^How did lunch go/)).toEqual(['as planned']);
     fireEvent.click(screen.getByRole('button', { name: /close/i }));
 
-    fireEvent.click(within(plan).getByRole('button', { name: 'More for lift · 45 min' }));
+    fireEvent.click(within(plan).getByRole('button', { name: 'Details for lift · 45 min' }));
     expect(checked(/^How did lift · 45 min go/)).toEqual(['partly']);
     fireEvent.click(screen.getByRole('button', { name: /close/i }));
 
-    fireEvent.click(within(plan).getByRole('button', { name: 'More for snack' }));
+    fireEvent.click(within(plan).getByRole('button', { name: 'Details for snack' }));
     expect(checked(/^How did snack go/)).toEqual([]);
   });
 
@@ -41,8 +41,8 @@ describe('Today row sheet shows the logged answer (Q6-12)', () => {
     renderLiving(<TodayPage />, { path: '/today', route: 'today' });
     const plan = await screen.findByRole('region', { name: 'Today’s plan' });
     await act(async () => fireEvent.click(within(plan).getByRole('button', { name: 'Mark lunch as planned' })));
-    await waitFor(() => expect(within(plan).getByRole('button', { name: /^lunch: as planned/ })).toHaveAttribute('aria-pressed', 'true'));
-    fireEvent.click(within(plan).getByRole('button', { name: 'More for lunch' }));
+    await waitFor(() => expect(within(plan).queryByRole('button', { name: 'Mark lunch as planned' })).toBeNull());
+    fireEvent.click(within(plan).getByRole('button', { name: 'Details for lunch' }));
     expect(checked(/^How did lunch go/)).toEqual(['as planned']);
   });
 });

@@ -27,6 +27,8 @@ export interface TodayRow {
   target: string;
   /** Numbers in the target that quiet mode hides (meal kcal). */
   quietTarget?: string;
+  /** A second line of detail: a meal's carbs and fat. */
+  detail?: string;
   status: RowStatus;
   /** What was logged against it (meal energy, steps, sleep), with its source. */
   logged?: { value: number; sd?: number; unit: string; approx: boolean; source: string; decimals?: number };
@@ -111,6 +113,7 @@ export function todayRows(view: TodayView, extras: TodayRowExtras = {}): TodayRo
         label: m ? mealName(m.slot, m.clockH) : slot,
         target: m ? `${kcal(m.energyKcal)} kcal · ${grams(m.proteinG)} g protein` : '',
         quietTarget: 'portions on Food',
+        ...(m ? { detail: `${grams(m.carbG)} g carbs · ${grams(m.fatG)} g fat` } : {}),
         status,
         untimed: false,
         ...(entry?.energyKcal ? { logged: { value: entry.energyKcal.value, sd: entry.energyKcal.sd, unit: 'kcal', approx: true, source: sourceLabel(entry.source, entry.aiEstimated ? 'aiText' : undefined) } } : {}),
@@ -161,7 +164,8 @@ export function todayRows(view: TodayView, extras: TodayRowExtras = {}): TodayRo
       rows.push({ ...base, itemId: `supplement:${id}`, glyph: 'supplement', label: merged ? shortName(merged.name) : id, target: merged ? merged.line : s ? `${s.dose} ${s.unit}` : '', status: statusOfItem(view, `supplement:${id}`) ?? (c.done ? 'done' : 'empty'), untimed: c.at === undefined });
     }
   }
-  const timed = rows.filter((r) => !r.untimed).sort((a, b) => (a.at ?? 99) - (b.at ?? 99));
+  // the weigh-in with no set time comes first: it is the morning's first thing, before any food
+  const timed = rows.filter((r) => !r.untimed).sort((a, b) => (a.at ?? (a.glyph === 'weigh' ? -1 : 99)) - (b.at ?? (b.glyph === 'weigh' ? -1 : 99)));
   const untimed = rows.filter((r) => r.untimed);
   return [...timed, ...untimed];
 }
@@ -199,7 +203,8 @@ export type TodayState = 'scheduled' | 'active' | 'paused' | 'safetyPause' | 'co
 export function todayState(view: TodayView | null, plan: { status: string; startDate: LocalDate; plannedEndDate: LocalDate; pauses: Array<{ from: LocalDate; to: LocalDate | null; reason?: string }> } | null, date: LocalDate, today: LocalDate): TodayState {
   if (!plan) return 'active';
   if (today >= plan.plannedEndDate && date >= plan.plannedEndDate) return 'complete';
-  if (plan.status === 'scheduled' || today < plan.startDate) return 'scheduled';
+  // dates decide, not the stored status: a plan saved as 'scheduled' is running once its start date has come
+  if (today < plan.startDate) return 'scheduled';
   if (date < today) return 'past';
   if (date > today) return 'future';
   if (plan.status === 'paused') return plan.pauses.some((p) => p.to === null && p.reason === 'safety') ? 'safetyPause' : 'paused';

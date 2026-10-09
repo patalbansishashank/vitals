@@ -1,5 +1,5 @@
 /**
- * Copy for the Ring page's frame, connection card, pairing flow and the top-bar ring key
+ * Copy for the ring area on Body signals, the connection card, pairing flow and the top-bar ring key
  * (design/screens/ring-pages.md §4.2, §5.2, §5.5; the words are final there). Plain words, sentence case, lowercase
  * engraved labels, a thin space between a number and its unit. The sections (Check now, today rows, sharing, ring
  * settings) keep their words in ./copySections.
@@ -13,7 +13,9 @@ import { THIN_SPACE } from '@/components/lib/format';
 export const percent = (n: number): string => `${Math.round(n)}${THIN_SPACE}%`;
 
 export const RING_PAGE_COPY = {
-  pageTitle: 'Ring',
+  /** The ring area at the top of Body signals, and its link to the moved settings. */
+  devicesLabel: 'Your ring',
+  ringSettings: 'Ring settings',
 
   /* ---- relative time (relativeTime.ts) ---------------------------------------------------------- */
   time: {
@@ -120,13 +122,14 @@ export const RING_PAGE_COPY = {
   },
 
   /* ---- the top-bar ring key (§4.2) --------------------------------------------------------------- */
+  /* the key opens Body signals (the one ring page); its name says so, then the ring's state */
   key: {
-    connected: 'Ring: connected',
-    reading: 'Ring: reading',
-    elsewhere: (device: string) => `Ring: connected to ${device}`,
-    off: 'Ring: not connected',
-    attention: 'Ring: needs attention',
-    none: 'Ring',
+    connected: 'Body signals · ring connected',
+    reading: 'Body signals · reading your ring',
+    elsewhere: (device: string) => `Body signals · ring connected to ${device}`,
+    off: 'Body signals · ring not connected',
+    attention: 'Body signals · ring needs attention',
+    none: 'Body signals',
   },
 } as const;
 

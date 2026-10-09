@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { formatNumber, formatSigned, niceStep } from '@/components';
 import type { ChartSeries } from '@/features/charts';
+import { useElementWidth } from '@/features/charts/core/hooks';
 import { DisclaimerLine } from '@/features/onboarding';
 import type { PlannerRequest, PlannerResultV2 } from '@/engine/planner/domain/types';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
@@ -9,11 +10,10 @@ import { toDisplay } from '../format';
 import { RUNG_TITLE, isWeightMetric, planOf, presentKinds, type PlanKind } from '../ladder';
 import { goalText, seriesFor } from '../planFacts';
 
-const W = 560;
-const H = 160;
+/* Drawn in real pixels: the width is measured, so text and strokes never scale with the card. */
+const FALLBACK_W = 560;
 const M = { l: 40, r: 92, t: 10, b: 20 };
-const PW = W - M.l - M.r;
-const PH = H - M.t - M.b;
+const heightFor = (w: number) => (w >= 900 ? 200 : 160);
 
 interface Line {
   kind: PlanKind;
@@ -50,6 +50,11 @@ const bandOf = (lo: ArrayLike<number>, hi: ArrayLike<number>, X: (i: number) => 
 };
 
 function Small({ m, selected, day, onDay, hidden }: { m: Multiple; selected: PlanKind; day: number | null; onDay: (d: number | null) => void; hidden: boolean }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const W = useElementWidth(boxRef, FALLBACK_W) || FALLBACK_W;
+  const H = heightFor(W);
+  const PW = Math.max(60, W - M.l - M.r);
+  const PH = H - M.t - M.b;
   const n = Math.max(1, ...m.lines.map((l) => l.s.daily.values.length));
   const decimals = m.lines[0]?.s.format.decimals ?? 1;
   const unit = m.lines[0]?.s.unit ?? '';
@@ -96,7 +101,7 @@ function Small({ m, selected, day, onDay, hidden }: { m: Multiple; selected: Pla
     ? `${m.title}: values hidden in gentle mode.`
     : `${m.title}: ${ends.map((e) => e.text).join(', ')}${unit ? ` ${unit}` : ''}${m.target ? `; ${m.target.label}` : ''}.`;
   return (
-    <div className="lp-curve">
+    <div className="lp-curve" ref={boxRef}>
       <h3 className="lp-curve__title">
         <span>{m.title}</span>
         <span className="lp-curve__read lm-num" aria-hidden="true">
@@ -105,6 +110,8 @@ function Small({ m, selected, day, onDay, hidden }: { m: Multiple; selected: Pla
       </h3>
       <svg
         className="lp-curve__svg"
+        width={W}
+        height={H}
         viewBox={`0 0 ${W} ${H}`}
         role="img"
         aria-label={summary}

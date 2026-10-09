@@ -135,7 +135,8 @@
   /* headings and regions receive focus programmatically (route change, dialogs) — no ring */
   h1[tabindex='-1']:focus,
   h2[tabindex='-1']:focus,
-  main[tabindex='-1']:focus {
+  main[tabindex='-1']:focus,
+  :is(h1, h2, h3, legend, main, section)[tabindex='-1']:focus-visible {
     outline: none;
   }
   /* Scrollbars carry the chassis, not the OS default. */

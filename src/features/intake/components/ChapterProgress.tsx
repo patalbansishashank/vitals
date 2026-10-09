@@ -48,7 +48,7 @@ export function ChapterProgress({ chapters, current, fill, later = {}, position,
                 {l > 0 ? <span className="lm-ik-progress__later" style={{ left: `${Math.round(f * 100)}%`, width: `${Math.round(l * 100)}%` }} /> : null}
                 {c === current ? notches.map((n) => <span key={n} className="lm-ik-progress__notch" style={{ left: `${(n * 100).toFixed(2)}%` }} />) : null}
               </span>
-              <span className="lm-ik-progress__label" aria-hidden="true">
+              <span className="lm-ik-progress__label" data-label={CHAPTER_SHORT[c]} aria-hidden="true">
                 {c === current ? <span className="lm-ik-progress__dot" /> : null}
                 {CHAPTER_SHORT[c]}
               </span>

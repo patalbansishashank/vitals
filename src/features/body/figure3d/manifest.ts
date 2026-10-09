@@ -39,6 +39,15 @@ export interface RingDef {
 export type MacroLevel = 'min' | 'average' | 'max';
 export type FrameEnd = 'hipsLed' | 'shouldersLed';
 
+/** Joint centres from MakeHuman's posed helper geometry, in ground-relative cm. */
+export interface FigureJoint {
+  id: string;
+  hipsLed: [number, number, number];
+  shouldersLed: [number, number, number];
+  /** Small surface stencil for thin digits, whose helper tips may leave the skin. */
+  skinVertices?: number[];
+}
+
 export interface FigureManifest {
   format: 'vitals-figure';
   version: 1;
@@ -65,5 +74,25 @@ export interface FigureManifest {
   breadth: number[];
   /** Highest and lowest vertex of the reference shape (stature). */
   height: { top: number; bottom: number };
+  /**
+   * Per-vertex skin thickness along the inward normal (uint8 x step cm, least over the baked shapes, at the reference
+   * stature). The under-skin fat shell never insets deeper than a fraction of it.
+   */
+  shell?: {
+    step: number;
+    thickness: BinSection;
+    /** The nipple tip on each side of the chest. */
+    nippleTips?: number[];
+    /** Small bumps (the nipples and three rings) the fat layer passes under: filled in from the surrounding layer. */
+    pinned?: number[];
+  };
+  /** Shared anatomical rest pose; the atlas bake consumes these exact landmarks. */
+  joints?: FigureJoint[];
+  /** Source rig skin regions for independent arm/body collision checks. */
+  armClearance?: { leftArm: number[]; rightArm: number[]; centralBody: number[] };
+  /** Baked rig weights used by the shared pose to relieve crowded underarms. */
+  armPose?: { leftWeights: number[]; rightWeights: number[]; clearanceCm: number };
+  /** Outward, closed outer-rim caps replacing the inward eye/mouth pockets. */
+  headSurface?: { removedSourceTriangles: number; caps: Array<{id:string;rim:number[];triangles:number[];faces:number[]}> };
   stats: Record<string, number | string>;
 }

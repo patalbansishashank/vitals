@@ -10,16 +10,22 @@ interface NodeMods {
 }
 
 function node(): NodeMods {
-  const get = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } }).process?.getBuiltinModule;
+  const get = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } }).process
+    ?.getBuiltinModule;
   if (!get) throw new Error('needs Node');
-  return { fs: get('node:fs') as NodeMods['fs'], zlib: get('node:zlib') as NodeMods['zlib'], path: get('node:path') as NodeMods['path'] };
+  return {
+    fs: get('node:fs') as NodeMods['fs'],
+    zlib: get('node:zlib') as NodeMods['zlib'],
+    path: get('node:path') as NodeMods['path'],
+  };
 }
 
 export const FIGURE_FILE = 'public/figure/figure-v2.bin';
 
 export function readPackGz(): Uint8Array {
   const { fs, path } = node();
-  return fs.readFileSync(path.resolve(FIGURE_FILE));
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return fs.readFileSync(path.resolve(env?.FIGURE_PACK ?? FIGURE_FILE));
 }
 
 let asset: FigureAsset | null = null;

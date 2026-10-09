@@ -1,8 +1,8 @@
 /** Composite turns of chapter 4 (devices and data). Nothing connects or imports from here. */
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import { Key, Select } from '@/components';
-import { BRANDED, coachDaily, offPolicy, recommendedPolicy, routeOf, routeText, streamsFor } from '../../chapters/devices';
+import { Key, Select, cx } from '@/components';
+import { BRANDED, offPolicy, recommendedPolicy, routeOf, routeText, streamsFor } from '../../chapters/devices';
 import { BRANDS, D, TURN } from '../../copy';
 import type { DeviceKind, Platform, StreamId, StreamPolicy } from '../../types';
 import { StreamMatrix } from '../StreamMatrix';
@@ -40,12 +40,15 @@ export function ModelsWidget({ value, values, onCommit }: WidgetProps<Partial<Re
 
 const bluetoothAvailable = (): boolean => typeof navigator !== 'undefined' && 'bluetooth' in navigator;
 
-/** D3: how each device's data would reach Vitals (computed, not a question). "Later" moves on. */
-export function RoutesWidget({ values, onCommit }: WidgetProps<'later'>) {
+/** D3: how each device's data would reach Vitals (computed, not a question). The card's own Next moves on. */
+export function RoutesWidget({ values }: WidgetProps<'seen'>) {
   const devices = has(values).filter((d) => BRANDED.includes(d));
   const models = (values.models ?? {}) as Partial<Record<DeviceKind, string>>;
   const platform = values.platform as Platform | undefined;
   const [bt] = useState(bluetoothAvailable);
+  const ring = devices.includes('ring');
+  const others = devices.some((d) => d !== 'ring');
+  const settings = <Link to="/settings#devices">{D.route.settingsLink}</Link>;
   return (
     <div className="lm-ik-row">
       <ul className="lm-ik-routes">
@@ -64,18 +67,54 @@ export function RoutesWidget({ values, onCommit }: WidgetProps<'later'>) {
         })}
       </ul>
       <p className="lm-ik-note">
-        {D.route.settingsLead}
-        <Link to="/settings#devices">{D.route.settingsLink}</Link>
-        {D.route.settingsTail}
+        {D.route.nothingHere}
+        {ring ? (
+          <>
+            {D.route.ringLead}
+            <Link to="/ring">{D.route.ringLink}</Link>
+            {others ? (
+              <>
+                {D.route.andOthers}
+                {settings}
+              </>
+            ) : null}
+          </>
+        ) : (
+          <>
+            {D.route.anyLead}
+            {settings}
+          </>
+        )}
+        {D.route.end}
       </p>
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit('later')}>{D.route.later}</Key>
+    </div>
+  );
+}
+
+/** "How your data is used": a closed disclosure next to the stream choices (the same pattern as "why we ask"). */
+function HowUsed() {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <div className="lm-ik-turn__why">
+      <button type="button" className="lm-ik-why" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}>
+        {D.howUsed.key}
+        <span aria-hidden="true" className={cx('lm-ik-why__chev', open && 'is-open')}>
+          ▾
+        </span>
+      </button>
+      <div id={id} className="lm-ik-howused" hidden={!open}>
+        {D.howUsed.lines.map((line) => (
+          <p key={line} className="lm-ik-why__text">
+            {line}
+          </p>
+        ))}
       </div>
     </div>
   );
 }
 
-/** D4: the stream matrix; "Use recommended" and "Coach can see daily summaries" are the shortcuts. */
+/** D4: the stream matrix; "Use recommended" is the shortcut (the shared ring default, Coach sees daily + detail). */
 export function StreamsWidget({ value, values, onCommit }: WidgetProps<StreamPolicy[]>) {
   const offered = streamsFor(has(values));
   const [policies, setPolicies] = useState<StreamPolicy[]>(() => offered.map((s) => value?.find((p) => p.stream === s) ?? offPolicy(s)));
@@ -97,10 +136,9 @@ export function StreamsWidget({ value, values, onCommit }: WidgetProps<StreamPol
         >
           {D.matrix.recommended}
         </Key>
-        <Key variant="quiet" onClick={() => change(coachDaily(policies))}>
-          {D.matrix.coachDaily}
-        </Key>
       </div>
+      <p className="lm-ik-note">{D.matrix.recommendedNote}</p>
+      <HowUsed />
       <StreamMatrix policies={policies} onChange={change} untouched={untouched} />
       <div className="lm-ik-done">
         <Key onClick={() => onCommit(policies)}>{TURN.done}</Key>

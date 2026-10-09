@@ -1,10 +1,12 @@
 /**
- * Body signals (`/signals`; design/screens/ring-pages.md §6): what the ring and any import measured over a day, a
+ * Body signals (`/signals`; design/screens/ring-pages.md §6), the one ring page (owner, 9 Oct; `/ring` redirects here):
+ * the ring's card on top (`RingDevices`: connection, battery, last read, Check now, a link to Ring settings in
+ * Settings › Devices), then what the ring and any import measured over a day, a
  * week, a month or a year. Tabs sleep · heart and recovery · activity, sticky under the top bar with the period bar
  * below them (one toolbar row at ≥ 1280 px). The URL is the state (`?tab=&period=&date=`): every change pushes, so Back
  * walks through them and a link can open last Tuesday's night. Without a date the tab's reference day is shown (today,
  * or for sleep the newest night). Whole-page states: stored records still loading (the loading rule), nothing measured and no ring (an empty stage), a ring that has not
- * been read since before the period (a line and Open Ring), a read running (the source line says so). The tabs draw
+ * been read since before the period (a line; the card above says the rest), a read running (the source line says so). The tabs draw
  * their own chart states.
  */
 import { useMemo, type ReactNode } from 'react';
@@ -14,6 +16,7 @@ import { PageFallback, TopBar } from '@/app/shell';
 import { paths } from '@/app/paths';
 import { useLivingClock } from '@/features/living/clock';
 import { useRings, type RingStatus } from '@/features/ring/data';
+import { RingDevices } from '@/features/ring/RingDevices';
 import { useSettingsStore } from '@/state/settingsStore';
 import { addDays } from '@/living/dates';
 import type { LocalDate } from '@/living';
@@ -49,7 +52,7 @@ const TAB_VIEW: Record<SignalsTab, (p: TabProps) => ReactNode> = { sleep: SleepT
 export default function SignalsPage() {
   return (
     <>
-      <TopBar title={C.title} back={{ to: paths.ring, label: C.backTo }} compactOnMobile />
+      <TopBar title={C.title} compactOnMobile />
       <DevFixtureGate>
         <SignalsBody />
       </DevFixtureGate>
@@ -110,19 +113,16 @@ function SignalsBody() {
   }
 
   if (firstDate === null && rings.length === 0) {
+    // the ring area above says how to connect one (or why this device can't); the stage offers the file import
     return (
-      <Page>
+      <Page className="sp-page">
+        <RingDevices />
         <EmptyStage
           title={C.emptyTitle}
           action={
-            <>
-              <KeyLink to={paths.ring} variant="solid">
-                {C.connectRing}
-              </KeyLink>{' '}
-              <KeyLink to={paths.settings('devices')} variant="quiet">
-                {C.importFile}
-              </KeyLink>
-            </>
+            <KeyLink to={paths.settings('devices')} variant="quiet">
+              {C.importFile}
+            </KeyLink>
           }
         >
           {C.emptyBody}
@@ -141,6 +141,9 @@ function SignalsBody() {
 
   return (
     <Tabs value={q.tab} onChange={(t) => go({ tab: t as SignalsTab })}>
+      <Page className="sp-top">
+        <RingDevices />
+      </Page>
       <div className="sp-toolbar">
         <div className="sp-toolbar__inner">
           <TabList label={C.tabsLabel} className="sp-tabs">
@@ -166,15 +169,7 @@ function SignalsBody() {
       <Page>
         <TabPanel value={q.tab} className="sp-panel">
           {notReadSince ? (
-            <InlineWarning
-              severity="caution"
-              className="sp-ringline"
-              action={
-                <KeyLink to={paths.ring} size="sm" variant="quiet">
-                  {C.openRing}
-                </KeyLink>
-              }
-            >
+            <InlineWarning severity="caution" className="sp-ringline">
               {C.notReadSince(dayText(notReadSince, dateStyle, notReadSince.slice(0, 4) !== today.slice(0, 4)))}
             </InlineWarning>
           ) : null}

@@ -4,7 +4,7 @@
  * supplements relevant to the plan's goals with the standing third-party-testing line. "Things that won't help your
  * goals" opens the no-benefit list.
  */
-import { Check, ChevronRight } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Faceplate, GradeBadge, InlineWarning, Key, KeyLink, KeyValueList, Section } from '@/components';
 import type { PrescribedDaySnapshot } from '@/living';
 import { fmtClock } from '../../format';
@@ -38,7 +38,17 @@ export function SupplementsFace({ supplements, taken, canLog, profile, onTaken, 
   const { cards, hiddenForSafety } = open ? supplementCards({ prescribed: [...prescribed, ...listed], dietKind: profile.dietKind, safetyFlags: profile.safetyFlags }) : { cards: [], hiddenForSafety: 0 };
   const ff = foodFirstLines(profile.dietKind);
   return (
-    <Faceplate id="supplements" className="lv-food-supps" title={S.title} caption={open ? S.open : S.foodFirst}>
+    <Faceplate
+      id="supplements"
+      className="lv-food-supps"
+      title={S.title}
+      caption={open ? S.open : S.foodFirst}
+      actions={
+        <Key variant="quiet" size="sm" onClick={onNoBenefit}>
+          {S.noBenefitKey}
+        </Key>
+      }
+    >
       {supplements.length === 0 ? (
         <p className="lv-food-note">{S.none}</p>
       ) : (
@@ -95,24 +105,28 @@ export function SupplementsFace({ supplements, taken, canLog, profile, onTaken, 
 
       {open ? (
         <>
-          {cards.map((c) => (
-            <Section
-              key={c.record.id}
-              label={c.name}
-              aside={c.grade ? <GradeBadge grade={c.grade} size="sm" /> : undefined}
-              labelAs="h3"
-            >
-              <KeyValueList
-                items={[
-                  { key: S.dose, value: c.dose },
-                  { key: S.when, value: c.when },
-                  ...(c.why ? [{ key: S.why, value: c.why }] : []),
-                  ...(c.caution ? [{ key: S.caution, value: c.caution }] : []),
-                  ...(c.foodFirst ? [{ key: S.foodFirstAlt, value: c.foodFirst }] : []),
-                ]}
-              />
-            </Section>
-          ))}
+          {/* each option is one line (name, evidence grade, dose); when, why, caution and the food-first way open on tap */}
+          <ul className="lv-food-opts">
+            {cards.map((c) => (
+              <li key={c.record.id}>
+                <details className="lv-food-opt">
+                  <summary className="lv-food-opt__sum">
+                    <h3 className="lv-food-opt__name">{c.name}</h3>
+                    {c.grade ? <GradeBadge grade={c.grade} size="sm" /> : null}
+                    <span className="lv-food-opt__dose">{c.dose}</span>
+                  </summary>
+                  <KeyValueList
+                    items={[
+                      { key: S.when, value: c.when },
+                      ...(c.why ? [{ key: S.why, value: c.why }] : []),
+                      ...(c.caution ? [{ key: S.caution, value: c.caution }] : []),
+                      ...(c.foodFirst ? [{ key: S.foodFirstAlt, value: c.foodFirst }] : []),
+                    ]}
+                  />
+                </details>
+              </li>
+            ))}
+          </ul>
           {cards.length > 0 ? <p className="lv-food-note">{S.thirdParty}</p> : null}
           {hiddenForSafety > 0 ? (
             <InlineWarning severity="info">{S.hiddenForSafety(hiddenForSafety)}</InlineWarning>
@@ -140,9 +154,6 @@ export function SupplementsFace({ supplements, taken, canLog, profile, onTaken, 
       )}
 
       <p className="lv-food-note">{S.takingChanges}</p>
-      <Key variant="quiet" size="sm" trailingIcon={ChevronRight} onClick={onNoBenefit}>
-        {S.noBenefitKey}
-      </Key>
     </Faceplate>
   );
 }

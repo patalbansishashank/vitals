@@ -107,6 +107,7 @@ function hoverRules(css: string, selector: string): string[] {
 }
 
 const INTERACTIVE: [file: string, selector: string, fill: RegExp][] = [
+  ['src/features/living/living.css', '.lv-item.is-open', /background: var\(--lm-face-hover\)/],
   ['src/features/living/train/train.css', '.lv-train-weekrow', /background: var\(--lm-face-hover\)/],
   ['src/features/living/train/train.css', '.lv-train-result', /background: var\(--lm-face-hover\)/],
   ['src/features/living/progress/progress.css', 'a.lv-prog-cal__key', /background: var\(--lm-face-hover\)/],
@@ -124,7 +125,6 @@ const NO_TEXT_COLOUR: [file: string, selector: string][] = [
 
 /** Rows that open nothing (their control is a key inside them, or nothing at all): no hover rule at all. */
 const NON_INTERACTIVE: [file: string, selector: string][] = [
-  ['src/features/living/today/today.css', '.lv-row'],
   ['src/features/evidence/evidence.css', '.ev-table'],
   ['src/features/charts/charts.css', '.lmc-table'],
   ['src/features/intake/intake.css', '.lm-ik-row-a'],

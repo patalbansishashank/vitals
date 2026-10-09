@@ -60,9 +60,7 @@ describe('Your body with the intake', () => {
     expect(within(table).getByRole('rowheader', { name: 'steps' })).toBeInTheDocument();
     // the work part rests on the skipped job card: marked assumed
     expect(within(table).getByText('assumed — you skipped this')).toBeInTheDocument();
-
-    const setup = document.getElementById('body-setup')!;
-    expect(within(setup).getByRole('heading', { name: 'Your setup' })).toBeInTheDocument();
-    expect(within(setup).getByRole('link', { name: 'Change Training and equipment' })).toHaveAttribute('href', '/onboarding/training?from=body');
+    // the old "Your setup" card is gone from Your body
+    expect(document.getElementById('body-setup')).toBeNull();
   });
 });

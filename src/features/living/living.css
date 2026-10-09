@@ -1,6 +1,6 @@
 /* ==========================================================================
    Living mode — shared styles (date strip, estimate readout, source chip,
-   sheets, typed confirmation). Loaded by every Living screen via boot.ts.
+   sheets, typed confirmation, the day rail). Loaded by every Living screen via boot.ts.
    Tokens only; chrome achromatic; the yellow dot marks today.
    ========================================================================== */
 @layer components {
@@ -98,96 +98,352 @@
     border-style: dashed;
   }
 
-  /* ---- date strip (shared by Today, Food, Train) ------------------------------- */
-  .lv-datestrip {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
+  /* ---- date strip (shared by Today, Food, Train): a plain card of seven day keys ---- */
+  .lv-datestrip__nav {
+    display: inline-flex;
+    gap: 2px;
   }
   .lv-datestrip__days {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-    flex: 1;
+    gap: 6px;
     min-width: 0;
   }
   .lv-daykey {
-    position: relative;
-    display: grid;
-    justify-items: center;
-    gap: 2px;
-    min-height: 56px;
-    padding: 6px 0 4px;
-    border: 1px solid transparent;
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    height: var(--lm-bar-control-h, 36px);
+    padding: 0 4px;
+    border: 1px solid var(--lm-line);
     border-radius: var(--lm-radius-sm);
-    background: transparent;
+    background: var(--lm-face);
     color: var(--lm-ink);
+    line-height: calc(var(--lm-bar-control-h, 36px) - 2px);
+    white-space: nowrap;
     cursor: pointer;
   }
-  @media (pointer: fine) {
+  @media (pointer: coarse) {
     .lv-daykey {
-      min-height: 52px;
+      height: 44px;
+      line-height: 42px;
     }
   }
   .lv-daykey:hover {
-    background: color-mix(in oklab, transparent, var(--lm-ink) 5%);
+    background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 5%);
   }
   .lv-daykey__wd {
-    font-size: 11px;
-    font-weight: 500;
+    font-size: 13px;
     color: var(--lm-ink-2);
   }
   .lv-daykey__num {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
-    line-height: 1;
   }
-  .lv-daykey__glyph {
-    display: grid;
-    place-items: center;
-    width: 16px;
-    height: 16px;
+  /* phones: the weekday's first letter is enough */
+  @media (max-width: 39.99rem) {
+    .lv-daykey {
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      height: 48px;
+      line-height: 1.2;
+      justify-content: center;
+    }
   }
-  .lv-daykey__dot {
-    width: 6px;
-    height: 6px;
-    border: 1px solid var(--lm-edge);
-    border-radius: 50%;
-  }
-  .lv-daykey.is-today {
+  .lv-daykey.is-selected {
+    border-color: var(--lm-ink);
     background: var(--lm-well);
     box-shadow: var(--lm-shadow-key-pressed);
   }
-  .lv-daykey.is-today::before {
-    content: '';
-    position: absolute;
-    top: 4px;
-    right: 6px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
+  .lv-daykey.is-today {
+    border-color: var(--lm-signal-edge, var(--lm-signal));
     background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+    color: var(--lm-signal-ink);
   }
-  .lv-daykey.is-selected:not(.is-today) {
-    border: 2px solid var(--lm-ink);
+  .lv-daykey.is-today .lv-daykey__wd {
+    color: var(--lm-signal-ink);
+  }
+  .lv-daykey.is-today.is-selected {
+    box-shadow: var(--lm-shadow-key-pressed), inset 0 0 0 1px var(--lm-signal-ink);
   }
   .lv-daykey.is-paused .lv-daykey__num {
     text-decoration: line-through;
     text-decoration-color: var(--lm-ink-3);
   }
-  .lv-daykey.is-outside {
+  .lv-daykey.is-outside:not(.is-today) {
     color: var(--lm-ink-3);
   }
-  .lv-daykey.is-start {
-    border-left: 2px solid var(--lm-ink);
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+
+  /* ---- the day rail (Today's plan, Food's meals) -------------------------------------------
+     time · node on a hairline spine · what + its targets as a readout · one key + ⋯.
+     The spine is drawn by each node (up to the stop above, down to the next) and
+     clipped by its row, so it runs unbroken whatever a row's height. */
+  .lv-plan__rows,
+  .lv-rail-host {
+    container-type: inline-size;
   }
-  .lv-daykey.is-end {
-    border-right: 2px solid var(--lm-ink);
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+  .lv-day {
+    --t: 3.5rem;
+    --node: 11px;
+    --gx: 12px;
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
+  .lv-item {
+    position: relative;
+    overflow: clip;
+    display: grid;
+    grid-template-columns: var(--t) var(--node) minmax(0, 1fr) auto;
+    grid-template-areas:
+      'time node label keys'
+      '.    .    sub   sub';
+    align-items: center;
+    column-gap: var(--gx);
+    row-gap: 2px;
+    margin-inline: -8px;
+    padding: 8px;
+    border-radius: var(--lm-radius-sm);
+  }
+  /* a column wide enough: the keys sit centred beside both lines */
+  @container (min-width: 30rem) {
+    .lv-item {
+      grid-template-areas:
+        'time node label keys'
+        '.    .    sub   keys';
+    }
+  }
+  .lv-item__time {
+    grid-area: time;
+    justify-self: end;
+    font-size: var(--lm-text-sm);
+    font-stretch: 84%;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lv-item__node {
+    grid-area: node;
+    position: relative;
+    box-sizing: border-box;
+    width: var(--node);
+    height: var(--node);
+    border: 1.5px solid var(--lm-ink-2);
+    border-radius: 50%;
+    background: transparent;
+  }
+  .lv-item__node::before,
+  .lv-item__node::after {
+    content: '';
+    position: absolute;
+    left: calc(50% - 0.5px);
+    width: 1px;
+    background: var(--lm-line-strong);
+  }
+  .lv-item__node::before {
+    bottom: calc(100% + 1.5px);
+    height: 100vh;
+  }
+  .lv-item__node::after {
+    top: calc(100% + 1.5px);
+    height: 100vh;
+  }
+  .lv-day > .lv-item:first-child .lv-item__node::before,
+  .lv-day > .lv-item:last-child .lv-item__node::after {
+    display: none;
+  }
+  /* status on the node: solid = logged as planned, half = partly, struck = skipped, dashed = filled in for you */
+  .lv-item[data-state='done'] .lv-item__node {
+    border-color: var(--lm-ink);
+    background: var(--lm-ink);
+  }
+  .lv-item[data-state='partial'] .lv-item__node {
+    border-color: var(--lm-ink);
+    background: linear-gradient(90deg, var(--lm-ink) 50%, transparent 50%);
+  }
+  .lv-item[data-state='skipped'] .lv-item__node {
+    border-color: var(--lm-ink-2);
+    background: linear-gradient(135deg, transparent calc(50% - 0.75px), var(--lm-ink-2) calc(50% - 0.75px), var(--lm-ink-2) calc(50% + 0.75px), transparent calc(50% + 0.75px));
+  }
+  .lv-item[data-state='assumed'] .lv-item__node {
+    border-style: dashed;
+    border-color: var(--lm-ink-2);
+  }
+  .lv-item__label {
+    grid-area: label;
+    justify-self: start;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .lv-item__label::first-letter {
+    text-transform: uppercase;
+  }
+  /* the stop's text opens its sheet: the whole row is the target, the keys sit above it */
+  button.lv-item__label {
+    cursor: pointer;
+  }
+  button.lv-item__label::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  button.lv-item__label:focus-visible {
+    outline: none;
+  }
+  button.lv-item__label:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) {
+    .lv-item.is-open:hover {
+      background: var(--lm-face-hover);
+    }
+  }
+  .lv-item.is-highlight {
+    background: color-mix(in oklab, var(--lm-ink) 5%, transparent);
+  }
+  .lv-item[data-state='done'] .lv-item__label,
+  .lv-item[data-state='skipped'] .lv-item__label,
+  .lv-item[data-state='assumed'] .lv-item__label {
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-item__sub {
+    grid-area: sub;
+    min-width: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.25rem;
+    color: var(--lm-ink-2);
+  }
+  .lv-item__sub:empty {
+    display: none;
+  }
+  .lv-item__sub,
+  .lv-item__logged {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 14px;
+  }
+  .lv-item__word {
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-item__keys {
+    grid-area: keys;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+  .lv-item__nomore {
+    width: 32px;
+  }
+  /* anything a stop carries below its two lines (a recipe, a prompt) sits under the text column */
+  .lv-item__body {
+    grid-column: 3 / -1;
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding-top: 6px;
+  }
+  .lv-item__body:empty {
+    display: none;
+  }
+  /* the clock on the rail: a short bar across the spine, the time in ink, a hairline to the edge */
+  .lv-item--now {
+    grid-template-areas: 'time node label';
+    padding-block: 2px;
+  }
+  .lv-item--now .lv-item__time {
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-item--now .lv-item__node {
+    width: calc(var(--node) + 6px);
+    height: 2px;
+    margin-inline: -3px;
+    border: 0;
+    border-radius: 1px;
+    background: var(--lm-ink);
+  }
+  .lv-item--now .lv-item__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-self: stretch;
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-item--now .lv-item__label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--lm-line);
+  }
+
+  /* targets as a readout: figures in tabular ink, units and words small */
+  .lv-rd {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 14px;
+    min-width: 0;
+  }
+  .lv-rd__part {
+    white-space: nowrap;
+  }
+  .lv-rd__n {
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-rd__u {
+    font-size: var(--lm-text-xs);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-rd--extra .lv-rd__n {
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  /* carbs and fat only where the column has room; the sheet always shows them */
+  @container (max-width: 33.99rem) {
+    .lv-item .lv-rd--extra {
+      display: none;
+    }
+  }
+  .lv-day__rule {
+    display: grid;
+    grid-template-columns: var(--t, 3.5rem) minmax(0, 1fr);
+    column-gap: 12px;
+    margin-top: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lm-line);
+  }
+  .lv-day__rule > .lm-eng {
+    justify-self: end;
+    white-space: nowrap;
+  }
+
 }

@@ -1,6 +1,8 @@
 /* Supplement row (design/COMPONENTS.md §14.4). The row is its own container: the layout follows the row's width, not
-   the screen's, so it fits the intake card, Settings and the Food column alike. Controls keep their minimum widths and
-   wrap to the next line instead of shrinking (no overlap). No row hover (its controls carry their own). Tokens only. */
+   the screen's, so it fits the intake card, Settings and the Food column alike. The amount line and the times-of-day
+   line each take the row's full width at any width (the amount field grows, the four times are equal keys), from the
+   row's left content edge to its right one. Controls keep their minimum widths and wrap to the next line instead of
+   shrinking (no overlap). No row hover (its controls carry their own). Tokens only. */
 @layer components {
   .lm-supprow {
     container-type: inline-size;
@@ -11,7 +13,7 @@
     border-bottom: 0;
   }
 
-  /* < 480: name | state, then the dose on the right, then the four times on their own line */
+  /* name | state, then the amount line and the four times on their own full-width lines */
   .lm-supprow__grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -78,46 +80,49 @@
   .lm-supprow__controls {
     grid-area: controls;
     min-width: 0;
+    display: grid;
+    gap: var(--lm-space-2);
+  }
+  /* amount | unit | "each time": the amount field takes what the unit and the caption leave */
+  .lm-supprow__dose {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
-    align-items: flex-start;
-    gap: var(--lm-space-2) var(--lm-space-3);
-  }
-  .lm-supprow__dose {
-    display: grid;
-    grid-auto-flow: column;
-    justify-content: end;
     align-items: center;
-    column-gap: var(--lm-space-2);
-    row-gap: var(--lm-space-1);
-    flex: none;
+    gap: var(--lm-space-1) var(--lm-space-2);
+    min-width: 0;
   }
   .lm-supprow__dosefield {
-    width: 96px;
+    flex: 1 1 88px;
+    min-width: 88px;
+  }
+  .lm-supprow__dosefield .lm-numfield {
+    height: 44px;
   }
   .lm-supprow__dosefield input {
     font-size: 16px; /* no zoom on touch */
   }
   .lm-supprow__unit,
   .lm-supprow__unit.lm-select-native {
-    width: 104px;
+    flex: none;
+    width: 96px;
     min-width: 0;
   }
+  .lm-supprow__unit.lm-select,
+  .lm-supprow__unit select {
+    height: 44px;
+  }
   .lm-supprow__each {
+    flex: 0 1 auto;
     color: var(--lm-ink-2);
     font-size: var(--lm-text-xs, 12px);
-    white-space: nowrap;
+    line-height: 1.3;
   }
   .lm-supprow__dose > .lm-error {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: flex-end;
+    flex: 1 1 100%;
   }
   .lm-supprow__times {
     display: grid;
     gap: var(--lm-space-1);
-    flex: 1 1 100%;
     min-width: 0;
   }
   .lm-supprow__bank {
@@ -126,6 +131,7 @@
   }
   .lm-supprow__bank > .lm-bank__key {
     flex: 1 1 0;
+    min-width: 0;
     height: 44px;
     padding-inline: var(--lm-space-2);
   }
@@ -133,33 +139,6 @@
     background: var(--lm-raised);
     color: var(--lm-ink);
     box-shadow: var(--lm-shadow-key);
-  }
-
-  /* 480–719: name | state bank, then dose and times side by side on the right (wrapping if they meet) */
-  @container (min-width: 480px) {
-    .lm-supprow__times {
-      flex: 0 1 auto;
-    }
-    .lm-supprow__bank {
-      display: inline-flex;
-      width: auto;
-    }
-    .lm-supprow__bank > .lm-bank__key {
-      flex: none;
-      height: 36px;
-      padding-inline: var(--lm-space-3);
-    }
-  }
-
-  /* ≥ 720: one line — name | dose · times · state */
-  @container (min-width: 720px) {
-    .lm-supprow__grid {
-      grid-template-columns: minmax(140px, 1fr) auto auto;
-      grid-template-areas: 'left controls state';
-    }
-    .lm-supprow__controls {
-      flex-wrap: nowrap;
-    }
   }
 }
 

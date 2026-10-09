@@ -3,7 +3,7 @@ import { attachBluetooth, type ElectronBluetoothDevice, type IpcMainLike, type W
 import { bluetoothBridge, type IpcRendererLike } from '../../../../../apps/desktop/src/ble/preload';
 import type { Advertisement, RingFamily, Transport, TransportEvent } from '../../../../../packages/rings/src/types';
 import { uuid16 } from '../../../../../packages/rings/src/types';
-import { createCapacitorTransport, type CapBleClient, type CapScanResult, type CapService } from '../capacitor';
+import { SCAN_MODE_LOW_LATENCY, createCapacitorTransport, type CapBleClient, type CapScanResult, type CapService } from '../capacitor';
 import { createElectronTransport } from '../electron';
 import { CHOOSER_WINDOW_MS, DESKTOP_SCAN_MS, capacitorAdvertisement, capacitorFactory, chooserFactory, familiesQuery, linkTransport, onAirBlocks, type ChooserAdvertisement } from '../rings';
 import type { BleTransport, DeviceChooser, FoundDevice, RequestOptions, RingLink } from '../types';
@@ -294,8 +294,10 @@ class FakeCapBle implements CapBleClient {
   async isEnabled(): Promise<boolean> {
     return true;
   }
-  async requestLEScan(_o: unknown, cb: (r: CapScanResult) => void): Promise<void> {
+  scanOpts: unknown[] = [];
+  async requestLEScan(o: unknown, cb: (r: CapScanResult) => void): Promise<void> {
     this.scanCalls++;
+    this.scanOpts.push(o);
     this.scanning = true;
     this.scanCb = cb;
   }
@@ -366,6 +368,12 @@ describe('capacitorFactory', () => {
     await factory.scan([famA], () => {}, AbortSignal.abort());
     expect(ble.scanCalls).toBe(1);
     expect(ble.stopCalls).toBe(1);
+  });
+
+  it('the pairing scan asks Android for low latency (an idle J-Style 2301 advertises every 20–40 s)', async () => {
+    const { ble, factory } = setup();
+    await factory.scan([famA], () => {}, AbortSignal.abort());
+    expect(ble.scanOpts).toEqual([{ allowDuplicates: false, scanMode: SCAN_MODE_LOW_LATENCY }]);
   });
 
   it('connect connects that id directly and lists the connected device services, expanded', async () => {

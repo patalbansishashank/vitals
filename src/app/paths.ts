@@ -5,11 +5,10 @@
 export const paths = {
   root: '/',
   body: '/body',
-  /** The ring: connection, battery, sync and its readings. */
-  ring: '/ring',
   /**
-   * Body signals: heart rate, HRV, SpO2, temperature, sleep and steps over time. URL state per SUITE_SPEC §15.3; the
-   * defaults (sleep, day, today) stay out of the URL, so `signals()` is `/signals`.
+   * Body signals, the one ring page (`/ring` redirects here): the ring's card on top, then heart rate, HRV, SpO2,
+   * temperature, sleep and steps over time. URL state per SUITE_SPEC §15.3; the defaults (sleep, day, today) stay out
+   * of the URL, so `signals()` is `/signals`.
    */
   signals: (tab?: 'sleep' | 'heart' | 'activity', period?: 'day' | 'week' | 'month' | 'year', date?: string) => {
     const q = new URLSearchParams();

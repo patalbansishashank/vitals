@@ -1,82 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { Toaster } from '@/components';
 import { isRingSource as coreIsRingSource, POLICY_STREAMS } from '@/biometrics/core/policy';
 import type { DeviceType, StreamPolicy } from '@/biometrics/core/types';
 import type { CommandResult } from '@/commands/types';
-import { RingServiceProvider, type RingSharing } from '../data';
-import { createFakeRingService, createFakeSharing, scenarioPlatform } from '../fixtures';
-import { Sharing } from '../Sharing';
 import { createRingSharing, isRingSource, ringSharingState, type RingSourceLike } from '../sharingPolicy';
-
-function setup(sharing: RingSharing) {
-  return render(
-    <MemoryRouter>
-      <RingServiceProvider service={createFakeRingService('connected')} platform={scenarioPlatform('connected')} sharing={sharing}>
-        <Sharing />
-      </RingServiceProvider>
-      <Toaster />
-    </MemoryRouter>,
-  );
-}
-
-const LINE = 'Your ring data is used for your plan and scores, and the Coach and your AI tools can see it. Turn it off here or per signal in Settings › Devices.';
-
-describe('Sharing (the master switch)', () => {
-  it('on: the switch is on, the plain line under it', () => {
-    setup(createFakeSharing('on'));
-    expect(screen.getByRole('heading', { name: 'Sharing' })).toBeTruthy();
-    const sw = screen.getByRole('switch', { name: 'Use my ring data in my plan and Coach' });
-    expect((sw as HTMLInputElement).checked).toBe(true);
-    expect(screen.getByText(LINE)).toBeTruthy();
-    expect(sw.getAttribute('aria-describedby')).toBe(screen.getByText(LINE).id);
-  });
-
-  it('off, and toggling calls set with the undo toast', async () => {
-    const fake = createFakeSharing('off');
-    setup(fake);
-    const sw = screen.getByRole('switch') as HTMLInputElement;
-    expect(sw.checked).toBe(false);
-    fireEvent.click(sw);
-    await waitFor(() => expect(fake.calls).toEqual([true]));
-    await waitFor(() => expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(true));
-    expect(await screen.findByText('Your ring data is shared with your plan and Coach.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-    await waitFor(() => expect(fake.calls).toEqual([true, false]));
-    await waitFor(() => expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(false));
-  });
-
-  it('some: a mixed switch, "Some of it is shared." and the link to Settings › Devices; on turns everything on', async () => {
-    const fake = createFakeSharing('some');
-    setup(fake);
-    const sw = screen.getByRole('switch') as HTMLInputElement;
-    expect(sw.checked).toBe(false);
-    expect(sw.closest('.lm-switch')!.classList.contains('rs-mixed')).toBe(true);
-    expect(screen.getByText('Some of it is shared.', { exact: false })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Choose in Settings › Devices' }).getAttribute('href')).toBe('/settings#devices');
-    expect(screen.queryByText(LINE)).toBeNull();
-    fireEvent.click(sw);
-    await waitFor(() => expect(fake.calls).toEqual([true]));
-    // a mixed state cannot be restored with on/off: no Undo is offered by a sharing without its own undo
-    expect(await screen.findByText('Your ring data is shared with your plan and Coach.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
-  });
-
-  it('the one-time notice shows above the switch until OK', async () => {
-    const fake = createFakeSharing('on', true);
-    setup(fake);
-    expect(screen.getByText('Your ring data is now shared with your plan and Coach. You can turn that off here.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'OK' }));
-    await waitFor(() => expect(screen.queryByText(/is now shared/)).toBeNull());
-    expect(fake.noticePending()).toBe(false);
-  });
-
-  it('never shows a forbidden word', () => {
-    setup(createFakeSharing('some', true));
-    expect(document.body.textContent ?? '').not.toMatch(/password|passcode|credential|\bPIN\b|MQTT|\blease\b|GATT|handshake|\bbond\b/i);
-  });
-});
 
 /* ------------------------------------------------------------------------------------------------ the store default */
 

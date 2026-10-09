@@ -12,7 +12,6 @@ import { useActivePlanStore, type ActivePlan } from '@/features/living/activePla
 import { currentDay, useLivingClock } from '@/features/living/clock';
 import { STRIP_COPY } from '@/features/living/copy';
 import { planDayOf, useAppMode, type AppMode } from '@/features/living/mode';
-import { addDays, weekdayOf } from '@/living/dates';
 import { lastRoute } from '../lastRoute';
 import { DESTINATIONS, EVIDENCE_ITEM, LIVING_DESTINATIONS, PLANNING_ITEM, RETURN_ITEM, type NavItem } from './nav';
 import { useShell } from './ShellContext';
@@ -67,25 +66,6 @@ export function enterPlanningTools(navigate: NavigateFunction): void {
 export function backToToday(navigate: NavigateFunction): void {
   useActivePlanStore.getState().setPlanningOverride(false);
   navigate(RETURN_ITEM.to);
-}
-
-const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-/** The rail's plan-day readout under the wordmark: "day 15 / 84", "paused", "starts Mon" (IA §3.6). */
-export function PlanDayReadout({ plan }: { plan: ActivePlan }) {
-  const today = currentDay(useLivingClock());
-  let text: string;
-  if (plan.status === 'paused') text = 'paused';
-  else if (plan.status === 'scheduled' || today < plan.startDate) text = plan.startDate === addDays(today, 1) ? 'starts tomorrow' : `starts ${WD[weekdayOf(plan.startDate)]}`;
-  else {
-    const { day, of } = planDayOf(plan, today);
-    text = `day ${Math.min(day, of)} / ${of}`;
-  }
-  return (
-    <span className="lm-rail__day" aria-label={text.replace('/', 'of')}>
-      {text}
-    </span>
-  );
 }
 
 /** COMPONENTS §13.17: the plan strip under the context bar while the planning override is on. Not dismissible. */

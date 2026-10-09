@@ -77,6 +77,8 @@ function FoodScreen() {
   const [horizon, setHorizon] = useState<GroceryHorizon>('3days');
   const [logger, setLogger] = useState<{ target: MealSlotTarget | null; clockH: number; n: number } | null>(null);
   const [panel, setPanel] = useState<PanelId | null>(null);
+  // the meal row's own Undo after "As planned" here (the toast carries one too, but it goes away)
+  const [mealUndo, setMealUndo] = useState<Record<string, () => Promise<unknown>>>({});
   const [printing, setPrinting] = useState(false);
   const [takenUndo, setTakenUndo] = useState<Record<string, () => Promise<ActionOutcome>>>({});
 
@@ -164,7 +166,14 @@ function FoodScreen() {
           },
         ]
       : [];
-    report(await actions.logMeal(date, { slot: t.slot, clockH: t.clockH, components, asPlanned: true }), T.loggedAsPlanned(t.name));
+    const o = await actions.logMeal(date, { slot: t.slot, clockH: t.clockH, components, asPlanned: true });
+    if (report(o, T.loggedAsPlanned(t.name)) && o.undo) setMealUndo((m) => ({ ...m, [`${date}:${t.slot}`]: o.undo! }));
+  };
+  const undoMeal = (t: MealSlotTarget) => {
+    const k = `${date}:${t.slot}`;
+    const undo = mealUndo[k];
+    setMealUndo(({ [k]: _drop, ...rest }) => (void _drop, rest));
+    if (undo) void undo().then(() => toast(`${t.name.charAt(0).toUpperCase()}${t.name.slice(1)}: undone.`));
   };
 
   const logManual = async (input: ManualMealInput): Promise<boolean> => {
@@ -407,7 +416,8 @@ function FoodScreen() {
                 {fastDay ? <p className="lv-food-fast lm-eng">{M.fastDay}</p> : null}
                 {slots.length < daySlots.length ? <p className="lv-food-note">{M.hiddenByFast(daySlots.length - slots.length)}</p> : null}
 
-                <ul className="lv-food-slots">
+                <div className="lv-rail-host">
+                  <ul className="lv-day lv-food-slots">
                   {slots.map((t) => {
                     const k = keyOf(t.slot);
                     return (
@@ -424,6 +434,7 @@ function FoodScreen() {
                         canPlan={canPlan}
                         familyFoodMode={profile.familyFoodMode}
                         busy={running}
+                        {...(mealUndo[`${date}:${t.slot}`] ? { onUndo: () => undoMeal(t) } : {})}
                         onAteThis={() => void ateThis(t)}
                         onAteElse={() => openLogger(t)}
                         onAccept={(r) => accept(t, r)}
@@ -438,7 +449,8 @@ function FoodScreen() {
                       />
                     );
                   })}
-                </ul>
+                  </ul>
+                </div>
 
                 {grouped.other.length > 0 || canLog ? (
                   <div className="lv-food-other">
@@ -460,6 +472,7 @@ function FoodScreen() {
                   </div>
                 ) : null}
               </Faceplate>
+              <PantryFaceplate className="lv-food-pantryface" />
             </div>
 
             <div className="lv-food-side">
@@ -477,7 +490,6 @@ function FoodScreen() {
                 printing={printing}
               />
               <SupplementsFace supplements={rx.supplements} taken={takenIds} canLog={canLog} profile={profile} onTaken={(s) => void taken(s)} onNoBenefit={() => setPanel('noBenefit')} />
-              <PantryFaceplate className="lv-food-pantryface" />
             </div>
           </div>
         )}

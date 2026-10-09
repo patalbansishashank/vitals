@@ -27,7 +27,7 @@
     }
     /* Reserve both action rows above the bottom navigation. */
     .lm-app[data-actionbar='true']:has(.lm-body-setup-actions) {
-      --lm-actionbar-h: 114px;
+      --lm-actionbar-h: calc(var(--lm-bar-control-h) * 2 + 29px);
     }
   }
 
@@ -44,30 +44,61 @@
   .lm-body-mid {
     display: contents;
   }
+  /* Plain Your body: two independent stacks (no grid rows, so a short card never leaves a hole beside a tall one).
+     Below 64rem the stacks dissolve into one column and `order` sets the reading order, figure first. */
+  .lm-body-cols {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+  .lm-body-stack {
+    display: contents;
+  }
+  .lm-body-cols > .lm-body-stack > * {
+    min-width: 0;
+  }
+  .lm-body-cols #body-figure { order: 1; }
+  .lm-body-cols #body-estimates { order: 2; }
+  .lm-body-cols #body-shape { order: 3; }
+  .lm-body-cols #body-basics { order: 4; }
+  .lm-body-cols #body-habits { order: 5; }
+  .lm-body-cols #body-labs { order: 6; }
+  .lm-body-cols > .lm-body-stack > .lm-body-maintenance { order: 9; }
+  @media (min-width: 64rem) {
+    .lm-body-cols {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+    .lm-body-cols > .lm-body-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+    .lm-body-cols > .lm-body-stack > * {
+      order: 0 !important;
+    }
+  }
+
   .lm-body-basics { grid-area: basics; }
   .lm-body-figure { grid-area: figure; }
   .lm-body-est { grid-area: est; }
   .lm-body-shape { grid-area: shape; }
   .lm-body-habits-face { grid-area: habits; }
   .lm-body-labs-face { grid-area: labs; }
-  .lm-body-continue { grid-area: next; }
 
   /* ---- mobile (single column): figure first, then what it answers ---- */
-  .lm-body[data-mode='normal'] {
-    grid-template-areas: 'figure' 'est' 'basics' 'shape' 'habits' 'labs' 'next';
-  }
+  /* Basics lays out exactly like Shape: figure and estimates first, the card after them. */
   .lm-body[data-mode='basics'] {
-    grid-template-areas: 'basics' 'figure' 'est';
+    grid-template-areas: 'figure' 'est' 'basics';
   }
   .lm-body[data-mode='shape'] {
     grid-template-areas: 'figure' 'est' 'shape';
   }
   .lm-body[data-mode='habits'] {
     grid-template-areas: 'habits' 'est';
-  }
-  .lm-body[data-mode='start'] {
-    max-width: 720px;
-    margin-inline: auto;
   }
 
   /* ---- tablet and small desktop: figure beside the shape scales ---- */
@@ -82,20 +113,15 @@
     .lm-body-mid > * {
       grid-area: auto;
     }
-    .lm-body[data-mode='normal'] {
-      grid-template-columns: minmax(0, 1fr) 360px;
-      grid-template-areas:
-        'mid shape'
-        'basics habits'
-        'basics labs'
-        'next next';
+    /* Shape and Basics share one grid: two equal halves, the figure and estimates on the left and the step's card
+       on the right, the same gap between them and the page's own padding around them. */
+    :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape']) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .lm-body[data-mode='basics'] {
-      grid-template-columns: minmax(300px, 400px) minmax(0, 1fr);
-      grid-template-areas: 'basics mid';
+      grid-template-areas: 'mid basics';
     }
     .lm-body[data-mode='shape'] {
-      grid-template-columns: minmax(0, 1fr) 360px;
       grid-template-areas: 'mid shape';
     }
     .lm-body[data-mode='habits'] {
@@ -104,22 +130,40 @@
     }
   }
 
-  /* ---- desktop ≥ 1344: room for 320 | figure | 372 after the rail and gutters;
-         spanning columns never stretch the left stack
-         (their extra height goes to the trailing flexible row) ---- */
-  @media (min-width: 84rem) {
-    .lm-body[data-mode='normal'] {
-      grid-template-columns: 320px minmax(480px, 1fr) 372px;
-      grid-template-rows: auto auto auto auto 1fr;
-      grid-template-areas:
-        'basics mid shape'
-        'habits mid shape'
-        'labs mid shape'
-        'next mid shape'
-        '. mid shape';
+  /* ---- wide screens, the two setup steps: the figure fills what the window has to spare ----
+     The left column (figure and estimates) is as tall as the window allows (context bar, 20 px, the column,
+     20 px, the action bar when there is one) and takes its height from the window alone, never from the right
+     card: the figure card absorbs whatever the estimates leave. When the right card grows (Adjust the drawing)
+     the page scrolls and the left column stays put under the context bar, the same size. When the left column's
+     own floor is taller than the window, it is its natural height and the page scrolls. The ceiling keeps the
+     figure sane on very tall windows (the extra then sits under the last card). The canvas follows the card;
+     only containers are sized here. */
+  @media (min-width: 64rem) {
+    .lm-body:is([data-mode='basics'], [data-mode='shape']) {
+      /* the shell leaves 32 px under the page; the gap above it is 20 px. Drop the page's own 32 px and pull it
+         down by that 12 px, so the page ends exactly 20 px above the action bar (or the window's foot). */
+      padding-bottom: 0;
+      margin-bottom: -12px;
     }
-    .lm-body[data-mode='shape'] {
-      grid-template-columns: minmax(480px, 1fr) 372px;
+    :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape']) > .lm-body-mid {
+      align-self: start;
+      position: sticky;
+      top: calc(var(--lm-topbar-h) + 20px);
+      min-height: min(calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 40px), 1400px);
+    }
+    /* One canvas height for the setup steps and plain Your body (--lm-canvas-h above: about 47 % of the window, never
+       under 420 px), the same whatever the cards beside it do (Adjust the drawing, figure or visceral). */
+    :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape'], .lm-body-cols) .lm-body-figure:not([data-hidden='true']) .lm-body-stage {
+      flex: none;
+      height: calc(var(--lm-canvas-h) + var(--lm-canvas-chrome));
+      min-height: 0;
+    }
+    /* the figure fills the stage whatever height the card gives it */
+    :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape'], .lm-body-cols) .lm-body-figure .lm-body-stage > :is(.lm-fig3d, .lm-avatar) {
+      position: absolute;
+      inset: 0;
+      width: auto;
+      height: auto;
     }
   }
 
@@ -209,9 +253,26 @@
   .lm-body-figure[data-hidden='true'] .lm-body-row {
     margin-top: 12px;
   }
+  /* The stage holds the 3D canvas plus its layer chips and caption. Its height is the canvas height we want
+     (--lm-canvas-h, a share of the window) plus that chrome, so the canvas itself measures what the variable says. */
+  .lm-body {
+    --lm-canvas-h: clamp(360px, 40dvh, 480px);
+    --lm-canvas-chrome: 240px;
+  }
+  @media (min-width: 48rem) {
+    .lm-body {
+      --lm-canvas-h: clamp(360px, 46dvh, 560px);
+      --lm-canvas-chrome: 140px;
+    }
+  }
+  @media (min-width: 64rem) {
+    .lm-body {
+      --lm-canvas-h: clamp(420px, 47dvh, 760px);
+    }
+  }
   .lm-body-stage {
     position: relative;
-    height: clamp(340px, 58vh, 560px);
+    height: calc(var(--lm-canvas-h) + var(--lm-canvas-chrome));
     min-width: 0;
   }
   .lm-body-stage > .lm-avatar {
@@ -228,9 +289,9 @@
   }
   @media (max-width: 47.99rem) {
     .lm-body-stage {
-      height: auto;
-      aspect-ratio: 4 / 5;
-      max-height: 72vh;
+      /* full card width always: with the ratio and the height cap alone a wide card (a 730 px window) got a stage
+         narrower than the card, and the figure's controls sat in the strip left over on the right */
+      width: 100%;
     }
   }
   /* the 3D figure fills the stage like the SVG one did */
@@ -243,14 +304,14 @@
   /* visceral view: same box, grows only when the words need it (no page jump on switching) */
   .lm-body-stage--visceral {
     height: auto;
-    min-height: clamp(340px, 58vh, 560px);
+    min-height: calc(var(--lm-canvas-h) + var(--lm-canvas-chrome));
     padding: 12px 16px 16px;
   }
   @media (max-width: 47.99rem) {
     .lm-body-stage--visceral {
       aspect-ratio: auto;
       max-height: none;
-      min-height: min(calc((100vw - 2 * var(--lm-gutter, 16px)) * 1.25), 72vh);
+      min-height: calc(var(--lm-canvas-h) + var(--lm-canvas-chrome));
       padding: 10px 12px 14px;
     }
   }
@@ -314,22 +375,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 4px 12px;
-  }
-
-  .lm-body-figure__notes {
-    display: grid;
-    gap: 8px;
-    padding: 10px 16px 14px;
-    border-top: 1px solid var(--lm-line);
-  }
-  .lm-body-figure__notes .lm-eng {
-    margin: 0;
-    font-variant-numeric: tabular-nums;
-  }
-  @media (min-width: 64rem) {
-    .lm-body-figure__notes {
-      padding-inline: 20px;
-    }
   }
 
   /* ---- estimates ---- */
@@ -408,11 +453,7 @@
     }
   }
 
-  /* ---- continue / choose a start ---- */
-  .lm-body-continue {
-    display: grid;
-    gap: 10px;
-  }
+  /* ---- choose a start ---- */
   .lm-body-start {
     display: grid;
     gap: 16px;
@@ -440,9 +481,15 @@
   }
 
   /* ---- setup progress scale (context bar) ---- */
+  /* Equal segments, each as wide as the widest label (never under 44 px): a content-sized grid of 1fr
+     columns makes every column the widest item's width, and the scale grows past that only if its slot
+     stretches it. Labels sit left under their bar; a label never overhangs (last resort: ellipsis). */
   .lm-body-steps {
-    display: flex;
-    gap: 6px;
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(44px, 1fr);
+    column-gap: 6px;
+    max-width: 100%;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -450,11 +497,10 @@
   .lm-body-steps li {
     display: grid;
     gap: 3px;
-    justify-items: start;
+    min-width: 0;
   }
   .lm-body-steps__bar {
     position: relative;
-    width: 44px;
     height: 4px;
     border-radius: 2px;
     background: var(--lm-well);
@@ -477,10 +523,22 @@
     box-shadow: 0 0 0 1px var(--lm-signal-edge);
   }
   .lm-body-steps__label {
+    display: block;
     font-size: var(--lm-text-2xs);
     line-height: 12px;
     font-stretch: 84%;
     color: var(--lm-ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* reserves the label's current (bold) width, so the scale keeps its size from step to step */
+  .lm-body-steps__label::after {
+    content: attr(data-label);
+    display: block;
+    height: 0;
+    font-weight: 600;
+    visibility: hidden;
   }
   .lm-body-steps li[data-state='current'] .lm-body-steps__label {
     color: var(--lm-ink);
@@ -520,7 +578,8 @@
     }
   }
   .lm-body-mini__fig {
-    display: block;
+    display: flex;
+    justify-content: center;
     height: 100%;
     overflow: hidden;
     border-radius: var(--lm-radius-md);

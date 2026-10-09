@@ -59,11 +59,11 @@ export interface LimitsPanelProps {
 }
 
 /**
- * Practical limits (planner-goals.md §6, COMPONENTS §8 `<Constraints>`): training, eating, fasting, nutrient floors and
- * the "won't do" list. Changes apply immediately and re-evaluate the "Before you run" hints.
+ * Practical limits (planner-goals.md §6, COMPONENTS §8 `<Constraints>`): training, eating, fasting and nutrient floors
+ * (the "won't do" list is its own section, `WontDoPanel`). Changes apply immediately and re-evaluate the "Before you
+ * run" hints.
  */
 export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, fastLockReason, disabled }: LimitsPanelProps) {
-  const energy = useEnergyUnit();
   const [train, setTrain] = useLive<readonly [number, number]>(c.trainingDays);
   const [cardio, setCardio] = useLive<readonly [number, number]>(c.cardioDays);
   const [eat, setEat] = useLive<readonly [number, number]>([c.earliestH, c.latestH]);
@@ -79,13 +79,6 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
     else next.add(d);
     onChange({ trainingWeekdays: [...next].sort((a, b) => a - b) as Weekday[] });
   };
-  const toggleExcluded = (id: string, on: boolean) => {
-    const set = new Set(c.excluded);
-    if (on) set.add(id);
-    else set.delete(id);
-    onChange({ excluded: [...set].sort() });
-  };
-
   const fastOptions = LONGEST_FAST_OPTIONS.map((h) => ({
     value: String(h) as `${LongestFast}`,
     label: `${h} h`,
@@ -315,14 +308,33 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
           </div>
         </Section>
 
-        <Section label="Won’t do">
-          <div className="lp-wont">
-            {EXCLUDABLE.map((x) => (
-              <Checkbox key={x.id} label={x.label} help={typeof x.help === 'function' ? x.help(energy) : x.help} checked={c.excluded.includes(x.id)} onChange={(on) => toggleExcluded(x.id, on)} disabled={disabled} />
-            ))}
-            <Checkbox label="changing my sleep" help="Keep bed and wake times as they are" checked={c.sleepFixed} onChange={(on) => onChange({ sleepFixed: on })} disabled={disabled} />
-          </div>
-        </Section>
+      </div>
+    </Faceplate>
+  );
+}
+
+export interface WontDoPanelProps {
+  c: ConstraintDraft;
+  onChange: (patch: Partial<ConstraintDraft>) => void;
+  disabled?: boolean;
+}
+
+/** The "won't do" list (planner-goals.md §6): its own section, under "Before you run" on wide screens. */
+export function WontDoPanel({ c, onChange, disabled }: WontDoPanelProps) {
+  const energy = useEnergyUnit();
+  const toggleExcluded = (id: string, on: boolean) => {
+    const set = new Set(c.excluded);
+    if (on) set.add(id);
+    else set.delete(id);
+    onChange({ excluded: [...set].sort() });
+  };
+  return (
+    <Faceplate title="Won’t do" className="lp-wontface">
+      <div className="lp-wont">
+        {EXCLUDABLE.map((x) => (
+          <Checkbox key={x.id} label={x.label} help={typeof x.help === 'function' ? x.help(energy) : x.help} checked={c.excluded.includes(x.id)} onChange={(on) => toggleExcluded(x.id, on)} disabled={disabled} />
+        ))}
+        <Checkbox label="changing my sleep" help="Keep bed and wake times as they are" checked={c.sleepFixed} onChange={(on) => onChange({ sleepFixed: on })} disabled={disabled} />
       </div>
     </Faceplate>
   );

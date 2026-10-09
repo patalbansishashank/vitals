@@ -131,3 +131,16 @@ export function mealName(slot: string, clockH: number): string {
   if (clockH < 18) return 'snack';
   return 'dinner';
 }
+
+/** Short weekday names in the order stored plan weekdays use: 0 = Monday … 6 = Sunday (`Weekday` in living/types). */
+export const WEEKDAY_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+/** Stored plan weekdays (0 = Monday) as "Mon · Thu", in week order. */
+export function weekdaysText(days: readonly number[], lower = false): string {
+  return [...days]
+    .sort((a, b) => a - b)
+    .map((d) => WEEKDAY_SHORT[d] ?? '')
+    .filter(Boolean)
+    .map((w) => (lower ? w.toLowerCase() : w))
+    .join(' · ');
+}

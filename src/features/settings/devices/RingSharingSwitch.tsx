@@ -1,7 +1,7 @@
 /**
  * The ring data master switch (plan 04 item 11, SUITE_SPEC §15.2): "Use my ring data in my plan and Coach". Reads
  * `ringSharing` from `bio.sources` (on, off, or some: any other mix) and sends `bio.setRingSharing { on }`. Hidden when
- * the person has no ring source. Mounted on the Ring page and in Settings › Devices above the per-signal switches.
+ * the person has no ring source. Mounted in Settings › Devices above the per-signal switches.
  * Also shows the one-time notice after the ring defaults were applied to an existing ring source.
  */
 import { useState } from 'react';

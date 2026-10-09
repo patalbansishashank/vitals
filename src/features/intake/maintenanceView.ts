@@ -5,12 +5,13 @@
  */
 import { formatNumber } from '@/components/lib/format';
 import type { ActivityDriverId, ActivityIntake } from '@/engine/types/profile';
+import { maintenanceShown } from '@/features/body/units';
 import { explainMaintenance, round10, type MaintenanceEstimate, type MaintenanceExplanation } from '@/features/body/maintenance';
 import type { EnergyUnit } from '@/state/settingsStore';
 import { DRIVER_LABEL, MAINT } from './copy';
 
 const KJ = 4.184;
-export const energyOut = (kcal: number, unit: EnergyUnit): number => round10(unit === 'kJ' ? kcal * KJ : kcal);
+export const energyOut = maintenanceShown;
 export const fmt = (kcal: number, unit: EnergyUnit): string => formatNumber(energyOut(kcal, unit), 0);
 export const unitWord = (unit: EnergyUnit): string => (unit === 'kJ' ? 'kJ' : 'kcal');
 

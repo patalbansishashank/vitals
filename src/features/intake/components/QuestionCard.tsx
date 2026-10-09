@@ -75,6 +75,10 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
   const [footSlot, setFootSlot] = useState<HTMLElement | null>(null);
   const hasAnswer = value !== undefined;
   const ownFooter = q.kind === 'custom' && q.ownFooter === true;
+  // a card with nothing to answer: Next records `advance` (see `CustomQuestion.advance`)
+  const advance = q.kind === 'custom' ? q.advance : undefined;
+  const canNext = (hasAnswer && onKeep !== undefined) || advance !== undefined;
+  const next = () => (hasAnswer && onKeep ? onKeep() : advance !== undefined ? onCommit(advance) : undefined);
 
   const onKeyDown = (e: KeyboardEvent<HTMLFieldSetElement>) => {
     const target = e.target as HTMLElement;
@@ -91,9 +95,9 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
     } else if (e.key === 'Enter' && !typing && target.getAttribute('role') === 'checkbox') {
       e.preventDefault();
       e.currentTarget.querySelector<HTMLButtonElement>('[data-ik-done="true"]')?.click();
-    } else if (e.key === 'Enter' && !typing && (target === e.currentTarget || target.tagName === 'LEGEND') && hasAnswer && onKeep) {
+    } else if (e.key === 'Enter' && !typing && (target === e.currentTarget || target.tagName === 'LEGEND') && canNext) {
       e.preventDefault();
-      onKeep();
+      next();
     }
   };
 
@@ -130,7 +134,7 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
   }
 
   const describedBy = [context ? chipId : null, whyOpen ? whyId : null].filter(Boolean).join(' ') || undefined;
-  const shortcuts = [hasAnswer && onKeep ? 'Enter' : null, onBack ? 'Alt+ArrowLeft' : null, onLater ? 'L' : null, onCancel ? 'Escape' : null].filter(Boolean).join(' ');
+  const shortcuts = [canNext ? 'Enter' : null, onBack ? 'Alt+ArrowLeft' : null, onLater ? 'L' : null, onCancel ? 'Escape' : null].filter(Boolean).join(' ');
 
   return (
     <fieldset className="lm-ik-card" id={`ik-${q.id}`} data-kind={q.kind} data-changing={changing || undefined} onKeyDown={onKeyDown} aria-describedby={describedBy} aria-keyshortcuts={shortcuts || undefined}>
@@ -206,8 +210,8 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
               variant="solid"
               size="md"
               trailingIcon={ChevronRight}
-              onClick={() => (hasAnswer && onKeep ? onKeep() : undefined)}
-              disabledReason={failed ? TURN.saveFailed : hasAnswer && onKeep ? undefined : TURN.nextNeedsAnswer}
+              onClick={next}
+              disabledReason={failed ? TURN.saveFailed : canNext ? undefined : TURN.nextNeedsAnswer}
             >
               {changing ? TURN.save : TURN.next}
             </Key>

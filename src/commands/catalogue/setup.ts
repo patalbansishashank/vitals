@@ -33,6 +33,7 @@ import {
   planDay,
   versionInForce,
   weekdayOf,
+  withUsualSessions,
   type LocalDate,
   type PlanDoc,
   type PlanVersionDoc,
@@ -181,7 +182,11 @@ export function prescribedDays(dates: readonly LocalDate[], tz: string): { plan:
     }
     const f = frozen.get(date);
     if (f) {
-      days.set(date, f);
+      // a day frozen before usual sessions were prescribed gets them re-derived from its own version (never written back)
+      const fd = planDay(plan, date);
+      const fv = (docs.versions.find((v) => v.planId === plan.id && v.version === f.version) ?? versionInForce(docs.versions, fd) ?? head) as PlanVersionDoc;
+      const fp = pausedDaySet(plan, addDays(date, 1)).has(fd);
+      days.set(date, withUsualSessions(f, plan.baselineProfile, date, () => freezePrescription({ plan, version: fv, date, tz, ...(fp ? { paused: true } : { compiled: compiledFor(plan, fv) }) })));
       continue;
     }
     const d = planDay(plan, date);

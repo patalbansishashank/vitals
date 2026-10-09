@@ -10,7 +10,7 @@ import { DisclaimerFull } from '@/features/onboarding/Disclaimer';
 import { SafetySettingsPanel } from '@/features/onboarding/SafetySettingsPanel';
 import { hasValidationReport } from '@/features/evidence/validationReport';
 import { SavedLabel, SettingRow, useSavedFlash } from './SettingRow';
-import { DISCLAIMER, DISCLAIMER_TEXT, LICENCES, PRIVACY_TEXT, PRIVACY_TEXT_SYNCED } from './copy';
+import { DISCLAIMER, DISCLAIMER_TEXT, FIGURE_CREDIT, LICENCES, PRIVACY_TEXT, PRIVACY_TEXT_SYNCED } from './copy';
 import { useSyncView } from '@/state/sync';
 import '@/commands'; // the registry: registers the commands sent here
 import { sendCommand } from '@/features/lib/sendCommand';
@@ -213,7 +213,7 @@ export function AboutSection() {
             <Icon icon={ChevronRight} size={16} className="transition-transform duration-fast group-open:rotate-90" />
             Disclaimer
           </summary>
-          <p className="mb-0 mt-2 max-w-[68ch] text-sm leading-[1.55] text-ink">{DISCLAIMER_TEXT}</p>
+          <p className="mb-0 mt-2 text-sm leading-[1.55] text-ink">{DISCLAIMER_TEXT}</p>
           <div className="mt-4">
             <DisclaimerFull headingAs="h3" size="sm" withHelp={false} withPageLink />
           </div>
@@ -230,6 +230,12 @@ export function AboutSection() {
           licences
         </Engraved>
         <p className="m-0 text-sm leading-[1.5] text-ink-2">{LICENCES.map((l) => `${l.name} — ${l.licence}`).join(' · ')}</p>
+        <p className="m-0 text-sm leading-[1.5] text-ink-2">
+          {FIGURE_CREDIT.text}{' '}
+          <a className="lm-link" href={`${import.meta.env.BASE_URL}${FIGURE_CREDIT.file}`} target="_blank" rel="noopener noreferrer">
+            {FIGURE_CREDIT.link}
+          </a>
+        </p>
       </div>
       <div className="mt-4 grid gap-1 border-t border-line pt-4">
         <Engraved as="p" className="m-0">

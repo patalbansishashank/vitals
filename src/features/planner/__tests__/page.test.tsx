@@ -302,7 +302,7 @@ describe('Results: the plan ladder', () => {
 
   it('switches to the comparison table in the contract’s order', async () => {
     const user = await showResults(fixtureLadder());
-    const bank = screen.getAllByRole('radiogroup', { name: 'Show the plans as' })[0]!;
+    const bank = screen.getByRole('radiogroup', { name: 'Show the plans as' });
     await user.click(within(bank).getByRole('radio', { name: 'table' }));
     await waitFor(() => expect(where()).toContain('view=table'));
     const table = screen.getByRole('table', { name: /The plans side by side/ });
@@ -563,7 +563,7 @@ describe('Results: the ladder at every size (all four, three, Ideal equals Hard,
     expect(document.querySelector('.lp-scale__how')!.textContent).toContain(CAPTION);
     // ?rung=ideal lands on Hard; the table drops the Ideal column and carries the line above it
     expect(screen.queryByRole('button', { name: /^Select Ideal/ })).toBeNull();
-    const bank = screen.getAllByRole('radiogroup', { name: 'Show the plans as' })[0]!;
+    const bank = screen.getByRole('radiogroup', { name: 'Show the plans as' });
     await user.click(within(bank).getByRole('radio', { name: 'table' }));
     await waitFor(() => expect(where()).toContain('view=table'));
     const table = screen.getByRole('table', { name: /The plans side by side/ });

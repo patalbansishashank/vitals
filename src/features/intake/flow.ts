@@ -134,6 +134,11 @@ export interface CustomQuestion extends QuestionBase {
    * footer (`CardFootSlot`), so the card never shows two footers or two disabled reasons.
    */
   ownFooter?: boolean;
+  /**
+   * A card with nothing to answer (a computed card such as how each device's data arrives): Next is always enabled and
+   * records this value, so the person just moves on.
+   */
+  advance?: unknown;
 }
 
 export type Question = SingleQuestion | MultiQuestion | NumberQuestion | CustomQuestion;

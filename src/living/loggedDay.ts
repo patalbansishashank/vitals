@@ -251,6 +251,7 @@ export function toLoggedDay(i: LoggedDayInput): LoggedDayResult {
     if (trainMark) {
       const c = markCredit(trainMark);
       setItem(itemId, type, statusOf(c), c, `training marked ${trainMark}`);
+      if (s.usual) continue; // see below: a usual session's energy is the engine's (habitualTraining) or none
       for (const e of s.engine) {
         const sc = scaleSession(e, c);
         if (sc) exercise.push(sc);
@@ -260,6 +261,9 @@ export function toLoggedDay(i: LoggedDayInput): LoggedDayResult {
     const c = i.expected(type, wd);
     setItem(itemId, type, 'unknown', null, 'not logged');
     assumedItems.push(itemId);
+    // a usual ("training as usual") session without its own log or device record adds no exercise here: on a day that
+    // logs no training the engine trains it (habitualTraining below), and once anything else is logged the logs replace it
+    if (s.usual) continue;
     for (const e of s.engine) {
       const sc = scaleSession(e, c);
       if (sc) exercise.push(sc);
@@ -275,7 +279,8 @@ export function toLoggedDay(i: LoggedDayInput): LoggedDayResult {
     exercise.push(w.kind === 'resistance' ? { kind: 'resistance', startH: w.startH, durationMin: w.durationMin, volume: 'light' } : { kind: 'cardio', modality: 'other', startH: w.startH, durationMin: w.durationMin });
   }
   t.exercise = exercise.sort((a, b) => a.startH - b.startH);
-  if (rx.template.habitualTraining && rx.sessions.length === 0 && sessionLogs.length === 0 && workouts.length === 0) t.habitualTraining = true;
+  const ownSessions = rx.sessions.filter((s) => !s.usual).length;
+  if (rx.template.habitualTraining && ownSessions === 0 && sessionLogs.length === 0 && workouts.length === 0) t.habitualTraining = true;
   else t.habitualTraining = false;
 
   // ------------------------------------------------------------------ fast

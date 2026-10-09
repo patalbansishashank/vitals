@@ -1,8 +1,9 @@
 /* ==========================================================================
    Intake v3 (design/screens/onboarding-intake-v3.md; COMPONENTS §13.2, §13.15, §14.2, §14.3).
-   Tokens only. Mobile first: one column at 375 px with the page's 16 px gutters,
-   nothing wider than the column (no horizontal scroll); from 1024 px a 640 px
-   conversation column and a 360 px "Your picture so far" faceplate.
+   Tokens only. Mobile first: one column below 768 px with the page's 16 px gutters, nothing wider than the column
+   (no horizontal scroll). From 768 px the step is laid out like Your body's Basics and Shape: "Your answers" on the
+   left (75 %) and "Your picture so far" on the right (25 %), the page's own padding around them and the same 16 px
+   gap between the two columns; neither column has a width cap.
    ========================================================================== */
 
 @layer components {
@@ -14,12 +15,13 @@
     padding-block: 8px 96px;
     min-width: 0;
   }
-  @media (min-width: 64rem) {
+  @media (min-width: 48rem) {
     .lm-ik {
-      grid-template-columns: minmax(0, 640px) 360px;
-      gap: 32px;
-      justify-content: center;
+      grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
       align-items: start;
+      max-width: none;
+      margin-inline: 0;
+      padding-block: 0 32px;
     }
   }
   .lm-ik__col {
@@ -31,11 +33,11 @@
     display: none;
     min-width: 0;
   }
-  @media (min-width: 64rem) {
+  @media (min-width: 48rem) {
     .lm-ik__aside {
       display: block;
       position: sticky;
-      top: calc(var(--lm-topbar-h) + 16px);
+      top: calc(var(--lm-topbar-h) + 20px);
     }
   }
   .lm-ik__intro {
@@ -62,13 +64,15 @@
     min-height: 32px;
     align-content: center;
   }
+  /* equal 1fr segments; from 768 px the scale is content-sized, so every segment is at least the widest label */
   .lm-ik-progress__segs {
-    display: flex;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
     gap: 6px;
     width: min(100% - 32px, 360px);
   }
   .lm-ik-progress__seg {
-    flex: 1 1 0;
     display: grid;
     gap: 3px;
     min-width: 0;
@@ -136,17 +140,29 @@
     display: none;
   }
   @media (min-width: 48rem) {
+    /* at least 420 px, wider when five equal segments at the widest label need it */
     .lm-ik-progress {
-      width: 420px;
+      width: auto;
+      min-width: 420px;
       justify-items: stretch;
     }
     .lm-ik-progress__segs {
       width: 100%;
     }
     /* block, not inline-flex: text-overflow only works on a block box, so a long name ends in "…" instead of being cut
-       into another word ("blood marker", Q6; REVIEW_FINDINGS 6) */
+       into another word ("blood marker", Q6; REVIEW_FINDINGS 6). The ellipsis is only a last resort now: the segments
+       are sized to the widest label. */
     .lm-ik-progress__label {
       display: block;
+    }
+    /* reserves the current label's width (dot + bold), so segments keep their size from chapter to chapter */
+    .lm-ik-progress__label::after {
+      content: attr(data-label);
+      display: block;
+      height: 0;
+      padding-left: 10px;
+      font-weight: 600;
+      visibility: hidden;
     }
     .lm-ik-progress__label > .lm-ik-progress__dot {
       display: inline-block;
@@ -159,11 +175,11 @@
   }
   @media (min-width: 64rem) {
     .lm-ik-progress {
-      width: 440px;
+      min-width: 440px;
     }
   }
 
-  /* ---- live readout rail (below 1024 px, sticky) ---- */
+  /* ---- live readout rail (below 768 px; from 768 px "Your picture so far" sits beside the answers) ---- */
   .lm-ik-rail {
     display: grid;
     gap: 8px;
@@ -181,7 +197,7 @@
   .lm-ik-rail__panel {
     padding-bottom: 8px;
   }
-  @media (min-width: 64rem) {
+  @media (min-width: 48rem) {
     .lm-ik-rail {
       display: none;
     }
@@ -354,9 +370,10 @@
   .lm-ik-card__prompt + * {
     clear: both;
   }
+  /* the question text takes focus from script when a step opens (no key can reach it): no box, mouse or keyboard */
+  .lm-ik-card__prompt:focus,
   .lm-ik-card__prompt:focus-visible {
-    outline: 2px solid var(--lm-focus);
-    outline-offset: 2px;
+    outline: none;
   }
   .lm-ik-card__default {
     margin: 0;
@@ -935,14 +952,65 @@
     display: grid;
     gap: 12px;
   }
+  /* the panel is a quarter of the page (about 180 px at 768): the range line and the bar's labels fit it */
+  .lm-ik-picture .lm-rangebar {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    white-space: normal;
+  }
+  .lm-ik-picture .lm-ik-driverbar__labels > span {
+    text-overflow: ellipsis;
+  }
+  @media (min-width: 48rem) and (max-width: 63.99rem) {
+    .lm-ik-picture .lm-ik-summary__row dd {
+      font-size: var(--lm-text-sm);
+      line-height: var(--lm-text-sm--lh);
+    }
+  }
 
-  /* ---- summary ---- */
+  /* the summary's keys in the action bar (once): they fill the phone foot bar, Back then the wider primary key; on desktop
+     the status sits on the left and the keys keep their own width on the right */
+  .lm-ik-summary-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+  .lm-ik-summary-keys {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lm-ik-summary-keys > * {
+    flex: 1 1 auto;
+  }
+  .lm-ik-summary-keys > .lm-key[data-variant='solid'] {
+    flex: 2 1 auto;
+  }
+  @media (min-width: 64rem) {
+    .lm-ik-summary-keys {
+      flex: 0 0 auto;
+      margin-inline-start: auto;
+    }
+    .lm-ik-summary-keys > * {
+      flex: none;
+    }
+  }
+
+  /* ---- summary: the whole content width, one column; each row is its own full-width line. From 768 px a row reads as
+          label | answer | change with a fixed label column; on a phone the label sits above the answer ---- */
   .lm-ik-summary {
-    max-width: 720px;
-    margin-inline: auto;
     display: grid;
     gap: 16px;
     padding-block: 8px 96px;
+    min-width: 0;
+  }
+  @media (min-width: 48rem) {
+    .lm-ik-summary {
+      padding-block: 0 32px;
+    }
   }
   .lm-ik-summary__rows {
     display: grid;
@@ -955,7 +1023,7 @@
     padding-block: 12px;
     border-bottom: 1px solid var(--lm-line);
   }
-  /* the footer's rule is the only line above the key */
+  /* the card ends on its last row (the page's keys live in the action bar) */
   .lm-ik-summary__row:last-child {
     border-bottom: 0;
   }
@@ -972,30 +1040,88 @@
     line-height: var(--lm-text-base--lh);
     overflow-wrap: anywhere;
   }
-  .lm-ik-summary__row[data-unanswered='true'] dd {
+  /* ---- "What we'll use": the parts. Each part is a heading with its change key, then one labelled line per answer,
+          with a hairline above every part but the first (no nested cards). From 768 px the labels are a fixed column. ---- */
+  .lm-ik-parts {
+    display: grid;
+    min-width: 0;
+  }
+  .lm-ik-part {
+    display: grid;
+    gap: 12px;
+    padding-block: 20px;
+    border-top: 1px solid var(--lm-line);
+    min-width: 0;
+  }
+  .lm-ik-part:first-child {
+    border-top: 0;
+    padding-top: 8px;
+  }
+  .lm-ik-part__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-ik-part__name {
+    margin: 0;
+    font-size: var(--lm-text-md, 15px);
+    font-weight: 600;
+    color: var(--lm-ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lm-ik-part__rows {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    min-width: 0;
+  }
+  .lm-ik-part__row {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lm-ik-part__row dt {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-part__row dd {
+    margin: 0;
+    font-size: var(--lm-text-base);
+    line-height: var(--lm-text-base--lh);
+    overflow-wrap: anywhere;
+  }
+  .lm-ik-part__row[data-later='true'] dd,
+  .lm-ik-part__none {
     color: var(--lm-ink-3);
   }
-  .lm-ik-summary__change {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    align-self: start;
-    margin-top: 18px;
+  .lm-ik-part__none {
+    margin: 0;
+    font-size: var(--lm-text-base);
   }
-  .lm-ik-summary__face > .lm-face-foot {
-    padding-top: 16px;
-  }
-  @media (max-width: 29.99rem) {
-    .lm-ik-summary__go {
-      flex: 1 1 100%;
+  @media (min-width: 48rem) {
+    .lm-ik-part__row {
+      grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
+      column-gap: 16px;
+      align-items: baseline;
+    }
+    .lm-ik-part__row dt {
+      font-size: var(--lm-text-sm);
+      line-height: var(--lm-text-sm--lh);
     }
   }
 
-  /* ---- devices: route cards, privacy lines, stream matrix (COMPONENTS §13.15) ---- */
-  .lm-ik__privacy {
+  /* ---- devices: route cards, "How your data is used", stream matrix (COMPONENTS §13.15) ---- */
+  .lm-ik-howused {
     display: grid;
     gap: 6px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--lm-line);
+  }
+  .lm-ik-howused[hidden] {
+    display: none;
   }
   .lm-ik-routes {
     display: grid;

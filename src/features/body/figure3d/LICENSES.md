@@ -18,8 +18,9 @@ shipped: the renderer, fitter, decoder and pipeline are our own code (no three.j
     `measure/measure-shoulder-dist`, `stomach/stomach-pregnant`, `torso/torso-scale-depth`, `torso/torso-scale-horiz`,
     `buttocks/buttocks-volume` (24 files).
   - `rigs/default.mhskel` and `rigs/default_weights.mhw`: used offline only, to lower the arms and straighten the
-    forearms (linear blend skinning baked into the base and every target). The joint positions and weights are not
-    shipped.
+    forearms (linear blend skinning baked into the base and every target). Derived joint centres and small skin
+    stencils and aggregated arm-chain weights are shipped for registration and
+    pose clearance; the full rig and weight files are not shipped.
   - `LICENSE.md`: the licence statement quoted below.
 
 ## Licence
@@ -81,14 +82,30 @@ official database archive under that current grant, not a Z-Anatomy adaptation o
 third-party repack.
 
 Changes: selection of named bones and skeletal muscles; removal of unneeded atlas
-structures; coordinate conversion from millimetres/z-up to centimetres/y-up;
-registration to the MakeHuman reference stature and relaxed arm span; mesh reduction;
+structures, including internal oral/nasal bones and deep head/throat muscles;
+coordinate conversion from millimetres/z-up to centimetres/y-up;
+joint-based reposing to both MakeHuman adult frame endpoints; binding to the posed
+skin surface and an inward surface margin; mesh repair and reduction in Blender
+(merged duplicate vertices, dropped stray fragments, closed holes, quadric
+decimation, outward winding); muscles trimmed at the wrist, ankle, knuckles and
+ball of the foot (tendons not drawn); the platysma sheet dropped;
 merging into material/region groups; position quantization and gzip compression.
 Runtime muscle thickness and display-frame changes are illustrative adaptations.
 The atlas is an adult male reference, not a reconstruction of any app user's anatomy.
 
 `scripts/figure/fetch-anatomy.py` verifies the pinned archive checksum;
-`scripts/figure/bake-anatomy.py` reproduces the separate derived asset. Every selected
+`scripts/figure/bake.ts` exports the shared pose and skin cage, then
+`scripts/figure/bake-anatomy.py` reproduces the separate derived asset and invokes
+`scripts/figure/bind-anatomy.ts`. Every selected
 source OBJ ID and name is embedded in the pack's `source.selected` manifest.
 The derived atlas data remains CC BY 4.0; the independent application code is MIT.
+The packaged attribution is also in `public/figure/NOTICE.txt`. The credit line and the link to `public/figure/NOTICE.html`
+live in Settings › About › licences (not on the figure card).
+
 The packaged attribution is also in `public/figure/NOTICE.txt`, linked by the figure UI.
+
+The CC0 exterior also removes the hm08 inward eye and mouth skin pockets and
+replaces them with smooth, outward-facing outer-rim caps. These linear repairs
+are applied to every morph target before mesh reduction. No eyes, eyelids,
+teeth, tongue or oral shell are included. The anatomy bake report records each
+excluded atlas label; the skull, jaw and exterior face/neck muscles remain.

@@ -1,9 +1,11 @@
 /** Each chapter's reducer: answers → the documents the engine, planner and recipes read (design §10.1 mapping). */
 import { describe, expect, it } from 'vitest';
+import { ringDefaultPolicy } from '@/biometrics/core/policy';
 import { SEED_CATALOGUE } from '@/content/catalogues';
 import { STANDARD_ANSWERS } from '@/features/onboarding/testing';
 import { measuredRmrKcal, reduceActivity } from '../chapters/activity';
-import { coachDaily, offPolicy, recommendedPolicy, reduceDevices, routeOf, setCell, streamsFor, STREAM_RULES } from '../chapters/devices';
+import { offPolicy, recommendedPolicy, reduceDevices, routeOf, setCell, streamsFor, STREAM_ORDER, STREAM_RULES } from '../chapters/devices';
+import { POLICY_TARGETS, policyCalls } from '../devicePolicies';
 import { dietAnimalLevelOf, kitchenDefaults, medicalDietOf, reduceFood } from '../chapters/food';
 import { EQUIPMENT_GROUPS, KITS, LOADABLE, PLACE_EQUIPMENT, familyTokens, reduceTraining, safetyContraTags } from '../chapters/training';
 import { DEFAULT_CONTEXT, type FlowContext } from '../flow';
@@ -311,11 +313,33 @@ describe('devices and data → StreamOptIns', () => {
     expect(reduceDevices(turns({ has: ['none'] }), ctx).policies).toEqual([]);
   });
 
-  it('recommended = bring in + scores + plan where allowed; the Coach stays hidden until chosen', () => {
-    expect(recommendedPolicy('sleep_sessions')).toEqual({ stream: 'sleep_sessions', imported: true, scores: true, engine: true, coach: 'hidden' });
-    expect(recommendedPolicy('hrv')).toMatchObject({ imported: true, scores: true, engine: false });
-    expect(recommendedPolicy('vendor_scores')).toMatchObject({ imported: false });
-    expect(coachDaily([recommendedPolicy('steps'), offPolicy('hrv')]).map((p) => p.coach)).toEqual(['daily', 'hidden']);
+  it('recommended = the shared ring default: bring in, scores and plan where allowed, the Coach sees daily + detail', () => {
+    expect(recommendedPolicy('sleep_sessions')).toEqual({ stream: 'sleep_sessions', imported: true, scores: true, engine: true, coach: 'daily+series' });
+    expect(recommendedPolicy('hrv')).toEqual({ stream: 'hrv', imported: true, scores: true, engine: true, coach: 'daily+series' });
+    expect(recommendedPolicy('skin_temp')).toMatchObject({ imported: true, scores: true, engine: true });
+    // cells this matrix does not offer stay off ("—" scores for steps, "never" plan for SpO2)
+    expect(recommendedPolicy('steps')).toEqual({ stream: 'steps', imported: true, scores: false, engine: true, coach: 'daily+series' });
+    expect(recommendedPolicy('spo2')).toEqual({ stream: 'spo2', imported: true, scores: true, engine: false, coach: 'daily+series' });
+    expect(recommendedPolicy('vendor_scores')).toEqual({ stream: 'vendor_scores', imported: true, scores: false, engine: false, coach: 'daily+series' });
+  });
+
+  it('recommended follows ringDefaultPolicy for every stream, within the matrix cells', () => {
+    for (const stream of STREAM_ORDER) {
+      const d = ringDefaultPolicy(POLICY_TARGETS[stream][0]!);
+      const r = recommendedPolicy(stream);
+      const rule = STREAM_RULES[stream];
+      expect(r.imported).toBe(d.imported);
+      expect(r.coach).toBe(d.coach);
+      expect(r.coach).toBe('daily+series');
+      expect(r.scores).toBe(rule.scores === 'yes' && d.scores);
+      expect(r.engine).toBe(rule.engine === 'yes' && d.engine);
+    }
+  });
+
+  it('recommended policies reach the biometric policies as everything in, Coach daily + detail', () => {
+    const calls = policyCalls(undefined, STREAM_ORDER.map(recommendedPolicy));
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((c) => c.policy.imported && c.policy.coach === 'daily+series')).toBe(true);
   });
 
   it('cells keep the rules: "never" cannot be switched on, and turning "bring in" off clears the row', () => {

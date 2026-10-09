@@ -80,6 +80,63 @@ describe('Your body page', () => {
     expect(liveText()).toMatch(/^Body fat \d+\.\d percent, likely \d+\.\d to \d+\.\d\. Lean mass/);
   });
 
+  it('lays plain Your body out as two independent stacks with Maintenance as a card in one of them; both plan keys live in the action bar, not in a card', async () => {
+    seedBody();
+    renderAt('/body');
+    await screen.findByRole('heading', { level: 1, name: 'Your body' });
+    const cols = document.querySelector('.lm-body-cols')!;
+    const [left, right] = Array.from(cols.querySelectorAll(':scope > .lm-body-stack'));
+    expect(cols.querySelectorAll(':scope > .lm-body-stack')).toHaveLength(2);
+    for (const id of ['body-figure', 'body-estimates', 'body-basics', 'body-habits', 'body-labs']) expect(left!.querySelector(`#${id}`), id).not.toBeNull();
+    // Maintenance is a normal card in the right stack, at the same width as its neighbours (no full-width row)
+    for (const id of ['body-shape', 'body-maintenance']) expect(right!.querySelector(`#${id}`), id).not.toBeNull();
+    expect(Array.from(cols.children).every((c) => c.classList.contains('lm-body-stack'))).toBe(true);
+    expect(document.getElementById('body-setup')).toBeNull();
+    expect(document.querySelector('.lm-body-continue')).toBeNull();
+    expect(document.querySelector('.lm-body-halves')).toBeNull();
+    // the two keys: Simulate a plan, then Find a plan as the primary
+    const keys = Array.from(document.querySelectorAll('.lm-actionbar a')).filter((a) => /^(Simulate a plan|Find a plan)$/.test(a.textContent?.trim() ?? ''));
+    expect(keys.length).toBeGreaterThanOrEqual(2);
+    const find = keys.find((a) => a.textContent?.trim() === 'Find a plan')!;
+    expect(find.getAttribute('data-variant')).toBe('solid');
+    expect(find.getAttribute('href')).toBe('/plan/goals');
+    expect(keys.find((a) => a.textContent?.trim() === 'Simulate a plan')!.getAttribute('href')).toBe('/simulate');
+  });
+
+  it('shows the same maintenance number in Estimates and in the Maintenance card', async () => {
+    seedBody();
+    renderAt('/body');
+    await screen.findByRole('heading', { level: 1, name: 'Your body' });
+    const est = document.getElementById('body-estimates')!;
+    const maint = document.getElementById('body-maintenance')!;
+    const num = (el: HTMLElement) => {
+      const r = Array.from(el.querySelectorAll('.lm-readout')).find((x) => /^maintenance/.test(x.textContent ?? ''))!;
+      return r.querySelector('.lm-readout__value')!.textContent!.replace(/\s|\u00a0|\u202f/g, '').replace(/kcal.*/, '');
+    };
+    await waitFor(() => expect(num(est)).toMatch(/^\d+$/));
+    expect(num(maint)).toBe(num(est));
+  });
+
+  it('keeps the figure card header to the title and switch; the how-to sits in the caption under the figure, with no credits link', async () => {
+    seedBody();
+    renderAt('/body');
+    await screen.findByRole('heading', { level: 1, name: 'Your body' });
+    const card = document.getElementById('body-figure')!;
+    const head = card.querySelector('.lm-face-head')!;
+    // header: the title and the figure / visceral switch, nothing else
+    expect(head.querySelector('.lm-eng')).toBeNull();
+    expect(head.textContent).toBe('Figurefigurevisceral');
+    // caption: the how-to joins the illustrative-figure note (jsdom has no WebGL2: the flat figure's wording)
+    const caption = card.querySelector('figcaption')!;
+    expect(caption.textContent).toMatch(
+      /^Drag the figure to change its shape, or use the sliders\. Illustrative figure\. Shows proportions from your inputs, not your exact shape\./,
+    );
+    expect(caption.textContent).toMatch(/Muscles and bones show reference anatomy\.$/);
+    // credits live in Settings › About, not on the figure
+    expect(within(card).queryByText(/3D model credits/i)).toBeNull();
+    expect(card.querySelector('a[href$="NOTICE.html"]')).toBeNull();
+  });
+
   it('updates the estimates live when a shape slider moves by keyboard', async () => {
     seedBody();
     renderAt('/body');
@@ -88,25 +145,44 @@ describe('Your body page', () => {
     const fatBefore = /Body fat (\d+\.\d)/.exec(before)?.[1];
     expect(store().shape.bodyFatPct).toBeUndefined();
 
+    const startValue = Number((slider as HTMLInputElement).value);
+    const writes: Array<number | undefined> = [];
+    const unsubscribe = useProfileStore.subscribe((st, prev) => {
+      if (st.shape.bodyFatPct !== prev.shape.bodyFatPct) writes.push(st.shape.bodyFatPct);
+    });
+
     slider.focus();
     fireEvent.keyDown(slider, { key: 'ArrowLeft', shiftKey: true }); // −1.0 point
     fireEvent.keyDown(slider, { key: 'ArrowLeft', shiftKey: true });
     fireEvent.keyDown(slider, { key: 'PageDown' }); // −5 points (major tick)
 
-    // the slider is now "touched" and stored; the estimate moved toward it
-    expect(store().shape.bodyFatPct).toBeDefined();
+    // the thumb moved at once (three steps add up); nothing is written until the keys rest for 150 ms
+    expect(Number((slider as HTMLInputElement).value)).toBeCloseTo(startValue - 7, 1);
+    expect(store().shape.bodyFatPct).toBeUndefined();
+    // then one write with the final value: the slider is now "touched" and stored; the estimate moved toward it
+    await waitFor(() => expect(store().shape.bodyFatPct).toBeDefined());
+    unsubscribe();
+    expect(writes).toHaveLength(1);
+    expect(store().shape.bodyFatPct).toBeCloseTo(startValue - 7, 1);
     const after = liveText();
     const fatAfter = /Body fat (\d+\.\d)/.exec(after)?.[1];
     expect(Number(fatAfter)).toBeLessThan(Number(fatBefore));
     expect(slider).toHaveAttribute('aria-valuetext', expect.stringMatching(/^body fat on the figure \d+\.\d percent\. Estimate \d+\.\d percent/));
-    // the figure is drawn at the value you set, and says how that relates to the estimate
-    expect(screen.getByText(/The figure shows .* as you set it/)).toBeInTheDocument();
+    // the figure is drawn at the value you set, and the body-fat slider's own note says how that relates to the
+    // estimate: one note there (not the usual hint), a polite live region, never under the figure
+    const note = screen.getByText(/The figure shows .* as you set it/);
+    expect(note).toHaveAttribute('aria-live', 'polite');
+    expect(note.closest('.lm-scale__note')?.id).toBe(slider.getAttribute('aria-describedby'));
+    expect(note.closest('#body-figure')).toBeNull();
+    expect(document.querySelector('.lm-body-figure__notes')).toBeNull();
+    expect(note.closest('.lm-scale__note')).not.toHaveTextContent(/Start from our estimate|reference at/);
 
     // distribution readout is a share of fat, and moves with the slider
     const belly = screen.getByRole('slider', { name: 'belly & waist' });
     const shareBefore = belly.getAttribute('aria-valuetext');
     fireEvent.keyDown(belly, { key: 'End' });
-    expect(belly.getAttribute('aria-valuetext')).not.toBe(shareBefore);
+    // the share comes from the engine, so it follows the thumb on the next frame (and again on the write)
+    await waitFor(() => expect(belly.getAttribute('aria-valuetext')).not.toBe(shareBefore));
     expect(belly).toHaveAttribute('aria-valuetext', expect.stringMatching(/^belly and waist: \d+ percent of your body fat$/));
 
     // Reset to estimate clears every touched shape slider
@@ -235,7 +311,7 @@ describe('Your body page', () => {
     await screen.findByRole('slider', { name: 'body fat' });
     expect(document.querySelector('.lm-body-stage .lm-fig3d')).not.toBeNull();
     await userEvent.click(screen.getByRole('radio', { name: 'visceral' }));
-    expect(await screen.findByText(/Waist slice, drawn to scale/)).toBeInTheDocument();
+    expect(await screen.findByText(/Drawn to scale from your estimate/)).toBeInTheDocument();
     expect(document.querySelector('.lm-body-stage .lm-fig3d')).toBeNull();
     const how = screen.getByRole('link', { name: /How this is drawn/ });
     expect(how.getAttribute('href')).toMatch(/body-composition-estimation/);

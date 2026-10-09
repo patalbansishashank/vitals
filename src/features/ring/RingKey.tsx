@@ -1,7 +1,8 @@
 /**
  * The top-bar ring key (design/screens/ring-pages.md §4.2, D2, D3): an icon key with the ring mark and a 6 px
- * indicator light for the worst state of all known rings; it opens /ring and looks pressed there. The shell mounts it
- * left of the settings key. It renders nothing where a ring can never be reached and none is known (D3).
+ * indicator light for the worst state of all known rings; it opens Body signals (the one ring page, owner 9 Oct) and
+ * looks pressed there. The shell mounts it left of the settings key. It renders nothing where a ring can never be
+ * reached and none is known (D3).
  */
 import { Link, useLocation } from 'react-router';
 import type { LucideProps } from 'lucide-react';
@@ -13,7 +14,10 @@ import { RING_PAGE_COPY } from './copy';
 import { useNow } from './relativeTime';
 import './ring-page.css';
 
-/** The ring mark: an outline ring on the 20 px grid, 1.5 px stroke, currentColor (the Vitals mark without its dot). */
+/**
+ * The ring mark: an outline ring with a pulse line across it (the ring and what it reads), on the 20 px grid, 1.5 px
+ * stroke, round caps and joins, currentColor.
+ */
 export function RingGlyph({ size = 20, strokeWidth = 1.5, absoluteStrokeWidth, color = 'currentColor', ...rest }: LucideProps) {
   const px = Number(size) || 20;
   const sw = absoluteStrokeWidth ? (Number(strokeWidth) * 20) / px : strokeWidth;
@@ -26,11 +30,14 @@ export function RingGlyph({ size = 20, strokeWidth = 1.5, absoluteStrokeWidth, c
       fill="none"
       stroke={color}
       strokeWidth={sw}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden="true"
       focusable="false"
       {...rest}
     >
-      <circle cx="10" cy="10" r="6.75" />
+      <circle cx="10" cy="10" r="7.25" />
+      <path d="M5 10h2l1.25-2.5 2.5 5L12 10h3" />
     </svg>
   );
 }
@@ -85,11 +92,11 @@ export function RingKey({ className }: RingKeyProps) {
   if (!rings.length && !platform.installedApp && platform.ble === null) return null;
   const light = worstRingState(rings, now);
   const name = ringKeyName(light, rings);
-  const current = pathname === paths.ring || pathname.startsWith(`${paths.ring}/`);
+  const current = pathname === paths.signals();
   return (
     <Tooltip content={name} role="label">
       <Link
-        to={paths.ring}
+        to={paths.signals()}
         className={cx('lm-key rg-key', className)}
         data-variant="quiet"
         data-size="md"

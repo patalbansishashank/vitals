@@ -214,7 +214,7 @@
 .lmc-lane[data-mode='focus'] { background: var(--lm-face); }
 .lmc-mech {
   grid-column: 1 / -1; margin: 0; padding: 6px 12px 10px calc(var(--lmc-gutter) + var(--lmc-tickcol));
-  font-size: var(--lm-text-sm); line-height: 1.45; color: var(--lm-ink-2); max-width: calc(var(--lmc-gutter) + 76ch);
+  font-size: var(--lm-text-sm); line-height: 1.45; color: var(--lm-ink-2);
 }
 .lmc-stack[data-size='s'] .lmc-mech { padding-left: 12px; }
 
@@ -418,11 +418,11 @@
 .lmc-nogutter .lmc-gut--minor { display: none; }
 
 /* ------------------------------------------------------------ demo route */
-.lmc-demo { max-width: var(--lm-content-max, 1440px); margin: 0 auto; padding: 16px var(--lm-gutter, 16px) 48px; display: grid; gap: 16px; }
+.lmc-demo { padding: 16px var(--lm-gutter, 16px) 48px; display: grid; gap: 16px; }
 @media (min-width: 1024px) { .lmc-demo { padding-inline: var(--lm-gutter-lg, 24px); } }
 .lmc-demo__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .lmc-demo__head h1 { margin: 0; font-size: var(--lm-text-2xl); line-height: var(--lm-text-2xl--lh); font-weight: 600; font-stretch: 120%; letter-spacing: -0.015em; }
-.lmc-demo__head p { margin: 4px 0 0; color: var(--lm-ink-2); font-size: var(--lm-text-sm); max-width: 68ch; }
+.lmc-demo__head p { margin: 4px 0 0; color: var(--lm-ink-2); font-size: var(--lm-text-sm); }
 .lmc-demo__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .lmc-demo__ctl { display: inline-flex; align-items: center; gap: 8px; font-size: var(--lm-text-xs); font-weight: 500; color: var(--lm-ink-2); }
 .lmc-demo__grid { display: grid; gap: 16px; }

@@ -1,9 +1,9 @@
 import '../boot';
 import './today.css';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router';
-import { Dialog, Engraved, Faceplate, Key, KeyBank, Notice, Page, toast, useMediaQuery, MQ } from '@/components';
-import { ActionBar, TopBar, setNavBadge } from '@/app/shell';
+import { Navigate, useNavigate, useParams } from 'react-router';
+import { Dialog, Engraved, Faceplate, Key, KeyBank, Notice, Page, energyInText, toast, useMediaQuery, MQ } from '@/components';
+import { TopBar, setNavBadge } from '@/app/shell';
 import { addDays, daysBetween, isLocalDate } from '@/living/dates';
 import type { LocalDate, TodayView } from '@/living';
 import { useActivePlan } from '../mode';
@@ -14,22 +14,19 @@ import { useLivingActions } from '../data/actions';
 import { useLiving } from '../data/source';
 import { DateStrip } from '../components/DateStrip';
 import { LogConflict } from '../components/LogConflict';
-import { ChangeCard } from '../components/ChangeCard';
-import { CoachComposer } from '../components/CoachComposer';
 import { SignalsStrip } from '../components/ScoreTile';
 import { useScores } from '../data/scores';
-import { useCoachAdapter } from '../coach/adapter';
-import { fmtDay, weekOf } from '../format';
+import { fmtClock, fmtDay, grams, kcal, weekOf, weekdaysText } from '../format';
+import { useEnergyUnit } from '@/state/settingsStore';
 import { livingPaths } from '../paths';
-import type { ChangeAction } from '../model/changeCard';
 import { useFoodProfile } from '../food/profile';
-import { intentionsLine, todayRows, todayState } from './model';
+import { intentionsLine, todayRows, todayState, type TodayRow } from './model';
 import { CheckInSheet } from './components/CheckInSheet';
 import { ForecastFace, SoFarFace } from './components/Faces';
 import { NoticesZone } from './components/NoticesZone';
 import { PrescriptionRows, weighFieldId } from './components/PrescriptionRows';
-import { TodayDial, dialCentre } from './components/TodayDial';
 import { TodayMenu } from './components/TodayMenu';
+import { WeighSheet } from './components/WeighSheet';
 
 /**
  * Today (`/today`, `/today/:date`; design/screens/living-mode.md §4): the day's prescription on a printed 24 h dial and
@@ -52,7 +49,6 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
   const actions = useLivingActions();
   const clock = useLivingClock();
   const lg = useMediaQuery(MQ.lg);
-  const xl = useMediaQuery(MQ.xl);
   const view = useLiving((s) => s.today(date), [date]);
   const dayConflicts = useLiving((s) => s.history(date, date)[0]?.conflicts ?? [], [date]);
   const week = useMemo(() => weekOf(date), [date]);
@@ -67,7 +63,6 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
   }, [date]);
   const daysLogged7 = useLiving((s) => s.days(Array.from({ length: 7 }, (_, i) => addDays(date, i - 6))).filter((d) => d.logged).length, [date]);
   const changes = useLiving((s) => s.changes('today'), []);
-  const recent = useLiving((s) => s.changes('all').filter((c) => c.class === 'log').slice(0, 3), []);
   const [checkIn, setCheckIn] = useState(false);
   const [showNumbers, setShowNumbers] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -76,7 +71,7 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
   const quiet = !!view?.quietMode && !showNumbers;
   const readOnly = state === 'future' || state === 'scheduled';
   const pending = changes.some((c) => c.class === 'edit' && c.state === 'pending');
-  const coachReason = useCoachStatusReason();
+  const eu = useEnergyUnit();
   const ownSupplements = useFoodProfile().supplements?.rows ?? null;
 
   useEffect(() => {
@@ -95,7 +90,7 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
         const el = document.getElementById(weighFieldId(date));
         if (el) {
           e.preventDefault();
-          el.focus();
+          el.click();
         }
       }
     };
@@ -107,7 +102,11 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
   const day = view?.plan?.day ?? daysBetween(plan.startDate, date) + 1;
   const of = view?.plan?.of ?? daysBetween(plan.startDate, plan.plannedEndDate);
   // a day outside the plan has no plan-day number (it read "day 1 of 112" years before the start)
-  const context = day >= 1 && day <= of ? `${fmtDay(date)} · day ${day} of ${of}` : fmtDay(date);
+  const inPlan = day >= 1 && day <= of;
+  // the plan's own state beside the date: it used to sit under the logo in the rail ("starts tomorrow", "paused")
+  const planState =
+    plan.status === 'paused' ? 'paused' : plan.startDate > today ? (plan.startDate === addDays(today, 1) ? 'starts tomorrow' : `starts ${fmtDay(plan.startDate)}`) : null;
+  const context = [fmtDay(date), planState ?? (inPlan ? `day ${day} of ${of}` : null)].filter(Boolean).join(' · ');
   const rung = plan.rung === 'custom' ? 'your plan' : plan.rung;
 
   const title = date === today ? TODAY_COPY.title : fmtDay(date);
@@ -116,7 +115,7 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
       title={title}
       documentTitle={TODAY_COPY.title}
       params={
-        <Engraved>
+        <Engraved role="status">
           {context} · {plan.name} ({rung})
         </Engraved>
       }
@@ -152,12 +151,13 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
     <Faceplate
       title={TODAY_COPY.planFace}
       aria-label={TODAY_COPY.planFace}
-      className="lv-plan"
+      className="lv-plan lv-plan--fill"
       caption={state === 'past' ? TODAY_COPY.pastDay : state === 'future' ? TODAY_COPY.futureDay : undefined}
       actions={
         !readOnly && markItem ? (
           <Key
             size="sm"
+            variant="quiet"
             pressed={dayMarked}
             onClick={() =>
               void actions.markDay(date, 'asPlanned').then((o) =>
@@ -172,22 +172,8 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
     >
       {date === today ? <p className="lv-plan__intent">{intentionsLine(plan.intentions.weighInClockH, plan.intentions.missedSessionPlan, TODAY_COPY)}</p> : null}
       {rx ? (
-        <div className="lv-plan__body" data-ring={xl ? 'left' : 'top'}>
-          <TodayDial rx={rx} nowH={nowH} size={xl ? 240 : 200} centre={dialCentre(rx, nowH, view?.logged.fast)} quiet={quiet} />
-          <div className="lv-plan__rows">
-            <PrescriptionRows rows={view?.minimalMode ? rows.filter((r) => r.glyph === 'weigh') : rows} date={date} readOnly={readOnly} quiet={quiet} highlight={highlight} />
-            {showHowHard && !readOnly ? (
-              <div className="lv-plan__hard">
-                <KeyBank
-                  label={TODAY_COPY.howHard}
-                  size="sm"
-                  options={(['1', '2', '3', '4', '5'] as const).map((v) => ({ value: v, label: v }))}
-                  onChange={(v) => void actions.logDifficulty(date, Number(v) as 1 | 2 | 3 | 4 | 5).then(() => toast('Thanks. It helps the plan learn what works for you.'))}
-                />
-                <Engraved>{TODAY_COPY.howHardScale}</Engraved>
-              </div>
-            ) : null}
-          </div>
+        <div className="lv-plan__rows">
+          <PrescriptionRows rows={view?.minimalMode ? rows.filter((r) => r.glyph === 'weigh') : rows} date={date} readOnly={readOnly} quiet={quiet} highlight={highlight} {...(state === 'future' ? { closedReason: `Opens on ${fmtDay(date)}` } : {})} nowH={state === 'active' ? nowH : null} />
         </div>
       ) : (
         <p className="lv-plan__empty">Nothing is prescribed for this day.</p>
@@ -195,13 +181,45 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
     </Faceplate>
   );
 
-  const sendToCoach = (msg: { text: string; photo?: File }) => navigate(livingPaths.coach(), { state: { draft: { ...msg, context: { date, screen: 'today' } } } });
-  const composer = <CoachComposer variant="bar" onSend={sendToCoach} disabledReason={coachReason} chips={view?.coachPrompts.slice(0, 3)} placeholder={TODAY_COPY.logBar} label={TODAY_COPY.logBar} />;
+  // the end-of-day question has its own card, right under the plan (it balances the two columns on desktop)
+  const hardFace = rx && showHowHard && !readOnly ? <HowHardFace key={date} date={date} /> : null;
+
+  const next = nextUp(rows, nowH);
+  const facts: Array<[string, string]> = rx
+    ? [
+        ...(inPlan ? ([['plan day', `${day} of ${of}`]] as Array<[string, string]>) : []),
+        ...(rx.window ? ([['eating window', `${fmtClock(rx.window.startH)}–${fmtClock(rx.window.endH)}`]] as Array<[string, string]>) : []),
+        ...(quiet ? [] : ([['eat', energyInText(`${kcal(rx.energyKcal)} kcal`, eu)]] as Array<[string, string]>)),
+        ['protein', `${grams(rx.macros.proteinG)} g`],
+      ]
+    : [];
+  // what to do now, and the day's few numbers: replaces the 24 h dial card ("Your day")
+  const nowFace = rx ? (
+    <Faceplate title={readOnly ? TODAY_COPY.planFace : next ? 'Next up' : 'All done for today'} aria-label="Next up" className="lv-now">
+      {next && !readOnly ? (
+        <div className="lv-now__next">
+          <span className="lv-now__time lm-num">{next.at !== null && !next.untimed ? fmtClock(next.at) : next.glyph === 'weigh' ? 'morning' : 'any time'}</span>
+          <span className="lv-now__what">
+            <span className="lv-now__label">{next.label}</span>
+            {next.target ? <span className="lv-now__target">{quiet && next.quietTarget ? next.quietTarget : energyInText(next.target, eu)}</span> : null}
+          </span>
+        </div>
+      ) : null}
+      <dl className="lv-facts lv-now__facts">
+        {facts.map(([k, v]) => (
+          <div key={k} className="lv-facts__item">
+            <dt className="lm-eng">{k}</dt>
+            <dd className="lm-num">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </Faceplate>
+  ) : null;
 
   return (
     <>
       {top}
-      <Page className="lv-today">
+      <Page className="lv-today lv-today--fill">
         <p className="lv-today__context">
           <span className="lm-num">{context}</span>
           <Engraved>
@@ -219,47 +237,89 @@ function TodayScreen({ plan, date, today }: { plan: ActivePlan; date: LocalDate;
         <div className="lv-today__grid">
           <div className="lv-today__main">
             {!lg ? <NoticesZone notices={view?.notices ?? []} changes={changes} extra={extra} onCheckIn={() => setCheckIn(true)} /> : null}
+            {!lg ? nowFace : null}
             {dayConflicts.map((conflict) => <LogConflict key={conflict.parentId} conflict={conflict} quiet={quiet} />)}
             {planFace}
-            {lg ? (
-              <Faceplate title="Tell the Coach" aria-label="Tell the Coach" className="lv-tell">
-                {composer}
-                {recent.length ? (
-                  <div className="lv-tell__cards">
-                    {recent.map((c) => (
-                      <ChangeCard key={c.id} card={c} now={clock.now()} context="conversation" onAction={(a: ChangeAction) => onCardAction(actions, c.id, a)} />
-                    ))}
-                  </div>
-                ) : null}
-              </Faceplate>
-            ) : null}
+            {hardFace}
           </div>
           <div className="lv-today__side">
             {lg ? <NoticesZone notices={view?.notices ?? []} changes={changes} extra={extra} onCheckIn={() => setCheckIn(true)} /> : null}
+            {lg ? nowFace : null}
             {view ? <SoFarFace view={view} quiet={quiet} size={lg ? 'md' : 'sm'} daysLogged7={daysLogged7} onArc={(id) => setHighlight(id)} /> : null}
             {view ? <ForecastFace view={view} trend={trend} quiet={!!view.quietMode} compact={!lg} /> : null}
             {view?.biometrics ? <TodaySignals /> : null}
           </div>
         </div>
       </Page>
-      {!lg && !readOnly ? <ActionBar>{composer}</ActionBar> : null}
       <CheckInSheet open={checkIn} onClose={() => setCheckIn(false)} today={today} quiet={!!view?.quietMode} />
     </>
   );
 }
 
-function onCardAction(actions: ReturnType<typeof useLivingActions>, id: string, a: ChangeAction) {
-  const done = (o: { ok: boolean; message?: string }, msg: string) => toast(o.ok ? msg : (o.message ?? 'That didn’t work.'));
-  if (a === 'undo') void actions.undoChange(id).then((o) => done(o, 'Undone.'));
-  else if (a === 'redo') void actions.redoChange(id).then((o) => done(o, 'Redone.'));
-  else if (a === 'apply') void actions.applyChange(id).then((o) => done(o, 'Applied.'));
-  else if (a === 'discard') void actions.discardChange(id).then((o) => done(o, 'Discarded.'));
+/** What to do next: the first open row from now on (the weigh-in counts as the morning's first), else the first open row. */
+function nextUp(rows: readonly TodayRow[], nowH: number | null): TodayRow | null {
+  const open = rows.filter((r) => r.status === 'empty' && !(r.glyph === 'weigh' && r.logged));
+  if (nowH === null) return open[0] ?? null;
+  return open.find((r) => !r.untimed && r.at !== null && r.at >= nowH - 0.5) ?? open.find((r) => r.glyph === 'weigh') ?? open[0] ?? null;
 }
 
-/** The Coach's disabled reason for the log bar (no provider yet → log by hand). */
-function useCoachStatusReason(): string | undefined {
-  const coach = useCoachAdapter();
-  return coach.status().kind === 'noProvider' ? 'Connect an AI provider in Settings to chat. You can still log everything by hand.' : undefined;
+
+
+const HARD_WORD: Record<1 | 2 | 3 | 4 | 5, string> = { 1: 'easy', 2: 'fine', 3: 'OK', 4: 'hard', 5: 'very hard' };
+
+/** "How hard was today?" as its own card: five keys, then a compact saved line with Undo and Change. */
+function HowHardFace({ date }: { date: LocalDate }) {
+  const actions = useLivingActions();
+  const [saved, setSaved] = useState<{ v: 1 | 2 | 3 | 4 | 5; undo?: () => Promise<unknown> } | null>(null);
+  const [changing, setChanging] = useState(false);
+  const answer = (v: 1 | 2 | 3 | 4 | 5) =>
+    void actions.logDifficulty(date, v).then((o) => {
+      if (!o.ok) return void toast(o.message ?? 'That didn’t work. Try again.');
+      setSaved({ v, ...(o.undo ? { undo: o.undo } : {}) });
+      setChanging(false);
+      toast('Thanks. It helps the plan learn what works for you.');
+    });
+  return (
+    <Faceplate title={TODAY_COPY.howHardTitle} aria-label={TODAY_COPY.howHardTitle} className="lv-hard">
+      {saved && !changing ? (
+        <div className="lv-hard__saved">
+          <span className="lv-hard__value">
+            <span className="lv-hard__felt">Felt </span>
+            <strong>{HARD_WORD[saved.v]}</strong>
+            <span className="lv-rd__u lm-num"> · {saved.v} of 5</span>
+          </span>
+          <span className="lv-hard__keys">
+            {saved.undo ? (
+              <Key size="sm" variant="quiet" aria-label="Undo how hard today was" onClick={() => void saved.undo?.().then(() => setSaved(null))}>
+                {TODAY_COPY.undo}
+              </Key>
+            ) : null}
+            <Key size="sm" variant="quiet" onClick={() => setChanging(true)}>
+              Change
+            </Key>
+          </span>
+        </div>
+      ) : (
+        <KeyBank
+          label={TODAY_COPY.howHard}
+          block
+          size="lg"
+          className="lv-hard__bank"
+          options={([1, 2, 3, 4, 5] as const).map((v) => ({
+            value: String(v),
+            label: (
+              <span className="lv-hard__opt">
+                <span className="lm-num">{v}</span>
+                <span className="lv-hard__word">{HARD_WORD[v]}</span>
+              </span>
+            ),
+          }))}
+          {...(saved ? { defaultValue: String(saved.v) } : {})}
+          onChange={(v) => answer(Number(v) as 1 | 2 | 3 | 4 | 5)}
+        />
+      )}
+    </Faceplate>
+  );
 }
 
 function TodaySignals() {
@@ -380,53 +440,129 @@ function SafetyPauseNotice({ today }: { today: LocalDate }) {
   );
 }
 
-/** Scheduled (start ahead): the countdown, things to do before day 1 and a read-only preview of day 1. */
+const clockText = (h: number) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+
+/**
+ * Scheduled (start ahead): the plan card (what the plan is, its key numbers and the things to do before day 1, each
+ * with its own key) beside a read-only preview of day 1's timeline whose keys open on the start day.
+ */
 function ScheduledState({ plan, today }: { plan: ActivePlan; today: LocalDate }) {
   const navigate = useNavigate();
   const actions = useLivingActions();
+  const eu = useEnergyUnit();
+  const [weighing, setWeighing] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const day1 = useLiving((s) => s.today(plan.startDate), [plan.startDate]);
-  const when = plan.startDate === addDays(today, 1) ? `tomorrow (${fmtDay(plan.startDate)})` : fmtDay(plan.startDate);
-  const weighIn = plan.intentions.weighInClockH;
+  const tomorrow = plan.startDate === addDays(today, 1);
+  const when = tomorrow ? `tomorrow (${fmtDay(plan.startDate)})` : fmtDay(plan.startDate);
+  const weighIn = clockText(plan.intentions.weighInClockH ?? 7);
+  const rx = day1?.prescription ?? null;
+  const days = daysBetween(plan.startDate, plan.plannedEndDate);
+  const training = plan.intentions.trainingWeekdays?.length ? weekdaysText(plan.intentions.trainingWeekdays) : null;
+  const numbers: Array<[string, string]> = [
+    ['starts', fmtDay(plan.startDate)],
+    ['length', `${days} days · ends ${fmtDay(plan.plannedEndDate)}`],
+    ...(rx
+      ? ([
+          ['eat each day', energyInText(`${kcal(rx.energyKcal)} kcal`, eu)],
+          ['protein', `${grams(rx.macros.proteinG)} g`],
+          ['maintenance', energyInText(`${kcal(rx.maintenanceKcal)} kcal`, eu)],
+          ['deficit', energyInText(`${kcal(Math.max(0, rx.maintenanceKcal - rx.energyKcal))} kcal a day`, eu)],
+          ...(rx.window ? ([['eating window', `${fmtClock(rx.window.startH)}–${fmtClock(rx.window.endH)}`]] as Array<[string, string]>) : []),
+        ] as Array<[string, string]>)
+      : []),
+    ...(training ? ([['training days', training]] as Array<[string, string]>) : []),
+  ];
+  const discard = () =>
+    void actions.discard().then((o) => {
+      setDiscarding(false);
+      toast(o.ok ? `${plan.name} was discarded.` : (o.message ?? 'Couldn’t discard.'));
+      if (o.ok) navigate('/plan');
+    });
   return (
-    <Page className="lv-today">
-      <div className="lv-today__grid">
+    <Page className="lv-today lv-today--fill">
+      <div className="lv-today__grid lv-today__grid--scheduled">
         <div className="lv-today__main">
-          <Faceplate title={TODAY_COPY.scheduled(plan.name, when)} className="lv-scheduled">
-            <p className="lv-plan__intent">{TODAY_COPY.beforeDay1}</p>
-            <ul className="lv-scheduled__list">
-              <li>Nothing to buy for this plan.</li>
-              <li>
-                Groceries for the first 3 days are on{' '}
-                <Link to={livingPaths.food(plan.startDate, 'groceries')}>Food</Link>
-                .
-              </li>
-              <li>{TODAY_COPY.firstWeighIn(weighIn !== undefined ? `${String(Math.floor(weighIn)).padStart(2, '0')}:${String(Math.round((weighIn % 1) * 60)).padStart(2, '0')}` : '07:00')}</li>
-            </ul>
-            <div className="lv-scheduled__keys">
-              <Key disabledReason="To start on another day, discard the plan and start it again from the Planner.">{TODAY_COPY.changeStart}</Key>
-              <Key
-                variant="quiet"
-                onClick={() =>
-                  void actions.discard().then((o) => {
-                    toast(o.ok ? `${plan.name} was discarded.` : (o.message ?? 'Couldn’t discard.'));
-                    if (o.ok) navigate('/plan');
-                  })
-                }
-              >
-                {TODAY_COPY.discardPlan}
-              </Key>
-            </div>
-          </Faceplate>
-        </div>
-        <div className="lv-today__side">
-          {day1?.prescription ? (
-            <Faceplate title={TODAY_COPY.previewDay} caption={TODAY_COPY.futureDay}>
-              <TodayDial rx={day1.prescription} nowH={null} size={200} centre={dialCentre(day1.prescription, null)} />
-              <PrescriptionRows rows={todayRows(day1)} date={plan.startDate} readOnly quiet={day1.quietMode} />
+          {rx && day1 ? (
+            <Faceplate title={TODAY_COPY.previewDay} caption={TODAY_COPY.futureDay} className="lv-plan lv-plan--fill">
+              <div className="lv-plan__body">
+                <div className="lv-plan__rows">
+                  <PrescriptionRows rows={todayRows(day1)} date={plan.startDate} readOnly quiet={day1.quietMode} closedReason={`Opens on ${fmtDay(plan.startDate)}`} />
+                </div>
+              </div>
             </Faceplate>
           ) : null}
         </div>
+        <div className="lv-today__side">
+          <Faceplate title={TODAY_COPY.scheduled(plan.name, when)} className="lv-scheduled">
+            <dl className="lv-facts">
+              {numbers.map(([k, v]) => (
+                <div key={k} className="lv-facts__item">
+                  <dt className="lm-eng">{k}</dt>
+                  <dd className="lm-num">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </Faceplate>
+          <Faceplate title={TODAY_COPY.beforeDay1} className="lv-scheduled">
+            <ul className="lv-todo">
+              <li className="lv-todo__item">
+                <span>
+                  <strong>Groceries</strong>
+                  <span className="lv-todo__note">The list for the first 3 days is ready.</span>
+                </span>
+                <Key size="sm" onClick={() => navigate(livingPaths.food(plan.startDate, 'groceries'))}>
+                  Open list
+                </Key>
+              </li>
+              <li className="lv-todo__item">
+                <span>
+                  <strong>First weigh-in</strong>
+                  <span className="lv-todo__note">{tomorrow ? `Tomorrow at ${weighIn}` : `At ${weighIn} on ${fmtDay(plan.startDate)}`}, after the bathroom, before eating. A weight from today helps too.</span>
+                </span>
+                <Key size="sm" onClick={() => setWeighing(true)}>
+                  Log weight
+                </Key>
+              </li>
+              <li className="lv-todo__item">
+                <span>
+                  <strong>Start day</strong>
+                  <span className="lv-todo__note">To start on another day, discard and start again from the Planner.</span>
+                </span>
+                <Key size="sm" disabledReason="To start on another day, discard the plan and start it again from the Planner.">
+                  {TODAY_COPY.changeStart}
+                </Key>
+              </li>
+              <li className="lv-todo__item">
+                <span>
+                  <strong>Not ready?</strong>
+                  <span className="lv-todo__note">Discard the plan. Your logs stay.</span>
+                </span>
+                <Key size="sm" variant="quiet" onClick={() => setDiscarding(true)}>
+                  {TODAY_COPY.discardPlan}…
+                </Key>
+              </li>
+            </ul>
+          </Faceplate>
+        </div>
       </div>
+      {weighing ? <WeighSheet open={weighing} date={today} onClose={() => setWeighing(false)} /> : null}
+      <Dialog
+        open={discarding}
+        onClose={() => setDiscarding(false)}
+        title={`Discard ${plan.name}?`}
+        role="alertdialog"
+        footer={
+          <>
+            <Key onClick={() => setDiscarding(false)}>{TODAY_COPY.cancel}</Key>
+            <Key variant="danger" onClick={discard}>
+              {TODAY_COPY.discardPlan}
+            </Key>
+          </>
+        }
+      >
+        <p>The plan stops before it starts. You can make a new one in the Planner.</p>
+      </Dialog>
     </Page>
   );
 }

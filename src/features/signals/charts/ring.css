@@ -88,7 +88,7 @@
     outline: 1px solid var(--lm-ink-3);
     outline-offset: -1px;
   }
-  .lv-ring-table { max-width: 420px; margin-top: 8px; }
+  .lv-ring-table { margin-top: 8px; }
 
   .lv-ring-nav {
     display: flex;

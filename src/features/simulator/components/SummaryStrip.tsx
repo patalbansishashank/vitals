@@ -4,7 +4,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Faceplate, KeyBank, formatNumber } from '@/components';
-import { formatDateShort, rowDays, rowOf } from '../lib/calendar';
+import { rowDays, rowOf } from '../lib/calendar';
 import { fastingGaps, summarise } from '../lib/summary';
 import type { ScheduleModel } from '../useScheduleModel';
 import { MacroMicroBar } from './ProgramTray';
@@ -30,8 +30,6 @@ export function SummaryStrip({ model, focusDay }: { model: ScheduleModel; focusD
   );
   const weeks = days.length / 7;
   const kc = 4 * s.proteinG + 4 * s.carbG + 9 * s.fatG || 1;
-  const first = model.cells[days[0] ?? 0]?.iso;
-  const last = model.cells[days[days.length - 1] ?? 0]?.iso;
   const perWeek = (v: number) => (scope === 'week' ? v : v / Math.max(1, weeks));
   const activityNote = activitySentence(model.activity.deltaKcal, unit);
   const source = trainingSource(model, days);
@@ -49,9 +47,6 @@ export function SummaryStrip({ model, focusDay }: { model: ScheduleModel; focusD
           onChange={setScope}
           orientation="vertical"
         />
-        <span className="lm-eng sim-summary__dates">
-          {first && last ? `${formatDateShort(first)} → ${formatDateShort(last)}` : ''}
-        </span>
       </div>
       <div className="lm-strip sim-summary__items">
         <div className="lm-strip__item">

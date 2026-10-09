@@ -90,14 +90,36 @@
   .lm-face[data-variant='flush'] {
     padding: 0;
   }
+  /* Header: label (title + caption) left, actions right, centred on one row while
+     both fit. The label takes the free space (grow 9999 vs the actions' 1), so the
+     actions sit right without an auto margin; when the pair does not fit, the actions
+     drop to their own row starting on the title's left edge, and a key bank there
+     spans the row. A deliberate stack, never a right-hanging ragged wrap. */
   .lm-face-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 6px 10px;
+    gap: 10px 12px;
     padding-bottom: 12px;
     margin-bottom: 14px;
     border-bottom: 1px solid var(--lm-line);
+  }
+  /* text-only actions (a count, a readout) share the title's baseline instead */
+  .lm-face-head:not(:has(> .lm-face-head__actions :is(button, a, input, select, [role]))) {
+    align-items: baseline;
+  }
+  .lm-face-head__label {
+    flex: 9999 1 auto;
+    min-width: 0;
+    padding-right: var(--head-lead, 0px);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+  }
+  .lm-face-head__label > .lm-h3 {
+    min-width: 0;
+    overflow-wrap: break-word;
   }
   .lm-face[data-variant='flush'] > .lm-face-head {
     margin: 0;
@@ -109,11 +131,40 @@
     }
   }
   .lm-face-head__actions {
-    margin-left: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    align-self: center;
+  }
+  .lm-face-head__actions:only-child {
+    flex-grow: 0;
+    margin-left: auto;
+  }
+  /* stacked, a key bank fills the row (on the title row it keeps its own width) */
+  .lm-face-head__actions :is(.lm-bank, :has(> .lm-bank)) {
+    flex: 1 1 auto;
+  }
+  .lm-face-head__actions .lm-bank:not([data-orientation='vertical']) > .lm-bank__key {
+    flex: 1 1 auto;
+  }
+  /* A leading quiet key: once stacked, its label (not its invisible cap: border +
+     padding) lines up with the title. The label gives the same room back, so the row
+     breaks and spaces exactly as without the shift. */
+  .lm-face-head:has(> .lm-face-head__actions > .lm-key[data-variant='quiet']:first-child),
+  .lm-face-head:has(> .lm-face-head__actions > :first-child > .lm-key[data-variant='quiet']:first-child) {
+    --head-lead: 17px;
+  }
+  .lm-face-head:has(> .lm-face-head__actions > .lm-key[data-variant='quiet'][data-size='sm']:first-child),
+  .lm-face-head:has(
+    > .lm-face-head__actions > :first-child > .lm-key[data-variant='quiet'][data-size='sm']:first-child
+  ) {
+    --head-lead: 13px;
+  }
+  .lm-face-head__label + .lm-face-head__actions {
+    margin-left: calc(-1 * var(--head-lead, 0px));
   }
   .lm-face-foot {
     display: flex;
@@ -1551,7 +1602,6 @@
   }
   .lm-readout__caption {
     margin-top: 4px;
-    max-width: 34ch;
     font-size: var(--lm-text-xs);
     line-height: 1.45;
     color: var(--lm-ink-2);

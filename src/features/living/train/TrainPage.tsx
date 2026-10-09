@@ -291,7 +291,7 @@ function TrainScreen() {
       <TopBar
         title={TRAIN_COPY.titleWithDate(fmtDay(date))}
         documentTitle={TRAIN_COPY.title}
-        tabs={<KeyBank size="sm" label={TRAIN_COPY.viewLabel} options={VIEW_OPTIONS} value={mode} onChange={setMode} />}
+        tabs={<KeyBank size="sm" className="lv-train-viewbank" label={TRAIN_COPY.viewLabel} options={VIEW_OPTIONS} value={mode} onChange={setMode} />}
       />
       <Page className="lv-train">
         <div className="lv-train-strip">

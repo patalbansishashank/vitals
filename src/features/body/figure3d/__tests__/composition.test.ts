@@ -62,7 +62,7 @@ describe('anatomical layer mapping', () => {
     const high = draw({ ...base, sliders: { bellyVsHips: 1 } }, 30);
     expect(high.visceral.estimated).toBe(true);
     expect(high.visceral.massKg).toBeGreaterThan(low.visceral.massKg);
-    expect(high.visceral.transverseScale).toBeGreaterThan(low.visceral.transverseScale);
+    expect(high.visceral.areaCm2).toBeGreaterThan(low.visceral.areaCm2);
     expect(high.visceral.areaRangeCm2[0]).toBeLessThan(high.visceral.areaCm2);
     expect(high.visceral.areaRangeCm2[1]).toBeGreaterThan(high.visceral.areaCm2);
     expect(high.skeleton).toEqual(low.skeleton);

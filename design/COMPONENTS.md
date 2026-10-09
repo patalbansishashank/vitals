@@ -41,6 +41,24 @@ use the `engraved` utility.
 
 ---
 
+## Bar control height (top bars and action bar)
+
+One token, `--lm-bar-control-h`, is the height of **every control** in the top bars (`.lm-topbar`, the screen's `.lm-ctx` bar)
+and in the action bar (`.lm-actionbar`): **36 px** for a fine pointer on every width, **44 px** under `(pointer: coarse)` so touch
+screens keep the 44 px touch target. It covers word keys and icon keys (Back, Skip, Next, Find plans, Start this plan, Apply,
+Undo, Stop …), key banks (schedule | results, figure | visceral, cards | table), steppers and number fields (the weeks
+selector), inputs, selects and date buttons, switches, chips (sync and ring status included) and the round run key.
+
+- Key padding in a bar is 0 14 px with the base 15 px label; bank keys are the token height minus the bank's 3 px well and
+  1 px edge, so the bank as a whole is exactly the token height; icons keep their own sizes.
+- Bars centre their items (`align-items: center`); their own height is the token plus 16 px (desktop, `--lm-deskbar-h`) or
+  20 px (phone bars).
+- Do not set a height on a control inside a bar: the rules at the end of `src/styles/shell.css` ("one control height in the
+  bars") own it, including bare text triggers a screen puts there. Anything that can grow past one line
+  (a text area, a two-line status) must size from the token too (see the Coach composer).
+- Guards: `src/app/__tests__/barControlHeight.test.ts` (rules and tokens) and `scripts/qa/bar-heights.mjs` (measures every
+  route in a real browser, fine and touch emulation, and fails unless all are equal).
+
 ## 1. Keys (buttons)
 
 ### Key `<Key>`
@@ -938,7 +956,7 @@ separate cards or KPI tiles.
  SpO2               [● ]       [● ]        never ⓘ     hidden
  steps & workouts   [● ]        —          [● ]        hidden
  vendor scores      [○ ]       never ⓘ     never ⓘ     hidden
-                    [Use recommended]   [Coach can see daily summaries]
+                    [Use recommended]
 ```
 - Rows = streams the chosen device offers; columns = the four `StreamPolicy` fields. Switches for
   booleans, a 3-key KeyBank for the Coach (`hidden · daily · daily + detail`; detail = series, only
@@ -948,7 +966,9 @@ separate cards or KPI tiles.
 - Columns 2–4 are disabled while "bring in" is off. When a device is turned on, the recommended
   cells (bring in, scores and plan for eligible streams) are **marked as suggested** (hollow
   indicator dot) but nothing is stored until the person presses **Use recommended** or sets cells
-  one by one; the Coach column stays **hidden** until chosen.
+  one by one. **Use recommended** is the shared ring default (plan item 11, `ringDefaultPolicy`): every
+  stream in, scores and plan on where the engine can use the stream, the Coach sees **daily + detail**.
+  There is no separate Coach key; the switches stay, here and in Settings › Devices and streams.
 - Mobile (< 768): one row per stream as a block: name + "bring in" Switch on line 1, the other
   three controls stacked under a hairline.
 - Every change is a UI-only consent command; nothing here is reachable by the Coach.
@@ -1113,23 +1133,21 @@ sits inside the panel the same way.
 One row per supplement, used in the intake (S2), Settings › Supplements and the Food tab.
 Container query on the row (`container-type: inline-size`), so it fits any column.
 ```
- ≥ 720 px row width (one line)
- creatine monohydrate [A ●●●●]      [ 5   g ]  [morning|midday|evening|night]  [taking ▾]
- 3–5 g a day · any time                         (multi toggles, 36 h)            state
- 480–719
- creatine monohydrate [A ●●●●]                                         [taking|have it|not for me]
- 3–5 g a day                                  [ 5   g ]  [morning|midday|evening|night]
- < 480 (390 px screen)
- creatine monohydrate [A ●●●●]                                                   [taking ▾]
- 3–5 g a day                                                                   [ 5   g ]
- [ morning ][ midday ][ evening ][ night ]                       ← own line, 4 equal keys, 44 h
+ any row width ≥ 480 px
+ creatine monohydrate [A ●●●●]                                     [taking|have it|not for me]
+ 3–5 g a day
+ [ 5                                    g ▾ ]  each time                    ← amount grows, unit + caption at the end, 44 h
+ [ morning  |  midday  |  evening  |  night ]                               ← 4 equal keys, 44 h
+ < 480 (390 px screen): the same, the state is a Select
 ```
 - **Left**: name 15/500 (wraps, never under the controls) + GradeBadge `sm` (evidence for the
   person's goal) + 12 ink-2 catalogue dose line. Left column `minmax(140px, 1fr)`.
-- **Right** (`justify-self: end`, gap 12, items never overlap: each control has a fixed min width
-  and the grid wraps to the next line instead of shrinking):
-  - dose: NumberField 88 w (16 px text on touch) with the unit inside as a suffix (g · mg · µg · IU ·
-    scoop); a unit Select only when the catalogue lists more than one unit.
+- **Right**: the state (`justify-self: end`). **Under the name, two lines that take the row's full width**
+  from its left content edge to its right one, gap 8, controls never overlap (each has a minimum width
+  and the line wraps instead of shrinking):
+  - dose: NumberField (44 h, min 88 w, grows; 16 px text on touch) with the unit inside as a suffix (g ·
+    mg · µg · IU) or, when the catalogue lists more than one unit, a unit Select (96 w, 44 h) after it,
+    then the "each time" caption.
   - time of day: a **multi toggle bank** (KeyBank look, `role="group"`, each key `aria-pressed`):
     morning · midday · evening · night; selected = raised cap + yellow dot. ≥ 1 required while
     taking.
@@ -1212,7 +1230,7 @@ Chip `status` with text, low = dashed outline. Status text: "in range" ink-2, "a
 - [ ] `--lm-face-hover` exists in both token files; no hover anywhere uses `--lm-ink-faint` or a tinted fill.
 - [ ] Ladder rows: hover only on rows that open Explain; text colour unchanged; ink-3 on hover ≥ 4.5:1 both themes.
 - [ ] Today, Food, Train, Progress: non-interactive rows and tiles have no hover.
-- [ ] SupplementRow at 390 / 768 / 1440: name, dose, times and state never overlap; times on their own line below 480 px row width; controls on the right.
+- [ ] SupplementRow at 360 / 390 / 768 / 1440: name, dose, times and state never overlap; the amount line and the times line each span the row's full width (equal 44 px time keys, 44 px amount field).
 - [ ] SupplementRow "have it, don't take" hides dose and times; the same row renders in Settings and the Food tab.
 - [ ] Picker: search filters across groups; counts update; dashed outline on region defaults; notes show on chips; paste-a-list previews before adding.
 - [ ] BecauseChip readable in both themes, opens its popover with keyboard, short form at narrow widths.

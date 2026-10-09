@@ -4,22 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Toaster } from '@/components';
 import { RingServiceProvider, type RingCandidate, type RingPlatform, type RingService, type RingStatus } from '../data';
 import { createFakeRingService, createFakeSharing, scenarioPlatform, type FakeRingService } from '../fixtures';
-import { RingPageBody } from '../RingPage';
+import { RingDevices } from '../RingDevices';
 import { DESKTOP_SCAN_MS } from '@/biometrics/ble/transports/rings';
 import { DONE_HOLD_MS, SCAN_MS, SETTLE_MS, STILL_LOOKING_MS, pairStage } from '../PairingFlow';
 import { signalOf, sortCandidates } from '../ScanList';
 
 // The sections are other files' work; the flow is tested on its own.
 vi.mock('../CheckNow', () => ({ CheckNow: () => null }));
-vi.mock('../TodayReadings', () => ({ TodayReadings: () => null }));
-vi.mock('../Sharing', () => ({ Sharing: () => null }));
-vi.mock('../RingSettings', async () => {
-  const { createElement } = await import('react');
-  return {
-    RingSettings: ({ onAddRing }: { onAddRing: (trigger: HTMLButtonElement) => void }) =>
-      createElement('button', { type: 'button', onClick: (event: { currentTarget: HTMLButtonElement }) => onAddRing(event.currentTarget) }, 'Add another ring'),
-  };
-});
 
 const NOW = new Date(2026, 9, 4, 13, 41).getTime();
 const FORBIDDEN = [/password/i, /passcode/i, /\bPIN\b/, /mqtt/i, /\blease\b/i, /gatt/i, /credential/i, /advanced/i, /\bkey\b/i];
@@ -29,9 +20,9 @@ const DESKTOP: Partial<RingPlatform> = { platform: 'electron', ble: 'electron', 
 
 function renderPage(service: RingService, platform: Partial<RingPlatform> = ANDROID) {
   return render(
-    <MemoryRouter initialEntries={['/ring']}>
+    <MemoryRouter initialEntries={['/signals']}>
       <RingServiceProvider service={service} platform={platform} sharing={createFakeSharing()}>
-        <RingPageBody />
+        <RingDevices />
         <Toaster />
       </RingServiceProvider>
     </MemoryRouter>,
@@ -112,8 +103,8 @@ describe('pairing flow (§5.5)', () => {
     const fake = createFakeRingService('none', { now: NOW });
     renderPage(fake);
     // step 1
-    expect(document.querySelector('.rg-page')?.getAttribute('data-layout')).toBe('pairing');
-    expect(document.querySelector('.rg-span .rg-pair')).not.toBeNull();
+    expect(document.querySelector('.rg-devices .rg-pair')).not.toBeNull();
+    expect(document.querySelector('.rg-devices .rg-pair')).not.toBeNull();
     expect(within(pair()).getByRole('heading', { name: 'Connect your ring' })).toBeTruthy();
     expect(pair().textContent).toContain(
       'Put the ring on your finger or its charger and keep it near this phone. If another app is connected to it (for example the ring’s own app), close that app first: a ring talks to one device at a time.',
@@ -143,30 +134,9 @@ describe('pairing flow (§5.5)', () => {
     expectClean();
     await flush(DONE_HOLD_MS);
     expect(document.querySelector('.rg-pair')).toBeNull();
-    expect(document.querySelector('.rg-page')?.getAttribute('data-layout')).toBe('split');
     expect(document.querySelector('.rg-card .rg-card__word-now')?.textContent).toBe('connected');
     expect(within(document.querySelector('.rg-card') as HTMLElement).getByRole('heading', { level: 2 })).toHaveFocus();
     expect(screen.getByText('Your ring is connected')).toBeTruthy();
-  });
-
-  it('adding a ring moves focus into the flow and then to the connected card', async () => {
-    const fake = createFakeRingService('connected', { now: NOW });
-    renderPage(fake);
-    const trigger = screen.getByRole('button', { name: 'Add another ring' });
-    trigger.focus();
-    fireEvent.click(trigger);
-    const look = screen.getByRole('button', { name: 'Look for rings' });
-    expect(look).toHaveFocus();
-    fireEvent.click(look);
-    await flush();
-    const candidate = screen.getAllByRole('button', { name: /ending 4F2A/ })[0]!;
-    candidate.focus();
-    fireEvent.click(candidate);
-    await flush();
-    expect(within(pair()).getByRole('status')).toHaveFocus();
-    await flush(DONE_HOLD_MS);
-    expect(pair()).toBeNull();
-    expect(within(document.querySelector('.rg-card') as HTMLElement).getByRole('heading', { level: 2 })).toHaveFocus();
   });
 
   it('a failed pair offers Try again and Choose another ring', async () => {
@@ -386,7 +356,7 @@ describe('pairing step 1 when the platform is not ready', () => {
     const fake = createFakeRingService('bluetooth_off', { now: NOW });
     fake.setRings([]);
     renderPage(fake);
-    expect(document.querySelector('.rg-span .rg-pair')).not.toBeNull();
+    expect(document.querySelector('.rg-devices .rg-pair')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Look for rings' })).toBeNull();
     expect(pair().querySelector('.lm-inline-warn')?.textContent).toContain('Turn on Bluetooth to reach your ring.');
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Turn on Bluetooth' })));

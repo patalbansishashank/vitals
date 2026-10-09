@@ -25,6 +25,7 @@ import type { ScheduleModel, CellModel } from '../useScheduleModel';
 import {
   WEEKDAYS_SHORT,
   colOf,
+  formatCellDate,
   dayAt,
   linearRange,
   rectRange,
@@ -370,6 +371,7 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
         <RasterCell
           key={d}
           cell={cell}
+          dateText={formatCellDate(cell.iso)}
           fast={f}
           joinL={joinL}
           joinR={joinR}
@@ -534,6 +536,7 @@ function PhaseLabel({
 
 interface CellProps {
   cell: CellModel;
+  dateText: string;
   fast: DayFast | null;
   joinL: boolean;
   joinR: boolean;
@@ -544,6 +547,7 @@ interface CellProps {
 
 const RasterCell = memo(function RasterCell({
   cell,
+  dateText,
   fast,
   joinL,
   joinR,
@@ -576,6 +580,7 @@ const RasterCell = memo(function RasterCell({
     >
       <span className="sim-cell__top" aria-hidden="true">
         <span className="sim-cell__letter">{cell.letter}</span>
+        <span className="sim-cell__date">{dateText}</span>
         <span className="sim-cell__pct">{label}</span>
       </span>
       <span className="sim-cell__glyphs" aria-hidden="true">

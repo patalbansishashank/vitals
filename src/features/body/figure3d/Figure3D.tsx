@@ -3,13 +3,17 @@ import {
   Suspense,
   lazy,
   useCallback,
+  useEffect,
+  useId,
+  useRef,
   useState,
   type CSSProperties,
   type ErrorInfo,
   type ReactNode,
 } from 'react';
+import { Pause, Play, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import type { AvatarParams } from '@/engine/body';
-import { useReducedMotion } from '@/components';
+import { Icon, useReducedMotion } from '@/components';
 import {
   BodyAvatar,
   DEFAULT_CAPTION,
@@ -23,14 +27,18 @@ import { VisceralView } from './visceral';
 import { isSlowDevice } from './device';
 import type { FitResult } from './fit';
 import type { FigureView } from './renderer';
+import type { FigureViewControl, FigureViewState } from './Figure3DCanvas';
+import { VIEW_HINT, takeViewHint } from './viewHint';
 import './figure3d.css';
 
 const Figure3DCanvas = lazy(() => import('./Figure3DCanvas'));
 
+/** Before the canvas reports otherwise: both zooms open, nothing to reset. */
+const FRESH_VIEW: FigureViewState = { canZoomIn: true, canZoomOut: true, canReset: false };
+
 export interface AnatomyLayers {
   skin: boolean;
   subcutaneousFat: boolean;
-  visceralFat: boolean;
   muscles: boolean;
   skeleton: boolean;
 }
@@ -38,7 +46,6 @@ export interface AnatomyLayers {
 const INITIAL_LAYERS: AnatomyLayers = {
   skin: true,
   subcutaneousFat: true,
-  visceralFat: true,
   muscles: true,
   skeleton: true,
 };
@@ -46,10 +53,22 @@ const INITIAL_LAYERS: AnatomyLayers = {
 const LAYER_LABELS: { key: keyof AnatomyLayers; label: string }[] = [
   { key: 'skin', label: 'Skin' },
   { key: 'subcutaneousFat', label: 'Fat under skin' },
-  { key: 'visceralFat', label: 'Fat around organs (estimate)' },
   { key: 'muscles', label: 'Muscles' },
   { key: 'skeleton', label: 'Bones' },
 ];
+
+/** The one-time mouse hint: fades by itself (CSS) and is removed once it has. */
+function ViewHint({ onDone }: { onDone: () => void }) {
+  useEffect(() => {
+    const t = window.setTimeout(onDone, 5200);
+    return () => window.clearTimeout(t);
+  }, [onDone]);
+  return (
+    <div className="lm-fig3d__hint" aria-hidden="true">
+      {VIEW_HINT}
+    </div>
+  );
+}
 
 class CanvasErrorBoundary extends Component<
   { onError: (reason: string) => void; children: ReactNode },
@@ -128,15 +147,23 @@ export function Figure3D({
   onReady,
 }: Figure3DProps) {
   const reduced = useReducedMotion();
+  const layersId = useId();
   const [failed, setFailed] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [anatomyLayers, setAnatomyLayers] = useState<AnatomyLayers>(INITIAL_LAYERS);
   const [rotating, setRotating] = useState(true);
+  const [viewState, setViewState] = useState<FigureViewState>(FRESH_VIEW);
+  const viewControl = useRef<FigureViewControl>(null);
+  const [hint, setHint] = useState(false);
+  const endHint = useCallback(() => setHint(false), []);
   const f = resolveFrame(params, frame);
   const useSvg = forceSvg || failed !== null || !webgl2Available() || isSlowDevice();
   const name =
     label ?? describeAvatar(params, { frame: f, heightText, measures: showMeasures, layers, compareTo });
   const compact = size === 'xs' || (typeof size === 'number' && size < 100);
+  // thumbnails and plan-card figures keep the plain turn: no zoom, tilt or pan, and no room for the buttons
+  const small = compact || size === 'sm' || (typeof size === 'number' && size < 160);
+  const viewTools = controls && !decorative && !small;
   const view = views.length === 2 ? 'both' : (views[0] ?? 'front');
 
   const onFail = useCallback(
@@ -159,6 +186,7 @@ export function Figure3D({
       aria-label={decorative ? undefined : name}
       aria-hidden={decorative || undefined}
       data-renderer={useSvg ? 'svg' : ready ? 'webgl' : 'loading'}
+      aria-busy={(!useSvg && !ready) || undefined}
       data-size={typeof size === 'string' ? size : typeof size === 'number' ? 'custom' : 'default'}
     >
       <div className="lm-fig3d__row">
@@ -166,7 +194,11 @@ export function Figure3D({
           className="lm-fig3d__stage"
           style={typeof size === 'number' ? { width: size, height: size * 1.25 } : undefined}
         >
-          {(!ready || useSvg) && (
+          {/* The vector figure is only for when 3D cannot be had (no WebGL2, a failed load or context, a slow device,
+              or asked for). While the 3D code, the binaries and the context load, the stage shows a quiet placeholder
+              in the same box, and the 3D layer fades in over it on its first drawn frame: no flash of the 2D body. */}
+          {!useSvg && !ready && <div className="lm-fig3d__loading" aria-hidden="true" />}
+          {useSvg && (
             <BodyAvatar
               params={params}
               frame={f}
@@ -177,7 +209,7 @@ export function Figure3D({
               units={units}
               heightText={heightText}
               showMeasures={showMeasures}
-              interactive={useSvg && !decorative ? interactive : undefined}
+              interactive={decorative ? undefined : interactive}
               ruler={ruler}
               tween={tween}
               caption={false}
@@ -197,6 +229,10 @@ export function Figure3D({
                     anatomyLayers={anatomyLayers}
                     autoRotate={controls && !compact && rotating && !reduced}
                     interactive={!decorative && ready}
+                    viewControls={viewTools}
+                    controlRef={viewControl}
+                    onUserTurn={() => setRotating(false)}
+                    onViewState={setViewState}
                     reducedMotion={reduced}
                     tween={tween}
                     layout={null}
@@ -204,6 +240,8 @@ export function Figure3D({
                     onFail={onFail}
                     onReady={() => {
                       setReady(true);
+                      // the first time a desktop pointer meets the figure: one line about the mouse
+                      if (viewTools && takeViewHint()) setHint(true);
                       onReady?.();
                     }}
                   />
@@ -211,6 +249,53 @@ export function Figure3D({
               </CanvasErrorBoundary>
             </div>
           )}
+          {!useSvg && controls && !compact && (viewTools || !reduced) && (
+            <div className="lm-fig3d__viewbar" role="group" aria-label="View controls">
+              {viewTools && (
+                <>
+                  <button
+                    type="button"
+                    className="lm-fig3d__vbtn"
+                    aria-label="Zoom in"
+                    aria-disabled={!ready || !viewState.canZoomIn || undefined}
+                    onClick={() => viewState.canZoomIn && viewControl.current?.zoomIn()}
+                  >
+                    <Icon icon={ZoomIn} size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="lm-fig3d__vbtn"
+                    aria-label="Zoom out"
+                    aria-disabled={!ready || !viewState.canZoomOut || undefined}
+                    onClick={() => viewState.canZoomOut && viewControl.current?.zoomOut()}
+                  >
+                    <Icon icon={ZoomOut} size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="lm-fig3d__vbtn"
+                    aria-label="Reset view"
+                    aria-disabled={!ready || !viewState.canReset || undefined}
+                    onClick={() => viewState.canReset && viewControl.current?.reset()}
+                  >
+                    <Icon icon={RotateCcw} size={16} />
+                  </button>
+                </>
+              )}
+              {!reduced && (
+                <button
+                  type="button"
+                  className="lm-fig3d__vbtn lm-fig3d__motion"
+                  aria-label={rotating ? 'Pause turning' : 'Resume turning'}
+                  aria-pressed={rotating}
+                  onClick={() => setRotating((on) => !on)}
+                >
+                  <Icon icon={rotating ? Pause : Play} size={16} />
+                </button>
+              )}
+            </div>
+          )}
+          {hint && <ViewHint onDone={endHint} />}
         </div>
         {visceral ? (
           <VisceralView params={params} compareTo={compareTo} className="lm-fig3d__visceral" />
@@ -218,9 +303,11 @@ export function Figure3D({
       </div>
       {!useSvg && controls && !compact && (
         <div className="lm-fig3d__tools">
-          <details className="lm-fig3d__details">
-            <summary>Layers</summary>
-            <div className="lm-fig3d__layers" role="group" aria-label="Body layers">
+          <div className="lm-fig3d__panel">
+            <h3 id={layersId} className="lm-fig3d__heading">
+              Layers
+            </h3>
+            <div className="lm-fig3d__layers" role="group" aria-labelledby={layersId}>
               {LAYER_LABELS.map(({ key, label: layerLabel }) => (
                 <button
                   key={key}
@@ -234,32 +321,13 @@ export function Figure3D({
                 </button>
               ))}
             </div>
-            <p className="lm-fig3d__explain">
-              Muscles and bones show reference anatomy. Fat around organs is an estimate, not a measurement.
-            </p>
-          </details>
-          <button
-            type="button"
-            className="lm-fig3d__motion"
-            disabled={reduced}
-            aria-pressed={!reduced && rotating}
-            onClick={() => setRotating((on) => !on)}
-          >
-            {reduced ? 'Motion off' : rotating ? 'Pause turning' : 'Resume turning'}
-          </button>
+          </div>
         </div>
       )}
       {caption !== false && !compact && (
         <figcaption className="lm-fig3d__caption">
-          {caption} Muscles and bones show reference anatomy. Fat around organs is estimated, not measured.
+          {caption} Muscles and bones show reference anatomy.
         </figcaption>
-      )}
-      {!useSvg && controls && !compact && (
-        <div className="lm-fig3d__credit">
-          <a href={`${import.meta.env.BASE_URL}figure/NOTICE.html`} target="_blank" rel="noopener noreferrer">
-            3D model credits
-          </a>
-        </div>
       )}
     </figure>
   );

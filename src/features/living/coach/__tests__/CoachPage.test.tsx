@@ -241,7 +241,7 @@ describe('CoachPage', () => {
     expect(screen.getByText(/It can’t change your safety answers/)).toBeInTheDocument();
   });
 
-  it('the briefing key toggles the panel', async () => {
+  it('the briefing key opens a slide-in panel; Close, Escape and the key close it and focus returns to the key', async () => {
     const user = userEvent.setup();
     renderLiving(<WithMock />, { path: '/coach', route: 'coach' });
     const key = screen.getByRole('button', { name: 'what it knows' });
@@ -249,6 +249,16 @@ describe('CoachPage', () => {
     await user.click(key);
     expect(key).toHaveAttribute('aria-pressed', 'true');
     expect(await screen.findByText('Body signals it can see')).toBeInTheDocument();
+    const panel = screen.getByText('Body signals it can see').closest<HTMLElement>('.lm-panel__body')!.parentElement!;
+    await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
+    await user.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByText('Body signals it can see')).not.toBeInTheDocument());
+    expect(key).toHaveAttribute('aria-pressed', 'false');
+    await waitFor(() => expect(key).toHaveFocus());
+    await user.click(key);
+    expect(await screen.findByText('Body signals it can see')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText('Body signals it can see')).not.toBeInTheDocument());
   });
 
   it('offline: the message is kept with Send now disabled until the connection is back', async () => {

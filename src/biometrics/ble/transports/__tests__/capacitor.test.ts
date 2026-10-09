@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { command } from '@/biometrics/core/ble/jstyle2301/commands';
 import { jstyle2301Driver } from '../../drivers';
 import type { SessionClock } from '../../session';
-import { createCapacitorTransport, type CapBleClient, type CapScanResult, type CapService } from '../capacitor';
+import { SCAN_MODE_LOW_LATENCY, createCapacitorTransport, type CapBleClient, type CapScanResult, type CapService } from '../capacitor';
 import { NoDeviceError, type DeviceChooser, type FoundDevice } from '../types';
 
 const SVC = '0000fff0-0000-1000-8000-00805f9b34fb';
@@ -60,8 +60,11 @@ class FakeCapBle implements CapBleClient {
     return this.enabled;
   }
 
-  async requestLEScan(_o: { services?: string[]; allowDuplicates?: boolean }, cb: (r: CapScanResult) => void): Promise<void> {
+  scanOpts: unknown[] = [];
+
+  async requestLEScan(o: { services?: string[]; allowDuplicates?: boolean; scanMode?: number }, cb: (r: CapScanResult) => void): Promise<void> {
     this.scanCalls++;
+    this.scanOpts.push(o);
     this.scanning = true;
     this.scanScript.forEach((r, i) => this.timers.push(setTimeout(() => this.scanning && cb(r), 2 + i * 2)));
   }
@@ -172,6 +175,12 @@ describe('capacitor transport: requestDevice', () => {
     expect(ble.connected).toEqual(['AA:00:00:00:00:02']);
     expect(ble.stopScanCalls).toBe(1);
     expect(ble.scanning).toBe(false);
+  });
+
+  it('scans at low latency without a native filter (the ring is matched here, by its marker)', async () => {
+    const { ble, transport } = setup();
+    await transport.requestDevice(query);
+    expect(ble.scanOpts).toEqual([{ allowDuplicates: false, scanMode: SCAN_MODE_LOW_LATENCY }]);
   });
 
   it('falls back to the device name when there is no local name', async () => {

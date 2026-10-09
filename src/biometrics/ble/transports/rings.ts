@@ -5,7 +5,7 @@
  */
 import type { Advertisement, RingFamily, Transport, TransportEvent, TransportFactory, Uuid } from '../../../../packages/rings/src/types';
 import { normalizeUuid } from '../../../../packages/rings/src/types';
-import type { CapBleClient, CapScanResult } from './capacitor';
+import { SCAN_MODE_LOW_LATENCY, type CapBleClient, type CapScanResult } from './capacitor';
 import { NoDeviceError, type BleTransport, type DeviceQuery, type FoundDevice, type RingLink } from './types';
 
 /**
@@ -98,7 +98,8 @@ export function capacitorFactory(client: () => Promise<CapBleClient>, transport:
     available: () => transport.isAvailable(),
     async scan(_families, onFound, signal) {
       const ble = await client();
-      await ble.requestLEScan({ allowDuplicates: false }, (r) => onFound(capacitorAdvertisement(r)));
+      // low latency, as Lumen paired: an idle J-Style 2301 advertises only every 20–40 s
+      await ble.requestLEScan({ allowDuplicates: false, scanMode: SCAN_MODE_LOW_LATENCY }, (r) => onFound(capacitorAdvertisement(r)));
       await new Promise<void>((resolve) => (signal.aborted ? resolve() : signal.addEventListener('abort', () => resolve(), { once: true })));
       await ble.stopLEScan().catch(() => {});
     },

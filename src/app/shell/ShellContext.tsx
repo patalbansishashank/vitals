@@ -19,7 +19,7 @@ export interface MobileHeader {
 export interface ShellContextValue {
   /** DOM node of the sticky per-screen context bar (TopBar portals here). */
   contextSlot: HTMLElement | null;
-  /** DOM node of the mobile action bar above the tab bar (ActionBar portals here). */
+  /** DOM node of the action bar at the foot of the screen (ActionBar portals here; on desktop also the TopBar's params and actions). */
   actionSlot: HTMLElement | null;
   setMobileHeader: (h: MobileHeader | null) => void;
   setActionBarCount: (delta: 1 | -1) => void;

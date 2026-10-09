@@ -1,9 +1,8 @@
-import { memo } from 'react';
 import { Faceplate, KeyLink } from '@/components';
 import { Figure3D } from '@/features/body/figure3d';
 import type { AvatarParams } from '@/engine/body';
 import { paths } from '@/app/paths';
-import { CONTINUE, FIGURE, SETUP } from '../copy';
+import { FIGURE, SETUP } from '../copy';
 
 export type SetupView = 'basics' | 'shape' | 'habits';
 
@@ -19,7 +18,9 @@ export function SetupProgress({ step }: { step: SetupView }) {
           aria-current={i === idx ? 'step' : undefined}
         >
           <span className="lm-body-steps__bar" aria-hidden="true" />
-          <span className="lm-body-steps__label">{s.label}</span>
+          <span className="lm-body-steps__label" data-label={s.label}>
+            {s.label}
+          </span>
         </li>
       ))}
     </ol>
@@ -52,23 +53,6 @@ export function ChooseStart() {
   );
 }
 
-/** Normal mode: nothing to confirm (autosave); the way on into the two features. */
-export const ContinueFace = memo(function ContinueFace() {
-  return (
-    <Faceplate as="div" className="lm-body-continue" variant="inset">
-      <p className="lm-body-hint">{CONTINUE.lead}</p>
-      <div className="lm-body-row">
-        <KeyLink to={paths.simulate} size="sm">
-          {CONTINUE.simulate}
-        </KeyLink>
-        <KeyLink to={paths.planGoals} size="sm">
-          {CONTINUE.plan}
-        </KeyLink>
-      </div>
-    </Faceplate>
-  );
-});
-
 /**
  * Sticky mini figure (mobile, your-body.md §3): docks under the top bar while a shape slider is dragged with the
  * stage out of view; fades 1.5 s after the last input; tap scrolls back to the stage.
@@ -99,7 +83,7 @@ export function MiniFigure({
           <Figure3D
             params={params}
             frame={frame}
-            size={108}
+            size={86}
             caption={false}
             ruler={false}
             tween={false}

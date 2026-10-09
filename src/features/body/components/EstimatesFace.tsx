@@ -4,7 +4,7 @@ import { DisclaimerLine } from '@/features/onboarding';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
 import { EST } from '../copy';
 import type { BodySummary } from '../model';
-import { energyIn } from '../units';
+import { energyIn, maintenanceShown } from '../units';
 import { kgToLb } from '@/lib/units';
 
 export interface EstimatesFaceProps {
@@ -65,7 +65,7 @@ export function EstimatesFace({ summary: s, muscleWords: words, energyUnit, unit
     <Readout
       key="maint"
       label={EST.maintenance}
-      value={val(energyIn(m.kcal, energyUnit))}
+      value={val(maintenanceShown(m.kcal, energyUnit))}
       decimals={0}
       unit={eUnit}
       range={[energyIn(m.band80[0], energyUnit), energyIn(m.band80[1], energyUnit)]}

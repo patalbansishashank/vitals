@@ -102,7 +102,9 @@ describe('V1c plan lifecycle double submit', () => {
     const created = await dispatch('scenario.create', { starter: 'blank', name: 'Start me' });
     const scenarioId = created.ok && 'output' in created ? (created.output as { scenarioId: string }).scenarioId : '';
     await settleCommits();
-    const input = { source: { scenarioId }, startDate: '2026-10-05' };
+    // tomorrow, in local time: a plan cannot start in the past, so a fixed date goes stale
+    const startDate = new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA');
+    const input = { source: { scenarioId }, startDate };
     const [a, b] = await Promise.all([dispatch('plan.start' as never, input as never), dispatch('plan.start' as never, input as never)]);
     await settleCommits();
     const plans = getDocumentStore().peekAll('plans');

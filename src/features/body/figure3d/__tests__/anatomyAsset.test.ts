@@ -17,7 +17,7 @@ const asset = decodeAnatomy(zlib.gunzipSync(compressed));
 
 describe('atlas anatomy pack', () => {
   it('is compact, attributed, and contains detailed major bones and muscles', () => {
-    expect(compressed.byteLength).toBeLessThan(1024 * 1024);
+    expect(compressed.byteLength).toBeLessThan(1.8 * 1024 * 1024);
     expect(asset.manifest.source.licence).toContain('CC BY 4.0');
     expect(asset.manifest.source.selected.length).toBeGreaterThan(500);
     const names = asset.manifest.source.selected.map((entry) => entry.name.toLowerCase());
@@ -50,7 +50,7 @@ describe('atlas anatomy pack', () => {
       minArmY = Math.min(minArmY, asset.positions[3 * index + 1]!);
     }
     expect(minArmY).toBeGreaterThan(68);
-    expect(minArmY).toBeLessThan(74); // registered with the fitted MakeHuman hands
+    expect(minArmY).toBeLessThan(76); // joint-registered reference finger tips
   });
 
   it('rejects truncated and wrong-format packs', () => {

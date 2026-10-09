@@ -39,8 +39,6 @@ export const SETUP = {
 } as const;
 
 export const CONTINUE = {
-  title: 'Next',
-  lead: 'Saved on this device. Projections and plans start from this body.',
   simulate: 'Simulate a plan',
   plan: 'Find a plan',
 } as const;
@@ -97,7 +95,7 @@ export const FIGURE = {
   adjustDrawing: 'Adjust the drawing ›',
   loadDetailed: 'Load detailed figure · up to 300 kB',
   slowSwitch: 'Switched to the simple figure to keep sliders smooth.',
-  visceralCaption: 'Waist slice, drawn to scale from your estimate. Illustrative — organs are simplified.',
+  visceralCaption: 'Drawn to scale from your estimate, not a scan. Organs simplified.',
   visceralHow: 'Estimated from your fat mass, where it sits, age and waist. Grade C: a model checked against scans; read the size of the band, not the exact number.',
   visceralHowLink: 'How this is drawn ›',
   visceralWaistSets: 'Your waist measurement sets the outer contour.',

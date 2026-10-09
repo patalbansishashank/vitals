@@ -315,7 +315,7 @@ describe('J2-07 verifier fixes (849dcd98)', () => {
     } catch (e) {
       err = e;
     }
-    expect(toLinkError(new RingError('no answer from the ring', 'timeout')).code).toBe('not_found'); // as a connect
+    expect(toLinkError(new RingError('no answer from the ring', 'timeout')).code).toBe('failed'); // as a connect too: the link came up
     expect(err).toBeInstanceOf(RingLinkError);
     expect((err as RingLinkError).code).toBe('failed');
     expect(errorOf(err).message).not.toBe(ANOTHER_APP);

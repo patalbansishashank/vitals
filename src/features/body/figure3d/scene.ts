@@ -5,6 +5,7 @@ import type { AvatarParams } from '@/engine/body';
 import { FigureFitter, type FitResult } from './fit';
 import { FigureModel, type MorphState } from './model';
 import type { FigureAsset } from './asset';
+import { spaceArms, type ArmSpacing } from './armPose';
 
 export interface PlacedMesh {
   positions: Float32Array;
@@ -13,6 +14,7 @@ export interface PlacedMesh {
   /** Bounding-box half extents about those centres, cm. */
   half: { front: number; side: number };
   heightCm: number;
+  armSpacing: ArmSpacing;
 }
 
 export function lerpState(a: MorphState, b: MorphState, t: number): MorphState {
@@ -54,7 +56,7 @@ export class FigureScene {
    * stature (not by a fitted scale factor) keeps the lean core, which MakeHuman makes slightly taller than a heavy
    * body, inside the envelope.
    */
-  place(state: MorphState, heightCm: number, out?: Float32Array): PlacedMesh {
+  place(state: MorphState, heightCm: number, out?: Float32Array, armSpacing?: ArmSpacing): PlacedMesh {
     const P = this.model.evaluate(state, out);
     const { top, bottom } = this.model.manifest.height;
     const floor = P[3 * bottom + 1]!;
@@ -69,11 +71,17 @@ export class FigureScene {
       if (P[i + 2]! < z0) z0 = P[i + 2]!;
       if (P[i + 2]! > z1) z1 = P[i + 2]!;
     }
+    const spacing = spaceArms(P, this.model.indices, this.model.manifest, heightCm, state.frame, armSpacing);
+    // The pose correction can widen the figure, so include it in every mount's
+    // framing and overlay extents.
+    x0 = Infinity; x1 = -Infinity;
+    for (let i = 0; i < P.length; i += 3) { x0 = Math.min(x0, P[i]!); x1 = Math.max(x1, P[i]!); }
     return {
       positions: P,
       centre: { front: (x0 + x1) / 2, side: (z0 + z1) / 2 },
       half: { front: (x1 - x0) / 2, side: (z1 - z0) / 2 },
       heightCm: P[3 * top + 1]!,
+      armSpacing: spacing,
     };
   }
 }

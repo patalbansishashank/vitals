@@ -19,7 +19,7 @@ import { connectorsByRow, goalRelations } from './relations';
 import { GoalPicker } from './components/GoalPicker';
 import { GoalRankList } from './components/GoalRankList';
 import { HorizonPicker } from './components/HorizonPicker';
-import { LimitsPanel } from './components/LimitsPanel';
+import { LimitsPanel, WontDoPanel } from './components/LimitsPanel';
 import { PreflightList } from './components/PreflightList';
 import { editGoals, editGoalsLater } from './commands';
 import { SuggestionCard, type SuggestionState } from './components/SuggestionCard';
@@ -118,7 +118,7 @@ export function GoalsView({ model }: GoalsViewProps) {
   };
   const applySuggestion = (mode: ApplyMode) => {
     if (sg?.status !== 'ready') return;
-    const { ops, added } = suggestionOps(sg.suggestion, goals, mode);
+    const { ops } = suggestionOps(sg.suggestion, goals, mode);
     const r = dispatchSync('goals.edit', { ops });
     if (!r.ok) {
       toast(r.error.message, { id: 'planner-suggest' });
@@ -127,11 +127,6 @@ export function GoalsView({ model }: GoalsViewProps) {
     const changeSetId = ('changeSet' in r ? r.changeSet?.id : null) ?? null;
     setSg(null);
     setApplied({ changeSetId });
-    toast(`${added.length === 1 ? 'One suggested goal' : `${added.length} suggested goals`} ${mode === 'replace' ? 'applied' : 'added'}.`, {
-      id: 'planner-suggest',
-      duration: 30_000,
-      ...(changeSetId ? { action: { label: 'Undo', onClick: () => undoApplied(changeSetId) } } : {}),
-    });
   };
   const undoApplied = (changeSetId: string) => {
     void sendCommand('history.undo', { changeSetId });
@@ -378,30 +373,36 @@ export function GoalsView({ model }: GoalsViewProps) {
               ) : null}
             </div>
           </Faceplate>
-          <HorizonPicker
-            horizonDays={model.horizonDays}
-            startDate={model.startDate}
-            onHorizon={(d) => editGoalsLater([{ op: 'setHorizon', days: d }])}
-            onStartDate={(iso) => editGoalsLater([{ op: 'setStartDate', date: iso }])}
-            disabled={running}
-          />
-          <div className="lp-only-desktop">
-            <PreflightList hints={model.hints} onAction={onHint} pending={model.reachPending} />
+          <div className="lp-goals-grid__wont">
+            <WontDoPanel c={constraints} onChange={(p) => editGoalsLater([{ op: 'setLimits', patch: p as never }])} disabled={running} />
           </div>
         </div>
-        <div className="lp-goals-grid__side" ref={limitsRef}>
-          <LimitsPanel
-            c={constraints}
-            onChange={(p) => editGoalsLater([{ op: 'setLimits', patch: p as never }])}
-            onReset={() => editGoalsLater([{ op: 'resetLimits' }])}
-            customised={Object.keys(model.overrides).length > 0}
-            safetyMaxFastH={access.fasting.maxFastHours}
-            fastLockReason={fastLockReason}
-            disabled={running}
-          />
-        </div>
-        <div className="lp-only-mobile">
-          <PreflightList hints={model.hints} onAction={onHint} pending={model.reachPending} />
+        {/* wide screens: the right half holds the horizon, the run check and the practical limits; phones read
+            goals · horizon · practical limits · won't do · before you run (planner.css, grid order) */}
+        <div className="lp-goals-grid__side">
+          <div className="lp-goals-grid__horizon">
+            <HorizonPicker
+              horizonDays={model.horizonDays}
+              startDate={model.startDate}
+              onHorizon={(d) => editGoalsLater([{ op: 'setHorizon', days: d }])}
+              onStartDate={(iso) => editGoalsLater([{ op: 'setStartDate', date: iso }])}
+              disabled={running}
+            />
+          </div>
+          <div className="lp-goals-grid__preflight">
+            <PreflightList hints={model.hints} onAction={onHint} pending={model.reachPending} />
+          </div>
+          <div className="lp-goals-grid__limits" ref={limitsRef}>
+            <LimitsPanel
+              c={constraints}
+              onChange={(p) => editGoalsLater([{ op: 'setLimits', patch: p as never }])}
+              onReset={() => editGoalsLater([{ op: 'resetLimits' }])}
+              customised={Object.keys(model.overrides).length > 0}
+              safetyMaxFastH={access.fasting.maxFastHours}
+              fastLockReason={fastLockReason}
+              disabled={running}
+            />
+          </div>
         </div>
       </div>
 

@@ -1,21 +1,10 @@
 /* ==========================================================================
    Mode-aware navigation (IA §3.4–§3.6, COMPONENTS §11, §13.17): the rail's
-   plan-day readout and lower-group hairline, the 5-key tab bar, the planning
+   lower-group hairline, the 5-key tab bar, the planning
    override's plan strip, and the 140 ms cross-fade when the mode changes.
    Tokens only; the yellow dot is the only colour.
    ========================================================================== */
 @layer components {
-  .lm-rail__day {
-    margin: -8px 0 10px;
-    font-size: 11px;
-    font-stretch: 75%;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-    color: var(--lm-ink-2);
-    text-align: center;
-    white-space: nowrap;
-  }
   .lm-rail__rule {
     display: block;
     width: 44px;
