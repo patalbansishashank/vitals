@@ -1,18 +1,35 @@
 /**
- * The desktop and Android downloads on a first-time visitor's first screen (the welcome intro) and in Settings;
+ * The desktop and Android downloads in Settings › Install;
  * owned by L-WEB. Desktop links use stable release names while metadata loads; Android waits for a signed package.
  * Release data also adds the version and sizes. It is not shown in the apps or the PWA.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
-import { RingMark } from '@/components/brand/RingMark';
 import { Icon } from '@/components/icons/Icon';
+import { InfoKey, InfoPanel } from '@/components';
+import { APP_VERSION } from '@/app/version';
 import { platformCaps, type OsName } from '@/platform';
 import { DOWNLOADS } from './copy';
-import { ASSET_LABEL, RELEASES_URL, cachedRelease, fallbackAssets, formatSize, loadRelease, mainKey, type ReleaseAsset, type ReleaseState } from './release';
+import {
+  ASSET_LABEL,
+  RELEASES_URL,
+  cachedRelease,
+  fallbackAssets,
+  formatSize,
+  loadRelease,
+  mainKey,
+  type ReleaseAsset,
+  type ReleaseState,
+  type AssetKey,
+} from './release';
 import './home.css';
 
 const FOLD_KEY = 'vitals.downloads.v1';
+
+function InstallHelp({ system }: { system: AssetKey }) {
+  const [open, setOpen] = useState(false);
+  return <><InfoKey label={DOWNLOADS.installHelp(ASSET_LABEL[system])} expanded={open} onClick={() => setOpen(true)} /><InfoPanel title={DOWNLOADS.installTitle(ASSET_LABEL[system])} body={DOWNLOADS.unsigned[system]} open={open} onClose={() => setOpen(false)} /></>;
+}
 
 function readFolded(): boolean {
   try {
@@ -49,16 +66,27 @@ function useRelease(): ReleaseState | 'loading' {
 export interface DownloadsBlockProps {
   /** Tests: where this device runs. Defaults to the real one. */
   caps?: ReturnType<typeof platformCaps>;
+  /**
+   * Inside a settings group that already names it (Settings › Install): no heading, no rule above, and no "Or keep using
+   * the website" fold, since the person is in the website and looked for the apps on purpose.
+   */
+  embedded?: boolean;
 }
 
-export function DownloadsBlock({ caps = platformCaps() }: DownloadsBlockProps = {}) {
-  if (caps.installedApp || caps.platform === 'pwa') return null;
-  return <Block os={caps.os} />;
+/** False where the block shows nothing: inside the Android and desktop apps and the installed web app. */
+export function downloadsShown(caps = platformCaps()): boolean {
+  return !caps.installedApp && caps.platform !== 'pwa';
 }
 
-function Block({ os }: { os: OsName }) {
+export function DownloadsBlock({ caps = platformCaps(), embedded = false }: DownloadsBlockProps = {}) {
+  if (!downloadsShown(caps)) return null;
+  return <Block os={caps.os} embedded={embedded} />;
+}
+
+function Block({ os, embedded }: { os: OsName; embedded: boolean }) {
   const release = useRelease();
-  const [folded, setFolded] = useState(readFolded);
+  const [storedFold, setFolded] = useState(readFolded);
+  const folded = !embedded && storedFold;
   const foldButton = useRef<HTMLButtonElement>(null);
   const expandedHeading = useRef<HTMLHeadingElement>(null);
   const focusAfterFold = useRef(false);
@@ -79,7 +107,6 @@ function Block({ os }: { os: OsName }) {
     return (
       <div className="lm-dl" data-folded="true">
         <button ref={foldButton} type="button" className="lm-dl__fold" onClick={() => fold(false)}>
-          <RingMark />
           {DOWNLOADS.title}
         </button>
       </div>
@@ -96,11 +123,12 @@ function Block({ os }: { os: OsName }) {
   const others = assets.filter((a) => a !== main);
 
   return (
-    <section className="lm-dl" aria-label={DOWNLOADS.title} aria-busy={release === 'loading'}>
-      <h2 ref={expandedHeading} tabIndex={-1} className="lm-dl__title">
-        <RingMark />
-        {DOWNLOADS.title}
-      </h2>
+    <section className="lm-dl" data-embedded={embedded || undefined} aria-label={DOWNLOADS.title} aria-busy={release === 'loading'}>
+      {embedded ? null : (
+        <h2 ref={expandedHeading} tabIndex={-1} className="lm-dl__title">
+          {DOWNLOADS.title}
+        </h2>
+      )}
       <div className="lm-dl__body">
         {none ? (
           <p className="lm-dl__note">
@@ -113,12 +141,20 @@ function Block({ os }: { os: OsName }) {
           <>
             {main ? (
               <div className="lm-dl__main">
-                <a className="lm-key lm-dl__key" data-variant="solid" data-size="lg" data-has-icon="true" href={main.url}>
+                <div className="lm-dl__download">
+                <a
+                  className="lm-key lm-dl__key"
+                  data-variant="solid"
+                  data-size="lg"
+                  data-has-icon="true"
+                  href={main.url}
+                >
                   <Icon icon={Download} size={20} />
                   <span className="lm-key__label">{DOWNLOADS.onlySystem(ASSET_LABEL[main.key])}</span>
                 </a>
-                <p className="lm-dl__meta">{meta(version, main.size) || '\u00a0'}</p>
-                <p className="lm-dl__note">{DOWNLOADS.unsigned[main.key]}</p>
+                <InstallHelp system={main.key} />
+                </div>
+                <p className="lm-dl__meta">{meta(version, main.size, embedded) || '\u00a0'}</p>
               </div>
             ) : os === 'android' && release === 'loading' ? (
               <div className="lm-dl__main lm-dl__pending-main">
@@ -131,7 +167,15 @@ function Block({ os }: { os: OsName }) {
                 <p className="lm-dl__note lm-dl__checking">{DOWNLOADS.androidChecking}</p>
               </div>
             ) : (
-              <p className="lm-dl__note">{os === 'ios' ? DOWNLOADS.iphone : os === 'android' ? (release === 'loading' ? DOWNLOADS.androidChecking : DOWNLOADS.androidUnavailable) : DOWNLOADS.chooseSystem}</p>
+              <p className="lm-dl__note">
+                {os === 'ios'
+                  ? DOWNLOADS.iphone
+                  : os === 'android'
+                    ? release === 'loading'
+                      ? DOWNLOADS.androidChecking
+                      : DOWNLOADS.androidUnavailable
+                    : DOWNLOADS.chooseSystem}
+              </p>
             )}
             <ul className="lm-dl__others" aria-label={DOWNLOADS.otherSystems}>
               {release === 'loading' && os !== 'android' ? (
@@ -140,26 +184,49 @@ function Block({ os }: { os: OsName }) {
                   <span className="lm-dl__size">{'\u00a0'}</span>
                 </li>
               ) : null}
-              {others.map((a) => (
-                <li key={a.key}>
-                  <a className="lm-dl__link" href={a.url}>
-                    {ASSET_LABEL[a.key]}
-                  </a>
-                  <span className="lm-dl__size">{a.size ? formatSize(a.size) : ''}</span>
-                </li>
-              ))}
+              {others.map((a) =>
+                embedded ? (
+                  // Settings › Install (r068 S25): one row per system, its name and size, and a real Download key
+                  <li key={a.key} className="lm-dl__row">
+                    <span className="lm-dl__row-name">{ASSET_LABEL[a.key]}</span>
+                    <InstallHelp system={a.key} />
+                    <span className="lm-dl__size">{a.size ? formatSize(a.size) : ''}</span>
+                    <a className="lm-key" data-variant="outlined" data-size="sm" data-has-icon="true" href={a.url} aria-label={DOWNLOADS.onlySystem(ASSET_LABEL[a.key])}>
+                      <Icon icon={Download} size={16} />
+                      <span className="lm-key__label">{DOWNLOADS.download}</span>
+                    </a>
+                  </li>
+                ) : (
+                  <li key={a.key}>
+                    <div className="lm-dl__download">
+                    <a className="lm-dl__link" href={a.url}>
+                      {ASSET_LABEL[a.key]}
+                    </a>
+                    <InstallHelp system={a.key} />
+                    </div>
+                    <span className="lm-dl__size">{a.size ? formatSize(a.size) : ''}</span>
+                  </li>
+                ),
+              )}
             </ul>
           </>
         )}
-        <button type="button" className="lm-dl__keep" onClick={() => fold(true)}>
-          {DOWNLOADS.keepWebsite}
-        </button>
+        {embedded ? null : (
+          <button type="button" className="lm-dl__keep" onClick={() => fold(true)}>
+            {DOWNLOADS.keepWebsite}
+          </button>
+        )}
       </div>
     </section>
   );
 }
 
-function meta(version: string | undefined, size: number | undefined): string {
-  const parts = [version ? DOWNLOADS.version(version) : '', size ? formatSize(size) : ''].filter(Boolean);
+/** "Version 0.5.3 · 127 MB"; in Settings, where the app's own version is shown too, it says it is the download's. */
+function meta(version: string | undefined, size: number | undefined, embedded = false): string {
+  const parts = [
+    version ? (embedded ? DOWNLOADS.downloadVersion(version) : DOWNLOADS.version(version)) : '',
+    embedded && version && version !== APP_VERSION ? DOWNLOADS.runningVersion(APP_VERSION) : '',
+    size ? formatSize(size) : '',
+  ].filter(Boolean);
   return parts.join(' · ');
 }

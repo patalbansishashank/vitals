@@ -25,7 +25,6 @@ function setup(o: { lastInput?: number | null; now?: number } = {}) {
     relay: { handleResult: vi.fn(), setManifest: vi.fn() },
     setServer: vi.fn(),
     secrets: { set: vi.fn(async () => undefined) },
-    keepAlive: vi.fn(),
     // a click a moment ago, unless the test says otherwise
     realInput: { take: vi.fn(() => (o.lastInput === undefined ? 1_000 : o.lastInput)) },
     now: () => o.now ?? 1_500,
@@ -77,7 +76,6 @@ describe('registerIpc (verify)', () => {
     expect(deps.relay.handleResult).not.toHaveBeenCalled();
     expect(deps.relay.setManifest).not.toHaveBeenCalled();
     expect(deps.setServer).not.toHaveBeenCalled();
-    expect(deps.keepAlive).not.toHaveBeenCalled();
     expect(deps.tray).not.toHaveBeenCalled();
   });
 
@@ -111,8 +109,10 @@ describe('registerIpc (verify)', () => {
     expect(deps.setServer).toHaveBeenLastCalledWith({ mcpUrl: 'https://x.test/mcp' });
     listeners.get(CHANNELS.mcpServer)!(APP, { mcpUrl: 42 });
     expect(deps.setServer).toHaveBeenLastCalledWith(null);
-    listeners.get(CHANNELS.keepAlive)!(APP, 'yes', 'x'.repeat(10_000));
-    expect(deps.keepAlive).toHaveBeenLastCalledWith(false, 'x'.repeat(200));
+    const setStatus = vi.fn();
+    deps.tray.mockReturnValue({ setStatus });
+    listeners.get(CHANNELS.trayStatus)!(APP, { sync: 'x'.repeat(10_000), ring: 'gone' });
+    expect(setStatus).toHaveBeenLastCalledWith({ sync: 'x'.repeat(200) });
     listeners.get(CHANNELS.mcpResult)!(APP, { callId: 5 });
     listeners.get(CHANNELS.mcpResult)!(APP, null);
     expect(deps.relay.handleResult).not.toHaveBeenCalled();

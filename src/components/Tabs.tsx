@@ -1,7 +1,7 @@
-import { createContext, useContext, useId, type KeyboardEvent, type ReactNode } from 'react';
+import { Children, Fragment, createContext, isValidElement, useContext, useId, type KeyboardEvent, type ReactNode } from 'react';
 import { cx } from './lib/cx';
 import { useControllableState } from './lib/hooks';
-import type { BankSize } from './KeyBank';
+import { bankSegments, useSelectedInView, type BankSize } from './KeyBank';
 
 interface TabsCtx {
   value: string;
@@ -27,7 +27,7 @@ export interface TabsProps {
 
 /**
  * In-page tabs (e.g. plan detail: overview · days · curves · safety). The tab
- * list is drawn as a key bank; arrows move and activate, Home/End jump.
+ * list is drawn as the segmented track, full width; arrows move and activate, Home/End jump.
  * For route sub-navigation use `LinkBank` instead.
  */
 export function Tabs({ value, defaultValue = '', onChange, children }: TabsProps) {
@@ -36,15 +36,30 @@ export function Tabs({ value, defaultValue = '', onChange, children }: TabsProps
   return <Ctx.Provider value={{ value: v, setValue: setV, baseId }}>{children}</Ctx.Provider>;
 }
 
+/** The number of tabs (fragments are looked into), for the equal-width segment track. */
+function countTabs(children: ReactNode): number {
+  let n = 0;
+  Children.forEach(children, (c) => {
+    if (!isValidElement(c)) return;
+    n += c.type === Fragment ? countTabs((c.props as { children?: ReactNode }).children) : 1;
+  });
+  return n;
+}
+
 export interface TabListProps {
   label: string;
   size?: BankSize;
+  /** Fill the width it is given (default true; r068 U2). */
   block?: boolean;
+  /** Size the track to its labels instead (the same as `block={false}`). */
+  fit?: boolean;
   className?: string;
   children: ReactNode;
 }
 
-export function TabList({ label, size = 'md', block, className, children }: TabListProps) {
+export function TabList({ label, size = 'md', block = true, fit = false, className, children }: TabListProps) {
+  const fill = block && !fit;
+  const track = useSelectedInView<HTMLDivElement>(useContext(Ctx)?.value);
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not([aria-disabled="true"])'));
     const i = tabs.indexOf(document.activeElement as HTMLButtonElement);
@@ -60,7 +75,7 @@ export function TabList({ label, size = 'md', block, className, children }: TabL
     tabs[next]?.click();
   };
   return (
-    <div role="tablist" aria-label={label} className={cx('lm-bank', className)} data-size={size} data-block={block || undefined} onKeyDown={onKeyDown}>
+    <div ref={track} role="tablist" aria-label={label} className={cx('lm-bank', className)} data-size={size} data-block={fill || undefined} onKeyDown={onKeyDown} {...bankSegments(countTabs(children))}>
       {children}
     </div>
   );

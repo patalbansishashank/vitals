@@ -67,9 +67,9 @@ describe('picker answers in the answered list (Q3-J1)', () => {
     expect(pickerReceipt([], 'x')).toBe('none');
     expect(pickerReceipt('skipped', 'skipped, by choice')).toBe('skipped, by choice');
     const pantry = INTAKE_PARTS[0]!.questions.find((q) => q.id === 'food.pantry')!;
-    expect(pantry.receipt?.([], { india: true, gentle: false, stepDevice: false })).toBe('skipped, by choice');
+    expect(pantry.receipt?.([], { india: true, gentle: false })).toBe('skipped, by choice');
     for (const q of INTAKE_PARTS[0]!.questions) {
-      const line = q.receipt?.([{ id: 'st.toor_dal' }], { india: true, gentle: false, stepDevice: false }) ?? '';
+      const line = q.receipt?.([{ id: 'st.toor_dal' }], { india: true, gentle: false }) ?? '';
       expect(line).not.toMatch(/object Object/);
       expect(line).toBe('toor dal');
     }

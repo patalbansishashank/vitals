@@ -6,8 +6,9 @@
  *            S_w = S_class(work) + c_walk·m_walk (no device),  S_o = S_off(offDay)
  *   E_occ  = BW·h_work·e_occ(class)·d_w/7                      occupation above seated rest, steps excluded
  *   E_home = BW·h_feet_home·e_home
- *   E_cyc  = BW·(MET_cyc − 1)·m_cyc/60·d_w/7
- *   E_rec  = BW·Σ(MET_k − 1)·min_k/60/7                        sport/hobbies that are NOT planned training
+ *   E_cyc  = net(MET_cyc, m_cyc·d_w)/7                          D3-07 shared bout ledger (core/exerciseCost):
+ *   E_rec  = Σ net(MET_k, min_k)/7                              net = max(0, MET·1.05·BW·min/60 − RMR0·min/1440);
+ *                                                               sport/hobbies that are NOT planned training
  *   TDEE0  = (RMR0·(1 + f_ns) + kStep·BW·S_hab + E_occ + E_home + E_cyc + E_rec + EAT0)/(1 − α0)
  *   PAL0   = TDEE0/RMR0: 'high' above 2.4 (warn); the non-step answers are scaled down so they never push PAL0 above 2.5
  *   σ²     = (cv_RMR·1.15·RMR0)² + (kStep·BW·S_hab)²(cv_steps² + cv_cost²) + (BW·h_work·d_w/7·sd_occ)²
@@ -20,8 +21,17 @@
  *
  * Without an intake (`habits.activity` absent) the result reproduces the pre-intake engine exactly: steps = `typicalSteps`
  * ?? 7 000, no non-step terms, band floor by the RMR route (02 §4.12 cv0 0.12 / 0.10 / 0.08).
+ *
+ * D3-07 (2026-10-18): cycling commute and recreation are costed with the same bout ledger as catalogue items and engine
+ * sessions — standard-MET gross (MET·3.5 mL/kg/min·5 kcal/L = 1.05 kcal/kg/h per MET, not the MET·kg·h shortcut) net of the
+ * person's own RMR — so one physical activity costs the same on every surface. What the step number counts (`stepsScope`)
+ * is carried with the terms: a total-day count may contain the steps of habitual sessions already in EAT0, an overlap the
+ * intake cannot resolve (an explicit scenario, `stepsSessionOverlap`), never a silent subtraction. A documented training
+ * routine previously entered as recreation is reclassified only by an exact source-row id in the engine profile projection.
  */
 import { DEFAULTS } from '../../core/defaults';
+import { boutCost, KCAL_PER_KG_H_PER_MET } from '../../core/exerciseCost';
+import type { StepsScope } from '../../types/schedule';
 import type {
   ActivityBase,
   ActivityDriver,
@@ -67,6 +77,49 @@ export interface ActivityTerms {
   readonly variance: Readonly<Record<VarId, number>>;
   /** Relative floor of σ_TDEE0. */
   readonly floor: number;
+  /** D3-07: what the habitual step number counts (legacy/unanswered = unknown, never assumed either way). */
+  readonly stepsScope: StepsScope;
+  /**
+   * D3-07: whether habitual sessions' locomotor steps may also sit in the step count while their energy is in EAT0:
+   * 'none' (excludes-training count, or no habitual sessions) or 'unknown' (an explicit overlap scenario; nothing subtracted).
+   */
+  readonly stepsSessionOverlap: 'none' | 'unknown';
+  /** D3-07: recreation entries with their ledger cost, kcal/d (identity reconciliation with planned sessions). */
+  readonly recreationEntries: readonly { label: string; minPerWeek: number; kcalPerDay: number }[];
+}
+
+/**
+ * D3-07: net above own rest of `minutes` at a gross MET, kcal, by the shared bout ledger (standard-MET gross, the person's
+ * RMR as own rest; the standard 1 MET when RMR is unknown).
+ */
+export function intakeBoutNetKcal(metGross: number, minutes: number, weightKg: number, rmr0Kcal: number): number {
+  const gross = (metGross * KCAL_PER_KG_H_PER_MET * weightKg * minutes) / 60;
+  return boutCost({ grossKcal: gross, durationMin: minutes, rmrKcalPerDay: rmr0Kcal > 0 ? rmr0Kcal : null, bodyMassKg: weightKg, displacedFracOfRmr: null, method: 'compendiumMet', domain: 'Compendium 2024 intensity band (standard MET), own RMR as rest', source: 'reported' }).netAboveRestKcal;
+}
+
+/** Steps-overlap status of the habitual count (D3-07). */
+function stepsOverlapOf(scope: StepsScope, eat0Kcal: number): 'none' | 'unknown' {
+  return scope === 'excludesTraining' || !(eat0Kcal > 0) ? 'none' : 'unknown';
+}
+
+const normLabel = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
+
+/**
+ * Label-based diagnostic for callers exploring possible recreation overlap. It does not itself subtract energy: a label
+ * cannot establish one physical bout. The production profile projection uses `recreationSourceId` for reclassification.
+ */
+export function recreationOverlap(terms: Pick<ActivityTerms, 'recreationEntries'>, plannedLabels: readonly string[]): { minPerWeek: number; kcalPerDay: number; labels: string[] } {
+  const want = new Set(plannedLabels.map(normLabel));
+  let min = 0;
+  let kcal = 0;
+  const labels: string[] = [];
+  for (const r of terms.recreationEntries) {
+    if (!want.has(normLabel(r.label))) continue;
+    min += r.minPerWeek;
+    kcal += r.kcalPerDay;
+    labels.push(r.label);
+  }
+  return { minPerWeek: min, kcalPerDay: kcal, labels };
 }
 
 const clamp = (x: number, lo: number, hi: number): number => (x < lo ? lo : x > hi ? hi : x);
@@ -89,8 +142,13 @@ export function occupationPrior(k: ActivityIntakeK = ACTIVITY_INTAKE_K): { e: nu
   return { e, sd: Math.sqrt(Math.max(0, m2 / sw - e * e)), stepsWork: st / sw };
 }
 
-/** R1 §3.1-3.4 terms. `intake` undefined = pre-intake behaviour (see the file header). */
-export function activityTerms(intake: ActivityIntake | undefined, base: ActivityBase, k: ActivityIntakeK = ACTIVITY_INTAKE_K): ActivityTerms {
+/**
+ * R1 §3.1-3.4 terms. `intake` undefined = pre-intake behaviour (see the file header). `opts.stepsScope` = what the habitual
+ * step number counts (D3-07; default unknown).
+ */
+export function activityTerms(intake: ActivityIntake | undefined, base: ActivityBase, k: ActivityIntakeK = ACTIVITY_INTAKE_K, opts: { stepsScope?: StepsScope } = {}): ActivityTerms {
+  const stepsScope: StepsScope = opts.stepsScope ?? 'unknown';
+  const stepsSessionOverlap = stepsOverlapOf(stepsScope, base.eat0Kcal);
   const w = base.weightKg;
   const A = DEFAULTS.activity;
   const routeFloor = base.rmrRoute === 'measured' ? k.floorMeasuredRmr : base.rmrRoute === 'ffm' ? k.floorBodyFat : k.floorSkipped;
@@ -122,6 +180,9 @@ export function activityTerms(intake: ActivityIntake | undefined, base: Activity
       nonStepKcal: 0,
       variance: { rmr: vRmr, steps: stepsKcal * stepsKcal * (k.cvStepsRough ** 2 + k.cvStepCost ** 2), work: 0, home: 0, commute: 0, recreation: 0, training: vTraining },
       floor: routeFloor,
+      stepsScope,
+      stepsSessionOverlap,
+      recreationEntries: [],
     };
   }
 
@@ -172,7 +233,7 @@ export function activityTerms(intake: ActivityIntake | undefined, base: Activity
   let walkSteps = 0;
   if (src !== 'unknown' && (Number.isFinite(mean) || Number.isFinite(wd) || Number.isFinite(od))) {
     stepsSource = src;
-    cv = src === 'wrist' ? k.cvStepsWrist : src === 'phone' ? (sa?.phoneCarried === false ? k.cvStepsPhoneNotCarried : k.cvStepsPhone) : k.cvStepsRough;
+    cv = src === 'wrist' ? k.cvStepsWrist : src === 'fused' ? k.cvStepsFused : src === 'phone' ? (sa?.phoneCarried === false ? k.cvStepsPhoneNotCarried : k.cvStepsPhone) : k.cvStepsRough;
     if (Number.isFinite(mean)) {
       sW = mean;
       sO = mean;
@@ -204,14 +265,18 @@ export function activityTerms(intake: ActivityIntake | undefined, base: Activity
 
   // ---- home, cycling commute, recreation
   const homeKcal = w * k.homeHours[atHome] * k.homeKcalPerKgH;
-  const cycleKcal = (w * (k.metCycle - 1) * (cycMin / 60) * dW) / 7;
-  let recMetMinWk = 0;
+  // D3-07: commute cycling and recreation through the shared bout ledger (standard-MET gross, net of own RMR)
+  const cycleKcal = intakeBoutNetKcal(k.metCycle, cycMin * dW, w, base.rmr0Kcal) / 7;
+  const recreationEntries: { label: string; minPerWeek: number; kcalPerDay: number }[] = [];
+  let recreationKcal = 0;
   const [rLo, rHi] = A.recreationMinPerWeekRange;
   for (const r of intake.recreation ?? []) {
     if (!finiteNonNeg(r.minPerWeek)) continue;
-    recMetMinWk += (k.metSport[r.intensity] - 1) * clamp(r.minPerWeek, rLo, rHi);
+    const minWk = clamp(r.minPerWeek, rLo, rHi);
+    const kcal = intakeBoutNetKcal(k.metSport[r.intensity], minWk, w, base.rmr0Kcal) / 7;
+    recreationEntries.push({ label: r.label, minPerWeek: minWk, kcalPerDay: kcal });
+    recreationKcal += kcal;
   }
-  const recreationKcal = (w * recMetMinWk) / 60 / 7;
 
   const answered = work !== 'unknown' || stepsSource !== 'unknown';
   const floor = Math.min(routeFloor, answered ? k.floorAnswered : k.floorSkipped);
@@ -243,6 +308,9 @@ export function activityTerms(intake: ActivityIntake | undefined, base: Activity
       training: vTraining,
     },
     floor,
+    stepsScope,
+    stepsSessionOverlap,
+    recreationEntries,
   };
 }
 

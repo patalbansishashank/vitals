@@ -70,7 +70,8 @@ describe('adherence dial geometry (COMPONENTS §13.9)', () => {
       'Adherence so far 62 of 100, based on 3 of 4 items: Food energy done, Protein 80 percent, Lift · 45 min not logged, Steps missed.',
     );
     expect(dialSentence(items, null, { final: true })).toMatch(/^Adherence: not enough logged yet, based on 3 of 4 items/);
-    expect(dialSentence(items, 62, { final: false, quietWord: 'mostly' })).toMatch(/^Adherence so far: mostly, based on/);
+    // quiet: words only (no score, no item count, no percentages)
+    expect(dialSentence(items, 62, { final: false, quietWord: 'mostly' })).toBe('Adherence so far: mostly: Food energy done, Protein partly, Lift · 45 min not logged, Steps missed.');
   });
 });
 

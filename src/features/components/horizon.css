@@ -1,0 +1,68 @@
+/* HorizonField (./HorizonField.tsx): the months bank and the start-date chip, shared by the Simulator and the Planner. */
+@layer components {
+  .lm-horizon {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-row-gap) var(--lm-inline);
+  }
+  /* The bank uses the available row beside the intrinsic date chip. On a narrow card the bank takes its own line
+     and the date follows it, without squeezing the choice labels. */
+  .lm-horizon > .lm-bank {
+    flex: 1 1 20rem;
+    width: auto;
+  }
+  /* "19 Oct → 7 Feb": a field-like key (the control radius, a neutral tile) over the native date input */
+  .lm-horizon__date {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 12px 0 10px;
+    border: var(--lm-hairline) solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-field);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    font-size: var(--lm-text-meta);
+    font-weight: 500;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .lm-horizon__date .lm-icon {
+    color: var(--lm-ink-2);
+  }
+  @media (hover: hover) {
+    .lm-horizon__date:hover {
+      background: var(--lm-gold-soft);
+    }
+  }
+  .lm-horizon__date:focus-within {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-horizon__date[data-disabled] {
+    color: var(--lm-ink-faint);
+    cursor: default;
+  }
+  /* the native date input covers the text: tapping anywhere opens the platform picker */
+  .lm-horizon__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    color-scheme: dark;
+  }
+  .lm-horizon__input::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+}

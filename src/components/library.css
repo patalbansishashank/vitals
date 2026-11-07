@@ -1,0 +1,264 @@
+/* ==========================================================================
+   <CardLibrary> (r071 0B): Today's "Add a card" panel, `MonitorSheet` generalised. The default variant is styled
+   here (`lm-lib*`); the `monitor` variant keeps today's `lmv-mon*` markup and is styled by viz.css and the Ring's
+   own overrides until the Ring migrates. Tokens only. The panel itself (sheet below 1024 px, 392 px side panel from
+   it, header title · ✕) is the shared panel grammar.
+   Rows: 48 px grip, hue dot and icon, label with its one-line description, size toggle, 48 px key. Gold marks the
+   action (add, the picked-up grip); a hue never stands alone (the group name and the label say it in words).
+   ========================================================================== */
+@layer components {
+  .lm-lib {
+    display: grid;
+    gap: 12px;
+    padding: 4px 16px 20px;
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-lib__head {
+    margin: 0 0 6px;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  .lm-lib__note {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-lib__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+
+  /* ---- a row ---- */
+  .lm-lib__row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 36px 24px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    min-height: 60px;
+    padding-block: 6px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  /* the picked-up row lifts: a lighter surface and a hairline, no shadow */
+  .lm-lib__row[data-grabbed] {
+    background: var(--lm-elevated);
+    outline: var(--lm-hairline) solid var(--lm-line-strong);
+    outline-offset: -1px;
+    border-radius: var(--lm-radius-field);
+  }
+  .lm-lib__grip {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    margin-left: -12px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lm-radius-full);
+    background: none;
+    color: var(--lm-ink-3);
+    cursor: grab;
+    touch-action: none;
+  }
+  span.lm-lib__grip {
+    height: 1px;
+    cursor: default;
+  }
+  /* the Add list has no grips: its icons sit at the row's start */
+  .lm-lib__row[data-add] {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+  }
+  .lm-lib__row[data-add] > .lm-lib__grip {
+    display: none;
+  }
+  .lm-lib__grip:hover {
+    color: var(--lm-ink);
+  }
+  .lm-lib__grip:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -4px;
+  }
+  .lm-lib__grip[aria-pressed='true'] {
+    color: var(--lm-signal);
+    cursor: grabbing;
+  }
+  .lm-lib__lock {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    margin-left: -12px;
+    color: var(--lm-ink-3);
+  }
+
+  /* icon in the card's hue, with its hue dot at the corner */
+  .lm-lib__icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    color: var(--lm-hue, var(--lm-ink-2));
+  }
+  .lm-lib__icon > .lm-lib__dot {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-hue, var(--lm-ink-2));
+    outline: 2px solid var(--lm-chassis-2);
+  }
+
+  .lm-lib__text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding-block: 4px;
+  }
+  .lm-lib__label {
+    font-size: 0.9375rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  .lm-lib__desc,
+  .lm-lib__value {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-lib__desc {
+    display: block;
+  }
+  .lm-lib__reason {
+    margin-top: 2px;
+  }
+  .lm-lib__preview {
+    display: block;
+    max-height: 72px;
+    margin-top: 6px;
+    overflow: hidden;
+    border-radius: 10px;
+  }
+  .lm-lib__sizes {
+    justify-self: start;
+    min-width: 168px;
+    margin-top: 8px;
+  }
+  .lm-lib__trail {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
+    margin-right: -8px;
+  }
+  .lm-lib__key {
+    color: var(--lm-ink-2);
+  }
+  .lm-lib__key:hover {
+    color: var(--lm-ink);
+  }
+  .lm-lib__row[data-add] .lm-lib__key {
+    color: var(--lm-signal);
+  }
+  .lm-lib__row[data-add] .lm-lib__key[aria-disabled='true'] {
+    color: var(--lm-ink-3);
+  }
+
+  /* a card that cannot be had now: greyed, with its reason in words */
+  .lm-lib__row[data-unavailable] .lm-lib__label,
+  .lm-lib__row[data-unavailable] .lm-lib__desc,
+  .lm-lib__row[data-unavailable] .lm-lib__value {
+    color: var(--lm-ink-3);
+  }
+  .lm-lib__row[data-unavailable] .lm-lib__icon {
+    color: var(--lm-ink-3);
+  }
+  .lm-lib__row[data-unavailable] .lm-lib__icon > .lm-lib__dot {
+    background: var(--lm-ink-3);
+  }
+
+  /* ---- the Add list ---- */
+  .lm-lib__add {
+    display: grid;
+    gap: 8px;
+  }
+  .lm-lib__search {
+    position: relative;
+  }
+  .lm-lib__searchicon {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    color: var(--lm-ink-3);
+    pointer-events: none;
+  }
+  .lm-lib__searchfield {
+    width: 100%;
+    padding-left: 36px;
+  }
+  .lm-lib__group {
+    display: grid;
+    gap: 4px;
+  }
+  .lm-lib__groupname {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 2px;
+  }
+  .lm-lib__groupname > .lm-lib__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-hue, var(--lm-ink-2));
+  }
+
+  /* ---- the foot: the count at the left, Reset at the right ---- */
+  .lm-lib__foot {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-lib__cap {
+    margin: 0;
+  }
+  .lm-lib__capnum {
+    color: var(--lm-ink);
+  }
+
+  @media (forced-colors: active) {
+    .lm-lib__row[data-grabbed] {
+      outline-color: Highlight;
+    }
+    .lm-lib__grip[aria-pressed='true'] {
+      color: Highlight;
+    }
+    .lm-lib__icon > .lm-lib__dot,
+    .lm-lib__groupname > .lm-lib__dot {
+      background: CanvasText;
+      forced-color-adjust: none;
+    }
+    .lm-lib__row[data-add] .lm-lib__key {
+      color: LinkText;
+    }
+  }
+}

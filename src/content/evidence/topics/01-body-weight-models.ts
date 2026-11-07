@@ -6,7 +6,7 @@ const topic: EvidenceTopic = {
   slug: 'body-weight-models',
   title: 'Body-weight and body-composition models',
   scope:
-    "The published mathematical models that predict how body weight, fat, lean tissue, glycogen and body water respond to what a person eats and how they move. These models are the backbone of Vitals' daily engine. This topic explains how each one works, how well it has been tested against real studies, and what it leaves out.",
+    "The published mathematical models that predict how body weight, fat, lean tissue, glycogen and body water respond to what a person eats and how they move. These models are the backbone of Vitals' daily engine.",
   mechanisms: [
     {
       id: '01-macronutrient-flux-model',
@@ -1104,10 +1104,10 @@ Ra(t): oral glucose appearance (piecewise-linear, or a stomach-and-gut model wit
   openQuestions: [
     'Resistance training and protein dose are absent from every validated whole-body model. The only extension found was fitted, not validated, so the training and protein parts of the engine will be its least-tested section.',
     'Water is uncertain: how much water each gram of glycogen holds (2.7 g versus 3–4 g), the sodium coefficients, which rest on two small studies, and the water loss on a fat-restricted diet that the model missed. Early-phase weight predictions carry ±0.5–1 kg of uncertainty.',
-    "Adaptive thermogenesis is uncertain in size (β_AT = 0.14 came from steady-state data), in speed (7 days versus 14 days), in asymmetry (λ₁ = 0.74 versus λ₂ = 0.02), and in whether it lingers after intake returns to normal. Hall's adaptation returns to zero, while some studies suggest a composition-linked effect that persists.",
+    "Adaptive thermogenesis is uncertain in size (the adaptation size of 0.14 came from steady-state data), in speed (7 days versus 14 days), in asymmetry (0.74 when intake is below baseline versus 0.02 above it), and in whether it lingers after intake returns to normal. Hall's adaptation returns to zero, while some studies suggest a composition-linked effect that persists.",
     'People differ. Baseline energy expenditure is known only to about 5% without special testing, which gives a spread of ±4 kg after years for a −2 MJ/d change. Measurement error explains about half of the observed variation between individuals, so Vitals shows ranges, not single values.',
     'Validation is thin for lean, trained, older and female people. The main datasets are lean young men (Minnesota) and mostly overweight adults (CALERIE).',
-    'Several details of the 2010 model are ambiguous: the lipolysis equation normalisation, a garbled weights equation that was re-derived, the glycogen normalisation, and the unreported Minnesota reference masses (F_Keys is about 9 kg; P_Keys and G_Keys are not tabulated). Getting the original model code would remove them.',
+    'Several details of the 2010 model are ambiguous: the lipolysis equation normalisation, a garbled weights equation that was re-derived, the glycogen normalisation, and the unreported Minnesota reference masses (the Minnesota reference fat mass is about 9 kg; the protein and glycogen reference masses are not tabulated). Getting the original model code would remove them.',
     'Scaling daily-validated flows down to hours has not been validated. The ±5% consistency rule is our own proposal.',
     "Alpert's limit on fat use has no independent test.",
     'Forbes-type partition gives no restoring force for body composition. Whether the body defends lean mass after a training-induced gain has to come from the resistance-training evidence.',

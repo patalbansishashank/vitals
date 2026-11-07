@@ -939,6 +939,26 @@ const topic: EvidenceTopic = {
         'epel2000',
         'kiecoltglaser1995',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'stress explains very little later body-fat change (longitudinal cohorts)',
+        },
+        {
+          type: 'causallyCoherent',
+          confidence: 'moderate',
+          scope: 'stress can change eating behaviour; a direct cortisol-to-fat link is not shown',
+        },
+        {
+          type: 'livedExperience',
+          confidence: 'moderate',
+          scope: 'stress as an experience worth noting alongside appetite, sleep and keeping to a plan',
+        },
+      ],
+      outcomeScope: 'Stress, eating and body fat; not modelled',
+      population: 'Healthy adults (eating studies); longitudinal and cross-sectional cohorts',
+      modelStatus: 'notModelled',
       relatedMetricIds: [],
     },
     {
@@ -1241,9 +1261,9 @@ const topic: EvidenceTopic = {
       summary:
         'Hunger and intake are on average higher in the second half of the cycle (the luteal phase), by about 168 kcal a day across studies. Resting metabolic rate may rise slightly. Scale weight and water effects are small, inconsistent in direction and specific to the person. Performance, fuel use and training adaptation show no reliable differences by phase. Hormonal contraception does not cause weight gain in randomised trials.',
       howModelled:
-        'Cycle modelling is an optional, advanced toggle, off by default. When on for a regular cycle without hormonal contraception, the luteal phase adds to the hunger score (worth 168 kcal a day, averaged to zero over the cycle) and slightly raises resting rate (also averaged to zero), and scale weight follows a small menstrual water curve. Vitals simulates the intake you enter, so no calories are added. Fuel use, performance and muscle growth are left unchanged. With combined hormonal contraception the cycle toggle is disabled and only the slower caffeine clearance applies; there is no ketone term. Progestin-only methods and hormonal IUDs are treated as “no cycle toggle”.',
+        'Cycle modelling is an optional, advanced toggle, off by default. When on, the phase is a calendar estimate, never a measured ovulation: it counts from your logged period starts (cycle length as you state it, otherwise the median of your logged cycles), and optional timing inputs can refine it. A logged LH-test result is an observed LH signal; it does not confirm that ovulation occurred. A separately user-reported clinician-confirmed event can anchor the estimate. The legacy ovulation date with method lhTest may already be your inferred event date: the model uses that entered date as a timing assumption, without changing the original period or LH dates. A clinician-labelled entry represents what you reported, not independent verification by Vitals. With irregular or unknown cycles, or without a logged period date, no phase is asserted and the cycle effects stay at their cycle average, a zero deviation. In an estimated luteal phase the hunger drive rises (worth 168 kcal a day) and resting rate rises slightly, both centred so they average to zero over the cycle. Vitals simulates the intake you enter, so no calories are added. The cycle water swing gets no size: its amplitude differs between people, so it adds nothing to the forecast and stays an uncertainty. Fuel use, performance and muscle growth are left unchanged. With hormonal contraception, after menopause or when you are not menstruating there are no cycle effects; with combined hormonal contraception only the slower caffeine clearance applies, and there is no ketone term. The calendar is not fertility or contraception advice.',
       equation:
-        'lutealFlag_t = 1 if cycleDay in [ceil(L/2)+1 .. L] else 0   (about days 15–28 for L = 28)\nhungerVas += 5 × lutealFlag_t   (proposed)\nΔEI (free eating) = +168 × lutealFlag_t kcal/d   (band +50 to +300)\nscaleNoiseKg = 0.3   (± display band, not a deterministic curve)',
+        'cycleDay = days since the latest logged period start (a calendar estimate)\ns(d) = luteal weight from ceil(L/2) + 1 (a design calendar rule, about days 15–28 for L = 28) or from the day after the entered LH-informed assumed date or separately reported clinician-confirmed event, with 2-day ramps (a model timing rule, not a universal LH-to-ovulation interval)\nIrregular or unknown cycle: s(d) = cycle mean s̄ (zero deviation)\nhunger drive += 168 · (s(d) − s̄) kcal/d equivalent; resting-rate term ∝ (s(d) − s̄)   (both average to zero over the cycle)\ncycle water = 0 by default (individual amplitude unknown)',
       keyNumbers: [
         {
           label: 'Energy intake (meta-analysis, 15 datasets, 330 women, age 26)',
@@ -1289,6 +1309,20 @@ const topic: EvidenceTopic = {
           referenceIds: ['mcnulty2020', 'colensosemple2023'],
         },
         {
+          label:
+            'LH timing evidence (Leiva: 107 initially enrolled; final hormone table 102 women, 283 analyzed cycles)',
+          value:
+            'Urinary LH can usefully predict timing relative to ultrasound; prediction is distinct from confirmation',
+          note: 'The 2018 corrigendum corrects Table 3. Timing performance within a specified window is not the probability that ovulation occurs at all.',
+          referenceIds: ['leiva2017', 'leiva2018corrigendum'],
+        },
+        {
+          label: 'Quantitative Mira monitoring (2026; 49 participants, 121 analyzed ovulatory cycles)',
+          value: 'LH peak within ±1 day of ultrasound-confirmed ovulation in 96 % of analyzed ovulations',
+          note: 'Strong timing evidence for this quantitative device protocol and peak analysis in selected ovulatory cycles; not confirmation from a single positive LH test. The study also measured PDG. No testing is required by Vitals.',
+          referenceIds: ['bouchard2026'],
+        },
+        {
           label: 'Hormonal contraceptives',
           value:
             'Cochrane review of 49 RCTs: no evidence of a causal weight effect; performance in 42 studies (590 women): trivial and variable; 12-week training (N = 32): pill users had larger arm lean mass (+5.5 ± 3.9 vs +2.9 ± 2.8 %) and thigh muscle area (+10.0 ± 4.1 vs +5.3 ± 4.4 %), no lower-body strength difference, and slept 42 min longer',
@@ -1297,7 +1331,7 @@ const topic: EvidenceTopic = {
         },
       ],
       timeCourse:
-        'The luteal phase is roughly days 15–28 of a 28-day cycle and is modelled as a square wave.',
+        'By the calendar rule the luteal phase is roughly days 15–28 of a 28-day cycle, with 2-day ramps; a newly logged period start, an LH-informed assumed date or a separately reported clinician-confirmed event updates the estimate without rewriting earlier logs. All phases remain estimated.',
       moderators:
         'Cycle length, use of hormonal contraception (which turns the cycle toggle off), and individual variation, which is large for scale-weight effects.',
       grade: 'C',
@@ -1305,8 +1339,11 @@ const topic: EvidenceTopic = {
         'Intake is about grade B−, resting rate B (small), and water C/D, while fuel use and performance are A/B but of low quality; only hunger has a robust size.',
       status: 'contested',
       caveats:
-        'The scale-weight literature disagrees on the sign, so no deterministic curve is used. Hunger and intake effects rest on self-reported diaries. Whether hormonal contraceptives change hypertrophy is unresolved (one randomised trial in favour, one review conflicting).',
+        'The scale-weight literature disagrees on the sign, so no water curve is applied. A recurring personal pattern needs several logged cycles to show itself, and weight alone cannot reveal ovulation. Hunger and intake effects rest on self-reported diaries. Whether hormonal contraceptives change hypertrophy is unresolved (one randomised trial in favour, one review conflicting).',
       referenceIds: [
+        'leiva2017',
+        'leiva2018corrigendum',
+        'bouchard2026',
         'tucker2025',
         'benton2020',
         'davidsen2007',
@@ -1326,6 +1363,26 @@ const topic: EvidenceTopic = {
         'gallo2014',
         'hirschberg2012',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'luteal intake about +168 kcal a day and a small resting-rate rise, averaged over studies',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'scale weight and water by phase: inconsistent in sign between studies',
+        },
+        {
+          type: 'livedExperience',
+          confidence: 'moderate',
+          scope: 'recurring personal patterns in appetite, water and symptoms, checked over several cycles',
+        },
+      ],
+      outcomeScope:
+        'Appetite, resting rate, water and training across an estimated cycle phase; not ovulation or fertility',
+      population: 'Premenopausal women, mostly aged 18–35, in diary, metabolic-chamber and training studies',
       relatedMetricIds: ['rmr'],
     },
     {
@@ -1369,9 +1426,9 @@ const topic: EvidenceTopic = {
       summary:
         'Around menopause, falling oestrogen shifts fat toward the abdomen, slightly lowers fat oxidation and accelerates bone loss. Most “menopausal weight gain” is actually ageing and lower activity. In a large cohort, fat mass rose faster and lean mass dipped slightly during the transition, then levelled off. Over a few months, these changes are far smaller than the effect of a deficit or surplus.',
       howModelled:
-        'Menopause status is derived from age and can be overridden. It shapes the starting visceral-fat estimate, switches off the cycle terms and lowers baseline leptin after menopause. The transition-window fat and lean drifts are defined but not yet applied to body composition, and the larger visceral share of new fat, the optional lower resting-energy term and the hormone-therapy toggle are not modelled.',
+        'Menopause status is derived from age and can be overridden. It shapes the starting visceral-fat estimate, switches off the cycle terms and lowers baseline leptin after menopause. The transition-window fat and lean drifts are kept as inactive information and are never added to body composition as extra kilograms: a future menopause model would have to change energy use and partitioning together with age and activity. The larger visceral share of new fat, the optional lower resting-energy term and the hormone-therapy toggle are not modelled.',
       equation:
-        'Transition window (years −2 to +1.5 around the final period): fatDriftExtra = +0.20 kg/yr (≈ +0.7 pp/yr); leanDriftExtra = −0.12 kg/yr (≈ −0.4 pp/yr); vatShareOfGain += 0.10; optional sleepingEEExtra = −0.65 %/yr (default off)\nHormone therapy: abdominalFat × 0.93; HOMA-IR × 0.87\nDefault status: under 50 pre; 50–53 peri; 54 and over post (user override allowed)',
+        'Inactive, not applied: transition window (years −2 to +1.5 around the final period): fatDriftExtra = +0.20 kg/yr (≈ +0.7 pp/yr); leanDriftExtra = −0.12 kg/yr (≈ −0.4 pp/yr); vatShareOfGain += 0.10; optional sleepingEEExtra = −0.65 %/yr (default off)\nHormone therapy: abdominalFat × 0.93; HOMA-IR × 0.87\nDefault status: under 50 pre; 50–53 peri; 54 and over post (user override allowed)',
       keyNumbers: [
         {
           label:
@@ -1431,6 +1488,23 @@ const topic: EvidenceTopic = {
         'greendale2012',
         'karlamangla2018',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'faster fat gain and a small lean dip across the transition in one large cohort, largely age and activity',
+        },
+        {
+          type: 'firstPrinciples',
+          confidence: 'high',
+          scope:
+            'body composition changes only through identified energy and partition flows, never as added kilograms',
+        },
+      ],
+      outcomeScope:
+        'Fat distribution, fat and lean drift and bone loss around menopause; the drifts are not applied',
+      population: 'Midlife women in cohort studies and hormone-therapy trials',
       relatedMetricIds: ['fatMass', 'leanTissue'],
     },
     {
@@ -1546,6 +1620,9 @@ const topic: EvidenceTopic = {
       caveats:
         'The age at which the ramp starts (40 years) is a proposal: the data are men aged 22 and 71. Women and middle age are unmeasured, and the interpolation between the two ages is untested.',
       referenceIds: ['moore2015', 'kumar2009', 'bauer2013', 'murton2015'],
+      outcomeScope:
+        'Per-meal protein needed for a half-maximal synthesis response with age; shapes a display, not growth',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mps'],
     },
     {
@@ -2089,6 +2166,39 @@ const topic: EvidenceTopic = {
     'Not searched or verified: essential-fat floors, DXA figures for the semaglutide 2.4 mg trial, effect sizes for glucocorticoids and for insulin and sulfonylureas, fasting tolerance in older adults, ageing multipliers for exercise recovery, and hyperthyroid effects on resting rate.',
   ],
   references: [
+    {
+      id: 'leiva2017',
+      authors: 'Leiva RA, Bouchard TP, Abdullah SH, Ecochard R',
+      year: 2017,
+      title: 'Urinary Luteinizing Hormone Tests: Which Concentration Threshold Best Predicts Ovulation?',
+      journal: 'Front Public Health',
+      doi: '10.3389/fpubh.2017.00320',
+      url: 'https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2017.00320/full',
+      verification: 'full-text',
+    },
+    {
+      id: 'leiva2018corrigendum',
+      authors: 'Leiva RA, Bouchard TP, Abdullah SH, Ecochard R',
+      year: 2018,
+      title:
+        'Corrigendum: Urinary Luteinizing Hormone Tests: Which Concentration Threshold Best Predicts Ovulation?',
+      journal: 'Front Public Health',
+      doi: '10.3389/fpubh.2018.00345',
+      url: 'https://www.frontiersin.org/journals/public-health/articles/10.3389/fpubh.2018.00345/full',
+      verification: 'full-text',
+    },
+    {
+      id: 'bouchard2026',
+      authors: 'Bouchard TP, Bedaiwy M, Talhouk A, Nakhuda G, Yong PJ, Doyle-Baker PK',
+      year: 2026,
+      title:
+        'Validating ovulation prediction and confirmation with the Mira monitor: blinded ultrasound and serum hormone comparison',
+      journal: 'Reprod Biomed Online',
+      pmid: '42600546',
+      doi: '10.1016/j.rbmo.2026.105881',
+      url: 'https://pubmed.ncbi.nlm.nih.gov/42600546/',
+      verification: 'abstract',
+    },
     {
       id: 'nedeltcheva2010',
       authors: 'Nedeltcheva AV, Kilkus JM, Imperial J, Schoeller DA, Penev PD',

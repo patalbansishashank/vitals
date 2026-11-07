@@ -2,14 +2,18 @@
 import { captureInitialSnapshot, runEngine, simulate, simulateEnsemble } from '../loop';
 import { compileSchedule, habitualWeek } from '../compileSchedule';
 import { resolveProfile } from '../resolveProfile';
-import { MODULES, checkWiring } from '../moduleRegistry';
-import { buildModelParams, validateParamDefs } from '../paramsRegistry';
+import { MODULES, checkSignalHooks, checkWiring } from '../moduleRegistry';
+import { buildModelParams, sampleParams, validateParamDefs } from '../paramsRegistry';
+import { defineModule } from '../moduleKit';
+import { ensembleBands, memberBandInputs } from '../bands';
 import { N_SERIES, SERIES, SIGNAL_MIRRORS } from '../../types/metrics';
 import type { AnyEngineModule } from '../../types/module';
 import { SIGNAL_DEFS } from '../../types/signals';
-import { MAN, repeatSchedule } from './fixtures';
+import type { Schedule } from '../../types/schedule';
+import { MAN, PROGRAM_A, PROGRAM_B, repeatSchedule } from './fixtures';
 import { STUB_MODULES, stubSpy } from './stubModules';
 import { measureUnderLoad } from '../../testing/benchLoad';
+import { BAND_DAY_METHOD } from '@/lib/bodyContracts';
 
 const profile = resolveProfile(MAN);
 const sched180 = compileSchedule(repeatSchedule(180, [0, 1, 0, 1, 0, 1, 1]), profile);
@@ -313,14 +317,242 @@ describe('conservation checks are evaluated against module states (O-4/O-5)', ()
     expect(Math.abs(c.eiTotalKcal! - c.teeTotalKcal! - c.storedTotalKcal!)).toBeLessThan(0.01 * c.eiTotalKcal! + 50);
   });
 
-  it('detects a module that moves fat mass outside the energy ledger', () => {
+  it('a module that moves fat mass outside the energy ledger ends the run at a model limit (D1-08), conserved until then', () => {
+    const leakFrom = 5 * 24 + 10; // absolute hour of the first leak
     const leaky = MODULES.map((m) =>
       m.id !== 'composition' ? m : { ...m, stepHour: (s: object, k: object, bus: Parameters<typeof m.stepHour>[2], h: Parameters<typeof m.stepHour>[3], d: Parameters<typeof m.stepHour>[4], c: Parameters<typeof m.stepHour>[5]) => {
         m.stepHour(s, k, bus, h, d, c);
-        bus.fatMassKg += 1e-6;
+        if (c.hourIndex >= leakFrom) bus.fatMassKg += 1e-6;
       } },
     );
-    const r = runEngine(profile, sched180, { checks: true, record: 'none' }, leaky);
-    expect(r.meta.checks!.storageMaxAbsKcal).toBeGreaterThan(1e-3);
+    const r = runEngine(profile, sched180, { checks: true, record: 'daily' }, leaky);
+    expect(r.meta.validity).toMatchObject({ status: 'modelLimit', validThroughHour: leakFrom - 1, reasonCode: 'tissueLedgerNotConserved' });
+    // every accepted hour closed the ledger; the clipped hour is never recorded and later days are not forecasts
+    expect(r.meta.checks!.storageMaxAbsKcal).toBeLessThan(1e-6);
+    expect(Number.isFinite(r.daily.fatMass![4]!)).toBe(true);
+    expect(Number.isNaN(r.daily.fatMass![5]!)).toBe(true);
+    expect(Number.isNaN(r.daily.fatMass![179]!)).toBe(true);
+    expect(r.meta.outputStatus?.fatMass).toMatchObject({ status: 'modelLimit', fromDay: 5 });
+    expect(r.meta.aborted).toBeUndefined();
+    // the conserving reference run has no validity record
+    expect(runEngine(profile, sched180, { record: 'none' }).meta.validity).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------- W1-core contributions (2026-10-18)
+
+describe('D8-02: ensemble bands are stochastic-only parameter-sensitivity ranges', () => {
+  const sched = repeatSchedule(10, [0, 1]);
+
+  it('quantiles never include the nominal run; zero draws export no band', () => {
+    const e = simulateEnsemble(MAN, sched, { draws: 6, seed: 3, series: ['fatMass', 'ldl'] });
+    expect(e.method.fatMass).toBe('draws');
+    expect(e.bandMeta!.fatMass).toMatchObject({ method: 'draws', uncertaintyKind: 'parameterSensitivity', coverage: 'unvalidated', nominalInQuantiles: false, endpoint: 'raw', draws: 6 });
+    expect(e.bandMeta!.ldl!.endpoint).toBe('deltaRebasedOnNominal');
+    // recompute from the same members without the nominal
+    const rp = resolveProfile(MAN);
+    const cs = compileSchedule(sched, rp);
+    const vectors = sampleParams(buildModelParams(MODULES).defs, { count: 6, seed: 3 });
+    const members = vectors.map((v) => runEngine(rp, cs, { series: ['fatMass', 'ldl'], record: 'daily', paramOverrides: v, collectEvents: false }));
+    const d = 9;
+    const vals = members.map((r) => r.daily.fatMass![d]!).sort((a, b) => a - b);
+    const q = (p: number) => { const i = (vals.length - 1) * p; const lo = Math.floor(i); return vals[lo]! + (vals[Math.ceil(i)]! - vals[lo]!) * (i - lo); };
+    expect(e.p50.fatMass![d]!).toBeCloseTo(q(0.5), 4);
+    expect(e.p10.fatMass![d]!).toBeCloseTo(q(0.1), 4);
+    // change series: member change from its own t = 0, re-based on the nominal t = 0
+    const ch = members.map((r) => r.daily.ldl![d]! - r.initial.ldl!).sort((a, b) => a - b);
+    const med = (ch[2]! + ch[3]!) / 2;
+    expect(e.p50.ldl![d]!).toBeCloseTo(e.nominal.initial.ldl! + med, 4);
+    const none = simulateEnsemble(MAN, sched, { draws: 0, seed: 3, series: ['fatMass'] });
+    expect(none.method.fatMass).toBe('none');
+    expect(none.p10.fatMass).toBeUndefined();
+    expect(none.bandMeta!.fatMass).toMatchObject({ method: 'none', coverage: 'notApplicable', draws: 0 });
+  });
+
+  it('core simulateEnsemble and the streaming reducer give identical bands for the same members', () => {
+    const e = simulateEnsemble(MAN, sched, { draws: 5, seed: 9, series: ['fatMass', 'ldl', 'scaleWeight'] });
+    const rp = resolveProfile(MAN);
+    const cs = compileSchedule(sched, rp);
+    const vectors = sampleParams(buildModelParams(MODULES).defs, { count: 5, seed: 9 });
+    // what the worker streams: band inputs per draw (change series as change from the member's own t = 0)
+    const streamed = vectors.map((v) => {
+      const r = runEngine(rp, cs, { series: ['fatMass', 'ldl', 'scaleWeight'], record: 'daily', paramOverrides: v, collectEvents: false });
+      return memberBandInputs(r.daily, r.initial);
+    });
+    // the Simulator's `computeBands` is this reducer over the streamed members (parity test in simulationModel.test.ts)
+    const s = ensembleBands(e.nominal.daily, e.nominal.initial, streamed);
+    for (const id of ['fatMass', 'ldl', 'scaleWeight'] as const) {
+      expect(Array.from(s.p10[id]!)).toEqual(Array.from(e.p10[id]!));
+      expect(Array.from(s.p50[id]!)).toEqual(Array.from(e.p50[id]!));
+      expect(Array.from(s.p90[id]!)).toEqual(Array.from(e.p90[id]!));
+      expect(s.bandMeta![id]).toEqual(e.bandMeta![id]);
+    }
+  });
+
+  it('members without finite values are counted, never claimed: no band rather than a counterfeit one', () => {
+    const nominal = { fatMass: new Float32Array([10, 10]) };
+    const b = ensembleBands(nominal, undefined, [{ fatMass: new Float32Array([Number.NaN, Number.NaN]) }]);
+    expect(b.p10.fatMass).toBeUndefined();
+    expect(b.bandMeta!.fatMass).toMatchObject({ method: 'none', draws: 0 });
+    const c = ensembleBands(nominal, undefined, [8, 9, 11, 12].map((v) => ({ fatMass: new Float32Array([v, Number.NaN]) })));
+    expect(c.p50.fatMass![0]).toBeCloseTo(10, 6);
+    expect(c.p10.fatMass![0]).toBeCloseTo(8.3, 6); // 8 + 0.3·(9 − 8): the nominal 10 is not a member
+    // A1-049: storage is always finite; the day's availability lives in the per-day mask
+    expect(c.p50.fatMass![1]).toBe(0);
+    expect(c.bandDays.fatMass!.method[1]).toBe(BAND_DAY_METHOD.none);
+    expect(c.bandDays.fatMass!.valid[1]).toBe(0);
+    expect(c.bandMeta!.fatMass!.draws).toBe(4);
+  });
+});
+
+describe('D5-03: the actually applied intake correction is booked per day', () => {
+  it('requested vs applied kcal; zero-energy days are skipped and flagged; a zero offset adds nothing', () => {
+    const tmplZero = { ...PROGRAM_B, id: 'Z', energy: { kind: 'zero' as const } };
+    const cs = compileSchedule(repeatSchedule(6, [1, 1, 2, 1, 1, 1], [PROGRAM_A, PROGRAM_B, tmplZero]), profile);
+    const r = runEngine(profile, cs, { record: 'daily', intakeOffsetKcal: [{ fromDay: 1, kcal: 150 }, { fromDay: 4, kcal: -100 }] });
+    const a = r.meta.offsetsApplied!;
+    expect(a.map((x) => x.day)).toEqual([1, 2, 3, 4, 5]);
+    expect(a[0]).toMatchObject({ day: 1, requestedKcal: 150 });
+    expect(a[0]!.appliedKcal).toBeCloseTo(150, 6);
+    expect(a[1]).toEqual({ day: 2, requestedKcal: 150, appliedKcal: 0, skippedReason: 'zeroEnergyDay' });
+    expect(a[3]!.appliedKcal).toBeCloseTo(-100, 6);
+    // the input echoes keep the logged/prescribed day
+    expect(r.daily.inEnergy![1]!).toBeCloseTo(cs.days[1]!.energyKcal, 3);
+    expect(runEngine(profile, cs, { record: 'none', intakeOffsetKcal: [{ fromDay: 0, kcal: 0 }] }).meta.offsetsApplied).toBeUndefined();
+  });
+});
+
+describe('D8-06: day 0 starts after the last observed sleep episode', () => {
+  it('a short observed night before day 0 changes the carried sleep; the post-burn-in snapshot stays schedule-independent', () => {
+    const base: Schedule = repeatSchedule(3, [1]);
+    const withObs: Schedule = {
+      ...base,
+      programs: [PROGRAM_A, { ...PROGRAM_B, sleep: { observed: { bedAt: '2026-10-05T02:00:00+02:00', wakeAt: '2026-10-05T06:00:00+02:00', tz: 'Europe/Berlin' } } }],
+    };
+    const c0 = compileSchedule(base, profile);
+    const c1 = compileSchedule(withObs, profile);
+    expect(c1.initialSleep).toMatchObject({ bedClockH: 26, sleepHours: 4, totalAsleepHours: 4, qualityStatus: 'unrated', coverage: 'complete' });
+    const r0 = runEngine(profile, c0, { record: 'full', series: ['scaleWeight'] });
+    const r1 = runEngine(profile, c1, { record: 'full', series: ['scaleWeight'] });
+    expect(Array.from(r1.daily.scaleWeight!)).not.toEqual(Array.from(r0.daily.scaleWeight!));
+    // restoring the post-burn-in snapshot reproduces the uninterrupted run with the observed initial sleep
+    const snap = captureInitialSnapshot(profile, c1, { series: ['scaleWeight'] });
+    const r2 = runEngine(profile, c1, { record: 'full', series: ['scaleWeight'], initialSnapshot: snap });
+    expect(Array.from(r2.daily.scaleWeight!)).toEqual(Array.from(r1.daily.scaleWeight!));
+  });
+});
+
+describe('D8-07: hook-aware signal declarations', () => {
+  const mod = (id: string, writes: string[], reads: string[], hooks: Array<{ signal: string; access: 'write' | 'read'; hook: string; lag?: 0 | 1 }>): AnyEngineModule =>
+    ({ ...MODULES.find((m) => m.id === id)!, writes, reads, signalHooks: hooks }) as unknown as AnyEngineModule;
+
+  it('same-endOfDay daily EEE (lag 0) and a next-day strength multiplier read by an earlier module (lag 1) pass', () => {
+    const activity = mod('activity', ['exSessionNetKcalD'], [], [{ signal: 'exSessionNetKcalD', access: 'write', hook: 'endOfDay' }]);
+    const muscle = mod('muscle', [], ['strengthEaMult'], [{ signal: 'strengthEaMult', access: 'read', hook: 'endOfDay', lag: 1 }]);
+    const wellbeing = mod('wellbeing', ['strengthEaMult'], ['exSessionNetKcalD'], [
+      { signal: 'strengthEaMult', access: 'write', hook: 'endOfDay' },
+      { signal: 'exSessionNetKcalD', access: 'read', hook: 'endOfDay', lag: 0 },
+    ]);
+    expect(checkSignalHooks([activity, muscle, wellbeing])).toEqual([]);
+  });
+
+  it('mismatched lags, foreign writes and undeclared accesses fail', () => {
+    const activity = mod('activity', ['exSessionNetKcalD'], [], [{ signal: 'exSessionNetKcalD', access: 'write', hook: 'endOfDay' }]);
+    const muscle = mod('muscle', [], ['strengthEaMult'], [{ signal: 'strengthEaMult', access: 'read', hook: 'endOfDay', lag: 0 }]);
+    const wellbeing = mod('wellbeing', ['strengthEaMult'], ['exSessionNetKcalD', 'fatMassKg'], [
+      { signal: 'strengthEaMult', access: 'write', hook: 'endOfDay' },
+      { signal: 'exSessionNetKcalD', access: 'read', hook: 'endOfDay', lag: 1 },
+      { signal: 'leanTissueKg', access: 'write', hook: 'stepHour' },
+    ]);
+    const problems = checkSignalHooks([activity, muscle, wellbeing]).map((i) => `${i.module}:${i.signal}:${i.problem}`);
+    expect(problems.some((p) => p.startsWith('muscle:strengthEaMult') && p.includes('lag 0'))).toBe(true);
+    expect(problems.some((p) => p.startsWith('wellbeing:exSessionNetKcalD') && p.includes('lag 1'))).toBe(true);
+    expect(problems.some((p) => p.startsWith('wellbeing:leanTissueKg') && p.includes('owned by composition'))).toBe(true);
+    expect(problems.some((p) => p.startsWith('wellbeing:fatMassKg') && p.includes('read without a hook declaration'))).toBe(true);
+  });
+
+  it('the production registry has no hook-declaration violations', () => {
+    expect(checkSignalHooks()).toEqual([]);
+  });
+});
+
+describe('D1-01: internal daily TEE equals the recorded hourly ledger', () => {
+  it('energy’s yesterday TEE (state) equals the sum of the recorded hourly TDEE across midnight, burn-in and resume', () => {
+    const cs = compileSchedule(repeatSchedule(8, [0, 1, 1]), profile);
+    const days = [1, 2, 3, 4, 5, 6, 7];
+    const r = runEngine(profile, cs, { record: 'daily', series: ['tdee'], captureSnapshotAt: days });
+    const ei = MODULES.findIndex((m) => m.id === 'energy');
+    for (const d of days) {
+      const st = r.snapshots![d]!.states[ei] as { prevDayTeeKcal: number };
+      // recorded daily values are Float32: compare within its resolution (the endpoint defect is whole kcal)
+      expect(Math.abs(st.prevDayTeeKcal - r.daily.tdee![d - 1]!)).toBeLessThan(1e-3);
+    }
+    // resume from day 4: the same internal and recorded values
+    const k = 4;
+    const resumed = runEngine(profile, cs, { record: 'daily', series: ['tdee'], initialSnapshot: r.snapshots![k]!, captureSnapshotAt: [7] });
+    expect(resumed.daily.tdee![6]!).toBeCloseTo(r.daily.tdee![6]!, 9);
+    expect((resumed.snapshots![7]!.states[ei] as { prevDayTeeKcal: number }).prevDayTeeKcal).toBeCloseTo((r.snapshots![7]!.states[ei] as { prevDayTeeKcal: number }).prevDayTeeKcal, 9);
+  });
+});
+
+describe('D1-08: a tissue floor solved as a conserved boundary ends the run after that hour', () => {
+  it('validity says the boundary hour is the last valid one; later days are not forecasts', () => {
+    const at = 3 * 24 + 15;
+    const floored = MODULES.map((m) =>
+      m.id !== 'composition' ? m : { ...m, stepHour: (s: object, k: object, bus: Parameters<typeof m.stepHour>[2], h: Parameters<typeof m.stepHour>[3], d: Parameters<typeof m.stepHour>[4], c: Parameters<typeof m.stepHour>[5]) => {
+        m.stepHour(s, k, bus, h, d, c);
+        if (c.hourIndex === at) (s as { limitThisHour: number }).limitThisHour = 1;
+      } },
+    );
+    const r = runEngine(profile, sched180, { record: 'full', series: ['fatMass', 'scaleWeight'], checks: true }, floored);
+    expect(r.meta.validity).toMatchObject({ status: 'modelLimit', validThroughHour: at, reasonCode: 'tissueFloorModelLimit' });
+    expect(Number.isFinite(r.hourly.scaleWeight![at]!)).toBe(true); // the conserved boundary hour is recorded
+    expect(Number.isNaN(r.hourly.scaleWeight![at + 1]!)).toBe(true);
+    expect(Number.isNaN(r.daily.fatMass![3]!)).toBe(true); // the partial day is never committed as a daily value
+    expect(r.meta.checks!.storageMaxAbsKcal).toBeLessThan(1e-6);
+  });
+
+  it('a partial module set (a ledger term without its writer) is not a model-limit crossing', () => {
+    const stub = (id: string, writes: string[], step?: (bus: Record<string, number>) => void): AnyEngineModule =>
+      defineModule<object>({
+        id: id as 'intake',
+        specSection: 'test',
+        dossiers: 'test',
+        params: [],
+        reads: [],
+        writes: writes as ['fatMassKg'],
+        records: [],
+        init: (_k, ctx, bus) => {
+          if (writes.includes('fatMassKg')) bus.fatMassKg = ctx.profile.fm0Kg;
+          if (writes.includes('leanTissueKg')) bus.leanTissueKg = ctx.profile.ffm0Kg;
+          return {};
+        },
+        ...(step ? { stepHour: (_s: object, _k: object, bus: object) => step(bus as Record<string, number>) } : {}),
+      }) as unknown as AnyEngineModule;
+    // intake and composition without the energy/fuel/ketone flux writers: the identity is undefined, never "violated"
+    const mods = [stub('intake', ['eAbsKcalH']), stub('composition', ['fatMassKg', 'leanTissueKg'], (bus) => (bus.fatMassKg! -= 1e-3))];
+    const r = runEngine(profile, compileSchedule(repeatSchedule(5, [0]), profile), { record: 'daily' }, mods);
+    expect(r.meta.validity).toBeUndefined();
+  });
+});
+
+describe('C6: module assumptions and run statuses reach the result', () => {
+  it('during-session carbohydrate of unknown mixture is a named glucose scenario; a stated mixture is not', () => {
+    const ride = (comp?: Record<string, number>) =>
+      compileSchedule(
+        repeatSchedule(4, [0], [{ ...PROGRAM_B, exercise: [{ kind: 'cardio', modality: 'cycle', startH: 9, durationMin: 90, carbDuringGPerH: 60, ...(comp ? { carbDuringComposition: comp } : {}) }] }]),
+        profile,
+      );
+    const unknown = runEngine(profile, ride(), { record: 'daily', series: ['glucose', 'fatMass'] });
+    expect(unknown.meta.assumptions).toContain('unknownCarbMixtureAsGlucose');
+    expect(unknown.meta.outputStatus?.glucose).toMatchObject({ status: 'scenario', reasonCode: 'carbMixtureUnknown', fromDay: 0 });
+    const known = runEngine(profile, ride({ glucoseEqG: 40, fructoseG: 20 }), { record: 'daily', series: ['glucose'] });
+    expect(known.meta.assumptions ?? []).not.toContain('unknownCarbMixtureAsGlucose');
+  });
+
+  it('activity and muscle assumptions and the growth scenario are named in every full-module run', () => {
+    const r = runEngine(profile, compileSchedule(repeatSchedule(3, [0]), profile), { record: 'none' });
+    for (const a of ['fitnessMemHeuristic', 'mealDistributionNeutral', 'growthBurnInAnchor']) expect(r.meta.assumptions).toContain(a);
+    expect(runEngine(profile, compileSchedule(repeatSchedule(3, [0]), profile), { record: 'none' }, STUB_MODULES).meta.assumptions ?? []).not.toContain('growthBurnInAnchor');
   });
 });

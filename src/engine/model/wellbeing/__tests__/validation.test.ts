@@ -3,9 +3,12 @@
  * Validation targets of the wellbeing module: 19 §7 V1-V12 (V8 menstrual risk belongs to hormones, V13 RHR/HRV is not
  * in the v1 catalogue) and 13 §4.10. Each scenario drives the module directly with hand-built bus values.
  */
-import { inductionDaysToFraction, tte75 } from '../index';
+import { inductionDaysToFraction, tte75, wellbeingModule, wellbeingParams } from '../index';
 import { MAN, WOMAN, makeHarness, type Harness } from './harness';
 import type { PersonProfile } from '../../../types/profile';
+import type { AnyEngineModule } from '../../../types/module';
+import type { ParamDef } from '../../../types/params';
+import { buildModelParams, distributionIssues, drawKindOf, sampleParams } from '../../../core/paramsRegistry';
 
 /** Set the bus body composition so that FM/(FM+FFM) = bf % at the given tissue mass. */
 function setBody(h: Harness, massKg: number, bfPct: number): void {
@@ -86,7 +89,9 @@ describe('19 V4 Shaw 2019: economy penalty gated by intensity (qualitative)', ()
   });
 });
 
-describe('19 V5 CALERIE-2 bone (Villareal 2016): −10 % weight over 1 y then stable → hip BMD −1.5 to −2.0 % ± 0.7 at 24 mo', () => {
+// D8-05: V5/V6 check that the legacy RESEARCH scenario reproduces its own development studies (verification of the
+// implementation, not independent validation); the scenario is never exported as a personal BMD forecast.
+describe('19 V5 CALERIE-2 bone (Villareal 2016, development study): −10 % weight over 1 y then stable → hip BMD −1.5 to −2.0 % ± 0.7 at 24 mo', () => {
   it('hip BMD change after 24 months (mAge 1, mRT 1, no exercise-created deficit)', () => {
     const w: PersonProfile = { schemaVersion: 1, body: { sex: 'female', ageYears: 38, heightCm: 165, weightKg: 70 }, startDate: '2026-10-05' };
     const h = makeHarness(w);
@@ -105,7 +110,7 @@ describe('19 V5 CALERIE-2 bone (Villareal 2016): −10 % weight over 1 y then st
   });
 });
 
-describe('19 V6 Villareal 2006: CR (−10.7 %) vs exercise-induced (−8.4 %) weight loss over 1 y', () => {
+describe('19 V6 Villareal 2006 (development study): CR (−10.7 %) vs exercise-induced (−8.4 %) weight loss over 1 y', () => {
   function armAtOneYear(lossPct: number, ei: number, eee: number): number {
     const p: PersonProfile = { schemaVersion: 1, body: { sex: 'male', ageYears: 57, heightCm: 178, weightKg: 82 }, startDate: '2026-10-05' };
     const h = makeHarness(p);
@@ -280,12 +285,23 @@ describe('13 §4.10 keto-induction symptoms (Φ_ind)', () => {
     expect(h.bus.ketoInduction).toBe(h.s.ketoInduction);
   });
 
-  it('sodium ≥ 2 g/d mitigates Φ_max by 30 % (grade D)', () => {
+  it('D8-09: no default sodium mitigation (no model-driven salt escalation); the 30 % value is only an opt-in sensitivity heuristic', () => {
     const a = makeHarness(MAN);
     a.run({ carb: 30, sodiumMg: 1500 }, 1);
     const b = makeHarness(MAN);
     b.run({ carb: 30, sodiumMg: 2500 }, 1);
-    expect(b.s.phiMax / a.s.phiMax).toBeCloseTo(0.7, 10);
+    expect(b.k.ketoNaMitigation).toBe(0);
+    expect(b.s.phiMax).toBe(a.s.phiMax); // more salt changes nothing by default
+    const def = wellbeingParams.find((p) => p.id === 'wellbeing.ketoNaMitigation')!;
+    expect(drawKindOf(def)).toBe('fixed');
+    expect(def.note).toMatch(/sensitivity heuristic/);
+    expect(def.note).toMatch(/never a salt recommendation/);
+    // sensitivity alternative (grade D): Φ_max × 0.7 with sodium ≥ 2 g/d
+    const c = makeHarness(MAN, { overrides: { 'wellbeing.ketoNaMitigation': 0.3 } });
+    c.run({ carb: 30, sodiumMg: 1500 }, 1);
+    const d = makeHarness(MAN, { overrides: { 'wellbeing.ketoNaMitigation': 0.3 } });
+    d.run({ carb: 30, sodiumMg: 2500 }, 1);
+    expect(d.s.phiMax / c.s.phiMax).toBeCloseTo(0.7, 10);
   });
 
   it('heavy tail: a latent quantile above 0.75 selects τ_p = 6 d (25 % of ensemble draws); nominal is 2.5 d', () => {
@@ -303,6 +319,37 @@ describe('13 §4.10 keto-induction symptoms (Φ_ind)', () => {
       }
     }
     expect(peakDay).toBe(6);
+  });
+
+  it('D8-02: the selector is drawn Uniform(0, 1), so the designed 25 % branch is selected by ≈ 25 % of LHS draws (triangular: 12.5 %)', () => {
+    const def = wellbeingParams.find((p) => p.id === 'wellbeing.ketoHeavyTailQuantile')!;
+    expect(drawKindOf(def)).toBe('uniform');
+    expect(def.distribution).toMatchObject({ uncertaintyKind: 'heuristic', bounds: 'support', nominal: 'designPoint', label: 'designPrior' });
+    expect(def.distribution?.basis).toMatch(/not a population incidence/);
+    expect(distributionIssues(def)).toEqual([]);
+    const defs = buildModelParams([wellbeingModule as unknown as AnyEngineModule]).defs;
+    const qi = defs.findIndex((p) => p.id === def.id);
+    const draws = sampleParams(defs, { count: 400, seed: 7 });
+    const heavyShare = draws.filter((v) => v[qi]! > 0.75).length / draws.length;
+    expect(heavyShare).toBeCloseTo(0.25, 2); // LHS: exactly one stratum per draw → 100/400
+    // the module maps the drawn quantile without manual overrides: the heavy τ_p for the same share of members
+    const heavyTau = draws.filter((v) => {
+      const h = makeHarness(MAN, { noBurnIn: true, overrides: { [def.id]: v[qi]! } });
+      return h.k.ketoTau === 6;
+    }).length;
+    expect(heavyTau).toBe(100);
+    // counterfixture: the old triangular(0, 0.5, 1) draw selects only 12.5 %
+    const tri: ParamDef = { ...def, draw: 'tri' };
+    const triDraws = sampleParams([tri], { count: 400, seed: 7 });
+    expect(triDraws.filter((v) => v[0]! > 0.75).length / 400).toBeCloseTo(0.125, 2);
+    // the nominal design point stays on the ordinary branch
+    expect(makeHarness(MAN, { noBurnIn: true }).k.ketoTau).toBe(2.5);
+  });
+
+  it('D8-02: changing the draw kind of the selector changes the registry fingerprint', () => {
+    const base = buildModelParams([wellbeingModule as unknown as AnyEngineModule]).registryHash;
+    const altered = { ...wellbeingModule, params: wellbeingParams.map((p) => (p.id === 'wellbeing.ketoHeavyTailQuantile' ? { ...p, draw: 'tri' as const } : p)) };
+    expect(buildModelParams([altered as unknown as AnyEngineModule]).registryHash).not.toBe(base);
   });
 
   it('fast days and habitual very-low-carbohydrate eaters do not trigger induction', () => {

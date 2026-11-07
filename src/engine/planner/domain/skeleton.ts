@@ -356,8 +356,9 @@ function buildLayout(ctx: PlanningContext, sk: PlanSkeleton): GeneSpec[] {
   if (p.cardioDays.max > 0) {
     if (p.cardioDays.max > p.cardioDays.min)
       g.push({ path: 'cardio.sessions', kind: 'int', min: p.cardioDays.min, max: p.cardioDays.max, unit: '/wk', def: clamp(1, p.cardioDays.min, p.cardioDays.max) });
-    const maxMin = Math.min(90, p.maxSessionMin);
-    g.push({ path: 'cardio.minutes', kind: 'real', min: 20, max: Math.max(20, maxMin), unit: 'min', grid: 5, def: clamp(40, 20, Math.max(20, maxMin)) });
+    const maxMin = p.maxCardioSessionMin;
+    const minMin = Math.min(20, maxMin);
+    g.push({ path: 'cardio.minutes', kind: 'real', min: minMin, max: maxMin, unit: 'min', grid: 5, def: clamp(40, minMin, maxMin) });
     const band = CARDIO_BANDS[p.cardioModality] ?? CARDIO_BANDS.other!;
     // Ideal (§2.2): the modality is a gene over the modalities the caps allow; intensity spans their bands (the decoder
     // narrows it to the chosen modality's band)

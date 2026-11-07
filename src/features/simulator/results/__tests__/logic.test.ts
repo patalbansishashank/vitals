@@ -26,7 +26,7 @@ function series(values: number[], opts: Partial<ChartSeries> & { lo?: number[]; 
 }
 
 describe('readouts', () => {
-  it('computes start → end, change, likely range and wide ranges', () => {
+  it('computes start → end, change, range and wide ranges', () => {
     const r = computeReadout(series([24, 23, 22, 21], { baseline: 24.1, lo: [23.5, 22, 20, 20.2], hi: [24.5, 24, 23, 21.6] }));
     expect(r.start).toBeCloseTo(24.1);
     expect(r.end).toBe(21);
@@ -35,7 +35,8 @@ describe('readouts', () => {
     expect(r.wide).toBe(false);
     expect(r.pctChange).toBeCloseTo((-3.1 / 24.1) * 100, 4);
     expect(computeReadout(series([10, 10], { lo: [5, 5], hi: [15, 15] })).wide).toBe(true);
-    expect(readoutLine(r)).toBe('Fat mass: 24.1 → 21.0 kg (−3.1 kg), likely 20.2–21.6');
+    // a parameter-sensitivity range, never "likely" (C6: no calibrated-probability wording)
+    expect(readoutLine(r)).toBe('Fat mass: 24.1 → 21.0 kg (−3.1 kg), range 20.2–21.6');
   });
 
   it('reads a given day and skips trailing gaps of a run that stopped early', () => {

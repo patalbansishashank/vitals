@@ -31,8 +31,22 @@
  *    own calibration (testing/harness.ts REF05_CALIBRATION) because they drive the module with 05's reference inputs.
  *
  * Hot path: no allocation; transcendental calls per hour: ≤ 1 pow (lipo, cached on unchanged insulin), 1 exp (protein
- * brake), no pow for φ at nG 2 (4 evaluations while liver glycogen moves), 4 exp (pool sub-steps) + ≤ 4 (corrector) + 4 while an
- * exogenous-ketone sub-pool exists.
+ * brake), no pow for φ at nG 2 (4 evaluations while liver glycogen moves), 4 exp (pool sub-steps) + ≤ 4 (corrector) + 4 while
+ * a tagged sub-pool (ingested D-BHB or hepatic dietary-MCT) exists.
+ *
+ * Source tags (D2-03, contract C3): the pool carries three origin tags of the same chemistry — hepatic production from
+ * dietary MCT (`tkbMct`), ingested D-BHB (`tkbExo`, intake's D share of the formulation) and all other hepatic production
+ * (body substrate plus dietary long-chain fat; the remainder). Tags share the pool's fractional removal
+ * dQ_j/dt = P_j − (Q_j/Q)·(U + Ren) and sum to the total by construction; they add or remove no energy (the energy is
+ * intake's and fuel's) and change no kinetics. "Other hepatic" is not body-fat oxidation, and hepatic MCT conversion is
+ * not energy deprivation. `bhbEndoMmolL` (deprecated name) stays the hepatic BHB (other + MCT), so its readers keep
+ * their meaning; no consumer may read a tag as a fasting-depth or health credit.
+ *
+ * Observation semantics (D2-08, contract C4): `bhb` stays the hour MEAN of blood D-BHB, now transformed before averaging
+ * (mean over the four sub-steps of BHB(TKB), not BHB of the mean TKB); the hour-END value `bhbEnd` is the instantaneous
+ * prediction a fingerstick is compared with (`observation.ts`, operator `bhbEndpoint`). A_f and A_s are latent model
+ * states: the legacy `ketoAdaptation` index is recorded as a deprecated model index only, and no "keto-adapted"
+ * certificate event is emitted (the 0-100 % adaptation certificate is retired; never a readiness or safety input).
  */
 import { defineModule } from '../../core/moduleKit';
 import { param } from '../../core/paramsRegistry';
@@ -42,6 +56,30 @@ import { MI } from '../../types/metrics';
 import type { EventSink, ModuleContext } from '../../types/module';
 import type { SignalBus } from '../../types/signals';
 import { KETONES_PARAMS } from './params';
+
+/**
+ * Version of the ketone signal semantics (C7): 2 = transform-before-averaging hour mean, hour-end endpoint, source tags,
+ * no adaptation certificate event. Derived ketone series and stored projections computed under version 1 are recomputed
+ * from the raw logs; meter readings are never rewritten.
+ */
+export const KETONE_SIGNAL_SEMANTICS_VERSION = 2;
+
+/** What the module's ketone outputs mean (D2-03/D2-08, C4/C6): adapters, exports and the info sheet read this. */
+export const KETONES_OUTPUT_CONTRACT = {
+  version: KETONE_SIGNAL_SEMANTICS_VERSION,
+  /** Hour mean of blood D-BHB, mmol/L: mean over the sub-steps of BHB(TKB) (legacy id, same time aggregation). */
+  bhb: { unit: 'mmol/L', operator: 'bhbHourlyMean', sampleTime: 'hourMean', transform: 'beforeAveraging' },
+  /** Blood D-BHB at the hour end, mmol/L: the instantaneous prediction a timed fingerstick is compared with. */
+  bhbEndpoint: { unit: 'mmol/L', operator: 'bhbEndpoint', sampleTime: 'instant' },
+  /** Origin tags of the same pool (shared fractional clearance, sum = total); they carry no fasting-depth meaning. */
+  sources: ['hepaticOther', 'hepaticMct', 'ingestedDBhb'] as const,
+  /** `bhbEndoMmolL` = hepaticOther + hepaticMct (deprecated name kept for its readers). */
+  hepaticSignal: 'bhbEndoMmolL',
+  /** A_f / A_s: latent model states; the 50·(A_f + A_s) index is a deprecated model index, not a completion %. */
+  adaptation: { status: 'latentState', certificate: false, legacyIndex: 'ketoAdaptation', legacyIndexStatus: 'deprecated' },
+  /** Retired event: the A_f ≥ 0.9 "keto-adapted" certificate is no longer emitted (kept in the event union for old results). */
+  retiredEvents: ['ketoAdapted'] as const,
+} as const;
 
 /** Number and length of the pool sub-steps inside one hour (MODEL_SPEC §1.7 step 5, ruling R-KETNUM). */
 export const N_SUB = 4;
@@ -77,6 +115,16 @@ export interface KetonesState {
   tkb: number;
   /** Exogenous (D-BHB drink) part of the pool at the end of the hour, mmol/L (so that bhbEndo excludes it, 08 rule). */
   tkbExo: number;
+  /**
+   * Hepatic dietary-MCT part of the pool at the end of the hour, mmol/L (D2-03 tag; shares the pool's fractional removal).
+   * Hepatic, so it stays inside `bhbEndo`; the remainder tkb − tkbExo − tkbMct is the other hepatic production.
+   */
+  tkbMct: number;
+  /** Hour means of the two tagged sub-pools (TKB basis), mmol/L. */
+  tkbExoMean: number;
+  tkbMctMean: number;
+  /** Blood D-BHB at the end of the hour (instantaneous prediction, operator `bhbEndpoint`), mmol/L (D2-08). */
+  bhbEnd: number;
   /** Plasma FFA at the end of the hour, mmol/L (05 §4.3; τ 1.0 h up / 1.5 h down). */
   ffa: number;
   /** Protein memory P_ew, g/d (τ 8 h). */
@@ -96,7 +144,10 @@ export interface KetonesState {
   exoDoseFed: number;
   /** Scratch: mean of the last pool sub-step, mmol/L (written by linearisedStep). */
   subMean: number;
-  /** Hour means written to the bus this hour: TKB, BHB, endogenous BHB (mmol/L), FFA (mmol/L). */
+  /**
+   * Hour means written to the bus this hour: TKB, BHB (mean of BHB(TKB) over the sub-steps, D2-08), hepatic BHB (other +
+   * MCT; excludes ingested D-BHB), FFA (mmol/L).
+   */
   tkbMean: number;
   bhb: number;
   bhbEndo: number;
@@ -373,16 +424,85 @@ export function lipoOf(k: KetonesConst, ins: number): number {
 
 /** Hepatic ketogenic partition φ(G_L, A_f, A_s) (05 §4.2). */
 export function phiOf(k: KetonesConst, gL: number, aF: number, aS: number): number {
+  return phiWithAdaptation(k, gL, 1 + k.aH * aF, 1 + k.aHs * aS);
+}
+
+/** The two adaptation factors are invariant during one hour's glycogen interpolation. */
+function phiWithAdaptation(k: KetonesConst, gL: number, afFactor: number, asFactor: number): number {
   const gr = gL > 0 ? gL / k.g50G : 0;
   // (G_L/G50)^nG without Math.pow for the calibrated nG = 2 and 05's 2.5 (same values)
   const grn = gr > 0 ? (k.nG === 2 ? gr * gr : k.nG === 2.5 ? gr * gr * Math.sqrt(gr) : Math.pow(gr, k.nG)) : 0;
-  return (k.phiMin + (1 - k.phiMin) / (1 + grn)) * (1 + k.aH * aF) * (1 + k.aHs * aS);
+  return (k.phiMin + (1 - k.phiMin) / (1 + grn)) * afFactor * asFactor;
 }
 
 /** BHB from TKB (05 §4.5): R = BHB/AcAc = r0 + r1·TKB, BHB = TKB·R/(1 + R). */
 export function bhbFromTkb(k: KetonesConst, tkb: number): number {
   const r = k.rBhb0 + k.rBhbSlope * tkb;
   return (tkb * r) / (1 + r);
+}
+
+/** Origin shares of the ketone pool (D2-03): fractions in [0, 1] that sum to 1 (TKB basis, same chemistry). */
+export interface KetoneSourceShares {
+  /** Hepatic production from body substrate and dietary long-chain fat (not "body-fat oxidation"). */
+  readonly hepaticOther: number;
+  /** Hepatic production from dietary MCT (diet-derived fuel, not energy deprivation). */
+  readonly hepaticMct: number;
+  /** Ingested D-BHB (the D share of the drink's formulation, as intake delivers it). */
+  readonly ingestedDBhb: number;
+}
+
+/** Shares of a pool with total `tkb` and tagged parts `exo` (ingested D-BHB) and `mct` (hepatic MCT); NaN-safe. */
+export function ketoneSourceShares(tkb: number, exo: number, mct: number): KetoneSourceShares {
+  if (!(tkb > 0)) return { hepaticOther: 1, hepaticMct: 0, ingestedDBhb: 0 };
+  let fe = exo > 0 ? exo / tkb : 0;
+  let fm = mct > 0 ? mct / tkb : 0;
+  if (fe + fm > 1) {
+    const r = 1 / (fe + fm);
+    fe *= r;
+    fm *= r;
+  }
+  return { hepaticOther: 1 - fe - fm, hepaticMct: fm, ingestedDBhb: fe };
+}
+
+/**
+ * Display rounding of a source share (D2-03): shares under 1 % are not shown as a source. Engineering display rule, not
+ * physiology.
+ */
+export const SOURCE_SHARE_DISPLAY_EPS = 0.01;
+
+/** Short source status of blood ketones (inline: `Mixed` / `Unknown`; details in the info sheet). */
+export type KetoneSourceStatus = 'hepatic' | 'mixed' | 'ingested' | 'unknown';
+
+/**
+ * What is known about the tagged inputs (D2-03 provenance). Only an explicit `true` is knowledge: an omitted field (or an
+ * omitted argument) is unknown, never an implied "known". A legacy or wholly unresolved source history carries
+ * `sourceHistory: 'unknown'`: zero-valued tags cannot reconstruct certainty about it.
+ */
+export interface KetoneSourceKnowledge {
+  readonly ingestedFormulation?: boolean;
+  readonly mctDose?: boolean;
+  readonly sourceHistory?: 'resolved' | 'unknown';
+}
+
+/**
+ * Source status from the shares and what is known about the inputs (D2-03): a displayed (≥ 1 %) ingested share needs
+ * `ingestedFormulation === true` and a displayed hepatic-MCT share needs `mctDose === true`; anything else (false, omitted
+ * field, omitted argument) keeps the status `unknown`, as does an unresolved source history. Mixed = hepatic and ingested
+ * D-BHB both present. Status only: the shares, the total concentration and the energy booking are unchanged.
+ */
+export function ketoneSourceStatus(shares: KetoneSourceShares, known: KetoneSourceKnowledge = {}): KetoneSourceStatus {
+  const eps = SOURCE_SHARE_DISPLAY_EPS;
+  if (known.sourceHistory === 'unknown') return 'unknown';
+  if (shares.ingestedDBhb >= eps && known.ingestedFormulation !== true) return 'unknown';
+  if (shares.hepaticMct >= eps && known.mctDose !== true) return 'unknown';
+  const hepatic = shares.hepaticOther + shares.hepaticMct >= eps;
+  if (shares.ingestedDBhb >= eps) return hepatic ? 'mixed' : 'ingested';
+  return 'hepatic';
+}
+
+/** Hour-mean and hour-end source shares of the module state (D2-03). */
+export function ketoneStateShares(s: Pick<KetonesState, 'tkb' | 'tkbExo' | 'tkbMct' | 'tkbMean' | 'tkbExoMean' | 'tkbMctMean'>): { mean: KetoneSourceShares; end: KetoneSourceShares } {
+  return { mean: ketoneSourceShares(s.tkbMean, s.tkbExoMean, s.tkbMctMean), end: ketoneSourceShares(s.tkb, s.tkbExo, s.tkbMct) };
 }
 
 /**
@@ -401,6 +521,10 @@ export function initKetones(k: KetonesConst, ctx: ModuleContext, bus: SignalBus)
   const s: KetonesState = {
     tkb: k.tkb0,
     tkbExo: 0,
+    tkbMct: 0,
+    tkbExoMean: 0,
+    tkbMctMean: 0,
+    bhbEnd: bhbFromTkb(k, k.tkb0),
     ffa: k.f0,
     pEw: ctx.profile.habitualProteinG,
     xPost: 0,
@@ -551,7 +675,6 @@ export function stepKetones(
   const c24 = bus.carbAbs24G > 0 ? bus.carbAbs24G : 0;
   const rc = c24 / k.c50;
   const afStar = 1 / (1 + (k.afHill === 3 ? rc * rc * rc : Math.pow(rc, k.afHill)));
-  const afPrev = s.aF;
   s.aF = afStar + (s.aF - afStar) * (afStar > s.aF ? k.fAfUp : k.fAfDn);
   let asStar = (t0 - k.asLo) / k.asSpan;
   asStar = asStar < 0 ? 0 : asStar > 1 ? 1 : asStar;
@@ -573,13 +696,16 @@ export function stepKetones(
     const yMol = k.yC8 * k.mmolFaPerGC8 * k.mctC8Share + k.yC10 * k.mmolFaPerGC10 * (1 - k.mctC8Share);
     pMct = ((fedRecent ? k.mctMealFactor : 1) * yMol * raMct) / 60;
   }
+  // pMct is the hepatic dietary-MCT production of every quarter (D2-03 tag input; already inside prodQ)
   const gq = rising ? k.ffaQUp : k.ffaQDn;
   const dG = gLNow - gLPrev;
-  const phiConst = dG < 0.05 && dG > -0.05 ? phiOf(k, 0.5 * (gLPrev + gLNow), s.aF, s.aS) : -1;
+  const afFactor = 1 + k.aH * s.aF;
+  const asFactor = 1 + k.aHs * s.aS;
+  const phiConst = dG < 0.05 && dG > -0.05 ? phiWithAdaptation(k, 0.5 * (gLPrev + gLNow), afFactor, asFactor) : -1;
   const prodQ = k.prodQ;
   let prod = 0;
   for (let q = 0; q < N_SUB; q++) {
-    const phiQ = phiConst >= 0 ? phiConst : phiOf(k, gLPrev + dG * ((q + 0.5) / N_SUB), s.aF, s.aS);
+    const phiQ = phiConst >= 0 ? phiConst : phiWithAdaptation(k, gLPrev + dG * ((q + 0.5) / N_SUB), afFactor, asFactor);
     const pq = base * (ffaStar + (ffa0 - ffaStar) * gq[q]! + k.fHep) * phiQ + pMct;
     prodQ[q] = pq;
     prod += pq;
@@ -604,13 +730,20 @@ export function stepKetones(
   const vmaxEff = k.clFFM * ffm * k.km * mEx * (1 - k.aM * s.aS); // mmol/min
   const rB = k.renal * bw; // L/min above threshold
 
-  // ---- pool: four 15-min exact linearised sub-steps (ruling R-KETNUM)
+  // ---- pool: four 15-min exact linearised sub-steps (ruling R-KETNUM); tagged sub-pools (D2-03) share the pool's
+  // fractional removal (U + Ren)/T at the sub-step mean, so tags never change the total
   let t = t0;
   let e = s.tkbExo;
   const hasExo = e > 1e-9 || pExo > 0;
   if (!hasExo) e = 0;
+  let mc = s.tkbMct >= 0 ? s.tkbMct : 0; // NaN-safe (a state from an older snapshot layout carries no tag)
+  const hasMct = mc > 1e-9 || pMct > 0;
+  if (!hasMct) mc = 0;
+  const hasTag = hasExo || hasMct;
   let meanSum = 0;
+  let bhbSum = 0;
   let exoMeanSum = 0;
+  let mctMeanSum = 0;
   let renMmol = 0;
   const km = k.km;
   const tThr = k.tThr;
@@ -642,30 +775,56 @@ export function stepKetones(
     if (mean < floor) mean = floor;
     if (mean > tThr) renMmol += rB * (mean - tThr) * SUB_DT_MIN;
     meanSum += mean;
+    // D2-08: transform before averaging — the hour-mean BHB is the mean of BHB(TKB) over the sub-steps
+    bhbSum += bhbFromTkb(k, mean);
     if (t1 < floor) t1 = floor;
-    if (hasExo) {
-      // exogenous sub-pool: input pExo, loses the share e/T of U + Ren (evaluated at the sub-step mean)
+    if (hasTag) {
+      // tagged sub-pools: input P_j, each loses the share Q_j/T of U + Ren (evaluated at the sub-step mean)
       const um = (vmaxEff * mean) / (km + mean);
       const rm = mean > tThr ? rB * (mean - tThr) : 0;
       const kE = (um + rm) / (mean * vd); // 1/min
       const kh = SUB_DT_MIN * kE;
       const eE = Math.exp(-kh);
-      const eStar = pExoQ / (vd * kE);
-      exoMeanSum += eStar + ((e - eStar) * (1 - eE)) / kh;
-      e = eStar + (e - eStar) * eE;
-      if (e > t1) e = t1;
+      const meanFac = (1 - eE) / kh;
+      if (hasExo) {
+        const eStar = pExoQ / (vd * kE);
+        exoMeanSum += eStar + (e - eStar) * meanFac;
+        e = eStar + (e - eStar) * eE;
+      }
+      if (hasMct) {
+        const mStar = pMct / (vd * kE);
+        mctMeanSum += mStar + (mc - mStar) * meanFac;
+        mc = mStar + (mc - mStar) * eE;
+      }
+      // tags never exceed the pool (floor and corrector conventions act on the total; proportional rescale)
+      const tagged = e + mc;
+      if (tagged > t1) {
+        const r = t1 / tagged;
+        e *= r;
+        mc *= r;
+      }
     }
     t = t1;
   }
   s.tkb = t;
   s.tkbExo = hasExo && e > 1e-9 ? e : 0;
+  s.tkbMct = hasMct && mc > 1e-9 ? mc : 0;
   const tMean = meanSum / N_SUB;
-  const exoMean = hasExo ? exoMeanSum / N_SUB : 0;
+  let exoMean = hasExo ? exoMeanSum / N_SUB : 0;
+  let mctMean = hasMct ? mctMeanSum / N_SUB : 0;
+  if (exoMean + mctMean > tMean) {
+    const r = tMean / (exoMean + mctMean);
+    exoMean *= r;
+    mctMean *= r;
+  }
+  s.tkbExoMean = exoMean;
+  s.tkbMctMean = mctMean;
   s.renalMmolH = renMmol;
 
   // ---- 6. outputs
   s.tkbMean = tMean;
-  s.bhb = bhbFromTkb(k, tMean);
+  s.bhb = bhbSum / N_SUB;
+  s.bhbEnd = bhbFromTkb(k, t);
   const exoShare = exoMean > 0 ? (exoMean < tMean ? exoMean / tMean : 1) : 0;
   s.bhbEndo = s.bhb * (1 - exoShare);
   s.ffaMean = ffaMean;
@@ -725,7 +884,7 @@ export function stepKetones(
   } else {
     s.belowHighCountH = 0;
   }
-  if (afPrev < k.adaptedThr && s.aF >= k.adaptedThr && emit) events.emit('ketoAdapted', hourIndex, s.aF);
+  // D2-08: no "keto-adapted" certificate event (A_f is a latent state; `ketones.adaptedThr` is retired)
 }
 
 export const ketonesModule = defineModule<KetonesState, KetonesConst>({
@@ -738,7 +897,9 @@ export const ketonesModule = defineModule<KetonesState, KetonesConst>({
     'exIntensityFrac', 'exMinutesH', 'kcalEaten24', 'carbAbs24G', 'tdeeEstKcalD', 'ffmActKg', 'tissueMassKg', 'etohPoolG',
   ],
   writes: ['tkbMmolL', 'bhbMmolL', 'bhbEndoMmolL', 'ffaMmolL', 'ketoAdaptFast', 'ketoAdaptSlow', 'ketoneLossKcalH', 'brainKetoneShare'],
-  records: ['bhb', 'ketosisState', 'hoursInKetosis', 'ketoAdaptation', 'ketoAdaptFast', 'ketoAdaptSlow'],
+  // `bhbEndpoint` (hour-end blood D-BHB at time h + 1, operator `bhbEndpoint`) is a typed catalogue record: a missing
+  // registry entry is a compile error, never a silently disabled output (D2-08, C7). `bhb` stays the hour mean.
+  records: ['bhb', 'bhbEndpoint', 'ketosisState', 'hoursInKetosis', 'ketoAdaptation', 'ketoAdaptFast', 'ketoAdaptSlow'],
   prepare: prepareKetones,
   init: initKetones,
   startDay: (s, k, bus) => {
@@ -751,11 +912,12 @@ export const ketonesModule = defineModule<KetonesState, KetonesConst>({
   recordHour: (s, _k, _bus, out) => {
     out[MI.bhb] = s.bhb;
     out[MI.ketosisState] = s.state;
+    out[MI.bhbEndpoint] = s.bhbEnd;
   },
   recordDay: (s, _k, _bus, out) => {
     out[MI.hoursInKetosis] = s.hoursInKetosisToday;
-    // displayed keto-adaptation = labelled combined index of the fast (days) and slow (weeks) states, equal weights
-    // (release check 2026-10-01; 05 §4.11); both components are detail series
+    // legacy combined index 50·(A_f + A_s) of the two latent states (release check 2026-10-01; 05 §4.11), recorded as a
+    // deprecated model index for compatibility (D2-08): not a completion percentage, a goal, a readiness or a safety input
     out[MI.ketoAdaptation] = 50 * (s.aF + s.aS);
     out[MI.ketoAdaptFast] = 100 * s.aF;
     out[MI.ketoAdaptSlow] = 100 * s.aS;

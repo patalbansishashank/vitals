@@ -26,13 +26,35 @@
  *    absorbed once) and AT/compensation restart from 0.
  *  - While the fasting overlay is active P_eff is frozen and the compensation state is held (ruling on review M6),
  *    in addition to AT_R (R-FAST-AT).
+ *  - Energy-only intake (D6-02, C3/C7): `DayInput.unallocatedKcal` is reported ME not explained by known grams. It stays in
+ *    the day's energy (TEF follows the energy that appears, once; ME is the intake boundary, so nothing is deducted
+ *    again) and gets the TEF fraction of the person's habitual P/C/F mix as a named design prior
+ *    (`ENERGY_INTAKE_ASSUMPTIONS`), the non-protein part when the day's protein is fully known. Unknown protein is
+ *    never a measured 0: when the day's protein is only a known lower bound (`proteinIsLowerBound`: an observed day's
+ *    realised protein coverage first, then the exposure summary and the energy ledger), P_eff moves toward it only from below.
+ *    TH_C counts known carbohydrate only (no carbohydrate is invented from unallocated energy).
+ *  - Causal resolution (C2/D2-01): P_eff, the TEF mix, TH_C, the caffeine term, NEAT spread and tdeeEst read whole-day
+ *    inputs at startDay, so every output is daily-native (`ENERGY_CAUSAL_RESOLUTION`).
+ *  - Daily TEE endpoint correction (D1-01): energy runs before fuel (DNL heat) and composition (signed deposition cost) in
+ *    the hour, so its stepHour sums the previous hour's c = DNL heat + deposition: the day's lagged sum is
+ *    c(day before, 23:00) + Σ c(0..22). endOfDay adds c(23:00) − c(incoming), captured at startDay, so the internal daily
+ *    TEE (tdeeEst tomorrow, the low-TDEE flag, the burn-in calibration) equals the recorded current-hour ledger exactly;
+ *    the no-deposition sum is corrected by the DNL endpoint only. No module is reordered and no parameter is added.
+ *  - Exercise compensation (D1-07): no BMI slope. The RMR response is a structural scenario (`cMet`, never drawn): the
+ *    nominal zero-RMR-response reference or the named legacy scenario (`ENERGY_STRUCTURAL_SCENARIOS`).
+ *  - Luteal centring (D8-07): the cycle mean s̄ starts at the tracked-cycle prior only when the calendar phase can be
+ *    estimated (same criteria as moderators plus a regular cycle); otherwise it starts at the first value moderators emit,
+ *    so an unknown/irregular phase (a constant phase-average or 0) gives a zero RMR deviation, never a follicular offset.
  */
 import { defineModule } from '../../core/moduleKit';
 import { ATWATER, DEFAULTS } from '../../core/defaults';
-import { MI } from '../../types/metrics';
+import type { CausalResolution, HistoryAssumptionKind, UncertaintyKind } from '@/lib/bodyContracts';
+import { MI, type SeriesId } from '../../types/metrics';
 import type { ModuleContext } from '../../types/module';
-import type { SignalBus } from '../../types/signals';
+import { NUTRIENT_UNKNOWN_BIT, type DayInput } from '../../types/inputs';
+import type { ModuleId, SignalBus, SignalName } from '../../types/signals';
 import type { ResolvedProfile } from '../../types/profile';
+import type { ModelParams } from '../../types/params';
 import { ENERGY_PARAMS } from './params';
 
 export { ENERGY_PARAMS } from './params';
@@ -148,7 +170,7 @@ export interface EnergyState {
   ffmAct0: number;
   fm0: number;
   bw0: number;
-  /** Height squared, m² (BMI for c_met). */
+  /** Height squared, m² (kept in the state shape; the c_met BMI slope it served was removed, D1-07). */
   height2: number;
   /** a_lut (moderators.lutealAmp), frac RMR; 0 when that parameter is not registered. */
   aLut: number;
@@ -172,6 +194,11 @@ export interface EnergyState {
   lutealSum: number;
   lutealIdx: number;
   lutealLen: number;
+  /**
+   * D8-07: 1 once s̄ has its starting value. A tracked (estimable) cycle starts at the prior (init); otherwise the ring is
+   * seeded at the first startDay with the value moderators emit, so a constant phase-average has zero deviation.
+   */
+  lutealSeeded: number;
   /** Baseline GNG by hour of day, g/h (latched on the last burn-in day; R-GNG reference). */
   gng0H: Float64Array;
   /** Today's GNG readings by hour, g/h (latch source). */
@@ -184,6 +211,12 @@ export interface EnergyState {
   protTermKcalD: number;
   /** Non-alcohol TEF fraction of today's intake mix (kept from the last day with intake). */
   alphaNa: number;
+  /** D6-02: today's energy-only intake not allocated to macros (`DayInput.unallocatedKcal`), kcal. */
+  unallocKcal: number;
+  /** D6-02: TEF fraction applied to `unallocKcal` today (habitual-mix design prior; 0 without unallocated energy). */
+  alphaUnalloc: number;
+  /** D6-02: 1 when today's protein is only a known lower bound (unknown remainder), else 0. */
+  proteinLowerBound: number;
   /** TH_C per kcal of non-alcohol energy appearing today (0 unless EI > EI0). */
   thcFrac: number;
   /** m_IR = 1 − slope·IR (insulinResistanceIdx, d−1). */
@@ -218,9 +251,17 @@ export interface EnergyState {
 
 
   // ---- day-to-day memory
-  /** Yesterday's TDEE (incl. deposition cost and DNL heat) and exercise EE, kcal/d. */
+  /** Yesterday's TDEE (incl. deposition cost and DNL heat, endpoint-corrected, D1-01) and exercise EE, kcal/d. */
   prevDayTeeKcal: number;
   prevDayEatKcal: number;
+  /**
+   * D1-01: DNL heat and signed deposition cost on the bus at startDay, kcal/h — the previous day's 23:00 values (or the
+   * end-of-burn-in values on day 0) that the first stepHour of the day sums in place of today's 23:00 values.
+   */
+  incomingDnlKcalH: number;
+  incomingDepKcalH: number;
+  /** D1-01: endpoint correction applied to the last closed day's TEE, kcal/d (diagnostics). */
+  dayEndpointCorrKcal: number;
 
   // ---- validity flags (02 §9 guards), counts; hourly flag count is hx[HX.flagLowRmrH]
   /** Days with TDEE < 1.1·RMR. */
@@ -254,6 +295,12 @@ export interface EnergyK {
   tefMct: number;
   tefAlc: number;
   tefFibre: number;
+  /**
+   * D6-02 design prior for unallocated (energy-only) intake: the TEF fraction of the person's habitual P/C/F mix (profile
+   * macros at the general factors) and of its carbohydrate/fat part, used when the day's protein is fully known.
+   */
+  tefHabMix: number;
+  tefHabMixNoProtein: number;
   tefIrSlope: number;
   kP: number;
   fP: number;
@@ -263,7 +310,13 @@ export interface EnergyK {
   fCafTol: number;
   cafTolMg: number;
   cafTolEffect: number;
+  /** c_met of the run's structural scenario (D1-07; 0 = zero-RMR-response reference). No BMI slope. */
   cMet: number;
+  /**
+   * @deprecated D1-07: the causal BMI slope is removed; always 0 (whatever the registry vector says) so every reader of
+   * these constants (core/activityReference) applies the same zero slope. The three BMI clamp constants are kept for those
+   * readers' compatibility only.
+   */
   cMetPerBmi: number;
   cMetBmiRef: number;
   cMetBmiLo: number;
@@ -288,6 +341,11 @@ export interface EnergyK {
    */
   day0ActivityDelta: number;
   aLut: number;
+  /**
+   * D8-07: 1 when the calendar phase can be estimated (`lutealCycleEstimable`): s̄ starts at the tracked-cycle prior;
+   * 0 = unknown/irregular/untracked: s̄ starts at the first value moderators emit.
+   */
+  lutealTracked: number;
   /** Test mode: finite-value assertions. */
   checks: boolean;
 }
@@ -300,9 +358,30 @@ function pv(ctx: ModuleContext, id: string): number {
 
 const clamp = (x: number, lo: number, hi: number): number => (x < lo ? lo : x > hi ? hi : x);
 
+/**
+ * TEF fraction of an energy mix of protein/carbohydrate/fat at the general factors (02 §4.4 weights), or `fallback` when
+ * the mix has no energy. Fibre, MCT and alcohol are excluded: they are known grams with their own terms (D6-02).
+ */
+function pcfTefFraction(tefP: number, tefC: number, tefF: number, pG: number, cG: number, fG: number, fallback: number): number {
+  const eP = E_P * (pG > 0 ? pG : 0);
+  const eC = E_C * (cG > 0 ? cG : 0);
+  const eF = E_F * (fG > 0 ? fG : 0);
+  const e = eP + eC + eF;
+  return e > 0 ? (tefP * eP + tefC * eC + tefF * eF) / e : fallback;
+}
+
 export function prepareEnergy(ctx: ModuleContext): EnergyK {
   const e = (n: string): number => pv(ctx, `energy.${n}`);
   const lutIdx = ctx.params.index.get('moderators.lutealAmp');
+  // D6-02 habitual-mix design prior. A resolved profile always has habitual macros; the carbohydrate-factor fallback
+  // (inside the conditional envelope of `unallocatedTefFraction`) only serves profile-less estimator contexts
+  // (core/activityReference), which never see unallocated energy.
+  const p = ctx.profile as ResolvedProfile | undefined;
+  const tefP = e('tefP');
+  const tefC = e('tefC');
+  const tefF = e('tefF');
+  const tefHabMix = pcfTefFraction(tefP, tefC, tefF, p?.habitualProteinG ?? 0, p?.habitualCarbG ?? 0, p?.habitualFatG ?? 0, tefC);
+  const tefHabMixNoProtein = pcfTefFraction(tefP, tefC, tefF, 0, p?.habitualCarbG ?? 0, p?.habitualFatG ?? 0, tefC);
   return {
     gammaL: e('gammaL'),
     gammaF: e('gammaF'),
@@ -316,12 +395,14 @@ export function prepareEnergy(ctx: ModuleContext): EnergyK {
     atGuardFrac: e('atGuardFrac'),
     guardRmrFrac: e('guardRmrFrac'),
     guardTdeeRmr: e('guardTdeeRmr'),
-    tefP: e('tefP'),
-    tefC: e('tefC'),
-    tefF: e('tefF'),
-    tefMct: e('tefF') + e('tefMctExtra'),
+    tefP,
+    tefC,
+    tefF,
+    tefMct: tefF + e('tefMctExtra'),
     tefAlc: e('tefAlc'),
     tefFibre: e('tefFibre'),
+    tefHabMix,
+    tefHabMixNoProtein,
     tefIrSlope: e('tefIrSlope'),
     kP: e('kP'),
     fP: Math.exp(-1 / e('tauP')),
@@ -332,7 +413,7 @@ export function prepareEnergy(ctx: ModuleContext): EnergyK {
     cafTolMg: e('cafTolMg'),
     cafTolEffect: e('cafTolEffect'),
     cMet: e('cMet'),
-    cMetPerBmi: e('cMetPerBmi'),
+    cMetPerBmi: 0,
     cMetBmiRef: e('cMetBmiRef'),
     cMetBmiLo: e('cMetBmiLo'),
     cMetBmiHi: e('cMetBmiHi'),
@@ -351,8 +432,27 @@ export function prepareEnergy(ctx: ModuleContext): EnergyK {
     day0ActivityDelta: ctx.schedule?.days?.[0]?.activityDeltaKcal ?? 0,
     // a_lut belongs to moderators (MODEL_SPEC §1.1 `lutealAmp`); energy applies it to RMR (§1.5 step 2).
     aLut: lutIdx === undefined ? 0 : (ctx.params.values[lutIdx] as number),
+    lutealTracked: p !== undefined && lutealCycleEstimable(p, ctx.schedule?.startDate) ? 1 : 0,
     checks: ctx.checks,
   };
+}
+
+/**
+ * D8-07: whether the calendar luteal phase can be estimated for this profile — the moderators module's tracking criteria
+ * (female, tracking on, no hormonal contraception, not post-menopausal, a parseable last period start and start date)
+ * plus a cycle not told as irregular/unknown. Anything else is an unknown phase: phase-average, mean-zero effects.
+ */
+export function lutealCycleEstimable(p: Pick<ResolvedProfile, 'sex' | 'cycle' | 'menopause'> & { input?: { sexUnspecified?: boolean } }, startDate: string | undefined): boolean {
+  if (p.sex !== 'female' || p.input?.sexUnspecified === true) return false;
+  const c = p.cycle;
+  if (!c || !c.tracking || p.menopause === 'post') return false;
+  if (c.contraception !== undefined && c.contraception !== 'none') return false;
+  if (c.regularity === 'irregular' || c.regularity === 'unknown') return false;
+  return isoDateOk(c.lastPeriodStart) && isoDateOk(startDate);
+}
+
+function isoDateOk(d: string | undefined): boolean {
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d) && Number.isFinite(Date.parse(d.slice(0, 10)));
 }
 
 /** Non-alcohol label energy (engine convention, §0.2) of a macro set, kcal. MCT is part of fat and counted at 8.3. */
@@ -371,6 +471,264 @@ export function nonAlcoholTef(k: EnergyK, pG: number, cG: number, fG: number, mc
     k.tefMct * E_MCT * mct +
     k.tefFibre * E_FIB * fibG
   );
+}
+
+/**
+ * D6-02/C1/C3: whether a day's protein total is only a known lower bound.
+ *  1. An observed day's realised protein coverage (`DayInput.coverage`, the realised history's channel coverage) of
+ *     `complete`, `confirmedZero` or `asPlannedEstimate` makes the day's protein its value (observed, zero, or the frozen
+ *     prescription's estimate), even on an `energyOnly` day, whose unknown part is then carbohydrate/fat only.
+ *  2. Otherwise the energy ledger decides: an `energyOnly` day has a meal whose macros, possibly protein, are unknown, so
+ *     its known protein is a lower bound (a prescribed day's construction-scope `complete` exposure does not see that). On
+ *     a `consistent` day the grams are known sums plus, on a partly logged day, the realised history's imputed remainder
+ *     (a named scenario estimate, not a bound); a `conflict` day simulates its known grams.
+ *  3. Without a ledger status, `partial` or `unknown` coverage is a lower bound, other coverage is exact, and otherwise
+ *     unallocated energy counts as unknown macros.
+ * Legacy days (none of these fields) are exact. A1-013: on an `energyOnly` day without a realised protein channel the
+ * compiler's per-nutrient mask (`DayInput.nutrientUnknownMask`, which describes the analysis of the INCLUDED meals, not
+ * missing meals) says whether the unknown part includes protein: a clear protein bit keeps a known protein total known
+ * (the unknown part is carbohydrate/fat only); a realised partial/unknown protein channel still makes it a lower bound.
+ */
+export function proteinIsLowerBound(day: Pick<DayInput, 'coverage' | 'exposure' | 'energyStatus' | 'unallocatedKcal' | 'nutrientUnknownMask'>): boolean {
+  const realised = day.coverage?.protein;
+  if (realised === 'complete' || realised === 'confirmedZero' || realised === 'asPlannedEstimate') return false;
+  if (day.energyStatus !== undefined) {
+    if (day.energyStatus !== 'energyOnly') return false;
+    const mask = day.nutrientUnknownMask;
+    return !(realised === undefined && mask !== undefined && (mask & NUTRIENT_UNKNOWN_BIT.protein) === 0);
+  }
+  const cov = realised ?? day.exposure?.['protein']?.coverage;
+  if (cov !== undefined) return cov === 'partial' || cov === 'unknown';
+  const u = day.unallocatedKcal;
+  return u !== undefined && u > 0;
+}
+
+/**
+ * D6-02: TEF fraction applied to unallocated energy — the habitual-mix design prior — with its conditional algebraic
+ * envelope: the all-carbohydrate/all-fat endpoints when protein is fully known (the restricted C/F family), the extreme
+ * P/C/F factors otherwise. Endpoints are conditional scenarios over the general macronutrients, not probability bounds.
+ */
+export function unallocatedTefFraction(k: EnergyK, proteinKnown: boolean): { fraction: number; low: number; high: number } {
+  const lo = k.tefC < k.tefF ? k.tefC : k.tefF;
+  const hi = k.tefC > k.tefF ? k.tefC : k.tefF;
+  const fraction = unallocatedTefMix(k, proteinKnown);
+  if (proteinKnown) return { fraction, low: lo, high: hi };
+  return { fraction, low: k.tefP < lo ? k.tefP : lo, high: k.tefP > hi ? k.tefP : hi };
+}
+
+/** The nominal of `unallocatedTefFraction` without allocating (hot path). */
+function unallocatedTefMix(k: EnergyK, proteinKnown: boolean): number {
+  return proteinKnown ? k.tefHabMixNoProtein : k.tefHabMix;
+}
+
+const KNOWN_CHANNEL = (c: string | undefined): boolean => c === 'complete' || c === 'confirmedZero';
+const UNKNOWN_CHANNEL = (c: string | undefined): boolean => c === 'partial' || c === 'unknown';
+const CARB_FAT_BITS = NUTRIENT_UNKNOWN_BIT.carbohydrate | NUTRIENT_UNKNOWN_BIT.fat;
+
+/**
+ * A1-013 (D6-02): some of the day's carbohydrate/fat allocation is unknown or a named scenario fill, so every output whose
+ * equations read carbohydrate/fat grams, their appearance streams or the states they set is a conditional joint scenario
+ * (the reported energy itself stays known and conserved). Order: an observed day's realised carbohydrate AND fat channels
+ * complete/confirmed zero → known; an explicitly partial/unknown realised channel → unknown; else the compiler's
+ * per-nutrient mask (analysis of the included meals; 'imputed' = scenario fill); else the energy ledger (`energyOnly`);
+ * else unallocated energy (legacy). A complete-macro source-factor reconciliation (`consistent`, mask clear) is not unknown.
+ */
+export function carbFatAllocationUnknown(day: Pick<DayInput, 'coverage' | 'energyStatus' | 'unallocatedKcal' | 'nutrientUnknownMask'>): boolean {
+  const c = day.coverage?.carbohydrate;
+  const f = day.coverage?.fat;
+  if (KNOWN_CHANNEL(c) && KNOWN_CHANNEL(f)) return false;
+  if (UNKNOWN_CHANNEL(c) || UNKNOWN_CHANNEL(f)) return true;
+  const mask = day.nutrientUnknownMask;
+  if (mask !== undefined) return (mask & CARB_FAT_BITS) !== 0;
+  if (day.energyStatus !== undefined) return day.energyStatus === 'energyOnly';
+  const u = day.unallocatedKcal;
+  return u !== undefined && u > 0;
+}
+
+/**
+ * A1-013 (D6-02): some of the day's protein is unknown (a lower bound, `proteinIsLowerBound`) or the scenario value of an
+ * imputed remainder (mask bit set): protein turnover, the lean/fat partition and amino-acid-driven outputs are
+ * conditional. Missing protein is never zero or deficient protein.
+ */
+export function proteinIntakeUnknown(day: Pick<DayInput, 'coverage' | 'exposure' | 'energyStatus' | 'unallocatedKcal' | 'nutrientUnknownMask'>): boolean {
+  const realised = day.coverage?.protein;
+  if (realised === 'complete' || realised === 'confirmedZero' || realised === 'asPlannedEstimate') return false;
+  if (UNKNOWN_CHANNEL(realised) || proteinIsLowerBound(day)) return true;
+  const mask = day.nutrientUnknownMask;
+  return mask !== undefined && (mask & NUTRIENT_UNKNOWN_BIT.protein) !== 0;
+}
+
+/**
+ * Outputs whose equations read carbohydrate/fat grams, their appearance streams or the insulin/glycogen/DNL states they set
+ * (A1-013 seeds; the shared dependency closure carries the rest): intake glucose/insulin; fuel glycogen, oxidation mix and
+ * DNL; ketogenesis (insulin proxy, liver glycogen, 24-h carbohydrate); glycogen water and carbohydrate-sodium water; the
+ * tissue energy residual (net of the glycogen energy change), carbohydrate in protein oxidation and fat type in the
+ * visceral share, with the regional and nitrogen details of those masses; carbohydrate availability of leptin/T3/cortisol
+ * and the diet composition of testosterone; cardiometabolic diet composition; insulin/glycogen/ketone cellular signals;
+ * wellbeing carbohydrate/fat days and glycogen-dependent capacity; ketone-dependent hunger.
+ */
+export const CARB_FAT_DEPENDENT_SERIES = [
+  'glucose', 'insulin',
+  'glycogenTotal', 'liverGlycogen', 'muscleGlycogen', 'choOxidation', 'fatOxidation', 'dnl',
+  'bhb', 'bhbEndpoint', 'totalKetones', 'ketosisState', 'hoursInKetosis', 'ketoAdaptation', 'ketoAdaptFast', 'ketoAdaptSlow',
+  'glycogenWater', 'ecfShift', 'waterWeight', 'scaleWeight', 'leanMass', 'bodyFatPct',
+  'fatMass', 'leanTissue', 'skeletalMuscle', 'visceralFat', 'waist', 'fatTrunk', 'fatArms', 'fatLegs', 'muscleArms', 'muscleLegs', 'muscleTrunk',
+  'nitrogenBalance', 'fastProteinCost',
+  'leptin', 't3', 'cortisol', 'testosterone',
+  'triglycerides', 'ldl', 'apoB', 'hdl', 'liverFat', 'insulinSensitivity', 'fastingGlucose',
+  'autophagyIdx', 'mtorIdx', 'ampkIdx',
+  'ketoInduction', 'micronutrientScore', 'enduranceCapacity', 'hunger',
+] as const satisfies readonly SeriesId[];
+
+/**
+ * Outputs whose equations read protein grams or amino-acid appearance (A1-013 seeds for unknown protein): turnover (P_eff →
+ * RMR/TDEE/energy balance), the lean/fat partition with its scale, regional and nitrogen details, MPS and resistance
+ * accretion, the insulin proxy and the ketogenesis protein brake, mTOR/autophagy, and the IGF-1/testosterone protein factors.
+ */
+export const PROTEIN_DEPENDENT_SERIES = [
+  'rmr', 'tdee', 'energyBalance',
+  'fatMass', 'leanTissue', 'skeletalMuscle', 'visceralFat', 'waist', 'fatTrunk', 'fatArms', 'fatLegs', 'muscleArms', 'muscleLegs', 'muscleTrunk',
+  'nitrogenBalance', 'fastProteinCost', 'scaleWeight', 'leanMass', 'bodyFatPct',
+  'mps', 'rtMuscleGain', 'strength',
+  'insulin', 'bhb', 'bhbEndpoint', 'totalKetones', 'ketosisState', 'hoursInKetosis',
+  'mtorIdx', 'autophagyIdx', 'igf1', 'testosterone',
+] as const satisfies readonly SeriesId[];
+
+/**
+ * Named intake assumptions of this module (C6/D6-02), keyed by the id a run lists in `assumptions` on a day where it
+ * applies (`unallocatedKcal > 0`, resp. `proteinIsLowerBound`). `series` = the energy outputs it enters directly that day;
+ * substrate, partition and marker outputs are seeded by `INTAKE_KNOWLEDGE_ASSUMPTIONS` (A1-013) and close over the shared
+ * dependency graph.
+ */
+export const ENERGY_INTAKE_ASSUMPTIONS = {
+  /** TEF of unallocated energy at the habitual-mix fraction (envelope: `unallocatedTefFraction`). */
+  unallocatedEnergyHabitualTefMix: { reasonCode: 'energyOnlyIntakeTefPrior', uncertaintyKind: 'scenario', series: ['tef', 'tdee', 'energyBalance'] },
+  /** P_eff follows a partial protein total only upward, else holds (unknown protein is not zero intake). */
+  proteinLowerBoundTurnover: { reasonCode: 'proteinLowerBoundOnly', uncertaintyKind: 'scenario', series: ['rmr', 'tdee', 'energyBalance'] },
+} as const satisfies Record<string, { reasonCode: string; uncertaintyKind: UncertaintyKind; series: readonly SeriesId[] }>;
+
+/**
+ * A1-013 (D6-02, C6): intake-knowledge assumptions whose seeds reach outputs of other modules — the substrate- and
+ * partition-dependent outputs of unknown carbohydrate/fat resp. unknown/imputed protein are a conditional joint scenario
+ * from the first affected day (`intakeKnowledgeAssumptionFromDays`, independent of the energy-balance sign). Their finite
+ * numbers stay as the compatibility trajectory (unallocated energy appears as energy only, never as a named glucose,
+ * amino-acid or fat stream); the known intake totals stay usable; no coefficient is added. `series` = seeds (the outputs
+ * whose equations read the nutrient); further dependants close over them through the shared dependency graph.
+ */
+export const INTAKE_KNOWLEDGE_ASSUMPTIONS = {
+  /** Unknown carbohydrate/fat allocation (energy-only or partly analysed intake). */
+  carbFatAllocationUnknown: { reasonCode: 'carbFatAllocationUnknown', uncertaintyKind: 'scenario', series: CARB_FAT_DEPENDENT_SERIES },
+  /** Unknown or imputed protein (lower bound or scenario fill; never zero or deficient). */
+  proteinIntakeUnknown: { reasonCode: 'proteinIntakeUnknown', uncertaintyKind: 'scenario', series: PROTEIN_DEPENDENT_SERIES },
+} as const satisfies Record<string, { reasonCode: string; uncertaintyKind: UncertaintyKind; series: readonly SeriesId[] }>;
+
+export type EnergyIntakeAssumptionId = keyof typeof ENERGY_INTAKE_ASSUMPTIONS;
+export type IntakeKnowledgeAssumptionId = keyof typeof INTAKE_KNOWLEDGE_ASSUMPTIONS;
+
+/** Whether a named intake assumption applies on a compiled day (the predicate a run uses to find its first day). */
+export function energyIntakeAssumptionApplies(id: EnergyIntakeAssumptionId | IntakeKnowledgeAssumptionId, day: DayInput): boolean {
+  switch (id) {
+    case 'unallocatedEnergyHabitualTefMix':
+      return (day.unallocatedKcal ?? 0) > 0;
+    case 'proteinLowerBoundTurnover':
+      return proteinIsLowerBound(day);
+    case 'carbFatAllocationUnknown':
+      return carbFatAllocationUnknown(day);
+    case 'proteinIntakeUnknown':
+      return proteinIntakeUnknown(day);
+  }
+}
+
+/**
+ * First day each A1-013 intake-knowledge assumption applies over the whole horizon (absent = never), so a resumed run
+ * reports the same first day and reason. Allocation allowed (finalize).
+ */
+export function intakeKnowledgeAssumptionFromDays(days: readonly DayInput[]): Partial<Record<IntakeKnowledgeAssumptionId, number>> {
+  const out: Partial<Record<IntakeKnowledgeAssumptionId, number>> = {};
+  for (const id of Object.keys(INTAKE_KNOWLEDGE_ASSUMPTIONS) as IntakeKnowledgeAssumptionId[]) {
+    for (let d = 0; d < days.length; d++) {
+      if (energyIntakeAssumptionApplies(id, days[d]!)) {
+        out[id] = d;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Causal-resolution declaration (C2/D2-01): whole-day inputs read at startDay and the outputs inheriting that daily-native
+ * resolution. `planMetadataReads` lists plan-derived fast fields the module still reads (`zeroIntake` freezes P_eff, M6):
+ * on an observed day the compiler derives it from realised intake only (an observed or censored fast ends at the first
+ * verified intake; a confirmed-zero day), so a planned length or label never reaches it there. Declarative only; nothing
+ * here changes physiology.
+ */
+export const ENERGY_CAUSAL_RESOLUTION = {
+  module: 'energy',
+  nativeResolution: 'daily',
+  dailyInputs: [
+    'proteinG', 'carbG', 'fatG', 'mctG', 'fibreG', 'unallocatedKcal', 'energyStatus', 'coverage', 'exposure', 'energyKcal', 'maintenanceKcal',
+    'caffeineMg', 'sleepHours', 'activityDeltaKcal',
+  ],
+  dayStartSignals: ['exPlannedKcalD', 'lutealWeight', 'insulinResistanceIdx', 'tissueMassKg', 'fastActive'],
+  planMetadataReads: ['zeroIntake'],
+  series: ['tdee', 'rmr', 'neat', 'tef', 'energyBalance', 'maintenance', 'metabolicAdaptation', 'atResting', 'atNonResting'],
+  signals: ['teePreKcalH', 'rmrKcalH', 'atKcalD', 'maintenanceKcalD', 'tdeeEstKcalD'],
+  assumption: 'dailyNativeModel',
+  reasonCode: 'dailyNativeEnergyTerms',
+} as const satisfies {
+  module: ModuleId;
+  nativeResolution: CausalResolution;
+  dailyInputs: readonly (keyof DayInput)[];
+  dayStartSignals: readonly SignalName[];
+  planMetadataReads: readonly (keyof DayInput)[];
+  series: readonly SeriesId[];
+  signals: readonly SignalName[];
+  assumption: HistoryAssumptionKind;
+  reasonCode: string;
+};
+
+/**
+ * Named structural scenarios of this module (D1-07, C6/C7). A scenario fixes structural parameters (all `draw: 'fixed'`
+ * in the registry, so a parameter draw never moves them): apply it to the nominal vector and to every drawn member with
+ * `applyEnergyStructuralScenario`, so the scenario survives the draws. Scenarios are alternatives, never a weighted
+ * mixture: a range spanning both is a structural (scenario) range with no probability or coverage claim.
+ */
+export const ENERGY_STRUCTURAL_SCENARIOS = {
+  exerciseCompensation: {
+    /** Nominal reference: no RMR response to added activity (intake, NEAT and AT remain separate pathways). */
+    zeroRmrResponse: {
+      values: { 'energy.cMet': 0 },
+      reasonCode: 'exerciseCompensationZeroRmrReference',
+      uncertaintyKind: 'scenario',
+    },
+    /** Legacy heuristic: target −min(0.15·max(mean7 added activity, 0), 0.05·RMR), τ 14 d. Not full plausible coverage. */
+    legacyRmrResponse: {
+      values: { 'energy.cMet': 0.15, 'energy.tauComp': 14, 'energy.compCapFrac': 0.05 },
+      reasonCode: 'exerciseCompensationLegacyRmrScenario',
+      uncertaintyKind: 'scenario',
+    },
+  },
+} as const satisfies Record<string, Record<string, { values: Readonly<Record<string, number>>; reasonCode: string; uncertaintyKind: UncertaintyKind }>>;
+
+export type EnergyCompensationScenario = keyof typeof ENERGY_STRUCTURAL_SCENARIOS.exerciseCompensation;
+
+/** Nominal structural scenario of the exercise-compensation choice (the registry nominal). */
+export const ENERGY_NOMINAL_COMPENSATION_SCENARIO: EnergyCompensationScenario = 'zeroRmrResponse';
+
+/**
+ * Copy of `values` (a full registry vector of `params`) with the exercise-compensation scenario applied (D1-07). Use on
+ * the nominal vector and on each ensemble member; only the scenario's fixed structural entries change. Allocation is fine
+ * (never inside the step loop).
+ */
+export function applyEnergyStructuralScenario(params: Pick<ModelParams, 'index'>, values: Float64Array, scenario: EnergyCompensationScenario): Float64Array {
+  const out = Float64Array.from(values);
+  for (const [id, v] of Object.entries(ENERGY_STRUCTURAL_SCENARIOS.exerciseCompensation[scenario].values)) {
+    const i = params.index.get(id);
+    if (i === undefined) throw new Error(`energy scenario: unknown parameter "${id}"`);
+    out[i] = v;
+  }
+  return out;
 }
 
 /**
@@ -509,9 +867,10 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
     const eat0 = habitualEat0(p, k);
     const neat0 = Math.max(k.neat0FloorFrac * rmr0, tdee0 - rmr0 - tef0 - eat0);
 
-    // luteal ring: one cycle; prior s̄ = 0.5 for a tracked female cycle, else 0 (observations replace the prior)
+    // luteal ring: one cycle; prior s̄ = 0.5 for an estimable (tracked, regular) cycle (observations replace the prior).
+    // D8-07: otherwise the ring is seeded at the first startDay with the value moderators emit (phase-average/constant).
     const cycLen = clamp(Math.round(p.cycle.cycleLengthD ?? 28), 1, LUTEAL_RING_MAX);
-    const tracked = p.sex === 'female' && p.cycle.tracking && p.menopause !== 'post';
+    const tracked = k.lutealTracked === 1;
     const prior = tracked ? k.lutealMeanPrior : 0;
     const lutealRing = new Float64Array(LUTEAL_RING_MAX);
     for (let i = 0; i < cycLen; i++) lutealRing[i] = prior;
@@ -557,11 +916,15 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
       lutealSum: prior * cycLen,
       lutealIdx: 0,
       lutealLen: cycLen,
+      lutealSeeded: tracked ? 1 : 0,
       gng0H,
       gngDayH: new Float64Array(24).fill(bus.gngGH),
       lutealTerm: 0,
       protTermKcalD: 0,
       alphaNa: alphaNa0,
+      unallocKcal: 0,
+      alphaUnalloc: 0,
+      proteinLowerBound: 0,
       thcFrac: 0,
       mIR: 1,
       cafDayKcal: 0,
@@ -581,6 +944,9 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
       calDeltaNeat: 0,
       prevDayTeeKcal: tdee0,
       prevDayEatKcal: eat0,
+      incomingDnlKcalH: bus.dnlHeatKcalH,
+      incomingDepKcalH: bus.depositionCostKcalH,
+      dayEndpointCorrKcal: 0,
       flagLowTdeeD: 0,
       hx,
     };
@@ -588,8 +954,18 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
 
   startDay: (s, k, bus, day) => {
     const hx = s.hx;
-    // 1. luteal centring: s̄ = running mean of s(d) over one cycle (review M3)
+    // 0. D1-01: the DNL heat / deposition cost this day's first stepHour will sum (written by fuel/composition last hour)
+    s.incomingDnlKcalH = bus.dnlHeatKcalH;
+    s.incomingDepKcalH = bus.depositionCostKcalH;
+
+    // 1. luteal centring: s̄ = running mean of s(d) over one cycle (review M3). D8-07: an unknown/irregular phase seeds
+    //    the ring with the first emitted value, so a constant phase-average (or 0) never yields a follicular/luteal offset.
     const sd = bus.lutealWeight;
+    if (s.lutealSeeded === 0) {
+      for (let i = 0; i < s.lutealLen; i++) s.lutealRing[i] = sd;
+      s.lutealSum = sd * s.lutealLen;
+      s.lutealSeeded = 1;
+    }
     s.lutealSum += sd - s.lutealRing[s.lutealIdx]!;
     s.lutealRing[s.lutealIdx] = sd;
     s.lutealIdx = s.lutealIdx + 1 >= s.lutealLen ? 0 : s.lutealIdx + 1;
@@ -598,16 +974,27 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
 
     // 2. protein turnover: P_eff relaxes (exact, τ_P) toward today's protein; clamp 0.4-3.5 g/kg (02 §4.5).
     //    Frozen while the fasting overlay is active (ruling on review M6: 20's fastRmrMult already contains the drop).
-    if (bus.fastActive !== 1 && day.zeroIntake !== true) s.pEffG = day.proteinG + (s.pEffG - day.proteinG) * k.fP;
+    //    D6-02: when today's protein is only a known lower bound, the true target is ≥ that bound, so P_eff follows it
+    //    upward only and otherwise holds (an unknown remainder is not zero protein).
+    const protLb = proteinIsLowerBound(day);
+    s.proteinLowerBound = protLb ? 1 : 0;
+    const pDay = day.proteinG;
+    if (bus.fastActive !== 1 && day.zeroIntake !== true && (!protLb || pDay > s.pEffG)) s.pEffG = pDay + (s.pEffG - pDay) * k.fP;
     const bw = bus.tissueMassKg > 1 ? bus.tissueMassKg : s.bw0;
     const pEffC = clamp(s.pEffG, k.pMinPerKg * bw, k.pMaxPerKg * bw);
     const p0C = clamp(s.protein0G, k.pMinPerKg * s.bw0, k.pMaxPerKg * s.bw0);
     s.protTermKcalD = k.kP * (pEffC - p0C);
 
-    // 3. TEF fraction of today's non-alcohol intake mix and TH_C (11 §4.5, only when EI > EI0)
-    const eNa = nonAlcoholEnergy(day.proteinG, day.carbG, day.fatG, day.mctG, day.fibreG);
+    // 3. TEF fraction of today's non-alcohol intake mix and TH_C (11 §4.5, only when EI > EI0). D6-02: the mix covers the
+    //    known grams plus unallocated energy at the habitual-mix prior, so TEF_h = α·E_abs,h charges every kcal once.
+    const ua = day.unallocatedKcal;
+    const unalloc = ua !== undefined && ua > 0 ? ua : 0;
+    const aU = unalloc > 0 ? unallocatedTefMix(k, !protLb) : 0;
+    s.unallocKcal = unalloc;
+    s.alphaUnalloc = aU;
+    const eNa = nonAlcoholEnergy(day.proteinG, day.carbG, day.fatG, day.mctG, day.fibreG) + unalloc;
     if (eNa > 1) {
-      s.alphaNa = nonAlcoholTef(k, day.proteinG, day.carbG, day.fatG, day.mctG, day.fibreG) / eNa;
+      s.alphaNa = (nonAlcoholTef(k, day.proteinG, day.carbG, day.fatG, day.mctG, day.fibreG) + aU * unalloc) / eNa;
       const extraCho = E_C * (day.carbG - s.carb0G);
       // 11 §4.5 EI_ref = maintenance intake; since R-MAINT that is the day's reference at the planned activity
       // (DayInput.maintenanceKcal; 1 kcal tolerance so that "100 %" never switches TH_C on by rounding)
@@ -730,6 +1117,14 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
 
   endOfDay: (s, k, bus, day, clock) => {
     const hx = s.hx;
+    // ---- D1-01 endpoint correction, before every end-of-day consumer: the lagged hourly sum holds c(incoming) in place of
+    //      c(23:00), c = DNL heat + signed deposition cost (kcal/h summed to kcal/d). Exact telescoping identity.
+    const corrNoDep = bus.dnlHeatKcalH - s.incomingDnlKcalH;
+    const corr = corrNoDep + bus.depositionCostKcalH - s.incomingDepKcalH;
+    hx[X_DAYTEEKCAL] = hx[X_DAYTEEKCAL]! + corr;
+    hx[X_DAYTEENODEPKCAL] = hx[X_DAYTEENODEPKCAL]! + corrNoDep;
+    s.dayEndpointCorrKcal = corr;
+
     // ---- adaptive thermogenesis (02 §4.8-4.9; R-AT, R-FAST-AT), exact daily exponentials.
     //      Burn-in (clock.day < 0) is the habitual reference state: AT and compensation stay 0 by definition, so the
     //      B3(b) calibration below sees a TEE free of both.
@@ -752,16 +1147,15 @@ export const energyModule = defineModule<EnergyState, EnergyK>({
       s.atN *= sc;
     }
 
-    // ---- metabolic exercise compensation (10 §4.3; R-COMP)
+    // ---- metabolic exercise compensation (10 §4.3; R-COMP). D1-07: structural c_met, no BMI slope (cross-sectional
+    //      adiposity associations do not identify a within-person BMI-caused RMR response). c_met 0 = reference.
     const enetDay = hx[X_DAYEATKCAL]! + hx[X_DAYSTEPSEXTRAKCAL]! - s.eat0;
     s.enetSum += enetDay - s.enetRing[s.enetIdx]!;
     s.enetRing[s.enetIdx] = enetDay;
     s.enetIdx = s.enetIdx + 1 >= s.enetRing.length ? 0 : s.enetIdx + 1;
     const enetMean = s.enetSum / s.enetRing.length;
     const bw = bus.tissueMassKg > 1 ? bus.tissueMassKg : s.bw0;
-    const bmi = bw / s.height2;
-    let cMet = k.cMet + k.cMetPerBmi * clamp(bmi - k.cMetBmiRef, k.cMetBmiLo, k.cMetBmiHi);
-    if (cMet < 0) cMet = 0;
+    const cMet = k.cMet > 0 ? k.cMet : 0;
     const want = cMet * (enetMean > 0 ? enetMean : 0);
     const cap = k.compCapFrac * (hx[X_RMRMASSKCALD]! > 0 ? hx[X_RMRMASSKCALD]! : 0);
     const compTarget = -(want < cap ? want : cap);

@@ -325,7 +325,8 @@ function planItems(id: string, input: Rec, today?: string): Items | null {
 /* ------------------------------------------------------------------------------------------------ generic */
 
 /** Keys that never reach a card: ids, keys and tokens. */
-const HIDDEN = /^(id|ids|idempotencyKey|cursor|limit|slotKey)$|Ids?$|Key$/;
+// r068 C3: who made the change ("source coach") is the card's own provenance, never a row of it
+const HIDDEN = /^(id|ids|idempotencyKey|cursor|limit|slotKey|source)$|Ids?$|Key$/;
 
 /** Plain-language value for a card row (no field names, no JSON). */
 export function plainValue(v: unknown): string {
@@ -357,6 +358,20 @@ export function plainValue(v: unknown): string {
 }
 
 /** Generic rows: field names as words, ids left out. */
+const SESSION_STATUS: Record<string, string> = { done: 'Done', partial: 'Partly done', skipped: 'Skipped' };
+
+/**
+ * A logged session in one human line (r068 C3): "Done · 30 min · today", never its raw fields ("status done ·
+ * duration min 30 · performed minutes 30 · date …", where two of them say the same thing).
+ */
+function sessionLogItems(input: Rec, today?: string): Items {
+  const status = SESSION_STATUS[str(input.status) ?? ''] ?? 'Logged';
+  const performed = Array.isArray(input.performed) ? input.performed.filter(isRec) : [];
+  const minutes = num(input.durationMin) ?? (performed.length ? performed.reduce((s, p) => s + (num(p.minutes) ?? 0), 0) || undefined : undefined);
+  const parts = [status, minutes !== undefined && str(input.status) !== 'skipped' ? `${Math.round(minutes)} min` : null, input.date !== undefined ? dateText(input.date, today) : null].filter(Boolean);
+  return [row('session', parts.join(' · '))];
+}
+
 function genericItems(input: Rec): Items {
   return Object.entries(input)
     .filter(([k, v]) => v !== undefined && !HIDDEN.test(k))
@@ -371,5 +386,40 @@ function genericItems(input: Rec): Items {
 export function describeInput(commandId: string, input: unknown, today?: string): Items {
   if (!isRec(input)) return [];
   if (commandId === 'goals.edit') return goalsEditItems(input, today);
+  if (commandId === 'log.session') return sessionLogItems(input, today);
   return planItems(commandId, input, today) ?? genericItems(input);
+}
+
+/** "28 Oct 2026" / "28 Oct" (what `dateText` wrote without a today) back to YYYY-MM-DD; `year` fills a missing year. */
+function parseDateText(s: string, year?: string): string | undefined {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.trim().match(/^(\d{1,2}) ([A-Z][a-z]{2})(?: (\d{4}))?$/);
+  const month = m ? MONTHS.indexOf(m[2]!) : -1;
+  if (!m || month < 0) return undefined;
+  const y = m[3] ?? year;
+  return y ? `${y}-${String(month + 1).padStart(2, '0')}-${m[1]!.padStart(2, '0')}` : undefined;
+}
+
+/** Row labels the generic describer gave a logged session's raw fields before r068 C3. */
+const RAW_SESSION = new Set(['status', 'duration min', 'performed', 'date']);
+
+/**
+ * The rows of a card stored before r068 C3 in today's words (r068 L2). Cards keep the rows they were given when they
+ * were made, and a stored card has no command input left to describe again, so its rows are tidied where they show:
+ * a row naming who made the change ("source · coach") goes, and a logged session's raw fields ("status done · duration
+ * min 30 · performed minutes 30 · date 28 Oct 2026") become its one line ("Done · 30 min · today"). Rows already in
+ * plain words come back unchanged. `today` (YYYY-MM-DD) is the card's own day.
+ */
+export function tidyStoredItems(items: Items, today?: string): Items {
+  const kept = items.filter((it) => !(it.before === null && HIDDEN.test(it.label.replace(/\s+(\w)/g, (_, c: string) => c.toUpperCase()))));
+  const raw = kept.filter((it) => RAW_SESSION.has(it.label));
+  if (!raw.some((it) => it.label === 'status') || raw.length < 2) return kept;
+  const value = (label: string) => kept.find((it) => it.label === label)?.after ?? undefined;
+  const minutes = Number(value('duration min') ?? value('performed')?.match(/minutes (\d+(?:\.\d+)?)/)?.[1]);
+  const dateRaw = value('date');
+  const date = dateRaw ? (parseDateText(dateRaw, today?.slice(0, 4)) ?? dateRaw) : undefined;
+  const input: Rec = { status: value('status'), ...(Number.isFinite(minutes) ? { durationMin: minutes } : {}), ...(date ? { date } : {}) };
+  const line = sessionLogItems(input, today);
+  const firstRaw = kept.findIndex((it) => RAW_SESSION.has(it.label));
+  return [...kept.slice(0, firstRaw).filter((it) => !RAW_SESSION.has(it.label)), ...line, ...kept.slice(firstRaw).filter((it) => !RAW_SESSION.has(it.label))];
 }

@@ -1,4 +1,5 @@
-import { GradeBadge } from '@/components';
+import { useState } from 'react';
+import { GradeBadge, HeroNumber, InfoKey, InfoPanel, MonoMeta, RangeScale } from '@/components';
 import { findParam } from '@/content/evidence/params';
 import { paramEvidence } from '@/content/evidence/paramEvidence';
 import type { Mechanism } from '@/content/evidence/schema';
@@ -29,54 +30,71 @@ const STATUS_WORDS: Record<NonNullable<ParamDef['status']>, string> = {
  * One model parameter as a card: its value, plausible range, grade and sources as before, plus the two evidence labels
  * (mechanism, certainty) and how far the certainty widens the parameter's uncertainty band.
  */
-export function ParamCard({ def, documentedBy = [] }: { def: ParamDef; documentedBy?: readonly Mechanism[] }) {
+export function ParamCard({
+  def,
+  documentedBy = [],
+}: {
+  def: ParamDef;
+  documentedBy?: readonly Mechanism[];
+}) {
+  const [open, setOpen] = useState(false);
   const ev = paramEvidence(def, documentedBy);
   const u = unitText(def.unit);
   const fixed = def.low === def.high;
   const inf = ev.inflation;
+  const uncertainty =
+    inf.k === null
+      ? `A fixed value; grade ${def.grade} gives it a band of ${fmt(inf.low)}–${fmt(inf.high)}${u}.`
+      : inf.k > 1.0005
+        ? `Band widened ×${inf.k.toFixed(2)} for grade ${def.grade}, to ${fmt(inf.low)}–${fmt(inf.high)}${u}.`
+        : `Band kept as published (already wider than the grade ${def.grade} floor).`;
+  const decimals = Math.min(10, Math.max(0, 2 - Math.floor(Math.log10(Math.abs(def.value) || 1))));
   return (
-    <article className="ev-pcard" aria-label={def.label ?? def.id}>
+    <article className="ev-pcard lm-material" aria-label={def.label ?? def.id}>
       <header className="ev-pcard__head">
         <h4 className="ev-pcard__t">{def.label ?? def.id}</h4>
         <GradeBadge grade={def.grade} />
+        <InfoKey label={`About ${def.label ?? def.id}`} onClick={() => setOpen(true)} expanded={open} />
       </header>
-      <p className="ev-pcard__v">
-        <span className="ev-pcard__num">
-          {fmt(def.value)}
-          {u}
-        </span>
-        {fixed ? (
-          <span className="ev-pcard__range"> fixed value</span>
-        ) : (
-          <span className="ev-pcard__range">
-            {' '}
-            plausible range {fmt(def.low)}–{fmt(def.high)}
-            {u}
-          </span>
-        )}
-      </p>
-      <dl className="ev-pcard__dl">
-        <dt>Mechanism</dt>
-        <dd>{ev.mechanism ? `known, modelled: ${ev.mechanism.pathway}` : 'not described in the library yet'}</dd>
-        <dt>Certainty</dt>
-        <dd>Grade {ev.certainty}</dd>
-        <dt>Uncertainty</dt>
-        <dd>
-          {inf.k === null
-            ? `a fixed value; grade ${def.grade} gives it a band of ${fmt(inf.low)}–${fmt(inf.high)}${u}`
-            : inf.k > 1.0005
-              ? `band widened ×${inf.k.toFixed(2)} for grade ${def.grade}, to ${fmt(inf.low)}–${fmt(inf.high)}${u}`
-              : `band kept as published (already wider than the grade ${def.grade} floor)`}
-        </dd>
-        <dt>Sources</dt>
-        <dd>{paramSourceLabel(def)}</dd>
-        {def.status ? (
-          <>
-            <dt>Status</dt>
-            <dd>{STATUS_WORDS[def.status]}</dd>
-          </>
-        ) : null}
-      </dl>
+      <HeroNumber
+        value={def.value}
+        format={fmt}
+        unit={u.trim()}
+        size="num"
+        range={fixed ? 'Fixed value' : `Published ${fmt(def.low)}–${fmt(def.high)}${u}`}
+        label={`${fmt(def.value)}${u}; ${fixed ? 'fixed value' : `plausible range ${fmt(def.low)}–${fmt(def.high)}${u}`}`}
+      />
+      <RangeScale
+        label={`${def.label ?? def.id}: grade-widened band`}
+        value={def.value}
+        min={inf.low}
+        max={inf.high}
+        usual={fixed ? undefined : [def.low, def.high]}
+        unit={u.trim()}
+        decimals={decimals}
+        endLabels={[fmt(inf.low), fmt(inf.high)]}
+      />
+      <MonoMeta className="ev-pcard__foot">
+        {paramSourceLabel(def)}
+        {def.status ? ` · ${STATUS_WORDS[def.status]}` : ''}
+      </MonoMeta>
+      <InfoPanel
+        title="How the band is set"
+        open={open}
+        onClose={() => setOpen(false)}
+        body="The plausible range is what the source published. A lower grade widens it: a fixed value graded D gets a wider band around it. The scale shows the value, the published range and the widened band."
+        source={{ kind: 'engine', words: paramSourceLabel(def) }}
+        range={uncertainty}
+        terms={[
+          {
+            term: 'Mechanism',
+            text: ev.mechanism
+              ? `Known, modelled: ${ev.mechanism.pathway}`
+              : 'Not described in the library yet',
+          },
+          { term: 'Certainty', text: `Grade ${ev.certainty}` },
+        ]}
+      />
     </article>
   );
 }

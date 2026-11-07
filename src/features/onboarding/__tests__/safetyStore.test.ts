@@ -4,7 +4,7 @@
  */
 import { act, renderHook } from '@testing-library/react';
 import { exportAll, getRegisteredStores, importAll, parseImport } from '@/state/persistence';
-import { SAFETY_KEY, isSafetyState, pickSafetyValues, useSafetyStore } from '@/state/safetyStore';
+import { SAFETY_KEY, SAFETY_VERSION, isSafetyState, pickSafetyValues, useSafetyStore } from '@/state/safetyStore';
 import { SETTINGS_KEY, SETTINGS_VERSION, useSettingsStore } from '@/state/settingsStore';
 import { ACK_VERSIONS, modeSummary } from '../copy';
 import { gateStatus } from '../gate';
@@ -31,7 +31,7 @@ describe('safety store persistence', () => {
       ),
     );
     const s = stored();
-    expect(s?.version).toBe(1);
+    expect(s?.version).toBe(SAFETY_VERSION);
     const answers = s?.state.answers as Record<string, unknown>;
     expect(answers).not.toHaveProperty('scoff');
     expect(answers.scoffRisk).toBe(true);
@@ -148,8 +148,10 @@ describe('import review and acknowledgement versioning', () => {
 
   it('the mode summary follows the fasting opt-in (QA 12)', () => {
     const base = { optInTiers: ['T2', 'T3'] as string[] };
-    expect(modeSummary('standard', { ...base, maxFastHours: 24 })).toMatch(/fasts up to 24 hours; longer fasts need your opt-in/);
-    expect(modeSummary('standard', { ...base, maxFastHours: 72 })).toMatch(/fasts up to 72 hours, as you chose in Settings › Safety/);
+    // facts only (Ember copy): no pointer to Settings from inside Settings, no tool names
+    expect(modeSummary('standard', { ...base, maxFastHours: 24 })).toMatch(/^Deficits up to 25\u202f% of maintenance, fasts up to 24 hours\.$/);
+    expect(modeSummary('standard', { ...base, maxFastHours: 72 })).toMatch(/fasts up to 72 hours\.$/);
+    expect(modeSummary('standard', { ...base, maxFastHours: 72 })).not.toMatch(/Settings|Planner/);
     expect(modeSummary('standard', { ...base, maxFastHours: 72 })).not.toMatch(/24 hours/);
     expect(modeSummary('standard', { optInTiers: [], maxFastHours: 24 })).toMatch(/your answers keep longer fasts out of plans/);
     expect(modeSummary('gentle', { ...base, maxFastHours: 12 })).toMatch(/no fasting over 12 hours/);

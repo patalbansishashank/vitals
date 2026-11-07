@@ -5,14 +5,15 @@
  * (scope `edit`), handed straight to the app's secret store: never shown, never kept in React state.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Engraved, Faceplate, FaceplateHeader, InlineWarning, Key, Dialog } from '@/components';
+import { InlineWarning, Key, Dialog } from '@/components';
 import { ServerError, type AgentClient, type ServerClient } from '@/net/server';
 import { useServerClient, useServerPairing } from '../server/hooks';
+import { SettingsGroup, SettingsItem } from '../SettingRow';
 import { agentKeyIds, setAgentKeyIds } from './agentKeyIds';
 import { CONNECT_TOOLS_COPY as C } from './copy';
 import { desktopBridge, type AiToolId, type AiToolRow, type DesktopMcpBridge } from './desktop';
 
-const wrap = 'break-words [overflow-wrap:anywhere]';
+const wrap = 'settings-wrap';
 const CLIENT: Record<AiToolId, AgentClient> = { 'claude-code': 'claude', codex: 'codex', opencode: 'opencode', 'chatgpt-desktop': 'chatgpt-desktop' };
 const message = (e: unknown) => (e instanceof Error && e.message ? e.message : String(e));
 
@@ -133,22 +134,21 @@ function ConnectToolsBlock({ bridge }: { bridge: DesktopMcpBridge }) {
   };
 
   return (
-    <Faceplate as="section" id="connect-tools" aria-labelledby="settings-connect-tools-title" className="scroll-mt-2">
-      <FaceplateHeader title={C.title} titleId="settings-connect-tools-title" />
-      <div className="grid gap-3">
-        <p className="m-0 text-sm leading-[1.5] text-ink">{C.intro}</p>
+    <SettingsGroup label={C.title}>
+      <SettingsItem>
+        <p className="settings-note">{C.intro}</p>
         {pairing && bridge.secrets.persistent === false ? <InlineWarning severity="caution">{C.keysNotKept}</InlineWarning> : null}
-        <ul ref={toolList} className="m-0 grid list-none gap-3 p-0">
-          {(rows ?? []).map((row) => (
-            <ToolRow key={row.id} row={row} onAdd={() => setConsent(row)} onRemove={() => setRemoving(row)} />
-          ))}
-        </ul>
         {error ? (
           <InlineWarning severity="danger" alert>
             {error}
           </InlineWarning>
         ) : null}
-      </div>
+      </SettingsItem>
+      <ul ref={toolList} className="settings-list">
+        {(rows ?? []).map((row) => (
+          <ToolRow key={row.id} row={row} onAdd={() => setConsent(row)} onRemove={() => setRemoving(row)} />
+        ))}
+      </ul>
       <Dialog
         open={consent !== null}
         onClose={() => !busy && setConsent(null)}
@@ -169,27 +169,21 @@ function ConnectToolsBlock({ bridge }: { bridge: DesktopMcpBridge }) {
           <div className="grid gap-3">
             {consent.file ? (
               <div className="grid gap-1">
-                <Engraved as="p" className="m-0">
-                  {C.fileLabel}
-                </Engraved>
+                <p className="settings-note">{C.fileLabel}</p>
                 <code className={`font-mono text-sm text-ink ${wrap}`}>{consent.file}</code>
               </div>
             ) : null}
             {consent.preview ? (
               <div className="grid gap-1">
-                <Engraved as="p" className="m-0">
-                  {C.linesLabel}
-                </Engraved>
-                <pre className={`m-0 whitespace-pre-wrap rounded-sm bg-well px-2 py-1 font-mono text-xs text-ink ${wrap}`}>{consent.preview}</pre>
+                <p className="settings-note">{C.linesLabel}</p>
+                <pre className="settings-code">{consent.preview}</pre>
               </div>
             ) : null}
             <div className="grid gap-1">
-              <Engraved as="p" className="m-0">
-                {C.canLabel(consent.label)}
-              </Engraved>
-              <p className="m-0 text-sm text-ink">{C.can}</p>
+              <p className="settings-note">{C.canLabel(consent.label)}</p>
+              <p className="settings-text">{C.can}</p>
             </div>
-            <p className="m-0 text-xs leading-[1.45] text-ink-2">{pairing ? C.viaServer : C.viaApp}</p>
+            <p className="settings-note">{pairing ? C.viaServer : C.viaApp}</p>
           </div>
         ) : null}
       </Dialog>
@@ -211,7 +205,7 @@ function ConnectToolsBlock({ bridge }: { bridge: DesktopMcpBridge }) {
       >
         <p className="m-0">{removing ? C.removeBody(removing.label) : null}</p>
       </Dialog>
-    </Faceplate>
+    </SettingsGroup>
   );
 }
 
@@ -219,23 +213,21 @@ function ToolRow({ row, onAdd, onRemove }: { row: AiToolRow; onAdd: () => void; 
   const canAdd = !row.added && (row.canAdd ?? row.found);
   const status = !row.found ? C.notFound : row.added ? C.added : C.found;
   return (
-    <li className="grid gap-1 border-t border-line pt-3 first:border-t-0 first:pt-0">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-        <span className={`min-w-0 ${wrap}`}>
-          <span className="font-[550] text-ink">{row.label}</span>
-          <span className="text-xs text-ink-2"> · {status}</span>
-        </span>
-        {row.added ? (
-          <Key data-tool-id={row.id} size="sm" variant="quiet" aria-label={C.removeName(row.label)} onClick={onRemove}>
-            {C.remove}
-          </Key>
-        ) : canAdd ? (
-          <Key data-tool-id={row.id} size="sm" aria-label={C.addName(row.label)} onClick={onAdd}>
-            {C.add}
-          </Key>
-        ) : null}
-      </div>
-      {row.note ? <p className={`m-0 whitespace-pre-line text-xs leading-[1.45] text-ink-2 ${wrap}`}>{row.note}</p> : null}
+    <li>
+      <span className="settings-list__text">
+        <span className="settings-list__title">{row.label}</span>
+        <span className="settings-list__meta">{status}</span>
+        {row.note ? <span className={`settings-list__meta whitespace-pre-line ${wrap}`}>{row.note}</span> : null}
+      </span>
+      {row.added ? (
+        <Key data-tool-id={row.id} size="sm" variant="quiet" aria-label={C.removeName(row.label)} onClick={onRemove}>
+          {C.remove}
+        </Key>
+      ) : canAdd ? (
+        <Key data-tool-id={row.id} size="sm" aria-label={C.addName(row.label)} onClick={onAdd}>
+          {C.add}
+        </Key>
+      ) : null}
     </li>
   );
 }

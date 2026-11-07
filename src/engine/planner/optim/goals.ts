@@ -262,6 +262,7 @@ export interface GoalSystemState {
   floorD: number[];
   bandW: number[];
   baselineSet: boolean;
+  baselineAvailable: boolean[];
 }
 
 /**
@@ -299,7 +300,7 @@ export function rocWeights(K: number): Float64Array {
   return w;
 }
 
-export type GoalStatus = 'active' | 'metAtBaseline' | 'notImprovable';
+export type GoalStatus = 'active' | 'metAtBaseline' | 'notImprovable' | 'unavailable';
 
 export interface GoalScale {
   /** Baseline b (maximised units). */
@@ -379,12 +380,14 @@ export class GoalSystem {
   /** Keep-goal scale in objective units (NaN for other goals). */
   private readonly keepS: Float64Array;
   private baselineSet = false;
+  private readonly baselineAvailable: boolean[];
 
   constructor(goals: readonly GoalSpec[], opts: GoalSystemOptions = {}) {
     if (goals.length === 0) throw new RangeError('GoalSystem: at least one goal');
     this.goals = goals;
     const K = (this.K = goals.length);
     this.weights = rocWeights(K);
+    this.baselineAvailable = Array<boolean>(K).fill(true);
     this.eta = opts.eta ?? DEFAULT_ETA;
     this.boxWeight = opts.boxWeight ?? DEFAULT_BOX_WEIGHT;
     this.quantum = opts.quantum ?? PROVISIONAL_QUANTUM;
@@ -414,7 +417,7 @@ export class GoalSystem {
   // ---- objectives and scales ----
 
   /** Goal objectives f (maximised units) from raw goal functionals (metric units). */
-  objective(raw: ArrayLike<number>, out = new Float64Array(this.K)): Float64Array {
+  objective(raw: ArrayLike<number>, out = new Float64Array(this.K), missing?: ArrayLike<number>): Float64Array {
     if (raw.length !== this.K)
       throw new RangeError(`GoalSystem.objective: expected ${this.K} values, got ${raw.length}`);
     for (let k = 0; k < this.K; k++) {
@@ -425,14 +428,22 @@ export class GoalSystem {
         out[k] = -(Math.max(0, lo - v) / this.bandW[2 * k]! + Math.max(0, v - hi) / this.bandW[2 * k + 1]!);
       } else out[k] = this.sign[k]! * v;
     }
+    // NaN is an explicit unavailable objective, never a compatibility observation. dRaw maps it to the
+    // conservative no-benefit reference (0), including keep and met-at-baseline special cases.
+    const absent = new Set(missing ? Array.from(missing) : []);
+    for (let k = 0; k < this.K; k++) {
+      if (absent.has(k) || !Number.isFinite(raw[k]!) || (this.baselineSet && !this.baselineAvailable[k])) out[k] = NaN;
+    }
     return out;
   }
 
   /** Set the baseline plan's raw functionals (desirability zero). Resets anchors to the baseline. */
-  setBaseline(raw: ArrayLike<number>): Float64Array {
+  setBaseline(raw: ArrayLike<number>, missing?: ArrayLike<number>): Float64Array {
+    const absent = new Set(missing ? Array.from(missing) : []);
+    for (let k = 0; k < this.K; k++) this.baselineAvailable[k] = !absent.has(k) && Number.isFinite(raw[k]!);
     for (let k = 0; k < this.K; k++) {
       const g = this.goals[k]!;
-      if (g.sense !== 'band') continue;
+      if (g.sense !== 'band' || !this.baselineAvailable[k]) continue;
       const { lo, hi, widthLo, widthHi } = g.band!;
       const v = raw[k]!;
       const dist = v < lo ? lo - v : v > hi ? v - hi : 0;
@@ -440,7 +451,7 @@ export class GoalSystem {
       this.bandW[2 * k] = widthLo ?? def;
       this.bandW[2 * k + 1] = widthHi ?? def;
     }
-    const f = this.objective(raw);
+    const f = this.objective(raw, undefined, missing);
     this.b.set(f);
     this.a.set(f);
     this.baselineSet = true;
@@ -466,6 +477,7 @@ export class GoalSystem {
 
   scale(k: number): GoalScale {
     const th = this.theta[k]!;
+    if (!this.baselineAvailable[k]) return { b: NaN, a: NaN, u: NaN, theta: Number.isNaN(th) ? null : th };
     const hasT = !Number.isNaN(th);
     // keep goals: desirability zero `keep` units short of the target, whatever the baseline did
     const ks = this.keepS[k]!;
@@ -483,6 +495,7 @@ export class GoalSystem {
   }
 
   status(k: number): GoalStatus {
+    if (!this.baselineAvailable[k]) return 'unavailable';
     const { b, u, theta } = this.scale(k);
     if (theta !== null && b >= theta) return 'metAtBaseline';
     if (!(u - b > Math.max(TINY, Math.abs(b) * 1e-12))) return 'notImprovable';
@@ -495,9 +508,10 @@ export class GoalSystem {
 
   /** Search desirability d̃ = min(1, (f − b)/(u − b)) — no lower clip (§4.6). Inactive goals: 1 (met) or 0. */
   dRaw(k: number, fk: number): number {
+    if (!Number.isFinite(fk) || !this.baselineAvailable[k]) return 0;
     const st = this.status(k);
     if (st === 'metAtBaseline') return 1;
-    if (st === 'notImprovable') return 0;
+    if (st === 'notImprovable' || st === 'unavailable') return 0;
     const { b, u } = this.scale(k);
     return Math.min(1, (fk - b) / (u - b));
   }
@@ -576,7 +590,7 @@ export class GoalSystem {
    * otherwise L_k = d̃_k(x_k*) − δ_k. Stored in physical units F_k = b + L(u − b). Returns L_k.
    */
   setFloorFrom(k: number, fk: number): number {
-    if (!this.isActive(k)) return NaN;
+    if (!Number.isFinite(fk) || !this.isActive(k)) return NaN;
     const d = this.dRaw(k, fk);
     const reached = this.hasTarget(k) && d >= 1;
     const { b, u } = this.scale(k);
@@ -698,7 +712,9 @@ export class GoalSystem {
 
   /** Single-goal anchor key (S2): (v_S, −(f_g − b)/scale + α·box), `scale` fixed for the run. */
   anchorKey(k: number, s: Scored, scale: number): Key {
-    return [s.vS, -(s.f[k]! - this.b[k]!) / Math.max(scale, TINY) + this.boxWeight * (s.box ?? 0)];
+    const improvement = Number.isFinite(s.f[k]!) && this.baselineAvailable[k]
+      ? (s.f[k]! - this.b[k]!) / Math.max(scale, TINY) : 0;
+    return [s.vS, -improvement + this.boxWeight * (s.box ?? 0)];
   }
 
   /** Provisional key before any floor exists (§4.7.3): (v_S, −q_1 … −q_K, −U), q = ⌊d̃/0.1⌋. */
@@ -764,6 +780,7 @@ export class GoalSystem {
       floorD: Array.from(this.floorD),
       bandW: Array.from(this.bandW),
       baselineSet: this.baselineSet,
+      baselineAvailable: [...this.baselineAvailable],
     };
   }
 
@@ -774,6 +791,7 @@ export class GoalSystem {
     this.floorD.set(st.floorD);
     this.bandW.set(st.bandW);
     this.baselineSet = st.baselineSet;
+    this.baselineAvailable.splice(0, this.K, ...st.baselineAvailable);
   }
 
   // ---- reporting ----

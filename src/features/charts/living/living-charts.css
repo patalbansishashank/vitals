@@ -1,9 +1,21 @@
 /* ==========================================================================
-   Living-mode charts (CHART_SPEC §7.8–7.10, COMPONENTS §13.9): adherence
-   dial, adherence calendar, per-block bars, trend lane, score history.
-   Achromatic states (ink, hollow, dash); colour only on data marks.
+   Living-mode charts (CHART_SPEC §7.8–7.10, COMPONENTS §13.9), Ember, r071 skin:
+   adherence dial, adherence calendar, per-block bars, trend lane, score
+   history (and Progress's lane chart, which borrows these marks). Every chart
+   wears ONE hue (`--lmc-hue`, a category or a domain through
+   `chartHue`); its line is that hue, or ivory on a card with a glow
+   (`--lmc-line`); band and area are hue gradients, the grid is dotted and
+   dim, the end of a line is a glowing dot. Gold is the plan, the selection
+   and the moment, no longer the data trace. States stay achromatic or by
+   shape (hollow, dash, strike); gaps stay gaps. No shadows (the end dot's
+   glow is a mark), tabular numerals throughout.
+   The rules of the `lmc-lv-*` and `lmc-twin` kind that viz.css copies (the
+   contract test pins the two files equal) keep their bodies; the skin
+   re-styles them from a more specific selector in the r071 block below.
    ========================================================================== */
 .lmc-dial {
+  /* the arcs wear the plan's gold unless a caller gives the dial another hue (r071) */
+  --lmc-hue: var(--lm-signal);
   position: relative;
   display: inline-grid;
   justify-items: center;
@@ -27,7 +39,7 @@ path.lmc-dial__arc {
 }
 path.lmc-dial__arc[data-state='done'],
 .lmc-dial__ink {
-  stroke: var(--lm-ink);
+  stroke: var(--lmc-hue);
   stroke-linecap: butt;
 }
 path.lmc-dial__arc[data-state='unknown'] {
@@ -58,8 +70,7 @@ path.lmc-dial__arc[data-state='unknown'] {
 .lmc-dial[data-size='sm'] { --lmc-dial-px: 64px; }
 .lmc-dial[data-size='md'] { --lmc-dial-px: 120px; }
 .lmc-dial__num {
-  font-stretch: 120%;
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums slashed-zero;
   line-height: 1;
   color: var(--lm-ink);
@@ -72,22 +83,22 @@ path.lmc-dial__arc[data-state='unknown'] {
   max-width: calc(var(--lmc-dial-px, 120px) * 0.7);
   font-size: 12px;
   line-height: 1.2;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--lm-ink-2);
   text-align: center;
 }
 .lmc-dial__word,
 .lmc-dial__coverage {
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--lm-ink-2);
   text-align: center;
 }
 
 /* ==========================================================================
    Trend lane, score history, adherence calendar, per-block bars.
-   Tokens only; chrome achromatic; the now-hand and the calendar's today dot
-   are the only yellow. SVG text never below 11 px (REVIEW_FINDINGS #8).
+   Tokens only; chrome achromatic; gold on the data marks and today's date.
+   SVG text never below 11 px (REVIEW_FINDINGS #8).
    ========================================================================== */
 @layer components {
   /* ------------------------------------------------------ shared svg bits */
@@ -101,13 +112,12 @@ path.lmc-dial__arc[data-state='unknown'] {
   .lmc-lv-tick {
     fill: var(--lm-ink-3);
     font-size: 11px;
-    font-stretch: 84%;
     font-variant-numeric: tabular-nums;
   }
   .lmc-lv-eng {
     fill: var(--lm-ink-2);
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 400;
   }
   .lmc-lv-halo {
     paint-order: stroke;
@@ -164,6 +174,7 @@ path.lmc-dial__arc[data-state='unknown'] {
     flex: none;
     overflow: visible;
   }
+  /* the readout bubble (r071): the values first, in the display face's weight, the date last as a mono fact */
   .lmc-lv-tip {
     position: absolute;
     top: 4px;
@@ -172,19 +183,36 @@ path.lmc-dial__arc[data-state='unknown'] {
     gap: 1px;
     min-width: 148px;
     max-width: 240px;
-    padding: 7px 10px;
-    border-radius: var(--lm-radius-md);
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-pop);
+    padding: 8px 12px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-field, 14px);
+    background: var(--lm-elevated);
     pointer-events: none;
     font-size: 12px;
     line-height: 16px;
     color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums slashed-zero;
   }
-  .lmc-lv-tip b {
+  .lmc-lv-tip span {
+    order: 1;
+  }
+  .lmc-lv-tip span:first-of-type {
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
     color: var(--lm-ink);
-    font-weight: 600;
+  }
+  .lmc-lv-tip b {
+    order: 2;
+    margin-top: 3px;
+    color: var(--lm-ink-2);
+    font-family: var(--lm-font-mono);
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
   .lmc-lv-tip[data-side='right'] {
     transform: translateX(10px);
@@ -205,8 +233,6 @@ path.lmc-dial__arc[data-state='unknown'] {
     padding: 3px 8px;
     transform: none;
     border-radius: var(--lm-radius-sm);
-    box-shadow: none;
-    border: 1px solid var(--lm-line);
   }
 
   /* ------------------------------------------------------------ trend lane */
@@ -214,6 +240,12 @@ path.lmc-dial__arc[data-state='unknown'] {
   .lmc-sh {
     position: relative;
     min-width: 0;
+  }
+  .lmc-tl {
+    /* the forecast's line marks (p10 / p90 edges, median): the hue drawn 10 % down onto the card, opaque so both halves
+       of a stroke read the same (3:1 or more on the band wash's brightest alpha and on the card, measured in
+       TrendLane.test: the tide hue is darker than gold was, so it is mixed less). The full hue stays the trend's. */
+    --lmc-tl-forecast: color-mix(in srgb, var(--lmc-hue) 90%, var(--lm-face));
   }
   .lmc-tl__head {
     display: flex;
@@ -250,16 +282,32 @@ path.lmc-dial__arc[data-state='unknown'] {
     outline: 2px solid var(--lm-focus);
     outline-offset: 2px;
   }
+  /* the forecast wash: a vertical hue gradient (the fill is the chart's own gradient, set on the path), edges below */
   .lmc-tl__band {
-    fill: var(--lm-cat-body);
-    fill-opacity: var(--lm-chart-band-alpha);
     stroke: none;
+  }
+  .lmc-lv-legend .lmc-tl__band {
+    fill: var(--lmc-hue);
+    fill-opacity: var(--lm-chart-band-alpha);
+  }
+  .lmc-tl__area {
+    stroke: none;
+  }
+  /* p10 / p90: long dashes, so the range's edges survive greyscale and never read as the solid 2 px trend or the
+     short-dashed stone as-prescribed outline */
+  .lmc-tl__bound {
+    fill: none;
+    stroke: var(--lmc-tl-forecast);
+    stroke-width: 1.5;
+    stroke-dasharray: 6 3;
+    stroke-linecap: butt;
+    stroke-linejoin: round;
   }
   .lmc-tl__p50 {
     fill: none;
-    stroke: var(--lm-cat-body);
+    stroke: var(--lmc-tl-forecast);
     stroke-width: 1;
-    stroke-opacity: 0.5;
+    stroke-linejoin: round;
   }
   .lmc-tl__presc {
     fill: none;
@@ -268,24 +316,25 @@ path.lmc-dial__arc[data-state='unknown'] {
     stroke-dasharray: 3 3;
   }
   .lmc-tl__goal {
-    stroke: var(--lm-ink);
+    stroke: var(--lm-ink-2);
     stroke-width: 1;
     shape-rendering: crispEdges;
   }
+  /* weigh-ins: quiet dots under the trend; an unusual one is hollow and kept */
   .lmc-tl__dot {
-    fill: var(--lm-cat-body);
-    fill-opacity: 0.35;
+    fill: var(--lm-ink-2);
+    fill-opacity: 0.5;
   }
   .lmc-tl__dot--flagged {
-    fill: var(--lm-face);
+    fill: var(--lm-chart-ring);
     fill-opacity: 1;
-    stroke: var(--lm-cat-body);
-    stroke-width: 1;
+    stroke: var(--lm-ink-2);
     stroke-opacity: 0.8;
+    stroke-width: 1;
   }
   .lmc-tl__trend {
     fill: none;
-    stroke: var(--lm-cat-body);
+    stroke: var(--lmc-line, var(--lmc-hue));
     stroke-width: 2;
     stroke-linejoin: round;
     stroke-linecap: round;
@@ -295,14 +344,34 @@ path.lmc-dial__arc[data-state='unknown'] {
     stroke-width: 1;
     shape-rendering: crispEdges;
   }
+  /* today: a dotted stone hand under the data */
   .lmc-tl__now line {
-    stroke: var(--lm-chart-now);
-    stroke-width: 1.5;
+    stroke: var(--lm-ink-2);
+    stroke-opacity: 0.7;
+    stroke-width: 1;
+    stroke-dasharray: 1 3;
+    stroke-linecap: round;
   }
   .lmc-tl__now circle {
-    fill: var(--lm-chart-now);
-    stroke: var(--lm-signal-edge);
+    fill: var(--lm-ink-2);
+  }
+  /* the crosshair: a hairline that fades at both ends (its gradient, below), a dot with a halo on the line */
+  .lmc-tl__xhair,
+  .lmc-sh__xhair {
     stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-xh {
+    stop-color: var(--lm-chart-crosshair);
+    stop-opacity: 1;
+  }
+  .lmc-xh--end {
+    stop-opacity: 0;
+  }
+  .lmc-tl__xhalo,
+  .lmc-sh__xhalo {
+    fill: var(--lmc-hue);
+    fill-opacity: var(--lmc-dot-halo-a, 0.18);
   }
   .lmc-tl__xdot,
   .lmc-sh__xdot {
@@ -310,7 +379,7 @@ path.lmc-dial__arc[data-state='unknown'] {
     stroke-width: 2;
   }
   .lmc-tl__xdot {
-    fill: var(--lm-cat-body);
+    fill: var(--lmc-line, var(--lmc-hue));
   }
   .lmc-tl__bar {
     stroke: var(--lm-ink-2);
@@ -326,44 +395,51 @@ path.lmc-dial__arc[data-state='unknown'] {
   }
 
   /* --------------------------------------------------------- score history */
+  /* the category's hue (the component sets --lmc-sh-hue from it; a page may override it); the line is that hue, ivory on
+     a card with a glow */
   .lmc-sh {
     --lmc-sh-hue: var(--lm-cat-recovery);
+    --lmc-hue: var(--lmc-sh-hue);
   }
   .lmc-sh__mean {
     fill: none;
-    stroke: var(--lmc-sh-hue);
+    stroke: var(--lmc-line, var(--lmc-hue));
     stroke-width: 2;
     stroke-linejoin: round;
     stroke-linecap: round;
   }
   .lmc-sh__join {
-    stroke: var(--lmc-sh-hue);
+    stroke: var(--lmc-line, var(--lmc-hue));
     stroke-width: 2;
     stroke-dasharray: 3 3;
   }
   .lmc-sh__night {
-    fill: var(--lmc-sh-hue);
-    fill-opacity: 0.35;
+    fill: var(--lmc-hue);
+    fill-opacity: 0.4;
   }
+  /* a personal normal range is a reference, not a series' likely range: it stays achromatic (a hue never reads as "good") */
   .lmc-sh__normal {
     fill: var(--lm-ink);
-    fill-opacity: 0.12;
+    fill-opacity: 0.1;
+    stroke: none;
+  }
+  .lmc-sh__area {
     stroke: none;
   }
   .lmc-sh__compare {
     fill: none;
-    stroke: var(--lmc-sh-hue);
+    stroke: var(--lmc-hue);
     stroke-width: 1.5;
     stroke-dasharray: 4 3;
   }
   .lmc-sh__xdot {
-    fill: var(--lmc-sh-hue);
+    fill: var(--lmc-line, var(--lmc-hue));
   }
 
   /* ------------------------------------------------------------ table twin */
   .lmc-twin {
     margin-top: 10px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lmc-twin__bar {
     display: flex;
@@ -379,7 +455,7 @@ path.lmc-dial__arc[data-state='unknown'] {
   .lmc-twin__wrap {
     max-height: 320px;
     overflow: auto;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lmc-twin__wrap:focus-visible {
     outline: 2px solid var(--lm-focus);
@@ -391,13 +467,12 @@ path.lmc-dial__arc[data-state='unknown'] {
     width: max-content;
     min-width: 100%;
     font-size: var(--lm-text-sm);
-    font-stretch: 84%;
     font-variant-numeric: tabular-nums slashed-zero;
   }
   .lmc-twin__table th,
   .lmc-twin__table td {
     padding: 5px 10px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
     white-space: nowrap;
     text-align: right;
     color: var(--lm-ink);
@@ -407,8 +482,7 @@ path.lmc-dial__arc[data-state='unknown'] {
     top: 0;
     z-index: 2;
     background: var(--lm-face);
-    font-weight: 600;
-    font-stretch: 100%;
+    font-weight: 500;
     vertical-align: bottom;
   }
   .lmc-twin__table thead th small {
@@ -428,9 +502,13 @@ path.lmc-dial__arc[data-state='unknown'] {
   .lmc-twin__table thead th:first-child {
     z-index: 3;
   }
+  /* r068 L15: a date is one line ("Fri 2") */
+  .lmc-twin__table .lmc-twin__date {
+    white-space: nowrap;
+  }
   .lmc-twin__table td:last-child,
   .lmc-twin__table thead th:last-child {
-    text-align: left;
+    text-align: right;
   }
   .lmc-twin__table td small,
   .lmc-twin__table th[scope='row'] small {
@@ -450,10 +528,10 @@ path.lmc-dial__arc[data-state='unknown'] {
   .lmc-cal__caption {
     margin-bottom: 6px;
   }
+  /* the grid spans its container; each day keeps a compact key centred in its column */
   .lmc-cal__grid {
     display: grid;
     gap: 2px;
-    max-width: 560px;
   }
   .lmc-cal__row {
     display: grid;
@@ -476,6 +554,8 @@ path.lmc-dial__arc[data-state='unknown'] {
     align-content: center;
     gap: 2px;
     width: 100%;
+    max-width: 56px;
+    margin-inline: auto;
     min-height: var(--lm-hit-touch);
     padding: 3px 0;
     border: 1px solid transparent;
@@ -496,43 +576,92 @@ path.lmc-dial__arc[data-state='unknown'] {
       background var(--lm-dur-fast) var(--lm-ease-out),
       border-color var(--lm-dur-fast) var(--lm-ease-out);
   }
-  .lmc-cal__day:hover {
-    background: var(--lm-well);
+  @media (hover: hover) {
+    .lmc-cal__day:hover {
+      background: var(--lm-face-hover);
+    }
   }
   .lmc-cal__day:focus-visible {
     outline: 2px solid var(--lm-focus);
     outline-offset: 1px;
   }
   .lmc-cal__day[data-selected='true'] {
-    border-color: var(--lm-ink);
+    background: var(--lm-gold-wash);
+    border-color: var(--lm-gold-edge);
+  }
+  /* today: the date in gold (no indicator dot) */
+  .lmc-cal__day[data-today='true'] .lmc-cal__num {
+    color: var(--lm-signal);
+    font-weight: 500;
   }
   .lmc-cal__num {
     font-size: 12px;
     line-height: 14px;
-    font-weight: 500;
-    font-stretch: 84%;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
+  /* the mark slot: a 26 px heat dot for a scored day, a smaller shape for every other state (shape, never colour alone) */
   .lmc-cal__mark {
     display: grid;
     place-items: center;
-    width: 16px;
-    height: 16px;
+    width: 26px;
+    height: 26px;
   }
   .lmc-cal__mark svg {
     display: block;
+  }
+  .lmc-cal__heat {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--lm-radius-full);
+    /* the hue at the day's heat over the card: brighter is more of the plan done */
+    background: color-mix(in oklab, var(--lmc-hue) calc(var(--lmc-heat, 0.5) * 100%), transparent);
+  }
+  /* a day still being filled in ("so far") keeps its heat but not its edge: a thin inner ring in the hue */
+  .lmc-cal__heat[data-final='false'] {
+    box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--lmc-hue) 70%, transparent);
+    background: color-mix(in oklab, var(--lmc-hue) calc(var(--lmc-heat, 0.5) * 55%), transparent);
   }
   .lmc-cal__hollow {
     fill: none;
     stroke: var(--lm-ink-3);
     stroke-width: 1;
   }
+  /* logged, not scored: a small filled dot */
+  .lmc-cal__logged {
+    fill: var(--lm-ink-2);
+  }
+  /* filled in as planned: a dashed ring, not scored */
+  .lmc-cal__assumed {
+    fill: none;
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+    stroke-dasharray: 2 2;
+  }
+  .lmc-cal__todayring {
+    fill: none;
+    stroke: var(--lm-signal);
+    stroke-width: 1.5;
+  }
   .lmc-cal__strike {
     stroke: var(--lm-ink-3);
     stroke-width: 1;
   }
-  .lmc-cal__day--assumed {
-    border: 1px dashed var(--lm-edge);
+  /* today on a scored day: the date is gold (above) and the dot wears a gold ring */
+  .lmc-cal__day[data-today='true'] .lmc-cal__heat {
+    outline: 1.5px solid var(--lm-signal);
+    outline-offset: 1px;
+  }
+  /* first view: the rows fade in one after another, 20 ms apart; removing data-reveal IS the animation */
+  .lmc-cal__row {
+    transition:
+      opacity 320ms var(--lm-ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+      transform 320ms var(--lm-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+    transition-delay: calc(var(--lmc-row, 0) * 20ms);
+  }
+  .lmc-cal[data-reveal='pending'] .lmc-cal__row:not(:first-child) {
+    opacity: 0;
+    transform: translateY(4px);
   }
   .lmc-cal__day--paused .lmc-cal__num {
     color: var(--lm-ink-2);
@@ -541,19 +670,9 @@ path.lmc-dial__arc[data-state='unknown'] {
     color: var(--lm-ink-3);
     font-weight: 400;
   }
-  /* the indicator dot sits just right of the date number, whatever the cell width */
-  .lmc-cal__now {
-    position: absolute;
-    top: 6px;
-    left: calc(50% + 9px);
-    width: 6px;
-    height: 6px;
-    border-radius: var(--lm-radius-full);
-    background: var(--lm-signal);
-    border: 1px solid var(--lm-signal-edge);
-  }
 
   /* ------------------------------------------------------- per-block bars */
+  /* BlockBars draws a ShareBar (SPEC A.3.3); these rules keep its look: one row of label · 6 px track · value */
   .lmc-bb {
     --lmc-bb-label: 76px;
     --lmc-bb-value: 76px;
@@ -562,95 +681,68 @@ path.lmc-dial__arc[data-state='unknown'] {
   .lmc-bb__cap {
     margin-bottom: 6px;
   }
-  .lmc-bb__list {
-    display: grid;
+  .lmc-bb .lmv-share__list {
     gap: 2px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
   }
-  .lmc-bb__row,
-  .lmc-bb__scale {
-    display: grid;
+  .lmc-bb .lmv-share__row {
     grid-template-columns: var(--lmc-bb-label) minmax(0, 1fr) var(--lmc-bb-value);
     align-items: center;
     gap: 10px;
+    min-height: 32px;
+    padding: 0;
   }
-  .lmc-bb__row {
-    min-height: 28px;
+  .lmc-bb .lmv-share__line {
+    display: contents;
   }
-  .lmc-bb__label {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
+  .lmc-bb .lmv-share__sw,
+  .lmc-bb .lmv-share__pct {
+    display: none;
+  }
+  .lmc-bb .lmv-share__name {
+    grid-column: 1;
+    grid-row: 1;
+    flex: none;
+    overflow: visible;
+    white-space: normal;
     overflow-wrap: anywhere;
-  }
-  .lmc-bb__track {
-    position: relative;
-    height: 8px;
-    border-radius: 2px;
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-  }
-  .lmc-bb__fill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    border-radius: 2px;
-    background: var(--lm-ink);
-  }
-  /* printed scale ticks under the track (0 · 50 · 100) — a scale, not a target */
-  .lmc-bb__tick {
-    position: absolute;
-    top: 100%;
-    width: 1px;
-    height: 3px;
-    margin-left: -0.5px;
-    background: var(--lm-ink-3);
-  }
-  .lmc-bb__value {
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
-    font-weight: 600;
-    font-stretch: 112%;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lmc-bb .lmv-share__track {
+    grid-column: 2;
+    grid-row: 1;
+    height: 6px;
+    background: var(--lm-elevated);
+  }
+  .lmc-bb .lmv-share__value {
+    grid-column: 3;
+    grid-row: 1;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    font-weight: 500;
     font-variant-numeric: tabular-nums slashed-zero;
     color: var(--lm-ink);
   }
-  .lmc-bb__row[data-known='false'] .lmc-bb__value,
-  .lmc-bb[data-quiet='true'] .lmc-bb__value {
-    font-weight: 500;
-    font-stretch: 100%;
+  /* "Not logged" and the quiet words: secondary, one line */
+  .lmc-bb .lmv-share__row[data-unknown] .lmv-share__value,
+  .lmc-bb[data-quiet='true'] .lmv-share__value {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
-  .lmc-bb__scale {
-    height: 16px;
-    margin-top: 2px;
-  }
-  .lmc-bb__nums {
-    position: relative;
-    height: 16px;
-  }
-  .lmc-bb__nums b {
-    position: absolute;
-    top: 2px;
-    transform: translateX(-50%);
-    font-size: 11px;
-    line-height: 14px;
-    font-weight: 400;
-    font-stretch: 84%;
-    font-variant-numeric: tabular-nums;
-    color: var(--lm-ink-3);
-  }
-  .lmc-bb__nums b:first-child {
-    transform: none;
-  }
-  .lmc-bb__nums b:last-child {
-    transform: translateX(-100%);
+  /* (r068 V12) the percent column ends on one edge ("100 %" no longer sticks out) */
+  .lmc-bb .lmv-share__value {
+    justify-self: end;
+    text-align: end;
   }
   .lmc-bb__cost {
     margin: 8px 0 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
   }
   @media (max-width: 420px) {
     .lmc-bb {
@@ -659,15 +751,171 @@ path.lmc-dial__arc[data-state='unknown'] {
     }
   }
 
+  /* ==========================================================================
+     The r071 skin: what every SVG chart shares (skin.tsx writes the markup, these rules draw it).
+     ========================================================================== */
+  /* one hue per chart: the component sets --lmc-hue (a category or domain token); the line is that hue */
+  .lmc-skin {
+    --lmc-hue: var(--lm-cat-body);
+    --lmc-line: var(--lmc-hue);
+    --lmc-draw: 700ms;
+  }
+  /* on a card with a glow the focal marks are ivory (RESEARCH §3.2: the energy solid is 1.8:1 on its own glow), and the
+     hue lives in the glow, the band, the area and the dot's halo. Stone text on a glow is --lm-ink-2, never --lm-ink-3. */
+  .lm-gcard[data-domain]:not([data-domain='neutral']) .lmc-skin {
+    --lmc-line: var(--lm-ink);
+    --lmc-tl-forecast: color-mix(in srgb, var(--lm-ink) 70%, transparent);
+  }
+  .lm-gcard[data-domain]:not([data-domain='neutral']) .lmc-skin .lmc-lv-tick {
+    fill: var(--lm-ink-2);
+  }
+
+  /* gridlines: dotted and dim (decoration, never a data mark); the baseline a little firmer. One selector more than the
+     shared lmc-lv-grid / lmc-lv-axis rules that viz.css copies, so those keep their bodies and every chart drawn in the
+     lmc-lv-svg chrome (the Ring's too) takes the skin. */
+  .lmc-lv-svg .lmc-lv-grid {
+    stroke: var(--lm-ink);
+    stroke-opacity: var(--lmc-grid-a, 0.1);
+    stroke-dasharray: 1 3;
+  }
+  .lmc-lv-svg .lmc-lv-axis {
+    stroke: var(--lm-ink);
+    stroke-opacity: 0.14;
+  }
+
+  /* printed ticks and the engraved labels are facts: mono caps (RESEARCH §2.3), 11 px, ink-3 / ink-2 */
+  .lmc-skin .lmc-lv-tick,
+  .lmc-skin .lmc-lv-eng {
+    font-family: var(--lm-font-mono);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* the vertical gradients (SkinGradients): the hue at the line fading to nothing; a band is a quiet 0.24 to 0.10 */
+  .lmc-skin .lmc-grad {
+    stop-color: var(--lmc-hue);
+  }
+  .lmc-skin .lmc-grad--area-top {
+    stop-opacity: var(--lmc-area-top, 0.26);
+  }
+  .lmc-skin .lmc-grad--area-end {
+    stop-opacity: 0;
+  }
+  .lmc-skin .lmc-grad--band-top {
+    stop-opacity: var(--lmc-band-top, 0.24);
+  }
+  .lmc-skin .lmc-grad--band-end {
+    stop-opacity: var(--lmc-band-end, 0.1);
+  }
+
+  /* the end of a line: halo, one soft glow (a mark, not a surface), a 2 px surface ring and the dot */
+  .lmc-end {
+    filter: drop-shadow(0 0 var(--lmc-dot-glow-r, 6px) color-mix(in srgb, var(--lmc-hue) calc(var(--lmc-dot-glow-a, 0.45) * 100%), transparent));
+  }
+  .lmc-end__halo {
+    fill: var(--lmc-hue);
+    fill-opacity: var(--lmc-dot-halo-a, 0.18);
+  }
+  .lmc-end__ring {
+    fill: none;
+    stroke: var(--lm-chart-ring);
+    stroke-width: 2;
+  }
+  .lmc-end__dot {
+    fill: var(--lmc-line, var(--lmc-hue));
+  }
+  .lmc-end[data-hollow] .lmc-end__dot {
+    fill: var(--lm-chart-ring);
+    stroke: var(--lmc-line, var(--lmc-hue));
+    stroke-width: 1.5;
+  }
+  /* the pulse: a ring leaves the dot and fades, twice (2.4 s each, 4.8 s in all), once the line has drawn */
+  .lmc-end__pulse {
+    fill: none;
+    stroke: var(--lmc-line, var(--lmc-hue));
+    stroke-width: 1.5;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: lmc-end-pulse var(--lmc-pulse-dur, 2.4s) ease-out var(--lm-pulse-cycles, 2) both;
+    animation-delay: var(--lmc-draw, 700ms);
+  }
+  @keyframes lmc-end-pulse {
+    from {
+      transform: scale(1);
+      opacity: 0.45;
+    }
+    to {
+      transform: scale(1.9);
+      opacity: 0;
+    }
+  }
+
+  /* first view: the data wipes in left to right (a clip reveal; the markup is the same before and after, only the
+     attribute on the chart's root changes). Never animated: the gradient itself. */
+  .lmc-draw {
+    clip-path: inset(-12px -12px -12px 0);
+    transition: clip-path var(--lmc-draw, 700ms) var(--lm-ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+  }
+  [data-reveal='pending'] .lmc-draw {
+    clip-path: inset(-12px 100% -12px 0);
+  }
+
+  /* the one word a band needs on a card (the legend row is off there) */
+  .lmc-tl__bandword {
+    fill: var(--lm-ink-2);
+  }
+
+  /* no glow, no pulse under more contrast or reduced motion; forced colours below */
+  @media (prefers-contrast: more) {
+    .lmc-end {
+      filter: none;
+    }
+    .lmc-end__halo,
+    .lmc-end__pulse {
+      display: none;
+    }
+  }
+  :root[data-contrast='more'] .lmc-end,
+  :root[data-contrast='high'] .lmc-end {
+    filter: none;
+  }
+  :root[data-contrast='more'] :is(.lmc-end__halo, .lmc-end__pulse),
+  :root[data-contrast='high'] :is(.lmc-end__halo, .lmc-end__pulse) {
+    display: none;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion='full']) .lmc-end__pulse {
+      display: none;
+    }
+    :root:not([data-motion='full']) .lmc-draw,
+    :root:not([data-motion='full']) .lmc-cal__row {
+      transition: none;
+    }
+  }
+  :root[data-motion='reduce'] .lmc-end__pulse {
+    display: none;
+  }
+  :root[data-motion='reduce'] :is(.lmc-draw, .lmc-cal__row) {
+    transition: none;
+  }
+
   /* -------------------------------------------- forced colours (§9) */
   @media (forced-colors: active) {
-    .lmc-tl__band,
+    /* the wash drops out; the dashed p10 / p90 edges carry the range on their own */
+    .lmc-tl__band {
+      fill: none;
+      stroke: none;
+    }
     .lmc-sh__normal {
       fill: none;
       stroke: CanvasText;
       stroke-width: 1;
     }
     .lmc-tl__trend,
+    .lmc-tl__bound,
+    .lmc-tl__p50,
     .lmc-sh__mean,
     .lmc-sh__join,
     .lmc-sh__compare,
@@ -678,16 +926,47 @@ path.lmc-dial__arc[data-state='unknown'] {
     .lmc-sh__night {
       fill: CanvasText;
     }
+    /* no wash, no area, no glow, no pulse; the end dot and its ring stay in system colours */
+    .lmc-tl__area,
+    .lmc-sh__area,
+    .lmc-end__halo,
+    .lmc-end__pulse,
+    .lmc-tl__xhalo,
+    .lmc-sh__xhalo {
+      display: none;
+    }
+    .lmc-end {
+      filter: none;
+    }
+    .lmc-end__dot {
+      fill: CanvasText;
+    }
+    .lmc-end__ring {
+      stroke: Canvas;
+    }
+    .lmc-lv-svg .lmc-lv-grid {
+      stroke: GrayText;
+      stroke-opacity: 1;
+    }
+    .lmc-cal__heat {
+      forced-color-adjust: none;
+      background: CanvasText;
+    }
+    .lmc-cal__assumed,
+    .lmc-cal__todayring {
+      stroke: CanvasText;
+    }
     .lmc-tl__now line,
     .lmc-lv-xhair {
       stroke: Highlight;
     }
-    .lmc-tl__now circle,
-    .lmc-cal__now {
+    .lmc-tl__now circle {
       fill: Highlight;
-      background: Highlight;
     }
-    .lmc-bb__fill {
+    .lmc-cal__day[data-today='true'] .lmc-cal__num {
+      color: Highlight;
+    }
+    .lmc-bb .lmv-share__fill {
       background: CanvasText;
     }
   }

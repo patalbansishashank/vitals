@@ -5,6 +5,12 @@ export const DOWNLOADS = {
   title: 'Get the app',
   keepWebsite: 'Or keep using the website',
   version: (v: string) => `Version ${v}`,
+  /** Settings › Install: the download's release, which may trail the version running here. */
+  downloadVersion: (v: string) => `Release ${v}`,
+  runningVersion: (v: string) => `You run ${v}`,
+  installHelp: (system: string) => `About installing on ${system}`,
+  installTitle: (system: string) => `Install on ${system}`,
+  download: 'Download',
   onlySystem: (label: string) => `Download for ${label}`,
   otherSystems: 'Other systems',
   chooseSystem: 'Choose your system',

@@ -1,5 +1,8 @@
+import { lazy, Suspense } from 'react';
 import { useDesktopMcpHost } from '@/features/settings/agents/desktopMcpHost';
 import { useWebMcpRegistration } from './webmcp';
+
+const PlannerRequestPublisher = lazy(() => import('@/features/planner/RequestPublisher'));
 
 /**
  * Keeps the agent surfaces of this tab running for as long as the app is open: WebMCP registration, only while its
@@ -10,5 +13,5 @@ import { useWebMcpRegistration } from './webmcp';
 export function AgentSurfaces() {
   useWebMcpRegistration();
   useDesktopMcpHost();
-  return null;
+  return <Suspense fallback={null}><PlannerRequestPublisher /></Suspense>;
 }

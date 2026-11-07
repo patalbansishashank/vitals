@@ -6,30 +6,62 @@
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createAgentRoutes, type AgentRoutesOptions } from './agentsRemote.ts';
+import type { CoachConfig } from './coach/config.ts';
+import { createCoachRoutes } from './coach/routes.ts';
+import { createCoach, type CoachCaller, type CoachOptions, type CoachTokens } from './coach/sessions.ts';
 import type { ResolvePerson, TokenStore } from './personContext.ts';
 import { createProviderRoutes, type ProviderRoutesOptions } from './providers.ts';
 import { createRedactingLogger, sendJson, type Logger } from './security.ts';
 
-export interface ServerAiOptions extends Omit<ProviderRoutesOptions, 'log'>, Omit<AgentRoutesOptions, 'log' | 'resolvePerson' | 'now'> {
+/** The server coach (`/v1/coach/*`), when the home role mounts it. */
+export interface ServerCoachOptions {
+  cfg: CoachConfig;
+  /** Vitals device and Gauge lumen tokens → the caller; throws CoachError (401/403) otherwise. */
+  resolve: (req: IncomingMessage) => Promise<CoachCaller>;
+  /** The coach's tokens; `closeMcp` closes a removed token's open MCP sessions. */
+  tokens: (closeMcp: (tokenId: string) => Promise<void>) => CoachTokens;
+  mcpUrl: () => string | null;
+  now?: () => number;
+  backends?: CoachOptions['backends'];
+}
+
+export interface ServerAiOptions extends Omit<ProviderRoutesOptions, 'log'>, Omit<AgentRoutesOptions, 'log' | 'resolvePerson' | 'now' | 'onToolCall'> {
   resolvePerson: ResolvePerson;
   tokens: TokenStore;
   log: Logger;
+  coach?: ServerCoachOptions;
 }
 
 export function createServerAi(opts: ServerAiOptions) {
   const providers = createProviderRoutes(opts);
-  const agents = createAgentRoutes(opts);
+  let observe: AgentRoutesOptions['onToolCall'];
+  const agents = createAgentRoutes({ ...opts, onToolCall: (e) => observe?.(e) });
+  const coach = opts.coach
+    ? createCoach({
+        cfg: opts.coach.cfg,
+        tokens: opts.coach.tokens((id) => agents.revokeToken(id)),
+        mcpUrl: opts.coach.mcpUrl,
+        log: opts.log,
+        ...(opts.coach.now ? { now: opts.coach.now } : {}),
+        ...(opts.coach.backends ? { backends: opts.coach.backends } : {}),
+      })
+    : null;
+  if (coach) observe = (e) => coach.onToolCall(e);
+  const coachRoutes = coach && opts.coach ? createCoachRoutes({ coach, resolve: opts.coach.resolve, log: opts.log }) : null;
   return {
     mcpUrl: agents.mcpUrl,
     providers,
     agents,
-    owns: (path: string) => providers.owns(path) || agents.owns(path),
+    coach,
+    owns: (path: string) => providers.owns(path) || agents.owns(path) || Boolean(coachRoutes?.owns(path)),
     async handle(req: IncomingMessage, res: ServerResponse, path: string, query = ''): Promise<void> {
       if (providers.owns(path)) return providers.handle(req, res, path, query);
+      if (coachRoutes?.owns(path)) return coachRoutes.handle(req, res, path);
       return agents.handle(req, res, path);
     },
     async close() {
       providers.close();
+      await coach?.close();
       await agents.close();
     },
   };

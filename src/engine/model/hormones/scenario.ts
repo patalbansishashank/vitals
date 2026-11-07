@@ -4,6 +4,7 @@
  * uses it (dossier reference subjects rarely state all inputs).
  */
 import type { PersonProfile, ResolvedProfile } from '../../types/profile';
+import type { DayInput } from '../../types/inputs';
 import { DayDriver, makeProfile } from './testHarness';
 
 export interface DietDay {
@@ -34,6 +35,12 @@ export interface DietDay {
   ffmKg?: number;
   /** Expenditure proportional to tissue mass: TEE = TEE0·W/W0 (weight-loss studies lasting months). */
   teeScalesWithWeight?: boolean;
+  /**
+   * true: a realised day whose energy intake and intentional exercise were fully logged (channel coverage complete); false:
+   * a prescribed day, which carries no coverage and is never known energy history (A1-056). Absent: the day's coverage is
+   * left as it is.
+   */
+  logged?: boolean;
 }
 
 export class Scenario {
@@ -91,6 +98,8 @@ export class Scenario {
     const fat = Math.max(0, (rest - 4 * carbC) / 9);
     const dr = this.dr;
     dr.setIntake({ proteinG: protein, carbG: carbC, fatG: fat, fibreG: fibre, energyKcal: ei, alcoholG: alcohol, nMeals: d.fasting ? 0 : (d.nMeals ?? 3) });
+    if (d.logged === true) (dr.day as { coverage?: DayInput['coverage'] }).coverage = { energy: 'complete', exercise: 'complete' };
+    else if (d.logged === false) delete (dr.day as { coverage?: DayInput['coverage'] }).coverage;
     const bus = dr.bus;
     bus.energyBalanceFrac = Math.max(-1, Math.min(1, (ei - tee) / tee));
     bus.tdeeEstKcalD = tee;

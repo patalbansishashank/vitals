@@ -22,6 +22,8 @@ import {
 import { FOOD_FIXTURE, SEED_CATALOGUE as C, SEED_EXERCISES, SEED_INPUT } from '@/content/catalogues';
 import { leak } from '@/content/evidence/__tests__/leakScan';
 import { CTX, lcg } from './helpers';
+import { EQUIVALENCE_SCORING_VERSION, strengthAssignment } from '@/catalogues/equivalence';
+import type { StrengthWork } from '@/catalogues/types';
 
 const DB_BENCH: PerformedExercise = { exerciseId: 'db_bench_press', setCount: 3, reps: 10, rir: 2 };
 
@@ -235,5 +237,85 @@ describe('validateDraft bounds (V1e-12)', () => {
     expect(validateDraft({ ...base(), regions: {}, loadType: 'cardio', hybridCardioShare: 1 })).not.toContain('regions is empty');
     expect(validateDraft({ ...base(), metGross: 24.9 })).toContain('metGross must be in [1, 20]');
     expect(validateDraft({ ...base(), metGross: 20 })).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------- D3-02 strength assignment */
+
+
+describe('D3-02 capacity-constrained strength credit (practice completion, not predicted strength)', () => {
+  const squat = (sets: number, loadPct = 85, over: Partial<StrengthWork> = {}): StrengthWork => ({ pattern: 'squat', implement: 'bar', sets, loadPct, exerciseId: 'back_squat', rom: 'full', ...over });
+  const hinge = (sets: number, loadPct = 85, over: Partial<StrengthWork> = {}): StrengthWork => ({ pattern: 'hinge', implement: 'bar', sets, loadPct, exerciseId: 'romanian_deadlift', rom: 'full', ...over });
+
+  it('same task: 1 of 10 prescribed sets → 0.1, none → 0, all 10 → 1', () => {
+    expect(strengthAssignment([squat(10)], [squat(1)]).ratio).toBeCloseTo(0.1, 12);
+    expect(strengthAssignment([squat(10)], []).ratio).toBe(0);
+    expect(strengthAssignment([squat(10)], [squat(0)]).ratio).toBe(0);
+    expect(strengthAssignment([squat(10)], [squat(10)]).ratio).toBeCloseTo(1, 12);
+    expect(strengthAssignment([squat(10)], [squat(10)]).transfer).toBe('exact');
+  });
+
+  it('an empty prescription is an absent term; a non-empty prescription with zero performed sets scores 0', () => {
+    expect(strengthAssignment([], [squat(5)])).toMatchObject({ present: false, ratio: 1 });
+    expect(strengthAssignment([squat(3)], [])).toMatchObject({ present: true, ratio: 0, transfer: 'none' });
+  });
+
+  it('one performed group cannot complete two prescribed groups (no duplicate capacity)', () => {
+    const a = strengthAssignment([squat(3), squat(3, 85, { exerciseId: 'back_squat' })], [squat(3)]);
+    expect(a.ratio).toBeCloseTo(0.5, 12);
+    expect(a.allocations.reduce((s, x) => s + x.sets, 0)).toBeCloseTo(3, 12);
+    const used = new Map<number, number>();
+    for (const x of a.allocations) used.set(x.log, (used.get(x.log) ?? 0) + x.sets);
+    expect(used.get(0)).toBeLessThanOrEqual(3 + 1e-12);
+  });
+
+  it('one performed set against ten prescribed gives at most 10 % even for the exact task', () => {
+    const a = strengthAssignment([squat(10)], [squat(1)]);
+    expect(a.matched).toBeLessThanOrEqual(1 + 1e-12);
+    expect(a.ratio).toBeLessThanOrEqual(0.1 + 1e-12);
+  });
+
+  it('permutation and duplicate splitting leave the score unchanged; scores stay in [0, 1]', () => {
+    const pre = [squat(4), hinge(3), squat(2, 70, { exerciseId: 'front_squat' })];
+    const log = [hinge(2), squat(3, 90), squat(1, 60, { exerciseId: 'goblet_squat', implement: 'handheld' })];
+    const base = strengthAssignment(pre, log).ratio;
+    expect(strengthAssignment([...pre].reverse(), [...log].reverse()).ratio).toBeCloseTo(base, 12);
+    const split = [hinge(1), hinge(1), squat(1.5, 90), squat(1.5, 90), squat(1, 60, { exerciseId: 'goblet_squat', implement: 'handheld' })];
+    expect(strengthAssignment(pre, split).ratio).toBeCloseTo(base, 12);
+    expect(base).toBeGreaterThanOrEqual(0);
+    expect(base).toBeLessThanOrEqual(1);
+  });
+
+  it('pattern + implement alone is not the same task: a different identified squat gets heuristic credit, labelled', () => {
+    const a = strengthAssignment([squat(3)], [squat(3, 85, { exerciseId: 'front_squat' })]);
+    expect(a.ratio).toBeLessThan(1);
+    expect(a.transfer).toBe('heuristic');
+    expect(a.allocations[0]!.basis).toBe('heuristic');
+    expect(a.version).toBe(EQUIVALENCE_SCORING_VERSION);
+  });
+
+  it('the optimum matches an exhaustive search on small integer instances (greedy matching is not enough)', () => {
+    const rnd = lcg(20261018);
+    const pool: StrengthWork[] = [squat(1), squat(1, 60), squat(1, 85, { exerciseId: 'front_squat' }), hinge(1), hinge(1, 40), squat(1, 85, { pattern: 'lunge', exerciseId: 'split_squat', implement: 'handheld' })];
+    const pick = (): StrengthWork => ({ ...pool[Math.floor(rnd() * pool.length)]!, sets: 1 + Math.floor(rnd() * 3) });
+    for (let trial = 0; trial < 40; trial++) {
+      const pre = [pick(), pick()];
+      const log = [pick(), pick()];
+      // exhaustive: per-pair integer sets x[l][p] within capacities, credit from single-pair runs
+      const credit = log.map((l) => pre.map((p) => strengthAssignment([{ ...p, sets: 1 }], [{ ...l, sets: 1 }]).matched));
+      let best = 0;
+      for (let a = 0; a <= Math.min(log[0]!.sets, pre[0]!.sets); a++)
+        for (let b = 0; b <= Math.min(log[0]!.sets - a, pre[1]!.sets); b++)
+          for (let c = 0; c <= Math.min(log[1]!.sets, pre[0]!.sets - a); c++)
+            for (let d = 0; d <= Math.min(log[1]!.sets - c, pre[1]!.sets - b); d++) best = Math.max(best, a * credit[0]![0]! + b * credit[0]![1]! + c * credit[1]![0]! + d * credit[1]![1]!);
+      expect(strengthAssignment(pre, log).matched).toBeCloseTo(best, 9);
+    }
+  });
+
+  it('stimulusEquivalence carries the assignment: zero performed strength sets give no strength credit', () => {
+    const pre = vectorOf([{ exerciseId: 'back_squat', setCount: 5, reps: 3, pct1RM: 88, rir: 1 }], C, CTX);
+    const none = vectorOf([{ exerciseId: 'back_squat', setCount: 0, reps: 3, pct1RM: 88, rir: 1 }], C, CTX);
+    const str = stimulusEquivalence(pre, none, intentFor('strength')).perTerm.find((t) => t.term === 'str');
+    if (str) expect(str.ratio).toBe(0);
   });
 });

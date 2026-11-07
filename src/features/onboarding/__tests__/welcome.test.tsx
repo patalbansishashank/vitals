@@ -9,6 +9,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { routes } from '@/app/App';
+import { paths } from '@/app/paths';
 import { useSafetyStore } from '@/state/safetyStore';
 import { ACK_VERSIONS } from '../copy';
 import { STANDARD_ANSWERS, seedClearedSafety } from '../testing';
@@ -40,7 +41,7 @@ describe('route guard', () => {
   it('sends first-run visitors from "/" and from the instrument routes to /welcome', async () => {
     for (const path of ['/', '/body', '/simulate', '/plan/goals']) {
       const r = renderAt(path);
-      expect(await screen.findByRole('heading', { level: 1, name: 'See what a plan does before you live it.' })).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { level: 1, name: 'Plan your food, fasting and training, then live it day by day.' })).toBeInTheDocument();
       expect(r.state.location.pathname).toBe('/welcome');
       document.body.innerHTML = '';
     }
@@ -59,12 +60,13 @@ describe('route guard', () => {
     }
   });
 
-  it('lets a returning user through and sends "/" to the last screen', async () => {
+  // 0.6.3: "/" is Today in every mode; the last screen no longer decides where the app opens (it used to reopen it)
+  it('lets a returning user through and sends "/" to Today, whatever the last screen was', async () => {
     act(() => seedClearedSafety());
     localStorage.setItem('vitals.ui.lastRoute', JSON.stringify({ state: '/plan', version: 1 }));
     const r = renderAt('/');
-    await screen.findByRole('heading', { level: 1, name: /^Plan(ner)?$/ }, { timeout: 8000 }); // context bar reads "Plan"; the lazy Planner chunk is large
-    expect(r.state.location.pathname).toMatch(/^\/plan/); // /plan redirects to /plan/goals (IA §2)
+    await screen.findByRole('heading', { level: 1, name: 'Today' }, { timeout: 8000 });
+    expect(r.state.location.pathname).toBe('/today');
   });
 
   it('shows the hard stop to under-18s on every guarded route, with Evidence still open', async () => {
@@ -132,15 +134,40 @@ describe('first-run flow (a11y + keyboard)', () => {
   it('walks intro → screening → consent → Your body with labelled controls and focus on each heading', async () => {
     const user = userEvent.setup();
     const r = renderAt('/');
-    const intro = await screen.findByRole('heading', { level: 1, name: 'See what a plan does before you live it.' });
+    const intro = await screen.findByRole('heading', { level: 1, name: 'Plan your food, fasting and training, then live it day by day.' });
     await waitFor(() => expect(intro).toHaveFocus());
-    expect(screen.getByRole('list', { name: 'Setup progress' })).toBeInTheDocument();
-    expect(screen.getByText(/Example: a twelve-week projection/)).toBeInTheDocument(); // text alternative
+    // the intake header: the step name centred, the step segments under it; no count, no ⋯ (the brand leads the text)
+    const steps = screen.getByRole('list', { name: 'Setup progress' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
+    // whole states: the step you are on gold, the later ones track (no partial fill)
+    expect(within(steps).getAllByRole('listitem').map((li) => li.getAttribute('data-state'))).toEqual(['current', 'todo', 'todo']);
+    const header = steps.closest('header')!;
+    expect(within(header).getByText('Welcome')).toBeInTheDocument();
+    expect(within(header).queryByRole('button', { name: 'More' })).toBeNull();
+    // (the step position is read out to assistive tech only)
+    const seen = header.cloneNode(true) as HTMLElement;
+    seen.querySelectorAll('.lm-sr').forEach((el) => el.remove());
+    expect(seen.textContent).toBe('Welcome');
+    // one headline, one line, one action: no example chart, no download block; restoring data stays one quiet link
+    expect(screen.getByText(/Your data starts on this device/)).toBeInTheDocument();
+    expect(screen.queryByText(/twelve-week projection|Download for/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Import data from a file' })).toHaveAttribute('href', paths.settings('data'));
     await user.click(screen.getAllByRole('button', { name: /Get started/ })[0]!);
 
     const about = await screen.findByRole('heading', { level: 1, name: 'About you' });
     await waitFor(() => expect(about).toHaveFocus());
     expect(where(r)).toBe('/welcome?step=screening');
+    // the same header grammar as the chapters: Back, the step's name (the h1) centred, the segments; no subtitle
+    expect(about.closest('header')).toBe(screen.getByRole('list', { name: 'Setup progress' }).closest('header'));
+    expect(within(about.closest('header')!).getByRole('button', { name: 'Back' })).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Setup progress' })).getAllByRole('listitem').map((li) => li.getAttribute('data-state'))).toEqual(['done', 'current', 'todo']);
+    expect(screen.queryByText(/A few questions/)).toBeNull();
+    // age and pregnancy are radio rows on the group's surface, not a bordered option box inside the card
+    for (const name of ['How old are you?', 'Are you pregnant or breastfeeding, or planning a pregnancy in the next few months?']) {
+      const rows = screen.getByRole('radiogroup', { name });
+      expect(rows).toHaveClass('lm-onb-choices');
+      expect(rows.closest('.lm-onb-q')!.querySelector('.lm-bank')).toBeNull();
+    }
 
     // Continue is aria-disabled (still focusable) with the reason exposed.
     const cont = screen.getByRole('button', { name: 'Continue' });
@@ -169,6 +196,9 @@ describe('first-run flow (a11y + keyboard)', () => {
     await waitFor(() => expect(before).toHaveFocus());
     expect(screen.getByRole('heading', { name: 'Your safety settings' })).toBeInTheDocument();
     expect(screen.getByText('Standard mode.')).toBeInTheDocument();
+    // the outcome is one line here: the limits are listed once, on Safety & limits
+    expect(screen.queryByText('Limits for plans')).toBeNull();
+    expect(screen.getByRole('heading', { name: 'What Vitals is' })).toBeInTheDocument();
     const box = screen.getByRole('checkbox', { name: 'I understand' });
     expect(box).not.toBeChecked(); // never pre-checked
     expect(screen.getByRole('button', { name: 'Continue' })).toHaveAttribute('aria-disabled', 'true');
@@ -217,8 +247,8 @@ describe('first-run flow (a11y + keyboard)', () => {
     await user.click(screen.getByRole('button', { name: 'Save answers' }));
     const dialog = await screen.findByRole('alertdialog', { name: 'Turn off gentle mode?' });
     await user.click(within(dialog).getByRole('button', { name: 'Turn it off' }));
-    await waitFor(() => expect(r.state.location.pathname).toBe('/settings'));
-    expect(r.state.location.hash).toBe('#safety');
+    // Settings › Safety is its own page (/settings/safety)
+    await waitFor(() => expect(r.state.location.pathname).toBe('/settings/safety'));
     expect(useSafetyStore.getState().answers?.eatingDisorder).toBe('no');
   });
 });

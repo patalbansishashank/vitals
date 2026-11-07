@@ -1,99 +1,233 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronLeft } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router';
+import { ChevronLeft, X } from 'lucide-react';
 import { IconKey } from '@/components/Key';
-import { MQ, useIsoLayoutEffect, useMediaQuery } from '@/components/lib/hooks';
-import { useNavigate } from 'react-router';
-import { RingKey } from '@/features/ring/RingKey';
+import { LinkBank } from '@/components/KeyBank';
+import type { MenuEntry } from '@/components/Menu';
+import { StatusSlotProvider, useStatusSlot, type StatusSlotEntry } from '@/components/StatusCapsule';
+import { MQ, useMediaQuery } from '@/components/lib/hooks';
+import { HeaderMenu } from './HeaderMenu';
 import { HeaderSync } from './HeaderSync';
+import { planCapsuleOf, PlanStatus, useChromeless, useShellNav } from './modeNav';
+import { BODY_ITEM, PLAN_ITEM, PLANNING_PATTERN, SIMULATE_ITEM, TODAY_PATH } from './nav';
 import { useShell, type BackTarget } from './ShellContext';
 
 export interface TopBarProps {
-  /** Screen title (display width, 24 px) — or a switcher button (scenario switcher). Rendered in the page's h1. */
+  /**
+   * Screen title, rendered in the page's h1 in the top bar: the destination's name on a tab page ("Today", "Food";
+   * `--lm-text-page`, 24/28 600), the screen's name on a pushed page (phones: title-m beside Back; desktop: the page
+   * title after Back). May be a switcher button (scenario switcher). Never the date: that goes in `subtitle`.
+   */
   title: ReactNode;
   /** Browser tab title; defaults to `title` when it is a string. "· Vitals" is appended. */
   documentTitle?: string;
-  /** Nested routes: a back chevron (mobile top bar + desktop context bar). */
+  /**
+   * The one fact line (the date on day pages: "Saturday, 17 October · day 16 of 90"), set in mono caps (r071: the
+   * references' "WED, 28 OCT · 7:12" over the title), always one line and always ABOVE the title: on a phone tab page
+   * its own full-width row above the title row (inside the bar), on a pushed page and on desktop stacked over the
+   * title in the heading. Pass the short form where a DateControl follows ("Day 15 of 84"). Nothing else.
+   */
+  subtitle?: ReactNode;
+  /**
+   * A pushed (child) screen: a 48 px Back (phones: at the left, the title centred; desktop: before the title).
+   */
   back?: BackTarget | true;
-  /** Local sub-navigation next to the title (e.g. <LinkBank> "schedule | results"). */
+  /** Segmented sub-navigation directly under the title row, inside the bar (e.g. <LinkBank> "schedule | results"). */
   tabs?: ReactNode;
-  /** Completion scale at the content edge; a separate centered row below 768 px. */
+  /** Completion scale (setup chapters): its own row under the title. */
   progress?: ReactNode;
   /**
-   * Key parameters, desktop only (hidden < 1024 px): horizon bank, date span, last-run text. On desktop they sit at
-   * the left of the action bar along the bottom of the content column.
+   * The page's status icons (`<StatusCapsule icon={ClipboardCheck} label="Weekly check-in ready" attention onClick={…} />`,
+   * from `@/components` or `@/app/shell`; several in a fragment, most important first), at the right of the header
+   * before the primary action and the ⋯. The one home of check-ins and waiting proposals. The bar shows at most two
+   * status icons, its own (the running plan's on planning screens, sync) included, and one beside a primary key on a
+   * phone: the ones that want attention first, then this order; the rest move into the ⋯.
+   */
+  status?: ReactNode;
+  /** The page's one primary action as a pill (`<Key variant="solid" size="sm">`), just before the ⋯. Optional. */
+  primary?: ReactNode;
+  /**
+   * The page's own actions, in the header's one ⋯ (`MenuItem` / `MenuEntry` from `@/components/Menu`, re-exported from
+   * `@/app/shell`: `{ id, label, onSelect, disabled?, tone?: 'danger', hint? }`, or a `{ kind: 'divider' }` /
+   * `{ kind: 'section', label }` to group them). Only these: global places live in the navigation (r068 U14), so a
+   * page without items of its own shows no ⋯. Pages never render a top-level ⋯ of their own.
+   */
+  menu?: ReadonlyArray<MenuEntry>;
+  /**
+   * @deprecated Migration only: shown as the subtitle line on desktop when there is no `subtitle` (hidden below
+   * 1024 px, as before). Move a fact into `subtitle` and controls into the page or the ⋯.
    */
   params?: ReactNode;
   /**
-   * Actions; the one primary action goes last (RunKey on Simulator, "Find plans" on Planner). Desktop: the right end
-   * of the action bar along the bottom (a status-only line with nothing to press stays in the context bar). Below
-   * 1024 px: the right of the context bar; there the Run key usually moves to <ActionBar>: wrap desktop-only actions
-   * in `<span className="max-lg:hidden">`.
+   * @deprecated Migration only: rendered at the right of the header, before `primary` and the ⋯. Move menu triggers
+   * into `menu`, the one primary action into `primary`, and anything else next to what it acts on in the page.
    */
   actions?: ReactNode;
   /** id for the h1 (for aria-labelledby on the page's main region). */
   titleId?: string;
-  /**
-   * Below 1024 px, show the title in the top bar itself (beside the back chevron)
-   * and collapse the context bar — for screens whose body starts with their own
-   * sticky strip (Settings anchor chips). Requires a string `title`.
-   */
+  /** Below 1024 px, use the pushed-page header (centred title-m) even without `back`. */
   compactOnMobile?: boolean;
 }
 
 /**
- * The contextual action bar itself, the same component at every width, always in the shell's action slot at the foot
- * of the screen: `foot` = the screen's <ActionBar> (below 1024 px, at the end of the page in the normal flow), `desk` = the TopBar's
- * params and actions along the bottom of the content column on desktop (where it wins over a `foot` bar).
- * Styles: `.lm-actionbar` in src/styles/shell.css.
+ * Where a Back without its own target goes: one step back in the app's history, or Today (home in every mode) when the
+ * screen is the first one this session opened (the app restarted on it, a link opened it). `window.history.length`
+ * counts entries from before the app and other sites, so it is no guide; the router's first entry has the key
+ * "default". Before 0.6.3 this fell back to "/", which sent Planning mode to the last route: Settings opened the app
+ * after an update, and its Back led to Settings again.
  */
-function ActionBarFrame({ place, children }: { place: 'foot' | 'desk'; children: ReactNode }) {
+export function backInHistory(locationKey: string, historyIndex: number | undefined = routerHistoryIndex()): -1 | string {
+  return locationKey !== 'default' && historyIndex !== 0 ? -1 : TODAY_PATH;
+}
+
+/**
+ * The browser router's own position in its history (it keeps `idx` in `history.state`): 0 when nothing of the app's
+ * lies behind this screen, as after a first-run hand-over that replaced every step before it (/welcome → Your body).
+ * Undefined where there is no browser router (tests, the screen harnesses), which leaves the decision to the key.
+ */
+function routerHistoryIndex(): number | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const idx = (window.history.state as { idx?: unknown } | null)?.idx;
+  return typeof idx === 'number' ? idx : undefined;
+}
+
+/**
+ * The planning steps' own switcher (r068 U14): Body · Simulate · Plan, a full-width row under the title of each step's
+ * header on phones and tablets, where the dock has one key (Plan) for all three and no page linked to the others. The
+ * desktop sidebar lists the three as rows, so the bar leaves it out from 1024 px. Not on the first-run setup steps,
+ * which are a focused flow with their own progress row.
+ */
+export function PlanningSteps() {
   return (
-    <div className="lm-actionbar" data-place={place}>
-      {children}
+    <LinkBank
+      label="Planning step"
+      className="lm-ctx__steps"
+      items={[
+        { to: BODY_ITEM.to, label: 'Body' },
+        { to: SIMULATE_ITEM.to, label: 'Simulate' },
+        { to: PLAN_ITEM.to, label: 'Plan' },
+      ]}
+    />
+  );
+}
+
+/** A planning step's tab header below 1024 px, outside the first-run setup (`?setup=`, or a progress row). */
+function showsPlanningSteps(pathname: string, search: string, wide: boolean, phoneLayout: 'tab' | 'pushed', progress: boolean): boolean {
+  return !wide && phoneLayout === 'tab' && !progress && PLANNING_PATTERN.test(pathname) && !new URLSearchParams(search).has('setup');
+}
+
+function goBack(navigate: ReturnType<typeof useNavigate>, to: -1 | string): void {
+  if (to === -1) void navigate(-1);
+  else void navigate(to);
+}
+
+interface HeaderTrailProps extends Pick<TopBarProps, 'status' | 'actions' | 'primary' | 'menu'> {
+  /** The header is a pushed screen's at the current width: no plan icon. */
+  pushed?: boolean;
+}
+
+/** At most two status icons in a bar (SPEC §9); one beside a primary key on a phone, whose row has no room for two. */
+function statusLimit(primary: boolean, md: boolean): number {
+  return primary && !md ? 1 : 2;
+}
+
+/** The ⋯ entries for the status icons past the limit: each opens what its icon opens; one without an action is a heading. */
+function overflowEntries(overflow: readonly StatusSlotEntry[]): MenuEntry[] {
+  const acting = overflow.filter((e) => e.select);
+  const still = overflow.filter((e) => !e.select);
+  return [
+    ...acting.map<MenuEntry>((e) => ({ id: `status-${e.id}`, label: e.label, onSelect: () => e.select?.() })),
+    ...still.map<MenuEntry>((e) => ({ kind: 'section', id: `status-${e.id}`, label: e.label })),
+  ];
+}
+
+/**
+ * The right end of every header, on one line that never wraps: the status icons (the page's own, most important
+ * first · the running plan's on planning screens · sync), then the keys (legacy actions · primary · ⋯), the ⋯ pinned
+ * at the right end. At most two status icons show (one beside a primary key on a phone): the ones that want attention
+ * first, then that order; the rest are listed first in the ⋯. Icons and keys never shrink: when the row is short the
+ * title truncates, down to its floor (shell.css). The plan icon leaves pushed screens.
+ */
+function HeaderTrail({ status, actions, primary, menu, pushed = false }: HeaderTrailProps) {
+  const nav = useShellNav();
+  const { pathname } = useLocation();
+  const md = useMediaQuery(MQ.md);
+  const plan = pushed ? null : planCapsuleOf(nav, pathname);
+  const slot = useStatusSlot(statusLimit(!!primary, md));
+  const moved = useMemo(() => overflowEntries(slot.overflow), [slot.overflow]);
+  return (
+    <div className="lm-ctx__trail">
+      <StatusSlotProvider value={slot.value}>
+        <div className="lm-ctx__caps">
+          {status ? <div className="lm-ctx__status">{status}</div> : null}
+          {plan ? <PlanStatus plan={plan} /> : null}
+          {/* sync: every screen, both modes (SUITE_SPEC §15.4); it renders nothing while sync is off */}
+          <HeaderSync />
+        </div>
+      </StatusSlotProvider>
+      {actions ? <div className="lm-ctx__actions">{actions}</div> : null}
+      {primary ? <div className="lm-ctx__primary">{primary}</div> : null}
+      <HeaderMenu items={menu} moved={moved} />
     </div>
   );
 }
 
-const CONTROL = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-
 /**
- * Whether the TopBar's params/actions hold anything to press. The desktop action bar opens only then ("only where
- * needed", IA §3.1); a status-only line ("saved on this device") stays in the context bar. Re-checked when their
- * content changes (e.g. the setup keys appearing on Your body).
+ * The shell's own header while no screen has mounted a TopBar (a lazy screen loading, a screen without one): no title,
+ * just the bar's status icons (sync). The navigation (dock and More, or the sidebar) keeps every place one tap away.
  */
-function useHoldsControls(nodes: Array<HTMLElement | null>): boolean {
-  const [holds, setHolds] = useState(true);
-  const [a, b] = nodes;
-  useIsoLayoutEffect(() => {
-    const els = [a, b].filter((n): n is HTMLElement => !!n);
-    if (!els.length) return;
-    const check = () => setHolds(els.some((n) => n.querySelector(CONTROL) !== null));
-    check();
-    if (typeof MutationObserver === 'undefined') return;
-    const mo = new MutationObserver(check);
-    for (const n of els) mo.observe(n, { childList: true, subtree: true, attributes: true, attributeFilter: ['href', 'tabindex'] });
-    return () => mo.disconnect();
-  }, [a, b]);
-  return holds;
+export function ShellHeader() {
+  return (
+    <div className="lm-ctx" data-phone="tab" data-desk="tab" data-fallback="true">
+      <div className="lm-ctx__row">
+        <div className="lm-ctx__heading" />
+        <HeaderTrail />
+      </div>
+    </div>
+  );
 }
 
 /**
- * The per-screen context bar (IA §3.2 "context bar", COMPONENTS §11). Feature
- * pages render it once at the top; it portals into the shell's slot, which is
- * fixed at the foot of the screen above the action bar and the tab bar below
- * 1024 px (title left, the "…" menu and actions right; the screen's own top bar stays above), and sticky at the
- * top of the main column on desktop. On desktop
- * the bar keeps the screen's identity and status (back, title, tabs, progress,
- * sync chip, ring key); its key parameters (left) and actions (right) go to the
- * action bar along the bottom of the content column, as on the phone.
+ * The screen's top bar (SPEC §4, §8.3; IA §3.2) — one per screen, a real bar at the top of the content column on every
+ * breakpoint: sticky, 56 px (safe area added; 66 px with a phone tab page's fact row), the tintless frost and a 0.5 px bottom hairline once scrolled (the
+ * hairline always shows on desktop; the shell draws both: `.lm-ctx-slot` in src/styles/shell.css). Feature pages render
+ * it once; it portals into the shell's header slot, so the h1 leads the screen in the reading order.
  *
- *   <TopBar title="Your body" actions={<Engraved>saved on this device</Engraved>} />
+ * Desktop:     [Back] · title (24/28) with the fact line stacked above it · status icons · primary · ⋯ (the sidebar
+ *              key lives in the sidebar's own head, r068 U13)
+ * Phone tab:   title (24/28) · status icons · primary · ⋯; the fact line is its own full-width row above it (one
+ *              line, mono caps), so neither the title row nor the date gives way
+ * Phone pushed: 48 px Back · title (title-m) with the fact line above it · ⋯ (no navigation dock)
+ * The ⋯:       the page's own actions only (r068 U14: places are in the dock's More page and the sidebar); none
+ *              without them
+ * Status:      at most two icons (one beside a primary key on a phone), those that want attention first; the rest
+ *              open from the top of the ⋯. While a plan runs, a planning screen's tab header adds the plan's icon
+ *              (it opens Plan details) after the page's own
+ * Tabs:        a segmented row directly under the title row, inside the bar (above its hairline); below 1024 px a
+ *              planning step's header (Body · Simulate · Plan) adds the step switcher above it (`PlanningSteps`)
+ *
+ *   <TopBar title="Today" subtitle="Saturday, 17 October" status={icon} menu={[{ id: 'away', label: 'I’m away…', onSelect }]} />
  */
-export function TopBar({ title, documentTitle, back, tabs, progress, params, actions, titleId, compactOnMobile = false }: TopBarProps) {
+export function TopBar({
+  title,
+  documentTitle,
+  subtitle,
+  back,
+  tabs,
+  progress,
+  status,
+  primary,
+  menu,
+  params,
+  actions,
+  titleId,
+  compactOnMobile = false,
+}: TopBarProps) {
   const shell = useShell();
   const navigate = useNavigate();
-  const desktop = useMediaQuery(MQ.lg);
+  const location = useLocation();
+  const wide = useMediaQuery(MQ.lg);
   const backTarget: BackTarget | null = back === true ? {} : (back ?? null);
   const docTitle = documentTitle ?? (typeof title === 'string' ? title : undefined);
 
@@ -106,82 +240,61 @@ export function TopBar({ title, documentTitle, back, tabs, progress, params, act
     };
   }, [docTitle]);
 
-  const setMobileHeader = shell?.setMobileHeader;
-  const backTo = backTarget?.to;
-  const backLabel = backTarget?.label;
-  const hasBack = backTarget !== null;
-  const inlineTitle = compactOnMobile && typeof title === 'string' ? title : null;
-  useEffect(() => {
-    if (!setMobileHeader) return;
-    setMobileHeader({ back: hasBack ? { to: backTo, label: backLabel } : null, title: inlineTitle });
-    return () => setMobileHeader(null);
-  }, [setMobileHeader, hasBack, backTo, backLabel, inlineTitle]);
+  // the shell drops its fallback header while this one is mounted (layout effect: never both on screen)
+  const registerHeader = shell?.setHeaderCount;
+  useLayoutEffect(() => {
+    if (!registerHeader) return;
+    registerHeader(1);
+    return () => registerHeader(-1);
+  }, [registerHeader]);
 
-  const [paramsNode, setParamsNode] = useState<HTMLDivElement | null>(null);
-  const [actionsNode, setActionsNode] = useState<HTMLDivElement | null>(null);
-  const holdsControls = useHoldsControls([paramsNode, actionsNode]);
-  const paramsEl = params ? (
-    <div className="lm-ctx__params" ref={setParamsNode}>
-      {params}
-    </div>
+  const phone = backTarget || compactOnMobile ? 'pushed' : 'tab';
+  const desk = backTarget && !backTarget.mobileOnly ? 'pushed' : 'tab';
+  // the layout at the current width (CSS lays out both; the ⋯, the plan icon and the fact line need to know which one shows)
+  const pushedNow = (wide ? desk : phone) === 'pushed';
+  // a phone tab page's fact line is its own row under the title row; elsewhere it sits with the title
+  const factRow = !wide && phone === 'tab';
+  const steps = showsPlanningSteps(location.pathname, location.search, wide, phone, !!progress);
+  // a pushed screen shows Back and its title, without the navigation pill (as Lumen's pushed screens do; the desktop
+  // sidebar stays, the phone dock goes and a focused flow's ActionBar docks in its place)
+  useChromeless(phone === 'pushed');
+  const sub = subtitle ? (
+    <p className="lm-ctx__sub">{subtitle}</p>
+  ) : params ? (
+    <div className="lm-ctx__sub lm-ctx__params">{params}</div>
   ) : null;
-  const actionsEl = actions ? (
-    <div className="lm-ctx__actions" ref={setActionsNode}>
-      {actions}
-    </div>
-  ) : null;
-  // desktop, in the shell: parameters and actions leave the context bar for the action bar at the foot
-  const deskBar = desktop && !!shell?.contextSlot && !!shell.actionSlot && !!(paramsEl || actionsEl) && holdsControls;
 
-  // Below 1024 px the bar sits at the foot of the screen, above the action bar and the tab bar (CSS, `.lm-ctx[data-bottom]`);
-  // it stays in the top slot, so the h1 keeps its place in the reading order. Compact screens keep the title in the top bar.
-  const bottom = !desktop && !inlineTitle && !!shell?.contextSlot;
   const bar = (
-    <div className="lm-ctx" data-compact={inlineTitle ? 'true' : undefined} data-bottom={bottom ? 'true' : undefined}>
-      {backTarget && !backTarget.mobileOnly ? (
-        <IconKey
-          className="lm-ctx__back"
-          icon={ChevronLeft}
-          label={backTarget.label ? `Back to ${backTarget.label}` : 'Back'}
-          onClick={() => (backTarget.to ? navigate(backTarget.to) : window.history.length > 1 ? navigate(-1) : navigate('/'))}
-        />
-      ) : null}
-      <div className="lm-ctx__title">
-        <h1 className="lm-title" id={titleId}>
-          {title}
-        </h1>
+    <div className="lm-ctx" data-phone={phone} data-desk={desk}>
+      <div className="lm-ctx__row">
+        {backTarget ? (
+          <IconKey
+            className="lm-ctx__back"
+            icon={backTarget.close ? X : ChevronLeft}
+            label={backTarget.close ? (backTarget.label ? `Close ${backTarget.label}` : 'Close') : backTarget.label ? `Back to ${backTarget.label}` : 'Back'}
+            onClick={() => (backTarget.to ? navigate(backTarget.to) : goBack(navigate, backInHistory(location.key)))}
+          />
+        ) : null}
+        <div className="lm-ctx__heading">
+          <h1 className="lm-title" id={titleId}>
+            {title}
+          </h1>
+          {factRow ? null : sub}
+        </div>
+        <HeaderTrail status={status} actions={actions} primary={primary} menu={menu} pushed={pushedNow} />
       </div>
-      {tabs}
-      <div className="lm-ctx__grow" />
-      {deskBar ? null : paramsEl}
-      {deskBar ? null : actionsEl}
-      {/* desktop: the sync chip and the ring key at the right of the context bar (§15.4, ring-pages.md D2; phones have
-          them in the top bar); shell only */}
-      {shell?.contextSlot ? (
-        <span className="inline-flex items-center gap-2 max-lg:hidden">
-          <HeaderSync />
-          <RingKey />
-        </span>
+      {factRow ? sub : null}
+      {steps ? (
+        <div className="lm-ctx__tabs">
+          <PlanningSteps />
+        </div>
       ) : null}
+      {tabs ? <div className="lm-ctx__tabs">{tabs}</div> : null}
       {progress ? <div className="lm-ctx__progress">{progress}</div> : null}
     </div>
   );
   if (!shell?.contextSlot) return shell ? null : bar;
-  return (
-    <>
-      {createPortal(bar, shell.contextSlot)}
-      {deskBar && shell.actionSlot
-        ? createPortal(
-            <ActionBarFrame place="desk">
-              {paramsEl}
-              <div className="lm-ctx__grow" />
-              {actionsEl}
-            </ActionBarFrame>,
-            shell.actionSlot,
-          )
-        : null}
-    </>
-  );
+  return createPortal(bar, shell.contextSlot);
 }
 
 export interface ActionBarProps {
@@ -189,12 +302,14 @@ export interface ActionBarProps {
 }
 
 /**
- * Mobile contextual action bar (64 px), e.g. "painting with B · rest day [run]":
- * at the end of the page, in the normal flow (not fixed), above the tab bar's room.
- * On desktop the same bar runs along the bottom of the content column (fixed) and
- * carries the TopBar's parameters and actions (the desktop versions of these keys);
- * this one shows there only when the TopBar has none. The shell pads the page so
- * content never hides beneath the fixed bars.
+ * A row of the screen's keys, AFTER the screen's content in the page flow (a plain row: no bar, not fixed, not sticky)
+ * — it portals into the shell's slot at the end of the content column, so where it is rendered in the JSX does not
+ * matter. Only on a phone screen without the tab bar (`useChromeless`: the first-run intake, a focused child flow)
+ * does the shell dock it at the bottom of the screen as that flow's toolbar. Never a bar above the tab bar, and no
+ * fixed bar on desktop.
+ *
+ * Prefer the header for the one primary action (`<TopBar primary={…} />`) and keys inline next to what they act on;
+ * keep <ActionBar> for a focused flow's step keys (Back · Skip · Next).
  */
 export function ActionBar({ children }: ActionBarProps) {
   const shell = useShell();
@@ -204,6 +319,12 @@ export function ActionBar({ children }: ActionBarProps) {
     register(1);
     return () => register(-1);
   }, [register]);
-  if (!shell?.actionSlot) return null;
-  return createPortal(<ActionBarFrame place="foot">{children}</ActionBarFrame>, shell.actionSlot);
+  const row = (
+    <div className="lm-actionbar" data-place="foot">
+      {children}
+    </div>
+  );
+  if (!shell) return row;
+  if (!shell.actionSlot) return null;
+  return createPortal(row, shell.actionSlot);
 }

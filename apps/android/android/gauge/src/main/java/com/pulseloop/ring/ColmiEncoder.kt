@@ -1,0 +1,311 @@
+package com.pulseloop.ring
+
+import java.time.Instant
+import java.time.ZoneId
+import java.util.Calendar
+import java.util.TimeZone
+
+/**
+ * Ported from [ColmiEncoder] in ColmiEncoder.swift.
+ * Builds Colmi command payloads. Normal commands returned as logical content
+ * (16-byte framing applied by ColmiDriver.frame). Big-data requests returned raw.
+ */
+object ColmiEncoder {
+    fun phoneName(): ByteArray = byteArrayOf(
+        ColmiCommandID.PHONE_NAME.toByte(), 0x02, 0x0A, 'P'.code.toByte(), 'L'.code.toByte()
+    )
+
+    fun setDateTime(instant: Instant = Instant.now()): ByteArray {
+        val zdt = instant.atZone(ZoneId.systemDefault())
+        fun bcd(value: Int): Int = ((value % 100 / 10) shl 4) or (value % 10)
+        return byteArrayOf(
+            ColmiCommandID.SET_DATE_TIME.toByte(),
+            bcd(zdt.year % 2000).toByte(),
+            bcd(zdt.monthValue).toByte(),
+            bcd(zdt.dayOfMonth).toByte(),
+            bcd(zdt.hour).toByte(),
+            bcd(zdt.minute).toByte(),
+            bcd(zdt.second).toByte(),
+            // Language byte (QRing SetTimeReq subData[6]): 0 = zh_CN, 1 = en. Zero-padding
+            // used to select Chinese on display-equipped Colmi-family devices.
+            if (java.util.Locale.getDefault().language == "zh") 0x00 else 0x01,
+        )
+    }
+
+    fun userPreferences(
+        metric: Boolean = true, gender: UByte = 0x02u, age: UByte = 25u,
+        heightCm: UByte = 175u, weightKg: UByte = 70u
+    ): ByteArray = byteArrayOf(
+        ColmiCommandID.PREFERENCES.toByte(),
+        ColmiCommandID.PREF_WRITE.toByte(),
+        0x00,
+        if (metric) 0x00 else 0x01,
+        gender.toByte(), age.toByte(), heightCm.toByte(), weightKg.toByte(),
+        // BP reference 120/90: QRing (TimeFormatReq callers) hardcodes these unconditionally —
+        // firmware may use them as PPG calibration baselines, so never send 0/0. Trailing
+        // HR-warn threshold stays 0 (= alerts off, matching QRing when unset).
+        0x78, 0x5A, 0x00,
+    )
+
+    fun battery(): ByteArray = byteArrayOf(ColmiCommandID.BATTERY.toByte())
+
+    fun readPref(command: UByte): ByteArray = byteArrayOf(command.toByte(), ColmiCommandID.PREF_READ.toByte())
+
+    fun writePref(command: UByte, enabled: Boolean): ByteArray =
+        byteArrayOf(command.toByte(), ColmiCommandID.PREF_WRITE.toByte(), if (enabled) 0x01 else 0x00)
+
+    /**
+     * Enable/disable all-day **heart-rate** monitoring. Auto-HR (`0x16`) has a different shape from
+     * the other prefs: the on/off flag is `0x01`(on)/`0x02`(off) — *not* `0x01`/`0x00` — and it
+     * carries the sampling interval in minutes (rounded to a 5-minute multiple, 5…60). Without this
+     * the ring records no background HR, so the HR-history sync (`0x15`) comes back empty.
+     *
+     * The payload is the **full 7-field record** the official QRing app sends
+     * (`HeartRateSettingReq.getWriteInstance`, Oudmon SDK): after the interval come
+     * `hrStart, hrTooLow, hrTooHigh, hrTooSwitch`. Older R02 firmware accepts the short
+     * 4-byte form, but newer RT-series firmware (e.g. R09 / RT09) ACKs the short frame yet
+     * never arms background sampling — HR then only measures on a physical button press.
+     * Sending the full record (alarm fields zeroed = "no HR alerts configured", exactly what
+     * QRing sends when the user hasn't set alarms) fixes auto-HR on R09 with no R02 regression.
+     * See docs/qring-ble-adoption.md §Auto-HR.
+     */
+    fun autoHeartRate(enabled: Boolean, intervalMinutes: Int = 5): ByteArray {
+        val interval = ((intervalMinutes / 5) * 5).coerceIn(5, 60)
+        return byteArrayOf(
+            ColmiCommandID.AUTO_HR_PREF.toByte(),
+            ColmiCommandID.PREF_WRITE.toByte(),
+            if (enabled) 0x01 else 0x02,
+            interval.toByte(),
+            // hrStart, hrTooLow, hrTooHigh, hrTooSwitch — 0 = no HR alarms (hrStart 0 → the
+            // firmware's own 5-min default). The four trailing bytes are what newer firmware
+            // requires to treat this as a complete HR-setting write.
+            0x00, 0x00, 0x00, 0x00,
+        )
+    }
+
+    /**
+     * Read the ring's device-support/capability bitfield (QRing `DeviceSupportReq`, opcode
+     * `0x3C`, no sub-data). The reply is parsed by [ColmiDecoder.decodeDeviceSupport]; its
+     * `supportBlePair` bit tells us whether to create an OS-level bond, mirroring the official
+     * app. See docs/qring-ble-adoption.md §Pairing.
+     */
+    fun deviceSupport(): ByteArray = byteArrayOf(ColmiCommandID.DEVICE_SUPPORT.toByte())
+
+    fun readTempPref(): ByteArray = byteArrayOf(
+        ColmiCommandID.AUTO_TEMP_PREF.toByte(), 0x03, ColmiCommandID.PREF_READ.toByte()
+    )
+
+    /**
+     * Enable/disable all-day temperature monitoring. Mirrors [readTempPref]'s extra `0x03`
+     * framing byte before the write flag, then the **full 6-field record** QRing always sends
+     * (`SugarLipidsSettingReq.getWriteInstance((byte)3, …)`): interval, start, remind-interval,
+     * remind bits, custom-alert byte ((°C×10)−200). Firmware defaults per QRing's
+     * `BloodSugarLipidsSettingRsp`: interval 30 min, start 5, remind 10; alert bits 0 = alerts
+     * off, so the custom byte (38.5 °C) is inert. The old 4-byte `3a 03 02 <en>` form was the
+     * same truncation bug class as the short 0x16 auto-HR write: RT-series firmware ACKs it but
+     * reads interval = 0 and never arms background sampling.
+     */
+    fun writeTempPref(enabled: Boolean): ByteArray = byteArrayOf(
+        ColmiCommandID.AUTO_TEMP_PREF.toByte(), 0x03, ColmiCommandID.PREF_WRITE.toByte(),
+        if (enabled) 0x01 else 0x00,
+        30, 5, 10, 0x00, 0xB9.toByte(),
+    )
+
+    fun readGoals(): ByteArray = byteArrayOf(ColmiCommandID.GOALS.toByte(), ColmiCommandID.PREF_READ.toByte())
+
+    fun manualHeartRate(enable: Boolean = true, lastBpm: Int = 0): ByteArray = if (enable) {
+        byteArrayOf(ColmiCommandID.MANUAL_HEART_RATE.toByte(), ColmiCommandID.RT_HEART_RATE.toByte())
+    } else {
+        // Stop MUST use CMD_STOP_REAL_TIME (0x6A). The old [0x69, 0x02] was another
+        // CMD_START_REAL_TIME (reading type 2), so the optical sensor never switched off
+        // and the ring kept pulsing until it timed out. Mirror the SpO₂ stop frame.
+        // On a successful measurement QRing reports the final reading in byte 2
+        // (stopHeartRate((byte) heartValue)) so the ring's own log records it; 0 = cancelled.
+        byteArrayOf(
+            ColmiCommandID.REALTIME_STOP.toByte(),
+            ColmiCommandID.RT_HEART_RATE.toByte(),
+            lastBpm.coerceIn(0, 255).toByte(), 0x00,
+        )
+    }
+
+    /**
+     * `PhoneSportReq.getSportStatus(status, sportType)` = `[0x77, status, sportType]` — the QRing
+     * app's whole live-activity protocol (issue #64). Start on entering the running screen, pause /
+     * resume from its buttons, stop on finish. The ring answers each with an `AppSportRsp` echo and,
+     * between start and stop, pushes `0x78` telemetry on its own.
+     */
+    fun phoneSport(status: UByte, sportType: UByte): ByteArray =
+        byteArrayOf(ColmiCommandID.PHONE_SPORT.toByte(), status.toByte(), sportType.toByte())
+
+    /** The QRing sport type for one of this app's activity types (`ActivityMeta.ORDER`). Anything
+     *  without a vendor counterpart is "Other sports", which is a real entry in QRing's list. */
+    fun sportType(activityType: String): UByte = when (activityType) {
+        "walk" -> ColmiCommandID.SPORT_TYPE_WALK
+        "run" -> ColmiCommandID.SPORT_TYPE_RUN
+        "cycle" -> ColmiCommandID.SPORT_TYPE_CYCLE
+        "hike" -> ColmiCommandID.SPORT_TYPE_HIKE
+        "yoga" -> ColmiCommandID.SPORT_TYPE_YOGA
+        else -> ColmiCommandID.SPORT_TYPE_OTHER
+    }
+
+    fun realtimeHeartRate(enable: Boolean): ByteArray =
+        byteArrayOf(ColmiCommandID.REALTIME_HEART_RATE.toByte(), if (enable) 0x01 else 0x02)
+
+    fun realtimeHeartRateContinue(): ByteArray =
+        byteArrayOf(ColmiCommandID.REALTIME_HEART_RATE.toByte(), 0x03)
+
+    /**
+     * On-demand SpO₂ spot measurement via the real-time command family (0x69/0x6A).
+     * Start: [0x69, reading_type=SPO2(3), action=START(1)]; the ring streams
+     * [0x69, 3, error, value, …] frames until stopped. Stop: [0x6A, 3, 0, 0].
+     * From colmi_r02_client real_time.py (CMD_START_REAL_TIME=105 / CMD_STOP_REAL_TIME=106).
+     */
+    fun manualSpO2(enable: Boolean): ByteArray = if (enable) {
+        byteArrayOf(
+            ColmiCommandID.MANUAL_HEART_RATE.toByte(),
+            ColmiCommandID.RT_SPO2.toByte(),
+            // QRing sends BCD(25) = 0x25 as the third byte for every reading type ≥ 3
+            // (StartHeartRateReq.getSimpleReq). colmi_r02_client's Action.START (0x01) works on
+            // R02-class firmware but is a byte the official app never sends; follow QRing.
+            0x25,
+        )
+    } else {
+        byteArrayOf(
+            ColmiCommandID.REALTIME_STOP.toByte(),
+            ColmiCommandID.RT_SPO2.toByte(),
+            0x00, 0x00,
+        )
+    }
+
+    fun findDevice(): ByteArray = byteArrayOf(ColmiCommandID.FIND_DEVICE.toByte(), 0x55, 0xAA.toByte())
+    fun powerOff(): ByteArray = byteArrayOf(ColmiCommandID.POWER_OFF.toByte(), 0x01)
+    fun factoryReset(): ByteArray = byteArrayOf(ColmiCommandID.FACTORY_RESET.toByte(), 0x66, 0x66)
+
+    // History requests
+    fun syncActivity(daysAgo: Int): ByteArray = byteArrayOf(
+        ColmiCommandID.SYNC_ACTIVITY.toByte(),
+        daysAgo.coerceIn(0, 255).toByte(),
+        0x0F, 0x00, 0x5F, 0x01,
+    )
+
+    fun syncHeartRate(fromUnix: Int): ByteArray {
+        val ts = fromUnix.toUInt()
+        return byteArrayOf(
+            ColmiCommandID.SYNC_HEART_RATE.toByte(),
+            (ts and 0xFFu).toByte(),
+            ((ts shr 8) and 0xFFu).toByte(),
+            ((ts shr 16) and 0xFFu).toByte(),
+            ((ts shr 24) and 0xFFu).toByte(),
+        )
+    }
+
+    /** Stress history request. QRing (`PressureReq`) pages `[0x37, dayIndex]` over today+6 past
+     *  days; the old bare `[0x37]` (zero padding = day 0) only ever fetched today. */
+    fun syncStress(daysAgo: Int = 0): ByteArray =
+        byteArrayOf(ColmiCommandID.SYNC_STRESS.toByte(), daysAgo.coerceIn(0, 255).toByte())
+
+    fun syncHRV(daysAgo: Int): ByteArray {
+        val d = daysAgo.coerceIn(0, 255).toUInt()
+        return byteArrayOf(
+            ColmiCommandID.SYNC_HRV.toByte(),
+            (d and 0xFFu).toByte(),
+            ((d shr 8) and 0xFFu).toByte(),
+            ((d shr 16) and 0xFFu).toByte(),
+            ((d shr 24) and 0xFFu).toByte(),
+        )
+    }
+
+    // Big-data requests (0xBC family). Frame = [0xBC, action, len u16 LE, CRC16 u16 LE, payload],
+    // exactly QRing's LargeDataHandler.addHeader(action, payload) with CRC16/MODBUS over the
+    // payload (init 0xFFFF, poly 0xA001, LE on the wire).
+    private fun crc16Modbus(payload: ByteArray): Int {
+        var crc = 0xFFFF
+        for (b in payload) {
+            crc = crc xor (b.toInt() and 0xFF)
+            repeat(8) { crc = if (crc and 1 != 0) (crc ushr 1) xor 0xA001 else crc ushr 1 }
+        }
+        return crc
+    }
+
+    private fun bigDataRequest(action: UByte, payload: ByteArray): ByteArray {
+        val crc = crc16Modbus(payload)
+        return byteArrayOf(
+            ColmiCommandID.BIG_DATA_V2.toByte(), action.toByte(),
+            (payload.size and 0xFF).toByte(), ((payload.size shr 8) and 0xFF).toByte(),
+            (crc and 0xFF).toByte(), ((crc shr 8) and 0xFF).toByte(),
+        ) + payload
+    }
+
+    fun bigDataSpo2(): ByteArray =
+        bigDataRequest(ColmiCommandID.BIG_DATA_SPO2, byteArrayOf(0xFF.toByte()))
+
+    /**
+     * New_Sleep_Protocol (big-data action 39): 2-byte payload [0xFF, 0x01] — 0xFF = "all
+     * history", 0x01 = protocol version. The pre-fix 1-byte [0xFF] payload
+     * (bc 27 01 00 ff 00 ff) is silently ignored by the ring, so sleep never synced.
+     * On the wire: bc 27 02 00 81 80 ff 01 ≡ QRing's addHeader(39, {0xFF, 0x01}).
+     */
+    fun bigDataSleep(): ByteArray =
+        bigDataRequest(ColmiCommandID.BIG_DATA_SLEEP, byteArrayOf(0xFF.toByte(), 0x01))
+
+    /**
+     * Legacy temperature series (action 37); payload = day count. QRing requests 6 days for a
+     * first/stale sync and 2 once today has synced — always ask for 6 so backfill after a gap
+     * isn't capped at two days. Rings whose 0x3C reply sets supportIntervalTemp use
+     * [bigDataIntervalTemperature] instead; QRing never sends action 37 to those.
+     */
+    fun bigDataTemperature(days: Int = 6): ByteArray =
+        bigDataRequest(ColmiCommandID.BIG_DATA_TEMPERATURE, byteArrayOf(days.coerceIn(1, 255).toByte()))
+
+    /**
+     * Interval temperature history (action 119): payload [dayIndex, packetIndex]. A day's series
+     * can span several packets; the reply header carries packetCount/packetIndex and the app
+     * must re-request packetIndex+1 until the last one (QRing LargeDataHandler §119) —
+     * [ColmiSyncEngine.handleBigDataComplete] drives that continuation.
+     */
+    fun bigDataIntervalTemperature(daysAgo: Int, packetIndex: Int): ByteArray = bigDataRequest(
+        ColmiCommandID.BIG_DATA_INTERVAL_TEMPERATURE,
+        byteArrayOf(daysAgo.coerceIn(0, 255).toByte(), packetIndex.coerceIn(0, 255).toByte()),
+    )
+
+    // No BP / blood-sugar request builders: Colmi rings support neither (see
+    // ColmiCoordinator.capabilities). The decoder keeps its defensive parsers for
+    // stray 0x14 / big-data 0x47 frames, but nothing must ever request them —
+    // unsupported requests trigger frame re-emission storms (PR #26).
+}
+
+/**
+ * Ported from [ColmiCoordinator] in ColmiCoordinator.swift.
+ * Coordinator for the Colmi R02 and the wider Yawell ring family.
+ */
+object ColmiCoordinator : WearableCoordinator {
+    override val deviceType = RingDeviceType.COLMI_R02
+
+    override fun matches(name: String?, advertisement: AdvertisementInfo): Boolean {
+        // The whole Colmi/Yawell ring family advertises under many names but shares one protocol;
+        // the per-model catalog owns the name patterns (iOS #49 ColmiCoordinator.matches).
+        if (com.pulseloop.wearables.WearableModel.modelForAdvertisedName(name)?.family == RingDeviceType.COLMI_R02) {
+            return true
+        }
+        return advertisement.serviceUUIDs.contains(ColmiUUIDs.SERVICE_V1) ||
+            advertisement.serviceUUIDs.contains(ColmiUUIDs.SERVICE_V2)
+    }
+
+    override val capabilities = setOf(
+        WearableCapability.HEART_RATE, WearableCapability.SPO2, WearableCapability.STEPS,
+        WearableCapability.SLEEP, WearableCapability.BATTERY,
+        WearableCapability.REM_SLEEP, WearableCapability.STRESS, WearableCapability.HRV,
+        WearableCapability.TEMPERATURE,
+        WearableCapability.MANUAL_HEART_RATE, WearableCapability.MANUAL_SPO2,
+        WearableCapability.REALTIME_HEART_RATE,
+        WearableCapability.REALTIME_STEPS,
+        WearableCapability.FIND_DEVICE, WearableCapability.POWER_OFF, WearableCapability.FACTORY_RESET,
+        WearableCapability.MEASUREMENT_INTERVAL,  // 0x16 interval + per-vital prefs (iOS #19)
+        // NOTE: Colmi rings do NOT support blood pressure or blood sugar.
+        // See docs/ring-hardware-reference.md §3.
+    )
+
+    override val iconSystemName = "circle.circle.fill"
+
+    override fun makeDriver(writer: RingCommandWriter): WearableDriver = ColmiDriver(writer)
+}

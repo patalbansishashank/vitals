@@ -4,10 +4,11 @@
  */
 import type { BenchRow } from '../bench/benchEntry';
 
-export async function runBundledBench(runs = 15): Promise<BenchRow[]> {
+/** One fresh bundle/import for the complete measurement scope, including a retry; never a global source cache. */
+export async function withBundledBench<T>(measure: (bench: (runs: number) => BenchRow[]) => T | Promise<T>): Promise<T> {
   const g = globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } };
   const get = g.process?.getBuiltinModule;
-  if (!get) throw new Error('runBundledBench needs Node');
+  if (!get) throw new Error('withBundledBench needs Node');
   const path = get('node:path') as { join(...p: string[]): string; resolve(...p: string[]): string };
   const os = get('node:os') as { tmpdir(): string };
   const fs = get('node:fs') as { mkdtempSync(p: string): string; rmSync(p: string, o: object): void };
@@ -28,7 +29,7 @@ export async function runBundledBench(runs = 15): Promise<BenchRow[]> {
       },
     });
     const mod = (await import(/* @vite-ignore */ url.pathToFileURL(path.join(outDir, 'bench.mjs')).href)) as { benchEngine(runs: number): BenchRow[] };
-    return mod.benchEngine(runs);
+    return await measure(mod.benchEngine);
   } finally {
     fs.rmSync(outDir, { recursive: true, force: true });
   }

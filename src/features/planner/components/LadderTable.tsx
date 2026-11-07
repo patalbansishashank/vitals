@@ -11,14 +11,17 @@ export interface LadderTableProps {
   selected: PlanKind;
   onSelect: (kind: PlanKind) => void;
   gentle?: boolean;
+  /** Hard's own note (the Ideal is this same plan): under Hard's column head, never between the cards. */
+  hardNote?: string | null;
 }
 
 /**
  * The comparison table (`cards · table`, plan-ladder.md §6.9): rows × plans in the contract's effort-first order, sticky
  * row labels and header, the selected plan's column edged in ink; the Ideal column alone adds what your limits cost.
- * On phones the table scrolls sideways inside its own box.
+ * On phones (r068 W2-8) it reads as one block per measure — the measure, then each plan's name and value — with no
+ * sideways scroll.
  */
-export function LadderTable({ v2, goals, units, energy, selected, onSelect, gentle = false }: LadderTableProps) {
+export function LadderTable({ v2, goals, units, energy, selected, onSelect, gentle = false, hardNote = null }: LadderTableProps) {
   const kinds = presentKinds(v2);
   const rows = comparisonRows(v2, goals, units, { energy, gentle });
   return (
@@ -36,6 +39,7 @@ export function LadderTable({ v2, goals, units, energy, selected, onSelect, gent
                   <RungKey kind={k} size="sm" pressed={k === selected} />
                   <span>{RUNG_TITLE[k]}</span>
                 </button>
+                {k === 'hard' && hardNote ? <span className="lp-ltable__note">{hardNote}</span> : null}
               </th>
             ))}
           </tr>
@@ -46,13 +50,19 @@ export function LadderTable({ v2, goals, units, energy, selected, onSelect, gent
               <th scope="row">{r.label}</th>
               {kinds.map((k) => (
                 <td key={k} data-rung={k} data-selected={k === selected || undefined} data-label={r.label}>
-                  {r.cells[k] ?? '—'}
+                  {/* phones read the table as one block per measure: each plan's name leads its value */}
+                  <span className="lp-ltable__plan" aria-hidden="true">
+                    <RungKey kind={k} size="sm" pressed={k === selected} />
+                    {RUNG_TITLE[k]}
+                  </span>
+                  <span className="lp-ltable__val">{r.cells[k] ?? '—'}</span>
                 </td>
               ))}
             </tr>
           ))}
         </tbody>
       </table>
+      {hardNote ? <p className="lp-ltable__foot">{hardNote}</p> : null}
     </div>
   );
 }

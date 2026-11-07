@@ -166,7 +166,9 @@ WT="$TMP/wt"
 git worktree add -q --detach "$WT" "$NEW"
 # vitest silently runs whatever subset of its file filters exists; a missing guard file must stop the publish.
 for f in tests/publicHygiene/ringBrand.test.ts tests/publicHygiene/privateNames.test.ts \
-         packages/rings/src/jstyle2301/__tests__/passcode.test.ts; do
+         tests/publicHygiene/passcode.test.ts \
+         apps/android/android/gauge/src/main/java/com/pulseloop/ring/JStyle2301Passcode.kt \
+         apps/android/android/gauge/src/test/java/com/pulseloop/ring/JStylePasscodeLeakTest.kt; do
   [ -f "$WT/$f" ] || die "guard missing from the public tree: $f"
 done
 ln -s "$ROOT/node_modules" "$WT/node_modules"
@@ -180,7 +182,7 @@ done
 
 say "guards: passcode, ring brand, private names"
 ( cd "$WT" && TMPDIR="$TMP" VITALS_QA_CONFIG="$OWN_CFG" "$ROOT/node_modules/.bin/vitest" run --root "$WT" --maxWorkers=2 \
-    tests/publicHygiene packages/rings/src/jstyle2301/__tests__/passcode.test.ts ) \
+    tests/publicHygiene ) \
   || die "a hygiene guard failed on the public tree; nothing was pushed"
 
 say "guards: brand grep and secret-shaped strings"

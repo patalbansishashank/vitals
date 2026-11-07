@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 import { liveEstimate, stateToAvatarParams } from '@/engine/body';
 import { Figure3D } from '../Figure3D';
 import type { Figure3DCanvasProps, FigureViewControl } from '../Figure3DCanvas';
-import { VIEW_HINT, forgetViewHint } from '../viewHint';
 
 const canvas = vi.hoisted(() => ({
   mode: 'ready' as 'ready' | 'pending' | 'fail' | 'lose' | 'slow' | 'throw',
@@ -53,7 +52,6 @@ afterEach(() => {
   canvas.props = null;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  forgetViewHint();
 });
 
 describe('<Figure3D>', () => {
@@ -218,9 +216,9 @@ describe('<Figure3D>', () => {
       'Muscles',
       'Bones',
     ]);
-    // the reference-anatomy note is said once, in the caption under the figure, not in the panel
+    // no explainer anywhere: the panel is the switches, the caption only what the caller passes
     expect(container.querySelector('.lm-fig3d__tools')?.textContent).not.toMatch(/reference anatomy/);
-    expect(container.querySelector('figcaption')?.textContent).toMatch(/Muscles and bones show reference anatomy\./);
+    expect(container.querySelector('figcaption')?.textContent).not.toMatch(/reference anatomy/);
   });
 
   it('lets the person choose layers and pause turning', async () => {
@@ -396,7 +394,7 @@ describe('<Figure3D>', () => {
     });
   });
 
-  describe('first-time mouse hint', () => {
+  describe('no helper chip over the stage', () => {
     const finePointer = (fine: boolean) =>
       vi.stubGlobal('matchMedia', (q: string) => ({
         matches: fine && q.includes('pointer: fine'),
@@ -405,58 +403,20 @@ describe('<Figure3D>', () => {
         removeEventListener: () => {},
       }));
 
-    it('shows one line the first time on a desktop pointer, fades away, and never comes back', async () => {
+    it('shows no gesture caption on a desktop pointer or a touch device, and stores nothing', async () => {
       withWebGL2(true);
-      finePointer(true);
-      const timers = vi.spyOn(window, 'setTimeout');
-      const first = render(<Figure3D params={params} />);
-      expect(await screen.findByText(VIEW_HINT)).toBeInTheDocument();
-      expect(VIEW_HINT).toBe('Drag to turn · right-drag to move · scroll to zoom');
-      expect(screen.getByText(VIEW_HINT)).toHaveAttribute('aria-hidden', 'true');
-      expect(localStorage.getItem('vitals-figure-view-hint')).toBe('1');
-      // it removes itself once its fade is done
-      const fade = timers.mock.calls.find(([, ms]) => ms === 5200);
-      expect(fade).toBeDefined();
-      act(() => (fade![0] as () => void)());
-      expect(screen.queryByText(VIEW_HINT)).toBeNull();
-      first.unmount();
-      render(<Figure3D params={params} />);
-      await screen.findAllByTestId('fig3d-canvas');
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument());
-      expect(screen.queryByText(VIEW_HINT)).toBeNull();
-    });
-
-    it('is not shown on touch devices, thumbnails or the vector fallback', async () => {
-      withWebGL2(true);
-      finePointer(false);
-      const touch = render(<Figure3D params={params} />);
-      await screen.findByTestId('fig3d-canvas');
-      expect(screen.queryByText(VIEW_HINT)).toBeNull();
-      touch.unmount();
-      finePointer(true);
-      const small = render(<Figure3D params={params} size="sm" caption={false} />);
-      await screen.findByTestId('fig3d-canvas');
-      expect(screen.queryByText(VIEW_HINT)).toBeNull();
-      small.unmount();
-      expect(localStorage.getItem('vitals-figure-view-hint')).toBeNull();
-    });
-
-    it('survives blocked storage: shown once per page load, no error', async () => {
-      withWebGL2(true);
-      finePointer(true);
-      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-        throw new Error('blocked');
-      });
-      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-        throw new Error('blocked');
-      });
-      const first = render(<Figure3D params={params} />);
-      expect(await screen.findByText(VIEW_HINT)).toBeInTheDocument();
-      first.unmount();
-      render(<Figure3D params={params} />);
-      await screen.findAllByTestId('fig3d-canvas');
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument());
-      expect(screen.queryByText(VIEW_HINT)).toBeNull();
+      const setItem = vi.spyOn(Storage.prototype, 'setItem');
+      for (const fine of [true, false]) {
+        finePointer(fine);
+        const { container, unmount } = render(<Figure3D params={params} />);
+        await screen.findByTestId('fig3d-canvas');
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Zoom in' })).toBeInTheDocument());
+        // the view buttons are the only controls the stage carries: no caption about dragging or zooming
+        expect(screen.queryByText(/drag to turn|scroll to zoom/i)).toBeNull();
+        expect(container.querySelector('.lm-fig3d__hint')).toBeNull();
+        unmount();
+      }
+      expect(setItem).not.toHaveBeenCalled();
     });
   });
 

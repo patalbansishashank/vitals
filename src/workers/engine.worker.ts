@@ -1,6 +1,7 @@
 import * as Comlink from 'comlink';
-import { buildModelParams, compileSchedule, MODULES, resolveProfile, runEngine, sampleParams, simulate } from '@/engine';
-import type { PersonProfile, PlanRequest, RunOptions, Schedule, SeriesId } from '@/engine';
+import { simulate } from '@/engine';
+import type { PersonProfile, PlanRequest, RunOptions, Schedule } from '@/engine';
+import { drawBuffers, simulateDrawChunk, type DrawChunkSpec, type DrawSeries } from './simulationDraws';
 import type { PlannerProgressInfo, PlannerProgressV2, PlannerRequestV2, PlannerTier, ReplanRequest } from '@/engine/planner';
 import { PlannerCoordinator, type CoordinatorOptions, type LadderCoordinatorOptions } from './planner.coordinator';
 
@@ -8,32 +9,19 @@ const plannerCoordinator = new PlannerCoordinator();
 /** Re-plans run beside a planner run (a light re-plan may arrive while the user searches for plans). */
 const replanCoordinator = new PlannerCoordinator();
 
-/** Simulator ensemble chunk: draws [start, start + count) of a `total`-draw Latin hypercube from `seed` (MODEL_SPEC §8.1). */
-export interface DrawChunkSpec {
-  seed: number;
-  total: number;
-  start: number;
-  count: number;
-  options?: RunOptions;
-}
-export type DrawSeries = Partial<Record<SeriesId, Float32Array>>;
+export type { DrawChunkSpec, DrawSeries } from './simulationDraws';
 
 const api = {
   simulate(profile: PersonProfile, schedule: Schedule, options?: RunOptions) {
     return simulate(profile, schedule, options);
   },
-  /** Simulator ensemble chunk (MODEL_SPEC §8.1): daily series of draws [start, start + count) of a seeded LHS set. */
+  /**
+   * Simulator ensemble chunk (MODEL_SPEC §8.1, D8-02): the member envelopes (band inputs with status, validity and abort,
+   * A1-049) of draws [start, start + count) of a seeded LHS set; the daily buffers are transferred, the metadata copied.
+   */
   simulateDraws(profile: PersonProfile, schedule: Schedule, spec: DrawChunkSpec): DrawSeries[] {
-    const rp = resolveProfile(profile);
-    const cs = compileSchedule(schedule, rp);
-    const vectors = sampleParams(buildModelParams(MODULES).defs, { count: spec.total, seed: spec.seed });
-    const out: DrawSeries[] = [];
-    for (let k = spec.start; k < Math.min(spec.total, spec.start + spec.count); k++) {
-      out.push(runEngine(rp, cs, { ...spec.options, record: 'daily', paramOverrides: vectors[k], collectEvents: false }).daily);
-    }
-    const buffers = new Set<ArrayBuffer>();
-    for (const d of out) for (const a of Object.values(d)) if (a) buffers.add(a.buffer as ArrayBuffer);
-    return Comlink.transfer(out, [...buffers]);
+    const out = simulateDrawChunk(profile, schedule, spec);
+    return Comlink.transfer(out, drawBuffers(out));
   },
   /**
    * Planner coordinator (MODEL_SPEC §10.2): evaluator ports are transferred from the main thread (`plannerClient`);

@@ -35,8 +35,13 @@ export interface McpCallContext {
   requestId: string | number;
 }
 
+/** Transport descriptors can include explicitly owner-delegated tools; ordinary manifests still forbid destructive tools. */
+export type HostedMcpTool = Omit<McpToolDescriptor, 'annotations'> & {
+  annotations: Omit<McpToolDescriptor['annotations'], 'destructiveHint' | 'openWorldHint'> & { destructiveHint: boolean; openWorldHint: boolean };
+};
+
 export interface McpBackend {
-  listTools(): Promise<McpToolDescriptor[]>;
+  listTools(): Promise<HostedMcpTool[]>;
   call(tool: string, args: unknown, ctx: McpCallContext): Promise<ToolResultEnvelope>;
 }
 
@@ -90,10 +95,10 @@ async function readBriefing(backend: McpBackend, ctx: McpCallContext): Promise<{
   }
 }
 
-export function createMcpServer(backend: McpBackend, opts: { version: string; fallbackClientName: string; scope: () => string }): Server {
+export function createMcpServer(backend: McpBackend, opts: { version: string; fallbackClientName: string; scope: () => string; instructions?: string }): Server {
   const server = new Server(
     { name: 'vitals', title: 'Vitals', version: opts.version },
-    { capabilities: { tools: { listChanged: true }, prompts: {}, resources: {} }, instructions: MCP_INSTRUCTIONS },
+    { capabilities: { tools: { listChanged: true }, prompts: {}, resources: {} }, instructions: opts.instructions ?? MCP_INSTRUCTIONS },
   );
   const ctxOf = (requestId: string | number): McpCallContext => ({
     clientName: (server.getClientVersion()?.name ?? '').replace(/[^\w .:@/-]/g, '').slice(0, 64) || opts.fallbackClientName,

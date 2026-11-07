@@ -149,6 +149,8 @@ export interface ServerDevice {
   createdAt: string;
   lastSeenAt: string;
   current: boolean;
+  /** The origin the device paired from (`app://vitals` for the desktop app), when the server says. */
+  origin?: string;
 }
 
 export interface PairCode {
@@ -667,6 +669,7 @@ export function createServerClient(options: ServerClientOptions = {}): ServerCli
         createdAt: str(d.createdAt),
         lastSeenAt: str(d.lastSeenAt),
         current: d.current === true,
+        ...(typeof d.origin === 'string' && d.origin ? { origin: d.origin } : {}),
       }));
     },
     async revokeDevice(id) {

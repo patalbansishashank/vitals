@@ -1,0 +1,108 @@
+@layer components {
+  .sim-improve {
+    margin-top: var(--lm-card-gap);
+    padding: var(--lm-card-pad);
+    border: 1px solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
+    background: var(--lm-card-bg);
+    color: var(--lm-ink);
+  }
+  .sim-improve__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .sim-improve__head h2 {
+    margin: 0;
+    font-size: var(--lm-text-title-m);
+    font-weight: 600;
+  }
+  .sim-improve__option {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 36px;
+    margin-top: 10px;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    cursor: pointer;
+  }
+  .sim-improve__option input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--lm-signal);
+  }
+  .sim-improve__option input:focus-visible { outline: 2px solid var(--lm-signal); outline-offset: 3px; }
+  .sim-improve__note, .sim-improve__error {
+    max-width: 75ch;
+    margin: 14px 0 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    line-height: 1.5;
+  }
+  .sim-improve__error { color: var(--lm-danger-fg); }
+  .sim-improve__table-wrap {
+    width: 100%;
+    margin-top: 18px;
+    overflow-x: auto;
+    scrollbar-color: var(--lm-line-strong) var(--lm-well);
+  }
+  .sim-improve__table-wrap:focus-visible {
+    outline: 2px solid var(--lm-signal);
+    outline-offset: 2px;
+  }
+  .sim-improve__table {
+    width: 100%;
+    min-width: 1080px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-variant-numeric: tabular-nums;
+    text-align: start;
+  }
+  .sim-improve__table caption {
+    padding: 0 0 12px;
+    color: var(--lm-ink-2);
+    text-align: start;
+    font-size: var(--lm-text-sm);
+  }
+  .sim-improve__table th, .sim-improve__table td {
+    padding: 12px 10px;
+    border-bottom: 1px solid var(--lm-line);
+    text-align: start;
+    vertical-align: top;
+    font-size: var(--lm-text-sm);
+    overflow-wrap: anywhere;
+  }
+  .sim-improve__table :is(th, td):first-child { width: 17%; }
+  .sim-improve__table :is(th, td):nth-child(2) { width: 10%; }
+  .sim-improve__table :is(th, td):nth-child(3) { width: 10%; }
+  .sim-improve__table :is(th, td):nth-child(4) { width: 10%; }
+  .sim-improve__table :is(th, td):nth-child(5) { width: 14%; }
+  .sim-improve__table :is(th, td):nth-child(6) { width: 15%; }
+  .sim-improve__table :is(th, td):nth-child(7) { width: 11%; }
+  .sim-improve__table :is(th, td):nth-child(8) { width: 13%; }
+  .sim-improve__table thead th {
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-xs);
+    font-family: var(--lm-font-mono);
+    font-weight: 500;
+  }
+  .sim-improve__table tbody th { font-weight: 500; }
+  .sim-improve__table tbody small {
+    display: block;
+    margin-top: 3px;
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-xs);
+    font-weight: 400;
+  }
+  .sim-improve__baseline { background: color-mix(in oklab, var(--lm-ink) 6%, transparent); }
+  .sim-improve__table .lm-key { white-space: nowrap; }
+  .sim-improve__show-all { margin-top: 14px; }
+  @media (max-width: 47.99rem) {
+    .sim-improve { padding: 18px; }
+    .sim-improve__head .lm-key { width: 100%; }
+  }
+}

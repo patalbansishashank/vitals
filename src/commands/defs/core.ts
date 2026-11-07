@@ -57,16 +57,16 @@ export const ROUTES = {
   planResults: () => '/plan/results',
   evidence: () => '/evidence',
   evidenceTopic: (p: Record<string, string>) => `/evidence/topics/${encodeURIComponent(p.slug ?? '')}`,
-  settings: (p: Record<string, string>) => `/settings${p.section ? `#${p.section}` : ''}`,
+  settings: (p: Record<string, string>) => `/settings${p.section ? `/${encodeURIComponent(p.section)}` : ''}`,
   safety: () => '/safety',
-  // intake (SUITE_SPEC §6.2 `/onboarding/:section`): activity · training · diet · kitchen · supplements · devices · summary
+  // intake (SUITE_SPEC §6.2 `/onboarding/:section`): activity · training · diet · kitchen · supplements · summary
   onboarding: (p: Record<string, string>) => `/onboarding/${encodeURIComponent(p.section ?? 'activity')}${p.from ? `?from=${encodeURIComponent(p.from)}` : ''}`,
   // Living mode (SUITE_SPEC §6.2; E13 src/features/living/paths.ts)
   today: (p: Record<string, string>) => (p.date ? `/today/${encodeURIComponent(p.date)}` : '/today'),
   food: (p: Record<string, string>) => (p.date ? `/food/${encodeURIComponent(p.date)}` : '/food'),
   train: (p: Record<string, string>) => (p.date ? `/train/${encodeURIComponent(p.date)}` : '/train'),
   coach: (p: Record<string, string>) => (p.conversationId ? `/coach/${encodeURIComponent(p.conversationId)}` : '/coach'),
-  progress: (p: Record<string, string>) => (p.metric ? `/progress/${encodeURIComponent(p.metric)}` : '/progress'),
+  progress: () => '/progress',
   planActive: (p: Record<string, string>) => (p.version ? `/plan/active/versions/${encodeURIComponent(p.version)}` : '/plan/active'),
 } as const;
 export type RouteId = keyof typeof ROUTES;
@@ -76,7 +76,7 @@ export const navOpen = defineCommand({
   version: 1,
   title: 'Open a screen',
   description:
-    'Open a screen of the app: body, simulate, schedule or results (params.scenarioId), plan, planGoals, planResults, evidence, evidenceTopic (params.slug), settings (params.section), safety, onboarding (params.section: activity, training, diet, kitchen, supplements, devices or summary), today, food or train (params.date), coach (params.conversationId), progress (params.metric), planActive (params.version).',
+    'Open a screen of the app: body, simulate, schedule or results (params.scenarioId), plan, planGoals, planResults, evidence, evidenceTopic (params.slug), settings (params.section), safety, onboarding (params.section: activity, training, diet, kitchen, supplements or summary), today, food or train (params.date), coach (params.conversationId), progress, planActive (params.version).',
   input: T.Object({ route: T.Enum(Object.keys(ROUTES) as RouteId[]), params: T.Optional(T.Record(T.String())) }),
   output: T.Object({ opened: T.Boolean(), path: T.String() }),
   perm: 'read',

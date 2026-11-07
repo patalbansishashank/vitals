@@ -13,6 +13,7 @@ import type { EntrySource } from '@/living';
 import { currentReadings, isStale, migrateProfileLabs, normaliseDoc } from '@/markers/doc';
 import { markerRuleContext } from '@/markers/context';
 import { evaluateMarkers } from '@/markers/rules';
+import { withInitialReviewRecords } from '@/markers/review';
 import { readMarkerContextSources } from '@/markers/ui/contextSources';
 import { MARKER_IDS, emptyMarkersDoc, type MarkerId, type MarkerReading, type MarkerState, type MarkersDoc, type MarkersView, type RuleContext } from '@/markers/types';
 import { MARKER_UNITS, checkBounds, isAcceptedUnit } from '@/markers/units';
@@ -36,10 +37,19 @@ export async function readMarkers(ctx: Pick<CommandContext, 'docs' | 'now'>): Pr
   }
 }
 
-export async function writeMarkers(ctx: CommandContext, doc: MarkersDoc): Promise<void> {
-  const { _schema: _s, ...body } = doc;
+export async function writeMarkers(ctx: CommandContext, doc: MarkersDoc): Promise<MarkersDoc> {
+  // D7-05: the additive, idempotent review-record migration runs on every write (an expired unresolved prior abnormality
+  // gets one persisted review record; existing records are kept as stored). A rule-context failure never blocks a write.
+  let next = doc;
+  try {
+    next = withInitialReviewRecords(doc, evaluateMarkers(doc, ruleContext(ctx)), ctx.today);
+  } catch {
+    /* rules unavailable: the records are added on a later write */
+  }
+  const { _schema: _s, ...body } = next;
   void _s;
   await ctx.docs.put(MARKERS_COL, { ...body, _id: MARKERS_KEY });
+  return next;
 }
 
 /** Rule context from Your body, the screening, the intake answers and the live plan (`markerRuleContext`, §13.5.3). */

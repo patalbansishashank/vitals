@@ -1,6 +1,7 @@
 /** Composite turns of chapter 2 (training and equipment). */
 import { useState } from 'react';
 import { InlineWarning, Key, KeyBank, Stepper } from '@/components';
+import { CommitKey } from '../CommitKey';
 import {
   ALL_DAYS,
   CONDITIONS,
@@ -50,8 +51,7 @@ export function WillingnessWidget({ value, onCommit }: WidgetProps<Partial<Recor
           </div>
         ))}
       </div>
-      <div className="lm-ik-done">
-        <Key
+      <CommitKey
           onClick={() => {
             const out: Partial<Record<TrainingFamily, Willingness>> = {};
             for (const f of FAMILIES) if (w[f] && w[f] !== 'fine') out[f] = w[f];
@@ -59,8 +59,7 @@ export function WillingnessWidget({ value, onCommit }: WidgetProps<Partial<Recor
           }}
         >
           {exceptions ? TURN.doneCount(exceptions) : TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -91,8 +90,7 @@ export function PlaceDaysWidget({ value, values, onCommit }: WidgetProps<PlaceDa
           <WeekdayChips label={T.whereDays.place(T.where.options[p])} value={days[p] ?? []} onChange={(d) => setDays((cur) => ({ ...cur, [p]: d }))} />
         </div>
       ))}
-      <div className="lm-ik-done">
-        <Key
+      <CommitKey
           onClick={() => {
             const out: PlaceDaysValue = {};
             for (const p of places) if (days[p]?.length) out[p] = days[p];
@@ -100,8 +98,7 @@ export function PlaceDaysWidget({ value, values, onCommit }: WidgetProps<PlaceDa
           }}
         >
           {TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -157,9 +154,7 @@ export function KitWidget({ value, onCommit }: WidgetProps<KitValue>) {
         <OtherEntries value={custom} onChange={(v) => setCustom(v.filter(isTextEntry))} label={T.kit.somethingElse} placeholder={T.kit.somethingElsePlaceholder} />
         <p className="lm-ik-note">{T.kit.customNote}</p>
       </div>
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit({ owned: owned.filter((id) => id !== 'plates'), custom: custom.map(textOf) })}>{total ? TURN.doneCount(total) : TURN.done}</Key>
-      </div>
+      <CommitKey onClick={() => onCommit({ owned: owned.filter((id) => id !== 'plates'), custom: custom.map(textOf) })}>{total ? TURN.doneCount(total) : TURN.done}</CommitKey>
     </div>
   );
 }
@@ -188,8 +183,7 @@ export function WeightsWidget({ value, values, onCommit }: WidgetProps<WeightsVa
           />
         </div>
       ))}
-      <div className="lm-ik-done">
-        <Key
+      <CommitKey
           onClick={() => {
             const out: WeightsValue = {};
             for (const id of items) {
@@ -200,8 +194,7 @@ export function WeightsWidget({ value, values, onCommit }: WidgetProps<WeightsVa
           }}
         >
           {TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -228,9 +221,7 @@ export function TrainTimeWidget({ value, onCommit }: WidgetProps<TrainTimeValue>
         {T.time.best}
       </span>
       <KeyBank<TimeOfDay> labelledBy="ik-time-best" size="lg" block value={best} onChange={setBest} options={BEST.map((b) => ({ value: b, label: T.time.bestOptions[b] }))} />
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit({ days: days ?? 3, minutes: minutes ? Number(minutes) : 30, best: best ?? 'any' })}>{TURN.done}</Key>
-      </div>
+      <CommitKey onClick={() => onCommit({ days: days ?? 3, minutes: minutes ? Number(minutes) : 30, best: best ?? 'any' })}>{TURN.done}</CommitKey>
     </div>
   );
 }
@@ -276,11 +267,9 @@ export function InjuriesWidget({ value, onCommit }: WidgetProps<{ parts: Injury[
         </div>
       ))}
       <p className="lm-ik-note">{T.injuries.safetyNote}</p>
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit({ parts, cleared: cleared.filter((c) => parts.includes(c)) })} disabledReason={picked.length === 0 ? TURN.ifSkip(T.injuries.skip) : undefined}>
+      <CommitKey onClick={() => onCommit({ parts, cleared: cleared.filter((c) => parts.includes(c)) })} disabledReason={picked.length === 0 ? TURN.nextNeedsAnswer : undefined}>
           {TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -302,11 +291,9 @@ export function ConditionsWidget({ value, onCommit }: WidgetProps<string[]>) {
           {T.conditions.effect[c]}
         </InlineWarning>
       ))}
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit(picked)} disabledReason={picked.length === 0 ? TURN.ifSkip(T.conditions.skip) : undefined}>
+      <CommitKey onClick={() => onCommit(picked)} disabledReason={picked.length === 0 ? TURN.nextNeedsAnswer : undefined}>
           {TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }

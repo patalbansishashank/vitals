@@ -6,8 +6,9 @@ import { GUARD_COPY } from './copy';
 import { useAppMode, useLivePlanReady } from './mode';
 
 /**
- * Route guard for Living screens (IA §2.1): without a live plan, Today, Food, Train and Plan details send the person to
- * the Planner with a one-line notice; the Coach and Progress work in both modes. Arriving on a Living-only screen clears
+ * Route guard for Living screens (IA §2.1): without a live plan, the plan-only screens (Food, Plan details; see
+ * `routes.tsx`) send the person to the Planner with a one-line notice; Today (home in every mode since 0.6.3), the
+ * Coach, Progress, Sleep and Train (the activity hub, 0.6.3 S24/A7) work in both modes. Arriving on a Living-only screen clears
  * the planning override (the return key and "Back to Today" land here); turning the override on while a Living screen
  * is still mounted does not (the shell navigates away first).
  */

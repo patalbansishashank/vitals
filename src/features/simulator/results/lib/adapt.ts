@@ -2,13 +2,19 @@
  * Engine result → chart data (CHART_SPEC §2, §4; MODEL_SPEC §6-8). Builds an `EngineLikeResult` with the display
  * transforms applied (presentation mode, unit conversion, 0–1 → index) and hands it to the chart module's
  * `adaptResult`, then adds what the generic adapter cannot know: the TDEE stack, the weight decomposition, the
- * ketosis state band, event labels and the per-hour likely range.
+ * ketosis state band, event labels and the per-hour range.
  *
- * Bands: the ensemble's P10/P90 when present (they refine as draws stream in); otherwise the catalogue's fixed
- * fallback (±NN % of the change from the start, or of the value; MODEL_SPEC §8.2) so every channel carries a
- * likely range from the first frame.
+ * Bands: the ensemble's P10/P90 when present (they refine as draws stream in: a parameter-sensitivity range with
+ * unvalidated coverage, C6/D8-02), drawn exactly at the members' endpoints — the nominal line is its own trajectory and is
+ * never folded into the range (it may sit outside it); otherwise the catalogue's fixed fallback (±NN % of the change from
+ * the start, or of the value; MODEL_SPEC §8.2), a separately named heuristic display range while the variations run. A
+ * channel whose band the ensemble marks `method: 'none'` (no member contributed) gets no range at all, whatever arrays
+ * travel with it. A day the ensemble reports without a usable range (no valid member, or members excluded by their own
+ * status or validity, A1-049) gets a chart-local gap there: never the nominal, a previous day's range or the finite
+ * compatibility numbers stored in its slot.
  */
-import type { CompiledSchedule, Schedule, SimulationResult } from '@/engine';
+import type { CompiledSchedule, Schedule, SeriesId, SimulationResult } from '@/engine';
+import { BAND_DAY_METHOD, INTERPRETABLE_STATUSES, STATUS_LABEL, bandDayUsable, type BandAvailability, type BandMeta, type OutputStatus, type UncertaintyKind } from '@/lib/bodyContracts';
 import { adaptResult, type ChartData, type ChartSeries, type CompositionTracks, type EngineLikeResult, type EngineMetricMeta, type StateTrack } from '@/features/charts';
 import { displayCatalogue, METRIC_UNITS, type DisplayMetric, type UnitPrefs } from './metrics';
 import { intakeContext, schedulePhases } from './schedule';
@@ -21,9 +27,39 @@ export interface BandsLike {
   p10?: Arrays;
   p90?: Arrays;
   method?: Partial<Record<string, 'draws' | 'fallback' | 'none'>>;
+  /** D8-02: band semantics by channel (`BandedResult.bandMeta`); `method: 'none'` means no range. */
+  bandMeta?: Partial<Record<string, BandMeta>>;
+  /**
+   * A1-049: per-day band availability by channel (`BandedResult.bandDays`): which days carry a usable range (full, or the
+   * valid members' only), the attempted/valid/excluded members with the reasons, and the members' own status and onset.
+   * Absent (a legacy result): every day with finite quantiles is a range.
+   */
+  bandDays?: Partial<Record<string, BandAvailability>>;
   /** Draws folded in so far / planned. */
   draws?: number;
   total?: number;
+}
+
+/** A1-049: the per-day accounting of one drawn range, as the chart and the readouts use it. */
+export interface ResolvedBandDays {
+  /** 1 where the day's range is drawn and read; 0 = no range that day (a gap). */
+  usable: Uint8Array;
+  /** 1 where the usable range is the valid members' only (a named conditional range, never the full ensemble's). */
+  conditional: Uint8Array;
+  /** The producer's accounting (absent for a legacy result). */
+  availability?: BandAvailability;
+}
+
+/** What one channel's range is (C6/D8-02, A1-049/A1-051): where it came from, its kind and, for draws, its day accounting. */
+export interface SeriesBandInfo {
+  source: 'draws' | 'fallback' | 'none';
+  /** The producer's kind for draws; 'heuristic' for the fixed display fallback; 'none' without a range. */
+  uncertaintyKind: UncertaintyKind;
+  /** Members behind a drawn range (the producer's count; absent when not reported). */
+  members?: number;
+  days?: ResolvedBandDays;
+  /** The members' qualifying status (a conditional scenario range) from its first day. */
+  qualifier?: { status: OutputStatus; fromDay: number };
 }
 
 export interface ResultsInput {
@@ -41,6 +77,82 @@ export interface AdaptedResults {
   metrics: Map<string, DisplayMetric>;
   /** Where each metric's band came from. */
   bandSource: Map<string, 'draws' | 'fallback' | 'none'>;
+  /** What each metric's band is, with the drawn range's per-day accounting (A1-049); read by the readouts. */
+  bandInfo: Map<string, SeriesBandInfo>;
+}
+
+/**
+ * The run's C6 status of one series: the engine's `meta.outputStatus` when it set one, else Exploratory for a latent or
+ * legacy research index (`EXPLORATORY_SERIES`), else none (a plain estimate under the run's assumptions).
+ */
+export function seriesStatus(result: SimulationResult, m: Pick<DisplayMetric, 'id' | 'exploratory'>): { status?: OutputStatus; fromDay?: number } {
+  const st = result.meta.outputStatus?.[m.id as SeriesId];
+  if (st) {
+    // A1-052: a baseline outside the model's domain makes every modelled sample unsupported, the first end-of-day value
+    // (index 0, already a response to day 1) included; only the t = 0 anchor (`initial`, `observedAnchors`) is observed
+    const fromDay = statusHidesValues(st.status) && BASELINE_DOMAIN_REASONS.has(st.reasonCode) ? 0 : st.fromDay;
+    return { status: st.status, ...(fromDay !== undefined ? { fromDay } : {}) };
+  }
+  return m.exploratory ? { status: 'exploratory' } : {};
+}
+
+/** Interpretable member statuses that qualify a drawn range (it stays, with its word): scenario, limited, partial. */
+const QUALIFYING_BAND_STATUSES: ReadonlySet<OutputStatus> = new Set<OutputStatus>(['scenario', 'limited', 'partial']);
+
+/**
+ * Reasons that put a series' whole modelled run outside the domain because of its measured (or dependent) t = 0 baseline
+ * (D7-02): its zero-based daily samples are all responses after t = 0, so the status applies from index 0 whatever day an
+ * older producer stamped (A1-052).
+ */
+export const BASELINE_DOMAIN_REASONS: ReadonlySet<string> = new Set([
+  'observedBaselineOutsideCalibration',
+  'dependsOnOutOfDomainBaseline',
+  'measuredBaselineOutsideModelDomain',
+  'measuredBaselineFlaggedOutOfDomain',
+  'measuredBaselineNotReproduced',
+  'measuredAnchorOutOfDomain',
+]);
+
+/**
+ * The days on which a drawn range is usable (A1-049): finite endpoints and, when the producer reports it, a day method other
+ * than none (`bandDayUsable`: no valid member, or a model-limit/domain exclusion without an explicitly named valid-domain
+ * range, is none). A `conditionalValid` day is the valid members' range only and is named so wherever it is read.
+ */
+export function resolveBandDays(p10: ArrayLike<number>, p90: ArrayLike<number>, av: BandAvailability | undefined, n: number): ResolvedBandDays {
+  const usable = new Uint8Array(n);
+  const conditional = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (!Number.isFinite(p10[i]!) || !Number.isFinite(p90[i]!) || !bandDayUsable(av, i)) continue;
+    usable[i] = 1;
+    if (av && av.method[i] === BAND_DAY_METHOD.conditionalValid) conditional[i] = 1;
+  }
+  return { usable, conditional, ...(av ? { availability: av } : {}) };
+}
+
+/**
+ * D7-02: the accepted measurement the run anchored at t = 0 for this series (`meta.observedAnchors`), in the display
+ * unit system with its absolute unit; null for relative markers or without an anchor.
+ */
+export function observedOf(result: SimulationResult, m: Pick<DisplayMetric, 'id' | 'engineUnit' | 'unit' | 'factor' | 'scale100'>): { value: number; unit: string } | null {
+  const a = result.meta.observedAnchors?.find((x) => x.series === m.id);
+  if (!a || !Number.isFinite(a.value) || m.engineUnit === 'rel' || m.scale100) return null;
+  return { value: a.value * m.factor, unit: m.unit.replace(/ vs start$/, '') };
+}
+
+/** Whether a status forbids reading the series' numbers (C6): the values are hidden and the status word shown instead. */
+export const statusHidesValues = (status: OutputStatus | undefined): boolean => status !== undefined && !INTERPRETABLE_STATUSES.has(status);
+
+/**
+ * Status words by series id for the table view (`DataTable.statusWords`, C6): a cell whose value a status hides shows
+ * the word ("Unsupported", "Model limit") instead of a dash; a research index whose readout is a word only shows it too.
+ */
+export function statusWordsOf(metrics: ReadonlyMap<string, Pick<DisplayMetric, 'status' | 'wordOnly'>>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [id, m] of metrics) {
+    if (m.status && statusHidesValues(m.status)) out[id] = STATUS_LABEL[m.status];
+    else if (m.wordOnly) out[id] = STATUS_LABEL[m.wordOnly];
+  }
+  return out;
 }
 
 /** Value before day 1 in engine units: `initial` for end/wake/max aggregations, else the first daily value. */
@@ -193,59 +305,103 @@ export function buildResultsData(input: ResultsInput, prefs: UnitPrefs = METRIC_
   const metas: EngineMetricMeta[] = [];
   const metrics = new Map<string, DisplayMetric>();
   const bandSource = new Map<string, 'draws' | 'fallback' | 'none'>();
+  const bandInfo = new Map<string, SeriesBandInfo>();
+  const none = (id: string) => {
+    bandSource.set(id, 'none');
+    bandInfo.set(id, { source: 'none', uncertaintyKind: 'none' });
+  };
 
   for (const m of catalogue) {
     const raw = (result.daily as Arrays)[m.id];
     if (!raw || raw.length !== n || allNaN(raw)) continue;
+    // C6: numbers and statuses travel separately. A status that forbids interpreting the numbers hides them from its day
+    // on (the chart shows a gap, the readout the status word); from day 0 the series leaves the chart and stays only as
+    // a status for the readouts. An accepted measurement used as the t = 0 anchor stays visible (D7-02).
+    const { status, fromDay } = seriesStatus(result, m);
+    const hideFrom = statusHidesValues(status) ? Math.max(0, Math.min(n, Math.floor(fromDay ?? 0))) : n;
+    const observed = observedOf(result, m);
+    const withStatus: DisplayMetric = status ? { ...m, status, ...(fromDay !== undefined ? { statusFromDay: fromDay } : {}), ...(observed ? { observed } : {}) } : observed ? { ...m, observed } : m;
+    if (hideFrom === 0) {
+      metrics.set(m.id, withStatus);
+      none(m.id);
+      continue;
+    }
     const base = engineBaseline(result, m.id, m.agg);
     const show = (v: number) => presentValue(m, v, base);
     const values = mapArray(raw, show);
+    for (let i = hideFrom; i < n; i++) values[i] = Number.NaN;
     daily[m.id] = values;
     baseline[m.id] = m.presentation === 'deltaFromBaseline' ? 0 : base * m.factor;
 
-    // likely range
+    // range (P10–P90 of the draws: a parameter-sensitivity range with unvalidated coverage, C6/D8-02)
     const p10 = bands?.p10?.[m.id];
     const p90 = bands?.p90?.[m.id];
-    const method = bands?.method?.[m.id];
+    const meta = bands?.bandMeta?.[m.id];
+    // the producer's explicit "no band" wins over any compatibility arrays or method map (A1-051)
+    const method = meta?.method === 'none' ? 'none' : (bands?.method?.[m.id] ?? meta?.method);
     let lo: Float32Array | undefined;
     let hi: Float32Array | undefined;
-    if (m.bandNone) bandSource.set(m.id, 'none');
+    let days: ResolvedBandDays | undefined;
+    // an exploratory index or a hidden stretch gets no band: a range whose bounds lack warrant is not drawn (C6, D2-02)
+    if (m.bandNone || m.exploratory || status === 'exploratory' || hideFrom < n) none(m.id);
     else if (p10 && p90 && p10.length === n && p90.length === n && method !== 'none' && method !== 'fallback') {
-      lo = mapArray(p10, show);
-      hi = mapArray(p90, show);
+      // each endpoint keeps its own value under the unit/presentation transform; the nominal is never inserted (A1-051);
+      // a day without a usable range is a chart-local gap (A1-049), never its compatibility numbers
+      const av = bands?.bandDays?.[m.id];
+      days = resolveBandDays(p10, p90, av, n);
+      const u = days.usable;
+      lo = new Float32Array(n);
+      hi = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        lo[i] = u[i] ? show(p10[i]!) : Number.NaN;
+        hi[i] = u[i] ? show(p90[i]!) : Number.NaN;
+      }
+      // labelled scenario/limited members stay in the range; the range carries their status from its first day
+      const qualifier = av && QUALIFYING_BAND_STATUSES.has(av.status) ? { status: av.status, fromDay: Math.max(0, Math.floor(av.fromDay ?? 0)) } : meta?.uncertaintyKind === 'scenario' ? { status: 'scenario' as const, fromDay: 0 } : undefined;
       bandSource.set(m.id, 'draws');
+      bandInfo.set(m.id, {
+        source: 'draws',
+        uncertaintyKind: (qualifier && av?.uncertaintyKind) || meta?.uncertaintyKind || 'parameterSensitivity',
+        ...(meta && meta.draws > 0 ? { members: meta.draws } : av ? { members: av.attempted } : bands?.draws ? { members: bands.draws } : {}),
+        days,
+        ...(qualifier ? { qualifier } : {}),
+      });
     } else if (m.bandFallback && method !== 'none') {
+      // a separately named heuristic display range around the nominal (no ensemble range yet), never a producer's "none"
       const fb = fallbackBand(raw, base, m.bandFallback);
       lo = mapArray(fb.lo, show);
       hi = mapArray(fb.hi, show);
       bandSource.set(m.id, 'fallback');
-    } else bandSource.set(m.id, 'none');
+      bandInfo.set(m.id, { source: 'fallback', uncertaintyKind: 'heuristic' });
+    } else none(m.id);
     if (lo && hi) {
-      // the nominal line must sit inside its range (the ensemble's median and the nominal run can differ slightly)
+      // a presentation transform that flips the order (a negative factor) keeps both endpoints, ordered low → high
       for (let i = 0; i < n; i++) {
-        const v = values[i]!;
-        const a = Math.min(lo[i]!, hi[i]!, v);
-        const b = Math.max(lo[i]!, hi[i]!, v);
-        lo[i] = a;
-        hi[i] = b;
+        if (lo[i]! > hi[i]!) {
+          const t = lo[i]!;
+          lo[i] = hi[i]!;
+          hi[i] = t;
+        }
       }
       dailyBand[m.id] = { p10: lo, p90: hi };
     }
 
-    // hourly curve for fast metrics; its range borrows the day's band half-widths (the engine bands are daily)
+    // hourly curve for fast metrics; its range borrows the day's offsets from the nominal (the engine bands are daily)
     const hr = (result.hourly as Arrays)[m.id];
     if (hr && hr.length === n * 24) {
       // hourly samples of daily sums (kcal per hour) are shown as the day rate (× 24) so the unit stays "per day"
       const perDay = m.agg === 'sum' ? 24 : 1;
       const hv = mapArray(hr, (v) => show(v * perDay));
+      for (let i = hideFrom * 24; i < hv.length; i++) hv[i] = Number.NaN;
       hourly[m.id] = hv;
       if (lo && hi) {
         const hlo = new Float32Array(hv.length);
         const hhi = new Float32Array(hv.length);
         for (let i = 0; i < hv.length; i++) {
           const d = Math.floor(i / 24);
-          hlo[i] = hv[i]! - Math.max(0, values[d]! - lo[d]!);
-          hhi[i] = hv[i]! + Math.max(0, hi[d]! - values[d]!);
+          // the same signed distance from the nominal as the day's endpoints (a nominal outside the range stays outside)
+          hlo[i] = hv[i]! + (lo[d]! - values[d]!);
+          hhi[i] = hv[i]! + (hi[d]! - values[d]!);
         }
         hourlyBand[m.id] = { p10: hlo, p90: hhi };
       }
@@ -266,8 +422,9 @@ export function buildResultsData(input: ResultsInput, prefs: UnitPrefs = METRIC_
       overlayNote: m.overlayNote,
       thresholds: m.thresholds,
       mechanism: m.mechanism,
+      display: { ...(m.wordOnly ? { wordOnly: STATUS_LABEL[m.wordOnly] } : {}), ...(status && !statusHidesValues(status) && status !== 'estimated' ? { qualifier: STATUS_LABEL[status] } : {}), ...(observed ? { observed } : {}) },
     });
-    metrics.set(m.id, { ...m, lane: kind });
+    metrics.set(m.id, { ...withStatus, lane: kind });
   }
 
   const engineLike: EngineLikeResult = {
@@ -296,7 +453,7 @@ export function buildResultsData(input: ResultsInput, prefs: UnitPrefs = METRIC_
   const massFactor = metrics.get('fatMass')?.factor ?? 1;
   const comp = compositionTracks(result, massFactor);
   if (comp) data.composition = { fat: comp.fat, lean: comp.lean, glycogen: comp.glycogen, water: comp.water };
-  return { data, metrics, bandSource };
+  return { data, metrics, bandSource, bandInfo };
 }
 
 

@@ -1,0 +1,29 @@
+@layer components {
+  .lv-daydots {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 8px;
+    max-width: 23rem;
+  }
+  .lv-daydots__day {
+    display: grid;
+    justify-items: center;
+    gap: 7px;
+    color: var(--lm-ink-2);
+  }
+  .lv-daydots__day i {
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-full);
+  }
+  .lv-daydots__day[data-on] {
+    color: var(--lm-ink);
+  }
+  .lv-daydots__day[data-on] i {
+    background: var(--lm-signal);
+    border-color: var(--lm-signal);
+    outline: 1px solid var(--lm-signal);
+    outline-offset: 2px;
+  }
+}

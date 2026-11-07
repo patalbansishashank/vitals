@@ -1,4 +1,4 @@
-/* The "Get the app" block on the first screen. Tokens only; dark mode is automatic. */
+/* The "Get the app" block (Settings › Install). Ember: tokens only, hairlines, no surface of its own. */
 @layer components {
   .lm-dl {
     display: grid;
@@ -7,20 +7,26 @@
     max-width: 30rem;
     margin-top: 8px;
     padding-top: 16px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-dl[data-folded='true'] {
     padding-top: 8px;
   }
+  /* inside a settings group (Settings › Install): the group is the frame */
+  .lm-dl[data-embedded] {
+    max-width: none;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .lm-dl[data-embedded] .lm-dl__body {
+    min-height: 0;
+  }
   .lm-dl__title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     margin: 0;
-    font-stretch: 120%;
     font-weight: 600;
-    font-size: var(--lm-text-md);
-    line-height: var(--lm-text-md--lh);
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
     color: var(--lm-ink);
   }
   .lm-dl__body {
@@ -53,13 +59,18 @@
   .lm-dl__meta,
   .lm-dl__note {
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
     text-wrap: pretty;
   }
   .lm-dl__meta {
-    min-height: var(--lm-text-sm--lh);
+    font-family: var(--lm-font-mono);
+    letter-spacing: var(--lm-text-meta--ls);
+    text-transform: uppercase;
+    min-height: var(--lm-text-xs--lh);
+    font-variant-numeric: tabular-nums;
   }
   .lm-dl__others {
     display: grid;
@@ -81,21 +92,28 @@
     min-height: 44px;
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink);
+    font-weight: 400;
+    color: var(--lm-signal);
     text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--lm-signal) 40%, transparent);
+    text-decoration-thickness: 1px;
     text-underline-offset: 3px;
+  }
+  .lm-dl__link:hover {
+    text-decoration-color: var(--lm-signal);
   }
   .lm-dl__size {
     min-height: var(--lm-text-xs--lh);
     font-size: var(--lm-text-xs);
     line-height: var(--lm-text-xs--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
   }
   .lm-dl__keep,
   .lm-dl__fold {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
     justify-self: start;
     min-height: 44px;
     padding: 0;
@@ -104,9 +122,8 @@
     font: inherit;
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
-    text-decoration: underline;
-    text-underline-offset: 3px;
     cursor: pointer;
   }
   .lm-dl__keep:hover,
@@ -125,4 +142,46 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
+
+  /* Settings › Install (embedded): the other systems as rows (name · size · Download key), hairlines between */
+  .lm-dl[data-embedded] .lm-dl__others {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .lm-dl__others li.lm-dl__row {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-3);
+    min-height: 56px;
+    padding-block: var(--lm-space-2);
+  }
+  .lm-dl__others li.lm-dl__row + li.lm-dl__row {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-dl__others li.lm-dl__row .lm-dl__size {
+    flex: none;
+    white-space: nowrap;
+  }
+  @media (max-width: 47.99rem) {
+    .lm-dl[data-embedded] .lm-dl__key {
+      width: 100%;
+    }
+  }
+  .lm-dl__row-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+}
+
+@layer components {
+  .lm-dl__download { display: flex; align-items: center; gap: 16px; width: 100%; }
+  .lm-dl__download > .lm-key { flex: 1 1 auto; min-width: 0; }
+  .lm-dl__download > .lm-info { margin-inline-end: 10px; }
+  .lm-dl__others li.lm-dl__row { flex-wrap: wrap; gap: 12px 16px; }
+  .lm-dl__row-name { flex-basis: 8rem; }
+  .lm-dl__row > .lm-info { margin-inline: 2px; }
 }

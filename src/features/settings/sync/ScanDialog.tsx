@@ -43,7 +43,7 @@ export default function ScanDialog({ open, onClose, onResult, title = SYNC_COPY.
   return (
     <Dialog open={open} onClose={onClose} title={title} footer={<Key onClick={onClose}>Cancel</Key>}>
       <p className="m-0 text-sm text-ink-2">{help}</p>
-      <video ref={videoRef} className="mt-3 aspect-square w-full rounded-md bg-ink object-cover" muted playsInline aria-label="Camera preview" />
+      <video ref={videoRef} className="mt-3 aspect-square w-full rounded-md bg-well object-cover" muted playsInline aria-label="Camera preview" />
       {error ? (
         <InlineWarning severity="danger" alert className="mt-3">
           {ERROR_TEXT[error]}

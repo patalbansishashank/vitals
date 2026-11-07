@@ -2,9 +2,11 @@
  * Simulation run orchestration (importable only from `src/commands/**` and the simulation projection).
  *
  * `run(sid, profile, schedule)` compiles and runs the engine in the simulator worker: the nominal run first (recorded
- * in full, shown immediately), then the uncertainty ensemble — `drawsTotal` Latin-hypercube parameter draws from a
- * fixed seed — streamed in chunks so P10/P50/P90 bands tighten progressively. Same inputs → same bands. Only one run
- * is in flight at a time (starting another cancels it); `cancel` stops it immediately.
+ * in full, shown immediately), then the parameter-sensitivity ensemble — `drawsTotal` Latin-hypercube parameter draws
+ * from a fixed seed — streamed in chunks so P10/P50/P90 bands tighten progressively. The bands are quantiles of the draws
+ * only (the nominal run is shown separately, D8-02) and carry their `bandMeta` (sensitivity range, coverage unvalidated).
+ * With zero draws there is no band. Same inputs → same bands. Only one run is in flight at a time (starting another
+ * cancels it); `cancel` stops it immediately.
  *
  * The synchronous start (run state + the persisted last-run inputs) must run in a write scope: the `sim.run`
  * command's (derive) or a derive scope opened by the projection's actions.
@@ -80,7 +82,8 @@ export function run(sid: string, profile: PersonProfile, schedule: Schedule, opt
         const chunk = await client.runDraws(p, schedule, { seed, total: drawsTotal, start, count: Math.min(DRAW_CHUNK, drawsTotal - start) });
         if (!current(sid, runId)) return;
         draws.push(...chunk);
-        patch(sid, runId, { bands: computeBands(nominal.daily, draws, drawsTotal), progress: (1 + draws.length) / (drawsTotal + 1) });
+        // D8-02: quantiles over the draws only; change series re-based on the nominal t = 0 value
+        patch(sid, runId, { bands: computeBands(nominal.daily, draws, drawsTotal, nominal.initial), progress: (1 + draws.length) / (drawsTotal + 1) });
       }
       active = null;
       patch(sid, runId, { status: 'done', phase: null, progress: 1, finishedAt: Date.now() });

@@ -3,17 +3,20 @@
  * metric reads the series its evidence edges touch, and the planner-mode run (recording only the goal series) gives the
  * same goal value as the Simulator-mode run on random plans: planner-mode shortcuts may not drop a mechanism a goal needs.
  */
-import { SERIES, type MetricId, type SeriesId } from '../../types/metrics';
+import { SERIES, goalCapability, isProductionGoalEligible, type MetricId, type SeriesId } from '../../types/metrics';
 import { Rng } from '../optim/rng';
 import { compileRequest } from '../domain/context';
 import { edgesTo } from '../domain/evidenceGraph';
 import { EnginePlanModel } from '../domain/model';
+import { missingGoalIndices } from '../domain/goalSpecs';
 import { enumerateStructures } from '../domain/skeleton';
 import type { PlannerRequest } from '../domain/types';
-import { CORPUS_PERSONAS } from './corpus';
+import { CORPUS_PERSONAS, auditGoal } from './corpus';
 import { bindingFor } from './probes';
 
 export const GOAL_METRICS: readonly MetricId[] = SERIES.filter((d) => d.kind === 'metric' && d.goal !== 'none').map((d) => d.id as MetricId);
+/** Goal metrics a production request may use (C6 capability gate): the random plans of check 3 are valid requests. */
+export const PRODUCTION_GOAL_METRICS: readonly MetricId[] = GOAL_METRICS.filter((m) => isProductionGoalEligible(m));
 
 /** Series an edge touches that the planner does not record when the metric is a goal (should be empty). */
 export function unrecordedEdgeSeries(): string[] {
@@ -42,7 +45,7 @@ export function plannerVsSimulator(n = 50, tol = 1e-9, seed = 'audit-check3'): M
   let compared = 0;
   let maxRelDiff = 0;
   for (let i = 0; i < n; i++) {
-    const goals = [0, 1, 2].map((k) => GOAL_METRICS[(3 * i + k) % GOAL_METRICS.length]!).map((metric) => ({ metric, direction: 'maximise' as const }));
+    const goals = [0, 1, 2].map((k) => PRODUCTION_GOAL_METRICS[(3 * i + k) % PRODUCTION_GOAL_METRICS.length]!).map((metric) => auditGoal(metric, goalCapability(metric).objectives.includes('maximise') ? 'up' : 'down'));
     const req: PlannerRequest = { profile: personas[i % personas.length]!, goals, horizonDays: i % 3 === 0 ? 126 : 84, safety: { optIns: { fastingTier: 'T2' } } };
     const ctx = compileRequest(req);
     const sts = enumerateStructures(ctx);
@@ -52,10 +55,20 @@ export function plannerVsSimulator(n = 50, tol = 1e-9, seed = 'audit-check3'): M
     const planner = new EnginePlanModel(ctx, { bindings });
     const full = new EnginePlanModel(ctx, { bindings, fullMode: true, recordAll: true });
     const schedule = planner.repair(st, planner.decode(st, x)).schedule;
-    const a = planner.goals(planner.simulate(schedule, -1));
-    const b = full.goals(full.simulate(schedule, -1));
+    const runA = planner.simulate(schedule, -1);
+    const runB = full.simulate(schedule, -1);
+    const a = planner.goals(runA);
+    const b = full.goals(runB);
+    const missingA = new Set(missingGoalIndices(runA, bindings, ctx));
+    const missingB = new Set(missingGoalIndices(runB, bindings, ctx));
     bindings.forEach((bd, k) => {
       compared++;
+      if (missingA.has(k) !== missingB.has(k)) {
+        diffs.push(`${bd.metric} plan ${i} (${st.id}): planner/Simulator availability differs`);
+        return;
+      }
+      // Compare status for unavailable pairs; their finite compatibility values are not observations.
+      if (missingA.has(k)) return;
       const va = a[k]!;
       const vb = b[k]!;
       const rel = Math.abs(va - vb) / Math.max(Math.abs(va), Math.abs(vb), 1e-12);

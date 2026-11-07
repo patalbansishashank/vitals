@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, FileText, Moon, Printer } from 'lucide-react';
-import { Glyphs, Icon, IconKey, Key, ScrollRail, Section, formatNumber } from '@/components';
+import { Glyphs, Icon, IconKey, Key, Section, formatNumber } from '@/components';
 import { ClockDial, type ChartData, type Meal } from '@/features/charts';
 import { useEnergyUnit, type EnergyUnit } from '@/state/settingsStore';
 import { fmtClock, fmtDate, fmtDateWd, fmtKcal, fmtKcalValue, fmtPct } from '../format';
@@ -26,13 +26,15 @@ export interface DaysTabProps {
   disclaimer?: string;
 }
 
-function MacroBar({ p, c, f }: { p: number; c: number; f: number }) {
+/** The P · C · F split as a bar; `share` (0-1) draws it at that share of the full width (a day type's energy against
+ * the largest type's), so a 680 kcal day reads shorter than a 2 700 kcal one. */
+function MacroBar({ p, c, f, share }: { p: number; c: number; f: number; share?: number }) {
   const kp = p * 4;
   const kc = c * 4;
   const kf = f * 9;
   const tot = kp + kc + kf || 1;
   return (
-    <span className="lp-macrobar" aria-hidden="true">
+    <span className="lp-macrobar" aria-hidden="true" style={share !== undefined ? { width: `${Math.max(4, Math.round(share * 100))}%` } : undefined}>
       <i data-m="protein" style={{ flexGrow: kp / tot }} />
       <i data-m="carbs" style={{ flexGrow: kc / tot }} />
       <i data-m="fat" style={{ flexGrow: kf / tot }} />
@@ -88,10 +90,6 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
   const donePrinting = useCallback(() => setPrinting(false), []);
   const day = Math.min(picked, rx.days.length - 1);
   const week = Math.floor(day / 7);
-  const railRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    railRef.current?.querySelector<HTMLElement>(`[data-week="${week}"]`)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [week]);
   const days = rx.days.filter((d) => d.week === week);
   const sel = rx.days[day]!;
   const data = useMemo(() => dialData(rx, day), [rx, day]);
@@ -101,10 +99,11 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
   };
   const first = days[0];
   const last = days[days.length - 1];
+  const maxTypeKcal = Math.max(1, ...rx.types.map((t) => t.sample.energyKcal));
 
   return (
     <div className="lp-days-tab">
-      <Section label="Day types in this plan" aside={<span className="lm-eng">{rx.types.length} kinds of day</span>}>
+      <Section label="Day types in this plan" aside={<span className="lm-eng">{rx.types.length}</span>}>
         <ul className="lp-types">
           {rx.types.map((t) => (
             <li key={t.key} className="lp-type">
@@ -116,7 +115,7 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
                 <span className="lp-type__nums">
                   {t.sample.zero ? 'no food · water and electrolytes' : `${fmtKcal(t.sample.energyKcal, energy)} · P ${formatNumber(t.sample.proteinG, 0)} · C ${formatNumber(t.sample.carbG, 0)} · F ${formatNumber(t.sample.fatG, 0)} g`}
                 </span>
-                {t.sample.zero ? null : <MacroBar p={t.sample.proteinG} c={t.sample.carbG} f={t.sample.fatG} />}
+                {t.sample.zero ? null : <MacroBar p={t.sample.proteinG} c={t.sample.carbG} f={t.sample.fatG} share={t.sample.energyKcal / maxTypeKcal} />}
               </span>
               <span className="lp-type__count lm-num">
                 {t.count}
@@ -138,15 +137,6 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
         </p>
         <IconKey icon={ChevronRight} label="Next week" size="sm" onClick={() => goWeek(week + 1)} disabled={week >= rx.weeks - 1} />
       </div>
-      <div ref={railRef}>
-        <ScrollRail className="lp-weekrail" bleed={false} gap={4} role="group" aria-label="Weeks">
-          {Array.from({ length: rx.weeks }, (_, w) => (
-            <Key key={w} size="sm" pressed={w === week} data-week={w} onClick={() => goWeek(w)} aria-label={`Week ${w + 1}`}>
-              {w + 1}
-            </Key>
-          ))}
-        </ScrollRail>
-      </div>
 
       <div className="lp-days-grid">
         {/* the week table scrolls inside its own box on phones; the page never scrolls sideways */}
@@ -165,10 +155,10 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
               <th scope="col" className="num">
                 protein
               </th>
-              <th scope="col" className="num">
+              <th scope="col" className="num lp-col-md">
                 net carbs
               </th>
-              <th scope="col" className="num">
+              <th scope="col" className="num lp-col-md">
                 fat
               </th>
               <th scope="col" className="num lp-col-wide">
@@ -177,7 +167,12 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
               <th scope="col" className="lp-col-wide">
                 window
               </th>
-              <th scope="col">training</th>
+              <th scope="col" className="num lp-col-wide">
+                meals
+              </th>
+              <th scope="col" className="lp-col-md">
+                training
+              </th>
               <th scope="col" className="num lp-col-wide">
                 steps
               </th>
@@ -197,19 +192,18 @@ export function DaysTab({ planTitle, rx, sessions, ladderSummary, onCsv, onText,
       {sessions?.length ? <WeekSessions sessions={weekSessions(sessions, rx, week)} week={week} /> : null}
 
       <div className="lp-exports">
-        <Key size="sm" icon={Download} onClick={onCsv}>
+        <Key variant="outlined" icon={Download} onClick={onCsv}>
           Download CSV
         </Key>
-        <Key size="sm" icon={Printer} onClick={() => setPrinting(true)} loading={printing}>
+        <Key variant="outlined" icon={Printer} onClick={() => setPrinting(true)} loading={printing}>
           Print day by day
         </Key>
-        <Key size="sm" icon={FileText} onClick={onText}>
-          Summary (text)
+        <Key variant="outlined" icon={FileText} onClick={onText}>
+          Download summary
         </Key>
-        <Key size="sm" variant="quiet" icon={Download} onClick={onJson}>
+        <Key variant="outlined" icon={Download} onClick={onJson}>
           Export JSON
         </Key>
-        {rx.notes.length ? <span className="lm-eng">{rx.notes.length} compiler notes in the exports</span> : null}
       </div>
       {printing ? <PrintPrescription planTitle={planTitle} planName={planName ?? ''} rx={rx} sessions={sessions} ladder={ladderSummary} disclaimer={disclaimer} onDone={donePrinting} /> : null}
     </div>
@@ -261,15 +255,20 @@ function DayRow({ d, energy, selected, onSelect }: { d: DayRx; energy: EnergyUni
           <>
             <span className="lm-num">{fmtKcalValue(d.energyKcal, energy)}</span>
             {d.energyPct !== null ? <span className="lp-week__pct"> {fmtPct(d.energyPct)}</span> : null}
+            {/* phones: the macro split as a bar under the energy, in place of the carbs and fat columns */}
+            <span className="lp-week__bar">
+              <MacroBar p={d.proteinG} c={d.carbG} f={d.fatG} />
+            </span>
           </>
         )}
       </td>
       <td className="num lm-num">{d.zero ? '0' : formatNumber(d.proteinG, 0)}</td>
-      <td className="num lm-num">{d.zero ? '0' : formatNumber(d.carbG, 0)}</td>
-      <td className="num lm-num">{d.zero ? '0' : formatNumber(d.fatG, 0)}</td>
+      <td className="num lm-num lp-col-md">{d.zero ? '0' : formatNumber(d.carbG, 0)}</td>
+      <td className="num lm-num lp-col-md">{d.zero ? '0' : formatNumber(d.fatG, 0)}</td>
       <td className="num lm-num lp-col-wide">{d.zero ? '0' : formatNumber(d.fibreG, 0)}</td>
-      <td className="lp-col-wide">{d.fast && d.fast.part !== 'end' && d.fast.part !== 'start' ? '—' : `${windowText(d)}${d.meals.length ? ` · ${d.meals.length}` : ''}`}</td>
-      <td>
+      <td className="lp-col-wide lp-week__win">{d.fast && d.fast.part !== 'end' && d.fast.part !== 'start' ? '—' : windowText(d)}</td>
+      <td className="num lm-num lp-col-wide">{d.meals.length || '—'}</td>
+      <td className="lp-col-md">
         <span className="lp-week__train">
           {d.sessions.map((s, i) => (
             <Icon key={i} icon={s.kind === 'resistance' ? Glyphs.DumbbellPlate : Glyphs.RunGlyph} size={16} label={s.label} />
@@ -293,7 +292,9 @@ function DayDetail({ d, data, energy }: { d: DayRx; data: ChartData; energy: Ene
         </span>
       </header>
       <div className="lp-daydetail__body">
-        <ClockDial data={data} day={d.day} size={200} energyUnit={energy} />
+        {/* r068 W2-2: one centre line inside the numerals; the meals and the session are the rows beside it, so the dial
+            neither repeats them in a paragraph nor draws the session as an arc outside its bezel */}
+        <ClockDial data={data} day={d.day} size={200} energyUnit={energy} caption={false} trainingArcs={false} centre="short" />
         <div className="lp-daydetail__facts">
           {d.zero || d.fast ? (
             <p className="lp-daydetail__fast">
@@ -358,7 +359,17 @@ function DayDetail({ d, data, energy }: { d: DayRx; data: ChartData; energy: Ene
             {d.sessions.map((s, i) => (
               <li key={i}>
                 <Icon icon={s.kind === 'resistance' ? Glyphs.DumbbellPlate : Glyphs.RunGlyph} size={16} />
-                <span>{sessionText(s)}</span>
+                {/* each part keeps its words together ("55 min" never breaks after its number) */}
+                <span>
+                  {sessionText(s)
+                    .split(' · ')
+                    .map((part, j) => (
+                      <Fragment key={j}>
+                        {j ? ' · ' : null}
+                        <span className="lp-nowrap">{part}</span>
+                      </Fragment>
+                    ))}
+                </span>
               </li>
             ))}
             <li>

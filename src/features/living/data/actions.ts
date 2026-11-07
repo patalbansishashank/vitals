@@ -5,6 +5,7 @@
  * disagree.
  */
 import { createContext, useContext } from 'react';
+import type { DayIntakeAttestation } from '@/lib/bodyContracts';
 import type { LocalDate, Mark, MeasurementEntry, TodayChecklistItem } from '@/living';
 import type { PerformedExercise } from '@/catalogues';
 
@@ -59,9 +60,43 @@ export interface ExerciseSwapInput {
 /** Row-sheet outcome (T1): as planned · partly · skipped. "Something else" opens the item editor instead. */
 export type RowMark = 'asPlanned' | 'partly' | 'skipped';
 
+/** One serving of the meal's accepted recipe: what "as planned" logs instead of the slot's own plan (its own numbers). */
+export interface MealServing {
+  name: string;
+  energyKcal: number;
+  proteinG: number;
+  /** Available carbohydrate, g (catalogue convention: fibre excluded). */
+  carbG: number;
+  fatG: number;
+  /** Fibre, g, when the recipe gives it (absent = unknown, never 0). */
+  fibreG?: number;
+}
+
+/** How one meal went (`LivingActions.answerMeal`). */
+export interface MealAnswerInput {
+  slot: string;
+  mark: RowMark;
+  /** The entries logged for the meal as the person saw them (the sheet's, the row's): the answer replaces them. */
+  replaces: readonly string[];
+  /** "As planned" is one serving of the accepted recipe, not the slot's own plan. */
+  serving?: MealServing;
+}
+
 export interface ManualMealInput {
   slot?: string;
   clockH: number;
+  /**
+   * (C1/D5-05) True only when the person stated `clockH` (a time they chose). Otherwise it is a default — the slot's planned
+   * clock, the current hour, noon for another day — and the meal's occurrence stays date-only: a default clock never ends
+   * a fast at a guessed time.
+   */
+  clockStated?: boolean;
+  /**
+   * (D6-02/C3) Log stored meals again ("same as yesterday", recents): their stored components are relogged by food/recipe id
+   * and grams or their frozen per-100 g numbers (unknown fields stay unknown), not as energy only. `date` = the day the
+   * entries were logged on (absent = the week before the logging date). `components` stays the fallback when they are gone.
+   */
+  relog?: { date?: LocalDate; entryIds: readonly string[] };
   /** What was eaten, as typed or picked. */
   components: Array<{ name: string; foodId?: string; grams?: number; energyKcal?: number; proteinG?: number; carbG?: number; fatG?: number }>;
   /** "as planned" logs (I ate this) carry the prescribed slot's numbers with the as-planned band. */
@@ -85,17 +120,70 @@ export interface MeasurementInput {
   metric: MeasurementEntry['metric'];
   value: number;
   repeats?: number[];
+  /** New UI lists are exhaustive; explicit primaryPlusAdditional keeps value as the primary reading. */
+  repeatsEncoding?: MeasurementEntry['repeatsEncoding'];
   method?: MeasurementEntry['method'];
+  /** Absent = unknown context (D5-04): never stamped "morning, fasted". */
   context?: MeasurementEntry['context'];
+  /** (C4) optional protocol facts, passed through to `log.measurement`; absent = unknown. */
+  landmark?: MeasurementEntry['landmark'];
+  /** (D4-05) blood-pressure sitting: pairs systolic with diastolic and repeats. */
+  episodeId?: string;
+  restMin?: number;
+  setting?: MeasurementEntry['setting'];
+  timeOfDay?: MeasurementEntry['timeOfDay'];
+  /** (D2-08) ketone specimen: urine or breath never become blood BHB. */
+  specimen?: MeasurementEntry['specimen'];
+  /** (D7-06/D7-09) hours fasted before a lab sample; absent = fasting unknown. */
+  fastingHours?: number;
+}
+
+/** Store the raw repeat list with its encoding; never fold a primary into an additional-list encoding. */
+export function measurementValues(m: MeasurementInput): Pick<MeasurementEntry, 'value' | 'repeats' | 'repeatsEncoding'> {
+  if (!m.repeats?.length) return { value: m.value };
+  const repeatsEncoding = m.repeatsEncoding ?? 'fullRawList';
+  return {
+    value: repeatsEncoding === 'fullRawList' ? m.repeats.reduce((sum, value) => sum + value, 0) / m.repeats.length : m.value,
+    repeats: [...m.repeats],
+    repeatsEncoding,
+  };
+}
+
+/** The optional protocol facts of a `MeasurementInput`, as given (absent fields stay absent). */
+export function measurementFacts(m: MeasurementInput): Partial<Pick<MeasurementEntry, 'context' | 'landmark' | 'episodeId' | 'restMin' | 'setting' | 'timeOfDay' | 'specimen' | 'fastingHours'>> {
+  const out: Partial<Pick<MeasurementEntry, 'context' | 'landmark' | 'episodeId' | 'restMin' | 'setting' | 'timeOfDay' | 'specimen' | 'fastingHours'>> = {};
+  if (m.context) out.context = m.context;
+  if (m.landmark) out.landmark = m.landmark;
+  if (m.episodeId) out.episodeId = m.episodeId;
+  if (m.restMin !== undefined && Number.isFinite(m.restMin)) out.restMin = m.restMin;
+  if (m.setting) out.setting = m.setting;
+  if (m.timeOfDay) out.timeOfDay = m.timeOfDay;
+  if (m.specimen) out.specimen = m.specimen;
+  if (m.fastingHours !== undefined && Number.isFinite(m.fastingHours)) out.fastingHours = m.fastingHours;
+  return out;
 }
 
 export interface LivingActions {
   /** T0: one tap on a checklist row = "as planned" (dispatches the row's own command). */
   tick(date: LocalDate, item: TodayChecklistItem): Promise<ActionOutcome>;
-  /** T1: the row sheet (as planned · partly · skipped) for a checklist row. */
+  /** T1: the row sheet (as planned · partly · skipped) for a checklist row. A meal row answers through `answerMeal`. */
   markRow(date: LocalDate, rowId: string, mark: RowMark): Promise<ActionOutcome>;
+  /**
+   * How a meal went, for every way in (the meal sheet, Today's tick, Food's row key), as one change that replaces what
+   * the slot holds: "as planned" logs the slot's planned meal (or one serving of the accepted recipe) in place of the
+   * food logged for it; partly and skipped remove that food and keep the meal's own answer, with no invented amount.
+   * Nothing else changes (other meals, the day's marks); a stale `replaces` is refused whole. Undo restores exactly
+   * what the slot held. "Add more" stays `logMeal`, which appends.
+   */
+  answerMeal(date: LocalDate, answer: MealAnswerInput): Promise<ActionOutcome>;
   /** T0: "Mark day as planned" (or partly / not). */
   markDay(date: LocalDate, mark: Mark): Promise<ActionOutcome>;
+  /**
+   * (C1/D5-01) The day's food report: everything logged with amounts (complete), some of it (partial) or nothing eaten
+   * (none, a confirmed zero, never "skipped"). Meal count or a meal's own "complete" never says this. Optional while the
+   * in-memory stand-in lacks it.
+   */
+  confirmDayIntake?(date: LocalDate, intake: DayIntakeAttestation): Promise<ActionOutcome>;
   logWeight(date: LocalDate, kg: number): Promise<ActionOutcome>;
   logMeal(date: LocalDate, meal: ManualMealInput): Promise<ActionOutcome>;
   logSession(date: LocalDate, input: SessionLogInput): Promise<ActionOutcome>;
@@ -129,7 +217,7 @@ export interface LivingActions {
   shift(input: PlanShiftInput): Promise<ActionOutcome>;
   /** Train: a swap for the day (kept on the day's record) or for that weekday every week (a proposal card). */
   swapExercise(date: LocalDate, input: ExerciseSwapInput): Promise<ActionOutcome>;
-  checkIn(): Promise<ActionOutcome>;
+  checkIn(previewId: string): Promise<ActionOutcome>;
   setQuietMode(on: boolean): Promise<ActionOutcome>;
   setAutoEase(on: boolean): Promise<ActionOutcome>;
 }
@@ -146,4 +234,9 @@ export function useLivingActions(): LivingActions {
   const a = useContext(Ctx) ?? fallbackActions;
   if (!a) throw new Error('No living actions installed');
   return a;
+}
+
+/** The installed actions, or null where none are (a face rendered on its own, without the living data layer). */
+export function useOptionalLivingActions(): LivingActions | null {
+  return useContext(Ctx) ?? fallbackActions;
 }

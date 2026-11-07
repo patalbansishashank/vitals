@@ -76,7 +76,7 @@ describe('ExplainDrawer reading', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Blood ketones (BHB)' });
     const reading = within(dialog).getByRole('region', { name: 'Value at this point' });
     expect(within(reading).getByText('1.42')).toBeInTheDocument();
-    expect(within(reading).getByText(/likely 0\.95–2\.10/)).toBeInTheDocument();
+    expect(within(reading).getByText(/range 0\.95–2\.10/)).toBeInTheDocument();
     expect(within(reading).getByText('net carbohydrate, last 24 h')).toBeInTheDocument();
     expect(within(reading).getByText(/hour 30 of a 72 h fast/)).toBeInTheDocument();
     const first = await within(dialog).findByRole('heading', { name: 'How the liver decides to make ketones', level: 3 });

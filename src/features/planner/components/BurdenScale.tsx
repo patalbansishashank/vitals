@@ -13,6 +13,8 @@ export interface BurdenScaleProps {
   footnote?: boolean;
   /** Header line ("effort 64 / 100 · hardest part: hunger"); off on cards, whose title carries the effort. */
   header?: boolean;
+  /** Compact: leave room past the limit tick even when this card draws none (another card does; one scale for all). */
+  reserve?: boolean;
 }
 
 /** The fill as a share of the track: a plain percentage string, so equal values draw equal bars on every card. */
@@ -25,11 +27,11 @@ export const fillWidth = (value: number): string => `${Math.round(Math.min(1, Ma
  * Ideal reserves that room only when some row needs it. A compact "now · your limit" legend sits above the rows and a
  * footer line says what the effort number is. A description list with the full sentence for screen readers.
  */
-export function BurdenScale({ difficulty, compact = false, ideal = false, gentle = false, footnote = false, header = true }: BurdenScaleProps) {
+export function BurdenScale({ difficulty, compact = false, ideal = false, gentle = false, footnote = false, header = true, reserve = false }: BurdenScaleProps) {
   const rows = burdenRows(difficulty, { ideal, gentle });
   const overflow = rows.some((r) => r.over > 0);
   return (
-    <div className="lp-burden" data-size={compact ? 'compact' : 'full'} data-overflow={overflow || undefined}>
+    <div className="lp-burden" data-size={compact ? 'compact' : 'full'} data-overflow={overflow || undefined} data-reserve={reserve || undefined}>
       {header ? <p className="lp-burden__head">{effortHeader(difficulty)}</p> : null}
       <p className="lp-burden__legend" aria-hidden="true">
         <span>now</span>

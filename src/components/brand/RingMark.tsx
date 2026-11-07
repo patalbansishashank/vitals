@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { cx } from '../lib/cx';
 import { useReducedMotion } from '../lib/hooks';
-import { CROP_VIEWBOX, cutFor, PALETTE, SMALL_CUT_MAX_PX, trimOffset } from './geometry';
+import { CENTRE, CROP_VIEWBOX, cutFor, PALETTE, SMALL_CUT_MAX_PX, MEDIUM_CUT_MAX_PX, trimOffset } from './geometry';
 import './brand.css';
 
 export type RingMarkTone = 'auto' | 'light' | 'dark' | 'mono';
@@ -9,28 +9,34 @@ export type RingMarkTone = 'auto' | 'light' | 'dark' | 'mono';
 export interface RingMarkProps {
   /**
    * Visible size in px (the viewBox is cropped to the ring, so 22 draws a 22 px ring). 22 sits beside the 19 px
-   * wordmark; the cut switches to the heavier small one at 32 and under.
+   * wordmark; the cut gets heavier at 40 px and under and again at 24 and under.
    */
   size?: number;
   /**
-   * `auto` follows the theme through the --lm-* tokens (ring ink, signal dot, edge only on light grounds);
-   * `light` / `dark` are the fixed palette for a known ground; `mono` draws ring and dot in currentColor.
+   * `auto` (default) reads the Ember tokens: an ivory ring and bezel (--lm-ink) and a gold dot (--lm-signal), no edge
+   * (the app is dark only). `light` / `dark` are the fixed palette of the shipped brand files for a known ground;
+   * `mono` draws everything in currentColor.
    */
   tone?: RingMarkTone;
   /** Accessible name. Omit for a decorative mark (aria-hidden). */
   title?: string;
   className?: string;
-  /** Play Lumen's draw-on once on mount (ring draws, dot pops). Reduced motion shows the still mark. */
+  /** Play the draw-on once on mount (the ring draws round its bezel, the dot pops). Reduced motion shows the still mark. */
   animate?: boolean;
 }
 
 const colours = (tone: RingMarkTone) => {
   if (tone === 'mono') return { ink: 'currentColor', signal: 'currentColor', edge: null };
-  if (tone === 'auto') return { ink: 'var(--lm-ink)', signal: 'var(--lm-signal)', edge: 'var(--lm-signal-edge)' };
+  if (tone === 'auto') return { ink: 'var(--lm-ink)', signal: 'var(--lm-signal)', edge: null };
   return PALETTE[tone];
 };
 
-/** The Vitals mark: the open ring and its signal dot, drawn from public/brand/mark.svg's geometry. */
+const cutName = (size: number) => (size <= SMALL_CUT_MAX_PX ? 'small' : size <= MEDIUM_CUT_MAX_PX ? 'medium' : 'standard');
+
+/**
+ * The Vitals mark, the plan ring: an ivory ring open at four o'clock over a hairline bezel, and a gold dot inside
+ * aimed at the opening (the next thing to do). Drawn from mark-geometry.ts, the same numbers as every icon.
+ */
 export function RingMark({ size = 22, tone = 'auto', title, className, animate: wantAnimate = false }: RingMarkProps) {
   const c = cutFor(size);
   const col = colours(tone);
@@ -41,7 +47,7 @@ export function RingMark({ size = 22, tone = 'auto', title, className, animate: 
   return (
     <svg
       className={cx('lm-ringmark', className)}
-      data-cut={size <= SMALL_CUT_MAX_PX ? 'small' : 'standard'}
+      data-cut={cutName(size)}
       data-tone={tone}
       data-animate={animate || undefined}
       viewBox={CROP_VIEWBOX}
@@ -53,6 +59,18 @@ export function RingMark({ size = 22, tone = 'auto', title, className, animate: 
       aria-hidden={title ? undefined : true}
       focusable="false"
     >
+      {c.track ? (
+        <circle
+          className="lm-ringmark__track"
+          cx={CENTRE}
+          cy={CENTRE}
+          r={c.track.r}
+          fill="none"
+          stroke={col.ink}
+          strokeWidth={c.track.stroke}
+          strokeOpacity={c.track.opacity}
+        />
+      ) : null}
       <path
         className="lm-ringmark__ring"
         d={c.ring.d}
@@ -60,7 +78,6 @@ export function RingMark({ size = 22, tone = 'auto', title, className, animate: 
         stroke={col.ink}
         strokeWidth={c.ring.stroke}
         strokeLinecap="round"
-        strokeLinejoin="round"
         strokeDasharray={animate ? c.ring.length : undefined}
       />
       <circle

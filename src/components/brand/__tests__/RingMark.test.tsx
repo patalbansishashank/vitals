@@ -2,46 +2,62 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { render } from '@testing-library/react';
 import { RingMark } from '../RingMark';
-import { PALETTE, SMALL, STANDARD, trimOffset } from '../geometry';
+import { MEDIUM, PALETTE, SMALL, STANDARD, trimOffset } from '../geometry';
 
 const brandCss = readFileSync(path.resolve(__dirname, '..', 'brand.css'), 'utf8');
 
 const parts = (container: HTMLElement) => {
   const svg = container.querySelector('svg')!;
-  return { svg, ring: svg.querySelector('path')!, dot: svg.querySelector('circle')! };
+  return {
+    svg,
+    track: svg.querySelector('.lm-ringmark__track'),
+    ring: svg.querySelector('.lm-ringmark__ring')!,
+    dot: svg.querySelector('.lm-ringmark__dot')!,
+  };
 };
 
 afterEach(() => document.documentElement.removeAttribute('data-motion'));
 
 describe('RingMark', () => {
-  it('is 22 px, decorative and theme-aware by default (the wordmark beside "vitals")', () => {
+  it('is 22 px, decorative and reads the Ember tokens by default: ivory ring, gold dot, no edge', () => {
     const { svg, ring, dot } = parts(render(<RingMark />).container);
     expect(svg).toHaveAttribute('width', '22');
     expect(svg).toHaveAttribute('height', '22');
-    expect(svg).toHaveAttribute('viewBox', '18 18 72 72');
+    expect(svg).toHaveAttribute('viewBox', '2 2 20 20');
     expect(svg).toHaveAttribute('aria-hidden', 'true');
     expect(svg).toHaveAttribute('focusable', 'false');
     expect(svg).not.toHaveAttribute('role');
     expect(svg).toHaveAttribute('data-tone', 'auto');
     expect(ring).toHaveAttribute('stroke', 'var(--lm-ink)');
     expect(dot).toHaveAttribute('fill', 'var(--lm-signal)');
-    expect(dot).toHaveAttribute('stroke', 'var(--lm-signal-edge)');
+    expect(dot).not.toHaveAttribute('stroke');
+    expect(dot).not.toHaveAttribute('stroke-width');
   });
 
-  it('uses the small cut at 32 px and under, the standard cut above', () => {
-    const small = parts(render(<RingMark size={32} />).container);
+  it('uses the small cut at 24 px and under (no hairline), medium to 40 px, standard above (edge widths on the light palette)', () => {
+    const small = parts(render(<RingMark size={24} tone="light" />).container);
     expect(small.svg).toHaveAttribute('data-cut', 'small');
+    expect(small.track).toBeNull();
     expect(small.ring).toHaveAttribute('d', SMALL.ring.d);
     expect(small.ring).toHaveAttribute('stroke-width', String(SMALL.ring.stroke));
     expect(small.dot).toHaveAttribute('r', String(SMALL.dot.r));
     expect(small.dot).toHaveAttribute('stroke-width', String(SMALL.dot.edge));
 
-    const standard = parts(render(<RingMark size={33} />).container);
+    const medium = parts(render(<RingMark size={40} tone="light" />).container);
+    expect(medium.svg).toHaveAttribute('data-cut', 'medium');
+    expect(medium.ring).toHaveAttribute('d', MEDIUM.ring.d);
+
+    const standard = parts(render(<RingMark size={41} tone="light" />).container);
     expect(standard.svg).toHaveAttribute('data-cut', 'standard');
     expect(standard.ring).toHaveAttribute('d', STANDARD.ring.d);
     expect(standard.ring).toHaveAttribute('stroke-width', String(STANDARD.ring.stroke));
     expect(standard.dot).toHaveAttribute('cx', String(STANDARD.dot.cx));
     expect(standard.dot).toHaveAttribute('stroke-width', String(STANDARD.dot.edge));
+    // the hairline bezel: a full circle under the ring, in the ring's ink, faint
+    expect(standard.track).toHaveAttribute('r', String(STANDARD.track!.r));
+    expect(standard.track).toHaveAttribute('stroke', PALETTE.light.ink);
+    expect(standard.track).toHaveAttribute('stroke-width', String(STANDARD.track!.stroke));
+    expect(standard.track).toHaveAttribute('stroke-opacity', String(STANDARD.track!.opacity));
   });
 
   it('light and dark tones are the fixed palette; dark has no dot edge', () => {
@@ -49,7 +65,7 @@ describe('RingMark', () => {
     expect(light.ring).toHaveAttribute('stroke', PALETTE.light.ink);
     expect(light.dot).toHaveAttribute('fill', PALETTE.light.signal);
     expect(light.dot).toHaveAttribute('stroke', PALETTE.light.edge);
-    expect(light.dot).toHaveAttribute('stroke-width', '1.5');
+    expect(light.dot).toHaveAttribute('stroke-width', String(STANDARD.dot.edge));
 
     const dark = parts(render(<RingMark tone="dark" size={88} />).container);
     expect(dark.ring).toHaveAttribute('stroke', PALETTE.dark.ink);
@@ -59,7 +75,8 @@ describe('RingMark', () => {
   });
 
   it('mono draws ring and dot in currentColor with no edge', () => {
-    const { ring, dot } = parts(render(<RingMark tone="mono" />).container);
+    const { ring, dot, track } = parts(render(<RingMark tone="mono" size={48} />).container);
+    expect(track).toHaveAttribute('stroke', 'currentColor');
     expect(ring).toHaveAttribute('stroke', 'currentColor');
     expect(dot).toHaveAttribute('fill', 'currentColor');
     expect(dot).not.toHaveAttribute('stroke');

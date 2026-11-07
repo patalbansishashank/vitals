@@ -1,0 +1,128 @@
+package com.pulseloop.ring
+
+import org.junit.Assert.*
+import org.junit.Test
+
+/**
+ * Unit tests for the CRP ("crrepa") framing + command builders ([CRPProtocol]). Pure byte-level
+ * checks against the decompiled Moyoung "Da Rings" builders (`b1/q.java`, `b1/e.java`, `b1/k.java`,
+ * `b1/t.java`, `b1/c0.java`, `b1/l.java`); no BLE stack needed. See `decompiled-moyoung-official/`.
+ */
+class CRPProtocolTest {
+
+    @Test
+    fun `frame lays out FD DA 10 len group cmd payload`() {
+        val f = CRPProtocol.frame(group = 1, cmd = 9, payload = byteArrayOf(1))
+        // FD DA 10 | len=7 | group=1 | cmd=9 | payload=01
+        assertArrayEquals(
+            byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 9, 1),
+            f,
+        )
+    }
+
+    @Test
+    fun `frame length equals payload plus six-byte header`() {
+        assertEquals(6, CRPProtocol.frame(3, 0).size)             // no payload
+        assertEquals(11, CRPProtocol.frame(1, 0, ByteArray(5)).size)
+    }
+
+    @Test
+    fun `isFrameStart recognises the FD DA magic only`() {
+        assertTrue(CRPProtocol.isFrameStart(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 6)))
+        assertFalse(CRPProtocol.isFrameStart(byteArrayOf(0xFD.toByte(), 0x00)))
+        assertFalse(CRPProtocol.isFrameStart(byteArrayOf(0xDA.toByte())))
+    }
+
+    @Test
+    fun `frameLength reads byte3 with the 9th bit from byte2`() {
+        // Short frame: byte[2]=0x10 (bit0 clear) => length is byte[3].
+        assertEquals(20, CRPProtocol.frameLength(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 20)))
+        // Long frame: bit0 of byte[2] set => +256.
+        assertEquals(
+            256 + 5,
+            CRPProtocol.frameLength(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x11, 5)),
+        )
+    }
+
+    @Test
+    fun `setUserInfo matches vendor b1_k_a layout`() {
+        // b1/k.a: q.c(1, 0, [height, weight, age, gender, strideLen])
+        val f = CRPProtocol.setUserInfo(heightCm = 175, weightKg = 70, ageYears = 30, gender = 1, strideCm = 75)
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 11, 1, 0, 175.toByte(), 70, 30, 1, 75), f)
+    }
+
+    @Test
+    fun `setTime is group1 cmd1 with 4-byte little-endian epoch and tz byte 8`() {
+        val f = CRPProtocol.setTime()
+        assertEquals(0xFD.toByte(), f[0]); assertEquals(0xDA.toByte(), f[1]); assertEquals(0x10.toByte(), f[2])
+        assertEquals(11, f[3].toInt())            // 5 payload + 6 header
+        assertEquals(1, f[4].toInt())             // group
+        assertEquals(1, f[5].toInt())             // cmd
+        assertEquals(8, f[10].toInt())            // trailing timezone byte
+        // Epoch is little-endian: reconstruct and sanity-check it's a plausible 2020s timestamp.
+        val epoch = (f[6].toLong() and 0xFF) or ((f[7].toLong() and 0xFF) shl 8) or
+            ((f[8].toLong() and 0xFF) shl 16) or ((f[9].toLong() and 0xFF) shl 24)
+        assertTrue("epoch $epoch out of expected range", epoch in 1_577_836_800L..4_102_444_800L)
+    }
+
+    @Test
+    fun `heart rate start and stop toggle the enable byte on group1 cmd9`() {
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 9, 1), CRPProtocol.measureHeartRate(true))
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 9, 0), CRPProtocol.measureHeartRate(false))
+    }
+
+    @Test
+    fun `spo2 uses group1 cmd11`() {
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 11, 1), CRPProtocol.measureSpO2(true))
+    }
+
+    @Test
+    fun `all-day timing history queries match vendor group2 opcodes with day-zero payload`() {
+        // Vendor b1/{t,u,h,h0}.b(day, 0): group 2, cmds 15/16/17/47, payload [day, 0]; TODAY = 0.
+        // len = 6 header + 2 payload = 8. These are the queries the ring actually answers (issue #29).
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 15, 0, 0), CRPProtocol.queryTimingHeartRateHistory())
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 16, 0, 0), CRPProtocol.queryTimingHrvHistory())
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 17, 0, 0), CRPProtocol.queryTimingSpO2History())
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 47, 0, 0), CRPProtocol.queryTimingStressHistory())
+        // A non-today day flows into payload[0].
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 15, 1, 0), CRPProtocol.queryTimingHeartRateHistory(1))
+        // The frame index (payload[1]) selects a later slice of the day's timeline for the follow-up
+        // pull — vendor `t.b(day, index)`; here today's frame 1 (00:00 stays day 0, index → 1).
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 15, 0, 1), CRPProtocol.queryTimingHeartRateHistory(0, 1))
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 8, 2, 16, 0, 2), CRPProtocol.queryTimingHrvHistory(0, 2))
+    }
+
+    @Test
+    fun `spot measure toggles use the vendor opcodes hrv10 stress14 temp32`() {
+        // b1/u.d, b1/h0.d, b1/i0.d — start(1)/stop(0) on group 1.
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 10, 1), CRPProtocol.measureHRV(true))
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 10, 0), CRPProtocol.measureHRV(false))
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 14, 1), CRPProtocol.measureStress(true))
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 32, 1), CRPProtocol.measureTemp(true))
+    }
+
+    @Test
+    fun `spot measure opcode matches the result opcode the ring replies on`() {
+        // The measurement echoes back on its own cmd byte — guard against these drifting apart.
+        assertEquals(CRPCommands.CMD_MEASURE_HRV, CRPCommands.CMD_RESULT_HRV)
+        assertEquals(CRPCommands.CMD_MEASURE_STRESS, CRPCommands.CMD_RESULT_STRESS)
+        assertEquals(CRPCommands.CMD_MEASURE_TEMP, CRPCommands.CMD_RESULT_TEMP)
+    }
+
+    @Test
+    fun `temp all-day timing toggles cmd13 with an enable byte, distinct from measure cmd32`() {
+        // b1/i0.c: q.c(1,13,[enable]) — NOT cmd 32 (that's the spot-measure toggle, b1/i0.d).
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 13, 1), CRPProtocol.enableTimingTemp())
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 1, 13, 0), CRPProtocol.disableTimingTemp())
+    }
+
+    @Test
+    fun `findDevice is group9 cmd2`() {
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 7, 9, 2, 1), CRPProtocol.findDevice(true))
+    }
+
+    @Test
+    fun `factoryReset is group3 cmd0 with no payload`() {
+        assertArrayEquals(byteArrayOf(0xFD.toByte(), 0xDA.toByte(), 0x10, 6, 3, 0), CRPProtocol.factoryReset())
+    }
+}

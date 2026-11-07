@@ -11,19 +11,24 @@ import { violation, type EvalOutput, type Evaluator } from '../optim/types';
 import { GOAL_SCORE_STEP, timeToTarget } from '../optim/goals';
 import { formatRelationMessage } from '../optim/conflicts';
 import { DEFAULT_PLANNER_ALGORITHM, runPlannerWith, type PlannerAlgorithm } from '../optim/hybrid';
+import { PLANNER_COMPARISON_POLICY, PLANNER_POLICY_FINGERPRINT } from '../optim/policy';
+import { PLANNER_CAPABILITY_VERSION } from './capabilities';
+import { COMPOSITION_TISSUE_BINDING } from '../../model/composition';
 import { STOPPED_BEFORE_PLAN } from './stoppedLadder';
-import { TIER_BUDGET_EU, TIER_ENSEMBLE, TIER_HOLDOUT, idealBudgetEU, runPlanner, type OptionSummary, type PlannerCheckpointData, type PlannerConfig, type PlannerProblem, type PlannerProgress, type PlannerResult as OptimResult, type Tier } from '../optim/pipeline';
+import { TIER_BUDGET_EU, TIER_ENSEMBLE, TIER_HOLDOUT, idealBudgetEU, runPlanner, type AuditSubjectPort, type OptionSummary, type PlannerCheckpointData, type PlannerConfig, type PlannerProblem, type PlannerProgress, type PlannerResult as OptimResult, type Tier } from '../optim/pipeline';
 import { hashString, type Rng } from '../optim/rng';
-import { quantileSorted } from '../optim/stats';
+import { jointScreenOf } from '../optim/robust';
+import { CONTRACT_FINGERPRINT, contentHash, type SearchOutcome } from '@/lib/bodyContracts';
 import { LIBRARY_VERSION } from './registry/blocks';
 import { compileRequest, type PlanningContext } from './context';
 import { decodePlan, gridStep as gridStepOf, roundGenome as roundGenomeOf } from './decode';
 import { mod24, sleepHoursOf } from './ideal';
-import { EvaluatorHost, type EvalVariant, type HostInit, type VariantProblem } from './evaluatorHost';
+import { EvaluatorHost, auditFrozenSchedule, auditProtocolOf, type EvalVariant, type HostInit, type VariantProblem } from './evaluatorHost';
 import { optionName, distinguishingTags, uniqueNames, ruleText } from './explain';
 import { FEATURE_SCHEMA, featuresHaveFast, planFacts } from './features';
 import { buildGoals, goalSeries } from './goalSpecs';
-import { EnginePlanModel, HOLDOUT_DRAW_BASE, MARGIN_IDS, calibrateCushion } from './model';
+import { EnginePlanModel, HOLDOUT_DRAW_BASE, MARGIN_IDS, MUSCLE_RETENTION_MARGIN_INDEX, REQUIRED_SAFETY_MARGINS, REQUIRED_SAFETY_MARGIN_IDS, calibrateCushion } from './model';
+import { evaluatePlanSafety, issueCertificate, optionSafetyOf, plannerCertificateInputs, verifiedLimitNotes } from './safetyAudit';
 import { amount, fastingVerdict, goalSteps, inSentence, rivalVerdict, type RivalPlan } from './fastingExplain';
 import { stubModules } from './physiology';
 import { mutateStructure as mutate, structureGoalClasses, transferGenome as transfer, type SkeletonStructure } from './skeleton';
@@ -37,6 +42,7 @@ import {
   desirabilityFrom,
   equalEnergyFastTwins,
   feasibilityReport,
+  finalizeCandidate,
   goalScoreOf,
   goalSpreads,
   nearestFastingStructures,
@@ -46,6 +52,7 @@ import {
   timeToTargetRun,
   unlistableWarnings,
   type Assembly,
+  type FrozenCandidate,
   type PlannerOptions,
   type RivalRecord,
   type TttResult,
@@ -60,6 +67,7 @@ import type {
   DifficultyBreakdown,
   GoalOutcome,
   IdealPlanV2,
+  LadderCollapseReason,
   LadderInfo,
   LimitBinding,
   LimitCost,
@@ -96,11 +104,28 @@ const V1_INDEX: Readonly<Record<RungId, number>> = { hard: 0, medium: 1, easy: 2
 export const DIFFICULTY_WEIGHTS: readonly number[] = DIFFICULTY_COMPONENTS.map(() => 1 / DIFFICULTY_COMPONENTS.length);
 export const PLANNER_VERSION = 2;
 
-/** Checkpoint key (§4.9): hash of the canonical request, engine version, registry hash, library and planner versions. */
+/**
+ * Fingerprint of the planner's decision semantics (D4-09/C7): the production comparison policy, the planner-side
+ * capability rules (D4-05) and the composition tissue binding that body-fat goals are judged on. Part of checkpoint keys
+ * and result provenance; a change invalidates optimizer checkpoints, never stored plans (they keep the fingerprint they
+ * were made under).
+ */
+export const PLANNER_POLICY_KEY = `${PLANNER_POLICY_FINGERPRINT}.cap${PLANNER_CAPABILITY_VERSION}.tissue${COMPOSITION_TISSUE_BINDING.version}`;
+
+/** Checkpoint key (§4.9): hash of the canonical request, engine version, registry hash, library, planner and policy versions. */
 export function checkpointKeyOf(request: PlannerRequestV2): string {
   const { budget: _b, previous: _p, ...rest } = request;
-  const canon = JSON.stringify([rest, ENGINE_VERSION, buildModelParams(MODULES).registryHash, LIBRARY_VERSION, PLANNER_VERSION]);
+  const canon = JSON.stringify([rest, ENGINE_VERSION, buildModelParams(MODULES).registryHash, LIBRARY_VERSION, PLANNER_VERSION, PLANNER_POLICY_KEY]);
   return `ckpt-${hashString(canon).toString(16)}`;
+}
+
+/**
+ * C6/D4-08: what a collapsed rung's absence means. A rung the search did not find within its budget is
+ * `notFoundWithinBudget` (never proof that none exists); a stopped search is `stopped`; collapses by the ladder's own
+ * design rules (too close, not distinct, below the minimal change) are not search failures and carry no outcome.
+ */
+export function collapseOutcome(reason: LadderCollapseReason): SearchOutcome | undefined {
+  return reason === 'infeasible' ? 'notFoundWithinBudget' : reason === 'stopped' ? 'stopped' : undefined;
 }
 
 function emptyV2(status: PlannerResultV2['status'], message: string, tier: PlannerTier, seed: string): PlannerResultV2 {
@@ -144,6 +169,7 @@ export function collapseText(rung: RungId, reason: string, detail: Record<string
       return `${Src}'s ${name} now reaches only ${Math.round(100 * detail.gShareCarried)} % of the new Hard's ${goal1}${detail.needed !== undefined && Number.isFinite(detail.needed) ? ` (it needs ${Math.round(100 * detail.needed)} %)` : ''}.`;
     if (detail.carriedSafe === 0 || detail.carriedValid === 0 || detail.carriedChance === 0)
       return `${Src}'s ${name} no longer passes the safety checks with the new numbers.`;
+    if (detail.carriedHardShort === 1) return `${Src}'s ${name} can't sit under this search's Hard, which falls short of the least worthwhile change in your ${goal1}.`;
     if (reason === 'tooClose') return `${Src}'s ${name} is now almost as much effort as the new Hard.`;
     if (reason === 'notDistinct') return `${Src}'s ${name} would now repeat ${rung === 'medium' ? 'Hard or Easy' : 'the new Hard'} with small changes.`;
   }
@@ -203,7 +229,8 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
   const ensembleSize = request.budget?.ensembleSize ?? TIER_ENSEMBLE[tier as Tier];
   // holdout ensemble (§4.7); an explicit ensemble size (tests, small budgets) sizes both ensembles
   const holdoutSize = ensembleSize > 0 ? (request.budget?.ensembleSize ?? TIER_HOLDOUT[tier as Tier]) : 0;
-  const init0: HostInit = { request, ensemble: { seed, size: ensembleSize, holdoutSize } };
+  // the reserved safety-audit stream has the selection ensemble's size (C5/D4-03: S16/M32/L64/X128)
+  const init0: HostInit = { request, ensemble: { seed, size: ensembleSize, holdoutSize, safetyAuditSize: ensembleSize } };
   let cushion: number[] | undefined;
   let goalSpread: number[] | null = null;
   if (ensembleSize > 0 && opts.calibrateCushion !== false) {
@@ -329,6 +356,7 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
     },
     ablations: (s, x) => ablationsFor(main.structures, s, x),
     featureSchema: FEATURE_SCHEMA,
+    safetyMargins: REQUIRED_SAFETY_MARGINS,
     ladder: {
       gMinMetric: g1Min ?? Number.NaN,
       // the Ideal (P6) runs on top of the tier total; the optimiser reports its budget only when it runs
@@ -341,11 +369,18 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
     ...(ctx.fastingRelevant ? { group: (s: number, out: EvalOutput) => (skeletonFasts(main.structures[s]!.skeleton) && featuresHaveFast(out.features) ? 'fast' : null) } : {}),
   };
   const ckptKey = checkpointKeyOf(request);
+  // (C5/D4-03, A1-011/A1-035) the reserved audit protocol is declared once by the host (the evaluator ensemble), and each
+  // chosen candidate is finalized (equipment composition) and frozen before its one audit of exactly that schedule
+  const auditProtocol = auditProtocolOf(init);
+  const frozenMain = new Map<string, FrozenCandidate>();
   const cfg: PlannerConfig = {
     seed,
     tier: tier as Tier,
     ensembleSize,
     holdoutSize,
+    safetyAuditSize: ensembleSize,
+    safetyAuditProtocol: auditProtocol,
+    auditSubject: frozenAuditPort(a, { ideal: false }, auditProtocol, frozenMain),
     strictness: request.strictness ?? 'balanced',
     // the run spends the whole tier total; the Ideal and the limit costs spend idealBudgetEU on top
     totalEU: totalTier,
@@ -357,7 +392,7 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
   if (request.previous) {
     const at = new Map(main.structures.map((st, i) => [st.id, i] as const));
     const prevRungs: NonNullable<PlannerConfig['previous']>['rungs'] = {};
-    // Hard is weighed only by a stopped run (pipeline finish)
+    // Every run re-checks the previous Hard alongside its own finalists.
     for (const r of ['hard', 'medium', 'easy'] as const) {
       const g = request.previous.rungs[r];
       const i = g ? at.get(g.structureId) : undefined;
@@ -435,19 +470,17 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
     const chanceOf =
       ensembleSize > 0 && !aborted()
         ? async (structure: number, x: Float64Array) => {
+            // the rival is judged by the same exact joint screen as the rungs (C5/D4-03), never per-column quantiles
             const outs = await evaluatorFor({ kind: 'main' }, init).evaluate(Array.from({ length: ensembleSize }, (_, m) => ({ structure, x, draw: m })));
-            let worst: string | null = null;
-            let wv = 0;
             const C = outs[0]?.margins.length ?? 0;
-            for (let c = 0; c < C; c++) {
-              const col = outs.map((q) => q.margins[c]!).sort((p, q) => p - q);
-              const p10 = quantileSorted(col, 0.1);
-              if (p10 < wv) {
-                wv = p10;
-                worst = MARGIN_IDS[c] ?? String(c);
-              }
-            }
-            return { ok: worst === null, worst };
+            const j = jointScreenOf(outs, Array.from({ length: C }, (_, c) => c));
+            if (j.status === 'pass') return { ok: true, worst: null };
+            // the margin failing in the most members (ties: first index) names the reason
+            const fails = new Array<number>(C).fill(0);
+            for (const m of j.failedMembers) for (let c = 0; c < C; c++) if (!(outs[m]!.margins[c]! >= 0)) fails[c]!++;
+            let wc = 0;
+            for (let c = 1; c < C; c++) if (fails[c]! > fails[wc]!) wc = c;
+            return { ok: false, worst: j.missing.length ? (MARGIN_IDS[Number(j.missing[0])] ?? j.missing[0]!) : (MARGIN_IDS[wc] ?? String(wc)) };
           }
         : null;
     rivalD = rec?.D ?? NaN;
@@ -464,11 +497,17 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
   const stoppedBeforePlan = aborted() && !!lad && !!hardOpt0 && hardOpt0.provenance !== 'carried' && !(lad.gHard >= lad.gMin && lad.gHard > 0);
   const builtRaw = await Promise.all(
     (stoppedBeforePlan ? [] : res.options).map(async (_, k) => {
-      const b = await buildOption(a, res, k, relations, bandsFor, holdoutSize, fastCmp, { kind: 'main' }, HOLDOUT_DRAW_BASE, { ideal: false });
+      const o = res.options[k]!;
+      const b = await buildOption(a, res, k, relations, bandsFor, holdoutSize, fastCmp, { kind: 'main' }, HOLDOUT_DRAW_BASE, { ideal: false }, frozenMain.get(frozenKey(o.structureIndex, o.x)) ?? null);
       return b ? { k, b } : null;
     }),
   );
   const built = builtRaw.filter((x): x is NonNullable<typeof x> => x !== null);
+  // C5/D4-01/D4-03: each option's final resolved checks, the selection screen, its independent audit and certificate
+  for (const x of built) {
+    x.b.option.safety = optionSafetyFor(ctx, res.options[x.k]!, x.b.option.schedule, x.b.option.simulation, holdoutSize, seed, tier, now);
+    withVerifiedLimitNotes(x.b.option, ctx);
+  }
   const hardBuilt = built.find((x) => rungOf(x.k) === 'hard') ?? built[0];
   // an easier rung without a fast whose rival beats it on the goals: the rival is above this rung's difficulty, or it lost
   // to Hard on the goals (said with Hard's numbers) — PLANNER_V2_SPEC §3.6 reason 'difficulty'
@@ -535,12 +574,13 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
       text: collapseText(c.rung, c.reason, c.detail ?? {}, (labels[0] ?? 'goal').toLowerCase(), cfg.previous?.tier),
       detail: { ...(c.detail ?? {}) },
       ...(c.detail?.carried ? { carried: true } : {}),
+      ...(collapseOutcome(c.reason) ? { outcome: collapseOutcome(c.reason)! } : {}),
     }));
   // a rung missing without a reason: a stopped run never proved it absent, so it says it stopped ('infeasible' needs a proof)
   const missingReason = res.complete && !aborted() ? 'infeasible' : 'stopped';
   for (const r of ['medium', 'easy'] as const)
     if (!rungs[r] && !collapsed.some((c) => c.rung === r) && rungs.hard)
-      collapsed.push({ rung: r, reason: missingReason, text: collapseText(r, missingReason, {}, (labels[0] ?? 'goal').toLowerCase()), detail: {} });
+      collapsed.push({ rung: r, reason: missingReason, text: collapseText(r, missingReason, {}, (labels[0] ?? 'goal').toLowerCase()), detail: {}, outcome: collapseOutcome(missingReason)! });
   const ladder: LadderInfo = {
     collapsed,
     easyProof: !rungs.easy && lad?.easySearch?.proof ? { ...lad.easySearch.proof, rejected: lad.easySearch.proof.rejected.map((q) => ({ ...q })) } : null,
@@ -552,7 +592,7 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
   let ideal: IdealPlanV2 | null = null;
   if (wantIdeal && !aborted() && (rungs.hard || res.noSafePlan)) {
     late('ideal');
-    ideal = await runIdeal({ request, init, tier, idealEU, variantOf: (v) => localHost.variant(v), evaluatorFor, bandsFor, holdoutSize, ensembleSize, a, res, rungs, wantCosts, seed, summaries, ...(opts.signal ? { signal: opts.signal } : {}) });
+    ideal = await runIdeal({ request, init, tier, idealEU, variantOf: (v) => localHost.variant(v), evaluatorFor, bandsFor, holdoutSize, ensembleSize, a, res, rungs, wantCosts, seed, summaries, ...(opts.signal ? { signal: opts.signal } : {}), ...(now ? { now } : {}) });
   }
 
   // the Ideal search did not run because the person stopped the search: said, not silently absent (§12.3)
@@ -561,6 +601,10 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
   const optionsV1 = RUNG_IDS.flatMap((r) => (rungs[r] ? [toV1Option(rungs[r]!)] : []));
   const noSafe = res.noSafePlan;
   const reasons = noSafe ? noSafe.violated.map((j) => `Would break ${ruleText(MARGIN_IDS[j] ?? String(j))}.`) : [];
+  const finalInputReasons = [...new Set([...frozenMain.values()].flatMap(f => f.inputErrors ?? []))].slice(0, 6).map(reason => {
+    const colon = reason.indexOf(':');
+    return `The final prescription would break ${ruleText(colon < 0 ? reason : reason.slice(0, colon))}${colon < 0 ? '.' : ` (${reason.slice(colon + 1).trim()}).`}`;
+  });
   const status: PlannerResultV2['status'] = rungs.hard ? 'ok' : 'noSafePlan';
   const convergence: ConvergencePoint[] = res.convergence ?? [];
   return {
@@ -574,7 +618,7 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
     feasibility: feasibilityReport(a, res, ttt, reach, optionsV1),
     relations,
     noSafePlanReasons:
-      status === 'noSafePlan' && !reasons.length && !stoppedBeforePlan
+      status === 'noSafePlan' && finalInputReasons.length ? finalInputReasons : status === 'noSafePlan' && !reasons.length && !stoppedBeforePlan
         ? [res.shortfall === 'noCandidates' ? 'No plan satisfied every safety limit and your constraints.' : 'No plan stayed within every safety limit across the model’s uncertainty range; a longer horizon or less ambitious targets may help.']
         : reasons,
     message: stoppedBeforePlan ? STOPPED_BEFORE_PLAN : status === 'noSafePlan' ? 'No safe plan was found for these goals and limits.' : null,
@@ -594,6 +638,10 @@ export async function runLadderPlanner(request: PlannerRequestV2, opts: LadderPl
       holdoutGap: res.holdoutGap ?? [],
       difficultyWeights: [...DIFFICULTY_WEIGHTS],
       ...(tier === 'X' ? { checkpointKey: ckptKey } : {}),
+      policyVersion: PLANNER_COMPARISON_POLICY.version,
+      policyFingerprint: PLANNER_POLICY_KEY,
+      contracts: CONTRACT_FINGERPRINT,
+      safetyAudit: { M: ensembleSize, seed },
     },
   };
 
@@ -749,6 +797,7 @@ interface IdealArgs {
   seed: string;
   summaries: Map<RungId, RungSummary>;
   signal?: { readonly aborted: boolean };
+  now?: () => number;
 }
 
 const skKey = (st: SkeletonStructure) => {
@@ -868,6 +917,7 @@ function problemFor(as: Assembly, seeds: Array<{ structure: number; x: Float64Ar
     },
     ablations: (s, x) => ablationsFor(st, s, x),
     featureSchema: FEATURE_SCHEMA,
+    safetyMargins: REQUIRED_SAFETY_MARGINS,
   };
 }
 
@@ -914,12 +964,19 @@ async function runIdeal(x: IdealArgs): Promise<IdealPlanV2 | null> {
   // own sleep, clock and modality) is the warm start the Ideal must not fall below (QA PLN-03)
   const seedsI = transferSeeds(a.main.structures, vi.structures, plans, { from: ctx, to: vi.ctx });
   const idealShare = Math.max(1, Math.floor((x.wantCosts ? 0.6 : 1) * x.idealEU));
+  // (A1-035) the Ideal keeps the common parameter draws of the host's ensemble: its audit protocol is the base ensemble's
+  // (`init.ensemble.seed`), whatever its search seed; (A1-011) its candidate is finalized and frozen before the audit
+  const auditProtocol = auditProtocolOf(init);
+  const frozenIdeal = new Map<string, FrozenCandidate>();
   const resI = await runPlanner(problemFor(aI, seedsI), x.evaluatorFor({ kind: 'ideal' }, init), {
     seed: `${x.seed}/ideal`,
     tier: smallTier,
     totalEU: idealShare,
     ensembleSize: x.ensembleSize,
     holdoutSize: x.holdoutSize,
+    safetyAuditSize: x.ensembleSize,
+    safetyAuditProtocol: auditProtocol,
+    auditSubject: frozenAuditPort(aI, { ideal: true }, auditProtocol, frozenIdeal),
     optionCount: 1,
     strictness: x.request.strictness ?? 'balanced',
     ...(x.signal ? { signal: x.signal } : {}),
@@ -927,9 +984,11 @@ async function runIdeal(x: IdealArgs): Promise<IdealPlanV2 | null> {
   const best = resI.options[0];
   // the Ideal's feasible set contains Hard's plan: a search that returns nothing leaves Hard's plan as the Ideal (§12.3)
   if (!best) return x.rungs.hard ? hardAsIdeal(x, []) : null;
-  const b = await buildOption(aI, resI, 0, [], x.bandsFor, x.holdoutSize, null, { kind: 'ideal' }, HOLDOUT_DRAW_BASE, { ideal: true });
+  const b = await buildOption(aI, resI, 0, [], x.bandsFor, x.holdoutSize, null, { kind: 'ideal' }, HOLDOUT_DRAW_BASE, { ideal: true }, frozenIdeal.get(frozenKey(best.structureIndex, best.x)) ?? null);
   if (!b) return x.rungs.hard ? hardAsIdeal(x, []) : null;
   const o = b.option;
+  o.safety = optionSafetyFor(aI.ctx, best, o.schedule, o.simulation, x.holdoutSize, `${x.seed}/ideal`, x.tier, x.now);
+  withVerifiedLimitNotes(o, aI.ctx);
   o.name = optionName(aI.ctx, o.schedule, b.plan, o.simulation);
   if (o.fasting?.rival?.reason === 'notEvaluated') {
     const { rival: _r, ...f } = o.fasting;
@@ -1113,4 +1172,83 @@ export function idealSameAsHard(
   const h = hard.genome;
   if (g.structureId === h.structureId && g.x.length === h.x.length && g.x.every((v, i) => Math.abs(v - h.x[i]!) <= 1e-6)) return true;
   return Number.isFinite(ideal.D) && Number.isFinite(hard.D) && Math.abs(ideal.D - hard.D) < 0.01 && ideal.outcomes.every((o) => Math.abs(o.vsHard) <= quantum(o.goal) + 1e-12);
+}
+
+/**
+ * The blood-result limit notes of an option, written only for limits its final resolved check passed (D4-01: no
+ * enforcement sentence without a passed validator; amounts with their unit). Appended to the option's safety notes as
+ * information; an unchecked, unsupported or violated limit gets no sentence.
+ */
+function withVerifiedLimitNotes(o: PlanOption, ctx: PlanningContext): void {
+  if (!o.safety?.evaluations?.length) return;
+  const have = new Set(o.safetyNotes);
+  const add = verifiedLimitNotes(o.safety.evaluations, ctx.caps.constraints.merged).filter((t) => !have.has(t));
+  if (!add.length) return;
+  o.safetyNotes = [...o.safetyNotes, ...add];
+  o.safetyItems = [...(o.safetyItems ?? []), ...add.map((text) => ({ text, severity: 'info' as const }))];
+}
+
+/**
+ * `OptionSafety` of one option (C5; D4-01, D4-02, D4-03): the final resolved checks of its prescribed schedule (typed
+ * locks, validator, exercise gate), the exact joint selection screen, the one independent audit of the frozen candidate
+ * and the certificate binding them. The outcome holdout is reported separately and never certifies safety.
+ */
+function optionSafetyFor(
+  ctx: PlanningContext,
+  o: OptimResult<SkeletonStructure>['options'][number],
+  schedule: PlanOption['schedule'],
+  sim: PlanOption['simulation'] | undefined,
+  holdoutDraws: number,
+  seed: string,
+  tier: PlannerTier,
+  now?: () => number,
+): NonNullable<PlanOption['safety']> {
+  const e = evaluatePlanSafety(ctx, schedule, sim);
+  const sa = o.safetyAudit;
+  const audit = sa.screen;
+  // (A1-011/A1-035) the certificate binds the protocol the audit actually used (the evaluator ensemble, its parameter
+  // vectors) and is Verified only when the audited subject is exactly this schedule
+  const { M: _pm, ...protocolRest } = sa.protocol;
+  void _pm;
+  const inputs = plannerCertificateInputs(ctx, schedule, REQUIRED_SAFETY_MARGIN_IDS, { ...protocolRest, M: sa.M, seed: sa.seed });
+  const certificate = issueCertificate(inputs, { screen: audit, subjectHash: sa.subjectHash, protocol: { ...protocolRest, M: sa.M, seed: sa.seed } }, e.status, {
+    episodeId: contentHash({ seed, tier, structure: o.structureIndex, x: Array.from(o.x) }),
+    createdAt: now ? new Date(now()).toISOString() : '',
+  });
+  return optionSafetyOf(e, { selection: o.selectionScreen, audit, certificate, holdoutDraws: o.robust && o.robust !== o.robustSelection ? holdoutDraws : 0 });
+}
+
+/** Key of a candidate genome in a frozen-candidate map (the pipeline's 1e-6 grid). */
+function frozenKey(structure: number, x: ArrayLike<number>): string {
+  return `${structure}|${Array.from(x, (v) => Math.round(v * 1e6)).join(',')}`;
+}
+
+/**
+ * The pipeline's audit port for one assembly (C5/D4-03, A1-011): finalize the chosen candidate once (equipment
+ * composition), freeze it, remember it for the option's numbers and certificate, and audit exactly that schedule on the
+ * host's declared stream. A finalization that fails leaves the candidate Unchecked.
+ */
+function frozenAuditPort(as: Assembly, equipment: { ideal: boolean }, protocol: ReturnType<typeof auditProtocolOf>, frozen: Map<string, FrozenCandidate>): AuditSubjectPort {
+  return {
+    async audit(structure, x, M) {
+      try {
+        const f = await finalizeCandidate(as, structure, x, equipment);
+        frozen.set(frozenKey(structure, x), f);
+        if (f.inputErrors?.length) return null;
+        const r = auditFrozenSchedule(as.main.model, f.schedule, { ...protocol, M });
+        // The final delivered exercises can differ from the search's generic dose. Re-check the USER budget on that
+        // same final prescription too; this is model feasibility, separate from the clinical safety certificate.
+        if (as.ctx.request.constraints?.muscleRetention) {
+          const nominal = r.nominal.margins[MUSCLE_RETENTION_MARGIN_INDEX] ?? NaN;
+          if (!(nominal >= 0) || jointScreenOf(r.outputs, [MUSCLE_RETENTION_MARGIN_INDEX]).status !== 'pass') {
+            f.inputErrors = ['userMuscleRetention: the delivered workout dose exceeds the selected modeled loss budget'];
+            return null;
+          }
+        }
+        return { outputs: r.outputs, nominal: r.nominal, subjectHash: r.subjectHash, protocol: r.protocol };
+      } catch {
+        return null;
+      }
+    },
+  };
 }

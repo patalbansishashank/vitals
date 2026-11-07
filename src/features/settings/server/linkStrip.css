@@ -1,0 +1,171 @@
+@layer components {
+  .settings-server-card .lm-gcard__body {
+    display: grid;
+    gap: var(--lm-card-gap);
+  }
+  .settings-server-card .settings-item {
+    padding: 0;
+  }
+  .settings-server-card .settings-item + .settings-item,
+  .settings-server-card > .lm-gcard__body > .settings-control {
+    padding-top: var(--lm-card-pad);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .settings-link {
+    display: grid;
+    gap: 16px;
+    padding-block: 12px;
+  }
+  .settings-link__nodes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(32px, 2fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+  }
+  .settings-link__node {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    min-width: 0;
+    text-align: center;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    overflow-wrap: anywhere;
+  }
+  .settings-link__node svg {
+    color: var(--lm-ink-2);
+  }
+  .settings-link__line {
+    position: relative;
+    margin-top: 10px;
+    border-top: 1px dashed var(--lm-ink-3);
+  }
+  .settings-link[data-reached] .settings-link__line {
+    border-top-style: solid;
+    border-top-color: var(--lm-signal);
+  }
+  .settings-link__line > i {
+    position: absolute;
+    right: -3px;
+    top: -4px;
+    width: 7px;
+    height: 7px;
+    border: 1px solid var(--lm-ink-3);
+    border-radius: 50%;
+    background: var(--lm-face);
+  }
+  .settings-link[data-reached] .settings-link__line > i {
+    background: var(--lm-signal);
+    border-color: var(--lm-signal);
+  }
+  .settings-link[data-checking] .settings-link__line > i {
+    animation: settings-link-check 1.1s ease-in-out infinite;
+  }
+  .settings-link__facts {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+  .settings-link__facts > .lm-mono {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .settings-link__sync {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px 16px;
+  }
+  .settings-link__queue > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .settings-link__queue i {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  .settings-server-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 0;
+  }
+  .settings-server-facts > div {
+    min-width: 0;
+  }
+  .settings-server-facts dt {
+    margin-bottom: 5px;
+  }
+  .settings-server-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .settings-server-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .settings-device-icon {
+    flex: none;
+    color: var(--lm-ink-2);
+  }
+  .settings-freshness {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .settings-freshness .lm-status__dot {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--lm-ink-3);
+  }
+  .settings-freshness[data-fresh] .lm-status__dot {
+    background: var(--lm-signal);
+    box-shadow: none;
+  }
+  .settings-agent-address {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .settings-agent-address .lm-mono {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  @keyframes settings-link-check {
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion='full']) .settings-link[data-checking] .settings-link__line > i {
+      animation: none;
+    }
+  }
+  :root[data-motion='reduce'] .settings-link[data-checking] .settings-link__line > i {
+    animation: none;
+  }
+  @media (forced-colors: active) {
+    .settings-link__line,
+    .settings-link[data-reached] .settings-link__line {
+      border-color: CanvasText;
+    }
+    .settings-link__queue i {
+      background: CanvasText;
+    }
+    .settings-link__line > i,
+    .settings-link[data-reached] .settings-link__line > i {
+      border-color: CanvasText;
+      background: CanvasText;
+    }
+  }
+}

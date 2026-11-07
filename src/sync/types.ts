@@ -27,7 +27,7 @@ export type DocChange = BackendChange;
 
 /** Legacy phase-1 collection of E11's spike (one document per former `vitals.*` key). The app no longer writes it. */
 export const KV_COLLECTION = 'kv';
-/** Manifest rows of raw-sample chunks (bytes live in the blob store). */
+/** Manifest rows of blob-store chunks (photos; bytes live in the blob store). The name is historical. */
 export const BLOB_MANIFEST_COLLECTION = 'bioChunks';
 
 /** Keys Vitals derives itself from the owner secret (R7 §7.2), separate from Evolu's SLIP-21 tree. */

@@ -1,11 +1,8 @@
 /** Each chapter's reducer: answers → the documents the engine, planner and recipes read (design §10.1 mapping). */
 import { describe, expect, it } from 'vitest';
-import { ringDefaultPolicy } from '@/biometrics/core/policy';
 import { SEED_CATALOGUE } from '@/content/catalogues';
 import { STANDARD_ANSWERS } from '@/features/onboarding/testing';
 import { measuredRmrKcal, reduceActivity } from '../chapters/activity';
-import { offPolicy, recommendedPolicy, reduceDevices, routeOf, setCell, streamsFor, STREAM_ORDER, STREAM_RULES } from '../chapters/devices';
-import { POLICY_TARGETS, policyCalls } from '../devicePolicies';
 import { dietAnimalLevelOf, kitchenDefaults, medicalDietOf, reduceFood } from '../chapters/food';
 import { EQUIPMENT_GROUPS, KITS, LOADABLE, PLACE_EQUIPMENT, familyTokens, reduceTraining, safetyContraTags } from '../chapters/training';
 import { DEFAULT_CONTEXT, type FlowContext } from '../flow';
@@ -69,6 +66,17 @@ describe('a normal day → ActivityIntake', () => {
     expect(r.defaulted).toContain('commute');
   });
 
+  it('steps scope and training trend are written only when answered; "not sure" stays unknown, a skip writes nothing (D3-07/D3-05)', () => {
+    const r = reduceActivity(turns({ stepsKnown: 'wrist', stepsScope: 'excludesTraining', trainNow: '3-4', trainTrend: 'plateaued' }), ctx);
+    expect(r.habits).toMatchObject({ stepsScope: 'excludesTraining', trainingGrowthState: 'plateaued', trainingGrowthStateSource: 'user' });
+    const unsure = reduceActivity(turns({ stepsKnown: 'wrist', stepsScope: 'unknown', trainNow: '3-4', trainTrend: 'unknown' }), ctx);
+    expect(unsure.habits).toMatchObject({ stepsScope: 'unknown', trainingGrowthState: 'unknown' });
+    const skipped = reduceActivity({ values: { stepsKnown: 'wrist', stepsScope: 'unknown', trainNow: '3-4', trainTrend: 'unknown' }, status: { stepsKnown: 'answered', stepsScope: 'skipped', trainNow: 'answered', trainTrend: 'skipped' } }, ctx);
+    expect(skipped.habits.stepsScope).toBeUndefined();
+    expect(skipped.habits.trainingGrowthState).toBeUndefined();
+    expect(skipped.habits.trainingGrowthStateSource).toBeUndefined();
+  });
+
   it('"not working" and "work from home"', () => {
     expect(reduceActivity(turns({ work: 'no' }), ctx).activity).toEqual({ work: 'notWorking' });
     expect(reduceActivity(turns({ work: 'yes', commute: 'home' }), ctx).activity?.commute).toEqual({ mode: 'none' });
@@ -83,6 +91,7 @@ describe('a normal day → ActivityIntake', () => {
     expect(no.clearTypicalSteps).toBe(true);
     const phone = reduceActivity(turns({ work: 'yes', stepsKnown: 'phone', stepsNumber: { workday: 9000, offDay: 4000 }, phoneCarried: 'notReally' }), ctx);
     expect(phone.activity?.steps).toEqual({ source: 'phone', workday: 9000, offDay: 4000, phoneCarried: false });
+    // "I'll import it" (removed with the devices chapter) in an older document reads as no number given
     const later = reduceActivity(turns({ stepsKnown: 'wrist', stepsNumber: { importLater: true } }), ctx);
     expect(later.activity?.steps).toEqual({ source: 'wrist' });
   });
@@ -300,68 +309,6 @@ describe('food and kitchen → FoodProfile', () => {
     const r = reduceFood(turns({ ...base, alcohol: 'weekly', drinks: 10 }), { ...fctx, gentle: true });
     expect(r.diet?.alcoholDrinksPerWeek).toBeUndefined();
     expect(india.india).toBe(true);
-  });
-});
-
-describe('devices and data → StreamOptIns', () => {
-  it('offers the streams the devices have; skipping leaves every stream off', () => {
-    expect(streamsFor(['scale'])).toEqual(['weight', 'body_fat']);
-    expect(streamsFor(['ring', 'phoneOnly'])).toEqual(['sleep_sessions', 'heart_rate', 'hrv', 'spo2', 'skin_temp', 'steps', 'vendor_scores']);
-    const r = reduceDevices(turns({ has: ['ring'], models: { ring: 'Colmi' }, platform: 'android' }, ['streams']), ctx);
-    expect(r.devices).toEqual({ has: ['ring'], models: ['Colmi'], platforms: ['android'] });
-    expect(r.policies.every((p) => !p.imported && !p.scores && !p.engine && p.coach === 'hidden')).toBe(true);
-    expect(reduceDevices(turns({ has: ['none'] }), ctx).policies).toEqual([]);
-  });
-
-  it('recommended = the shared ring default: bring in, scores and plan where allowed, the Coach sees daily + detail', () => {
-    expect(recommendedPolicy('sleep_sessions')).toEqual({ stream: 'sleep_sessions', imported: true, scores: true, engine: true, coach: 'daily+series' });
-    expect(recommendedPolicy('hrv')).toEqual({ stream: 'hrv', imported: true, scores: true, engine: true, coach: 'daily+series' });
-    expect(recommendedPolicy('skin_temp')).toMatchObject({ imported: true, scores: true, engine: true });
-    // cells this matrix does not offer stay off ("—" scores for steps, "never" plan for SpO2)
-    expect(recommendedPolicy('steps')).toEqual({ stream: 'steps', imported: true, scores: false, engine: true, coach: 'daily+series' });
-    expect(recommendedPolicy('spo2')).toEqual({ stream: 'spo2', imported: true, scores: true, engine: false, coach: 'daily+series' });
-    expect(recommendedPolicy('vendor_scores')).toEqual({ stream: 'vendor_scores', imported: true, scores: false, engine: false, coach: 'daily+series' });
-  });
-
-  it('recommended follows ringDefaultPolicy for every stream, within the matrix cells', () => {
-    for (const stream of STREAM_ORDER) {
-      const d = ringDefaultPolicy(POLICY_TARGETS[stream][0]!);
-      const r = recommendedPolicy(stream);
-      const rule = STREAM_RULES[stream];
-      expect(r.imported).toBe(d.imported);
-      expect(r.coach).toBe(d.coach);
-      expect(r.coach).toBe('daily+series');
-      expect(r.scores).toBe(rule.scores === 'yes' && d.scores);
-      expect(r.engine).toBe(rule.engine === 'yes' && d.engine);
-    }
-  });
-
-  it('recommended policies reach the biometric policies as everything in, Coach daily + detail', () => {
-    const calls = policyCalls(undefined, STREAM_ORDER.map(recommendedPolicy));
-    expect(calls.length).toBeGreaterThan(0);
-    expect(calls.every((c) => c.policy.imported && c.policy.coach === 'daily+series')).toBe(true);
-  });
-
-  it('cells keep the rules: "never" cannot be switched on, and turning "bring in" off clears the row', () => {
-    const spo2 = setCell(setCell(offPolicy('spo2'), 'imported', true), 'engine', true);
-    expect(STREAM_RULES.spo2.engine).toBe('never');
-    expect(spo2.engine).toBe(false);
-    expect(setCell(offPolicy('hrv'), 'scores', true).scores).toBe(false);
-    const on = setCell(setCell(setCell(offPolicy('hrv'), 'imported', true), 'scores', true), 'coach', 'daily+series');
-    expect(on).toMatchObject({ imported: true, scores: true, coach: 'daily+series' });
-    expect(setCell(on, 'imported', false)).toEqual(offPolicy('hrv'));
-    // stored values are re-checked on the way out
-    const r = reduceDevices(turns({ has: ['ring'], streams: [{ stream: 'vendor_scores', imported: true, scores: true, engine: true, coach: 'daily' }] }), ctx);
-    expect(r.policies.find((p) => p.stream === 'vendor_scores')).toEqual({ stream: 'vendor_scores', imported: true, scores: false, engine: false, coach: 'daily' });
-  });
-
-  it('routes: iPhone exports, Colmi connects directly only with Web Bluetooth, Android goes through Health Connect', () => {
-    expect(routeOf('ring', 'Oura', 'ios', true)).toBe('iphone');
-    expect(routeOf('ring', 'Colmi', 'android', true)).toBe('direct');
-    expect(routeOf('ring', 'Colmi', 'android', false)).toBe('directUnavailable');
-    expect(routeOf('ring', 'Oura', 'android', false)).toBe('healthConnect');
-    expect(routeOf('scale', 'Withings', 'android', true)).toBe('scale');
-    expect(routeOf('watch', 'Garmin', 'desktop', false)).toBe('file');
   });
 });
 

@@ -36,8 +36,9 @@ describe('true planned balance (R-MAINT)', () => {
     expect(m.phases[0]!.balanceKcal).toBeLessThan(0);
     // the % a program key shows is the requested share of its reference, with the resolved kcal beside it
     const key = summariseProgram(A, RP, m.programMaintKcal[0]);
-    expect(key.text.startsWith('85 %')).toBe(true);
-    expect(key.kcalText).toMatch(/kcal · maint\. /);
+    expect(key.text).toMatch(/^85 % · [\d,]+ kcal$/);
+    // the reference itself is in the key's accessible name, not on the tile
+    expect(key.kcalText).toMatch(/^maintenance [\d,]+ kcal$/);
   });
 
   it('says once, plainly, when the plan trains more or less than the usual week', () => {
@@ -57,7 +58,7 @@ describe('week scrubber', () => {
     });
     const onJump = vi.fn();
     render(<WeekScrubber model={m} rowPct={rowPct} focusDay={0} onJump={onJump} />);
-    const slider = screen.getByRole('slider', { name: 'weeks' });
+    const slider = screen.getByRole('slider', { name: 'Weeks' });
     expect(slider).toHaveAttribute('aria-valuetext', expect.stringMatching(/^week 1 of \d+, deficit \d+/));
     fireEvent.keyDown(slider, { key: 'End' });
     expect(onJump).toHaveBeenLastCalledWith(m.grid.rows - 1);

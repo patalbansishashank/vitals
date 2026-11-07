@@ -1112,7 +1112,7 @@ const topic: EvidenceTopic = {
       summary:
         'Ketone esters and salts raise blood ketones as an ingested input and lower blood glucose acutely. In a trial of professional cyclists a ketone diester made a 31 km time trial about 2 % slower, with stomach discomfort and higher perceived effort. The ketone level goes into the model as an ingested input, with no credit for autophagy.',
       howModelled:
-        "Exogenous ketones raise blood ketones as an ingested input, which does not feed the body's own ketone production. The autophagy signal ignores them. They carry energy, so they technically end a zero-energy fast.",
+        "Exogenous ketones raise blood ketones as an ingested input, which does not feed the body's own ketone production. The exploratory autophagy index ignores them. They carry energy, so they technically end a zero-energy fast.",
       keyNumbers: [
         {
           label: 'Acute glucose effect (43 trials)',

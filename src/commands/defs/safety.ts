@@ -242,8 +242,33 @@ export const safetyReportIllness = defineCommand({
   },
 });
 
+export const safetyAddNutritionGuidance = defineCommand({
+  id: 'safety.addNutritionGuidance', version: 1, title: 'Record clinician nutrition guidance',
+  description: 'Record a dated clinician instruction with exact typed bounds and source provenance. Invalid clinical definitions remain visible as review.',
+  input: T.Object({ envelope: T.OpenObject({ description: 'Versioned clinical nutrition envelope with original typed bounds, basis kg/date and source document' }), at: Instant }),
+  output: SafetyStatus, perm: 'write', impact: 'consequential', ...ui, undo: UNDO.IP, idempotency: 'natural', sideEffects: ['docs'],
+  execute: (ctx, input) => { safety.addNutritionGuidance(input.envelope as never, input.at); return status(ctx.now); },
+});
+export const safetyUpdateNutritionGuidance = defineCommand({
+  id: 'safety.updateNutritionGuidance', version: 1, title: 'Update clinician nutrition guidance',
+  description: 'Append a new instruction revision and retain the superseded original with its withdrawal date.',
+  input: T.Object({ id: T.String({ minLength: 1 }), envelope: T.OpenObject({ description: 'Replacement envelope with a new revision id and exact original clinical facts' }), at: Instant }),
+  output: SafetyStatus, perm: 'write', impact: 'consequential', ...ui, undo: UNDO.IP, idempotency: 'natural', sideEffects: ['docs'],
+  execute: (ctx, input) => { safety.updateNutritionGuidance(input.id, input.envelope as never, input.at); return status(ctx.now); },
+});
+export const safetyRevokeNutritionGuidance = defineCommand({
+  id: 'safety.revokeNutritionGuidance', version: 1, title: 'Withdraw clinician nutrition guidance',
+  description: 'Keep the original instruction and record its withdrawal date; it no longer authorizes future targets.',
+  input: T.Object({ id: T.String({ minLength: 1 }), at: Instant }),
+  output: SafetyStatus, perm: 'write', impact: 'consequential', ...ui, undo: UNDO.IP, idempotency: 'natural', sideEffects: ['docs'],
+  execute: (ctx, input) => { safety.revokeNutritionGuidance(input.id, input.at); return status(ctx.now); },
+});
+
 declare module '../types' {
   interface CommandMap {
+    'safety.addNutritionGuidance': typeof safetyAddNutritionGuidance;
+    'safety.updateNutritionGuidance': typeof safetyUpdateNutritionGuidance;
+    'safety.revokeNutritionGuidance': typeof safetyRevokeNutritionGuidance;
     'safety.status': typeof safetyStatus;
     'safety.commitScreening': typeof safetyCommitScreening;
     'safety.clearAgeAnswer': typeof safetyClearAgeAnswer;

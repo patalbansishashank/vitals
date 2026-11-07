@@ -51,7 +51,7 @@ describe('describeAvatar / frameWords', () => {
   it('the Frame slider and the drawing copy carry no sex or gender words', () => {
     for (const w of FRAME_SLIDER_WORDS) expect(w).not.toMatch(FORBIDDEN);
     for (const [k, v] of Object.entries(DRAWING)) expect(v, k).not.toMatch(FORBIDDEN);
-    for (const k of ['adjustDrawing', 'loadDetailed', 'slowSwitch', 'visceralCaption', 'visceralHow', 'visceralHowLink'] as const)
+    for (const k of ['loadDetailed', 'slowSwitch', 'visceralCaption', 'visceralHow', 'visceralHowLink'] as const)
       expect(FIGURE[k], k).not.toMatch(FORBIDDEN);
     for (const o of FIGURE.views) expect(o.label).not.toMatch(FORBIDDEN);
   });

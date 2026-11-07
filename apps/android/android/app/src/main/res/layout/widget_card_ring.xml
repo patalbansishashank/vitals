@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A home-screen card with its figure inside a ring (Energy, Sleep and Steps as a 2x2). RemoteViews: framework views only.
+     The slots are shared by every card layout (VitalsWidgets.kt fills them): icon, title, as-of, picture, hero, unit, word,
+     meta, note, foot state and foot range. The card's face, glow and hairline are the generated vw_card_* drawable, set at
+     run time for the card's hue; the root is the launcher's widget background (it rounds it to its own corner on Android 12+). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/vw_card_gold_square"
+    android:padding="14dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="20dp"
+            android:orientation="horizontal">
+            <ImageView android:id="@+id/vw_icon" android:layout_width="16dp" android:layout_height="16dp" android:importantForAccessibility="no" android:src="@drawable/vw_icon_energy" />
+            <TextView android:id="@+id/vw_title" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp" android:ellipsize="end" android:fontFamily="@font/geist_semibold" android:includeFontPadding="false" android:letterSpacing="-0.005" android:maxLines="1" android:textColor="@color/vw_ink" android:textSize="14sp" />
+        </LinearLayout>
+        <TextView android:id="@+id/vw_asof" android:layout_width="match_parent" android:layout_height="wrap_content" android:ellipsize="end" android:fontFamily="@font/geist_mono_medium" android:includeFontPadding="false" android:letterSpacing="0.08" android:maxLines="1" android:paddingStart="22dp" android:textAllCaps="true" android:textColor="@color/vw_ink_3" android:textSize="9sp" android:visibility="gone" />
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="4dp"
+            android:layout_weight="1">
+            <ImageView android:id="@+id/vw_viz" android:layout_width="match_parent" android:layout_height="match_parent" android:importantForAccessibility="no" android:scaleType="fitCenter" android:visibility="gone" />
+            <LinearLayout
+                android:id="@+id/vw_center"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:gravity="center_horizontal"
+                android:orientation="vertical">
+                <TextView android:id="@+id/vw_hero" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/geist_light" android:fontFeatureSettings="pnum" android:includeFontPadding="false" android:letterSpacing="-0.035" android:maxLines="1" android:textColor="@color/vw_ink" android:textSize="30sp" />
+                <TextView android:id="@+id/vw_unit" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="1dp" android:fontFamily="@font/geist_regular" android:includeFontPadding="false" android:maxLines="1" android:textColor="@color/vw_ink_2" android:textSize="11sp" android:visibility="gone" />
+                <TextView android:breakStrategy="simple" android:hyphenationFrequency="none" android:id="@+id/vw_word" android:layout_width="wrap_content" android:layout_height="wrap_content" android:fontFamily="@font/geist_regular" android:gravity="center" android:includeFontPadding="false" android:maxLines="3" android:textColor="@color/vw_ink" android:textSize="13sp" android:visibility="gone" />
+            </LinearLayout>
+            <TextView android:breakStrategy="simple" android:hyphenationFrequency="none" android:id="@+id/vw_note" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="center" android:includeFontPadding="false" android:fontFamily="@font/geist_regular" android:gravity="center" android:maxLines="5" android:textColor="@color/vw_ink_2" android:textSize="13sp" android:visibility="gone" />
+        </FrameLayout>
+        <LinearLayout
+            android:id="@+id/vw_foot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical|end"
+            android:minHeight="16dp"
+            android:orientation="horizontal">
+            <TextView android:id="@+id/vw_state" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:ellipsize="end" android:fontFamily="@font/geist_regular" android:includeFontPadding="false" android:maxLines="1" android:textColor="@color/vw_ink_2" android:textSize="12sp" />
+            <TextView android:id="@+id/vw_range" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:ellipsize="end" android:fontFamily="@font/geist_mono_medium" android:includeFontPadding="false" android:letterSpacing="0.06" android:maxLines="1" android:textAllCaps="true" android:textColor="@color/vw_ink_2" android:textSize="10sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

@@ -156,12 +156,23 @@ export const COLLECTIONS: Readonly<Record<CollectionId, CollectionDef>> = {
     budget: '< 0.1 MB',
     schema: open(),
   }),
-  bioRecords: def('bioRecords', 'immutable', 'yes', 50, { key: '${record_id}@${version}', idPattern: /^.+@\d+$/, owner: 'biometrics (E10)', budget: '≈ 1.5 MB', schema: open() }),
-  bioChunks: def('bioChunks', 'blob', 'yes', 51, { key: 'chunkId', owner: 'biometrics (E10)', budget: 'manifest < 1 MB', schema: open() }),
-  bioSources: def('bioSources', 'lwwField', 'yes', 52, { key: 'sourceKey', owner: 'biometrics (E10)', schema: open() }),
-  bioScores: def('bioScores', 'derived', 'no', 53, { key: '${scoreId}@${version}|${scope}', owner: 'biometrics (E10)', budget: '≈ 1 MB', schema: open(), exported: false }),
-  bioCorrections: def('bioCorrections', 'lwwField', 'yes', 55, { key: 'correction key (sleep:<date>, daily:<date>:<group>, spot:<date>:<metric>[:<at>])', idPattern: /^(sleep|daily|spot):\d{4}-\d{2}-\d{2}(:.+)?$/, owner: 'biometrics (E28)', budget: '< 0.1 MB', schema: open(['correctionId', 'key', 'target', 'value', 'createdAt', 'actor']) }),
-  decisionLog: def('decisionLog', 'append', 'yes', 54, { key: 'Id', idPattern: ULID, owner: 'biometrics (E10)', budget: '< 0.5 MB', schema: open(['at', 'decision']) }),
+  // energy SPEC §V3.1 (V3): detected activities waiting for (or past) the person's review. LWW-F, synced; the full record
+  // is kept 90 days after resolution, then a compact tombstone `{key, refs, status, decidedRevision}` forever.
+  activityCandidates: def('activityCandidates', 'lwwField', 'yes', 44, {
+    key: 'cand:${candidateKey}',
+    idPattern: /^cand:[0-9A-HJKMNP-TV-Z]{26}$/,
+    owner: 'living plan (V3)',
+    budget: '≈ 0.5 MB',
+    schema: open(['key', 'refs', 'status'], { key: str, refs: T.Array(str), status: T.Enum(['pending', 'possible', 'approved', 'edited', 'rejected', 'superseded']) }),
+  }),
+  activityCandidateRefs: def('activityCandidateRefs', 'lwwField', 'yes', 45, {
+    key: 'ref:${sourceRef}',
+    idPattern: /^ref:.{1,200}$/,
+    owner: 'living plan (V3)',
+    budget: '< 0.2 MB',
+    schema: open(['ref', 'key'], { ref: str, key: str }),
+  }),
+  bioChunks: def('bioChunks', 'blob', 'yes', 51, { key: 'chunkId', owner: 'blob store (E11)', budget: 'manifest < 1 MB', schema: open() }),
   conversations: def('conversations', 'lwwField', 'yes', 60, { key: 'Id', idPattern: ULID, owner: 'coach (E9)', schema: open() }),
   messages: def('messages', 'append', 'yes', 61, { key: 'Id', idPattern: ULID, owner: 'coach (E9)', budget: '≈ 15 MB', schema: open(['conversationId', 'at']) }),
   attachments: def('attachments', 'blob', 'optIn', 62, { key: 'Id', idPattern: ULID, owner: 'coach (E9)', schema: open(['mime', 'sha256', 'purpose']) }),
@@ -188,14 +199,13 @@ export const COLLECTIONS: Readonly<Record<CollectionId, CollectionDef>> = {
   }),
   providerKeys: def('providerKeys', 'lwwField', 'optIn', 81, { key: 'presetId', owner: 'AI (E9)', schema: open(), exported: false, sealed: true }),
   deviceSettings: def('deviceSettings', 'local', 'no', 3, {
-    // `ringCursor:<ringKey>`: the ring service's read cursor, pause and reconnect id on this device (SUITE_SPEC §15.2)
-    key: 'me | ringCursor:${ringKey}',
-    idPattern: /^(me|ringCursor:ble:\S+)$/,
+    key: 'me',
+    idPattern: ME,
     owner: 'settings',
     schema: open([], { theme: T.Enum(['system', 'light', 'dark']), reduceMotion: T.Enum(['system', 'on', 'off']) }),
   }),
   uiPrefs: def('uiPrefs', 'local', 'no', 4, { key: 'me', idPattern: ME, owner: 'app shell', schema: open() }),
-  secrets: def('secrets', 'local', 'no', 90, { key: 'presetId | companion | bleCred:${driver}', owner: 'AI / biometrics', schema: open(), exported: false, sealed: true }),
+  secrets: def('secrets', 'local', 'no', 90, { key: 'presetId | companion', owner: 'AI', schema: open(), exported: false, sealed: true }),
   changeLog: def('changeLog', 'local', 'no', 91, {
     key: 'Id',
     idPattern: ULID,

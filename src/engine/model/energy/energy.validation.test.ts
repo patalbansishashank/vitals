@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveProfile } from '../../core/resolveProfile';
 import type { PersonProfile, ResolvedProfile } from '../../types/profile';
 import { EnergyRig, makeParams, mean, profileWith, type DayPlan, type HourDrive } from './testRig';
+import { applyEnergyStructuralScenario } from './index';
 
 const person = (sex: 'male' | 'female', age: number, heightCm: number, weightKg: number, steps = 7000): PersonProfile => ({
   schemaVersion: 1,
@@ -163,9 +164,15 @@ describe('02 V5 — Martins 2020: 1000 kcal/d × 8 wk then 4 wk at maintenance',
 });
 
 describe('02 V6 — Biggest Loser wk 30 (AT_R + C_comp −300 to −650)', () => {
-  const run = () => {
+  // D1-07: the RMR response to added activity is a structural scenario; the comparison is run under the named legacy
+  // scenario (c_met 0.15, τ 14 d, cap 5 % RMR) and under the nominal zero-RMR-response reference.
+  const legacy = (): ReturnType<typeof makeParams> => {
+    const base = makeParams();
+    return { ...base, values: applyEnergyStructuralScenario(base, base.values, 'legacyRmrResponse') };
+  };
+  const run = (params = legacy()) => {
     const rp = resolveProfile(person('male', 35, 175, 150, 5000)); // BMI 49
-    const rig = new EnergyRig(rp);
+    const rig = new EnergyRig(rp, params);
     rig.burnIn(14);
     const hab = rig.habitualPlan();
     const f = 1300 / rp.tdee0Kcal; // ASSUMPTION: ≈ 1 300 kcal/d on the ranch (not in the dossier)
@@ -190,6 +197,11 @@ describe('02 V6 — Biggest Loser wk 30 (AT_R + C_comp −300 to −650)', () =>
     const w30 = run();
     expect(w30.atR).toBeGreaterThan(-300);
     expect(w30.comp).toBeLessThan(0);
+  });
+  it('nominal zero-RMR-response reference: no compensation term; AT_R alone stays above −300 (scenario range, not a fit)', () => {
+    const w30 = run(makeParams());
+    expect(w30.comp).toBe(0);
+    expect(w30.atR).toBeGreaterThan(-300);
   });
 });
 

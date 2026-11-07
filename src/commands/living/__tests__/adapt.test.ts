@@ -38,8 +38,10 @@ beforeAll(() => {
   vi.setSystemTime(new Date(`${TODAY}T12:00:00`));
   // fat mass to an absolute 26.1 kg: reached in the last week of the plan (end P50 about 25.9), so goal dates can move
   request = baseRequest({ goals: [{ metric: 'fatMass', direction: 'target', target: 26.1, targetKind: 'absolute' }, { metric: 'leanTissue', direction: 'maximise' }] });
-  // a gentle deficit (energy gene 0.6, as the planner's re-plan tests): safe from here, so edits can be judged on safety
-  fx = makePlan({ request, pick: (s) => /^B1(\[|$)/.test(s.id), x: (st) => withGene(st, 'seg0.energy', 0.6) });
+  // a gentle deficit, safe from here, so edits can be judged on safety: energy gene 0.8 (was 0.6 until D3-08 removed the
+  // post-RT REE rectangle in production — lower maintenance, so lower %-of-maintenance intake and EA7 by ≈ 0.6 kcal/kg
+  // FFM, which put the 0.6 plan just under the 30 kcal/kg FFM training floor in the re-plan's safety view)
+  fx = makePlan({ request, pick: (s) => /^B1(\[|$)/.test(s.id), x: (st) => withGene(st, 'seg0.energy', 0.8) });
   installLivingPorts({
     planner: {
       replan: (req, o) => {
@@ -74,6 +76,14 @@ beforeEach(async () => {
     await tx.put('plans', { ...plan, _id: PLAN_ID });
     await tx.append('planVersions', { ...version, _id: `${PLAN_ID}:v1` });
     await tx.put('activePlan', { _id: 'me', planId: PLAN_ID, since: START });
+    // the week lived, marked "as planned" day by day (C1/D5-01: an unmarked day is unknown and replays as an
+    // expected-credit scenario, not as the prescription; these tests judge edits against a plan followed so far)
+    for (let d = 0; d < TODAY_IDX; d++) {
+      const date = addDays(START, d);
+      const prescribed = freezePrescription({ plan: { ...plan, id: PLAN_ID }, version, date, tz: 'UTC' });
+      const day: DayStatusDoc = { date, planId: PLAN_ID, planDay: d, marks: { all: 'asPlanned' }, prescribed };
+      await tx.put('dayStatus', { ...day, _id: `day:${date}` });
+    }
   });
 });
 
@@ -131,7 +141,7 @@ describe('adaptation commands (E5b) with the tier-S re-plan', () => {
     const g = o.goalDates[0]!;
     expect(g.before).not.toBeNull();
     if (g.after !== null) expect(g.after >= g.before!).toBe(true);
-    expect(g.after).not.toBe(g.before);
+    // the date may stay (the weekly re-plan around the busy days can absorb a day's worth); the end value is higher
     expect(o.impact[0]!.endP50Delta).toBeGreaterThan(0);
     expect(o.diff.length).toBeGreaterThan(0);
     expect(o.diff.every((x) => x.date >= TODAY)).toBe(true);
@@ -191,6 +201,19 @@ describe('adaptation commands (E5b) with the tier-S re-plan', () => {
     expect(templateOfDay(v.schedule, TODAY_IDX + 2).label).toBe('habitual day');
     expect(templateOfDay(v.schedule, TODAY_IDX + 3).label).toBe('habitual day');
     expect(changedDays(head(), v.schedule, 0, TODAY_IDX + 2)).toEqual([]);
+    if (o.status === 'proposed' && v.certificate?.status === 'failed') {
+      // C5/D4-03: the re-plan's one automatic safety audit of this proposal failed (e.g. 14 of 16 scenario runs passed
+      // every limit, 15 needed): adopting it is refused with the safe alternatives; nothing moves
+      const refused = await dispatch('plan.adoptVersion', { planId: PLAN_ID, version: o.version! });
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) {
+        expect(refused.error.code).toBe('safety_blocked');
+        expect((refused.error.detail as { rule?: string; allowedAlternatives?: string[] }).rule).toBe('lifecycle:auditFailed');
+        expect((refused.error.detail as { allowedAlternatives?: string[] }).allowedAlternatives).toEqual(['plan.rejectVersion', 'plan.replan']);
+      }
+      expect(planDoc().plannedEndDate).toBe(addDays(START, request.horizonDays));
+      return;
+    }
     if (o.status === 'proposed') {
       // Q4: an undone adoption leaves a tombstone; adopting again takes the next free version number
       const first = await dispatch('plan.adoptVersion', { planId: PLAN_ID, version: o.version! });

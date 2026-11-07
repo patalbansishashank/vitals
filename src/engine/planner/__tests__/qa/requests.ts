@@ -5,7 +5,7 @@
  */
 import path from 'node:path';
 import { fuzzRequest } from '../../bench/suites/domain';
-import { AUTOPHAGY_FIRST_T3, GOLDEN, GOLDEN_SUPPLEMENT_CONSENT, WOMAN_78, type GoldenKey } from '../../domain/__tests__/golden.requests';
+import { AUTOPHAGY_FIRST_T3, GOLDEN_V1 as GOLDEN, GOLDEN_SUPPLEMENT_CONSENT, WOMAN_78, type GoldenKey } from '../../domain/__tests__/golden.requests';
 import type { PlannerRequestV2 } from '../../domain/types';
 
 /** Where `run.qa.ts` writes the digests and `checks.qa.ts` reads them (QA_OUT_DIR overrides, e.g. qa/results/e5b/planner). */

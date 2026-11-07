@@ -94,14 +94,17 @@ beforeEach(() => {
 afterEach(() => setSimulationClient(null));
 
 describe('computeBands', () => {
-  it('P10/P50/P90 over nominal + draws, deterministic, ignoring NaN', () => {
+  it('P10/P50/P90 over the draws only (D8-02), deterministic, ignoring NaN', () => {
     const nominal = { fatMass: new Float32Array([10, 10]) };
     const draws = [8, 9, 11, 12].map((v) => ({ fatMass: new Float32Array([v, Number.NaN]) }));
     const b = computeBands(nominal, draws, 4);
     expect(b.p50.fatMass![0]).toBeCloseTo(10, 6);
-    expect(b.p10.fatMass![0]).toBeCloseTo(8.4, 6);
-    expect(b.p90.fatMass![0]).toBeCloseTo(11.6, 6);
-    expect(b.p50.fatMass![1]).toBe(10);
+    expect(b.p10.fatMass![0]).toBeCloseTo(8.3, 6);
+    expect(b.p90.fatMass![0]).toBeCloseTo(11.7, 6);
+    // a day with no finite draw has no value, never the nominal: finite storage, unavailable day (A1-049)
+    expect(b.p50.fatMass![1]).toBe(0);
+    expect(b.days!.fatMass!.available[1]).toBe(0);
+    expect(b.days!.fatMass!.valid[1]).toBe(0);
     expect(b.complete).toBe(true);
     expect(computeBands(nominal, draws, 4)).toEqual(b);
   });

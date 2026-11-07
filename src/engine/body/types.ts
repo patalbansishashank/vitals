@@ -1,5 +1,33 @@
 // Public data contracts of the body-estimation module (dossier research/14-anthropometrics-fat-distribution.md).
 // Units: kg, cm, L, g, kcal/d, % (0-100). Body fat is always "DXA-equivalent" (NHANES/Hologic frame, dossier 14 M1).
+// Contract additions 2026-10-18 (D1-03, C4): measurement provenance on the inputs, observation lineage on the fusion and
+// conditional model SD kept apart from any calibrated predictive coverage. All optional.
+import type { CoverageStatus } from '@/lib/bodyContracts';
+import type { GirthLandmark } from '@/lib/measurementOperators';
+
+/**
+ * Provenance of a measured body-fat value (D1-03/D5-07): identity, date, device/protocol, derivation parents and optional
+ * scan masses. Same-source observations (e.g. Navy from the same girths) must not count as independent evidence.
+ */
+export interface BodyFatMeasurementMeta {
+  observationId?: string;
+  /** ISO date (or instant) the measurement was taken. */
+  measuredOn?: string;
+  device?: string;
+  protocol?: string;
+  /** Observation ids this value was derived from (girths for Navy, an impedance record for BIA %). */
+  parentIds?: readonly string[];
+  scanMassKg?: number;
+  scanFatMassKg?: number;
+}
+
+/** Provenance of girth inputs (D1-03): landmark and protocol decide which equations/operators apply. */
+export interface GirthMeasurementMeta {
+  observationId?: string;
+  measuredOn?: string;
+  landmark?: GirthLandmark;
+  protocol?: string;
+}
 
 /** Same literal union as the engine's placeholder `Sex` (src/engine/types) so the two are structurally compatible. */
 export type Sex = 'male' | 'female';
@@ -63,6 +91,10 @@ export interface BodyInputs {
   frameZ?: number;
   /** SD of the (self-reported) weight in kg; added in quadrature to the muscle-slider sigma (M3). Default 0. */
   weightSdKg?: number;
+  /** D1-03: provenance of `knownBodyFatPct` (absent = unknown provenance: never counted as independent of girth estimators). */
+  knownBodyFatMeta?: BodyFatMeasurementMeta;
+  /** D1-03: provenance of the waist/neck/hip girths. */
+  girthMeta?: GirthMeasurementMeta;
 }
 
 /** Fat depots, kg of DXA fat (the five compartments that the regional allocation rule M7 moves). */
@@ -145,6 +177,10 @@ export interface FusionObservation {
   sdPct: number;
   /** GLS weight in the posterior mean (weights sum to 1; can be negative with correlated errors). */
   weight: number;
+  /** D1-03: estimator family ('prior' equation, 'girth' Navy/RFM, 'visual' sliders, 'measured') and lineage. */
+  family?: 'prior' | 'girth' | 'visual' | 'measured';
+  sourceObservationId?: string;
+  parentIds?: readonly string[];
 }
 
 export interface BodyFatFusion {
@@ -168,6 +204,15 @@ export interface BodyFatFusion {
   visualFfmi?: number;
   /** Adiposity-slider BF%, if given. */
   visualBodyFatPct?: number;
+  /**
+   * D1-03: conditional model SD of the GLS mean (given the stated method priors and correlations), kept separate from any
+   * empirically calibrated predictive interval. `sdPct` remains the legacy field for existing readers.
+   */
+  conditionalSdPct?: number;
+  /** D1-03: coverage of the reported band; 'unvalidated' until held-out reference validation (no 80 % claim before). */
+  coverage?: CoverageStatus;
+  /** D1-03: observations collapsed because they share inputs (one family counted once). */
+  collapsed?: ReadonlyArray<{ ids: readonly FusionObservationId[]; reason: 'sharedInputs' | 'sameSource' }>;
 }
 
 export type TrainingClass = 'untrained' | 'noviceTrained' | 'intermediate' | 'advanced' | 'nearCeiling';
@@ -214,6 +259,8 @@ export interface BodyUncertainty {
   /** Relative SD of VAT (0.35 = +-35 %). */
   vatRelativeSd: number;
   waistSdCm: number;
+  /** D1-03: coverage status of `bodyFatBand80` (absent = legacy, read as 'unvalidated'). */
+  bandCoverage?: CoverageStatus;
 }
 
 export type BodyWarningCode =

@@ -2437,7 +2437,7 @@ const topic: EvidenceTopic = {
       summary:
         'When the weekly energy deficit is the same, taking it as fasts does not burn more fat than spreading it across the week. In lean adults it costs more lean tissue. In people with obesity outcomes are about equal. Health-marker changes from multi-day fasts fade within 3–4 months. So Vitals treats fasting as one way of delivering a deficit and gives it no metabolic bonus.',
       howModelled:
-        'Fast days simply contribute zero intake, no thermic effect of food and the small early energy bump. Fat loss then follows from the weekly energy balance. Nothing in the model rewards a fast for being a fast. The differences that remain are temporary: dips in IGF-1, ketone exposure, an autophagy signal and the scale-weight pattern.',
+        'Fast days simply contribute zero intake, no thermic effect of food and the small early energy bump. Fat loss then follows from the weekly energy balance. Nothing in the model rewards a fast for being a fast. The differences that remain are temporary: dips in IGF-1, ketone exposure, the exploratory autophagy index and the scale-weight pattern.',
       keyNumbers: [
         {
           label:

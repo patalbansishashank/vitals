@@ -1,7 +1,8 @@
 import { Link } from 'react-router';
-import { Chip, GradeBadge, VisuallyHidden } from '@/components';
+import { ChevronRight } from 'lucide-react';
+import { GradeBadge, Icon, Swatch, VisuallyHidden } from '@/components';
 import { topicDisplayName } from '@/content/evidence/sources';
-import { STATUS_TEXT } from '../copy';
+import { STATUS_TEXT, sentence } from '../copy';
 import {
   containsHit,
   highlight,
@@ -11,7 +12,7 @@ import {
   type MythDoc,
 } from '../data/search';
 import { claimAnchor, mechanismHref, topicHref, type EvidenceNavState } from '../links';
-import { CategoryMark, Highlighted, UsedByChips, VerdictChip } from './bits';
+import { Highlighted, VerdictChip } from './bits';
 
 const NAV_STATE: EvidenceNavState = { from: 'evidence' };
 
@@ -23,32 +24,31 @@ export const takeLastOpenedRow = (): string | null => {
   return id;
 };
 
-/** What the engraved context line shows. */
-export type RowContext = 'category' | 'topic' | 'both';
+/** Characters a matched passage may run to: about three lines on a 360 px phone, one or two on a desk. */
+const PASSAGE_CHARS = 110;
 
 export interface MechanismRowProps {
   doc: MechanismDoc;
   tokens?: readonly string[];
-  context?: RowContext;
+  /** Name the topic in the row's fact line: search results, where no topic header above the row says it. */
+  showTopic?: boolean;
 }
 
 /**
- * Index row: engraved context, name + grade, one-line statement (or the passage
- * that matched), "used by" chips. The whole row is the link; chips are separate links.
+ * Library row: the name, its grade, and a fact line only when there is a fact to state (the topic where no header
+ * above says it, "contested"). The mechanism's prose lives in its article; the row quotes a passage only during a
+ * search whose match the title does not show. The whole row is the link.
  */
-export function MechanismRow({ doc, tokens = [], context = 'both' }: MechanismRowProps) {
+export function MechanismRow({ doc, tokens = [], showTopic = false }: MechanismRowProps) {
   const m = doc.mechanism;
-  const titleHit = tokens.length > 0 && containsHit(m.title, tokens);
-  const snippet = tokens.length > 0 && !titleHit ? makeSnippet(doc, tokens) : null;
+  const passage =
+    tokens.length > 0 && !containsHit(m.title, tokens) ? makeSnippet(doc, tokens, PASSAGE_CHARS) : null;
+  const facts = [
+    showTopic ? topicDisplayName(doc.topic.slug, doc.topic.title) : null,
+    m.status === 'contested' ? STATUS_TEXT.contested.label.toLowerCase() : null,
+  ].filter((f): f is string => Boolean(f));
   return (
     <li className="ev-row" data-row-id={doc.id}>
-      <div className="ev-row__eng lm-eng">
-        {context !== 'topic' ? <CategoryMark category={m.category} /> : null}
-        {context !== 'category' ? <span>{topicDisplayName(doc.topic.slug, doc.topic.title)}</span> : null}
-        {m.status === 'contested' ? (
-          <span className="ev-row__status">{STATUS_TEXT.contested.label}</span>
-        ) : null}
-      </div>
       <div className="ev-row__head">
         <Link
           to={mechanismHref(m.id)}
@@ -58,42 +58,30 @@ export function MechanismRow({ doc, tokens = [], context = 'both' }: MechanismRo
             lastOpened = doc.id;
           }}
         >
-          <Highlighted
-            segments={tokens.length ? highlight(m.title, tokens) : [{ text: m.title, hit: false }]}
-          />
+          <Highlighted segments={highlight(m.title, tokens)} />
         </Link>
         <GradeBadge grade={m.grade} size="sm" tooltip={false} />
       </div>
-      {snippet ? (
-        <p className="ev-row__sum">
-          {snippet.field !== 'summary' ? <span className="ev-row__where">{snippet.field}: </span> : null}
-          <Highlighted segments={snippet.segments} />
+      {passage ? (
+        <p className="ev-row__match">
+          {passage.field !== 'summary' ? <span className="ev-row__where">{sentence(passage.field)}: </span> : null}
+          <Highlighted segments={passage.segments} />
         </p>
-      ) : (
-        <p className="ev-row__sum">
-          <Highlighted
-            segments={tokens.length ? highlight(m.summary, tokens) : [{ text: m.summary, hit: false }]}
-          />
-        </p>
-      )}
-      {m.relatedMetricIds.length ? (
-        <div className="ev-row__chips">
-          <UsedByChips ids={m.relatedMetricIds} />
-        </div>
       ) : null}
+      {facts.length ? <p className="ev-row__meta">{sentence(facts.join(' · '))}</p> : null}
     </li>
   );
 }
 
-/** A common claim in search results: links to the claim on its topic page. */
+/**
+ * A common claim in search results: links to the claim on its topic page, with its verdict and topic. It quotes the
+ * explanation only when the match is there rather than in the claim.
+ */
 export function ClaimRow({ doc, tokens = [] }: { doc: MythDoc; tokens?: readonly string[] }) {
   const y = doc.myth;
-  const snippet = tokens.length && !containsHit(y.claim, tokens) ? makeSnippet(doc, tokens) : null;
+  const passage = containsHit(y.claim, tokens) ? null : makeSnippet(doc, tokens, PASSAGE_CHARS);
   return (
     <li className="ev-row" data-row-id={doc.id}>
-      <div className="ev-row__eng lm-eng">
-        <span>common claim · {topicDisplayName(doc.topic.slug, doc.topic.title)}</span>
-      </div>
       <div className="ev-row__head">
         <Link
           to={topicHref(doc.topic.slug, claimAnchor(y.id))}
@@ -103,17 +91,20 @@ export function ClaimRow({ doc, tokens = [] }: { doc: MythDoc; tokens?: readonly
           “<Highlighted segments={highlight(y.claim, tokens)} />”
         </Link>
       </div>
-      <div className="ev-row__verdict">
+      {passage ? (
+        <p className="ev-row__match">
+          <Highlighted segments={passage.segments} />
+        </p>
+      ) : null}
+      <div className="ev-row__meta">
         <VerdictChip verdict={y.verdict} />
+        <span>{topicDisplayName(doc.topic.slug, doc.topic.title)}</span>
       </div>
-      <p className="ev-row__sum">
-        <Highlighted segments={snippet ? snippet.segments : highlight(y.explanation, tokens)} />
-      </p>
     </li>
   );
 }
 
-/** Metrics that match a search: chips in their category hue; each opens Explain. */
+/** Metrics that match a search: compact rows (swatch, name, a chevron), each opening Explain (r068 EV-5). */
 export function MetricStrip({
   docs,
   tokens = [],
@@ -124,13 +115,17 @@ export function MetricStrip({
   onExplain: (metricId: string) => void;
 }) {
   return (
-    <ul className="ev-chiprow ev-metricstrip">
+    <ul className="ev-usedby ev-metricstrip">
       {docs.map((d) => (
-        <li key={d.id}>
-          <Chip kind="metric" category={d.metric.category ?? 'body'} onClick={() => onExplain(d.id)}>
-            <VisuallyHidden>Explain </VisuallyHidden>
-            <Highlighted segments={highlight(d.metric.label, tokens)} />
-          </Chip>
+        <li key={d.id} className="ev-usedrow">
+          <button type="button" className="ev-usedrow__link ev-usedrow__btn" onClick={() => onExplain(d.id)}>
+            <Swatch category={d.metric.category ?? 'body'} />
+            <span className="ev-usedrow__name">
+              <VisuallyHidden>Explain </VisuallyHidden>
+              <Highlighted segments={highlight(d.metric.label, tokens)} />
+            </span>
+            <Icon icon={ChevronRight} size={18} className="ev-usedrow__chev" />
+          </button>
         </li>
       ))}
     </ul>

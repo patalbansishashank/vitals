@@ -64,7 +64,8 @@ export function PairingCodeField({
     if (e.key === 'Backspace' && b === '') first.current?.focus();
   };
 
-  const input = 'lm-input w-[7.5ch] min-w-0 text-center text-xl font-[500] tabular-nums tracking-[0.12em]';
+  // two equal halves spanning the field's width (r068 S23)
+  const input = 'lm-input flex-1 min-w-0 text-center text-xl font-[500] tabular-nums tracking-[0.12em]';
   return (
     <div className="lm-field">
       <span id={`${id}-label`} className="lm-field__label">

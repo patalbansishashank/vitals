@@ -75,16 +75,16 @@ describe('MarkerBanner', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('lists the active notes, clinician first, each with its chip, and says nothing is banned', () => {
+  it('lists the active notes, clinician first, each with its chip, under a title with no lead paragraph', () => {
     wrap(<MarkerBanner notes={[LDL_NOTE, DANGER_NOTE]} today="2026-10-02" />);
     const region = screen.getByRole('region', { name: 'From your blood test' });
     const items = region.querySelectorAll('li');
     expect(items).toHaveLength(2);
     expect(items[0]!.getAttribute('data-severity')).toBe('danger');
     expect(items[0]!.textContent).toContain('see a clinician');
-    expect(region.textContent).toContain('Nothing is banned outright');
+    expect(region.querySelector('.lm-marker-banner__lead')).toBeNull();
     expect(screen.getByRole('button', { name: /because your LDL cholesterol was 192 mg\/dL/ })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Re-enter values' }).getAttribute('href')).toBe('/onboarding/markers');
+    expect(screen.getByRole('link', { name: 'Update results' }).getAttribute('href')).toBe('/onboarding/markers');
     expect(sortNotes([LDL_NOTE, DANGER_NOTE])[0]).toBe(DANGER_NOTE);
   });
 

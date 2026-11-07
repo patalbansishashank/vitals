@@ -9,9 +9,10 @@ import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Chip, ErrorText, Key, KeyBank, Notice, ProgressRule, Select, TextInput, toast, useMediaQuery, MQ } from '@/components';
 import { readAiConfig } from '@/commands/ai/config';
 import { getPreset } from '@/ai/providers/presets';
-import { useCoachAvailable } from '@/features/living/coach/availability';
+import { isCoachOnServer, useCoachAvailable, useCoachOnServer } from '@/features/living/coach/availability';
 import { MARKER_UNITS, checkBounds, formatMarkerDate, unitsOf, type ExtractionRow, type MarkerContext, type MarkerExtraction, type MarkerId, type MarkersView } from '@/markers';
 import { FASTING_GROUPS, M, acceptedUnit, confidenceLevel, convertedText, isConfirmable, parseTyped, todayIso, type ConfidenceLevel } from './markers';
+import { GFR_UNIT_UNCLEAR, gfrUnitUnclear } from './markersStatus';
 import { confirmExtraction, deleteReport, hasCommand, importReport, storeReport, type ConfirmInput, type ImportHandle } from './markersApi';
 import { CardFootSlot } from '../components/widgetTypes';
 import { MarkerDateInput, MarkersCard, MarkersFoot } from './markersParts';
@@ -21,7 +22,9 @@ import { MarkerDateInput, MarkersCard, MarkersFoot } from './markersParts';
 /** The connected AI provider's name, or null when none can read images. */
 function useProvider(): string | null {
   const available = useCoachAvailable();
-  if (!available) return null;
+  // paired: the Coach runs on the server and nothing on this device sends pages to an AI service
+  const onServer = useCoachOnServer();
+  if (!available || onServer) return null;
   const cfg = readAiConfig();
   if (!cfg) return null;
   return getPreset(cfg.presetId)?.label ?? 'your AI provider';
@@ -112,14 +115,14 @@ export function MarkersReport({ onSaved, onBack, onTypeInstead, today = todayIso
 
   const back = onBack ? (
     <div className="lm-mk-footrow">
-      <Key variant="default" onClick={onBack}>
-        ‹ {M.table.back}
+      <Key variant="text" onClick={onBack}>
+        {M.table.back}
       </Key>
     </div>
   ) : null;
 
   return (
-    <MarkersCard prompt={M.report.prompt} skipText={M.report.skipText} footer={back} id="ik-markers-report">
+    <MarkersCard prompt={M.report.prompt} footer={back} id="ik-markers-report">
       {stage.k === 'choose' || stage.k === 'error' ? (
         <div className="lm-mk-file">
           <label className="lm-key lm-mk-file__key" data-variant="default" data-size="md">
@@ -170,8 +173,21 @@ export function MarkersReport({ onSaved, onBack, onTypeInstead, today = todayIso
 }
 
 function ReportError({ kind, onTypeInstead, onChooseAnother, onRetry }: { kind: Extract<Stage, { k: 'error' }>['kind']; onTypeInstead: () => void; onChooseAnother: () => void; onRetry?: () => void }) {
+  const onServer = isCoachOnServer();
   const title =
-    kind === 'noText' ? M.report2.noTextNoProvider : kind === 'notReport' ? M.report2.notReport : kind === 'photoNoProvider' ? M.report2.photoNeedsProvider : kind === 'unavailable' ? M.report2.unavailable : M.report2.failed;
+    kind === 'noText'
+      ? onServer
+        ? M.report2.noTextOnServer
+        : M.report2.noTextNoProvider
+      : kind === 'notReport'
+        ? M.report2.notReport
+        : kind === 'photoNoProvider'
+          ? onServer
+            ? M.report2.photoOnServer
+            : M.report2.photoNeedsProvider
+          : kind === 'unavailable'
+            ? M.report2.unavailable
+            : M.report2.failed;
   const actions =
     kind === 'notReport' ? (
       <Key size="sm" onClick={onChooseAnother}>
@@ -338,7 +354,7 @@ export function ReviewTable({ extraction, attachmentId, today, onSaved, onBack, 
           {onBack ? (
             <Key variant="default" onClick={onBack}>
               {/* inside the intake card its own Back (to the previous question) is already there */}
-              {slotted ? M.report2.chooseAnother : `‹ ${M.table.back}`}
+              {slotted ? M.report2.chooseAnother : M.table.back}
             </Key>
           ) : null}
           {!fileGone && !onApply ? (
@@ -440,7 +456,8 @@ function ReviewRow({ v, d, date, wide, onPatch }: { v: RowView; d: RowDraft; dat
   const label = MARKER_UNITS[r.markerId].label;
   const asRead = `${r.value ?? '—'}${r.unit ? ` ${r.unit}` : ''}${r.method ? ` (${r.method})` : ''}`;
   const valueText = v.n !== null ? `${v.n}${v.unit ? ` ${v.unit}` : ''}` : asRead;
-  const conv = convertedText(r.markerId, v.n, v.unit) ?? '—';
+  // D7-02: an eGFR printed without its /1.73 m² index is kept as read and reads "Unit unclear" (no conversion, no staging)
+  const conv = v.unit && gfrUnitUnclear(r.markerId, v.unit) ? GFR_UNIT_UNCLEAR : (convertedText(r.markerId, v.n, v.unit) ?? '—');
   const reasonId = `${auto}-reason`;
   const issues = v.level === 'low' && r.issues.length ? r.issues.join('; ') : null;
   const blockMsg = !v.tickable && v.why !== M.report2.tickNeedsValue ? v.why : null;

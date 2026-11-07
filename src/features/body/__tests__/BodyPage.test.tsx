@@ -36,6 +36,12 @@ function seedBody() {
 /** The polite live region under Estimates (updated on release / key step). */
 const liveText = () => document.querySelector('.lm-body-est [aria-live="polite"]')?.textContent ?? '';
 
+/** Shape › Fine-tune shape: where it sits, muscle and measurements wait behind it. */
+async function openFineTune() {
+  const key = await screen.findByRole('button', { name: 'Fine-tune shape' });
+  if (key.getAttribute('aria-expanded') !== 'true') await userEvent.click(key);
+}
+
 beforeEach(() => {
   localStorage.clear();
   act(() => useSettingsStore.getState().set({ units: 'metric', showFigure: true }));
@@ -54,19 +60,28 @@ describe('Your body page', () => {
     for (const img of images) expect(img, img.outerHTML.slice(0, 120)).toHaveAccessibleName(/\S/);
   });
 
-  it('renders every section and the persistent disclaimer next to the estimates', async () => {
+  it('renders every section; Shape opens with every scale out, Fine-tune shape open', async () => {
     seedBody();
     renderAt('/body');
     expect(await screen.findByRole('heading', { level: 1, name: 'Your body' })).toBeInTheDocument();
     for (const name of ['Basics', 'Figure', 'Estimates', 'Shape', 'Habits', 'Lab values']) {
       expect(screen.getByRole('heading', { name })).toBeInTheDocument();
     }
+    // every shape scale is out, so each one visibly reshapes the figure; the disclosure starts open
+    expect(screen.getByRole('slider', { name: 'Body fat' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fine-tune shape' })).toHaveAttribute('aria-expanded', 'true');
     // every shape control is a labelled native slider
-    for (const name of ['body fat', 'belly & waist', 'hips & thighs', 'upper body', 'lower body', 'waist at the top of the hip bones']) {
+    for (const name of ['Belly & waist', 'Hips & thighs', 'Upper body', 'Lower body']) {
       expect(screen.getByRole('slider', { name })).toBeInTheDocument();
     }
-    // drawing-only controls wait behind Shape › Adjust the drawing; nothing about the drawing sits in Basics
-    expect(screen.queryByRole('slider', { name: 'frame' })).toBeNull();
+    // the two measurements: one section, a row each, each switch named for what it uses
+    expect(screen.getByRole('heading', { name: 'Measurements' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Use measured waist' })).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Use measured body fat' })).not.toBeChecked();
+    // no helper paragraphs in Shape
+    expect(within(document.getElementById('body-shape')!).queryByText(/Start from our estimate|“Expected” is|narrows the range/)).toBeNull();
+    // drawing-only controls wait behind Figure › Adjust the drawing; nothing about the drawing sits in Basics
+    expect(screen.queryByRole('slider', { name: 'Frame' })).toBeNull();
     expect(within(document.getElementById('body-basics')!).queryByText(/figure|drawing/i)).toBeNull();
     // the figure is an image described by its generated description: shape words, never a "base"
     expect(
@@ -76,62 +91,112 @@ describe('Your body page', () => {
     ).toBeInTheDocument();
     // jsdom has no WebGL2: the SVG figure draws the body
     expect(document.querySelector('.lm-body-stage .lm-fig3d')).toHaveAttribute('data-renderer', 'svg');
-    expect(screen.getByText(/Not medical advice/)).toBeInTheDocument();
-    expect(liveText()).toMatch(/^Body fat \d+\.\d percent, likely \d+\.\d to \d+\.\d\. Lean mass/);
+    // Estimates: body fat as the hero with its range as a scale, then three smaller readouts (no caption, chip, per-readout
+    // helper); the foot says the state and what the scales show
+    const est = document.getElementById('body-estimates')!;
+    expect(est.querySelector('.lm-hero')).toHaveAttribute('aria-label', expect.stringMatching(/^Body fat \d+\.\d percent, likely \d+\.\d to \d+\.\d$/));
+    expect(est.querySelectorAll('.lm-body-est__cell')).toHaveLength(3);
+    expect(within(est).queryByText(/likely range = 80 %|based on averages|Not medical advice|Body fat × weight/)).toBeNull();
+    expect(est.querySelector('.lm-cardfoot')).toHaveTextContent(/80 % range/i);
+    expect(liveText()).toMatch(/^Body fat \d+\.\d percent, likely \d+\.\d to \d+\.\d\. Lean mass \d+\.\d kilograms\.$/);
+    // the always-true "saved on this device" is gone; Lab values is one mono line and a pill until something is entered
+    expect(screen.queryByText(/saved on this device/)).toBeNull();
+    const labs = document.getElementById('body-labs')!;
+    expect(within(labs).getByText('No lab values')).toBeInTheDocument();
+    expect(within(labs).getByRole('button', { name: 'Add lab values' })).toBeInTheDocument();
+    expect(within(labs).getByRole('link', { name: 'Blood markers in Progress' })).toHaveAttribute('href', '/progress#markers');
   });
 
-  it('lays plain Your body out as two independent stacks with Maintenance as a card in one of them; both plan keys live in the action bar, not in a card', async () => {
+  it('gives every card one (i), named for it, and no other key in its head', async () => {
+    seedBody();
+    renderAt('/body');
+    await screen.findByRole('heading', { level: 1, name: 'Your body' });
+    for (const [id, title] of [
+      ['body-figure', 'Figure'],
+      ['body-estimates', 'Estimates'],
+      ['body-shape', 'Shape'],
+      ['body-basics', 'Basics'],
+      ['body-maintenance', 'Maintenance'],
+      ['body-habits', 'Habits'],
+      ['body-labs', 'Lab values'],
+    ] as const) {
+      const head = document.getElementById(id)!.querySelector<HTMLElement>('.lm-cardhead')!;
+      const keys = within(head).queryAllByRole('button').filter((b) => !b.classList.contains('lm-gcard__open'));
+      expect(keys.map((k) => k.getAttribute('aria-label')), id).toEqual([`About ${title}`]);
+    }
+  });
+
+  it('opens a card\'s (i) as a panel with its source and range, and the figure\'s with a link to how it is drawn', async () => {
+    seedBody();
+    renderAt('/body');
+    await screen.findByRole('heading', { level: 1, name: 'Your body' });
+    await userEvent.click(screen.getByRole('button', { name: 'About Estimates' }));
+    const panel = await screen.findByRole('dialog', { name: 'How these are estimated' });
+    expect(within(panel).getAllByText(/80 % range/).length).toBeGreaterThan(0);
+    expect(within(panel).getByText('Where this comes from')).toBeInTheDocument();
+    expect(within(panel).getByText('Range')).toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole('button', { name: /close/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'How these are estimated' })).toBeNull());
+    await userEvent.click(screen.getByRole('button', { name: 'About Figure' }));
+    const figurePanel = await screen.findByRole('dialog', { name: 'About the figure' });
+    expect(within(figurePanel).getByRole('link', { name: /How this is drawn/ }).getAttribute('href')).toMatch(/body-composition-estimation/);
+  });
+
+  it('lays plain Your body out as two independent stacks: the figure, its estimates, maintenance and labs left; Shape beside the figure, then basics and habits', async () => {
     seedBody();
     renderAt('/body');
     await screen.findByRole('heading', { level: 1, name: 'Your body' });
     const cols = document.querySelector('.lm-body-cols')!;
     const [left, right] = Array.from(cols.querySelectorAll(':scope > .lm-body-stack'));
     expect(cols.querySelectorAll(':scope > .lm-body-stack')).toHaveLength(2);
-    for (const id of ['body-figure', 'body-estimates', 'body-basics', 'body-habits', 'body-labs']) expect(left!.querySelector(`#${id}`), id).not.toBeNull();
-    // Maintenance is a normal card in the right stack, at the same width as its neighbours (no full-width row)
-    for (const id of ['body-shape', 'body-maintenance']) expect(right!.querySelector(`#${id}`), id).not.toBeNull();
+    for (const id of ['body-figure', 'body-estimates', 'body-maintenance', 'body-labs']) expect(left!.querySelector(`#${id}`), id).not.toBeNull();
+    // Shape heads the right stack (beside the figure); Basics and Habits are normal cards under it (r068 V-BD-3)
+    expect(right!.firstElementChild?.id).toBe('body-shape');
+    for (const id of ['body-basics', 'body-habits']) expect(right!.querySelector(`#${id}`), id).not.toBeNull();
     expect(Array.from(cols.children).every((c) => c.classList.contains('lm-body-stack'))).toBe(true);
     expect(document.getElementById('body-setup')).toBeNull();
-    expect(document.querySelector('.lm-body-continue')).toBeNull();
-    expect(document.querySelector('.lm-body-halves')).toBeNull();
-    // the two keys: Simulate a plan, then Find a plan as the primary
-    const keys = Array.from(document.querySelectorAll('.lm-actionbar a')).filter((a) => /^(Simulate a plan|Find a plan)$/.test(a.textContent?.trim() ?? ''));
-    expect(keys.length).toBeGreaterThanOrEqual(2);
-    const find = keys.find((a) => a.textContent?.trim() === 'Find a plan')!;
-    expect(find.getAttribute('data-variant')).toBe('solid');
-    expect(find.getAttribute('href')).toBe('/plan/goals');
-    expect(keys.find((a) => a.textContent?.trim() === 'Simulate a plan')!.getAttribute('href')).toBe('/simulate');
   });
 
-  it('shows the same maintenance number in Estimates and in the Maintenance card', async () => {
+  it('puts no bar on the tab page: in Planning mode the navigation holds Simulate and Plan, so the header has no way-on keys', async () => {
+    seedBody();
+    renderAt('/body');
+    await screen.findByRole('heading', { level: 1, name: 'Your body' });
+    expect(document.querySelector('.lm-actionbar')).toBeNull();
+    const header = document.querySelector<HTMLElement>('.lm-ctx-slot')!;
+    expect(within(header).queryByRole('link', { name: /Find plans|Simulate a plan/ })).toBeNull();
+    // no ⋯ at all: the header's ⋯ holds a page's own actions only (r068 U14), and this page has none here
+    expect(screen.queryAllByRole('button', { name: 'More' })).toHaveLength(0);
+  });
+
+  it('gives maintenance one home: its own card, not a fifth readout in Estimates', async () => {
     seedBody();
     renderAt('/body');
     await screen.findByRole('heading', { level: 1, name: 'Your body' });
     const est = document.getElementById('body-estimates')!;
-    const maint = document.getElementById('body-maintenance')!;
-    const num = (el: HTMLElement) => {
-      const r = Array.from(el.querySelectorAll('.lm-readout')).find((x) => /^maintenance/.test(x.textContent ?? ''))!;
-      return r.querySelector('.lm-readout__value')!.textContent!.replace(/\s|\u00a0|\u202f/g, '').replace(/kcal.*/, '');
-    };
-    await waitFor(() => expect(num(est)).toMatch(/^\d+$/));
-    expect(num(maint)).toBe(num(est));
+    expect(/maintenance/i.test(est.textContent ?? '')).toBe(false);
+    expect(document.getElementById('body-maintenance')!.querySelector('.lm-hero')).not.toBeNull();
   });
 
-  it('keeps the figure card header to the title and switch; the how-to sits in the caption under the figure, with no credits link', async () => {
+  it('keeps the figure card to its title and (i), a switch row, the layer row; no caption; Adjust the drawing sits under the layers', async () => {
     seedBody();
     renderAt('/body');
     await screen.findByRole('heading', { level: 1, name: 'Your body' });
     const card = document.getElementById('body-figure')!;
-    const head = card.querySelector('.lm-face-head')!;
-    // header: the title and the figure / visceral switch, nothing else
-    expect(head.querySelector('.lm-eng')).toBeNull();
-    expect(head.textContent).toBe('Figurefigurevisceral');
-    // caption: the how-to joins the illustrative-figure note (jsdom has no WebGL2: the flat figure's wording)
-    const caption = card.querySelector('figcaption')!;
-    expect(caption.textContent).toMatch(
-      /^Drag the figure to change its shape, or use the sliders\. Illustrative figure\. Shows proportions from your inputs, not your exact shape\./,
-    );
-    expect(caption.textContent).toMatch(/Muscles and bones show reference anatomy\.$/);
+    const head = card.querySelector<HTMLElement>('.lm-cardhead')!;
+    // header: the title and the (i), nothing else; the figure / visceral switch is its own row over the stage
+    expect(head.textContent).toBe('Figure');
+    expect(within(head).getAllByRole('button')).toHaveLength(1);
+    const bank = card.querySelector<HTMLElement>('.lm-body-viewbank')!;
+    expect(within(bank).getAllByRole('radio').map((r) => r.getAttribute('aria-label') ?? r.textContent)).toEqual(['Figure', 'Visceral']);
+    // "Load detailed figure" is the foot's link, not a head key
+    expect(within(head).queryByRole('button', { name: /Load detailed figure/ })).toBeNull();
+    // no how-to or disclaimer caption under the figure
+    expect(card.querySelector('figcaption')).toBeNull();
+    expect(within(card).queryByText(/Drag the figure|Illustrative figure|reference anatomy/)).toBeNull();
+    // the drawing's own controls open in place, in the figure card (no jump down the page)
+    const adjust = within(card).getByRole('button', { name: 'Adjust the drawing' });
+    expect(adjust).toHaveAttribute('aria-expanded', 'false');
+    expect(within(document.getElementById('body-shape')!).queryByRole('button', { name: 'Adjust the drawing' })).toBeNull();
     // credits live in Settings › About, not on the figure
     expect(within(card).queryByText(/3D model credits/i)).toBeNull();
     expect(card.querySelector('a[href$="NOTICE.html"]')).toBeNull();
@@ -140,7 +205,7 @@ describe('Your body page', () => {
   it('updates the estimates live when a shape slider moves by keyboard', async () => {
     seedBody();
     renderAt('/body');
-    const slider = await screen.findByRole('slider', { name: 'body fat' });
+    const slider = await screen.findByRole('slider', { name: 'Body fat' });
     const before = liveText();
     const fatBefore = /Body fat (\d+\.\d)/.exec(before)?.[1];
     expect(store().shape.bodyFatPct).toBeUndefined();
@@ -178,12 +243,13 @@ describe('Your body page', () => {
     expect(note.closest('.lm-scale__note')).not.toHaveTextContent(/Start from our estimate|reference at/);
 
     // distribution readout is a share of fat, and moves with the slider
-    const belly = screen.getByRole('slider', { name: 'belly & waist' });
+    await openFineTune();
+    const belly = screen.getByRole('slider', { name: 'Belly & waist' });
     const shareBefore = belly.getAttribute('aria-valuetext');
     fireEvent.keyDown(belly, { key: 'End' });
     // the share comes from the engine, so it follows the thumb on the next frame (and again on the write)
     await waitFor(() => expect(belly.getAttribute('aria-valuetext')).not.toBe(shareBefore));
-    expect(belly).toHaveAttribute('aria-valuetext', expect.stringMatching(/^belly and waist: \d+ percent of your body fat$/));
+    expect(belly).toHaveAttribute('aria-valuetext', expect.stringMatching(/^Belly and waist: \d+ percent of your body fat$/));
 
     // Reset to estimate clears every touched shape slider
     await userEvent.click(screen.getByRole('button', { name: 'Reset to estimate' }));
@@ -193,27 +259,37 @@ describe('Your body page', () => {
   it('shows a measured waist and locks the belly scale', async () => {
     seedBody();
     renderAt('/body');
-    const toggle = await screen.findByRole('switch', { name: 'use measurement' });
-    await userEvent.click(toggle);
+    await openFineTune();
+    expect(screen.queryByRole('slider', { name: 'Waist at the top of the hip bones' })).toBeNull();
+    await userEvent.click(screen.getByRole('switch', { name: 'Use measured waist' }));
     expect(store().waist.use).toBe(true);
     expect(store().waist.cm).not.toBeNull();
-    expect(screen.getAllByText(/set by your waist measurement/).length).toBeGreaterThan(0);
-    expect(screen.getByRole('slider', { name: 'belly & waist' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('slider', { name: 'Waist at the top of the hip bones' })).toBeInTheDocument();
+    expect(screen.getAllByText(/set by your waist measurement/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole('slider', { name: 'Belly & waist' })).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('?focus=waist opens Fine-tune shape and focuses the waist switch', async () => {
+    seedBody();
+    renderAt('/body?focus=waist');
+    const toggle = await screen.findByRole('switch', { name: 'Use measured waist' });
+    await waitFor(() => expect(document.activeElement).toBe(toggle));
+    expect(screen.getByRole('button', { name: 'Fine-tune shape' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('switches to imperial without changing what is stored', async () => {
     seedBody();
     renderAt('/body');
-    await userEvent.click(await screen.findByRole('radio', { name: 'imperial' }));
-    const weight = screen.getByRole('spinbutton', { name: 'weight' });
+    await userEvent.click(await screen.findByRole('radio', { name: 'Imperial' }));
+    const weight = screen.getByRole('spinbutton', { name: 'Weight' });
     expect(weight).toHaveValue('187.2');
     // re-committing the shown value is not a change
     await userEvent.click(weight);
     await userEvent.keyboard('{Enter}');
     fireEvent.blur(weight);
     expect(store().weightKg).toBe(84.9);
-    await userEvent.click(screen.getByRole('radio', { name: 'metric' }));
-    expect(screen.getByRole('spinbutton', { name: 'weight' })).toHaveValue('84.9');
+    await userEvent.click(screen.getByRole('radio', { name: 'Metric' }));
+    expect(screen.getByRole('spinbutton', { name: 'Weight' })).toHaveValue('84.9');
   });
 
   it('first run: basics → shape → the intake (a normal day …) → what we will use → choose a start', async () => {
@@ -221,18 +297,25 @@ describe('Your body page', () => {
     const router = renderAt('/body');
     // an unfinished setup returns to its step
     await waitFor(() => expect(router.state.location.search).toBe('?setup=basics'));
-    expect(await screen.findByText(/Four facts the equations need/)).toBeInTheDocument();
-    expect(screen.getByRole('list', { name: 'Setup progress' })).toBeInTheDocument();
+    expect(await screen.findByRole('list', { name: 'Setup progress' })).toBeInTheDocument();
+    // step 1: the four inputs first, no intro; the figure (following height, weight and sex) and the estimates after
+    // them; a focused flow, so its keys dock at the foot (no navigation pill while no plan is live)
+    expect(screen.queryByText(/Four facts the equations need/)).toBeNull();
+    const basicsCard = document.getElementById('body-basics')!;
+    expect(basicsCard.compareDocumentPosition(document.getElementById('body-figure')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(document.getElementById('body-estimates')).not.toBeNull();
+    // read-only there: the drawing's controls come with the scales at step 2
+    expect(screen.queryByRole('button', { name: /Adjust the drawing/ })).toBeNull();
+    await waitFor(() => expect(document.querySelector('.lm-actionbar-slot[data-docked]')).not.toBeNull());
     const next = () => screen.getAllByRole('button', { name: 'Next: shape' })[0]!;
+    expect(screen.getAllByRole('button', { name: 'Next: shape' })).toHaveLength(1);
     expect(next()).toHaveAttribute('aria-disabled', 'true');
-    // estimates wait for the real weight
-    expect(screen.getAllByText('needs weight').length).toBeGreaterThan(0);
 
-    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'sex for the physiology equations' })).getByRole('radio', { name: 'female' }));
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'Sex' })).getByRole('radio', { name: 'Female' }));
     for (const [name, value] of [
-      ['age', '41'],
-      ['height', '166'],
-      ['weight', '68.5'],
+      ['Age', '41'],
+      ['Height', '166'],
+      ['Weight', '68.5'],
     ] as const) {
       const input = screen.getByRole('spinbutton', { name });
       await userEvent.clear(input);
@@ -243,7 +326,12 @@ describe('Your body page', () => {
     await userEvent.click(next());
     await waitFor(() => expect(router.state.location.search).toBe('?setup=shape'));
     expect(store().setup).toBe('shape');
-    expect(screen.getByRole('slider', { name: 'body fat' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Body fat' })).toBeInTheDocument();
+    // labels only: the shape card opens on its scale, no instruction line above it
+    expect(screen.queryByText(/match the figure/i)).toBeNull();
+    // inputs first: the shape card comes before the figure
+    const shapeCard = document.getElementById('body-shape')!;
+    expect(shapeCard.compareDocumentPosition(document.getElementById('body-figure')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // v0.2: the habits step is retired; the first run continues into the intake
     await userEvent.click(screen.getAllByRole('button', { name: 'Skip for now' })[0]!);
@@ -261,21 +349,26 @@ describe('Your body page', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Looks right — continue' }));
     await waitFor(() => expect(router.state.location.search).toBe('?setup=start'));
     expect(store().setup).toBe('done');
-    expect(screen.getByRole('heading', { name: 'Choose a start' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Simulate a plan I have in mind' })).toHaveAttribute('href', '/simulate');
-    expect(screen.getByRole('link', { name: 'Find a plan for my goals' })).toHaveAttribute('href', '/plan/goals');
+    // the page title is the step; two ways on, nothing else
+    expect(screen.getByRole('heading', { level: 1, name: 'Choose a start' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Find plans' })).toHaveAttribute('href', '/plan/goals');
+    expect(screen.getByRole('link', { name: 'Simulate a plan' })).toHaveAttribute('href', '/simulate');
+    expect(screen.queryByRole('link', { name: 'Back to Your body' })).toBeNull();
   });
 
-  it('gentle mode hides the figure and tucks body-fat numbers behind "show numbers"', async () => {
+  it('gentle mode hides the figure and tucks the estimates\' numbers behind "Show numbers"', async () => {
     seedClearedSafety({ ...STANDARD_ANSWERS, eatingDisorder: 'yes' });
     seedBody();
     renderAt('/body');
     expect(await screen.findByText(/The figure is hidden in gentle mode/)).toBeInTheDocument();
     const est = document.querySelector('.lm-body-est') as HTMLElement;
-    expect(within(est).queryByText('body fat')).toBeNull();
-    expect(within(est).getByText('maintenance')).toBeInTheDocument();
-    await userEvent.click(within(est).getByRole('button', { name: 'show numbers' }));
-    expect(within(est).getByText('body fat')).toBeInTheDocument();
+    // words and a picture: no body-fat or lean-mass number, no cell of readouts
+    expect(est.textContent).not.toMatch(/\d/);
+    expect(est.querySelectorAll('.lm-body-est__cell')).toHaveLength(0);
+    await userEvent.click(within(est).getByRole('button', { name: 'Show numbers' }));
+    expect(within(est).getByText('Fat mass')).toBeInTheDocument();
+    expect(within(est).getByText('Lean mass')).toBeInTheDocument();
+    expect(est.querySelector('.lm-hero')?.getAttribute('aria-label')).toMatch(/^Body fat \d/);
   });
 
   it('keeps the shape sliders when Settings hides the figure', async () => {
@@ -284,15 +377,15 @@ describe('Your body page', () => {
     renderAt('/body');
     expect(await screen.findByText(/Your estimates still use the shape sliders/)).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: /^Figure,/ })).toBeNull();
-    expect(screen.getByRole('slider', { name: 'body fat' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Body fat' })).toBeInTheDocument();
   });
 
   it('Adjust the drawing: the frame slider speaks in shape words, never sex or gender words', async () => {
     seedBody();
     renderAt('/body');
-    await screen.findByRole('slider', { name: 'body fat' });
+    await screen.findByRole('slider', { name: 'Body fat' });
     await userEvent.click(screen.getByRole('button', { name: 'Adjust the drawing' }));
-    const slider = await screen.findByRole('slider', { name: 'frame' });
+    const slider = await screen.findByRole('slider', { name: 'Frame' });
     const text = slider.getAttribute('aria-valuetext') ?? '';
     expect(text).toMatch(/hips|shoulders|balanced|even/i);
     const region = slider.closest('.lm-frame') as HTMLElement;
@@ -308,14 +401,14 @@ describe('Your body page', () => {
   it('the stage bar swaps the figure for the visceral view, with a link to how it is drawn', async () => {
     seedBody();
     renderAt('/body');
-    await screen.findByRole('slider', { name: 'body fat' });
+    await screen.findByRole('slider', { name: 'Body fat' });
     expect(document.querySelector('.lm-body-stage .lm-fig3d')).not.toBeNull();
-    await userEvent.click(screen.getByRole('radio', { name: 'visceral' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Visceral' }));
     expect(await screen.findByText(/Drawn to scale from your estimate/)).toBeInTheDocument();
     expect(document.querySelector('.lm-body-stage .lm-fig3d')).toBeNull();
     const how = screen.getByRole('link', { name: /How this is drawn/ });
     expect(how.getAttribute('href')).toMatch(/body-composition-estimation/);
-    await userEvent.click(screen.getByRole('radio', { name: 'figure' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Figure' }));
     expect(await screen.findByRole('img', { name: /^Figure,/ })).toBeInTheDocument();
   });
 });

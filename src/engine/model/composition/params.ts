@@ -102,8 +102,15 @@ export const COMPOSITION_PARAMS: readonly ParamDef[] = [
   fixed('mPMin', -0.3, '1', 'C', SRC.bray, '11 §4.7 m_P clamp', 'proposed-fit'),
   fixed('mPMax', 1.05, '1', 'C', SRC.bray, '11 §4.7 m_P clamp', 'proposed-fit'),
   fixed('phiFCap', 0.45, '1', 'C', 'Forbes 1986 PMID 3479191; Hall 2011 PMID 21872751', '11 §4.7 φ_F = min(1, [C/(C + FM)]/0.45)', 'proposed-fit'),
-  fixed('mFaPufa', 1.5, '1', 'D', SRC.rosqvist, '11 §4.7 m_FA PUFA-rich', 'proposed-fit'),
-  fixed('mFaSfa', 0.7, '1', 'D', SRC.rosqvist, '11 §4.7 m_FA SFA-rich', 'proposed-fit'),
+  // D1-04: nominal fat-type factor m_FA = 1 for every fat mix, every draw and every override of the two values below. They
+  // are kept only for the explicitly opted-in exploratory research model (`mFaResearchMode` = 1), which earns no nominal
+  // optimizer lean benefit. Independent lipid/liver fat-quality effects live in other modules under their own warrants.
+  fixed('mFaPufa', 1.5, '1', 'D', SRC.rosqvist, '11 §4.7 m_FA PUFA-rich (exploratory research mode only, D1-04)', 'proposed-fit',
+    'D1-04: exploratory sensitivity value (young-lean 7-wk MRI lean-volume contrast, Rosqvist 2014; overweight LIPOGAIN-2 2024 null). Inactive unless mFaResearchMode = 1.'),
+  fixed('mFaSfa', 0.7, '1', 'D', SRC.rosqvist, '11 §4.7 m_FA SFA-rich (exploratory research mode only, D1-04)', 'proposed-fit',
+    'D1-04: exploratory sensitivity value; inactive unless mFaResearchMode = 1.'),
+  fixed('mFaResearchMode', 0, 'flag', 'D', `${SRC.rosqvist}; LIPOGAIN-2 2024 doi 10.1016/j.ajcnut.2024.04.010`, '11 §4.7; review D1-04', 'proposed-fit',
+    'D1-04 structural mode: 0 = production (m_FA = 1, neutral reference); 1 = exploratory research curve with mFaPufa/mFaSfa. Never drawn.'),
   fixed('mFaRefPufaShare', 0.23, 'frac of fat', 'C', 'MODEL_SPEC §5.3 (06 §2.4 NHANES, DERIVED)', '11 §4.7 m_FA = 1 at the habitual mix', 'proposed-fit',
     'Own interpolation anchor: the default fat mix (PUFA 0.23, SFA 0.32 of fat) gives m_FA = 1 exactly'),
   fixed('mFaRefSfaShare', 0.32, 'frac of fat', 'C', 'MODEL_SPEC §5.3 (06 §2.4 NHANES, DERIVED)', '11 §4.7 m_FA', 'proposed-fit'),

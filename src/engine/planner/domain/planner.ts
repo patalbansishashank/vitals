@@ -4,33 +4,92 @@
  * against an evaluator (worker pool or local), runs time-to-target searches for unattainable targets, and assembles
  * the `PlannerResult` (options with schedules, simulations, scorecards, explanations, feasibility report).
  */
-import { SERIES, SERIES_INDEX, type SeriesId } from '../../types/metrics';
+import {
+  GOAL_CAPABILITY,
+  SERIES,
+  SERIES_INDEX,
+  isProductionGoalEligible,
+  type MetricId,
+  type SeriesId,
+} from '../../types/metrics';
 import type { Schedule } from '../../types/schedule';
 import type { SimulationResult } from '../../types/result';
 import type { Evaluator } from '../optim/types';
 import { complexityPenalty, rocWeights, timeToTarget } from '../optim/goals';
-import { runPlanner, type PlannerConfig, type PlannerProblem, type PlannerResult as OptimResult, type Tier } from '../optim/pipeline';
+import {
+  runPlanner,
+  type PlannerConfig,
+  type PlannerProblem,
+  type PlannerResult as OptimResult,
+  type Tier,
+} from '../optim/pipeline';
 import { hashString } from '../optim/rng';
 import { BLOCKS } from './registry/blocks';
 import type { PlanningContext } from './context';
 import { decodePlan, gridStep as gridStepOf, roundGenome as roundGenomeOf } from './decode';
-import { buildVariant, type EvalVariant, type HostInit, type VariantProblem } from './evaluatorHost';
-import { goalNotes, hungerAssessment, phaseExplanations, safetyNotes, bindingNotes, ruleText, hedge } from './explain';
+import {
+  bandsOfSchedule,
+  buildVariant,
+  type EvalVariant,
+  type HostInit,
+  type VariantProblem,
+} from './evaluatorHost';
+import {
+  goalNotes,
+  hungerAssessment,
+  phaseExplanations,
+  safetyNotes,
+  bindingNotes,
+  ruleText,
+  hedge,
+} from './explain';
 import { FEATURE_SCHEMA, complexityCounts } from './features';
-import { goalSeries, goalValue, type BuiltGoals } from './goalSpecs';
+import { goalSeries, goalTrajectory, goalValue, goalValueStatus, type BuiltGoals } from './goalSpecs';
 import { BAND_SERIES, EA_FLOOR, MARGIN_IDS, type EnginePlanModel } from './model';
-import { FAST_COMPARE, describeFasts, fastingVerdict, rivalVerdict, type OptionSide, type RivalPlan } from './fastingExplain';
+import {
+  FAST_COMPARE,
+  describeFasts,
+  fastingVerdict,
+  rivalVerdict,
+  type OptionSide,
+  type RivalPlan,
+} from './fastingExplain';
 import { fastingKind, longestFastH, usesFast } from './fastMath';
 import { stubModules } from './physiology';
-import { OVERLAY_HOSTS, toUnit, transferGenome as transfer, type SkeletonStructure, type PlanSkeleton } from './skeleton';
+import {
+  OVERLAY_HOSTS,
+  toUnit,
+  transferGenome as transfer,
+  type SkeletonStructure,
+  type PlanSkeleton,
+} from './skeleton';
 import { validatePlan } from './validate';
+import { auditSubjectHash } from './safetyAudit';
 import { runLadderPlanner } from './ladderPlanner';
 import { toV1Progress, toV1Result } from './compat';
 import { equipmentFor, type EquipmentForResult } from './equipment';
-import type { EvidenceGrade, GoalFeasibility, GoalScore, PlanOption, PlannerProgressInfo, PlannerProgressV2, PlannerRequest, PlannerResult, SafetyNote } from './types';
+import type {
+  EvidenceGrade,
+  GoalFeasibility,
+  GoalScore,
+  PlanOption,
+  PlannerProgressInfo,
+  PlannerProgressV2,
+  PlannerRequest,
+  PlannerResult,
+  SafetyNote,
+} from './types';
 import { quantileSorted } from '../optim/stats';
-import { ROUTE_MAX_WEEKS, beyondSafetyLimits } from './reach';
+import { ROUTE_MAX_WEEKS, safetyLimitProof } from './reach';
 import type { TargetReach } from './types';
+import {
+  STATUS_LABEL,
+  bandMetaFor,
+  searchOutcomeFromLegacy,
+  type BandMeta,
+  type SearchOutcomeInfo,
+} from '@/lib/bodyContracts';
+import { goalDisplayStatus, goalSense } from './capabilities';
 
 export { beyondSafetyLimits } from './reach';
 
@@ -62,23 +121,41 @@ export interface PlannerOptions {
    * Daily band series of one plan for ensemble draws 0..draws−1 (worker pool). Default: the in-thread host. Returns one
    * Float32Array per draw, series-major, each series of length horizon + 1.
    */
-  bandsFor?: (variant: EvalVariant, structure: number, x: Float64Array, draws: number, series: readonly string[], option: number, drawBase?: number) => Promise<Float32Array[]>;
+  bandsFor?: (
+    variant: EvalVariant,
+    structure: number,
+    x: Float64Array,
+    draws: number,
+    series: readonly string[],
+    option: number,
+    drawBase?: number,
+  ) => Promise<Float32Array[]>;
 }
 
 const GRADE_ORDER: EvidenceGrade[] = ['A', 'B', 'C', 'D'];
 /** Rung title of a v1 option id (fixed mapping hard 'A', medium 'B', easy 'C'; compat.ts). */
 const RUNG_TITLE_OF_ID: Readonly<Record<PlanOption['id'], string>> = { A: 'Hard', B: 'Medium', C: 'Easy' };
-const worse = (a: EvidenceGrade, b: EvidenceGrade): EvidenceGrade => (GRADE_ORDER.indexOf(a) >= GRADE_ORDER.indexOf(b) ? a : b);
+const worse = (a: EvidenceGrade, b: EvidenceGrade): EvidenceGrade =>
+  GRADE_ORDER.indexOf(a) >= GRADE_ORDER.indexOf(b) ? a : b;
 
 export function seedOf(req: PlannerRequest): string {
   if (req.seed !== undefined) return String(req.seed);
-  const key = JSON.stringify([req.profile, req.goals, req.horizonDays, req.startDate ?? null, req.constraints ?? null, req.safety ?? null, req.strictness ?? null]);
+  const key = JSON.stringify([
+    req.profile,
+    req.goals,
+    req.horizonDays,
+    req.startDate ?? null,
+    req.constraints ?? null,
+    req.safety ?? null,
+    req.strictness ?? null,
+  ]);
   return `req-${hashString(key).toString(16)}`;
 }
 
 /** Skeleton equality ignoring the listed fields. */
 function sameExcept(a: PlanSkeleton, b: PlanSkeleton, except: (keyof PlanSkeleton)[]): boolean {
-  const strip = (s: PlanSkeleton) => JSON.stringify(Object.entries(s).filter(([k]) => !except.includes(k as keyof PlanSkeleton)));
+  const strip = (s: PlanSkeleton) =>
+    JSON.stringify(Object.entries(s).filter(([k]) => !except.includes(k as keyof PlanSkeleton)));
   return strip(a) === strip(b);
 }
 
@@ -88,14 +165,19 @@ const eventFastLabel = (h: number) => `${Math.round(h)}-hour fasts`;
 
 /** True when a skeleton uses a fasting lever (multi-day fast, 24-h fast overlay or zero-energy days). */
 export function skeletonFasts(sk: PlanSkeleton): boolean {
-  return sk.event !== null || sk.overlay?.lever === 'fastDay24' || sk.segments.some((g) => g.kind === 'phase' && g.block === 'B12');
+  return (
+    sk.event !== null ||
+    sk.overlay?.lever === 'fastDay24' ||
+    sk.segments.some((g) => g.kind === 'phase' && g.block === 'B12')
+  );
 }
 
 /** What a fasting skeleton's fasts are, in plain words ("72-hour fasts", "a weekly 24-hour fast", "zero-energy days"). */
 export function fastPhrase(sk: PlanSkeleton): string | null {
   const parts: string[] = [];
   if (sk.event) parts.push(eventFastLabel(sk.event.durationH));
-  if (sk.overlay?.lever === 'fastDay24') parts.push(sk.overlay.perWeek === 2 ? 'two 24-hour fasts a week' : 'a weekly 24-hour fast');
+  if (sk.overlay?.lever === 'fastDay24')
+    parts.push(sk.overlay.perWeek === 2 ? 'two 24-hour fasts a week' : 'a weekly 24-hour fast');
   if (sk.segments.some((g) => g.kind === 'phase' && g.block === 'B12')) parts.push('zero-energy days');
   return parts.length ? parts.join(' and ') : null;
 }
@@ -104,33 +186,59 @@ export function fastPhrase(sk: PlanSkeleton): string | null {
  * Fasting structures closest to structure `i` for the rival search when the run evaluated none (PLANNER_V2_SPEC §3.6):
  * the same skeleton with a fast added (overlay or event) first, then the fasting structures in prior order; ≤ `max`.
  */
-export function nearestFastingStructures(structures: readonly SkeletonStructure[], i: number, max: number): number[] {
+export function nearestFastingStructures(
+  structures: readonly SkeletonStructure[],
+  i: number,
+  max: number,
+): number[] {
   const sk = structures[i]?.skeleton;
   if (!sk) return [];
-  const fasting = structures.flatMap((s, j) => (j !== i && !s.skeleton.baseline && skeletonFasts(s.skeleton) ? [j] : []));
+  const fasting = structures.flatMap((s, j) =>
+    j !== i && !s.skeleton.baseline && skeletonFasts(s.skeleton) ? [j] : [],
+  );
   const twins = fasting.filter((j) => sameExcept(structures[j]!.skeleton, sk, ['overlay', 'event']));
   return [...new Set([...twins, ...fasting])].slice(0, max);
 }
 
 /** Neutralised variants for ablation explanations (18 §4.17 item 4). */
-export function ablationsFor(structures: readonly SkeletonStructure[], i: number, x: Float64Array): Array<{ label: string; structure: number; x: Float64Array }> {
+export function ablationsFor(
+  structures: readonly SkeletonStructure[],
+  i: number,
+  x: Float64Array,
+): Array<{ label: string; structure: number; x: Float64Array }> {
   const st = structures[i]!;
   const sk = st.skeleton;
   if (sk.baseline) return [];
   const out: Array<{ label: string; structure: number; x: Float64Array }> = [];
-  const find = (pred: (s: PlanSkeleton) => boolean) => structures.findIndex((s, j) => j !== i && !s.skeleton.baseline && pred(s.skeleton));
+  const find = (pred: (s: PlanSkeleton) => boolean) =>
+    structures.findIndex((s, j) => j !== i && !s.skeleton.baseline && pred(s.skeleton));
   const add = (label: string, j: number) => {
     if (j >= 0) out.push({ label, structure: j, x: transfer(st, structures[j]!, x) });
   };
-  if (sk.overlay) add(sk.overlay.lever === 'refeedDay' ? 'without the refeed days' : `without the ${FAST_LABEL_24}`, find((s) => s.overlay === null && sameExcept(s, sk, ['overlay'])));
-  if (sk.event) add(`without the ${eventFastLabel(sk.event.durationH)}`, find((s) => s.event === null && sameExcept(s, sk, ['event'])));
-  if (sk.creatine) add('without creatine', find((s) => !s.creatine && sameExcept(s, sk, ['creatine'])));
+  if (sk.overlay)
+    add(
+      sk.overlay.lever === 'refeedDay' ? 'without the refeed days' : `without the ${FAST_LABEL_24}`,
+      find((s) => s.overlay === null && sameExcept(s, sk, ['overlay'])),
+    );
+  if (sk.event)
+    add(
+      `without the ${eventFastLabel(sk.event.durationH)}`,
+      find((s) => s.event === null && sameExcept(s, sk, ['event'])),
+    );
+  if (sk.creatine)
+    add(
+      'without creatine',
+      find((s) => !s.creatine && sameExcept(s, sk, ['creatine'])),
+    );
   const cyc = sk.segments.findIndex((g) => g.kind === 'cycle');
   if (cyc >= 0) {
     const seg = sk.segments[cyc]!;
     if (seg.kind === 'cycle') {
       const segs = sk.segments.map((g, k) => (k === cyc ? { kind: 'phase' as const, block: seg.on } : g));
-      add('without the diet breaks', find((s) => JSON.stringify(s.segments) === JSON.stringify(segs) && sameExcept(s, sk, ['segments'])));
+      add(
+        'without the diet breaks',
+        find((s) => JSON.stringify(s.segments) === JSON.stringify(segs) && sameExcept(s, sk, ['segments'])),
+      );
     }
   }
   const gene = (path: string, label: string) => {
@@ -153,7 +261,15 @@ export interface Assembly {
   main: VariantProblem;
 }
 
-export function scheduleFor(a: Assembly, structure: number, x: Float64Array): { schedule: Schedule; log: ReturnType<EnginePlanModel['repair']>['log']; plan: ReturnType<typeof decodePlan> } {
+export function scheduleFor(
+  a: Assembly,
+  structure: number,
+  x: Float64Array,
+): {
+  schedule: Schedule;
+  log: ReturnType<EnginePlanModel['repair']>['log'];
+  plan: ReturnType<typeof decodePlan>;
+} {
   const st = a.main.structures[structure]!;
   const decoded = a.full.decode(st, x);
   const plan = a.full.planOf(decoded) ?? decodePlan(a.ctx, st, x);
@@ -168,14 +284,25 @@ function confidenceOf(a: Assembly, plan: ReturnType<typeof decodePlan>): Evidenc
   return g;
 }
 
-/** Daily P10/P50/P90 per series from per-draw buffers (series-major, length T + 1 each). */
-function dailyBands(ctx: PlanningContext, sim: SimulationResult, series: readonly SeriesId[], buffers: readonly Float32Array[]): NonNullable<PlanOption['bands']> {
+/**
+ * Daily P10/P50/P90 per series from per-draw buffers (series-major, length T + 1 each). D8-02: quantiles come from the
+ * stochastic members only (the nominal run is never mixed in); a change-from-baseline series re-bases each member on the
+ * nominal t = 0 value. Each band carries its semantics: a parameter-sensitivity range with unvalidated coverage, the number
+ * of members with a finite final value (aborted or invalid members are counted out, not silently covered). A series with
+ * no finite member gets no band.
+ */
+export function dailyBands(
+  ctx: PlanningContext,
+  sim: SimulationResult,
+  series: readonly string[],
+  buffers: readonly Float32Array[],
+): NonNullable<PlanOption['bands']> {
   const T1 = ctx.horizonDays + 1;
   const out: NonNullable<PlanOption['bands']>['series'] = {};
   series.forEach((id, k) => {
-    const def = SERIES[SERIES_INDEX[id]]!;
-    const delta = def.presentation === 'deltaFromBaseline';
-    const nominal0 = sim.initial[id] ?? Number.NaN;
+    const def = SERIES[SERIES_INDEX[id as SeriesId]];
+    const delta = def?.presentation === 'deltaFromBaseline';
+    const nominal0 = sim.initial[id as SeriesId] ?? Number.NaN;
     const p10 = new Float32Array(T1);
     const p50 = new Float32Array(T1);
     const p90 = new Float32Array(T1);
@@ -192,17 +319,39 @@ function dailyBands(ctx: PlanningContext, sim: SimulationResult, series: readonl
       p50[t] = vals.length ? quantileSorted(vals, 0.5) : Number.NaN;
       p90[t] = vals.length ? quantileSorted(vals, 0.9) : Number.NaN;
     }
-    if (vals.length) out[id] = { p10, p50, p90 };
+    // vals holds the final day's finite members
+    if (vals.length)
+      out[id as keyof typeof out] = {
+        p10,
+        p50,
+        p90,
+        meta: bandMetaFor('draws', vals.length, delta ? 'deltaRebasedOnNominal' : 'raw'),
+      };
   });
   return { draws: buffers.length, series: out };
 }
 
+/** D8-02: semantics of a scorecard band from the selection ensemble (parameter sensitivity; `pTargetMet` is a design share). */
+export function scorecardBandMeta(draws: number): BandMeta {
+  return bandMetaFor('draws', draws, 'raw');
+}
+
 /** Severity of the plan-level safety notes (17 §3 severities: fasting tiers W-F02/F03 caution, W-F04 danger). */
-export function safetyItemsFor(ctx: PlanningContext, schedule: Schedule, plan: ReturnType<typeof decodePlan>, sim: SimulationResult): SafetyNote[] {
+export function safetyItemsFor(
+  ctx: PlanningContext,
+  schedule: Schedule,
+  plan: ReturnType<typeof decodePlan>,
+  sim: SimulationResult,
+): SafetyNote[] {
   const texts = safetyNotes(ctx, schedule, plan);
   const longest = Math.max(0, ...(schedule.events ?? []).map((e) => e.durationH));
   const items: SafetyNote[] = texts.map((text) => {
-    if (/^Stop the fast/.test(text)) return { text, severity: longest > 72 ? 'danger' : 'caution', rule: longest > 72 ? 'W-F04' : longest > 48 ? 'W-F03' : 'W-F02' };
+    if (/^Stop the fast/.test(text))
+      return {
+        text,
+        severity: longest > 72 ? 'danger' : 'caution',
+        rule: longest > 72 ? 'W-F04' : longest > 48 ? 'W-F03' : 'W-F02',
+      };
     if (/LDL/.test(text)) return { text, severity: 'caution', rule: 'W-M09' };
     if (/lean tissue|fat-loss advantage/.test(text)) return { text, severity: 'caution' };
     return { text, severity: 'info' };
@@ -210,7 +359,11 @@ export function safetyItemsFor(ctx: PlanningContext, schedule: Schedule, plan: R
   for (const w of sim.warnings) {
     if (w.severity === 'info') continue;
     if (items.some((it) => it.rule === w.id)) continue;
-    items.push({ text: `${w.message} (days ${w.startDay + 1}-${w.endDay + 1})`, severity: w.severity === 'danger' ? 'danger' : 'caution', rule: w.id });
+    items.push({
+      text: `${w.message} (days ${w.startDay + 1}-${w.endDay + 1})`,
+      severity: w.severity === 'danger' ? 'danger' : 'caution',
+      rule: w.id,
+    });
   }
   const rank = { danger: 0, caution: 1, info: 2 } as const;
   return items.sort((x, y) => rank[x.severity] - rank[y.severity]);
@@ -236,7 +389,11 @@ export function listableWarning(ctx: PlanningContext, schedule: Schedule, id: st
 }
 
 /** Caution/danger warnings of a Simulator-mode run that the plan may not carry (see `listableWarning`). */
-export function unlistableWarnings(ctx: PlanningContext, schedule: Schedule, sim: SimulationResult): SimulationResult['warnings'] {
+export function unlistableWarnings(
+  ctx: PlanningContext,
+  schedule: Schedule,
+  sim: SimulationResult,
+): SimulationResult['warnings'] {
   return sim.warnings.filter((w) => w.severity !== 'info' && !listableWarning(ctx, schedule, w.id));
 }
 
@@ -283,14 +440,26 @@ export interface RivalRecord {
  * of the host phases raised by the energy the fasts remove (energy × 7 / (7 − fasts/week × (meals − 1)/meals), within
  * the gene's range), so the twin delivers the same weekly energy as the plan without fasts.
  */
-export function equalEnergyFastTwins(ctx: PlanningContext, structures: readonly SkeletonStructure[], i: number, x: Float64Array): Array<{ structure: number; x: Float64Array }> {
+export function equalEnergyFastTwins(
+  ctx: PlanningContext,
+  structures: readonly SkeletonStructure[],
+  i: number,
+  x: Float64Array,
+): Array<{ structure: number; x: Float64Array }> {
   const src = structures[i];
   if (!src) return [];
   const sk = src.skeleton;
   const out: Array<{ structure: number; x: Float64Array }> = [];
   structures.forEach((st, j) => {
     const t = st.skeleton;
-    if (j === i || t.baseline || !skeletonFasts(t) || t.overlay?.lever === 'refeedDay' || !sameExcept(t, sk, ['overlay', 'event'])) return;
+    if (
+      j === i ||
+      t.baseline ||
+      !skeletonFasts(t) ||
+      t.overlay?.lever === 'refeedDay' ||
+      !sameExcept(t, sk, ['overlay', 'event'])
+    )
+      return;
     const y = transfer(src, st, x);
     if (t.overlay?.lever === 'fastDay24') {
       const mi = st.geneIndex['meals'];
@@ -308,14 +477,23 @@ export function equalEnergyFastTwins(ctx: PlanningContext, structures: readonly 
     out.push({ structure: j, x: y });
   });
   // the 24-h overlay variants first (closest to "the same plan with a weekly fast"), then multi-day events
-  return out.sort((p, q) => Number(structures[q.structure]!.skeleton.overlay !== null) - Number(structures[p.structure]!.skeleton.overlay !== null));
+  return out.sort(
+    (p, q) =>
+      Number(structures[q.structure]!.skeleton.overlay !== null) -
+      Number(structures[p.structure]!.skeleton.overlay !== null),
+  );
 }
 
 /**
  * Assess the rival (ruling R-FAST-GATE): one Simulator-mode run (goal values, fat / lean change, hunger peak, warnings,
  * EA), the independent validator, and the P90 chance constraint over the ensemble when the plan is otherwise safe.
  */
-export async function assessRival(a: Assembly, rec: RivalRecord, chanceOf: ((structure: number, x: Float64Array) => Promise<{ ok: boolean; worst: string | null } | null>) | null): Promise<RivalPlan | null> {
+export async function assessRival(
+  a: Assembly,
+  rec: RivalRecord,
+  chanceOf:
+    ((structure: number, x: Float64Array) => Promise<{ ok: boolean; worst: string | null } | null>) | null,
+): Promise<RivalPlan | null> {
   const st = a.main.structures[rec.structure];
   const phrase = st ? fastPhrase(st.skeleton) : null;
   if (!st || !phrase) return null;
@@ -323,7 +501,10 @@ export async function assessRival(a: Assembly, rec: RivalRecord, chanceOf: ((str
   if (!usesFast(fastingKind(schedule))) return null;
   const sim = a.full.simulate(schedule, -1);
   const valid = validatePlan(a.ctx, schedule).ok;
-  const unlistable = unlistableWarnings(a.ctx, schedule, sim).map((w) => ({ id: w.id as string, message: w.message }));
+  const unlistable = unlistableWarnings(a.ctx, schedule, sim).map((w) => ({
+    id: w.id as string,
+    message: w.message,
+  }));
   const safe = valid && !unlistable.length && rec.vS === 0;
   return {
     structureId: st.id,
@@ -354,7 +535,11 @@ export function goalScoreOf(res: OptimResult<SkeletonStructure>, d: ArrayLike<nu
 }
 
 /** Search desirability d̃ of raw goal functionals against the run's final scales (as `GoalSystem.dRaw`). */
-export function desirabilityFrom(res: OptimResult<SkeletonStructure>, specs: BuiltGoals['specs'], raw: ArrayLike<number>): Float64Array {
+export function desirabilityFrom(
+  res: OptimResult<SkeletonStructure>,
+  specs: BuiltGoals['specs'],
+  raw: ArrayLike<number>,
+): Float64Array {
   return Float64Array.from(specs, (sp, k) => {
     const st = res.goals.status[k];
     if (st === 'metAtBaseline') return 1;
@@ -375,20 +560,89 @@ export function keepTolerance(keepScale: number): number {
 }
 
 /** Verdict of one goal of one option (the same word everywhere it is shown). */
-export function goalVerdict(value: number, target: number | null, sense: 'min' | 'max' | 'band', keepScale: number | undefined): { met: boolean | null; verdict: GoalScore['verdict']; tolerance: number | undefined } {
+export function goalVerdict(
+  value: number,
+  target: number | null,
+  sense: 'min' | 'max' | 'band',
+  keepScale: number | undefined,
+): { met: boolean | null; verdict: GoalScore['verdict']; tolerance: number | undefined } {
   if (target === null) return { met: null, verdict: null, tolerance: undefined };
   const tol = keepScale !== undefined ? keepTolerance(keepScale) : 0;
   const met = sense === 'min' ? value <= target + tol + 1e-9 : value >= target - tol - 1e-9;
-  return { met, verdict: met ? (keepScale !== undefined ? 'kept' : 'reached') : 'notReached', tolerance: keepScale !== undefined ? tol : undefined };
+  return {
+    met,
+    verdict: met ? (keepScale !== undefined ? 'kept' : 'reached') : 'notReached',
+    tolerance: keepScale !== undefined ? tol : undefined,
+  };
 }
 
 /**
- * "% of what is achievable" as shown: for a keep goal, how fully it is kept (its keep desirability, 100 when held; the
- * optimiser's P measures the distance to the best loss instead, which read as "19 %" for a goal that was kept).
+ * Raw percentage formatting: keep goals use keep desirability instead of the optimiser's P (distance to the best
+ * loss). goalScorePresentation applies the final tolerance-based kept verdict before reporting complete attainment.
  */
 export function displayPercent(isKeep: boolean, p: number, desirability: number): number {
   const v = isKeep ? Math.min(1, desirability) : p;
   return Number.isFinite(v) ? Math.round(1000 * v) / 10 : 0;
+}
+
+/** Final scorecard attainment; search percentages must not contradict the frozen prescription's keep verdict. */
+export function goalScorePresentation({ value, valueAvailable, target, sense, keepScale, possible, targetProgress, withheld }: {
+  value: number;
+  valueAvailable: boolean;
+  target: number | null;
+  sense: 'min' | 'max' | 'band';
+  keepScale: number | undefined;
+  possible: number;
+  targetProgress: number;
+  withheld: boolean;
+}): Pick<GoalScore, 'percentOfAchievable' | 'percentOfTarget' | 'met' | 'verdict' | 'keepTolerance'> {
+  const verdict = goalVerdict(value, target, sense, keepScale);
+  const keep = keepScale !== undefined;
+  const validKeep = keep && valueAvailable && Number.isFinite(keepScale) && keepScale > 0 && target !== null &&
+    Number.isFinite(target) && Number.isFinite(value) && sense !== 'band';
+  // Same keep normalization as GoalSystem.percentOfTarget, evaluated on the final simulation instead of the
+  // optimizer's earlier candidate. Its raw target percentage still records drift, including improvements or losses.
+  const q = keep ? (validKeep ? 1 + (sense === 'min' ? target! - value : value - target!) / keepScale : Number.NaN) : targetProgress;
+  const unavailable = withheld || (keep && !validKeep);
+  return {
+    // "Kept" is the existing tolerance-based verdict, so its displayed attainment is complete. Outside that
+    // tolerance retain the final shortfall. Partial/withheld rows keep their nominal diagnostic percentage, never
+    // the kept-success promotion. An unavailable compatibility value cannot manufacture a valid keep percentage.
+    percentOfAchievable: keep && !validKeep ? 0 : keep && !withheld && verdict.verdict === 'kept' ? 100 : displayPercent(keep, possible, q),
+    percentOfTarget: unavailable || target === null || !Number.isFinite(q) ? null : Math.round(1000 * q) / 10,
+    met: unavailable ? null : verdict.met,
+    verdict: unavailable ? null : verdict.verdict,
+    ...(verdict.tolerance !== undefined ? { keepTolerance: +verdict.tolerance.toFixed(3) } : {}),
+  };
+}
+
+/** A candidate's finalized, frozen prescription (A1-011): what its one audit, its certificate and its numbers bind. */
+export interface FrozenCandidate {
+  schedule: Schedule;
+  subjectHash: string;
+  /** Deterministic final input failures are checked before spending or claiming a joint physiology audit. */
+  inputErrors?: readonly string[];
+}
+
+/**
+ * The deterministic finalization of one candidate (C5/D4-03, A1-011): the decoded, repaired schedule with every
+ * dose-changing step applied — the equipment-aware session composition (PLANNER_V2_SPEC §8.3) when `equipment` is given
+ * (no-op without a training profile). The result is frozen BEFORE the candidate's one reserved audit; the final nominal
+ * run, the checks, the bands and the certificate all use this same object.
+ */
+export async function finalizeCandidate(
+  a: Assembly,
+  structure: number,
+  x: Float64Array,
+  equipment: { ideal: boolean } | null,
+): Promise<FrozenCandidate> {
+  let schedule = scheduleFor(a, structure, x).schedule;
+  if (equipment) {
+    const eq = await equipmentFor(a.ctx, schedule, { ideal: equipment.ideal });
+    schedule = eq.schedule;
+  }
+  const validation = validatePlan(a.ctx, schedule);
+  return { schedule, subjectHash: auditSubjectHash(schedule), ...(!validation.ok ? { inputErrors: validation.reasons } : {}) };
 }
 
 export async function buildOption(
@@ -402,7 +656,13 @@ export async function buildOption(
   variant: EvalVariant = { kind: 'main' },
   drawBase = 0,
   equipment: { ideal: boolean } | null = null,
-): Promise<{ option: PlanOption; plan: ReturnType<typeof decodePlan>; side: OptionSide; equipment: EquipmentForResult | null } | null> {
+  frozen: FrozenCandidate | null = null,
+): Promise<{
+  option: PlanOption;
+  plan: ReturnType<typeof decodePlan>;
+  side: OptionSide;
+  equipment: EquipmentForResult | null;
+} | null> {
   const o = res.options[k]!;
   const sf = scheduleFor(a, o.structureIndex, o.x);
   const { log, plan } = sf;
@@ -418,26 +678,45 @@ export async function buildOption(
         return Array.from(g, (v, i) => ({ goal: i, delta: v, unit: a.ctx.goals[i]?.def.unit ?? '' }));
       },
     });
-    if (eq.infeasible === null) schedule = eq.schedule;
+    schedule = eq.schedule;
   }
+  // (A1-011) the candidate's frozen final prescription (finalized before its audit) is the option's schedule: the nominal
+  // run, the checks, the bands and the certificate below all use that one object
+  if (frozen) schedule = frozen.schedule;
+  const finalized = frozen !== null && frozen.subjectHash !== auditSubjectHash(sf.schedule);
   if (!validatePlan(a.ctx, schedule).ok) return null; // never return an invalid plan (18 §9 item 3)
   const sim: SimulationResult = a.full.simulate(schedule, -1);
   const T = a.ctx.horizonDays;
+  // C6: one closure of the run's statuses (engine statuses and planner conditions) for every goal's status
+  const closed = a.full.statuses(sim);
+  const withheldGoals: boolean[] = [];
   const scorecard: GoalScore[] = a.ctx.goals.map((g, i) => {
     const b = a.goals.bindings[i]!;
     const y = goalSeries(sim, b, a.ctx);
     const start = y && Number.isFinite(y[0]!) ? y[0]! : a.goals.start[i]!;
-    const value = goalValue(sim, b, a.ctx);
+    const gv = goalValueStatus(sim, b, a.ctx);
+    const value = gv.value;
     const target = a.goals.targets[i] ?? null;
     const sense = a.goals.specs[i]!.sense;
     const rob = o.robust?.goals[i];
     const P = o.percentOfPossible[i]!;
     const Q = o.percentOfTarget[i]!;
     const keepS = a.goals.specs[i]!.keep;
-    const v = goalVerdict(value, target, sense, keepS);
+    // C6: the goal's status travels with its number. A status that withholds the objective (D1-05 unsupported lean
+    // partition, D7-07 uncertain ketogenic lipid response, D1-08 model limit / outside the domain) shows no range and
+    // asserts no target attainment; other statuses keep their sensitivity range (D8-02: coverage unvalidated)
+    // D4-05: an unavailable required output withholds the row (Unavailable), never a value, met or not met
+    const st = gv.available
+      ? goalDisplayStatus(closed, g.metric, goalSense(g, start), sim.meta.validity)
+      : { status: 'unavailable' as const, reasonCode: gv.reasonCode, withheld: true };
+    const availability = o.goalAvailability?.[i] ?? rob?.availability;
+    const incomplete = availability !== undefined && availability.status !== 'complete';
+    const withheld = st.withheld || incomplete || Array.from(o.output.missingGoals ?? []).includes(i);
+    withheldGoals.push(withheld);
     return {
       goal: i,
       metric: g.metric,
+      ...(availability ? { availability } : {}),
       label: g.def.label,
       unit: g.def.unit,
       direction: g.direction,
@@ -445,14 +724,21 @@ export async function buildOption(
       value,
       change: value - start,
       target,
-      percentOfAchievable: displayPercent(keepS !== undefined, P, Q),
-      percentOfTarget: target === null || !Number.isFinite(Q) ? null : Math.round(1000 * Q) / 10,
-      met: v.met,
-      verdict: v.verdict,
-      ...(v.tolerance !== undefined ? { keepTolerance: +v.tolerance.toFixed(3) } : {}),
+      ...goalScorePresentation({ value, valueAvailable: gv.available, target, sense, keepScale: keepS, possible: P, targetProgress: Q, withheld }),
       costVsA: Math.round(1000 * (o.costVsA[i] ?? 0)) / 10,
-      band: rob ? { p10: rob.metric.p10, p50: rob.metric.p50, p90: rob.metric.p90, pTargetMet: Number.isFinite(rob.pTargetMet) ? rob.pTargetMet : null } : null,
+      band:
+        rob && !withheld
+          ? {
+              p10: rob.metric.p10,
+              p50: rob.metric.p50,
+              p90: rob.metric.p90,
+              pTargetMet: Number.isFinite(rob.pTargetMet) ? rob.pTargetMet : null,
+            }
+          : null,
       grade: g.def.grade as EvidenceGrade,
+      capability: GOAL_CAPABILITY[g.metric as MetricId].availability,
+      status: incomplete ? (availability?.status === 'unavailable' ? 'unavailable' : 'limited') : st.status,
+      ...(rob && !withheld ? { bandMeta: scorecardBandMeta(o.robust?.draws ?? 0) } : {}),
     };
   });
   const hunger = hungerAssessment(a.ctx, sim);
@@ -463,44 +749,84 @@ export async function buildOption(
   const g1 = scorecard[0];
   const weeks = Math.round(T / 7);
   const explanation: string[] = [];
-  if (g1) {
+  if (g1 && g1.status && withheldGoals[0]) {
+    // C6: a goal whose forecast is withheld states its status word only (details in the info sheet), never "met"/"not met"
+    explanation.push(`${g1.label}: ${STATUS_LABEL[g1.status]}.`);
+  } else if (g1) {
     const unit = g1.unit;
     const v = `${Math.round(g1.value * 10) / 10} ${unit}`;
     if (g1.keepTolerance !== undefined)
-      explanation.push(hedge(g1.grade, g1.met ? `This plan keeps ${g1.label.toLowerCase()} at ${v} (${signed(g1.change, unit)}; kept).` : `This plan does not keep ${g1.label.toLowerCase()}: ${v} (${signed(g1.change, unit)}).`));
-    else explanation.push(hedge(g1.grade, `This plan reaches ${g1.label.toLowerCase()} of ${v} (${Math.round(g1.percentOfAchievable)} % of what is achievable in ${weeks} weeks${g1.target !== null ? `; ${g1.met ? 'target met' : `target ${Math.round(g1.target * 10) / 10} ${unit} not met`}` : ''}).`));
+      explanation.push(
+        hedge(
+          g1.grade,
+          g1.met
+            ? `This plan keeps ${g1.label.toLowerCase()} at ${v} (${signed(g1.change, unit)}; kept).`
+            : `This plan does not keep ${g1.label.toLowerCase()}: ${v} (${signed(g1.change, unit)}).`,
+        ),
+      );
+    else
+      explanation.push(
+        hedge(
+          g1.grade,
+          `This plan reaches ${g1.label.toLowerCase()} of ${v} (${Math.round(g1.percentOfAchievable)} % of what is achievable in ${weeks} weeks${g1.target !== null ? `; ${g1.met ? 'target met' : `target ${Math.round(g1.target * 10) / 10} ${unit} not met`}` : ''}).`,
+        ),
+      );
   }
   const binding = bindingNotes(log, T, o.output.margins, MARGIN_IDS);
   if (binding.length) explanation.push(`It is limited by ${ruleText(binding[0]!.rule)}.`);
   // deltaGoal1 = d(plan) − d(plan with the lever neutralised), × 100: positive = the lever helps goal 1; the metric-unit
   // change is plan − variant in goal 1's units (QA item 9: the sentence's sign)
   const sc0 = res.goals.scales[0];
-  const perD = sc0 && Number.isFinite(sc0.u - sc0.b) ? (a.goals.specs[0]!.sense === 'min' ? -1 : 1) * (sc0.u - sc0.b) : NaN;
+  const perD =
+    sc0 && Number.isFinite(sc0.u - sc0.b)
+      ? (a.goals.specs[0]!.sense === 'min' ? -1 : 1) * (sc0.u - sc0.b)
+      : NaN;
   const contributions = o.ablations.map((ab) => {
     const dd = ab.deltaD[0] ?? 0;
-    return { label: ab.label, deltaGoal1: Math.round(1000 * dd) / 10, ...(Number.isFinite(perD) ? { deltaGoal1Metric: +(dd * perD).toFixed(3) } : {}), safe: ab.safe !== false };
+    return {
+      label: ab.label,
+      deltaGoal1: Math.round(1000 * dd) / 10,
+      ...(Number.isFinite(perD) ? { deltaGoal1Metric: +(dd * perD).toFixed(3) } : {}),
+      safe: ab.safe !== false,
+    };
   });
   // only a variant that is itself safe says what a lever is worth (a refeed that keeps energy availability up is not
   // "costing" the fat the plan could lose without it, because that plan would break a safety margin)
-  const top = contributions.reduce<(typeof contributions)[number] | null>((m, c) => (c.safe && Math.abs(c.deltaGoal1) >= 1 && (!m || Math.abs(c.deltaGoal1) > Math.abs(m.deltaGoal1)) ? c : m), null);
-  if (top && g1 && top.deltaGoal1Metric !== undefined) explanation.push(whatMovesGoal1(g1.label, g1.unit, top.label, top.deltaGoal1Metric));
+  const top = contributions.reduce<(typeof contributions)[number] | null>(
+    (m, c) =>
+      c.safe && Math.abs(c.deltaGoal1) >= 1 && (!m || Math.abs(c.deltaGoal1) > Math.abs(m.deltaGoal1))
+        ? c
+        : m,
+    null,
+  );
+  // C6: a withheld goal-1 forecast states no lever effect in its units either
+  if (top && g1 && !withheldGoals[0] && top.deltaGoal1Metric !== undefined)
+    explanation.push(whatMovesGoal1(g1.label, g1.unit, top.label, top.deltaGoal1Metric));
   for (let i = 1; i < scorecard.length; i++) {
     const s = scorecard[i]!;
+    if (withheldGoals[i] && s.status) {
+      explanation.push(`Goal ${i + 1} (${s.label}): ${STATUS_LABEL[s.status]}.`);
+      continue;
+    }
     const wrongWay = s.percentOfAchievable < 0;
     // masses and lengths to one decimal, as the cards show them (one rounding rule for the same value)
     const chDp = s.unit === 'kg' || s.unit === 'cm' ? 10 : 100;
     const ch = `${s.change >= 0 ? '+' : '−'}${Math.abs(Math.round(s.change * chDp) / chDp)} ${s.unit}`;
     const flat = Math.abs(s.change) < 0.05 * Math.max(1, Math.abs(s.start) / 20);
     if (s.keepTolerance !== undefined) {
-      explanation.push(s.met ? `Goal ${i + 1} (${s.label}): kept (${signed(s.change, s.unit)}).` : `Goal ${i + 1} (${s.label}): not kept (${signed(s.change, s.unit)}), because your higher-ranked goals need it (see the conflict notes).`);
+      explanation.push(
+        s.met
+          ? `Goal ${i + 1} (${s.label}): kept (${signed(s.change, s.unit)}).`
+          : `Goal ${i + 1} (${s.label}): not kept (${signed(s.change, s.unit)}), because your higher-ranked goals need it (see the conflict notes).`,
+      );
       continue;
     }
     explanation.push(
       flat && wrongWay
         ? `Goal ${i + 1} (${s.label}): about unchanged (${ch}); your higher-ranked goals leave no room to raise it.`
         : wrongWay
-        ? `Goal ${i + 1} (${s.label}): ${ch} — it moves the other way, because your higher-ranked goals need it (see the conflict notes).`
-        : `Goal ${i + 1} (${s.label}): ${ch}, ${Math.round(s.percentOfAchievable)} % of what is achievable alongside your higher priorities.`,
+          ? `Goal ${i + 1} (${s.label}): ${ch} — it moves the other way, because your higher-ranked goals need it (see the conflict notes).`
+          : `Goal ${i + 1} (${s.label}): ${ch}, ${Math.round(s.percentOfAchievable)} % of what is achievable alongside your higher priorities.`,
     );
   }
   explanation.push(...goalNotes(a.ctx, plan, schedule));
@@ -513,34 +839,74 @@ export async function buildOption(
     // the goal fasting serves when the fast moves it noticeably, else the goal it moves most
     const served = a.ctx.fastingServedGoal;
     let gi = served !== null && Math.abs(fastAbl.deltaD[served] ?? 0) >= FAST_COMPARE.ablationD ? served : -1;
-    if (gi < 0) for (let i = 0; i < fastAbl.deltaD.length; i++) if (gi < 0 || Math.abs(fastAbl.deltaD[i]!) > Math.abs(fastAbl.deltaD[gi]!)) gi = i;
+    if (gi < 0)
+      for (let i = 0; i < fastAbl.deltaD.length; i++)
+        if (gi < 0 || Math.abs(fastAbl.deltaD[i]!) > Math.abs(fastAbl.deltaD[gi]!)) gi = i;
     const sc = gi >= 0 ? res.goals.scales[gi] : undefined;
     const dd = gi >= 0 ? fastAbl.deltaD[gi]! : 0;
     if (sc && Number.isFinite(sc.u - sc.b) && Math.abs(dd) >= FAST_COMPARE.ablationD)
-      without = { label: fastAbl.label, goal: gi, delta: dd * (a.goals.specs[gi]!.sense === 'min' ? -1 : 1) * (sc.u - sc.b) };
+      without = {
+        label: fastAbl.label,
+        goal: gi,
+        delta: dd * (a.goals.specs[gi]!.sense === 'min' ? -1 : 1) * (sc.u - sc.b),
+      };
   }
   const kind = fastingKind(schedule);
   const evs = schedule.events ?? [];
   const zeroDays = schedule.days.filter((d) => schedule.programs[d.program]?.energy.kind === 'zero').length;
   const what = describeFasts(evs, zeroDays, a.ctx.horizonDays);
   let rivalCmp: Parameters<typeof fastingVerdict>[4] = null;
-  const side: OptionSide = { scorecard, desirability: o.desirability, goalScore: goalScoreOf(res, o.desirability), fatChange: seriesChange(sim, 'fatMass'), leanChange: seriesChange(sim, 'leanTissue'), hungerPeak: hunger.peak7Idx, usesFast: usesFast(kind) };
+  const side: OptionSide = {
+    scorecard,
+    desirability: o.desirability,
+    goalScore: goalScoreOf(res, o.desirability),
+    fatChange: seriesChange(sim, 'fatMass'),
+    leanChange: seriesChange(sim, 'leanTissue'),
+    hungerPeak: hunger.peak7Idx,
+    usesFast: usesFast(kind),
+  };
   if (!usesFast(kind) && a.ctx.fastingRelevant) {
     rivalCmp = fastCmp?.rival
       ? rivalVerdict(a.ctx, fastCmp.rival, side, fastCmp.steps)
-      : { kind: 'none', longestFastH: 0, structureId: '', reason: 'notEvaluated', goalDeltas: [], hungerPeakDelta: null, leanTissueDeltaKg: null, deltaD: 0, detail: 'no plan with a fast was evaluated', text: '' };
+      : {
+          kind: 'none',
+          longestFastH: 0,
+          structureId: '',
+          reason: 'notEvaluated',
+          goalDeltas: [],
+          hungerPeakDelta: null,
+          leanTissueDeltaKg: null,
+          deltaD: 0,
+          detail: 'no plan with a fast was evaluated',
+          text: '',
+        };
   }
-  const fasting = rivalCmp && rivalCmp.reason === 'notEvaluated'
-    ? (() => {
-        const v = fastingVerdict(a.ctx, kind, longestFastH(schedule), what, null, without);
-        const { text: _t, ...r } = rivalCmp;
-        return { ...v, rival: r };
-      })()
-    : fastingVerdict(a.ctx, kind, longestFastH(schedule), what, rivalCmp, without);
+  const fasting =
+    rivalCmp && rivalCmp.reason === 'notEvaluated'
+      ? (() => {
+          const v = fastingVerdict(a.ctx, kind, longestFastH(schedule), what, null, without);
+          const { text: _t, ...r } = rivalCmp;
+          return { ...v, rival: r };
+        })()
+      : fastingVerdict(a.ctx, kind, longestFastH(schedule), what, rivalCmp, without);
   explanation.push(fasting.text);
-  explanation.push('Timing and order of the phases carry no fat-loss bonus in the model; only energy, protein and training change body composition.');
-  const bandSeries = [...new Set<SeriesId>([...a.goals.bindings.map((b) => b.metric as SeriesId), ...BAND_SERIES])].filter((id) => sim.daily[id]);
-  const bands = M > 0 ? dailyBands(a.ctx, sim, bandSeries, await bandsFor(variant, o.structureIndex, o.x, M, bandSeries, k, drawBase)) : null;
+  explanation.push(
+    'Timing and order of the phases carry no fat-loss bonus in the model; only energy, protein and training change body composition.',
+  );
+  const bandSeries: string[] = [
+    ...new Set<SeriesId>([...a.goals.bindings.map((b) => b.metric as SeriesId), ...BAND_SERIES]),
+  ].filter((id) => sim.daily[id]);
+  for (const b of a.goals.bindings)
+    if (b.metric === 'bodyFatPct') bandSeries.push(goalTrajectory(sim, b, a.ctx).bandKey);
+  // a finalized schedule (composition changed it) is not what (structure, genome) evaluators reproduce: its bands are
+  // computed on the frozen schedule itself (A1-011)
+  const bandDraws =
+    M > 0
+      ? finalized
+        ? bandsOfSchedule(a.main.model, schedule, T + 1, M, bandSeries, drawBase)
+        : await bandsFor(variant, o.structureIndex, o.x, M, bandSeries, k, drawBase)
+      : null;
+  const bands = bandDraws ? dailyBands(a.ctx, sim, bandSeries, bandDraws) : null;
   const safetyItems = safetyItemsFor(a.ctx, schedule, plan, sim);
   const unmet = new Set(scorecard.filter((s) => s.percentOfAchievable < 95).map((s) => s.label));
   const notes = relations.filter((m) => [...unmet].some((l) => m.includes(l)));
@@ -552,7 +918,12 @@ export async function buildOption(
     scorecard,
     utility: o.utility,
     hunger,
-    complexity: { score: Math.round(Math.min(100, (100 * C) / 0.5)), dayTypes: schedule.programs.length, phases: phases.length, events: (schedule.events ?? []).length },
+    complexity: {
+      score: Math.round(Math.min(100, (100 * C) / 0.5)),
+      dayTypes: schedule.programs.length,
+      phases: phases.length,
+      events: (schedule.events ?? []).length,
+    },
     phases,
     explanation,
     notes,
@@ -585,7 +956,10 @@ export function goalSpreads(draws: ReadonlyArray<ReadonlyArray<ArrayLike<number>
   return Array.from({ length: K }, (_, k) => {
     const w: number[] = [];
     for (const probe of draws) {
-      const v = probe.map((g) => g[k]!).filter(Number.isFinite).sort((a, b) => a - b);
+      const v = probe
+        .map((g) => g[k]!)
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
       if (v.length < 5) continue;
       const q = (p: number) => v[Math.min(v.length - 1, Math.max(0, Math.round(p * (v.length - 1))))]!;
       w.push((q(0.9) - q(0.1)) / 2);
@@ -616,8 +990,16 @@ export interface TttResult {
  * lower bound, protein high) for goals that fall with a deficit, surplus corners (energy at the upper bound, the most
  * resistance-training sessions and sets, no cardio) for muscle and gain goals; other genes keep the block defaults.
  */
-export function directionCorners(structures: readonly SkeletonStructure[], classes: readonly string[], direction: 1 | -1, count: number): Array<{ structure: number; x: Float64Array }> {
-  const gain = classes.includes('muscle') || classes.includes('weightGain') || (classes.includes('other') && direction > 0);
+export function directionCorners(
+  structures: readonly SkeletonStructure[],
+  classes: readonly string[],
+  direction: 1 | -1,
+  count: number,
+): Array<{ structure: number; x: Float64Array }> {
+  const gain =
+    classes.includes('muscle') ||
+    classes.includes('weightGain') ||
+    (classes.includes('other') && direction > 0);
   const loss = !gain && (classes.includes('fatLoss') || direction < 0);
   if (!gain && !loss) return [];
   const out: Array<{ structure: number; x: Float64Array }> = [];
@@ -656,7 +1038,10 @@ export async function timeToTargetRun(
   i: number,
   opts: PlannerOptions,
   evaluatorFor: (v: EvalVariant, init: HostInit) => Evaluator,
-  seedsFrom: { structures: readonly SkeletonStructure[]; plans: ReadonlyArray<{ structure: number; x: Float64Array }> },
+  seedsFrom: {
+    structures: readonly SkeletonStructure[];
+    plans: ReadonlyArray<{ structure: number; x: Float64Array }>;
+  },
 ): Promise<TttResult> {
   const T = base.horizonDays;
   const T1 = Math.min(Math.max(2 * T, T + 56), TTT_MAX_DAYS);
@@ -665,7 +1050,14 @@ export async function timeToTargetRun(
   const direction: 1 | -1 = goals.specs[i]!.sense === 'min' ? -1 : 1;
   const budget = opts.tttBudgetEU ?? TTT_BUDGET_EU[opts.tier ?? init.request.budget?.tier ?? 'S'];
   let prev = seedsFrom;
-  let out: TttResult = { weeks: null, days: null, searchedDays: 0, estimatedWeeks: null, ratePerWeek: null, bestValue: null };
+  let out: TttResult = {
+    weeks: null,
+    days: null,
+    searchedDays: 0,
+    estimatedWeeks: null,
+    ratePerWeek: null,
+    bestValue: null,
+  };
   for (let h = 0; h < horizons.length; h++) {
     if (opts.signal?.aborted) break;
     const H = horizons[h]!;
@@ -678,7 +1070,8 @@ export async function timeToTargetRun(
       if (src && j > 0) seeds.push({ structure: j, x: transfer(src, vp.structures[j]!, p.x) });
     }
     // direction corners of the most relevant structures: the fastest safe route usually sits at the energy bound
-    if (h === 0) for (const sd of directionCorners(vp.structures, base.goals[i]!.classes, direction, 4)) seeds.push(sd);
+    if (h === 0)
+      for (const sd of directionCorners(vp.structures, base.goals[i]!.classes, direction, 4)) seeds.push(sd);
     const problem: PlannerProblem<SkeletonStructure> = {
       structures: vp.structures,
       goals: [{ id: `ttt:${base.goals[i]!.metric}`, sense: 'max' }],
@@ -694,15 +1087,32 @@ export async function timeToTargetRun(
       featureSchema: FEATURE_SCHEMA,
     };
     // the 12-month confirmation starts from a good plan and needs less search
-    const cfg: PlannerConfig = { seed: `${init.ensemble.seed}/ttt/${i}/${H}`, tier: 'S', totalEU: h === 0 ? budget : Math.ceil(0.6 * budget), ensembleSize: 0, optionCount: 1 };
+    const cfg: PlannerConfig = {
+      seed: `${init.ensemble.seed}/ttt/${i}/${H}`,
+      tier: 'S',
+      totalEU: h === 0 ? budget : Math.ceil(0.6 * budget),
+      ensembleSize: 0,
+      optionCount: 1,
+    };
     if (opts.signal) cfg.signal = opts.signal;
     const res = await runPlanner(problem, evaluatorFor(v, init), cfg);
     out.searchedDays = H;
     // the fastest safe plan seen: the anchor (best objective of any safe nominal record) when it passes the independent
     // validator, else option A (whose selection also weighs the regulariser, so it can be slower than the anchor)
     const anchor = res.anchors?.[0] ?? null;
-    const optA = res.options[0] ? { structure: res.options[0].structureIndex, x: res.options[0].x, f: res.options[0].objectives[0]! } : null;
-    const anchorOk = anchor && (!optA || anchor.f > optA.f) && validatePlan(vp.ctx, vp.model.repair(vp.structures[anchor.structure]!, vp.model.decode(vp.structures[anchor.structure]!, anchor.x)).schedule).ok;
+    const optA = res.options[0]
+      ? { structure: res.options[0].structureIndex, x: res.options[0].x, f: res.options[0].objectives[0]! }
+      : null;
+    const anchorOk =
+      anchor &&
+      (!optA || anchor.f > optA.f) &&
+      validatePlan(
+        vp.ctx,
+        vp.model.repair(
+          vp.structures[anchor.structure]!,
+          vp.model.decode(vp.structures[anchor.structure]!, anchor.x),
+        ).schedule,
+      ).ok;
     const best = anchorOk ? anchor : optA;
     if (!best) continue;
     const st = vp.structures[best.structure]!;
@@ -713,15 +1123,74 @@ export async function timeToTargetRun(
     const Tn = y.length - 1;
     out.bestValue = y[Tn]!;
     const hit = timeToTarget(y, theta, direction).tHit;
-    if (hit !== null) return { ...out, weeks: Math.ceil(hit / 7), days: Math.ceil(hit), estimatedWeeks: null, ratePerWeek: null };
+    if (hit !== null)
+      return {
+        ...out,
+        weeks: Math.ceil(hit / 7),
+        days: Math.ceil(hit),
+        estimatedWeeks: null,
+        ratePerWeek: null,
+      };
     // not reached: rate over the last 8 weeks toward the target, and an extrapolated duration (reported as an estimate)
     const w = Math.min(56, Tn);
     const rate = w > 0 ? (direction * (y[Tn]! - y[Tn - w]!)) / (w / 7) : 0;
     const gap = direction * (theta - y[Tn]!);
-    out = { ...out, ratePerWeek: rate > 1e-6 ? rate : null, estimatedWeeks: rate > 1e-6 ? Math.ceil(Tn / 7 + gap / rate) : null };
-    prev = { structures: vp.structures, plans: [{ structure: best.structure, x: best.x }, ...seeds.slice(0, 2)] };
+    out = {
+      ...out,
+      ratePerWeek: rate > 1e-6 ? rate : null,
+      estimatedWeeks: rate > 1e-6 ? Math.ceil(Tn / 7 + gap / rate) : null,
+    };
+    prev = {
+      structures: vp.structures,
+      plans: [{ structure: best.structure, x: best.x }, ...seeds.slice(0, 2)],
+    };
   }
   return out;
+}
+
+/**
+ * C6/D4-08: the finite-search outcome behind a goal's feasibility status. A miss after the search is `notFoundWithinBudget`
+ * (with the tier, budget, seed and the optimizer's actual stop reason), never proof of impossibility; only a target past an
+ * analytic policy floor is `provenPolicyConflict` (witness id); a stopped run is `stopped`; an unavailable goal output is
+ * `outsideSupportedDomain`; anything the search reached is `foundUnderModel` (a model witness, not a guaranteed result).
+ */
+export function searchOutcomeOf(
+  status: GoalFeasibility['status'],
+  res: Pick<OptimResult<SkeletonStructure>, 'complete' | 'stoppedAt' | 'provenance'>,
+  opts: { proofIds?: readonly string[]; unavailable?: boolean } = {},
+): SearchOutcomeInfo {
+  const budget = {
+    tier: String(res.provenance.tier),
+    euBudget: res.provenance.budgetEU,
+    euUsed: res.provenance.euUsed,
+  };
+  const termination = res.stoppedAt
+    ? `stopped:${res.stoppedAt}`
+    : res.complete
+      ? 'budgetComplete'
+      : 'incomplete';
+  const base = { budget, seed: res.provenance.seed, termination };
+  if (opts.unavailable) return { outcome: 'outsideSupportedDomain', ...base };
+  if (opts.proofIds && opts.proofIds.length)
+    return { outcome: 'provenPolicyConflict', ...base, proofIds: [...opts.proofIds] };
+  if (status === 'unattainable' || status === 'notImprovable')
+    return { outcome: res.stoppedAt ? 'stopped' : 'notFoundWithinBudget', ...base };
+  return { outcome: 'foundUnderModel', ...base };
+}
+
+/**
+ * The search outcome of a feasibility row, new or saved (C7 read adapter): a stored `outcome` wins; a legacy row
+ * (`status: 'unattainable'` without one) reads as `notFoundWithinBudget` — reason unknown — unless it carries a stored
+ * policy proof (`beyondSafetyLimits`), never as impossible.
+ */
+export function feasibilityOutcome(
+  f: Pick<GoalFeasibility, 'status' | 'outcome' | 'beyondSafetyLimits'>,
+): SearchOutcomeInfo {
+  if (f.outcome) return f.outcome;
+  return searchOutcomeFromLegacy(
+    f.status,
+    f.status === 'unattainable' && f.beyondSafetyLimits ? ['legacy.beyondSafetyLimits'] : undefined,
+  );
 }
 
 export function feasibilityReport(
@@ -739,10 +1208,13 @@ export function feasibilityReport(
     const t = ttt.get(i);
     const r = reach[i] ?? null;
     const unit = g.def.unit;
-    const beyond = target !== null && status === 'unattainable' ? beyondSafetyLimits(a.ctx, i, target) : null;
+    const proof = target !== null && status === 'unattainable' ? safetyLimitProof(a.ctx, i, target) : null;
+    const beyond = proof?.text ?? null;
     const fmt = (x: number) => `${Math.round(x * 10) / 10} ${unit}`;
     const keepS = a.goals.specs[i]!.keep;
     const scA = options[0]?.scorecard[i];
+    // a goal whose output was unavailable on the shown plan is outside the supported domain, never a reached/missed target
+    const unavailable = scA?.status === 'unavailable';
     let text: string;
     // a "keep" goal is judged by the options' own verdict (release check 2026-10-01: never "not reachable" for a kept goal)
     if (keepS !== undefined && scA && status !== 'metAtBaseline') {
@@ -754,37 +1226,54 @@ export function feasibilityReport(
         const other = options.find((o) => o.scorecard[i]?.verdict === 'kept');
         text = `${g.def.label}: not kept by the Hard plan (${signed(scA.change, unit)}) alongside your higher-priority goals${other ? `; the ${RUNG_TITLE_OF_ID[other.id]} plan keeps it` : ''}.`;
       }
-      return { goal: i, metric: g.metric, label: g.def.label, status, baseline: f?.baseline ?? a.goals.start[i]!, bestAchievable: f?.best ?? NaN, target, nearestAttainableTarget: f?.nearestAttainableTarget ?? null, requiredWeeks: null, requiredHorizonDays: null, text };
+      return {
+        goal: i,
+        metric: g.metric,
+        label: g.def.label,
+        status,
+        baseline: f?.baseline ?? a.goals.start[i]!,
+        bestAchievable: f?.best ?? NaN,
+        target,
+        nearestAttainableTarget: f?.nearestAttainableTarget ?? null,
+        requiredWeeks: null,
+        requiredHorizonDays: null,
+        text,
+        outcome: searchOutcomeOf(status, res, { unavailable }),
+      };
     }
     switch (status) {
       case 'unattainable':
-        text = `${g.def.label}: the target ${target !== null ? fmt(target) : ''} is not reachable in ${hw} weeks within the safety limits; the best found is ${f ? fmt(f.best) : '—'}.`;
-        if (beyond) text += ` ${beyond}`;
-        else if (r?.supported && r.weeks !== null && r.weeks <= hw)
-          text += ` The fastest safe route reaches it in about ${r.weeks} weeks on its own, but not together with your other goals and limits.`;
-        else if (r?.supported) text += ` ${r.text}`;
-        else if (t) text += ` ${tttText(t, unit)}`;
+        if (beyond)
+          text = `${g.def.label}: the target ${target !== null ? fmt(target) : ''} is past a safety limit. ${beyond}`;
+        else {
+          text = `${g.def.label}: no plan found that reaches ${target !== null ? fmt(target) : 'the target'} in ${hw} weeks in this search; the best found is ${f ? fmt(f.best) : '—'} (an estimate under the model).`;
+          if (r?.supported && r.weeks !== null && r.weeks <= hw)
+            text += ` The reference route reaches it in about ${r.weeks} weeks on its own, but not together with your other goals and limits.`;
+          else if (r?.supported) text += ` ${r.text}`;
+          else if (t) text += ` ${tttText(t, unit)}`;
+        }
         break;
       case 'attainableAloneNotJointly':
         // goal 1 has no higher-priority goal: its options stop within the model's precision of the target (floors never
         // ask for more precision than the ensemble resolves) while serving the lower-ranked goals
         text =
           i === 0
-            ? `${g.def.label}: reachable (the best plan found reaches ${f ? fmt(f.best) : '—'}); the plans stop within the model's precision of the target ${target !== null ? fmt(target) : ''} while serving your other goals.`
-            : `${g.def.label}: reachable on its own, but not together with your higher-priority goals.`;
+            ? `${g.def.label}: estimated within reach (the best plan found reaches ${f ? fmt(f.best) : '—'}); the plans stop within the model's precision of the target ${target !== null ? fmt(target) : ''} while serving your other goals.`
+            : `${g.def.label}: estimated within reach on its own, but not together with your higher-priority goals.`;
         break;
       case 'metAtBaseline':
         text = `${g.def.label}: already met without changing anything.`;
         break;
       case 'notImprovable':
-        text = `${g.def.label}: the model finds no plan that improves it within the limits${stubModules().length ? ' (some physiology is still a placeholder)' : ''}.`;
+        text = `${g.def.label}: no plan found in this search improves it within the limits${stubModules().length ? ' (some physiology is still a placeholder)' : ''}.`;
         break;
       case 'attainable':
-        text = `${g.def.label}: the target is reachable.`;
+        text = `${g.def.label}: the target is reached under the model (an estimate).`;
         break;
       default:
         text = `${g.def.label}: improved as far as your priorities allow.`;
     }
+    if (unavailable) text = `${g.def.label}: unavailable — the model has no output for it in this plan.`;
     const unatt = status === 'unattainable' && target !== null && !beyond;
     const fromReach = unatt && !!r?.supported;
     const tLong = !!t && t.weeks === null && t.estimatedWeeks !== null && t.estimatedWeeks > ROUTE_MAX_WEEKS;
@@ -797,14 +1286,27 @@ export function feasibilityReport(
       bestAchievable: f?.best ?? NaN,
       target,
       nearestAttainableTarget: f?.nearestAttainableTarget ?? null,
-      requiredWeeks: fromReach ? r!.weeks : t?.weeks ?? null,
-      requiredHorizonDays: fromReach ? (r!.weeks === null ? null : 7 * r!.weeks) : t?.days ?? null,
+      requiredWeeks: fromReach ? r!.weeks : (t?.weeks ?? null),
+      requiredHorizonDays: fromReach ? (r!.weeks === null ? null : 7 * r!.weeks) : (t?.days ?? null),
       ...(beyond || (fromReach && r!.beyondSafetyLimits) ? { beyondSafetyLimits: true } : {}),
       ...((fromReach && r!.beyondTwoYears) || (!fromReach && tLong) ? { beyondTwoYears: true } : {}),
-      ...(fromReach ? { searchedWeeks: ROUTE_MAX_WEEKS, estimatedWeeks: null, fastestRatePerWeek: +r!.ratePerWeek.toFixed(3) } : {}),
-      ...(!fromReach && t ? { searchedWeeks: Math.round(t.searchedDays / 7), estimatedWeeks: tLong ? null : t.estimatedWeeks, fastestRatePerWeek: t.ratePerWeek === null ? null : +t.ratePerWeek.toFixed(3) } : {}),
+      ...(fromReach
+        ? {
+            searchedWeeks: ROUTE_MAX_WEEKS,
+            estimatedWeeks: null,
+            fastestRatePerWeek: +r!.ratePerWeek.toFixed(3),
+          }
+        : {}),
+      ...(!fromReach && t
+        ? {
+            searchedWeeks: Math.round(t.searchedDays / 7),
+            estimatedWeeks: tLong ? null : t.estimatedWeeks,
+            fastestRatePerWeek: t.ratePerWeek === null ? null : +t.ratePerWeek.toFixed(3),
+          }
+        : {}),
       ...(r?.supported ? { reach: r } : {}),
       text,
+      outcome: searchOutcomeOf(status, res, { ...(proof ? { proofIds: [proof.id] } : {}), unavailable }),
     };
   });
 }
@@ -817,7 +1319,8 @@ export function whatMovesGoal1(goalLabel: string, unit: string, label: string, d
   const v = Math.abs(deltaMetric);
   const r = v >= 10 ? Math.round(v) : v >= 1 ? Math.round(v * 10) / 10 : Math.round(v * 100) / 100;
   // deltaMetric = plan − variant: the variant ends lower when the lever raises the goal metric
-  return `What moves goal 1 (${goalLabel.toLowerCase()}) most: ${label}, it would end about ${r} ${unit} ${deltaMetric > 0 ? 'lower' : 'higher'}.`;
+  // D4-08: a repaired ablation is a conditional model counterfactual, not a measured personal effect
+  return `What moves goal 1 (${goalLabel.toLowerCase()}) most in the model: ${label}, it would end about ${r} ${unit} ${deltaMetric > 0 ? 'lower' : 'higher'}.`;
 }
 
 /**
@@ -826,14 +1329,17 @@ export function whatMovesGoal1(goalLabel: string, unit: string, label: string, d
  * at the safe rate" beyond that (ruling R-TTT: never an absurd horizon).
  */
 export function tttText(t: TttResult, unit: string): string {
-  if (t.weeks !== null) return `At the fastest safe rate the model finds it takes about ${t.weeks} weeks.`;
+  // D4-08: best-found search results under the model, never a proven fastest-safe deadline or impossibility
+  if (t.weeks !== null) return `Estimated: the best plan found takes about ${t.weeks} weeks.`;
   const searched = Math.round(t.searchedDays / 7);
   if (t.estimatedWeeks !== null && t.ratePerWeek !== null) {
-    if (t.estimatedWeeks > ROUTE_MAX_WEEKS) return `It is not reached within ${searched} weeks at the safe limits; at the safe rate it would take more than two years.`;
-    const r = t.ratePerWeek >= 0.1 ? Math.round(t.ratePerWeek * 10) / 10 : Math.round(t.ratePerWeek * 100) / 100;
-    return `It is not reached within ${searched} weeks at the safe limits; at the pace the model sustains by then (about ${r} ${unit} a week) it would take roughly ${t.estimatedWeeks} weeks (an extrapolation, less certain).`;
+    if (t.estimatedWeeks > ROUTE_MAX_WEEKS)
+      return `Not found within ${searched} weeks in this search; at the pace found it would take more than two years.`;
+    const r =
+      t.ratePerWeek >= 0.1 ? Math.round(t.ratePerWeek * 10) / 10 : Math.round(t.ratePerWeek * 100) / 100;
+    return `Not found within ${searched} weeks in this search; at the pace the best plan sustains by then (about ${r} ${unit} a week) it would take roughly ${t.estimatedWeeks} weeks (an extrapolation, less certain).`;
   }
-  return `It was not reached within ${searched} weeks at the safe limits, and no safe plan keeps moving toward it.`;
+  return `Not found within ${searched} weeks in this search, and no plan found keeps moving toward it.`;
 }
 
 /**
@@ -842,7 +1348,10 @@ export function tttText(t: TttResult, unit: string): string {
  * rung is absent, so options may read [A, C]); the v2 result rides along as `v2`. Deterministic in (request, seed,
  * tier) for any worker count.
  */
-export async function runDomainPlanner(request: PlannerRequest, opts: PlannerOptions = {}): Promise<PlannerResult> {
+export async function runDomainPlanner(
+  request: PlannerRequest,
+  opts: PlannerOptions = {},
+): Promise<PlannerResult> {
   const { onProgress, tier, ...rest } = opts;
   const v2 = await runLadderPlanner(request, {
     ...rest,
@@ -854,8 +1363,7 @@ export async function runDomainPlanner(request: PlannerRequest, opts: PlannerOpt
   return toV1Result(v2);
 }
 
-/** Metric-series sanity used by the UI: which goal metric ids exist. */
+/** Metric-series sanity used by the UI and AI suggestions: which goal metric ids a request may use (C6 capability gate). */
 export function isGoalMetric(id: string): boolean {
-  const i = (SERIES_INDEX as Record<string, number>)[id];
-  return i !== undefined && SERIES[i]!.kind === 'metric' && SERIES[i]!.goal !== 'none';
+  return isProductionGoalEligible(id);
 }

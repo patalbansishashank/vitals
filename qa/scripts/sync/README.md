@@ -56,7 +56,6 @@ becomes a replica by implementing it:
 | `kill()`, `restart()` | SIGKILL (no close, no flush) and start again on the same data |
 | `status()` | `{ state }` at least (`synced`, `syncing`, `offline`, `killed`) |
 | `arrivedAt(col, id)` | optional: epoch ms the replica first saw a remote document (better times than polling) |
-| `ring(cmd)`, `bioView(q)` | optional, S5: ingest decoded ring events through the app's code / read records, samples and manifests of one source, stream and day (see `lib/nodeReplicaChild.mjs`) |
 | `close()` | stop and clean up |
 
 `read` returns the document bodies as the app stores them (no `_rev`, clocks or device stamps); convergence compares
@@ -75,32 +74,12 @@ process. The scenarios need no change.
 | S2 offline | "food logged on the desktop while offline appears … within 30 s of reconnecting" | A offline for 60 s logs a meal, B logs one meanwhile; the cut is real (nobody sees A's entry, A does not see B's); after the network returns A reconnects by itself, A's entry reaches B, C and the server and B's reaches A within 30 s; converge |
 | S3 fields | "two devices editing different fields offline merge" | C sets a baseline; A and B both offline edit different settings fields, one comes online first, then the other (both orders); both edits survive on all four; converge |
 | S4 restart | "kill-and-restart of each client mid-sync loses nothing" | A offline writes and is SIGKILLed 0 ms and 100 ms after the write resolved; the writes are there after restart and reach everyone after reconnect; B is SIGKILLed while receiving a 30-entry burst and ends with all 30; the server holds all 30; converge |
-| S5 ring, two devices | item 1 "The same ring read by several devices" (binding test) | below |
+| S5 ring, two devices | removed in 0.6.0 (Vitals is manual-only; the ring code is gone) | — |
 | S6 MCP | "a meal logged through MCP by an AI appears on all devices" | `log_meal` on the server with the agent token; visible on A, B and C within 5 s; converge |
 | final | | all days used by the scenarios converge on all four |
 
-**S5** (steps from the R20 chunk audit, §5). A and B run the app's own ring path inside their process: decoded
-J-Style 2301 events (`RingDecodedEvent`) → `mapEventsToBatch` (what `bio.deviceSync` calls) → `ingestBatches` →
-`DocBioStore` over the replica's document store, chunk bytes in the server's file chunk store sealed and uploaded to
-the relay's `/blobs` on a sync round (`ring({ op: 'flush' })`, what the sync controller does each round). The server
-person is read through `bio_series` (raw points of the day) and `bio_daily` (the resolved night), as an agent sees it.
-
-1. Seed: A reads the night before, online, and shares hr and sleep with the Coach (what the person does in Settings);
-   B and the server see it.
-2. Both offline: A reads heart rate minutes 0..29 and a provisional night; a moment later B reads minutes 0..44 with
-   the ring's revised night (complete, other stages, a higher record version) and three revised minutes.
-3. Online in order A then B, and on another night B then A.
-4. Asserted on A and B: exactly one sleep record per night, the highest version (B's); the union of both reads with
-   one sample per (origin, time); the newest write wins the revised minutes; A and B read identical samples; neither
-   the non-strict nor the strict reader throws. Asserted on the server: `bio_series` shows the same union, one point
-   per time, the same values; `bio_daily` shows the revised night.
-5. Fold: A reads one more minute online; asserted: one live manifest for the day on A and B, holding every sample.
-6. Kill before upload: A's documents reach the relay, A is SIGKILLed before it uploads the chunk bytes, B comes online.
-   Asserted: B's non-strict read does not throw (observed: partial flag, how many samples it can read, the strict
-   reader's error). After A restarts and uploads, B reads everything.
-
-Observed only (recorded under `observed`, never a FAIL): stored versions of a night (both kept, readers take the
-highest), live and superseded manifest counts before the fold, partial reads.
+**S5** was removed in 0.6.0 with the ring code. Its last results stay in `qa/results/sync` and `qa/results/C-SYNCX` as
+history; the `ring` and `bio*` ops left in `lib/nodeReplicaChild.mjs` are dead.
 
 **killWindow.mjs** (S4 detail, local): one Node replica with its relay cut; for each delay a write, a SIGKILL that many
 ms after `put()` resolved, a restart and a read. Writes `qa/results/sync/S4-kill-window.json`.
@@ -118,8 +97,4 @@ ms after `put()` resolved, a restart and a read. Writes `qa/results/sync/S4-kill
   client name before the per-turn count runs out, so server timings have a resolution of about a second.
 - The server is never taken offline, killed or restarted by the harness (only the orchestrator deploys it).
 - The Node replicas are not the real apps: no browser IndexedDB mirror, no SharedWorker, no OPFS; the S4 kill window
-  measured here is the Node platform's. Their sync scheduler is not running: S5 uploads chunk bytes with an explicit
-  flush where the app's scheduler would.
-- S5 uses a test ring model and synthetic events (no ring hardware); the byte-level decoders are covered by the golden
-  decoder tests, the in-memory chunk rules by `src/biometrics/store/__tests__/replicas.test.ts`.
-- S5's server checks need the person's sharing on (the seed step turns on hr and sleep for the Coach).
+  measured here is the Node platform's. Their sync scheduler is not running.

@@ -34,19 +34,27 @@ const WEEK = 7;
 
 /** Days of a phase that are plain eating days (not touched by a fast, not a refeed / low / zero day). */
 function plainDays(s: Schedule, from: number, to: number): number[] {
-  const touched = new Set<number>();
-  for (const e of s.events ?? []) {
-    const a = e.startDay * 24 + e.startH;
-    const b = a + e.durationH;
-    for (let d = Math.floor(a / 24); d <= Math.floor((b - 1e-9) / 24) + 3; d++) touched.add(d);
-  }
-  const out: number[] = [];
-  for (let d = from; d < Math.min(to, s.horizonDays); d++) {
-    const t = mergeDay(s.programs[s.days[d]!.program]!, s.days[d]!.override);
-    if (touched.has(d) || t.energy.kind !== 'pctMaintenance' || / · (refeed|low-energy|zero-energy) day/.test(t.label)) continue;
-    out.push(d);
-  }
-  return out;
+  // days of the phase away from every fast (its days plus three after, the refeed/recovery tail); a phase whose fasts are
+  // so frequent that no such day exists (e.g. two 24-h fasts a week) falls back to the days no fast overlaps, keeping the
+  // tail of fasts that carry a refeed (their compiled intake is ramped)
+  const pick = (strict: boolean): number[] => {
+    const touched = new Set<number>();
+    for (const e of s.events ?? []) {
+      const a = e.startDay * 24 + e.startH;
+      const b = a + e.durationH;
+      const tail = strict || (e.refeed !== undefined && e.refeed !== 'none') || e.durationH > 24 ? 3 : 0;
+      for (let d = Math.floor(a / 24); d <= Math.floor((b - 1e-9) / 24) + tail; d++) touched.add(d);
+    }
+    const out: number[] = [];
+    for (let d = from; d < Math.min(to, s.horizonDays); d++) {
+      const t = mergeDay(s.programs[s.days[d]!.program]!, s.days[d]!.override);
+      if (touched.has(d) || t.energy.kind !== 'pctMaintenance' || / · (refeed|low-energy|zero-energy) day/.test(t.label)) continue;
+      out.push(d);
+    }
+    return out;
+  };
+  const days = pick(true);
+  return days.length ? days : pick(false);
 }
 
 export function phaseStats(ctx: PlanningContext, o: PlanOption): PhaseStats[] {
@@ -137,7 +145,7 @@ export function expectGoldenBasics(req: PlannerRequest, res: PlannerResult, minO
       const meals = t.energy.kind === 'zero' ? [] : mealClocks(t);
       for (const m of meals) expect(Math.abs(m * 4 - Math.round(m * 4)), `meal ${m} on day ${d + 1}`).toBeLessThan(1e-6);
       for (const x of t.exercise ?? []) {
-        expect(Math.abs(x.startH * 4 - Math.round(x.startH * 4))).toBeLessThan(1e-6);
+        expect(Math.abs(x.startH * 4 - Math.round(x.startH * 4)), `${o.id} ${x.kind} starts at ${x.startH} h on day ${d + 1}`).toBeLessThan(1e-6);
         const end = x.startH + (x.durationMin ?? 60) / 60;
         for (const m of meals) expect(m > x.startH - 1e-9 && m < end - 1e-9, `session ${x.startH}-${end} over meal ${m} (day ${d + 1})`).toBe(false);
       }
@@ -186,9 +194,13 @@ export function expectGoldenBasics(req: PlannerRequest, res: PlannerResult, minO
     }
   }
   // priority order: Hard is (near) best on goal 1; an easier rung keeps at least half of Hard's goal-1 progress (§1.3:
-  // Easy d̃₁ ≥ 0.5·g_H; Medium lies between), i.e. gives up at most 50 points of goal 1 (+ the model's precision)
+  // Easy d̃₁ ≥ 0.5·g_H; Medium lies between), i.e. gives up at most 50 points of goal 1 (+ the model's precision). costVsA
+  // is in desirability points (d̃ = (F − b)/(u − b), u = the target when there is one), so Hard's d̃₁ is its % of target
+  // (capped at 100) for a target goal and its % of the achievable range otherwise — never the two scales mixed
   const a = res.options[0]!;
-  for (const o of res.options.slice(1)) expect(o.scorecard[0]!.costVsA).toBeLessThanOrEqual(0.5 * Math.max(0, a.scorecard[0]!.percentOfAchievable) + 5 + 1e-6);
+  const a0 = a.scorecard[0]!;
+  const dHard = a0.target !== null && a0.percentOfTarget !== null ? Math.min(100, a0.percentOfTarget) : a0.percentOfAchievable;
+  for (const o of res.options.slice(1)) expect(o.scorecard[0]!.costVsA).toBeLessThanOrEqual(0.5 * Math.max(0, dHard) + 5 + 1e-6);
   expect(a.scorecard[0]!.percentOfAchievable).toBeGreaterThanOrEqual(Math.max(...res.options.map((o) => o.scorecard[0]!.percentOfAchievable)) - 10);
   return ctx;
 }

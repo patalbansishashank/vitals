@@ -103,6 +103,7 @@ export const ACTIVITY_INTAKE_PARAMS: readonly ParamDef[] = [
   FIX('cvRmrMeasured', 0.05, '1', 'B', 'biological CV_intra of REE ≈ 5 % (02 §4.12 [15])', '02 §4.12', 'verified'),
   FIX('cvStepCost', 0.1, '1', 'B', 'step cost 0.36-0.50 kcal/kg/1000 (10 §4.1.4)', R1U, 'proposed-fit'),
   FIX('cvStepsWrist', 0.1, '1', 'B', `${HONG}: wrist MAPE 6.4 % / 10.5 %`, R1U, 'proposed-fit'),
+  FIX('cvStepsFused', 0.1, '1', 'C', 'PRODUCT DEFAULT (SPEC V1.4): fused ring/phone steps (steps-fuse/1) taken as a wrist device until counted-step trials validate them (RESEARCH II.5); not a 95 % interval', 'energy SPEC §V1.4; RESEARCH §II.5', 'unverified'),
   FIX('cvStepsPhone', 0.25, '1', 'B', `${HONG}: phone app MAPE 29.6 %`, R1U, 'proposed-fit'),
   FIX('cvStepsPhoneNotCarried', 0.35, '1', 'D', 'R1 Q5a: phone not with the person most of the day', 'R1 §5', 'proposed-fit'),
   FIX('cvStepsRough', 0.4, '1', 'D', 'guessed or derived steps: no validation found (R1 §2.3)', R1U, 'proposed-fit'),
@@ -141,6 +142,7 @@ export interface ActivityIntakeK {
   cvRmrMeasured: number;
   cvStepCost: number;
   cvStepsWrist: number;
+  cvStepsFused: number;
   cvStepsPhone: number;
   cvStepsPhoneNotCarried: number;
   cvStepsRough: number;
@@ -191,6 +193,7 @@ export function activityIntakeConstants(values: ArrayLike<number> = ACTIVITY_INT
     cvRmrMeasured: g('cvRmrMeasured'),
     cvStepCost: g('cvStepCost'),
     cvStepsWrist: g('cvStepsWrist'),
+    cvStepsFused: g('cvStepsFused'),
     cvStepsPhone: g('cvStepsPhone'),
     cvStepsPhoneNotCarried: g('cvStepsPhoneNotCarried'),
     cvStepsRough: g('cvStepsRough'),

@@ -1,6 +1,7 @@
 /** M1a (design v3 §4.3): the measured figure, its unit, how it was measured and when — committed together with Save. */
 import { useId, useState } from 'react';
-import { InlineWarning, Key, KeyBank, NumberField, Select, formatNumber } from '@/components';
+import { InlineWarning, KeyBank, NumberField, Select, formatNumber } from '@/components';
+import { CommitKey } from '../CommitKey';
 import { KJ_PER_KCAL, MEASURED_KCAL_RANGE, MEASURED_METHODS, type MeasuredValue } from '../../chapters/activity';
 import { A } from '../../copy';
 import type { MeasuredMethod } from '../../types';
@@ -34,7 +35,7 @@ export function MeasuredWidget({ value, onCommit, labelledBy }: WidgetProps<Meas
           {A.measured.figure}
         </span>
         <NumberField name={A.measured.figureName} value={figure} onChange={setFigure} min={0} max={40000} step={10} decimals={0} unit={unit === 'kJ' ? 'kJ/day' : 'kcal/day'} inputMode="numeric" />
-        <KeyBank<'kcal' | 'kJ'> label={A.measured.unitLabel} size="lg" value={unit} onChange={setUnit} options={(['kcal', 'kJ'] as const).map((u) => ({ value: u, label: A.measured.units[u] }))} />
+        <KeyBank<'kcal' | 'kJ'> fit label={A.measured.unitLabel} size="lg" value={unit} onChange={setUnit} options={(['kcal', 'kJ'] as const).map((u) => ({ value: u, label: A.measured.units[u] }))} />
       </div>
       {outOfRange ? <InlineWarning severity="caution">{A.measured.outOfRange(formatNumber(figure ?? 0, 0), unit)}</InlineWarning> : null}
       <span className="lm-ik-row__label" id={`${id}-how`}>
@@ -57,15 +58,13 @@ export function MeasuredWidget({ value, onCommit, labelledBy }: WidgetProps<Meas
         <Select label={A.measured.year} value={year} onChange={setYear} placeholder={A.measured.year} options={years.map((y) => ({ value: y, label: y }))} />
       </div>
       {future ? <InlineWarning severity="danger">{A.measured.future}</InlineWarning> : null}
-      <div className="lm-ik-done">
-        <Key
+      <CommitKey
           onClick={() => figure !== null && method && onCommit({ value: figure, unit, method, ...(date ? { date } : {}) })}
           disabledReason={reason}
           data-ik-done="true"
         >
           {A.measured.save}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }

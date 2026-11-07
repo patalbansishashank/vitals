@@ -7,10 +7,15 @@
  * and analog-MET items → mapped; the rest → modelled), `loadFactor` for ballistic items (R3 ballistic set factor
  * triangle), and a generated plain-language `mechanism` where the seed left it empty. Internal research pointers were
  * removed from user-facing text.
+ *
+ * Task descriptors (D3-02, D3-09; added 2026-10-18 at the end of this file): a declared task id where two entries are the
+ * same movement task, the joint actions of each movement pattern, the range-of-motion / muscle-length emphasis the
+ * entries' own mechanism text states, and explosive velocity for ballistic and plyometric work. They inform exact-same-task
+ * matching, practical swaps and uncertainty only — no efficacy multipliers.
  */
-import type { ExerciseRecord } from '@/catalogues/types';
+import type { ExerciseRecord, MovementPattern } from '@/catalogues/types';
 
-export const SEED_EXERCISES: readonly ExerciseRecord[] = [
+const SEED_RECORDS: readonly ExerciseRecord[] = [
   {"id": "bb_back_squat", "name": "Barbell back squat", "aliases": [], "tradition": "gym", "equipmentAnyOf": [["barbell", "plates", "squat_rack"]], "pattern": "squat", "regions": {"quads": 1, "glutes": 1, "core": 0.5}, "loadType": "external", "intensityScale": "pct1RM", "volumeUnit": "setsReps", "defaultDose": {"sets": 3, "reps": 8, "rir": 2, "restSec": 120}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 5.0, "metRange": [3.8, 6.2], "compendiumCode": "02052", "metSource": "compendium"}, "cardioModality": null, "hybridCardioShare": 0.0, "mobilityTargets": [], "skill": 3, "injuryRisk": 3, "contraTags": ["knee", "lumbar"], "tags": [], "mechanism": "Knee and hip extension under axial load; hamstrings near-isometric (no direct credit).", "status": "modelled", "certainty": "A", "sources": ["COMP24-COND", "D09"], "origin": "seed"},
   {"id": "bb_front_squat", "name": "Barbell front squat", "aliases": [], "tradition": "gym", "equipmentAnyOf": [["barbell", "plates", "squat_rack"]], "pattern": "squat", "regions": {"quads": 1, "glutes": 0.5, "core": 0.5, "upperBack": 0.5}, "loadType": "external", "intensityScale": "pct1RM", "volumeUnit": "setsReps", "defaultDose": {"sets": 3, "reps": 8, "rir": 2, "restSec": 120}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 5.0, "metRange": [3.8, 6.2], "compendiumCode": "02052", "metSource": "compendium"}, "cardioModality": null, "hybridCardioShare": 0.0, "mobilityTargets": [], "skill": 4, "injuryRisk": 3, "contraTags": ["knee", "wrist"], "tags": [], "mechanism": "Squat pattern under external load: quadriceps worked directly, glutes, trunk, upper back indirectly.", "status": "modelled", "certainty": "A", "sources": ["COMP24-COND", "D09"], "origin": "seed"},
   {"id": "goblet_squat", "name": "Goblet squat", "aliases": [], "tradition": "gym", "equipmentAnyOf": [["dumbbell"], ["kettlebell"], ["sandbag"]], "pattern": "squat", "regions": {"quads": 1, "glutes": 1, "core": 0.5}, "loadType": "external", "intensityScale": "pct1RM", "volumeUnit": "setsReps", "defaultDose": {"sets": 3, "reps": 12, "rir": 2, "restSec": 120}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 3.5, "metRange": [2.6, 4.4], "compendiumCode": "02054", "metSource": "compendium"}, "cardioModality": null, "hybridCardioShare": 0.0, "mobilityTargets": [], "skill": 1, "injuryRisk": 2, "contraTags": ["knee"], "tags": [], "mechanism": "Squat pattern under external load: quadriceps, glutes worked directly, trunk indirectly.", "status": "modelled", "certainty": "A", "sources": ["COMP24-COND", "D09"], "origin": "seed"},
@@ -111,7 +116,13 @@ export const SEED_EXERCISES: readonly ExerciseRecord[] = [
   {"id": "mallakhamb_pole", "name": "Pole mallakhamb routine", "aliases": [], "tradition": "indian", "equipmentAnyOf": [["mallakhamb_pole"]], "pattern": "complex", "regions": {"upperBack": 1, "arms": 1, "core": 1, "shoulders": 0.5, "glutes": 0.5, "hamstrings": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 20}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 5.3, "metRange": [3.8, 8.0], "compendiumCode": "15425", "metSource": "analog: martial arts slower pace; gymnastics 3.8"}, "cardioModality": null, "hybridCardioShare": 0.3, "mobilityTargets": ["hip", "shoulder", "spine"], "skill": 5, "injuryRisk": 4, "contraTags": ["shoulder", "lumbar", "osteoporosis"], "tags": ["supervised"], "mechanism": "Climbs, grips with arms and thighs, inversions and holds: pull, compression core, adductor squeeze.", "status": "mapped", "certainty": "C", "sources": ["MALLA-STR", "COMP24-SPORT", "MECH"], "origin": "seed"},
   {"id": "mallakhamb_rope", "name": "Rope mallakhamb routine", "aliases": [], "tradition": "indian", "equipmentAnyOf": [["rope_mallakhamb"], ["climbing_rope"]], "pattern": "complex", "regions": {"upperBack": 1, "arms": 1, "core": 1, "shoulders": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 20}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 5.3, "metRange": [3.8, 8.0], "compendiumCode": "15425", "metSource": "analog"}, "cardioModality": null, "hybridCardioShare": 0.3, "mobilityTargets": ["hip", "shoulder", "spine"], "skill": 5, "injuryRisk": 4, "contraTags": ["shoulder"], "tags": ["supervised"], "mechanism": "Whole-body complex against body weight: upper back, arms, trunk worked directly, shoulders indirectly.", "status": "mapped", "certainty": "C", "sources": ["MALLA-RESP", "COMP24-SPORT", "MECH"], "origin": "seed"},
   {"id": "wrestler_bridge", "name": "Wrestler's neck bridge", "aliases": [], "tradition": "indian", "equipmentAnyOf": [["floor_mat"]], "pattern": "neck", "regions": {"core": 0.5, "upperBack": 0.5}, "loadType": "isometric", "intensityScale": "holdSec", "volumeUnit": "holds", "defaultDose": {"sets": 3, "holdSec": 20, "restSec": 60}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 3.8, "metRange": [2.8, 4.8], "compendiumCode": "02022", "metSource": "compendium"}, "cardioModality": null, "hybridCardioShare": 0.0, "mobilityTargets": [], "skill": 4, "injuryRisk": 5, "contraTags": ["cervical", "hypertension", "glaucoma", "osteoporosis"], "tags": ["floor", "supervised"], "mechanism": "Loads cervical extensors (no engine region); high injury risk outside supervised training.", "status": "mapped", "certainty": "D", "sources": ["PEHLWANI", "MECH"], "origin": "seed"},
-  {"id": "akhara_digging", "name": "Akhara digging (pharsa/kudal)", "aliases": ["akhara khudai"], "tradition": "indian", "equipmentAnyOf": [["shovel"]], "pattern": "rotationalSwing", "regions": {"upperBack": 0.5, "core": 0.5, "shoulders": 0.5, "glutes": 0.5}, "loadType": "odd-object", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 20}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 5.0, "metRange": [3.8, 6.2], "compendiumCode": "08045 (code unverified)", "metSource": "compendium lawn and garden: digging/spading (value not re-checked)"}, "cardioModality": null, "hybridCardioShare": 0.7, "mobilityTargets": [], "skill": 1, "injuryRisk": 2, "contraTags": ["lumbar"], "tags": ["noisy"], "mechanism": "Loaded rotational swing with an odd-object load: upper back, trunk, shoulders, glutes indirectly.", "status": "mapped", "certainty": "C", "sources": ["COMP24", "PEHLWANI"], "origin": "seed"},
+  // akhara_digging (checked 2026-10-27, energy SPEC V2): the seed cited 08045 "(code unverified)" at 5.0 MET, but in the
+  // Compendium 2024 08045 is the LIGHT-TO-MODERATE digging row (3.5); 5.0 is 08050, the general digging/spading row
+  // (Taylor code 590). Turning the akhara pit with a pharsa is sustained conditioning work, not light garden digging, and
+  // the R3 catalogue research (R3-exercise-equipment.md) chose "digging/spading, 5.0 MET": the 5.0 has a warrant
+  // (empirical-formal B for the row, C for the mapping), the code did not. So the value stays and the code is corrected to
+  // 08050 (a direct mapping, analog false); 08045 and 08052 bracket the effort. Range unchanged (plans unchanged).
+  {"id": "akhara_digging", "name": "Akhara digging (pharsa/kudal)", "aliases": ["akhara khudai"], "tradition": "indian", "equipmentAnyOf": [["shovel"]], "pattern": "rotationalSwing", "regions": {"upperBack": 0.5, "core": 0.5, "shoulders": 0.5, "glutes": 0.5}, "loadType": "odd-object", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 20}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 5.0, "metRange": [3.8, 6.2], "compendiumCode": "08050", "metSource": "compendium: digging, spading, filling garden, composting (08050, 5.0; Taylor code 590); light-to-moderate 08045 (3.5) to vigorous 08052 (7.3)"}, "cardioModality": null, "hybridCardioShare": 0.7, "mobilityTargets": [], "skill": 1, "injuryRisk": 2, "contraTags": ["lumbar"], "tags": ["noisy"], "mechanism": "Loaded rotational swing with an odd-object load: upper back, trunk, shoulders, glutes indirectly.", "status": "mapped", "certainty": "C", "sources": ["COMP24", "PEHLWANI"], "origin": "seed"},
   {"id": "kushti_drill", "name": "Kushti drilling (partner)", "aliases": [], "tradition": "indian", "equipmentAnyOf": [["partner", "akhara"]], "pattern": "complex", "regions": {"core": 1, "upperBack": 0.5, "glutes": 0.5, "quads": 0.5, "arms": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 20}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 6.0, "metRange": [5.3, 10.3], "compendiumCode": "15730", "metSource": "compendium (wrestling competitive)"}, "cardioModality": null, "hybridCardioShare": 0.7, "mobilityTargets": [], "skill": 4, "injuryRisk": 4, "contraTags": ["cervical", "shoulder", "knee"], "tags": ["floor", "supervised"], "mechanism": "Whole-body complex against body weight: trunk worked directly, upper back, glutes, quadriceps, arms indirectly.", "status": "mapped", "certainty": "C", "sources": ["COMP24-SPORT"], "origin": "seed"},
   {"id": "kushti_circuit", "name": "Kushti conditioning circuit (dand + baithak + rope)", "aliases": [], "tradition": "indian", "equipmentAnyOf": [[]], "pattern": "complex", "regions": {"chest": 0.5, "shoulders": 0.5, "quads": 1, "glutes": 0.5, "calves": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 25}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 7.5, "metRange": [5.6, 9.4], "compendiumCode": "02020", "metSource": "analog"}, "cardioModality": null, "hybridCardioShare": 0.6, "mobilityTargets": [], "skill": 2, "injuryRisk": 2, "contraTags": ["knee", "wrist"], "tags": ["floor"], "mechanism": "Whole-body complex against body weight: quadriceps worked directly, chest, shoulders, glutes, calves indirectly.", "status": "mapped", "certainty": "C", "sources": ["COMP24-COND", "PEHLWANI"], "origin": "seed"},
   {"id": "surya_namaskar", "name": "Surya Namaskar (rounds)", "aliases": ["sun salutation"], "tradition": "yoga", "equipmentAnyOf": [["floor_mat"], []], "pattern": "complex", "regions": {"chest": 0.5, "shoulders": 0.5, "arms": 0.5, "core": 0.5, "quads": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "rounds", "defaultDose": {"rounds": 12, "secPerRound": 30}, "secPerRep": 30, "energy": {"equation": "met", "metGross": 3.5, "metRange": [3.5, 7.4], "compendiumCode": "02180", "metSource": "compendium; Mody 2011 measured ~7.4 MET at a fast pace"}, "cardioModality": null, "hybridCardioShare": 0.6, "mobilityTargets": ["hamstring", "hip_flexor", "spine", "shoulder"], "skill": 1, "injuryRisk": 1, "contraTags": ["wrist", "lumbar"], "tags": ["floor"], "mechanism": "Bhutkar 2011: 24 rounds 6 d/wk raised bench/shoulder-press 1RM in untrained adults (strength credit low-load).", "status": "modelled", "certainty": "B", "sources": ["COMP24-COND", "MODY", "BHUTKAR"], "origin": "seed"},
@@ -181,4 +192,322 @@ export const SEED_EXERCISES: readonly ExerciseRecord[] = [
   {"id": "pilates_mat", "name": "Mat Pilates", "aliases": [], "tradition": "home", "equipmentAnyOf": [["floor_mat"]], "pattern": "coreFlexion", "regions": {"core": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 40}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 1.8, "metRange": [1.8, 3.0], "compendiumCode": "02103", "metSource": "compendium"}, "cardioModality": null, "hybridCardioShare": 0.0, "mobilityTargets": ["spine", "hip"], "skill": 1, "injuryRisk": 1, "contraTags": [], "tags": ["floor"], "mechanism": "Trunk flexion against body weight: trunk indirectly.", "status": "modelled", "certainty": "B", "sources": ["COMP24-COND"], "origin": "seed"},
   {"id": "power_yoga", "name": "Power / vinyasa yoga session", "aliases": [], "tradition": "yoga", "equipmentAnyOf": [["floor_mat"]], "pattern": "complex", "regions": {"core": 0.5, "shoulders": 0.5}, "loadType": "bodyweight", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 45}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 4.0, "metRange": [2.7, 4.0], "compendiumCode": "02160", "metSource": "compendium (power yoga); vinyasa 02185 2.7"}, "cardioModality": null, "hybridCardioShare": 0.5, "mobilityTargets": ["hamstring", "hip", "shoulder", "spine"], "skill": 2, "injuryRisk": 1, "contraTags": [], "tags": ["floor"], "mechanism": "Whole-body complex against body weight: trunk, shoulders indirectly.", "status": "modelled", "certainty": "B", "sources": ["COMP24-COND", "D10"], "origin": "seed"},
   {"id": "hatha_yoga", "name": "Hatha yoga session", "aliases": [], "tradition": "yoga", "equipmentAnyOf": [["floor_mat"]], "pattern": "mobility", "regions": {}, "loadType": "mobility", "intensityScale": "rpe", "volumeUnit": "minutes", "defaultDose": {"durationMin": 45}, "secPerRep": 3.0, "energy": {"equation": "met", "metGross": 2.3, "metRange": [1.7, 2.9], "compendiumCode": "02150", "metSource": "compendium"}, "cardioModality": null, "hybridCardioShare": 0.0, "mobilityTargets": ["general"], "skill": 1, "injuryRisk": 1, "contraTags": [], "tags": ["floor"], "mechanism": "Mobility (range-of-motion) work through end range: range of motion (general); small energy cost.", "status": "infoOnly", "certainty": "B", "sources": ["COMP24-COND"], "origin": "seed"},
+];
+
+/** Joint actions of each movement pattern (qualitative swap context, D3-09). */
+const PATTERN_JOINT_ACTIONS: Readonly<Partial<Record<MovementPattern, readonly string[]>>> = {
+  squat: ['kneeExtension', 'hipExtension'],
+  hinge: ['hipExtension'],
+  lunge: ['kneeExtension', 'hipExtension'],
+  kneeExtension: ['kneeExtension'],
+  kneeFlexion: ['kneeFlexion'],
+  calfRaise: ['anklePlantarFlexion'],
+  hipAbduction: ['hipAbduction'],
+  horizontalPush: ['shoulderHorizontalFlexion', 'elbowExtension'],
+  verticalPush: ['shoulderFlexion', 'elbowExtension'],
+  horizontalPull: ['shoulderExtension', 'scapularRetraction', 'elbowFlexion'],
+  verticalPull: ['shoulderAdduction', 'elbowFlexion'],
+  elbowFlexion: ['elbowFlexion'],
+  elbowExtension: ['elbowExtension'],
+  shoulderIsolation: ['shoulderAbduction'],
+  coreFlexion: ['trunkFlexion'],
+  coreAntiExtension: ['trunkAntiExtension'],
+  coreAntiRotation: ['trunkAntiRotation'],
+  carry: ['grip', 'trunkStabilisation'],
+  ballisticHinge: ['hipExtension'],
+  rotationalSwing: ['shoulderCircumduction', 'trunkRotation'],
+  plyometric: ['kneeExtension', 'hipExtension', 'anklePlantarFlexion'],
+  neck: ['neckExtension'],
+};
+
+/**
+ * Per-entry descriptors (D3-02/D3-09): `task` where entries are the same movement task (exact-same-task matching also needs
+ * the same implement class), and range-of-motion / muscle-length emphasis only where the entry's mechanism text states it.
+ */
+const ENTRY_DESCRIPTORS: Readonly<Record<string, Pick<ExerciseRecord, 'task' | 'rom'>>> = {
+  kb_swing: { task: 'kettlebell_two_hand_swing' },
+  kb_swing_emom: { task: 'kettlebell_two_hand_swing' },
+  dand: { task: 'dand' },
+  dand_garnal: { task: 'dand' },
+  baithak: { task: 'baithak' },
+  baithak_garnal: { task: 'baithak' },
+  rdl: { rom: 'lengthened' },
+  oh_triceps_ext: { rom: 'lengthened' },
+  ab_wheel: { rom: 'lengthened' },
+};
+
+// ------------------------------------------------------------------ activity types (SPEC V1.6, 2026-10-27)
+
+/** Inputs of one activity-type record; every other field is the cardio-activity default. */
+interface ActivitySpec {
+  name: string;
+  aliases?: readonly string[];
+  tradition?: ExerciseRecord['tradition'];
+  equipment?: readonly (readonly string[])[];
+  pattern: MovementPattern;
+  loadType?: ExerciseRecord['loadType'];
+  regions?: ExerciseRecord['regions'];
+  cardioModality: ExerciseRecord['cardioModality'];
+  minutes: number;
+  met: number;
+  range: readonly [number, number];
+  code: string | null;
+  analog: boolean;
+  note: string;
+  mechanism: string;
+  status?: ExerciseRecord['status'];
+  certainty: ExerciseRecord['certainty'];
+  sources: readonly string[];
+  skill?: ExerciseRecord['skill'];
+  injuryRisk?: ExerciseRecord['injuryRisk'];
+  contraTags?: ExerciseRecord['contraTags'];
+  tags?: ExerciseRecord['tags'];
+  task?: string;
+}
+
+/**
+ * One log/import-only activity type (`prescribable: false`). The energy is the official Compendium 2024 row of `code` when
+ * `analog` is false (`compendium2024.ts`), else a similar activity's row ("estimated from similar activity"; ±50 % scenario
+ * envelope in the estimator). Ranges bracket related official rows of the same family; no MET is invented. Training stimulus
+ * stays the cardio default: an imported or calorie-only bout never creates sets (SPEC V1.5).
+ */
+function activity(id: string, a: ActivitySpec): ExerciseRecord {
+  const cardio = (a.loadType ?? 'cardio') === 'cardio';
+  return {
+    id,
+    name: a.name,
+    aliases: a.aliases ?? [],
+    tradition: a.tradition ?? 'cardio',
+    equipmentAnyOf: a.equipment ?? [[]],
+    pattern: a.pattern,
+    regions: a.regions ?? {},
+    loadType: a.loadType ?? 'cardio',
+    intensityScale: 'rpe',
+    volumeUnit: 'minutes',
+    defaultDose: { durationMin: a.minutes },
+    secPerRep: 3.0,
+    energy: { equation: 'met', metGross: a.met, metRange: a.range, compendiumCode: a.code, metSource: a.note, analog: a.analog, ...(a.analog ? {} : { mappingNote: a.note }) },
+    cardioModality: a.cardioModality,
+    hybridCardioShare: cardio ? 1.0 : 0.0,
+    mobilityTargets: a.pattern === 'mobility' ? ['general'] : [],
+    skill: a.skill ?? 1,
+    injuryRisk: a.injuryRisk ?? 1,
+    contraTags: a.contraTags ?? [],
+    tags: a.tags ?? [],
+    mechanism: a.mechanism,
+    status: a.status ?? (a.analog ? 'mapped' : 'modelled'),
+    certainty: a.certainty,
+    sources: a.sources,
+    origin: 'seed',
+    prescribable: false,
+    ...(a.task !== undefined ? { task: a.task } : {}),
+  };
+}
+
+const CARDIO_MECH = 'Continuous work: energy cost by MET and aerobic training by intensity.';
+const SPORT_MECH = 'Intermittent sport play as continuous work: energy cost by MET and aerobic training by intensity.';
+
+/**
+ * Activity types for logging, review and Health Connect / Google Fit / Gauge import (SPEC V1.6), next to the traditional
+ * and gym training above (whose ids and values are unchanged). Values are official Compendium 2024 rows (retrieved
+ * 2026-10-27); the air bike is an analog of whole-body/leg cycling rows and NEVER of 02119 (Airdyne arms only, 4.3 MET).
+ */
+const ACTIVITY_RECORDS: readonly ExerciseRecord[] = [
+  activity('air_bike', {
+    name: 'Air bike (fan bike, arms and legs)', aliases: ['fan bike', 'assault bike', 'echo bike'], equipment: [['air_bike']], pattern: 'cycle',
+    regions: { quads: 0.5 }, cardioModality: 'other', minutes: 20, met: 8.0, range: [4.0, 8.8], code: '01228', analog: true,
+    note: 'analog: stationary cycling 126-150 W (01228, 8.0); cycling HIIT 01305 (8.8) upper, 50 W 01214 (4.0) lower. Not 02119 (arms only). Display watts are not metabolic work',
+    mechanism: 'Arm and leg pedalling against a fan as continuous or interval work: energy cost estimated from similar cycling, aerobic training by intensity.',
+    certainty: 'C', sources: ['COMP24-BIKE'],
+  }),
+  activity('strength_general', {
+    name: 'Strength training (sets not logged)', aliases: ['weight training', 'weightlifting', 'gym session'], tradition: 'gym', pattern: 'complex',
+    loadType: 'external', cardioModality: null, minutes: 45, met: 3.5, range: [3.5, 6.0], code: '02054', analog: false,
+    note: 'compendium: resistance training, multiple exercises, 8-15 reps (02054, 3.5); vigorous power lifting or body building 02050 (6.0)',
+    mechanism: 'Resistance session imported or logged without sets: energy cost by MET only; no hard-set dose until sets are logged.',
+    certainty: 'B', sources: ['COMP24-COND'], skill: 2, injuryRisk: 2,
+  }),
+  activity('air_cycling', {
+    name: 'Air cycling (lying on the back, legs pedalling)', aliases: ['bicycle legs', 'supine cycling'], tradition: 'bodyweight', equipment: [[], ['floor_mat']],
+    pattern: 'coreFlexion', regions: { core: 0.5 }, cardioModality: 'other', minutes: 10, met: 2.8, range: [2.8, 3.8], code: '02024', analog: true,
+    note: 'analog: calisthenics light (02024, 2.8) to moderate (02022, 3.8); no official row for supine leg cycling',
+    mechanism: 'Supine leg pedalling without equipment: small energy cost estimated from light calisthenics; trunk indirectly.',
+    certainty: 'D', sources: ['COMP24-COND'], tags: ['floor'],
+  }),
+  activity('treadmill_desk_slow', {
+    name: 'Treadmill desk, slow walking while working', aliases: ['walking pad', 'walking desk', 'treadmill desk'], tradition: 'home', equipment: [['treadmill']],
+    pattern: 'locomotion', cardioModality: 'walk', minutes: 60, met: 2.8, range: [2.0, 2.8], code: '11004', analog: false,
+    note: 'compendium: active workstation, treadmill desk 1.0-2.0 mph (11004, 2.8); 1.0 mph or less 11003 (2.0)',
+    mechanism: 'Slow belt walking while working at a desk: energy cost by MET (the walking equations are not used below 2 mph).',
+    certainty: 'B', sources: ['COMP24-OCC'],
+  }),
+  activity('stair_climber', {
+    name: 'Stair climber (stair treadmill)', aliases: ['stairmaster', 'stair machine'], tradition: 'gym', equipment: [['stair_climber']], pattern: 'locomotion',
+    regions: { quads: 0.5, glutes: 0.5, calves: 0.5 }, cardioModality: 'other', minutes: 20, met: 9.3, range: [7.0, 11.6], code: '02065', analog: false,
+    note: 'compendium: stair treadmill ergometer, general (02065, 9.3); same machine as the stepmill entry', mechanism: CARDIO_MECH,
+    certainty: 'A', sources: ['COMP24-COND'], contraTags: ['knee'],
+  }),
+  activity('stepper', {
+    name: 'Stepper (step machine or aerobic step)', aliases: ['mini stepper', 'step machine'], tradition: 'home', pattern: 'locomotion',
+    regions: { quads: 0.5, glutes: 0.5 }, cardioModality: 'other', minutes: 20, met: 5.5, range: [5.5, 9.0], code: '02001', analog: true,
+    note: 'analog: aerobic step with 4-inch step (02001, 5.5) to 10-12 inch step (02003, 9.0); no official row for a mini stepper',
+    mechanism: CARDIO_MECH, certainty: 'C', sources: ['COMP24-COND'], contraTags: ['knee'],
+  }),
+  // (0.6.7 AD-VITALS) a neutral treadmill walk (level, ordinary pace): what a detected or Health Connect treadmill walk is
+  // suggested as, without implying incline (`treadmill_incline_walk`) or a desk (`treadmill_desk_slow`)
+  activity('treadmill_walk', {
+    name: 'Treadmill walking', aliases: ['treadmill walk', 'walking on a treadmill'], tradition: 'home', equipment: [['treadmill']],
+    pattern: 'locomotion', cardioModality: 'walk', minutes: 30, met: 3.5, range: [2.8, 4.8], code: '17352', analog: false,
+    note: 'compendium: walking, treadmill, 2.5-2.9 mph, 0% grade (17352, 3.5); 1.2-1.9 mph 17346 (2.8) lower, 3.5-3.9 mph 17358 (4.8) upper',
+    mechanism: CARDIO_MECH, certainty: 'A', sources: ['COMP24-WALK'],
+  }),
+  activity('walk_brisk', {
+    name: 'Brisk walk (exercise walking)', aliases: ['fitness walking', 'power walking'], tradition: 'outdoor', pattern: 'locomotion', cardioModality: 'walk',
+    minutes: 30, met: 4.8, range: [3.8, 5.8], code: '17200', analog: false,
+    note: 'compendium: walking 3.5-3.9 mph, level, brisk, for exercise (17200, 4.8); 2.8-3.4 mph 17190 (3.8) lower, treadmill 4.0-4.4 mph 17361 (5.8) upper',
+    mechanism: CARDIO_MECH, certainty: 'A', sources: ['COMP24-WALK'],
+  }),
+  activity('table_tennis', {
+    name: 'Table tennis', aliases: ['ping pong'], tradition: 'outdoor', equipment: [['racquet_court']], pattern: 'sport', cardioModality: 'other',
+    minutes: 45, met: 4.0, range: [4.0, 4.0], code: '15660', analog: false, note: 'compendium: table tennis, ping pong (15660, 4.0); single row, no bracket',
+    mechanism: SPORT_MECH, certainty: 'B', sources: ['COMP24-SPORT'], skill: 2,
+  }),
+  activity('tennis', {
+    name: 'Tennis', tradition: 'outdoor', equipment: [['racquet_court']], pattern: 'sport', cardioModality: 'other', minutes: 60, met: 6.8, range: [4.5, 8.0],
+    code: '15675', analog: false, note: 'compendium: tennis, general, moderate effort (15675, 6.8); doubles 15685 (4.5) to singles 15690 (8.0)',
+    mechanism: SPORT_MECH, certainty: 'A', sources: ['COMP24-SPORT'], skill: 2, injuryRisk: 2, tags: ['highImpact'],
+  }),
+  activity('basketball', {
+    name: 'Basketball', tradition: 'outdoor', equipment: [['sports_court']], pattern: 'sport', cardioModality: 'other', minutes: 60, met: 7.5, range: [5.0, 9.3],
+    code: '15055', analog: false, note: 'compendium: basketball, general (15055, 7.5); shooting baskets 15070 (5.0) to drills 15072 (9.3)',
+    mechanism: SPORT_MECH, certainty: 'A', sources: ['COMP24-SPORT'], skill: 2, injuryRisk: 3, contraTags: ['knee', 'ankle'], tags: ['jumping', 'highImpact'],
+  }),
+  activity('volleyball', {
+    name: 'Volleyball', tradition: 'outdoor', equipment: [['sports_court']], pattern: 'sport', cardioModality: 'other', minutes: 60, met: 4.0, range: [3.0, 8.0],
+    code: '15710', analog: false, note: 'compendium: volleyball (15710, 4.0); non-competitive 15720 (3.0) to beach 15725 (8.0, estimated row)',
+    mechanism: SPORT_MECH, certainty: 'B', sources: ['COMP24-SPORT'], skill: 2, injuryRisk: 2, tags: ['jumping'],
+  }),
+  activity('boxing', {
+    name: 'Boxing (training or sparring)', tradition: 'gym', pattern: 'complex', regions: { shoulders: 0.5, core: 0.5 }, cardioModality: 'other',
+    minutes: 45, met: 7.8, range: [5.8, 12.3], code: '15120', analog: false,
+    note: 'compendium: boxing, sparring (15120, 7.8); punching bag 15110 (5.8) to in ring 15100 (12.3)',
+    mechanism: 'Whole-body striking as continuous work: energy cost by MET and aerobic training by intensity.', certainty: 'B', sources: ['COMP24-SPORT'],
+    skill: 2, injuryRisk: 3, contraTags: ['wrist'],
+  }),
+  activity('martial_arts', {
+    name: 'Martial arts', aliases: ['karate', 'judo', 'taekwondo', 'kickboxing'], tradition: 'gym', pattern: 'sport', cardioModality: 'other', minutes: 60,
+    met: 5.3, range: [5.3, 10.3], code: '15425', analog: false,
+    note: 'compendium: martial arts, slower pace, practice (15425, 5.3); moderate pace 15430 (10.3)', mechanism: SPORT_MECH, certainty: 'B',
+    sources: ['COMP24-SPORT'], skill: 3, injuryRisk: 3,
+  }),
+  activity('pilates', {
+    name: 'Pilates (general)', tradition: 'home', equipment: [[], ['floor_mat']], pattern: 'coreFlexion', loadType: 'bodyweight', regions: { core: 0.5 },
+    cardioModality: null, minutes: 45, met: 2.8, range: [1.8, 2.8], code: '02105', analog: false,
+    note: 'compendium: Pilates, general (02105, 2.8); traditional mat 02103 (1.8)', mechanism: 'Trunk flexion against body weight: trunk indirectly; small energy cost.',
+    certainty: 'B', sources: ['COMP24-COND'], tags: ['floor'],
+  }),
+  activity('stretching', {
+    name: 'Stretching', tradition: 'mobility', pattern: 'mobility', loadType: 'mobility', cardioModality: null, minutes: 15, met: 2.3, range: [2.3, 2.3],
+    code: '02101', analog: false, note: 'compendium: stretching, mild (02101, 2.3); single row, no bracket',
+    mechanism: 'Mobility (range-of-motion) work through end range: range of motion (general); small energy cost.', status: 'infoOnly', certainty: 'B',
+    sources: ['COMP24-COND'], tags: ['floor'],
+  }),
+  activity('dance_general', {
+    name: 'Dancing (general)', aliases: ['dance class'], tradition: 'home', pattern: 'sport', cardioModality: 'other', minutes: 45, met: 5.0, range: [3.0, 9.8],
+    code: '03010', analog: false, note: 'compendium: ballet, modern or jazz, general (03010, 5.0); slow ballroom 03040 (3.0) to vigorous folk/nightclub 03031 (9.8)',
+    mechanism: CARDIO_MECH, certainty: 'B', sources: ['COMP24-DANCE'],
+  }),
+  activity('gardening', {
+    name: 'Gardening', tradition: 'outdoor', pattern: 'locomotion', cardioModality: 'other', minutes: 60, met: 3.8, range: [2.0, 5.0], code: '08245', analog: false,
+    note: 'compendium: gardening, general, moderate effort (08245, 3.8); light 08066 (2.0) to digging 08050 (5.0)',
+    mechanism: 'Mixed garden work (bending, carrying, digging): energy cost by MET.', certainty: 'B', sources: ['COMP24-LAWN'],
+  }),
+  activity('housework', {
+    name: 'Housework', aliases: ['cleaning', 'chores'], tradition: 'home', pattern: 'locomotion', cardioModality: 'other', minutes: 60, met: 3.3, range: [2.8, 4.3],
+    code: '05026', analog: false, note: 'compendium: multiple household tasks at once, moderate effort (05026, 3.3); light 05025 (2.8) to vigorous 05027 (4.3)',
+    mechanism: 'Mixed household tasks: energy cost by MET.', certainty: 'B', sources: ['COMP24-HOME'],
+  }),
+  activity('rowing_water', {
+    name: 'Rowing on water', aliases: ['rowing boat', 'sculling', 'canoeing'], tradition: 'outdoor', equipment: [['boat']], pattern: 'row',
+    regions: { upperBack: 0.5 }, cardioModality: 'row', minutes: 45, met: 3.5, range: [2.8, 12.0], code: '18070', analog: false,
+    note: 'compendium: canoeing or rowing for pleasure, general (18070, 3.5); light 18040 (2.8) to competition crew 18080 (12.0)',
+    mechanism: CARDIO_MECH, certainty: 'B', sources: ['COMP24-WATER'], skill: 2,
+  }),
+  activity('kayak', {
+    name: 'Kayaking', aliases: ['paddling'], tradition: 'outdoor', equipment: [['boat']], pattern: 'row', regions: { upperBack: 0.5 }, cardioModality: 'row',
+    minutes: 45, met: 5.0, range: [5.0, 13.5], code: '18100', analog: false, note: 'compendium: kayaking, moderate effort (18100, 5.0); competition 18104 (13.5)',
+    mechanism: CARDIO_MECH, certainty: 'B', sources: ['COMP24-WATER'], skill: 2,
+  }),
+  activity('skating', {
+    name: 'Skating (roller, inline or ice)', tradition: 'outdoor', equipment: [['skates']], pattern: 'locomotion', cardioModality: 'other', minutes: 45, met: 7.0,
+    range: [5.5, 9.8], code: '15590', analog: false,
+    note: 'compendium: skating, roller (15590, 7.0); ice general 19030 (7.0); ice 9 mph or less 19020 (5.5, estimated) to inline 11 mph 15592 (9.8)',
+    mechanism: CARDIO_MECH, certainty: 'B', sources: ['COMP24-SPORT'], skill: 3, injuryRisk: 3,
+  }),
+  activity('climbing', {
+    name: 'Climbing (rock or wall)', aliases: ['bouldering'], tradition: 'outdoor', equipment: [['climbing_wall']], pattern: 'sport',
+    regions: { upperBack: 0.5, arms: 0.5 }, cardioModality: 'other', minutes: 60, met: 8.0, range: [5.8, 10.5], code: '15533', analog: false,
+    note: 'compendium: rock or mountain climbing (15533, 8.0); low-to-moderate difficulty 15537 (5.8) to speed climbing 15536 (10.5)',
+    mechanism: 'Climbing as continuous work: energy cost by MET (pulling muscles also worked, without a counted set dose).', certainty: 'B',
+    sources: ['COMP24-SPORT'], skill: 3, injuryRisk: 3, contraTags: ['shoulder', 'elbow'],
+  }),
+  activity('circuit', {
+    name: 'Circuit training', aliases: ['boot camp', 'crossfit'], tradition: 'gym', pattern: 'complex', regions: { quads: 0.5, shoulders: 0.5 }, cardioModality: 'other',
+    minutes: 30, met: 5.0, range: [3.5, 7.5], code: '02035', analog: false,
+    note: 'compendium: circuit training, moderate effort (02035, 5.0); light 02034 (3.5) to vigorous with kettlebells 02040 (7.5)',
+    mechanism: 'Whole-body circuit as continuous work: energy cost by MET; sets are counted only when logged.', certainty: 'B', sources: ['COMP24-COND'],
+    skill: 2, injuryRisk: 2,
+  }),
+  activity('calisthenics', {
+    name: 'Calisthenics (general)', tradition: 'bodyweight', pattern: 'complex', regions: { core: 0.5 }, cardioModality: 'other', minutes: 30, met: 3.8,
+    range: [2.8, 7.5], code: '02022', analog: false, note: 'compendium: calisthenics, moderate effort (02022, 3.8); light 02024 (2.8) to vigorous 02020 (7.5)',
+    mechanism: 'Body-weight exercise as continuous work: energy cost by MET; sets are counted only when logged.', certainty: 'B', sources: ['COMP24-COND'],
+  }),
+  activity('other_light', {
+    name: 'Other activity, light', pattern: 'locomotion', cardioModality: 'other', minutes: 30, met: 2.5, range: [1.8, 2.9], code: null, analog: true,
+    note: 'analog: WHO light class (< 3 MET); no specific activity row', mechanism: 'Unspecified light activity: energy cost from the intensity class only.',
+    certainty: 'D', sources: ['WHO2020', 'COMP24'],
+  }),
+  activity('other_moderate', {
+    name: 'Other activity, moderate', pattern: 'locomotion', cardioModality: 'other', minutes: 30, met: 4.5, range: [3.0, 5.9], code: null, analog: true,
+    note: 'analog: WHO moderate class (3-5.9 MET); no specific activity row', mechanism: 'Unspecified moderate activity: energy cost from the intensity class only.',
+    certainty: 'D', sources: ['WHO2020', 'COMP24'],
+  }),
+  activity('other_vigorous', {
+    name: 'Other activity, vigorous', pattern: 'locomotion', cardioModality: 'other', minutes: 30, met: 7.0, range: [6.0, 9.0], code: null, analog: true,
+    note: 'analog: WHO vigorous class (6 MET or more); no specific activity row', mechanism: 'Unspecified vigorous activity: energy cost from the intensity class only.',
+    certainty: 'D', sources: ['WHO2020', 'COMP24'],
+  }),
+];
+
+/** Ids of the log/import-only activity types (SPEC V1.6). */
+export const ACTIVITY_TYPE_IDS: readonly string[] = ACTIVITY_RECORDS.map((e) => e.id);
+
+/**
+ * Compendium reference of a seed record (SPEC V1.6): an analog when its source text says so (analog/ESTIMATE) or it has no
+ * usable code; otherwise the source text is the mapping note. Values are unchanged.
+ */
+function withCompendiumRef(e: ExerciseRecord): ExerciseRecord {
+  if (e.energy.analog !== undefined) return e;
+  const code = e.energy.compendiumCode;
+  const analog = /^(analog|estimate)/i.test(e.energy.metSource) || code === null || !/^\d{5}$/.test(code);
+  return { ...e, energy: { ...e.energy, analog, ...(analog ? {} : { mappingNote: e.energy.metSource }) } };
+}
+
+/** The seed catalogue with its task descriptors (no dose or efficacy field is changed), then the activity types. */
+export const SEED_EXERCISES: readonly ExerciseRecord[] = [
+  ...SEED_RECORDS.map((e) => {
+    const joint = PATTERN_JOINT_ACTIONS[e.pattern];
+    const own = ENTRY_DESCRIPTORS[e.id];
+    const explosive = e.loadType === 'ballistic' || e.pattern === 'plyometric';
+    const r = withCompendiumRef(e);
+    if (!joint && !own && !explosive) return r;
+    return {
+      ...r,
+      ...(joint ? { jointActions: joint } : {}),
+      ...(own ?? {}),
+      ...(explosive ? { velocity: 'explosive' as const } : {}),
+    };
+  }),
+  ...ACTIVITY_RECORDS,
 ];

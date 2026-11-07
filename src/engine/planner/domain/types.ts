@@ -9,7 +9,28 @@ import type { MetricId, SeriesId } from '../../types/metrics';
 import type { PersonProfile } from '../../types/profile';
 import type { CardioModality, Schedule } from '../../types/schedule';
 import type { SimulationResult } from '../../types/result';
+import type { HabitualActiveExposure } from './decode';
 import type { ConcreteSession, TrainingProfile } from '@/catalogues';
+import type {
+  BandMeta,
+  CapabilityAvailability,
+  ClinicalNutritionEnvelope,
+  EndpointAvailability,
+  GoalEndpointSemantics,
+  ClinicianExerciseEnvelope,
+  ConstraintConflict,
+  ConstraintDef,
+  ConstraintEvaluation,
+  JointScreenResult,
+  OutputStatus,
+  RenalContextStatus,
+  SafetyCertificate,
+  SafetyStatus,
+  ScreeningAnswer,
+  SearchOutcome,
+  SearchOutcomeInfo,
+  SymptomReport,
+} from '@/lib/bodyContracts';
 
 /** 0 = Monday … 6 = Sunday (MODEL_SPEC §0.1). */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -36,14 +57,39 @@ export interface RankedGoal {
   target?: number;
   /** `'absolute'` (default): a metric value; `'change'`: a signed change from the start value (e.g. −8 kg). */
   targetKind?: 'absolute' | 'change';
+  /** Original user delta and its frozen start baseline when a new scenario resolves it to an absolute target. */
+  targetOrigin?: { kind: 'change'; delta: number; baseline: number };
   /** Functional: `'end'` = mean of the last 7 days (stocks), `'mean'` = mean over the horizon (signals). Default by metric. */
   functional?: 'end' | 'mean';
   /** Explicit degradation tolerance δ in desirability units (default: 5 / 10 / 15 % ladder × strictness). */
   tolerance?: number;
+  /**
+   * C6/D4-05: `CONTRACT_VERSIONS.goalCapability` the goal was validated under. Absent = a saved/imported goal from before
+   * the capability contract: revalidate before optimizing (unsupported goals stay visible as pending review).
+   */
+  capabilityVersion?: number;
+  /** Explicit saved operator/sample identity; absent BF stamps require review before a new tissue objective. */
+  endpointSemantics?: GoalEndpointSemantics;
 }
 
 /** User hard constraints and soft preferences (dossier 18 §3). All optional; defaults come from the profile. */
 export interface PracticalConstraints {
+  /**
+   * Enforce the general adult 25% deficit preset (default true). False removes that preset only: screening/clinician
+   * bounds, age/low-adiposity restrictions, intake floors, energy availability and loss-rate checks remain applicable.
+   * This is a planning preference, never a statement that a larger deficit is medically cleared.
+   */
+  enforceDefaultDeficitCap?: boolean;
+  /** Explicitly chosen, unvalidated scenario tracking. Preset energy-policy failures remain recorded as warnings. */
+  experimentalTracking?: boolean;
+  /**
+   * User-selected budget on the MODEL skeletal-muscle trajectory over the whole plan. This is not a clinical safety
+   * threshold. The baseline is frozen at plan start and carried through every weekly re-plan; never reset weekly.
+   */
+  muscleRetention?: {
+    maxLossPct: number;
+    baseline?: { kg: number; date: string; basis: 'modelSkeletalMuscle' };
+  } | null;
   /** Resistance-training sessions per week the user can do (inclusive range). Default [0, 4] around the habit. */
   trainingDaysPerWeek?: { min: number; max: number };
   /** Weekdays on which training may be scheduled. Default all. */
@@ -52,6 +98,8 @@ export interface PracticalConstraints {
   trainingTimeH?: number;
   /** Longest single session, min (default 90). */
   maxSessionMin?: number;
+  /** Optional separate cardio-session cap; intersects the overall session limit (minutes, 5-minute scheduling grid). */
+  maxCardioSessionMin?: number;
   /** Cardio sessions per week (inclusive range). Default [0, 3]. */
   cardioDaysPerWeek?: { min: number; max: number };
   /** Cardio modality the user does (default 'cycle'; 'walk' for people without training history). */
@@ -60,7 +108,7 @@ export interface PracticalConstraints {
   eatingWindow?: { earliestH: number; latestH: number };
   /** Meals per day allowed (default 2-4). */
   mealsPerDay?: { min: number; max: number };
-  /** Daily steps allowed (default [habitual − 1000, 12 000]). */
+  /** Daily steps outside separately prescribed cardio (default [habitual − 1000, 12 000]). */
   steps?: { min: number; max: number };
   /** Lever or block ids the user refuses (e.g. 'waterFast', 'fastDay24', 'refeedDay', 'creatine', 'B2'). */
   excludedLevers?: readonly string[];
@@ -94,7 +142,17 @@ export interface PlannerSafetyInput {
   mode?: 'M0' | 'R1' | 'R2' | 'H';
   restrictions?: readonly ('R1' | 'R2')[];
   /** `ScreeningOutcome.plannerLocks` (ids per safetyRules `PlannerLockId`; values in `LOCK_UNIT`). */
-  plannerLocks?: ReadonlyArray<{ id: string; value?: number; reasons?: ReadonlyArray<{ rule: string }> }>;
+  plannerLocks?: ReadonlyArray<{
+    id: string;
+    value?: number;
+    reasons?: ReadonlyArray<{ rule: string }>;
+    /** D4-01: explicit unit as supplied (e.g. '% of maintenance'); never inferred from the value's magnitude. */
+    unit?: string;
+    /** D4-01: where the lock came from (a legacy generated marker value maps deterministically; imports need units). */
+    source?: 'screening' | 'marker' | 'clinician' | 'user' | 'import';
+    /** D4-01: mandatory bounds block prescription when unsupported (clinician/marker locks default to mandatory). */
+    mandatory?: boolean;
+  }>;
   /**
    * `ScreeningOutcome.fasting` (only the fields the planner reads). `maxFastHours` is the effective cap after opt-ins;
    * a value above 24 h / 48 h implies the T2 / T3 consent.
@@ -110,8 +168,25 @@ export interface PlannerSafetyInput {
   flags?: readonly string[];
   /** Consents granted by the user (`SafetyOptIns`) plus per-lever opt-ins (e.g. 'omega3'). */
   optIns?: { fastingTier?: 'T2' | 'T3' | 'T4' | null; shortEatingWindow?: boolean; levers?: readonly string[] };
-  /** Expert mode (T4 / V tier). `EXPERT_MODE_AVAILABLE` is false in the app; the planner still never proposes T5. */
+  /**
+   * Expert mode (T4 / V tier). `EXPERT_MODE_AVAILABLE` is false in the app; the planner still never proposes T5.
+   *
+   * Contract note (2026-10-18, C5): the key set of this interface is audited (dead-field tests), so the new typed safety
+   * inputs travel on the profile: `profile.safety.flags.symptoms` / `exerciseEnvelopes` (D4-02), `renalContext` /
+   * `nutritionEnvelopes` (D4-07) and `answers` (tri-state screening, D7-03). Lock units/sources ride on `plannerLocks`
+   * entries and resolve to typed definitions with `LAB_LOCK_DEFS` + `intersectConstraints` (D4-01).
+   */
   expertMode?: boolean;
+}
+
+/** Typed safety inputs a planner route resolves from a request (C5): convenience bundle for consumers, not a request field. */
+export interface ResolvedSafetyContracts {
+  constraints: readonly ConstraintDef[];
+  screeningAnswers: Readonly<Partial<Record<string, ScreeningAnswer>>>;
+  symptoms: readonly SymptomReport[];
+  exerciseEnvelopes: readonly ClinicianExerciseEnvelope[];
+  renalContext: RenalContextStatus;
+  nutritionEnvelopes: readonly ClinicalNutritionEnvelope[];
 }
 
 /**
@@ -195,6 +270,8 @@ export interface PlannerRequest {
   // regulariser only; recorded on the request, not yet read by the search).
   markerWarnings?: readonly unknown[];
   preferLevers?: ReadonlyArray<{ lever: string; weight: number; rule?: string }>;
+  /** (D7-04) active ingredients the person already takes (observed baseline; on-hand stock adds nothing). Additive. */
+  habitualActives?: readonly HabitualActiveExposure[];
   /** Priority strictness: multiplies δ by 0.5 / 1 / 2 (dossier 18 §3). */
   strictness?: Strictness;
   /** Seed of every random stream (default: a hash of the request). */
@@ -251,6 +328,13 @@ export interface GoalScore {
   /** Ensemble band of the functional (P10, P50, P90) and P(target met), when the ensemble ran. */
   band: { p10: number; p50: number; p90: number; pTargetMet: number | null } | null;
   grade: EvidenceGrade;
+  /** C6: capability of the goal's metric and the status of this score (numbers and statuses travel separately). */
+  capability?: CapabilityAvailability;
+  status?: OutputStatus;
+  /** D8-02: what `band` is (sensitivity range, unvalidated coverage); `pTargetMet` is a design robustness share, not a probability. */
+  bandMeta?: BandMeta;
+  /** Full attempted-member coverage; partial/unavailable endpoints withhold numeric ensemble bands and target shares. */
+  availability?: EndpointAvailability;
 }
 
 export interface HungerAssessment {
@@ -258,7 +342,10 @@ export interface HungerAssessment {
   meanIdx: number;
   peak7Idx: number;
   daysAboveTolerance: number;
-  /** Plan-survival probability at the end, % (appetite module; NaN until implemented). */
+  /**
+   * Legacy plan-survival index at the end, % (appetite module). D2-06: not a probability and not displayed as one; kept for
+   * compatibility of stored results only.
+   */
   adherencePct: number;
   rating: 'low' | 'moderate' | 'high' | 'unknown';
   text: string;
@@ -289,6 +376,25 @@ export interface DailyBand {
   p10: Float32Array;
   p50: Float32Array;
   p90: Float32Array;
+  /** D8-02: band semantics (absent = legacy: parameter-sensitivity range, unvalidated coverage). */
+  meta?: BandMeta;
+}
+
+/**
+ * Safety of one option (C5/D4-01/D4-03): typed constraint evaluations on the final resolved schedule, the selection screen,
+ * the independent safety audit of the frozen candidate (separate from the outcome holdout) and its certificate.
+ */
+export interface OptionSafety {
+  status: SafetyStatus;
+  evaluations?: readonly ConstraintEvaluation[];
+  conflicts?: readonly ConstraintConflict[];
+  /** Joint screen on the selection ensemble (used for ranking; never a substitute for the audit). */
+  selection?: JointScreenResult;
+  /** Joint screen on the reserved safety-audit stream (one automatic attempt per decision episode). */
+  audit?: JointScreenResult;
+  certificate?: SafetyCertificate;
+  /** Outcome-holdout status stays a separate field and never certifies safety. */
+  outcomeHoldout?: { draws: number; status: 'evaluated' | 'notRun' };
 }
 
 export interface ConstraintNote {
@@ -329,7 +435,7 @@ export interface PlanOption {
    * over the robustness ensemble; null when the ensemble was off. Change-from-baseline metrics are banded on the change
    * and re-based on the nominal start value (as the Simulator does).
    */
-  bands?: { draws: number; series: Partial<Record<SeriesId, DailyBand>> } | null;
+  bands?: { draws: number; series: Partial<Record<SeriesId | `goal:${string}`, DailyBand>> } | null;
   bindingConstraints: ConstraintNote[];
   /** Lowest evidence grade among goal metrics and blocks/levers used. */
   confidence: EvidenceGrade;
@@ -341,6 +447,8 @@ export interface PlanOption {
    * the neutralised variant would break a safety margin (then it says nothing about what the lever is worth).
    */
   contributions: Array<{ label: string; deltaGoal1: number; deltaGoal1Metric?: number; safe?: boolean }>;
+  /** C5 (2026-10-18): the option's safety status, evaluations, audit and certificate. Absent = unchecked. */
+  safety?: OptionSafety;
 }
 
 export type GoalFeasibilityStatus =
@@ -356,6 +464,11 @@ export type RouteKind = 'loss' | 'gain';
 
 /** Per-goal answer of the fastest-safe-rate search (additive public API, R-TTT). */
 export interface TargetReach {
+  /** Request horizon and actual finite supported route prefix; absent legacy coverage cannot witness a numeric horizon. */
+  requestedHorizonDays?: number;
+  coveredDays?: number;
+  /** True only after a supported route (or explicit simulated maintenance continuation) covers the full request. */
+  completeHorizon?: boolean;
   /** Index in `request.goals`. */
   goal: number;
   metric: MetricId;
@@ -381,6 +494,8 @@ export interface TargetReach {
   ratePerWeek: number;
   /** Plain-language sentence (the planner's time-to-target text uses the same one). */
   text: string;
+  /** C6/D4-08: a canonical reference route estimate under the model, not a fastest guaranteed personal date. */
+  outcome?: SearchOutcome;
 }
 
 export interface GoalFeasibility {
@@ -416,6 +531,11 @@ export interface GoalFeasibility {
    */
   reach?: TargetReach;
   text: string;
+  /**
+   * C6/D4-08: finite-search outcome with budget/seed/termination; `status: 'unattainable'` from a legacy artifact reads as
+   * `notFoundWithinBudget` unless a stored policy proof exists (`searchOutcomeFromLegacy`).
+   */
+  outcome?: SearchOutcomeInfo;
 }
 
 export interface PlannerProgressInfo {
@@ -668,7 +788,7 @@ export interface EasyProof {
 }
 export interface LadderInfo {
   /** `detail`: the numbers of the failing check (machine-readable; never rendered); `carried`: a carried rung failed. */
-  collapsed: Array<{ rung: RungId; reason: LadderCollapseReason; text: string; detail?: Record<string, number>; carried?: boolean }>;
+  collapsed: Array<{ rung: RungId; reason: LadderCollapseReason; text: string; detail?: Record<string, number>; carried?: boolean; outcome?: SearchOutcome }>;
   /** Present when the dedicated Easy search ran and found no Easy (§12.2). */
   easyProof?: EasyProof | null;
   checks: { dHM: number; dME: number; gowerMin: number; ordered: boolean };
@@ -719,6 +839,13 @@ export interface PlannerResultV2 {
     holdoutGap: number[];
     difficultyWeights: number[];
     checkpointKey?: string;
+    /** D4-09: versioned production comparison policy (stage, chance-repair and rung comparisons) and its fingerprint. */
+    policyVersion?: number;
+    policyFingerprint?: string;
+    /** C7: contract fingerprint the run was computed under. */
+    contracts?: string;
+    /** D4-03: the reserved safety-audit stream (size M = selection-ensemble size of the tier). */
+    safetyAudit?: { M: number; seed: string };
   };
 }
 

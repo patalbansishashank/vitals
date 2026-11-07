@@ -90,7 +90,7 @@ export function stageLayout(i: StageLayoutInput): StageLayout {
   };
 }
 
-/** Rough width of a string set in Archivo at 11 px (condensed digits, normal letters). */
+/** Rough width of a string set in Inter at 11 px (tabular digits run a little wider than its letters). */
 export function textWidthPx(text: string, px = MIN_TEXT_PX): number {
-  return text.length * px * 0.56;
+  return text.length * px * 0.6;
 }

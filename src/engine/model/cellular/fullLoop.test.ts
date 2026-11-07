@@ -91,9 +91,16 @@ describe('08 §4.10 illustrative daily patterns through the full engine (120 g p
   const tre20 = run([16, 19.5]);
   const omad = run([18]);
 
-  it('daily peaks within ±5 of the table (3 meals 26, 16:8 28, 18:6 30, 20:4 32, one meal 36)', () => {
-    // measured 24.2, 30.0, 32.2, 35.4, 37.8
-    for (const [r, target] of [[threeMeals, 26], [tre16, 28], [tre18, 30], [tre20, 32], [omad, 36]] as const) expect(Math.abs(r.peak - target)).toBeLessThanOrEqual(5);
+  it('daily peaks within ±5 of the table (3 meals 26, 16:8 28, 18:6 30, one meal 36)', () => {
+    // measured (ASI definition v2, D2-03: ketone term weight 0, clock and glycogen weights renormalised) 25.1, 31.7, 34.3,
+    // 40.9; v1 measured 24.2, 30.0, 32.2, 37.8
+    for (const [r, target] of [[threeMeals, 26], [tre16, 28], [tre18, 30], [omad, 36]] as const) expect(Math.abs(r.peak - target)).toBeLessThanOrEqual(5);
+  });
+
+  // MISS since ASI v2 (D2-03 design abstention on the ketone term): the 20:4 peak measures 38.1 (v1 35.4) vs the
+  // dossier's placeholder-kernel 32; kept as a known miss, never loosened.
+  it.fails('20:4 daily peak within ±5 of the table (32)', () => {
+    expect(Math.abs(tre20.peak - 32)).toBeLessThanOrEqual(5);
   });
 
   it('the daily mean rises as the eating window shortens (12 h < 16:8 < 18:6 < 20:4 < one meal)', () => {

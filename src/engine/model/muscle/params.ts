@@ -105,7 +105,7 @@ export const MUSCLE_PARAMS: readonly ParamDef[] = [
   f('fFastHV', 0.95, '1', 'C', HENSELMANS, '09 §4.1, §4.12', 'proposed-fit', 'multiplier on sets beyond fastHVSets per region in one session when glycogen-depleted'),
   f('fastHVSets', 10, 'sets', 'C', HENSELMANS, '09 §4.1', 'proposed-fit'),
   f('fastHVGlycogenRel', 0.5, 'rel', 'C', SPEC, 'MODEL_SPEC §1.9 step 1', 'proposed-fit', 'glycogen-depleted = muscleGlycogenRel below this'),
-  f('fConc', 1.0, '1', 'A', SCHUMANN, '09 §4.12', 'verified', 'concurrent aerobic training: no hypertrophy interference (SMD −0.01)'),
+  f('fConc', 1.0, '1', 'A', SCHUMANN, '09 §4.12', 'verified', 'concurrent aerobic training: no hypertrophy interference on average (pooled SMD −0.01). D3-03: kept at 1 by default; power or high-demand goals get qualitative spacing guidance, never a per-session penalty converted from a pooled SMD'),
 
   // ---------------------------------------------------------------- 09 §4.2-4.3 volume and frequency
   f('beta', 0.01768, '1', 'A', PELLAND, '09 §4.2', 'proposed-fit', 'G(V) = exp(β(√(V+1) − 1)) − 1, our fit of the published table'),
@@ -136,6 +136,11 @@ export const MUSCLE_PARAMS: readonly ParamDef[] = [
   p('dFfmiPotM', 6.0, 'kg/m2', 5, 7, 'D', KOURI, '09 §4.6', 'proposed-fit'),
   p('dFfmiPotF', 4.3, 'kg/m2', 3.3, 5.3, 'D', KOURI, '09 §4.6', 'proposed-fit'),
   f('ts0YearRate', 0.47, '1/y', 'C', BENITO, '09 §4.6', 'proposed-fit', 'TS₀ = 1 − exp(−0.47·Y_eff)'),
+  p('growthScenarioUnknown', 0, '1', 0, 1, 'D', `${SPEC}; MODEL_SPEC D3-05 (2026-10-18)`, '09 §4.6, §4.9', 'proposed-fit', {
+    draw: 'fixed',
+    label: 'growth scenario when the training growth state is unknown (0 stable reference, 1 progress)',
+    note: "D3-05: a habitual lifter whose growth state is unknown keeps the numerical burn-in anchor (accretion = max(0, B − B_ref), scenario 'stable', labelled growthBurnInAnchor — a numerical baseline, not a measured plateau); 1 selects the competing 'progress' scenario (accretion = B with the existing state caps). No mixture probability is invented. A stated 'plateaued' state uses the reference; 'progressing'/'resuming' use the progress scenario.",
+  }),
   f('ts0Cap', 0.95, '1', 'D', KOURI, '09 §4.6', 'proposed-fit', 'cap of the FFMI route and the responder rescaling'),
   f('tsCap', 0.98, '1', 'D', KOURI, '09 §4.9', 'proposed-fit'),
   f('histYearsLt1', 0.5, 'y', 'D', HABITS, 'MODEL_SPEC §1.9 (TS₀)', 'proposed-fit', "Y_eff of the habits bucket '< 1 y' when no training years are entered (the UI's representative value)"),
@@ -165,22 +170,25 @@ export const MUSCLE_PARAMS: readonly ParamDef[] = [
   f('smFrac', 0.7, '1', 'C', BENITO, '09 §4.9', 'proposed-fit', 'skeletal-muscle share of training-attributable FFM (SMM 1.11 / FFM 1.56 kg)'),
 
   // ---------------------------------------------------------------- 09 §4.10 detraining and memory
-  f('vMaintYoung', 3, 'sets/wk', 'C', BICKEL, '09 §4.10', 'unverified', 'age ≤ 50 (absolute sets our reading of the protocol)'),
+  f('vMaintYoung', 3, 'sets/wk', 'C', BICKEL, '09 §4.10', 'unverified', 'age ≤ 50 (absolute sets our reading of the protocol). D3-06: a maintenance-scenario prior — Bickel supports relative reductions (1/3, 1/9 of the prior dose) with effort maintained, not universal 3/9/10-set thresholds or a no-loss guarantee'),
   f('vMaint70', 9, 'sets/wk', 'C', BICKEL, '09 §4.10', 'proposed-fit', 'at age 70 (linear from 50)'),
   f('vMaintOld', 10, 'sets/wk', 'C', BICKEL, '09 §4.10', 'proposed-fit', 'above 75 (linear 70 → 75 between the stated anchors)'),
   f('vMaintAgeLo', 50, 'y', 'C', BICKEL, '09 §4.10', 'proposed-fit'),
   f('vMaintAgeMid', 70, 'y', 'C', BICKEL, '09 §4.10', 'proposed-fit'),
   f('vMaintAgeHi', 75, 'y', 'C', BICKEL, '09 §4.10', 'proposed-fit'),
-  f('detrainOnsetD', 14, 'd', 'B', DETRAIN, '09 §4.10', 'proposed-fit', 'λ = clamp((T − onset)/ramp, 0, 1)'),
+  f('detrainOnsetD', 14, 'd', 'B', DETRAIN, '09 §4.10', 'proposed-fit', 'λ = clamp((T − onset)/ramp, 0, 1); a design ramp of the legacy detraining kinetics (D3-06: uncertain scenario, not a hard no-loss window)'),
   f('detrainRampD', 14, 'd', 'B', DETRAIN, '09 §4.10', 'proposed-fit'),
   p('tauD', 70, 'd', 42, 140, 'C', DETRAIN, '09 §4.10', 'proposed-fit', { label: 'detraining time constant' }),
-  p('kMem', 1.3, '1', 1.0, 1.3, 'C', MEMORY, '09 §4.10', 'proposed-fit', {
-    note: "ruling R-REGAIN (2026-10-01): retraining after detraining at 09's pace with its ×1.3 memory boost (supersedes R-MEM's conservative 1.0, now the registry low; Psilander 2019 found no retraining advantage after 10 wk of training, hence grade C)",
+  p('kMem', 1.0, '1', 1.0, 1.3, 'C', MEMORY, '09 §4.10', 'proposed-fit', {
+    draw: 'fixed',
+    label: 'retraining (muscle-memory) multiplier below the previous peak',
+    note: "D3-06 (2026-10-18): central value 1 = neutral memory; 1.3 (the range high, ruling R-REGAIN / 09's ×1.3) is the named faster-regain scenario, set by override and never drawn. It scales regrowth propensity below the attained peak only — never retained mass, never energy-free gain (regain energy is booked through composition). Myonuclei may persist after fibre loss (Cumming 2024) without a clear group retraining advantage (Psilander 2019), hence scenario, not fact.",
   }),
-  f('memThreshold', 0.95, '1', 'C', MEMORY, '09 §4.10', 'proposed-fit', 'boost while M_acc < memThreshold·M_peak'),
-  p('detrainFloorFrac', 0.5, '1', 0.3, 0.7, 'C', MYONUCLEI, '09 §4.10; MODEL_SPEC §1.9 R-DETRAIN', 'proposed-fit', {
-    label: 'retained share of long-term trained gains',
-    note: 'ruling R-DETRAIN (release check 2026-10-01): detraining decays towards a floor, not to zero — a habitual lifter keeps this share of the trained gains held at t = 0 (myonuclear / epigenetic "muscle memory", 09 §4.10 [68, 70, 71]; [69] finds myonuclei not permanent in human atrophy, hence grade C). Gains accrued inside a run are not covered (Psilander 2019: 10-wk gains back to baseline after 20 wk)',
+  f('memThreshold', 0.95, '1', 'C', MEMORY, '09 §4.10', 'proposed-fit', 'boost while M_acc < memThreshold·M_peak (scenario kMem > 1 only)'),
+  p('detrainFloorFrac', 0, '1', 0, 0.7, 'C', MYONUCLEI, '09 §4.10; MODEL_SPEC §1.9 R-DETRAIN', 'proposed-fit', {
+    draw: 'fixed',
+    label: 'retained share of attained trained gains (research scenario)',
+    note: 'D3-06 (2026-10-18): central value 0 — no guaranteed permanent trained-gain floor. The untrained, FFMI-derived set-point (mBase) is never detrained by this module (composition owns disuse/illness catabolism); trained gains detrain at 09 §4.10 kinetics wherever they were accrued. 0.5 (legacy ruling R-DETRAIN) and 0.3-0.7 are research scenarios set by override, never drawn; a nonzero floor follows the attained peak (history), never the run origin. Myonuclear/epigenetic retention is not retained contractile kg (Cumming 2024; Rahmati 2022 counter-evidence).',
   }),
   f('detrainEventWindowD', 56, 'd', 'C', SPEC, 'MODEL_SPEC §1.9 / §7.1', 'proposed-fit', 'detrainingOnset only for regions trained in the last 8 weeks'),
 
@@ -217,8 +225,13 @@ export const MUSCLE_PARAMS: readonly ParamDef[] = [
   f('pLow', 0.8, 'g/kg/d', 'B', MORTON, '09 §4.8', 'proposed-fit', 'protein below which f_P = fP0 (≈ RDA)'),
   f('pPlateau', 1.6, 'g/kg/d', 'A', MORTON, '09 §4.8', 'proposed-fit', 'Morton breakpoint 1.62 g/kg/d (95 % CI 1.03-2.20); f_P = 1 above'),
 
-  // ---------------------------------------------------------------- 03 §4.8 distribution efficiency E_dist (daily formula)
-  f('eDistMealPenalty', 0.06, '1', 'C', DIST, '03 §4.8', 'proposed-fit'),
+  // ---------------------------------------------------------------- 03 §4.8 distribution efficiency E_dist (D3-04: research sensitivity only)
+  p('eDistMode', 0, '1', 0, 1, 'D', `${DIST}; MODEL_SPEC D3-04 (2026-10-18)`, '03 §4.8', 'proposed-fit', {
+    draw: 'fixed',
+    label: 'meal-distribution efficiency mode (0 neutral, 1 legacy research curve)',
+    note: 'D3-04: production E_dist = 1 for the nominal run and every draw — an explicit neutral design choice, not proof that timing has no effect. 1 selects the legacy curve clip(1 − 0.06·(3 − n_eff) − 0.05·shortWindow, 0.83, 1) as a named research sensitivity. Burn-in (B_ref) and future accretion use the same mode, so neutralising timing creates no artificial accretion. Daily total protein (f_P) stays the primary pathway; protein-at-meals is practical guidance, never a predicted muscle loss.',
+  }),
+  f('eDistMealPenalty', 0.06, '1', 'C', DIST, '03 §4.8', 'proposed-fit', 'legacy research curve only (eDistMode 1)'),
   f('eDistWindowPenalty', 0.05, '1', 'C', DIST, '03 §4.8', 'proposed-fit'),
   f('eDistMealThresh', 0.28, 'g/kg FFM', 'C', DIST, '03 §4.8', 'proposed-fit'),
   f('eDistAgeSlope', 0.8, '1', 'C', DIST, '03 §4.8', 'proposed-fit'),

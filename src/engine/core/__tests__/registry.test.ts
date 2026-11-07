@@ -1,5 +1,7 @@
 // @vitest-environment node
-import { buildModelParams, sampleParams, validateParamDefs, withOverrides, param, quantilesToParams, variableParamCount } from '../paramsRegistry';
+import { buildModelParams, drawKindOf, sampleParams, validateParamDefs, withOverrides, param, quantilesToParams, variableParamCount } from '../paramsRegistry';
+import { MODULES } from '../moduleRegistry';
+import { bandMetaFor } from '@/lib/bodyContracts';
 import { defineModule } from '../moduleKit';
 import { mmRemaining, gamma2Mass, gamma2HourMean, lambertW0 } from '../math';
 import { runEngine } from '../loop';
@@ -106,3 +108,109 @@ describe('recorder aggregation', () => {
     expect(r.hourly.autophagyIdx![30]).toBe(6);
   });
 });
+
+// ---------------------------------------------------------------- D8-02: draw semantics, structural modes, correlation
+
+describe('D8-02 draw semantics', () => {
+  const selector = (draw: ParamDef['draw']): ParamDef => ({
+    id: 'energy.tailQuantile',
+    value: 0.5,
+    unit: '1',
+    low: 0,
+    high: 1,
+    grade: 'C',
+    source: 'design mixture',
+    dossier: '13 §4.10',
+    draw,
+    distribution: { uncertaintyKind: 'heuristic', bounds: 'support', nominal: 'designPoint', basis: 'design mixture fraction', version: 1, label: 'designPrior' },
+  });
+  /** Share of draws in the designed heavy-tail region u > 1 − 0.25 (the module's selector rule). */
+  const tailShare = (draw: ParamDef['draw'], n: number, method: 'lhs' | 'independent' = 'lhs'): number => {
+    const v = sampleParams([selector(draw)], { count: n, seed: 7, method });
+    return v.filter((x) => x[0]! > 0.75).length / n;
+  };
+
+  it('a uniform latent selector gives the designed 25 % mixture; a triangular one only 12.5 % (counter-fixture)', () => {
+    // fine LHS grid: exactly one draw per 1/n stratum → the designed mass, not a population incidence
+    expect(tailShare('uniform', 4000)).toBeCloseTo(0.25, 3);
+    // independent uniforms: binomial SD ≈ 0.003 at n = 20 000 (4 SD tolerance)
+    expect(Math.abs(tailShare('uniform', 20000, 'independent') - 0.25)).toBeLessThan(0.012);
+    // triangular(0, .5, 1): P(U > .75) = .125 — the bug the uniform draw fixes
+    expect(tailShare('tri', 4000)).toBeCloseTo(0.125, 2);
+    // the nominal run sits at the design point: the ordinary branch
+    expect(buildModelParams([defineModule<object>({ id: 'energy', specSection: 't', dossiers: 't', params: [selector('uniform')], reads: [], writes: [], records: [], init: () => ({}) }) as unknown as AnyEngineModule]).values[0]).toBe(0.5);
+  });
+
+  it('declared support is the support of the draw, not its P10/P90 (known triangular fixture)', () => {
+    const tri = P[0]!; // triangular(0.05, 0.14, 0.4)
+    const v = sampleParams([tri], { count: 2000, seed: 11 }).map((x) => x[0]!).sort((a, b) => a - b);
+    expect(v[0]!).toBeGreaterThanOrEqual(0.05);
+    expect(v[v.length - 1]!).toBeLessThanOrEqual(0.4);
+    // empirical P10/P90 lie strictly inside the support and match the analytic triangular quantiles
+    const q = (p: number) => v[Math.floor(p * (v.length - 1))]!;
+    const triInv = (u: number, a: number, c: number, b: number) => (u < (c - a) / (b - a) ? a + Math.sqrt(u * (b - a) * (c - a)) : b - Math.sqrt((1 - u) * (b - a) * (b - c)));
+    expect(q(0.1)).toBeCloseTo(triInv(0.1, 0.05, 0.14, 0.4), 2);
+    expect(q(0.9)).toBeCloseTo(triInv(0.9, 0.05, 0.14, 0.4), 2);
+    expect(q(0.1)).toBeGreaterThan(0.05 + 0.02);
+    expect(q(0.9)).toBeLessThan(0.4 - 0.05);
+    // metadata that calls the support "quantiles" is rejected
+    const mislabelled: ParamDef = { ...tri, distribution: { uncertaintyKind: 'parameterSensitivity', bounds: 'quantiles', nominal: 'mode', basis: 'between-study range', version: 1 } };
+    expect(validateParamDefs([moduleOf([mislabelled])]).map((i) => i.problem).join(';')).toMatch(/quantiles/);
+  });
+
+  it('changing the draw kind, distribution metadata or correlation group changes the registry fingerprint', () => {
+    const h = (defs: ParamDef[]) => buildModelParams([moduleOf(defs)]).registryHash;
+    const base = h([selector('uniform')]);
+    expect(h([selector('tri')])).not.toBe(base);
+    const meta = selector('uniform').distribution!;
+    expect(h([{ ...selector('uniform'), distribution: { ...meta, version: 2 } }])).not.toBe(base);
+    expect(h([{ ...selector('uniform'), distribution: { ...meta, correlationGroup: 'g1' } }])).not.toBe(base);
+    expect(h([selector('uniform')])).toBe(base);
+  });
+
+  it('no draw or band claims calibrated predictive coverage without an independent outcome evaluation', () => {
+    const claim: ParamDef = { ...P[0]!, distribution: { uncertaintyKind: 'calibratedPrediction', bounds: 'support', nominal: 'mode', basis: 'fitted to the same trajectories', version: 1 } };
+    expect(validateParamDefs([moduleOf([claim])]).map((i) => i.problem).join(';')).toMatch(/empirical/);
+    for (const m of ['draws', 'fallback', 'none'] as const) for (const n of [0, 1, 32]) expect(bandMetaFor(m, n).coverage).not.toBe('heldOutValidated');
+  });
+
+  it('a uniform design-point selector is a latent quantile on [0, 1] with nominal 0.5', () => {
+    const offGrid: ParamDef = { ...selector('uniform'), low: 0.1 };
+    expect(validateParamDefs([moduleOf([offGrid])]).map((i) => i.problem).join(';')).toMatch(/latent quantile/);
+    expect(validateParamDefs([moduleOf([selector('uniform')])])).toEqual([]);
+  });
+
+  it('a correlation group shares one latent quantile per member; ungrouped draws are unchanged', () => {
+    const g = (id: string, low: number, value: number, high: number): ParamDef => ({
+      id, value, unit: '1', low, high, grade: 'C', source: 's', dossier: 'd',
+      distribution: { uncertaintyKind: 'parameterSensitivity', bounds: 'support', nominal: 'mode', basis: 'between-study range', version: 1, correlationGroup: 'pair' },
+    });
+    const a = g('energy.a', 0, 0.5, 1);
+    const b = g('energy.b', 10, 20, 40);
+    const draws = sampleParams([a, P[0]!, b], { count: 64, seed: 5 });
+    for (const v of draws) expect(triCdf(v[2]!, 10, 20, 40)).toBeCloseTo(triCdf(v[0]!, 0, 0.5, 1), 9);
+    // the ungrouped parameter draws exactly as it did without the group declaration
+    const plain = sampleParams([{ ...a, distribution: undefined }, P[0]!], { count: 64, seed: 5 });
+    expect(draws.map((v) => v[1])).toEqual(plain.map((v) => v[1]));
+    // planner quantile rows keep their dimension; the second member follows the first
+    const row = quantilesToParams([a, b], [0.3, 0.9]);
+    expect(triCdf(row[1]!, 10, 20, 40)).toBeCloseTo(0.3, 9);
+    expect(variableParamCount([a, b])).toBe(2);
+  });
+});
+
+describe('D8-02 production registry: the keto-induction tail selector', () => {
+  it('draws the latent quantile uniformly, so the designed 25 % heavy branch is selected by 25 % of LHS members (no manual q)', () => {
+    const { defs, index } = buildModelParams(MODULES);
+    const i = index.get('wellbeing.ketoHeavyTailQuantile')!;
+    const frac = defs[index.get('wellbeing.ketoHeavyTailFraction')!]!.value;
+    expect(drawKindOf(defs[i]!)).toBe('uniform');
+    expect(defs[i]!.value).toBe(0.5); // nominal design point: the ordinary branch
+    const v = sampleParams(defs, { count: 400, seed: 12 });
+    expect(v.filter((x) => x[i]! > 1 - frac).length / 400).toBeCloseTo(frac, 9);
+  });
+});
+
+function moduleOf(params: ParamDef[]): AnyEngineModule {
+  return defineModule<object>({ id: 'energy', specSection: 't', dossiers: 't', params, reads: [], writes: [], records: [], init: () => ({}) }) as unknown as AnyEngineModule;
+}

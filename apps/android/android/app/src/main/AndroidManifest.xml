@@ -1,63 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permissions (SUITE_SPEC §15.7). The bluetooth-le plugin declares some of these too; tools:node fixes the merge
-         so the final manifest has exactly one BLUETOOTH_SCAN, with neverForLocation, and location only below Android 12. -->
+    <!-- Permissions (SUITE_SPEC §15.7): the network, the camera for the QR scanner, and app updates from the home
+         server (vitals-research/ota/CONTRACT.md). -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:node="replace"
-        tools:targetApi="s" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <!-- Android 8–11: the old Bluetooth permissions and location for BLE scanning. The bluetooth-le plugin asks for
-         both fine and coarse location there and refuses to start unless both are granted. -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30"
-        tools:node="replace" />
-    <uses-permission
-        android:name="android.permission.ACCESS_COARSE_LOCATION"
-        android:maxSdkVersion="30"
-        tools:node="replace" />
-
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- RingTick: the CPU stays awake only while the ring is read with the screen off. -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- "Android may pause Vitals in the background. Allow": the system's own allow-list dialog. -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Updates: no APK download over 30 MB on a metered network unless the owner taps. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Updates: the owner taps "Update ready" and the system's own confirmation asks once more (OtaInstall, an install
+         session); never a silent install. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- QR scanner in the web layer (getUserMedia). -->
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <uses-feature
-        android:name="android.hardware.bluetooth"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.bluetooth_le"
-        android:required="false" />
-    <uses-feature
-        android:name="android.hardware.location"
-        android:required="false" />
+    <!-- Gauge's workout control on this phone (energy SPEC §A.4 item 10): start, pause, resume and stop a recording
+         through Gauge's permission-protected broadcast API. Dangerous protection level: requested at runtime for the
+         Gauge that is installed. The result receiver is created in code (VitalsGaugePlugin), never declared here. -->
+    <uses-permission android:name="com.pulseloop.permission.CONTROL_WORKOUT" />
+    <uses-permission android:name="com.pulseloop.debug.permission.CONTROL_WORKOUT" />
+
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
+
+    <!-- Package visibility (Android 11+): Vitals looks for Gauge only, the release and the debug build. -->
+    <queries>
+        <package android:name="com.pulseloop" />
+        <package android:name="com.pulseloop.debug" />
+    </queries>
 
     <!-- No backup of any kind: the WebView storage holds the health database, the sync words and the server pairing.
          allowBackup off; fullBackupContent off for Android 8–11; data_extraction_rules excludes everything from cloud
          backup and device transfer on Android 12+. -->
     <application
+        android:name=".VitalsApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -70,48 +46,16 @@
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"
+            android:screenOrientation="portrait"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:windowSoftInputMode="adjustResize"
             android:launchMode="singleTask"
             android:exported="true">
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-            <!-- "Share to Vitals": the formats bio.import reads (SUITE_SPEC §15.7). -->
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="application/json" />
-                <data android:mimeType="application/zip" />
-                <data android:mimeType="application/x-zip-compressed" />
-                <data android:mimeType="text/csv" />
-                <data android:mimeType="text/comma-separated-values" />
-                <data android:mimeType="text/xml" />
-                <data android:mimeType="application/xml" />
-                <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/gpx+xml" />
-                <data android:mimeType="application/vnd.garmin.tcx+xml" />
-                <data android:mimeType="application/pdf" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="content" />
-                <data android:mimeType="application/json" />
-                <data android:mimeType="application/zip" />
-                <data android:mimeType="application/x-zip-compressed" />
-                <data android:mimeType="text/csv" />
-                <data android:mimeType="text/comma-separated-values" />
-                <data android:mimeType="text/xml" />
-                <data android:mimeType="application/xml" />
-                <data android:mimeType="application/octet-stream" />
-                <data android:mimeType="application/gpx+xml" />
-                <data android:mimeType="application/vnd.garmin.tcx+xml" />
-                <data android:mimeType="application/pdf" />
             </intent-filter>
 
             <!-- App Link: a server pairing link (https://vitals.creative.desi/settings…) opens the app's own Settings
@@ -127,25 +71,105 @@
 
         </activity>
 
-        <!-- Keeps the process (and the WebView that holds the ring link) alive with a persistent notification. -->
-        <service
-            android:name=".RingLinkService"
+        <!-- Home-screen widgets (0.6.6, r071): the Today glance, Heart rate (the class that was Ring), the Log / Record keys,
+             the one-tap Log, and one provider per card (Energy, Sleep, Steps, Weight). App-widget providers only: not
+             exported (the system's widget host reaches them), home screen only, drawn from the snapshot the app publishes
+             (VitalsWidgetsPlugin); no service, no network. A provider's class name never changes: renaming or removing
+             one deletes the widgets placed from it. -->
+        <receiver
+            android:name=".widgets.TodayWidgetProvider"
             android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
-
-        <!-- RingTick's alarm: wakes the phone to read the ring while the service runs. -->
-        <receiver
-            android:name=".RingTickReceiver"
-            android:exported="false" />
-
-        <!-- After a restart or an update: a quiet "Tap to connect your ring" notification when prefs say so. -->
-        <receiver
-            android:name=".BootReceiver"
-            android:exported="false">
+            android:label="@string/widget_today_label">
             <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.RingWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_ring_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_ring_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.ActionsWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_actions_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_actions_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.LogWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_log_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_log_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.EnergyWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_energy_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_energy_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.SleepWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_sleep_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_sleep_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.StepsWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_steps_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_steps_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widgets.WeightWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_weight_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_weight_info" />
         </receiver>
 
         <provider

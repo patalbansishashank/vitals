@@ -18,7 +18,10 @@ import { checkLiveness } from '../../audit/liveness';
  *    in a 20 % deficit): the higher thermic effect of protein deepens the real deficit, which costs more lean tissue than
  *    the protein spares (the research notes expect protein to spare lean tissue in a deficit). The catalogue's protein
  *    items inherit it through the same channel;
- *  - a 10-20 % surplus raises the autophagy signal for one probe person and lowers it for another.
+ *  - a 10-20 % surplus raises the autophagy signal for one probe person and lowers it for another;
+ *  - (D2-01, 2026-10-18) a 24-h fast lowers muscle glycogen for some probe persons and not others: the fasting overlay now
+ *    follows observed rolling-24-h intake only (the planned-span switch that read the fast's future length was removed),
+ *    so a dinner-to-dinner 24-h fast barely engages the fasting drain and the meal around it can outweigh it.
  */
 const KNOWN_LIVENESS: Readonly<Record<string, string>> = {
   'protein>protein>leanTissue': 'wrongSign',
@@ -29,6 +32,8 @@ const KNOWN_LIVENESS: Readonly<Record<string, string>> = {
   'plant_protein>LBM/strength vs whey with RT>strength': 'wrongSign',
   'casein_presleep>chronic hypertrophy>skeletalMuscle': 'wrongSign',
   'B21>energyIntake>autophagyIdx': 'mixed',
+  'B13>zeroIntake>muscleGlycogen': 'mixed',
+  'fastDay24>zeroIntake>muscleGlycogen': 'mixed',
 };
 
 /** Sources whose edges no probe can switch: catalogue-only levers, the by-construction rule, the expert tier, caffeine and electrolyte items. */
@@ -72,6 +77,7 @@ describe('check 3: goal evaluator completeness', () => {
 
   it('planner-mode and Simulator-mode goal values agree on 50 random plans (1e-9 relative)', { timeout: 300_000 }, () => {
     const r = plannerVsSimulator(50);
+    // D4-05: glycaemia and blood-pressure goals carry a change target in the audit (`auditGoal`), so every goal compiles
     expect(r.compared).toBe(150);
     expect(r.diffs).toEqual([]);
   });

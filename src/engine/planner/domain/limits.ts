@@ -13,7 +13,9 @@
  *
  * The older form of three user limits — `safety.plannerLocks` entries `max-fast` / `protein-floor` / `carb-floor` whose
  * reasons are all `{ rule: 'user' }` — stands for `maxFastHours` / `proteinFloorGPerKg` / `carbFloorGPerDay` and is relaxed
- * with them; screening locks are never touched.
+ * with them; screening, marker, clinician and imported locks are never touched (D1-05).
+ * - `limitCostStatus`: the status a limit's cost travels with (D1-05, D1-08: no gain stated from an unsupported partition
+ *   or a model-limit run).
  */
 import { resolveProfile } from '../../core/resolveProfile';
 import type { ResolvedProfile } from '../../types/profile';
@@ -26,6 +28,8 @@ import { IDEAL_SESSION_MAX_MIN, bedClockOf, idealSleepEnvelope, sleepHoursOf } f
 import { MARGIN_IDS } from './model';
 import { HC, compileSafetyCaps } from './safety';
 import type { SkeletonStructure } from './skeleton';
+import { statusAllowsObjective, type StatusEntry } from './capabilities';
+import { worstStatus } from '@/lib/bodyContracts';
 import { LIMIT_GROUPS, type LimitBinding, type LimitGroupId, type PlannerRequest, type PracticalConstraints, type Weekday } from './types';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -52,11 +56,17 @@ const R = (field: string, cls: FieldClass = 'request'): LimitFieldDef => ({ fiel
 
 /** Every input field → class and limit group (§2.1). */
 export const LIMIT_CLASS: readonly LimitFieldDef[] = [
+  // A user's accepted biological trade-off is a value, not extra effort the Ideal may silently relax.
+  { field: 'muscleRetention', from: 'PracticalConstraints', class: 'value', group: null },
+  { field: 'maxMuscleLossPct', from: 'ConstraintDraft', class: 'value', group: null },
+  { field: 'enforceDefaultDeficitCap', from: 'PracticalConstraints', class: 'consent', group: null },
+  { field: 'experimentalTracking', from: 'PracticalConstraints', class: 'consent', group: null },
   // ---- PracticalConstraints (engine request)
   P('trainingDaysPerWeek', 'trainingDays'),
   P('allowedTrainingWeekdays', 'trainingDays'),
   P('trainingTimeH', 'sessionTime'),
   P('maxSessionMin', 'sessionTime'),
+  P('maxCardioSessionMin', 'sessionTime'),
   P('cardioDaysPerWeek', 'cardio'),
   P('cardioModality', 'cardio'),
   P('eatingWindow', 'eatingWindow'),
@@ -76,6 +86,7 @@ export const LIMIT_CLASS: readonly LimitFieldDef[] = [
   D('trainingWeekdays', 'practical', 'trainingDays'),
   D('trainingTimeH', 'practical', 'sessionTime'),
   D('maxSessionMin', 'practical', 'sessionTime'),
+  D('maxCardioSessionMin', 'practical', 'sessionTime'),
   D('cardioDays', 'practical', 'cardio'),
   D('cardioModality', 'practical', 'cardio'),
   D('earliestH', 'practical', 'eatingWindow'),
@@ -140,6 +151,8 @@ export const LIMIT_CLASS: readonly LimitFieldDef[] = [
   // E20: markers — blood-marker warnings travel with safety; prefer biases are request-level (never relaxed)
   R('markerWarnings', 'safety'),
   R('preferLevers'),
+  // D7-04: observed habitual active-ingredient exposure (what the person already takes), a request fact
+  R('habitualActives'),
 ];
 
 /** Group of a PracticalConstraints field (null for a field outside the table). */
@@ -164,7 +177,13 @@ function resolved(req: PlannerRequest): ResolvedProfile {
 /** The user-tagged (non-screening) lock form of a user limit. */
 const USER_LOCKS: Readonly<Record<string, LimitGroupId>> = { 'max-fast': 'fasting', 'protein-floor': 'foodFloors', 'carb-floor': 'foodFloors' };
 
-function isUserLock(l: { id: string; reasons?: ReadonlyArray<{ rule: string }> }): boolean {
+/**
+ * A user-tagged lock (relaxable with its limit group). D1-05/C5: a lock from a clinician, a blood marker, the screening or
+ * an import is never a user preference, whatever its reasons say — a clinician or renal protein bound (floor or cap) takes
+ * precedence over generic advice and the Ideal never relaxes it.
+ */
+function isUserLock(l: { id: string; reasons?: ReadonlyArray<{ rule: string }>; source?: string }): boolean {
+  if (l.source !== undefined && l.source !== 'user') return false;
   return USER_LOCKS[l.id] !== undefined && !!l.reasons?.length && l.reasons.every((r) => r.rule === 'user');
 }
 
@@ -180,6 +199,7 @@ interface Eff {
   weekdays: number[];
   timeH: number | null;
   sessionMin: number;
+  cardioSessionMin: number;
   cMin: number;
   cMax: number;
   modality: CardioModality | null;
@@ -220,6 +240,7 @@ function effective(req: PlannerRequest): Eff {
     weekdays: [...new Set(c.allowedTrainingWeekdays ?? [0, 1, 2, 3, 4, 5, 6])].sort((a, b) => a - b),
     timeH: all || g.includes('sessionTime') ? (c.trainingTimeH ?? null) : (c.trainingTimeH ?? 18),
     sessionMin: c.maxSessionMin ?? 90,
+    cardioSessionMin: Math.min(c.maxCardioSessionMin ?? 90, c.maxSessionMin ?? 90),
     cMin: c.cardioDaysPerWeek?.min ?? 0,
     cMax: c.cardioDaysPerWeek?.max ?? 3,
     modality: all || g.includes('cardio') ? (c.cardioModality ?? null) : (c.cardioModality ?? (hab.trainingHistory === 'none' ? 'walk' : 'cycle')),
@@ -229,8 +250,8 @@ function effective(req: PlannerRequest): Eff {
     mealsMax: c.mealsPerDay?.max ?? 4,
     stepsMin,
     stepsMax: Math.max(stepsMin, c.steps?.max ?? Math.max(12000, stepsMin)),
-    sleepFixed: all || g.includes('sleep') ? false : (c.sleepFixed ?? sleepHoursOf(hab.bedTimeH, hab.wakeTimeH) >= 7),
-    sleepH: sleepHoursOf(hab.bedTimeH, hab.wakeTimeH),
+    sleepFixed: all || g.includes('sleep') ? false : (c.sleepFixed ?? (hab.habitualSleepDurationH ?? sleepHoursOf(hab.bedTimeH, hab.wakeTimeH)) >= 7),
+    sleepH: hab.habitualSleepDurationH ?? sleepHoursOf(hab.bedTimeH, hab.wakeTimeH),
     hunger: c.hungerTolerance ?? 'medium',
     maxFastH: userFast.length ? Math.min(...userFast) : null,
     fastingNone: c.fasting === 'none',
@@ -281,11 +302,12 @@ function fieldTexts(e: Eff): FieldTexts {
     allowedTrainingWeekdays: e.weekdays.length >= 7 ? 'any day of the week' : `only on ${e.weekdays.map((d) => DAY_NAMES[d]).join(', ')}`,
     trainingTimeH: e.timeH === null ? 'the best time of your waking day' : `around ${clockText(e.timeH)}`,
     maxSessionMin: `sessions up to ${Math.round(e.sessionMin)} min`,
+    maxCardioSessionMin: `cardio sessions up to ${Math.round(e.cardioSessionMin)} min`,
     cardioDaysPerWeek: `${rangeText(e.cMin, e.cMax)} cardio ${plural(e.cMax, 'day')} a week`,
     cardioModality: e.modality === null ? 'any kind of cardio your safety settings allow' : MODALITY_WORDS[e.modality],
     eatingWindow: `meals between ${clockText(e.earliest)} and ${clockText(e.latest)}`,
     mealsPerDay: `${rangeText(e.mealsMin, e.mealsMax)} meals a day`,
-    steps: `${intText(e.stepsMin)}-${intText(e.stepsMax)} steps a day`,
+    steps: `${intText(e.stepsMin)}-${intText(e.stepsMax)} steps a day outside planned cardio`,
     sleepFixed: e.sleepFixed ? `sleep kept as it is (about ${numText(e.sleepH)} h)` : 'sleep 7-8.5 h at the same times every day',
     hungerTolerance: `${e.hunger} hunger tolerance`,
     maxFastHours: e.maxFastH === null ? `fasts up to ${Math.round(e.tierMaxH)} h (what your safety settings allow)` : `fasts up to ${Math.round(e.maxFastH)} h`,
@@ -300,7 +322,7 @@ function fieldTexts(e: Eff): FieldTexts {
 
 const GROUP_FIELDS: Readonly<Record<LimitGroupId, ReadonlyArray<keyof FieldTexts>>> = {
   trainingDays: ['trainingDaysPerWeek', 'allowedTrainingWeekdays'],
-  sessionTime: ['maxSessionMin', 'trainingTimeH'],
+  sessionTime: ['maxSessionMin', 'maxCardioSessionMin', 'trainingTimeH'],
   cardio: ['cardioDaysPerWeek', 'cardioModality'],
   eatingWindow: ['eatingWindow', 'mealsPerDay'],
   steps: ['steps'],
@@ -347,6 +369,7 @@ function relaxCore<R extends PlannerRequest>(req: R, groups: readonly LimitGroup
   if (set.has('sessionTime')) {
     delete c.trainingTimeH;
     c.maxSessionMin = Math.max(IDEAL_SESSION_MAX_MIN, c.maxSessionMin ?? 0);
+    c.maxCardioSessionMin = 90;
   }
   if (set.has('cardio')) {
     c.cardioDaysPerWeek = { min: 0, max: IDEAL_DAYS.cardio };
@@ -428,7 +451,7 @@ export const LIMIT_LABELS: Readonly<Record<LimitGroupId, string>> = {
   sessionTime: 'Session length and time',
   cardio: 'Cardio',
   eatingWindow: 'Eating window',
-  steps: 'Daily steps',
+  steps: 'Steps outside cardio',
   sleep: 'Sleep',
   fasting: 'Fasting',
   foodFloors: 'Food minimums',
@@ -442,7 +465,7 @@ function groupSummary(group: LimitGroupId, e: Eff): string {
     case 'trainingDays':
       return `${e.rtMax} training ${plural(e.rtMax, 'day')} a week${e.weekdays.length < 7 ? ` (${t.allowedTrainingWeekdays})` : ''}${e.novice && e.rtMax > 3 ? ', 3 while you are new to training' : ''}`;
     case 'sessionTime':
-      return `${t.maxSessionMin}, ${e.timeH === null ? 'at the best time of day' : `around ${clockText(e.timeH)}`}`;
+      return `${t.maxSessionMin}${e.cardioSessionMin < e.sessionMin ? `, ${t.maxCardioSessionMin}` : ''}, ${e.timeH === null ? 'at the best time of day' : `around ${clockText(e.timeH)}`}`;
     case 'cardio':
       return `${e.cMax} cardio ${plural(e.cMax, 'day')} a week, ${e.modality === null ? 'any kind allowed' : MODALITY_WORDS[e.modality]}`;
     case 'eatingWindow':
@@ -480,7 +503,7 @@ export function limitText(group: LimitGroupId, req: PlannerRequest, relaxedReq: 
       adopt = { trainingDaysPerWeek: { min: b.rtMin, max: b.rtMax }, allowedTrainingWeekdays: b.weekdays as Weekday[] };
       break;
     case 'sessionTime':
-      adopt = { maxSessionMin: b.sessionMin };
+      adopt = { maxSessionMin: b.sessionMin, maxCardioSessionMin: b.cardioSessionMin };
       break;
     case 'cardio':
       adopt = { cardioDaysPerWeek: { min: b.cMin, max: b.cMax } };
@@ -519,6 +542,7 @@ export function limitText(group: LimitGroupId, req: PlannerRequest, relaxedReq: 
 const RULE_GROUP: Readonly<Record<string, LimitGroupId>> = {
   'user.trainingWeekdays': 'trainingDays',
   'user.maxSessionMin': 'sessionTime',
+  'user.maxCardioSessionMin': 'sessionTime',
   'user.eatingWindow': 'eatingWindow',
   'user.meals': 'eatingWindow',
   'user.excluded': 'fasting',
@@ -597,10 +621,10 @@ export function bindingLimits(
     if (p.rtDays.max > 0 && p.rtDays.max < rtIdealMax && (at('rt.sessions', 'hi', p.rtDays.max) || (structure.geneIndex['rt.sessions'] === undefined && plan.lifestyle.rtSessions >= p.rtDays.max))) bump('trainingDays', 1);
     if (p.cardioDays.max < IDEAL_DAYS.cardio && at('cardio.sessions', 'hi', p.cardioDays.max)) bump('cardio', 1);
     if (p.maxSessionMin < IDEAL_SESSION_MAX_MIN) {
-      if (at('cardio.minutes', 'hi', Math.min(90, p.maxSessionMin))) bump('sessionTime', 1);
       const si = structure.geneIndex['rt.sets'];
       if (si !== undefined && plan.values[si]! >= plan.ranges[2 * si + 1]! - BINDING.geneTol * (structure.genes[si]!.max - structure.genes[si]!.min) && plan.ranges[2 * si + 1]! < structure.genes[si]!.max - 1e-6) bump('sessionTime', 1);
     }
+    if (p.maxCardioSessionMin < 90 && at('cardio.minutes', 'hi', p.maxCardioSessionMin)) bump('sessionTime', 1);
     const ideal = effective(idealRequest(req).request);
     if (p.earliestH > ideal.earliest + 1e-6 && at('window.startH', 'lo', p.earliestH)) bump('eatingWindow', 1);
     if (p.latestH < ideal.latest - 1e-6) {
@@ -629,6 +653,26 @@ export function bindingLimits(
     out.push({ group: g, label: LIMIT_LABELS[g], share: sh, text });
   }
   return out.sort((a, b) => b.share - a.share || LIMIT_GROUPS.indexOf(a.group) - LIMIT_GROUPS.indexOf(b.group));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// what a limit's cost is worth (C6; D1-05, D1-08)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Status of a limit's cost for one goal (the Ideal or a single relaxed limit against the plan inside the limits): the
+ * difference of two forecasts is only as supported as the worse of them. A model-limit termination or an out-of-domain run
+ * on either side (D1-08) means the comparison is not a forecast; an unsupported lean partition (D1-05) or an uncertain
+ * ketogenic lipid response (D7-07) leaves a conditional scenario with no supported gain. A consumer shows the status
+ * word instead of a gain whenever `statusAllowsObjective` is false, and never ranks limits by such a gain.
+ */
+export function limitCostStatus(inside: StatusEntry, relaxed: StatusEntry): StatusEntry {
+  return worstStatus(inside.status, relaxed.status) === relaxed.status && relaxed.status !== inside.status ? relaxed : inside;
+}
+
+/** Whether a limit's cost for a goal may be stated as a number (`limitCostStatus` allows an objective). */
+export function limitCostStated(inside: StatusEntry, relaxed: StatusEntry): boolean {
+  return statusAllowsObjective(limitCostStatus(inside, relaxed).status);
 }
 
 // ---------------------------------------------------------------------------------------------------------------

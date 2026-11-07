@@ -1,18 +1,22 @@
 /**
- * The `home` role (SUITE_SPEC §14.1, §14.2, §14.5): persons, device tokens and pairing, the person workers and the MQTT
- * broker, behind one `HomeServer` that `server.ts` mounts on its HTTP server.
+ * The `home` role (SUITE_SPEC §14.1, §14.2): persons, device tokens and pairing and the person workers, behind one
+ * `HomeServer` that `server.ts` mounts on its HTTP server.
  *
  * Every authenticated route gets its person from `resolvePerson(req)` and nothing else: no person id is read from a
  * path, query, body or other header (the admin-only `person` field of `POST /v1/pair/code` is the one exception).
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import type { Duplex } from 'node:stream';
-import { createBroker, type Broker } from './broker.ts';
-import { createDeviceStore, type DeviceStore, type Principal } from './devices.ts';
-import { createIngestState, type IngestState } from './ingest.ts';
+import { COMMANDS_ALLOW_HEADERS, COMMANDS_ALLOW_METHODS, createCommandHub, type CommandHub } from './commands.ts';
+import { createDeviceStore, type DeviceStore, type Principal, type TokenKind } from './devices.ts';
+import { createGaugeRoutes, GAUGE_ALLOW_HEADERS, GAUGE_ALLOW_METHODS } from './gaugeRoutes.ts';
+import { createLumenHub, type LumenHub } from './lumen.ts';
+import type { CoachBackend } from '../coach/backends.ts';
+import type { CoachBackendName, CoachSettings } from '../coach/config.ts';
+import { isCoachTokenLabel } from '../personContext.ts';
 import type { PersonRequest, PersonResponse } from './personRpc.ts';
 import { createPersonRegistry, type PersonRegistry } from './persons.ts';
+import { createReleaseRoutes } from './releases.ts';
 import { createWorkerPool, type WorkerFactory, type WorkerPool } from './workers.ts';
 import { APP_SHELL_ORIGINS, bearerOf, createRateLimiter, hostName, HttpError, normalizeOrigin, PUBLIC_APP_ORIGIN, readJson, sendError, sendJson, type Logger } from '../security.ts';
 
@@ -33,7 +37,7 @@ export function pairingClientAddress(remoteAddress: string | undefined, forwarde
 export interface PersonContext {
   personId: string;
   deviceId: string;
-  kind: 'device' | 'agent';
+  kind: TokenKind;
   scope: string;
   worker: { call(req: PersonRequest): Promise<PersonResponse> };
   log: (line: string) => void;
@@ -46,9 +50,8 @@ export interface HomeOptions {
   allowedOrigins?: string[];
   /** Extra Host names accepted besides loopback and `*.ts.net` (`--public-host`). */
   publicHosts?: string[];
-  /** What browsers and phones use, e.g. https://host.tailnet.ts.net:8443 (address in MQTT credentials and QR codes). */
+  /** What browsers and phones use, e.g. https://host.tailnet.ts.net:8443 (the address in pairing QR codes). */
   publicOrigin?: string;
-  mqtt?: { enabled: boolean; tcp?: { host: string; port: number }; tls?: { listen: Array<{ host: string; port: number }>; certFile: string; keyFile: string } };
   workerFactory: WorkerFactory;
   /** Where person workers reach the relay of this process, asked at each worker open (loopback listener); else the person file's `relayUrl`. */
   relayUrl?: () => string | null;
@@ -59,6 +62,16 @@ export interface HomeOptions {
   rateLimit?: { capacity: number; perMinute: number };
   /** `server.json` `limits`: AI requests per minute and per day, per person. */
   ai?: { requestsPerMinute?: number; requestsPerDay?: number };
+  /** Lumen uploads (`POST /v1/lumen/events`) per minute and token (default 120), batch and size limits. */
+  lumen?: { eventsPerMinute?: number; maxBatch?: number; maxBytes?: number };
+  /** Delay before every person's `lumen.db` is opened (and migrated) after start (default 2000 ms). */
+  lumenWarmMs?: number;
+  /** `server.json` `coach` (docs/SERVER.md "Coach"); absent: `/v1/coach/*` answers that the coach is not set up. */
+  coach?: CoachSettings;
+  /** Tests: fake CLIs in place of Claude Code and Codex. */
+  coachBackends?: Partial<Record<CoachBackendName, CoachBackend>>;
+  /** `server.json` `releases` (docs/SERVER.md "Updates"): `publicInstall` (default true) serves `/install` on the tailnet. */
+  releases?: { publicInstall?: boolean };
   now?: () => number;
 }
 
@@ -66,16 +79,20 @@ export interface HomeServer {
   persons: PersonRegistry;
   devices: DeviceStore;
   pool: WorkerPool;
-  ingest: IngestState;
-  broker: Broker | null;
-  /** The single point where a request becomes a person (§14.2). Throws 401/403 as HttpError. */
-  resolvePerson(req: IncomingMessage, kinds?: Array<'device' | 'agent'>): Promise<PersonContext>;
+  /** The Gauge uploads, one `lumen.db` per person (`./lumen.ts`). */
+  lumen: LumenHub;
+  /** Commands from Vitals to Gauge, one `commands.db` per person (`./commands.ts`, energy SPEC §A.4). */
+  commands: CommandHub;
+  /**
+   * The single point where a request becomes a person (§14.2). Throws 401/403 as HttpError. Without `kinds`, device
+   * and agent tokens pass; a `lumen` token passes only where `kinds` names it (the `/v1/lumen/*` routes).
+   */
+  resolvePerson(req: IncomingMessage, kinds?: TokenKind[]): Promise<PersonContext>;
   originCheck(req: IncomingMessage): 'none' | 'allowed' | 'forbidden';
   hostAllowed(req: IncomingMessage): boolean;
-  /** Answers `/v1/pair/*`, `/v1/sync/key`, `/v1/devices*`, `/v1/mqtt/*`; false when the path is not one of them. */
+  /** Answers `/v1/pair/*`, `/v1/sync/key`, `/v1/devices*`, `/v1/lumen/*`, `/v1/gauge/*` (with the commands of `./commands.ts`), `/v1/apps/*`, `/install*`; false when the path is not one of them. */
   handle(req: IncomingMessage, res: ServerResponse, path: string, query: string): Promise<boolean>;
-  upgrade(req: IncomingMessage, socket: Duplex, head: Buffer, path: string): boolean;
-  health(): Promise<{ persons: number; mqtt: 'on' | 'off'; memoryMb: number }>;
+  health(): Promise<{ persons: number; memoryMb: number }>;
   close(): Promise<void>;
 }
 
@@ -88,18 +105,10 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
     ...(o.relayUrl ? { relayUrl: o.relayUrl } : {}),
     ...(o.idleMs ? { idleMs: o.idleMs } : {}), ...(o.maxOpenPersons ? { maxOpenPersons: o.maxOpenPersons } : {}),
   });
-  const ingest = createIngestState({ persons, ...(o.now ? { now: o.now } : {}) });
   const origins = new Set([...(o.allowedOrigins?.length ? o.allowedOrigins : [PUBLIC_APP_ORIGIN]), ...APP_SHELL_ORIGINS].map(normalizeOrigin));
   const hosts = new Set((o.publicHosts ?? []).map((h) => h.toLowerCase()));
   const limiter = createRateLimiter(o.rateLimit ?? { capacity: 30, perMinute: 120 });
   const ipLimiter = createRateLimiter({ capacity: 60, perMinute: 240 });
-  const mqttAddress = o.publicOrigin ? `${o.publicOrigin.replace(/^http/, 'ws').replace(/\/+$/, '')}/mqtt` : null;
-  const broker = o.mqtt?.enabled ? await createBroker({ ingest, pool, log, ...(o.mqtt.tcp ? { tcp: o.mqtt.tcp } : {}), ...(o.mqtt.tls ? { tls: o.mqtt.tls } : {}), ...(o.now ? { now: o.now } : {}) }) : null;
-  // acknowledged but not imported before the last stop: import before the broker takes connections (§14.5)
-  if (broker) {
-    const n = await broker.replay((await persons.list()).map((p) => p.id));
-    if (n) log(`imported ${n} broker messages left from the last run`);
-  }
   const flushTimer = setInterval(() => void devices.flush().catch(() => undefined), 60_000);
   flushTimer.unref();
 
@@ -123,17 +132,51 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
     log: (l) => log(`person ${p.personId} device ${p.deviceId}: ${l}`),
   });
 
+  const lumen = createLumenHub({
+    persons, devices, log, version: o.version,
+    resolve: (req) => home.resolvePerson(req, ['lumen']),
+    resolveDevice: (req) => home.resolvePerson(req, ['device']),
+    limitPairing: (req) => limit(`ip:${ipOf(req)}`, ipLimiter),
+    ...(o.lumen?.eventsPerMinute ? { eventsPerMinute: o.lumen.eventsPerMinute } : {}),
+    ...(o.lumen?.maxBatch ? { maxBatch: o.lumen.maxBatch } : {}),
+    ...(o.lumen?.maxBytes ? { maxBytes: o.lumen.maxBytes } : {}),
+    ...(o.now ? { now: o.now } : {}),
+  });
+
+  // commands from the person's Vitals devices to their Gauge (energy SPEC §A.4); checked before `gauge` and `lumen`,
+  // whose prefixes would otherwise swallow `/v1/gauge/commands*` and `/v1/lumen/commands*`
+  const commands = createCommandHub({
+    persons, devices, log,
+    resolveDevice: (req) => home.resolvePerson(req, ['device']),
+    resolveLumen: (req) => home.resolvePerson(req, ['lumen']),
+    ...(o.now ? { now: o.now } : {}),
+  });
+
+  // Gauge data for the person's own Vitals devices: the gauge_* tools' answers over GET (agents read them on /mcp)
+  const gauge = createGaugeRoutes({ lumen, persons, resolve: (req) => home.resolvePerson(req, ['device']) });
+  // (r063) open the Gauge stores just after start, so a schema migration never runs inside a request
+  setTimeout(() => void lumen.warm().catch(() => undefined), o.lumenWarmMs ?? 2000).unref();
+
+  // over-the-air updates: a Vitals device token sees app `vitals`, a Gauge lumen token app `gauge`; agent tokens 403
+  const releases = createReleaseRoutes({
+    dataDir: o.dataDir,
+    ...(o.releases?.publicInstall !== undefined ? { publicInstall: o.releases.publicInstall } : {}),
+    resolve: (req) => home.resolvePerson(req, ['device', 'lumen']),
+    limitAnon: (req) => limit(`ip:${ipOf(req)}`, ipLimiter),
+    log,
+  });
+
   const home: HomeServer = {
     persons,
     devices,
     pool,
-    ingest,
-    broker,
-    async resolvePerson(req, kinds) {
+    lumen,
+    commands,
+    async resolvePerson(req, kinds = ['device', 'agent']) {
       if (QUERY_TOKEN.test(req.url ?? '')) throw new HttpError(401, 'unauthorized', 'Send the token in the Authorization header', { 'WWW-Authenticate': 'Bearer' });
       const r = await devices.resolve(bearerOf(req));
       if (!r.ok) throw new HttpError(401, r.error, r.error === 'revoked' ? 'This device was removed' : 'Pair this device with the server first', { 'WWW-Authenticate': 'Bearer' });
-      if (kinds && !kinds.includes(r.principal.kind)) throw new HttpError(403, 'wrong_kind', 'This token cannot use this route');
+      if (!kinds.includes(r.principal.kind)) throw new HttpError(403, 'wrong_kind', 'This token cannot use this route');
       limit(`d:${r.principal.deviceId}`);
       devices.touch(r.principal);
       return toContext(r.principal);
@@ -147,8 +190,45 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
       const h = typeof req.headers.host === 'string' ? hostName(req.headers.host) : '';
       return Boolean(h) && (LOOPBACK_HOST.test(h) || TS_NET.test(h) || hosts.has(h));
     },
-    async handle(req, res, path) {
-      if (!path.startsWith('/v1/pair/') && path !== '/v1/sync/key' && path !== '/v1/devices' && !path.startsWith('/v1/devices/') && !path.startsWith('/v1/mqtt/')) return false;
+    async handle(req, res, path, query) {
+      if (releases.owns(path)) {
+        try {
+          await releases.handle(req, res, path, query);
+        } catch (e) {
+          if (!(e instanceof HttpError)) throw e;
+          sendError(res, e);
+        }
+        return true;
+      }
+      if (commands.owns(path)) {
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204, { 'Access-Control-Allow-Methods': COMMANDS_ALLOW_METHODS, 'Access-Control-Allow-Headers': COMMANDS_ALLOW_HEADERS, 'Access-Control-Max-Age': '7200', 'Access-Control-Allow-Private-Network': 'true' });
+          res.end();
+          return true;
+        }
+        try {
+          await commands.handle(req, res, path, query);
+        } catch (e) {
+          if (!(e instanceof HttpError)) throw e;
+          sendError(res, e);
+        }
+        return true;
+      }
+      if (gauge.owns(path)) {
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204, { 'Access-Control-Allow-Methods': GAUGE_ALLOW_METHODS, 'Access-Control-Allow-Headers': GAUGE_ALLOW_HEADERS, 'Access-Control-Max-Age': '7200', 'Access-Control-Allow-Private-Network': 'true' });
+          res.end();
+          return true;
+        }
+        try {
+          await gauge.handle(req, res, path, query);
+        } catch (e) {
+          if (!(e instanceof HttpError)) throw e;
+          sendError(res, e);
+        }
+        return true;
+      }
+      if (!path.startsWith('/v1/pair/') && path !== '/v1/sync/key' && path !== '/v1/devices' && !path.startsWith('/v1/devices/') && !lumen.owns(path)) return false;
       if (req.method === 'OPTIONS') {
         res.writeHead(204, {
           'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
@@ -160,23 +240,19 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
         return true;
       }
       try {
-        await route(req, res, path);
+        await (lumen.owns(path) ? lumen.handle(req, res, path) : route(req, res, path));
       } catch (e) {
         if (!(e instanceof HttpError)) throw e;
         sendError(res, e);
       }
       return true;
     },
-    upgrade(req, socket, head, path) {
-      if (path !== '/mqtt' || !broker) return false;
-      broker.handleUpgrade(req, socket, head);
-      return true;
-    },
     // memoryMb: the server process's resident memory (person workers are threads inside it)
-    health: async () => ({ persons: (await persons.list()).length, mqtt: broker ? 'on' : 'off', memoryMb: Math.round(process.memoryUsage.rss() / 1048576) }),
+    health: async () => ({ persons: (await persons.list()).length, memoryMb: Math.round(process.memoryUsage.rss() / 1048576) }),
     async close() {
       clearInterval(flushTimer);
-      await broker?.close();
+      commands.close();
+      lumen.close();
       await pool.closeAll();
       await devices.flush().catch(() => undefined);
     },
@@ -186,7 +262,6 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
   const serverOut = () => ({ version: o.version, role: 'home' as const });
 
   async function route(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
-    const mqttCred = /^\/v1\/mqtt\/credentials\/([A-Za-z0-9-]{1,64})(\/allow-new-phone)?$/.exec(path);
     const device = /^\/v1\/devices\/([A-Za-z0-9-]{1,64})$/.exec(path);
     switch (true) {
       case path === '/v1/pair/code': {
@@ -214,8 +289,10 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
         if (typeof body.code !== 'string' || (body.label !== undefined && typeof body.label !== 'string')) throw new HttpError(400, 'bad_request', 'Send the code');
         const r = await devices.pair(body.code, { ...(typeof body.label === 'string' ? { label: body.label } : {}), ...(req.headers.origin ? { origin: normalizeOrigin(req.headers.origin) } : {}) });
         if (!r.ok) {
-          const status = { invalid_code: 401, expired: 410, locked: 423 }[r.error];
-          return sendJson(res, status, { error: r.error, ...(r.attemptsLeft !== undefined ? { attemptsLeft: r.attemptsLeft } : {}) });
+          // a used code reads as a wrong one here, as before codes remembered their use
+          const error = r.error === 'used' ? 'invalid_code' : r.error;
+          const status = { invalid_code: 401, expired: 410, locked: 423 }[error];
+          return sendJson(res, status, { error, ...(r.attemptsLeft !== undefined ? { attemptsLeft: r.attemptsLeft } : {}) });
         }
         log(`person ${r.personId}: paired device ${r.deviceId}`);
         return sendJson(res, 200, { token: r.token, deviceId: r.deviceId, person: await personOut(r.personId), server: serverOut() });
@@ -226,7 +303,7 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
         const d = (await devices.list(ctx.personId)).find((x) => x.id === ctx.deviceId);
         return sendJson(res, 200, {
           deviceId: ctx.deviceId, label: d?.label ?? '', kind: ctx.kind, scope: ctx.scope, person: await personOut(ctx.personId),
-          createdAt: d?.createdAt ?? null, lastSeenAt: d?.lastSeenAt ?? null, server: { ...serverOut(), mqtt: broker ? 'on' : 'off' },
+          createdAt: d?.createdAt ?? null, lastSeenAt: d?.lastSeenAt ?? null, server: serverOut(),
         });
       }
       case path === '/v1/sync/key': {
@@ -268,50 +345,21 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
       case path === '/v1/devices': {
         method(req, 'GET');
         const ctx = await home.resolvePerson(req, ['device']);
-        const list = await devices.list(ctx.personId);
-        return sendJson(res, 200, { devices: list.map((d) => ({ id: d.id, kind: d.kind, label: d.label, scope: d.scope, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, current: d.id === ctx.deviceId })) });
+        // the server coach's short-lived tokens are not devices the person manages
+        const list = (await devices.list(ctx.personId)).filter((d) => !isCoachTokenLabel(d.label));
+        // the origin it paired from tells the person's apps apart in the list (the desktop app, the Android app, a browser)
+        return sendJson(res, 200, { devices: list.map((d) => ({ id: d.id, kind: d.kind, label: d.label, scope: d.scope, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, current: d.id === ctx.deviceId, ...(d.originAtPairing ? { origin: d.originAtPairing } : {}), ...(d.kind === 'lumen' ? { app: d.app ?? 'gauge' } : {}) })) });
       }
       case device !== null: {
         method(req, 'DELETE');
         const ctx = await home.resolvePerson(req, ['device']);
+        const target = (await devices.list(ctx.personId)).find((d) => d.id === device[1]);
         if (!(await devices.revoke(ctx.personId, device[1]!))) throw new HttpError(404, 'not_found', 'No such device');
+        // (r070) a removed Gauge installation no longer supersedes or is superseded
+        if (target?.kind === 'lumen' && target.installationId) lumen.peek(ctx.personId)?.retireInstallation(target.installationId, new Date((o.now ?? Date.now)()).toISOString());
         ctx.log(`removed device ${device[1]}`);
         res.writeHead(204).end();
         return;
-      }
-      case path === '/v1/mqtt/credentials': {
-        method(req, 'POST');
-        const ctx = await home.resolvePerson(req, ['device']);
-        await readJson(req, 4096);
-        if (!broker) throw new HttpError(409, 'mqtt_off', 'The broker is switched off on this server');
-        try {
-          const c = await ingest.addCredential(ctx.personId, mqttAddress ?? '');
-          ctx.log(`created broker login ${c.username}`);
-          return sendJson(res, 200, c);
-        } catch (e) {
-          if ((e as { code?: string }).code === 'limit') throw new HttpError(409, 'limit', (e as Error).message);
-          throw e;
-        }
-      }
-      case mqttCred !== null: {
-        const ctx = await home.resolvePerson(req, ['device']);
-        const username = mqttCred[1]!;
-        if (mqttCred[2]) {
-          method(req, 'POST');
-          if (!(await ingest.clearPin(ctx.personId, username))) throw new HttpError(404, 'not_found', 'No such login');
-          return sendJson(res, 200, { ok: true });
-        }
-        method(req, 'DELETE');
-        if (!(await ingest.revokeCredential(ctx.personId, username))) throw new HttpError(404, 'not_found', 'No such login');
-        broker?.disconnect(username);
-        ctx.log(`revoked broker login ${username}`);
-        res.writeHead(204).end();
-        return;
-      }
-      case path === '/v1/mqtt/status': {
-        method(req, 'GET');
-        const ctx = await home.resolvePerson(req, ['device']);
-        return sendJson(res, 200, await ingest.status(ctx.personId, { enabled: Boolean(broker), address: broker ? mqttAddress : null, connected: (u) => broker?.connected(u) ?? false }));
       }
     }
     throw new HttpError(404, 'not_found', 'Not found');

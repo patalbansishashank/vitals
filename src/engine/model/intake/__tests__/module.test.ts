@@ -11,6 +11,7 @@ import { resolveProfile } from '../../../core/resolveProfile';
 import { CARDIO_MODALITY_CODE } from '../../../types/inputs';
 import type { AnyEngineModule } from '../../../types/module';
 import type { Schedule } from '../../../types/schedule';
+import { intakeEnergyAudit } from '../energyBasis';
 import { makeHarness, MAN_80, type Harness } from './harness';
 
 const MIXED = { proteinG: 30, carbG: 90, fructoseG: 20, fatG: 25, fibreG: 8, glycaemicIndex: 55, timeToPeakH: 1 };
@@ -36,6 +37,27 @@ describe('registry and wiring', () => {
     const issues = checkWiring(MODULES).issues.filter((i) => i.module === 'intake' || i.signal.startsWith('ra'));
     expect(issues).toEqual([]);
     expect([...intakeModule.reads].sort()).toEqual(['carbTolerance', 'exIntensityFrac', 'liverGlycogenG', 'sHep', 'sMus', 'tissueMassKg']);
+  });
+});
+
+describe('meal shape coefficients', () => {
+  it('keeps the exact curves across repeated/changing time-to-peak values and run parameter overrides', () => {
+    for (const offset of [0.1, 0.25, 0.4]) {
+      const H = makeHarness(undefined, { overrides: { 'intake.insTpOffsetH': offset } });
+      for (const tp of [1, 1, 0.5, 0.5, 1.5, 1, 1.0000000000000002]) {
+        const slot = H.s.nextSlot;
+        H.eat({ carbG: 60, timeToPeakH: tp });
+        H.step();
+        const b = slot * MEAL_FIELDS;
+        const dk = Math.exp(-1 / tp);
+        const idec = Math.exp(-1 / (tp + offset));
+        expect(H.s.meals[b + MF.DK]).toBe(dk);
+        expect(H.s.meals[b + MF.GEXP]).toBe(Math.exp(1 - 0.5 / tp) * dk);
+        expect(H.s.meals[b + MF.IDEC]).toBe(idec);
+        expect(H.s.meals[b + MF.IEXP]).toBe(Math.exp(1 - 0.5 / (tp + offset)) * idec);
+        H.idle(24);
+      }
+    }
   });
 });
 
@@ -542,6 +564,27 @@ describe('properties over long runs', () => {
       return out;
     };
     expect(trace()).toEqual(trace());
+  });
+
+  it('ingestion-to-appearance audit (D6-02/C7): compiled hourly kcal reach the gut in full and balance every hour, tails included', () => {
+    const H = makeHarness(MAN_80, { startHourOfDay: 0 });
+    let eAbs = 0;
+    for (let d = 0; d < 3; d++) {
+      H.runDay(day, () => {
+        eAbs += H.bus.eAbsKcalH;
+        const a = intakeEnergyAudit(H.s, H.k);
+        expect(Math.abs(a.imbalanceKcal)).toBeLessThan(1e-6);
+        expect(a.lossKcal).toBe(0);
+      });
+    }
+    const a = intakeEnergyAudit(H.s, H.k);
+    // what the compiler submitted is what intake registered (no exogenous ketones in this day)
+    expect(a.registeredKcal).toBeCloseTo(a.submittedKcal, 6);
+    expect(a.registeredKcal).toBeCloseTo(3 * day.energyKcal, 6);
+    // the end of the horizon keeps the late meal's tail as stored energy (alcohol at 19:00, the last meal's gut energy)
+    expect(a.appearedKcal + a.storedKcal).toBeCloseTo(a.registeredKcal, 6);
+    // eAbs = raw appearance + the 15 §4.2 ME-correction ratio's kcal (kept apart from the audit identity)
+    expect(eAbs).toBeCloseTo(a.appearedKcal + a.meCorrectionKcal, 6);
   });
 
   it('registry values reach the constants (overrides change behaviour)', () => {

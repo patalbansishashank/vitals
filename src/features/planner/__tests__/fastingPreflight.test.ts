@@ -1,7 +1,8 @@
 /**
  * Ruling R-FAST-GATE (PLAN item 8 decision 6; PLANNER_V2_SPEC §3.7): preflight hints when fasting is opted in but no
  * goal turns it on or a muscle goal ranks above the goal it serves, or the longest fast stays under the opted-in tier's
- * maximum; and `expertMode` passed through `toSafetyInput` (T4 reachable in the engine when the app flag is on).
+ * maximum; and `expertMode` passed through `toSafetyInput` (T4 reachable in the engine when the app flag is on). The
+ * transient-marker goal is blood ketones (the autophagy index is no goal since D2-02).
  */
 import { describe, expect, it } from 'vitest';
 import type { ScreeningOutcome } from '@/features/onboarding';
@@ -20,16 +21,16 @@ const ids = (h: ReturnType<typeof preflightHints>) => h.map((x) => x.id);
 
 describe('fasting preflight hints (R-FAST-GATE)', () => {
   it('opted into 72 h with the longest fast left at 24 h: says so and offers to raise it', () => {
-    const hints = preflightHints({ goals: [goal('autophagyIdx'), goal('fatMass', 'lose')], horizonDays: 112, constraints: c(), body, safetyMaxFastH: 72 });
+    const hints = preflightHints({ goals: [goal('bhb', 'raise'), goal('fatMass', 'lose')], horizonDays: 112, constraints: c(), body, safetyMaxFastH: 72 });
     const h = hints.find((x) => x.id === 'fasting-short-longest')!;
     expect(h.title).toBe('You’ve opted in to fasts up to 72 h, but your longest fast is set to 24 h.');
     expect(h.body).toBe('Plans can’t use 48- or 72-hour fasts.');
     expect(h.action).toEqual({ kind: 'set-longest-fast', hours: 72, label: 'Allow 72 h fasts' });
     // T2 (48 h) read from an explicit tier; no hint once the limit matches the tier
-    expect(preflightHints({ goals: [goal('autophagyIdx')], horizonDays: 112, constraints: c(), body, fastingOptedTier: 'T2' }).find((x) => x.id === 'fasting-short-longest')!.action).toMatchObject({ hours: 48 });
-    expect(ids(preflightHints({ goals: [goal('autophagyIdx')], horizonDays: 112, constraints: c({ longestFastH: 72 }), body, safetyMaxFastH: 72 }))).not.toContain('fasting-short-longest');
+    expect(preflightHints({ goals: [goal('bhb', 'raise')], horizonDays: 112, constraints: c(), body, fastingOptedTier: 'T2' }).find((x) => x.id === 'fasting-short-longest')!.action).toMatchObject({ hours: 48 });
+    expect(ids(preflightHints({ goals: [goal('bhb', 'raise')], horizonDays: 112, constraints: c({ longestFastH: 72 }), body, safetyMaxFastH: 72 }))).not.toContain('fasting-short-longest');
     // without an opt-in (cap 24 h) there is nothing to say
-    expect(ids(preflightHints({ goals: [goal('autophagyIdx')], horizonDays: 112, constraints: c(), body, safetyMaxFastH: 24 }))).not.toContain('fasting-short-longest');
+    expect(ids(preflightHints({ goals: [goal('bhb', 'raise')], horizonDays: 112, constraints: c(), body, safetyMaxFastH: 24 }))).not.toContain('fasting-short-longest');
   });
 
   it('opted in, but no goal fasting serves: plans will not include fasts', () => {
@@ -42,10 +43,10 @@ describe('fasting preflight hints (R-FAST-GATE)', () => {
   });
 
   it('opted in, a muscle goal above the goal fasting serves: plans will not use fasting (replaces the "top two" hint)', () => {
-    const goals = [goal('leanTissue', 'gain'), goal('autophagyIdx')];
+    const goals = [goal('leanTissue', 'gain'), goal('bhb', 'raise')];
     const hints = preflightHints({ goals, horizonDays: 112, constraints: c({ longestFastH: 72 }), body, fastingOptedTier: 'T3' });
     const h = hints.find((x) => x.id === 'fasting-muscle-above')!;
-    expect(h.title).toMatch(/^With muscle ranked above autophagy/);
+    expect(h.title).toMatch(/^With muscle ranked above blood ketones/);
     expect(h.body).toBe('Long gaps without protein slow muscle gain.');
     expect(ids(hints)).not.toContain('fasting-muscle');
     // the engine gate agrees: not offered
@@ -81,7 +82,7 @@ describe('expertMode pass-through (PLAN item 8 decision 6)', () => {
   it('makes the expert tier (fasts over 72 h) reachable in the engine, and leaves other requests (and their hashes) unchanged', () => {
     const heavy = { ...PROFILE, body: { ...PROFILE.body, weightKg: 98 } };
     const req = (s: SafetySnapshot) =>
-      buildPlannerRequest({ goals: [goal('autophagyIdx')], horizonDays: 112, startDate: START, constraints: c({ longestFastH: 72 }), strictness: 'balanced', profile: heavy, safety: s });
+      buildPlannerRequest({ goals: [goal('bhb', 'raise')], horizonDays: 112, startDate: START, constraints: c({ longestFastH: 72 }), strictness: 'balanced', profile: heavy, safety: s });
     const on = compileRequest(req(snapshot('T4', 168, true)));
     expect(on.caps.fastTierAllowed.T4).toBe(false); // the user's longest fast (72 h) still caps it …
     const raw = req(snapshot('T4', 168, true));

@@ -7,7 +7,7 @@
  *     the lever registry's parameter range where the person's limits allow it; a gene that repair overrides on more than
  *     half of the days in more than half of Latin-hypercube samples is reported as effectively fixed.
  */
-import { SERIES, SERIES_INDEX, type MetricId } from '../../types/metrics';
+import { SERIES, SERIES_INDEX, isProductionGoalEligible, type MetricId } from '../../types/metrics';
 import type { Schedule } from '../../types/schedule';
 import { Rng, latinHypercube } from '../optim/rng';
 import { compileRequest, type PlanningContext } from '../domain/context';
@@ -19,6 +19,7 @@ import { LEVERS } from '../domain/registry/levers';
 import { repairSchedule } from '../domain/repair';
 import { BLOCK_OF_FAST, enumerateStructures, type SkeletonStructure } from '../domain/skeleton';
 import type { PlannerRequest } from '../domain/types';
+import { auditGoal } from './corpus';
 
 // ---------------------------------------------------------------------------------------------------------------
 // what a structure contains
@@ -323,9 +324,7 @@ export function repairRates(requests: readonly PlannerRequest[], samples = 16, m
  */
 export const KNOWN_FASTING_DIVERGENCES: Readonly<Record<string, string>> = {
   'hunger:down': 'hunger rises during a fast in the model; offered because the goal type covers hunger and adherence, and a person may simply prefer eating this way',
-  'adherence:up': 'every fast lowers modelled plan adherence; offered for the same reason as hunger',
   'ketoInduction:down': 'the keto-induction symptom index does not respond to fasts in the model; offered with the comfort goals',
-  'igf1:up': 'fasts lower IGF-1 in the model, never raise it; offered because IGF-1 is a transient marker and the other direction is served',
   'bhb:down': 'fasts raise blood ketones in the model, never lower them; offered because ketones are a transient marker and the other direction is served',
 };
 
@@ -338,11 +337,12 @@ export const KNOWN_FASTING_DIVERGENCES: Readonly<Record<string, string>> = {
 export function fastingGateAgreement(profile: PlannerRequest['profile']): Record<string, 'graphOnly' | 'gateOnly'> {
   const found: Record<string, 'graphOnly' | 'gateOnly'> = {};
   for (const d of SERIES) {
-    if (d.kind !== 'metric' || d.goal === 'none') continue;
+    // production goals only (C6): a metric the capability gate refuses is never compiled as a goal
+    if (d.kind !== 'metric' || !isProductionGoalEligible(d.id)) continue;
     const metric = d.id as MetricId;
     const dirs = d.goal === 'maximise' ? (['up'] as const) : d.goal === 'minimise' ? (['down'] as const) : (['up', 'down'] as const);
     for (const dir of dirs) {
-      const ctx = compileRequest({ profile, goals: [{ metric, direction: dir === 'up' ? 'maximise' : 'minimise' }], horizonDays: 84 });
+      const ctx = compileRequest({ profile, goals: [auditGoal(metric, dir)], horizonDays: 84 });
       const gate = ctx.fastingServedGoal === 0;
       const graph = servesFasting(metric, dir);
       if (gate !== graph) found[`${metric}:${dir}`] = graph ? 'graphOnly' : 'gateOnly';

@@ -6,6 +6,8 @@
  * (TDEE stack, weight decomposition, hourly curves) · 'input' = realised inputs echoed as series.
  */
 import type { SourceRef } from '../../content/evidence/schema';
+import { capabilityAllowsOptimization, type GoalCapability, type Warrant } from '@/lib/bodyContracts';
+import type { OperatorId } from '@/lib/measurementOperators';
 import type { EvidenceGrade } from './params';
 import type { ModuleId, SignalName } from './signals';
 
@@ -80,7 +82,7 @@ export const SERIES = [
   // ------------------------------------------------------------------ body (8)
   { id: 'scaleWeight', kind: 'metric', label: 'Scale weight', unit: 'kg', category: 'body', owner: 'water', resolution: 'hourly', agg: 'wake', direction: 'target', goal: 'target', grade: 'A', band: 'draws', bandFallback: 'fixChange:35', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '13 §4.1, 01 §4.2', sources: [{ topic: 'transitions-periodisation' }, { topic: 'body-weight-models' }], description: 'Morning scale weight: the daily value is the weight at the day\'s wake hour (post-void, before eating), as people weigh themselves. The entered weight is taken to be such a morning weight, so day 0 reads it exactly; the hourly curve shows the swings of the day (meals, glycogen and its water, sodium water).' },
   { id: 'fatMass', kind: 'metric', label: 'Fat mass', unit: 'kg', category: 'body', owner: 'composition', resolution: 'daily', agg: 'end', direction: 'down', goal: 'target', grade: 'A', band: 'draws', bandFallback: 'fixChange:35', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '01 §4.1-4.3, 03 §4.4, 11 §4.15', sources: [{ topic: 'body-weight-models' }, { topic: 'protein-muscle' }, { topic: 'energy-surplus' }] },
-  { id: 'leanMass', kind: 'metric', label: 'Lean mass (DXA-equivalent)', unit: 'kg', category: 'body', owner: 'water', resolution: 'hourly', agg: 'wake', direction: 'up', goal: 'none', goalNote: 'includes glycogen, water and gut contents; use leanTissue as the goal', grade: 'A', band: 'draws', bandFallback: 'fixChange:50', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '20 §4.5.3, 13 §4.1, 14 M5', sources: [{ topic: 'extended-water-fasting' }, { topic: 'transitions-periodisation' }, { topic: 'body-composition-estimation' }], description: 'Wake-hour scale weight minus fat mass, as a DXA scan would count it: muscle and organ tissue plus glycogen, body water and gut contents, so it moves with water and glycogen swings.' },
+  { id: 'leanMass', kind: 'metric', label: 'Inferred non-fat scale mass', unit: 'kg', category: 'body', owner: 'water', resolution: 'hourly', agg: 'wake', direction: 'up', goal: 'none', goalNote: 'includes glycogen, water and gut contents; use leanTissue as the goal', grade: 'A', band: 'draws', bandFallback: 'fixChange:50', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '20 §4.5.3, 13 §4.1, 14 M5', sources: [{ topic: 'extended-water-fasting' }, { topic: 'transitions-periodisation' }, { topic: 'body-composition-estimation' }], description: 'Wake-hour scale weight minus fat mass: muscle and organ tissue plus glycogen, body water and gut contents, so it moves with water and glycogen swings. Not DXA lean or skeletal muscle.' },
   { id: 'leanTissue', kind: 'metric', label: 'Lean tissue (protein-based)', unit: 'kg', category: 'body', owner: 'composition', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', goalNote: 'muscle/organ tissue without glycogen and water swings', grade: 'B', band: 'draws', bandFallback: 'fixChange:50', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '01 §4.2, 03 §4.4/4.19, 09 §4.8-4.10, 20 §4.4', sources: [{ topic: 'body-weight-models' }, { topic: 'protein-muscle' }, { topic: 'resistance-training' }, { topic: 'extended-water-fasting' }] },
   { id: 'skeletalMuscle', kind: 'metric', label: 'Skeletal muscle', unit: 'kg', category: 'body', owner: 'composition', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'C', band: 'draws', bandFallback: 'fixChange:64', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '03 §4.19 step 7, 09 §4.9', sources: [{ topic: 'protein-muscle' }, { topic: 'resistance-training' }] },
   { id: 'bodyFatPct', kind: 'metric', label: 'Body fat', unit: '%', category: 'body', owner: 'water', resolution: 'hourly', agg: 'wake', direction: 'down', goal: 'target', grade: 'A', band: 'draws', bandFallback: 'fixChange:35', presentation: 'absolute', overlay: 'pts', lane: 'line', src: '14 M1, 01', sources: [{ topic: 'body-composition-estimation' }, { topic: 'body-weight-models' }], description: 'Fat mass as a percentage of the wake-hour scale weight.' },
@@ -119,8 +121,8 @@ export const SERIES = [
   { id: 't3', kind: 'metric', label: 'Thyroid (T3)', unit: 'rel', category: 'hormones', owner: 'hormones', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', goalNote: 'guard only', grade: 'B', band: 'draws', presentation: 'deltaFromBaseline', overlay: 'pct', lane: 'line', caveat: CAVEAT_MARKER, src: '12 §4.3', sources: [{ topic: 'hormones-appetite' }] },
   { id: 'cortisol', kind: 'metric', label: 'Cortisol', unit: 'rel', category: 'hormones', owner: 'hormones', resolution: 'daily', agg: 'end', direction: 'down', goal: 'none', grade: 'C', band: 'draws', presentation: 'deltaFromBaseline', overlay: 'pct', lane: 'line', caveat: CAVEAT_MARKER, src: '12 §4.4', sources: [{ topic: 'hormones-appetite' }] },
   { id: 'testosterone', kind: 'metric', label: 'Testosterone', unit: 'rel', category: 'hormones', owner: 'hormones', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', goalNote: 'guard only', grade: 'B', band: 'draws', presentation: 'deltaFromBaseline', overlay: 'pct', lane: 'line', caveat: CAVEAT_MARKER, sexes: ['male'], src: '12 §4.5', sources: [{ topic: 'hormones-appetite' }] },
-  { id: 'menstrualRisk', kind: 'metric', label: 'Menstrual disturbance risk', unit: '%/cycle', category: 'hormones', owner: 'hormones', resolution: 'daily', agg: 'end', direction: 'down', goal: 'none', goalNote: 'constraint for women', grade: 'B', band: 'draws', presentation: 'absolute', overlay: 'pts', lane: 'line', sexes: ['female'], src: '19 §4.9 P_LPD (12 §4.6 R_MD = registered alternative, MODEL_SPEC R-MENS)', sources: [{ topic: 'performance-wellbeing-bone' }] },
-  { id: 'adherence', kind: 'metric', label: 'Plan adherence probability', unit: '%', category: 'hormones', owner: 'appetite', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', goalNote: 'planner ranks outcome × P_surv', grade: 'D', band: 'draws', presentation: 'absolute', overlay: 'pts', lane: 'line', caveat: CAVEAT_INDEX, src: '12 §4.10', sources: [{ topic: 'hormones-appetite' }] },
+  { id: 'menstrualRisk', kind: 'metric', label: 'Menstrual concern index (research)', unit: 'index', category: 'hormones', owner: 'hormones', resolution: 'daily', agg: 'end', direction: 'down', goal: 'none', goalNote: 'constraint for women', grade: 'B', band: 'draws', presentation: 'absolute', overlay: 'pts', lane: 'line', sexes: ['female'], src: '19 §4.9 P_LPD (12 §4.6 R_MD = registered alternative, MODEL_SPEC R-MENS)', sources: [{ topic: 'performance-wellbeing-bone' }] },
+  { id: 'adherence', kind: 'metric', label: 'Plan adherence index', unit: '%', category: 'hormones', owner: 'appetite', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', goalNote: 'planner ranks outcome × P_surv', grade: 'D', band: 'draws', presentation: 'absolute', overlay: 'pts', lane: 'line', caveat: CAVEAT_INDEX, src: '12 §4.10', sources: [{ topic: 'hormones-appetite' }] },
 
   // ------------------------------------------------------------------ cardio (9)
   { id: 'insulinSensitivity', kind: 'metric', label: 'Insulin sensitivity', unit: 'rel', category: 'cardio', owner: 'cardiometabolic', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'B', band: 'draws', presentation: 'deltaFromBaseline', overlay: 'pct', lane: 'line', caveat: CAVEAT_MARKER, src: '04 §4.18 (S_I = S_hep^0.4·S_mus^0.6)', sources: [{ topic: 'carbohydrate-glycogen-insulin' }], description: 'Whole-body insulin sensitivity S_I = S_hep^0.4·S_mus^0.6 relative to a healthy reference, moved by fat mass, liver fat, fitness, activity, sleep and diet quality. It deliberately excludes the short-lived insulin resistance of fasting and very-low-carbohydrate eating (post-fast glucose intolerance): that is carried by carbohydrate tolerance, which recovers within days once carbohydrate is eaten again.' },
@@ -137,20 +139,23 @@ export const SERIES = [
   { id: 'vo2max', kind: 'metric', label: 'VO₂max', unit: 'mL/kg/min', category: 'performance', owner: 'activity', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'A', band: 'draws', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '10 §4.8', sources: [{ topic: 'cardio-activity' }] },
   { id: 'strength', kind: 'metric', label: 'Strength index', unit: '% of baseline', category: 'performance', owner: 'muscle', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'B', band: 'draws', presentation: 'index', overlay: 'pts', lane: 'line', src: '09 §4.14 × 19 §4.3 M_EA', sources: [{ topic: 'resistance-training' }, { topic: 'performance-wellbeing-bone' }] },
   { id: 'trainingStatus', kind: 'metric', label: 'Training status', unit: '% of potential', category: 'performance', owner: 'muscle', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', grade: 'C', band: 'draws', presentation: 'index', overlay: 'pts', lane: 'index', src: '09 §4.6', sources: [{ topic: 'resistance-training' }] },
-  { id: 'enduranceCapacity', kind: 'metric', label: 'Endurance capacity', unit: '% of baseline', category: 'performance', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'B', band: 'draws', presentation: 'index', overlay: 'pts', lane: 'line', src: '19 §4.4', sources: [{ topic: 'performance-wellbeing-bone' }] },
+  { id: 'enduranceCapacity', kind: 'metric', label: 'Cycling endurance index (research)', unit: '% of baseline', category: 'performance', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'B', band: 'draws', presentation: 'index', overlay: 'pts', lane: 'line', src: '19 §4.4', sources: [{ topic: 'performance-wellbeing-bone' }] },
   { id: 'rtMuscleGain', kind: 'metric', label: 'Training-attributable lean', unit: 'kg', category: 'performance', owner: 'muscle', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'C', band: 'draws', bandFallback: 'fixChange:64', presentation: 'absolute', overlay: 'pct', lane: 'line', src: '09 §4.9 (Σ M_acc,r)', sources: [{ topic: 'resistance-training' }] },
 
   // ------------------------------------------------------------------ recovery & wellbeing (6)
   { id: 'sleepQuality', kind: 'metric', label: 'Sleep quality', unit: 'index', category: 'recovery', owner: 'moderators', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', grade: 'C', band: 'draws', presentation: 'index', overlay: 'pts', lane: 'index', caveat: CAVEAT_INDEX, src: '16 §4.2, 19 §4.10', sources: [{ topic: 'sleep-sex-age' }, { topic: 'performance-wellbeing-bone' }] },
-  { id: 'moodTier', kind: 'metric', label: 'Mood & energy', unit: 'tier', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'down', goal: 'none', goalNote: 'guard only; never a cognition score', grade: 'C', band: 'none', presentation: 'state', overlay: 'none', lane: 'state', src: '19 §4.5 (0 green, 1 amber, 2 red)', sources: [{ topic: 'performance-wellbeing-bone' }] },
+  { id: 'moodTier', kind: 'metric', label: 'Wellbeing concerns', unit: 'tier', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'down', goal: 'none', goalNote: 'guard only; never a cognition score', grade: 'C', band: 'none', presentation: 'state', overlay: 'none', lane: 'state', src: '19 §4.5 (0 green, 1 amber, 2 red)', sources: [{ topic: 'performance-wellbeing-bone' }] },
   { id: 'energyAvailability', kind: 'metric', label: 'Energy availability', unit: 'kcal/kg FFM/d', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', goalNote: 'hard floor 30 (17 HC-E4)', grade: 'B', band: 'draws', presentation: 'absolute', overlay: 'pct', lane: 'line+threshold', thresholds: [30, 45], src: '19 §4.1, 17 §2.1', sources: [{ topic: 'performance-wellbeing-bone' }, { topic: 'safety-limits' }] },
-  { id: 'hipBmdChange', kind: 'metric', label: 'Hip bone density change', unit: '%', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', goalNote: 'constraint (≥ −1 %)', grade: 'B', band: 'draws', presentation: 'absolute', overlay: 'none', lane: 'line', src: '19 §4.2', sources: [{ topic: 'performance-wellbeing-bone' }] },
+  { id: 'hipBmdChange', kind: 'metric', label: 'Hip bone density change', unit: '%', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'up', goal: 'none', goalNote: 'research display only; no personal forecast', grade: 'B', band: 'draws', presentation: 'absolute', overlay: 'none', lane: 'line', src: '19 §4.2', sources: [{ topic: 'performance-wellbeing-bone' }] },
   { id: 'ketoInduction', kind: 'metric', label: 'Keto-induction symptoms', unit: '0–1', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'down', goal: 'minimise', grade: 'C', band: 'draws', presentation: 'index', overlay: 'pts', lane: 'index', src: '13 §4.10', sources: [{ topic: 'transitions-periodisation' }] },
   { id: 'micronutrientScore', kind: 'metric', label: 'Micronutrient completeness', unit: 'score', category: 'recovery', owner: 'wellbeing', resolution: 'daily', agg: 'end', direction: 'up', goal: 'maximise', grade: 'D', band: 'none', presentation: 'index', overlay: 'pts', lane: 'index', caveat: 'Rule-based flags from typical food composition, not a measurement of your nutrient status.', src: '15 §4.9', sources: [{ topic: 'fibre-hydration-substances' }] },
 
   // ------------------------------------------------------------------ detail series (components, decomposition, hourly curves)
   { id: 'tef', kind: 'detail', label: 'Thermic effect of food', unit: 'kcal/d', category: 'energy', owner: 'energy', resolution: 'hourly', agg: 'sum', direction: 'context', goal: 'none', grade: 'B', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'stacked-area', src: '02 §4.4', sources: [{ topic: 'energy-expenditure' }] },
   { id: 'exerciseEE', kind: 'detail', label: 'Exercise energy', unit: 'kcal/d', category: 'energy', owner: 'activity', resolution: 'hourly', agg: 'sum', direction: 'context', goal: 'none', grade: 'B', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'stacked-area', src: '10 §4.1-4.2', sources: [{ topic: 'cardio-activity' }] },
+  // SPEC V1.1 (2026-10-27): hourly components for the energy-day display (V2 energyDay). New outputs only, no equation change.
+  { id: 'exerciseEnergy', kind: 'detail', label: 'Exercise energy (booked)', unit: 'kcal/d', category: 'energy', owner: 'activity', resolution: 'hourly', agg: 'sum', direction: 'context', goal: 'none', grade: 'B', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'line', src: 'SPEC V1.1; 10 §4.1-4.2', sources: [{ topic: 'cardio-activity' }], description: 'The exercise energy the ledger books each hour: net above own rest minus the displaced lifestyle prior (signed), plus recovery released that hour. Identical to the exercise lane of the expenditure stack (exEEKcalH).' },
+  { id: 'stepsEnergy', kind: 'detail', label: 'Step energy above habitual', unit: 'kcal/d', category: 'energy', owner: 'activity', resolution: 'hourly', agg: 'sum', direction: 'context', goal: 'none', grade: 'B', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'line', src: 'SPEC V1.1; 10 §4.1, §4.14', sources: [{ topic: 'cardio-activity' }], description: 'Signed energy of the steps above (or below) the habitual step baseline each hour (stepsExtraKcalH). It is already inside non-exercise movement; never add it to that series.' },
   { id: 'insulin', kind: 'detail', label: 'Insulin (relative)', unit: 'rel', category: 'fuel', owner: 'intake', resolution: 'hourly', agg: 'mean', direction: 'context', goal: 'none', grade: 'C', band: 'none', presentation: 'index', overlay: 'none', lane: 'line', src: '04 §4.17', sources: [{ topic: 'carbohydrate-glycogen-insulin' }] },
   { id: 'glycogenWater', kind: 'detail', label: 'Glycogen + bound water', unit: 'kg', category: 'body', owner: 'water', resolution: 'hourly', agg: 'wake', direction: 'context', goal: 'none', grade: 'B', band: 'none', presentation: 'deltaFromBaseline', overlay: 'none', lane: 'bars', src: '04 §4.1, 13 §4.2', sources: [{ topic: 'carbohydrate-glycogen-insulin' }, { topic: 'transitions-periodisation' }] },
   { id: 'ecfShift', kind: 'detail', label: 'Sodium & fluid shift', unit: 'kg', category: 'body', owner: 'water', resolution: 'hourly', agg: 'wake', direction: 'context', goal: 'none', grade: 'C', band: 'none', presentation: 'deltaFromBaseline', overlay: 'none', lane: 'bars', src: '13 §4.3-4.4, 15 §4.7', sources: [{ topic: 'transitions-periodisation' }, { topic: 'fibre-hydration-substances' }] },
@@ -190,10 +195,20 @@ export const SERIES = [
   { id: 'inRtSets', kind: 'input', label: 'Resistance sets', unit: 'sets/d', category: 'performance', owner: 'core', resolution: 'daily', agg: 'end', direction: 'context', goal: 'none', grade: 'A', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'bars', src: 'schedule', sources: [] },
   { id: 'inCardioMin', kind: 'input', label: 'Cardio minutes', unit: 'min/d', category: 'performance', owner: 'core', resolution: 'daily', agg: 'end', direction: 'context', goal: 'none', grade: 'A', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'bars', src: 'schedule', sources: [] },
   { id: 'inSleep', kind: 'input', label: 'Sleep', unit: 'h', category: 'recovery', owner: 'core', resolution: 'daily', agg: 'end', direction: 'context', goal: 'none', grade: 'A', band: 'none', presentation: 'absolute', overlay: 'none', lane: 'bars', src: 'schedule', sources: [] },
+
+  // ------------------------------------------------------------------ W3 (D2-07): appended so existing indices stay put
+  { id: 'reproductiveConcern', kind: 'detail', label: 'Energy and cycle concern', unit: 'state', category: 'hormones', owner: 'hormones', resolution: 'daily', agg: 'end', direction: 'context', goal: 'none', goalNote: 'qualitative status; never a personal %/cycle', grade: 'C', band: 'none', presentation: 'state', overlay: 'none', lane: 'state', sexes: ['female'], src: '19 §4.9; D2-07 reproductiveConcernStatus (0 not applicable, 1 no model concern, 2 insufficient history, 3 eligibility unknown, 4 concern, 5 review)', sources: [{ topic: 'performance-wellbeing-bone' }], description: 'Qualitative energy and cycle concern from the logged energy history and confirmed cycle status. Missing history or unconfirmed cycles never read as reassurance; an observed cycle change reads Review.' },
+  // ------------------------------------------------------------------ D2-08 (A1-058): appended so existing indices stay put
+  { id: 'bhbEndpoint', kind: 'detail', label: 'Blood ketones at the hour end (BHB)', unit: 'mmol/L', category: 'fuel', owner: 'ketones', resolution: 'hourly', agg: 'end', direction: 'context', goal: 'none', goalNote: 'the value a timed blood reading is compared with', grade: 'B', band: 'none', presentation: 'absolute', overlay: 'log2', lane: 'line', src: '05 §4.5; D2-08 hour-end blood D-BHB: hourly sample h is the value at time h + 1, daily = the value at 24:00 (operator bhbEndpoint)', sources: [{ topic: 'fat-oxidation-ketosis' }], description: 'Blood ketone (D-BHB) level at the end of each hour, the instant a timed finger-prick reading is compared with. The hourly Blood ketones line is the mean over the hour, so the two differ while ketones rise or fall.' },
 ] as const satisfies readonly SeriesDef[];
 
 export type SeriesId = (typeof SERIES)[number]['id'];
 export type MetricId = Extract<(typeof SERIES)[number], { kind: 'metric' }>['id'];
+/**
+ * Series a module owns (A1-058): a provider types its `records` and its recorder indices with it, so a series missing from
+ * the catalogue (or owned by another module) is a compile error instead of a silently disabled `-1` index.
+ */
+export type SeriesOwnedBy<M extends ModuleId | 'core'> = Extract<(typeof SERIES)[number], { owner: M }>['id'];
 
 /** id → index into metric frames and result arrays. Built once at module load. */
 export const SERIES_INDEX: Readonly<Record<SeriesId, number>> = Object.freeze(
@@ -216,4 +231,166 @@ export const SIGNAL_MIRRORS: readonly { readonly series: SeriesId; readonly sign
 
 export function seriesDef(id: SeriesId): SeriesDef {
   return SERIES[SERIES_INDEX[id]] as SeriesDef;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// C4: the measurement operator each observable series is compared through (2026-10-18 contracts)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Operator per series (C4): a series is compared with an observation only through this operator. Series without an entry
+ * are model quantities with no direct observable. `bodyFatPct` is the wake scale-equivalent reading; the tissue fat
+ * fraction is a different operator (`tissueFatFraction`). `bhb` is the hour mean and `bhbEndpoint` the hour-end instant
+ * (a timed blood reading is compared with the endpoint, D2-08). `nitrogenBalance` is the signed model body-N change
+ * (ΔLT·1000/(1 + hP)/6.25, g N/d) and deliberately has no entry: it is not urinary nitrogen excretion (`urinaryNitrogen`
+ * is a non-negative urine flux; intake, non-urinary losses and non-protein pools make them different estimands, A1-059).
+ */
+export const SERIES_OBSERVABLE: Readonly<Partial<Record<SeriesId, OperatorId>>> = {
+  scaleWeight: 'scaleWake',
+  fatMass: 'modelFatMass',
+  leanMass: 'inferredNonFatScaleMass',
+  leanTissue: 'modelLeanTissue',
+  bodyFatPct: 'scaleBodyFatWake',
+  waist: 'waist',
+  bhb: 'bhbHourlyMean',
+  bhbEndpoint: 'bhbEndpoint',
+  sbp: 'bloodPressure',
+  fastingGlucose: 'fastingGlucose',
+};
+
+/** Series that are latent/legacy research indices: shown only as Exploratory, never as measurements or objectives. */
+export const EXPLORATORY_SERIES: ReadonlySet<SeriesId> = new Set<SeriesId>([
+  'autophagyIdx',
+  'mtorIdx',
+  'ampkIdx',
+  'mps',
+  'ketoAdaptation',
+  'ketoAdaptFast',
+  'ketoAdaptSlow',
+  'igf1',
+  'leptin',
+  't3',
+  'cortisol',
+  'testosterone',
+  'menstrualRisk',
+  'adherence',
+  'hunger',
+  'enduranceCapacity',
+  'hipBmdChange',
+  'micronutrientScore',
+]);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// C6: goal capability registry (2026-10-18 contracts)
+// ---------------------------------------------------------------------------------------------------------------------
+
+const W = {
+  energyBalance: { type: 'firstPrinciples', confidence: 'high', scope: 'energy conservation of the tissue model' },
+  bodyCompTrials: { type: 'empiricalFormal', confidence: 'moderate', scope: 'population mean weight/fat change under controlled intake' },
+  mechanism: { type: 'physiologicallyIntuitive', confidence: 'moderate', scope: 'direction and rough size, personal response uncalibrated' },
+  causal: { type: 'causallyCoherent', confidence: 'moderate', scope: 'mechanism chain; personal calibration pending' },
+  functional: { type: 'functionallyTrue', confidence: 'provisional', scope: 'useful planning heuristic pending personal validation' },
+  noLink: { type: 'analyticallyTrue', confidence: 'high', scope: 'no validated link from this index to a health outcome' },
+  observed: { type: 'commonSense', confidence: 'high', scope: 'what was measured or logged' },
+} as const satisfies Record<string, Warrant>;
+
+const cap = (
+  availability: GoalCapability['availability'],
+  estimand: string,
+  reasonCode: string,
+  opts: Partial<Omit<GoalCapability, 'availability' | 'estimand' | 'reasonCode'>> = {},
+): GoalCapability => ({
+  availability,
+  estimand,
+  reasonCode,
+  timeBasis: opts.timeBasis ?? 'end',
+  requiredInputs: opts.requiredInputs ?? [],
+  requiredOutputs: opts.requiredOutputs ?? [],
+  population: opts.population ?? 'adults inside the engine’s supported profile domain',
+  objectives: opts.objectives ?? [],
+  satiation: opts.satiation ?? 'none',
+  warrants: opts.warrants ?? [],
+  ...(opts.operator ? { operator: opts.operator } : {}),
+});
+const display = (reasonCode: string, estimand: string) => cap('unavailable', estimand, reasonCode, { timeBasis: 'none', warrants: [W.noLink] });
+const monitor = (reasonCode: string, estimand: string) => cap('observedOnly', estimand, reasonCode, { timeBasis: 'episode', warrants: [W.observed] });
+
+/**
+ * Outcome-specific goal capability for every metric (C6/D4-05; D2-02, D2-06, D2-07, D2-08, D7-07, D8-08, D8-09). Planner
+ * routes (request, imported/saved goals, reach/Ideal, sensitivity, living replan) gate on it: `unavailable` and
+ * `observedOnly` metrics are never objectives and earn no benefit credit; `scenario` objectives are labelled assumptions.
+ * The legacy `SeriesDef.goal` keeps the objective shape for historical artifacts.
+ */
+export const GOAL_CAPABILITY: Readonly<Record<MetricId, GoalCapability>> = {
+  scaleWeight: cap('supported', 'water-adjusted (tissue) weight trend at horizon end, kg', 'trendWeightOperator', { operator: 'waterAdjustedWake', objectives: ['target'], requiredOutputs: ['scaleWeight'], warrants: [W.energyBalance, W.bodyCompTrials] }),
+  fatMass: cap('supported', 'model fat mass at horizon end, kg', 'ok', { operator: 'modelFatMass', objectives: ['target', 'minimise'], requiredOutputs: ['fatMass', 'leanTissue'], warrants: [W.energyBalance, W.bodyCompTrials] }),
+  leanMass: display('scaleOperatorIncludesWater', 'inferred non-fat scale mass (includes glycogen, water, gut)'),
+  leanTissue: cap('supported', 'model lean tissue at horizon end, kg (partition conditional on protein and training inputs)', 'conditionalPartition', { operator: 'modelLeanTissue', objectives: ['maximise', 'target'], requiredOutputs: ['leanTissue'], warrants: [W.bodyCompTrials, W.mechanism] }),
+  skeletalMuscle: cap('scenario', 'model skeletal muscle at horizon end, kg', 'growthStateUncalibrated', { objectives: ['maximise'], requiredOutputs: ['skeletalMuscle'], warrants: [W.mechanism] }),
+  bodyFatPct: cap('supported', 'tissue fat fraction 100·FM/(FM + FFM_act) at horizon end, %', 'tissueFractionEstimand', { operator: 'tissueFatFraction', objectives: ['target'], requiredOutputs: ['fatMass', 'leanTissue'], warrants: [W.energyBalance, W.bodyCompTrials] }),
+  waist: cap('scenario', 'model waist girth at horizon end, cm', 'girthOperatorUnvalidated', { operator: 'waist', objectives: ['target', 'minimise'], requiredOutputs: ['waist', 'fatMass'], warrants: [W.mechanism] }),
+  visceralFat: cap('scenario', 'model visceral fat at horizon end, kg', 'regionalAllocationModel', { objectives: ['minimise'], requiredOutputs: ['visceralFat'], warrants: [W.mechanism] }),
+  glycogenTotal: cap('scenario', 'model total glycogen, g', 'taskScopedFuel', { objectives: ['target'], satiation: 'required', requiredOutputs: ['glycogenTotal'], warrants: [W.mechanism] }),
+  liverGlycogen: display('displayOnly', 'model liver glycogen, g'),
+  muscleGlycogen: cap('scenario', 'model whole-body muscle glycogen, g', 'taskScopedFuel', { objectives: ['maximise'], satiation: 'optional', requiredOutputs: ['muscleGlycogen'], warrants: [W.mechanism] }),
+  bhb: cap('scenario', 'model blood D-BHB, mmol/L (hour mean)', 'concentrationObservationModelPending', { operator: 'bhbHourlyMean', timeBasis: 'mean', objectives: ['target'], satiation: 'required', requiredOutputs: ['bhb'], warrants: [W.mechanism] }),
+  ketosisState: display('displayOnly', 'model ketosis state'),
+  hoursInKetosis: cap('scenario', 'model hours per day with BHB above the ketosis threshold', 'concentrationObservationModelPending', { timeBasis: 'mean', objectives: ['maximise'], satiation: 'optional', requiredOutputs: ['hoursInKetosis', 'bhb'], warrants: [W.mechanism] }),
+  ketoAdaptation: display('latentStateNotCertificate', 'latent keto-adaptation states'),
+  fatOxidation: display('displayOnly', 'model fat oxidation, g/d'),
+  glucose: cap('scenario', 'model mean plasma glucose, mmol/L', 'needsTargetBand', { timeBasis: 'mean', objectives: ['target', 'band'], satiation: 'required', requiredOutputs: ['glucose'], warrants: [W.mechanism] }),
+  tdee: cap('scenario', 'model total energy expenditure, kcal/d', 'expenditureNotHealthEndpoint', { timeBasis: 'mean', objectives: ['maximise'], requiredOutputs: ['tdee'], warrants: [W.energyBalance, W.mechanism] }),
+  rmr: cap('scenario', 'model resting metabolic rate, kcal/d', 'expenditureNotHealthEndpoint', { timeBasis: 'mean', objectives: ['maximise'], requiredOutputs: ['rmr'], warrants: [W.mechanism] }),
+  neat: display('displayOnly', 'model non-exercise movement energy, kcal/d'),
+  metabolicAdaptation: cap('scenario', 'model adaptive thermogenesis, kcal/d', 'adaptationUncalibrated', { objectives: ['maximise'], requiredOutputs: ['metabolicAdaptation'], warrants: [W.mechanism] }),
+  energyBalance: display('displayOnly', 'model energy balance, kcal/d'),
+  maintenance: display('displayOnly', 'model maintenance energy, kcal/d'),
+  autophagyIdx: display('noHealthObjective', 'legacy autophagy research index (no flux estimate)'),
+  mtorIdx: display('noHealthObjective', 'mTOR activity index'),
+  ampkIdx: display('noHealthObjective', 'AMPK activity index'),
+  mps: display('simulatedResponseIndex', 'simulated anabolic-response index'),
+  igf1: display('responseModelUnvalidated', 'IGF-1 relative to baseline (exploratory mechanism)'),
+  hunger: cap('scenario', 'uncalibrated hunger burden index (0–100)', 'burdenPriorUncalibrated', { timeBasis: 'mean', objectives: ['minimise'], requiredOutputs: ['hunger'], warrants: [W.functional, W.mechanism] }),
+  leptin: display('exploratoryMechanism', 'leptin relative to baseline'),
+  t3: display('exploratoryMechanism', 'T3 relative to baseline'),
+  cortisol: display('exploratoryMechanism', 'cortisol relative to baseline'),
+  testosterone: monitor('measuredLabOnly', 'measured testosterone with its lab range'),
+  menstrualRisk: monitor('loggedCycleConcernsOnly', 'logged cycle changes and energy-availability concern'),
+  adherence: display('notAProbability', 'model adherence index (no probability semantics)'),
+  insulinSensitivity: cap('scenario', 'model insulin sensitivity relative to baseline', 'personalResponseUncalibrated', { objectives: ['maximise'], requiredOutputs: ['insulinSensitivity'], warrants: [W.mechanism] }),
+  ldl: cap('scenario', 'model LDL cholesterol, mmol/L', 'populationResponseScenario', { objectives: ['minimise', 'target'], satiation: 'optional', requiredOutputs: ['ldl'], warrants: [W.bodyCompTrials, W.mechanism] }),
+  apoB: display('proxyResponseUnvalidated', 'ApoB (exploratory proxy response)'),
+  hdl: monitor('measuredLabOnly', 'measured HDL cholesterol'),
+  triglycerides: cap('scenario', 'model triglycerides, mmol/L', 'populationResponseScenario', { objectives: ['minimise', 'target'], satiation: 'optional', requiredOutputs: ['triglycerides'], warrants: [W.mechanism] }),
+  sbp: cap('scenario', 'model systolic pressure vs protocol-tagged repeated home readings, mmHg', 'needsTargetBandAndProtocol', { operator: 'bloodPressure', objectives: ['target', 'band'], satiation: 'required', requiredOutputs: ['sbp'], warrants: [W.mechanism] }),
+  liverFat: cap('scenario', 'model liver fat, %', 'sustainedResponseUncalibrated', { objectives: ['minimise'], satiation: 'optional', requiredOutputs: ['liverFat'], warrants: [W.mechanism] }),
+  fastingGlucose: cap('scenario', 'model fasting glucose vs eligible fasting samples, mmol/L', 'needsTargetBandMedicationAware', { operator: 'fastingGlucose', objectives: ['target', 'band'], satiation: 'required', requiredOutputs: ['fastingGlucose'], warrants: [W.mechanism] }),
+  crp: cap('scenario', 'model hs-CRP relative to baseline', 'personalResponseUncalibrated', { objectives: ['minimise'], satiation: 'optional', requiredOutputs: ['crp'], warrants: [W.mechanism] }),
+  vo2max: cap('scenario', 'model VO2max, mL/kg/min (broad estimate; fitness tests calibrate)', 'broadEstimate', { objectives: ['maximise'], requiredOutputs: ['vo2max'], warrants: [W.mechanism] }),
+  strength: cap('scenario', 'task-specific strength index vs baseline', 'taskSpecific', { objectives: ['maximise'], requiredOutputs: ['strength'], warrants: [W.mechanism, W.functional] }),
+  trainingStatus: display('displayOnly', 'model training status'),
+  enduranceCapacity: display('genericIndexNotTask', 'generic endurance index (task-scoped research only)'),
+  rtMuscleGain: cap('scenario', 'training-attributable lean tissue, kg', 'growthStateUncalibrated', { objectives: ['maximise'], requiredOutputs: ['rtMuscleGain', 'leanTissue'], warrants: [W.mechanism] }),
+  sleepQuality: monitor('loggedSleepOnly', 'logged sleep duration and quality'),
+  moodTier: monitor('observedWellbeingOnly', 'observed wellbeing and concern flags'),
+  energyAvailability: display('safetyContextOnly', 'energy availability exposure, kcal/kg FFM/d'),
+  hipBmdChange: monitor('measuredDxaOnly', 'measured site-specific DXA BMD'),
+  ketoInduction: cap('scenario', 'keto-induction symptom load (0–1)', 'burdenPriorUncalibrated', { timeBasis: 'mean', objectives: ['minimise'], requiredOutputs: ['ketoInduction'], warrants: [W.functional] }),
+  micronutrientScore: display('fabricatedPrecision', 'rule-based micronutrient flags (not nutrient status)'),
+};
+
+/** The capability of a metric (C6). */
+export function goalCapability(id: MetricId): GoalCapability {
+  return GOAL_CAPABILITY[id];
+}
+
+/**
+ * Production goal eligibility (C6): goal-shaped (`SeriesDef.goal !== 'none'`) AND an optimizable capability. Every request
+ * route must use this instead of reading `SeriesDef.goal` alone (legacy artifacts keep their stored goal for display).
+ */
+export function isProductionGoalEligible(id: string): boolean {
+  const i = (SERIES_INDEX as Readonly<Record<string, number>>)[id];
+  if (i === undefined) return false;
+  const d = SERIES[i]!;
+  return d.kind === 'metric' && d.goal !== 'none' && capabilityAllowsOptimization(GOAL_CAPABILITY[d.id as MetricId]);
 }

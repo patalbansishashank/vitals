@@ -23,3 +23,8 @@ apps/android/android/.gradle/
 *.keystore
 *.jks
 release-signing/
+
+# impeccable review captures (evidence for design reviews, not source)
+.impeccable/review/
+# Kotlin incremental/compiler caches are native build output, not validation source.
+**/.kotlin/

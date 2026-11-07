@@ -1,17 +1,27 @@
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { Download, Upload } from 'lucide-react';
-import { Chip, InlineWarning, Key, Meter, formatBytes, toast } from '@/components';
-import { describeStored, LOCAL_STORAGE_QUOTA, parseImport, storageUsage, type ImportFailure, type ImportPreview } from '@/state/persistence';
+import { InlineWarning, Key, MonoMeta, formatBytes, toast } from '@/components';
+import {
+  describeStored,
+  LOCAL_STORAGE_QUOTA,
+  parseImport,
+  storageUsage,
+  type ImportFailure,
+  type ImportPreview,
+} from '@/state/persistence';
 import { useSettingsStore } from '@/state/settingsStore';
 import { SettingsSection } from './sections';
+import { SettingRow, SettingsGroup, SettingsItem } from './SettingRow';
+import { NATIVE_HISTORY_SCOPE, PLANNING_BACKUP_SCOPE, privacyText } from './copy';
+import { useServerPairing } from './server/hooks';
+import { useSyncView } from '@/state/sync';
 import { ImportDialog } from './ImportDialog';
 import { ResetDialog } from './ResetDialog';
 import { loadAllStores } from './stores';
 import { dispatch } from '@/commands';
 import { sendCommand } from '@/features/lib/sendCommand';
-import { useSyncView } from '@/state/sync';
 import { platformCaps } from '@/platform';
-import { DATA_LINE } from './copy';
+import { StorageCard } from './StorageCard';
 
 const DAY = 86_400_000;
 
@@ -22,7 +32,7 @@ function daysSince(iso: string | null): number | null {
   return Number.isNaN(t) ? null : Math.floor((Date.now() - t) / DAY);
 }
 
-/** Re-read storage figures whenever any store writes (cheap: a few keys). */
+/** Re-read what is stored whenever any store writes (cheap: a few keys); the reset dialog names it. */
 function subscribeStorage(cb: () => void) {
   const onStorage = () => cb();
   window.addEventListener('storage', onStorage);
@@ -37,21 +47,24 @@ function subscribeStorage(cb: () => void) {
   };
 }
 let cacheKey = '';
-let cache: { bytes: number; keys: number; contents: string[] } = { bytes: 0, keys: 0, contents: [] };
+let cache: { contents: string[]; used: number } = { contents: [], used: 0 };
 function snapshot() {
-  const u = storageUsage();
   const contents = describeStored().map((d) => d.summary);
-  const key = `${u.bytes}|${u.keys}|${contents.join(',')}`;
+  // only the browser's small key store has a hard cap; the document store grows with the device
+  const used = Math.min(1, storageUsage().bytes / LOCAL_STORAGE_QUOTA);
+  const key = `${used.toFixed(2)}|${contents.join(',')}`;
   if (key !== cacheKey) {
     cacheKey = key;
-    cache = { ...u, contents };
+    cache = { contents, used };
   }
   return cache;
 }
 
 function formatDate(d: Date): string {
   // newer ICU data spells September "Sept" in en-GB; the design writes three-letter months
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).replace(/\bSept\b/, 'Sep');
+  return d
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    .replace(/\bSept\b/, 'Sep');
 }
 
 /** Browser download of the export; falls back to opening the JSON where `download` is unsupported. */
@@ -72,17 +85,24 @@ function download(text: string, name: string): number {
   return blob.size;
 }
 
+/**
+ * Settings › Your data (r068 S22): Backup (when the last export was, then Export and Import as two equal keys), Reset
+ * (what it does, then its danger key: at the right on wider screens, full width on phones), and the privacy line (where
+ * the data lives; moved here from Sync, r068 S23).
+ */
 export function DataSection() {
-  const usage = useSyncExternalStore(subscribeStorage, snapshot, snapshot);
+  const { contents, used } = useSyncExternalStore(subscribeStorage, snapshot, snapshot);
   const lastExportAt = useSettingsStore((s) => s.lastExportAt);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [importState, setImportState] = useState<{ fileName: string; result: ImportPreview | ImportFailure } | null>(null);
+  const [importState, setImportState] = useState<{
+    fileName: string;
+    result: ImportPreview | ImportFailure;
+  } | null>(null);
   const [reading, setReading] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
 
   const lastExport = lastExportAt ? new Date(lastExportAt) : null;
   const age = daysSince(lastExportAt);
-  const hasUserData = usage.contents.some((c) => c !== 'settings');
 
   const onExport = async () => {
     const r = await dispatch('data.export', {});
@@ -106,64 +126,88 @@ export function DataSection() {
     }
   };
 
-  const synced = useSyncView().paired;
   // the Android and desktop apps keep data on the device, not in a browser
-  const app = platformCaps().installedApp;
-  const contentsLine = usage.contents.length > 0 ? usage.contents.join(' · ') : 'Nothing saved yet.';
-  const usedText = `${formatBytes(usage.bytes)} of ${Math.round(LOCAL_STORAGE_QUOTA / 1_000_000)} MB used`;
+  const caps = platformCaps();
+  const app = caps.installedApp;
+  const android = caps.platform === 'android';
+  const synced = useSyncView().paired;
+  const coachOnServer = useServerPairing() !== null;
 
   return (
     <SettingsSection id="data" title="Your data">
-      <div className="grid gap-4">
-        <p className="m-0 text-sm leading-[1.5] text-ink">{synced ? DATA_LINE.synced : DATA_LINE.local}</p>
-        <Meter
-          label="Storage used"
-          value={usage.bytes}
-          max={LOCAL_STORAGE_QUOTA}
-          valueText={usedText}
-          advice={
-            usage.bytes / LOCAL_STORAGE_QUOTA >= 0.95
-              ? "Vitals can't save more. Export and remove scenarios."
-              : 'Storage is nearly full. Export and delete old scenarios to make room.'
-          }
-        />
-        <p className="m-0 text-xs text-ink-2">{contentsLine}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Key icon={Download} onClick={onExport}>
-            Export data
-          </Key>
-          <Key icon={Upload} loading={reading} onClick={() => fileRef.current?.click()}>
-            Import a file
-          </Key>
-          {lastExport === null && hasUserData ? (
-            <Chip kind="status" severity="info">
-              Not backed up yet
-            </Chip>
-          ) : null}
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            className="lm-sr"
-            tabIndex={-1}
-            aria-hidden="true"
-            onChange={(e) => void onFile(e.target.files?.[0])}
-          />
-        </div>
+      <StorageCard privacy={privacyText(synced, coachOnServer)} />
+      <SettingsGroup label="Backup" info={android ? { title: 'What is in a backup', body: PLANNING_BACKUP_SCOPE } : undefined}>
         {age !== null && age > 30 ? (
-          <InlineWarning severity="caution">Last export was {age} days ago.{app ? null : ' Browsers can clear site data.'}</InlineWarning>
+          <SettingsItem>
+            <InlineWarning severity="caution">
+              Last export was {age} days ago.{app ? null : ' Browsers can clear site data.'}
+            </InlineWarning>
+          </SettingsItem>
         ) : (
-          <p className="m-0 text-xs text-ink-2">last export: {lastExport ? formatDate(lastExport) : 'never'}</p>
+          <SettingRow label="Last export">
+            {() => <MonoMeta>{lastExport ? formatDate(lastExport) : 'Never'}</MonoMeta>}
+          </SettingRow>
         )}
-        <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
-          <Key variant="danger" onClick={() => setResetOpen(true)}>
-            Reset everything
-          </Key>
-          <span className="text-xs text-ink-2">Deletes everything Vitals stored {app ? 'on this device' : 'in this browser'}.</span>
-        </div>
-      </div>
-      <ImportDialog state={importState} onClose={() => setImportState(null)} onChooseAnother={() => fileRef.current?.click()} />
-      <ResetDialog open={resetOpen} onClose={() => setResetOpen(false)} contents={usage.contents} />
+        {used >= 0.8 ? (
+          <SettingsItem>
+            <meter
+              className="settings-key-storage"
+              min={0}
+              max={1}
+              value={used}
+              aria-label="Key store usage"
+            />
+            <InlineWarning severity={used >= 0.95 ? 'danger' : 'caution'}>
+              {used >= 0.95
+                ? "Vitals can't save more here. Export, then remove old scenarios."
+                : 'Storage is nearly full. Export, then remove old scenarios.'}
+            </InlineWarning>
+          </SettingsItem>
+        ) : null}
+        <SettingsItem>
+          <div className="settings-keys" data-equal="">
+            <Key icon={Download} onClick={onExport}>
+              Export data
+            </Key>
+            <Key icon={Upload} loading={reading} onClick={() => fileRef.current?.click()}>
+              Import a file
+            </Key>
+          </div>
+        </SettingsItem>
+      </SettingsGroup>
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".json,application/json"
+        className="lm-sr"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => void onFile(e.target.files?.[0])}
+      />
+      <SettingsGroup label="Reset">
+        <SettingRow
+          label="Reset planning data"
+          help={`Clears plans, body profile, logs, preferences and cached readings ${app ? 'on this device' : 'in this browser'}. Server copies stay unchanged.${android ? ` ${NATIVE_HISTORY_SCOPE}` : ''}`}
+          wide
+        >
+          {() => (
+            <Key variant="danger" onClick={() => setResetOpen(true)}>
+              Reset planning data
+            </Key>
+          )}
+        </SettingRow>
+      </SettingsGroup>
+      <ImportDialog
+        state={importState}
+        onClose={() => setImportState(null)}
+        onChooseAnother={() => fileRef.current?.click()}
+      />
+      <ResetDialog
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        contents={contents}
+        onExport={onExport}
+      />
     </SettingsSection>
   );
 }

@@ -39,6 +39,7 @@ function durationWords(days: number): string {
 }
 
 export function laneSummary(s: ChartSeries, opts: { tableHint?: boolean } = {}): string {
+  if (s.display?.wordOnly) return `${s.label}: ${s.display.wordOnly}.${s.display.observed ? ` Observed start ${say(s.display.observed.value, s.format.decimals)} ${unitWords(s.display.observed.unit)}.` : ''}${opts.tableHint !== false ? ' Press T for the data table.' : ''}`;
   const v = s.daily.values;
   const n = v.length;
   const d = s.format.decimals;
@@ -51,7 +52,7 @@ export function laneSummary(s: ChartSeries, opts: { tableHint?: boolean } = {}):
   let sentence =
     verb === 'Stays about the same at' ? `${verb} ${say(end, d)}` : `${verb} ${say(start, d)} to ${say(end, d)}`;
   const b = s.daily.band;
-  if (b) sentence += ` (likely ${say(b.lo[n - 1]!, d)} to ${say(b.hi[n - 1]!, d)})`;
+  if (b) sentence += ` (range ${say(b.lo[n - 1]!, d)} to ${say(b.hi[n - 1]!, d)})`;
   sentence += ` over ${durationWords(n)}`;
 
   // fastest two-week stretch in the direction of travel
@@ -82,7 +83,7 @@ export function laneSummary(s: ChartSeries, opts: { tableHint?: boolean } = {}):
     sentence += `; peaks at ${say(v[maxI]!, d)} in week ${Math.floor(maxI / 7) + 1}`;
   else if (range > 0 && minI > 2 && minI < n - 3 && Math.min(start, end) - v[minI]! > range * 0.25)
     sentence += `; lowest at ${say(v[minI]!, d)} in week ${Math.floor(minI / 7) + 1}`;
-  parts.push(sentence + '.');
+  parts.push(sentence + (s.display?.qualifier ? ` · ${s.display.qualifier}` : '') + '.');
   if (s.grade === 'D') parts.push('Exploratory: based on animal and cell studies.');
   if (opts.tableHint !== false) parts.push('Press T for the data table.');
   return parts.join(' ');

@@ -11,18 +11,18 @@ export interface TrendLaneData {
   startDate: string;
   /** Length of every per-day array. */
   days: number;
-  /** Index of today (the yellow now-hand), or null when today is outside the window. */
+  /** Index of today (the now-hand), or null when today is outside the window. */
   todayIndex: number | null;
   /** Display unit ("kg", "lb"). */
   unit: string;
   decimals: number;
   /** Raw weigh-ins as faint dots; flagged outliers are hollow, never removed. */
   weighIns: Array<{ day: number; value: number; flagged?: boolean }>;
-  /** Filtered trend line (2 px, body hue); NaN where there is no trend yet. */
+  /** Filtered trend line (2 px, gold); NaN where there is no trend yet (the line breaks, never bridges). */
   trend: number[];
   /** Trend SD per day (readout "±0.3"), optional. */
   trendSd?: number[];
-  /** Realistic forecast (at the person's actual adherence): filled band + optional median. */
+  /** Realistic forecast (at the person's actual adherence): filled band with long-dashed p10 / p90 edges + optional median. */
   realistic?: { p10: number[]; p50?: number[]; p90: number[] };
   /** As-prescribed forecast (full adherence): 1 px dashed outline band. */
   asPrescribed?: { p10: number[]; p90: number[] };
@@ -55,8 +55,10 @@ export type DialArcState = 'done' | 'partial' | 'missed' | 'unknown';
 export interface CalendarDay {
   date: string;
   inPlan: boolean;
-  /** 0–100 or null (unscored → hollow dot). */
+  /** 0–100 or null (unscored → hollow ring, or a filled dot when `logged`). */
   score: number | null;
+  /** Something was logged or marked that day (a meal, a session, a weigh-in…), whether or not it was scored. */
+  logged?: boolean;
   items?: DialItem[];
   assumed?: boolean;
   paused?: boolean;
@@ -90,4 +92,11 @@ export interface ScoreHistoryData {
   /** Optional second line "compare with v1.2" (dashed). */
   compare?: { label: string; values: number[] };
   category: 'recovery' | 'performance' | 'cardio';
+  /** What one dot is, singular and plural, lower case (default night / nights; a daily signal is day / days). */
+  point?: { one: string; many: string };
+  /**
+   * How a value reads, when a plain decimal would not (time asleep reads "7:56", not "7.9"): `text` for the y ticks, the
+   * readout and the table (the unit is not appended), `spoken` for the summary (default `text`). The CSV keeps numbers.
+   */
+  format?: { text: (v: number) => string; spoken?: (v: number) => string };
 }

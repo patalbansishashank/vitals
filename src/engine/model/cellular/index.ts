@@ -5,17 +5,27 @@
  *
  * MANDATORY CAVEAT (08 §4.10, W-U05): the ASI is a PROPOSED, relative, conditions-based 0-100 index (evidence grade
  * C/D). It encodes WHEN the conditions linked to autophagy are present (no recent protein or sugar, low insulin,
- * depleted liver glycogen, rising ENDOGENOUS ketones, recent hard exercise), not how much autophagy occurs, in which
- * tissue, or whether it helps health. It is never traded against grade A/B goals (08 §4.15). No compound raises it:
- * only `bhbEndoMmolL` (endogenous BHB) enters the depth term, so exogenous ketones, ketone esters and MCT-derived
- * excess cannot move the index (ruling R-ASI). The mandatory statement is the `caveat` of the `autophagyIdx` series.
+ * depleted liver glycogen, recent hard exercise), not how much autophagy occurs, in which tissue, or whether it helps
+ * health. No compound raises it. D2-03: the ketone term of the fasting-depth proxy has weight ZERO (design abstention,
+ * not a physiological estimate) until a valid separation of ketone sources exists: `bhbEndoMmolL` still contains hepatic
+ * dietary-MCT production, so supplement- or MCT-derived ketones would otherwise earn fasting-depth credit. The registry
+ * weight `cellular.wKet` is kept (and still drawn, so the ensemble layout is unchanged) but not applied; `F_ket` is
+ * computed as a diagnostic only; the clock and liver-glycogen weights are renormalised to sum 1 as before. The mandatory
+ * statement is the `caveat` of the `autophagyIdx` series.
+ *
+ * D2-02 (C6): the ASI is a retained legacy RESEARCH index (`ASI_RESEARCH_INDEX`, labels.ts). It is no health objective:
+ * no goal, benefit edge, comparison reward or saved-target adoption may read it (`GOAL_CAPABILITY.autophagyIdx` is
+ * unavailable), operating screens show the `ASI_DISPLAY_STATUS` word only, and its 0-100 anchors are definitions, not
+ * validation. The mTORC1 and AMPK indices stay display-only signalling views with no goal. Nothing here feeds back into
+ * energy, composition, safety or any objective: `asiIdx` has no reader.
  *
  * Hourly algorithm (stepHour, after muscle and ketones; hour-end values, Δt = 1 h):
  *  1. hFast = `hoursSinceMealH` (intake owns the 08 reset rule: protein ≥ 10 g or net carbohydrate ≥ 15 g).
  *  2. S = 1 − (1 − wAa·S_aa)(1 − wIns·S_ins), S_aa from the leucine fold dL = raAaQGH/(k·FFM), S_ins from
  *     dI = max(0, insulinUuMl − insulinBasalUuMl) (intake's basal insulin: Ins_f × the 05 liver-glycogen factor, no meal
  *     excursions; 08 §4.4 "insulinFastingBasal").
- *  3. F = wC·F_clock + wG·F_glyc + wK·F_ket (clock, liver-glycogen depletion vs the 12-h reference, endogenous BHB).
+ *  3. F = wC·F_clock + wG·F_glyc (clock, liver-glycogen depletion vs the 12-h reference); the BHB term F_ket has weight 0
+ *     (D2-03 abstention, `ASI_KETONE_WEIGHT`) and is kept as a diagnostic.
  *  4. ASI = clamp(100(1 − S)(B0 + (1 − B0)F) + A_ex·min(1.5, xEx) + asi_CR, 0, 100); B0 makes ASI(12 h) = 25.
  *  5. mTORC1 index (08 §4.11) and AMPK index (08 §4.6) — display-only: skipped when neither series is recorded.
  * Daily (endOfDay): chronic-deficit EMA cDef → asi_CR (08 §4.9).
@@ -27,14 +37,56 @@
 import { defineModule } from '../../core/moduleKit';
 import { clamp, clamp01, decayFactor } from '../../core/math';
 import { param } from '../../core/paramsRegistry';
-import { MI, SERIES_INDEX } from '../../types/metrics';
+import type { CausalResolution, HistoryAssumptionKind } from '@/lib/bodyContracts';
+import { MI, SERIES_INDEX, type SeriesId } from '../../types/metrics';
 import type { DayInput, HourInput } from '../../types/inputs';
 import type { MetricFrame, ModuleContext, StepClock } from '../../types/module';
-import type { SignalBus } from '../../types/signals';
+import type { ModuleId, SignalBus, SignalName } from '../../types/signals';
 import { CELLULAR_PARAMS } from './params';
 
 export { CELLULAR_PARAMS } from './params';
-export { ASI_BANDS, ASI_DEEP_THRESHOLD, asiLabel } from './labels';
+export { ASI_BANDS, ASI_DISPLAY_STATUS, ASI_RESEARCH_INDEX, asiLabel } from './labels';
+
+/**
+ * Applied weight of the ketone term in the ASI depth proxy (D2-03): 0, a design abstention until ketone sources can be
+ * separated validly (hepatic dietary-MCT production and ingested D-BHB would otherwise earn fasting-depth credit). The
+ * registry prior `cellular.wKet` is retained for the legacy research definition but not applied.
+ */
+export const ASI_KETONE_WEIGHT = 0;
+/** Version of the ASI definition as applied here (2 = ketone weight 0, D2-03); the legacy definition is version 1. */
+export const ASI_DEFINITION_VERSION = 2;
+
+/**
+ * Causal-resolution declaration (C2), same shape as the other modules' declarations. The hourly indices read only hours
+ * already stepped, but maintenance (energy) and the balance fraction and active FFM (composition) are daily-native
+ * upstream, so the indices inherit daily resolution in an observed replay. `completedDayInputs`: endOfDay reads the
+ * finished day's energy for cDef, which acts from the next day on. Declarative only; nothing here changes the indices.
+ */
+export const CELLULAR_CAUSAL_RESOLUTION = {
+  module: 'cellular',
+  nativeResolution: 'daily',
+  dailyInputs: [],
+  completedDayInputs: ['energyKcal'],
+  dayStartSignals: [],
+  upstreamDailySignals: ['maintenanceKcalD', 'energyBalanceFrac', 'ffmActKg'],
+  planMetadataReads: [],
+  series: ['autophagyIdx', 'mtorIdx', 'ampkIdx'],
+  signals: ['asiIdx'],
+  assumption: 'dailyNativeModel',
+  reasonCode: 'dailyNativeUpstream',
+} as const satisfies {
+  module: ModuleId;
+  nativeResolution: CausalResolution;
+  dailyInputs: readonly (keyof DayInput)[];
+  completedDayInputs: readonly (keyof DayInput)[];
+  dayStartSignals: readonly SignalName[];
+  upstreamDailySignals: readonly SignalName[];
+  planMetadataReads: readonly (keyof DayInput)[];
+  series: readonly SeriesId[];
+  signals: readonly SignalName[];
+  assumption: HistoryAssumptionKind;
+  reasonCode: string;
+};
 
 export interface CellularState {
   /** Amino-acid suppression S_aa (0..1, raw Hill, before the wAa weight) — this hour. */
@@ -49,19 +101,22 @@ export interface CellularState {
   cDef: number;
   /** Calibrated B0 (ASI = 25 at hFast = 12 h, 08 §4.10 step 4). */
   b0: number;
-  /** Autophagy Signal Index, relative 0..100 (headline, grade C/D). */
+  /** Autophagy Signal Index, relative 0..100 (legacy research index, grade C/D; no flux estimate, no objective, D2-02). */
   asi: number;
-  /** Muscle-specific ASI view (A_ex_m weight), 0..100. */
+  /** Muscle-specific ASI view (A_ex_m weight), 0..100 (research view). */
   asiMuscle: number;
-  /** Muscle mTORC1 activity index, 0..100. */
+  /** Muscle mTORC1 activity index, 0..100 (display-only signalling view; goal none). */
   mtor: number;
-  /** Muscle AMPK (α2) activity index, 0..100. */
+  /** Muscle AMPK (α2) activity index, 0..100 (display-only signalling view; goal none). */
   ampk: number;
   /** Combined nutrient suppression S = 1 − (1 − wAa·S_aa)(1 − wIns·S_ins), 0..1. */
   sNut: number;
   /** Leucine fold above post-absorptive dL (≥ 0). */
   leucineFold: number;
-  /** Fasting-depth terms this hour: F_clock, F_glyc, F_ket (each 0..1) and F = wC·F_clock + wG·F_glyc + wK·F_ket. */
+  /**
+   * Fasting-depth terms this hour: F_clock, F_glyc, F_ket (each 0..1) and F = wC·F_clock + wG·F_glyc + wK·F_ket with the
+   * applied wK = 0 (D2-03): F_ket is a diagnostic of the hepatic BHB, never depth credit.
+   */
   fClock: number;
   fGlyc: number;
   fKet: number;
@@ -198,7 +253,10 @@ function clockDrive(k: CellularK, hFast: number): number {
   return hn / (hn + k.h50Pow);
 }
 
-/** B0 = (0.25 − F12)/(1 − F12) with F12 = wC·F_clock(12) + wG·0 + wK·F_ket(bhb at 12 h): ASI(12 h) = 25 by construction (08 §4.10). */
+/**
+ * B0 = (0.25 − F12)/(1 − F12) with F12 = wC·F_clock(12) + wG·0 + wK·F_ket(bhb at 12 h): ASI(12 h) = 25 by construction
+ * (08 §4.10); with the applied wK = 0 (D2-03) the BHB reference no longer moves B0.
+ */
 export function calibrateB0(k: CellularK, bhbRef12: number): number {
   const b = Math.max(0, bhbRef12);
   const f12 = k.wClock * clockDrive(k, REF_HOURS) + k.wKet * ((b * b) / (b * b + k.kBhb2));
@@ -212,7 +270,10 @@ function prepare(ctx: ModuleContext): CellularK {
   const nL = g('nL');
   const nI = g('nI');
   const nh = g('nh');
-  const wSum = g('wClock') + g('wGlyc') + g('wKet');
+  // D2-03: the ketone weight is not applied (ASI_KETONE_WEIGHT = 0); `cellular.wKet` stays registered and drawn so the
+  // ensemble's parameter layout is unchanged, and the remaining weights are renormalised to sum 1 as before
+  const wKetApplied = ASI_KETONE_WEIGHT * g('wKet');
+  const wSum = g('wClock') + g('wGlyc') + wKetApplied;
   const habits = ctx.profile.habits;
   const trained = habits.trainingHistory !== 'none';
   const enduranceTrained =
@@ -233,7 +294,7 @@ function prepare(ctx: ModuleContext): CellularK {
     nhIs2: nh === 2,
     wClock: g('wClock') / wSum,
     wGlyc: g('wGlyc') / wSum,
-    wKet: g('wKet') / wSum,
+    wKet: wKetApplied / wSum,
     kBhb2: g('kBhb') * g('kBhb'),
     asiRef12: g('asiRef12'),
     bhbRef12Prior: g('bhbRef12'),

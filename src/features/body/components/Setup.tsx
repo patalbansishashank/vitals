@@ -1,12 +1,16 @@
-import { Faceplate, KeyLink } from '@/components';
+import { GitBranch, Target } from 'lucide-react';
+import { CardHead, DottedTrack, GradientCard, MonoMeta } from '@/components';
 import { Figure3D } from '@/features/body/figure3d';
 import type { AvatarParams } from '@/engine/body';
 import { paths } from '@/app/paths';
-import { FIGURE, SETUP } from '../copy';
+import { FIGURE, INFO, SETUP } from '../copy';
 
 export type SetupView = 'basics' | 'shape' | 'habits';
 
-/** The 3-segment progress scale in the context bar (IA §4.1: basics · shape · habits, not numbered steps). */
+/**
+ * The 3-segment progress scale in the header's progress row (IA §4.1: basics · shape · a normal day, not numbered
+ * steps); the intake carries the same scale as step 3.
+ */
 export function SetupProgress({ step }: { step: SetupView }) {
   const idx = SETUP.steps.findIndex((s) => s.id === step);
   return (
@@ -27,34 +31,31 @@ export function SetupProgress({ step }: { step: SetupView }) {
   );
 }
 
-/** "Choose a start" (IA §4.1): the hand-over from setup into the Simulator or the Planner. */
+/**
+ * "Choose a start" (r071; IA §4.1): the hand-over from setup into the Planner or the Simulator. The page title says it
+ * (the header); here are only the two ways on. Find plans is the hero (a gold glow and a dotted track from a goal to its
+ * plans, drawn as a glyph); Simulate a plan is the slim card under it. Each card's sentence is its (i); the card is one
+ * link, through its title.
+ */
 export function ChooseStart() {
   return (
-    <Faceplate className="lm-body-start" title={SETUP.startTitle}>
-      <p className="lm-body-lead">{SETUP.startLead}</p>
-      <div className="lm-body-start__keys">
-        <div className="lm-body-start__opt">
-          <KeyLink to={paths.simulate} size="lg" block>
-            {SETUP.simulate}
-          </KeyLink>
-          <p className="lm-body-hint">{SETUP.simulateHint}</p>
+    <div className="lm-body-start">
+      <GradientCard className="lm-body-start__opt" data-primary="" domain="plan" size="hero" href={paths.planGoals} head={<CardHead icon={Target} title={SETUP.plan} info={INFO.plan} />}>
+        {/* a goal with a thumb on the way to it: a picture of what the card does, never a reading */}
+        <div className="lm-body-start__glyph" aria-hidden="true">
+          <DottedTrack label={SETUP.plan} value={64} from={0} to={100} valueText="" dots={32} />
         </div>
-        <div className="lm-body-start__opt">
-          <KeyLink to={paths.planGoals} size="lg" block>
-            {SETUP.plan}
-          </KeyLink>
-          <p className="lm-body-hint">{SETUP.planHint}</p>
-        </div>
-      </div>
-      <KeyLink to={paths.body} variant="quiet" size="sm">
-        {SETUP.stay}
-      </KeyLink>
-    </Faceplate>
+        <MonoMeta tone="hue">{SETUP.planMeta}</MonoMeta>
+      </GradientCard>
+      <GradientCard className="lm-body-start__opt" domain="neutral" size="slim" href={paths.simulate} head={<CardHead icon={GitBranch} title={SETUP.simulate} info={INFO.simulate} />}>
+        <MonoMeta>{SETUP.simulateMeta}</MonoMeta>
+      </GradientCard>
+    </div>
   );
 }
 
 /**
- * Sticky mini figure (mobile, your-body.md §3): docks under the top bar while a shape slider is dragged with the
+ * Sticky mini figure (mobile, your-body.md §3): docks under the header while a shape slider is dragged with the
  * stage out of view; fades 1.5 s after the last input; tap scrolls back to the stage.
  */
 export function MiniFigure({

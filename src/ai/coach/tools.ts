@@ -37,7 +37,7 @@ export const CORE_TOOLS: readonly string[] = [
   'today.get', 'log.get', 'log.meal', 'log.mealFromPhoto', 'log.session', 'log.fast', 'log.measurement', 'log.markDay',
   'log.bulk', 'log.note', 'log.retract', 'log.steps', 'log.sleep', 'log.supplement', 'log.subjective', 'plan.get',
   'plan.declareEvent', 'plan.shift', 'plan.replan', 'plan.drift', 'plan.swapExercise', 'plan.editDay', 'plan.end',
-  'sim.whatIf', 'sim.series', 'sim.explain', 'bio.daily', 'catalogue.searchExercises', 'catalogue.searchFoods',
+  'sim.whatIf', 'sim.series', 'sim.explain', 'catalogue.searchExercises', 'catalogue.searchFoods',
   'food.planDay', 'evidence.search', 'coach.pending', 'coach.discardPending', 'safety.status',
   // E20: blood test results (a report the person attaches is read with markers.import)
   'markers.get', 'markers.import',

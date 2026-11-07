@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Log in one tap (a 1x1): one round gold key and nothing else (a label under an icon does not fit a cell as narrow as 57 dp). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/vw_card_gold_square"
+    android:contentDescription="@string/widget_log_activity"
+    android:padding="6dp">
+    <FrameLayout
+        android:id="@+id/vw_key"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="center"
+        android:background="@drawable/vw_key_gold_round">
+        <ImageView android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="center" android:importantForAccessibility="no" android:src="@drawable/vw_icon_plus" android:tint="@color/vw_signal_ink" />
+    </FrameLayout>
+</FrameLayout>

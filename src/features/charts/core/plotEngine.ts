@@ -15,6 +15,8 @@ export interface PlotLine {
   width: number;
   dash?: readonly number[];
   alpha?: (t: ChartTheme) => number;
+  /** Line cap (r071 skin: `round`, the default; uPlot's own default is `butt`). Joins are round in uPlot already. */
+  cap?: CanvasLineCap;
 }
 
 export interface PlotData {
@@ -29,6 +31,17 @@ export interface PlotModel {
   domain(view: ViewState): [number, number];
   under?(a: DrawArgs, view: ViewState): void;
   over?(a: DrawArgs, view: ViewState): void;
+  /**
+   * The y tick labels the model prints for this view at rest (its `domain(view)`), so a chart can size its tick
+   * column to the widest one before drawing (`useAxisGutter`). Models without a y axis leave it out or return [].
+   */
+  yLabels?(view: ViewState): readonly string[];
+  /**
+   * Where the main line ends in this view (its last finite sample at or before the window's end), in data units. The
+   * model draws its end dot there; a lane places its pulse (`PlotApi.cssX` / `cssY`) on the same point. Models without a
+   * line leave it out.
+   */
+  endPoint?(view: ViewState): { t: number; v: number } | null;
 }
 
 export interface PlotPadding {
@@ -46,6 +59,11 @@ export interface PlotApi {
   cssY(v: number): number;
   box(): PlotBox;
   redraw(): void;
+  /**
+   * Called after every draw of the plot (a zoom, a pan, a y-scale tween, a theme change), so a DOM mark that follows a
+   * data point (the focused lane's pulse) is re-placed on the scale the canvas really used. Returns the unsubscribe.
+   */
+  onDraw(fn: () => void): () => void;
 }
 
 export interface PlotProps {
@@ -83,6 +101,9 @@ function aligned(d: PlotData, lines: number): uPlot.AlignedData {
 
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+const samePadding = (a: PlotPadding, b: PlotPadding): boolean =>
+  a.top === b.top && a.right === b.right && a.bottom === b.bottom && a.left === b.left;
+
 export class PlotEngine {
   private u: uPlot | null = null;
   private props: PlotProps | null = null;
@@ -92,7 +113,10 @@ export class PlotEngine {
   private tween = 0;
   private dirty = false;
   private builtFor: PlotModel | null = null;
+  /** Size and padding the current uPlot was built or last resized with (props can change while it is inactive). */
+  private builtBox: { width: number; height: number; padding: PlotPadding } | null = null;
   private unsubs: Array<() => void> = [];
+  private drawListeners = new Set<() => void>();
   readonly api: PlotApi;
 
   constructor(
@@ -137,6 +161,12 @@ export class PlotEngine {
         };
       },
       redraw: () => this.u?.redraw(false),
+      onDraw: (fn) => {
+        this.drawListeners.add(fn);
+        return () => {
+          this.drawListeners.delete(fn);
+        };
+      },
     };
   }
 
@@ -145,12 +175,15 @@ export class PlotEngine {
     const prev = this.props;
     this.props = next;
     if (!next.active || next.width <= 0) return;
-    if (!this.u || this.builtFor !== next.model) {
-      this.build(prev?.model !== next.model && !!this.u);
+    const built = this.builtBox;
+    // uPlot fixes its padding at construction: a new tick column (the widest label changed) rebuilds the plot
+    if (!this.u || this.builtFor !== next.model || !built || !samePadding(built.padding, next.padding)) {
+      this.build(!!this.u && !!prev && prev.model !== next.model);
       return;
     }
-    if (prev && (prev.width !== next.width || prev.height !== next.height)) {
+    if (built.width !== next.width || built.height !== next.height) {
       this.u.setSize({ width: next.width, height: next.height });
+      this.builtBox = { width: next.width, height: next.height, padding: next.padding };
       this.apply(true);
       return;
     }
@@ -161,8 +194,10 @@ export class PlotEngine {
     cancelAnimationFrame(this.tween);
     this.unsubs.forEach((f) => f());
     this.unsubs = [];
+    this.drawListeners.clear();
     this.u?.destroy();
     this.u = null;
+    this.builtBox = null;
   }
 
   private plotWidth(): number {
@@ -227,7 +262,7 @@ export class PlotEngine {
               stroke: () => l.color(theme()),
               width: l.width,
               dash: l.dash?.length ? l.dash.map((d) => d * dpr) : undefined,
-              cap: l.dash?.length ? 'round' : undefined,
+              cap: l.cap ?? 'round',
               alpha: l.alpha ? l.alpha(theme()) : 1,
               points: { show: false },
               spanGaps: false,
@@ -236,7 +271,12 @@ export class PlotEngine {
       ],
       hooks: {
         drawClear: [(u) => layer(u, 'under')],
-        draw: [(u) => layer(u, 'over')],
+        draw: [
+          (u) => {
+            layer(u, 'over');
+            this.drawListeners.forEach((fn) => fn());
+          },
+        ],
       },
     };
     this.u?.destroy();
@@ -244,6 +284,7 @@ export class PlotEngine {
     u.root.setAttribute('aria-hidden', 'true');
     this.u = u;
     this.builtFor = model;
+    this.builtBox = { width: p.width, height: p.height, padding: p.padding };
     u.batch(() => {
       u.setScale('x', { min: this.view.x0, max: this.view.x1 });
       u.setScale('y', { min: this.dom[0], max: this.dom[1] });

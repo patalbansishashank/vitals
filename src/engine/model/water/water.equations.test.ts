@@ -1,5 +1,9 @@
 // @vitest-environment node
 import { makeRig, MAN, WOMAN, type Rig } from './testKit';
+import { hydrationContextStatus, WATER_CYCLE_SCENARIOS, waterModule } from './index';
+import { WATER_PARAMS } from './params';
+import { drawKindOf } from '../../core/paramsRegistry';
+import { N_SERIES } from '../../types/metrics';
 import { MMOL_NA_PER_G } from '../../core/defaults';
 import type { PersonProfile } from '../../types/profile';
 
@@ -304,7 +308,7 @@ describe('creatine, oedema and hydration terms', () => {
     expect(r.bus.labileWaterKg).toBeCloseTo(0.4, 12);
   });
 
-  it('thirst-driven fluid (NaN) never creates a deficit; a low intake gives H_def = 0.3·shortfall in steady state', () => {
+  it('thirst-driven fluid (NaN) never creates a deficit; a low intake gives the context state H_def = 0.3·shortfall', () => {
     const r = rigWithBurnIn();
     r.days(5);
     expect(r.s.hDefKg).toBe(0);
@@ -316,7 +320,40 @@ describe('creatine, oedema and hydration terms', () => {
     expect(need).toBeLessThan(3.5);
     // steady state of dH/dt = f_kidney·shortfall/24 − H/τ: H* = f·τ·shortfall = 0.6 × 0.5 d × shortfall
     expect(r.s.hDefKg).toBeCloseTo(0.3 * (need - 1.0), 3);
-    expect(r.bus.labileWaterKg).toBeCloseTo(-r.s.hDefKg, 9);
+    expect(r.bus.hydrationDeficitKg).toBe(r.s.hDefKg);
+    // D1-06: context only — it never enters the labile/scale sum
+    expect(r.bus.labileWaterKg).toBeCloseTo(0, 9);
+  });
+
+  it('D1-06: a low-beverage proxy cannot alter scale weight or inferred non-fat scale mass (nominal)', () => {
+    const run = (fluidL: number): { scale: number; labile: number; tissue: number } => {
+      const r = rigWithBurnIn();
+      r.day.fluidL = fluidL;
+      r.days(6);
+      return { scale: r.s.scaleKg, labile: r.s.labileKg, tissue: r.bus.tissueMassKg };
+    };
+    const thirst = run(Number.NaN);
+    for (const f of [0.3, 1.0, 4.0]) expect(run(f)).toEqual(thirst);
+  });
+
+  it('D1-06: inferred non-fat scale mass (leanMass) = scale − FM, so it carries glycogen, labile water and gut contents', () => {
+    const r = rigWithBurnIn();
+    r.step(1, (_h, rig) => {
+      rig.bus.fastOedemaL = 0.3;
+    });
+    const frame = new Float64Array(N_SERIES);
+    waterModule.recordHour(r.s, r.k, r.bus, frame);
+    const fm = r.bus.fatMassKg;
+    expect(frame[r.k.iLean]).toBeCloseTo(r.s.scaleKg - fm, 12);
+    expect(frame[r.k.iLean]! - (r.bus.tissueMassKg - fm)).toBeCloseTo(r.s.glycogenWaterKg + r.s.ecfShiftKg + r.s.gutDevKg, 12);
+    expect(r.s.ecfShiftKg).toBeCloseTo(0.3, 9);
+  });
+
+  it('D1-06: no beverage log is Unknown hydration, never assurance; a log is a beverage volume in mL/day, not water balance', () => {
+    expect(hydrationContextStatus(undefined)).toEqual({ status: 'unknown', reasonCode: 'noBeverageLog' });
+    expect(hydrationContextStatus(Number.NaN).status).toBe('unknown');
+    expect(hydrationContextStatus(null).status).toBe('unknown');
+    expect(hydrationContextStatus(1.75)).toEqual({ status: 'observed', beverageMl: 1750, reasonCode: 'beverageVolumeOnly' });
   });
 
   it('total-water-turnover regression reproduces the 15 §4.8 worked example (sedentary 70-kg man, 10 °C: ~3.2 L/d)', () => {
@@ -332,16 +369,37 @@ describe('creatine, oedema and hydration terms', () => {
 });
 
 describe('menstrual water (13 §4.6; 16 §4.5): opt-in through cycle tracking', () => {
-  it('is 0 when the cycle is not tracked (cycleDay = −1)', () => {
-    const r = rigWithBurnIn();
-    r.days(3, (_h, rig) => {
-      rig.bus.cycleDay = -1;
-    });
-    expect(r.s.wMcKg).toBe(0);
+  it('is 0 when the cycle is not tracked or the phase is unknown (cycleDay = −1): phase-average, zero deviation (D8-07)', () => {
+    const modes: Record<string, number>[] = [{}, { 'water.cycleWaterScenario': 1 }];
+    for (const overrides of modes) {
+      const r = rigWithBurnIn({ overrides });
+      r.days(3, (_h, rig) => {
+        rig.bus.cycleDay = -1;
+      });
+      expect(r.s.wMcKg).toBe(0);
+    }
   });
 
-  it('peaks on day 1 of flow, is lowest mid-follicular, spans the 0.2 kg amplitude and has ≈ zero cycle mean', () => {
+  it('D1-06: nominal cycle water is a zero numeric contribution (unknown amplitude) with nonzero structural uncertainty', () => {
     const r = rigWithBurnIn({ profile: WOMAN });
+    for (let d = 1; d <= 28; d++) {
+      r.bus.cycleDay = d;
+      r.step(24);
+      expect(r.s.wMcKg).toBe(0);
+    }
+    expect(r.k.cycleAmp).toBe(0);
+    expect(WATER_CYCLE_SCENARIOS.nominal).toBe('unknownAmplitude');
+    expect(WATER_CYCLE_SCENARIOS.scenarios.unknownAmplitude.transientUncertainty).toBe('structuralNonzero');
+    expect(Math.max(...WATER_CYCLE_SCENARIOS.structuralExamplesKg)).toBeGreaterThan(0);
+    // the legacy amplitude is a structural scenario value, never drawn (no 0-0.5 kg coverage band)
+    const amp = WATER_PARAMS.find((p) => p.id === 'water.cycleAmpKg')!;
+    expect(drawKindOf(amp)).toBe('fixed');
+    expect(amp.distribution?.uncertaintyKind).toBe('scenario');
+    expect(drawKindOf(WATER_PARAMS.find((p) => p.id === 'water.cycleWaterScenario')!)).toBe('fixed');
+  });
+
+  it('legacy scenario: peaks on day 1 of flow, is lowest mid-follicular, spans the 0.2 kg amplitude and has ≈ zero cycle mean', () => {
+    const r = rigWithBurnIn({ profile: WOMAN, overrides: { 'water.cycleWaterScenario': 1 } });
     const values: number[] = [];
     for (let d = 1; d <= 28; d++) {
       r.bus.cycleDay = d; // daily signal from moderators, read at startDay

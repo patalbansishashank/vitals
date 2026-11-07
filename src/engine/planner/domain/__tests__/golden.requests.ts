@@ -3,6 +3,7 @@
  * with 1-3 years of training and 3 training days a week (requests a-c), a woman who opted into 24-72-h fasts (d), and a
  * lean trained man (e). Shared by `golden.*.test.ts` and the timing script.
  */
+import { isProductionGoalEligible } from '../../../types/metrics';
 import type { PersonProfile } from '../../../types/profile';
 import type { PlannerRequest } from '../types';
 
@@ -31,7 +32,12 @@ const THREE_DAYS = { trainingDaysPerWeek: { min: 0, max: 3 } } as const;
 
 export type GoldenKey = 'a' | 'b' | 'c' | 'd' | 'e';
 
-export const GOLDEN: Record<GoldenKey, PlannerRequest> = {
+/**
+ * The owner requests as first frozen (planner benchmark references and the QA corpus are built from these exact requests;
+ * kept unchanged). Requests (a) and (d) rank the autophagy index, which is no goal since D2-02 (a research index without a
+ * health objective): the planner refuses that goal, so the tests use `GOLDEN` below.
+ */
+export const GOLDEN_V1: Record<GoldenKey, PlannerRequest> = {
   /** 1) lose 10 kg fat 2) gain muscle 3) maximise the autophagy index — 12 weeks. */
   a: {
     profile: MAN_88,
@@ -94,6 +100,20 @@ export const GOLDEN: Record<GoldenKey, PlannerRequest> = {
 };
 
 /**
+ * The golden requests as production requests (C6 capability gate): the same personas, horizons, limits and seeds, with
+ * goals the planner refuses (the autophagy index of (a) and (d)) left out — (a) is fat loss then muscle, (d) fat loss then
+ * muscle with 24-72-h fasts opted in.
+ */
+const productionRequest = (r: PlannerRequest): PlannerRequest => ({ ...r, goals: r.goals.filter((g) => isProductionGoalEligible(g.metric)) });
+export const GOLDEN: Record<GoldenKey, PlannerRequest> = {
+  a: productionRequest(GOLDEN_V1.a),
+  b: productionRequest(GOLDEN_V1.b),
+  c: productionRequest(GOLDEN_V1.c),
+  d: productionRequest(GOLDEN_V1.d),
+  e: productionRequest(GOLDEN_V1.e),
+};
+
+/**
  * Supplement consent of the golden personas (d) and (e), stated here rather than inline in the tests. The fixtures above
  * leave it out because they predate the consent rule (creatine and the other supplement levers need the person's opt-in,
  * QA LIV-13) and because the planner benchmark builds its problems from them unchanged. The golden tests (d) and (e)
@@ -108,7 +128,8 @@ export const GOLDEN_SUPPLEMENT_CONSENT = (req: PlannerRequest): PlannerRequest =
 
 /**
  * Ruling R-FAST-GATE regressions (PLANNER_V2_SPEC §3.8.1): autophagy index first with the 24-72-h tier opted in (T3),
- * 2-4 training days a week (or none), 12 weeks — it returned no plan at all before the fixes.
+ * 2-4 training days a week (or none), 12 weeks — it returned no plan at all before the fixes. Historical request (planner
+ * benchmark 'af'); the autophagy index is no goal since D2-02, so the regression tests use `KETOSIS_FIRST_T3`.
  */
 export const AUTOPHAGY_FIRST_T3 = (trainingMax: number): PlannerRequest => ({
   profile: MAN_88,
@@ -121,4 +142,17 @@ export const AUTOPHAGY_FIRST_T3 = (trainingMax: number): PlannerRequest => ({
   safety: { mode: 'M0', optIns: { fastingTier: 'T3' }, fasting: { maxFastHours: 72 } },
   seed: trainingMax > 0 ? 7 : 9,
   budget: { tier: 'M' },
+});
+
+/**
+ * The R-FAST-GATE regression as a production request: a goal fasting serves (blood ketones, a transient marker) first with
+ * the 24-72-h tier opted in and training present — the conditions under which the 7-day energy availability counted the
+ * fast days and the "ketones while eating" warning fired for a person without diabetes (no plan at all before the fixes).
+ */
+export const KETOSIS_FIRST_T3 = (trainingMax: number): PlannerRequest => ({
+  ...AUTOPHAGY_FIRST_T3(trainingMax),
+  goals: [
+    { metric: 'bhb', direction: 'target', target: 1.0 },
+    { metric: 'fatMass', direction: 'minimise' },
+  ],
 });

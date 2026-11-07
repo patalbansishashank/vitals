@@ -223,11 +223,12 @@ describe('Q9 diabetes and glucose-lowering medicines (HC-P6, EX-E, §4.4)', () =
 });
 
 describe('Q10/Q12 conditions (HC-P7, §4.2, EX-F, EX-G, EX-H)', () => {
-  it('kidney disease: protein ≤ 1.3 g/kg, no potassium supplements or creatine, no keto, fasts ≤ 24 h', () => {
+  it('kidney disease: no automatic protein cap (renal context incomplete), no potassium supplements or creatine, no keto, fasts ≤ 24 h', () => {
     const o = ev({ conditions: 'yes', conditionItems: ['kidney'] });
     expect(o.mode).toBe('R2');
     expect(o.modeName).toBe('clinician-first');
-    expect(lockValue(o, 'protein-cap')).toBe(1.3);
+    expect(has(o, 'protein-cap')).toBe(false);
+    expect(o.renal).toMatchObject({ status: 'incomplete', context: 'contextIncomplete' });
     expect(has(o, 'no-potassium-supplement')).toBe(true);
     expect(has(o, 'no-creatine')).toBe(true);
     expect(has(o, 'no-ketogenic')).toBe(true);
@@ -324,7 +325,7 @@ describe('priority and co-occurrence (BLOCK_APP > BLOCK_PLANNER > R1 > R2 > M0)'
     expect(o.mode).toBe('R1');
     expect(o.restrictions).toEqual(['R1', 'R2']);
     expect(has(o, 'no-deficit')).toBe(true);
-    expect(lockValue(o, 'protein-cap')).toBe(1.3);
+    expect(has(o, 'protein-cap')).toBe(false);
     expect(lockValue(o, 'max-fast')).toBe(12);
   });
 

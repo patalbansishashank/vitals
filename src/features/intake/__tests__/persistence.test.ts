@@ -4,13 +4,13 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { resetBusState, resetHistory } from '@/commands';
-import { createDocumentStore, createMemoryBackend } from '@/store';
+import { createDocumentStore, createMemoryBackend, mintWriteToken } from '@/store';
 import { useProfileStore } from '@/state/profileStore';
-import { setDocumentStore } from '@/state/runtime';
+import { getDocumentStore, setDocumentStore } from '@/state/runtime';
 import { withSystemWrite } from '@/state/scope';
 import { reduceActivity } from '../chapters/activity';
 import { readIntake, turnsOf } from '../doc';
-import { DEFAULT_CONTEXT } from '../flow';
+import { DEFAULT_CONTEXT, frozenContext } from '../flow';
 import { saveChapter, settleIntakeSaves, skipChapterSave } from '../persist';
 import { applyMergePatch, mergePatch, type SectionContext } from '../sections';
 import type { ChapterAnswers, TurnStatus } from '../types';
@@ -95,25 +95,35 @@ describe('round trip through intake.answer', () => {
     expect(again.jain).toBeUndefined();
   });
 
-  it('training and devices round trip; "Skip this part" marks the sections skipped', async () => {
+  it('training round trip; "Skip this part" marks the sections skipped', async () => {
     await skipChapterSave('training', { values: {}, status: { experience: 'skipped' }, skippedAll: true }, sctx);
     await settleIntakeSaves();
     const doc = readIntake();
     expect(doc.skipped?.training).toBeTruthy();
     expect(doc.training).toMatchObject({ skill: 2, owned: [], prefs: { daysPerWeek: 3, minPerSession: 30 } });
     expect(turnsOf(doc, 'training').skippedAll).toBe(true);
+  });
 
-    await saveChapter('devices', turns({ has: ['scale'], models: { scale: 'Withings' }, platform: 'ios', routes: 'seen', streams: [{ stream: 'weight', imported: true, scores: false, engine: true, coach: 'hidden' }] }), sctx);
-    await settleIntakeSaves();
-    expect(readIntake().devices).toMatchObject({
-      has: ['scale'],
-      models: ['Withings'],
-      platforms: ['ios'],
-      streams: [
-        { stream: 'weight', imported: true, scores: false, engine: true, coach: 'hidden' },
-        { stream: 'body_fat', imported: false, scores: false, engine: false, coach: 'hidden' },
-      ],
+  it('an older document with a devices section and meta.stepDevice still reads and saves; the devices key is left alone', async () => {
+    const store = getDocumentStore();
+    await store.ready;
+    await store.transact(mintWriteToken('migration', { label: 'test seed' }), async (tx) => {
+      await tx.put('intake', {
+        _id: 'me',
+        activity: { turns: { values: { work: 'no', 'meta.india': true, 'meta.gentle': false, 'meta.stepDevice': true }, status: { work: 'answered' } } },
+        devices: { has: ['ring'], models: ['Oura'], platforms: ['android'], streams: [], turns: { values: { has: ['ring'] }, status: { has: 'answered' } } },
+        answeredAt: { activity: '2026-09-01T09:00:00.000Z', devices: '2026-09-01T09:00:00.000Z' },
+        questionSetVersion: { activity: 2, devices: 1 },
+      });
     });
+    const old = readIntake();
+    expect(turnsOf(old, 'activity').values.work).toBe('no');
+    expect(frozenContext(turnsOf(old, 'activity'))).toEqual({ india: true, gentle: false });
+    await saveChapter('activity', turns({ work: 'no', commute: 'home' }), sctx);
+    await settleIntakeSaves();
+    const doc = readIntake() as unknown as Record<string, unknown>;
+    expect(turnsOf(readIntake(), 'activity').values.commute).toBe('home');
+    expect(doc.devices).toBeTruthy();
   });
 
   it('a measured resting energy from a breath test becomes the profile lab value, through intake.answer', async () => {

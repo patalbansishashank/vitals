@@ -68,6 +68,8 @@ export interface ChartFrameProps {
    * and CSV (default kcal). Metric series arrive already converted (`ChartSeries.unit`).
    */
   energyUnit?: EnergyUnitChoice;
+  /** C6: a short status word per series id, shown in the table twin where a value is withheld (no number). */
+  statusWords?: Readonly<Record<string, string>>;
   className?: string;
 }
 
@@ -99,11 +101,10 @@ export const ChartFrame = memo(function ChartFrame(p: ChartFrameProps) {
   const pinned = usePinned(controller);
   const lanes = laneIds ?? allIds;
   const overlayIds = useMemo(() => {
-    if (p.overlayIds) return p.overlayIds;
     const byId = new Map(data.series.map((s) => [s.id, s]));
-    return lanes.filter((id) => {
+    return (p.overlayIds ?? lanes).filter((id) => {
       const s = byId.get(id);
-      return s && isOverlayEligible(s);
+      return s && !s.display?.wordOnly && isOverlayEligible(s);
     }).slice(0, 5);
   }, [p.overlayIds, lanes, data.series]);
   const effFocus = focusId ?? lanes[0] ?? null;
@@ -161,7 +162,7 @@ export const ChartFrame = memo(function ChartFrame(p: ChartFrameProps) {
 
   const exportPng = async () => {
     const v = controller.view.get();
-    const disclaimer = `${p.exportNote ? `${p.exportNote} ` : ''}${typeof p.disclaimer === 'string' ? p.disclaimer : DISCLAIMER} Shaded bands: likely range (80 %).`;
+    const disclaimer = `${p.exportNote ? `${p.exportNote} ` : ''}${typeof p.disclaimer === 'string' ? p.disclaimer : DISCLAIMER} Shaded bands show ranges; personal coverage is not validated.`;
     const ok = await downloadChartPng(
       {
         time: data.time,
@@ -192,18 +193,21 @@ export const ChartFrame = memo(function ChartFrame(p: ChartFrameProps) {
         </div>
       ) : null}
       <div ref={toolbarRef} className="lmc-toolbar">
+        {/* r068 W2-9: the view is one full-width bank on its own row; zoom, resolution and the icon keys share the row
+            under it, each sized to its labels */}
         <KeyBank<ChartView>
+          className="lmc-toolbar__view"
           size="sm"
           label="Chart view"
           value={view}
           onChange={(v) => setView(v)}
           options={[
-            { value: 'lanes', label: 'lanes' },
-            { value: 'overlay', label: 'overlay' },
-            { value: 'focus', label: 'focus' },
+            { value: 'lanes', label: 'Lanes' },
+            { value: 'overlay', label: 'Overlay' },
+            { value: 'focus', label: 'Focus' },
           ]}
         />
-        <KeyBank<string>
+        <KeyBank<string> fit
           size="sm"
           label="Zoom"
           value={preset == null ? undefined : String(preset)}
@@ -219,14 +223,14 @@ export const ChartFrame = memo(function ChartFrame(p: ChartFrameProps) {
           <IconKey size="sm" icon={ChevronRight} label="Later" disabled={!zoomed || zoom.x1 >= data.time.days} onClick={() => controller.dispatch({ type: 'panWindow', dir: 1 })} />
         </span>
         {view === 'focus' ? (
-          <KeyBank<string>
+          <KeyBank<string> fit
             size="sm"
             label="Focus resolution"
             value={focusRes}
             onChange={(v) => setFocusRes(v as Resolution | 'auto')}
             options={[
-              { value: 'auto', label: 'auto' },
-              { value: 'hourly', label: 'hourly' },
+              { value: 'auto', label: 'Auto' },
+              { value: 'hourly', label: 'Hourly' },
             ]}
           />
         ) : null}
@@ -292,7 +296,7 @@ export const ChartFrame = memo(function ChartFrame(p: ChartFrameProps) {
           />
         </div>
       ) : null}
-      {tableOpen ? <TableTwin data={data} controller={controller} series={tableSeries} energyUnit={p.energyUnit} onClose={() => setTableOpen(false)} /> : null}
+      {tableOpen ? <TableTwin data={data} controller={controller} series={tableSeries} energyUnit={p.energyUnit} statusWords={p.statusWords} onClose={() => setTableOpen(false)} /> : null}
       {p.disclaimer === null ? null : <p className="lmc-disclaimer">{p.disclaimer ?? DISCLAIMER}</p>}
     </section>
   );
@@ -303,15 +307,17 @@ function TableTwin({
   controller,
   series,
   energyUnit,
+  statusWords,
   onClose,
 }: {
   data: ChartData;
   controller: ChartController;
   series: ChartData['series'];
   energyUnit?: EnergyUnitChoice;
+  statusWords?: Readonly<Record<string, string>>;
   onClose: () => void;
 }) {
   const v = useStore(controller.view);
   if (v.animating) return null;
-  return <DataTable time={data.time} series={series} x0={v.x0} x1={v.x1} res={v.res} intake={data.intake} energyUnit={energyUnit} caption="Visible metrics and time range" onClose={onClose} />;
+  return <DataTable time={data.time} series={series} x0={v.x0} x1={v.x1} res={v.res} intake={data.intake} energyUnit={energyUnit} caption="Visible metrics and time range" onClose={onClose} statusWords={statusWords} />;
 }

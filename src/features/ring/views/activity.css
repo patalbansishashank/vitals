@@ -1,0 +1,117 @@
+/* Ring Activity: only layout and facts; shared cards own the material and the pictures. */
+@layer components {
+  .rga-move,
+  .rga-history,
+  .rga-daychart {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rga-move {
+    container-type: inline-size;
+  }
+  .rga-move__hero {
+    display: grid;
+    gap: var(--lm-space-5);
+    align-items: center;
+    min-width: 0;
+  }
+  .rga-move__number,
+  .rga-move__linear {
+    display: grid;
+    gap: var(--lm-space-2);
+    min-width: 0;
+  }
+  .rga-move__number {
+    text-align: center;
+    justify-items: center;
+  }
+  .rga-move__linear .rga-move__number {
+    justify-items: start;
+    text-align: start;
+  }
+  .rga-move__hero > .lmz-radial {
+    margin-inline: auto;
+  }
+  .rga-source {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-2);
+    color: var(--lm-ink-h);
+    background: none;
+    border: 0;
+    padding: 0;
+    min-height: var(--lm-hit-touch);
+    width: fit-content;
+    text-align: start;
+    cursor: pointer;
+    position: relative;
+    z-index: 2;
+  }
+  .rga-source:hover {
+    color: var(--lm-ink);
+  }
+  .rga-source:focus-visible {
+    outline: 2px solid var(--lm-signal);
+    outline-offset: 4px;
+    border-radius: var(--lm-radius-xs);
+  }
+  .rga-move[data-compact] .rga-move__hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rga-daychart .lv-lane {
+    color: var(--lm-hue-steps);
+  }
+  .rga-daychart .lv-lane__band {
+    background: color-mix(in oklab, var(--lm-hue-steps) 32%, transparent);
+    border-color: var(--lm-hue-steps);
+  }
+  .rg-row.rga-activityrow {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+  .rga-activityrow .rg-row__value {
+    min-width: 0;
+  }
+  .rga-activityrow .rg-row__value > *,
+  .rga-activityrow__duration {
+    white-space: nowrap;
+  }
+  .rga-activityrow__icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--lm-radius-full);
+    color: var(--lm-hue-steps);
+    background: color-mix(in oklab, var(--lm-hue-steps) 12%, transparent);
+  }
+  .rga-activityrow__duration {
+    font: var(--lm-text-time--wt) var(--lm-text-time)/var(--lm-text-time--lh) var(--lm-font-display);
+    letter-spacing: var(--lm-text-time--ls);
+  }
+  .rga-workouts__facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-space-3);
+  }
+  .rga-pages {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-2);
+  }
+  .rga-energy {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-space-4);
+    min-height: 48px;
+    color: var(--lm-ink-h);
+  }
+
+}
+@layer components {
+  .rga-timeaxis {
+    display: flex;
+    justify-content: space-between;
+  }
+}

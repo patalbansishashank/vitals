@@ -1,6 +1,7 @@
 /** Composite turns of chapter 3 (food and kitchen). */
 import { useState } from 'react';
 import { Key, TextInput } from '@/components';
+import { CommitKey } from '../CommitKey';
 import { presetState, type SupplementRow as SupplementRowValue, type SupplementStance } from '@/catalogues/supplements';
 import { SupplementRowList } from '@/features/components/SupplementRowList';
 import { DIET_PRESETS, FOOD_KEYS, type DietPreset, type EatValue, type FastingValue, type FoodKey, type StaplesValue } from '../../chapters/food';
@@ -21,12 +22,15 @@ export function EatWidget({ value, onCommit }: WidgetProps<EatValue>) {
   const [touched, setTouched] = useState(value !== undefined);
   return (
     <div className="lm-ik-row">
-      <p className="lm-ik-note">{F.eat.lead}</p>
-      <div className="lm-ik-chips" role="group" aria-label={F.eat.short}>
+      <p className="lm-ik-grouplabel" aria-hidden="true">
+        {F.eat.presetsLabel}
+      </p>
+      <div className="lm-ik-presetgrid" role="group" aria-label={F.eat.presetsLabel}>
         {PRESETS.map((p) => (
           <Key
             key={p}
             size="lg"
+            block
             pressed={preset === p}
             onClick={() => {
               setPreset(p);
@@ -38,6 +42,9 @@ export function EatWidget({ value, onCommit }: WidgetProps<EatValue>) {
           </Key>
         ))}
       </div>
+      <p className="lm-ik-grouplabel" aria-hidden="true">
+        {F.eat.foodsLabel}
+      </p>
       <MultiChips
         label={F.eat.prompt}
         options={FOOD_KEYS.map((k) => ({ value: k, label: F.eat.foods[k] }))}
@@ -47,11 +54,9 @@ export function EatWidget({ value, onCommit }: WidgetProps<EatValue>) {
           setTouched(true);
         }}
       />
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit({ ...(preset ? { preset } : {}), foods: FOOD_KEYS.filter((k) => foods.includes(k)) })} disabledReason={touched ? undefined : TURN.ifSkip(F.eat.skip)}>
+      <CommitKey onClick={() => onCommit({ ...(preset ? { preset } : {}), foods: FOOD_KEYS.filter((k) => foods.includes(k)) })} disabledReason={touched ? undefined : TURN.nextNeedsAnswer}>
           {TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -62,9 +67,7 @@ export function WeekdaysWidget({ q, value, onCommit }: WidgetProps<Weekday[]>) {
   return (
     <div className="lm-ik-row">
       <WeekdayChips label={q.short} value={days} onChange={setDays} />
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit(days)}>{days.length ? TURN.doneCount(days.length) : TURN.done}</Key>
-      </div>
+      <CommitKey onClick={() => onCommit(days)}>{days.length ? TURN.doneCount(days.length) : TURN.done}</CommitKey>
     </div>
   );
 }
@@ -80,9 +83,7 @@ export function FastingDaysWidget({ value, onCommit }: WidgetProps<FastingValue>
       <WeekdayChips label={F.fasting.short} value={days} onChange={setDays} />
       <MultiChips label={F.fasting.prompt} options={PERIODS.map((p) => ({ value: p, label: F.fasting.periods[p] }))} value={periods.filter((p) => !isTextEntry(p))} onChange={(v) => setPeriods([...v, ...periods.filter(isTextEntry)])} />
       <OtherEntries value={periods.filter(isTextEntry)} onChange={(v) => setPeriods([...periods.filter((p) => !isTextEntry(p)), ...v.filter(isTextEntry)])} label={F.fasting.periods.custom} />
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit({ weekdays: days, periods })}>{TURN.done}</Key>
-      </div>
+      <CommitKey onClick={() => onCommit({ weekdays: days, periods })}>{TURN.done}</CommitKey>
     </div>
   );
 }
@@ -94,11 +95,9 @@ export function TextWidget({ q, value, onCommit }: WidgetProps<string>) {
   return (
     <div className="lm-ik-row">
       <TextInput aria-label={q.short} placeholder={placeholder} value={text} onChange={(e) => setText(e.currentTarget.value)} />
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit(text.trim())} disabledReason={text.trim() ? undefined : TURN.ifSkip(q.skipText)}>
+      <CommitKey onClick={() => onCommit(text.trim())} disabledReason={text.trim() ? undefined : TURN.nextNeedsAnswer}>
           {TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -116,16 +115,14 @@ export function SupplementsWidget({ value, values, onCommit }: WidgetProps<Suppl
   return (
     <div className="lm-ik-row">
       <SupplementRowList rows={rows} onChange={setRows} preset={preset} showErrors={tried} />
-      <div className="lm-ik-done">
-        <Key
+      <CommitKey
           onClick={() => {
             if (!listComplete(rows)) return setTried(true);
             onCommit(rows);
           }}
         >
           {rows.length ? `${TURN.done} · ${counts}` : TURN.done}
-        </Key>
-      </div>
+        </CommitKey>
     </div>
   );
 }
@@ -138,9 +135,7 @@ export function StaplesWidget({ value, onCommit }: WidgetProps<StaplesValue>) {
     <div className="lm-ik-row">
       <MultiChips label={F.staples.short} options={Object.entries(F.staples.grain).map(([v, l]) => ({ value: v, label: l }))} value={grain} onChange={setGrain} />
       <MultiChips label={F.staples.short} options={Object.entries(F.staples.fat).map(([v, l]) => ({ value: v, label: l }))} value={fat} onChange={setFat} />
-      <div className="lm-ik-done">
-        <Key onClick={() => onCommit({ grain, fat })}>{TURN.done}</Key>
-      </div>
+      <CommitKey onClick={() => onCommit({ grain, fat })}>{TURN.done}</CommitKey>
     </div>
   );
 }

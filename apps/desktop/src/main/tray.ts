@@ -1,5 +1,5 @@
 /**
- * The system tray (SUITE_SPEC §15.6): the ring mark, a status line, Open, Sync now, Start with my computer, the update
+ * The system tray (SUITE_SPEC §15.6): the app mark, the sync status line, Open, Sync now, Start with my computer, the update
  * item and Quit. Electron is passed in by the shell and typed by the slices used here, so tests pass fakes.
  */
 import type { UpdateState } from '../shared/bridge';
@@ -28,7 +28,7 @@ export interface TrayDeps {
     Menu: { buildFromTemplate(template: TrayMenuItem[]): unknown };
     nativeImage: { createFromPath(path: string): unknown };
   };
-  /** The ring mark (a PNG). */
+  /** The app mark (a PNG). */
   iconPath: string;
   showWindow(): void;
   syncNow(): void;
@@ -40,14 +40,13 @@ export interface TrayDeps {
 }
 
 export interface TrayHandle {
-  setStatus(s: { ring?: string; sync?: string }): void;
+  setStatus(s: { sync?: string }): void;
   /** Rebuild the menu (call after the update state changes). */
   refresh(): void;
   destroy(): void;
 }
 
 export interface TrayMenuState {
-  ring?: string;
   sync?: string;
   autostart: boolean;
   update: UpdateState;
@@ -66,10 +65,8 @@ export interface TrayActions {
 export function trayMenuTemplate(state: TrayMenuState, act: TrayActions): TrayMenuItem[] {
   const items: TrayMenuItem[] = [
     { label: 'Open Vitals', click: () => act.open() },
-    { type: 'separator' },
-    { label: state.ring?.trim() || 'Ring not connected', enabled: false },
   ];
-  if (state.sync?.trim()) items.push({ label: state.sync.trim(), enabled: false });
+  if (state.sync?.trim()) items.push({ type: 'separator' }, { label: state.sync.trim(), enabled: false });
   items.push(
     { type: 'separator' },
     { label: 'Sync now', click: () => act.syncNow() },
@@ -95,7 +92,7 @@ export function createTray(deps: TrayDeps): TrayHandle | null {
   } catch {
     return null;
   }
-  let status: { ring?: string; sync?: string } = {};
+  let status: { sync?: string } = {};
   let autostartOn = false;
   let gone = false;
 

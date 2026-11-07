@@ -67,7 +67,7 @@ describe('synchronous safety flags', () => {
     const chk = checkSchedule(c, RP, fastSpans(c));
     expect(chk.errorDays).toHaveLength(7);
     expect(chk.flag[0]).toBe('error');
-    expect(chk.byDay[0]![0]!.message).toMatch(/already use .* kcal — more than the 1\s?500 set/);
+    expect(chk.byDay[0]![0]!.message).toMatch(/already use .* kcal — more than the 1,500 set/);
   });
 
   it('a 72 h+ fast is danger, and without a graded restart W-F08 is added', () => {
@@ -107,7 +107,7 @@ describe('energy encoding', () => {
     expect(energyStep(160)).toBe(8);
     const mixes = [85, 80, 75].map((p) => stepMix(energyStep(p)));
     expect(new Set(mixes).size).toBe(3);
-    expect(energyFill(0)).toBe('var(--lm-energy-neutral)');
+    expect(energyFill(0)).toBe('var(--sim-neutral)');
     expect(energyFill(-3)).toContain('--sim-deficit-end');
   });
 });

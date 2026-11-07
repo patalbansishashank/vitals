@@ -1,7 +1,8 @@
 import { useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { PlannerResultV2, RankedGoal } from '@/engine/planner/domain/types';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
-import { KeyBank, formatNumber } from '@/components';
+import { ChevronDown } from 'lucide-react';
+import { GradeBadge, Icon, KeyBank, formatNumber, type EvidenceGrade } from '@/components';
 import { IDEAL_NOT_HARDER, RUNG_TITLE, isLoseGoal, ladderGraphData, type PlanKind, type RungId } from '../ladder';
 
 export interface LadderScaleProps {
@@ -13,9 +14,11 @@ export interface LadderScaleProps {
   onSelect: (kind: PlanKind) => void;
   /** Gentle mode with a weight-type goal 1: the scale shows effort only (values behind "show numbers"). */
   hideValues?: boolean;
+  /** Goal 1's evidence grade: a quiet mark after its name in the title (r068 PR6: no separate Evidence row). */
+  grade?: EvidenceGrade;
 }
 
-export const LADDER_HOW = 'How it’s built: Hard is the best result your limits allow · Easy the least change that still gets at least half of it · Medium where more effort stops paying as much · Ideal drops your practical limits (safety still applies).';
+export const LADDER_HOW = 'Hard is the best result your limits allow. Easy is the least change that still gets at least half of it. Medium is where more effort stops paying as much. Ideal drops your practical limits; safety still applies.';
 
 /** Round tick values for the "plans searched" axis: 0 and up to three steps of 1/2/5 × 10ⁿ. */
 function euTicks(max: number): number[] {
@@ -34,7 +37,7 @@ function euTicks(max: number): number[] {
  * the search's convergence (the best Hard found so far against plans searched) so a lone Hard still reads as a curve.
  * Markers are the same toggles as the card titles; ←/→ move between them.
  */
-export function LadderScale({ v2, goal1, units, energy, selected, onSelect, hideValues = false }: LadderScaleProps) {
+export function LadderScale({ v2, goal1, units, energy, selected, onSelect, hideValues = false, grade }: LadderScaleProps) {
   const [view, setView] = useState<'ladder' | 'search'>('search');
   const graph = ladderGraphData(v2, goal1, units, energy, view);
   const s = graph.scale;
@@ -75,7 +78,10 @@ export function LadderScale({ v2, goal1, units, energy, selected, onSelect, hide
   return (
     <figure className="lp-scale" data-mode={graph.mode}>
       <p className="lp-scale__title">
-        <span className="lm-eng">{graph.yLabel}</span>
+        <span className="lp-scale__goal">
+          <span className="lm-eng">{graph.yLabel}</span>
+          {grade ? <GradeBadge grade={grade} size="sm" /> : null}
+        </span>
         {s.ceiling && !hideValues ? <span className="lp-scale__ceil-text lm-num">{s.ceiling.label}</span> : null}
       </p>
       {graph.switchable ? (
@@ -86,22 +92,21 @@ export function LadderScale({ v2, goal1, units, energy, selected, onSelect, hide
           value={graph.mode}
           onChange={setView}
           options={[
-            { value: 'ladder', label: 'ladder' },
-            { value: 'search', label: 'search' },
+            { value: 'ladder', label: 'Ladder' },
+            { value: 'search', label: 'Search' },
           ]}
         />
       ) : null}
       <div className="lp-scale__plot" role="group" aria-label={search ? 'The search: best result found against plans searched' : 'The ladder: effort against goal 1'}>
         <svg className="lp-scale__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <line className="lp-scale__base" x1={0} x2={100} y1={top(0)} y2={top(0)} />
+          {/* r068 W2-17: no zero rule and no frontier leader in the ladder view: the axis under the plot is the only base
+              line, and each label sits beside its own dot */}
           {s.ceiling ? <line className="lp-scale__ceiling" x1={0} x2={100} y1={top(s.ceiling.y)} y2={top(s.ceiling.y)} /> : null}
           {search ? (
             <polyline
               className="lp-scale__search"
               points={search.points.flatMap((p, i) => [...(i ? [`${ex(p.eu).toFixed(2)},${top(search.points[i - 1]!.y).toFixed(2)}`] : []), `${ex(p.eu).toFixed(2)},${top(p.y).toFixed(2)}`]).join(' ')}
             />
-          ) : s.frontier.length > 1 ? (
-            <polyline className="lp-scale__frontier" points={s.frontier.map((p) => `${left(p.x).toFixed(2)},${top(p.y).toFixed(2)}`).join(' ')} />
           ) : null}
         </svg>
         {s.points.map((p) => (
@@ -145,9 +150,19 @@ export function LadderScale({ v2, goal1, units, energy, selected, onSelect, hide
         {search ? 'plans searched' : graph.xLabel}
       </p>
       <p className="lm-sr">{hideValues ? s.points.map((p) => `${RUNG_TITLE[p.kind]} at effort ${Math.round(p.x)}`).join('; ') : graph.summary}</p>
+      {/* how the rungs are chosen: one tap away, not a paragraph under every graph */}
       <figcaption className="lp-scale__how">
-        {LADDER_HOW}
-        {v2.ideal ? ` ${IDEAL_NOT_HARDER}` : null}
+        <details className="lp-disc lp-disc--rule">
+          <summary className="lp-disc__sum">
+            <span className="lp-disc__label">How the plans differ</span>
+            <span className="lp-disc__value" />
+            <Icon icon={ChevronDown} size={16} className="lp-disc__chev" />
+          </summary>
+          <p>
+            {LADDER_HOW}
+            {v2.ideal ? ` ${IDEAL_NOT_HARDER}` : null}
+          </p>
+        </details>
       </figcaption>
     </figure>
   );

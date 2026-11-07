@@ -6,7 +6,7 @@ import { baselineOf, samplePositions, trackAt } from '../lib/series';
 import { niceTicksInside } from '../lib/ticks';
 import { visibleIndexRange } from '../lib/time';
 import type { ChartSeries, DayWindow, ExerciseSession, PlanId } from '../types';
-import { drawBand, drawGrid, drawMarker, drawYAxis, type DrawArgs, haloText, crisp } from './draw';
+import { drawAreaGradient, drawBand, drawEndDot, drawGrid, drawYAxis, type DrawArgs, haloText, crisp, yAxisLabelsIn } from './draw';
 import type { PlotData, PlotModel } from './plotEngine';
 import { canvasFont, type ChartTheme, withAlpha } from './theme';
 
@@ -26,13 +26,19 @@ export function compareModel(plans: readonly ComparePlan[], o: CompareOptions): 
   const first = plans[0]!.series;
   const x = samplePositions('daily', first.daily.values.length);
   const data: PlotData = { x, ys: plans.map((p) => p.series.daily.values) };
-  return {
+  const ticksIn = (lo: number, hi: number) => niceTicksInside(lo, hi, { min: 2, max: 4 });
+  const axisFormat = (v: number, st: number) => formatNumber(v, Math.max(decimalsForStep(st), 0));
+  const model: PlotModel = {
     lines: plans.map((p) => ({
       color: (t: ChartTheme) => t.plan[p.id],
       width: o.selected === p.id ? 2.5 : 2,
       alpha: (t: ChartTheme) => (o.isolate && o.isolate !== p.id ? t.dimAlpha : 1),
     })),
     data: () => data,
+    yLabels(view) {
+      const [lo, hi] = model.domain(view);
+      return yAxisLabelsIn(ticksIn(lo, hi), lo, hi, { colCss: o.tickColCss, format: axisFormat });
+    },
     domain(view) {
       const [i0, i1] = visibleIndexRange(view.x0, view.x1, 'daily', x.length, 0);
       let lo = Infinity;
@@ -56,7 +62,7 @@ export function compareModel(plans: readonly ComparePlan[], o: CompareOptions): 
       return [lo - pad, hi + pad];
     },
     under(a, view) {
-      const t = niceTicksInside(a.yMin, a.yMax, { min: 2, max: 4 });
+      const t = ticksIn(a.yMin, a.yMax);
       drawGrid(a, t.ticks);
       const [i0, i1] = visibleIndexRange(view.x0, view.x1, 'daily', x.length, 1);
       for (const p of plans) {
@@ -81,21 +87,23 @@ export function compareModel(plans: readonly ComparePlan[], o: CompareOptions): 
         haloText(a, o.target.label, a.box.left + 6 * dpr, above ? yy - 3 * dpr : yy + 3 * dpr, a.theme.ink2, 'left');
         ctx.restore();
       }
-      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: (v, st) => formatNumber(v, Math.max(decimalsForStep(st), 0)) });
+      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: axisFormat });
     },
     over(a, view) {
       const b0 = baselineOf(first);
-      if (view.x0 <= 0.5) drawMarker(a, 'circle', a.x(0), a.y(b0), 8, a.theme.ink);
+      // the shared start is a plain dot; each plan's end carries the halo (the plan letter names it beside the line)
+      if (view.x0 <= 0.5) drawEndDot(a, a.x(0), a.y(b0), a.theme.ink, { size: 'lane', glow: false });
       const [, i1] = visibleIndexRange(view.x0, view.x1, 'daily', x.length, 0);
       for (const p of plans) {
         const v = p.series.daily.values[i1]!;
         a.ctx.save();
         a.ctx.globalAlpha = o.isolate && o.isolate !== p.id ? a.theme.dimAlpha : 1;
-        drawMarker(a, 'circle', a.x(x[i1]!), a.y(v), 8, a.theme.plan[p.id]);
+        drawEndDot(a, a.x(x[i1]!), a.y(v), a.theme.plan[p.id], { size: 4 });
         a.ctx.restore();
       }
     },
   };
+  return model;
 }
 
 /* ----------------------------------------------------------- 24 h lanes */
@@ -145,7 +153,7 @@ export function fadeAfter(a: DrawArgs, from: number): void {
   if (from >= a.x1) return;
   const l = Math.max(a.box.left, a.x(from));
   a.ctx.save();
-  a.ctx.fillStyle = withAlpha(a.theme.face.startsWith('#') ? a.theme.face : '#ffffff', 0.6);
+  a.ctx.fillStyle = withAlpha(a.theme.face.startsWith('#') ? a.theme.face : '#1B1916', 0.6);
   a.ctx.fillRect(l, 0, a.box.left + a.box.width - l + 1, a.canvasH);
   a.ctx.restore();
 }
@@ -155,9 +163,14 @@ export function dayLaneModel(lines: readonly DayLine[], o: DayLaneOptions): Plot
   const tr = trackAt(first, 'hourly');
   const data: PlotData = { x: tr.x, ys: lines.map((l) => trackAt(l.series, 'hourly').values) };
   const isIndex = first.unit === 'index';
-  return {
+  const ticksIn = (lo: number, hi: number) => (isIndex ? { ticks: [0, 50, 100], step: 50 } : niceTicksInside(lo, hi, { min: 2, max: 3 }));
+  const model: PlotModel = {
     lines: lines.map((l) => ({ color: (t: ChartTheme) => t.cat[l.series.category], width: 2, dash: l.dash })),
     data: () => data,
+    yLabels(view) {
+      const [lo, hi] = model.domain(view);
+      return yAxisLabelsIn(ticksIn(lo, hi), lo, hi, { colCss: o.tickColCss });
+    },
     domain(view) {
       if (isIndex) return [0, 100];
       let lo = Infinity;
@@ -178,11 +191,13 @@ export function dayLaneModel(lines: readonly DayLine[], o: DayLaneOptions): Plot
     },
     under(a, view) {
       drawDayBands(a, o.ctx);
-      const t = isIndex ? { ticks: [0, 50, 100], step: 50 } : niceTicksInside(a.yMin, a.yMax, { min: 2, max: 3 });
+      const t = ticksIn(a.yMin, a.yMax);
       drawGrid(a, t.ticks);
       const t2 = trackAt(first, 'hourly');
       const [i0, i1] = visibleIndexRange(view.x0, view.x1, 'hourly', t2.x.length, 1);
       if (t2.lo && t2.hi) drawBand(a, t2.x, t2.lo, t2.hi, i0, i1, withAlpha(a.theme.cat[first.category], a.theme.bandAlpha));
+      // a single line with no likely range gets the skin's area (the two-line glycogen lane and banded lanes do not)
+      else if (lines.length === 1) drawAreaGradient(a, t2.x, t2.values, i0, i1, a.theme.cat[first.category]);
       for (const th of first.thresholds ?? []) {
         if (th.value < a.yMin || th.value > a.yMax) continue;
         const yy = crisp(a.y(th.value), a.dpr);
@@ -201,4 +216,5 @@ export function dayLaneModel(lines: readonly DayLine[], o: DayLaneOptions): Plot
       fadeAfter(a, o.fadeFrom);
     },
   };
+  return model;
 }

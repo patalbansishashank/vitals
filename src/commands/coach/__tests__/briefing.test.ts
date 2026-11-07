@@ -2,27 +2,22 @@
  * Plan 04 item 12: `briefing_get` gives an agent over MCP the Coach's briefing. One fixture person (a running plan,
  * kitchen, pantry, a few logs), the Coach's path (`gatherBriefingData` + `buildBriefing` with a provider) and the MCP
  * path exactly as the server runs it (`guardedCall(createBusAgentDispatcher({directApply: () => false}), …, 'mcp', …)`,
- * what `busPersonDispatch` does in the person worker) give the same text; a stream hidden from the Coach is absent
- * from both.
+ * what `busPersonDispatch` does in the person worker) give the same text, and neither mentions device data
+ * (Vitals reads no devices).
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { guardedCall } from '@/agents/dispatcher';
 import { buildBriefing, gatherBriefingData, KITCHEN_RULE, MEDICAL_DISCLAIMER, STATIC_BRIEFING } from '@/ai/coach/briefing';
 import type { CoachBus } from '@/ai/coach/tools';
-import { stageFile, clearStaged } from '@/biometrics/app/handoff';
-import { bioActivity } from '@/biometrics/app/activity';
-import { getScoreDef } from '@/biometrics/core/scores';
 import { addDays } from '@/living/dates';
 import { createMemoryBlobStore, setBlobStore } from '@/state/blobStore';
-import { allCommands, buildManifest, dispatch, getCommand, jobs, on, settleCommits, type CommandResult } from '@/commands';
+import { allCommands, buildManifest, dispatch, getCommand, on, settleCommits, type CommandResult } from '@/commands';
 import { createBusAgentDispatcher } from '@/commands/ai/agentDispatcher';
 import { setTimeZoneSource } from '@/commands/bus';
-import { resetBioRuntime } from '@/commands/bio/runtime';
-import { AI, freshState } from '@/commands/__tests__/harness';
+import { freshState } from '@/commands/__tests__/harness';
 import { seedPlan } from '@/commands/food/__tests__/seed';
 import { toolManifest } from '@/commands/manifest';
 import * as rules from '../../../../packages/companion/src/briefingRules.ts';
-import CSV from '@/biometrics/importers/__fixtures__/canonical.csv?raw';
 
 const bus: CoachBus = {
   dispatch: (id, input, opts) => dispatch(id, input, opts),
@@ -62,12 +57,6 @@ function out<T>(r: CommandResult): T {
   return r.output as T;
 }
 
-async function job(r: CommandResult): Promise<void> {
-  if (!r.ok || !('job' in r)) throw new Error(`expected a job: ${JSON.stringify(r)}`);
-  const st = await jobs.wait(r.job.jobId);
-  if (st.state !== 'done') throw new Error(`job ${st.state}: ${JSON.stringify(st.error)}`);
-}
-
 // late registration of executors the briefing reads (intake.nextQuestions; see ../late.ts)
 beforeAll(() => vi.waitFor(() => expect(getCommand('intake.nextQuestions')!.notImplemented).toBeUndefined()));
 
@@ -75,9 +64,6 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   freshState({ cleared: true });
   setBlobStore(createMemoryBlobStore());
-  resetBioRuntime();
-  clearStaged();
-  bioActivity.reset();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -145,6 +131,10 @@ describe('briefing_get = the Coach briefing', () => {
     // the provider is only in the visible panel, never in the text
     expect(coach.visible.provider).toEqual({ name: 'OpenRouter', model: 'Claude Sonnet 5.5' });
     expect(mcp.text).not.toContain('OpenRouter');
+    // manual only: no body-signal or score sections, and the rules say so
+    expect(mcp.sections).not.toContain('signals');
+    expect(mcp.sections).not.toContain('bio');
+    expect(STATIC_BRIEFING).toContain('Vitals reads no devices or health files');
   });
 
   it('uses the person’s time zone from the command context (the server sets it)', async () => {
@@ -177,45 +167,5 @@ describe('briefing_get = the Coach briefing', () => {
     expect(codes[20]).toBe('rate_limited');
     vi.setSystemTime(new Date('2026-10-02T08:01:00.000Z'));
     expect(await call()).toBe('ok');
-  });
-});
-
-describe('what the Coach cannot see, an agent cannot see', () => {
-  const DAY = '2026-03-10';
-
-  it('a ring stream hidden from the Coach leaves the scores out of both briefings', { timeout: 60_000 }, async () => {
-    vi.setSystemTime(new Date('2026-03-12T12:00:00.000Z'));
-    const fileRef = stageFile(new Blob([CSV], { type: 'text/csv' }), 'vitals.csv');
-    await job(await dispatch('bio.import', { fileRef }));
-    await settleCommits();
-    // share what the scores read with the Coach (Settings › Devices, person level), then score the day
-    const streams = ['steps', 'hr', 'hrv', 'sleep_sessions', 'spo2', 'body', 'daily_summary', 'distance'];
-    for (const stream of streams) out(await dispatch('bio.setPolicy', { stream, policy: { imported: true, coach: 'daily+series', scores: true } }));
-    await settleCommits();
-    await job(await dispatch('bio.rescore', { from: DAY }));
-    await settleCommits();
-
-    // the first score the Coach sees (the briefing keeps the start of the scores line)
-    const seen = out<{ results: Array<{ scoreId: string }> }>(await dispatch('bio.scores', { from: '2026-03-05', to: '2026-03-12' }, { actor: AI }));
-    const shown = seen.results[0];
-    expect(shown && getScoreDef(shown.scoreId)?.optInStreams.length, 'a score from the ring data').toBeGreaterThan(0);
-    const id = shown!.scoreId;
-
-    const before = await viaMcp();
-    expect(before.text).toContain(`"scoreId":"${id}"`);
-    expect((await viaCoach(before)).text).toBe(before.text);
-
-    // "Change what it can see": hide one stream that score reads
-    const stream = getScoreDef(id)!.optInStreams[0]!;
-    out(await dispatch('bio.setPolicy', { stream, policy: { coach: 'hidden' } }));
-    await settleCommits();
-
-    const after = await viaMcp();
-    const coach = await viaCoach(after);
-    expect(after.text).not.toContain(`"scoreId":"${id}"`);
-    expect(coach.text).not.toContain(`"scoreId":"${id}"`);
-    expect(after.text).toBe(coach.text);
-    // the person still sees it in the app
-    expect(out<{ results: Array<{ scoreId: string }> }>(await dispatch('bio.scores', { from: DAY, to: '2026-03-12' })).results.map((r) => r.scoreId)).toContain(id);
   });
 });

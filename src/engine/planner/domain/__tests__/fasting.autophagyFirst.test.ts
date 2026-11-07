@@ -3,7 +3,8 @@
  * Ruling R-FAST-GATE regression (PLAN item 8 decision 2; PLANNER_V2_SPEC §3.8.1): an autophagy-first request with the
  * 24-72-h tier opted in and training present returned NO plan at all (the 7-day energy availability counted the fast days
  * and the "ketones while eating" warning fired for a person without diabetes). It must now return safe plans, at least one
- * with a fast; the same holds without training. Tier M (real engine).
+ * with a fast; the same holds without training. Tier M (real engine). The autophagy index is no goal since D2-02, so the
+ * request ranks blood ketones first (a transient marker fasting serves): the same fasting tier, training and horizon.
  */
 import { describe, expect, it } from 'vitest';
 import { compileRequest } from '../context';
@@ -12,7 +13,7 @@ import { runDomainPlanner } from '../planner';
 import type { PlannerRequest } from '../types';
 import { validatePlan } from '../validate';
 import { expectSimulatorAgrees } from './golden';
-import { AUTOPHAGY_FIRST_T3 } from './golden.requests';
+import { KETOSIS_FIRST_T3 } from './golden.requests';
 
 async function expectFastingPlans(req: PlannerRequest): Promise<string[]> {
   const res = await runDomainPlanner(req, { tier: 'M', timeToTarget: false });
@@ -31,9 +32,9 @@ async function expectFastingPlans(req: PlannerRequest): Promise<string[]> {
   return res.options.map((o) => `${o.id}:${fastingKind(o.schedule)}:${Math.max(0, ...(o.schedule.events ?? []).map((e) => e.durationH))}h`);
 }
 
-describe('autophagy first, T3 opted in (R-FAST-GATE regression)', () => {
+describe('ketosis first, T3 opted in (R-FAST-GATE regression)', () => {
   it('with 2-4 training days a week: safe plans, at least one with a fast', async () => {
-    const fasts = await expectFastingPlans(AUTOPHAGY_FIRST_T3(4));
+    const fasts = await expectFastingPlans(KETOSIS_FIRST_T3(4));
     expect(fasts.length).toBeGreaterThanOrEqual(1);
   }, 1_800_000);
 });

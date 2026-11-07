@@ -82,8 +82,12 @@ export function LimitCosts({ ideal, goals, units, energy, all = false, extras = 
   );
 }
 
-/** One limit group's cost as plain text (Limits tab rows of a rung). */
-export function limitCostSentence(...args: Parameters<typeof limitCostView>): string {
+/**
+ * One limit group's cost as plain text (Limits tab rows of a rung); null when lifting it would change nothing shown (no
+ * goal moves, no effort change) or would lift it to itself (r068 W2-7).
+ */
+export function limitCostSentence(...args: Parameters<typeof limitCostView>): string | null {
   const v = limitCostView(...args);
+  if (!v.deltas.length && !v.effort) return null;
   return [v.lead, ...v.deltas, v.effort].filter(Boolean).join(' · ');
 }

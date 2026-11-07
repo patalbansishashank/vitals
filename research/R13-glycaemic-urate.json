@@ -118,7 +118,14 @@
      "value": 126,
      "unit": "mg/dL",
      "message": "Your fasting glucose is in the diabetes range. Please confirm it with a doctor; one result is not a diagnosis.",
-     "source": "S1"
+     "source": "S1",
+     "and": [
+      {
+       "field": "fasting",
+       "op": "==",
+       "value": true
+      }
+     ]
     }
    ],
    "retestWeeks": 12
@@ -1854,7 +1861,17 @@
    "when": {
     "op": "gte",
     "value": 126,
-    "unit": "mg/dL"
+    "unit": "mg/dL",
+    "and": [
+     {
+      "field": "fastingEligibility",
+      "op": "in",
+      "value": [
+       "eligible",
+       "unknown"
+      ]
+     }
+    ]
    },
    "kind": "reask",
    "target": "diabetes_question",
@@ -1870,9 +1887,19 @@
    "id": "W-L-FPG-2",
    "markerId": "fasting_glucose",
    "when": {
-    "op": "gte",
-    "value": 100,
-    "unit": "mg/dL"
+    "op": "range",
+    "value": [
+     100,
+     126
+    ],
+    "unit": "mg/dL",
+    "and": [
+     {
+      "field": "fasting",
+      "op": "==",
+      "value": true
+     }
+    ]
    },
    "kind": "prefer",
    "target": "fibre",
@@ -1908,7 +1935,17 @@
    "when": {
     "op": "gte",
     "value": 100,
-    "unit": "mg/dL"
+    "unit": "mg/dL",
+    "and": [
+     {
+      "field": "fastingEligibility",
+      "op": "in",
+      "value": [
+       "eligible",
+       "unknown"
+      ]
+     }
+    ]
    },
    "kind": "retest",
    "target": "fasting_glucose",
@@ -1941,8 +1978,11 @@
    "id": "W-L-HBA1C-2",
    "markerId": "hba1c",
    "when": {
-    "op": "gte",
-    "value": 5.7,
+    "op": "range",
+    "value": [
+     5.7,
+     6.5
+    ],
     "unit": "%"
    },
    "kind": "prefer",
@@ -1967,7 +2007,7 @@
    },
    "kind": "warn",
    "target": "hba1c",
-   "message": "Your report shows low haemoglobin or a haemoglobin variant, so your HbA1c of {value} % on {date} may be off. The plan leans on fasting glucose instead.",
+   "message": "Your report shows low haemoglobin or a haemoglobin variant, so your HbA1c of {value} % on {date} may read wrong with some test methods. Ask your lab which method it used.",
    "grade": "A",
    "sources": [
     "S1",

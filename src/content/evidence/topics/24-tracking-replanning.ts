@@ -250,7 +250,7 @@ const topic: EvidenceTopic = {
       summary:
         'People under-report what they eat, and any expenditure estimate is imprecise, so logged intake minus predicted expenditure will not match how weight actually moves. The app estimates a single correction in kcal a day for the combined gap, working backwards from the weight trend (energy balance equals intake minus expenditure, and its rate of change in tissue mass tells you the balance). It is held to a small value with a cautious prior.',
       howModelled:
-        'The observed slope of residual weight minus the engine’s predicted slope, converted to kcal using the energy density of the engine’s own fat and lean mix, gives a measurement of the gap with its own uncertainty. This is combined with the previous estimate (prior spread 150 kcal a day) by precision weighting. The correction is capped at 300 kcal a day, may change by at most 100 kcal a day per week, and is updated once a week at the check-in. When more than 70 % of logged energy was estimated by AI, the prior spread is widened by 50 kcal a day. The correction cannot separate under-reported intake from over-estimated expenditure, and is applied as a single number.',
+        'The observed slope of residual weight minus the engine’s predicted slope, converted to kcal using the energy density of the engine’s own fat and lean mix, gives an estimate of the combined gap with its own uncertainty: a balance residual, not measured expenditure. This is combined with the previous estimate (prior spread 150 kcal a day) by precision weighting. The correction is capped at 300 kcal a day, may change by at most 100 kcal a day per week, and is updated once a week at the check-in. When more than 70 % of logged energy was estimated by AI, the prior spread is widened by 50 kcal a day. The correction cannot separate under-reported intake from over-estimated expenditure, and is applied as a single number.',
       equation:
         'gap (kcal/day) = (observed rate of tissue change − engine rate) × energy density + gap already applied\nupdated gap = precision-weighted mean of the previous gap (spread 150 kcal/d) and the measurement\nclamp: |gap| ≤ 300 kcal/d; weekly step ≤ 100 kcal/d',
       keyNumbers: [
@@ -275,6 +275,12 @@ const topic: EvidenceTopic = {
           label: 'Measurement uncertainty of the gap',
           value: '≈ 190 kcal/d at 14 days; ≈ 66 kcal/d at 28 days',
           note: 'From the regression arithmetic in the design.',
+        },
+        {
+          label: 'Range shown for the gap',
+          value: 'estimate ± 1.28 × its spread (10th–90th percentiles of the estimate)',
+          note: 'A residual range given the model and your logs, not a full prediction interval; its coverage has not been validated.',
+          uncertaintyKind: 'conditionalResidual',
         },
         {
           label: 'Self-reported intake in a diet-resistant group',

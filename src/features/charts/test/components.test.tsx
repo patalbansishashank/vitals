@@ -1,6 +1,7 @@
 import './setupDom';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { MemoryRouter } from 'react-router';
 import ChartsDemoPage from '../ChartsDemoPage';
 import { ChartFrame } from '../components/ChartFrame';
 import { CompareView } from '../components/CompareView';
@@ -30,10 +31,10 @@ describe('chart components mount in jsdom', () => {
     expect(screen.getByRole('region', { name: 'Projection channels' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^Fat mass, kilograms, grade A\. Falls from/ })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Projection channels, 5 lanes/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: 'overlay' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Overlay' }));
     await flush();
     expect(screen.getByRole('group', { name: /Overlay: change from start for 3 metrics/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('radio', { name: 'focus' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Focus' }));
     await flush();
     expect(document.querySelector('[data-mode="focus"]')).not.toBeNull();
     expect(document.querySelectorAll('[data-mode="strip"]').length).toBe(4);
@@ -124,9 +125,15 @@ describe('chart components mount in jsdom', () => {
   });
 
   it('the demo route renders every view', async () => {
-    render(<ChartsDemoPage />);
+    render(
+      <MemoryRouter>
+        <ChartsDemoPage />
+      </MemoryRouter>,
+    );
     await flush();
-    expect(screen.getByRole('heading', { name: 'Charts' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Charts' })).toBeInTheDocument();
+    // dark only: no theme switch on the demo route either
+    expect(screen.queryByRole('radiogroup', { name: 'Theme' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'How the plans compare' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'One day, hour by hour' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Why did the scale move?' })).toBeInTheDocument();

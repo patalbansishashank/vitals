@@ -21,13 +21,13 @@
 | Summary key flush on the last divider; "asked later · nothing" row | Looked unpadded | Faceplate footer with the standard inset; empty "asked later" row hidden |
 | 19 kitchen items, 16 cuisines, small staples and pantry lists | Too small for the recipe Coach | Grouped searchable pickers with region defaults, free text, notes and paste-a-list (`§14.5`) |
 | One "I already take some" answer; overlapping dose inputs | Missed "have them at home"; layout broken | Two answers (taking / have at home) and the SupplementRow (`§14.4`) |
-| — | — | New optional chapter **blood markers** between food and devices |
+| — | — | New optional chapter **blood markers** after food |
 
 ## 2. Chapters and order
 
-Five chapters, in this order: **a normal day** (activity) · **training** · **food** · **blood
-markers** (optional) · **devices**. The progress bar has five segments (v2 had four; the owner's
-item 4 was about the four-segment bar of v0.2, and the fifth segment is the new chapter). The
+Four chapters, in this order: **a normal day** (activity) · **training** · **food** · **blood
+markers** (optional). The progress bar has four segments. (v3 first had a fifth chapter, devices;
+it was removed in 0.6.0, when Vitals became manual-only.) The
 blood-markers segment's empty track is drawn dashed (`1px dashed var(--lm-line-strong)`) because the
 chapter is optional; skipping it fills the segment with the "asked later" hatch like any skip.
 
@@ -85,8 +85,8 @@ chapter is optional; skipping it fills the segment with the "asked later" hatch 
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ ‹  A normal day              ━━━━━┃━━━ ──── ──── ┄┄┄┄ ────                │ one row, 56 h:
-│                              a normal day training food markers devices   │ progress right-aligned,
+│ ‹  A normal day              ━━━━━┃━━━ ──── ──── ┄┄┄┄                     │ one row, 56 h:
+│                              a normal day training food markers           │ progress right-aligned,
 ├──────────────────────────────────────────────────────────────────────────┤ width 360
 │ maintenance ≈ 2 740 · likely 2 390–3 090 ▾                                │ readout rail stays
 │            ┌ Your answers ───────────────────────── 3 of 11 ┐            │ single column, max 640,
@@ -100,13 +100,13 @@ chapter is optional; skipping it fills the segment with the "asked later" hatch 
 
 ```
 ┌────┬────────────────────────────────────────────────────────────────────────────────────────────┐
-│ ●  │ ‹ A normal day                 ━━━━━┃━━━ ──── ──── ┄┄┄┄ ────      Skip this part          │ 56 h
-│    │                                a normal day training food markers devices                  │
+│ ●  │ ‹ A normal day                 ━━━━━┃━━━ ──── ──── ┄┄┄┄           Skip this part          │ 56 h
+│    │                                a normal day training food markers                          │
 ├────┼────────────────────────────────────────────────────────────────────────────────────────────┤
 │    │      ┌ Your answers ──────────── 3 of 11 ┐   ┌ Your picture so far ───────── 360 ┐        │
 │    │      │ rows …                             │   │ maintenance about 2 740 kcal       │        │
 │    │      │ ┌ question 4 of 11 ─────────────┐ │   │ DriverBar · biggest unknown        │        │
-│    │      │ │ …                              │ │   │ training · food · markers · devices│        │
+│    │      │ │ …                              │ │   │ training · food · markers          │        │
 │    │      │ └────────────────────────────────┘ │   │ asked later: 1 question            │        │
 │    │      │ 7 more questions in this chapter   │   └────────────────────────────────────┘        │
 │    │      └──────────────────── max 640 ───────┘   sticky, top 72                               │
@@ -249,9 +249,8 @@ An inset region in the AnsweredList, after the A10 row (same metrics as a Questi
  │ about 6 700 steps                     │      │ training …                                change │
  │ ──────────────────────────────────── │      │ food …                                    change │
  │ training …                     change │      │ blood markers · 7 values from 12 Aug 2026 change │
- │ food …                         change │      │ devices …                                 change │
- │ blood markers · skipped        change │      │ ─────────────────────────────────────────────── │ footer rule
- │ devices …                      change │      │ [Looks right — continue]                         │
+ │ food …                         change │      │ ─────────────────────────────────────────────── │ footer rule
+ │ blood markers · skipped        change │      │ [Looks right — continue]                         │
  │ ──────────────────────────────────── │      └──────────────────────────────────────────────────┘
  │ [      Looks right — continue      ] │
  └──────────────────────────────────────┘
@@ -286,9 +285,10 @@ footer key. Dark and light: tokens only; check the footer rule is visible in dar
 | F7c | What's in your kitchen right now? *(optional)* | CataloguePicker `pantry` (vegetables · fruit · dairy and cheese · eggs and meat · fish and seafood · pulses · grains · breads · condiments and sauces · spices and masalas · pickles and chutneys · nuts and seeds · beverages · frozen and ready) + paste-a-list | nothing; the Coach accepts "I have these at home" any time |
 
 - F7c's card states the optional framing above the picker: "Optional. Skip this if you like — you
-  can tell the Coach 'right now I have these at home' whenever you want." Its footer reads **Skip
-  this list** (in place of Ask me later), Back, **Done (42)**. Skipping is recorded as answered
-  "skipped, by choice", not as asked later, so it never nags.
+  can tell the Coach 'right now I have these at home' whenever you want." The picker has no key of its
+  own: the step's one docked **Next** saves the list. Next with an empty list (nothing ticked, or
+  "Clear defaults" first) is recorded as answered "skipped, by choice", not as asked later, so it
+  never nags.
 - Item lists and regional defaults come from R12 (`research/R12-seed.json`); the design fixes only
   layout and behaviour (`§14.5`).
 
@@ -452,7 +452,7 @@ Check at 390, 768 and 1440 px in light and dark unless a line says otherwise.
 
 **Food**
 - [ ] Equipment, cuisine, staples and pantry cards use the picker (§14.5) with search, groups, counts and the region note.
-- [ ] The pantry card reads as optional and its "Skip this list" key is in the footer.
+- [ ] The pantry card reads as optional; Next with an empty list records "skipped, by choice" (no extra key).
 - [ ] S1 shows both "I already take some" and "I have some at home but don't take them".
 - [ ] Supplement rows meet the §14.4 checklist inside the S2 card.
 

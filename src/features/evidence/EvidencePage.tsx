@@ -1,18 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
-import { MQ, Page, useMediaQuery } from '@/components';
-import { TopBar } from '@/app/shell';
+import { MQ, useMediaQuery } from '@/components';
 import type { BackTarget } from '@/app/shell';
 import { paths } from '@/app/paths';
 import { ArticleView } from './components/ArticleView';
 import { IndexView } from './components/IndexView';
 import { focusFirstResult } from './components/Results';
-import { SearchField } from './components/SearchField';
 import { TopicView } from './components/TopicView';
 import {
   CATEGORY_ORDER,
   GRADE_ORDER,
-  indexSearch,
   parseIndexParams,
   toggleValue,
   writeIndexParams,
@@ -30,10 +27,9 @@ const isEditable = (t: EventTarget | null): boolean => {
 };
 
 /**
- * Evidence library (design/screens/evidence-library.md): `/evidence` (index),
- * `/evidence/:mechanismId` (article) and `/evidence/topics/:topicSlug` (dossier).
- * One page serves all three so the desktop search field in the context bar keeps
- * focus while the reader moves between them.
+ * Evidence library (design/screens/evidence-library.md): `/evidence` (index, a tab page with the search under its
+ * title), `/evidence/:mechanismId` (article) and `/evidence/topics/:topicSlug` (topic), both pushed pages with Back.
+ * Each view renders its own header. "/" focuses the search, or opens the index with it focused.
  */
 export default function EvidencePage() {
   const { mechanismId, topicSlug } = useParams();
@@ -51,94 +47,49 @@ export default function EvidencePage() {
 
   /** Query-string state: typing replaces the history entry; filter changes push one, so back undoes them. */
   const setIndex = (next: Partial<IndexUrlState>, replace: boolean) => {
-    const merged = { ...state, ...next };
-    if (view === 'index') setParams(writeIndexParams(merged, params), { replace });
-    else navigate({ pathname: paths.evidence, search: indexSearch({ q: merged.q }) });
+    setParams(writeIndexParams({ ...state, ...next }, params), { replace });
   };
   const onQuery = (q: string) => setIndex({ q }, true);
 
-  // "/" focuses the search field.
+  // "/" focuses the search field; on an article or topic page it opens the index with the field focused.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== '/' || e.altKey || e.ctrlKey || e.metaKey || isEditable(e.target)) return;
       if (document.querySelector('dialog[open]')) return;
-      const input = searchRef.current;
-      if (!input) return;
       e.preventDefault();
+      const input = searchRef.current;
+      if (view !== 'index' || !input) {
+        navigate(paths.evidence, { state: { focusSearch: true } satisfies EvidenceNavState });
+        return;
+      }
       input.focus();
       input.select();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  }, [view, navigate]);
 
   const toResults = () => focusFirstResult(document.querySelector<HTMLElement>('[data-results-root]'));
 
-  const back: BackTarget | undefined =
-    view === 'index'
-      ? undefined
-      : nav?.returnTo
-        ? { to: nav.returnTo.to, label: nav.returnTo.label }
-        : nav?.from === 'evidence'
-          ? { label: 'Evidence' }
-          : { to: paths.evidence, label: 'Evidence' };
+  const back: BackTarget = nav?.returnTo
+    ? { to: nav.returnTo.to, label: nav.returnTo.label }
+    : nav?.from === 'evidence'
+      ? { label: 'Evidence' }
+      : { to: paths.evidence, label: 'Evidence' };
 
-  const documentTitle =
-    view === 'article'
-      ? mech.status === 'ready' && mech.mechanism
-        ? mech.mechanism.title
-        : mech.status === 'not-found'
-          ? 'Mechanism not found'
-          : 'Evidence'
-      : view === 'topic'
-        ? topic.status === 'ready' && topic.topic
-          ? topic.topic.title
-          : 'Evidence'
-        : state.q
-          ? `“${state.q}” in Evidence`
-          : 'Evidence';
-
+  if (view === 'article') return <ArticleView state={mech} lg={lg} xl={xl} back={back} />;
+  if (view === 'topic') return <TopicView slug={topicSlug} state={topic} lg={lg} xl={xl} back={back} />;
   return (
-    <>
-      <TopBar
-        title="Evidence"
-        documentTitle={documentTitle}
-        back={back}
-        compactOnMobile={view !== 'index'}
-        actions={
-          lg ? (
-            <SearchField
-              where="bar"
-              value={view === 'index' ? state.q : ''}
-              onCommit={onQuery}
-              inputRef={searchRef}
-              onArrowDown={view === 'index' ? toResults : undefined}
-            />
-          ) : undefined
-        }
-      />
-      <Page className="ev-page">
-        {view === 'index' ? (
-          <IndexView
-            state={state}
-            lg={lg}
-            xl={xl}
-            onQuery={onQuery}
-            onToggleCategory={(c) =>
-              setIndex({ categories: toggleValue(state.categories, c, CATEGORY_ORDER) }, false)
-            }
-            onToggleGrade={(g) => setIndex({ grades: toggleValue(state.grades, g, GRADE_ORDER) }, false)}
-            onClearFilters={() => setIndex({ categories: [], grades: [] }, false)}
-            onGroup={(group) => setIndex({ group }, true)}
-            searchRef={searchRef}
-            onArrowDown={toResults}
-          />
-        ) : view === 'article' ? (
-          <ArticleView state={mech} lg={lg} xl={xl} returnTo={nav?.returnTo} />
-        ) : (
-          <TopicView slug={topicSlug} state={topic} lg={lg} xl={xl} />
-        )}
-      </Page>
-    </>
+    <IndexView
+      state={state}
+      lg={lg}
+      documentTitle={state.q ? `“${state.q}” in Evidence` : 'Evidence'}
+      onQuery={onQuery}
+      onToggleCategory={(c) => setIndex({ categories: toggleValue(state.categories, c, CATEGORY_ORDER) }, false)}
+      onToggleGrade={(g) => setIndex({ grades: toggleValue(state.grades, g, GRADE_ORDER) }, false)}
+      onClearFilters={() => setIndex({ categories: [], grades: [] }, false)}
+      searchRef={searchRef}
+      onArrowDown={toResults}
+    />
   );
 }

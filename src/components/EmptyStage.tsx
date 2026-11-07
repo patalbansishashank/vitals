@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cx } from './lib/cx';
 
-/** The default 40 px line illustration: a tiny raster with a paint stroke (ink-3). */
+/** A 40 px line illustration (a tiny raster with a paint stroke, ink-3), shown only when passed as `art`. */
 export function EmptyRasterArt() {
   return (
     <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.25" aria-hidden="true">
@@ -15,27 +15,27 @@ export function EmptyRasterArt() {
 }
 
 export interface EmptyStageProps {
-  /** Sentence headline (17/600): "Paint your first weeks." */
+  /** The one fact, as a short sentence (title-m 16/500): "No meals logged". */
   title: ReactNode;
-  /** One line of help (15, ink-2). */
+  /** Optional single line (14, stone). Only when the title cannot carry it; never an essay. */
   children?: ReactNode;
-  /** One primary key (or a key + a quiet alternative). */
+  /** The one action (a key: verb + object). */
   action?: ReactNode;
-  /** 40 px line illustration; defaults to the paint-stroke raster. `null` hides it. */
+  /** Optional illustration. None by default (one fact + one action); pass `<EmptyRasterArt />` to show one. */
   art?: ReactNode | null;
   /** Heading level for the title. Default h2. */
   titleAs?: 'h2' | 'h3';
-  /** Render on the perforated stage (default) or plain. */
+  /** @deprecated The perforated stage is gone; this is ignored. */
   perforated?: boolean;
   className?: string;
 }
 
-/** Empty state on the perforated stage: illustration, headline, one line of help, one key. No mascots. */
-export function EmptyStage({ title, children, action, art, titleAs = 'h2', perforated = true, className }: EmptyStageProps) {
+/** Empty state: one fact and one action, left-aligned, no stage, no mascots. */
+export function EmptyStage({ title, children, action, art, titleAs = 'h2', perforated: _perforated, className }: EmptyStageProps) {
   const H = titleAs;
   return (
-    <div className={cx('lm-empty', perforated && 'lm-stage', className)}>
-      {art === null ? null : <div className="lm-empty__art">{art ?? <EmptyRasterArt />}</div>}
+    <div className={cx('lm-empty', className)}>
+      {art === null || art === undefined ? null : <div className="lm-empty__art">{art}</div>}
       <H className="lm-empty__title">{title}</H>
       {children ? <p className="lm-empty__body">{children}</p> : null}
       {action ? <div className="lm-empty__action">{action}</div> : null}

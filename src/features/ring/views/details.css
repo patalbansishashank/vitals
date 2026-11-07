@@ -1,0 +1,109 @@
+/* Ring details: one reading and its history share one face. */
+.rg-detail__layout {
+  display: grid;
+  gap: var(--lm-space-6);
+  min-width: 0;
+}
+.rg-detail__reading,
+.rg-detail__history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lm-space-4);
+  min-width: 0;
+}
+.rg-workout__summary {
+  display: grid;
+  gap: var(--lm-space-6);
+}
+.rg-workout__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lm-space-3) var(--lm-space-6);
+  margin: 0;
+}
+.rg-workout__facts > div {
+  display: grid;
+  gap: var(--lm-space-1);
+}
+.rg-workout__facts dd {
+  margin: 0;
+}
+.rg-workout__route {
+  margin: 0;
+  min-width: 0;
+}
+.rg-workout__zones {
+  display: grid;
+  gap: var(--lm-space-3);
+}
+.rg-workout__zone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--lm-space-3);
+}
+.rg-workout__zone-list > li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--lm-space-4);
+}
+.rg-workout__zone-name {
+  display: flex;
+  gap: var(--lm-space-2);
+  align-items: center;
+}
+.rg-workout__zone-name i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: 0 0 10px;
+}
+.rg-workout__zones[data-patterns] .lmz-stack__seg {
+  background-image: repeating-linear-gradient(135deg, transparent 0 4px, var(--lm-face) 4px 5px) !important;
+}
+.rg-workout__heart {
+  display: grid;
+  gap: var(--lm-space-5);
+}
+.rg-workout__hero {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lm-space-3) var(--lm-space-6);
+  align-items: baseline;
+}
+.rg-workout__route .rg-route__line {
+  stroke: var(--lm-hue-steps);
+}
+.rg-workout__route .rg-route__end {
+  fill: var(--lm-ink);
+  stroke: var(--lm-hue-steps);
+}
+.rg-workout__route .rg-route__start {
+  stroke: var(--lm-hue-steps);
+}
+@media (min-width: 768px) {
+  .rg-workout__summary[data-route] {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+  }
+}
+@media (min-width: 1024px) {
+  .rg-detail__layout {
+    grid-template-columns: minmax(240px, 1fr) minmax(0, 2fr);
+    gap: var(--lm-space-10);
+    align-items: center;
+  }
+}
+.rg-workout__hrline {
+  position: relative;
+  min-width: 0;
+}
+.rg-workout__washes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.rg-workout__hrline > .lmz-line {
+  position: relative;
+}

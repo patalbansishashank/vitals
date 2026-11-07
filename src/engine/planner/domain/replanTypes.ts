@@ -9,6 +9,8 @@ import type { MetricId, SeriesId } from '../../types/metrics';
 import type { EngineSnapshot } from '../../types/result';
 import type { DayTemplate, Schedule } from '../../types/schedule';
 import type { DailyBand, PlannerRequestV2, PlannerResult, PlannerTier, RungId } from './types';
+import type { EndpointAvailability, JointScreenResult, SafetyCertificate, SafetyStatus } from '@/lib/bodyContracts';
+import type { PlanSafetyEvaluation } from './safetyAudit';
 
 /** §9.3 item vocabulary: the prescribed items of a plan day (adherence weights, credits, revealed adherence). */
 export type PlanItemType = 'energy' | 'protein' | 'window' | 'fast' | 'rtSession' | 'cardioSession' | 'steps' | 'sleep' | 'supplement';
@@ -124,6 +126,34 @@ export interface ReplanRequest {
    * `goalDates[].before` compare against it (so the result states what the edit and the re-plan around it change together).
    */
   baseline?: Schedule;
+  /**
+   * (C2/D5-05, additive) The shared realised history schedule from the canonical reducer — the SAME schedule assimilation
+   * replays, from the same anchor (its `realised` stamp names the history hash). Days before today come from it verbatim
+   * (meals, sessions, substances and fast intervals as reduced, including coverage-zero days); no independent
+   * re-derivation happens in the planner.
+   */
+  realisedSchedule?: Schedule;
+  /**
+   * (C5/D4-02, additive) The person's CURRENT profile safety (symptoms, envelopes, answers) and screening input; a re-plan
+   * never prescribes from the safety state stored with the plan when a newer one exists.
+   */
+  currentSafety?: { profileSafety?: NonNullable<PlannerRequestV2['profile']['safety']>; input?: PlannerRequestV2['safety'] };
+}
+
+/**
+ * Safety of a re-plan result (C5/D4-01/D4-03), judged on the prescription from today (`replanSafetySubject`): the final
+ * resolved checks under the CURRENT request, the one independent audit of the frozen result on the reserved stream (M =
+ * the selection-ensemble size of the re-plan's tier) and the certificate binding them and the realised history hash. A
+ * lifecycle consumer re-validates it with `revalidatePlanSafety` on the same subject; a stored proposal never authorizes.
+ */
+export interface ReplanSafety {
+  status: SafetyStatus;
+  evaluation: PlanSafetyEvaluation;
+  audit: JointScreenResult;
+  certificate: SafetyCertificate;
+  /** Hash of the realised history the certificate binds (the shared reducer's, else a hash of the logged inputs). */
+  historyHash: string;
+  protocol: { M: number; seed: string };
 }
 
 /**
@@ -131,6 +161,11 @@ export interface ReplanRequest {
  * path first reaches the target (null: not within the plan). The optional fields are filled by the planner.
  */
 export interface ForecastGoalOutcome {
+  /** Coverage and endpoint identity are independent from finite compatibility storage. */
+  availability?: EndpointAvailability;
+  operator?: string;
+  bandKey?: string;
+  dateRange?: [string, string] | null;
   goal: number;
   metric: MetricId;
   endP50: number;
@@ -184,7 +219,12 @@ export interface ReplanResult {
     realistic: ForecastGoalOutcome[];
     bands: Partial<Record<SeriesId, DailyBand>>;
     realisticBands?: Partial<Record<SeriesId, DailyBand>>;
+    /** Goal-operator bands use distinct keys; tissue fat never replaces wake scale BF. */
+    goalBands?: Record<string, DailyBand>;
+    realisticGoalBands?: Record<string, DailyBand>;
     fromDay?: number;
+    /** Execution-scenario assumptions are distinct from physiological parameter uncertainty. */
+    behavior?: { version: number; scenario: string; assumptions: readonly string[]; paths: number; seed: string };
     /** (E5b, additive) Goal outcomes of the plan before this re-plan (the `baseline` when given), as prescribed. */
     before?: ForecastGoalOutcome[];
   };
@@ -192,6 +232,8 @@ export interface ReplanResult {
   proposals: ReplanProposal[];
   explanation: string[];
   euUsed: number;
+  /** (C5/D4-03, additive) the result's safety checks, audit and certificate (absent on results from older planners). */
+  safety?: ReplanSafety;
 }
 
 /** §8.6: computed by the planner per plan version (R11 §4.1). */

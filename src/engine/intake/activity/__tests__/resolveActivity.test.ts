@@ -116,18 +116,20 @@ describe('mapping: R1 §3.3 archetypes reproduce (Mifflin, α0 0.10, no sessions
     expect(dev.commuteKcal).toBe(0);
   });
 
-  it('cycling commute E_cyc = BW·(6.8 − 1)·min/60·d_w/7; working from home has none', () => {
+  // D3-07 shared bout ledger: standard-MET gross (MET·1.05 kcal/kg/h) net of the person's own RMR, not BW·(MET − 1)·h
+  const ledgerNet = (met: number, min: number): number => Math.max(0, met * 1.05 * 90 - R1_M.rmr0Kcal / 24) * (min / 60);
+  it('cycling commute E_cyc = max(0, 6.8·1.05·BW − RMR0/24)·min/60·d_w/7 (D3-07 ledger); working from home has none', () => {
     const r = resolveActivity({ work: 'desk', commute: { mode: 'cycle', activeMinPerWorkday: 40 } }, R1_M);
-    expect(r.commuteKcal).toBeCloseTo((90 * 5.8 * (40 / 60) * 5) / 7, 9);
+    expect(r.commuteKcal).toBeCloseTo((ledgerNet(6.8, 40) * 5) / 7, 9);
     expect(resolveActivity({ work: 'desk', commute: { mode: 'none', activeMinPerWorkday: 40 } }, R1_M).commuteKcal).toBe(0);
   });
 
-  it('recreation E_rec = BW·Σ(MET − 1)·min/60/7; invalid minutes are ignored, large ones clamped', () => {
+  it('recreation E_rec = Σ max(0, MET·1.05·BW − RMR0/24)·min/60/7 (D3-07 ledger); invalid minutes are ignored, large ones clamped', () => {
     const r = resolveActivity({ work: 'desk', recreation: [{ label: 'football', intensity: 'vigorous', minPerWeek: 90 }, { label: 'walks', intensity: 'light', minPerWeek: 120 }, { label: 'bad', intensity: 'moderate', minPerWeek: Number.NaN }, { label: 'neg', intensity: 'moderate', minPerWeek: -30 }] }, R1_M);
-    expect(r.recreationKcal).toBeCloseTo((90 * (7 * 90 + 2.5 * 120)) / 60 / 7, 9);
+    expect(r.recreationKcal).toBeCloseTo((ledgerNet(8, 90) + ledgerNet(3.5, 120)) / 7, 9);
     // (before the PAL cap, which this much sport would trigger)
     const big = activityTerms({ recreation: [{ label: 'x', intensity: 'moderate', minPerWeek: 1e9 }] }, R1_M);
-    expect(big.recreationKcal).toBeCloseTo((90 * 4 * DEFAULTS.activity.recreationMinPerWeekRange[1]) / 60 / 7, 6);
+    expect(big.recreationKcal).toBeCloseTo(ledgerNet(5, DEFAULTS.activity.recreationMinPerWeekRange[1]) / 7, 6);
   });
 
   it('not working: no work days, no occupational term, no commute; day-off steps every day', () => {

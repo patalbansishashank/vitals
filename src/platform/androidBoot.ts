@@ -1,18 +1,16 @@
 /*
  * Android app start (SUITE_SPEC §15.7), owned by L-ANDROID: saving files through the share sheet
- * (androidDownloads.ts), importing files shared to Vitals (androidIntake.ts), and the foreground service and ring
- * alerts that follow the ring service (androidRingLink.ts), and no service worker. Nothing on the web.
+ * (androidDownloads.ts), no service worker, and app updates from the home server (androidUpdates.ts): the web bundle
+ * confirms it started (`ready()` after the first render) and the update checks begin. Nothing on the web.
  *
  * Call once at app start, after the first render (src/main.tsx, after `createRoot(…).render(…)`):
  *
- *   void Promise.all([import('@/platform/androidBoot'), import('@/biometrics/service')]).then(([m, s]) =>
- *     m.installAndroidShell({ ringService: s.getRingService() }));
+ *   void import('@/platform/androidBoot').then((m) => m.installAndroidShell());
  */
 import { onAndroid } from './androidShell';
 import { installAndroidDownloads } from './androidDownloads';
-import { installAndroidIntake } from './androidIntake';
-import { installAndroidRingLink, type RingLinkSource } from './androidRingLink';
-import { installAndroidScreen } from './androidScreen';
+import { markWebReady, startUpdateChecks } from './androidUpdates';
+import { startGaugeEngine } from '@/state/gaugeEngine';
 
 const SW_RELOAD_KEY = 'vitals.android.swReload';
 
@@ -48,18 +46,42 @@ function reloadOnce(): boolean {
   }
 }
 
-/** Install the Android-only file handling; returns the uninstall function (tests). */
-export function installAndroidShell(deps: { ringService?: RingLinkSource } = {}): () => void {
+/**
+ * Calls `cb` once the app root shows something (the first render has committed and painted), checking every frame. A
+ * bundle that never renders never calls it, and the native side rolls it back.
+ */
+export function whenRendered(cb: () => void, root: () => Element | null = () => document.getElementById('root')): () => void {
+  let frame = 0;
+  let done = false;
+  const tick = () => {
+    if (done) return;
+    if ((root()?.childElementCount ?? 0) > 0) {
+      done = true;
+      cb();
+      return;
+    }
+    frame = requestAnimationFrame(tick);
+  };
+  tick();
+  return () => {
+    done = true;
+    cancelAnimationFrame(frame);
+  };
+}
+
+/** Install the Android-only file handling and updates; returns the uninstall function (tests). */
+export function installAndroidShell(): () => void {
   if (!onAndroid()) return () => {};
   void dropServiceWorker().catch(() => undefined);
-  const screen = installAndroidScreen();
-  const downloads = installAndroidDownloads();
-  const intake = installAndroidIntake();
-  const ringLink = deps.ringService ? installAndroidRingLink(deps.ringService) : () => {};
+  const stopReady = whenRendered(markWebReady);
+  const stopChecks = startUpdateChecks();
+  const stopDownloads = installAndroidDownloads();
+  // (r070) the ring engine inside Vitals: read its state and hand it the paired server (no-op without the plugin)
+  const stopEngine = startGaugeEngine();
   return () => {
-    ringLink();
-    intake();
-    downloads();
-    screen();
+    stopEngine();
+    stopReady();
+    stopChecks();
+    stopDownloads();
   };
 }

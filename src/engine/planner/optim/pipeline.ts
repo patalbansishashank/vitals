@@ -60,7 +60,8 @@ import { RACE_ETA, dTercile, raceRoundBudget, raceSurvivors } from './race';
 import type { Seed } from './rng';
 import { Rng, hashInts, hashString, latinHypercube } from './rng';
 import type { FinalistRobustness, RobustMode } from './robust';
-import { decisionStability, robustSummary } from './robust';
+import { decisionStability, jointScreenOf, jointShortfall, goalAvailability, robustSummary } from './robust';
+import { CONTRACT_FINGERPRINT, SAFETY_ALPHA, endpointAvailability, type EndpointAvailability, type JointScreenResult } from '@/lib/bodyContracts';
 import type {
   ConvergencePoint,
   EvalOutput,
@@ -71,7 +72,7 @@ import type {
   PlanStructure,
   RungId,
 } from './types';
-import { HOLDOUT_DRAW_OFFSET, violation } from './types';
+import { HOLDOUT_DRAW_OFFSET, SAFETY_AUDIT_DRAW_OFFSET, violation } from './types';
 
 export type { LadderSpec } from './ladder';
 export type { EasyLine } from './easySearch';
@@ -235,6 +236,10 @@ export function evaluatePlan<S extends PlanStructure, Sched, Sim>(
   };
   if (model.features) out.features = Float64Array.from(model.features(schedule, sim));
   if (model.cost) out.cost = model.cost(schedule, sim);
+  const missing = model.missingMargins?.(sim, schedule);
+  if (missing && missing.length) out.missing = Int32Array.from(missing);
+  const missingGoals = model.missingGoals?.(sim, schedule);
+  if (missingGoals && missingGoals.length) out.missingGoals = Int32Array.from(missingGoals);
   return out;
 }
 
@@ -314,6 +319,12 @@ export interface PlannerProblem<S extends PlanStructure> {
   gridStep?(structure: number): ArrayLike<number>;
   /** Independent post-validator (§4.4.6 layer 3); failures are discarded, never repaired. */
   validate?(structure: number, x: Float64Array): { ok: boolean; reasons: readonly string[] };
+  /**
+   * Margin indices the independent safety audit requires (C5/D4-03: the hard safety margins); default every margin. A
+   * margin judged on the nominal run only (its draws report a pass sentinel by design) is still required nominally: the
+   * frozen candidate's nominal margins must hold, else the audit records a known violation.
+   */
+  readonly safetyMargins?: readonly number[];
   /** Lever ablations for explanations (§4.17): neutralised variants of a plan. */
   ablations?(
     structure: number,
@@ -343,6 +354,8 @@ export interface GroupBest {
   x: Float64Array;
   /** Goal functionals in metric units, objectives (maximised units) and search desirability d̃. */
   metricValues: Float64Array;
+  /** Required endpoint coverage; a missing nominal output is retained alongside ensemble members. */
+  goalAvailability: EndpointAvailability[];
   objectives: Float64Array;
   desirability: Float64Array;
   /** Safety violation v_S (0 = safe) and the margin indices below zero. */
@@ -394,6 +407,24 @@ export interface PlannerConfig {
    * numbers come from it.
    */
   holdoutSize?: number;
+  /**
+   * Reserved safety-audit stream size M_a (C5/D4-03; default = the selection-ensemble size M_s, i.e. S16/M32/L64/X128;
+   * 0 disables the audit, so every option stays Unchecked). Drawn from its own stream, never searched or selected on.
+   */
+  safetyAuditSize?: number;
+  /**
+   * (C5/D4-03, A1-035) The evaluator's declared safety-audit protocol: the seed of the ENSEMBLE that generates the audit
+   * members (`HostInit.ensemble.seed`), never this run's search seed. Recorded on every `SafetyAuditResult`; absent =
+   * undeclared (the audit records no seed and no certificate can bind it).
+   */
+  safetyAuditProtocol?: AuditProtocolDecl;
+  /**
+   * (C5/D4-03, A1-011) Finalization of a chosen candidate before its one reserved audit: the port finalizes the candidate
+   * once (every dose-changing step, e.g. equipment composition), freezes the full resolved schedule and evaluates EXACTLY
+   * that object on the reserved members, returning the evaluated subject's hash. Null = finalization unavailable
+   * (Unchecked). Without a port the audit evaluates the decoded genome and binds no subject.
+   */
+  auditSubject?: AuditSubjectPort;
   /** OCBA-style allocation of the selection draws (default true; needs M_s ≥ 4). */
   ocba?: boolean;
   maxFinalists?: number;
@@ -490,6 +521,8 @@ export interface PlanOptionResult<S> {
   output: EvalOutput;
   objectives: Float64Array;
   metricValues: Float64Array;
+  /** Required endpoint coverage; a missing nominal output is retained alongside ensemble members. */
+  goalAvailability: EndpointAvailability[];
   desirability: Float64Array;
   reported: Float64Array;
   percentOfPossible: Float64Array;
@@ -506,9 +539,63 @@ export interface PlanOptionResult<S> {
   robustSelection: FinalistRobustness | null;
   /** Share of holdout draws in which A (Hard) beats this option on goal 1 (null for A / no ensemble). */
   aBeatsThisShare: number | null;
+  /** Exact joint screen on the selection ensemble (what the choice was based on; never a certificate). */
+  selectionScreen: JointScreenResult | null;
+  /** The one automatic independent safety audit of this frozen option (C5/D4-03; separate from the outcome holdout). */
+  safetyAudit: SafetyAuditResult;
   /** Top ablations: Δd̃ = option − neutralised variant per goal; `safe` = the variant itself met every margin. */
   ablations: Array<{ label: string; deltaD: Float64Array; safe?: boolean }>;
   distanceToChosen: number;
+}
+
+/**
+ * The independent final safety audit of one frozen candidate (C5/D4-03): `SAFETY_AUDIT_DRAW_OFFSET + m` for m < M on the
+ * reserved stream, the exact joint screen over `PlannerProblem.safetyMargins`, one automatic attempt per decision episode.
+ * A failed audit is kept (no rerank, repair or reseed follows); insufficient budget, a stopped run or M = 0 is Unchecked.
+ */
+export interface SafetyAuditResult {
+  screen: JointScreenResult;
+  stream: 'safetyAudit';
+  /** Declared members (the reserved M_a) and the seed of the EVALUATOR ensemble that generated them ('' = undeclared). */
+  M: number;
+  seed: string | number;
+  attempt: 1;
+  /**
+   * Hash of the exact subject the audit evaluated (A1-011): the frozen finalized schedule when an `auditSubject` port
+   * finalized it; null when only a decoded genome was evaluated (binds no certificate).
+   */
+  subjectHash: string | null;
+  /** The protocol actually used (stream, sampler, order, and the evaluated parameter-vector hash when the port gave it). */
+  protocol: AuditProtocolDecl & { M: number; paramsHash?: string };
+  /**
+   * Why no audit ran, when Unchecked for that reason: 'budget' (an earlier stage overran the reserve), 'aborted' (the run
+   * was stopped), 'disabled' (M_a = 0, e.g. no ensemble), 'finalization' (the candidate could not be finalized).
+   */
+  notRun?: 'budget' | 'aborted' | 'disabled' | 'finalization';
+}
+
+/** A declared audit protocol (A1-035): the evaluator ensemble seed plus the stream/sampler/order identity. */
+export interface AuditProtocolDecl {
+  seed: number | string;
+  stream?: 'ensemble/safetyAudit';
+  sampler?: 'lhs';
+  samplerVersion?: number;
+  order?: 'memberAscending';
+}
+
+/** What an `AuditSubjectPort` returns for one finalized candidate (A1-011). */
+export interface FinalAuditSubject {
+  /** Member outputs m = 0…M−1 of the reserved stream on the frozen subject. */
+  outputs: readonly EvalOutput[];
+  /** Nominal output of the frozen subject (a negative required margin is a known violation). */
+  nominal: EvalOutput;
+  subjectHash: string;
+  protocol?: AuditProtocolDecl & { M?: number; paramsHash?: string };
+}
+
+/** Finalize a chosen candidate once and audit exactly that frozen subject (A1-011). */
+export interface AuditSubjectPort {
+  audit(structure: number, x: Float64Array, M: number): MaybePromise<FinalAuditSubject | null>;
 }
 
 export interface TradeoffCurve {
@@ -535,8 +622,8 @@ export interface LadderResult<S> {
   easySearch: EasySearchReport | null;
   /**
    * Carried rungs of `PlannerConfig.previous`: kept, or why not (§12.1): 'replaced' (it passed, this run's own was
-   * better), 'structure' (no such structure here), or the failing check ('unsafe', 'validation', 'chance', 'goals',
-   * 'distinct').
+   * better), 'structure' (no such structure here), 'hard' (this run's Hard is unsafe or short of the least worthwhile
+   * change, so no rung can sit under it), or the failing check ('unsafe', 'validation', 'chance', 'goals', 'distinct').
    */
   carried: Partial<Record<'medium' | 'easy', { kept: boolean; fromTier: string; reason: string | null }>>;
 }
@@ -667,6 +754,8 @@ interface Fin {
   thr: Float64Array | null;
   /** Where a rung finalist came from (§12.1-12.2; absent = 'own'). */
   prov?: RungProvenance;
+  /** Independent safety audit of the frozen finalist (set once, after the final pick). */
+  audit?: SafetyAuditResult;
 }
 
 interface RungWork {
@@ -705,6 +794,10 @@ class PlannerRun<S extends PlanStructure> {
   private pinnedHard: EvalRecord | null = null;
   readonly Ms: number;
   readonly Mh: number;
+  /** Reserved safety-audit stream size (C5/D4-03). */
+  readonly Ma: number;
+  /** Margins the safety audit requires (default every margin). */
+  private safetyMarginIdx: number[] | null = null;
   /** Cumulative EU limits per stage in table order (roll-forward). */
   readonly cum: { race: number; anchors: number; stages: number; qd: number; ladder: number };
   readonly fingerprint: string;
@@ -789,6 +882,7 @@ class PlannerRun<S extends PlanStructure> {
     // holdout by default on ladder problems only: v1-mode callers (time-to-target, re-plan, toys) may run evaluators
     // that define no holdout draws; they opt in with `holdoutSize` (README v2)
     this.Mh = this.Ms > 0 ? Math.max(0, Math.floor(cfg.holdoutSize ?? (this.lad ? TIER_HOLDOUT[this.tier] : 0))) : 0;
+    this.Ma = Math.max(0, Math.floor(cfg.safetyAuditSize ?? this.Ms));
     this.anchorRec = new Array<EvalRecord | null>(this.K).fill(null);
     this.fingerprint = this.computeFingerprint();
     this.wall0 = cfg.now ? cfg.now() : 0;
@@ -854,6 +948,10 @@ class PlannerRun<S extends PlanStructure> {
       ladder: this.lad,
       Ms: this.Ms,
       Mh: this.Mh,
+      Ma: this.Ma,
+      safetyMargins: p.safetyMargins ?? null,
+      // C7: the contract versions (joint screen, certificate protocol) are part of what a checkpoint resumes under
+      contracts: CONTRACT_FINGERPRINT,
       race: this.cfg.race ?? null,
       lq: this.cfg.lambdaQuantum ?? null,
       cov: this.cfg.covariance ?? null,
@@ -925,7 +1023,8 @@ class PlannerRun<S extends PlanStructure> {
   }
 
   record(p: Proposal, out: EvalOutput, stage: string): EvalRecord {
-    const f = this.goals.objective(out.goals);
+    // A2-001: retain unavailable objectives as NaN; desirability is no benefit, never a compatibility observation.
+    const f = this.goals.objective(out.goals, undefined, out.missingGoals);
     return {
       id: this.nextId++,
       structure: p.structure,
@@ -951,7 +1050,7 @@ class PlannerRun<S extends PlanStructure> {
       this.appendHistory(r);
       for (let k = 0; k < this.K; k++) {
         const cur = this.anchorRec[k];
-        if (!cur || r.f[k]! > cur.f[k]!) this.anchorRec[k] = r;
+        if (Number.isFinite(r.f[k]!) && (!cur || r.f[k]! > cur.f[k]!)) this.anchorRec[k] = r;
       }
     } else if (!this.leastInfeasible || r.vS < this.leastInfeasible.vS) this.leastInfeasible = r;
     if (this.problem.group) this.trackGroup(r);
@@ -969,7 +1068,7 @@ class PlannerRun<S extends PlanStructure> {
     const K = this.K;
     for (let k = 0; k < K; k++) {
       const cur = this.reserve[cell * K + k];
-      if (!cur || r.f[k]! > cur.f[k]!) this.reserve[cell * K + k] = r;
+      if (Number.isFinite(r.f[k]!) && (!cur || r.f[k]! > cur.f[k]!)) this.reserve[cell * K + k] = r;
     }
   }
 
@@ -987,7 +1086,7 @@ class PlannerRun<S extends PlanStructure> {
     if (!tr.best || compareKeys(key, this.goals.stageKey(0, tr.best)) < 0) tr.best = r;
     for (let k = 0; k < this.K; k++) {
       const g = tr.goal[k];
-      if (!g || r.vS < g.vS || (r.vS === g.vS && r.f[k]! > g.f[k]!)) tr.goal[k] = r;
+      if (Number.isFinite(r.f[k]!) && (!g || r.vS < g.vS || (r.vS === g.vS && r.f[k]! > g.f[k]!))) tr.goal[k] = r;
     }
     if (this.lad) {
       const t3 = dTercile(this.D(r));
@@ -1008,7 +1107,7 @@ class PlannerRun<S extends PlanStructure> {
     let pool = this.groupPool.get(g);
     if (!pool) this.groupPool.set(g, (pool = new Array<EvalRecord | null>(K + 2).fill(null)));
     if (r.vS === 0) {
-      for (let k = 0; k < K; k++) if (!pool[k] || r.f[k]! > pool[k]!.f[k]!) pool[k] = r;
+      for (let k = 0; k < K; k++) if (Number.isFinite(r.f[k]!) && (!pool[k] || r.f[k]! > pool[k]!.f[k]!)) pool[k] = r;
       const cur = pool[K];
       if (!cur || compareKeys(this.goals.finalKey(r, true), this.goals.finalKey(cur, true)) < 0) pool[K] = r;
     } else if (!pool[K + 1] || r.vS < pool[K + 1]!.vS) pool[K + 1] = r;
@@ -1035,6 +1134,7 @@ class PlannerRun<S extends PlanStructure> {
         structureId: this.structureOf(best.structure).id,
         x: best.x,
         metricValues: Float64Array.from(best.f, (v, k) => this.goals.toMetric(k, v)),
+        goalAvailability: this.problem.goals.map((_, k) => goalAvailability([best.out], this.goals, k)),
         objectives: best.f,
         desirability: this.goals.desirability(best.f),
         vS: best.vS,
@@ -1355,7 +1455,7 @@ class PlannerRun<S extends PlanStructure> {
         box: s.box,
         draw: s.draw,
         out,
-        f: this.goals.objective(out.goals),
+        f: this.goals.objective(out.goals, undefined, out.missingGoals),
         vS: violation(out.margins),
         reg: out.regulariser,
         stage: s.stage,
@@ -1612,7 +1712,7 @@ class PlannerRun<S extends PlanStructure> {
     if (!out) throw new Error('Evaluator returned no output for the baseline');
     if (out.goals.length !== this.K)
       throw new Error(`EvalOutput.goals has ${out.goals.length} values, expected ${this.K}`);
-    this.goals.setBaseline(out.goals);
+    this.goals.setBaseline(out.goals, out.missingGoals);
     const p = { structure: b.structure, x, box: 0, draw: -1 };
     this.cache.set(this.cacheKey(p), out);
     this.eu += out.cost ?? 1;
@@ -1947,20 +2047,20 @@ class PlannerRun<S extends PlanStructure> {
         if (this.aborted) return;
         const k = ph.k;
         this.stage = `S2.${k + 1}`;
-        if (this.goals.status(k) === 'metAtBaseline') {
+        if (this.goals.status(k) === 'metAtBaseline' || this.goals.status(k) === 'unavailable') {
           ph.k++;
           continue;
         }
         if (!ph.cur) {
           const start =
             this.anchorRec[k] ??
-            this.bestBy([...this.survivorBest, ...(this.leastInfeasible ? [this.leastInfeasible] : [])], (r) => [r.vS, -r.f[k]!, r.id]);
+            this.bestBy([...this.survivorBest, ...(this.leastInfeasible ? [this.leastInfeasible] : [])], (r) => [r.vS, Number.isFinite(r.f[k]!) ? -r.f[k]! : Infinity, r.id]);
           if (!start) {
             ph.k++;
             continue;
           }
           let left = 0;
-          for (let j = k; j < this.K; j++) if (this.goals.status(j) !== 'metAtBaseline') left++;
+          for (let j = k; j < this.K; j++) if (this.goals.status(j) !== 'metAtBaseline' && this.goals.status(j) !== 'unavailable') left++;
           const { a, b } = this.goals.scale(k);
           ph.cur = {
             id: this.pin(start),
@@ -2525,11 +2625,11 @@ class PlannerRun<S extends PlanStructure> {
   private robustG(f: Fin): number {
     return this.goals.utilityD(this.dOf(f), 0);
   }
-  /** Robust Hard key: (chance violation, v_L on the robust d̃, −⌊G/q_G⌋, ⌊D/q_D⌋, R, −G). */
+  /** Robust Hard key: (joint-screen shortfall, normalized P10 shortfall, v_L on the robust d̃, −⌊G/q_G⌋, ⌊D/q_D⌋, R, −G). */
   private robustHardKey(f: Fin, relaxed: boolean): Key {
     const d = this.dOf(f);
     const g = this.goals.utilityD(d, 0);
-    const k: number[] = [f.sel ? f.sel.chanceViolation : 0, this.goals.floorViolationD(d, this.K, relaxed), -quantLevel(g, this.goals.goalQuantum())];
+    const k: number[] = [jointShortfall(f.sel), f.sel ? f.sel.chanceViolation : 0, this.goals.floorViolationD(d, this.K, relaxed), -quantLevel(g, this.goals.goalQuantum())];
     if (this.lad) k.push(quantLevel(this.D(f.rec), this.qD));
     k.push(f.rec.reg + this.goals.boxWeight * f.rec.box, -g);
     return k;
@@ -2541,15 +2641,25 @@ class PlannerRun<S extends PlanStructure> {
     const hards = fins.filter((f) => f.role === 'hard' && ok(f));
     let hard: Fin | null = null;
     for (const f of hards) if (!hard || compareKeys(this.robustHardKey(f, false), this.robustHardKey(hard, false)) < 0) hard = f;
-    // hybrid: the pinned Hard wins when it is safe here; a caller that already validated and chance-checked it (v1 on
-    // its own ensemble and validator) is trusted — this run's short robust stage cannot overrule it (measured: it then
-    // returned void plans in 7 of 240 held-out full requests)
-    const pinOk = (f: Fin) => f.rec.vS === 0 && (this.lad?.pinHard?.chanceChecked === true || (this.valid(f) && this.chanceOk(f)));
+    // a stopped run: the previous search's Hard (weighed in `finish`) is goal 1's best shown plan. This run's goal floors
+    // were set before it stopped, so its weighted score may rank a plan that gives up goal 1 above it (e.g. on a hunger
+    // anchor this short search never widened); Hard is goal 1 first (§1.3), so the carried Hard stays unless this run's
+    // pick is within goal 1's ladder tolerance of it ("Stop here" never returns a weaker Hard than the one shown, §12.1)
+    if (this.aborted && hard) {
+      const carried = hards.find((f) => f.prov === 'carried');
+      if (carried && carried !== hard && this.dOf(carried)[0]! > this.dOf(hard)[0]! + this.goals.delta[0]!) hard = carried;
+    }
+    // hybrid: the pinned Hard must pass THIS run's validator and joint screen (C5/D4-03: a caller's boolean "already
+    // chance-checked" never authorizes; the hybrid falls back to v2 alone when nothing survives). D4-09: it then competes
+    // under the production Hard key (`PLANNER_COMPARISON_POLICY`) and wins only when it is not worse there — ties prefer
+    // it; the frozen v1 comparator (d − η·R) never decides the shipped Hard
+    const pinOk = (f: Fin) => f.rec.vS === 0 && this.valid(f) && this.chanceOk(f);
     const pinned = this.pinnedHard ? fins.find((f) => f.role === 'hard' && (f.rec === this.pinnedHard || f.rec.structure === this.pinnedHard!.structure && this.cacheKey({ ...f.rec, draw: -1 }) === this.cacheKey({ ...this.pinnedHard!, draw: -1 })) && pinOk(f)) : undefined;
     // a stopped run: the previous search's Hard (weighed in `finish`) keeps its place when it outranks the pinned one — v1
     // was stopped too, so its option A may be a barely searched plan ("Stop here" keeps the plans found so far, §12.1)
     const carriedWins = this.aborted && !!hard && hard.prov === 'carried' && !!pinned && compareKeys(this.robustHardKey(hard, false), this.robustHardKey(pinned, false)) < 0;
-    if (pinned && !carriedWins) hard = pinned;
+    const pinnedNotWorse = !!pinned && (!hard || compareKeys(this.robustHardKey(pinned, false), this.robustHardKey(hard, false)) <= 0);
+    if (pinned && !carriedWins && pinnedNotWorse) hard = pinned;
     const rung = (role: FinRole) =>
       fins.find((f) => f.role === role && ok(f) && ladderViolation(this.goals.desirability(f.rec.f), f.thr!) <= 1e-9) ?? null;
     const relaxed = !!hard && !this.goals.priorityFeasibleD(this.dOf(hard), true);
@@ -2586,6 +2696,82 @@ class PlannerRun<S extends PlanStructure> {
     return fins.filter(
       (f) => f !== lead && (f.role === 'hard' || f.role === 'option') && this.chanceOk(f) && Math.abs(quantLevel(this.robustG(f), q) - gl) <= 1,
     );
+  }
+
+  /** Margin indices the safety audit requires. */
+  private auditMargins(C: number): number[] {
+    if (!this.safetyMarginIdx) this.safetyMarginIdx = (this.problem.safetyMargins ? [...this.problem.safetyMargins] : Array.from({ length: C }, (_, c) => c)).filter((c) => c >= 0 && c < C);
+    return this.safetyMarginIdx;
+  }
+
+  /** The declared audit protocol of this run (A1-035: the evaluator's ensemble, never the search seed). */
+  private auditProtocol(): SafetyAuditResult['protocol'] {
+    const d = this.cfg.safetyAuditProtocol;
+    return { seed: d?.seed ?? '', stream: d?.stream ?? 'ensemble/safetyAudit', sampler: d?.sampler ?? 'lhs', ...(d?.samplerVersion !== undefined ? { samplerVersion: d.samplerVersion } : {}), ...(d?.order ? { order: d.order } : {}), M: this.Ma };
+  }
+
+  /** An Unchecked audit (no members) with the reason it did not run. */
+  private auditNotRun(why: NonNullable<SafetyAuditResult['notRun']>): SafetyAuditResult {
+    const protocol = this.auditProtocol();
+    return { screen: jointScreenOf([], [], SAFETY_ALPHA), stream: 'safetyAudit', M: this.Ma, seed: protocol.seed, attempt: 1, subjectHash: null, protocol, notRun: why };
+  }
+
+  /**
+   * Independent final safety audit (C5/D4-03) of each frozen chosen finalist: members `SAFETY_AUDIT_DRAW_OFFSET + m`,
+   * m < M_a, of the reserved stream; exact joint screen over the safety margins; a nominal margin below zero is a known
+   * violation. One automatic attempt per run (decision episode); the result is recorded whatever it is.
+   *
+   * Budget: M_a EU per chosen option is reserved inside the run's total before S5 spends anything (finalist count,
+   * selection draws and chance repair leave it untouched); the outcome holdout and the explanations get what is left.
+   * Insufficient budget (an earlier stage overran), a stopped run or M_a = 0 records Unchecked with the reason.
+   */
+  private async safetyAudit(fins: readonly Fin[]): Promise<void> {
+    const todo = fins.filter((f) => !f.audit);
+    if (!todo.length) return;
+    if (this.Ma <= 0) {
+      for (const f of todo) f.audit = this.auditNotRun('disabled');
+      return;
+    }
+    if (this.aborted) {
+      for (const f of todo) f.audit = this.auditNotRun('aborted');
+      return;
+    }
+    if (this.remaining() < todo.length * this.Ma) {
+      for (const f of todo) f.audit = this.auditNotRun('budget');
+      return;
+    }
+    const protocol = this.auditProtocol();
+    const port = this.cfg.auditSubject;
+    if (port) {
+      // (A1-011) finalize each frozen choice once and audit exactly that subject; its own nominal margins decide a known
+      // violation (a finalization-only failure never inherits the decoded candidate's pass), one attempt, no reseed
+      for (const f of todo) {
+        const fin = await port.audit(f.rec.structure, f.rec.x, this.Ma);
+        if (!fin || fin.outputs.length !== this.Ma) {
+          f.audit = this.auditNotRun('finalization');
+          continue;
+        }
+        let cost = 0;
+        for (const o of fin.outputs) cost += o.cost ?? 1;
+        this.eu += cost;
+        this.stageEU['S5.safetyAudit'] = (this.stageEU['S5.safetyAudit'] ?? 0) + cost;
+        const req = this.auditMargins(fin.nominal.margins.length);
+        const nominalBad = req.some((c) => !(fin.nominal.margins[c]! >= 0)) || violation(fin.nominal.margins) > 0;
+        const used = { ...protocol, ...(fin.protocol ?? {}), M: this.Ma };
+        f.audit = { screen: jointScreenOf([...fin.outputs], req, SAFETY_ALPHA, { knownViolation: nominalBad }), stream: 'safetyAudit', M: this.Ma, seed: used.seed, attempt: 1, subjectHash: fin.subjectHash, protocol: used };
+      }
+      return;
+    }
+    const props: Proposal[] = [];
+    for (const f of todo) for (let m = 0; m < this.Ma; m++) props.push({ structure: f.rec.structure, x: f.rec.x, box: 0, draw: SAFETY_AUDIT_DRAW_OFFSET + m });
+    const recs = await this.evaluate(props, 'S5.safetyAudit');
+    todo.forEach((f, i) => {
+      const outs = recs.slice(i * this.Ma, (i + 1) * this.Ma).map((q) => q.out);
+      const req = this.auditMargins(f.rec.out.margins.length);
+      const nominalBad = req.some((c) => !(f.rec.out.margins[c]! >= 0)) || f.rec.vS > 0;
+      // the decoded genome only: no finalized subject is bound (a certificate cannot be issued Verified from it)
+      f.audit = { screen: jointScreenOf(outs, req, SAFETY_ALPHA, { knownViolation: nominalBad }), stream: 'safetyAudit', M: this.Ma, seed: protocol.seed, attempt: 1, subjectHash: null, protocol };
+    });
   }
 
   /**
@@ -2935,15 +3121,17 @@ class PlannerRun<S extends PlanStructure> {
     collapsed: LadderCollapse[],
     judge: (m: Fin | null) => { res: ReturnType<typeof ladderDistinctness> },
     carriedOut: LadderResult<S>['carried'],
-  ): Promise<{ E: Fin | null; M: Fin | null; easyReport: EasySearchReport | null; gHard: number; gMin: number }> {
+  ): Promise<{ E: Fin | null; M: Fin | null; easyReport: EasySearchReport | null; gHard: number; gMin: number; hardShort: boolean }> {
     const L = this.lad!;
     const ls = this.ladderState;
     const dH = this.goals.desirability(H.rec.f);
     const gH = dH[0]!;
     const gMin = ls?.gMin ?? gMinDesirability(this.goals, L.gMinMetric);
-    const out = { E: E0, M: M0, easyReport: null as EasySearchReport | null, gHard: gH, gMin };
-    if (H.rec.vS !== 0 || !(gH >= gMin) || !(gH > 0)) return out;
+    const out = { E: E0, M: M0, easyReport: null as EasySearchReport | null, gHard: gH, gMin, hardShort: false };
     const prev = this.cfg.previous;
+    // §12.1 (D4-08): no rung of the previous search can sit under a Hard that is unsafe or short of the least worthwhile
+    // change; the caller states that as a carried-rung failure for each previous rung the final ladder does not show
+    if (H.rec.vS !== 0 || !(gH >= gMin) || !(gH > 0)) return { ...out, hardShort: true };
     // a stopped run skips the dedicated Easy search but still re-checks the carried rungs (nominal: a few EU), so
     // "Stop here" keeps the plans found so far (§12.1, cards(X) ⊇ cards(S))
     const runEasy = this.cfg.easySearch !== false && !this.aborted;
@@ -3105,7 +3293,9 @@ class PlannerRun<S extends PlanStructure> {
     const options = L ? 3 : (this.cfg.optionCount ?? 3);
     // budget: holdout of the chosen options and the ablations are reserved; half of the rest goes to the ensembles
     const avail0 = Math.max(0, this.remaining());
-    const reserve = options * this.Mh + Math.floor(0.15 * avail0);
+    // the safety audit of each chosen option is reserved before any S5 spending (C5/D4-03; safety outranks the outcome
+    // holdout and the explanations)
+    const reserve = options * (this.Mh + this.Ma) + Math.floor(0.15 * avail0);
     const maxFin = Math.max(1, Math.min(this.cfg.maxFinalists ?? 10, Ms > 0 ? Math.floor((0.5 * Math.max(0, avail0 - reserve)) / Ms) : 10));
     const fins: Fin[] = [];
     const mk = (role: FinRole, rec: EvalRecord, thr: Float64Array | null = null): Fin => ({ role, rec, rounded: false, outs: [], sel: null, hold: null, thr });
@@ -3114,11 +3304,12 @@ class PlannerRun<S extends PlanStructure> {
       const nHard = Math.max(1, Math.min(4, maxFin - 2));
       const perRung = Math.max(1, Math.min(3, Math.floor((maxFin - nHard) / 2)));
       for (const r of this.hardCandidates(nHard)) fins.push(mk('hard', r));
-      // a stopped run also weighs the previous search's Hard (nominal, as every finalist of a stopped run): "Stop here"
-      // keeps the plans found so far, so a search stopped early never returns a weaker Hard than the one shown (§12.1)
+      // Weigh the previous search's Hard on completed runs too. A larger search must consider its known incumbent,
+      // rather than discard it simply because another seed found a weaker local optimum. The same round, ensemble,
+      // validation and frozen-prescription audit checks below apply; an old feasible claim is never reused unchecked.
       const pH = this.cfg.previous?.rungs.hard;
       const pSt = pH ? this.problem.structures[pH.structure] : undefined;
-      if (this.aborted && pH && pSt && pSt.dim === pH.x.length) {
+      if (pH && pSt && pSt.dim === pH.x.length) {
         const x = Float64Array.from(pH.x, (v) => Math.min(1, Math.max(0, v)));
         const [rec] = await this.evaluate([{ structure: pH.structure, x, box: 0, draw: -1 }], 'S5.carry');
         this.ingest(rec!);
@@ -3154,7 +3345,7 @@ class PlannerRun<S extends PlanStructure> {
       }
     // selection ensemble (common random numbers), OCBA-style: every finalist first gets ⌈M_s/2⌉ draws; contenders
     // (chosen options and finalists practically tied with Hard / A) are completed to M_s before the final pick
-    this.holdReserve = options * this.Mh;
+    this.holdReserve = options * (this.Mh + this.Ma);
     const ensembles = Ms > 0 && !this.aborted && this.remaining() - this.holdReserve >= fins.length * Math.ceil(Ms / 2);
     if (ensembles) {
       const M0 = this.cfg.ocba !== false && Ms >= 4 ? Math.ceil(Ms / 2) : Ms;
@@ -3274,6 +3465,19 @@ class PlannerRun<S extends PlanStructure> {
           const cr = carriedOut[id];
           if (cr) cr.kept = keepIds.includes(id) && present[idx(id)]?.[1].prov === 'carried';
         }
+        // §12.1 (D4-08): a previous rung this ladder does not show because this run's Hard is unsafe or short of the
+        // least worthwhile change is a stated carried-rung failure (never silently lost)
+        const prevRungs = this.cfg.previous?.rungs;
+        if (ext.hardShort && prevRungs)
+          for (const id of ['medium', 'easy'] as const) {
+            if (!prevRungs[id] || keepIds.includes(id)) continue;
+            carriedOut[id] = { kept: false, fromTier: this.cfg.previous!.tier, reason: 'hard' };
+            const i = collapsed.findIndex((q) => q.rung === id);
+            const base: LadderCollapse = i >= 0 ? collapsed[i]! : { rung: id, reason: 'belowMinimal', detail: {} };
+            const c: LadderCollapse = { ...base, detail: { ...base.detail, carried: 1, carriedHardShort: 1, gHard: ext.gHard, gMin: ext.gMin } };
+            if (i >= 0) collapsed[i] = c;
+            else collapsed.push(c);
+          }
         if (easyReport) easyReport.chosen = keepIds.includes('easy') && present[idx('easy')]?.[1].prov === 'easySearch';
       }
     } else {
@@ -3282,6 +3486,10 @@ class PlannerRun<S extends PlanStructure> {
       shortfall = pk.shortfall;
       floorsRelaxedForA = pk.relaxed;
     }
+    // freeze the chosen candidates, then the one automatic independent safety audit of each; nothing below re-ranks,
+    // repairs or re-seeds on its result
+    await this.safetyAudit(chosen.map((c) => c.fin));
+    this.holdReserve = 0;
     await this.holdout(chosen.map((c) => c.fin));
     if (this.cfg.onProgress && chosen.length) {
       if (L) this.progress('S5', chosen[0]!.fin.rec, true);
@@ -3326,6 +3534,12 @@ class PlannerRun<S extends PlanStructure> {
         output: r.out,
         objectives: r.f,
         metricValues: Float64Array.from(r.f, (v, k) => this.goals.toMetric(k, v)),
+        goalAvailability: this.problem.goals.map((_, k) => {
+          const nominal = goalAvailability([r.out], this.goals, k);
+          const aggregate = rep?.goals[k]?.availability;
+          if (!aggregate || nominal.status === 'complete') return aggregate ?? nominal;
+          return endpointAvailability([false, ...aggregate.memberAvailable!], [...aggregate.reasons, 'nominalGoalOutputUnavailable']);
+        }),
         desirability: dRec,
         reported: Float64Array.from(r.f, (v, k) => this.goals.dReported(k, v)),
         percentOfPossible: Float64Array.from(r.f, (v, k) => this.goals.percentOfPossible(k, v)),
@@ -3337,6 +3551,8 @@ class PlannerRun<S extends PlanStructure> {
         robust: rep,
         robustSelection: f.sel,
         aBeatsThisShare: i > 0 && holdA && rep ? decisionStability(holdA, rep, 0) : null,
+        selectionScreen: f.sel ? f.sel.joint : null,
+        safetyAudit: f.audit ?? this.auditNotRun('aborted'),
         ablations,
         distanceToChosen: c.dist,
       });

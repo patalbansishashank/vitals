@@ -37,7 +37,6 @@ export const TOPIC_SHORT_NAME: Readonly<Record<EvidenceTopicSlug, string>> = {
   'extended-water-fasting': 'Extended water fasting',
   'other-levers': 'Other levers',
   'daily-activity-maintenance': 'Daily activity',
-  'wearable-scores': 'Wearable scores',
   'tracking-replanning': 'Tracking and re-planning',
   'training-catalogue': 'Training catalogue',
   supplements: 'Supplements',
@@ -68,8 +67,6 @@ const SLUG_BY_RESEARCH: ReadonlyMap<string, EvidenceTopicSlug> = new Map([
   ['3', 'training-catalogue'],
   ['4', 'supplements'],
   ['5', 'evidence-policy'],
-  ['9', 'wearable-scores'],
-  ['10', 'wearable-scores'],
   ['11', 'tracking-replanning'],
   ['13', 'blood-markers-and-diet'],
 ]);

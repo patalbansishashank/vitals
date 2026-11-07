@@ -1,42 +1,12 @@
 /*
- * The Android shell bridge (SUITE_SPEC §15.7, §15.8), owned by L-ANDROID: the web side of the native `VitalsShell`
- * plugin (Kotlin, apps/android). The plugin is reached through the global the Capacitor bridge injects
- * (`window.Capacitor`); the root app does not depend on @capacitor/core. Without the plugin (web, pwa, tests) every
- * call resolves and does nothing, and every listener is a no-op.
+ * The Android shell bridge (SUITE_SPEC §15.7), owned by L-ANDROID: the web side of the native `VitalsShell` plugin
+ * (Kotlin, apps/android): files shared to Vitals in, files saved through the share sheet out. The plugin is reached
+ * through the global the Capacitor bridge injects (`window.Capacitor`); the root app does not depend on
+ * @capacitor/core. Without the plugin (web, pwa, tests) every call resolves and does nothing, and every listener is a
+ * no-op.
  */
 import { netFetch } from '@/net/net';
 
-/**
- * §15.8's `ShellBridge`, declared here with the same shape: L-WEB's `shell()` (src/platform/shell.ts) returns
- * `androidShell()` when the platform is android.
- */
-export interface AndroidShellBridge {
-  keepAlive(on: boolean, text: string): Promise<void>;
-  notify(n: { kind: NoticeKind; title: string; text: string }): Promise<void>;
-  onBluetoothState(cb: (on: boolean) => void): () => void;
-  onResume(cb: () => void): () => void;
-  /**
-   * Whether Android may pause the app in the background (it is not on the battery allow list), and a way to open the
-   * system screen that lets the person allow it. Only there when the native plugin is.
-   */
-  batteryOptimisation?(): Promise<{ restricted: boolean; openSettings(): void }>;
-}
-
-/** `ring_moved`: the ring service's "ring now connected to another device" notice. */
-export type NoticeKind = 'battery_low' | 'ring_disconnected' | 'ring_moved';
-export type LaunchReason = 'launcher' | 'boot' | 'bluetooth' | 'notification' | 'share';
-export interface ShellState {
-  bluetoothOn: boolean;
-  notificationsAllowed: boolean;
-  keepAliveOn: boolean;
-  launchReason: LaunchReason;
-  /** The app's window is really on screen (the page's visibility follows it, see androidScreen). */
-  onScreen?: boolean;
-  /** Background read ticks since the process started, the wall time of the last one and the interval (diagnostics). */
-  ringTicks?: number;
-  lastRingTickAt?: number;
-  ringTickEveryMs?: number;
-}
 /** A file shared to Vitals, already copied by the native side into the app's cache. */
 export interface SharedFileEntry {
   name: string;
@@ -48,20 +18,10 @@ export interface SharedFileEntry {
 interface ListenerHandle {
   remove(): Promise<void> | void;
 }
-/** The native plugin's methods (contract: .jobs/tmp/L-ANDROID.contract.md). */
+/** The native plugin's methods. */
 export interface VitalsShellPlugin {
-  keepAlive(o: { on: boolean; text?: string }): Promise<unknown>;
-  notify(o: { kind: NoticeKind; title: string; text: string }): Promise<unknown>;
-  clearNotice(o: { kind: NoticeKind }): Promise<unknown>;
-  setPrefs(o: { keepConnected: boolean; ringKnown: boolean }): Promise<unknown>;
-  getState(): Promise<ShellState>;
-  requestNotificationPermission(): Promise<{ granted: boolean }>;
   takeSharedFiles(): Promise<{ files: SharedFileEntry[] }>;
   saveFile(o: { name: string; mime: string; dataBase64: string }): Promise<unknown>;
-  batteryOptimisation(): Promise<{ restricted: boolean }>;
-  openBatterySettings(): Promise<unknown>;
-  setRingTick(o: { everyMs: number }): Promise<unknown>;
-  ringTickDone(): Promise<unknown>;
   addListener(event: string, cb: (data: unknown) => void): Promise<ListenerHandle> | ListenerHandle;
 }
 /** The part of the injected `window.Capacitor` this module reads. */
@@ -121,116 +81,9 @@ function listen(event: string, cb: (data: unknown) => void): () => void {
   };
 }
 
-const codeOf = (e: unknown): unknown => (e && typeof e === 'object' ? (e as { code?: unknown }).code : undefined);
-
-// One warning until keepAlive works again: the ring service calls it on every status change.
-let permissionWarned = false;
-// Codes keepAlive reports for "Android will not run the service now": warned about, never thrown at the ring service.
-const KEEP_ALIVE_REFUSED = new Set(['permission', 'not_allowed']);
-
-const bridge: AndroidShellBridge = {
-  async keepAlive(on, text) {
-    const p = vitalsShell();
-    if (!p) return;
-    try {
-      await p.keepAlive(text ? { on, text } : { on });
-      permissionWarned = false;
-    } catch (e) {
-      if (!KEEP_ALIVE_REFUSED.has(codeOf(e) as string)) throw e;
-      if (!permissionWarned) console.warn('Vitals: Android did not start the ring notification (Bluetooth permission missing, or the app is in the background).');
-      permissionWarned = true;
-    }
-  },
-  async notify(n) {
-    await vitalsShell()?.notify({ kind: n.kind, title: n.title, text: n.text });
-  },
-  onBluetoothState: (cb) => listen('bluetoothState', (d) => cb(!!(d as { on?: unknown } | null)?.on)),
-  onResume: (cb) => listen('resume', () => cb()),
-};
-
-const batteryBridge: AndroidShellBridge = {
-  ...bridge,
-  async batteryOptimisation() {
-    const p = vitalsShell();
-    if (!p) return { restricted: false, openSettings: noop };
-    const r = await p.batteryOptimisation();
-    return {
-      restricted: !!r?.restricted,
-      openSettings: () => {
-        const warn = () => console.warn('Vitals: could not open the Android battery settings.');
-        try {
-          void Promise.resolve(p.openBatterySettings()).catch(warn);
-        } catch {
-          warn();
-        }
-      },
-    };
-  },
-};
-
-/** The §15.8 bridge over `VitalsShell`; every call is a no-op without the plugin (and `batteryOptimisation` is absent). */
-export function androidShell(): AndroidShellBridge {
-  return vitalsShell() ? batteryBridge : bridge;
-}
-
-/* ------------------------------------------------------------------ Android-only helpers */
-
-/** Remove the notification of one kind ("Ring battery low", "Ring disconnected"). */
-export async function clearNotice(kind: NoticeKind): Promise<void> {
-  await vitalsShell()?.clearNotice({ kind });
-}
-
-/** What the boot and Bluetooth-on receivers read: start the ring link only when both are true. */
-export async function setRingPrefs(prefs: { keepConnected: boolean; ringKnown: boolean }): Promise<void> {
-  await vitalsShell()?.setPrefs({ keepConnected: prefs.keepConnected, ringKnown: prefs.ringKnown });
-}
-
-/**
- * The background read: while the ring service runs, an alarm wakes the phone every `everyMs` (screen off included)
- * and fires `cb`, holding the CPU awake until `ringTickDone()` (or three minutes). No-op without the plugin.
- */
-export function onRingTick(cb: () => void): () => void {
-  return listen('ringTick', () => cb());
-}
-
-/** The app's window went on or off screen (native `screen` event). No-op without the plugin. */
-export function onScreenChange(cb: (on: boolean) => void): () => void {
-  return listen('screen', (d) => cb(!!(d as { on?: unknown } | null)?.on));
-}
-
-export async function setRingTick(everyMs: number): Promise<void> {
-  await vitalsShell()?.setRingTick({ everyMs });
-}
-
-/** The read a tick asked for is done: the phone may sleep again. */
-export async function ringTickDone(): Promise<void> {
-  await vitalsShell()?.ringTickDone();
-}
-
-/** Ask for POST_NOTIFICATIONS (Android 13+). False without the plugin. */
-export async function requestNotificationPermission(): Promise<boolean> {
-  const p = vitalsShell();
-  if (!p) return false;
-  const r = await p.requestNotificationPermission();
-  return !!r?.granted;
-}
-
-/** Bluetooth, notifications, the foreground service and why the app was started; null without the plugin. */
-export async function getShellState(): Promise<ShellState | null> {
-  const p = vitalsShell();
-  if (!p) return null;
-  const s = await p.getState();
-  return { ...s };
-}
-
 /** Write a file to the app's cache and open the system share sheet (the Android way to save or send a file). */
 export async function saveFile(file: { name: string; mime: string; dataBase64: string }): Promise<void> {
   await vitalsShell()?.saveFile({ name: file.name, mime: file.mime, dataBase64: file.dataBase64 });
-}
-
-/** The app was started after a phone restart (fired once, when the first listener is added). */
-export function onBootCompleted(cb: () => void): () => void {
-  return listen('bootCompleted', () => cb());
 }
 
 async function readShared(cap: CapacitorGlobal, f: SharedFileEntry): Promise<File | null> {
@@ -247,7 +100,8 @@ async function readShared(cap: CapacitorGlobal, f: SharedFileEntry): Promise<Fil
 
 /**
  * Files shared to Vitals ("Share to Vitals", opening a file with Vitals): drains what is waiting now, then again on each
- * `sharedFiles` event. Taking clears the native list, so there should be one subscriber (the intake, androidIntake.ts).
+ * `sharedFiles` event. Taking clears the native list, so there should be one subscriber. Nothing subscribes since the health-file
+ * import went; a feature that accepts shared files hooks in here.
  * `onUnreadable` hears how many shared files could not be read (or taken at all, with the number 1).
  */
 export function onSharedFiles(cb: (files: File[]) => void, onUnreadable?: (count: number) => void): () => void {
@@ -283,8 +137,7 @@ export function onSharedFiles(cb: (files: File[]) => void, onUnreadable?: (count
   };
 }
 
-/** Tests: forget the cached plugin and the warning state. */
+/** Tests: forget the cached plugin. */
 export function resetAndroidShellForTests(): void {
   cached = null;
-  permissionWarned = false;
 }

@@ -12,11 +12,7 @@ import type { PlannerRequest } from '../types';
 export function probeRequest(profile: PersonProfile, horizonDays = 112): PlannerRequest {
   return {
     profile,
-    goals: suggestionProbeGoals().map((g) =>
-      g.mode === 'lose'
-        ? { metric: g.metric, direction: 'target' as const, target: -g.amount, targetKind: 'change' as const }
-        : { metric: g.metric, direction: 'maximise' as const, target: g.amount, targetKind: 'change' as const },
-    ),
+    goals: suggestionProbeGoals(),
     horizonDays,
     seed: 1,
   };
@@ -53,7 +49,6 @@ export function inputFor(profile: PersonProfile, opts: { optedTier?: FastingTier
     },
     intake: opts.intake ?? {},
     markers: [],
-    devices: {},
     safety: { noWeightLossGoal: false, optedTier: opts.optedTier ?? null },
     reach: opts.reach === false ? [] : (reach ?? []),
   };

@@ -53,7 +53,6 @@ export function PickerDemoPage() {
               onChange={(next) => setValues((v) => ({ ...(v ?? EMPTY), [kind]: next }))}
               regions={regions}
               onRegionsChange={setRegions}
-              optional={kind === 'pantry'}
             />
           ) : null}
         </div>

@@ -340,11 +340,15 @@ and end values as text at the ends. Labelled "preview".
 
 ### 7.8 Trend lane (Living: Today, Progress, check-in) `<TrendLane>`
 The weight trend against the plan's forecast — the hero of every "is it working?" question.
-- **Marks**: filtered trend line 2 px in `--lm-cat-body`; raw weigh-ins as 4 px dots in the body
-  hue at 35 % (flagged outliers hollow, never removed); **realistic forecast** band (at the person's
-  actual adherence) as the series band; **as-prescribed** forecast as a 1 px dashed outline band
-  (what full adherence would give); the goal as a 1 px ink line with label; the goal-date range as a
-  bracket on the x-axis ("likely 21–30 Dec"); today = yellow now-hand.
+- **Marks** (r071 skin, §12): filtered trend line, smooth, 2 px, round caps, in the metric's hue
+  (`categoryColor('body')`; ivory on a card with a glow) ending in a glowing end dot at the latest
+  estimate; raw weigh-ins as 4 px dots, dim (flagged outliers hollow, never removed); **realistic
+  forecast** band (at the person's actual adherence) as a hue gradient (0.24 to 0.10) whose p10 / p90
+  edges stay long-dashed and whose median is a hairline; with no forecast, the soft area under the
+  trend instead; **as-prescribed** forecast as a 1 px dashed outline band (what full adherence would
+  give); the goal as a 1 px ink line with label, or an edge label ("goal 79.5 kg ↓") when it is off
+  the scale (the scale hugs the data and never stretches to the goal); the goal-date range as a
+  bracket on the x-axis ("21–30 Dec"); today = a dotted stone now-hand.
 - **Sizes**: Today 7–14 days, 64–96 h, no y-axis numerals in quiet mode; Progress full width, 240 h
   (180 mobile), range KeyBank 2 wk · 4 wk · 12 wk · all; check-in 14 days, 160 h.
 - **Events**: engraved markers for estimate resets (illness, travel, a long fast, DXA, model update),
@@ -361,11 +365,7 @@ The weight trend against the plan's forecast — the hero of every "is it workin
 - "last 7 days" / "last 28 days" adherence Readouts (`A_7` / `A_28` in the data) with "steady" or
   an arrow; never a sparkline used as decoration.
 
-### 7.10 Score history `<ScoreHistory>`
-Nightly values as faint dots, the 7-day mean as a 2 px line in the category hue (recovery sky for
-HRV/RHR/sleep, performance green for VO2 max and load), the personal normal range as a band, version
-changes as engraved vertical lines ("v1.3 from 20 Oct"), a new device as a dashed join; optional
-"compare with v1.2" second line dashed. Vendor values never plotted on the same axis.
+### 7.10 Score history `<ScoreHistory>` — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
 ## 8. Performance
 
@@ -436,6 +436,58 @@ to canvas code, and a thin HTML/SVG overlay layer for labels, events and the cro
 - CSV export of the table view.
 
 ---
+
+## 12. The r071 chart skin (one family: canvas lanes, SVG charts, Progress's lane chart)
+
+Written with the r071 UI overhaul (AUDIT §1.4 "Charts: visual layer"). The marks below are what both halves draw: the
+canvas half in `src/features/charts/core/draw.ts` (read through `ChartTheme`, compared with the token files by
+`test/themeDefaults.test.ts`), the SVG half in `src/features/charts/living/skin.tsx` and `living-charts.css`.
+
+- **Hue.** A chart wears ONE hue per series, always a token: `categoryColor(category)` for a metric (`--lm-cat-*`, whose
+  body, energy, performance, recovery and cardio slots alias the tide, ember, steps, recovery and heart domain hues) and
+  `domainColor(domain)` for what is not a metric category (plan, food, steps, sleep). SVG charts set it as `--lmc-hue`
+  (`chartHue()` picks the function), the canvas reads `ChartTheme.cat`. Gold leaves the data palette: it stays the plan
+  A line, goals, the now-hand, the selection and the action.
+- **Lines.** 2 px, round caps and joins (the focused canvas lane 2.5 px); SVG lines are monotone cubics through the
+  points (never past a point). A gap stays a gap. On a card with a glow the focal line and its end dot are ivory
+  (`--lmc-line`, RESEARCH §3.2: the energy solid is 1.8:1 on its own glow); the hue then lives in the glow, the band, the
+  area and the dot's halo. Series that are not focal keep their hue.
+- **End dot.** r 5 on a hero chart (3.5 on a small one), fill = the line, a 2 px `--lm-chart-ring` ring, a flat halo
+  (hue at 0.18, 6 px past the dot) and one soft glow (hue at 0.45, 12 px blur) on the dot only, never on the line. It
+  marks the latest estimate, not a certainty. A hero chart pulses it twice (2.4 s each, 4.8 s in all) after the line
+  has drawn; every other chart is still. None of it under reduced motion, forced colours or more contrast.
+- **Area and band.** A single series with no band gets a vertical gradient, the hue at 0.26 at the line to 0 at the
+  baseline; a series with a likely range gets the band instead, a vertical gradient 0.24 to 0.10 (flat at
+  `--lm-chart-band-alpha` on the canvas), always with its edges (the long-dashed p10 / p90 on the trend lane). A
+  personal normal range or a threshold is a reference, not a series' range: it stays achromatic. Gradients are static;
+  nothing animates a gradient (AUDIT §4.2 rule 2).
+- **Grid.** Horizontal only, dotted (`1 3`, 1 px), the ink at 0.10; the baseline the ink at 0.14. SVG charts take it from
+  `.lmc-lv-svg .lmc-lv-grid` (one selector more than the copy viz.css holds, so every chart in the `lmc-lv-svg` chrome,
+  the Ring's too, is dotted). Printed ticks and engraved labels are facts: mono caps, 11 px, `--lm-ink-3` (`--lm-ink-2`
+  on a glow).
+- **Bars.** 4 px rounded tops over a square base, width min(24, slot x 0.72); the highlighted bar the full hue, the
+  others the hue at 0.38; a partial or "at least" bar a dashed outline (a pattern, never colour alone); a goal a dotted
+  gold line, a default goal dashed.
+- **Heat dots.** The adherence calendar draws a month as 26 px dots in the plan's hue whose intensity is the day's score
+  (0.14 to 1, never empty); logged only a small dot, nothing logged a hollow ring, assumed a dashed ring, paused struck,
+  today a gold date and ring, the selection the gold wash. Only the weeks the plan reaches are drawn.
+- **Crosshair and readout.** A 1 px hairline fading out at both ends, a 4 px dot with a halo in the series' hue, the
+  bubble on `--lm-elevated` with the 14 px field radius, values first and the date last as a mono fact. Pointer, touch
+  and keyboard are unchanged (one tab stop, arrows, Home / End, `T` for the table twin, Esc).
+- **Motion.** SVG: the data wipes in left to right on the first view (a 700 ms clip reveal, held by
+  `data-reveal="pending"` until 20 % is in view), bars grow from the baseline, calendar rows fade in 20 ms apart, the end
+  dot pulses; a chart that cannot animate is never pending and renders the same markup. Canvas: only the focused lane's
+  end-dot pulse; the playhead sweep stays the one authored moment.
+- **Quiet mode.** No y numerals, no unit, no weights in the readout, summary or crosshair; the shapes, the dates and the
+  words stay. Every restyled chart offers the switch (`quiet`).
+- **Table twin.** Unchanged and never removed. A chart on a card hosts it in the card's (i) panel (`trendTwin(data)`,
+  `scoreTwin(data, label)` give the foundation's `TwinData`; the card's `T` key opens the panel at it) and passes
+  `tableTwin={false}` / `tableKey={false}`; a chart on its own keeps its Table key and `T`.
+- **Where it is owned.** Tokens in `design/tokens.css` (master) and `src/styles/tokens.css`; the canvas fallbacks in
+  `core/theme.ts` `THEME_DEFAULTS`; chart-local tokens (`--lmc-grid-a`, `--lmc-area-top`, `--lmc-dot-*`,
+  `--lmc-pulse-dur`, the energy ramp, the decomposition set) in `charts.css`; the SVG skin in `living-charts.css`
+  (`.lmc-skin`, `.lmc-end*`, `.lmc-draw`, `.lmc-grad*`) and Progress's lane in `laneChart.css`. `readChartTheme` still
+  reads each token once per theme change, never per frame.
 
 ## Appendix A — Metric catalogue (v1 draft for engine + UI)
 

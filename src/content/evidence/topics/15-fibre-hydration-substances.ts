@@ -1455,7 +1455,7 @@ const topic: EvidenceTopic = {
       summary:
         'Losing weight through diet lowers bone density at the hip by about 1–1.5 % over 6 to 24 months, with no clear change in the spine. Bone-breakdown markers rise within 2–3 months. In one trial of older adults with obesity, hip bone density fell about 3 % with diet alone and about 1 % with diet plus exercise. In five trials, extra protein slightly raised spine density. Vitamin D supplements did not change fractures, falls or density in general adults.',
       howModelled:
-        'The engine gives hip bone density change during weight loss as an output range (about −1 to −1.5 % over 6–24 months) for the performance and bone topic. It raises warnings if projected calcium intake falls below the requirement, if the energy deficit exceeds 25 % for more than 12 weeks, or if resistance-training load is low.',
+        'Vitals gives no personal bone-density forecast: the hip density change described in the performance and bone topic is a research scenario only, and the trial average of about −1 to −1.5 % over 6–24 months is population evidence, not your number. It raises warnings if projected calcium intake falls below the requirement, if the energy deficit exceeds 25 % for more than 12 weeks, or if resistance-training load is low.',
       keyNumbers: [
         {
           label: 'Diet-induced weight loss (41 publications)',
@@ -1497,6 +1497,9 @@ const topic: EvidenceTopic = {
       caveats:
         'The weight-loss figures come from trials in overweight and obese adults. The exercise result comes from one 1-year trial in older adults and the protein result from 5 RCTs.',
       referenceIds: ['bolland2018', 'zibellini2015', 'villareal2011', 'shamswhite2017'],
+      outcomeScope:
+        'Hip and spine bone density during diet-induced weight loss; population averages, not a personal forecast',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['hipBmdChange'],
     },
     {

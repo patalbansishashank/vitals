@@ -1,0 +1,52 @@
+{
+  "_about": [
+    "One geometry for the two sister marks: Vitals' plan ring and Gauge's reading ring.",
+    "The same file lives in both repos (Vitals design/brand/mark-geometry.json, Gauge docs/design-concepts/mark-geometry.json);",
+    "edit one, copy it to the other, and run both generators (Vitals: pnpm brand; Gauge: docs/design-concepts/gauge-mark.py).",
+    "Units are the 24-unit design space, centre 12,12. Every ring has its outer edge at `outer` (ring radius = outer - stroke / 2),",
+    "round caps, and the same stroke, hairline and dot sizes in both marks at every tier. Only the identity differs:",
+    "Vitals: ivory ring open at four o'clock, the hairline bezel across the opening, a gold dot inside aimed at it.",
+    "Gauge: a gold reading arc over 70% of the circle from 12 o'clock on the dim track, an ivory dot where the reading ends."
+  ],
+  "version": 1,
+  "grid": 24,
+  "centre": 12,
+  "outer": 9.95,
+  "linecap": "round",
+  "canvas": {
+    "adaptive": { "size_dp": 108, "scale": 3, "visible_dp": 72, "safe_radius_dp": 33,
+                  "_note": "Launcher foreground, themed icon, legacy mipmaps (the 72 dp window): ring edge 29.85 dp; nothing past 32.9 dp." },
+    "splash": { "size_dp": 288, "viewport": 108, "scale": 3 },
+    "notification": { "size_dp": 24, "scale": 1, "padding_dp": 2,
+                      "_note": "White silhouette. Its own smaller ring (outer 9.4) so Gauge's end dot keeps the 2 dp padding; Vitals uses the same ring." },
+    "inapp": { "viewbox": [0, 0, 24, 24], "_note": "In-app and web marks: the 24-unit space as is (Vitals' RingMark crops it to 2 2 20)." }
+  },
+  "tiers": {
+    "_note": "Pick by rendered size in px (CSS px, dp): small <= small_max_px, medium <= medium_max_px, else standard.",
+    "small_max_px": 24,
+    "medium_max_px": 40,
+    "standard": { "stroke": 1.2, "track": 0.5, "track_alpha": 0.36, "dot_r": 1.5 },
+    "medium": { "stroke": 1.6, "track": 0.6, "track_alpha": 0.36, "dot_r": 1.75 },
+    "small": { "stroke": 2.0, "track": 0, "track_alpha": 0, "dot_r": 2.0,
+               "_note": "No hairline at 24 px and under: a sub-pixel line only muddies the ring." }
+  },
+  "mono": {
+    "_note": "One colour, alpha only. The main stroke stays full weight (a touch heavier), the track is a hairline at half alpha, the dot grows.",
+    "themed": { "outer": 9.95, "stroke": 1.4, "track": 0.35, "track_alpha": 0.5, "dot_r": 1.7,
+                "_note": "Android 13+ themed icon and Vitals' PWA monochrome icon." },
+    "notification": { "outer": 9.4, "stroke": 2.0, "track": 0.5, "track_alpha": 0.5, "dot_r": 1.6,
+                      "_note": "Ring edge 9.4 so Gauge's end dot (8.4 + 1.6) stops at 10: the 2 dp padding." }
+  },
+  "vitals": {
+    "_note": "The opening faces bisector_deg (clockwise from 3 o'clock); the dot sits on that line, dot_at from the centre, clear inside the ring.",
+    "bisector_deg": 35,
+    "open_deg": { "standard": 34, "medium": 40, "small": 46, "themed": 36, "notification": 46 },
+    "dot_at": { "standard": 5.3, "medium": 5.0, "small": 4.1, "themed": 5.2, "notification": 4.0 },
+    "dot_edge": { "standard": 0.35, "medium": 0.4, "small": 0.5, "themed": 0, "notification": 0 }
+  },
+  "gauge": {
+    "_note": "The reading runs clockwise from start_deg (12 o'clock) over `reading` of the circle; the dot is centred on the ring where it stops.",
+    "start_deg": 270,
+    "reading": 0.7
+  }
+}

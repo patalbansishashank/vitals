@@ -36,12 +36,20 @@ class FakeTransaction {
   error: Error | null = null;
   private pending = 0;
   private done = false;
+  private readonly before = new Map<string, Map<Key, unknown>>();
   constructor(
     private readonly db: FakeDatabase,
     private readonly names: readonly string[],
     readonly mode: 'readonly' | 'readwrite',
   ) {
+    if (mode === 'readwrite') for (const name of names) this.before.set(name, new Map(db.data.stores.get(name)!.rows));
     this.checkDone();
+  }
+  abort() {
+    if (this.done) throw new Error('InvalidStateError');
+    this.done = true;
+    for (const [name, rows] of this.before) this.db.data.stores.get(name)!.rows = rows;
+    queueMicrotask(() => this.onabort?.());
   }
   objectStore(name: string): FakeObjectStore {
     if (!this.names.includes(name)) throw new Error(`Store ${name} is not in this transaction`);
@@ -52,12 +60,15 @@ class FakeTransaction {
     const r = new FakeRequest<T>();
     this.pending++;
     queueMicrotask(() => {
+      if (this.done) return;
       try {
         r.result = fn();
         r.onsuccess?.call(r);
       } catch (e) {
         r.error = e as Error;
         r.onerror?.call(r);
+        this.error = r.error;
+        this.abort();
       } finally {
         this.pending--;
         this.checkDone();
@@ -106,6 +117,9 @@ class FakeObjectStore {
       const v = this.store.rows.get(key);
       return v === undefined ? undefined : structuredClone(v);
     });
+  }
+  getAll() {
+    return this.tx.request(() => [...this.store.rows.values()].map((v) => structuredClone(v)));
   }
   put(value: unknown) {
     if (this.tx.mode !== 'readwrite') throw new Error('ReadOnlyError');

@@ -1,0 +1,53 @@
+/* The night's hero (r071): the number, with a ring on the Sleep tab. Tokens only. */
+@layer components {
+  .sl-hero {
+    display: grid;
+    gap: var(--lm-space-2);
+    min-width: 0;
+  }
+  /* md and compact: one line of mono caps, the separators drawn by MonoMeta between the facts */
+  .sl-hero__range {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .sl-hero__facts {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* lg: the ring, and the times beside it (under it when the card is narrow), by the hero's own width. The ring's column
+     is its own size: a percentage-wide ring in an `auto` column would collapse. */
+  .sl-hero[data-size='lg'] {
+    container-type: inline-size;
+  }
+  .sl-hero__row {
+    display: grid;
+    gap: var(--lm-space-3);
+    justify-items: center;
+    min-width: 0;
+  }
+  .sl-hero__facts[data-layout='stack'] {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--lm-space-1) var(--lm-space-3);
+  }
+  /* quiet: the goal in words inside the ring, smaller than a number would be: it wraps in two or three lines */
+  .sl-hero[data-size='lg'] .lm-hero__word {
+    font-size: 1.0625rem;
+    line-height: 1.2;
+    text-align: center;
+  }
+  @container (min-width: 19rem) {
+    .sl-hero__row {
+      grid-template-columns: 160px minmax(0, 1fr);
+      align-items: center;
+      justify-items: start;
+      column-gap: var(--lm-space-4);
+    }
+    .sl-hero__facts[data-layout='stack'] {
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+  }
+}

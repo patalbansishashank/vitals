@@ -122,7 +122,6 @@ const FORGED_ARGS: Record<string, unknown> = {
   'plan.end': { reason: 'abandoned' },
   'plan.replace': { source: { rung: 'gentle' }, startDate: '2026-10-05', reason: 'replaced' },
   'data.import': { file: '{"vitalsVersion":2}', mode: 'replace' },
-  'bio.deleteSource': { sourceKey: 'apple-health' },
   'coach.delete': { conversationId: 'coach' },
 };
 
@@ -216,7 +215,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('registry facts the gate relies on', () => {
   it('the destructive commands are known and every one off the ai surface carries a written reason', () => {
     const ids = DESTRUCTIVE().map((d) => d.id).sort();
-    expect(ids).toEqual(expect.arrayContaining(['data.eraseAll', 'data.import', 'sync.unpair', 'coach.delete', 'bio.deleteSource', 'plan.end']));
+    expect(ids).toEqual(expect.arrayContaining(['data.eraseAll', 'data.import', 'sync.unpair', 'coach.delete', 'plan.end']));
     for (const d of DESTRUCTIVE_UI_ONLY()) expect(d.excludedReason?.ai, d.id).toBeTruthy();
   });
 });

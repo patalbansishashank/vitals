@@ -51,6 +51,7 @@ export const PlannerRunSummary = T.Object({
   complete: T.Nullable(T.Boolean()),
   options: T.Array(T.Object({ id: T.String(), name: T.String(), utility: T.Number(), explanation: T.Array(T.String()), safetyNotes: T.Array(T.String()) })),
   message: T.Nullable(T.String()),
+  noSafePlanReasons: T.Optional(T.Array(T.String())),
   relations: T.Array(T.String()),
   ladder: T.Optional(
     T.Nullable(
@@ -65,6 +66,7 @@ export const PlannerRunSummary = T.Object({
       }, { description: 'The plan ladder: Hard, Medium, Easy present, the rungs it did not keep with the reason shown, the Ideal, and the search tier.' }),
     ),
   ),
+  search: T.Optional(T.Object({ tier: T.String(), equivalentEvaluations: T.Number(), budgetEU: T.Number(), structures: T.Number(), seed: T.String(), inputHash: T.Nullable(T.String()) })),
 });
 
 type DifficultyLike = { D: number; components: Array<{ id: string; value: number; active: boolean }> };
@@ -99,18 +101,20 @@ function runSummary() {
     complete: r ? r.complete : null,
     options: (r?.options ?? []).map((o) => ({ id: o.id, name: o.name, utility: Math.round(o.utility * 1000) / 1000, explanation: o.explanation, safetyNotes: o.safetyNotes })),
     message: r?.message ?? run.error ?? null,
+    ...(r ? { noSafePlanReasons: r.noSafePlanReasons } : {}),
     relations: r?.relations ?? [],
     ladder: ladderSummary(r ?? null),
+    ...(r ? { search: { tier: r.v2?.provenance.tier ?? r.provenance.tier, equivalentEvaluations: r.provenance.euUsed, budgetEU: r.provenance.budgetEU, structures: r.provenance.structures, seed: r.provenance.seed, inputHash: run.requestHash } } : {}),
   };
 }
 
 const isAbort = (e: unknown) => (e instanceof DOMException && e.name === 'AbortError') || (e instanceof Error && e.name === 'AbortError');
 
-function startRun(ctx: CommandContext) {
+function startRun(ctx: CommandContext, tier: 'S' | 'M' | 'L' | 'X') {
   const port = ctx.ports.planner ?? fail('precondition_failed', 'Open the Planner to find plans.', { retryable: true });
   const s = planner.runState().status;
   if (s === 'running' || s === 'stopping') fail('busy', 'The Planner is already running.', { retryable: true });
-  const prepared = port.prepare() ?? fail('precondition_failed', 'Add a goal the Planner can work on first.');
+  const prepared = port.prepare({ tier }) ?? fail('precondition_failed', 'Add a goal the Planner can work on first.');
   planner.runStarted(prepared.hash, prepared.request as PlannerRequest, clock());
   const stop = new AbortController();
   const entry: Current = { jobId: '', stop, hard: false };
@@ -121,7 +125,11 @@ function startRun(ctx: CommandContext) {
         const result = (await port.run(prepared.request, {
           signal: stop.signal,
           onProgress: (p) => {
-            if (current === entry) handle.write(() => planner.runProgress(p as PlannerProgressInfo));
+            if (current === entry) {
+              const progress = p as PlannerProgressInfo;
+              handle.progress(progress.fraction, progress.stage, { equivalentEvaluations: progress.euUsed, budgetEU: progress.euBudget });
+              handle.write(() => planner.runProgress(progress));
+            }
           },
         })) as PlannerResult;
         if (current === entry) handle.write(() => (entry.hard ? planner.runCancelled(clock()) : planner.runFinished(result, clock())));
@@ -153,8 +161,8 @@ export const plannerFind = defineCommand({
   version: 1,
   title: 'Find plans',
   description:
-    'Run the Planner on the current goal set, limits, body profile and safety settings. Returns a job; the result lists up to three plans (A, B, C) with their explanation and safety notes. tier sets the search budget (the v0.1 search runs one budget; the tier is recorded).',
-  input: T.Object({ tier: T.Enum(['S', 'M', 'L', 'X']), overrides: T.Optional(T.OpenObject({ description: 'PlannerRequestOverrides (PLANNER_V2); ignored by the v0.1 search.' })) }),
+    'Run the Planner on the current goal set, limits, body profile and safety settings. Returns a job; the result lists up to three plans (A, B, C) with their explanation and safety notes. tier selects the actual search budget: S quick, M standard, L thorough, X exhaustive. Change inputs with goals.edit and profile.patch before running.',
+  input: T.Object({ tier: T.Enum(['S', 'M', 'L', 'X']), overrides: T.Optional(T.OpenObject({ description: 'Reserved; non-empty overrides are rejected. Set practical limits with goals.edit and body inputs with profile.patch.' })) }),
   output: PlannerRunSummary,
   perm: 'write',
   impact: 'low',
@@ -165,7 +173,11 @@ export const plannerFind = defineCommand({
   sideEffects: ['planner', 'docs'],
   safety: ['plannerAccess'],
   preconditions: ['markerReask'], // E20: markers
-  execute: (ctx) => startRun(ctx),
+  execute: (ctx, input) => {
+    if (input.overrides && Object.keys(input.overrides).length)
+      fail('invalid_input', 'Planner overrides are not supported. Set limits with goals.edit and body inputs with profile.patch, then run the requested tier.', { path: '/overrides' });
+    return startRun(ctx, input.tier);
+  },
 });
 
 export const plannerStop = defineCommand({
@@ -208,6 +220,21 @@ export const plannerResult = defineCommand({
   },
 });
 
+export const plannerInputs = defineCommand({
+  id: 'planner.inputs',
+  version: 1,
+  title: 'Inspect the current planner inputs',
+  description: 'Read the exact current engine request and its input hash before starting a search: body, goals, practical limits, clinical settings, training equipment and horizon. available:false means input publication is not ready; this never starts or resets a search.',
+  input: T.Object({}),
+  output: T.Object({ available: T.Boolean(), hash: T.Nullable(T.String()), request: T.Nullable(T.OpenObject()) }),
+  perm: 'read', surfaces: ALL, undo: UNDO.none, idempotency: 'none', sideEffects: [],
+  excludedReason: { ui: 'the screens read the same request model directly' },
+  execute: (ctx) => {
+    const input = ctx.ports.planner?.prepare();
+    return { available: !!input, hash: input?.hash ?? null, request: (input?.request ?? null) as Record<string, unknown> | null };
+  },
+});
+
 export const plannerOpenInSimulator = defineCommand({
   id: 'planner.openInSimulator',
   version: 1,
@@ -244,6 +271,7 @@ declare module '../types' {
     'planner.find': typeof plannerFind;
     'planner.stop': typeof plannerStop;
     'planner.result': typeof plannerResult;
+    'planner.inputs': typeof plannerInputs;
     'planner.openInSimulator': typeof plannerOpenInSimulator;
   }
 }

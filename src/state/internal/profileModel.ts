@@ -6,6 +6,7 @@ import type { Ethnicity, KnownBodyFatSource, TrainingQuality } from '@/engine/bo
 import { frameForSex } from '@/engine/body/frame'; // not the package index: keeps the avatar maths out of the initial bundle
 import type { CycleProfile, HabitProfile, LabBaselines, PhysiologySex } from '@/engine';
 import type { ActivityIntake } from '@/engine/types/profile';
+import type { GirthLandmark } from '@/lib/measurementOperators';
 
 export const BODY_KEY = 'vitals.body';
 /** v2: the drawing-only figure base (female / neutral / male) became the continuous `figure.frame`. */
@@ -42,6 +43,13 @@ export interface WaistInput {
   /** Optional, for the US-Navy estimator (neck always; hip for female physiology). Used only with the waist. */
   neckCm: number | null;
   hipCm: number | null;
+  // ---- measurement provenance (D1-03, C4; optional: absent = unknown, never fabricated)
+  /** Stable id of the girth observation (derived Navy/RFM estimates name it as their parent). */
+  observationId?: string;
+  /** ISO date (or instant) the girths were measured. */
+  measuredOn?: string;
+  landmark?: GirthLandmark;
+  protocol?: string;
 }
 
 /** Drawing-only figure settings (body-figure-v2.md §5.4). Synced with the profile document as `profile.figure`. */
@@ -54,6 +62,17 @@ export interface KnownBodyFatInput {
   use: boolean;
   pct: number | null;
   source: KnownBodyFatSource;
+  // ---- measurement provenance (D1-03/D5-07, C4; optional: absent = unknown provenance, not an independent observation)
+  observationId?: string;
+  /** ISO date (or instant) of the measurement. */
+  measuredOn?: string;
+  device?: string;
+  protocol?: string;
+  /** Observation ids this value was derived from (e.g. the girths of a Navy estimate). */
+  parentIds?: string[];
+  /** Scan mass and scan fat mass, kg, when the report gives them (FM = pct × scan mass / 100 only with a measured scan mass). */
+  scanMassKg?: number;
+  scanFatMassKg?: number;
 }
 
 export interface TrainingInput {
@@ -140,6 +159,51 @@ export const BODY_RANGES = {
 
 export const clampTo = (v: number, [lo, hi]: readonly [number, number]) => Math.min(hi, Math.max(lo, v));
 export const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+/* ---------------------------------------------------------------------------------------------- measurement provenance (D1-03) */
+
+export const GIRTH_LANDMARKS = ['iliacCrest', 'umbilicus', 'narrowest', 'midpoint', 'unknown'] as const satisfies readonly GirthLandmark[];
+const META_TEXT_MAX = 64;
+const ISO_DATE_OR_INSTANT = /^\d{4}-\d{2}-\d{2}(T[0-9:.]+(Z|[+-]\d{2}:?\d{2})?)?$/;
+/** Plausible scan masses (same bounds as the weight input) and a scan fat mass that cannot exceed the scan mass. */
+const SCAN_MASS_RANGE = [35, 250] as const;
+
+const metaText = (x: unknown): string | undefined => (typeof x === 'string' && x.trim() && x.length <= META_TEXT_MAX ? x.trim() : undefined);
+const metaDate = (x: unknown): string | undefined => (typeof x === 'string' && ISO_DATE_OR_INSTANT.test(x) && !Number.isNaN(Date.parse(x.length === 10 ? `${x}T00:00:00Z` : x)) ? x : undefined);
+
+/** Measurement metadata of the girth inputs: valid fields kept, invalid ones dropped (never invented). */
+export function pickGirthMeta(raw: Record<string, unknown>): Pick<WaistInput, 'observationId' | 'measuredOn' | 'landmark' | 'protocol'> {
+  const out: Pick<WaistInput, 'observationId' | 'measuredOn' | 'landmark' | 'protocol'> = {};
+  const id = metaText(raw.observationId);
+  if (id) out.observationId = id;
+  const on = metaDate(raw.measuredOn);
+  if (on) out.measuredOn = on;
+  if (oneOf(raw.landmark, GIRTH_LANDMARKS)) out.landmark = raw.landmark;
+  const protocol = metaText(raw.protocol);
+  if (protocol) out.protocol = protocol;
+  return out;
+}
+
+/** Measurement metadata of a known body-fat value (D1-03/D5-07). */
+export function pickBodyFatMeta(raw: Record<string, unknown>): Omit<KnownBodyFatInput, 'use' | 'pct' | 'source'> {
+  const out: Omit<KnownBodyFatInput, 'use' | 'pct' | 'source'> = {};
+  const id = metaText(raw.observationId);
+  if (id) out.observationId = id;
+  const on = metaDate(raw.measuredOn);
+  if (on) out.measuredOn = on;
+  const device = metaText(raw.device);
+  if (device) out.device = device;
+  const protocol = metaText(raw.protocol);
+  if (protocol) out.protocol = protocol;
+  if (Array.isArray(raw.parentIds)) {
+    const ids = raw.parentIds.map(metaText).filter((x): x is string => x !== undefined).slice(0, 16);
+    if (ids.length) out.parentIds = ids;
+  }
+  const mass = finite(raw.scanMassKg) && raw.scanMassKg >= SCAN_MASS_RANGE[0] && raw.scanMassKg <= SCAN_MASS_RANGE[1] ? raw.scanMassKg : undefined;
+  if (mass !== undefined) out.scanMassKg = mass;
+  if (finite(raw.scanFatMassKg) && raw.scanFatMassKg >= 0 && (mass === undefined || raw.scanFatMassKg <= mass) && raw.scanFatMassKg <= SCAN_MASS_RANGE[1]) out.scanFatMassKg = raw.scanFatMassKg;
+  return out;
+}
 
 export const DEFAULT_BODY: BodyProfileValues = {
   sex: null,
@@ -255,16 +319,39 @@ export const HABIT_NUMBERS = [
   'habitualEnergyDensityKcalPerG',
 ] as const;
 
+/** D3-07: what the habitual step number counts. */
+export const STEPS_SCOPES = ['totalDay', 'excludesTraining', 'unknown'] as const;
+/** D3-05: training growth state and its provenance (legacy "currently training" never maps to plateaued). */
+export const GROWTH_STATES = ['progressing', 'plateaued', 'resuming', 'unknown'] as const;
+export const GROWTH_STATE_SOURCES = ['user', 'observedTrend', 'unknown'] as const;
+
 export function pickHabits(raw: unknown): BodyProfileValues['habits'] {
   const out: BodyProfileValues['habits'] = {};
   if (!isObj(raw)) return out;
   for (const k of HABIT_NUMBERS) if (finite(raw[k])) out[k] = raw[k];
+  if (finite(raw.habitualSleepDurationH) && raw.habitualSleepDurationH > 0 && raw.habitualSleepDurationH < 24)
+    out.habitualSleepDurationH = raw.habitualSleepDurationH;
+  if (out.habitualSleepDurationH !== undefined && oneOf(raw.habitualSleepDurationSource, ['deviceSummary', 'userReport'] as const))
+    out.habitualSleepDurationSource = raw.habitualSleepDurationSource;
+  const cardio = raw.habitualCardio;
+  if (isObj(cardio) && cardio.modality === 'cycle' && cardio.source === 'userReport'
+    && typeof cardio.sessionsPerWeek === 'number' && Number.isInteger(cardio.sessionsPerWeek) && cardio.sessionsPerWeek >= 1 && cardio.sessionsPerWeek <= 7
+    && finite(cardio.minutesPerSession) && cardio.minutesPerSession > 0 && cardio.minutesPerSession <= 180
+    && Array.isArray(cardio.weekdays) && cardio.weekdays.length === cardio.sessionsPerWeek
+    && cardio.weekdays.every((d: unknown) => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6)
+    && new Set(cardio.weekdays).size === cardio.weekdays.length)
+    out.habitualCardio = { modality: 'cycle', source: 'userReport', sessionsPerWeek: cardio.sessionsPerWeek, minutesPerSession: cardio.minutesPerSession, weekdays: [...cardio.weekdays],
+      ...(typeof cardio.recreationSourceId === 'string' && cardio.recreationSourceId.length > 0 ? { recreationSourceId: cardio.recreationSourceId } : {}) };
   if (oneOf(raw.sleepQuality, ['poor', 'fair', 'good'] as const)) out.sleepQuality = raw.sleepQuality;
   if (oneOf(raw.stress, ['low', 'moderate', 'high'] as const)) out.stress = raw.stress;
   if (oneOf(raw.dietAnimalLevel, ['omnivore', 'pescatarian', 'vegetarian', 'vegan'] as const)) out.dietAnimalLevel = raw.dietAnimalLevel;
   if (raw.foodQuality === 1 || raw.foodQuality === 2 || raw.foodQuality === 3) out.foodQuality = raw.foodQuality;
   if (typeof raw.multivitamin === 'boolean') out.multivitamin = raw.multivitamin;
   if (typeof raw.smoker === 'boolean') out.smoker = raw.smoker;
+  // context fields of the 2026-10-18 contracts (D3-07 steps scope, D3-05 growth state): kept only when valid; absent = unknown
+  if (oneOf(raw.stepsScope, STEPS_SCOPES)) out.stepsScope = raw.stepsScope;
+  if (oneOf(raw.trainingGrowthState, GROWTH_STATES)) out.trainingGrowthState = raw.trainingGrowthState;
+  if (oneOf(raw.trainingGrowthStateSource, GROWTH_STATE_SOURCES)) out.trainingGrowthStateSource = raw.trainingGrowthStateSource;
   // the activity intake (written by `intake.answer`): the raw turns stay in the intake document
   if (isObj(raw.activity)) {
     const { turns: _turns, ...activity } = raw.activity;
@@ -329,11 +416,13 @@ export function pickBodyValues(raw: unknown): BodyProfileValues {
       cm: numOrNull(w.cm, BODY_RANGES.waistCm),
       neckCm: numOrNull(w.neckCm, BODY_RANGES.neckCm),
       hipCm: numOrNull(w.hipCm, BODY_RANGES.hipCm),
+      ...pickGirthMeta(w),
     },
     knownBodyFat: {
       use: k.use === true,
       pct: numOrNull(k.pct, BODY_RANGES.knownBodyFatPct),
       source: oneOf(k.source, SOURCES) ? k.source : 'dxa',
+      ...pickBodyFatMeta(k),
     },
     training: {
       years: numOrNull(t.years, BODY_RANGES.trainingYears),

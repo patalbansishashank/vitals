@@ -14,6 +14,7 @@
  * rebased onto them, and the ChangeSet leaves the history. A coalesced gesture is one ChangeSet, so it rolls back as one.
  * The bus reports it (`commitFailed` with `rolledBack: true`) so the screen can say so.
  */
+import { externalRestoreRequired } from '@/state/writeBarrier';
 import { deepEqual, fieldOf, fieldPatch, jsonClone, mintWriteToken, revokeWriteToken, type CollectionId, type Id, type JsonPatchOp, type Tx, type WriteToken } from '@/store';
 import { docKey, knownReader, restoreProjections } from '@/state/bridge';
 import { commitWithToken, getDocumentStore, storeReader, writeOps } from '@/state/runtime';
@@ -280,8 +281,12 @@ async function writeChangeSet(cs: ChangeSet): Promise<void> {
       failureHook?.(cs, e, { rolledBack: false, skipped: [] });
       waiters.forEach((w) => w.resolve());
     } else {
-      const skipped = rollBack(cs, ops);
-      failureHook?.(cs, e, { rolledBack: true, skipped });
+      // A stale tab must not roll its old projection/mirror back over another
+      // window's committed restore. It stays read-only until Reload.
+      const stale = externalRestoreRequired();
+      const skipped = stale ? [] : rollBack(cs, ops);
+      if (stale) abandon(cs);
+      failureHook?.(cs, e, { rolledBack: !stale, skipped });
       waiters.forEach((w) => w.reject(e));
     }
   } finally {

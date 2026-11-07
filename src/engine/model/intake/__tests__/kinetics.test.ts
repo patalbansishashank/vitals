@@ -156,9 +156,16 @@ describe('07 §4.7.1 mClock and §4.4.3 fasting glucose reference', () => {
   });
 });
 
-describe('15 §4.2 fibre / nut ME corrections (V1-V3 and worked examples)', () => {
+describe('15 §4.2 fibre / nut ME corrections (legacy sensitivity scenario: V1-V3 and worked examples)', () => {
   const kNet = 5.0 - 4.2 + 2.0; // k_F − GE_fib + c_f
   const dme = (f: number, e: number) => fibreMeCorrection(f, e, kNet, 8, 0.06, 0.03);
+
+  it('as the module applies it (scenario, capPos = 0) it never adds a positive low-fibre uplift (D6-08)', () => {
+    const scenario = (f: number, e: number) => fibreMeCorrection(f, e, kNet, 8, 0.06, 0);
+    expect(scenario(0, 2000)).toBe(0);
+    expect(scenario(5, 2400)).toBe(0);
+    expect(scenario(40, 2550)).toBeCloseTo(dme(40, 2550), 12);
+  });
 
   it('k_net = 2.8 kcal/g at the 2 kcal/g engine credit', () => {
     expect(kNet).toBeCloseTo(2.8, 12);

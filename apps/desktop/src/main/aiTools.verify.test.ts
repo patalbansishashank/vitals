@@ -62,10 +62,21 @@ describe('Codex TOML round trips keep every other byte', () => {
     expect(codexRemove(t, TABLE)).toBe('a = 1\n\n[keep]\nz = 1\n');
   });
 
-  it.fails('KNOWN GAP (companion agents.ts): literal-quoted / spaced headers of ours are detected (else Add duplicates the table)', () => {
-    for (const h of ["[mcp_servers.'vitals']", '[mcp_servers . vitals]', '[ mcp_servers.vitals ]']) {
+  it('literal-quoted / spaced headers are replaced without duplicating the table', () => {
+    for (const h of ["[mcp_servers.'vitals']", '[mcp_servers . vitals]', '[ mcp_servers.vitals ]', "[ 'mcp_servers' . 'vitals' . env ]"]) {
       const out = codexAdd(`${h}\ncommand = "/old"\n`, TABLE);
       expect(out.match(/vitals/g)!.length, h).toBe(TABLE.match(/vitals/g)!.length);
+    }
+  });
+});
+
+describe('Codex TOML unrelated quoted keys', () => {
+  it('keeps quoted dotted keys and similarly named servers byte-for-byte', () => {
+    for (const header of ['["mcp_servers.vitals"]', '[mcp_servers."vitals.env"]', "[mcp_servers.'vitals.env']", '[mcp_servers.vitals-other]']) {
+      const original = `${header}\ncommand = "keep"\n`;
+      const added = codexAdd(original, TABLE);
+      expect(added.startsWith(original)).toBe(true);
+      expect(codexRemove(added, TABLE)).toBe(original);
     }
   });
 });

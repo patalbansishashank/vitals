@@ -1,7 +1,8 @@
 /**
  * Typed confirmation for destructive acts (living-mode.md §7.2, plan-ladder.md §6.7): end a plan, replace the active
  * plan. Only the person can complete it — the Coach's "confirm" cards open this dialog and never carry the action.
- * The confirm key stays disabled (with its reason) until the word is typed.
+ * The confirm key stays disabled (with its reason) until the word is typed. Ember dialog: elevated surface, stone body,
+ * Cancel as a text key and the destructive verb in rose.
  */
 import { useId, useRef, useState } from 'react';
 import { Dialog, Field, Key, TextInput } from '@/components';
@@ -51,7 +52,9 @@ export function TypedConfirmDialog({ open, onClose, title, body, word, instructi
       initialFocus={inputRef}
       footer={
         <>
-          <Key onClick={close}>{cancelLabel}</Key>
+          <Key variant="text" onClick={close}>
+            {cancelLabel}
+          </Key>
           <Key variant="danger" onClick={() => void confirm()} disabledReason={matches ? undefined : instruction} loading={busy}>
             {confirmLabel}
           </Key>

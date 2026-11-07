@@ -1,0 +1,362 @@
+/* ==========================================================================
+   The day rail (r071 0B): extracted from living.css (.lv-day / .lv-item, lines 636-912), which is deleted in the
+   closing sweep once Today, Food and Train have moved here. Tokens only. Gold marks done (the action colour); a hue
+   only ever tints a glyph. The spine is two hairlines per row, from the row's edge to the ring.
+   Motion: the fill 140 ms and the check 220 ms (stroke-dashoffset), both on state change only, so a rail that mounts
+   done is simply done; base.css zeroes the durations under reduced motion.
+   ========================================================================== */
+@layer components {
+  .lm-rail {
+    --rail-node: 44px;
+    --rail-t: 3.25rem;
+    --rail-ring: 28px;
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+  .lm-rail[data-time-at='end'] {
+    --rail-t: 0px;
+  }
+  /* a group where no stop has a time drops the time column */
+  .lm-rail:not(:has(.lm-rail__time)) {
+    --rail-t: 0px;
+  }
+  .lm-rail + .lm-rail {
+    margin-top: 12px;
+  }
+
+  .lm-rail__row {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--rail-t) var(--rail-node) minmax(0, 1fr) auto;
+    grid-template-areas: 'time node body trail';
+    align-items: center;
+    min-height: 56px;
+    padding-block: 6px;
+    border-radius: var(--lm-radius-field);
+    min-width: 0;
+  }
+  .lm-rail[data-time-at='end'] > .lm-rail__row {
+    grid-template-columns: var(--rail-node) minmax(0, 1fr) auto auto;
+    grid-template-areas: 'node body time trail';
+  }
+  @media (hover: hover) {
+    .lm-rail__row[data-open]:hover {
+      background: var(--lm-face-hover);
+    }
+  }
+  .lm-rail__row[data-highlight] {
+    background: var(--lm-gold-soft);
+  }
+
+  /* the spine: from the row's top to the ring, and from the ring to the row's bottom; none above the first stop or below
+     the last, so it runs unbroken whatever a row's height */
+  .lm-rail__row::before,
+  .lm-rail__row::after {
+    content: '';
+    position: absolute;
+    left: calc(var(--rail-t) + var(--rail-node) / 2 - 0.5px);
+    width: 1px;
+    background: var(--lm-line-strong);
+    pointer-events: none;
+  }
+  .lm-rail__row::before {
+    top: 0;
+    height: calc(50% - var(--rail-ring) / 2 - 3px);
+  }
+  .lm-rail__row::after {
+    bottom: 0;
+    height: calc(50% - var(--rail-ring) / 2 - 3px);
+  }
+  .lm-rail__row:first-child::before,
+  .lm-rail__row:last-child::after {
+    display: none;
+  }
+  /* a 44 px ring pushes the spine further from the node's centre */
+  .lm-rail__row:has(> .lm-rail__node[data-size='44']) {
+    --rail-ring: 44px;
+  }
+
+  /* ---- the node: a 44 px target around the ring ---- */
+  .lm-rail__node {
+    grid-area: node;
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: var(--rail-node);
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lm-radius-md);
+    background: none;
+    color: var(--lm-signal-ink);
+    touch-action: manipulation;
+  }
+  .lm-rail__node[data-size='44'] {
+    --rail-ring: 44px;
+  }
+  span.lm-rail__node {
+    cursor: default;
+  }
+  button.lm-rail__node {
+    cursor: pointer;
+  }
+  .lm-rail__node:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 0;
+  }
+  .lm-rail__ring {
+    --ring: 28px;
+    position: relative;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: var(--ring);
+    height: var(--ring);
+    border: 1.5px solid var(--lm-ink-3);
+    border-radius: 50%;
+    transition:
+      border-color var(--lm-dur-fast) var(--lm-ease-out),
+      transform var(--lm-dur-instant) var(--lm-ease-out);
+  }
+  .lm-rail__node[data-size='44'] .lm-rail__ring {
+    --ring: 44px;
+  }
+  button.lm-rail__node:active .lm-rail__ring {
+    transform: scale(0.96);
+  }
+  @media (hover: hover) {
+    button.lm-rail__node[data-status='empty']:hover .lm-rail__ring {
+      border-color: var(--lm-signal);
+    }
+  }
+
+  /* status on the ring */
+  .lm-rail__node[data-status='partial'] .lm-rail__ring,
+  .lm-rail__node[data-status='assumed'] .lm-rail__ring,
+  .lm-rail__node[data-status='done'] .lm-rail__ring {
+    border-color: var(--lm-signal);
+  }
+  .lm-rail__node[data-status='assumed'] .lm-rail__ring {
+    border-style: dashed;
+  }
+  .lm-rail__node[data-status='skipped'] .lm-rail__ring::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: 50%;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--lm-ink-3);
+    transform: translateY(-50%) rotate(-45deg);
+  }
+  .lm-rail__node[data-segmented] .lm-rail__ring {
+    border-color: transparent;
+  }
+
+  /* the fill: gold for done, its left half for partial */
+  .lm-rail__fill {
+    position: absolute;
+    inset: -1.5px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    opacity: 0;
+    transform: scale(0.4);
+    transition:
+      transform 140ms var(--lm-ease-out),
+      opacity 140ms var(--lm-ease-out);
+  }
+  .lm-rail__node[data-status='done'] .lm-rail__fill {
+    opacity: 1;
+    transform: none;
+  }
+  .lm-rail__node[data-status='partial'] .lm-rail__fill {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0 50% 0 0);
+  }
+
+  /* the check draws itself */
+  .lm-rail__check {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: var(--lm-signal-ink);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+  .lm-rail__check path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset 220ms var(--lm-ease-out) 60ms;
+  }
+  .lm-rail__node[data-status='done'] .lm-rail__check path {
+    stroke-dashoffset: 0;
+  }
+
+  /* an exercise: one segment per set */
+  .lm-rail__arcs {
+    position: absolute;
+    inset: -1.5px;
+    width: calc(100% + 3px);
+    height: calc(100% + 3px);
+    fill: none;
+    overflow: visible;
+  }
+  .lm-rail__arcs path {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1.5px;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    transition: stroke var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-rail__node[data-size='44'] .lm-rail__arcs path {
+    stroke-width: 2px;
+  }
+  .lm-rail__arcs path[data-lit] {
+    stroke: var(--lm-signal);
+  }
+
+  /* glyph or figure inside the ring */
+  .lm-rail__glyph {
+    position: relative;
+    color: var(--lm-hue, var(--lm-ink-2));
+    transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-rail__num {
+    position: relative;
+    font-family: var(--lm-font-mono);
+    font-size: 0.6875rem;
+    line-height: 1;
+    font-weight: 500;
+    color: var(--lm-ink);
+    transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-rail__node[data-size='44'] .lm-rail__num {
+    font-size: 0.875rem;
+  }
+  .lm-rail__node[data-status='done'] .lm-rail__glyph,
+  .lm-rail__node[data-status='done'] .lm-rail__num {
+    opacity: 0;
+  }
+
+  /* ---- the row's text ---- */
+  .lm-rail__time {
+    grid-area: time;
+    justify-self: end;
+    padding-inline-end: 2px;
+    font-family: var(--lm-font-mono);
+    font-size: 0.8125rem;
+    line-height: 1rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lm-rail[data-time-at='end'] > .lm-rail__row > .lm-rail__time {
+    grid-area: time;
+    justify-self: end;
+    padding-inline: 8px 0;
+  }
+  .lm-rail__body {
+    grid-area: body;
+    display: grid;
+    gap: 3px;
+    align-content: center;
+    min-width: 0;
+    padding-inline: 8px 4px;
+  }
+  .lm-rail__title {
+    justify-self: start;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font-family: var(--lm-font-sans);
+    font-size: 1rem;
+    line-height: 1.375rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    text-align: start;
+    color: var(--lm-ink);
+    overflow-wrap: anywhere;
+  }
+  /* the stop's title opens its sheet: the whole row is the target, the node and the keys sit above it */
+  button.lm-rail__title {
+    cursor: pointer;
+  }
+  button.lm-rail__title::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  button.lm-rail__title:focus-visible {
+    outline: none;
+  }
+  button.lm-rail__title:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lm-rail__meta {
+    min-width: 0;
+  }
+  .lm-rail__trail {
+    grid-area: trail;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  /* a stop that is done is struck and in stone (never paler: pale stone must not sit on a glow, RESEARCH §3.4); one skipped
+     or filled in for you is stone only */
+  .lm-rail__row:has(> .lm-rail__node[data-status='done']) .lm-rail__title {
+    color: var(--lm-ink-2);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in oklab, var(--lm-ink) 35%, transparent);
+    text-decoration-thickness: 1px;
+  }
+  .lm-rail__row:has(> .lm-rail__node[data-status='skipped'], > .lm-rail__node[data-status='assumed']) .lm-rail__title {
+    color: var(--lm-ink-2);
+  }
+
+  @media (forced-colors: active) {
+    .lm-rail__row::before,
+    .lm-rail__row::after {
+      background: GrayText;
+    }
+    .lm-rail__ring {
+      border-color: CanvasText;
+    }
+    .lm-rail__node[data-status='done'] .lm-rail__ring,
+    .lm-rail__node[data-status='partial'] .lm-rail__ring {
+      border-color: Highlight;
+    }
+    .lm-rail__fill {
+      background: Highlight;
+    }
+    .lm-rail__check {
+      stroke: HighlightText;
+    }
+    .lm-rail__arcs path {
+      stroke: GrayText;
+    }
+    .lm-rail__arcs path[data-lit] {
+      stroke: Highlight;
+    }
+  }
+}

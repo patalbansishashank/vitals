@@ -5,8 +5,11 @@
  * the live optimiser in-process. Asserts that the metrics pipeline produces sane numbers and that the live optimiser
  * is not worse than the stored baseline summary by more than the acceptance gate's non-inferiority margins.
  *
- * UPDATE_BENCH_BASELINE=1 rewrites `reference/smoke-baseline.json` from the live optimiser (after a planner release);
- * UPDATE_BENCH_BASELINE=v1 from the frozen v1 optimiser.
+ * D4-09: the shipped route (`hybrid`, production comparison policy) runs the same problems and is held to the same
+ * margins against its own versioned reference, `reference/review-policy-v1-smoke.json` (against the frozen v1 baseline
+ * while that file does not exist). `reference/smoke-baseline.json` is the historical frozen-v1 summary and is read-only.
+ * UPDATE_BENCH_BASELINE=review-policy-v1-smoke freezes the production-policy smoke reference (explicit; off by default);
+ * a reference frozen for another planner domain is never overwritten.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,6 +19,7 @@ import { evaluateRuns, type RunMetrics } from './evaluate';
 import { localEnv, runJob } from './jobs';
 import { markdown, summarise } from './report';
 import { referenceDir, referenceKey } from './runner';
+import { PLANNER_COMPARISON_POLICY, PLANNER_POLICY_FINGERPRINT } from '../optim/policy';
 import { r1Reference } from './suites/domain';
 import { toySpecs } from './suites/toys';
 import { GATE } from './stats';
@@ -25,11 +29,37 @@ const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const SEEDS = [1, 2, 3];
 const R1_EU = 300;
 const BASELINE_FILE = path.join(referenceDir(ROOT), 'smoke-baseline.json');
+/** D4-09: versioned smoke reference of the shipped route under the production comparison policy. */
+const POLICY_SMOKE = 'review-policy-v1-smoke';
+const POLICY_SMOKE_FILE = path.join(referenceDir(ROOT), `${POLICY_SMOKE}.json`);
 
 interface SmokeBaseline {
   algo: AlgoId;
   refKey: string;
   problems: Record<string, { lexSuccess: number; r1: number }>;
+}
+
+interface PolicySmokeReference extends SmokeBaseline {
+  selector: typeof POLICY_SMOKE;
+  policy: { version: number; fingerprint: string };
+}
+
+function readJson<T>(file: string): T | null {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as T;
+  } catch {
+    return null;
+  }
+}
+
+/** Pooled lex-success / regret of `mine` within the acceptance gate's non-inferiority margins of `base`. */
+function expectNonInferior(mine: SmokeBaseline['problems'], base: SmokeBaseline, refKey: string): void {
+  // the small real space's reference depends on the planner domain; compare it only for the same domain
+  const keys = Object.keys(mine).filter((k) => base.problems[k] && (!k.startsWith('R1') || base.refKey === refKey));
+  expect(keys.length).toBeGreaterThanOrEqual(4);
+  const pooled = (src: SmokeBaseline['problems'], f: 'lexSuccess' | 'r1') => keys.reduce((s, k) => s + src[k]![f], 0) / keys.length;
+  expect(pooled(mine, 'lexSuccess')).toBeGreaterThanOrEqual(pooled(base.problems, 'lexSuccess') - GATE.lexSuccessMargin - 1e-9);
+  expect(pooled(mine, 'r1')).toBeLessThanOrEqual(pooled(base.problems, 'r1') + GATE.regretMargin + 1e-9);
 }
 
 function smokeSpecs(): ProblemSpec[] {
@@ -118,27 +148,34 @@ describe('planner benchmark smoke', () => {
     expect(leak(md)).toBeNull();
     expect(md).toContain('Planner benchmark');
 
-    // non-inferiority against the stored baseline summary (pooled over the smoke problems)
+    // non-inferiority against the stored (historical, read-only) baseline summary, pooled over the smoke problems
     const mine = perProblem(metrics);
+    const frozen: SmokeBaseline = readJson<SmokeBaseline>(BASELINE_FILE) ?? { algo: 'v1', refKey, problems: perProblem(evaluateRuns(await smokeRun('v1', r1Ref), {}).metrics) };
+    expectNonInferior(mine, frozen, refKey);
+
+    // D4-09: the shipped route under the production comparison policy, on the same problems, seeds and reference
+    const shipped = evaluateRuns(await smokeRun('hybrid', r1Ref), {}).metrics;
+    expect(shipped.length).toBe(5 * SEEDS.length);
+    for (const m of shipped) {
+      expect(m.ok, `hybrid ${m.problem} seed ${m.seed}: ${m.error ?? ''}`).toBe(true);
+      expect(m.safetyViolations).toBe(0);
+    }
+    const shippedPer = perProblem(shipped);
     const upd = process.env['UPDATE_BENCH_BASELINE'];
     if (upd) {
-      const algo: AlgoId = upd === 'v1' ? 'v1' : 'v2';
-      const problems = algo === 'v2' ? mine : perProblem(evaluateRuns(await smokeRun('v1', r1Ref), {}).metrics);
-      fs.writeFileSync(BASELINE_FILE, `${JSON.stringify({ algo, refKey, problems } satisfies SmokeBaseline, null, 1)}\n`);
+      // explicit freeze of the versioned production-policy smoke reference; the historical baseline stays read-only
+      expect(upd, 'UPDATE_BENCH_BASELINE may only name the versioned production-policy smoke reference').toBe(POLICY_SMOKE);
+      const prev = readJson<PolicySmokeReference>(POLICY_SMOKE_FILE);
+      expect(prev === null || prev.refKey === refKey, `${POLICY_SMOKE} is frozen for ${prev?.refKey}; choose a new selector`).toBe(true);
+      const ref: PolicySmokeReference = { selector: POLICY_SMOKE, algo: 'hybrid', refKey, policy: { version: PLANNER_COMPARISON_POLICY.version, fingerprint: PLANNER_POLICY_FINGERPRINT }, problems: shippedPer };
+      fs.writeFileSync(POLICY_SMOKE_FILE, `${JSON.stringify(ref, null, 1)}\n`);
       return;
     }
-    let base: SmokeBaseline;
-    try {
-      base = JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8')) as SmokeBaseline;
-    } catch {
-      // no stored summary: compare with the frozen v1 optimiser directly
-      base = { algo: 'v1', refKey, problems: perProblem(evaluateRuns(await smokeRun('v1', r1Ref), {}).metrics) };
+    const policyRef = readJson<PolicySmokeReference>(POLICY_SMOKE_FILE);
+    if (policyRef) {
+      expect(policyRef.selector).toBe(POLICY_SMOKE);
+      expect(policyRef.algo).toBe('hybrid');
     }
-    // the small real space's reference depends on the planner domain; compare it only for the same domain
-    const keys = Object.keys(mine).filter((k) => base.problems[k] && (!k.startsWith('R1') || base.refKey === refKey));
-    expect(keys.length).toBeGreaterThanOrEqual(4);
-    const pooled = (src: SmokeBaseline['problems'], f: 'lexSuccess' | 'r1') => keys.reduce((s, k) => s + src[k]![f], 0) / keys.length;
-    expect(pooled(mine, 'lexSuccess')).toBeGreaterThanOrEqual(pooled(base.problems, 'lexSuccess') - GATE.lexSuccessMargin - 1e-9);
-    expect(pooled(mine, 'r1')).toBeLessThanOrEqual(pooled(base.problems, 'r1') + GATE.regretMargin + 1e-9);
-  }, 120_000);
+    expectNonInferior(shippedPer, policyRef ?? frozen, refKey);
+  }, 240_000);
 });

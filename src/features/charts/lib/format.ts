@@ -1,6 +1,6 @@
 /* ==========================================================================
    Number, unit and date formatting (DESIGN_DIRECTION §3.1, §7).
-   - true minus sign (U+2212), thin-space thousands (U+2009) in metric locales
+   - true minus sign (U+2212), comma-grouped thousands by default
    - units follow a thin space; "index" is never printed after a value
    - ranges use an en dash, or " to " when a bound is negative
    ========================================================================== */
@@ -11,12 +11,12 @@ export const THIN = ' ';
 export const EN_DASH = '–';
 
 export interface FormatOptions {
-  /** Thousands separator: thin space (default) or "," for en-US. */
+  /** Thousands separator: comma by default; pass THIN or an empty string explicitly when needed. */
   thousands?: string;
 }
 
-let defaultThousands = THIN;
-/** App-wide separator (settings: metric → thin space, en-US → comma). */
+let defaultThousands = ',';
+/** App-wide separator override for callers that explicitly choose another grouping. */
 export function setThousandsSeparator(sep: string): void {
   defaultThousands = sep;
 }
@@ -31,7 +31,7 @@ function group(intPart: string, sep: string): string {
   return out;
 }
 
-/** "19.8", "−0.40", "2 540". NaN → "—". */
+/** "19.8", "−0.40", "2,540". NaN → "—". */
 export function formatNumber(v: number, decimals: number, opts: FormatOptions = {}): string {
   if (!Number.isFinite(v)) return '—';
   const sep = opts.thousands ?? defaultThousands;

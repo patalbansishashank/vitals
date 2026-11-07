@@ -292,6 +292,12 @@ export const DISPLAY_ONLY: ReadonlyArray<{ re: RegExp; what: string }> = [
   { re: /\bcreatinine clearance\b/, what: 'creatinine clearance' },
   { re: /\b(post ?prandial|pp|random|rbs|ppbs)\b/, what: 'non-fasting glucose' },
   { re: /\bhoma\b/, what: 'HOMA' },
+  // D2-07/D2-08: analytes the model has only as latent or relative states (or not at all) are shown, never used: a lab
+  // value is never mapped onto a model state, and "insulin-like growth factor" is not fasting insulin
+  { re: /\bigf ?1?\b|insulin like growth factor|somatomedin/, what: 'IGF-1' },
+  { re: /\bshbg\b|sex hormone binding/, what: 'SHBG' },
+  { re: /\b(estradiol|oestradiol|lh|fsh|prolactin|leptin|dhea\w*)\b/, what: 'hormone' },
+  { re: /\bketones?\b|hydroxy ?butyrate|\bbhb\b|acetoacet/, what: 'ketones' },
   { re: /\bige\b|allerg/, what: 'allergy panel' },
   {
     re: /\b(rbc|wbc|tlc|dlc|pcv|hct|ha?ematocrit|mcv|mchc?|rdw\w*|platelets?|mpv|pdw|plcr|pct|neutrophils?|lymphocytes?|monocytes?|eosinophils?|basophils?|esr|reticulocytes?|leu[ck]ocytes?|granulocytes?|nrbc)\b/,
@@ -323,7 +329,7 @@ const RULES: ReadonlyArray<{ id: MarkerId; re: RegExp; not?: RegExp }> = [
   { id: 'apoB', re: /\bapo ?(lipoprotein )?b\b|apolipoprotein b\b|\bapo b 100\b/ },
   { id: 'lpa', re: /\blipoprotein ?a\b|\blp ?a\b/ },
   { id: 'fpg', re: /\bfasting\b.*\b(glucose|sugar)\b|\b(glucose|sugar)\b.*\bfasting\b|\bf[bp]s\b|\bfpg\b/ },
-  { id: 'insulin', re: /\binsulin\b/, not: /antibod|resistan|c peptide/ },
+  { id: 'insulin', re: /\binsulin\b/, not: /antibod|resistan|c peptide|growth factor|\bigf/ },
   { id: 'alt', re: /\bs?gpt\b|\balt\b|alanine (amino ?)?trans(aminase|ferase)/ },
   { id: 'ast', re: /\bs?got\b|\bast\b|aspartate (amino ?)?trans(aminase|ferase)/ },
   { id: 'ggt', re: /\bggtp?\b|\bgamma ?gt\b|gamma glutamyl/ },

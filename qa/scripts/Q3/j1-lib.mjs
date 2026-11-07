@@ -132,6 +132,11 @@ const clickIn = async (page, re, scope = `${CARD} .lm-ik-turn__answers`) => {
   await page.waitForTimeout(200);
 };
 const clickDone = (page) => clickIn(page, /^Done/);
+/** The step's one forward key (Next, or Save when changing): a picker turn has no key of its own; Next saves its list. */
+const clickNext = async (page) => {
+  await page.locator(`${CARD} .lm-ik-nav`).getByRole('button', { name: /^(Next|Save)$/ }).first().click();
+  await page.waitForTimeout(200);
+};
 
 /**
  * Answers the open card with the journey's choice for that question (`variant`: 'rich' = the desktop journey's
@@ -171,10 +176,10 @@ export async function answer(page, st, variant = 'rich') {
         await f.getByRole('button', { name: 'Kerala', exact: true }).or(f.getByRole('checkbox', { name: 'Kerala', exact: true })).first().click();
         await f.getByRole('button', { name: 'Clear search' }).click().catch(() => undefined);
       }
-      await clickDone(page);
+      await clickNext(page);
       return rich ? 'Kerala' : 'none';
     }
-    case 'food.equipment': await clickDone(page); return 'region defaults';
+    case 'food.equipment': await clickNext(page); return 'region defaults';
     case 'food.staples': case 'food.pantry': {
       if (rich) {
         const list = id === 'food.staples' ? 'ragi flour\nbasmati rice, toor dal\nghee\nquinoa\nzzqx widget powder' : 'paneer, spinach, cheddar cheese, bhindi';
@@ -184,11 +189,16 @@ export async function answer(page, st, variant = 'rich') {
         await page.waitForTimeout(500);
         await f.getByRole('button', { name: /^Add \d+ items?/ }).click();
         await page.waitForTimeout(200);
-        await clickDone(page);
+        await clickNext(page);
         return 'defaults + pasted list';
       }
-      if (id === 'food.pantry') { await f.locator('button').filter({ hasText: /^Skip this list$/ }).first().click(); return 'Skip this list'; }
-      await clickDone(page);
+      // an empty pantry is the opt-out: clear the pre-ticked items and press Next ("skipped, by choice")
+      if (id === 'food.pantry') {
+        await f.getByRole('button', { name: 'Clear defaults' }).click().catch(() => undefined);
+        await clickNext(page);
+        return 'empty pantry';
+      }
+      await clickNext(page);
       return 'defaults';
     }
     case 'supplements':

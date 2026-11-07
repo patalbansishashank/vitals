@@ -1,13 +1,44 @@
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from 'react';
 import { ArrowLeftRight, Ellipsis, Link2, X } from 'lucide-react';
-import { GradeBadge, Icon, IconKey, KeyBank, Menu, Popover, Select, Swatch, VisuallyHidden, useReducedMotion, type MenuItem } from '@/components';
+import {
+  GradeBadge,
+  Icon,
+  IconKey,
+  KeyBank,
+  Menu,
+  Popover,
+  Select,
+  Swatch,
+  VisuallyHidden,
+  useReducedMotion,
+  type MenuItem,
+} from '@/components';
+import type { PersonProfile } from '@/engine/types/profile';
+import { CURRENT_TISSUE_FAT_ENDPOINT } from '@/lib/bodyContracts';
 import type { GoalDraft, GoalMode, GoalStrength } from '@/state/plannerStore';
-import { gradeDHelp, STRENGTH_HELP, STRENGTH_LABEL, goalMetric, modeSpec, modeTakesAmount } from '../catalogue';
+import {
+  STRENGTH_HELP,
+  STRENGTH_LABEL,
+  resolveSavedGoal,
+  goalMetric,
+  modeSpec,
+  modeTakesAmount,
+} from '../catalogue';
 import type { GoalRelation } from '../relations';
 import { TargetEditor } from './TargetEditor';
 
 export interface GoalRankListProps {
   goals: readonly GoalDraft[];
+  profile?: Pick<PersonProfile, 'labs' | 'labMeta' | 'medications'>;
   onMove: (from: number, to: number) => void;
   onUpdate: (key: string, patch: Partial<Omit<GoalDraft, 'key' | 'metric'>>) => void;
   onRemove: (key: string) => void;
@@ -61,7 +92,17 @@ const LONG_PRESS_MS = 250;
  * - Keyboard: focus the handle → Space picks up → ↑/↓ move → Space drops, Escape cancels. Every move is announced.
  * - Accessible path without dragging: the row's "move" menu (to top / up / down / to bottom).
  */
-export function GoalRankList({ goals, onMove, onUpdate, onRemove, onExplain, connectors, flags, readOnly }: GoalRankListProps) {
+export function GoalRankList({
+  goals,
+  profile,
+  onMove,
+  onUpdate,
+  onRemove,
+  onExplain,
+  connectors,
+  flags,
+  readOnly,
+}: GoalRankListProps) {
   const reduced = useReducedMotion();
   const rowRefs = useRef(new Map<string, HTMLLIElement>());
   const handleRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -157,7 +198,9 @@ export function GoalRankList({ goals, onMove, onUpdate, onRemove, onExplain, con
       e.preventDefault();
       if (!picked) {
         setPicked({ key: g.key, origin: index });
-        say(`${nameOf(g)} picked up, rank ${index + 1} of ${n}. Use the up and down arrow keys to move it, space to drop, escape to cancel.`);
+        say(
+          `${nameOf(g)} picked up, rank ${index + 1} of ${n}. Use the up and down arrow keys to move it, space to drop, escape to cancel.`,
+        );
       } else {
         setPicked(null);
         say(`${nameOf(g)} dropped at rank ${index + 1} of ${n}.`);
@@ -218,7 +261,8 @@ export function GoalRankList({ goals, onMove, onUpdate, onRemove, onExplain, con
   return (
     <div className="lp-ranklist" data-dragging={drag ? 'true' : undefined}>
       <p id={instructionsId} className="lm-sr">
-        Drag the handle, or focus it and press space, then the arrow keys, then space again. Each goal also has a move menu.
+        Drag the handle, or focus it and press space, then the arrow keys, then space again. Each goal also
+        has a move menu.
       </p>
       <ol className="lp-ranklist__list" aria-label={`Goals in priority order, ${n} of 6`}>
         {goals.map((g, i) => (
@@ -233,6 +277,7 @@ export function GoalRankList({ goals, onMove, onUpdate, onRemove, onExplain, con
               else handleRefs.current.delete(g.key);
             }}
             goal={g}
+            profile={profile}
             index={i}
             count={n}
             shift={shiftOf(i)}
@@ -275,6 +320,7 @@ interface GoalRowProps {
   setRowEl: (el: HTMLLIElement | null) => void;
   setHandleEl: (el: HTMLButtonElement | null) => void;
   goal: GoalDraft;
+  profile?: Pick<PersonProfile, 'labs' | 'labMeta' | 'medications'>;
   index: number;
   count: number;
   shift: number;
@@ -297,18 +343,26 @@ interface GoalRowProps {
   onExplain?: (metricId: string) => void;
 }
 
-const STRENGTH_OPTIONS = (['must', 'should', 'nice'] as const).map((v) => ({ value: v, label: STRENGTH_LABEL[v] }));
+const STRENGTH_OPTIONS = (['must', 'should', 'nice'] as const).map((v) => ({
+  value: v,
+  label: STRENGTH_LABEL[v],
+}));
 
 function GoalRow({ setRowEl, setHandleEl, ...p }: GoalRowProps) {
   const { goal: g, index, count } = p;
   const metric = goalMetric(g.metric);
   if (!metric) return null;
   const spec = modeSpec(metric, g.mode);
-  const name = metric.label;
+  const resolution = resolveSavedGoal(g, p.profile);
+  const legacyBasis = resolution.reason === 'Review · legacy basis';
+  const name = legacyBasis ? 'Body fat' : metric.label;
   const functional = g.functional ?? metric.defaultFunctional;
   const setMode = (mode: GoalMode) => {
     const next = modeSpec(metric, mode);
-    p.onUpdate({ mode, amount: modeTakesAmount(next) ? (g.amount ?? metric.target?.fallback ?? 1) : g.amount });
+    p.onUpdate({
+      mode,
+      amount: modeTakesAmount(next) ? (next.target === spec.target ? g.amount : null) : g.amount,
+    });
   };
   const menuItems: MenuItem[] = [
     ...p.moveItems,
@@ -318,7 +372,9 @@ function GoalRow({ setRowEl, setHandleEl, ...p }: GoalRowProps) {
       onSelect: () => p.onUpdate({ functional: functional === 'end' ? 'mean' : 'end' }),
       separatorBefore: true,
     },
-    ...(p.onExplain ? [{ id: 'explain', label: `Explain ${name.toLowerCase()}`, onSelect: () => p.onExplain?.(metric.id) }] : []),
+    ...(p.onExplain
+      ? [{ id: 'explain', label: `Explain ${name.toLowerCase()}`, onSelect: () => p.onExplain?.(metric.id) }]
+      : []),
   ];
   const style = p.shift !== 0 ? { transform: `translate3d(0, ${p.shift}px, 0)` } : undefined;
   return (
@@ -357,11 +413,22 @@ function GoalRow({ setRowEl, setHandleEl, ...p }: GoalRowProps) {
           <Swatch category={metric.category} />
           <span className="lp-goal__name">{name}</span>
           <GradeBadge grade={metric.grade} size="sm" />
-          {metric.grade === 'D' ? <span className="lp-goal__tag">exploratory</span> : null}
+          {/* C6 status word: a saved goal that can no longer be one (D2-02) is information only; a scenario capability is a
+              labelled planning assumption */}
+          {!resolution.runnable && metric.eligible ? (
+            <span className="lp-goal__tag">{resolution.reason}</span>
+          ) : null}
+          {!metric.eligible ? (
+            <span className="lp-goal__tag">not a goal</span>
+          ) : metric.exploratory ? (
+            <span className="lp-goal__tag">exploratory</span>
+          ) : metric.availability === 'scenario' ? (
+            <span className="lp-goal__tag">scenario</span>
+          ) : null}
           <VisuallyHidden>, rank {index + 1}</VisuallyHidden>
         </div>
         <div className="lp-goal__mode">
-          {metric.modes.length > 1 ? (
+          {!metric.eligible || legacyBasis || metric.modes.length < 2 ? null : (
             <KeyBank
               size="sm"
               label={`${name}: goal type`}
@@ -369,30 +436,59 @@ function GoalRow({ setRowEl, setHandleEl, ...p }: GoalRowProps) {
               onChange={setMode}
               options={metric.modes.map((m) => ({ value: m.mode, label: m.label, disabled: p.readOnly }))}
             />
-          ) : (
-            <span className="lp-goal__dir">
-              {spec.label}
-              <span aria-hidden="true">{spec.direction === 'minimise' ? '↓' : '↑'}</span>
-            </span>
           )}
         </div>
         <div className="lp-goal__controls">
-          {modeTakesAmount(spec) ? (
-            <TargetEditor metric={metric} mode={spec} goal={g} onChange={(amount) => p.onUpdate({ amount })} disabled={p.readOnly} />
+          {/* a goal with one direction says it in words on the amount line ("lower ↓ on average") */}
+          {metric.eligible && !legacyBasis && metric.modes.length < 2 ? (
+            <span className="lp-goal__dir">
+              {spec.label}
+              <span aria-hidden="true">{spec.direction === 'minimise' ? ' ↓' : ' ↑'}</span>
+            </span>
+          ) : null}
+          {legacyBasis ? (
+            <button
+              type="button"
+              className="lp-suggest__chip"
+              disabled={p.readOnly}
+              onClick={() => p.onUpdate({ endpointSemantics: { ...CURRENT_TISSUE_FAT_ENDPOINT } })}
+            >
+              Use Tissue fat · confirm{' '}
+              {g.mode === 'keep' || g.amount === null
+                ? g.mode
+                : `${g.amount} ${g.mode === 'reach' ? '%' : '% pts'}`}
+            </button>
+          ) : !metric.eligible ? null : modeTakesAmount(spec) ? (
+            <TargetEditor
+              metric={metric}
+              mode={spec}
+              goal={g}
+              onChange={(amount) => p.onUpdate({ amount, mode: spec.mode })}
+              disabled={p.readOnly}
+            />
           ) : spec.target === 'zero' ? (
             <span className="lp-goal__hold">hold at the start value</span>
           ) : null}
-          <span className="lp-goal__when lm-eng">{functional === 'end' ? 'at the end' : 'on average'}</span>
-          <div className="lp-goal__strength">
-            <Select<GoalStrength>
-              size="sm"
-              label={`${name}: priority strength`}
-              value={g.strength}
-              onChange={(strength) => p.onUpdate({ strength })}
-              options={STRENGTH_OPTIONS}
-              disabled={p.readOnly}
-            />
-          </div>
+          {metric.eligible ? (
+            <span className="lp-goal__when lm-eng">{functional === 'end' ? 'at the end' : 'on average'}</span>
+          ) : null}
+          {metric.eligible ? (
+            <div className="lp-goal__prio">
+              <span className="lp-label" aria-hidden="true">
+                Priority
+              </span>
+              <div className="lp-goal__strength">
+                <Select<GoalStrength>
+                  size="sm"
+                  label={`${name}: priority strength`}
+                  value={g.strength}
+                  onChange={(strength) => p.onUpdate({ strength })}
+                  options={STRENGTH_OPTIONS}
+                  disabled={p.readOnly}
+                />
+              </div>
+            </div>
+          ) : null}
         </div>
         {p.readOnly ? null : (
           <div className="lp-goal__actions">
@@ -407,15 +503,18 @@ function GoalRow({ setRowEl, setHandleEl, ...p }: GoalRowProps) {
             <IconKey icon={X} label={`Remove ${name}`} size="sm" variant="quiet" onClick={p.onRemove} />
           </div>
         )}
-        {metric.grade === 'D' || metric.caveat || metric.note || p.flag ? (
+        {/* C6/D4-05: no warrant or provenance prose on a goal row (estimand, grade and caveats open in Explain from the
+            row menu); a saved goal that is no longer one keeps its short reason and its mandatory caveat */}
+        {p.flag || !metric.eligible ? (
           <div className="lp-goal__notes">
             {p.flag}
-            {metric.grade === 'D' ? <p className="lp-goal__help">{gradeDHelp(metric.id)}</p> : null}
-            {metric.caveat ? <p className="lp-goal__caveat">{metric.caveat}</p> : null}
-            {g.metric === 'scaleWeight' ? <p className="lp-goal__help">Planned on tissue weight, so water and glycogen swings don’t count.</p> : null}
+            {!metric.eligible && metric.reason ? <p className="lp-goal__help">{metric.reason}</p> : null}
+            {!metric.eligible && metric.caveat ? <p className="lp-goal__caveat">{metric.caveat}</p> : null}
             <p className="lm-sr">{STRENGTH_HELP[g.strength]}</p>
           </div>
-        ) : null}
+        ) : (
+          <p className="lm-sr">{STRENGTH_HELP[g.strength]}</p>
+        )}
       </div>
     </li>
   );
@@ -428,17 +527,32 @@ function Connector({ relation }: { relation: GoalRelation }) {
   return (
     <div className="lp-conn" data-kind={relation.kind}>
       <span className="lp-conn__bracket" aria-hidden="true" />
-      <button ref={ref} type="button" className="lp-conn__btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <button
+        ref={ref}
+        type="button"
+        className="lp-conn__btn"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
         <Icon icon={conflict ? ArrowLeftRight : Link2} size={16} />
         <span>
           {conflict ? 'pulls against' : 'helps'} #{relation.from + 1}
           <span className="lp-conn__tag"> · {relation.tag}</span>
         </span>
       </button>
-      <Popover open={open} onOpenChange={setOpen} anchorRef={ref} label={conflict ? 'Why these goals pull apart' : 'Why these goals help each other'} className="lp-pop">
-        <p className="lp-pop__title">{conflict ? `Goal ${relation.to + 1} pulls against goal ${relation.from + 1}` : `Goal ${relation.to + 1} helps goal ${relation.from + 1}`}</p>
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={ref}
+        label={conflict ? 'Why these goals pull apart' : 'Why these goals help each other'}
+        className="lp-pop"
+      >
+        <p className="lp-pop__title">
+          {conflict
+            ? `Goal ${relation.to + 1} pulls against goal ${relation.from + 1}`
+            : `Goal ${relation.to + 1} helps goal ${relation.from + 1}`}
+        </p>
         <p className="lp-pop__body">{relation.text}</p>
-        <p className="lp-pop__foot lm-eng">before a run this comes from the evidence table; the results show what the optimiser found</p>
       </Popover>
     </div>
   );

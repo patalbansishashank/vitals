@@ -32,13 +32,16 @@ export function StatusMark({ severity, size = 20, label, className }: StatusMark
 
 export interface NoticeProps {
   severity: Severity;
-  /** First line states the risk or fact (15/600, ink). */
+  /** First line states the risk or fact (14/500, ink). */
   title: ReactNode;
-  /** What to do / the explanation (13 px, ink-2). */
+  /** One line: what to do (14 px, stone). */
   children?: ReactNode;
-  /** One-tap remedies as keys (`<Key size="sm">Set energy to 75 %</Key>`). */
+  /** At most one remedy key (`<Key size="sm" variant="text">Set energy to 75 %</Key>`). */
   actions?: ReactNode;
-  /** `boxed` (default) is a faceplate of its own; `ruled` sits inside a faceplate between hairlines. */
+  /**
+   * `boxed` (default): the banner — the card material with no glow, 0.5 px hairline, 14 px corners (the shell's banner slot,
+   * sheets). `ruled`: inside a card, plain text with no surface and no rules.
+   */
   layout?: 'boxed' | 'ruled';
   /** Dismiss (info and ok only — cautions and dangers stay while the condition holds). */
   onDismiss?: () => void;
@@ -51,9 +54,10 @@ export interface NoticeProps {
 }
 
 /**
- * Warning banner / notice. REVIEW_FINDINGS #5: chrome stays achromatic — the
- * notice is faceplate text with a drawn status mark and hairline rules; colour
- * appears on the mark only. Never a thick coloured left border.
+ * Banner (SPEC §4/§5): title + one line + at most one action on a card-soft
+ * surface. Caution and danger keep their drawn mark (gold triangle, rose
+ * octagon); info and ok carry no icon. Never a coloured border or fill. One
+ * banner at a time, directly under the header — never between content sections.
  */
 export function Notice({
   severity,
@@ -71,11 +75,21 @@ export function Notice({
   const bodyId = useId();
   const canDismiss = Boolean(onDismiss) && (severity === 'info' || severity === 'ok');
   const role = announce ? (severity === 'danger' ? 'alert' : 'status') : undefined;
+  const marked = severity === 'caution' || severity === 'danger';
   return (
-    <div className={cx('lm-notice', className)} data-severity={severity} data-layout={layout} data-collapsed={collapsed || undefined} role={role}>
-      <span className="lm-notice__mark">
-        <Icon icon={MARK[severity]} size={20} />
-      </span>
+    <div
+      className={cx('lm-notice', className)}
+      data-severity={severity}
+      data-layout={layout}
+      data-mark={marked || undefined}
+      data-collapsed={collapsed || undefined}
+      role={role}
+    >
+      {marked ? (
+        <span className="lm-notice__mark">
+          <Icon icon={MARK[severity]} size={20} />
+        </span>
+      ) : null}
       <p className="lm-notice__title">
         <span className="lm-sr">{WORD[severity]}: </span>
         {title}
@@ -119,7 +133,7 @@ export interface InlineWarningProps {
   className?: string;
 }
 
-/** Inside controls and sections: 16 px mark + one sentence (13 px). */
+/** Inside controls and sections: 16 px mark + one sentence (14 px). */
 export function InlineWarning({ severity, children, action, alert, className }: InlineWarningProps) {
   return (
     <div className={cx('lm-inline-warn', className)} data-severity={severity} role={alert ? 'alert' : undefined}>

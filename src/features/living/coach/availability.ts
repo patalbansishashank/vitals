@@ -5,6 +5,7 @@
  * The Coach runtime (src/ai/coach/runtime.ts) calls `setCoachAvailable` with whether the configured provider can use tools.
  */
 import { useSyncExternalStore } from 'react';
+import { getServerClient } from '@/net/server';
 
 let available = false;
 const listeners = new Set<() => void>();
@@ -49,6 +50,19 @@ export function useCoachProblem(): string | null {
     () => problem,
     () => problem,
   );
+}
+
+/**
+ * The Coach runs on the person's server while this device is paired with it (server-coach contract): no AI provider,
+ * model or key settings then, and nothing on this device calls an AI service itself.
+ */
+export function isCoachOnServer(): boolean {
+  return getServerClient().isPaired();
+}
+
+export function useCoachOnServer(): boolean {
+  const client = getServerClient();
+  return useSyncExternalStore(client.subscribe, client.isPaired, client.isPaired);
 }
 
 export interface CoachDraftState {

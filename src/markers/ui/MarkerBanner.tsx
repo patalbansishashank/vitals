@@ -1,7 +1,8 @@
 /**
  * `<MarkerBanner>` (SUITE_SPEC §13.5.7, plan-ladder v2): above the ladder cards, the active blood-marker notes with
- * their "because …" chip; the sentence leaves the reading to the chip (Q6-14). Clinician notes first, then cautions, then information. Nothing here removes anything from
- * the plan: caps and warnings are explained, the person keeps every choice.
+ * their "because …" chip; the sentence leaves the reading to the chip (Q6-14). Clinician notes first, then cautions,
+ * then information. A title and the notes — no lead paragraph. Nothing here removes anything from the plan: caps and
+ * warnings are explained, the person keeps every choice.
  */
 import { Link } from 'react-router';
 import { StatusMark } from '@/components/Notice';
@@ -25,9 +26,8 @@ export interface MarkerBannerProps {
 
 export const MARKER_BANNER_COPY = {
   title: 'From your blood test',
-  lead: 'These results shape the plans below. Nothing is banned outright: a limit only stops the plan from adding more.',
   why: 'How results change the plan',
-  edit: 'Re-enter values',
+  edit: 'Update results',
   showAll: (n: number) => `Show all ${n}`,
 } as const;
 
@@ -40,10 +40,7 @@ export function MarkerBanner({ notes, dateStyle = 'day-month', today, max = 4, c
   const sorted = sortNotes(notes);
   return (
     <section className={['lm-marker-banner', className].filter(Boolean).join(' ')} aria-label={MARKER_BANNER_COPY.title}>
-      <header className="lm-marker-banner__head">
-        <h3 className="lm-marker-banner__title">{MARKER_BANNER_COPY.title}</h3>
-        <p className="lm-marker-banner__lead">{MARKER_BANNER_COPY.lead}</p>
-      </header>
+      <h3 className="lm-marker-banner__title">{MARKER_BANNER_COPY.title}</h3>
       <NoteList notes={sorted} max={max} dateStyle={dateStyle} today={today} />
       <p className="lm-marker-banner__links">
         <Link to={markersTopicHref()}>{MARKER_BANNER_COPY.why}</Link>

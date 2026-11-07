@@ -1,0 +1,60 @@
+{
+ "v": 1,
+ "at": 1793173680000,
+ "quiet": true,
+ "today": {
+  "date": "2026-10-28",
+  "until": 1793226600000,
+  "energy": null,
+  "steps": {
+   "ratio": 0.845,
+   "word": "over half of the goal",
+   "state": "On course"
+  },
+  "heartPoints": {
+   "ratio": 0.56,
+   "word": "on track this week"
+  },
+  "sleep": {
+   "word": "Goal met",
+   "ratio": 1.058,
+   "onset": 1793123040000,
+   "wake": 1793153220000,
+   "stages": [
+    [0, 0.06, 2],
+    [0.06, 0.17, 3],
+    [0.17, 0.25, 2],
+    [0.25, 0.31, 1],
+    [0.31, 0.33, 0],
+    [0.33, 0.42, 2],
+    [0.42, 0.55, 3],
+    [0.55, 0.63, 2],
+    [0.63, 0.72, 1],
+    [0.72, 0.74, 0],
+    [0.74, 0.83, 2],
+    [0.83, 0.9, 1],
+    [0.9, 0.92, 0],
+    [0.92, 1.0, 2]
+   ]
+  }
+ },
+ "ring": {
+  "state": "ready",
+  "hr": {
+   "unit": "bpm",
+   "at": 1793173560000,
+   "state": "Normal"
+  },
+  "battery": {
+   "word": "Fine",
+   "at": 1793172600000
+  },
+  "lastSyncAt": 1793173620000
+ },
+ "body": {
+  "weight": {
+   "unit": "kg",
+   "state": "onTrack"
+  }
+ }
+}

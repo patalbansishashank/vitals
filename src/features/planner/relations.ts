@@ -28,6 +28,9 @@ const MUSCLE_METRICS = new Set<string>(['leanTissue', 'skeletalMuscle', 'rtMuscl
 /** Classes of one goal as phrased (direction matters: "gain fat mass" is not fat loss). */
 export function goalClasses(g: Pick<GoalDraft, 'metric' | 'mode'>): GoalClass[] {
   const m = g.metric as string;
+  // C6/D2-02: a saved goal that can no longer be one (the autophagy index, IGF-1…) never reaches the planner, so it pulls
+  // against nothing and helps nothing (no fasting edge from a signalling index)
+  if (!goalMetric(m)?.eligible) return [];
   const down = g.mode === 'lose' || g.mode === 'lower';
   const up = g.mode === 'gain' || g.mode === 'raise' || g.mode === 'reach';
   const out: GoalClass[] = [];
@@ -36,7 +39,6 @@ export function goalClasses(g: Pick<GoalDraft, 'metric' | 'mode'>): GoalClass[] 
     else if (g.mode === 'gain') out.push('weightGain');
   }
   if (MUSCLE_METRICS.has(m)) out.push(g.mode === 'keep' ? 'leanKeep' : 'muscle');
-  if (m === 'autophagyIdx' || m === 'igf1') out.push('transient');
   if (m === 'bhb' || m === 'hoursInKetosis' || m === 'ketoAdaptation') out.push('transient', 'ketone');
   if (m === 'ldl' || m === 'apoB') out.push('lipids');
   if (m === 'triglycerides' || m === 'sbp') out.push('tgBp');
@@ -73,9 +75,10 @@ const RULES: RelationRule[] = [
     kind: 'conflict',
     tag: 'fasting vs muscle',
     signal: 'b',
-    why: 'Muscle growth needs frequent protein and energy; the signal needs long gaps without them.',
-    ifAFirst: 'Your ranking puts muscle first, so plans keep fasts short.',
-    ifBFirst: 'Your ranking puts the signal first, so plans may use longer gaps and accept slower muscle gain.',
+    // D3-04: total protein and energy carry muscle gain; meal timing is a preference, never a guaranteed penalty
+    why: 'Muscle gain depends on enough total protein and energy; the signal comes with long gaps or very little carbohydrate.',
+    ifAFirst: 'Your ranking puts muscle first, so plans keep fasts short and total protein and energy up.',
+    ifBFirst: 'Your ranking puts the signal first, so plans may use longer gaps while keeping total protein up.',
   },
   {
     a: 'leanKeep',
@@ -83,9 +86,9 @@ const RULES: RelationRule[] = [
     kind: 'conflict',
     tag: 'fasting vs lean tissue',
     signal: 'b',
-    why: 'Keeping lean tissue needs protein spread through the day; the signal needs long gaps without it.',
+    why: 'Keeping lean tissue depends on total protein, energy and training; the signal comes with long gaps or very little carbohydrate.',
     ifAFirst: 'Your ranking puts lean tissue first, so plans keep fasts short and protein high.',
-    ifBFirst: 'Your ranking puts the signal first, so plans may use longer gaps and accept a little lean-tissue loss.',
+    ifBFirst: 'Your ranking puts the signal first, so plans may use longer gaps with protein kept high.',
   },
   {
     a: 'fatLoss',

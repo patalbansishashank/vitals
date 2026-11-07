@@ -1,0 +1,101 @@
+.lv-sheet--weight,
+.lv-sheet--fast,
+.lv-sheet--today {
+  padding: 20px var(--lm-card-pad) 28px;
+  gap: 24px;
+}
+.lv-sheet--weight .lm-numfield input {
+  font-family: var(--lm-font-display);
+  font-size: var(--lm-text-num);
+  font-weight: var(--lm-text-num--wt);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+.lv-sheet--weight .lm-numfield__unit {
+  color: var(--lm-hue-body-ink);
+}
+.lv-sheet--fast .lv-sheet__value {
+  padding-block: 16px;
+  border-top: 0.5px solid var(--lm-line);
+}
+.lv-sheet--fast .lv-sheet__value-label,
+.lv-sheet--today .lv-sheet__fact,
+.lv-checkin__goal,
+.lv-checkin__next,
+.lv-checkin__delta {
+  font-family: var(--lm-font-mono);
+  font-size: var(--lm-text-meta);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+.lv-sheet--fast .lv-sheet__value-num {
+  font-family: var(--lm-font-display);
+  font-size: var(--lm-text-num);
+  font-weight: var(--lm-text-num--wt);
+  line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--lm-hue-energy-ink);
+}
+.lv-checkin {
+  padding: 20px var(--lm-card-pad) 28px;
+  gap: 28px;
+}
+.lv-checkin__part {
+  gap: 12px;
+}
+.lv-checkin__part + .lv-checkin__part {
+  padding-top: 24px;
+  border-top: 0.5px solid var(--lm-line);
+}
+.lv-checkin__readout {
+  row-gap: 8px;
+}
+.lv-checkin__value {
+  font-weight: var(--lm-text-num--wt);
+  letter-spacing: -0.035em;
+}
+.lv-checkin__state {
+  color: var(--lm-hue-body-ink);
+}
+.lv-checkin__goal {
+  color: var(--lm-hue-body-ink);
+  gap: 6px;
+}
+.lv-checkin__part .lmc-bb {
+  --lm-signal: var(--lm-hue-steps);
+}
+.lv-weekly-model__decision {
+  color: var(--lm-ink);
+  font-weight: 500;
+}
+.lv-weekly-model__decision[data-state="review"] {
+  color: var(--lm-caution-fg);
+}
+.lv-weekly-model__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+.lv-weekly-model__facts > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.lv-weekly-model__facts dt,
+.lv-weekly-model__basis {
+  color: var(--lm-ink-2);
+  font-size: var(--lm-text-body-s);
+  line-height: 1.5;
+}
+.lv-weekly-model__facts dd {
+  margin: 0;
+  color: var(--lm-ink);
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 1024px) {
+  .lv-checkin {
+    padding: 24px;
+  }
+}

@@ -91,13 +91,17 @@ export function createSyncedBackend(options: SyncedBackendOptions): SyncedBacken
     get: (col, id) => route(col).get(col, id),
     list: (col, opts) => route(col).list(col, opts),
 
+    assertCurrent: async () => { await local.assertCurrent?.(); },
+
     async put<T>(col: string, id: string, value: T, opts?: { schema?: number }) {
+      await local.assertCurrent?.();
       const doc = await route(col).put(col, id, value, opts);
       if (isSynced(col)) mirrorDoc(doc as BackendDoc);
       return doc;
     },
 
     async delete(col, id) {
+      await local.assertCurrent?.();
       if (!isSynced(col)) return local.delete(col, id);
       await synced.delete(col, id);
       const after = await synced.get(col, id);
@@ -105,6 +109,7 @@ export function createSyncedBackend(options: SyncedBackendOptions): SyncedBacken
     },
 
     async batch(ops: readonly BackendOp[]) {
+      await local.assertCurrent?.();
       const engineOps = ops.filter((o) => isSynced(o.col));
       const localOps = ops.filter((o) => !isSynced(o.col));
       const fromEngine = engineOps.length ? await runBatch(synced, engineOps) : [];

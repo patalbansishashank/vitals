@@ -1,20 +1,30 @@
 /**
- * <EquivalenceMeter> (COMPONENTS §13.13): how close a swap or a logged session comes to the prescribed stimulus. A
- * printed 0–100 scale with ticks and numerals at 0, 60, 90 and 100 (the partial and full-credit thresholds of the
- * catalogue's equivalence), an ink tick at the score, the percentage and the verdict in words. Achromatic; the detail
+ * <EquivalenceMeter> (COMPONENTS §13.13): how close a swap or a logged session comes to the prescribed stimulus. The
+ * shared tick strip in its `meter` variant (DATAVIZ P2, energy SPEC A.3.3): a 0–100 strip with numerals at 0, 60, 90 and
+ * 100 (the partial and full-credit thresholds of the catalogue's equivalence), the full-credit tick, an ivory tick at the
+ * score, the percentage and the verdict in words. The `role="meter"` text pattern is the strip's. The detail
  * disclosure lists the per-term ratios with their intent weights and "also trained". Used by Train (swaps, logs) and
  * the Coach.
  *
  * The meter renders `EquivalenceResult` as computed by the catalogue (`sessionEquivalence` / `swapOptions`); the only
  * logic here is choosing words for the score bands the catalogue defines.
+ *
+ * Quiet mode (SPEC A.3.2, DATAVIZ §0.6): words only. No percentage, no numerals on the scale, no digits in the verdict
+ * and the detail lists each term as a word. The meter reads quiet mode from settings; a screen that lets the person
+ * reveal numbers for a while (Train's "Show numbers") wraps it in `<EquivalenceQuietProvider quiet={false}>`.
  */
-import { useId } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { REGION_LABEL, catalogueParam, type EquivalenceResult, type StimulusTermId } from '@/catalogues';
-import { cx } from '@/components';
+import { DottedTrack, HeroNumber, InfoKey, InfoPanel, MonoMeta, RangeScale, cx } from '@/components';
+import { useQuietMode } from '@/state/settingsStore';
+import { quietWord } from '../format';
+import { infoSpec } from './info';
+import './equivalenceMeter.css';
 
 /** User-facing words of the meter (plain, second person, no internal references). */
 export const EQUIVALENCE_COPY = {
   label: 'same stimulus',
+  fullCredit: 'Full credit',
   counts: (target: string) => `counts as ${target}`,
   partly: (fix: string) => `partly — ${fix}`,
   addSet: 'add 1 set',
@@ -22,19 +32,37 @@ export const EQUIVALENCE_COPY = {
   otherWork: 'other work',
   detail: 'how it compares',
   term: (label: string, pct: number, weight: number) => `${label} ${pct} % · weighs ${weight} %`,
+  quietTerm: (label: string, word: string) => `${label}: ${word}`,
   also: (regions: string) => `also trained: ${regions}`,
   valueText: (pct: number, verdict: string) => `${pct} %, ${verdict}`,
-  terms: { hyp: 'muscle', str: 'strength', card: 'cardio', kcal: 'energy', mob: 'mobility' } as Readonly<Record<StimulusTermId, string>>,
+  terms: { hyp: 'muscle', str: 'strength', card: 'cardio', kcal: 'energy', mob: 'mobility' } as Readonly<
+    Record<StimulusTermId, string>
+  >,
 } as const;
 
 /** Full credit at or above (0.90) and the partial band's floor (0.60), from the catalogue's parameters. */
 export const FULL_CREDIT_AT = catalogueParam('creditFull');
 export const PARTIAL_CREDIT_AT = catalogueParam('creditPartial');
 
+/** Words for the partial-credit fix without a digit: "add 1 set" reads "add a set". */
+const QUIET_ADD_SET = 'add a set';
+
+/** What a screen says about quiet mode for the meters below it; null (no provider) means settings decide. */
+const QuietContext = createContext<boolean | null>(null);
+
+/** A screen that has its own quiet state (quiet mode with a temporary "show numbers") passes the effective value down. */
+export function EquivalenceQuietProvider({ quiet, children }: { quiet: boolean; children: ReactNode }) {
+  return <QuietContext.Provider value={quiet}>{children}</QuietContext.Provider>;
+}
+
 export type VerdictBand = 'full' | 'partial' | 'different';
 
 export function verdictBand(score: number): VerdictBand {
-  return score >= FULL_CREDIT_AT - 1e-9 ? 'full' : score >= PARTIAL_CREDIT_AT - 1e-9 ? 'partial' : 'different';
+  return score >= FULL_CREDIT_AT - 1e-9
+    ? 'full'
+    : score >= PARTIAL_CREDIT_AT - 1e-9
+      ? 'partial'
+      : 'different';
 }
 
 /** Score as a whole percentage. */
@@ -59,18 +87,26 @@ export function shortfallFix(r: Pick<EquivalenceResult, 'shortfall'>): string {
   return t ? lowerFirst(t.replace(/\.$/, '')) : EQUIVALENCE_COPY.addSet;
 }
 
+/** The shortfall fix with no digit in it (quiet mode): "1 set" becomes "a set"; any other number falls back to "add a set". */
+export function quietFix(r: Pick<EquivalenceResult, 'shortfall'>): string {
+  const fix = shortfallFix(r).replace(/\b1 sets?\b/gi, 'a set');
+  return /\d/.test(fix) ? QUIET_ADD_SET : fix;
+}
+
 /** What different work was credited to: the regions it trained beyond the prescription, else its strongest term. */
 export function creditedTo(r: Pick<EquivalenceResult, 'alsoTrained' | 'perTerm'>): string {
   if (r.alsoTrained.length > 0) return listWords(r.alsoTrained.map((x) => REGION_LABEL[x]));
-  const best = [...r.perTerm].filter((t) => t.ratio > 0).sort((a, b) => b.ratio - a.ratio || b.weight - a.weight)[0];
+  const best = [...r.perTerm]
+    .filter((t) => t.ratio > 0)
+    .sort((a, b) => b.ratio - a.ratio || b.weight - a.weight)[0];
   return best ? EQUIVALENCE_COPY.terms[best.term] : EQUIVALENCE_COPY.otherWork;
 }
 
 /** The verdict words for a result against a target ("today’s swing"). */
-export function equivalenceVerdict(r: EquivalenceResult, target: string): string {
+export function equivalenceVerdict(r: EquivalenceResult, target: string, quiet = false): string {
   const band = verdictBand(r.score);
   if (band === 'full') return EQUIVALENCE_COPY.counts(target);
-  if (band === 'partial') return EQUIVALENCE_COPY.partly(shortfallFix(r));
+  if (band === 'partial') return EQUIVALENCE_COPY.partly(quiet ? quietFix(r) : shortfallFix(r));
   return EQUIVALENCE_COPY.different(creditedTo(r));
 }
 
@@ -78,85 +114,121 @@ export interface EquivalenceMeterProps {
   result: EquivalenceResult;
   /** What it is compared with, e.g. "today’s swing" or "Wednesday’s lift". */
   target: string;
-  /** `sm` 120 px scale (swap lists) · `md` 180 px (default). */
-  size?: 'sm' | 'md';
+  /**
+   * `sm` 120 px scale · `md` 180 px (default) · `line`: one thin full-width bar with the full-credit mark and the share in
+   * words beside it, for a list of options whose threshold is said once above it (r068 T9).
+   */
+  size?: 'sm' | 'md' | 'line';
   /** Show the per-term disclosure. */
   detail?: boolean;
   className?: string;
 }
 
-const PAD_L = 4;
-const PAD_R = 22;
-const H = 28;
+const MATCH_INFO = infoSpec({
+  title: 'Same stimulus',
+  body: 'Swapping an exercise keeps your plan honest. Vitals compares the work you did with the work prescribed: muscle, strength, cardio, energy and mobility. At 90 % or more it counts in full; 60 to 89 % counts partly and says what is short; below that it counts as different work and is credited to what it trained.',
+  evidence: 'training-catalogue',
+});
 
-export function EquivalenceMeter({ result, target, size = 'md', detail = false, className }: EquivalenceMeterProps) {
-  const id = useId();
-  const pct = pctOf(result.score);
-  const band = verdictBand(result.score);
-  const verdict = equivalenceVerdict(result, target);
-  const W = size === 'sm' ? 120 : 180;
-  const x = (v: number) => PAD_L + (Math.max(0, Math.min(100, v)) / 100) * W;
+/** One scale for every swap and session: the catalogue thresholds are named, never implied by a colour. */
+export function StimulusMatch({
+  score,
+  verdict,
+  quiet = false,
+  size = 'md',
+}: {
+  score: number;
+  verdict: string;
+  quiet?: boolean;
+  size?: 'sm' | 'md' | 'line';
+}) {
+  const pct = pctOf(score);
   const partial = Math.round(PARTIAL_CREDIT_AT * 100);
   const full = Math.round(FULL_CREDIT_AT * 100);
-  const majors = [0, partial, full, 100];
-  const minors = Array.from({ length: 11 }, (_, i) => i * 10).filter((v) => !majors.includes(v));
+  return (
+    <div
+      className="lv-match"
+      data-size={size}
+      role="meter"
+      aria-label={EQUIVALENCE_COPY.label}
+      aria-valuemin={quiet ? undefined : 0}
+      aria-valuemax={quiet ? undefined : 100}
+      aria-valuenow={quiet ? undefined : pct}
+      aria-valuetext={quiet ? verdict : EQUIVALENCE_COPY.valueText(pct, verdict)}
+    >
+      <div aria-hidden="true">
+        <RangeScale
+          label={EQUIVALENCE_COPY.label}
+          value={pct}
+          min={0}
+          max={100}
+          hue="steps"
+          quiet={quiet}
+          usual={[full, 100]}
+          size={size === 'sm' ? 'inline' : 'full'}
+          ticks="bands"
+          bands={[
+            { from: 0, word: 'Different work', severity: 'info' },
+            { from: partial, word: 'Partly', severity: 'info' },
+            { from: full, word: 'Full credit', severity: 'ok' },
+          ]}
+        />
+      </div>
+      {size === 'md' && !quiet ? (
+        <div className="lv-match__knots">
+          <MonoMeta>Partly {partial} %</MonoMeta>
+          <MonoMeta>Full {full} %</MonoMeta>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function EquivalenceMeter({
+  result,
+  target,
+  size = 'md',
+  detail = false,
+  className,
+}: EquivalenceMeterProps) {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const fromScreen = useContext(QuietContext);
+  const settingsQuiet = useQuietMode().on;
+  const quiet = fromScreen ?? settingsQuiet;
+  const pct = pctOf(result.score);
+  const band = verdictBand(result.score);
+  const verdict = equivalenceVerdict(result, target, quiet);
   const weightSum = result.perTerm.reduce((a, t) => a + t.weight, 0) || 1;
   return (
-    <div className={cx('grid gap-1 min-w-0', className)} data-band={band} data-size={size}>
-      <div
-        role="meter"
-        aria-label={EQUIVALENCE_COPY.label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-        aria-valuetext={EQUIVALENCE_COPY.valueText(pct, verdict)}
-        aria-describedby={`${id}-verdict`}
-        className="flex flex-wrap items-center gap-x-2 gap-y-1"
-      >
-        <span className="lm-eng" aria-hidden="true">
-          {EQUIVALENCE_COPY.label}
-        </span>
-        <span className="lm-num" aria-hidden="true" style={{ minWidth: '4.5ch' }}>
-          {pct} %
-        </span>
-        <svg width={PAD_L + W + PAD_R} height={H} viewBox={`0 0 ${PAD_L + W + PAD_R} ${H}`} aria-hidden="true" style={{ overflow: 'visible', flex: 'none' }}>
-          <line x1={x(0)} x2={x(100)} y1={8.5} y2={8.5} stroke="var(--lm-line-strong)" strokeWidth={1} shapeRendering="crispEdges" />
-          {minors.map((v) => (
-            <line key={`m${v}`} data-tick={v} x1={Math.round(x(v)) + 0.5} x2={Math.round(x(v)) + 0.5} y1={8} y2={11} stroke="var(--lm-line-strong)" strokeWidth={1} shapeRendering="crispEdges" />
-          ))}
-          {majors.map((v) => (
-            <line key={`M${v}`} data-tick={v} data-major="true" x1={Math.round(x(v)) + 0.5} x2={Math.round(x(v)) + 0.5} y1={3} y2={13} stroke="var(--lm-edge)" strokeWidth={1} shapeRendering="crispEdges" />
-          ))}
-          {majors.map((v) => {
-            // 0 sits right of its tick, 60 is centred, 90 sits left of its tick and 100 right of its own, so the two
-            // close numerals never overprint at either size.
-            const anchor = v === 0 || v === 100 ? 'start' : v === full ? 'end' : 'middle';
-            const dx = v === 100 ? 2 : v === full ? 1 : v === 0 ? -1 : 0;
-            return (
-              <text
-                key={`n${v}`}
-                data-numeral={v}
-                x={x(v) + dx}
-                y={H - 2}
-                textAnchor={anchor}
-                fontSize={11}
-                fill="var(--lm-ink-2)"
-                className="wdth-condensed"
-                style={{ fontVariantNumeric: 'tabular-nums' }}
-              >
-                {v}
-              </text>
-            );
-          })}
-          <rect data-score={pct} x={x(pct) - 1} y={0} width={2} height={16} fill="var(--lm-ink)" />
-        </svg>
+    <div
+      className={cx('lv-eqm lv-eqm--scale', className)}
+      data-band={band}
+      data-size={size}
+      data-quiet={quiet || undefined}
+    >
+      {size === 'md' ? (
+        <div className="lv-eqm__heading">
+          <MonoMeta>{EQUIVALENCE_COPY.label}</MonoMeta>
+          <InfoKey label="About Same stimulus" onClick={() => setInfoOpen(true)} />
+        </div>
+      ) : null}
+      <div className="lv-eqm__reading">
+        {!quiet ? (
+          size === 'md' ? (
+            <HeroNumber value={pct} unit="%" size="num" label={`${pct} %`} />
+          ) : (
+            <MonoMeta>{pct} %</MonoMeta>
+          )
+        ) : null}
+        <StimulusMatch score={result.score} verdict={verdict} quiet={quiet} size={size} />
       </div>
-      <p id={`${id}-verdict`} className="text-sm" style={{ color: 'var(--lm-ink)' }}>
-        {verdict}
-      </p>
+      <p className="lv-eqm__verdict">{verdict}</p>
       {detail ? (
         <details className="text-sm" style={{ color: 'var(--lm-ink-2)' }}>
-          <summary className="lm-eng" style={{ cursor: 'pointer', minHeight: 32, display: 'flex', alignItems: 'center' }}>
+          <summary
+            className="lm-meta"
+            style={{ cursor: 'pointer', minHeight: 44, display: 'flex', alignItems: 'center' }}
+          >
             {EQUIVALENCE_COPY.detail}
           </summary>
           <ul className="grid gap-1" style={{ listStyle: 'none', padding: 0, margin: '4px 0 0' }}>
@@ -165,18 +237,43 @@ export function EquivalenceMeter({ result, target, size = 'md', detail = false, 
               const r = pctOf(t.ratio);
               const w = Math.round((t.weight / weightSum) * 100);
               return (
-                <li key={t.term} className="flex items-center gap-2">
-                  <svg width={64} height={8} viewBox="0 0 64 8" aria-hidden="true" style={{ flex: 'none' }}>
-                    <rect x={0} y={3.5} width={64} height={1} fill="var(--lm-line-strong)" />
-                    <rect x={0} y={2} width={Math.max(1, (r / 100) * 64)} height={4} fill="var(--lm-ink)" />
-                  </svg>
-                  <span>{EQUIVALENCE_COPY.term(label, r, w)}</span>
+                <li key={t.term} className="lv-eqm__term">
+                  <MonoMeta>
+                    {quiet
+                      ? EQUIVALENCE_COPY.quietTerm(label, quietWord(r))
+                      : EQUIVALENCE_COPY.term(label, r, w)}
+                  </MonoMeta>
+                  <DottedTrack
+                    label={label}
+                    value={r}
+                    goal={100}
+                    valueText={`${r} %`}
+                    quiet={quiet}
+                    quietWord={quietWord(r)}
+                    hue="steps"
+                  />
                 </li>
               );
             })}
           </ul>
-          {result.alsoTrained.length > 0 ? <p style={{ marginTop: 4 }}>{EQUIVALENCE_COPY.also(listWords(result.alsoTrained.map((r) => REGION_LABEL[r])))}</p> : null}
+          {result.alsoTrained.length > 0 ? (
+            <p style={{ marginTop: 4 }}>
+              {EQUIVALENCE_COPY.also(listWords(result.alsoTrained.map((r) => REGION_LABEL[r])))}
+            </p>
+          ) : null}
         </details>
+      ) : null}
+      {infoOpen ? (
+        <InfoPanel
+          {...MATCH_INFO}
+          body={
+            quiet
+              ? 'Vitals compares the work you did with the work prescribed: muscle, strength, cardio, energy and mobility. A close match counts in full; a partial match says what is short. Different work is credited to what it trained.'
+              : MATCH_INFO.body
+          }
+          open
+          onClose={() => setInfoOpen(false)}
+        />
       ) : null}
     </div>
   );

@@ -1,0 +1,11 @@
+{
+  "gaugeSessions": [
+    { "id": "g-walk-1", "revision": "2026-10-20T03:00:00Z", "start": 1760927400000, "end": 1760930100000, "type": "walk", "kcal": 210, "distanceM": 3600 }
+  ],
+  "hcSessions": [
+    { "id": "hc-7b2", "revision": "2026-10-20T13:10:00Z", "start": 1760962800000, "end": 1760964600000, "exerciseType": 56, "originPackage": "com.strava", "hasRoute": true }
+  ],
+  "minutes": [
+    { "first": 1760920200000, "steps": [0, 0, 92, 104, null], "hrBpm": [72, null, 98, 104, null], "hrSupportedS": [60, null, 60, 55, null] }
+  ]
+}

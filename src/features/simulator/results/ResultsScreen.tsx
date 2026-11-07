@@ -1,11 +1,15 @@
 /**
  * Simulator · Results (design/screens/simulator-results.md, CHART_SPEC, REVIEW_FINDINGS): the readout strip, the
  * figure-over-time + warnings band, the channel stack, and the energy & weight breakdown — for one scenario's run.
+ * The page's one Run key (`runAction`) sits where the results are read: before the first run it is the action of the one
+ * card (the fact "No projection yet" and the horizon), low in the card so it sits in a phone's thumb zone; from then on
+ * it heads the stage, beside the horizon it projects. A stale projection is dimmed and its chart toolbar says
+ * "Out of date"; the Run key's dot and the Results tab say it too.
  *
  * Pure with respect to the app stores except the small results UI store and the safety acknowledgement store:
  * `ResultsView` connects it to the simulation / schedule / profile / settings stores; tests feed it directly.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { ClipboardCopy, PanelTopClose, PanelTopOpen, SlidersHorizontal } from 'lucide-react';
 import {
@@ -16,7 +20,6 @@ import {
   Key,
   Notice,
   ProgressRule,
-  RunKey,
   StatusMark,
   toast,
   useMediaQuery,
@@ -27,9 +30,9 @@ import { compileSchedule, resolveProfile, type CompiledSchedule, type PersonProf
 import { ChartFrame, useChartController, type ChartStatus, type ChartView } from '@/features/charts';
 import { AcknowledgeDialog, DANGER_ACK_VERSION, DisclaimerLine, SimulationStrip, isDangerAcknowledged } from '@/features/onboarding';
 import { useSafetyStore } from '@/state/safetyStore';
-import { buildResultsData, compositionTracks, scaleBreakdown, type BandsLike } from './lib/adapt';
+import { buildResultsData, compositionTracks, scaleBreakdown, statusWordsOf, type BandsLike } from './lib/adapt';
 import { bodyTimeline, type BodyTimeline } from './lib/bodyState';
-import { dateRange } from './lib/format';
+import { dateRange, horizonText } from './lib/format';
 import { CORE_METRIC_IDS, HEADLINE_METRIC_IDS, displayCatalogue, type UnitPrefs } from './lib/metrics';
 import { computeReadouts, summaryText } from './lib/readouts';
 import { resultsState, runningText } from './lib/status';
@@ -52,7 +55,12 @@ export interface SimulationLike {
   phase: 'nominal' | 'ensemble' | null;
   progress: number;
   result: SimulationResult | null;
-  bands: { p10: BandsLike['p10']; p90: BandsLike['p90']; drawsDone: number; drawsTotal: number; complete?: boolean } | null;
+  /**
+   * The ensemble summary: compatibility quantiles, per-series band semantics (`bandMeta`, D8-02) and the per-day band
+   * availability (`bandDays`, A1-049: usable days, attempted/valid/excluded members, reasons, member status) — all carried
+   * to the adapter and the readouts.
+   */
+  bands: { p10: BandsLike['p10']; p90: BandsLike['p90']; drawsDone: number; drawsTotal: number; complete?: boolean; bandMeta?: BandsLike['bandMeta']; bandDays?: BandsLike['bandDays'] } | null;
   stale: boolean;
   hasResult: boolean;
   error: string | null;
@@ -75,17 +83,21 @@ export interface ResultsScreenProps {
   sim: SimulationLike;
   /** Inputs behind the shown result (the last run's profile and schedule). */
   inputs: { profile: PersonProfile; schedule: Schedule } | null;
-  /** Horizon of the scenario as it is now (never-run copy). */
+  /** Horizon of the scenario as it is now (the empty card's fact, the first run's "Projecting N days"). */
   horizonDays: number;
-  onRun: () => void;
-  /** Why Run is unavailable (e.g. macros exceed energy on some days). */
-  runBlockedReason?: string;
+  /** First day of the scenario as it is now (ISO), for the empty card's date range. */
+  startDate?: string;
+  /**
+   * The page's one Run key. Before the first run it is the empty card's action; in every other phase it heads the
+   * stage, at the right of the horizon line ("84 days · 5 Oct → 27 Dec").
+   */
+  runAction?: ReactNode;
   prefs: ResultsPrefs;
   /** Schedule link with days pre-selected and the rule to fix. */
   scheduleHref: (opts?: { startDay?: number; endDay?: number; fix?: string }) => string;
+  /** A key at the end of the readouts' meta line (the page's "Start this plan"). */
+  aside?: ReactNode;
 }
-
-const CHANNELS = displayCatalogue().length;
 
 function useElapsed(running: boolean, startedAt: number | null): number | null {
   const [now, setNow] = useState(() => Date.now());
@@ -115,29 +127,6 @@ function useResolvedInputs(inputs: ResultsScreenProps['inputs']): { rp: Resolved
   }, [inputs]);
 }
 
-/**
- * The chart toolbar sticks under the shell's sticky bars (mobile top bar + context bar, or the desktop context bar,
- * whose height depends on its content). Measure them and hand the offset to the chart as `--lmc-sticky-top`.
- */
-function useStickyTop(ref: RefObject<HTMLElement | null>): void {
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof document === 'undefined') return;
-    const bars = ['.lm-topbar', '.lm-ctx-slot'].map((q) => document.querySelector<HTMLElement>(q)).filter((b): b is HTMLElement => !!b);
-    if (!bars.length) return;
-    const update = () => {
-      let h = 0;
-      for (const b of bars) if (getComputedStyle(b).display !== 'none' && getComputedStyle(b).position === 'sticky') h += b.getBoundingClientRect().height;
-      if (h > 0) el.style.setProperty('--lmc-sticky-top', `${Math.round(h)}px`);
-    };
-    update();
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(update);
-    for (const b of bars) ro.observe(b);
-    return () => ro.disconnect();
-  }, [ref]);
-}
-
 /** Lanes: the saved selection (or the core set), restricted to what this result carries. */
 function effectiveLanes(saved: readonly string[] | null | undefined, available: ReadonlySet<string>): string[] {
   const base = saved ?? CORE_METRIC_IDS;
@@ -159,19 +148,20 @@ export function ResultsScreen(p: ResultsScreenProps) {
   const setBandOpen = useResultsUiStore((s) => s.setBandOpen);
   const breakdownOpen = useResultsUiStore((s) => s.breakdownOpen);
   const setBreakdownOpen = useResultsUiStore((s) => s.setBreakdownOpen);
-  const rootRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const warningsRef = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useStickyTop(rootRef);
   const running = sim.status === 'running';
   const elapsed = useElapsed(running, sim.startedAt);
   const { rp, compiled } = useResolvedInputs(p.inputs);
   const units: UnitPrefs = useMemo(() => ({ units: p.prefs.units, energyUnit: p.prefs.energyUnit, glucoseUnit: p.prefs.glucoseUnit }), [p.prefs.units, p.prefs.energyUnit, p.prefs.glucoseUnit]);
 
   const bands: BandsLike | null = useMemo(
-    () => (sim.bands ? { p10: sim.bands.p10, p90: sim.bands.p90, draws: sim.bands.drawsDone, total: sim.bands.drawsTotal } : null),
+    () =>
+      sim.bands
+        ? { p10: sim.bands.p10, p90: sim.bands.p90, draws: sim.bands.drawsDone, total: sim.bands.drawsTotal, bandMeta: sim.bands.bandMeta, ...(sim.bands.bandDays ? { bandDays: sim.bands.bandDays } : {}) }
+        : null,
     [sim.bands],
   );
   const adapted = useMemo(() => {
@@ -184,6 +174,7 @@ export function ResultsScreen(p: ResultsScreenProps) {
     }
   }, [sim.result, bands, p.inputs, compiled, units]);
   const data = adapted?.data ?? null;
+  const statusWords = useMemo(() => (adapted ? statusWordsOf(adapted.metrics) : undefined), [adapted]);
   const days = data?.time.days ?? p.horizonDays;
   const controller = useChartController(Math.max(1, days));
 
@@ -269,7 +260,7 @@ export function ResultsScreen(p: ResultsScreenProps) {
   // readouts ------------------------------------------------------------------------------------
   const pinned = useMemo(() => (prefsUi.pinned ?? []).filter((id) => !(HEADLINE_METRIC_IDS as readonly string[]).includes(id)), [prefsUi.pinned]);
   const stripIds = useMemo(() => [...HEADLINE_METRIC_IDS, ...pinned], [pinned]);
-  const readouts = useMemo(() => (data && adapted ? computeReadouts(data, stripIds, adapted.metrics) : []), [data, adapted, stripIds]);
+  const readouts = useMemo(() => (data && adapted ? computeReadouts(data, stripIds, adapted.metrics, undefined, adapted.bandInfo) : []), [data, adapted, stripIds]);
   const placeholders = useMemo(() => {
     const cat = displayCatalogue(units);
     return HEADLINE_METRIC_IDS.map((id) => cat.find((m) => m.id === id)!).filter(Boolean);
@@ -296,12 +287,7 @@ export function ResultsScreen(p: ResultsScreenProps) {
 
   // chrome --------------------------------------------------------------------------------------
   const chartStatus: ChartStatus = st.chart;
-  const statusText = runningText(st.phase, elapsed, sim.bands?.drawsDone, sim.bands?.drawsTotal);
-  const channels = data?.series.length ?? CHANNELS;
-  const runMeta =
-    sim.result && data
-      ? `last run ${(sim.result.meta.runtimeMs / 1000).toFixed(1)} s · ${data.time.days} days · ${channels} channels${sim.bands ? ` · ranges from ${sim.bands.drawsDone} of ${sim.bands.drawsTotal} draws` : ' · fixed ranges'}`
-      : null;
+  const statusText = runningText(st.phase, elapsed, sim.bands?.drawsDone, sim.bands?.drawsTotal) ?? (st.phase === 'stale' ? 'Out of date' : undefined);
 
   const toolbarSlot = (
     <>
@@ -322,22 +308,20 @@ export function ResultsScreen(p: ResultsScreenProps) {
 
   let chartArea: ReactNode;
   if (st.phase === 'never-run' || (st.phase === 'error' && !st.hasChart)) {
+    // one card: the fact and the one Run key (here, not at the head of the stage), low in the card for the thumb
     chartArea =
       st.phase === 'error' ? null : (
-        <EmptyStage
-          className="rs-empty"
-          title="Run your first projection."
-          action={<RunKey size="lg" onRun={p.onRun} caption={`${p.horizonDays} days`} disabledReason={p.runBlockedReason} />}
-          art={null}
-        >
-          Vitals will simulate {p.horizonDays} days across {CHANNELS} channels. It takes about a second.
-        </EmptyStage>
+        <Faceplate className="rs-start" aria-label="Projection">
+          <EmptyStage className="rs-empty" title="No projection yet" action={p.runAction}>
+            {horizonText(p.startDate, p.horizonDays)}
+          </EmptyStage>
+        </Faceplate>
       );
   } else if (st.phase === 'first-run' || !data) {
     chartArea = (
       <Faceplate variant="flush" className="rs-first">
         <ProgressRule label="Running" />
-        <EmptyStage className="rs-empty" title={`Running ${p.horizonDays} days · ${CHANNELS} channels`} art={null}>
+        <EmptyStage className="rs-empty" title={`Projecting ${p.horizonDays} days`}>
           {statusText ?? 'Running'}
         </EmptyStage>
       </Faceplate>
@@ -348,23 +332,17 @@ export function ResultsScreen(p: ResultsScreenProps) {
     chartArea = (
       <>
         {laneIds.length === 0 && view !== 'overlay' ? (
-          <Notice
-            severity="info"
+          // one fact, one action; the toolbar's Metrics key below picks channels one by one
+          <EmptyStage
             className="rs-nolanes"
-            title="No channels selected."
-            actions={
-              <>
-                <Key size="sm" onClick={() => setPickerOpen(true)}>
-                  Pick metrics
-                </Key>
-                <Key size="sm" variant="quiet" onClick={() => setLanes(scenarioId, null)}>
-                  Reset to default set
-                </Key>
-              </>
+            title="No channels selected"
+            titleAs="h3"
+            action={
+              <Key size="sm" variant="action" onClick={() => setLanes(scenarioId, null)}>
+                Reset to default set
+              </Key>
             }
-          >
-            The inputs and energy lanes stay; pick the outcomes you want to read.
-          </Notice>
+          />
         ) : null}
         {acknowledged ? <SimulationStrip className="rs-simstrip" /> : null}
         <ChartFrame
@@ -382,11 +360,12 @@ export function ResultsScreen(p: ResultsScreenProps) {
           sweepKey={sim.resultHash ?? undefined}
           textures={p.prefs.textures}
           energyUnit={p.prefs.energyUnit}
+          statusWords={statusWords}
           toolbarSlot={toolbarSlot}
           onExplain={openExplain}
           title={`${p.scenarioName}: projection channels${acknowledged ? '. Simulation — not a recommendation.' : ''}`}
           exportTitle={p.scenarioName}
-          exportSubtitle={`${dateRange(data.time)} · ${data.time.days} days · projections with likely ranges`}
+          exportSubtitle={`${dateRange(data.time)} · ${data.time.days} days · ranges are model sensitivity, not validated`}
           exportNote={acknowledged ? 'Simulation — not a recommendation.' : undefined}
           // the disclaimer is shown once, under the readout strip (DisclaimerLine); the frame's own copy would repeat it
           disclaimer={null}
@@ -400,11 +379,12 @@ export function ResultsScreen(p: ResultsScreenProps) {
     showChart && data ? (
       <FigureOverTime timeline={timeline} data={data} controller={controller} showFigure={p.prefs.showFigure} units={p.prefs.units} />
     ) : null;
-  const warningsPanel = (
+  // warnings come with a projection: nothing to show before the first result
+  const warningsPanel = sim.result ? (
     <div ref={warningsRef} className="rs-warnwrap">
-      <WarningsPanel groups={groups} startDate={data?.time.startDate} onShow={showWarning} remedyHref={remedyHref} pending={!sim.result} returnTo={returnTo} />
+      <WarningsPanel groups={groups} startDate={data?.time.startDate} onShow={showWarning} remedyHref={remedyHref} returnTo={returnTo} />
     </div>
-  );
+  ) : null;
 
   const massFactor = adapted?.metrics.get('fatMass')?.factor ?? 1;
   const massUnit = adapted?.metrics.get('fatMass')?.unit ?? 'kg';
@@ -425,40 +405,15 @@ export function ResultsScreen(p: ResultsScreenProps) {
   }, [adapted, showChart, view, overlayEff, laneIds]);
 
   return (
-    <div ref={rootRef} className="rs" data-phase={st.phase}>
-      <div className="rs-top">
-        <ReadoutRail
-          readouts={showChart ? readouts : []}
-          placeholders={showChart ? undefined : placeholders}
-          // the run is done: while the danger acknowledgement is pending "run to see the projection" would be wrong
-          placeholderCaption={gated ? 'shown after the acknowledgement below' : undefined}
-          pinnedIds={pinned}
-          onExplain={openExplain}
-          animate={!reduced}
-        />
-        <div className="rs-meta">
-          <DisclaimerLine bare className="rs-meta__disclaimer" />
-          <span className="rs-meta__right">
-            {showChart && pinnable.length ? <PinMetricMenu pinnable={pinnable} pinnedIds={pinned} onPin={(id) => togglePinned(scenarioId, id)} /> : null}
-            {runMeta ? <span className="rs-meta__run lm-num">{runMeta}</span> : null}
-          </span>
+    <div className="rs" data-phase={st.phase}>
+      {/* the head of the stage: the horizon the Run key projects, and the Run key (the empty card carries it instead) */}
+      {p.runAction && st.phase !== 'never-run' ? (
+        <div className="rs-runbar">
+          <span className="rs-runbar__fact lm-fact">{horizonText(p.startDate, p.horizonDays)}</span>
+          {p.runAction}
         </div>
-      </div>
-
-      {st.phase === 'stale' ? (
-        <Notice
-          severity="info"
-          className="rs-notice"
-          title="Schedule changed since this run."
-          actions={
-            <Key size="sm" onClick={p.onRun} disabledReason={p.runBlockedReason}>
-              Run again
-            </Key>
-          }
-        >
-          The curves below show the previous inputs.
-        </Notice>
       ) : null}
+      {/* a failed run: one line under the stage head (its Run key runs it again) */}
       {st.phase === 'error' ? (
         <Notice
           severity="danger"
@@ -466,24 +421,43 @@ export function ResultsScreen(p: ResultsScreenProps) {
           announce
           title="The simulation stopped."
           actions={
-            <>
-              <Key size="sm" onClick={p.onRun}>
-                Run again
-              </Key>
-              <Key
-                size="sm"
-                variant="quiet"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(`Vitals simulation error (${scenarioId}): ${sim.error ?? 'unknown'}`).then(() => toast('Details copied'), () => toast('Copy is blocked in this browser.'));
-                }}
-              >
-                Copy details
-              </Key>
-            </>
+            <Key
+              size="sm"
+              variant="text"
+              onClick={() => {
+                void navigator.clipboard?.writeText(`Vitals simulation error (${scenarioId}): ${sim.error ?? 'unknown'}`).then(() => toast('Details copied'), () => toast('Copy is blocked in this browser.'));
+              }}
+            >
+              Copy details
+            </Key>
           }
         >
-          {sim.error ? `${sim.error}. ` : ''}This is our bug, not your plan.{st.hasChart ? ' The last good projection stays below, dimmed.' : ''}
+          {sim.error ? `${sim.error}.` : ''}
+          {st.hasChart ? `${sim.error ? ' ' : ''}The last projection is dimmed below.` : ''}
         </Notice>
+      ) : null}
+
+      {showChart || gated ? (
+        <div className="rs-top">
+          <ReadoutRail
+            readouts={showChart ? readouts : []}
+            placeholders={showChart ? undefined : placeholders}
+            // the run is done: while the danger acknowledgement is pending the readouts wait for it
+            placeholderCaption="shown after the acknowledgement below"
+            pinnedIds={pinned}
+            onExplain={openExplain}
+            animate={!reduced}
+          />
+          {showChart ? (
+            <div className="rs-meta">
+              <DisclaimerLine bare className="rs-meta__disclaimer" />
+              <span className="rs-meta__right">
+                {pinnable.length ? <PinMetricMenu pinnable={pinnable} pinnedIds={pinned} onPin={(id) => togglePinned(scenarioId, id)} /> : null}
+                {p.aside}
+              </span>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {lg && figure && bandOpen ? (
@@ -494,7 +468,7 @@ export function ResultsScreen(p: ResultsScreenProps) {
         </div>
       ) : lg && figure ? (
         <div className="rs-bandbar">
-          <span className="lm-eng">figure over time · warnings</span>
+          <span className="rs-bandbar__label">Figure and warnings</span>
           {chip ? (
             <span className="rs-bandbar__sev">
               <StatusMark severity={chip.severity} size={16} />
@@ -571,6 +545,8 @@ export function ResultsScreen(p: ResultsScreenProps) {
         result={sim.result}
         compiled={compiled}
         prefs={units}
+        bandSource={adapted?.bandSource ?? null}
+        bandMeta={sim.bands?.bandMeta ?? null}
       />
     </div>
   );

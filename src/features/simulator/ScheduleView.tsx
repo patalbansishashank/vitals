@@ -1,13 +1,15 @@
 /**
- * The schedule tab (simulator-schedule.md): program tray | summary + raster (+ bar, preview) | day editor.
- * ≥ 1280 px three columns with the editor docked; 1024–1279 the editor is a right drawer; below 1024 the tray is a
- * rail above the raster, the editor a bottom sheet, and the action bar carries "painting with …" and the Run key.
+ * The schedule tab (simulator-schedule.md): summary + schedule card (program rows, bar, raster, preview) | day editor.
+ * From 1024 px the day editor overlays the full-width schedule as a side panel; below 1024 it is a bottom sheet. The
+ * program rows head the card (flat rows, never a card in the card) and are the only program picker: a row's Paint key
+ * picks it to paint with, a tap on the row opens its sheet (edit all its days, duplicate, delete). The Run key ends the
+ * page's horizon row above (SimulatePage), and the bar's week and selection actions go to the header's ⋯ (`onMenu`),
+ * the screen's only ⋯.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { ChevronUp, X } from 'lucide-react';
-import { ActionBar } from '@/app/shell';
-import { Faceplate, IconKey, Key, MQ, ResponsivePanel, Sheet, toast, useMediaQuery } from '@/components';
+import type { MenuEntry } from '@/app/shell';
+import { Faceplate, MQ, ResponsivePanel, toast, useMediaQuery } from '@/components';
 import type { PersonProfile } from '@/engine';
 import { useScheduleStore, type Scenario } from '@/state/scheduleStore';
 import { DayEditor, type EditorTarget } from './components/DayEditor';
@@ -30,11 +32,11 @@ import { editSchedule, redoSchedule, sealSchedule, undoSchedule } from './comman
 export interface ScheduleViewProps {
   scenario: Scenario;
   profile: PersonProfile;
-  /** The mobile action bar's Run key (rendered by the page). */
-  runKey: ReactNode;
+  /** The schedule tools' week and selection actions, for the page's header ⋯ (memoised by the tools). */
+  onMenu?: (entries: MenuEntry[]) => void;
 }
 
-export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
+export function ScheduleView({ scenario, profile, onMenu }: ScheduleViewProps) {
   const sid = scenario.id;
   const schedule = scenario.schedule;
   const resolved = useResolvedProfile(profile);
@@ -42,7 +44,6 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
   const st = useScheduleStore.getState;
   const n = schedule.horizonDays;
   const lg = useMediaQuery(MQ.lg);
-  const xl = useMediaQuery(MQ.xl);
   const [params, setParams] = useSearchParams();
 
   const [armed, setArmedRaw] = useState<number | null>(null);
@@ -53,18 +54,14 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const [scope, setScope] = useState<EditScope>('day');
   const [deleting, setDeleting] = useState<number | null>(null);
-  const [programSheet, setProgramSheet] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // the program whose sheet opened the editor ("Edit all A days"): closing the editor goes back to that row
+  const editorFrom = useRef<string | null>(null);
 
-  // the weekday header sticks under the (wrapping) context bar on mobile: measure it
+  // nothing to add to the header's ⋯ while the scenario is still empty (the tools are not on screen)
   useEffect(() => {
-    const slot = document.querySelector<HTMLElement>('.lm-ctx-slot');
-    const root = rootRef.current;
-    if (!slot || !root || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => root.style.setProperty('--sim-ctx-h', `${slot.offsetHeight}px`));
-    ro.observe(slot);
-    return () => ro.disconnect();
-  }, [scenario.started]);
+    if (!scenario.started) onMenu?.([]);
+  }, [scenario.started, onMenu]);
 
   // clamp to the current horizon / program list (horizon or programs may shrink)
   const focusDay = Math.min(focusRaw, n - 1);
@@ -84,7 +81,22 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
     setSelection(new Set(days));
     setAnchor(a);
   };
+  // Back to a program's row once an overlay opened from its sheet lets go. The sheet is gone by then, so the overlay's
+  // own focus return has nothing to go back to; a closing modal keeps the page inert through its exit, so retry each
+  // frame for a short while (as the shared focus return does).
+  const focusProgram = (id: string | undefined) => {
+    if (!id) return;
+    let tries = 0;
+    const attempt = () => {
+      const row = rootRef.current?.querySelector<HTMLElement>(`.sim-pkey[data-program="${id}"] .sim-pkey__cap`);
+      if (!row) return;
+      row.focus({ preventScroll: true });
+      if (document.activeElement !== row && ++tries < 40) window.requestAnimationFrame(attempt);
+    };
+    window.requestAnimationFrame(attempt);
+  };
   const openDay = (d: number) => {
+    editorFrom.current = null;
     setTarget({ day: d, program: schedule.days[d]?.program ?? 0 });
     setScope('day');
     setFocusDay(d);
@@ -237,20 +249,12 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
     return (
       <div className="sim-sched sim-sched--empty">
         <StarterPicker onPick={(id) => void sendCommand('scenario.applyStarter', { id: sid, starter: id })} />
-        <ActionBar>
-          <div className="sim-ab__text">
-            <span className="lm-eng">no days painted</span>
-            <b>Pick a starter</b>
-          </div>
-          {runKey}
-        </ActionBar>
       </div>
     );
   }
 
-  const armedProg = armedIdx !== null ? schedule.programs[armedIdx] : null;
   const editorDay = tgt.day;
-  const panelOpen = xl || editorOpen;
+  const panelOpen = editorOpen;
   const panelTitle =
     editorDay !== null
       ? formatDayShort(model.cells[editorDay]!.iso)
@@ -265,6 +269,7 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
       armed={armedIdx}
       onArm={(i) => setArmed(i)}
       onEdit={(i) => {
+        editorFrom.current = schedule.programs[i]?.id ?? null;
         const first = schedule.days.findIndex((d) => d.program === i);
         setTarget(first >= 0 ? { day: first, program: i } : { day: null, program: i });
         setScope('all');
@@ -276,7 +281,7 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
         if (idx >= 0) {
           setArmed(idx);
           const letter = st().scenarios.find((x) => x.id === sid)?.schedule.programs[idx]?.id ?? '';
-          toast(`Program ${letter} added and armed · drag across days to paint it`);
+          toast(`Program ${letter} added`);
         }
       }}
       onDuplicate={(i) => {
@@ -289,7 +294,7 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
   );
 
   return (
-    <div ref={rootRef} className="sim-sched" data-editor={xl ? 'docked' : undefined}>
+    <div ref={rootRef} className="sim-sched">
       <div className="sim-sched__main">
         <SummaryStrip model={model} focusDay={focusDay} />
         <Faceplate variant="flush" className="sim-rasterface" aria-label="Schedule">
@@ -303,6 +308,7 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
             onSelect={select}
             onPaintSelection={paintSelection}
             onClearSelection={clearSelection}
+            onMenu={onMenu}
           />
           {model.grid.rows >= SCRUBBER_MIN_WEEKS ? (
             <WeekScrubber
@@ -371,9 +377,12 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
       </div>
       <ResponsivePanel
         open={panelOpen}
-        onClose={() => setEditorOpen(false)}
+        onClose={() => {
+          setEditorOpen(false);
+          focusProgram(editorFrom.current ?? undefined);
+          editorFrom.current = null;
+        }}
         title={panelTitle}
-        dockAtXl
         detents={['half', 'full']}
         defaultDetent="half"
         className="sim-sched__editor"
@@ -396,85 +405,21 @@ export function ScheduleView({ scenario, profile, runKey }: ScheduleViewProps) {
         programs={schedule.programs}
         index={deleting}
         usage={model.usage}
-        onCancel={() => setDeleting(null)}
+        onCancel={() => {
+          focusProgram(deleting !== null ? schedule.programs[deleting]?.id : undefined);
+          setDeleting(null);
+        }}
         onDelete={(i, r) => {
+          // focus goes to the program that takes its days (letters stay; the indices above it shift down)
+          const next = schedule.programs[r]?.id;
           editSchedule(sid, [{ op: 'deleteProgram', index: i, replaceWith: r }]);
           setDeleting(null);
           if (armedIdx === i) setArmed(null);
+          else if (armedIdx !== null && armedIdx > i) setArmed(armedIdx - 1);
+          focusProgram(next);
           toast(`Program deleted`, { action: { label: 'Undo', onClick: () => undoSchedule(sid) } });
         }}
       />
-      {!lg ? (
-        <>
-          <ActionBar>
-            {sel.size > 1 ? (
-              <div className="sim-ab__bulk">
-                <span className="sim-ab__count">{sel.size} days</span>
-                {armedProg ? (
-                  <Key size="sm" onClick={paintSelection}>
-                    Paint {armedProg.id}
-                  </Key>
-                ) : null}
-                <Key size="sm" variant="quiet" onClick={clearSelection}>
-                  Clear
-                </Key>
-                <IconKey size="sm" icon={X} label="Deselect" onClick={() => select([focusDay], focusDay)} />
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="sim-ab__text sim-ab__arm"
-                onClick={() => setProgramSheet(true)}
-                aria-haspopup="dialog"
-              >
-                <span className="lm-eng">
-                  {armedProg ? 'painting with · tap days' : 'nothing armed · tap opens a day'}
-                </span>
-                <b>
-                  {armedProg ? `${armedProg.id} · ${armedProg.label}` : 'Pick a program'}
-                  <ChevronUp size={14} aria-hidden="true" />
-                </b>
-              </button>
-            )}
-            {runKey}
-          </ActionBar>
-          <Sheet
-            open={programSheet}
-            onClose={() => setProgramSheet(false)}
-            title="Paint with"
-            detents={['peek', 'half']}
-            defaultDetent="peek"
-          >
-            <ProgramTray
-              programs={schedule.programs}
-              resolved={resolved}
-              maintKcal={model.programMaintKcal}
-              usage={model.usage}
-              armed={armedIdx}
-              onArm={(i) => {
-                setArmed(i);
-                setProgramSheet(false);
-              }}
-              onEdit={(i) => {
-                setProgramSheet(false);
-                setTarget({ day: null, program: i });
-                setScope('all');
-                setEditorOpen(true);
-              }}
-              onAdd={(preset) => {
-                const idx = editSchedule(sid, [{ op: 'addProgram', preset }])?.programIndex ?? -1;
-                if (idx >= 0) setArmed(idx);
-              }}
-              onDuplicate={(i) => void editSchedule(sid, [{ op: 'duplicateProgram', index: i }])}
-              onDelete={(i) => {
-                setProgramSheet(false);
-                setDeleting(i);
-              }}
-              className="sim-tray--sheet"
-            />
-          </Sheet>
-        </>
-      ) : null}
     </div>
   );
 }

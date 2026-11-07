@@ -195,7 +195,9 @@ describe('companion /health and static app', () => {
     const res = await call('GET', '/health');
     expect(res.status).toBe(200);
     const body = JSON.parse(res.body.toString()) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['mqtt', 'ownerCount', 'persons', 'role', 'roles', 'version']);
+    expect(Object.keys(body).sort()).toEqual(['eventLoop', 'ownerCount', 'persons', 'role', 'roles', 'version']);
+    // the loop's recent delay (r063): numbers only, nothing about any person
+    expect(Object.keys(body.eventLoop as object).sort()).toEqual(['maxMs', 'meanMs', 'p99Ms', 'windowS']);
     expect(body.version).toBe(PKG_VERSION);
     expect(body.roles).toEqual(['relay', 'app']);
     expect(body.ownerCount).toBeGreaterThanOrEqual(1);

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="short_video_service_label">Vitals short-video counter</string>
+    <string name="short_video_service_summary">Counts the Reels and Shorts you watch each day and shows the brain while you scroll.</string>
+    <string name="short_video_service_description">Vitals counts how many Instagram Reels and YouTube Shorts you watch each day. It only looks at Instagram and YouTube, and only at the names of the screen elements (for example the Reels or Shorts player) to tell when you are on a short-video screen and when you move to the next video. To avoid counting a video twice it may compare the creator name shown on screen, in memory only; it never stores, logs or sends anything you see or type. It stores one number per app per day on this phone and sends only those daily numbers to your own home server. When your daily limit is reached it shows a countdown and then goes to the home screen, unless you press Cancel. You can turn it off here, or change the limit in Vitals.</string>
+    <string name="short_video_channel_name">Short-video counter</string>
+    <string name="short_video_channel_description">Today\'s Reels and Shorts count while you watch them.</string>
+    <string name="short_video_live_title">%1$d short videos today</string>
+    <string name="short_video_live_text">Instagram %1$d · YouTube %2$d · limit %3$d</string>
+</resources>

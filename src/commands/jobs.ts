@@ -4,6 +4,7 @@
  * a `derive` scope (they are results, not user edits).
  */
 import { ulid, type Id } from '@/store';
+import { assertCurrentWrite } from '@/state/writeBarrier';
 import { createScope, runInScope } from '@/state/scope';
 import type { CommandError, JobHandle, JobRef, JobRunner, JobStatus } from './types';
 
@@ -58,7 +59,7 @@ export function createJobRunner(onStatus?: Listener): JobRunner {
           entry.status = { ...entry.status, progress: Math.max(0, Math.min(1, p)), ...(stage ? { stage } : {}), ...(partial !== undefined ? { partial } : {}) };
           publish(entry);
         },
-        write: (fn) => runInScope(scope, fn),
+        write: (fn) => { assertCurrentWrite(scope.generation); return runInScope(scope, fn); },
       };
       publish(entry);
       void Promise.resolve()

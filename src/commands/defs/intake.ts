@@ -10,12 +10,14 @@ import { T, Value } from '../schema';
 import { INTAKE_SECTION_SCHEMAS } from '../schema/intake';
 import type { CommandContext } from '../types';
 import { ALL, UNDO, stub } from './_shared';
+import { ACTIVE_BASES, EXPOSURE_IDS, SUPPLEMENT_SCHEDULE_KINDS } from '@/lib/bodyContracts';
+import type { ActivityIntake } from '@/engine/types/profile';
 
-const SECTIONS = ['activity', 'training', 'diet', 'kitchen', 'supplements', 'markers', 'devices'] as const;
+const SECTIONS = ['activity', 'training', 'diet', 'kitchen', 'supplements', 'markers'] as const;
 type Section = (typeof SECTIONS)[number];
 
 const IntakeView = T.Object({
-  sections: T.OpenObject({ description: 'Answered sections (activity, training, diet, kitchen, supplements, markers, devices).' }),
+  sections: T.OpenObject({ description: 'Answered sections (activity, training, diet, kitchen, supplements, markers).' }),
   answeredAt: T.Record(T.String()),
   skipped: T.Array(T.String()),
   missing: T.Array(T.String()),
@@ -46,6 +48,44 @@ function view(body: IntakeBody, section?: Section) {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/*
+ * D7-04 (2026-10-18 contracts, C3): a supplement row may carry the exact product's label serving with normalised actives
+ * and a recurrence schedule. The section schema itself is open (owned by the intake package), so these optional shapes are
+ * checked here: identities are exposure ids, amounts finite and non-negative, and an unknown potency (null amount) stays a
+ * valid row (its safety check is unchecked, never passed).
+ */
+const SupplementProductSchema = T.Object({
+  servingAmount: T.Nullable(T.Number({ exclusiveMinimum: 0 })),
+  servingUnit: T.String({ minLength: 1, maxLength: 24 }),
+  actives: T.Array(
+    T.Object({ ingredient: T.Enum(EXPOSURE_IDS), amount: T.Nullable(T.Number({ minimum: 0 })), unit: T.String({ minLength: 1, maxLength: 16 }), basis: T.Enum(ACTIVE_BASES) }),
+    { maxItems: 24 },
+  ),
+  labelText: T.Optional(T.String({ maxLength: 500 })),
+  source: T.Optional(T.String({ maxLength: 64 })),
+});
+const SupplementScheduleSchema = T.Object({
+  kind: T.Enum(SUPPLEMENT_SCHEDULE_KINDS),
+  daysOfWeek: T.Optional(T.Array(T.Integer({ minimum: 0, maximum: 6 }), { maxItems: 7 })),
+  dates: T.Optional(T.Array(T.Date(), { maxItems: 366 })),
+  from: T.Optional(T.Date()),
+  to: T.Optional(T.Date()),
+  timesOfDay: T.Optional(T.Array(T.String({ maxLength: 16 }), { maxItems: 8 })),
+  servingsPerOccasion: T.Optional(T.Number({ exclusiveMinimum: 0, maximum: 100 })),
+});
+
+/** D7-04: problems with the optional `product`/`schedule` of each supplements row (paths relative to the section). */
+export function supplementRowContractErrors(section: unknown): Array<{ path: string; message: string }> {
+  const out: Array<{ path: string; message: string }> = [];
+  const rows = isObj(section) && Array.isArray(section.rows) ? section.rows : [];
+  rows.forEach((row, i) => {
+    if (!isObj(row)) return;
+    if (row.product !== undefined) for (const e of Value.Errors(SupplementProductSchema, row.product, 3)) out.push({ path: `/rows/${i}/product${e.path}`, message: e.message });
+    if (row.schedule !== undefined) for (const e of Value.Errors(SupplementScheduleSchema, row.schedule, 3)) out.push({ path: `/rows/${i}/schedule${e.path}`, message: e.message });
+  });
+  return out;
+}
 function merge(base: unknown, patch: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = isObj(base) ? { ...base } : {};
   for (const [k, v] of Object.entries(patch)) {
@@ -59,7 +99,7 @@ export const intakeGet = defineCommand({
   id: 'intake.get',
   version: 1,
   title: 'Read the intake',
-  description: 'The intake answers by section (activity, training, diet, kitchen, supplements, markers, devices), when each was answered, which were skipped and which are still missing.',
+  description: 'The intake answers by section (activity, training, diet, kitchen, supplements, markers), when each was answered, which were skipped and which are still missing.',
   input: T.Object({ section: T.Optional(T.Enum(SECTIONS)) }),
   output: IntakeView,
   perm: 'read',
@@ -92,6 +132,18 @@ export const intakeAnswer = defineCommand({
     const section = merge(body[input.section], input.answers);
     const errors = Value.Errors(INTAKE_SECTION_SCHEMAS[input.section], section, 3);
     if (errors.length) fail('invalid_input', `The ${input.section} answers are not valid: ${errors.map((e) => `${e.path || '/'} ${e.message}`).join('; ')}`, { path: `/answers${errors[0]!.path}` });
+    const rowErrors = input.section === 'supplements' ? supplementRowContractErrors(section) : [];
+    if (rowErrors.length) fail('invalid_input', `The supplements answers are not valid: ${rowErrors.map((e) => `${e.path} ${e.message}`).join('; ')}`, { path: `/answers${rowErrors[0]!.path}` });
+    if (input.section === 'activity') {
+      const { bodyValues } = await import('@/state/internal/profile');
+      const { HabitualCardioSourceError, projectHabitualCardioActivity } = await import('@/engine/core/resolveProfile');
+      try { projectHabitualCardioActivity(section as ActivityIntake, bodyValues().habits.habitualCardio); }
+      catch (error) {
+        if (error instanceof HabitualCardioSourceError)
+          fail('invalid_input', error.message, { path: '/answers/recreation' });
+        throw error;
+      }
+    }
     const next: IntakeBody = {
       ...body,
       [input.section]: section,

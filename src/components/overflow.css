@@ -1,0 +1,68 @@
+@layer components {
+  .lm-overflow {
+    display: inline-block;
+    inline-size: max-content;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+  .lm-overflow__track {
+    --lm-overflow-gap: 24px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--lm-overflow-gap);
+    inline-size: max-content;
+  }
+  .lm-overflow__item {
+    flex: none;
+  }
+  .lm-overflow[data-overflow] .lm-overflow__track {
+    animation: lm-overflow-travel var(--lm-overflow-duration) linear infinite;
+  }
+  .lm-overflow[data-visible='false'] .lm-overflow__track,
+  .lm-overflow:hover .lm-overflow__track,
+  .lm-overflow:focus .lm-overflow__track,
+  .lm-overflow:focus-within .lm-overflow__track {
+    animation-play-state: paused;
+  }
+  :where(a, button, [role='button'], [role='link'], [tabindex]:not([tabindex='-1'])):focus .lm-overflow__track {
+    animation-play-state: paused;
+  }
+  .lm-overflow:focus {
+    overflow-x: auto;
+  }
+  .lm-overflow:focus .lm-overflow__track {
+    animation: none;
+  }
+  .lm-overflow:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  @keyframes lm-overflow-travel {
+    to { transform: translateX(calc(-50% - var(--lm-overflow-gap) / 2)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion='full']) .lm-overflow[data-overflow] {
+      overflow-x: auto;
+      scrollbar-width: thin;
+    }
+    :root:not([data-motion='full']) .lm-overflow[data-overflow] .lm-overflow__track {
+      animation: none;
+    }
+    :root:not([data-motion='full']) .lm-overflow__copy {
+      display: none;
+    }
+  }
+  :root[data-motion='reduce'] .lm-overflow[data-overflow] {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+  :root[data-motion='reduce'] .lm-overflow[data-overflow] .lm-overflow__track {
+    animation: none;
+  }
+  :root[data-motion='reduce'] .lm-overflow__copy {
+    display: none;
+  }
+}

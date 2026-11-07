@@ -1,15 +1,20 @@
 /** `profile.*` (SUITE_SPEC §1.9). */
 import {
   ETHNICITIES,
+  GIRTH_LANDMARKS,
+  GROWTH_STATE_SOURCES,
+  GROWTH_STATES,
   HABIT_NUMBERS,
   LAB_KEYS,
   QUALITIES,
   SEXES,
   SOURCES,
   STEPS,
+  STEPS_SCOPES,
 } from '@/state/internal/profileModel';
 import { applyProfilePatch, patchFields, profileEstimate, profileView, resetShape, setSetupStep } from '@/state/internal/profile';
-import { defineCommand } from '../registry';
+import { defineCommand, fail } from '../registry';
+import { HabitualCardioSourceError } from '@/engine/core/resolveProfile';
 import { T, type TSchema } from '../schema';
 import { ActivitySectionSchema } from '../schema/intake';
 import { ALL, SCREEN, UI_ONLY, UNDO } from './_shared';
@@ -19,6 +24,16 @@ const fromKeys = (keys: readonly string[], s: TSchema) => Object.fromEntries(key
 
 const Habits = T.Object({
   ...fromKeys(HABIT_NUMBERS, T.Number()),
+  habitualSleepDurationH: T.Optional(T.Nullable(T.Number({ minimum: 0, maximum: 24 }))),
+  habitualSleepDurationSource: T.Optional(T.Nullable(T.Enum(['deviceSummary', 'userReport']))),
+  habitualCardio: T.Optional(T.Nullable(T.Object({
+    modality: T.Literal('cycle'),
+    sessionsPerWeek: T.Number({ minimum: 1, maximum: 7 }),
+    minutesPerSession: T.Number({ minimum: 1, maximum: 180 }),
+    weekdays: T.Array(T.Number({ minimum: 0, maximum: 6 })),
+    source: T.Literal('userReport'),
+    recreationSourceId: T.Optional(T.String({ minLength: 1 })),
+  }))),
   sleepQuality: T.Optional(T.Nullable(T.Enum(['poor', 'fair', 'good']))),
   stress: T.Optional(T.Nullable(T.Enum(['low', 'moderate', 'high']))),
   dietAnimalLevel: T.Optional(T.Nullable(T.Enum(['omnivore', 'pescatarian', 'vegetarian', 'vegan']))),
@@ -26,7 +41,15 @@ const Habits = T.Object({
   multivitamin: T.Optional(T.Nullable(T.Boolean())),
   smoker: T.Optional(T.Nullable(T.Boolean())),
   activity: T.Optional(T.Nullable(T.As<Record<string, unknown>>(ActivitySectionSchema))),
+  // 2026-10-18 contracts: what the step number counts (D3-07) and the training growth state with its source (D3-05)
+  stepsScope: T.Optional(T.Nullable(T.Enum(STEPS_SCOPES))),
+  trainingGrowthState: T.Optional(T.Nullable(T.Enum(GROWTH_STATES))),
+  trainingGrowthStateSource: T.Optional(T.Nullable(T.Enum(GROWTH_STATE_SOURCES))),
 });
+
+/** Measurement provenance (D1-03, C4): optional; null clears a field. Dates are ISO dates or instants. */
+const NullText = T.Optional(T.Nullable(T.String({ minLength: 1, maxLength: 64 })));
+const MeasuredOn = T.Optional(T.Nullable(T.String({ minLength: 10, maxLength: 32, description: 'ISO date or instant the measurement was taken.' })));
 
 /** `ProfilePatch` = JSON merge patch of the profile document (null clears) + `asStartingPoint`. */
 export const ProfilePatch = T.Object(
@@ -46,8 +69,36 @@ export const ProfilePatch = T.Object(
         T.Object({ bodyFatPct: NullNum, belly: NullNum, hips: NullNum, chest: NullNum, arms: NullNum, muscleUpper: NullNum, muscleLower: NullNum }),
       ),
     ),
-    waist: T.Optional(T.Nullable(T.Object({ use: T.Optional(T.Boolean()), cm: NullNum, neckCm: NullNum, hipCm: NullNum }))),
-    knownBodyFat: T.Optional(T.Nullable(T.Object({ use: T.Optional(T.Boolean()), pct: NullNum, source: T.Optional(T.Enum(SOURCES)) }))),
+    waist: T.Optional(
+      T.Nullable(
+        T.Object({
+          use: T.Optional(T.Boolean()),
+          cm: NullNum,
+          neckCm: NullNum,
+          hipCm: NullNum,
+          observationId: NullText,
+          measuredOn: MeasuredOn,
+          landmark: T.Optional(T.Nullable(T.Enum(GIRTH_LANDMARKS))),
+          protocol: NullText,
+        }),
+      ),
+    ),
+    knownBodyFat: T.Optional(
+      T.Nullable(
+        T.Object({
+          use: T.Optional(T.Boolean()),
+          pct: NullNum,
+          source: T.Optional(T.Enum(SOURCES)),
+          observationId: NullText,
+          measuredOn: MeasuredOn,
+          device: NullText,
+          protocol: NullText,
+          parentIds: T.Optional(T.Nullable(T.Array(T.String({ minLength: 1, maxLength: 64 }), { maxItems: 16 }))),
+          scanMassKg: NullNum,
+          scanFatMassKg: NullNum,
+        }),
+      ),
+    ),
     training: T.Optional(T.Nullable(T.Object({ years: NullNum, quality: T.Optional(T.Nullable(T.Enum(QUALITIES))) }))),
     habits: T.Optional(T.Nullable(Habits)),
     cycle: T.Optional(
@@ -175,7 +226,12 @@ export const profilePatch = defineCommand({
   preconditions: ['noWeightEditDuringPlan'],
   coalesce: (input, actor) => (actor.kind === 'user' ? `profile.patch:${patchFields(input as never).join(',')}` : undefined),
   execute: (_ctx, input) => {
-    applyProfilePatch(input as never);
+    try { applyProfilePatch(input as never); }
+    catch (error) {
+      if (error instanceof HabitualCardioSourceError)
+        fail('invalid_input', error.message, { path: '/habits/habitualCardio/recreationSourceId' });
+      throw error;
+    }
     return profileView();
   },
 });

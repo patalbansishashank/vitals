@@ -247,3 +247,26 @@ describe('BWP port: input validation', () => {
     expect(Math.abs(a.bwKg[300]! - b.bwKg[300]!)).toBeLessThan(1e-9);
   });
 });
+
+describe('BWP port: imposed activity fall (D1-08 matched-input replay)', () => {
+  it('deltaScale ≡ 1 reproduces the default trajectory exactly; a falling δ at constant intake lowers expenditure and loses less weight', () => {
+    const kcal = Array.from({ length: 120 }, () => 1600);
+    const a = simulateBwpKcal(man100, kcal);
+    const b = simulateBwpKcal(man100, kcal, { deltaScale: () => 1 });
+    expect(Array.from(b.bwKg)).toEqual(Array.from(a.bwKg));
+    const c = simulateBwpKcal(man100, kcal, { deltaScale: (t) => 1 - 0.5 * Math.min(1, t / 120) });
+    expect(c.eeMj[60]!).toBeLessThan(a.eeMj[60]!);
+    expect(c.bwKg[120]!).toBeGreaterThan(a.bwKg[120]!);
+  });
+
+  it('the activity term scales δ·BW only: at t = 0 the expenditure difference equals (1 − s)·δ·BW / (1 + s_dep)', () => {
+    const init = initBwp(man100);
+    const x = [init.f0, init.l0, init.g0, init.ecf0, 0];
+    const o1 = new Float64Array(5);
+    const o2 = new Float64Array(5);
+    const ee1 = bwpDerivatives(init, x, init.ei0Mj, o1, 1);
+    const ee2 = bwpDerivatives(init, x, init.ei0Mj, o2, 0.6);
+    expect(ee1 - ee2).toBeGreaterThan(0);
+    expect(ee1 - ee2).toBeLessThan(0.4 * init.delta * bwpWeight(x) + 1e-12);
+  });
+});

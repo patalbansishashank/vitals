@@ -1,7 +1,7 @@
 /**
  * AI usage ledger (R8 §3.5, settings-sync-ai.md §5.6): token totals and estimated cost per day, provider and model.
  * The Coach runtime appends one `UsageLedgerRow` per request (`recordAiUsage`, passing the preset's price for the
- * model when the server reported no cost); `ai.usage` and Settings › AI provider read the summaries. Rows are folded
+ * model when the server reported no cost); `ai.usage` and Settings › Coach read the summaries. Rows are folded
  * into daily buckets, one `aiUsage` document per day × preset × model (device-local, never exported or synced; 400
  * days kept). Costs are estimates; the provider's bill is the truth.
  */

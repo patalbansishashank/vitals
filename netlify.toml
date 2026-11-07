@@ -3,7 +3,7 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "22"
+  NODE_VERSION = "26.12.1"
 
 [[redirects]]
   from = "/*"
@@ -34,9 +34,9 @@
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
     # Merge of SUITE_SPEC §9.1 and E11: camera=(self) for scanning a pairing QR code in Settings › Sync (the page's own
-    # origin only, never an embedded frame); bluetooth=(self) for Web Bluetooth rings (src/biometrics/ble/webBluetooth.ts).
+    # origin only, never an embedded frame); no Bluetooth (Vitals reads no devices).
     # Microphone and location stay off: voice uses OS dictation and nothing reads position.
-    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), bluetooth=(self)"
+    Permissions-Policy = "camera=(self), microphone=(), geolocation=(), bluetooth=()"
     # 'wasm-unsafe-eval': Evolu's SQLite-WASM (it does not allow JS eval). connect-src: R7 option B, any https/wss origin
     # for the user-chosen sync relay (+ loopback); the compensating control is the allowlist in src/net/net.ts.
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"

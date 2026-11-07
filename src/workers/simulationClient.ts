@@ -22,7 +22,10 @@ export interface PreviewSeries {
 export interface SimulationClient {
   /** Nominal run (parameter draw −1), recorded in full for the Simulator. */
   runNominal(profile: PersonProfile, schedule: Schedule, options?: RunOptions): Promise<SimulationResult>;
-  /** One chunk of ensemble draws (daily series only). */
+  /**
+   * One chunk of ensemble draws (daily band inputs only, D8-02): raw daily values, change-from-baseline series as each
+   * member's change from its own t = 0 value. The nominal run is never a member; the bands are parameter-sensitivity ranges.
+   */
   runDraws(profile: PersonProfile, schedule: Schedule, spec: DrawChunkSpec): Promise<DrawSeries[]>;
   /** Coarse nominal preview for the painter (fat mass + ketosis, daily). */
   preview(profile: PersonProfile, schedule: Schedule): Promise<PreviewSeries>;

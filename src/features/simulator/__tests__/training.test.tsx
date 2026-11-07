@@ -232,15 +232,23 @@ describe('labels: calendar, program keys, summary and day editor', () => {
         onDelete={vi.fn()}
       />,
     );
-    const key = screen.getByRole('radio', { name: /^Program A/ });
+    const key = screen.getByRole('button', { name: /^Program A/ });
     expect(key).toHaveAccessibleName(expect.stringContaining('training as usual (from Your body: 3 sessions/week · 3 lifting)'));
-    expect(within(key).getByText('as usual')).toBeInTheDocument();
+    // the tile reads letter, name, "% · kcal" and the eating window; the training source lives in the name only
+    expect(within(key).getByText('12 h eating')).toBeInTheDocument();
+    expect(key.textContent).not.toMatch(/as usual|P\d|maint\./);
     expect(trainingSourceText('habitual', m.habitual)).toBe('as usual (from Your body: 3 sessions/week · 3 lifting)');
 
     const { container, rerender } = render(<SummaryStrip model={m} focusDay={0} />);
     const src = container.querySelector('.sim-summary__src')!;
     expect(src).toHaveAttribute('data-source', 'habitual');
     expect(src.textContent).toBe('as usual · from Your body: 3 sessions/week · 3 lifting');
+    // spoken only: on screen every metric is its label, its value and at most one fact line
+    expect(src).toHaveClass('lm-sr');
+    for (const item of container.querySelectorAll('.sim-summary__item')) {
+      expect(item.querySelectorAll('.sim-summary__sub').length).toBeLessThanOrEqual(1);
+    }
+    expect(container.textContent).not.toMatch(/of maintenance|kcal below|steps\/d|h eating/);
     expect(container.textContent).toMatch(/kcal\/d/);
     act(() => useSettingsStore.getState().set({ energyUnit: 'kJ' }));
     rerender(<SummaryStrip model={m} focusDay={0} />);
@@ -261,6 +269,9 @@ describe('labels: calendar, program keys, summary and day editor', () => {
     const sid = S().scenarios[0]!.id;
     const m = buildScheduleModel(S().scenarios[0]!.schedule, RPL);
     render(<DayEditor sid={sid} model={m} target={{ day: null, program: 0 }} scope="all" onScope={vi.fn()} onNavigate={vi.fn()} />);
+    // (r068 final M11) Exercise starts closed: open it
+    const toggle = screen.getByRole('button', { name: /^Exercise/ });
+    if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle);
     const bank = screen.getByRole('radiogroup', { name: 'Training' });
     expect(within(bank).getByRole('radio', { name: 'as usual' })).toBeChecked();
     expect(screen.getByText('from Your body: 3 sessions/week · 3 lifting')).toBeInTheDocument();

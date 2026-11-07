@@ -1,0 +1,31 @@
+{
+ "selector": "review-policy-v1-smoke",
+ "algo": "hybrid",
+ "refKey": "1.3.0-policy-137eb920-dc66fb69",
+ "policy": {
+  "version": 2,
+  "fingerprint": "pol2-d085395b"
+ },
+ "problems": {
+  "T1/train/sphere-10": {
+   "lexSuccess": 1,
+   "r1": 1.0550819477354405e-13
+  },
+  "T2/train/k2-s4": {
+   "lexSuccess": 1,
+   "r1": 0.0003188702177176668
+  },
+  "T3/train/s50": {
+   "lexSuccess": 0,
+   "r1": 0.07780401532166907
+  },
+  "T4/train/convex-5": {
+   "lexSuccess": 1,
+   "r1": 5.360110138334188e-7
+  },
+  "R1/smoke-c": {
+   "lexSuccess": 0.3333333333333333,
+   "r1": 0.067546925132887
+  }
+ }
+}

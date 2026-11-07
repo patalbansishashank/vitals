@@ -1,13 +1,15 @@
 /**
  * Chapter 1 · A normal day (`activity`): the questions of a normal week (+ children), then the maintenance result and the two measured-energy
  * questions → `ActivityIntake` (engine `habits.activity`) and
- * the v0.1 habit fields the same answers already had a home for (current training, sleep, a rough step number).
+ * the v0.1 habit fields the same answers already had a home for (current training, sleep, a rough step number), plus two
+ * optional context answers: what the step number counts (D3-07) and how training is going lately (D3-05).
  * Answer → stored value follows the design's mapping table (ride = passive commute, watch or ring = wrist, hard =
  * vigorous). Skipped answers are left out so the engine applies its own defaults (an all-skipped day is the population
  * mixture, with the widest band).
  */
 import { formatNumber } from '@/components/lib/format';
-import type { ActivityDriverId, ActivityIntake, CommuteMode, HabitProfile, OffDayPattern, OnFeetAtHome, RecreationEntry, RecreationIntensity, WorkClass } from '@/engine/types/profile';
+import type { ActivityDriverId, ActivityIntake, CommuteMode, HabitProfile, OffDayPattern, OnFeetAtHome, RecreationEntry, RecreationIntensity, TrainingGrowthState, WorkClass } from '@/engine/types/profile';
+import type { StepsScope } from '@/engine/types/schedule';
 import { A } from '../copy';
 import { usedValues, type FlowContext, type Question } from '../flow';
 import type { ChapterAnswers, MeasuredEnergy, MeasuredMethod } from '../types';
@@ -18,6 +20,10 @@ export type CommuteAnswer = 'ride' | 'walk' | 'cycle' | 'home';
 export type StepsKnown = 'wrist' | 'phone' | 'roughly' | 'no';
 export type TrainNow = 'none' | '1-2' | '3-4' | '5+';
 export type TrainMix = 'lifting' | 'mixed' | 'cardio';
+/** D3-07: what the step number counts (unknown stays unknown, never assumed either way). */
+export type StepsScopeAnswer = StepsScope;
+/** D3-05: how training has been going lately (unknown keeps competing plateau/progress scenarios). */
+export type TrainTrend = TrainingGrowthState;
 export type SleepPreset = '22-06' | '23-07' | '00-08' | '01-09' | 'other';
 export type SleepQuality = 'poor' | 'fair' | 'good';
 
@@ -29,7 +35,7 @@ export interface StepsValue {
   mean?: number;
   workday?: number;
   offDay?: number;
-  /** "I'll import it": the devices chapter revises it. */
+  /** Legacy: "I'll import it" (the removed devices chapter) in older documents; read as no number given. */
   importLater?: boolean;
 }
 export type MeasuredEver = 'no' | 'rmr' | 'tdee';
@@ -78,6 +84,23 @@ export const SLEEP_PRESETS: Readonly<Record<Exclude<SleepPreset, 'other'>, Sleep
 };
 const hh = (h: number) => `${String(Math.floor(((h % 24) + 24) % 24)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
 export const sleepText = (r: SleepRange) => `${hh(r.bed)}–${hh(r.wake)}`;
+
+/** D3-07 steps-scope question (optional; "not sure" keeps the overlap unknown). */
+export const STEPS_SCOPE_COPY = {
+  prompt: 'Does that step number include your training sessions?',
+  short: 'steps and training',
+  skip: 'not sure',
+  options: { totalDay: 'yes, it is the whole day', excludesTraining: 'no, it leaves training out', unknown: 'not sure' } as Readonly<Record<StepsScopeAnswer, string>>,
+  receipt: { totalDay: 'whole day', excludesTraining: 'training left out', unknown: 'not sure' } as Readonly<Record<StepsScopeAnswer, string>>,
+} as const;
+
+/** D3-05 training-trend question (optional; recent lifts and measurements can refine it later). */
+export const TRAIN_TREND_COPY = {
+  prompt: 'Lately, how is your training going?',
+  short: 'training lately',
+  skip: 'not sure',
+  options: { progressing: 'still progressing', plateaued: 'holding steady', resuming: 'coming back after a break', unknown: 'not sure' } as Readonly<Record<TrainTrend, string>>,
+} as const;
 
 export const ACTIVITY_QUESTIONS: readonly Question[] = [
   {
@@ -190,7 +213,7 @@ export const ACTIVITY_QUESTIONS: readonly Question[] = [
     applies: (v) => v.stepsKnown === 'wrist' || v.stepsKnown === 'phone',
     receipt: (v) => {
       const s = v as StepsValue;
-      if (s.importLater) return A.stepsNumber.receiptImport;
+      if (s.importLater) return A.stepsNumber.receiptNone;
       if (s.mean !== undefined) return A.stepsNumber.receiptMean(steps(s.mean));
       return A.stepsNumber.receiptSplit(steps(s.workday ?? 0), steps(s.offDay ?? 0));
     },
@@ -230,6 +253,21 @@ export const ACTIVITY_QUESTIONS: readonly Question[] = [
     defaultValue: 7000,
     applies: (v) => v.stepsKnown === 'roughly',
     receipt: (v) => A.stepsRough.receipt(steps(Number(v))),
+  },
+  {
+    // D3-07: an optional remembered scope, so session steps are neither counted twice nor assumed missing
+    id: 'stepsScope',
+    parent: 'stepsKnown',
+    chapter: 'activity',
+    section: 'activity',
+    kind: 'single',
+    prompt: STEPS_SCOPE_COPY.prompt,
+    short: STEPS_SCOPE_COPY.short,
+    skipText: STEPS_SCOPE_COPY.skip,
+    defaultValue: 'unknown',
+    applies: (v) => v.stepsKnown === 'wrist' || v.stepsKnown === 'phone' || v.stepsKnown === 'roughly',
+    options: (['totalDay', 'excludesTraining', 'unknown'] as const).map((o) => ({ value: o, label: STEPS_SCOPE_COPY.options[o] })),
+    receipt: (v) => STEPS_SCOPE_COPY.receipt[v as StepsScopeAnswer] ?? String(v),
   },
   {
     id: 'offDay',
@@ -301,6 +339,21 @@ export const ACTIVITY_QUESTIONS: readonly Question[] = [
     receipt: (v) => A.trainMix.options[v as TrainMix] ?? String(v),
   },
   {
+    // D3-05: progressing · plateaued · resuming · unknown (optional; unknown keeps both scenarios, never "plateaued")
+    id: 'trainTrend',
+    parent: 'trainNow',
+    chapter: 'activity',
+    section: 'activity',
+    kind: 'single',
+    prompt: TRAIN_TREND_COPY.prompt,
+    short: TRAIN_TREND_COPY.short,
+    skipText: TRAIN_TREND_COPY.skip,
+    defaultValue: 'unknown',
+    applies: (v) => v.trainNow !== undefined && v.trainNow !== 'none',
+    options: (['progressing', 'plateaued', 'resuming', 'unknown'] as const).map((o) => ({ value: o, label: TRAIN_TREND_COPY.options[o] })),
+    receipt: (v) => TRAIN_TREND_COPY.options[v as TrainTrend] ?? String(v),
+  },
+  {
     id: 'sleep',
     chapter: 'activity',
     section: 'activity',
@@ -361,7 +414,7 @@ export const MAINTENANCE_RESULT_BEFORE = 'measuredEver';
 /* ------------------------------------------------------------------------------------------- reducer */
 
 /** Habit fields the activity answers write on the profile (only answered ones; undefined = leave as is). */
-export type ActivityHabitsPatch = Pick<HabitProfile, 'typicalSteps' | 'sessionsPerWeek' | 'lifingCardioMix' | 'bedTimeH' | 'wakeTimeH' | 'sleepQuality'>;
+export type ActivityHabitsPatch = Pick<HabitProfile, 'typicalSteps' | 'sessionsPerWeek' | 'lifingCardioMix' | 'bedTimeH' | 'wakeTimeH' | 'sleepQuality' | 'stepsScope' | 'trainingGrowthState' | 'trainingGrowthStateSource'>;
 
 export interface ActivityResult {
   /** undefined = nothing answered or skipped yet (the engine keeps its pre-intake behaviour). */
@@ -456,6 +509,12 @@ export function reduceActivity(a: ChapterAnswers, ctx: FlowContext): ActivityRes
     habits.wakeTimeH = ((sl.wake % 24) + 24) % 24;
   }
   if (typeof v.sleepQuality === 'string') habits.sleepQuality = v.sleepQuality as SleepQuality;
+  // D3-07 / D3-05: only answered (never defaulted) scope and trend are written; a skip leaves the profile's own value
+  if (s.stepsScope === 'answered' && typeof v.stepsScope === 'string') habits.stepsScope = v.stepsScope as StepsScopeAnswer;
+  if (s.trainTrend === 'answered' && typeof v.trainTrend === 'string') {
+    habits.trainingGrowthState = v.trainTrend as TrainTrend;
+    habits.trainingGrowthStateSource = 'user';
+  }
 
   const skipped = (id: string) => s[id] === 'skipped';
   const defaulted: ActivityDriverId[] = [];

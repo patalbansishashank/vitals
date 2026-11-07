@@ -6,7 +6,7 @@
 import type { GoalSuggestion, SuggestedGoal } from '@/engine/planner/domain/suggestGoals';
 import type { ConstraintDraft, GoalDraft, GoalMode } from '@/state/plannerStore';
 import { MAX_PLANNER_GOALS } from '@/state/plannerStore';
-import { goalMetric, modeSpec, modeTakesAmount } from './catalogue';
+import { goalMetric, modeSpec, modeTakesAmount, newGoal } from './catalogue';
 import type { editGoals } from './commands';
 
 type GoalOps = Parameters<typeof editGoals>[0];
@@ -17,8 +17,9 @@ export function draftOf(g: SuggestedGoal, key: string): GoalDraft | null {
   const m = goalMetric(g.metric);
   if (!m || !m.eligible) return null;
   const spec = m.modes.some((x) => x.mode === g.mode) ? modeSpec(m, g.mode as GoalMode) : m.modes[0]!;
-  const amount = modeTakesAmount(spec) ? (g.target ?? m.target?.fallback ?? 1) : null;
-  return { key, metric: m.id, mode: spec.mode, amount, strength: 'should', functional: null };
+  if (modeTakesAmount(spec) && (g.target === undefined || !Number.isFinite(g.target))) return null;
+  const amount = modeTakesAmount(spec) ? g.target! : null;
+  return { ...newGoal(m, spec.mode), key, amount };
 }
 
 /** The limits a suggestion sets, as a `setLimits` patch. */
@@ -35,7 +36,12 @@ export function limitsPatch(s: GoalSuggestion): Partial<ConstraintDraft> {
   return out;
 }
 
-export function suggestionOps(s: GoalSuggestion, current: readonly GoalDraft[], mode: ApplyMode, now: Date = new Date()): { ops: GoalOps; added: GoalDraft[] } {
+export function suggestionOps(
+  s: GoalSuggestion,
+  current: readonly GoalDraft[],
+  mode: ApplyMode,
+  now: Date = new Date(),
+): { ops: GoalOps; added: GoalDraft[] } {
   const at = now.toISOString();
   const keySalt = now.getTime().toString(36);
   const ops: GoalOps = [];
@@ -53,12 +59,23 @@ export function suggestionOps(s: GoalSuggestion, current: readonly GoalDraft[], 
     const patch = limitsPatch(s);
     if (Object.keys(patch).length) ops.push({ op: 'setLimits', patch });
   }
-  ops.push({ op: 'setSuggested', record: { suggestion: s as never, at, provenance: { source: s.source, version: s.version }, goalKeys: added.map((d) => d.key) } });
+  ops.push({
+    op: 'setSuggested',
+    record: {
+      suggestion: s as never,
+      at,
+      provenance: { source: s.source, version: s.version },
+      goalKeys: added.map((d) => d.key),
+    },
+  });
   return { ops, added };
 }
 
 /** A goal still reads as suggested while it matches the suggestion it came from (the engraved "suggested" tag). */
-export function isUntouchedSuggestion(g: GoalDraft, record: { suggestion: GoalSuggestion; goalKeys: readonly string[] } | null): boolean {
+export function isUntouchedSuggestion(
+  g: GoalDraft,
+  record: { suggestion: GoalSuggestion; goalKeys: readonly string[] } | null,
+): boolean {
   if (!record || !record.goalKeys.includes(g.key)) return false;
   const s = record.suggestion.goals.find((x) => x.metric === g.metric);
   if (!s) return false;
@@ -67,7 +84,10 @@ export function isUntouchedSuggestion(g: GoalDraft, record: { suggestion: GoalSu
 }
 
 /** The suggestion's one-line reason for a goal, shown under its row until the person edits that goal (Q3-J4-05). */
-export function suggestionWhy(g: GoalDraft, record: { suggestion: GoalSuggestion; goalKeys: readonly string[] } | null): string | null {
+export function suggestionWhy(
+  g: GoalDraft,
+  record: { suggestion: GoalSuggestion; goalKeys: readonly string[] } | null,
+): string | null {
   if (!record || !isUntouchedSuggestion(g, record)) return null;
   const why = record.suggestion.goals.find((x) => x.metric === g.metric)?.why?.trim();
   return why || null;

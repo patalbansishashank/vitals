@@ -1,0 +1,368 @@
+/* ==========================================================================
+   The date control (DateControl.tsx; r069 U2, restyled r071). Foundation-owned: it sits on every dated page, so its
+   styles live beside the component (they were a block of living.css).
+
+   The row: one full-width row in the card material (charcoal over the grain, the 0.5 px gold hairline; no glow, it is a
+   control, not a data card) with the field radius (14), reading the selection: a calendar icon wearing the page's
+   domain hue (stone without one), the lead in Geist 600 ("Today", "This week"), the dates as a mono-caps fact
+   ("THU 29 OCT": a date is exactly what the mono role is for), a chevron at the end. Open, its edge turns gold (gold =
+   the selection).
+
+   The calendar (PeriodPicker): Gauge's compact month (no empty sixth week, the month's name as a key that zooms out,
+   weekday letters as mono caps) in Vitals' material: the selected day or span is the gold tile (gold wash, gold edge,
+   concentric 8 px ends; a span runs as one band along each week), today's date is gold, a day that holds data carries a
+   5 px dot in the TAB'S HUE (`data-domain` on the control: the Energy page's dots are ember, Sleep's dusk; stone
+   without one). 44 px day targets (48 on touch).
+   ========================================================================== */
+@layer components {
+  .lv-datectl {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    padding: 0 12px 0 14px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-field);
+    background: var(--lm-card-bg);
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: border-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  @media (hover: hover) {
+    .lv-datectl:hover {
+      border-color: var(--lm-line-strong);
+    }
+    .lv-datectl:hover .lv-datectl__chev {
+      color: var(--lm-ink);
+    }
+  }
+  .lv-datectl[aria-expanded='true'] {
+    border-color: var(--lm-gold-edge);
+  }
+  .lv-datectl:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lv-datectl__icon,
+  .lv-datectl__chev {
+    flex: none;
+    color: var(--lm-ink-2);
+    transition:
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      transform var(--lm-dur-base) var(--lm-ease-out);
+  }
+  /* the calendar icon is a card's icon: the domain's solid when the page has one */
+  .lv-datectl__icon {
+    color: var(--lm-hue, var(--lm-ink-2));
+  }
+  .lv-datectl[aria-expanded='true'] .lv-datectl__chev {
+    transform: rotate(180deg);
+  }
+  .lv-datectl__text {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .lv-datectl__lead {
+    flex: none;
+    font-family: var(--lm-text-card--font);
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
+    letter-spacing: var(--lm-text-card--ls);
+    font-weight: var(--lm-text-card--wt);
+    color: var(--lm-ink);
+  }
+  .lv-datectl__dot {
+    flex: none;
+    color: var(--lm-ink-3);
+  }
+  /* the dates: a fact, in mono caps */
+  .lv-datectl__detail {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--lm-text-meta--font);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    font-weight: var(--lm-text-meta--wt);
+    text-transform: uppercase;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
+    color: var(--lm-ink-2);
+  }
+  /* a selection with no lead word ("Thu 22 Oct", "September 2026") is the heading itself */
+  .lv-datectl__text > .lv-datectl__detail:only-child {
+    font-family: var(--lm-text-card--font);
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
+    letter-spacing: var(--lm-text-card--ls);
+    font-weight: var(--lm-text-card--wt);
+    text-transform: none;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+    color: var(--lm-ink);
+  }
+
+  /* ---- the calendar (PeriodPicker in DateControl.tsx) ------------------------
+     Gauge's compact month (no empty sixth week, narrow weekday letters as mono caps, the month's name as a key that
+     zooms out) in Vitals' material: the selected day or span is the gold tile (gold wash, gold edge, concentric 8 px
+     ends; a span runs as one band along each week), today's date is gold, a day that holds data carries a 5 px dot in
+     the tab's hue. 44 px day targets (48 on touch). */
+  .lv-cal {
+    display: grid;
+    gap: var(--lm-card-inner-gap);
+    min-width: 0;
+  }
+  .lv-cal-pop.lm-popover {
+    width: 400px;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: var(--lm-card-pad);
+  }
+  /* the sheet's body has no inset of its own: 16 like its head, 20 at the foot */
+  .lv-cal-sheet .lv-cal {
+    padding: var(--lm-space-4) var(--lm-gutter) var(--lm-space-5);
+  }
+  .lv-cal__line {
+    margin: 0;
+    min-height: 1.25rem;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+  }
+  .lv-cal__head {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    min-width: 0;
+  }
+  .lv-cal__name {
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    height: 36px;
+    margin-left: -8px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--lm-radius-md);
+    background: transparent;
+    color: var(--lm-ink);
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .lv-cal__name > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lv-cal__name.is-static {
+    cursor: default;
+  }
+  button.lv-cal__name {
+    flex: 0 1 auto;
+    margin-right: auto;
+  }
+  @media (hover: hover) {
+    button.lv-cal__name:hover {
+      background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    }
+  }
+  .lv-cal__name:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 0;
+  }
+  .lv-cal__namechev {
+    flex: none;
+    color: var(--lm-ink-2);
+  }
+  .lv-cal__back {
+    flex: none;
+  }
+  .lv-cal__nav {
+    display: inline-flex;
+    flex: none;
+    gap: 2px;
+  }
+  .lv-cal__grid {
+    display: grid;
+    row-gap: 4px;
+  }
+  .lv-cal__row {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+  /* the weekday letters are facts: mono caps, pale stone (ink-3 stays 7:1 on the card) */
+  .lv-cal__wd {
+    display: grid;
+    place-items: center;
+    height: 24px;
+    color: var(--lm-ink-3);
+    font-family: var(--lm-text-meta--font);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    font-weight: var(--lm-text-meta--wt);
+    text-transform: uppercase;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
+  }
+  .lv-cal__cell {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    height: 44px;
+  }
+  @media (pointer: coarse) {
+    .lv-cal__cell {
+      height: 48px;
+    }
+  }
+  /* the selection: one gold band per week row, rounded where it starts and ends */
+  .lv-cal__cell.is-sel::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    border-block: 1px solid var(--lm-gold-edge);
+    background: var(--lm-gold-wash);
+  }
+  .lv-cal__cell.is-start::before {
+    left: 2px;
+    border-left: 1px solid var(--lm-gold-edge);
+    border-start-start-radius: var(--lm-radius-sm);
+    border-end-start-radius: var(--lm-radius-sm);
+  }
+  .lv-cal__cell.is-end::before {
+    right: 2px;
+    border-right: 1px solid var(--lm-gold-edge);
+    border-start-end-radius: var(--lm-radius-sm);
+    border-end-end-radius: var(--lm-radius-sm);
+  }
+  /* picking a week: the whole week under the pointer lights */
+  @media (hover: hover) {
+    .lv-cal__grid[data-kind='week'] .lv-cal__row:has(.lv-cal__day:hover:not(:disabled)) .lv-cal__cell:not(:empty):not(.is-sel)::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: 0;
+      background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    }
+  }
+  .lv-cal__day {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink-2);
+    font: inherit;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition:
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  @media (hover: hover) {
+    .lv-cal__grid:not([data-kind='week']) .lv-cal__cell:not(.is-sel) .lv-cal__day:hover:not(:disabled) {
+      background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+      color: var(--lm-ink);
+    }
+  }
+  .lv-cal__day:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lv-cal__cell.is-sel .lv-cal__day {
+    color: var(--lm-ink);
+  }
+  .lv-cal__day.is-today,
+  .lv-cal__cell.is-sel .lv-cal__day.is-today {
+    color: var(--lm-signal);
+    font-weight: 600;
+  }
+  .lv-cal__day:disabled {
+    color: var(--lm-ink-faint);
+    cursor: default;
+  }
+  /* a day that holds data: a 5 px dot in the tab's hue (stone when the page has none); on the gold band the soft tint */
+  .lv-cal__day.has-data::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 5px;
+    width: 5px;
+    height: 5px;
+    margin-left: -2.5px;
+    border-radius: 50%;
+    background: var(--lm-hue, var(--lm-ink-3));
+  }
+  .lv-cal__cell.is-sel .lv-cal__day.has-data::after {
+    background: var(--lm-ink-h, var(--lm-ink-2));
+  }
+  .lv-cal__tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .lv-cal__tile {
+    height: 48px;
+    border: 1px solid transparent;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink-2);
+    font: inherit;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  @media (hover: hover) {
+    .lv-cal__tile:hover:not(:disabled):not(.is-sel) {
+      background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+      color: var(--lm-ink);
+    }
+  }
+  .lv-cal__tile:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lv-cal__tile.is-sel {
+    border-color: var(--lm-gold-edge);
+    background: var(--lm-gold-wash);
+    color: var(--lm-ink);
+  }
+  .lv-cal__tile.is-today {
+    color: var(--lm-signal);
+    font-weight: 600;
+  }
+  .lv-cal__tile:disabled {
+    color: var(--lm-ink-faint);
+    cursor: default;
+  }
+}

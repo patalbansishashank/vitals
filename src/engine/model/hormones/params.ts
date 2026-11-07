@@ -7,7 +7,7 @@
  * Rulings applied: R-T3 (T3 carbohydrate knee 50 g, 12's 130 g = high), R-LEPTIN (12 §4.1 form), R-IGF (08 §4.12 ODE only),
  * R-MENS (19 §4.9 P_LPD), R-SLEEP (16's debt state replaces 12's `7 − sleep_h` terms).
  */
-import type { ParamDef } from '../../types/params';
+import type { ParamDef, ParamDistributionMeta } from '../../types/params';
 
 type Status = NonNullable<ParamDef['status']>;
 type Extra = Pick<ParamDef, 'draw' | 'note' | 'label'>;
@@ -48,7 +48,7 @@ const SRC_TESTO =
 const SRC_IGF =
   'PROPOSED FIT (grid) to Hollstein 2022 PMID 35678263; Chan 2008 PMID 18445667; Isley 1983 PMID 6681614; Clemmons 1981 PMID 7197688; Fontana 2008 PMID 18843793';
 
-export const HORMONES_PARAMS: readonly ParamDef[] = [
+const RAW_PARAMS: readonly ParamDef[] = [
   // ---------------------------------------------------------------- shared drivers (12 §4.0)
   P('uScaleLeptin', 0.2, '1', 0.1, 0.35, 'B', SRC_LEPTIN_FALL, '12 §4.0, §4.1', 'proposed-fit', {
     label: 'Deficit scale of φ_L(u) = 1 − exp(−max(0,−u)/scale)',
@@ -175,7 +175,9 @@ export const HORMONES_PARAMS: readonly ParamDef[] = [
   P('igfAInf', 0.25, '1', 0.2, 0.3, 'B', 'Clemmons 1981 PMID 7197688 (10-d fast 0.25)', '08 §4.12', 'proposed-fit', { label: 'IGF-1 asymptote during a prolonged fast' }),
   P('igfTauDownH', 44, 'h', 30, 60, 'C', SRC_IGF, '08 §4.12', 'proposed-fit'),
   P('igfTauUpH', 173, 'h', 120, 240, 'C', 'Isley 1983 PMID 6681614 (5-d refeed 0.36 → 0.68)', '08 §4.12', 'proposed-fit'),
-  P('igfProtSlope', 0.306, '1/(g/kg/d)', 0.2, 0.4, 'B', 'Fontana 2008 PMID 18843793 (1.67 → 0.95 g/kg ⇒ 0.78)', '08 §4.12', 'proposed-fit'),
+  P('igfProtSlope', 0.306, '1/(g/kg/d)', 0, 0.4, 'B', 'Fontana 2008 PMID 18843793 (1.67 → 0.95 g/kg ⇒ 0.78); null: 2024 protein-restriction trial PMID 39039607', '08 §4.12', 'proposed-fit', {
+    note: 'D2-07: exploratory protein response. The scenario range includes the null response (0) of heterogeneous/null studies; no universal one-way slope is claimed, IGF-1 earns no goal benefit, and the cap igfProtRatioMax is kept (no invented symmetric coefficient). Was [0.2, 0.4].',
+  }),
   FIX('igfProtRefGKg', 1.67, 'g/kg/d', 'B', 'Fontana 2008 PMID 18843793', '08 §4.12', 'verified'),
   FIX('igfTpMin', 0.5, '1', 'B', '08 §4.12 TP clamp', '08 §4.12', 'proposed-fit'),
   FIX('igfTpMax', 1.0, '1', 'B', '08 §4.12 TP clamp', '08 §4.12', 'proposed-fit'),
@@ -184,3 +186,37 @@ export const HORMONES_PARAMS: readonly ParamDef[] = [
   P('igfTauPH', 168, 'h', 72, 240, 'C', 'Compromise between Isley 1983 PMID 6681614 and FMD data (Wei 2017 PMID 28202779; Espinoza 2026 PMID 41372565)', '08 §4.12', 'proposed-fit'),
   FIX('igfEatingHFastH', 24, 'h', 'C', '08 §4.12 (protein factor updates only while hFast < 24 h)', '08 §4.12', 'proposed-fit'),
 ];
+
+/** Constants of the legacy menstrual logistic (19 §4.9): exposure index, not a personal per-cycle probability (D2-07). */
+const LEGACY_LPD = new Set(['lpdMidPct', 'lpdSlope', 'lpdClipLow', 'lpdClipHigh', 'lpdWindowD'].map((n) => `hormones.${n}`));
+/** Assumed assay inputs of the internal free-T state (no recorder/UI reader; never a measured personal value). */
+const ASSUMED_ASSAY = new Set(['tt0NmolL', 'shbg0NmolL', 'albuminMolL', 'kAlbLMol', 'kShbgLMol'].map((n) => `hormones.${n}`));
+/** IGF-1 protein response: exploratory scenario including the null response (D2-07). */
+const IGF_SCENARIO = new Set(['hormones.igfProtSlope']);
+
+/**
+ * What a hormone constant's draw represents (D2-07, C6): directional mechanism priors relative to the person's baseline,
+ * never an expected assay value; legacy menstrual constants define a deprecated exposure index; assay constants are
+ * assumptions of an internal state; the IGF-1 protein slope is a scenario range including the null response.
+ */
+function hormoneDistribution(p: ParamDef): ParamDistributionMeta {
+  const fixed = p.draw === 'fixed' || p.low === p.high;
+  const id = p.id;
+  return {
+    uncertaintyKind: IGF_SCENARIO.has(id) ? 'scenario' : fixed ? 'heuristic' : 'parameterSensitivity',
+    bounds: 'support',
+    nominal: fixed ? 'designPoint' : 'mode',
+    basis: LEGACY_LPD.has(id)
+      ? 'legacy menstrual-disturbance logistic: deprecated exposure index, not a personal per-cycle probability'
+      : ASSUMED_ASSAY.has(id)
+        ? 'assumed assay input of the internal Vermeulen state (no recorder/UI reader); never a measured personal value'
+        : IGF_SCENARIO.has(id)
+          ? 'exploratory IGF-1 protein response; scenario range includes the null response of heterogeneous studies'
+          : 'directional endocrine mechanism prior relative to the person\'s baseline; not an expected laboratory value',
+    population: 'healthy adults in the cited intervention studies; medication, illness and age outside them extrapolated',
+    version: 1,
+    label: ASSUMED_ASSAY.has(id) ? 'engineeringDefault' : p.status === 'verified' ? 'empirical' : 'designPrior',
+  };
+}
+
+export const HORMONES_PARAMS: readonly ParamDef[] = RAW_PARAMS.map((p) => ({ ...p, distribution: hormoneDistribution(p) }));

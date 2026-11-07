@@ -2,7 +2,8 @@
 // A real agent over the server's MCP, end to end and local: builds the person-worker bundle from this checkout, starts a
 // Vitals Server in the home role on 127.0.0.1 (random port, data under $PWD/.e6-tmp/), adds a throwaway person
 // (label L-MCP-…), seeds it through the person's command bus as the person (profile, goals, a running plan started from
-// the starter scenario, kitchen, pantry, meals yesterday and today), mints a read-scope agent token through
+// a 15 % deficit scenario and certified by the app's own final safety audit at seed time, kitchen, pantry, meals
+// yesterday and today), mints a read-scope agent token through
 // POST /v1/agents/tokens and writes a `claude --mcp-config` file for it ($PWD/.e6-tmp/mcp-e2e/mcp.json, 0600; the
 // token is never printed). At the end the server stops and the data dir, the person and its token go.
 //
@@ -14,6 +15,10 @@
 // loads there; the harness never reads it). `run --expect-briefing` exits 1 when the agent did not call briefing_get.
 //
 // Also importable (`startE2E()`): the probes and tests open fresh persons on the same real paths.
+//
+// The plan: plan start needs a certificate for exactly the started subject (the lifecycle revalidation plus the one
+// declared final audit; see seed()). The seed earns it on the server with the app's code; no fixture, flag or test-only
+// path exists. src/commands/living/__tests__/startSubjectRevalidation.test.ts covers the same start in vitest.
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createWriteStream, existsSync, realpathSync } from 'node:fs';
@@ -58,7 +63,7 @@ export async function startE2E({ root = join(process.cwd(), '.e6-tmp'), reuseBun
     relay,
     allowedOrigins: [],
     log: log ?? (() => undefined),
-    home: { dataDir, mqtt: { enabled: false }, rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: threadWorkerFactory(bundle) },
+    home: { dataDir, rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: threadWorkerFactory(bundle) },
   });
   const home = c.home;
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -107,14 +112,26 @@ export async function startE2E({ root = join(process.cwd(), '.e6-tmp'), reuseBun
     /** Profile, goals, a plan running from today, kitchen, pantry and meals logged yesterday and today. */
     async seed(personId) {
       const d = (command, input) => api.dispatch(personId, command, input);
+      // what a real person does first (onboarding): answer the safety screening as an ordinary healthy adult and
+      // acknowledge the current disclaimer. Without it the lifecycle gate withholds the plan (`lifecycle:revalidation:review`)
+      const at = new Date().toISOString();
+      const { ACK_VERSIONS } = await import('../../../src/features/onboarding/copyEarly.ts');
+      await d('safety.commitScreening', { answers: { ageBand: '18-64', pregnancy: 'no', eatingDisorder: 'no', scoffRisk: false, diabetes: 'no', conditions: 'no', metabolic: 'no', medications: 'no', symptoms: 'no', supervisedExercise: 'no', musculoskeletal: 'no', alcohol: 'no' }, at });
+      await d('safety.acknowledge', { id: 'disclaimer', version: ACK_VERSIONS.disclaimer, at });
       await d('profile.patch', { sex: 'male', ageYears: 38, heightCm: 176, weightKg: 84, habits: { typicalSteps: 7000 } });
       await d('goals.edit', { ops: [{ op: 'add', goal: { key: 'lose-fat', metric: 'fatMass', mode: 'lose', amount: 4, strength: 'should', functional: null } }, { op: 'setHorizon', days: 84 }] });
       const today = (await d('today.get', {})).date;
       const yesterday = dayBefore(today);
-      // the Planner does not run on the server (personProgram.ts NOT_ON_SERVER): start from the Simulator's starter
-      // scenario instead, the same `plan.start` the app runs for "Start this plan" on a scenario
-      await d('scenario.ensureActive', {});
-      await d('plan.start', { source: { scenarioId: 'starter' }, startDate: today, name: 'E2E plan' });
+      // the Planner's search does not run on the server (personProgram.ts NOT_ON_SERVER), so the plan comes from a
+      // Simulator scenario: the 12-week deficit starter at 85 % of maintenance, then the same `plan.start` the app runs
+      // for "Start this plan" on a scenario. That start runs the app's own certification: the lifecycle revalidation and
+      // the one declared final safety audit of exactly this subject (src/commands/living/index.ts prepareStart), which the
+      // server runs like the app; its certificate is stored on the plan's first version. Nothing is bypassed or faked, and
+      // it is certified for today's date at run time (no stored fixture to go stale). The 80 % starter itself fails that
+      // audit for this person (3 of 16 ensemble members), so the seed does not use it
+      const { scenarioId } = await d('scenario.create', { name: 'E2E deficit', starter: 'deficit12' });
+      await d('scenario.edit', { id: scenarioId, ops: [{ op: 'updateProgram', index: 0, patch: { energy: { kind: 'pctMaintenance', pct: 85 } } }] });
+      await d('plan.start', { source: { scenarioId }, startDate: today, name: 'E2E plan' });
       await d('kitchen.set', { equipment: [{ id: 'eq.otg' }], cuisines: [{ id: 'cu.punjabi' }], staples: [{ id: 'st.atta' }] });
       await d('kitchen.add', { items: [{ label: 'pressure cooker' }, { label: 'mixer grinder' }] });
       await d('pantry.add', { items: [{ label: 'eggs', qtyApprox: '12' }, { label: 'paneer', qtyApprox: '400 g' }, { label: 'moong dal' }, { label: 'onions', qtyApprox: '2 kg' }] });

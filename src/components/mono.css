@@ -1,0 +1,46 @@
+/* ==========================================================================
+   MonoMeta (r071 0B): the one uppercase text in the product. It lives here, not in viz.css (whose contract test bans
+   uppercase). Facts only; the role is --lm-text-meta (11/14 on a phone, 12/16 from 1024).
+   ========================================================================== */
+@layer components {
+  .lm-mono {
+    margin: 0;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
+    color: var(--lm-ink-2);
+    overflow-wrap: break-word;
+  }
+  .lm-mono[data-size='sm'] {
+    font-size: 0.6875rem;
+    line-height: 0.875rem;
+  }
+  .lm-mono[data-tone='ink'] {
+    color: var(--lm-ink);
+  }
+  .lm-mono[data-tone='hue'] {
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+  /* the separator is drawn, so the words stay clean for assistive technology and for copy */
+  .lm-mono__item + .lm-mono__item::before {
+    content: '\00b7';
+    margin-inline: 0.6em;
+    opacity: 0.7;
+  }
+  .lm-mono__item {
+    display: inline-block;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .lm-mono:has(> .lm-overflow:only-child) {
+    display: inline-block;
+    max-width: 100%;
+    min-width: 0;
+    vertical-align: bottom;
+  }
+}

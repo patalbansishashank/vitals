@@ -1,0 +1,7 @@
+{
+  "exerciseId": "walk_brisk",
+  "date": "2026-10-19",
+  "startH": 17.5,
+  "durationMin": 40,
+  "intensity": { "class": "moderate", "talkTest": "fullSentences", "rpe": 5, "rpeScale": "relativeEffort0To10" }
+}

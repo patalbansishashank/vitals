@@ -1,4 +1,5 @@
 import type { EvidenceTopic } from '../schema';
+import { INDUCTION_MODEL_DESCRIPTION, INDUCTION_MODEL_EQUATION } from './13-transitions-periodisation';
 
 const topic: EvidenceTopic = {
   dossier: '19',
@@ -14,9 +15,9 @@ const topic: EvidenceTopic = {
       summary:
         'Energy availability (EA) is the energy left for the body’s own upkeep after exercise, per kilogram of fat-free mass, per day. When it falls below about 30 kcal per kg of fat-free mass, the body turns down its “expensive” systems: the reproductive axis, bone formation, IGF-1 (a growth-signalling hormone), thyroid hormone, leptin and insulin. Controlled experiments show this within 3–5 days. In lean, active people it is the best-supported single driver for bone turnover, menstrual disturbance, lower strength and power, illness and mood.',
       howModelled:
-        'EA is intake minus exercise energy, divided by fat-free mass. Only exercise energy is subtracted, not resting rate or everyday movement. The engine keeps a quickly moving 3-day average, which drives bone and hormone changes, and a 14-day mean, which drives longer-term penalties and flags. The 14-day mean is sorted into four tiers: T0 at 45 or above, T1 from 30 to 45, T2 from 15 to 30 and T3 below 15. Other mechanisms in this topic read these values.',
+        'EA is intake minus exercise energy, divided by fat-free mass. Only the session’s energy above rest is subtracted, not resting rate, steps or everyday movement. The daily value is kept unclipped with its coverage: an unlogged day is unknown, never zero intake, and without a valid fat-free mass it is unavailable rather than filled with a stand-in. The denominator is the model’s metabolically active fat-free mass, not a DXA measurement. Separately, a bounded internal drive (clipped to −5 to 70) feeds a quickly moving 3-day average, which drives bone and hormone changes, and a 14-day mean, which drives longer-term penalties and concern flags. The values 45, 30 and 15 sort that mean into tiers as policy and historical reference points, not diagnostic thresholds: no tier diagnoses low energy availability and no tier clears you as healthy. Reported fatigue, falling performance, injury or a cycle change raise a concern whatever the tier. Other mechanisms in this topic read these values.',
       equation:
-        'EA = (EI − EEE) / FFM   (kcal per kg fat-free mass per day; EEE = exercise energy only)\nEA_s ← running average of EA with τ = 3 d;  EA_c = mean of EA over the last 14 d\nTier of EA_c:  T0 ≥ 45 | T1 30–45 | T2 15–30 | T3 < 15',
+        'EA = (EI − EEE_net) / FFM_act   (kcal per kg fat-free mass per day; EEE_net = session energy above rest; unclipped)\nInternal drive: EA clipped to [−5, 70];  EA_s ← running average with τ = 3 d;  EA_c = mean of the last 14 d\nPolicy reference tiers of EA_c:  T0 ≥ 45 | T1 30–45 | T2 15–30 | T3 < 15',
       keyNumbers: [
         {
           label:
@@ -59,7 +60,7 @@ const topic: EvidenceTopic = {
         {
           label: 'Tier limits and smoothing',
           value: '45 / 30 / 15 kcal per kg fat-free mass per day (±3); 3-day smoothing (range 2–5 d)',
-          note: 'The smoothing constant is an assumption consistent with 3–5 day responses.',
+          note: 'Policy and historical reference points, not diagnostic breakpoints. The smoothing constant is an assumption consistent with 3–5 day responses.',
           referenceIds: ['ihle2004', 'papageorgiou2018', 'loucks2003'],
         },
       ],
@@ -72,7 +73,7 @@ const topic: EvidenceTopic = {
         'Several controlled human experiments agree, but they are small, short and in one population.',
       status: 'established',
       caveats:
-        'The 30 kcal/kg threshold comes from 5-day experiments in normal-weight, sedentary young women. Extending it to men, older adults, weeks-long exposure and people with high fat mass is unverified. EA is noisy to measure in daily life, though the simulator has exact inputs. Exercise-created low EA produced a smaller bone-formation effect than diet-created low EA (−8 % not significant vs −17 %) in one small study.',
+        'The 30 kcal/kg threshold comes from 5-day experiments in normal-weight, sedentary young women. Extending it to men, older adults, weeks-long exposure and people with high fat mass is unverified. EA is noisy to measure in daily life, though the simulator has exact inputs. Exercise-created low EA produced a smaller bone-formation effect than diet-created low EA (−8 % not significant vs −17 %) in one small study. Your habitual level is the reference for the relative outputs, not proof of adequacy: a habitual EA under 30 is flagged.',
       referenceIds: [
         'ihle2004',
         'papageorgiou2018',
@@ -80,6 +81,45 @@ const topic: EvidenceTopic = {
         'loucks2003',
         'heikura2018',
         'koehler2016',
+      ],
+      warrants: [
+        {
+          type: 'analyticallyTrue',
+          confidence: 'high',
+          scope:
+            'the EA formula and its units; the raw daily value and the bounded internal drive are different quantities',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'hormone and bone-marker changes at low EA in short controlled studies; not a universal threshold for one person',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope: 'sustained low energy availability constrains recovery and function',
+        },
+        {
+          type: 'tacitKnowledge',
+          confidence: 'moderate',
+          scope: 'persistent fatigue, performance, injury and menstrual changes as monitoring signals',
+        },
+      ],
+      outcomeScope: 'Energy left after exercise per kg fat-free mass, as an exposure; not a diagnosis',
+      population:
+        'Mostly sedentary or exercising young women in 3- to 5-day studies; small groups of men; elite athletes',
+      observations: [
+        {
+          tissue: 'blood LH pulses and bone-turnover markers',
+          type: 'humanBloodMarker',
+          referenceIds: ['loucks2003', 'ihle2004', 'papageorgiou2018'],
+        },
+        {
+          tissue: 'athletes (amenorrhoea, bone injuries)',
+          type: 'humanOutcome',
+          referenceIds: ['heikura2018'],
+        },
       ],
       relatedMetricIds: ['energyAvailability', 'moodTier'],
     },
@@ -90,9 +130,9 @@ const topic: EvidenceTopic = {
       summary:
         'Diet-induced weight loss costs about 1–2 % of hip bone density for every 10 % of body weight lost in young and middle-aged adults, and more in older or postmenopausal people. The loss is mainly at the hip, not the spine, and shows from about 6 months. Bone formation slows within days when energy availability is low. Exercise, and in postmenopausal women calcium, soften the loss. Obese premenopausal women in one trial lost no bone.',
       howModelled:
-        'The engine tracks two fast bone-marker indices (formation and resorption) that follow energy availability with a 2-day time constant, and slow hip and spine density changes that follow cumulative weight lost. Density loss is scaled by age or menopause, resistance training, calcium, and whether the deficit came from exercise. Loss is assumed to build with a 120-day time constant and to recover with a 240-day one. Hip density change is a safety output; bone is never converted to fracture risk.',
+        'Vitals makes no personal bone-density forecast. A measured DXA scan keeps its own site, value in g/cm², date and device. The engine tracks two fast bone-marker indices (formation and resorption) that follow energy availability with a 2-day time constant; they are exploratory and are not bone density or fracture outcomes. A hip and spine density change is kept only as a research scenario: it follows lasting tissue loss (fat and lean tissue, not water, glycogen or gut content), scaled by age or menopause and by whether the deficit came from exercise, and builds with a 120-day time constant. It credits no protection from logged resistance-training sets, applies no calcium multiplier and does not recover by itself when weight returns. It is never a goal, never a forecast and never a clinical clearance, and bone is never converted to fracture risk. Sustained restriction, low intake and little loading stay concerns, and progressive resistance and weight-bearing training stay useful options.',
       equation:
-        'Fast markers (proposed fit):\n sexF = 1.0 (female), 0.5 (male);  srcF = 1 − 0.5 × f_EEE   (f_EEE = share of the deficit created by exercise)\n P1NP_tgt = 1 − 0.17 × clip((45 − EA_s)/30, 0, 1.3) × sexF × srcF\n CTX_tgt = 1 + 0.15 × clip((20 − EA_s)/5, 0, 1.3) × sexF\n Both follow their targets with τ_b = 2 d\n Optional low-carbohydrate term (grade C): if net carbohydrate < 0.7 g/kg/d for 7 d or more and training ≥ 5 h/wk, P1NP −0.14 and CTX +0.22, approached with τ = 10 d\nDensity (proposed fit):\n BMD_hip target = −k_h × mAge × mRT × mCa × mSrc × WL_pct;  BMD_spine target = −k_s × the same modifiers × WL_pct\n dBMD/dt = (BMD_target − BMD) / τ_bone,  τ_bone = 120 d (loss), 240 d (recovery)\n k_h = 0.20 (0.10–0.30) and k_s = 0.13 (0–0.20) % density per % weight lost; mAge = 1.0 (under 50 or premenopausal), 1.5 (65 or older, or postmenopausal); mRT = 1 − ρ_RT with ρ_RT = 0.35 (0–0.67) if progressive resistance training 2×/wk or more; mSrc = 0.25 if 60 % or more of the deficit is exercise energy; mCa = 1.5 if postmenopausal and calcium < 1.0 g/d; protein 1.2 g/kg/d or more adds +0.5 % lumbar-spine density',
+        'Fast markers (proposed fit):\n sexF = 1.0 (female), 0.5 (male);  srcF = 1 − 0.5 × f_EEE   (f_EEE = share of the deficit created by exercise)\n P1NP_tgt = 1 − 0.17 × clip((45 − EA_s)/30, 0, 1.3) × sexF × srcF\n CTX_tgt = 1 + 0.15 × clip((20 − EA_s)/5, 0, 1.3) × sexF\n Both follow their targets with τ_b = 2 d\n Optional low-carbohydrate term (grade C): if net carbohydrate < 0.7 g/kg/d for 7 d or more and training ≥ 5 h/wk, P1NP −0.14 and CTX +0.22, approached with τ = 10 d\nDensity (research scenario only, no personal forecast):\n BMD_hip target = −k_h × mAge × mSrc × WL_tissue;  BMD_spine target = −k_s × the same modifiers × WL_tissue   (WL_tissue = lasting fat and lean tissue loss, % of baseline weight; water, glycogen and gut excluded)\n dBMD/dt = (BMD_target − BMD) / τ_bone,  τ_bone = 120 d, toward a deeper target only (no automatic recovery)\n k_h = 0.20 (0.10–0.30) and k_s = 0.13 (0–0.20) % density per % weight lost; mAge = 1.0 (under 50 or premenopausal), 1.5 (65 or older, or postmenopausal); mSrc = 0.25 if 60 % or more of the deficit is exercise energy\nNot applied: mRT = 1 − ρ_RT (ρ_RT 0–0.67; logged sets are not a dose-qualified loading measure), mCa = 1.5 (postmenopausal, calcium < 1.0 g/d), the 240-day recovery, and +0.5 % lumbar-spine density for protein 1.2 g/kg/d or more',
       keyNumbers: [
         {
           label: 'Meta-analysis of diet-induced weight loss (41 publications, overweight or obese adults)',
@@ -189,7 +229,7 @@ const topic: EvidenceTopic = {
         },
       ],
       timeCourse:
-        'Turnover markers respond within 3–5 days, rise in the first 2–3 months of weight loss and then normalise. Density change is not detectable at 3 months but is present from 6 months; hip loss continues while weight falls and plateaus when weight is stable. Recovery after regain has no verified human data.',
+        'Turnover markers respond within 3–5 days, rise in the first 2–3 months of weight loss and then normalise. Density change is not detectable at 3 months but is present from 6 months; hip loss continues while weight falls and plateaus when weight is stable. Recovery after regain has no verified human data, so the research scenario does not recover by itself.',
       moderators:
         'Age and menopause (large), sex (effects of low energy availability are shown in women; men less studied), adiposity (loss “greater in older and lean adults”; obese premenopausal women may lose none), calcium status, resistance training, and whether the deficit came from diet or exercise.',
       grade: 'B',
@@ -197,7 +237,7 @@ const topic: EvidenceTopic = {
         'Two meta-analyses and a two-year randomised trial agree on the average effect (A), but the moderators are only grade C.',
       status: 'proposed-fit',
       caveats:
-        'Whether resistance training protects bone is contested (ρ from 0 to 0.67). The numeric factor of 1.5 for age and the calcium factor are unverified shrinks. The 120- and 240-day time constants are assumptions; no human recovery data were located. The low-carbohydrate bone term rests on one elite-athlete study that measured markers only. Fracture risk is not modelled because there are no data over 1–6 months.',
+        'Whether resistance training protects bone is contested (ρ from 0 to 0.67), so logged sets earn no protection. The age factor of 1.5 is an unverified shrink, and the calcium factor is not applied. The 120-day time constant is an assumption and no recovery is applied; no human recovery data were located. The low-carbohydrate bone term rests on one elite-athlete study that measured markers only. Fracture risk is not modelled because there are no data over 1–6 months.',
       referenceIds: [
         'zibellini2015',
         'soltani2016',
@@ -218,6 +258,46 @@ const topic: EvidenceTopic = {
         'reddy2002',
         'mullathullas2025',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'hip density loss with sustained diet-induced weight loss in trials and meta-analyses',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'a personal percentage from multiplied coefficients',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope:
+            'sustained loading, nutrition and hormones affect remodelling; acute water loss is not unloading',
+        },
+        {
+          type: 'tacitKnowledge',
+          confidence: 'moderate',
+          scope:
+            'progressive resistance and weight-bearing training as bone-friendly practice; one set is not a sufficient dose',
+        },
+      ],
+      outcomeScope:
+        'Site-specific bone density (DXA) during sustained weight loss; not a personal forecast or fracture risk',
+      population: 'Overweight, obese and older adults and postmenopausal women; 6 months to 2 years',
+      observations: [
+        {
+          tissue: 'hip and spine areal bone density (DXA)',
+          type: 'humanOutcome',
+          referenceIds: ['zibellini2015', 'villareal2006', 'villareal2016'],
+        },
+        {
+          tissue: 'serum bone-turnover markers (P1NP, CTX)',
+          type: 'humanBloodMarker',
+          referenceIds: ['papageorgiou2018', 'heikura2020'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['hipBmdChange'],
     },
     {
@@ -227,7 +307,7 @@ const topic: EvidenceTopic = {
       summary:
         'Strength is not the same as muscle. In a moderate deficit with resistance training, strength keeps rising even when muscle gain stalls. Real losses of 15–30 % in strength or power appear only in severe, prolonged deficits in lean people, such as military training or contest preparation. Acute factors like dehydration and low glycogen mostly hurt repeated efforts rather than a single maximal lift.',
       howModelled:
-        'A slow strength multiplier applies only when energy availability (14-day mean) is below 30 kcal/kg, scaled by leanness, so obese people in deficit get no penalty. Strength and power output from the training model is multiplied by this factor and by a fast multiplier for acute glycogen, hydration and caffeine effects on volume-tolerance tasks. The penalty builds with a 28-day time constant and recovers with a 75-day one. No separate “training capacity” number is produced.',
+        'A slow strength multiplier applies only when energy availability (14-day mean) is below 30 kcal/kg, scaled by leanness, so obese people in deficit get no penalty. Strength and power output from the training model is multiplied by this factor and by a fast multiplier for acute glycogen, hydration and caffeine effects on volume-tolerance tasks. The penalty builds with a 28-day time constant and recovers with a 75-day one. It is an exploratory structure, compared with a no-penalty alternative: neither assures that there is no risk, and the concern flags stay either way. A multiplier of 1 means your habitual level, not an adequate one. No separate “training capacity” number is produced.',
       equation:
         'pen_tgt = a × clip((30 − EA_c)/15, 0, 1.3) × g_lean;  a_strength = 0.15, a_power = 0.20 (range 0.10–0.30)\nM_EA_tgt = 1 − pen_tgt;  M_EA moves toward it with τ_on = 28 d (falling) and τ_off = 75 d (recovering)\nStrength(t) = Strength_RTmodel(t) × M_EA × M_acute(t)   (no penalty when EA_c ≥ 30)\ng_lean = 1 if body fat ≤ 18 % (men) or 28 % (women), falling linearly to 0.3 at ≥ 30 % (men) or 40 % (women)\nAcute modifiers (flag-level): very low carbohydrate (under 50 g/d for 7 d or more): M_acute = 0.97',
       keyNumbers: [
@@ -370,6 +450,29 @@ const topic: EvidenceTopic = {
         'maestu2010',
         'pasiakos2013',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'no strength loss in a moderate deficit with resistance training',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope:
+            'size and time course of a severe-deficit penalty for one person (case studies, one military cohort)',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope: 'sustained low energy availability limits recovery and performance in lean people',
+        },
+      ],
+      outcomeScope:
+        'Strength relative to your own baseline in a deficit; the energy-availability penalty is a scenario',
+      population:
+        'Lean athletes in contest preparation, military trainees; trained adults in moderate deficits',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['strength'],
     },
     {
@@ -379,9 +482,9 @@ const topic: EvidenceTopic = {
       summary:
         'At moderate to hard effort, tiredness sets in when working muscle runs low on stored glycogen, so how much you start with sets how long you can go. Carbohydrate during long sessions helps a little. In elite athletes, a ketogenic pattern raised the oxygen cost of hard running and cancelled the training benefit, but only at higher intensities. Body mass matters too: more inert weight slows running, and light riders do better on climbs.',
       howModelled:
-        'Three numeric pieces. First, time to exhaustion at about 75 % of maximal oxygen uptake follows a straight-line function of starting glycogen, and glycogen matters only if the session would use stores down to about 25 mmol/kg. Second, in-session carbohydrate can improve a time trial by 0–6 % (central 2–3 %) in sessions longer than 60–90 minutes. Third, a fat-adaptation state raises the oxygen cost of exercise by up to 6.5 %, switched on only above 60–70 % of maximal oxygen uptake. Mass effects use published scaling. Hydration and iron deficiency are flags.',
+        'Vitals keeps one exploratory research index here and no general endurance score: the time to exhaustion when cycling at about 75 % of maximal oxygen uptake (studied at 71–82 %), as a percentage of your own baseline. It multiplies four parts: a straight-line function of the day’s average muscle glycogen, a fat-adaptation term that raises the oxygen cost of exercise by up to 6.5 % at that intensity, the change in maximal oxygen uptake, and the change in body mass. It is never converted into a race time, a time-trial result or a sprint ability, and it is not a goal. For other tasks the glycogen part is unavailable, not zero: enough whole-body glycogen does not prove there is no limit in short, repeated or local efforts. In-session carbohydrate, hydration and iron deficiency are evidence and flags, not terms of the index. Logged sessions with their duration, load and effort are the better guide to your own progress.',
       equation:
-        'Glycogen-limited capacity: TTE_75(G) = 36.8 + 41.6 × G  (minutes; G in g/100 g wet muscle; valid for G 0.6–4.7 and intensity 71–82 % VO₂max)\nGlycogen matters only if session duration exceeds t_lim = (G_start − 25 mmol/kg ww) / r_gly(I)\nIn-session carbohydrate bonus: 0–6 % (central 2–3 %) time-trial gain for sessions over 60–90 min; dose about 0.7 g/kg/h glucose + 0.2 g/kg/h fructose\nEconomy: gI = clip((I_rel − 0.60)/0.10, 0, 1);  dO₂cost = 0.065 × A_fat × gI (range 0.05–0.08);  econ_factor = 1 / (1 + dO₂cost)\nMass: +5 % inert mass ⇒ −2.4 ml/kg/min relative VO₂max; climbing speed ∝ P_thr / M^0.79',
+        'Research index (cycling time to exhaustion near 75 % VO₂max, % of own baseline): TTE_75(G) = 36.8 + 41.6 × G  (minutes; G in g/100 g wet muscle; valid for G 0.6–4.7 and intensity 71–82 % VO₂max)\nNot run: glycogen matters only if session duration exceeds t_lim = (G_start − 25 mmol/kg ww) / r_gly(I)\nEvidence, not run: in-session carbohydrate bonus 0–6 % (central 2–3 %) time-trial gain for sessions over 60–90 min; dose about 0.7 g/kg/h glucose + 0.2 g/kg/h fructose\nEconomy: gI = clip((I_rel − 0.60)/0.10, 0, 1);  dO₂cost = 0.065 × A_fat × gI (range 0.05–0.08);  econ_factor = 1 / (1 + dO₂cost)\nMass: +5 % inert mass ⇒ −2.4 ml/kg/min relative VO₂max; climbing speed ∝ P_thr / M^0.79',
       keyNumbers: [
         {
           label:
@@ -488,7 +591,7 @@ const topic: EvidenceTopic = {
         'The glycogen–exhaustion link is grade A and the economy penalty B (two randomised trials by one group plus independent studies), with mass effects B.',
       status: 'established',
       caveats:
-        'The glycogen regression comes from 9 men in a 1967 study. The economy data are mostly elite male race walkers plus two small crossovers, so recreational athletes, women and adaptation beyond 3 weeks are not established. A 2026 vote-count review claims performance recovers after a week, but it is low quality and conflicts with the primary trials, so it is not used. “Sleep-low” or periodised carbohydrate is offered only as a contested preset.',
+        'The glycogen regression comes from 9 men in a 1967 study. The economy data are mostly elite male race walkers plus two small crossovers, so recreational athletes, women and adaptation beyond 3 weeks are not established. A 2026 vote-count review claims performance recovers after a week, but it is low quality and conflicts with the primary trials, so it is not used. “Sleep-low” or periodised carbohydrate is offered only as a contested preset. The index speaks only to glycogen-limited cycling near 75 % of maximal oxygen uptake.',
       referenceIds: [
         'murphy2021',
         'bergstrom1967',
@@ -509,18 +612,57 @@ const topic: EvidenceTopic = {
         'zajac2014',
         'gawelczyk2026b',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'starting muscle glycogen and cycling time to exhaustion near 75 % VO₂max (9 men)',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'higher oxygen cost of hard exercise after fat adaptation, mostly in elite male race walkers',
+        },
+        {
+          type: 'firstPrinciples',
+          confidence: 'moderate',
+          scope:
+            'fuel and inert mass constrain defined work; they do not cover pacing, task or every kind of fatigue',
+        },
+        {
+          type: 'tacitKnowledge',
+          confidence: 'moderate',
+          scope: 'repeated familiar sessions with effort ratings as personal feedback',
+        },
+      ],
+      outcomeScope:
+        'Glycogen-limited cycling time to exhaustion near 75 % VO₂max, relative to your baseline; not race time or general endurance',
+      population:
+        'Trained and elite athletes, mostly men; the glycogen line comes from 9 men cycling in 1967',
+      observations: [
+        {
+          tissue: 'time to exhaustion, cycling (muscle glycogen by biopsy)',
+          type: 'humanOutcome',
+          referenceIds: ['bergstrom1967'],
+        },
+        {
+          tissue: 'race-walking economy and race time',
+          type: 'humanOutcome',
+          referenceIds: ['burke2017', 'burke2021a'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['enduranceCapacity'],
     },
     {
       id: '19-mood-energy-and-keto-induction-symptoms',
-      title: 'Mood, energy and the first weeks of a large carbohydrate drop',
+      title: 'Wellbeing concerns, mood and the first weeks of a large carbohydrate drop',
       category: 'recovery',
       summary:
         'Four different things affect how people feel. A steep fall in carbohydrate causes a temporary “induction” dip of fatigue, dizziness and headache in the first days to weeks. Fasting has small, task-specific effects. A moderate deficit in overweight people tends to improve mood, sleep and general health. A severe deficit in very lean people worsens mood. Effects on thinking test scores are small and inconsistent.',
-      howModelled:
-        'Vitals models two things. A keto-induction symptom load starts 2 days after carbohydrate has dropped from about 100 g/d to under 50 g/d, holds for days 2–4, then decays over about 10 days; when it is high the app shows typical prevalence text. A wellbeing risk tier adds points for low energy availability, fast weight loss, the induction window, sleep debt and very low body fat. Where body fat is above the leanness gate, deficit is moderate and weight loss is 5 % or more, the app shows text that mood and sleep usually improve. There is no cognitive-performance score.',
-      equation:
-        'Keto-induction load: KI = 0 for (t − t_k) < 2;  1 for 2 ≤ (t − t_k) ≤ 4;  exp(−((t − t_k) − 4)/10) afterwards   (t_k = first day the 7-day mean net carbohydrate falls from ≥ 100 to < 50 g/d for 2 consecutive days)\nWellbeing points: +1 if EA_c 15–30, +2 if EA_c < 15; +1 if weight-loss rate 1.0–1.5 %BW/wk, +2 if over 1.5; +1 if KI ≥ 0.3; +1 if sleep debt > 1 h/night; +1 if very lean (body fat < 10 % men or < 18 % women).  Tiers: green 0–1, amber 2–3, red ≥ 4',
+      howModelled: `${INDUCTION_MODEL_DESCRIPTION} Wellbeing concern flags name what the model sees: low energy availability against the policy reference points, fast weight loss, the induction window, sleep debt, very low body fat, a habitual energy availability that is already low, and days that are not fully logged. They add up to a tier for the rubric, which is a guard, not a measurement of mood. Your own ratings of fatigue, restfulness, mood, energy or function, and concerns you name, are kept as observations on your own scale: any named concern, or an adverse rating on two or more days, sets the status to review whatever the model tier, and unlogged days are not treated as fine. There is no cognitive-performance score and no mood prediction.`,
+      equation: `${INDUCTION_MODEL_EQUATION}\nKI = Φ_ind\nConcern rubric points (a guard, not a mood score): +1 if EA_c 15–30, +2 if EA_c < 15; +1 if weight-loss rate 1.0–1.5 %BW/wk, +2 if over 1.5; +1 if KI ≥ 0.3; +1 if sleep debt > 1 h/night; +1 if very lean (body fat < 10 % men or < 18 % women).  Tiers: green 0–1, amber 2–3, red ≥ 4`,
       keyNumbers: [
         {
           label: 'Weight-loss rate used in the wellbeing rubric',
@@ -535,9 +677,9 @@ const topic: EvidenceTopic = {
           referenceIds: ['skartun2025'],
         },
         {
-          label: '“Keto flu” survey (300 forum users, 101 described it)',
+          label: '“Keto flu” forum reports (300 users, 101 described symptoms; not prevalence)',
           value:
-            'Symptoms peaked in week 1 and dwindled after 4 weeks; resolution on day 3–30 (median 4.5, IQR 3–15)',
+            'Symptoms peaked in week 1 and dwindled after 4 weeks; eight users reported resolution on day 3–30 (median 4.5, IQR 3–15)',
           referenceIds: ['bostock2020'],
         },
         {
@@ -629,7 +771,7 @@ const topic: EvidenceTopic = {
         },
       ],
       timeCourse:
-        'The induction transient runs 2–28 days. Mood effects of a moderate deficit build over weeks, and the first 2 weeks were the best for mood in one trial. Severe-deficit mood decline builds over months (month 5 in one study) and recovers in about 6 months after refeeding.',
+        'The proposed induction curve peaks at 2.5 days (6 days in the sensitivity branch); the separate study reports describe symptoms over days to weeks. Mood effects of a moderate deficit build over weeks, and the first 2 weeks were the best for mood in one trial. Severe-deficit mood decline builds over months (month 5 in one study) and recovers in about 6 months after refeeding.',
       moderators:
         'Baseline adiposity (the switch between benefit and harm), energy availability, sleep, caffeine (acute alertness), depression history, and hydration (2 % or more body-mass loss).',
       grade: 'C',
@@ -637,7 +779,7 @@ const topic: EvidenceTopic = {
         'A mix of randomised and observational studies with small effects and high heterogeneity, plus single-case data for extreme preparation.',
       status: 'proposed-fit',
       caveats:
-        'The wellbeing rubric is a transparent, unvalidated heuristic that needs user testing and calibration against the appetite topic. The leanness thresholds (10 % and 18 % body fat) and the more-than-1.5 %/wk cut-off are proposals. Vitals deliberately does not model or display a “cognitive performance” score: tests are heterogeneous and there is no validated mapping from diet to test scores. Claims of “mental clarity from ketosis” and “brain fog from fasting” are unsupported as generalisations.',
+        'The concern rubric is a transparent, unvalidated heuristic that needs user testing and calibration against the appetite topic; a reassuring tier never outweighs what you report. The leanness thresholds (10 % and 18 % body fat) and the more-than-1.5 %/wk cut-off are proposals. Vitals deliberately does not model or display a “cognitive performance” score: tests are heterogeneous and there is no validated mapping from diet to test scores. Claims of “mental clarity from ketosis” and “brain fog from fasting” are unsupported as generalisations.',
       referenceIds: [
         'garthe2011',
         'helms2014',
@@ -669,6 +811,29 @@ const topic: EvidenceTopic = {
         'alfaris2015',
         'adan2012',
       ],
+      warrants: [
+        {
+          type: 'livedExperience',
+          confidence: 'moderate',
+          scope:
+            'repeated fatigue, mood and restfulness ratings report how you feel; they are not a diagnosis',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'small, inconsistent effects of diet on mood and cognitive test scores',
+        },
+        {
+          type: 'tacitKnowledge',
+          confidence: 'moderate',
+          scope:
+            'transparent flags for low energy availability, fast loss and sleep debt as prompts to review',
+        },
+      ],
+      outcomeScope: 'Observed wellbeing and named concern flags; not a mood measurement or prediction',
+      population:
+        'Adults with overweight or obesity in restriction trials; lean athletes and physique competitors; forum users',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['moodTier', 'ketoInduction'],
     },
     {
@@ -857,9 +1022,9 @@ const topic: EvidenceTopic = {
       summary:
         'Below about 30 kcal/kg fat-free mass of energy availability, the pulsing signal that drives ovulation is disrupted. Over weeks this appears as luteal-phase defects and, later, missed periods. In one controlled trial, the size of the calorie deficit predicted how often menstrual disturbances occurred. In lean men, testosterone falls with severe, prolonged deficits. In obese people the direction reverses: weight loss raises testosterone and improves erectile function.',
       howModelled:
-        'For pre-menopausal, regularly cycling women not on hormonal contraception (which hides the signal), the risk of at least one luteal-phase defect in 3 cycles is a logistic curve of the average energy deficit (as a percentage of needs, including exercise) over the last 3 cycles, with a midpoint of about 15 %. An amenorrhoea flag appears when energy availability stays under 30 for 90 days or more. Libido is a flag only: lowered under low energy availability or very low body fat for 28 days or more, raised in text when BMI is 30 or more and weight loss 5 % or more.',
+        'For people who confirm they menstruate and are not on hormonal contraception (which hides the signal), Vitals shows a concern status, not a probability: review when you report missed periods or a new irregularity; insufficient history while fewer than 84 days (about 3 cycles) of energy history are known; and concern when the average energy deficit over those days (as a percentage of needs, including exercise) reaches the trial’s midpoint of about 15 %. The logistic curve below is kept only as a research reference, not a personal per-cycle probability. No amenorrhoea or libido flag is computed: a missed period or another change you report sets the status to review.',
       equation:
-        'P_LPD = clip(1 / (1 + exp(−0.20 × (MEN − 15))), 0.10, 0.90)   (MEN = average energy deficit as % of needs over the last 3 cycles)\nAmenorrhoea flag: EA_c < 30 for ≥ 90 days (women)\nLibido flag: DOWN if (EA_c < 30 or body fat < 10 % men / < 18 % women) for ≥ 28 days; UP text if BMI ≥ 30 and weight loss ≥ 5 %',
+        'Shown: concern status (review | insufficient history | concern | no model concern | not applicable)\nResearch reference, not a personal probability: P_LPD = clip(1 / (1 + exp(−0.20 × (MEN − 15))), 0.10, 0.90)   (MEN = average energy deficit as % of needs over the last 3 cycles)\nProposed, not run: amenorrhoea flag EA_c < 30 for ≥ 90 days (women); libido flag: DOWN if (EA_c < 30 or body fat < 10 % men / < 18 % women) for ≥ 28 days; UP text if BMI ≥ 30 and weight loss ≥ 5 %',
       keyNumbers: [
         {
           label:
@@ -941,6 +1106,36 @@ const topic: EvidenceTopic = {
         'dulloo2021',
         'keys1950',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'menstrual disturbances become more frequent with energy deficit (one 3-cycle trial of untrained women)',
+        },
+        {
+          type: 'causallyCoherent',
+          confidence: 'high',
+          scope:
+            'sustained low energy availability as a reason for concern; not a per-cycle probability for one person',
+        },
+        {
+          type: 'livedExperience',
+          confidence: 'moderate',
+          scope: 'a missed or changed period as a signal that overrides any model reassurance',
+        },
+      ],
+      outcomeScope:
+        'Concern about menstrual disturbance with energy deficit; not a probability, a diagnosis or fertility advice',
+      population: 'Untrained premenopausal women (one 3-cycle trial); athletes and physique competitors',
+      observations: [
+        {
+          tissue: 'menstrual cycles (luteal defects, anovulation, irregular bleeding)',
+          type: 'humanOutcome',
+          referenceIds: ['williams2015', 'heikura2018', 'hulmi2016'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['menstrualRisk'],
     },
     {
@@ -1504,7 +1699,7 @@ const topic: EvidenceTopic = {
       claim: 'Resistance training protects bone during weight loss.',
       verdict: 'unproven',
       explanation:
-        'In obese older adults, adding exercise cut hip loss from about 3 % to about 1 %. But a 2025 trial found neither resistance training nor a weighted vest prevented trabecular hip loss. Weight loss that comes from exercise spares bone. Vitals therefore uses a wide protective range, from none to two thirds.',
+        'In obese older adults, adding exercise cut hip loss from about 3 % to about 1 %. But a 2025 trial found neither resistance training nor a weighted vest prevented trabecular hip loss. Weight loss that comes from exercise spares bone. Vitals therefore credits no bone protection from logged sets; progressive resistance and weight-bearing training stay useful for strength and function.',
       referenceIds: ['soltani2016', 'villareal2006', 'villareal2011', 'beavers2025'],
     },
     {

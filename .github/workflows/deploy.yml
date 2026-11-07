@@ -1,12 +1,25 @@
-# Production deploy to Netlify. Runs only for version tags (vX.Y.Z) and on manual dispatch.
-# Pushes to main run nothing. The release gate (typecheck, lint, full test suite) runs locally
-# in `pnpm release` before the tag is created; see docs/RELEASING.md.
+# Production deployment: called once by Release after validation, or explicitly dispatched with its own gate.
 name: Deploy
 
 on:
-  push:
-    tags: ['v*.*.*', '!v*-*']
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      sha:
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+      validated:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      NETLIFY_SITE_ID:
+        required: true
+      NETLIFY_AUTH_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -16,15 +29,56 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  source:
+    name: Resolve deployment source
+    if: github.repository == 'patalbansishashank/vitals' && !github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.source.outputs.sha }}
+      label: ${{ steps.source.outputs.label }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+      - name: Check immutable source and stable release policy
+        id: source
+        env:
+          REQUESTED_SHA: ${{ inputs.sha }}
+          LABEL: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          SHA=$(git rev-parse HEAD)
+          if [ -n "$REQUESTED_SHA" ] && [ "$REQUESTED_SHA" != "$SHA" ]; then
+            echo "::error::Reusable deployment must name the exact commit SHA"
+            exit 1
+          fi
+          if [[ "$LABEL" == v*-* ]]; then
+            echo "::error::Candidate tags cannot deploy to production"
+            exit 1
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "label=$LABEL" >> "$GITHUB_OUTPUT"
+
+  validate:
+    name: Validate manually requested deployment
+    needs: source
+    if: ${{ !inputs.validated }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.source.outputs.sha }}
+
   deploy:
     name: Build and deploy to production
     # Production deploys come from the public repository only (the private archive keeps this workflow disabled too).
-    if: github.repository == 'patalbansishashank/vitals' && !github.event.repository.private && !(github.ref_type == 'tag' && contains(github.ref_name, '-'))
+    needs: [source, validate]
+    if: ${{ always() && needs.source.result == 'success' && (needs.validate.result == 'success' || (inputs.validated && needs.validate.result == 'skipped')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Check out
         uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.source.outputs.sha }}
 
       # package.json has no "packageManager" field, so the pnpm major is pinned here.
       # If one is added later, drop `version` (the action fails when both are set and disagree).
@@ -56,15 +110,16 @@ jobs:
       # the repo is a pnpm workspace (vitals + packages/companion) and the CLI refuses to guess (v0.2.0 deploy failure).
       - name: Deploy to Netlify (production)
         env:
+          DEPLOY_LABEL: ${{ needs.source.outputs.label }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         run: |
           pnpm --reporter=silent --package=netlify-cli@27 dlx netlify deploy --prod --no-build --dir=dist \
             --filter vitals --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN" \
-            --message "Release ${GITHUB_REF_NAME}" --json > "$RUNNER_TEMP/deploy.json"
+            --message "Release ${DEPLOY_LABEL}" --json > "$RUNNER_TEMP/deploy.json"
           jq '{deploy_id, site_name, url, deploy_url, logs}' "$RUNNER_TEMP/deploy.json"
           {
-            echo "### Deployed ${GITHUB_REF_NAME} to production"
+            echo "### Deployed ${DEPLOY_LABEL} to production"
             echo
             echo "| | |"
             echo "|---|---|"

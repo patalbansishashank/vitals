@@ -27,6 +27,7 @@ import {
   type ItemCredit,
   type LocalDate,
   type LogEntry,
+  type DayMarks,
   type Mark,
   type MeasurementEntry,
   type Notice,
@@ -36,12 +37,15 @@ import {
   type TodayChecklistItem,
   type TodayView,
 } from '@/living';
+import { monitorGoals, bpEpisodes } from '@/living/monitoring';
+import { MONITORED_LABEL } from './types';
 import type { TrendLaneData } from '@/features/charts/living/types';
+import type { DayIntakeAttestation } from '@/lib/bodyContracts';
 import { useActivePlanStore, type ActivePlan } from '../activePlan';
 import { currentDay, type LivingClock } from '../clock';
 import { fmtDateRange, fmtDay, fmtWeekday, mealName } from '../format';
 import { changeCardReducer, type ChangeCardModel, type ChangeEvent } from '../model/changeCard';
-import type { ActionOutcome, LivingActions, ManualMealInput, MeasurementInput, PlanEventInput, RowMark, SessionLogInput } from './actions';
+import { measurementFacts, measurementValues, type ActionOutcome, type LivingActions, type ManualMealInput, type MealAnswerInput, type MeasurementInput, type PlanEventInput, type RowMark, type SessionLogInput } from './actions';
 import { FIXTURE_WEIGHT, fixtureItemCredit, fixturePrescription, fixtureWeighIn, hash01 } from './fixtures';
 import type { LivingDataSource } from './source';
 import type { AdherenceSummary, BodyComposition, CheckInModel, DayGlance, HistoryDay, PlanVersionRow } from './types';
@@ -103,9 +107,13 @@ interface StubState {
   rev: number;
   quietMode: boolean;
   autoEase: boolean;
-  /** Checklist-row marks per date (`meal:lunch`, `session:14:0`, `steps`, …). */
+  /** Checklist-row marks per date (`session:14:0`, `steps`, …). Meals are read from their food and `mealMarks`. */
   rows: Record<LocalDate, Record<string, RowState>>;
   dayMarks: Record<LocalDate, Mark>;
+  /** (C1/D5-01) the person's day food report per date (complete · partial · none). */
+  dayIntake: Record<LocalDate, DayIntakeAttestation>;
+  /** Each meal's own answer per date and slot (partly, not), as `DayStatusDoc.marks.meals` holds it. */
+  mealMarks: Record<LocalDate, Record<string, Mark>>;
   entries: LogEntry[];
   measurements: MeasurementEntry[];
   assumed: Set<LocalDate>;
@@ -123,6 +131,7 @@ export interface StubLiving {
 }
 
 const ROW_CREDIT: Record<RowMark, number> = { asPlanned: 1, partly: 0.5, skipped: 0 };
+const MEAL_MARK_OF: Record<RowMark, Mark> = { asPlanned: 'asPlanned', partly: 'partly', skipped: 'not' };
 const STATUS_OF: Record<RowMark, 'done' | 'partial' | 'skipped'> = { asPlanned: 'done', partly: 'partial', skipped: 'skipped' };
 
 const ITEM_LABEL: Record<PlanItemType, string> = {
@@ -138,11 +147,11 @@ const ITEM_LABEL: Record<PlanItemType, string> = {
 };
 
 const BLOCKS: Array<{ id: string; label: string; types: PlanItemType[] }> = [
-  { id: 'training', label: 'training', types: ['rtSession', 'cardioSession'] },
-  { id: 'protein', label: 'protein', types: ['protein'] },
-  { id: 'energy', label: 'energy', types: ['energy'] },
-  { id: 'fasting', label: 'fasting', types: ['fast', 'window'] },
-  { id: 'steps', label: 'steps', types: ['steps'] },
+  { id: 'training', label: 'Training', types: ['rtSession', 'cardioSession'] },
+  { id: 'protein', label: 'Protein', types: ['protein'] },
+  { id: 'energy', label: 'Energy', types: ['energy'] },
+  { id: 'fasting', label: 'Fasting', types: ['fast', 'window'] },
+  { id: 'steps', label: 'Steps', types: ['steps'] },
 ];
 
 function rowIdOfItem(itemId: string): string | null {
@@ -192,7 +201,7 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
   });
 
   function blank(): StubState {
-    return { rev: 0, quietMode: false, autoEase: true, rows: {}, dayMarks: {}, entries: [], measurements: [], assumed: new Set(), difficulty: {}, changes: [], changesSeeded: null };
+    return { rev: 0, quietMode: false, autoEase: true, rows: {}, dayMarks: {}, dayIntake: {}, mealMarks: {}, entries: [], measurements: [], assumed: new Set(), difficulty: {}, changes: [], changesSeeded: null };
   }
   function bump(): void {
     st = { ...st, rev: st.rev + 1 };
@@ -232,7 +241,7 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
   }
 
   function hasLocal(date: LocalDate): boolean {
-    return !!st.rows[date] || !!st.dayMarks[date] || st.entries.some((e) => e.date === date) || st.measurements.some((m) => m.date === date);
+    return !!st.rows[date] || !!st.dayMarks[date] || !!st.mealMarks[date] || st.entries.some((e) => e.date === date) || st.measurements.some((m) => m.date === date);
   }
 
   function itemCredits(plan: ActivePlan, rx: PrescribedDaySnapshot, date: LocalDate): ItemCredit[] {
@@ -240,7 +249,8 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     const all = st.dayMarks[date];
     const pastSeed = seeded(plan) && compareDates(date, today()) < 0 && !hasLocal(date);
     const meals = mealEntries(date);
-    const mealsKnown = rx.meals.length > 0 && rx.meals.every((m) => rows[`meal:${m.slot}`] || meals.some((e) => e.slot === m.slot));
+    // the day's food is known once every meal has food or was skipped; "partly" with nothing typed leaves it unknown
+    const mealsKnown = rx.meals.length > 0 && rx.meals.every((m) => st.mealMarks[date]?.[m.slot] === 'not' || meals.some((e) => e.slot === m.slot));
     const eaten = mealTotals(st.entries.filter((e) => e.date === date));
     return rx.items.map((it): ItemCredit => {
       if (pastSeed) {
@@ -367,7 +377,6 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
         id: 'chg-ease-session',
         class: 'edit',
         title: 'Proposal · an easier session today',
-        source: { label: 'the plan · from your sleep' },
         createdAt: `${t}T06:30:00`,
         note: 'You slept about 6 h 10 against the 7 h 30 the plan assumed. A shorter session keeps the week on track.',
         items: [{ label: `${fmtDay(t)} lift`, before: '45 min · 4 exercises', after: '30 min · 3 exercises' }],
@@ -380,7 +389,6 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
         id: 'chg-light-food',
         class: 'edit',
         title: 'Small adjustment · food 5 % lower today and tomorrow',
-        source: { label: 'the plan · small adjustment' },
         createdAt: `${addDays(t, -1)}T21:00:00`,
         note: 'You ate about 400 kcal more yesterday. Today and tomorrow are 5 % lower.',
         items: [
@@ -402,7 +410,7 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     out.push({ id: 'weigh', ...(plan.intentions.weighInClockH !== undefined ? { at: plan.intentions.weighInClockH } : {}), kind: 'weigh', label: 'Weigh in', done: weighed, command: { id: 'log.measurement', input: { date, metric: 'weightKg' } } });
     out.push({ id: 'mark:all', kind: 'mark', label: 'Day as planned', done: all !== undefined, command: { id: 'log.markDay', input: { date, marks: { all: 'asPlanned' } } } });
     for (const m of rx.meals) {
-      const done = !!rows[`meal:${m.slot}`] || meals.some((e) => e.slot === m.slot) || all !== undefined;
+      const done = st.mealMarks[date]?.[m.slot] !== undefined || meals.some((e) => e.slot === m.slot) || all !== undefined;
       out.push({ id: `meal:${m.slot}`, at: m.clockH, kind: 'meal', label: mealName(m.slot, m.clockH), done, command: { id: 'log.meal', input: { date, slot: m.slot, clockH: m.clockH, asPlanned: true } } });
     }
     for (const s of rx.sessions) {
@@ -413,6 +421,14 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     if (rx.steps !== undefined) out.push({ id: 'steps', kind: 'steps', label: 'Steps', done: !!rows.steps, command: { id: 'log.steps', input: { date } } });
     if (rx.sleep) out.push({ id: 'sleep', kind: 'sleep', label: 'Last night’s sleep', done: !!rows.sleep, command: { id: 'log.sleep', input: { date } } });
     return out.sort((a, b) => (a.at ?? 99) - (b.at ?? 99));
+  }
+
+  /** The day's marks as the documents hold them: the whole-day mark and each meal's own answer. */
+  function dayMarksOf(date: LocalDate): DayMarks | null {
+    const all = st.dayMarks[date];
+    const meals = st.mealMarks[date];
+    if (!all && !meals) return null;
+    return { ...(all ? { all } : {}), ...(meals ? { meals: { ...meals } } : {}) };
   }
 
   function todayView(date: LocalDate): TodayView | null {
@@ -459,6 +475,8 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
         ...(rx?.steps !== undefined && rows.steps ? { steps: Math.round((rx.steps ?? 0) * rows.steps.credit) } : {}),
       },
       remaining: rx && !st.quietMode ? { energyKcal: rx.energyKcal - totals.energyKcal.value, proteinG: rx.macros.proteinG - totals.proteinG.value, carbG: rx.macros.carbG - totals.carbG.value, fatG: rx.macros.fatG - totals.fatG.value } : null,
+      ...(dayMarksOf(date) ? { marks: dayMarksOf(date)! } : {}),
+      ...(st.dayIntake[date] ? { intake: st.dayIntake[date] } : {}),
       checklist: rx ? checklist(plan, rx, date) : [],
       adherence: {
         today: st.quietMode ? null : score,
@@ -473,9 +491,6 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
           : null,
       trendWeight: tw !== null && real ? { kg: tw, sd: 0.3, todayExpected: real, ...(measured !== undefined ? { measured } : {}) } : null,
       checkIn: { due, lastAt: daysBetween(plan.startDate, t) >= 7 ? addDays(t, -7) : null },
-      biometrics: seeded(plan)
-        ? { lastNight: { hours: 6 + 1 / 6, efficiency: 88, source: 'ring' }, restingHr: { value: 54, vsBaseline: -2 }, hrv: { state: 'normal', metric: 'rmssd' }, flags: [] }
-        : null,
       notices,
       coachPrompts: ['log lunch as planned', 'why is my weight up?', 'I’m busy Thursday to Saturday'],
     };
@@ -532,7 +547,7 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
       }
       if (!plan.doc) data.goal = { value: FIXTURE_WEIGHT.goal, label: `goal ${FIXTURE_WEIGHT.goal} kg` };
       const gd = goalDates(plan);
-      if (gd) data.goalDateRange = { from: gd.realistic[0], to: gd.realistic[1], label: `likely ${fmtDateRange(gd.realistic[0], gd.realistic[1])}` };
+      if (gd) data.goalDateRange = { from: gd.realistic[0], to: gd.realistic[1], label: fmtDateRange(gd.realistic[0], gd.realistic[1]) };
       const events: NonNullable<TrendLaneData['events']> = [];
       for (const v of versionRows(plan)) if (v.version > 1) events.push({ day: daysBetween(from, v.date), kind: 'version', label: `v${v.version}` });
       for (const p of plan.pauses) events.push({ day: daysBetween(from, p.from), kind: 'pause', label: 'paused', endDay: daysBetween(from, p.to ?? t) });
@@ -542,7 +557,12 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     drift: () => driftReport(),
     driftCards: () => {
       const r = driftReport();
-      return r ? r.goals.map((g) => ({ goal: g.goal, metric: g.metric, state: g.state, goalDate: g.goalDate, causes: g.causes, action: g.action, text: g.text, label: 'Body weight' })) : [];
+      return r ? r.goals.map((g) => ({ goal: g.goal, metric: g.metric, state: g.state, goalDate: g.goalDate, causes: g.causes, action: g.action, text: g.text, label: 'Body weight', ...(g.certainty ? { certainty: g.certainty } : {}) })) : [];
+    },
+    monitoredGoals: () => {
+      const plan = plans.get();
+      if (!plan?.doc) return [];
+      return monitorGoals(plan.doc, st.measurements, today()).map((row) => ({ ...row, label: MONITORED_LABEL[row.metric] ?? row.metric, ...(row.bp ? { bpEpisodes: bpEpisodes(st.measurements).filter((e) => compareDates(e.date, plan.doc!.startDate) >= 0 && compareDates(e.date, today()) <= 0) } : {}) }));
     },
     adherence: (asOf) => adherenceSummary(asOf),
     checkIn: (asOf) => checkInModel(asOf),
@@ -606,9 +626,12 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
           state,
           checkInsOutside: 0,
           goalDate: { range: gd?.realistic ?? null, shiftDays: shift, shiftSd: 6 },
-          causes: [{ cause: 'adherence', share: 0.7, text: 'Mostly adherence: two of the last six sessions were skipped.' }],
-          action: state === 'behind' ? 'easeOptions' : 'keepGoing',
-          text: state === 'onTrack' ? 'On track. The goal date moved a little because a few sessions were skipped.' : state === 'ahead' ? 'Ahead of the forecast.' : 'Behind the forecast. An easier plan would keep the goal date.',
+          // D5-02: no cause is inferred (always empty); the verdict carries its certainty instead
+          causes: [],
+          action: state === 'behind' ? 'replan' : 'keepGoing',
+          text: state === 'onTrack' ? 'On track' : state === 'ahead' ? 'Ahead' : 'Behind',
+          certainty: 'clear',
+          operator: 'scaleWake',
         },
       ],
     };
@@ -648,8 +671,8 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
         const v = sums.get(b.id);
         return { type: b.types[0]!, label: b.label, mean: v && v.n > 0 ? Math.round((100 * v.s) / v.n) : null, n: v?.n ?? 0 };
       }),
-      costliest: worst && worst.cost > 0 ? `${fmtWeekday(worst.date)}’s ${worst.label} carried ${Math.round(worst.weight * 100)} % of the day and was the costliest item this week.` : null,
-      learned: seeded(plan) ? ['Friday lifts happen about 1 time in 3. The plan can move them — see the proposal on Today.'] : [],
+      costliest: worst && worst.cost > 0 ? `${fmtWeekday(worst.date)}, ${worst.label}` : null,
+      learned: seeded(plan) ? ['Friday lifts happen about 1 time in 3. The plan can move them.'] : [],
     };
   }
 
@@ -664,12 +687,14 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     const wk = tw.get(asOf) !== undefined && tw.get(addDays(asOf, -7)) !== undefined ? tw.get(asOf)! - tw.get(addDays(asOf, -7))! : null;
     const from = addDays(asOf, -13);
     return {
+      previewId: `stub:${plan.id}:${asOf}:${st.rev}`,
+      decisionPointDate: asOf,
       due: weekdayOf(asOf) === plan.policy.checkInWeekday,
       weekday: fmtWeekday(addDays(plan.startDate, (plan.policy.checkInWeekday - weekdayOf(plan.startDate) + 7) % 7)),
       weighIns7: w7,
-      verdict: enough && g ? { state: g.state, goalDate: g.goalDate.range, shiftText: g.goalDate.shiftDays !== null && Math.abs(g.goalDate.shiftDays) >= 3 ? `moved by ${g.goalDate.shiftDays > 0 ? '+' : '−'}${Math.abs(g.goalDate.shiftDays)} days (±${g.goalDate.shiftSd ?? 0})` : null, cause: g.causes[0]?.text ?? '' } : null,
-      trendText: wk !== null ? `trend ${wk < 0 ? '−' : '+'}${Math.abs(wk).toFixed(1)} kg this week (likely ${wk < 0 ? '−' : '+'}${Math.abs(wk * 0.5).toFixed(1)} to ${wk < 0 ? '−' : '+'}${Math.abs(wk * 1.5).toFixed(1)})` : 'Not enough weigh-ins for a weekly trend yet.',
-      missingText: enough ? null : `We need at least 4 weigh-ins in 7 days, or 10 in 14 days, to read your trend (you have ${w7}). Adherence is below. Weigh in on ${4 - w7} more morning${4 - w7 === 1 ? '' : 's'}.`,
+      verdict: enough && g ? { state: g.state, goalDate: g.goalDate.range, shiftText: g.goalDate.shiftDays !== null && Math.abs(g.goalDate.shiftDays) >= 3 ? `moved by ${g.goalDate.shiftDays > 0 ? '+' : '−'}${Math.abs(g.goalDate.shiftDays)} days (±${g.goalDate.shiftSd ?? 0})` : null, cause: g.causes[0]?.text ?? '', ...(g.certainty ? { certainty: g.certainty } : {}) } : null,
+      trendText: wk !== null ? `${wk < 0 ? '−' : '+'}${Math.abs(wk).toFixed(1)} kg this week` : 'No weekly trend yet',
+      missingText: enough ? null : `Not enough weigh-ins for the trend · ${w7} of 4 this week`,
       adherence: adherenceSummary(asOf),
       proposalId: st.changes.find((c) => c.class === 'edit' && c.state === 'pending')?.id ?? null,
       nextDate: addDays(asOf, 7),
@@ -744,7 +769,8 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
   function mealEntry(date: LocalDate, m: ManualMealInput, rx: PrescribedDaySnapshot | null): LogEntry {
     const slot = m.slot ? rx?.meals.find((x) => x.slot === m.slot) : undefined;
     const rel = m.asPlanned ? 0.1 : 0.15;
-    const comps = m.asPlanned && slot
+    // "as planned" with nothing named is the slot's own plan; with a component it is that (one serving of a recipe)
+    const comps = m.asPlanned && slot && m.components.length === 0
       ? [{ name: `${mealName(slot.slot, slot.clockH)} as planned`, energyKcal: slot.energyKcal, proteinG: slot.proteinG, carbG: slot.carbG, fatG: slot.fatG, grams: undefined as number | undefined }]
       : m.components;
     const est = (v: number | undefined) => ({ value: v ?? 0, sd: (v ?? 0) * rel });
@@ -778,23 +804,53 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     const plan = plans.get();
     if (!plan) return Promise.resolve(fail('There is no plan running.'));
     if (compareDates(date, today()) > 0) return Promise.resolve(fail('Future days are a preview. You can log them when they come.'));
-    const rx = prescription(plan, date);
     if (rowId.startsWith('meal:')) {
       const slot = rowId.slice(5);
-      const m = rx?.meals.find((x) => x.slot === slot);
-      if (mark === 'asPlanned' && m) {
-        const undoEntry = addEntry(mealEntry(date, { slot, clockH: m.clockH, components: [], asPlanned: true }, rx));
-        const undoRow = setRow(date, rowId, { mark, credit: 1, method: 'asPlanned' });
-        return Promise.resolve(ok(async () => (await undoEntry(), undoRow())));
-      }
-      if (mark === 'partly' && m) {
-        const e = mealEntry(date, { slot, clockH: m.clockH, components: [{ name: `${mealName(slot, m.clockH)}, about half`, energyKcal: m.energyKcal / 2, proteinG: m.proteinG / 2, carbG: m.carbG / 2, fatG: m.fatG / 2 }] }, rx);
-        const undoEntry = addEntry(e);
-        const undoRow = setRow(date, rowId, { mark, credit: 0.5, method: 'typed' });
-        return Promise.resolve(ok(async () => (await undoEntry(), undoRow())));
-      }
+      return answerMeal(date, { slot, mark, replaces: mealEntries(date).filter((e) => e.slot === slot).map((e) => e.id) });
     }
     return Promise.resolve(ok(setRow(date, rowId, { mark, credit: ROW_CREDIT[mark], method: mark === 'asPlanned' ? 'asPlanned' : 'typed' })));
+  }
+
+  /**
+   * One meal's answer, as the command does it: refused whole when `replaces` is not the slot's food as it stands; else
+   * the slot's food goes, "as planned" logs the planned meal (or the serving), partly and skipped keep the meal's own
+   * answer (no invented amount). Undo puts back exactly the entries and the answer the slot had.
+   */
+  function answerMeal(date: LocalDate, a: MealAnswerInput): Promise<ActionOutcome> {
+    const plan = plans.get();
+    if (!plan) return Promise.resolve(fail('There is no plan running.'));
+    if (compareDates(date, today()) > 0) return Promise.resolve(fail('Future days are a preview. You can log them when they come.'));
+    const rx = prescription(plan, date);
+    const m = rx?.meals.find((x) => x.slot === a.slot);
+    if (!m) return Promise.resolve(fail('There is no planned meal in that slot on this day.'));
+    const food = mealEntries(date);
+    const ids = new Set(a.replaces);
+    if ([...ids].some((id) => !food.some((e) => e.id === id)) || food.some((e) => e.slot === a.slot && !ids.has(e.id))) return Promise.resolve(fail('That meal changed since it was read. Look at it again first.'));
+    const removed = st.entries.filter((e) => ids.has(e.id));
+    const prevMark = st.mealMarks[date]?.[a.slot];
+    const added =
+      a.mark === 'asPlanned'
+        ? mealEntry(date, { slot: a.slot, clockH: m.clockH, components: a.serving ? [a.serving] : [], asPlanned: true }, rx)
+        : null;
+    const setMark = (mark: Mark | undefined) => {
+      const { [a.slot]: _old, ...others } = st.mealMarks[date] ?? {};
+      void _old;
+      const day = mark ? { ...others, [a.slot]: mark } : others;
+      const { [date]: _day, ...rest } = st.mealMarks;
+      void _day;
+      st.mealMarks = Object.keys(day).length > 0 ? { ...rest, [date]: day } : rest;
+    };
+    st.entries = [...st.entries.filter((e) => !ids.has(e.id)), ...(added ? [added] : [])];
+    setMark(a.mark === 'asPlanned' ? undefined : MEAL_MARK_OF[a.mark]);
+    bump();
+    return Promise.resolve(
+      ok(async () => {
+        st.entries = [...st.entries.filter((e) => e.id !== added?.id), ...removed];
+        setMark(prevMark);
+        bump();
+        return ok();
+      }),
+    );
   }
 
   function changeEvent(id: string, ev: ChangeEvent): Promise<ActionOutcome> {
@@ -815,6 +871,24 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
       return rowMark(date, item.id, 'asPlanned');
     },
     markRow: (date, rowId, mark) => rowMark(date, rowId, mark),
+    answerMeal: (date, a) => answerMeal(date, a),
+    // (C1/D5-01) the day's food answer: complete, partial or confirmed none (stand-in keeps it per date, with undo)
+    confirmDayIntake: (date, intake) => {
+      if (!plans.get()) return Promise.resolve(fail('There is no plan running.'));
+      const prev = st.dayIntake[date];
+      st.dayIntake = { ...st.dayIntake, [date]: intake };
+      bump();
+      return Promise.resolve(
+        ok(async () => {
+          const next = { ...st.dayIntake };
+          if (prev) next[date] = prev;
+          else delete next[date];
+          st.dayIntake = next;
+          bump();
+          return ok();
+        }),
+      );
+    },
     markDay: (date, mark) => {
       if (!plans.get()) return Promise.resolve(fail('There is no plan running.'));
       const prev = st.dayMarks[date];
@@ -831,12 +905,11 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
         }),
       );
     },
-    logWeight: (date, kg) => actions.logMeasurement(date, { metric: 'weightKg', value: kg, method: 'scale', context: 'morningFasted' }),
+    logWeight: (date, kg) => actions.logMeasurement(date, { metric: 'weightKg', value: kg, method: 'scale' }),
     logMeasurement: (date, m: MeasurementInput) => {
       if (!Number.isFinite(m.value) || m.value <= 0) return Promise.resolve(fail('Enter a number above zero.'));
       if (m.metric === 'weightKg' && (m.value < 30 || m.value > 300)) return Promise.resolve(fail('Weight must be 30–300 kg.'));
-      const value = m.repeats && m.repeats.length > 0 ? m.repeats.reduce((a, b) => a + b, 0) / m.repeats.length : m.value;
-      const e: MeasurementEntry = { id: nextId('m'), date, at: nowIso(), metric: m.metric, value, ...(m.repeats ? { repeats: m.repeats } : {}), ...(m.method ? { method: m.method } : {}), ...(m.context ? { context: m.context } : {}), source: src('typed') };
+      const e: MeasurementEntry = { id: nextId('m'), date, at: nowIso(), metric: m.metric, ...measurementValues(m), ...(m.method ? { method: m.method } : {}), ...measurementFacts(m), source: src('typed') };
       st.measurements = [...st.measurements, e];
       bump();
       return Promise.resolve(
@@ -850,13 +923,8 @@ export function createStubLiving(opts: { clock: LivingClock; plan?: PlanControl;
     logMeal: (date, meal) => {
       const plan = plans.get();
       if (!plan) return Promise.resolve(fail('There is no plan running.'));
-      const rx = prescription(plan, date);
-      const undoEntry = addEntry(mealEntry(date, meal, rx));
-      if (meal.slot) {
-        const undoRow = setRow(date, `meal:${meal.slot}`, { mark: 'asPlanned', credit: 1, method: meal.asPlanned ? 'asPlanned' : 'typed' });
-        return Promise.resolve(ok(async () => (await undoEntry(), undoRow())));
-      }
-      return Promise.resolve(ok(undoEntry));
+      // appends ("Add more", "I ate something else"): the meal reads its food; its own answer, if any, stays underneath
+      return Promise.resolve(ok(addEntry(mealEntry(date, meal, prescription(plan, date)))));
     },
     logSession: (date, s: SessionLogInput) => {
       const credit = s.credit ?? (s.status === 'done' ? 1 : s.status === 'partial' ? 0.5 : 0);

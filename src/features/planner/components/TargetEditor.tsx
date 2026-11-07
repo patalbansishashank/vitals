@@ -1,6 +1,6 @@
-import { MeasureStepper, Stepper } from '@/components';
+import { MeasureStepper, NumberField, Stepper } from '@/components';
 import type { GoalDraft } from '@/state/plannerStore';
-import type { GoalMetric, ModeSpec } from '../catalogue';
+import { targetSpecFor, type GoalMetric, type ModeSpec } from '../catalogue';
 
 export interface TargetEditorProps {
   metric: GoalMetric;
@@ -17,11 +17,28 @@ export interface TargetEditorProps {
  * ⇧ + arrow steps ×10; typing is allowed; out-of-range typing shows the range and is not committed.
  */
 export function TargetEditor({ metric, mode, goal, onChange, disabled }: TargetEditorProps) {
-  const t = metric.target;
+  const t = targetSpecFor(metric, mode);
   if (!t) return null;
   const verb = mode.target === 'absolute' ? 'target' : mode.label;
-  const name = `${metric.label.toLowerCase()} ${verb === 'target' ? 'target' : `to ${verb}`}`;
-  const value = goal.amount ?? t.fallback;
+  // "fat mass to lose", "blood pressure (systolic) lower by", "bhb target"
+  const name = `${metric.label.toLowerCase()} ${verb === 'target' ? 'target' : / by$/.test(verb) ? verb : `to ${verb}`}`;
+  if (goal.amount === null || !Number.isFinite(goal.amount))
+    return (
+      <NumberField
+        className="lp-target"
+        name={name}
+        value={null}
+        onChange={onChange}
+        min={t.min}
+        max={t.max}
+        step={t.step}
+        decimals={t.decimals}
+        unit={t.unit}
+        unitText={t.unitText}
+        disabled={disabled}
+      />
+    );
+  const value = goal.amount;
   if (t.quantity === 'mass' || t.quantity === 'length') {
     return (
       <MeasureStepper

@@ -1,10 +1,10 @@
 /**
- * Pause the plan (IA §4.12): from today or tomorrow, until you resume, with an optional reason. Paused days prescribe
- * your usual day; what you log still counts. TODO(E5): `plan.pause` has no "until" yet — the plan stays paused until
+ * Pause the plan (IA §4.12): a sheet with Cancel · title · Pause — from today or tomorrow, until you resume, with an
+ * optional reason. Paused days follow your usual day; what you log still counts (no explainer in the sheet). TODO(E5): `plan.pause` has no "until" yet — the plan stays paused until
  * the person resumes, which is what the sheet says.
  */
 import { useState } from 'react';
-import { Field, InlineWarning, Key, KeyBank, KeyValueList, ResponsivePanel, TextInput, toast } from '@/components';
+import { Field, InlineWarning, KeyBank, KeyValueList, ResponsivePanel, TextInput, toast } from '@/components';
 import { addDays } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import { useLivingActions } from '../../data/actions';
@@ -36,26 +36,13 @@ export function PausePanel({ open, onClose, today }: { open: boolean; onClose: (
       setError(r.message ?? C.failed);
       return;
     }
-    toast(C.pausedToast(fmtDay(fromDate)));
+    toast(from === 'today' ? C.pausedToast : C.pausesToast(fmtDay(fromDate)));
     close();
   };
 
   return (
-    <ResponsivePanel
-      open={open}
-      onClose={close}
-      title={C.pauseTitle}
-      footer={
-        <>
-          <Key onClick={close}>{C.cancel}</Key>
-          <Key variant="solid" loading={busy} onClick={() => void confirm()}>
-            {C.pauseConfirm}
-          </Key>
-        </>
-      }
-    >
+    <ResponsivePanel open={open} onClose={close} title={C.pauseTitle} onDone={() => void confirm()} doneLabel={C.pauseConfirm} cancelLabel={C.cancel} doneDisabled={busy}>
       <div className="lv-plan-pause">
-        <p className="lv-plan-prose">{C.pauseBody}</p>
         <Field label={C.from} help={fmtDay(fromDate)}>
           <KeyBank<From> value={from} onChange={setFrom} options={(Object.keys(C.fromChoices) as From[]).map((k) => ({ value: k, label: C.fromChoices[k] }))} />
         </Field>

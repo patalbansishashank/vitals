@@ -4,7 +4,11 @@
  * `persons/<id>/devices.json` as device tokens, and agent tool calls run in the person's worker.
  */
 import type { IncomingMessage } from 'node:http';
-import type { AgentClient, AgentScope, PersonContext, ResolvePerson, TokenRecord, TokenStore } from '../personContext.ts';
+import { COACH_TOKEN_PREFIX, isCoachTokenLabel, type AgentClient, type AgentScope, type PersonContext, type ResolvePerson, type TokenRecord, type TokenStore } from '../personContext.ts';
+import { AI_ERROR_MESSAGES, AiError } from '../providers.ts';
+import { resolveCoachConfig, type CoachSettings } from '../coach/config.ts';
+import { CoachError, type CoachCaller, type CoachTokens } from '../coach/sessions.ts';
+import type { ServerCoachOptions } from '../serverAi.ts';
 import { HttpError, type Logger } from '../security.ts';
 import type { Upstream } from '../proxy.ts';
 import { createServerAi } from '../serverAi.ts';
@@ -53,7 +57,7 @@ export function homeTokenStore(home: HomeServer): TokenStore {
   };
 }
 
-/** `ResolvePerson` (E26's interface) over `home.resolvePerson`; 401s become failures, other HTTP errors pass through. */
+/** `ResolvePerson` (E26's interface) over `home.resolvePerson`; 401s become failures, 403/429 AI errors, others pass through. */
 export function homeResolvePerson(home: HomeServer): ResolvePerson {
   return async (req: IncomingMessage) => {
     let ctx;
@@ -61,6 +65,10 @@ export function homeResolvePerson(home: HomeServer): ResolvePerson {
       ctx = await home.resolvePerson(req);
     } catch (e) {
       if (e instanceof HttpError && (e.code === 'unauthorized' || e.code === 'revoked')) return { error: e.code };
+      // a Lumen token on an AI or agent route
+      if (e instanceof HttpError && e.code === 'wrong_kind') throw new AiError('wrong_kind');
+      // the per-token limit: a 429 with Retry-After, not a 500 (an agent's burst of MCP requests reaches it)
+      if (e instanceof HttpError && e.code === 'rate_limited') throw new AiError('rate_limited', undefined, e.headers);
       throw e;
     }
     const [person, rec] = await Promise.all([home.persons.get(ctx.personId), home.devices.list(ctx.personId).then((l) => l.find((d) => d.id === ctx.deviceId))]);
@@ -82,6 +90,7 @@ export function homeResolvePerson(home: HomeServer): ResolvePerson {
       dataDir: paths.dir,
       configDir: paths.credentials,
       timeZone: person?.timeZone ?? 'UTC',
+      ...(ctx.kind === 'agent' ? { lumen: home.lumen.toolsFor(ctx.personId, person?.timeZone ?? 'UTC') } : {}),
       manifest: () => (manifest ??= call({ op: 'agentManifest' }).then((m) => m as ToolManifest)).catch((e: unknown) => {
         manifest = null;
         throw e;
@@ -100,8 +109,64 @@ export function homeResolvePerson(home: HomeServer): ResolvePerson {
   };
 }
 
-export function mountServerAi(home: HomeServer, o: { publicOrigin: string; version: string; log: Logger; aiRequestsPerMinute?: number; requestsPerDay?: number; fetch?: typeof globalThis.fetch; upstreams?: Record<string, Upstream> }) {
+/** `/v1/coach/*` callers: Vitals device tokens and Gauge lumen tokens; agent tokens get 403 (a coach starts no coaches). */
+export function homeCoachCaller(home: HomeServer): (req: IncomingMessage) => Promise<CoachCaller> {
+  return async (req) => {
+    let ctx;
+    try {
+      ctx = await home.resolvePerson(req, ['device', 'lumen']);
+    } catch (e) {
+      if (e instanceof HttpError && (e.code === 'unauthorized' || e.code === 'revoked')) throw new CoachError(401, e.code, AI_ERROR_MESSAGES[e.code]);
+      if (e instanceof HttpError && e.code === 'wrong_kind') throw new CoachError(403, 'wrong_kind', AI_ERROR_MESSAGES.wrong_kind);
+      if (e instanceof HttpError && e.code === 'rate_limited') throw new CoachError(429, 'rate_limited', AI_ERROR_MESSAGES.rate_limited, e.headers);
+      throw e;
+    }
+    const person = await home.persons.get(ctx.personId);
+    return { personId: ctx.personId, deviceId: ctx.deviceId, kind: ctx.kind === 'lumen' ? 'lumen' : 'device', timeZone: person?.timeZone ?? 'UTC' };
+  };
+}
+
+/** The coach's tokens in the person's `devices.json`: agent kind, scope `edit` (staging only), deleted with the session. */
+export function homeCoachTokens(home: HomeServer, closeMcp: (tokenId: string) => Promise<void>): CoachTokens {
+  const isCoach = (d: DeviceRecord) => d.kind === 'agent' && isCoachTokenLabel(d.label);
+  return {
+    async mint(personId, sessionId) {
+      const r = await home.devices.mint(personId, { kind: 'agent', label: `${COACH_TOKEN_PREFIX}${sessionId.slice(0, 8)}`, scope: 'edit', client: 'other' });
+      return { token: r.token, id: r.deviceId };
+    },
+    async remove(personId, id) {
+      await home.devices.forget(personId, (d) => d.id === id && isCoach(d));
+      await closeMcp(id);
+    },
+    async removeAll() {
+      let n = 0;
+      for (const p of await home.persons.list()) n += await home.devices.forget(p.id, isCoach);
+      return n;
+    },
+  };
+}
+
+export function mountServerAi(
+  home: HomeServer,
+  o: {
+    publicOrigin: string; version: string; log: Logger; aiRequestsPerMinute?: number; requestsPerDay?: number; fetch?: typeof globalThis.fetch; upstreams?: Record<string, Upstream>;
+    /** `server.json` `coach` (absent: the coach is off); `localMcpUrl` is the server's own loopback `/mcp`. */
+    coach?: { settings: CoachSettings | undefined; localMcpUrl: () => string | null; backends?: ServerCoachOptions['backends'] };
+    now?: () => number;
+  },
+) {
+  const coach: ServerCoachOptions | undefined = o.coach
+    ? {
+        cfg: resolveCoachConfig(o.coach.settings),
+        resolve: homeCoachCaller(home),
+        tokens: (closeMcp) => homeCoachTokens(home, closeMcp),
+        mcpUrl: o.coach.localMcpUrl,
+        ...(o.now ? { now: o.now } : {}),
+        ...(o.coach.backends ? { backends: o.coach.backends } : {}),
+      }
+    : undefined;
   return createServerAi({
+    ...(coach ? { coach } : {}),
     resolvePerson: homeResolvePerson(home),
     tokens: homeTokenStore(home),
     publicOrigin: o.publicOrigin,

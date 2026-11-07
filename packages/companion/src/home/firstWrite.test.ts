@@ -5,7 +5,7 @@
  * to it, `/mcp` with an agent token. For 20 fresh persons: open, then at once `log_steps`; each must answer in 5 s.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -74,14 +74,12 @@ it('a fresh server replica of a group that already holds data: today_get, then l
   done.push(() => c.close());
   const home = c.home!;
   const relayUrl = `${c.url.replace('http', 'ws')}/sync`;
-  const ring = (await readFile(new URL('spike/headless/fixtures/ring.jsonl', pkg), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as unknown);
   const times: number[] = [];
   for (let i = 0; i < 4; i++) {
     const secret = new Uint8Array(32).fill(100 + i);
     // the group's history, written by another replica (a browser in production)
     const seed = await home.persons.add({ label: `S${i}`, timeZone: 'Asia/Kolkata', secret, relayUrl });
-    expect((await home.pool.call(seed.id, { op: 'ingestLumen', events: ring, installations: {} })).ok).toBe(true);
-    for (let d = 1; d <= 30; d++) await home.pool.call(seed.id, { op: 'dispatch', command: 'log.steps', input: { date: `2026-09-${String(d).padStart(2, '0')}`, steps: 1000 + d }, source: 'ui' });
+    for (const m of ['07', '08', '09']) for (let d = 1; d <= 30; d++) await home.pool.call(seed.id, { op: 'dispatch', command: 'log.steps', input: { date: `2026-${m}-${String(d).padStart(2, '0')}`, steps: 1000 + d }, source: 'ui' });
     await home.pool.call(seed.id, { op: 'flush' });
     await home.pool.close(seed.id);
     // a new server person of the same group: its replica starts empty and pulls the history while the agent calls

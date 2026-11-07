@@ -2,7 +2,8 @@
  * The maintenance card against the engine: the number, band and drivers it shows are `resolveProfile` output for the
  * stored body plus the activity answers; every "change" opens a question (v3: no "Correct it" sheet).
  */
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { resolveProfile } from '@/engine/core/resolveProfile';
 import { resolveActivity } from '@/engine/intake/activity';
@@ -10,10 +11,10 @@ import { BIGGEST_UNKNOWN_MIN_KCAL, estimateMaintenance, explainMaintenance, narr
 import { buildPersonProfile, summarizeBody, withIntakeActivity } from '@/features/body/model';
 import { DEFAULT_BODY, type BodyProfileValues } from '@/state/profileStore';
 import { reduceActivity } from '../chapters/activity';
-import { MaintenanceResult } from '../components/Maintenance';
-import { DRIVER_LABEL } from '../copy';
+import { DriverTable, MaintenanceResult, PictureFace } from '../components/Maintenance';
+import { DRIVER_LABEL, MAINT } from '../copy';
 import { DEFAULT_CONTEXT } from '../flow';
-import { driverRows, maintenanceView } from '../maintenanceView';
+import { DRIVER_QUESTION, driverRows, fmt, maintenanceView } from '../maintenanceView';
 import type { ChapterAnswers, TurnStatus } from '../types';
 import { draftBodyValues } from '../useMaintenance';
 
@@ -46,6 +47,16 @@ function live(answers: ChapterAnswers) {
 }
 
 describe('maintenance from the engine', () => {
+  it.each([false, true])('quiet driver table hides amounts and steps, compact=%s', (compact) => {
+    const rows = [{ id: 'steps' as const, label: 'Steps', kcal: 250, steps: 6500, from: '6,500 steps', assumed: false }];
+    const view = render(<DriverTable rows={rows} unit="kcal" quiet compact={compact} />);
+    expect(screen.getByRole('table')).toHaveTextContent('Steps');
+    expect(view.container.textContent).not.toMatch(/\d|kcal/);
+    view.rerender(<DriverTable rows={rows} unit="kcal" compact={compact} />);
+    expect(view.container.textContent).toMatch(/6,500 steps/);
+    expect(view.container.textContent).toContain('250');
+  });
+
   it('shows resolveProfile’s TDEE0, its p10/p90 band and drivers that sum to it', () => {
     const { v, summary } = live(DESK);
     const resolved = resolveProfile(buildPersonProfile(v));
@@ -88,14 +99,14 @@ describe('what the card says', () => {
     const { r, summary } = live(DESK);
     const kc = maintenanceView(summary.maintenance, summary.maintenance.resolved.habits.activity, r.defaulted, 'kcal');
     const kj = maintenanceView(summary.maintenance, summary.maintenance.resolved.habits.activity, r.defaulted, 'kJ');
-    expect(kc.unknownText).toMatch(/±[\d\s\u2009]+ kcal\.$/);
-    expect(kj.unknownText).toMatch(/±[\d\s\u2009]+ kJ\.$/);
+    expect(kc.unknownText).toMatch(/±[\d,]+ kcal$/);
+    expect(kj.unknownText).toMatch(/±[\d,]+ kJ$/);
     expect(kj.unknownText).not.toMatch(/kcal/);
   });
   it('rounds to 10 kcal, lists the drivers in the fixed order and omits zero parts', () => {
     const { r, summary } = live(DESK);
     const view = maintenanceView(summary.maintenance, summary.maintenance.resolved.habits.activity, r.defaulted, 'kcal');
-    expect(view.headline).toMatch(/^about [\d\s]+ kcal a day — likely [\d\s]+–[\d\s]+$/);
+    expect(view.headline).toMatch(/^about [\d,]+ kcal a day — likely [\d,]+\u2060?–\u2060?[\d,]+$/);
     const kcal = Number(view.kcal.replace(/\D/g, ''));
     expect(kcal % 10).toBe(0);
     expect(kcal).toBe(round10(summary.maintenance.kcal));
@@ -106,7 +117,9 @@ describe('what the card says', () => {
     expect(shown).not.toContain('commute');
     expect(shown).not.toContain('recreation');
     expect(view.rows.map((x) => x.label)).toContain(DRIVER_LABEL.rmr);
-    expect(view.comparison).toMatch(/^Similar to people described as "(inactive|low active|active|very active)"\.$/);
+    // no activity-level jargon line ("Similar to people described as …"), and the rail carries its unit
+    expect(view).not.toHaveProperty('comparison');
+    expect(view.rail).toMatch(/^Maintenance ≈ [\d,]+ kcal · likely [\d,]+\u2060?–\u2060?[\d,]+$/);
   });
 
   it('marks parts that rest on skipped answers as assumed', () => {
@@ -140,7 +153,8 @@ describe('what the card says', () => {
     expect(within(table).getByRole('rowheader', { name: 'resting metabolism' })).toBeInTheDocument();
     expect(within(table).getByRole('rowheader', { name: 'digesting food' })).toBeInTheDocument();
     expect(within(table).getByRole('rowheader', { name: 'training' })).toBeInTheDocument();
-    expect(screen.getByText(/This is a starting estimate/)).toBeInTheDocument();
+    // the biggest unknown is the card's one line of text: no closing "starting estimate" paragraph
+    expect(screen.queryByText(/starting estimate/)).toBeNull();
     fireEvent.click(within(table).getByRole('button', { name: 'Change: steps' }));
     expect(onChangeAnswer).toHaveBeenCalledWith('stepsKnown');
     // resting metabolism: the measured-energy question (no sheet, no "Correct it")
@@ -151,16 +165,67 @@ describe('what the card says', () => {
     expect(document.querySelector('.lm-panel, .lm-sheet, [role="dialog"]')).toBeNull();
   });
 
+  it('does not offer the biggest unknown\'s key for the question that is already open on screen', () => {
+    const { r, summary } = live(DESK);
+    const m = summary.maintenance;
+    const view = maintenanceView(m, m.resolved.habits.activity, r.defaulted, 'kcal');
+    const b = view.explanation.biggestUnknown!;
+    const target = b.driver === 'rmr' ? 'measuredEver' : b.driver === 'steps' ? 'stepsKnown' : b.driver === 'work' ? 'job' : (DRIVER_QUESTION[b.driver] ?? b.driver);
+    const fix = MAINT.fix[b.driver as keyof typeof MAINT.fix];
+    const outsideTable = () => screen.queryAllByRole('button', { name: fix }).filter((k) => !k.closest('table'));
+    const { rerender } = render(<MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} />);
+    expect(screen.getByText(view.unknownText!)).toBeInTheDocument();
+    expect(outsideTable()).toHaveLength(1);
+    rerender(<MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} openQuestion={target} />);
+    expect(screen.getByText(view.unknownText!)).toBeInTheDocument();
+    expect(outsideTable()).toHaveLength(0);
+  });
+
   it('says what a measured figure does: a breath-test resting value is used, a calculator figure is shown only', () => {
     const { r, summary } = live(DESK);
     const m = summary.maintenance;
     const view = maintenanceView(m, m.resolved.habits.activity, r.defaulted, 'kcal');
     const { rerender } = render(<MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} measured={{ kind: 'rmr', value: 1720, unit: 'kcal', method: 'calculator', date: '2026-03' }} />);
-    expect(screen.getByText('Your measurement: 1 720 kcal resting · calculator · Mar 2026 · ' + "shown, not used: this method estimates, it doesn't measure")).toBeInTheDocument();
+    expect(screen.getByText('Your measurement: 1,720 kcal resting · calculator · Mar 2026 · ' + "shown, not used: this method estimates, it doesn't measure")).toBeInTheDocument();
     // the engine's route decides "used": a measured RMR on the profile
     const measuredBody = summarizeBody({ ...draftBodyValues(BODY, r, true), labs: { measuredRmrKcal: 1720 } }).maintenance;
     rerender(<MaintenanceResult m={measuredBody} view={view} unit="kcal" onChangeAnswer={() => undefined} measured={{ kind: 'rmr', value: 1720, unit: 'kcal', method: 'metabolic_cart' }} />);
     expect(screen.getByText(/breath test · used as your resting energy$/)).toBeInTheDocument();
+  });
+
+  it("the folded result: a legend under the bar names every part with its amount, in the bar's order (segment n = item n)", () => {
+    const { r, summary } = live(DESK);
+    const m = summary.maintenance;
+    const view = maintenanceView(m, m.resolved.habits.activity, r.defaulted, 'kcal');
+    const { container } = render(<MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} foldDrivers />);
+    const segs = container.querySelectorAll('.lmz-stack__seg');
+    const items = [...container.querySelectorAll('.lmz-stack__legend > li')];
+    expect(items).toHaveLength(segs.length);
+    expect(items.map((li) => li.querySelector('.lmz-stack__name')?.textContent)).toEqual(view.rows.map((x) => x.label));
+    expect(items.map((li) => li.querySelector('.lmz-stack__value')?.textContent)).toEqual(view.rows.map((x) => `${fmt(x.kcal, 'kcal')} kcal`));
+    // no alternating light/dark flag: each part takes its own step by position
+    expect(container.querySelector('[data-alt]')).toBeNull();
+    // the table twin right under the bar is the legend there (no second one); Your body's compact card has none
+    cleanup();
+    const open = render(<MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} />);
+    expect(open.container.querySelector('.lmz-stack__legend')).toBeNull();
+    cleanup();
+    const compact = render(<MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} compact inset={false} />);
+    expect(compact.container.querySelector('.lmz-stack__legend')).toBeNull();
+  });
+
+  it('"Your picture so far" never repeats the biggest unknown, and drops its number and bar while the result card shows', () => {
+    const { r, summary } = live(DESK);
+    const m = summary.maintenance;
+    const view = maintenanceView(m, m.resolved.habits.activity, r.defaulted, 'kcal');
+    const lines = [{ key: 'training', value: 'home' }];
+    const { container, rerender } = render(<PictureFace m={m} view={view} unit="kcal" lines={lines} title="Your picture so far" />);
+    expect(view.unknownText).toBeDefined();
+    expect(screen.queryByText(view.unknownText!)).toBeNull();
+    expect(container.querySelector('.lm-ik-driverbar')).not.toBeNull();
+    rerender(<PictureFace m={m} view={view} unit="kcal" lines={lines} title="Your picture so far" maintenance={false} />);
+    expect(container.querySelector('.lm-ik-driverbar')).toBeNull();
+    expect(screen.getByText('home')).toBeInTheDocument();
   });
 
   it('gentle mode: no kcal until "show numbers"', () => {
@@ -170,7 +235,25 @@ describe('what the card says', () => {
     render(<MaintenanceResult m={m} view={view} unit="kcal" quiet onChangeAnswer={() => undefined} />);
     expect(screen.getByText(/Set from your answers/)).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'kcal a day' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'show numbers' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show numbers' }));
     expect(screen.getAllByRole('columnheader', { name: 'kcal a day' }).length).toBeGreaterThan(0);
   });
+});
+
+it('maintenance explains its source and evidence in the shared info panel', () => {
+  const { r, summary } = live(DESK);
+  const m = summary.maintenance;
+  const view = maintenanceView(m, m.resolved.habits.activity, r.defaulted, 'kcal');
+  render(<MemoryRouter><MaintenanceResult m={m} view={view} unit="kcal" onChangeAnswer={() => undefined} /></MemoryRouter>);
+  fireEvent.click(screen.getByRole('button', { name: 'About Your maintenance' }));
+  expect(screen.getByRole('dialog', { name: 'Your maintenance' })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /Daily energy expenditure/ })).toHaveAttribute('href', '/evidence/02-integrated-daily-expenditure');
+});
+
+it('quiet maintenance keeps measured figures and the numerical uncertainty hidden', () => {
+  const { r, summary } = live(DESK);
+  const m = summary.maintenance;
+  const view = maintenanceView(m, m.resolved.habits.activity, r.defaulted, 'kcal');
+  const { container } = render(<MaintenanceResult m={m} view={view} unit="kcal" quiet compact measured={{ kind: 'rmr', value: 1720, unit: 'kcal', method: 'calculator', date: '2026-03' }} onChangeAnswer={() => undefined} />);
+  expect(container.textContent).not.toMatch(/kcal|1720|1 720|1,720|±/);
 });

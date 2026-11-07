@@ -28,11 +28,10 @@ const GOAL_METRICS = SERIES.filter((d) => d.kind === 'metric' && d.goal !== 'non
  * `graphOnly` pair remains; the gate-only pairs stay offered and are the known divergences with their reasons
  * (`KNOWN_FASTING_DIVERGENCES`).
  */
+// production goals only (C6): adherence and IGF-1 are no goals any more, so their former gate-only pairs are gone
 const KNOWN_GATE_DISAGREEMENTS: Readonly<Record<string, 'graphOnly' | 'gateOnly'>> = {
   'hunger:down': 'gateOnly',
-  'adherence:up': 'gateOnly',
   'ketoInduction:down': 'gateOnly',
-  'igf1:up': 'gateOnly',
   'bhb:down': 'gateOnly',
 };
 
@@ -94,10 +93,14 @@ describe('evidence graph (§6.1)', () => {
     // servesFasting reads status and sign only (a D-grade edge counts like an A-grade one)
     const z = EVIDENCE_EDGES.filter((e) => ZERO_INTAKE_SOURCES.has(e.from.id) && e.metric === 'autophagyIdx');
     expect(z.length).toBeGreaterThan(0);
-    expect(servesFasting('autophagyIdx', 'up')).toBe(true);
+    // D2-02: the autophagy research index keeps its mechanism edges (education) but no health objective, so no fasting credit
+    expect(servesFasting('autophagyIdx', 'up')).toBe(false);
+    const lowest = EVIDENCE_EDGES.filter((e) => ZERO_INTAKE_SOURCES.has(e.from.id) && e.status !== 'infoOnly' && e.metric !== 'autophagyIdx' && e.metric !== 'mtorIdx' && e.metric !== 'ampkIdx').sort((a, b) => (a.certainty < b.certainty ? 1 : a.certainty > b.certainty ? -1 : 0))[0]!;
+    expect(servesFasting(lowest.metric, lowest.sign < 0 ? 'down' : 'up')).toBe(true);
   });
 
   it('fasting gate: offers every goal the graph credits; the gate-only pairs are the known divergences', { timeout: 60_000 }, () => {
+    // D4-05: a target/band quantity (glucose, fasting glucose, systolic pressure) is asked with a signed change target
     const found = fastingGateAgreement(coverageCorpus()[0]!.request.profile);
     expect(found).toEqual(KNOWN_GATE_DISAGREEMENTS);
     const rep = fastingGateReport(found);
@@ -130,7 +133,7 @@ describe('gate registry (§6.2)', () => {
     expect(gateOn({ disabledGates: new Set(['lever.optInConsent']) }, 'lever.optInConsent')).toBe(true);
     expect(gateOn({ disabledGates: new Set(['surplus.noFasts']) }, 'surplus.noFasts')).toBe(false);
     expect(() => gateOn({ disabledGates: new Set(['no.such.gate']) }, 'no.such.gate')).toThrow(/unregistered/);
-    const req = { profile: coverageCorpus()[0]!.request.profile, goals: [{ metric: 'leanTissue' as const, direction: 'maximise' as const }, { metric: 'autophagyIdx' as const, direction: 'maximise' as const }], horizonDays: 112, safety: { optIns: { fastingTier: 'T3' as const } } };
+    const req = { profile: coverageCorpus()[0]!.request.profile, goals: [{ metric: 'leanTissue' as const, direction: 'maximise' as const }, { metric: 'bhb' as const, direction: 'target' as const, target: 1.0 }], horizonDays: 112, safety: { optIns: { fastingTier: 'T3' as const } } };
     const on = compileRequest(req);
     expect(on.fastingRelevant).toBe(false);
     const off = withGatesDisabledSync(['fasting.muscleAbove'], () => compileRequest(req));
@@ -147,6 +150,8 @@ describe('check 1: lever reachability and gene range (§6.3 1a, 1b)', () => {
   it('1a: every usable lever and every phase, overlay and event block appears in a structure of the coverage corpus', { timeout: 120_000 }, () => {
     expect(corpus.length).toBeGreaterThanOrEqual(200);
     const r = reachability(corpus);
+    // D4-05: the corpus asks blood-pressure/glucose goals with a change target, so none is refused for its shape
+    expect(corpus.filter((e) => compileRequest(e.request).goalReviews?.some((g) => g.reasonCode === 'needsTargetBand'))).toEqual([]);
     expect(r.unreachableLevers).toEqual(KNOWN_UNREACHABLE_LEVERS);
     expect(r.unreachableBlocks).toEqual([]);
   });

@@ -16,11 +16,13 @@ import './planner/goalsSuggest'; // E19: goals.suggest
 import './defs/planner';
 import './defs/scenario';
 import './defs/sim';
+import './defs/improvement';
 import './defs/living';
 import './living'; // E5's executors for the living-plan stubs
 import './living/adapt'; // E5b: re-plan, declared events, shifts, day edits, swaps
+import './defs/activity'; // V3 (energy SPEC §V3.2): activity review
+import './living/activity';
 import './livingWiring';
-import './defs/bio';
 import './defs/catalogue';
 import './defs/coach';
 import './defs/evidence';
@@ -29,9 +31,7 @@ import './defs/sync';
 import './defs/data';
 // I1: executors for stubs other packages declared (each calls `implement()` from ./implement.ts)
 import './sync';
-import './bio';
 // E28 (SUITE_SPEC §14.6): corrections, the owned-stream redirect, the one-time priority migration
-import './biometrics';
 import './catalogue';
 import './ai';
 // E9b: food, meal/session/bulk logging, coach persistence, intake questions, sim.explain

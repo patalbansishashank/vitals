@@ -13,7 +13,10 @@ export const CATEGORY_ORDER: readonly EvidenceCategory[] = [
 ];
 export const GRADE_ORDER: readonly EvidenceGrade[] = ['A', 'B', 'C', 'D'];
 
-/** How the unfiltered index groups its rows. */
+/**
+ * How the unfiltered index groups its rows: by topic (each group header opens the topic page). `category` is kept only
+ * so links that ask for it (`?group=category`) still open that way; the page offers no control for it.
+ */
 export type GroupBy = 'category' | 'topic';
 
 /** Filter groups combine with AND; values within a group with OR (evidence-library.md §7). */
@@ -29,7 +32,7 @@ export interface IndexUrlState extends EvidenceFilters {
 }
 
 export const EMPTY_FILTERS: EvidenceFilters = { categories: [], grades: [] };
-export const DEFAULT_INDEX_STATE: IndexUrlState = { q: '', categories: [], grades: [], group: 'category' };
+export const DEFAULT_INDEX_STATE: IndexUrlState = { q: '', categories: [], grades: [], group: 'topic' };
 
 /** Accepted spellings in links: the design calls the family "cardiometabolic". */
 const CATEGORY_ALIASES: Record<string, EvidenceCategory> = {
@@ -75,6 +78,13 @@ export function parseGrades(values: string[]): EvidenceGrade[] {
   return canonical(values.map((v) => v.toUpperCase()).filter(isGrade), GRADE_ORDER);
 }
 
+/** `?group=` spellings: `dossier` is what older shared links used for `topic`. Unknown or missing values mean topic. */
+const GROUP_PARAM = new Map<string, GroupBy>([
+  ['category', 'category'],
+  ['topic', 'topic'],
+  ['dossier', 'topic'],
+]);
+
 /** URL → state. Unknown values are dropped silently so a stale link still opens. */
 export function parseIndexParams(params: URLSearchParams): IndexUrlState {
   const group = params.get('group');
@@ -82,16 +92,15 @@ export function parseIndexParams(params: URLSearchParams): IndexUrlState {
     q: (params.get('q') ?? '').slice(0, 200),
     categories: parseCategories(readList(params, 'cat')),
     grades: parseGrades(readList(params, 'grade')),
-    // `dossier` is the name older links used for `topic`
-    group: group === 'dossier' || group === 'topic' ? 'topic' : 'category',
+    group: GROUP_PARAM.get(group ?? '') ?? 'topic',
   };
 }
 
 const OWN_KEYS = ['q', 'cat', 'grade', 'group'] as const;
 
 /**
- * State → URL. Unrelated params (e.g. `?theme=dark`) are preserved; empty values
- * are omitted so the clean index stays `/evidence`.
+ * State → URL. Unrelated params (e.g. `?ref=…`) are preserved; empty and default values
+ * are omitted so the clean index stays `/evidence` (a stale `?group=topic` is dropped).
  */
 export function writeIndexParams(state: Partial<IndexUrlState>, base?: URLSearchParams): URLSearchParams {
   const next = new URLSearchParams(base);
@@ -102,7 +111,7 @@ export function writeIndexParams(state: Partial<IndexUrlState>, base?: URLSearch
   if (cats.length) next.set('cat', cats.join(','));
   const grades = canonical(state.grades ?? [], GRADE_ORDER);
   if (grades.length) next.set('grade', grades.join(','));
-  if (state.group === 'topic') next.set('group', 'topic');
+  if (state.group === 'category') next.set('group', 'category');
   return next;
 }
 

@@ -1,8 +1,13 @@
 /**
- * Settings: a projection of the synced `settings` document (units, energy and glucose units, date style, week start)
- * and the device-local `deviceSettings` document (theme, motion, chart patterns, figure, last export). Boot cache and
+ * Settings: a projection of the synced `settings` document (units, energy and glucose units, date style, week start,
+ * quiet mode) and device-local preferences (`deviceSettings`, plus protected Today layout fields in `uiPrefs`).
+ * Boot cache and
  * export key `vitals.settings`. Every change goes through `settings.update`.
  */
+import { bodyOf, deepEqual, mintWriteToken, revokeWriteToken, type DocumentStore } from '@/store';
+import { readMirror } from './bridge';
+import { createScope, currentScope, runInScope, type WriteScope } from './scope';
+import { currentRestoreEpoch } from './writeBarrier';
 import { dispatchSync } from '@/commands/bus';
 import '@/commands/defs/settings'; // registers the commands the actions below dispatch
 import { registerStore } from './persistence';
@@ -17,6 +22,7 @@ import {
   effectiveQuietMode,
   isSettingsState,
   pickValues,
+  sanitizeTodayCards,
   type SettingsState,
   type SettingsValues,
 } from './internal/settingsModel';
@@ -26,6 +32,9 @@ export {
   SETTINGS_KEY,
   SETTINGS_VERSION,
   isSettingsState,
+  formatCardEntry,
+  parseCardEntry,
+  sanitizeTodayCards,
   type DateStyle,
   type EnergyUnit,
   type GlucoseUnit,
@@ -42,6 +51,55 @@ const pick = (v: SettingsValues, keys: readonly (keyof SettingsValues)[]): Recor
   for (const k of keys) out[k] = v[k];
   return out;
 };
+
+// 0.7.8 writes deviceSettings/me wholesale. Keep the new local choice in shared-field
+// uiPrefs instead, where older writers preserve fields they do not own.
+const LOCAL_CARDS_SET = 'todayCardsLocalSet';
+const LOCAL_CARDS = 'todayCardsLocal';
+const LOCAL_CARD_FIELDS = [LOCAL_CARDS_SET, LOCAL_CARDS] as const;
+const DEVICE_DOCUMENT_KEYS = DEVICE_SETTING_KEYS.filter((key) => key !== 'todayCards');
+const hasCards = (value: unknown): value is { todayCards: unknown } => !!value && typeof value === 'object' && Object.hasOwn(value, 'todayCards');
+const hadSavedLayoutAtHydration = hasCards(readMirror(SETTINGS_KEY)?.state);
+let localLayoutReady = false;
+const explicitLayoutWrites = new WeakSet<WriteScope>();
+
+/** Only a real canonical layout edit may write before asynchronous document boot finishes. */
+export function markTodayCardsLocalEdit(): void {
+  const scope = currentScope();
+  if (scope && scope.kind !== 'dryRun') explicitLayoutWrites.add(scope);
+}
+
+function localCards(ui: Record<string, unknown> | null): string[] | null | undefined {
+  // The marker is durable even when JSON merge-patch removes an explicit null value.
+  return ui?.[LOCAL_CARDS_SET] === true ? sanitizeTodayCards(ui[LOCAL_CARDS]) : undefined;
+}
+
+/** Prepare after documents/recovery load; commit after ordinary settings reconciliation. */
+export function prepareLocalTodayCardsMigration(store: DocumentStore): () => Promise<void> {
+  const mirror = readMirror(SETTINGS_KEY);
+  const legacy = store.peek<Record<string, unknown>>('settings', 'me');
+  const mirrored = mirror?.state;
+  const seed = hadSavedLayoutAtHydration && hasCards(mirrored) && (mirror?.restoreEpoch ?? null) === currentRestoreEpoch()
+    ? sanitizeTodayCards(mirrored.todayCards)
+    : sanitizeTodayCards(legacy?.todayCards);
+  return async () => {
+    let layout = seed;
+    const token = mintWriteToken('migration', { label: 'Today layout stays on this device' });
+    try {
+      await store.transact(token, async (tx) => {
+        const ui = await tx.get<Record<string, unknown>>('uiPrefs', 'me');
+        const existing = localCards(ui ? bodyOf(ui) : null);
+        if (existing !== undefined) layout = existing;
+        else await tx.patch('uiPrefs', 'me', { [LOCAL_CARDS_SET]: true, [LOCAL_CARDS]: layout });
+      });
+    } finally { revokeWriteToken(token); }
+    localLayoutReady = true;
+    runInScope(createScope('sync', { label: 'read this device’s Today layout' }), () => {
+      if (!deepEqual(useSettingsStore.getState().todayCards, layout)) useSettingsStore.setState({ todayCards: layout });
+      else useSettingsStore.binding.capture();
+    });
+  };
+}
 
 export const useSettingsStore = createProjection<SettingsState, SettingsValues>({
   name: 'settings',
@@ -61,18 +119,31 @@ export const useSettingsStore = createProjection<SettingsState, SettingsValues>(
     if (version < 3 && (persisted as { allowLongFasts?: unknown } | null)?.allowLongFasts === true) useSafetyStore.getState().adoptLegacyLongFasts();
     return pickValues((persisted ?? {}) as Partial<SettingsValues>);
   },
+  migrateImport: (persisted) => pickValues((persisted ?? {}) as Partial<SettingsValues>),
   merge: (persisted, current) => ({ ...current, ...pickValues((persisted ?? {}) as Partial<SettingsValues>) }),
   binding: {
-    owns: ['settings', 'deviceSettings'],
-    toDocs: (v) => [
-      { col: 'settings', id: 'me', body: pick(v, SYNCED_SETTING_KEYS) },
-      { col: 'deviceSettings', id: 'me', body: pick(v, DEVICE_SETTING_KEYS) },
+    prepareBoot: prepareLocalTodayCardsMigration,
+    owns: ['deviceSettings'],
+    shares: [
+      { col: 'settings', id: 'me', fields: SYNCED_SETTING_KEYS },
+      { col: 'uiPrefs', id: 'me', fields: LOCAL_CARD_FIELDS, reconcileClock: false },
     ],
+    toDocs: (v) => {
+      const scope = currentScope();
+      return [
+        { col: 'settings', id: 'me', body: pick(v, SYNCED_SETTING_KEYS), fields: SYNCED_SETTING_KEYS },
+        { col: 'deviceSettings', id: 'me', body: pick(v, DEVICE_DOCUMENT_KEYS) },
+        ...(localLayoutReady || (scope && explicitLayoutWrites.has(scope))
+          ? [{ col: 'uiPrefs' as const, id: 'me', body: { [LOCAL_CARDS_SET]: true, [LOCAL_CARDS]: v.todayCards }, fields: LOCAL_CARD_FIELDS }]
+          : []),
+      ];
+    },
     fromDocs: (read) => {
       const synced = read.get('settings', 'me');
       const device = read.get('deviceSettings', 'me');
-      if (!synced && !device) return null;
-      return pickValues({ ...(synced ?? {}), ...(device ?? {}) } as Partial<SettingsValues>);
+      const local = localCards(read.get('uiPrefs', 'me'));
+      if (!synced && !device && local === undefined) return null;
+      return pickValues({ ...(synced ?? {}), ...(device ?? {}), ...(local !== undefined ? { todayCards: local } : {}) } as Partial<SettingsValues>);
     },
   },
 });

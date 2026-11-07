@@ -9,9 +9,12 @@ import { validateParamDefs } from '../../core/paramsRegistry';
 import { habitualDay } from '../../core/compileSchedule';
 import type { AnyEngineModule } from '../../types/module';
 import type { DayInput } from '../../types/inputs';
-import type { SignalBus } from '../../types/signals';
+import { SIGNAL_DEFS, SIGNAL_META, type SignalBus } from '../../types/signals';
 import { MI, N_SERIES } from '../../types/metrics';
+import { MODULE_ORDER } from '../../core/moduleRegistry';
+import { wellbeingModule } from '../wellbeing';
 import {
+  CYCLE_PHASE,
   alcoholRecoveryPenalty,
   caffeineHalfLifeH,
   caffeineResidualMg,
@@ -21,8 +24,14 @@ import {
   lutealMeanWeight,
   lutealStartDay,
   lutealWeightAt,
+  lutealWeightFrom,
+  mapEpisodesToWakeDates,
+  medianCycleLength,
   moderatorsModule,
+  observedEpisodeHours,
   partitionSleepShift,
+  resolveCycleTiming,
+  resolveInstant,
   tstLossMin,
   type ModeratorsState,
 } from './index';
@@ -427,7 +436,10 @@ describe('16 V12 / 02 §4.3: menstrual cycle and luteal weight', () => {
     expect(off({ ...cyc, cycle: { ...cyc.cycle!, contraception: 'iud' } })).toEqual([-1, 0]);
     expect(off({ ...cyc, menopause: 'post' })).toEqual([-1, 0]);
     expect(off({ ...cyc, cycle: { ...cyc.cycle!, tracking: false } })).toEqual([-1, 0]);
-    expect(off({ ...cyc, cycle: { tracking: true } })).toEqual([-1, 0]); // no last-period date
+    expect(off({ ...cyc, cycle: { ...cyc.cycle!, menstruating: 'no' } })).toEqual([-1, 0]);
+    // D8-07: a tracked cycle without a period date asserts no phase: no cycle day, the phase-AVERAGE luteal weight (zero
+    // centred deviation for energy/appetite; cycle water off) instead of a static follicular 0
+    expect(off({ ...cyc, cycle: { tracking: true } })).toEqual([-1, lutealMeanWeight(28, 2)]);
     expect(off({ ...cyc, sexUnspecified: true })).toEqual([-1, 0]);
     expect(off({ ...cyc, body: { ...cyc.body, sex: 'male' } })).toEqual([-1, 0]);
   });
@@ -621,5 +633,341 @@ describe('performance', () => {
     times.sort((a, b) => a - b);
     console.info(`moderators: 180-day run best ${times[0]!.toFixed(3)} ms, median ${times[7]!.toFixed(3)} ms (15 runs)`);
     expect(times[0]!).toBeLessThan(0.5); // budget 0.5 ms; measured ≈ 0.09-0.18 ms even under CPU contention
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------------ D8-06
+describe('D8-06 sleep date contract: observed episodes map to the wake date, planned nights keep the starting date', () => {
+  /** dS / dF read after startDay of each day (hour 0), for a run of the given days. */
+  function debts(days: DayInput[], p = person(), ov: Record<string, number> = {}, ctxPatch?: (c: ReturnType<typeof ctxFor>) => ReturnType<typeof ctxFor>) {
+    const base = ctxFor(p, ov);
+    const ctx = ctxPatch ? ctxPatch(base) : base;
+    const dS: number[] = [];
+    const dF: number[] = [];
+    const run = miniRun(mods, ctx, days.map((day, i) => ({ clockDay: i, day })), {
+      beforeHour: (_c, h, bus) => {
+        if (h === 0) {
+          dS.push(bus.sleepDebtSlowH);
+          dF.push(bus.sleepDebtFastH);
+        }
+      },
+    });
+    return { dS, dF, s: run.S[0] as ModeratorsState };
+  }
+  const observed = (profile: ReturnType<typeof ctxFor>['profile'], hours: number, patch: Partial<DayInput> = {}): DayInput =>
+    nightDay(profile, 8, { sleepSource: 'observed', sleepEndingToday: { bedClockH: 7 - hours - 24, wakeClockH: 7, hours }, ...patch });
+
+  it('a short observed night ending Tuesday changes Tuesday\'s multipliers, not Wednesday\'s (no off-by-one, no double count)', () => {
+    const ctx = ctxFor();
+    const mon = nightDay(ctx.profile, 8);
+    const tue = observed(ctx.profile, 4); // ended Tuesday morning
+    const wed = nightDay(ctx.profile, 8);
+    const r = debts([mon, tue, wed, nightDay(ctx.profile, 8)]);
+    expect(r.dF[0]).toBe(0);
+    expect(r.dF[1]).toBeCloseTo(3 * (1 - Math.exp(-1)), 9); // Tuesday: d = 7 − 4 = 3 h, τ 1 d rise
+    // Wednesday relaxes from Tuesday's value toward the planned 8 h night (no second application of the 4 h episode)
+    expect(r.dF[2]).toBeCloseTo(r.dF[1]! * Math.exp(-1 / 2), 9);
+    expect(r.s.lastNightObserved).toBe(0);
+  });
+
+  it('a future PLANNED short Tuesday night affects Wednesday (starting-date convention)', () => {
+    const ctx = ctxFor();
+    const r = debts([nightDay(ctx.profile, 8), nightDay(ctx.profile, 4), nightDay(ctx.profile, 8)]);
+    expect(r.dF[1]).toBe(0); // Tuesday morning: Monday's 8 h night
+    expect(r.dF[2]).toBeCloseTo(3 * (1 - Math.exp(-1)), 9); // Wednesday morning: the planned Tuesday night
+  });
+
+  it('day 0 is initialised from the last observed episode before day 0 (schedule.initialSleep)', () => {
+    const ctx = ctxFor();
+    const days = [nightDay(ctx.profile, 8), nightDay(ctx.profile, 8)];
+    const plain = debts(days);
+    const init = debts(days, person(), {}, (c) => ({ ...c, schedule: { ...c.schedule, initialSleep: { bedClockH: 3, sleepHours: 4.5 } } }));
+    expect(plain.dF[0]).toBe(0);
+    expect(init.dF[0]).toBeCloseTo(2.5 * (1 - Math.exp(-1)), 9);
+    // an observed episode ending on day 0 itself takes precedence over initialSleep
+    const both = debts([observed(ctx.profile, 6), nightDay(ctx.profile, 8)], person(), {}, (c) => ({ ...c, schedule: { ...c.schedule, initialSleep: { bedClockH: 3, sleepHours: 4.5 } } }));
+    expect(both.dF[0]).toBeCloseTo(1 * (1 - Math.exp(-1)), 9);
+  });
+
+  it('observed duration is used exactly: caffeine and alcohol heuristics never decrement it again', () => {
+    const ctx = ctxFor();
+    const days = [nightDay(ctx.profile, 8, { alcoholG: 120 }), observed(ctx.profile, 7, { alcoholG: 120 }), nightDay(ctx.profile, 8)];
+    let lastNight = Number.NaN;
+    let tst = Number.NaN;
+    let pen = Number.NaN;
+    miniRun(mods, ctx, days.map((day, i) => ({ clockDay: i, day })), {
+      beforeHour: (_c, _h, bus) => {
+        bus.caffeineLoadMg = 400; // a large bedtime residual every night
+      },
+      afterHour: (c, h) => {
+        void c;
+        void h;
+      },
+      afterInit: () => {},
+      afterDay: () => {},
+    }).S.forEach((st) => {
+      const s = st as ModeratorsState;
+      lastNight = s.lastNightSleepH;
+      tst = s.caffeineTstRiskMin;
+      pen = s.alcoholRecoveryPen;
+    });
+    expect(tst).toBe(120); // capped heuristic risk, stored apart
+    expect(pen).toBe(0); // last day had no alcohol
+    expect(lastNight).toBe(8); // tomorrow's carried planned night, untouched by the heuristic
+    const r = debts(days);
+    expect(r.dF[1]).toBe(0); // the observed 7 h night (= hRef) gives no deficit despite caffeine and alcohol
+  });
+
+  it('an observed episode\'s entered quality counts; an unknown quality is not poor', () => {
+    const ctx = ctxFor();
+    const unknownQ = debts([nightDay(ctx.profile, 8), observed(ctx.profile, 8)]);
+    expect(unknownQ.dF[1]).toBe(0);
+    const poorEp = nightDay(ctx.profile, 8, { sleepSource: 'observed', sleepEndingToday: { bedClockH: -1, wakeClockH: 7, hours: 8, quality: 0 } as DayInput['sleepEndingToday'] });
+    const poor = debts([nightDay(ctx.profile, 8), poorEp]);
+    expect(poor.dF[1]).toBeCloseTo(0.75 * (1 - Math.exp(-1)), 9);
+  });
+
+  it('planned/habitual days ignore a compiler-set sleepEndingToday (it is the same carried night)', () => {
+    const ctx = ctxFor();
+    const d = nightDay(ctx.profile, 5, { sleepSource: 'planned', sleepEndingToday: { bedClockH: -1, wakeClockH: 7, hours: 8 } });
+    const r = debts([d, d, d]);
+    expect(r.dF[1]).toBeCloseTo(2 * (1 - Math.exp(-1)), 9); // the planned 5 h night of day 0 reaches day 1
+  });
+
+  it('snapshot replay of the carried sleep state equals the uninterrupted mapping', () => {
+    const ctx = ctxFor();
+    const days = [nightDay(ctx.profile, 6), observed(ctx.profile, 4), nightDay(ctx.profile, 5), observed(ctx.profile, 9), nightDay(ctx.profile, 8)];
+    const full = debts(days);
+    const k = moderatorsModule.prepare(ctx);
+    const head = miniRun(mods, ctx, days.slice(0, 2).map((day, i) => ({ clockDay: i, day })));
+    const snap = structuredClone(head.S[0] as ModeratorsState);
+    const bus = head.bus;
+    const dS: number[] = [];
+    const clock = { day: 0, hourOfDay: 0, hourIndex: 0, weekday: 0 };
+    for (let i = 2; i < days.length; i++) {
+      clock.day = i;
+      moderatorsModule.startDay(snap, k, bus, days[i]!, clock);
+      dS.push(bus.sleepDebtSlowH);
+      moderatorsModule.endOfDay(snap, k, bus, days[i]!, clock);
+    }
+    expect(dS).toEqual(full.dS.slice(2));
+  });
+
+  it('a bedtime after midnight (clock ≥ 24) samples the 23:00 load decayed to the bedtime', () => {
+    const ctx = ctxFor();
+    const day = nightDay(ctx.profile, 6, { sleepBedH: 25 });
+    const run = miniRun(mods, ctx, [{ clockDay: 0, day }], { beforeHour: (_c, h, bus) => { bus.caffeineLoadMg = h === 23 ? 200 : 999; } });
+    expect((run.S[0] as ModeratorsState).caffeineAtBedMg).toBeCloseTo(200 * Math.pow(2, -2 / 5.4), 9);
+  });
+});
+
+describe('D8-06 observed episode instants → wake dates (timezone, DST, midnight, shift work, naps, overlaps)', () => {
+  it('durations come from absolute instants: midnight crossing, DST spring-forward and fall-back', () => {
+    expect(observedEpisodeHours({ bedAt: '2026-10-12T23:15:00+02:00', wakeAt: '2026-10-13T06:30:00+02:00' })).toBeCloseTo(7.25, 12);
+    // Europe/London 2026-03-29: clocks go 01:00 → 02:00; 00:30 GMT to 07:30 BST is 6 h, not 7
+    expect(observedEpisodeHours({ bedAt: '2026-03-29T00:30:00+00:00', wakeAt: '2026-03-29T07:30:00+01:00' })).toBeCloseTo(6, 12);
+    // 2026-10-25 fall-back: 00:30 BST to 07:30 GMT is 8 h
+    expect(observedEpisodeHours({ bedAt: '2026-10-25T00:30:00+01:00', wakeAt: '2026-10-25T07:30:00+00:00' })).toBeCloseTo(8, 12);
+    // UTC instants resolved in a named zone keep the absolute duration and the local wake date
+    const r = resolveInstant('2026-10-12T22:30:00Z', 'Asia/Kolkata');
+    expect(r?.localDate).toBe('2026-10-13');
+    expect(r?.localClockH).toBeCloseTo(4, 9);
+    expect(observedEpisodeHours({ bedAt: '2026-10-12T17:00:00Z', wakeAt: '2026-10-13T00:30:00Z', tz: 'Asia/Kolkata' })).toBeCloseTo(7.5, 12);
+    // reported awake minutes are subtracted, floating times without an offset are not guessed
+    expect(observedEpisodeHours({ bedAt: '2026-10-12T23:00:00+02:00', wakeAt: '2026-10-13T07:00:00+02:00', awakeMin: 45 })).toBeCloseTo(7.25, 12);
+    expect(observedEpisodeHours({ bedAt: '2026-10-12T23:00:00', wakeAt: '2026-10-13T07:00:00' })).toBeNull();
+  });
+
+  it('an episode belongs to its local WAKE date: a night ending Tuesday and a daytime shift-work sleep', () => {
+    const m = mapEpisodesToWakeDates([
+      { bedAt: '2026-10-12T23:30:00+02:00', wakeAt: '2026-10-13T03:30:00+02:00', quality: 'poor', eventId: 'n1' }, // Mon→Tue
+      { bedAt: '2026-10-14T08:00:00+02:00', wakeAt: '2026-10-14T15:00:00+02:00', eventId: 's1' }, // daytime sleep Wed
+    ]);
+    expect(m.byWakeDate.map((d) => [d.wakeDate, d.hours])).toEqual([
+      ['2026-10-13', 4],
+      ['2026-10-14', 7],
+    ]);
+    expect(m.byWakeDate[0]!.quality).toBe('poor');
+    expect(m.byWakeDate[1]!.quality).toBeUndefined(); // only when actually entered
+    expect(m.byWakeDate[1]!.bedClockH).toBe(8);
+  });
+
+  it('naps add to the day\'s duration but not to the main timing; overlapping duplicates are merged, never double-counted', () => {
+    const m = mapEpisodesToWakeDates([
+      { bedAt: '2026-10-12T23:00:00+02:00', wakeAt: '2026-10-13T06:00:00+02:00', eventId: 'a' },
+      { bedAt: '2026-10-12T23:30:00+02:00', wakeAt: '2026-10-13T06:30:00+02:00', eventId: 'dup' }, // overlapping duplicate
+      { bedAt: '2026-10-13T14:00:00+02:00', wakeAt: '2026-10-13T14:45:00+02:00', kind: 'nap', eventId: 'nap' },
+      { bedAt: 'garbage', wakeAt: '2026-10-13T07:00:00+02:00' },
+    ]);
+    const tue = m.byWakeDate[0]!;
+    expect(tue.mainHours).toBeCloseTo(7.5, 12); // 23:00-06:30 union
+    expect(tue.napHours).toBeCloseTo(0.75, 12);
+    expect(tue.hours).toBeCloseTo(8.25, 12);
+    expect(tue.wakeClockH).toBeCloseTo(6.5, 12);
+    expect(tue.eventIds.sort()).toEqual(['a', 'dup', 'nap']);
+    expect(m.invalid).toHaveLength(1);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------------ D8-07
+describe('D8-07 cycle phase: estimated, observed period starts, confirmed ovulation, unknown phase averaged', () => {
+  const woman = (cycle: NonNullable<ReturnType<typeof person>['cycle']>) => person({ body: { sex: 'female', ageYears: 30, heightCm: 165, weightKg: 62 }, cycle });
+  function series(p: ReturnType<typeof person>, n: number) {
+    const ctx = ctxFor(p);
+    const cd: number[] = [];
+    const lw: number[] = [];
+    const src: number[] = [];
+    const run = miniRun(mods, ctx, Array.from({ length: n }, (_, d) => ({ clockDay: d, day: nightDay(ctx.profile, 8) })), {
+      beforeHour: (_c, h, bus) => {
+        if (h === 0) {
+          cd.push(bus.cycleDay);
+          lw.push(bus.lutealWeight);
+        }
+      },
+      afterDay: () => {},
+    });
+    void run;
+    // provenance per day from a second pass (state is per-run)
+    const k = moderatorsModule.prepare(ctx);
+    const bus = miniRun(mods, ctx, []).bus;
+    const s = moderatorsModule.init(k, ctx, bus);
+    const clock = { day: 0, hourOfDay: 0, hourIndex: 0, weekday: 0 };
+    for (let d = 0; d < n; d++) {
+      clock.day = d;
+      moderatorsModule.startDay(s, k, bus, nightDay(ctx.profile, 8), clock);
+      src.push(s.cyclePhaseSource);
+    }
+    return { cd, lw, src };
+  }
+
+  it('irregular or unknown regularity asserts no phase: cycle day −1, constant phase-average weight (zero centred deviation)', () => {
+    for (const regularity of ['irregular', 'unknown'] as const) {
+      const r = series(woman({ tracking: true, lastPeriodStart: '2026-09-21', cycleLengthD: 28, regularity }), 40);
+      expect(new Set(r.cd)).toEqual(new Set([-1]));
+      const mean = lutealMeanWeight(28, 2);
+      for (const w of r.lw) expect(w).toBeCloseTo(mean, 12);
+      // energy/appetite centre on the running cycle mean: a constant has zero deviation, so no static follicular bias
+      const avg = r.lw.reduce((a, b) => a + b, 0) / r.lw.length;
+      for (const w of r.lw) expect(w - avg).toBeCloseTo(0, 12);
+      expect(new Set(r.src)).toEqual(new Set([CYCLE_PHASE.phaseAverage]));
+    }
+  });
+
+  it('a calendar phase is labelled an estimate, never an observed luteal phase', () => {
+    const r = series(woman({ tracking: true, lastPeriodStart: '2026-09-21', cycleLengthD: 28 }), 3);
+    expect(r.cd[0]).toBe(15);
+    expect(new Set(r.src)).toEqual(new Set([CYCLE_PHASE.calendarEstimate]));
+    expect(SIGNAL_META.lutealWeight?.provenance).toBe('assumed');
+    expect(SIGNAL_META.cycleDay?.note).toMatch(/estimated/i);
+  });
+
+  it('variable history: the median observed interval sets the typical length (duplicates within 15 d ignored)', () => {
+    const iso = (s: string) => isoDayNumber(s);
+    expect(medianCycleLength([iso('2026-06-01'), iso('2026-07-01'), iso('2026-07-03'), iso('2026-07-27'), iso('2026-08-29')], 15)).toBe(30); // 30, 26, 33
+    const r = series(woman({ tracking: true, periodStarts: ['2026-07-27', '2026-06-01', '2026-07-01', '2026-08-29'] }), 1);
+    // last start 2026-08-29, day 0 = 2026-10-05: 37 d later, cycle length 30 → cycle day 8
+    expect(r.cd[0]).toBe(8);
+  });
+
+  it('an updated (newly observed) period start re-anchors future phase without rewriting observations', () => {
+    const cycle = { tracking: true, cycleLengthD: 28, lastPeriodStart: '2026-09-21', periodStarts: ['2026-09-21', '2026-10-09'] } as const;
+    const p = woman({ ...cycle, periodStarts: [...cycle.periodStarts] });
+    const r = series(p, 10);
+    expect(r.cd.slice(0, 4)).toEqual([15, 16, 17, 18]); // up to 2026-10-08
+    expect(r.cd[4]).toBe(1); // 2026-10-09: the observed start (a short 18-d cycle), not the calendar day 19
+    expect(r.cd[9]).toBe(6);
+    expect(p.cycle!.periodStarts).toEqual(['2026-09-21', '2026-10-09']); // inputs untouched
+    const without = series(woman({ tracking: true, cycleLengthD: 28, lastPeriodStart: '2026-09-21' }), 10);
+    expect(without.cd[4]).toBe(19);
+  });
+
+  it('a manually confirmed ovulation (LH test/clinician) anchors the luteal start; "other" methods and weight never do', () => {
+    // last start 2026-09-21 (day 0 = cycle day 15); LH-confirmed ovulation on cycle day 18 (2026-10-08) → luteal from day 19
+    const lh = series(woman({ tracking: true, cycleLengthD: 30, lastPeriodStart: '2026-09-21', ovulation: [{ date: '2026-10-08', method: 'lhTest' }] }), 6);
+    expect(lh.lw[0]).toBeCloseTo(lutealWeightFrom(15, 19, 2), 12); // 0 (4 days before the anchored luteal start)
+    expect(lh.lw[4]).toBe(1); // cycle day 19
+    expect(lh.src[0]).toBe(CYCLE_PHASE.ovulationAnchored);
+    const other = series(woman({ tracking: true, cycleLengthD: 30, lastPeriodStart: '2026-09-21', ovulation: [{ date: '2026-10-08', method: 'other' }] }), 1);
+    expect(other.lw[0]).toBe(lutealWeightAt(15, 30, 2));
+    expect(other.src[0]).toBe(CYCLE_PHASE.calendarEstimate);
+  });
+
+  it('resolveCycleTiming exposes the mode and cycle length moderators uses, for centring consumers (energy, appetite)', () => {
+    const at = (cycle: Parameters<typeof woman>[0]) => resolveCycleTiming(ctxFor(woman(cycle)).profile, '2026-10-05', 28);
+    const hist = at({ tracking: true, periodStarts: ['2026-07-27', '2026-06-01', '2026-07-01', '2026-08-29'] });
+    expect(hist).toMatchObject({ mode: 1, cycleLen: 30 }); // median observed history, not the 28-d default
+    expect(Array.from(hist.periodStarts)).toEqual(['2026-06-01', '2026-07-01', '2026-07-27', '2026-08-29'].map(isoDayNumber));
+    expect(at({ tracking: true, cycleLengthD: 32, lastPeriodStart: '2026-09-21' })).toMatchObject({ mode: 1, cycleLen: 32 });
+    expect(at({ tracking: true }).mode).toBe(2); // tracked, no observed start: phase average
+    expect(at({ tracking: true, lastPeriodStart: '2026-09-21', regularity: 'irregular' }).mode).toBe(2);
+    expect(at({ tracking: true, lastPeriodStart: '2026-09-21', menstruating: 'no' }).mode).toBe(0);
+    expect(at({ tracking: true, lastPeriodStart: '2026-09-21', contraception: 'combinedOral' }).mode).toBe(0);
+    expect(at({ tracking: false, lastPeriodStart: '2026-09-21' }).mode).toBe(0);
+    const lh = at({ tracking: true, lastPeriodStart: '2026-09-21', ovulation: [{ date: '2026-10-08', method: 'lhTest' }, { date: '2026-10-07', method: 'other' }] });
+    expect(Array.from(lh.ovulationDays)).toEqual([isoDayNumber('2026-10-08')]);
+    // the module's emitted cycle follows the same resolution (median 30 d → day 0 = cycle day 8, see above)
+    const k = moderatorsModule.prepare(ctxFor(woman({ tracking: true, periodStarts: ['2026-07-27', '2026-06-01', '2026-07-01', '2026-08-29'] })));
+    expect(k.cycleLen).toBe(hist.cycleLen);
+    expect(k.cycleMode).toBe(hist.mode);
+  });
+
+  it('inactive menopause drift and stress are not presented as active physiology', () => {
+    for (const id of ['moderators.menopauseFatDriftKgYr', 'moderators.menopauseLeanDriftKgYr']) {
+      const p = MODERATORS_PARAMS.find((x) => x.id === id)!;
+      expect(p.note).toMatch(/INACTIVE/);
+      expect(p.label).toMatch(/inactive/);
+      expect(p.distribution?.basis).toMatch(/INACTIVE/);
+    }
+    // no bus signal carries the drift (no exogenous mass flux) and nobody reads stress
+    expect(SIGNAL_DEFS.some((d) => /menopause|drift/i.test(d.name))).toBe(false);
+    expect(SIGNAL_DEFS.find((d) => d.name === 'stressLevel')!.readers).toEqual([]);
+    expect(SIGNAL_META.stressLevel?.provenance).toBe('informational');
+  });
+
+  it('proposed per-hour sleep curves carry scenario metadata with a zero-effect alternative not excluded', () => {
+    for (const n of ['siPerH', 'mpsPerH', 'testoPerH', 'partitionPerH', 'qualityPoorH', 'shiftWorkH']) {
+      const p = MODERATORS_PARAMS.find((x) => x.id === `moderators.${n}`)!;
+      expect(p.distribution?.uncertaintyKind).toBe('scenario');
+      expect(p.distribution?.basis).toMatch(/zero-effect/);
+    }
+    expect(validateParamDefs(mods)).toEqual([]);
+  });
+
+  it('the zero-effect structural alternative keeps the debt and logged sleep but removes every per-hour slope (D8-06)', () => {
+    const legacy = sleepSeries(7, 5);
+    const zero = sleepSeries(7, 5, { 'moderators.sleepDebtEffectStructure': 0 }, person(), {}, -0.3);
+    expect(zero[6]!.sleepDebtSlowH).toBeCloseTo(legacy[6]!.sleepDebtSlowH, 12);
+    expect(zero[6]!.sleepDebtSlowH).toBeGreaterThan(1);
+    expect(legacy[6]!.siSleepMult).toBeLessThan(1);
+    for (const b of zero) {
+      expect(b.siSleepMult).toBe(1);
+      expect(b.mpsSleepMult).toBe(1);
+      expect(b.testoSleepMult).toBe(1);
+      expect(b.partitionSleepShift).toBe(0);
+    }
+    expect(MODERATORS_PARAMS.find((x) => x.id === 'moderators.sleepDebtEffectStructure')).toMatchObject({ value: 1, draw: 'fixed' });
+  });
+});
+
+describe('D8-07 hook-aware signal timing', () => {
+  it('declares the hourly caffeine lag (unchanged) and yesterday\'s energy balance', () => {
+    const hooks = moderatorsModule.signalHooks!;
+    expect(hooks).toContainEqual({ signal: 'caffeineLoadMg', access: 'read', hook: 'stepHour', lag: 1 });
+    expect(hooks).toContainEqual({ signal: 'energyBalanceFrac', access: 'read', hook: 'startDay', lag: 1 });
+    for (const w of moderatorsModule.writes) expect(hooks).toContainEqual({ signal: w, access: 'write', hook: 'startDay' });
+    // every declared read/write is a declared module read/write
+    for (const h of hooks) expect(h.access === 'read' ? moderatorsModule.reads : moderatorsModule.writes).toContain(h.signal);
+  });
+
+  it('daily activity EEE reaches wellbeing the same endOfDay; strengthEaMult reaches the earlier muscle module the next day', () => {
+    const order = (id: string) => MODULE_ORDER.indexOf(id as never);
+    const hooks = wellbeingModule.signalHooks!;
+    expect(hooks).toContainEqual({ signal: 'exSessionNetKcalD', access: 'read', hook: 'endOfDay', lag: 0 });
+    expect(order('activity')).toBeLessThan(order('wellbeing')); // written earlier in the same endOfDay pass
+    expect(SIGNAL_META.exSessionNetKcalD?.reads).toEqual([{ module: 'wellbeing', hook: 'endOfDay', lag: 0 }]);
+    expect(hooks).toContainEqual({ signal: 'strengthEaMult', access: 'write', hook: 'endOfDay' });
+    expect(order('muscle')).toBeLessThan(order('wellbeing')); // muscle's endOfDay ran before the write → previous day's value
+    expect(SIGNAL_META.strengthEaMult?.reads).toEqual([{ module: 'muscle', hook: 'endOfDay', lag: 1 }]);
+    for (const h of hooks) expect(h.access === 'read' ? wellbeingModule.reads : wellbeingModule.writes).toContain(h.signal);
   });
 });

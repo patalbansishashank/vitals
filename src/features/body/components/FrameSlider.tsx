@@ -13,6 +13,7 @@ import type { AvatarParams } from '@/engine/body';
 import { frameSliderWords } from '@/features/body/avatar';
 import { patchProfile } from '../commands';
 import { DRAWING } from '../copy';
+import { Rail } from './ShapeScales';
 
 export interface FrameSliderProps {
   /** The figure's params (the readout words are measured on the drawing at each position). */
@@ -95,23 +96,25 @@ export function FrameSlider({ params, value, basics, matchesBasics, onDraft, onC
 
   return (
     <div className="lm-frame" onKeyDownCapture={onKeyDownCapture}>
-      <ScaleSlider
-        label={DRAWING.frame}
-        size="sm"
-        value={value}
-        min={0}
-        max={1}
-        step={0.01}
-        minorStep={0.05}
-        majorStep={0.25}
-        labels={false}
-        reference={matchesBasics ? undefined : { value: basics, label: DRAWING.basicsTick }}
-        format={(x) => frameSliderWords(params, x)}
-        valueText={(x) => frameSliderWords(params, x)}
-        editable={false}
-        onChange={live}
-        onCommit={commit}
-      />
+      <Rail min={0} max={1} value={value}>
+        <ScaleSlider
+          label={DRAWING.frame}
+          size="sm"
+          value={value}
+          min={0}
+          max={1}
+          step={0.01}
+          minorStep={0.05}
+          majorStep={0.25}
+          labels={false}
+          reference={matchesBasics ? undefined : { value: basics, label: DRAWING.basicsTick }}
+          format={(x) => <span className="lm-body-words">{frameSliderWords(params, x)}</span>}
+          valueText={(x) => frameSliderWords(params, x)}
+          editable={false}
+          onChange={live}
+          onCommit={commit}
+        />
+      </Rail>
       <div className="lm-frame__ends">
         <span className="lm-frame__end">
           <EndCap end="hips" />
@@ -122,23 +125,24 @@ export function FrameSlider({ params, value, basics, matchesBasics, onDraft, onC
           <EndCap end="shoulders" />
         </span>
       </div>
-      <div className="lm-frame__foot">
-        <p className="lm-body-hint">{DRAWING.frameHelp}</p>
-        <Key
-          variant="quiet"
-          size="sm"
-          disabledReason={matchesBasics ? DRAWING.matchesAlready : undefined}
-          onClick={() => {
-            if (timer.current) clearTimeout(timer.current);
-            timer.current = null;
-            onDraft(null);
-            patchProfile({ figure: { frame: null } });
-            onCommit?.();
-          }}
-        >
-          {DRAWING.matchBasics}
-        </Key>
-      </div>
+      {/* back to the frame the basics give: only while the drawing differs from it */}
+      {matchesBasics ? null : (
+        <div className="lm-frame__foot">
+          <Key
+            variant="outlined"
+            size="sm"
+            onClick={() => {
+              if (timer.current) clearTimeout(timer.current);
+              timer.current = null;
+              onDraft(null);
+              patchProfile({ figure: { frame: null } });
+              onCommit?.();
+            }}
+          >
+            {DRAWING.matchBasics}
+          </Key>
+        </div>
+      )}
     </div>
   );
 }

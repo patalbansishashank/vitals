@@ -5,12 +5,12 @@ import { formatTick } from '../core/draw';
 describe('number formatting', () => {
   it('uses a true minus sign and thin-space thousands', () => {
     expect(formatNumber(-0.4, 2)).toBe(`${MINUS}0.40`);
-    expect(formatNumber(2540, 0)).toBe(`2${THIN}540`);
-    expect(formatNumber(1234567.891, 1)).toBe(`1${THIN}234${THIN}567.9`);
+    expect(formatNumber(2540, 0)).toBe('2,540');
+    expect(formatNumber(1234567.891, 1)).toBe('1,234,567.9');
     expect(formatNumber(999, 0)).toBe('999');
   });
   it('supports comma thousands for en-US', () => {
-    expect(formatNumber(2540, 0, { thousands: ',' })).toBe('2,540');
+    expect(formatNumber(2540, 0, { thousands: THIN })).toBe(`2${THIN}540`);
   });
   it('does not print negative zero', () => {
     expect(formatNumber(-0.004, 2)).toBe('0.00');
@@ -46,7 +46,7 @@ describe('number formatting', () => {
   it('compacts thousands only in narrow tick columns', () => {
     expect(formatTick(2000, 1000, 32)).toBe('2k');
     expect(formatTick(-1500, 500, 32)).toBe(`${MINUS}1.5k`);
-    expect(formatTick(2000, 1000, 44)).toBe(`2${THIN}000`);
+    expect(formatTick(2000, 1000, 44)).toBe('2,000');
   });
 });
 

@@ -24,12 +24,15 @@ const MAPPING = { defaultConstraints, toPracticalConstraints, toSafetyInput, pro
 
 // every key of each audited type (the object literals must name exactly the type's keys: the compiler checks it)
 const PRACTICAL: Record<keyof Required<PracticalConstraints>, true> = {
-  trainingDaysPerWeek: true, allowedTrainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, cardioDaysPerWeek: true,
+  enforceDefaultDeficitCap: true, experimentalTracking: true,
+  muscleRetention: true,
+  trainingDaysPerWeek: true, allowedTrainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, maxCardioSessionMin: true, cardioDaysPerWeek: true,
   cardioModality: true, eatingWindow: true, mealsPerDay: true, steps: true, excludedLevers: true, fasting: true, prefersFasting: true,
   sleepFixed: true, hungerTolerance: true, maxFastHours: true, proteinFloorGPerKg: true, carbFloorGPerDay: true,
 };
 const DRAFT: Record<keyof ConstraintDraft, true> = {
-  trainingDays: true, trainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, cardioDays: true, cardioModality: true,
+  maxMuscleLossPct: true,
+  trainingDays: true, trainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, maxCardioSessionMin: true, cardioDays: true, cardioModality: true,
   earliestH: true, latestH: true, mealsPerDay: true, steps: true, longestFastH: true, prefersFasting: true, excluded: true,
   proteinFloor: true, carbFloorG: true, sleepFixed: true, hungerTolerance: true,
 };
@@ -72,15 +75,19 @@ const KNOWN_DEAD = [
  *                 change the equipment envelope without changing a gene bound for these requests.
  */
 const KNOWN_NOT_STRICT: Readonly<Record<string, FieldVerdict>> = {
+  'PracticalConstraints.experimentalTracking': 'contextOnly',
+  'PracticalConstraints.muscleRetention': 'contextOnly',
+  'ConstraintDraft.maxMuscleLossPct': 'contextOnly',
   'PracticalConstraints.maxSessionMin': 'changes',
+  'PracticalConstraints.maxCardioSessionMin': 'changes',
   'PracticalConstraints.sleepFixed': 'changes',
   'PracticalConstraints.hungerTolerance': 'contextOnly',
   'PracticalConstraints.proteinFloorGPerKg': 'changes',
   'ConstraintDraft.maxSessionMin': 'changes',
+  'ConstraintDraft.maxCardioSessionMin': 'changes',
   'ConstraintDraft.proteinFloor': 'changes',
   'ConstraintDraft.sleepFixed': 'changes',
   'ConstraintDraft.hungerTolerance': 'contextOnly',
-  'PlannerSafetyInput.flags': 'changes',
   'TrainingProfile.owned': 'changes',
   'TrainingProfile.access': 'contextOnly',
   'TrainingProfile.purchaseAllowance': 'contextOnly',
@@ -125,6 +132,7 @@ describe('check 4: every field reaches the plan space (decode level)', () => {
   it('limits are metamorphic (relaxing enlarges, tightening shrinks) for at least one request, except the reported ones', () => {
     const notStrict = Object.fromEntries(traces.filter((t) => t.verdict === 'changes' || t.verdict === 'contextOnly').map((t) => [t.key, t.verdict]));
     expect(notStrict).toEqual(KNOWN_NOT_STRICT);
+    expect(traces.find((t) => t.key === 'PlannerSafetyInput.flags')?.verdict).toBe('live'); // renal restrictions no longer silently clip incompatible floors
     expect(traces.filter((t) => t.verdict === 'live').length).toBeGreaterThanOrEqual(35);
   });
   it('relaxing never shrinks and tightening never enlarges the reachable set', () => {

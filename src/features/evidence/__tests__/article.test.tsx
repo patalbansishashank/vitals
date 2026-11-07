@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { MechanismArticle } from '../components/MechanismArticle';
 import { topicFuel } from './fixtures';
@@ -19,10 +20,13 @@ describe('MechanismArticle with every optional field', () => {
     const headings = within(article)
       .getAllByRole('heading')
       .map((h) => `${h.tagName}:${h.textContent}`);
+    // the equation and the key numbers sit behind one closed "Technical details"
     expect(headings).toEqual([
       'H2:Glycogen holds water',
       'H3:How Vitals models it',
-      'H3:Key numbers',
+      'H3:Technical details',
+      'H4:Equation',
+      'H4:Key numbers',
       'H3:Timing',
       'H3:What changes it',
       'H3:Used by',
@@ -37,6 +41,11 @@ describe('MechanismArticle with every optional field', () => {
     // equation: expression and its note are kept apart
     expect(screen.getByText('W_gly = k · G')).toBeInTheDocument();
     expect(screen.getByText('(k = 3.0 g/g, range 2.7–4.0)')).toBeInTheDocument();
+    const technical = screen.getByRole('heading', { name: 'Technical details' }).closest('details')!;
+    expect(technical).not.toHaveAttribute('open');
+    expect(technical).toContainElement(screen.getByRole('figure', { name: 'Equation' }));
+    // no eyebrows or notes around the equation
+    expect(screen.queryByText(/as published in the research|in plain language/)).toBeNull();
   });
 
   it('renders key numbers as a table with a caption, header cells and source links', () => {
@@ -46,11 +55,23 @@ describe('MechanismArticle with every optional field', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((c) => c.textContent),
-    ).toEqual(['quantity', 'value', 'sources']);
+    ).toEqual(['Quantity', 'Value', 'Sources']);
     const row = within(table).getByRole('rowheader', { name: 'Water per gram of glycogen' }).closest('tr')!;
     expect(within(row).getByText(/Measured with biopsies/)).toBeInTheDocument();
     const src = within(row).getByRole('link', { name: 'Source 1: Olsson KE 1970' });
     expect(src).toHaveAttribute('href', '#src-olsson1970');
+    // the table never scrolls sideways (rows stack on phones): no scroll region and no "scroll →" hint
+    expect(table.closest('[role="region"]')).toBeNull();
+    expect(screen.queryByText(/scroll/)).toBeNull();
+  });
+
+  it('opens the closed Sources list when a source number is followed', async () => {
+    const user = userEvent.setup();
+    renderArticle(0);
+    const sources = screen.getByRole('heading', { name: 'Sources' }).closest('details')!;
+    expect(sources).not.toHaveAttribute('open');
+    await user.click(screen.getAllByRole('link', { name: 'Source 1: Olsson KE 1970' })[0]!);
+    expect(sources).toHaveAttribute('open');
   });
 
   it('numbers sources in citation order and links out safely', () => {
@@ -71,7 +92,7 @@ describe('MechanismArticle with every optional field', () => {
       'href',
       'https://pubmed.ncbi.nlm.nih.gov/5475323/',
     );
-    expect(within(items[0]!).getByRole('link', { name: /doi:10.1111/ })).toHaveAttribute(
+    expect(within(items[0]!).getByRole('link', { name: /DOI 10.1111/ })).toHaveAttribute(
       'href',
       'https://doi.org/10.1111/j.1748-1716.1970.tb04764.x',
     );
@@ -81,25 +102,23 @@ describe('MechanismArticle with every optional field', () => {
     );
   });
 
-  it('flags sources that were only checked at abstract level or unverified', () => {
+  it('counts the sources in the Sources toggle, with no verification labels, and tags study types in words', () => {
     const { container } = renderArticle(0);
-    expect(
-      screen.getByText('3 sources · 1 checked at abstract level only · 1 unverified'),
-    ).toBeInTheDocument();
-    const [olsson, abs, smith] = Array.from(container.querySelectorAll<HTMLElement>('li.ev-source'));
-    expect(within(olsson!).getByText('unverified')).toBeInTheDocument();
-    expect(within(abs!).getByText('checked at abstract level only')).toBeInTheDocument();
-    expect(within(smith!).queryByText(/unverified|abstract level/)).toBeNull();
-    // study-type tags only when the title says so
-    expect(within(abs!).getByText('meta-analysis')).toBeInTheDocument();
-    expect(within(abs!).getByText('randomised trial')).toBeInTheDocument();
-    expect(within(smith!).getByText('animal')).toBeInTheDocument();
+    const summary = container.querySelector('#citations > summary')!;
+    expect(summary.textContent).toBe('Sources3');
+    expect(screen.queryByText(/unverified|abstract level/)).toBeNull();
+    const [, abs, smith] = Array.from(container.querySelectorAll<HTMLElement>('li.ev-source'));
+    // study-type tags only when the title says so, as plain text after the citation
+    expect(within(abs!).getByText(/meta-analysis · randomised trial/)).toBeInTheDocument();
+    expect(within(smith!).getByText(/animal/)).toBeInTheDocument();
   });
 
-  it('renders "used by" chips from the metric adapter, and goal links for goal-able metrics', () => {
+  it('renders "used by" rows from the metric adapter, with a goal key for goal-able metrics', () => {
     renderArticle(0);
     const used = screen.getByRole('list', { name: 'Metrics this mechanism drives' });
-    const chips = within(used).getAllByRole('link');
+    const chips = within(used)
+      .getAllByRole('link')
+      .filter((a) => a.classList.contains('ev-usedrow__link'));
     expect(chips.map((c) => c.textContent)).toEqual(['Glycogen (total)', 'Scale weight']);
     expect(chips[0]).toHaveAttribute('href', '/simulate?view=focus&m=glycogenTotal');
     expect(screen.getByRole('link', { name: 'Use as a goal: Scale weight' })).toHaveAttribute(
@@ -112,9 +131,9 @@ describe('MechanismArticle with every optional field', () => {
     renderArticle(0);
     const pager = screen.getByRole('navigation', { name: 'More in Test fuel and water' });
     expect(
-      within(pager).getByRole('link', { name: /next.*Ketone production rises in a fast/ }),
+      within(pager).getByRole('link', { name: /Next.*Ketone production rises in a fast/ }),
     ).toHaveAttribute('href', '/evidence/90-bare');
-    // the header chip and the footer both name the topic (the chip uses the short name when the registry knows one)
+    // the footer names the topic
     const topicLinks = screen.getAllByRole('link', { name: 'Test fuel and water' });
     expect(topicLinks.length).toBeGreaterThanOrEqual(1);
     for (const l of topicLinks) expect(l).toHaveAttribute('href', '/evidence/topics/test-fuel');
@@ -130,11 +149,12 @@ describe('MechanismArticle with no optional field', () => {
         .getAllByRole('heading')
         .map((h) => h.textContent),
     ).toEqual(['Ketone production rises in a fast', 'How Vitals models it', 'Sources']);
+    expect(screen.queryByRole('heading', { name: 'Technical details' })).toBeNull();
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.queryByRole('list', { name: 'Metrics this mechanism drives' })).toBeNull();
     expect(screen.getByText('No sources are listed for this mechanism yet.')).toBeInTheDocument();
-    // grade D gets the exploratory note
-    expect(screen.getByText('Exploratory. Mostly animal or cell evidence.')).toBeInTheDocument();
+    // grade D gets the exploratory state line (in the header, not a notice between sections)
+    expect(screen.getByText('Exploratory. Mostly animal or cell evidence.').closest('header')).not.toBeNull();
     // established needs no status explanation
     expect(screen.queryByText(/Consistent across the published studies/)).toBeNull();
   });

@@ -15,7 +15,6 @@ const INPUT: GoalSuggestionInput = {
   body: { bfPct: 28, bfBand: [25, 31], leanKg: 68.4, trainingAgeY: 0.5, measuredBodyFat: true },
   intake: { training: { prefs: { daysPerWeek: 3, minPerSession: 60, bestTime: 'evening' } } },
   markers: [],
-  devices: {},
   safety: { noWeightLossGoal: false, optedTier: null },
   reach: [
     {
@@ -33,6 +32,9 @@ const INPUT: GoalSuggestionInput = {
       beyondSafetyLimits: false,
       ratePerWeek: 0.45,
       text: '',
+      requestedHorizonDays: 112,
+      coveredDays: 112,
+      completeHorizon: true,
     },
   ],
 };
@@ -97,13 +99,47 @@ describe('goals.suggest', () => {
 
   it('source ai with a disagreeing reply or a failed call: the rule result with a line', async () => {
     installAiPorts({
-      suggestGoals: async () => ({ raw: { goals: [{ metric: 'vo2max', mode: 'raise', why: 'Fitness first.' }], constraints: { longestFastH: 72 }, missing: [] }, version: 'ai:fake@1' }),
+      suggestGoals: async () => ({ raw: { goals: [{ metric: 'vo2max', mode: 'raise', targetFrom: 'direction', why: 'Fitness first.' }], constraints: { longestFastH: 72 }, missing: [] }, version: 'ai:fake@1' }),
     });
     let out = ((await dispatch('goals.suggest', { source: 'ai' })) as { output: GoalSuggestion }).output;
     expect(out).toEqual({ ...RULE, fallback: AI_DISAGREED });
     installAiPorts({ suggestGoals: async () => Promise.reject(new Error('network')) });
     out = ((await dispatch('goals.suggest', { source: 'ai' })) as { output: GoalSuggestion }).output;
     expect(out).toEqual({ ...RULE, fallback: AI_FALLBACK });
+  });
+});
+
+describe('goals.suggest D4-06: the AI rewrites prose only', () => {
+  const asRaw = () => JSON.parse(JSON.stringify(RULE)) as GoalSuggestion;
+
+  it('the rule result is rule@2 with a numeric target from a correctly signed reach and a structure fingerprint', () => {
+    expect(RULE.version).toBe('rule@2');
+    expect(RULE.goals[0]).toMatchObject({ metric: 'fatMass', mode: 'lose', target: 7, unit: 'kg' });
+    expect(RULE.goals[0]!.target!).toBeLessThanOrEqual(7.2);
+    expect(typeof RULE.structureHash).toBe('string');
+  });
+
+  it('a reworded reply keeps every structured field of the rule result', async () => {
+    const r = asRaw();
+    installAiPorts({ suggestGoals: async () => ({ raw: { ...r, goals: r.goals.map((g) => ({ ...g, why: `${g.why} Reworded.` })) }, version: 'ai:fake@2' }) });
+    const out = ((await dispatch('goals.suggest', { source: 'ai' })) as { output: GoalSuggestion }).output;
+    expect(out.source).toBe('ai');
+    expect(out.structureHash).toBe(RULE.structureHash);
+    expect(out.goals.map(({ why: _w, ...g }) => g)).toEqual(RULE.goals.map(({ why: _w, ...g }) => g));
+    expect(out.constraints).toEqual(RULE.constraints);
+  });
+
+  it('a reply that drops the target, its unit or a limit falls back to the rules', async () => {
+    const r = asRaw();
+    for (const raw of [
+      { ...r, goals: r.goals.map((g, i) => (i === 0 ? { ...g, target: undefined } : g)) },
+      { ...r, goals: r.goals.map((g, i) => (i === 0 ? { ...g, unit: undefined } : g)) },
+      { ...r, constraints: { ...r.constraints, maxSessionMin: undefined } },
+    ]) {
+      installAiPorts({ suggestGoals: async () => ({ raw, version: 'ai:fake@2' }) });
+      const out = ((await dispatch('goals.suggest', { source: 'ai' })) as { output: GoalSuggestion }).output;
+      expect(out).toEqual({ ...RULE, fallback: AI_DISAGREED });
+    }
   });
 });
 

@@ -139,6 +139,7 @@ export const VISION_INSTRUCTIONS = `You read blood test reports for a person's o
 Return JSON only, matching the schema. Copy only result rows whose test is one of the MARKERS below; skip every other test.
 Copy the number and the unit exactly as printed. Do not convert units, do not round, do not guess a value you cannot read; leave such a row out.
 Total T3 is not free T3, and plain CRP is not hs-CRP: leave both out. Mark a row calculated when the lab prints it as calculated.
+For eGFR copy the unit exactly: never add /1.73 m² to a value printed in mL/min, and leave out creatinine clearance.
 Parts of the page are blanked on purpose. Never write a person's name, age, sex, phone number, address, patient id, barcode or doctor.`;
 
 export const visionPrompt = (pages: number): string =>

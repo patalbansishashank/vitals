@@ -1,22 +1,35 @@
 /* ==========================================================================
-   Simulator · Results — layout and the few composites the primitives don't
-   cover. Tokens only (var(--lm-*)); chrome achromatic, colour on data and on
-   status marks only (REVIEW_FINDINGS #5). Layout per simulator-results.md
-   §3–4 with REVIEW_FINDINGS #1: at ≥ 1024 px the channel stack spans the full
-   width; "Figure over time" and "Warnings" sit in a band under the strip.
+   Simulator · Results (Ember, dark only) — layout and the few composites the
+   primitives don't cover. Tokens only (var(--lm-*)); chrome achromatic, colour
+   on data and on status marks only (REVIEW_FINDINGS #5). Layout per
+   simulator-results.md §3–4 with REVIEW_FINDINGS #1: at ≥ 1024 px the channel
+   stack spans the full width; "Figure over time" and "Warnings" sit in a band
+   under the strip. No shadows, width axes or weights above 500.
    ========================================================================== */
 @layer components {
   .rs {
-    /* the chart toolbar sticks under the context bar; the phone readout docks under both bars */
-    --lmc-sticky-top: calc(var(--lm-topbar-h) + var(--lm-safe-top, 0px) + 57px);
+    /* the chart toolbar sticks under the shell's header (its height is --lm-header-h, safe area included) */
+    --lmc-sticky-top: var(--lm-header-h, 0px);
     display: grid;
     gap: 16px;
     min-width: 0;
   }
-  @media (min-width: 64rem) {
-    .rs {
-      --lmc-sticky-top: calc(var(--lm-topbar-h) + 1px);
-    }
+
+  /* ---- stage head: the horizon the Run key projects, the Run key at the right -------- */
+  .rs-runbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    min-width: 0;
+  }
+  .rs-runbar__fact {
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .rs-runbar > :last-child {
+    margin-inline-start: auto;
   }
 
   /* ---- readout strip ------------------------------------------------------ */
@@ -28,30 +41,6 @@
   .rs-strip {
     position: relative;
     min-width: 0;
-  }
-  .rs-strip .lm-strip__item {
-    padding: 12px 16px 14px;
-  }
-  @media (min-width: 64rem) {
-    .rs-strip .lm-strip__item {
-      padding: 14px 18px 16px;
-    }
-  }
-  /* mobile snap rail: the next readout peeks (REVIEW_FINDINGS #7) */
-  @media (max-width: 47.99rem) {
-    .rs-strip .lm-strip__item {
-      flex: 0 0 min(200px, 62vw);
-      min-width: min(200px, 62vw);
-    }
-  }
-  @media (max-width: 23.99rem) {
-    .rs-strip .lm-strip__item {
-      flex: 0 0 50%;
-      min-width: 0;
-    }
-    .rs-strip .lm-readout__value {
-      white-space: normal;
-    }
   }
   .rs-strip__name {
     all: unset;
@@ -141,15 +130,6 @@
     gap: 4px 24px;
     padding: 0 2px;
   }
-  .rs-meta__disclaimer {
-  }
-  .rs-meta__run {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-2);
-    font-stretch: 100%;
-    letter-spacing: 0;
-  }
 
   /* ---- figure + warnings band (≥ 1024 px) --------------------------------- */
   .rs-band {
@@ -157,26 +137,25 @@
     display: grid;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
     gap: 16px;
-    align-items: stretch;
+    align-items: start;
   }
   @media (min-width: 80rem) {
     .rs-band {
       grid-template-columns: minmax(0, 4fr) minmax(0, 5fr);
     }
   }
+  /* r068 SR5 / G5: the warnings grow with the page (no 468 px inner scroller cutting an item); each card is as tall as
+     its own content */
   .rs-band > .rs-warnwrap {
     min-height: 0;
     display: grid;
   }
   .rs-band .rs-warnings {
     display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    max-height: 468px;
+    grid-template-rows: auto auto;
   }
   .rs-band .rs-warnings__body {
-    position: relative; /* visually-hidden text inside must not escape the scroll box */
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    position: relative;
   }
   .rs-band__toggle {
     position: absolute;
@@ -186,26 +165,29 @@
   .rs-band .rs-warnings__bar {
     padding-right: 48px;
   }
+  /* the band, folded: one card-material row with its name, the warnings state and the unfold key */
   .rs-bandbar {
     display: flex;
     align-items: center;
     gap: 12px;
-    min-height: 44px;
+    min-height: 48px;
     padding: 4px 8px 4px 16px;
-    background: var(--lm-face);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
+    background: var(--lm-card-bg);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
   }
-  .rs-bandbar > .lm-eng {
+  .rs-bandbar__label {
     flex: 1;
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+    color: var(--lm-ink);
   }
   .rs-bandbar__sev {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     font-size: var(--lm-text-xs);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .rs-bandbar__sev .lm-status-mark[data-severity='caution'] {
@@ -225,25 +207,36 @@
   .rs-chart[data-dim='true'] .lmc-frame {
     opacity: 0.55;
   }
+  /* before the first run: one card — the fact, then the one Run key. On phones the card fits its content and the key
+     sits right under the date, full width (r068 final H4: a screen-tall empty card with Run at its foot read as broken). */
   .rs-empty.lm-empty {
-    min-height: 360px;
-    background-color: var(--lm-face);
-    border: 1px dashed var(--lm-edge);
+    padding: 8px 0;
   }
-  .rs-empty .lm-empty__title {
-    font-size: var(--lm-text-lg);
-    font-stretch: 112%;
-    letter-spacing: -0.01em;
+  .rs-start.lm-face {
+    display: grid;
   }
-  .rs-empty .lm-empty__action {
-    margin-top: 18px;
+  .rs-start .rs-empty.lm-empty {
+    padding: 0;
+    align-content: start;
+  }
+  @media (max-width: 63.99rem) {
+    .rs-start .rs-empty.lm-empty {
+      justify-items: stretch;
+    }
+    .rs-start .lm-empty__action {
+      margin-top: var(--lm-card-gap);
+    }
+    .rs-start .lm-empty__action > *,
+    .rs-start .lm-runkey__cap {
+      width: 100%;
+    }
   }
   .rs-first {
     position: relative;
     overflow: clip;
   }
   .rs-first .rs-empty.lm-empty {
-    border: 0;
+    padding: 20px 16px 22px;
   }
   .rs-nolanes {
     margin-bottom: 12px;
@@ -258,8 +251,7 @@
   }
   /* "Simulation — not a recommendation": a printed strip attached to the top of the chart */
   .rs-simstrip.lm-sim-strip {
-    border: 1px solid var(--lm-line-strong);
-    border-bottom: 1px solid var(--lm-line);
+    border: var(--lm-hairline) solid var(--lm-line);
     border-radius: var(--lm-radius-md) var(--lm-radius-md) 0 0;
     background: var(--lm-face);
   }
@@ -280,7 +272,7 @@
     color: var(--lm-ink-2);
   }
   .rs-caveats b {
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .rs-count {
@@ -304,7 +296,7 @@
     flex-wrap: wrap;
     gap: 4px 12px;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .rs-figure__title,
   .rs-warnings__title {
@@ -312,28 +304,25 @@
   }
   .rs-figure__day {
     color: var(--lm-ink);
-    font-stretch: 100%;
   }
   .rs-figure__stage {
-    height: 330px;
+    height: clamp(20rem, 25vw, 28rem);
     min-height: 0;
   }
-  @media (min-width: 64rem) {
-    .rs-figure__stage {
-      height: 340px;
-    }
-  }
   .rs-figure__views {
-    margin-left: auto;
+    margin: 12px 16px 0;
+  }
+  /* the bank's own block width is 100 %; beside its margins it must take the row's width instead */
+  .rs-figure > .rs-figure__views.lm-bank {
+    width: auto;
+    min-width: 0;
+  }
+  .rs-figure:has(> .rs-figure__views) {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
   .rs-figure__visceral {
-    min-height: 330px;
+    min-height: clamp(20rem, 25vw, 28rem);
     padding: 12px 16px;
-  }
-  @media (min-width: 64rem) {
-    .rs-figure__visceral {
-      min-height: 340px;
-    }
   }
   .rs-figure__stage > .lm-fig3d {
     height: 100%;
@@ -351,7 +340,7 @@
     align-items: flex-start;
     gap: 14px;
     padding: 10px 16px 12px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   @media (max-width: 47.99rem) {
     .rs-figure__foot {
@@ -363,10 +352,13 @@
       align-self: flex-start;
     }
   }
+  /* each value keeps its one line ("98.6 → 93.8 cm −4.8", nowrap): a column is at least as wide as that line, so a
+     narrower panel (the stage beside the expanded desktop sidebar) takes fewer columns instead of running the last
+     value past the card's edge */
   .rs-figure__vals {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(8.75rem, 1fr));
     gap: 6px 16px;
     margin: 0;
     min-width: 0;
@@ -387,7 +379,7 @@
     color: var(--lm-ink);
   }
   .rs-figure__vals b {
-    font-weight: 600;
+    font-weight: 500;
   }
   .rs-figure__from {
     color: var(--lm-ink-3);
@@ -408,7 +400,6 @@
     min-width: 0;
   }
   .rs-warnings__count {
-    font-stretch: 100%;
   }
   .rs-warnings__body {
     display: grid;
@@ -427,7 +418,7 @@
     grid-template-columns: 20px minmax(0, 1fr);
     gap: 3px 12px;
     padding: 12px 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .rs-warn:first-child {
     border-top: 0;
@@ -453,9 +444,9 @@
   }
   .rs-warn__title {
     margin: 0;
-    font-size: 0.84375rem;
+    font-size: var(--lm-text-sm);
     line-height: 1.35;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
     text-wrap: pretty;
   }
@@ -471,16 +462,12 @@
     font-size: var(--lm-text-xs);
     line-height: var(--lm-text-xs--lh);
     color: var(--lm-ink-2);
-    font-stretch: 100%;
-    letter-spacing: 0;
   }
   .rs-warn__src {
     margin: 2px 0 0;
     font-size: var(--lm-text-xs);
     line-height: var(--lm-text-xs--lh);
     color: var(--lm-ink-2);
-    font-stretch: 100%;
-    letter-spacing: 0;
   }
   .rs-warn__acts {
     display: flex;
@@ -500,7 +487,7 @@
     color: var(--lm-ok-fg);
   }
   .rs-warnings__notes {
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
     padding-top: 10px;
     font-size: var(--lm-text-xs);
     line-height: 1.5;
@@ -554,14 +541,21 @@
   .rs-bd__cap {
     margin-left: auto;
   }
+  /* r068 SR7: a collapsed card is a full-width disclosure row with its chevron at the row's end */
   .rs-bd__toggle {
     all: unset;
-    display: inline-flex;
+    box-sizing: border-box;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    flex: 1 1 100%;
     gap: 8px;
-    min-height: 32px;
+    min-height: 40px;
     cursor: pointer;
     border-radius: 3px;
+  }
+  .rs-bd__bar:has(> .rs-bd__toggle[aria-expanded='false']) {
+    border-bottom: 0;
   }
   .rs-bd__toggle:focus-visible {
     outline: 2px solid var(--lm-focus);
@@ -617,10 +611,14 @@
     width: 100%;
     padding-left: 34px;
   }
+  /* r068 W2-18: "Selected only" is a settings row, its switch at the row's end */
   .rs-picker__filters {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+  }
+  .rs-picker__filters > .lm-switch {
+    flex: 1 1 auto;
+    justify-content: space-between;
+    min-height: 44px;
   }
   .rs-picker__hint,
   .rs-picker__refused,
@@ -644,12 +642,12 @@
     gap: 8px;
     margin: 6px 0 2px;
     padding-bottom: 6px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .rs-picker__ghead .lm-eng {
     flex: 1;
     color: var(--lm-ink);
-    font-weight: 600;
+    font-weight: 500;
   }
   .rs-picker__count {
     font-size: var(--lm-text-xs);
@@ -663,7 +661,7 @@
   }
   .rs-picker__row {
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr) auto auto;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
     align-items: center;
     gap: 0 8px;
     min-height: 40px;
@@ -677,11 +675,11 @@
     width: 16px;
     height: 16px;
     margin: 0;
-    accent-color: var(--lm-ink);
+    accent-color: var(--lm-signal);
   }
   .rs-picker__label {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: center;
     gap: 0 8px;
     min-width: 0;
@@ -698,7 +696,7 @@
     white-space: nowrap;
   }
   .rs-picker__unit {
-    grid-column: 2;
+    grid-column: 1;
     font-size: var(--lm-text-xs);
     line-height: 1.3;
     color: var(--lm-ink-2);
@@ -709,6 +707,11 @@
   .rs-picker__acts {
     display: inline-flex;
     gap: 0;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .rs-picker__row:not(:hover):not(:focus-within) .rs-picker__pin:not([aria-pressed='true']) {
+      opacity: 0;
+    }
   }
   .rs-picker__caveat {
     grid-column: 2 / -1;
@@ -745,5 +748,241 @@
     .rs-warnings__notes summary svg {
       transition: none;
     }
+  }
+}
+
+/* The phone chart's docked readout (charts.css is unlayered, so this override is too): idle, it is no band at all —
+   each lane's own value already reads the last day, and changes under a drag. While the crosshair is on, the readout
+   floats over the top of the lanes under the toolbar instead of pushing them down, so nothing jumps when a drag
+   starts. */
+.rs-frame .lmc-dock {
+  height: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  overflow: visible;
+}
+.rs-frame .lmc-dock__inner {
+  padding: 7px 12px;
+  background: var(--lm-well);
+  border-bottom: var(--lm-hairline) solid var(--lm-line);
+}
+.rs-frame .lmc-dock__inner[data-on='false'] {
+  visibility: hidden;
+}
+
+/* r068 W2-14: the figure's layer switches as one even bank (2 × 2 on a phone, 4 across with room); Play trails the bar */
+@layer components {
+  .rs-figure .lm-fig3d__tools {
+    padding-inline: var(--lm-card-pad);
+  }
+  .rs-figure .lm-fig3d__panel {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .rs-figure .lm-fig3d__panel {
+    container: lp-layers / inline-size;
+  }
+  .rs-figure .lm-fig3d__layers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    padding: 3px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-select-radius);
+  }
+  .rs-figure .lm-fig3d__chip {
+    justify-content: center;
+    min-width: 0;
+    border-color: transparent;
+    border-radius: var(--lm-select-key-radius);
+    font-size: var(--lm-text-label-s);
+  }
+  .rs-figure .lm-fig3d__chip[aria-pressed='true'] {
+    border-color: var(--lm-gold-edge);
+  }
+  .rs-figure .lm-fig3d__heading {
+    display: none;
+  }
+  .rs-figure .lm-fig3d__chip {
+    white-space: nowrap;
+    padding-inline: 6px;
+  }
+  @container lp-layers (min-width: 30rem) {
+    .rs-figure .lm-fig3d__layers {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .rs-figure__bar {
+    align-items: center;
+  }
+  .rs-figure__play {
+    flex: none;
+  }
+  .rs-figure__day + .rs-figure__play {
+    margin-left: auto;
+  }
+}
+
+/* r068 W2-9: fewer tags in the lane heads — "exploratory" / "wide range" stay in each lane's name (title and spoken
+   label) and in Explain; the grade mark keeps clear of a long name */
+@layer components {
+  .rs .lmc-gut__note {
+    display: none;
+  }
+  .rs .lmc-lane[data-notes='true'] .lmc-gut {
+    gap: 0;
+  }
+  .rs .lmc-gut__meta .lm-grade {
+    margin-left: 2px;
+  }
+  .rs .lmc-gut__name {
+    padding-right: var(--lm-inline);
+  }
+
+  /* (r068 final M12) desktop card insets are 20 px (--lm-card-pad-lg), as in every other card */
+  @media (min-width: 64rem) {
+    .rs-figure__bar,
+    .rs-warnings__bar,
+    .rs-bd__bar,
+    .rs-warnings__body,
+    .rs-figure__note,
+    .rs-figure__foot,
+    .rs-figure__visceral {
+      padding-inline: var(--lm-card-pad-lg);
+    }
+    .rs-figure__views {
+      margin-inline: var(--lm-card-pad-lg);
+    }
+  }
+}
+
+/* r071: every projection carries its end value and range at every width. */
+@layer components {
+  .rs-readouts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--lm-card-gap);
+    overflow: visible;
+  }
+  .rs-readout:first-child {
+    grid-column: 1 / -1;
+  }
+  .rs-readout__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+  }
+  .rs-readout__name {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--lm-text-card);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .rs-readout .rs-strip__name {
+    min-height: 32px;
+    color: inherit;
+    text-align: left;
+  }
+  .rs-readout .lm-gcard__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-card-gap);
+    align-content: start;
+  }
+  .rs-readout__value {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    text-align: left;
+  }
+  .rs-readout__value .lm-hero {
+    max-width: none;
+  }
+  .rs-readout__value .lm-hero__line {
+    flex-wrap: nowrap;
+  }
+  .rs-readout .lm-hero__digits {
+    overflow-wrap: normal;
+  }
+  .rs-readout__range,
+  .rs-readout__start {
+    white-space: normal;
+    overflow-wrap: normal;
+  }
+  .rs-readout__start {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+  .rs-readout__start > span {
+    max-width: 100%;
+  }
+  .rs-readout__fact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 4px 6px;
+    min-width: 0;
+    max-width: 100%;
+    text-align: left;
+  }
+  .rs-readout__fact > .lm-overflow {
+    flex: 0 0 auto;
+  }
+  .rs-readout .rs-strip__meta {
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    text-transform: uppercase;
+    color: var(--lm-tone-2);
+  }
+  .rs-readout__unknown {
+    font-size: var(--lm-text-body);
+    color: var(--lm-tone-2);
+  }
+  @media (min-width: 64rem) {
+    .rs-readouts {
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+    }
+    .rs-readout:first-child {
+      grid-column: auto;
+    }
+  }
+}
+@layer components {
+  .rs-readout .lm-hero__part {
+    max-width: none;
+    flex-wrap: nowrap;
+    gap: 6px 0;
+    white-space: nowrap;
+  }
+  .rs-bd__hero,
+  .rs-figure__hero {
+    padding: var(--lm-card-pad);
+  }
+  .rs-figure,
+  .rs-figure:has(> .rs-figure__views) {
+    grid-template-rows: none;
+  }
+  .rs-bd__hero .lm-hero__range,
+  .rs-figure__hero .lm-hero__range {
+    white-space: normal;
+  }
+}
+@layer components {
+  .rs-readout .rs-strip__pct,
+  .rs-readout .rs-strip__wide {
+    color: inherit;
+  }
+  .rs-bd__bar .rs-bd__toggle {
+    flex: 1 1 12rem;
   }
 }

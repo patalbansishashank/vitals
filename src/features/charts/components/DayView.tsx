@@ -12,7 +12,7 @@ import { formatEnergy, IconKey, Swatch, type EnergyUnitChoice } from '@/componen
 import { KCAL_PER_GRAM, MACRO_ORDER } from '../catalogue';
 import type { ChartController } from '../core/controller';
 import { dayLaneModel, type DayContext, type DayLine } from '../core/compareModels';
-import { useChartController, useElementWidth } from '../core/hooks';
+import { type AxisRegister, useAxisGutter, useAxisModel, useChartController, useElementWidth } from '../core/hooks';
 import type { DataArea } from '../core/interaction';
 import { stackLayout, type StackLayout } from '../core/layout';
 import { PlotCanvas, type PlotApi } from '../core/PlotCanvas';
@@ -88,7 +88,9 @@ export const DayView = memo(function DayView(p: DayViewProps) {
   const width = useElementWidth(rootRef);
   const wide = (width || 960) >= 760;
   const stripW = wide ? (width || 960) - 264 : width || 960;
-  const layout = stackLayout(stripW);
+  // one tick column for the day's lanes, sized to their widest tick label
+  const axis = useAxisGutter(controller);
+  const layout = stackLayout(stripW, axis.width);
 
   useEffect(() => {
     controller.dispatch({ type: 'set', x0, x1: x0 + 1.25 }, { animate: false });
@@ -123,7 +125,7 @@ export const DayView = memo(function DayView(p: DayViewProps) {
       <div className="lmc-day__dial">
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
           {p.onDayChange ? <IconKey size="sm" icon={ChevronLeft} label="Previous day" disabled={day <= 0} onClick={() => p.onDayChange?.(day - 1)} /> : null}
-          <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', minWidth: 150, textAlign: 'center' }}>{title}</span>
+          <span style={{ fontSize: 14, fontWeight: 500, fontVariantNumeric: 'tabular-nums', minWidth: 150, textAlign: 'center' }}>{title}</span>
           {p.onDayChange ? <IconKey size="sm" icon={ChevronRight} label="Next day" disabled={day >= days - 1} onClick={() => p.onDayChange?.(day + 1)} /> : null}
         </div>
         <ClockDial data={data} day={day} controller={controller} size={wide ? 228 : 216} energyUnit={p.energyUnit} />
@@ -132,7 +134,16 @@ export const DayView = memo(function DayView(p: DayViewProps) {
         <div ref={bodyRef} className="lmc-body" tabIndex={0} role="group" aria-roledescription="chart" aria-label={`Day view, ${title}, hourly`}>
           <MealRibbon controller={controller} meals={meals} geom={geom} energyUnit={p.energyUnit ?? 'kcal'} />
           {lanes.map((l) => (
-            <DayLane key={l.s.id} lines={l.lines} ctx={ctx} layout={layout} controller={controller} height={p.laneHeight ?? (layout.size === 's' ? 52 : 58)} fadeFrom={day + 1} />
+            <DayLane
+              key={l.s.id}
+              lines={l.lines}
+              ctx={ctx}
+              layout={layout}
+              controller={controller}
+              height={p.laneHeight ?? (layout.size === 's' ? 52 : 58)}
+              fadeFrom={day + 1}
+              onAxisModel={axis.register}
+            />
           ))}
           <TimeAxis controller={controller} time={data.time} geom={geom} sticky={false} />
           <Crosshair controller={controller} area={area} />
@@ -151,6 +162,7 @@ const DayLane = memo(function DayLane({
   controller,
   height,
   fadeFrom,
+  onAxisModel,
 }: {
   lines: DayLine[];
   ctx: DayContext;
@@ -158,12 +170,17 @@ const DayLane = memo(function DayLane({
   controller: ChartController;
   height: number;
   fadeFrom: number;
+  onAxisModel?: AxisRegister;
 }) {
   const s = lines[0]!.series;
   const valRef = useRef<HTMLSpanElement>(null);
   const dotRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<PlotApi | null>(null);
-  const model = useMemo(() => dayLaneModel(lines, { tickColCss: layout.tickCol, ctx, fadeFrom }), [lines, layout.tickCol, ctx, fadeFrom]);
+  const model = useMemo(() => {
+    const m = dayLaneModel(lines, { tickColCss: layout.tickBase, ctx, fadeFrom });
+    return s.display?.wordOnly ? { ...m, under: undefined, yLabels: () => [] } : m;
+  }, [lines, layout.tickBase, ctx, fadeFrom, s]);
+  useAxisModel(onAxisModel, `day:${s.id}`, model);
   const padding = useMemo(() => ({ top: 6, bottom: 6, left: layout.tickCol, right: layout.rightPad }), [layout.tickCol, layout.rightPad]);
   const onApi = useCallback((a: PlotApi | null) => {
     apiRef.current = a;
@@ -175,7 +192,7 @@ const DayLane = memo(function DayLane({
       const live = c.t != null && c.t >= v.x0 && c.t <= v.x1;
       const t = live ? c.t! : Math.min(v.x1, ctx.day + 1) - 1e-6;
       const cv = valueAt(s, t, 'hourly');
-      if (valRef.current) valRef.current.textContent = formatNumber(cv.v, s.format.decimals);
+      if (valRef.current) valRef.current.textContent = s.display?.wordOnly ?? formatNumber(cv.v, s.format.decimals);
       const dot = dotRef.current;
       const api = apiRef.current;
       if (!dot) return;
@@ -196,7 +213,7 @@ const DayLane = memo(function DayLane({
       b();
     };
   }, [controller, s, ctx.day]);
-  const unit = unitSuffix(s.unit);
+  const unit = s.display?.wordOnly ? '' : unitSuffix(s.unit);
   const name = lines.length > 1 ? `${s.label.replace(/ \(.*\)/, '')}` : s.label;
   return (
     <div className="lmc-row lmc-lane" data-mode="lane" data-lane={s.id}>
@@ -220,7 +237,7 @@ const DayLane = memo(function DayLane({
       </div>
       <div className="lmc-cell" role="img" aria-label={`${s.label} over the day, hourly${lines.length > 1 ? `; dashed line: ${lines[1]!.series.label}` : ''}.`}>
         <PlotCanvas model={model} controller={controller} width={layout.cellW} height={height} padding={padding} onApi={onApi}>
-          <div ref={dotRef} className="lmc-dot" data-on="false" style={{ background: `var(--lm-cat-${s.category})` }} />
+          <div ref={dotRef} className="lmc-dot" data-on="false" style={{ '--lmc-dot': `var(--lm-cat-${s.category})` } as CSSProperties} />
         </PlotCanvas>
       </div>
     </div>
@@ -298,13 +315,19 @@ export interface ClockDialProps {
   size?: number;
   /** Unit of meal energy in the dial's summary (Settings › energy; default kcal). */
   energyUnit?: EnergyUnitChoice;
+  /** The written summary under the dial (default on); off where the page lists the same meals itself. */
+  caption?: boolean;
+  /** Training arcs just outside the bezel (default on); off where the page lists the sessions itself. */
+  trainingArcs?: boolean;
+  /** 'short': one centre line ("12 h window" / "fast 24 h") that stays inside the numerals on a small dial. */
+  centre?: 'full' | 'short';
 }
 
 /**
  * Printed 24 h dial (REVIEW_FINDINGS 3): 24 hour ticks, hairline bezel, thin bands —
  * never a thick donut. Text renders at its real size (no viewBox scaling).
  */
-export const ClockDial = memo(function ClockDial({ data, day, controller, size = 228, energyUnit = 'kcal' }: ClockDialProps) {
+export const ClockDial = memo(function ClockDial({ data, day, controller, size = 228, energyUnit = 'kcal', caption = true, trainingArcs = true, centre = 'full' }: ClockDialProps) {
   const handRef = useRef<SVGGElement>(null);
   const c = size / 2;
   const R = c - 12; // bezel
@@ -331,7 +354,16 @@ export const ClockDial = memo(function ClockDial({ data, day, controller, size =
     return controller.cursor.subscribe(upd);
   }, [controller, day, c]);
 
-  const main = Number.isFinite(fast.hours) ? `fast ${formatNumber(fast.hours, 0)}${THIN}h` : 'eating day';
+  const short = centre === 'short';
+  const main = short
+    ? meals.length && win
+      ? `${formatNumber(Math.max(0, windowH), windowH % 1 ? 1 : 0)}${THIN}h window`
+      : Number.isFinite(fast.hours)
+        ? `fast ${formatNumber(fast.hours, 0)}${THIN}h`
+        : 'no meals'
+    : Number.isFinite(fast.hours)
+      ? `fast ${formatNumber(fast.hours, 0)}${THIN}h`
+      : 'eating day';
   const sub = meals.length
     ? `${24 - Math.round(windowH)}:${Math.round(windowH)} · ${formatClock(win?.startHour ?? 0)}–${formatClock(win?.endHour ?? 0)}`
     : `ends ${formatDay(data.time, Math.floor(fast.end), 'long').split(' ')[0]} ${formatClock((fast.end % 1) * 24)}`;
@@ -384,7 +416,7 @@ export const ClockDial = memo(function ClockDial({ data, day, controller, size =
           <circle cx={c} cy={c} r={R - 32} fill="none" stroke="var(--lm-ink-3)" strokeWidth={1} />
         )}
         {/* training: 3 px arcs just outside the bezel */}
-        {sessions.map((s, k) => (
+        {(trainingArcs ? sessions : []).map((s, k) => (
           <path
             key={k}
             d={arcPath(c, c, R + 5, s.startHour, s.startHour + Math.max(0.25, s.durationMin / 60))}
@@ -423,14 +455,16 @@ export const ClockDial = memo(function ClockDial({ data, day, controller, size =
           <circle cx={c} cy={c} r={3} fill="var(--lm-signal)" stroke="var(--lm-signal-edge)" strokeWidth={1} />
         </g>
         {/* centre readout clears the 18 / 06 numerals */}
-        <text className="lmc-dial-read" x={c} y={c - 6} textAnchor="middle" paintOrder="stroke" stroke="var(--lm-face)" strokeWidth={4} strokeLinejoin="round">
+        <text className="lmc-dial-read" x={c} y={short ? c : c - 6} textAnchor="middle" dominantBaseline={short ? 'central' : undefined} style={short ? { fontSize: 13 } : undefined} paintOrder="stroke" stroke="var(--lm-face)" strokeWidth={4} strokeLinejoin="round">
           {main}
         </text>
-        <text className="lmc-dial-sub" x={c} y={c + 13} textAnchor="middle" paintOrder="stroke" stroke="var(--lm-face)" strokeWidth={4} strokeLinejoin="round">
-          {sub}
-        </text>
+        {short ? null : (
+          <text className="lmc-dial-sub" x={c} y={c + 13} textAnchor="middle" paintOrder="stroke" stroke="var(--lm-face)" strokeWidth={4} strokeLinejoin="round">
+            {sub}
+          </text>
+        )}
       </svg>
-      <figcaption className="lmc-day__summary">{summary}.</figcaption>
+      {caption ? <figcaption className="lmc-day__summary">{summary}.</figcaption> : null}
     </figure>
   );
 });

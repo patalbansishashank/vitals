@@ -1,8 +1,9 @@
 /**
  * TEST FIXTURE, not the food reference. A dozen common foods with per-100 g values written from memory of USDA SR Legacy
  * rows (rounded; `verified: false`) so the `FoodTable` contract, meal arithmetic and meal equivalence can be tested.
- * The bundled table (≈ 2,000 USDA FoodData Central foods plus Indian staples from IFCT 2017 once NIN grants permission,
- * R4 §2) is a later data task; see docs/CATALOGUES.md. Do not show these numbers to users.
+ * Production reads the frozen, exactly imported FDC selection (`./foods.reference.ts`, D6-05) through the shared food
+ * provider; Indian staples from IFCT 2017 follow once NIN grants permission (R4 §2, docs/CATALOGUES.md). Records here
+ * carry no `carbBasis`, i.e. the legacy total-by-difference contract. Do not show these numbers to users.
  */
 import type { FoodRecord } from '@/catalogues/types';
 

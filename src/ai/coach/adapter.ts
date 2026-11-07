@@ -37,19 +37,19 @@ import {
 } from './types';
 
 export const COACH_TEXT = {
-  noProvider: 'Connect an AI provider in Settings to chat. You can still log everything by hand.',
+  noProvider: 'Connect an AI provider to use the Coach.',
   offline: 'You’re offline. Your message is kept; send it when you’re back.',
-  keyRefused: (p: string) => `Your key was refused by ${p}. Check it in Settings › AI provider.`,
+  keyRefused: (p: string) => `Your key was refused by ${p}. Check it in Settings › Coach.`,
   outOfCredit: 'Your provider says you’re out of credit (or at your plan’s limit). Nothing was logged.',
   rateLimited: 'The provider is busy. Try again in a minute.',
   // a browser reports "server not running" and "server refuses web pages" (CORS) as the same failure: name both
   cors: (p: string) => `No answer from ${p}: it may not be running or reachable, or it may not accept requests from a web page. Check that it is running; if it is, choose a provider that runs through your Vitals server, or another provider.`,
   network: (p: string) => `Couldn’t reach ${p}. Nothing was logged.`,
-  modelMissing: (p: string, m: string) => `${p} doesn’t offer the model “${m}” (any more). Choose another model in Settings › AI provider.`,
-  tooLong: 'This conversation is too long for this model. Try a shorter message, or choose a model that takes more text in Settings › AI provider.',
+  modelMissing: (p: string, m: string) => `${p} doesn’t offer the model “${m}” (any more). Choose another model in Settings › Coach.`,
+  tooLong: 'This conversation is too long for this model. Try a shorter message, or choose a model that takes more text in Settings › Coach.',
   declined: (p: string) => `${p} declined to answer this message. Nothing was logged.`,
   providerProblem: (p: string) => `${p} had a problem answering. Nothing was logged; try again in a minute.`,
-  badRequest: (p: string) => `${p} could not handle this request. Nothing was logged. If it keeps happening, choose another model in Settings › AI provider.`,
+  badRequest: (p: string) => `${p} could not handle this request. Nothing was logged. If it keeps happening, choose another model in Settings › Coach.`,
   unexpected: 'Something went wrong while answering. Nothing was logged; try again.',
   noVision: 'This model can’t see photos. Describe the meal in words, or choose a model with vision in Settings.',
   spendCap: 'You’ve reached the monthly AI spend cap you set in Settings. Raise it there to keep chatting.',

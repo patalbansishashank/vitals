@@ -115,7 +115,7 @@ describe('two devices through the relay', () => {
     await Promise.all([a.close(), c.close(), stranger.close()]);
   }, 30_000);
 
-  it('raw samples: A stores an encrypted chunk, the manifest syncs, B fetches and decrypts it from /blobs', async () => {
+  it('blobs: A stores an encrypted chunk, the manifest syncs, B fetches and decrypts it from /blobs', async () => {
     const secret = newOwnerSecret();
     const a = createEvoluSyncStore({ platform: () => createNodeEvoluPlatform({ dataDir: dir, instance: 'D1' }), appName: 'vitalsD1' });
     const b = createEvoluSyncStore({ platform: () => createNodeEvoluPlatform({ dataDir: dir, instance: 'D2' }), appName: 'vitalsD2' });
@@ -131,7 +131,7 @@ describe('two devices through the relay', () => {
     const t = Array.from({ length: 60 }, (_, i) => hour + i * 60_000);
     const v = t.map((_, i) => 55 + (i % 7));
     const manifestArrived = waitFor(b, (c) => (c.origin === 'remote' && c.col === BLOB_MANIFEST_COLLECTION ? (c.doc?.value as BlobManifest) : undefined));
-    const manifest = await blobsA.put({ source: 'ring', metric: 'hr', hourStartUtc: new Date(hour).toISOString() }, { t, v });
+    const manifest = await blobsA.put({ source: 'test', metric: 'hr', hourStartUtc: new Date(hour).toISOString() }, { t, v });
     expect(await blobsA.flush()).toBe(1);
     const seen = await manifestArrived;
     expect(seen.chunkId).toBe(manifest.chunkId);

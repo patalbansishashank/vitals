@@ -18,6 +18,8 @@
 #   6. write the user unit vitals-server.service (ExecStart on the pinned Node) and ~/vitals-server/bin/vitals-server
 #      (the CLI on the pinned Node), daemon-reload, disable vitals-companion, restart vitals-server
 #      (the unit carries the memory limits MemoryHigh/MemoryMax/MemorySwapMax/OOMPolicy; docs/SERVER.md "Limits")
+#   6b. the watchdog (deploy/vitals-watchdog.{sh,service,timer}): ~/vitals-server/bin/vitals-watchdog and the user timer
+#      vitals-watchdog.timer, which checks /health every minute and restarts vitals-server after 3 failures in a row
 #   7. health check on http://127.0.0.1:$PORT/health (role home, this version)
 #   8. `tailscale serve` is NOT changed: it already forwards :8443 to 127.0.0.1:4870, the port the server keeps
 #
@@ -56,6 +58,7 @@ case "$TARGET" in
     say "2. rsync to $HOST:vitals-server/releases/$RELEASE"
     ssh "$HOST" "mkdir -p ~/vitals-server/releases && chmod 700 ~/vitals-server"
     rsync -a --delete --exclude node_modules "$PKG/dist/server/" "$HOST:vitals-server/releases/$RELEASE/"
+    rsync -a "$REPO/deploy/vitals-watchdog.sh" "$REPO/deploy/vitals-watchdog.service" "$REPO/deploy/vitals-watchdog.timer" "$HOST:vitals-server/releases/$RELEASE/deploy/"
     run_remote() { ssh "$HOST" "RELEASE='$RELEASE' PUBLIC_ORIGIN='$PUBLIC_ORIGIN' PORT='$PORT' VERSION='$VERSION' NODE_VERSION='$NODE_VERSION' DRY=0 bash -s"; }
     ;;
   local:*)
@@ -65,6 +68,8 @@ case "$TARGET" in
     say "2. rsync to $ROOT/vitals-server/releases/$RELEASE (dry run: $ROOT is the host's home)"
     mkdir -p "$ROOT/vitals-server/releases" && chmod 700 "$ROOT/vitals-server"
     rsync -a --delete --exclude node_modules "$PKG/dist/server/" "$ROOT/vitals-server/releases/$RELEASE/"
+    mkdir -p "$ROOT/vitals-server/releases/$RELEASE/deploy"
+    rsync -a "$REPO/deploy/vitals-watchdog.sh" "$REPO/deploy/vitals-watchdog.service" "$REPO/deploy/vitals-watchdog.timer" "$ROOT/vitals-server/releases/$RELEASE/deploy/"
     # a fresh environment with HOME pointing at the stand-in; systemctl and tailscale are not touched (DRY=1)
     run_remote() { env -i PATH="$PATH" HOME="$ROOT" TMPDIR="${TMPDIR:-/tmp}" RELEASE="$RELEASE" PUBLIC_ORIGIN="$PUBLIC_ORIGIN" PORT="$PORT" VERSION="$VERSION" NODE_VERSION="$NODE_VERSION" DRY=1 bash -s; }
     ;;
@@ -185,6 +190,17 @@ fi
 if [ "$DRY" = "1" ] || systemctl --user is-enabled --quiet vitals-companion 2>/dev/null; then sctl disable --now vitals-companion; fi
 sctl enable vitals-server
 sctl restart vitals-server
+
+say "6b. watchdog: vitals-watchdog.timer (/health every minute; restart after 3 failures in a row)"
+install -m 700 "$REL/deploy/vitals-watchdog.sh" "$APP/bin/vitals-watchdog"
+WD_CHANGED=0
+sed "s/@PORT@/$PORT/" "$REL/deploy/vitals-watchdog.service" >"$UNIT_DIR/vitals-watchdog.service.new"
+cp "$REL/deploy/vitals-watchdog.timer" "$UNIT_DIR/vitals-watchdog.timer.new"
+for u in vitals-watchdog.service vitals-watchdog.timer; do
+  if cmp -s "$UNIT_DIR/$u.new" "$UNIT_DIR/$u"; then rm "$UNIT_DIR/$u.new"; else mv "$UNIT_DIR/$u.new" "$UNIT_DIR/$u"; WD_CHANGED=1; fi
+done
+[ "$WD_CHANGED" = "1" ] && sctl daemon-reload
+sctl enable --now vitals-watchdog.timer
 
 say "7. health check"
 for i in $(seq 1 30); do

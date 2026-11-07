@@ -1369,7 +1369,7 @@ oxidativeCapacityIndex = M_c × M_r`,
         'coyle1984',
         'granata2018',
       ],
-      relatedMetricIds: ['enduranceCapacity'],
+      relatedMetricIds: ['enduranceCapacity', 'fatOxidation'],
     },
     {
       id: '10-train-low',

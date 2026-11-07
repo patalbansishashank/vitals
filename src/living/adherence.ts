@@ -1,5 +1,6 @@
 /**
- * Daily adherence score (docs/SUITE_SPEC.md §3.7; R11 §4; PLANNER_V2 §8.6).
+ * Daily adherence score (docs/SUITE_SPEC.md §3.7; R11 §4; PLANNER_V2 §8.6): observed item completion, nothing more —
+ * not felt hunger, not effort, not a probability of continuing (D2-06). Unlogged items are unknown, never skipped.
  *
  *   score = 100 · Σ w_i c_i / Σ w_i   over items with KNOWN status (logged, device-covered or marked as planned)
  *
@@ -15,7 +16,7 @@
  */
 import { addDays, daysBetween, weekdayOf } from './dates';
 import type { BlockAdherence, PlanItemType } from './plannerContract';
-import type { AdherenceItemScore, AdherenceScore, AdherenceTrend, LocalDate, PrescribedItem, Weekday } from './types';
+import type { AdherenceItemScore, AdherenceScore, AdherenceTrend, BehaviorForecastMeta, LocalDate, PrescribedItem, Weekday } from './types';
 
 // ------------------------------------------------------------------------------------------- constants (single exports)
 /** Coverage below which no score is given, and below which the score is labelled "based on k of n items" (§3.7). */
@@ -36,8 +37,39 @@ export const FAST_BASE_H = 12;
 export const WINDOW_GRACE_H = 0.5;
 /** Credit of a T0 "partly" mark without detail. */
 export const PARTLY_CREDIT = 0.5;
-/** Revealed adherence (R11 §4.3): prior Beta(6, 2), forgetting half-life 21 d; swap/weekday rules (PLANNER_V2 §7.6). */
+/**
+ * Revealed adherence (R11 §4.3): prior Beta(6, 2), forgetting half-life 21 d; swap/weekday rules (PLANNER_V2 §7.6).
+ * (D2-06) A descriptive heuristic utility summary: its mean never scales physical forecast doses and is not a probability
+ * that the person sticks with the plan (no dropout event, horizon or calibration defines one), and is never shown as one.
+ */
 export const BETA_PRIOR = { a: 6, b: 2 } as const;
+/** (D2-06) What the posterior means wherever it travels: a heuristic decision prior over observed item completion. */
+export const BEHAVIOUR_PRIOR_SEMANTICS = { kind: 'decisionPrior', calibration: 'heuristic', observable: 'itemCompletion' } as const;
+/**
+ * (D5-08) The posterior's estimand in full: a heuristic summary of fractional UTILITY credit (Beta(6, 2), mean 0.75,
+ * 21-day half-life are behaviour design defaults, not a conjugate likelihood for continuous credits). It is not the
+ * probability of completing a session or a fast, and its quantiles are heuristic until completion/reporting calibration
+ * exists. Completion probabilities come from observed outcomes (`completionEvidence`), never from this mean.
+ */
+export const BEHAVIOUR_CREDIT_SEMANTICS = { ...BEHAVIOUR_PRIOR_SEMANTICS, estimand: 'utilityCredit', completionProbability: false, interval: 'heuristic' } as const;
+/**
+ * (D5-08/C7) Version of the behavioural forecast semantics (scenario family, same-day clustering, seeded completion paths),
+ * kept separate from physiology versions. Old Beta intervals are never relabelled calibrated.
+ */
+export const BEHAVIOR_FORECAST_VERSION = 3;
+/** (D5-08) The transparent behaviour scenarios (MVP) and the optional seeded path ensemble. */
+export const BEHAVIOR_SCENARIOS = ['asPrescribed', 'plausibleExecution', 'missingData'] as const;
+export type BehaviorScenario = (typeof BEHAVIOR_SCENARIOS)[number];
+
+/** (D5-08) The semantics tag of a behavioural forecast: heuristic unless a prospective calibration says otherwise. */
+export function behaviorForecastMeta(algorithm: BehaviorForecastMeta['algorithm'], opts: { seed?: number; paths?: number } = {}): BehaviorForecastMeta {
+  return { algorithm, version: BEHAVIOR_FORECAST_VERSION, ...(opts.seed !== undefined ? { seed: opts.seed } : {}), ...(opts.paths !== undefined ? { paths: opts.paths } : {}), calibration: 'heuristic' };
+}
+/**
+ * (D3-02/D5-08/C7) Scoring semantics version: 2 = capacity-conserving swap credit through the equivalence port (no credit
+ * from zero performed work), observed completion only. Recomputed history carries it; stored scores keep theirs.
+ */
+export const ADHERENCE_SCORING_VERSION = 2;
 export const BETA_HALF_LIFE_D = 21;
 export const SWAP_MIN_OPPORTUNITIES = 8;
 export const SWAP_MEAN_BELOW = 0.5;
@@ -132,7 +164,7 @@ export function scoreDay(items: readonly PrescribedItem[], credits: readonly Ite
   const scoreable = !opts.assumed && !opts.paused && coverage >= COVERAGE_NO_SCORE && wKnown > 0;
   // clamp float noise of the renormalised weights (Σw c / Σw can land a hair above 1)
   const score = scoreable ? Math.min(100, Math.max(0, (100 * num) / wKnown)) : null;
-  return { score, coverage: Math.min(1, coverage), items: out, final: opts.final };
+  return { score, coverage: Math.min(1, coverage), items: out, final: opts.final, scoringVersion: ADHERENCE_SCORING_VERSION };
 }
 
 /** "based on 3 of 5 items" when coverage < 0.6 (§3.7); null otherwise. */
@@ -197,8 +229,26 @@ export interface CreditObservation {
 }
 
 /**
+ * (D5-08) Same-day opportunities of one type are dependent (two sessions on one day are not two independent days): they
+ * form one cluster whose credit is their mean, entering once. Returned sorted by date, then type.
+ */
+export function clusterSameDay(obs: readonly CreditObservation[]): CreditObservation[] {
+  const by = new Map<string, { date: LocalDate; type: PlanItemType; s: number; n: number }>();
+  for (const o of obs) {
+    const k = `${o.date}|${o.type}`;
+    const x = by.get(k) ?? { date: o.date, type: o.type, s: 0, n: 0 };
+    x.s += clamp01(o.credit);
+    x.n += 1;
+    by.set(k, x);
+  }
+  return [...by.values()].map((x) => ({ date: x.date, type: x.type, credit: x.s / x.n })).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.type < b.type ? -1 : a.type > b.type ? 1 : 0));
+}
+
+/**
  * Beta posteriors per item type, and per (type, weekday) with ≥ 1 observation, as of `asOf`: prior Beta(6, 2), fractional
  * updates a += c, b += 1 − c, each observation discounted by 2^(−age/21). Only known, scored (non-assumed) items enter.
+ * (D5-08) Same-day opportunities of one type are clustered first (`clusterSameDay`): `opportunities` counts days, and the
+ * posterior is a heuristic utility summary, not a completion probability.
  */
 export function revealedAdherence(obs: readonly CreditObservation[], asOf: LocalDate, withWeekdays = true): BlockAdherence[] {
   const lambda = (date: LocalDate): number => Math.pow(2, -Math.max(0, daysBetween(date, asOf)) / BETA_HALF_LIFE_D);
@@ -213,7 +263,7 @@ export function revealedAdherence(obs: readonly CreditObservation[], asOf: Local
     x.b += w * (1 - c);
     x.opportunities += 1;
   };
-  for (const o of [...obs].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.type < b.type ? -1 : 1))) {
+  for (const o of clusterSameDay(obs)) {
     if (daysBetween(o.date, asOf) < 0) continue;
     const c = clamp01(o.credit);
     const w = lambda(o.date);
@@ -224,6 +274,75 @@ export function revealedAdherence(obs: readonly CreditObservation[], asOf: Local
 }
 
 export const expectedCredit = (b: Pick<BlockAdherence, 'a' | 'b'>): number => b.a / (b.a + b.b);
+
+// ------------------------------------------------------------------------------------------- completion evidence (D5-08)
+/** One observed outcome of a prescribed opportunity (its status, not its utility credit). */
+export interface OutcomeObservation {
+  date: LocalDate;
+  type: PlanItemType;
+  status: 'done' | 'partial' | 'skipped' | 'unknown';
+}
+
+/** Observed completion outcomes of one item type, clustered by day (weights forget with the 21-day half-life). */
+export interface CompletionEvidence {
+  type: PlanItemType;
+  /** Distinct days with a known outcome, and the raw cluster counts. */
+  days: number;
+  done: number;
+  partial: number;
+  skipped: number;
+  /** Discounted cluster weights (2^(−age/21)), the effective evidence. */
+  weights: { done: number; partial: number; skipped: number };
+}
+
+/**
+ * (D5-08) Completion evidence per type from observed STATUSES (unknown items drop out: missing is not failure). Same-day
+ * opportunities of a type form one cluster: all done → done, all skipped → skipped, otherwise partial.
+ */
+export function completionEvidence(obs: readonly OutcomeObservation[], asOf: LocalDate): CompletionEvidence[] {
+  const day = new Map<string, { date: LocalDate; type: PlanItemType; statuses: Array<'done' | 'partial' | 'skipped'> }>();
+  for (const o of obs) {
+    if (o.status === 'unknown' || daysBetween(o.date, asOf) < 0) continue;
+    const k = `${o.date}|${o.type}`;
+    const x = day.get(k) ?? { date: o.date, type: o.type, statuses: [] };
+    x.statuses.push(o.status);
+    day.set(k, x);
+  }
+  const by = new Map<PlanItemType, CompletionEvidence>();
+  for (const c of [...day.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.type < b.type ? -1 : 1))) {
+    const outcome = c.statuses.every((s) => s === 'done') ? 'done' : c.statuses.every((s) => s === 'skipped') ? 'skipped' : 'partial';
+    const w = Math.pow(2, -Math.max(0, daysBetween(c.date, asOf)) / BETA_HALF_LIFE_D);
+    const e = by.get(c.type) ?? { type: c.type, days: 0, done: 0, partial: 0, skipped: 0, weights: { done: 0, partial: 0, skipped: 0 } };
+    e.days += 1;
+    e[outcome] += 1;
+    e.weights[outcome] += w;
+    by.set(c.type, e);
+  }
+  return [...by.values()].sort((a, b) => (a.type < b.type ? -1 : a.type > b.type ? 1 : 0));
+}
+
+/** Completion probabilities of one opportunity type for path sampling (heuristic; never the utility-credit mean). */
+export interface CompletionProbabilities {
+  done: number;
+  partial: number;
+  skipped: number;
+  /** 'observedOutcomes' = from completion evidence; 'scenarioAssumption' = an explicit scenario's fixed outcome. */
+  basis: 'observedOutcomes' | 'scenarioAssumption';
+  /** Effective (discounted) evidence days behind the estimate. */
+  effectiveDays: number;
+}
+
+/**
+ * (D5-08) Completion probabilities from observed outcomes with symmetric Jeffreys smoothing (Dirichlet(½, ½, ½), a declared
+ * heuristic so one observation never reads as certainty); null without evidence (the caller's scenario decides then).
+ */
+export function completionProbabilities(evidence: readonly CompletionEvidence[], type: PlanItemType): CompletionProbabilities | null {
+  const e = evidence.find((x) => x.type === type);
+  if (!e || e.days === 0) return null;
+  const W = e.weights.done + e.weights.partial + e.weights.skipped;
+  const den = W + 1.5;
+  return { done: (e.weights.done + 0.5) / den, partial: (e.weights.partial + 0.5) / den, skipped: (e.weights.skipped + 0.5) / den, basis: 'observedOutcomes', effectiveDays: W };
+}
 
 /** Expected credit of a type (no weekday entry → the type entry → the prior mean 0.75). */
 export function expectedCreditFor(blocks: readonly BlockAdherence[], type: PlanItemType, weekday?: number): number {

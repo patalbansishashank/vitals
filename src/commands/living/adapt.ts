@@ -12,7 +12,8 @@
  * (inverse patch) removes the version again.
  */
 import type { ConcreteSession, PerformedExercise } from '@/catalogues';
-import { runReplay } from '@/engine/assimilation';
+import type { ReplanRequestExtras } from '@/engine/planner/domain/replan';
+import { simulatorProfileNow } from '@/state/internal/simulatorProfile';
 import {
   absorbOccasion,
   addDays,
@@ -21,7 +22,6 @@ import {
   chainEdits,
   checkReplan,
   compileVersion,
-  confirmedStateFromRecord,
   daysBetween,
   DEFAULT_OCCASION_CARB_G,
   editDaysEdit,
@@ -30,13 +30,17 @@ import {
   headAdopted,
   planDay,
   projectLiving,
-  realisedSchedule,
+  projectionSchedule,
+  projectEntries,
+  currentSymptoms,
+  currentProfileSafety,
   shiftEdit,
   versionFromReplan,
   versionInForce,
   versionProposal,
   type ConfirmedState,
   type DeclaredEventKind,
+  type LivingProjection,
   type LivingDocs,
   type PlanDoc,
   type LocalDate,
@@ -47,27 +51,50 @@ import {
   type ScheduleEdit,
   type ShiftMode,
   type VersionReason,
+  CHECK_IN_OPT_IN_ACTOR,
 } from '@/living';
 import { catalogueWeekday, loadCatalogueModules, trainingSetupNow } from '../catalogue/setup';
 import { fail } from '../registry';
 import type { CommandContext } from '../types';
-import { actorOf, implement, nextVersionNumber, readDocs, requirePlan, savePlan, type WithId } from './index';
+import { isConcerningUnresolved } from '@/lib/bodyContracts';
+import {
+  actorOf,
+  authorizePreparedCheckIn,
+  currentConfirmedState,
+  currentSafetyRequest,
+  implement,
+  lifecycleCheck,
+  nextVersionNumber,
+  prepareCheckIn,
+  readDocs,
+  requirePlan,
+  savePlan,
+  writeCheckIn,
+  type WithId,
+} from './index';
 import '../livingWiring';
 
-/** Prior SD of the energy-balance bias before the first check-in (R11 δ prior, `biasPriorSdKcal`). */
-const BIAS_PRIOR_SD = 150;
 /** Diff rows returned to the caller (the version keeps them all). */
 const DIFF_ROWS = 40;
 
 type Plan = WithId<PlanDoc>;
 
-/** The latest confirmed state, or the plan start's when no check-in anchored one yet. */
-function confirmedState(docs: LivingDocs, plan: Plan, head: PlanVersionDoc, past: Parameters<typeof realisedSchedule>[2], today: string): ConfirmedState {
-  const latest = [...docs.records].sort((a, b) => a.anchorDay - b.anchorDay).pop();
-  if (latest) return confirmedStateFromRecord(plan, realisedSchedule(plan, head, past, today), docs.records, latest);
-  const r = runReplay({ profile: plan.baselineProfile, schedule: head.schedule, captureAt: [0], record: 'none' });
-  const snapshot = r.snapshots[0] ?? fail('internal', 'The plan start could not be simulated.');
-  return { anchorDate: plan.startDate, snapshot, energyBiasKcal: { mean: 0, sd: BIAS_PRIOR_SD }, trendWeight: { kg: plan.baselineProfile.body.weightKg, sd: 0.5 } };
+/**
+ * The latest confirmed state, or the plan start's when no check-in anchored one yet (`currentConfirmedState`, the same state
+ * lifecycle checks hash, A1-012). The replay uses the projection's realised schedule: the same shared history (fasts,
+ * coverage-zero days, observed doses) the assimilation replays (C2).
+ */
+function confirmedState(
+  docs: LivingDocs,
+  plan: Plan,
+  head: PlanVersionDoc,
+  p: LivingProjection,
+  today: string,
+): ConfirmedState {
+  return (
+    currentConfirmedState(docs, plan, head, p, today) ??
+    fail('internal', 'The plan start could not be simulated.')
+  );
 }
 
 interface ReplanRun {
@@ -97,46 +124,172 @@ export interface AdaptOutput {
 }
 
 /** Edit → re-plan request → planner → policy → version (proposed or adopted). */
-async function runReplan(ctx: CommandContext, docs: LivingDocs, plan: Plan, head: PlanVersionDoc, o: ReplanRun, opts: { tier?: 'S' | 'M' | 'L' | 'X' } = {}): Promise<AdaptOutput> {
-  const port = ctx.ports.living?.planner ?? fail('precondition_failed', 'The planner is not ready yet; try again in a moment.', { retryable: true });
+export async function runReplan(
+  ctx: CommandContext,
+  docs: LivingDocs,
+  plan: Plan,
+  head: PlanVersionDoc,
+  o: ReplanRun,
+  opts: { tier?: 'S' | 'M' | 'L' | 'X'; beforeWrite?: () => Promise<void> } = {},
+): Promise<AdaptOutput> {
+  const port =
+    ctx.ports.living?.planner ??
+    fail('precondition_failed', 'The planner is not ready yet; try again in a moment.', { retryable: true });
   const today = ctx.today < plan.startDate ? plan.startDate : ctx.today;
   const todayIdx = planDay(plan, today);
   const p = projectLiving({ docs, today, tz: ctx.tz, now: ctx.now, skipAssimilation: true });
   const past = p.days.filter((d) => d.date < today).map((d) => d.result);
-  const state = confirmedState(docs, plan, head, past, today);
+  const state = confirmedState(docs, plan, head, p, today);
+  const realised = projectionSchedule(p, today);
+  const entries = projectEntries(docs.entries);
+  // the person's CURRENT safety (C5/D4-02), by the same rule every lifecycle check uses: the current screening, the
+  // structured facts it does not express kept as stored, the symptoms they logged — never the plan's stored safety alone
+  const profileNow = simulatorProfileNow(ctx.now);
+  const safetyNow = currentProfileSafety(plan.request.profile.safety, profileNow.safety, entries);
+  const symptomHold = currentSymptoms(
+    { ...profileNow, ...(safetyNow ? { safety: safetyNow } : {}) },
+    entries,
+  ).some(isConcerningUnresolved);
+  // (A1-002) the CURRENT clinical safety input, headless (screening input, explicit bounds, the marker evaluation now)
+  const inputNow = currentSafetyRequest(ctx, {
+    ...plan.request,
+    profile: { ...plan.request.profile, ...(safetyNow ? { safety: safetyNow } : {}) },
+  }).request.safety;
   const base = buildReplanRequest({
     decision: { kind: o.kind, trigger: o.trigger, reason: o.why },
     today,
     plan,
     head,
     state,
-    // days with something logged; an unlogged day is unknown, and the planner's revealed adherence already covers it
-    logs: past.map((r) => r.loggedDay).filter((l) => l.coverage > 0),
+    // every elapsed day since the anchor, unknown days included: the same history the assimilation replays (C2/D5-05)
+    logs: past.map((r) => r.loggedDay),
     adherence: p.blocks,
     ...(o.edit?.horizonDays !== undefined ? { changes: { horizonDays: o.edit.horizonDays } } : {}),
   });
-  const req = o.edit ? { ...base, plan: { ...base.plan, schedule: o.edit.schedule }, pinnedDays: o.edit.pinned, baseline: head.schedule } : base;
+  const extras: ReplanRequestExtras = {
+    ...(realised ? { realisedSchedule: realised } : {}),
+    ...(safetyNow || inputNow
+      ? {
+          currentSafety: {
+            ...(safetyNow ? { profileSafety: safetyNow } : {}),
+            ...(inputNow ? { input: inputNow } : {}),
+          },
+        }
+      : {}),
+  };
+  const req = {
+    ...(o.edit
+      ? {
+          ...base,
+          plan: { ...base.plan, schedule: o.edit.schedule },
+          pinnedDays: o.edit.pinned,
+          baseline: head.schedule,
+        }
+      : base),
+    ...extras,
+  };
   const result = await port.replan(req, { signal: ctx.signal, ...(opts.tier ? { tier: opts.tier } : {}) });
   const pinned = (o.edit?.pinned ?? []).map((d) => addDays(plan.startDate, d));
-  const empty = { planId: plan.id, version: null, goalDates: result.goalDates, impact: [], diff: [], pinned, cardId: null };
+  const empty = {
+    planId: plan.id,
+    version: null,
+    goalDates: result.goalDates,
+    impact: [],
+    diff: [],
+    pinned,
+    cardId: null,
+  };
   if (result.status === 'noSafePlan') {
-    if (o.strict) fail('invalid_input', ['That change would leave no safe plan, so nothing was changed.', ...result.explanation.slice(1, 2)].join(' '));
+    if (o.strict)
+      fail(
+        'invalid_input',
+        [
+          'That change would leave no safe plan, so nothing was changed.',
+          ...result.explanation.slice(1, 2),
+        ].join(' '),
+      );
     return { ...empty, status: 'noSafePlan', notes: result.explanation };
   }
   if (result.status === 'unchanged') return { ...empty, status: 'unchanged', notes: result.explanation };
 
-  const check = checkReplan(head.schedule, result.plan.schedule, Math.max(0, todayIdx), o.kind === 'light' || o.kind === 'weekly' ? o.kind : 'event');
-  const policy = adoptionPolicy(check, { kind: o.kind, autoApplyLoadLowering: plan.policy.autoApplyLoadLowering, status: result.status });
+  // an unresolved concerning symptom bypasses the lock window (D4-02): exercise can stop from today on
+  const check = checkReplan(
+    head.schedule,
+    result.plan.schedule,
+    Math.max(0, todayIdx),
+    o.kind === 'light' || o.kind === 'weekly' ? o.kind : 'event',
+    symptomHold ? { bypassLock: true } : {},
+  );
+  const policy = adoptionPolicy(check, {
+    kind: o.kind,
+    autoApplyLoadLowering: plan.policy.autoApplyLoadLowering,
+    status: result.status,
+  });
   if (policy === 'reject') fail('internal', 'The re-plan changed days already lived; nothing was changed.');
+  // fresh safety at the re-plan boundary (C5): the planner's certificate is checked on its own subject (the result from
+  // today, under the request it was certified with) against the history this re-plan replayed; a blocked result is never
+  // adopted at once (it stays a proposal to review)
+  // (A1-012) the audited initial state/controller is the state this re-plan replayed from (computed from it, never copied
+  // from the certificate)
+  const { replanStateHash } = await import('@/engine/planner/domain/replan');
+  const stateHash = replanStateHash(req);
+  const safety = await lifecycleCheck(ctx, docs, {
+    boundary: 'replan',
+    request: result.plan.request,
+    schedule: result.plan.schedule,
+    fromDay: Math.max(0, todayIdx),
+    certificate: result.safety?.certificate ?? null,
+    from: { planStart: plan.startDate, date: today },
+    ...(p.history ? { historyHash: p.history.contentHash } : {}),
+    stateHash,
+    // (C5) the confirmed state this re-plan replayed from: the revalidation simulates the result from it, as the re-plan did
+    confirmed: req,
+  });
   // a change the Coach or an agent made is always a proposal (SUITE_SPEC §1.4); the person's own lighter change applies
-  const adoption = policy === 'adopt' && (ctx.actor.kind === 'user' || ctx.actor.kind === 'system') ? 'adopt' : 'propose';
-  const v = versionFromReplan({ result, plan: { ...plan, headVersion: nextVersionNumber(plan) - 1 }, head, today, reason: o.reason, adoption, createdBy: actorOf(ctx), createdAt: ctx.now });
+  // only with the planner's authoritative startability (A1-001): otherwise it stays a proposal to review, never adopted
+  const adoption =
+    policy === 'adopt' && safety.startable && (ctx.actor.kind === 'user' || ctx.actor.kind === 'system')
+      ? 'adopt'
+      : 'propose';
+  const v = versionFromReplan({
+    result,
+    plan: { ...plan, headVersion: nextVersionNumber(plan) - 1 },
+    head,
+    today,
+    reason: o.reason,
+    adoption,
+    createdBy: actorOf(ctx),
+    createdAt: ctx.now,
+    ...(p.history ? { historyHash: p.history.contentHash } : {}),
+    safetyStatus: safety.status,
+  });
   const notes = [...(o.edit?.notes ?? []), ...(o.extraNotes ?? []), ...result.explanation];
-  const version: PlanVersionDoc = { ...v, explanation: notes, ...(o.edit?.horizonDays !== undefined ? { plannedEndDate: addDays(plan.startDate, result.plan.schedule.horizonDays) } : {}) };
+  const version: PlanVersionDoc = {
+    ...v,
+    explanation: notes,
+    ...(o.edit?.horizonDays !== undefined
+      ? { plannedEndDate: addDays(plan.startDate, result.plan.schedule.horizonDays) }
+      : {}),
+  };
+  if (opts.beforeWrite) await opts.beforeWrite();
   await ctx.docs.append('planVersions', { ...version, _id: `${plan.id}:v${version.version}` });
-  await savePlan(ctx, { ...plan, headVersion: version.version, ...(adoption === 'adopt' && version.plannedEndDate ? { plannedEndDate: version.plannedEndDate } : {}) });
+  await savePlan(ctx, {
+    ...plan,
+    headVersion: version.version,
+    ...(adoption === 'adopt' && version.plannedEndDate ? { plannedEndDate: version.plannedEndDate } : {}),
+  });
   const vp = versionProposal(version, result, head);
-  return { planId: plan.id, version: version.version, status: vp.status, goalDates: vp.goalDates, impact: vp.impact, notes, diff: (version.diff ?? []).slice(0, DIFF_ROWS), pinned, cardId: `version:${plan.id}:${version.version}` };
+  return {
+    planId: plan.id,
+    version: version.version,
+    status: vp.status,
+    goalDates: vp.goalDates,
+    impact: vp.impact,
+    notes,
+    diff: (version.diff ?? []).slice(0, DIFF_ROWS),
+    pinned,
+    cardId: `version:${plan.id}:${version.version}`,
+  };
 }
 
 /** The running plan, its adopted head and the documents. */
@@ -171,6 +324,58 @@ implement('plan.replan', async (ctx, input: { reason?: string; tier?: 'S' | 'M' 
   return runReplan(ctx, docs, plan, head, { kind: 'event', trigger: 'user', reason: 'user', why: input.reason ?? 'You asked for a new plan from here.', strict: false }, input.tier ? { tier: input.tier } : {});
 });
 
+// ------------------------------------------------------------------------------------------- plan.checkIn (D5-06)
+/**
+ * The explicit weekly check-in: the confirmation (`prepareCheckIn`, once per decision point) and, when it anchored a new
+ * confirmed state, the weekly re-plan from that state — one change, so a crash leaves neither half and a retry finds the
+ * stored decision (no second anchor, proposal or correction step). The re-plan keeps the existing adoption policy: a
+ * change that adds a fast or raises load is always a proposal for the change card. A planner that is not ready or fails
+ * leaves the confirmed check-in without a proposal.
+ */
+implement('plan.checkIn', async (ctx, input: { previewId?: string } = {}) => {
+  const docs = await readDocs(ctx.today);
+  const c = await prepareCheckIn(
+    ctx,
+    docs,
+    input ?? {},
+    ctx.actor.kind === 'system' && ctx.actor.id === CHECK_IN_OPT_IN_ACTOR ? 'optIn' : 'explicit',
+  );
+  let proposal: AdaptOutput | null = null;
+  if (
+    c.fresh &&
+    c.record &&
+    ctx.ports.living?.planner &&
+    (c.plan.status === 'active' || c.plan.status === 'scheduled')
+  ) {
+    try {
+      proposal = await runReplan(
+        ctx,
+        c.docsAfter,
+        c.plan,
+        c.head,
+        { kind: 'weekly', trigger: 'checkin', reason: 'weekly', why: 'Weekly check-in.', strict: false },
+        { beforeWrite: () => authorizePreparedCheckIn(ctx, c) },
+      );
+    } catch {
+      proposal = null; // the check-in stands without a proposal
+    }
+  }
+  const version = proposal?.version ?? undefined;
+  const out = await writeCheckIn(ctx, c, version ?? undefined);
+  return {
+    ...out,
+    change: proposal
+      ? {
+          status: proposal.status,
+          version: proposal.version,
+          cardId: proposal.cardId,
+          goalDates: proposal.goalDates,
+          notes: proposal.notes,
+        }
+      : null,
+  };
+});
+
 // ------------------------------------------------------------------------------------------- plan.declareEvent
 const EVENT_WORDS: Record<DeclaredEventKind, string> = {
   noTraining: 'No training on those days.',
@@ -180,15 +385,52 @@ const EVENT_WORDS: Record<DeclaredEventKind, string> = {
   socialMeal: 'A meal out: the extra food is planned in.',
 };
 
-implement('plan.declareEvent', async (ctx, input: { kind: DeclaredEventKind; from: string; to: string; note?: string; extraKcal?: number; extraCarbG?: number }) => {
-  const { docs, plan, head } = await running(ctx.today);
-  if (input.to < input.from) fail('invalid_input', 'The end date is before the start date.', { path: '/to' });
-  if (daysBetween(input.from, input.to) > 27) fail('invalid_input', 'An event can last up to 28 days; pause the plan for longer breaks.', { path: '/to' });
-  const fromDay = futureDay(ctx, plan, head, input.from, '/from');
-  const toDay = Math.min(head.schedule.horizonDays - 1, planDay(plan, input.to));
-  const edit = eventEdit(head.schedule, plan.startDate, plan.baselineProfile, { kind: input.kind, fromDay, toDay, ...(input.extraKcal !== undefined ? { extraKcal: input.extraKcal } : {}), ...(input.extraCarbG !== undefined ? { extraCarbG: input.extraCarbG } : {}), ...(input.note ? { note: input.note } : {}) }, currentOf(ctx, plan, head));
-  return runReplan(ctx, docs, plan, head, { kind: 'weekly', trigger: 'absence', reason: 'event', why: `Declared ${input.kind} from ${input.from} to ${input.to}.`, edit: { ...edit, notes: [EVENT_WORDS[input.kind], ...edit.notes] }, strict: true });
-});
+implement(
+  'plan.declareEvent',
+  async (
+    ctx,
+    input: {
+      kind: DeclaredEventKind;
+      from: string;
+      to: string;
+      note?: string;
+      extraKcal?: number;
+      extraCarbG?: number;
+    },
+  ) => {
+    const { docs, plan, head } = await running(ctx.today);
+    if (input.to < input.from)
+      fail('invalid_input', 'The end date is before the start date.', { path: '/to' });
+    if (daysBetween(input.from, input.to) > 27)
+      fail('invalid_input', 'An event can last up to 28 days; pause the plan for longer breaks.', {
+        path: '/to',
+      });
+    const fromDay = futureDay(ctx, plan, head, input.from, '/from');
+    const toDay = Math.min(head.schedule.horizonDays - 1, planDay(plan, input.to));
+    const edit = eventEdit(
+      head.schedule,
+      plan.startDate,
+      plan.baselineProfile,
+      {
+        kind: input.kind,
+        fromDay,
+        toDay,
+        ...(input.extraKcal !== undefined ? { extraKcal: input.extraKcal } : {}),
+        ...(input.extraCarbG !== undefined ? { extraCarbG: input.extraCarbG } : {}),
+        ...(input.note ? { note: input.note } : {}),
+      },
+      currentOf(ctx, plan, head),
+    );
+    return runReplan(ctx, docs, plan, head, {
+      kind: 'weekly',
+      trigger: 'absence',
+      reason: 'event',
+      why: `Declared ${input.kind} from ${input.from} to ${input.to}.`,
+      edit: { ...edit, notes: [EVENT_WORDS[input.kind], ...edit.notes] },
+      strict: true,
+    });
+  },
+);
 
 // ------------------------------------------------------------------------------------------- plan.shift
 interface ShiftIn {
@@ -203,22 +445,61 @@ interface ShiftIn {
 implement('plan.shift', async (ctx, input: ShiftIn) => {
   const { docs, plan, head } = await running(ctx.today);
   const fromDay = futureDay(ctx, plan, head, input.from, '/from');
-  if (input.mode === 'swap' && !input.withDate) fail('invalid_input', 'Say which date to swap with.', { path: '/withDate' });
+  if (input.mode === 'swap' && !input.withDate)
+    fail('invalid_input', 'Say which date to swap with.', { path: '/withDate' });
   const withDay = input.withDate ? futureDay(ctx, plan, head, input.withDate, '/withDate') : undefined;
-  if (withDay !== undefined && Math.abs(withDay - fromDay) < input.days) fail('invalid_input', 'The two stretches overlap.', { path: '/withDate' });
-  let edit = shiftEdit(head.schedule, plan.startDate, plan.baselineProfile, { fromDay, days: input.days, mode: input.mode, ...(withDay !== undefined ? { withDay } : {}) });
+  if (withDay !== undefined && Math.abs(withDay - fromDay) < input.days)
+    fail('invalid_input', 'The two stretches overlap.', { path: '/withDate' });
+  let edit = shiftEdit(head.schedule, plan.startDate, plan.baselineProfile, {
+    fromDay,
+    days: input.days,
+    mode: input.mode,
+    ...(withDay !== undefined ? { withDay } : {}),
+  });
   if (input.absorb) {
     const d = futureDay(ctx, plan, head, input.absorb.date, '/absorb/date');
     const occasionDay = input.mode === 'pushBack' && d >= fromDay ? d + input.days : d;
     const cur = currentOf(ctx, plan, { ...head, schedule: edit.schedule });
     const a = input.absorb;
-    const carb = a.extraKcal === undefined && a.extraCarbG === undefined ? DEFAULT_OCCASION_CARB_G : a.extraCarbG;
-    edit = chainEdits(edit, absorbOccasion(edit.schedule, { day: occasionDay, ...(a.extraKcal !== undefined ? { extraKcal: a.extraKcal } : {}), ...(carb !== undefined ? { extraCarbG: carb } : {}), ...(a.note ? { note: a.note } : {}) }, cur(occasionDay)));
+    const carb =
+      a.extraKcal === undefined && a.extraCarbG === undefined ? DEFAULT_OCCASION_CARB_G : a.extraCarbG;
+    edit = chainEdits(
+      edit,
+      absorbOccasion(
+        edit.schedule,
+        {
+          day: occasionDay,
+          ...(a.extraKcal !== undefined ? { extraKcal: a.extraKcal } : {}),
+          ...(carb !== undefined ? { extraCarbG: carb } : {}),
+          ...(a.note ? { note: a.note } : {}),
+        },
+        cur(occasionDay),
+      ),
+    );
   }
   if (edit.pinned.length === 0) fail('invalid_input', edit.notes[0] ?? 'Nothing to change on those days.');
   // replanRest false: the other days stay; the planner still reports the forecast and goal dates of the edit alone
-  if (input.replanRest === false) edit = { ...edit, pinned: Array.from({ length: Math.max(0, (edit.horizonDays ?? head.schedule.horizonDays) - Math.max(0, planDay(plan, ctx.today))) }, (_, k) => Math.max(0, planDay(plan, ctx.today)) + k) };
-  return runReplan(ctx, docs, plan, head, { kind: 'weekly', trigger: 'absence', reason: 'event', why: `Shifted ${input.days} day${input.days === 1 ? '' : 's'} from ${input.from} (${input.mode}).`, edit, strict: true });
+  if (input.replanRest === false)
+    edit = {
+      ...edit,
+      pinned: Array.from(
+        {
+          length: Math.max(
+            0,
+            (edit.horizonDays ?? head.schedule.horizonDays) - Math.max(0, planDay(plan, ctx.today)),
+          ),
+        },
+        (_, k) => Math.max(0, planDay(plan, ctx.today)) + k,
+      ),
+    };
+  return runReplan(ctx, docs, plan, head, {
+    kind: 'weekly',
+    trigger: 'absence',
+    reason: 'event',
+    why: `Shifted ${input.days} day${input.days === 1 ? '' : 's'} from ${input.from} (${input.mode}).`,
+    edit,
+    strict: true,
+  });
 });
 
 // ------------------------------------------------------------------------------------------- plan.editDay
@@ -250,34 +531,87 @@ implement('plan.swapExercise', async (ctx, input: SwapIn) => {
     const date = addDays(plan.startDate, d);
     const rx = freezePrescription({ plan, version, date, tz: ctx.tz, compiled });
     const weekday = catalogueWeekday(date);
-    return rx.sessions.map((s) => ({ s, weekday, session: (s.concrete as ConcreteSession | null) ?? m.cat.composeSession(m.cat.prescriptionFromEngine(s.kind, s.engine, { weekday, startH: s.startH, durationMin: s.durationMin }), { profile: setup.profile, catalogue: setup.catalogue, ctx: setup.ctx }) }));
+    return rx.sessions.map((s) => ({
+      s,
+      weekday,
+      session:
+        (s.concrete as ConcreteSession | null) ??
+        m.cat.composeSession(
+          m.cat.prescriptionFromEngine(s.kind, s.engine, {
+            weekday,
+            startH: s.startH,
+            durationMin: s.durationMin,
+          }),
+          { profile: setup.profile, catalogue: setup.catalogue, ctx: setup.ctx },
+        ),
+    }));
   };
-  const slot = compose(day).find((x) => x.s.slotKey === input.slotKey) ?? fail('not_found', 'There is no such session that day.', { path: '/slotKey' });
+  const slot =
+    compose(day).find((x) => x.s.slotKey === input.slotKey) ??
+    fail('not_found', 'There is no such session that day.', { path: '/slotKey' });
   const idx = slot.session.items.findIndex((it) => it.exerciseId === input.from);
   if (idx < 0) fail('not_found', 'That exercise is not in the session.', { path: '/from' });
   const item = slot.session.items[idx]!;
   let perf: PerformedExercise;
   if (typeof input.to === 'string') {
-    const ex = setup.catalogue.exercise(input.to) ?? fail('not_found', 'There is no such exercise in the catalogue.', { path: '/to' });
-    const opt = m.cat.swapOptions([item.perf], { profile: setup.profile, catalogue: setup.catalogue, ctx: setup.ctx, weekday: slot.weekday, startH: slot.s.startH }).find((o) => o.exerciseId === ex.id);
-    perf = opt?.perf ?? (item.sets !== undefined ? { exerciseId: ex.id, setCount: item.sets } : { exerciseId: ex.id, minutes: Math.max(1, Math.round(item.minutes)) });
+    const ex =
+      setup.catalogue.exercise(input.to) ??
+      fail('not_found', 'There is no such exercise in the catalogue.', { path: '/to' });
+    const opt = m.cat
+      .swapOptions([item.perf], {
+        profile: setup.profile,
+        catalogue: setup.catalogue,
+        ctx: setup.ctx,
+        weekday: slot.weekday,
+        startH: slot.s.startH,
+      })
+      .find((o) => o.exerciseId === ex.id);
+    perf =
+      opt?.perf ??
+      (item.sets !== undefined
+        ? { exerciseId: ex.id, setCount: item.sets }
+        : { exerciseId: ex.id, minutes: Math.max(1, Math.round(item.minutes)) });
   } else {
     perf = input.to;
-    if (!perf.exerciseId || !setup.catalogue.exercise(perf.exerciseId)) fail('not_found', 'There is no such exercise in the catalogue.', { path: '/to' });
+    if (!perf.exerciseId || !setup.catalogue.exercise(perf.exerciseId))
+      fail('not_found', 'There is no such exercise in the catalogue.', { path: '/to' });
   }
   const before = slot.session.items.map((it) => it.perf);
   const after = before.map((p, k) => (k === idx ? perf : p));
   const equivalence = m.cat.sessionEquivalence(before, after, setup.catalogue, setup.ctx);
   const toName = setup.catalogue.exercise(perf.exerciseId!)?.name ?? perf.exerciseId!;
-  const swap = { slotKey: input.slotKey, from: input.from, to: perf, credit: equivalence.credit, band: equivalence.band };
+  const swap = {
+    slotKey: input.slotKey,
+    from: input.from,
+    to: perf,
+    credit: equivalence.credit,
+    band: equivalence.band,
+  };
 
   if (!input.everyWeek) {
     // this day only: kept on the day's record (synced), the Train screen shows it and logging credits the swap
     const date = input.date;
     const prev = docs.dayStatus.find((s) => s.date === date);
-    const swaps = { ...(prev?.swaps ?? {}), [input.slotKey]: [...(prev?.swaps?.[input.slotKey] ?? []).filter((x) => x.from !== input.from), swap] };
-    await ctx.docs.put('dayStatus', { ...prev, date, planId: plan.id, planDay: day, swaps, _id: `day:${date}` });
-    return { equivalence, swap, everyWeek: false, cardId: null, version: null, notes: [`${item.name} → ${toName} on ${date}.`] };
+    const swaps = {
+      ...(prev?.swaps ?? {}),
+      [input.slotKey]: [...(prev?.swaps?.[input.slotKey] ?? []).filter((x) => x.from !== input.from), swap],
+    };
+    await ctx.docs.put('dayStatus', {
+      ...prev,
+      date,
+      planId: plan.id,
+      planDay: day,
+      swaps,
+      _id: `day:${date}`,
+    });
+    return {
+      equivalence,
+      swap,
+      everyWeek: false,
+      cardId: null,
+      version: null,
+      notes: [`${item.name} → ${toName} on ${date}.`],
+    };
   }
 
   // every week: a version whose sessions on this weekday from this date on carry the swap (a proposal; weekly dose shown)
@@ -290,30 +624,71 @@ implement('plan.swapExercise', async (ctx, input: SwapIn) => {
     if (!sl) continue;
     const k = sl.session.items.findIndex((it) => it.exerciseId === input.from);
     if (k < 0) continue;
-    const items = sl.session.items.map((it, j) => (j === k ? { ...it, exerciseId: perf.exerciseId!, name: toName, perf, text: `${toName} (instead of ${it.name})` } : it));
-    const eq = m.cat.sessionEquivalence(sl.session.items.map((it) => it.perf), items.map((it) => it.perf), setup.catalogue, setup.ctx);
+    const items = sl.session.items.map((it, j) =>
+      j === k
+        ? {
+            ...it,
+            exerciseId: perf.exerciseId!,
+            name: toName,
+            perf,
+            text: `${toName} (instead of ${it.name})`,
+          }
+        : it,
+    );
+    const eq = m.cat.sessionEquivalence(
+      sl.session.items.map((it) => it.perf),
+      items.map((it) => it.perf),
+      setup.catalogue,
+      setup.ctx,
+    );
     sessions[sl.s.slotKey] = { ...sl.session, items, equivalence: eq };
     weekBefore += 1;
     weekAfter += eq.credit;
     weeks++;
   }
-  if (weeks === 0) fail('not_found', 'That exercise is not in this session on later weeks.', { path: '/from' });
+  if (weeks === 0)
+    fail('not_found', 'That exercise is not in this session on later weeks.', { path: '/from' });
   const n = nextVersionNumber(plan);
   const weekly = { weeks, meanCredit: weekAfter / weekBefore };
+  // (C5) the swap was never audited: the head's certificate and status do not carry over (checked afresh at adoption)
+  const { certificate: _cert, safetyStatus: _status, ...headRest } = head;
+  void _cert;
+  void _status;
   const v: PlanVersionDoc = {
-    ...head,
+    ...headRest,
+    safetyStatus: 'unchecked',
     version: n,
     parent: head.version,
     status: 'proposed',
     reason: 'user',
     effectiveFromDay: day,
     sessions,
-    diff: [{ date: input.date, field: 'exercise', before: item.name, after: toName, why: `The same weekday every week (${weeks} sessions); ${Math.round(weekly.meanCredit * 100)} % of the prescribed stimulus.` }],
-    explanation: [`Use ${toName} instead of ${item.name} on this weekday every week from ${input.date} (${weeks} sessions).`, `It keeps ${Math.round(weekly.meanCredit * 100)} % of the prescribed training stimulus.`],
+    diff: [
+      {
+        date: input.date,
+        field: 'exercise',
+        before: item.name,
+        after: toName,
+        why: `The same weekday every week (${weeks} sessions); ${Math.round(weekly.meanCredit * 100)} % of the prescribed stimulus.`,
+      },
+    ],
+    explanation: [
+      `Use ${toName} instead of ${item.name} on this weekday every week from ${input.date} (${weeks} sessions).`,
+      `It keeps ${Math.round(weekly.meanCredit * 100)} % of the prescribed training stimulus.`,
+    ],
     createdBy: actorOf(ctx),
     createdAt: ctx.now,
   };
   await ctx.docs.append('planVersions', { ...v, _id: `${plan.id}:v${n}` });
   await savePlan(ctx, { ...plan, headVersion: n });
-  return { equivalence, swap, everyWeek: true, weekly, version: n, status: 'proposed', cardId: `version:${plan.id}:${n}`, notes: v.explanation };
+  return {
+    equivalence,
+    swap,
+    everyWeek: true,
+    weekly,
+    version: n,
+    status: 'proposed',
+    cardId: `version:${plan.id}:${n}`,
+    notes: v.explanation,
+  };
 });

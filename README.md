@@ -1,15 +1,12 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="public/brand/readme-header-dark.svg">
-    <img src="public/brand/readme-header.svg" alt="Vitals" width="640">
-  </picture>
+  <img src="public/brand/readme-header.svg" alt="Vitals" width="640">
 </p>
 
 Vitals is a private, local-first health planner. You can simulate how eating, fasting, training and sleep change
 the body, then follow a living plan day by day. An optional server that you host yourself keeps your devices in
-sync. There is a website, a desktop app and an Android app. The apps read rings over Bluetooth; the website can do so
-in browsers that support Web Bluetooth. Seven protocol families are included. J-Style 2301 is the one proven on a real
-ring; the others have been checked with test data.
+sync. There is a website, a desktop app and an Android app.
+
+Vitals combines your own logs with ring and phone data when you connect the Android app and your home server. The Android app can connect to the ring over Bluetooth, read permitted Health Connect data, and send readings to your server. Vitals calculates its own experimental wellness indices from those inputs; older on-device scores remain labelled separately.
 
 Live site: https://vitals.creative.desi
 
@@ -21,7 +18,7 @@ Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 | Folder | What is in it |
 |---|---|
-| `src/` | The web app: the model (`src/engine`), the Simulator and Planner screens, the living plan, sync, the Coach, ring drivers (`src/biometrics`) |
+| `src/` | The web app: the model (`src/engine`), the Simulator and Planner screens, the living plan, sync, the Coach |
 | `packages/companion` | `vitals-server`, the optional self-hosted server (sync relay, device pairing, AI proxy, agent endpoint) |
 | `deploy/` | Scripts and service files to install the server on a Linux host |
 | `docs/` | Specs and guides: `SUITE_SPEC.md` (code contract), `MODEL_SPEC.md` (the model), `SERVER.md`, `ARCHITECTURE.md`, `RELEASING.md` |
@@ -34,7 +31,7 @@ Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Run the website locally
 
-You need Node 22 or newer (see [`.nvmrc`](.nvmrc)) and [pnpm](https://pnpm.io) 9 or newer.
+You need Node 26.10.0 or newer and [pnpm](https://pnpm.io) 9 or newer. [`.nvmrc`](.nvmrc) pins the tested development and CI runtime, Node 26.12.1.
 
 ```sh
 pnpm install
@@ -68,8 +65,7 @@ in [docs/SERVER.md](docs/SERVER.md).
 The same Vitals web app in its own window, for Linux, Windows and macOS (Electron). Your data stays on the computer
 and, if you set one up, on your own server, as in the browser. What it adds to the website:
 
-- **Ring over Bluetooth**, with a silent reconnect when the app starts (the browser asks you each time). No ring ever asks you for a password.
-- **Tray icon** with the ring status, Open, Sync now and Quit. Closing the window leaves the app in the tray.
+- **Tray icon** with Open, Sync now and Quit. Closing the window leaves the app in the tray.
 - **Start with my computer**, off by default. It starts the app hidden in the tray.
 - **Updates** from GitHub Releases, checked every 6 hours. The AppImage and the Windows installer download the new
   version and restart into it. The `.deb` and the macOS app only tell you that a new version is ready and link to the
@@ -113,17 +109,11 @@ The Windows and macOS installers are built by the release workflow on those syst
 The same Vitals web app as an installable APK (`desi.creative.vitals`, Android 8 or newer, built with Capacitor). What it
 adds to the website:
 
-- **Ring over Bluetooth**, with a reconnect by the ring's stored address. No ring ever asks you for a password.
-- **A foreground service** that keeps the ring link alive with the screen off, shown as a persistent "Ring connected"
-  notification. A 15-minute screen-off read and upload was observed while the phone was charging; an unplugged
-  overnight run still needs checking. If background reads stop, use Android's **Settings › Battery › Vitals › Allow
-  background activity**.
-- **Boot and update receivers.** After a restart or an app update a quiet "tap to connect your ring" notification
-  appears, if you asked Vitals to stay connected. Android does not let an app start itself from the background.
-- **Notifications** for a low ring battery and for a lost ring link.
 - **Pairing with your server** by code or by scanning the QR, and App Links: a pairing link from
   `https://vitals.creative.desi/settings` opens the app on its Settings page.
-- **Share to Vitals** for the file formats the importers read.
+- **Exports** saved out through the system share sheet.
+
+The Android app can connect to your ring, record workouts, and send ring and phone readings to your server. If you used the old ring app, the Ring setup guides you through sending its remaining readings, uninstalling it, and connecting Vitals to the ring.
 
 **Install.** Use **Get the app** on the Vitals website, or download `Vitals-android.apk`
 from the [latest release](https://github.com/patalbansishashank/vitals/releases/latest). Open it and allow installs
@@ -143,12 +133,9 @@ pnpm --filter @vitals/android run build:apk     # release build, unsigned, in ap
 
 A build you make yourself is signed with your own key, or not at all; it will not update over the release APK.
 
-## Rings
+## Rings and wearables
 
-Vitals talks to rings itself over Bluetooth: Web Bluetooth in the browser and the desktop app, and native Bluetooth on
-Android. The J-Style 2301 is the first supported ring. No ring ever asks you for a password or key. Where
-each protocol came from is written in [src/biometrics/LICENSES.md](src/biometrics/LICENSES.md).
-The built-in J-Style 2301 passcode worked on one real ring; another ring with the same firmware may differ.
+The Android app connects to the ring; the website and desktop app read its data through your home server. Ring measurements and the ring's own estimates retain their source labels. Vitals also calculates experimental wellness indices from ring, phone and logged inputs. See [docs/SERVER.md](docs/SERVER.md) for the data flow.
 
 ## Evidence policy
 
@@ -178,10 +165,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-Vitals is released under the MIT licence: see [LICENSE](LICENSE). Third-party notices for ring protocols are in
-[src/biometrics/LICENSES.md](src/biometrics/LICENSES.md). Data and assets that Vitals uses:
+Vitals is released under the MIT licence: see [LICENSE](LICENSE). Data and assets that Vitals uses:
 
 - USDA FoodData Central food data: CC0
 - IFCT 2017 (Indian food composition): not bundled; permission is pending
 - MakeHuman-based 3D figure: CC0
-- Archivo font (through `@fontsource-variable/archivo`): SIL Open Font Licence
+- Geist and Geist Mono fonts (through `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`): SIL Open Font Licence

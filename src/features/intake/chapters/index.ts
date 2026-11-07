@@ -3,7 +3,7 @@
  * packages add from their own files picked up when present:
  *   - `./food-kitchen.ts` (kitchen equipment, cuisines, staples, pantry pickers),
  *   - `./supplements.ts` (taking vs on hand),
- *   - `./markers.ts` + `./markersChapter.tsx` (the optional blood-markers chapter, between food and devices: questions in
+ *   - `./markers.ts` + `./markersChapter.tsx` (the optional blood-markers chapter, after food: questions in
  *     the first, lazy widgets in the second; `./markersDemo.ts` stays out of the glob so it never reaches production).
  * Each such module exports `INTAKE_PARTS: readonly ChapterPart[]` (and, for custom answer widgets,
  * `INTAKE_WIDGETS: Record<widgetId, Component>`). A part's questions are inserted after `after` (default: the end of
@@ -14,7 +14,6 @@ import { SEED_SUPPLEMENTS } from '@/content/catalogues';
 import { receiptOf, type Question } from '../flow';
 import { ALL_CHAPTERS, type ChapterId } from '../types';
 import { ACTIVITY_QUESTIONS } from './activity';
-import { DEVICES_QUESTIONS } from './devices';
 import { foodQuestions } from './food';
 import { TRAINING_QUESTIONS } from './training';
 
@@ -48,7 +47,6 @@ const BASE: Readonly<Record<ChapterId, readonly Question[]>> = {
   training: TRAINING_QUESTIONS,
   food: foodQuestions(SUPPLEMENT_CHOICES),
   markers: [],
-  devices: DEVICES_QUESTIONS,
 };
 
 /** Merge parts into a base graph (pure; exported for tests). */

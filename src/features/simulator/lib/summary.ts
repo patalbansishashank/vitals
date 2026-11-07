@@ -163,6 +163,6 @@ export function activitySentence(deltaKcal: number, unit: EnergyUnitChoice = 'kc
   if (!Number.isFinite(deltaKcal) || Math.abs(deltaKcal) < 40) return null;
   const k = formatKcal(Math.abs(deltaKcal), unit);
   return deltaKcal > 0
-    ? `This plan adds ≈ ${k} ${unit} a day of training over your usual week; maintenance is adjusted for it.`
-    : `This plan has ≈ ${k} ${unit} a day less activity than your usual week; maintenance is adjusted for it.`;
+    ? `This plan adds ≈ ${k} ${unit} a day of training over your usual week.`
+    : `This plan has ≈ ${k} ${unit} a day less activity than your usual week.`;
 }

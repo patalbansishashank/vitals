@@ -6,10 +6,9 @@ import tseslint from 'typescript-eslint';
 /*
  * Layering rules (docs/SUITE_SPEC.md §0.2, §1.1, §9.3; docs/COMMANDS.md).
  *
- *   tier P (pure)      src/engine, src/catalogues, src/living, src/biometrics/core, src/ai/briefing, src/commands/schema
- *   tier H (headless)  src/commands (except schema), src/store, src/sync, src/ai (except ui), src/biometrics/{importers,ble,ingest,store},
- *                      packages/companion: no React / UI layers, no window / document / localStorage (the BLE transport
- *                      src/biometrics/ble/webBluetooth.ts is the one module that reads `navigator`)
+ *   tier P (pure)      src/engine, src/catalogues, src/living, src/ai/briefing, src/commands/schema
+ *   tier H (headless)  src/commands (except schema), src/store, src/sync, src/ai (except ui), packages/companion: no React /
+ *                      UI layers, no window / document / localStorage
  *   network            fetch / WebSocket / EventSource / XMLHttpRequest only in src/net (and workers); everything else
  *                      calls netFetch / netWebSocket, which check the origin allowlist (the CSP allows any https/wss)
  *   strict store       user data changes only through commands: no `useXStore.setState(...)` and no `@/state/internal/*`
@@ -75,8 +74,6 @@ const HEADLESS_IMPORTS = [
   { group: ['@/app/*', '@/components/*', '@/features/*'], message: 'Headless packages must not import the UI.' },
 ];
 const HEADLESS_GLOBALS = ['window', 'document', 'localStorage'];
-// The Web Bluetooth transport is the one headless module that may read `navigator` (for `navigator.bluetooth`).
-const NO_NAVIGATOR = { name: 'navigator', message: 'Only src/biometrics/ble/webBluetooth.ts touches navigator.bluetooth; take a BleLink instead.' };
 
 const PURE_GLOBALS = ['window', 'document', 'localStorage', 'navigator', 'indexedDB', ...NET_GLOBALS];
 const PURE_PROPERTIES = [
@@ -90,7 +87,7 @@ const PURE_IMPORTS = [
   { group: ['@/net', '@/net/*', '@/sync', '@/sync/*'], message: 'Pure packages do no IO.' },
   { group: ['@/commands', '@/commands/*', '!@/commands/schema', '!@/commands/schema/*'], message: 'Pure packages may use the command schemas only.' },
 ];
-const TIER_P = ['src/engine/**/*.ts', 'src/catalogues/**/*.ts', 'src/living/**/*.ts', 'src/biometrics/core/**/*.ts', 'src/ai/briefing/**/*.ts', 'src/commands/schema/**/*.ts'];
+const TIER_P = ['src/engine/**/*.ts', 'src/catalogues/**/*.ts', 'src/living/**/*.ts', 'src/ai/briefing/**/*.ts', 'src/commands/schema/**/*.ts'];
 
 export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'docs', 'research', 'design', 'coverage', '.tmp-bundle', '.e6-tmp/**', 'apps/*/dist/**', 'apps/*/release/**', 'apps/android/android/**', 'qa/scripts/L-QA/j2/*.js', 'qa/scripts/L-QA/j4/hypr.js'] }, // the L-QA .js files are page snippets (a top-level return), not modules
@@ -146,7 +143,7 @@ export default tseslint.config(
   {
     // Tier P: pure, no IO, no app layers (engine tests included, as before; other packages' tests may use fixtures from elsewhere).
     files: TIER_P,
-    ignores: TESTS.map((g) => (g.startsWith('**') ? `src/{catalogues,living,biometrics,ai,commands}/${g}` : g)),
+    ignores: TESTS.map((g) => (g.startsWith('**') ? `src/{catalogues,living,ai,commands}/${g}` : g)),
     languageOptions: { globals: {} },
     rules: {
       'no-restricted-imports': ['error', { patterns: [...PURE_IMPORTS, PLAN_REGIMES_IMPORT] }],
@@ -169,17 +166,6 @@ export default tseslint.config(
     rules: {
       'no-restricted-imports': ['error', { patterns: [...HEADLESS_IMPORTS, PLAN_REGIMES_IMPORT] }],
       'no-restricted-globals': ['error', ...HEADLESS_GLOBALS, ...NET_GLOBALS],
-    },
-  },
-  {
-    // Tier H, biometrics (SUITE_SPEC §9.3): importers, BLE drivers, the ingest pipeline and the store have no React, no UI
-    // layers, no DOM and no localStorage, and nothing but the Web Bluetooth transport (exempted below) reads `navigator`.
-    // They are not in the commands/state/sync group above, so the strict-store imports are listed here again.
-    files: ['src/biometrics/{importers,ble,ingest,store}/**/*.ts'],
-    ignores: TESTS,
-    rules: {
-      'no-restricted-imports': ['error', { paths: [WRITE_TOKENS], patterns: [STATE_INTERNAL, ...HEADLESS_IMPORTS, PLAN_REGIMES_IMPORT] }],
-      'no-restricted-globals': ['error', ...HEADLESS_GLOBALS, NO_NAVIGATOR, ...NET_GLOBALS],
     },
   },
   {
@@ -248,11 +234,6 @@ export default tseslint.config(
       'no-restricted-imports': ['error', { paths: NO_CONFIRM_FOR_AGENTS, patterns: HEADLESS_IMPORTS }],
       'no-restricted-globals': ['error', ...HEADLESS_GLOBALS],
     },
-  },
-  {
-    // The one module that reads `navigator.bluetooth`: the tier H biometrics rules minus the `navigator` ban.
-    files: ['src/biometrics/ble/webBluetooth.ts'],
-    rules: { 'no-restricted-globals': ['error', ...HEADLESS_GLOBALS, ...NET_GLOBALS] },
   },
   {
     // planRegimes may be named here: the worker client that defines it and the planner feature's fallback path. Everything

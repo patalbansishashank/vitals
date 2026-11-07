@@ -3,9 +3,16 @@
  * progress reducers. Shared by the projection (`../plannerStore.ts`), the `goals.*` / `planner.*` commands and the
  * document mapping (`goals/me`).
  */
+import { CONTRACT_FINGERPRINT, type GoalEndpointSemantics } from '@/lib/bodyContracts';
 import type { CardioModality } from '@/engine/types/schedule';
 import type { MetricId } from '@/engine/types/metrics';
-import type { PlannerProgressInfo, PlannerRequest, PlannerResult, Strictness, Weekday } from '@/engine/planner/domain/types';
+import type {
+  PlannerProgressInfo,
+  PlannerRequest,
+  PlannerResult,
+  Strictness,
+  Weekday,
+} from '@/engine/planner/domain/types';
 import type { GoalSuggestion } from '@/engine/planner/domain/suggestGoals';
 
 export const PLANNER_KEY = 'vitals.planner';
@@ -36,6 +43,8 @@ export interface GoalDraft {
   strength: GoalStrength;
   /** Engine functional override: 'end' (last week) or 'mean' (over the horizon). null = engine default. */
   functional: 'end' | 'mean' | null;
+  /** Explicit reviewed endpoint identity; absence retains legacy intent. */
+  endpointSemantics?: GoalEndpointSemantics;
 }
 
 /** Longest single stretch without food the user accepts (planner-goals.md §6 "longest fast I'd do"). */
@@ -52,6 +61,8 @@ export interface ConstraintDraft {
   trainingTimeH: number;
   /** Longest session, min. */
   maxSessionMin: number;
+  /** Absent/null inherits the overall session limit. */
+  maxCardioSessionMin?: number | null;
   /** Cardio days a week, [min, max]. */
   cardioDays: [number, number];
   cardioModality: CardioModality;
@@ -72,6 +83,8 @@ export interface ConstraintDraft {
   /** Keep sleep as it is (no sleep-extension lever). */
   sleepFixed: boolean;
   hungerTolerance: HungerTolerance;
+  /** Optional whole-cut MODEL skeletal-muscle loss budget; null/absent means no user budget. */
+  maxMuscleLossPct?: number | null;
 }
 
 export type RunStatus = 'idle' | 'running' | 'stopping' | 'done' | 'failed' | 'cancelled';
@@ -219,7 +232,15 @@ export function sanitizeGoals(list: unknown): GoalDraft[] {
   for (const g of list) {
     if (!isGoalDraft(g) || seen.has(g.metric)) continue;
     seen.add(g.metric);
-    out.push({ key: g.key, metric: g.metric, mode: g.mode, amount: g.amount, strength: g.strength, functional: g.functional });
+    out.push({
+      key: g.key,
+      metric: g.metric,
+      mode: g.mode,
+      amount: g.amount,
+      strength: g.strength,
+      functional: g.functional,
+      ...(g.endpointSemantics ? { endpointSemantics: { ...g.endpointSemantics } } : {}),
+    });
     if (out.length === MAX_PLANNER_GOALS) break;
   }
   return out;
@@ -231,19 +252,27 @@ export function isPlannerState(x: unknown): boolean {
   const s = x as Record<string, unknown>;
   if (!Array.isArray(s.goals) || !s.goals.every(isGoalDraft)) return false;
   if (s.horizonDays !== undefined && typeof s.horizonDays !== 'number') return false;
-  if (s.constraints !== undefined && (typeof s.constraints !== 'object' || s.constraints === null)) return false;
+  if (s.constraints !== undefined && (typeof s.constraints !== 'object' || s.constraints === null))
+    return false;
   return true;
 }
 
 /** Persisted values from anything (defaults fill the gaps). */
 export function pickPlannerValues(raw: unknown): PlannerValues {
   const s = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof PlannerValues, unknown>>;
-  const horizon = typeof s.horizonDays === 'number' && Number.isFinite(s.horizonDays) ? Math.round(s.horizonDays) : DEFAULT_HORIZON_DAYS;
+  const horizon =
+    typeof s.horizonDays === 'number' && Number.isFinite(s.horizonDays)
+      ? Math.round(s.horizonDays)
+      : DEFAULT_HORIZON_DAYS;
   return {
     goals: sanitizeGoals(s.goals),
     horizonDays: clamp(horizon, PLANNER_HORIZON_MIN, PLANNER_HORIZON_MAX),
-    startDate: typeof s.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.startDate) ? s.startDate : null,
-    constraints: s.constraints && typeof s.constraints === 'object' ? { ...(s.constraints as Partial<ConstraintDraft>) } : {},
+    startDate:
+      typeof s.startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.startDate) ? s.startDate : null,
+    constraints:
+      s.constraints && typeof s.constraints === 'object'
+        ? { ...(s.constraints as Partial<ConstraintDraft>) }
+        : {},
     strictness: s.strictness === 'strict' || s.strictness === 'flexible' ? s.strictness : 'balanced',
     lastRequestHash: typeof s.lastRequestHash === 'string' ? s.lastRequestHash : null,
     lastRunAt: typeof s.lastRunAt === 'string' ? s.lastRunAt : null,
@@ -257,10 +286,21 @@ export function pickSuggested(raw: unknown): SuggestedRecord | null {
   const r = raw as Record<string, unknown>;
   const p = r.provenance as Record<string, unknown> | undefined;
   const sug = r.suggestion as Record<string, unknown> | undefined;
-  if (typeof r.at !== 'string' || !p || (p.source !== 'rule' && p.source !== 'ai') || typeof p.version !== 'string') return null;
+  if (
+    typeof r.at !== 'string' ||
+    !p ||
+    (p.source !== 'rule' && p.source !== 'ai') ||
+    typeof p.version !== 'string'
+  )
+    return null;
   if (!sug || typeof sug !== 'object' || !Array.isArray(sug.goals)) return null;
   const keys = Array.isArray(r.goalKeys) ? r.goalKeys.filter((k): k is string => typeof k === 'string') : [];
-  return { suggestion: sug as unknown as GoalSuggestion, at: r.at, provenance: { source: p.source, version: p.version }, goalKeys: keys };
+  return {
+    suggestion: sug as unknown as GoalSuggestion,
+    at: r.at,
+    provenance: { source: p.source, version: p.version },
+    goalKeys: keys,
+  };
 }
 
 /** Merge-mode import: keep this device's goals when it has any, else take the incoming ones. */
@@ -269,7 +309,6 @@ export function mergePlannerStates(current: unknown, incoming: unknown): Planner
   const inc = pickPlannerValues(incoming);
   return cur.goals.length > 0 ? cur : inc;
 }
-
 
 /**
  * Score of a provisional option for the convergence chart: rank-weighted mean of "% of achievable" (weights 1, ½, ¼ …),
@@ -301,7 +340,12 @@ export function foundSlots(prev: PlannerRunState['found'], p: PlannerProgressInf
 export function appendTraces(prev: RunTraces, p: PlannerProgressInfo): RunTraces {
   const scored = typeof p.score === 'number' && Number.isFinite(p.score);
   if (!p.provisional?.length && !scored) return prev;
-  const next: RunTraces = { A: prev.A.slice(), B: prev.B.slice(), C: prev.C.slice(), best: scored ? [...prev.best, p.score as number] : prev.best };
+  const next: RunTraces = {
+    A: prev.A.slice(),
+    B: prev.B.slice(),
+    C: prev.C.slice(),
+    best: scored ? [...prev.best, p.score as number] : prev.best,
+  };
   if (!p.provisional?.length) return next;
   const tick = Math.max(prev.A.length, prev.B.length, prev.C.length);
   SLOTS.forEach((slot, i) => {
@@ -316,8 +360,24 @@ export function appendTraces(prev: RunTraces, p: PlannerProgressInfo): RunTraces
   return next;
 }
 
-/** True when a finished result exists for a request other than `currentHash` (inputs, body or safety changed). */
+/**
+ * True when a finished result exists for a request other than `currentHash` (inputs, body or safety changed), or was
+ * computed under other contract semantics (C7/D4-03: a `provenance.contracts` stamp that differs from the current one).
+ * Results live in memory only; one without a stamp (hand-built) is judged by its request hash alone. A stale result is
+ * kept for display, never reused as current or as safety assurance.
+ */
 export function isPlannerResultStale(run: PlannerRunState, currentHash: string | null): boolean {
-  return run.result !== null && currentHash !== null && run.requestHash !== currentHash;
+  if (run.result === null) return false;
+  if (!plannerResultContractsCurrent(run.result)) return true;
+  return currentHash !== null && run.requestHash !== currentHash;
 }
 
+/** C7: false when a planner result (v1 shape or its v2 payload) carries a contract stamp other than the current one. */
+export function plannerResultContractsCurrent(result: PlannerResult): boolean {
+  const r = result as PlannerResult & {
+    provenance?: { contracts?: string };
+    v2?: { provenance?: { contracts?: string } };
+  };
+  const stamp = r.provenance?.contracts ?? r.v2?.provenance?.contracts;
+  return stamp === undefined || stamp === CONTRACT_FINGERPRINT;
+}

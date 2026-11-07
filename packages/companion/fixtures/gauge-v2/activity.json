@@ -1,0 +1,99 @@
+{
+  "route": "/v1/gauge/activity",
+  "tool": "gauge_activity",
+  "args": {
+    "from": "2026-10-20",
+    "to": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "Ring activity for 1 days from 2026-10-20T00:00:00+05:30 to 2026-10-20T23:59:59+05:30.",
+    "data": {
+      "from": "2026-10-20T00:00:00+05:30",
+      "to": "2026-10-20T23:59:59+05:30",
+      "units": {
+        "steps": "steps (the ring's daily total, its latest revision)",
+        "distanceM": "m",
+        "distanceSource": "healthConnect (one origin, distanceOrigin) on a day the ring has no distance; absent: the ring's",
+        "caloriesKcal": "kcal, Phone estimate (method: the ring vendor's daily total; energy basis not stated by the device)",
+        "activeMinutes": "min",
+        "bucketSteps": "steps (sum of the ring's history buckets)",
+        "bucketDistanceM": "m",
+        "fusedHeadline": "steps (steps-fuse/1 headline: at least, or located when the ring's detail is complete)",
+        "fusedLocated": "steps placed in time (steps-fuse/1)"
+      },
+      "fusionVersion": "steps-fuse/1",
+      "days": [
+        {
+          "date": "2026-10-20",
+          "steps": 9000,
+          "activeMinutes": 90,
+          "bucketSteps": 4436,
+          "distanceM": 6300,
+          "caloriesKcal": 360,
+          "bucketDistanceM": 3105,
+          "lastUpdate": "2026-10-20T19:30:00+05:30",
+          "fusedHeadline": 9000,
+          "fusedHeadlinePolicy": "atLeast",
+          "fusedLocated": 8750,
+          "fusionVersion": "steps-fuse/1"
+        }
+      ],
+      "hourly": [
+        {
+          "start": "2026-10-20T06:00:00+05:30",
+          "steps": 0,
+          "distanceM": 0
+        },
+        {
+          "start": "2026-10-20T07:00:00+05:30",
+          "steps": 36,
+          "distanceM": 25
+        },
+        {
+          "start": "2026-10-20T08:00:00+05:30",
+          "steps": 0,
+          "distanceM": 0
+        },
+        {
+          "start": "2026-10-20T16:00:00+05:30",
+          "steps": 0,
+          "distanceM": 0
+        },
+        {
+          "start": "2026-10-20T17:00:00+05:30",
+          "steps": 4400,
+          "distanceM": 3080
+        },
+        {
+          "start": "2026-10-20T18:00:00+05:30",
+          "steps": 0,
+          "distanceM": 0
+        }
+      ],
+      "inputsHash": "sha256:7aba544fc4034132c6ce1a098a0bb57f",
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T19:30:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 240
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

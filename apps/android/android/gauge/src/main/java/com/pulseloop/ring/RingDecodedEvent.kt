@@ -1,0 +1,607 @@
+package com.pulseloop.ring
+
+import java.time.Instant
+
+/**
+ * Ported from [MeasurementKind] in PulseModels.swift.
+ */
+enum class MeasurementKind(val key: String, val unit: String) {
+    HEART_RATE("hr", "bpm"),
+    SPO2("spo2", "%"),
+    STRESS("stress", ""),
+    FATIGUE("fatigue", ""),
+    HRV("hrv", "ms"),
+    TEMPERATURE("temp", "°C"),
+    BLOOD_PRESSURE_SYSTOLIC("bp_sys", "mmHg"),
+    BLOOD_PRESSURE_DIASTOLIC("bp_dia", "mmHg"),
+    BLOOD_SUGAR("glucose", "mg/dL"),
+    // YCBT/TK5 history metrics: respiratory rate rides the "All" record, VO2max the body-data
+    // record. Append only — raw values persisted.
+    RESPIRATORY_RATE("resp_rate", "breaths/min"),
+    VO2MAX("vo2max", "mL/kg/min");
+}
+
+/**
+ * Ported from [SleepStage] in PulseModels.swift.
+ */
+enum class SleepStage {
+    LIGHT, DEEP, AWAKE, UNKNOWN, REM;
+
+    companion object {
+        /**
+         * Sleep stage from ring byte. Uses threshold-based mapping matching
+         * the official app (Gadgetbridge KeepFitDeviceSupport):
+         *   >= 80  → DEEP sleep
+         *   >= 1   → LIGHT sleep
+         *   0      → AWAKE
+         * The values 0x28 (40) and 0x63 (99) previously used as exact
+         * matches are just examples — the ring can send any value in range.
+         */
+        fun fromByte(byte: UByte): SleepStage = when {
+            byte >= 0x50u.toUByte() -> DEEP   // >= 80
+            byte >= 0x01u.toUByte() -> LIGHT  // >= 1
+            byte == 0x00u.toUByte() -> AWAKE
+            else -> UNKNOWN
+        }
+    }
+}
+
+/**
+ * What one ring step record actually covers (SPEC §2.1 `activity/buckets`, GA.1). Travels as
+ * [wire] in the `ring_steps` upload and in `activity_buckets.support`.
+ *
+ * - [MINUTE]: one native minute, zeros included — an observed zero, not a missing minute.
+ * - [TEN_MINUTE_FALLBACK]: a J-Style `0x52` record whose minute bytes are all zero although its
+ *   record total is not; the total is placed on the whole 600 s record and never split.
+ * - [QUARTER_HOUR]: a Colmi `0x43` slice (900 s).
+ * - [LEGACY_UNKNOWN]: a row stored or uploaded before decoder `jstyle2301/2`. Zeros were dropped
+ *   and fallbacks were unmarked, so its support is unknown. Never re-labelled (GA.7).
+ */
+enum class StepSupport(val wire: String) {
+    MINUTE("minute"),
+    TEN_MINUTE_FALLBACK("tenMinuteFallback"),
+    QUARTER_HOUR("quarterHour"),
+    LEGACY_UNKNOWN("legacyUnknown");
+
+    companion object {
+        fun fromWire(value: String?): StepSupport = entries.firstOrNull { it.wire == value } ?: LEGACY_UNKNOWN
+    }
+}
+
+/**
+ * Ported from [DecodeConfidence] in PulseModels.swift.
+ */
+enum class DecodeConfidence(val debugLabel: String) {
+    KNOWN("high"),
+    PARTIAL("medium"),
+    UNKNOWN("unknown");
+}
+
+/**
+ * Ported from [RingDecodedEvent] in RingProtocol.swift.
+ * A typed event decoded from a raw ring notification.
+ */
+sealed class RingDecodedEvent {
+    abstract val kind: String
+    abstract val confidence: DecodeConfidence
+    abstract val debugJSON: String
+
+    val timestamp: Instant get() = when (this) {
+        is ActivityUpdate -> this._timestamp
+        is ActivityBucket -> this._timestamp
+        is HeartRateSample -> this._timestamp
+        is HeartRateComplete -> this._timestamp
+        is SportTelemetry -> this._timestamp
+        is Spo2Progress -> this._timestamp
+        is Spo2Result -> this._timestamp
+        is Spo2Complete -> this._timestamp
+        is MeasurementComplete -> this._timestamp
+        is SleepTimeline -> this._timestamp
+        is HistoryMeasurement -> this._timestamp
+        is StressSample -> this._timestamp
+        is HrvSample -> this._timestamp
+        is TemperatureSample -> this._timestamp
+        is VendorMetric -> this._timestamp
+        is HistorySyncProgress -> Instant.EPOCH
+        is HistorySyncFinished -> Instant.EPOCH
+        is HistoryCoverage -> this.to
+        is Battery -> Instant.EPOCH
+        is Status -> Instant.EPOCH
+        is TimeSyncAck -> this._timestamp
+        is CommandAck -> Instant.EPOCH
+        is FirmwareVersion -> Instant.EPOCH
+        is FirmwareRevision -> Instant.EPOCH
+        is AuthenticationResult -> Instant.EPOCH
+        is BindNotify -> Instant.EPOCH
+        is BandFunction -> Instant.EPOCH
+        is SupportFunctions -> Instant.EPOCH
+        is ChipScheme -> Instant.EPOCH
+        is WearingStatus -> this._timestamp
+        is TimingHistoryFrame -> Instant.EPOCH
+        is MeasurementRejected -> Instant.EPOCH
+        is BloodPressureSample -> this._timestamp
+        is BloodSugarSample -> this._timestamp
+        is Unknown -> Instant.EPOCH
+        is FramePending -> Instant.EPOCH
+    }
+
+    data class ActivityUpdate(
+        val _timestamp: Instant,
+        val steps: Int,
+        val distanceMeters: Int,
+        val calories: Int,
+        val activeMinutes: Int? = null,
+        /** True when a self-dated history total is authoritative for this field. */
+        val replaceActiveMinutes: Boolean = false,
+    ) : RingDecodedEvent() {
+        override val kind = "activity"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"steps":$steps,"distance_m":$distanceMeters,"calories":$calories,"active_minutes":${activeMinutes ?: "null"},"replace_active_minutes":$replaceActiveMinutes}"""
+    }
+
+    data class ActivityBucket(
+        val _timestamp: Instant,
+        val steps: Int,
+        val distanceMeters: Int,
+        /** The ring's own stamp when clock correction moved [_timestamp] off it: an earlier app
+         *  version may have stored this same bucket there, and that copy must go. */
+        val rawTimestamp: Instant? = null,
+        /** Seconds this record covers (60, 600 or 900); null for a family whose bucket length is
+         *  not established, which keeps the legacy `activity_bucket` upload. */
+        val durationS: Int? = null,
+        /** Null exactly when [durationS] is null. */
+        val support: StepSupport? = null,
+        /** The parent record's own step total (J-Style `0x52` bytes 9-10). It may differ from the
+         *  sum of its minutes; the discrepancy is kept visible, never reconciled. */
+        val parentTotalSteps: Int? = null,
+        /** Start of the parent record this minute was cut from. */
+        val parentRecordStart: Instant? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "activity_bucket"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"steps":$steps,"distance_m":$distanceMeters}"""
+    }
+
+    data class HeartRateSample(
+        val bpm: Int,
+        val _timestamp: Instant,
+        val sleepStatus: Int = 0,
+        val isError: Boolean = false,
+        /** True only for a vendor manual-measurement result, never live/sport/history HR. */
+        val measurementResult: Boolean = false,
+        /** True only for HR carried in the manual 0x09 realtime-activity stream. */
+        val measurementStream: Boolean = false,
+    ) : RingDecodedEvent() {
+        override val kind = "hr_sample"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"bpm":$bpm,"error":$isError}"""
+    }
+
+    /**
+     * A Colmi `0x78` sport-session telemetry push (issue #64), emitted for *every* such frame so
+     * the diagnostics redactor has a health kind to mask. The bpm rides separately as a
+     * [HeartRateSample] when it is plausible; a warm-up frame carries bpm 0 but still carries the
+     * workout's live step count, distance and calories, which must not reach a report in clear.
+     */
+    data class SportTelemetry(
+        val bpm: Int,
+        val _timestamp: Instant,
+        /**
+         * J-Style `0x18` cumulative sport steps and vendor kcal (GA.3). Null unless the decoder
+         * ran with [JStyle2301Decoder.sportTelemetryEnabled]; only then does the frame become an
+         * `activity/sport_telemetry` upload.
+         */
+        val stepsCumulative: Long? = null,
+        val vendorKcalCumulative: Double? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "sport_telemetry"
+        override val confidence = DecodeConfidence.PARTIAL
+        override val debugJSON = """{"bpm":$bpm}"""
+    }
+
+    data class HeartRateComplete(
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "hr_complete"
+        override val confidence = DecodeConfidence.PARTIAL
+        override val debugJSON = "{}"
+    }
+
+    data class Spo2Progress(
+        val percent: Int?,
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "spo2_progress"
+        override val confidence = DecodeConfidence.PARTIAL
+        override val debugJSON = "{}"
+    }
+
+    data class Spo2Result(
+        val value: Int,
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "spo2_result"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"spo2":$value}"""
+    }
+
+    data class Spo2Complete(
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "spo2_complete"
+        override val confidence = DecodeConfidence.PARTIAL
+        override val debugJSON = "{}"
+    }
+
+    /**
+     * The ring itself ended a spot measurement and said how it went (YCBT `04 0e`, issue #59).
+     *
+     * [mode] is the same measurement-mode byte the start command carried ([YCBTMeasurementMode]),
+     * so a completion can only ever end the measurement it names. [success] is the vendor's
+     * `bArr[1] == 1`; 2 is "failed" and anything else "cancelled", which are both failures here.
+     *
+     * Carries no value on purpose: the vendor app reacts to a success by re-syncing history
+     * (`BaseMeasureActivity.onDataResponse` → `syncData()`), never by reading a reading out of
+     * this frame. Its job is to say *when* the measurement is over, which is exactly what the app
+     * could not tell before — the ring goes quiet and the leg idled out its whole window.
+     */
+    data class MeasurementComplete(
+        val mode: Int,
+        val success: Boolean,
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "measurement_complete"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"mode":$mode,"success":$success}"""
+    }
+
+    data class SleepTimeline(
+        val _timestamp: Instant,
+        val stages: List<SleepStage>,
+        /** True when this event is the ring's complete authoritative session, not one packet. */
+        val completeSession: Boolean = false,
+        /** Most families retain about a week. J-Style 2301 supplies a much deeper self-dated log. */
+        val historyHorizonDays: Long = 8,
+        /** The ring's own stamp when clock correction moved this record off it (see
+         *  [ActivityBucket.rawTimestamp]). */
+        val rawTimestamp: Instant? = null,
+        /** The ring's native stage epoch in seconds (J-Style: 300 for a 34-byte record, 60 for a
+         *  130-byte one). [stages] is always per minute; this says how it was expanded. */
+        val nativeEpochS: Int? = null,
+        /** The undecoded stage bytes, one per native epoch, so a later stage map can be replayed. */
+        val rawStageCodes: List<Int>? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "sleep_timeline"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = "{}"
+    }
+
+    data class HistoryMeasurement(
+        val kind_field: MeasurementKind,
+        val value: Double,
+        val _timestamp: Instant,
+        val historyHorizonDays: Long = 8,
+        /** `device_history` for a standardized value; `vendor_history` for opaque composites. */
+        val provenance: String = "device_history",
+        /** The ring's own stamp when clock correction moved this record off it (see
+         *  [ActivityBucket.rawTimestamp]). */
+        val rawTimestamp: Instant? = null,
+        /**
+         * The sampling cadence the protocol itself fixes for this record, in seconds — set only
+         * for a workout stream ([HrProvenance.WORKOUT_HISTORY]), never for all-day history.
+         */
+        val cadenceS: Int? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "history_measurement"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = "{}"
+    }
+
+    /**
+     * A CRP all-day "timing" vital-history frame just decoded (group 2, cmd 15/16/17/47). Carries no
+     * metric itself — its samples are emitted as [HistoryMeasurement]s — but signals the sync engine
+     * to pull the NEXT frame in the day's timeline, mirroring the vendor's sequential follow-up
+     * (`e1/{f,d,g,l}.java`: `insertBleMessage(<query>.b(day, index + 1))`). `cmd` identifies the vital,
+     * `frameIndex` the frame just received; the engine requests `frameIndex + 1` until the vital's
+     * terminal frame. Produces no `PulseEvent` (consumed by [CRPSyncEngine.handle]).
+     */
+    data class TimingHistoryFrame(
+        val cmd: Int,
+        val day: Int,
+        val frameIndex: Int,
+    ) : RingDecodedEvent() {
+        override val kind = "timing_history_frame"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"cmd":$cmd,"day":$day,"frameIndex":$frameIndex}"""
+    }
+
+    /**
+     * Ring-side bind/unbind notification (0x4B). Mirrors the official SDK's
+     * onNotifyBindedInfo(action, state). action: 0=INIT, 1=APP_START, 2=ACK,
+     * 3=ACK_CANCEL, 4=SUCCESS, 5=UNBOND, 6=UNBOND_ACK. The ring drives a small
+     * handshake on connect and acks an app-initiated unbind on forget.
+     */
+    data class BindNotify(
+        val action: Int,
+        val state: Int,
+    ) : RingDecodedEvent() {
+        override val kind = "bind_notify"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"action":$action,"state":$state}"""
+    }
+
+    /** Capability bitmask reply (0x20). Consumed by `JringSyncEngine`; produces no `PulseEvent`. */
+    data class BandFunction(
+        val capabilities: JringBandCapabilities
+    ) : RingDecodedEvent() {
+        override val kind = "band_function"
+        override val confidence = DecodeConfidence.PARTIAL   // bit ordering unverified against hardware
+        override val debugJSON = """{"temp":${capabilities.hasTemperature},"spo2_separate":${capabilities.separateBloodOxygenMode},"spo2_offline":${capabilities.hasOxygenOfflineHistory},"pressure":${capabilities.hasPressureHistory}}"""
+    }
+
+    /**
+     * The device's own capability bitmap, already mapped onto [WearableCapability] (YCBT `02 01`;
+     * see `YCBTSupportFunction`). Consumed by `RingBLEClient` to refine the active capability set —
+     * the coordinator's baseline is what the *family* can do, this is what *this unit* claims.
+     * Produces no `PulseEvent`.
+     */
+    data class SupportFunctions(
+        val capabilities: Set<WearableCapability>
+    ) : RingDecodedEvent() {
+        override val kind = "support_functions"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"capabilities":"${capabilities.joinToString(",") { it.key }}"}"""
+    }
+
+    /**
+     * The chipset/OTA family (YCBT `02 1b`). Diagnostic only — produces no `PulseEvent`.
+     */
+    data class ChipScheme(
+        val value: Int
+    ) : RingDecodedEvent() {
+        override val kind = "chip_scheme"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"value":$value}"""
+    }
+
+    /**
+     * The ring reports it went on/off the finger (YCBT `06 13`). Debug-feed only — produces no
+     * `PulseEvent`, since nothing in the app gates on wear state yet.
+     */
+    data class WearingStatus(
+        val worn: Boolean,
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "wearing_status"
+        override val confidence = DecodeConfidence.PARTIAL   // polarity unverified against hardware
+        override val debugJSON = """{"worn":$worn}"""
+    }
+
+    /**
+     * The ring **refused** to start the spot measurement we asked for (YCBT `03 2f` answered with a
+     * non-zero status). `mode` is the measurement mode we started — the reply itself carries only a
+     * status byte, so the mode comes from the start `YCBTDriver` remembers sending. `RingEventBridge`
+     * maps it to `PulseEvent.MeasurementRejected`, which `RingSyncCoordinator` consumes to abort the
+     * matching in-flight measurement.
+     */
+    data class MeasurementRejected(
+        val mode: Int
+    ) : RingDecodedEvent() {
+        override val kind = "measurement_rejected"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"mode":$mode}"""
+    }
+
+    data class StressSample(
+        val value: Int,
+        val _timestamp: Instant,
+        val isHistory: Boolean = false,
+    ) : RingDecodedEvent() {
+        override val kind = "stress_sample"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"stress":$value}"""
+    }
+
+    data class HrvSample(
+        val value: Int,
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "hrv_sample"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"hrv_ms":$value}"""
+    }
+
+    data class TemperatureSample(
+        val celsius: Double,
+        val _timestamp: Instant,
+        val isHistory: Boolean = false,
+    ) : RingDecodedEvent() {
+        override val kind = "temperature_sample"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"temp_c":$celsius}"""
+    }
+
+    /** Family-specific data retained without pretending it is a standardized biomarker. */
+    data class VendorMetric(
+        val key: String,
+        val value: Double,
+        val unit: String,
+        val _timestamp: Instant,
+        val isHistory: Boolean = true,
+        /** The ring's own stamp when clock correction moved this record off it (see
+         *  [ActivityBucket.rawTimestamp]). */
+        val rawTimestamp: Instant? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "vendor_metric"
+        override val confidence = DecodeConfidence.PARTIAL
+        override val debugJSON = """{"key":"$key","value":$value,"unit":"$unit"}"""
+    }
+
+    data class HistorySyncProgress(
+        val stage: String
+    ) : RingDecodedEvent() {
+        override val kind = "history_sync_progress"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"stage":"$stage"}"""
+    }
+
+    object HistorySyncFinished : RingDecodedEvent() {
+        override val kind = "history_sync_finished"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = "{}"
+    }
+
+    /**
+     * What one history pull proved about a stream (GA.8): every record the ring holds in
+     * `[from, to)` has been received. [complete] is false when the pull stopped at its page budget
+     * before reaching either the end of the ring's history or the previous pull, so a gap may
+     * precede [from]. Uploaded as `state/sync` coverage; see [JStyle2301HistorySync].
+     */
+    data class HistoryCoverage(
+        val stream: String,
+        val from: Instant,
+        val to: Instant,
+        val complete: Boolean,
+        val reason: String,
+    ) : RingDecodedEvent() {
+        override val kind = "history_coverage"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"stream":"$stream","complete":$complete,"reason":"$reason"}"""
+    }
+
+    data class Battery(
+        val percent: Int,
+        val charging: Boolean = false
+    ) : RingDecodedEvent() {
+        override val kind = "battery"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"percent":$percent,"charging":$charging}"""
+    }
+
+    data class Status(
+        val address: String?,
+        val firmware: String? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "status"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"address":"${address ?: ""}","firmware":"${firmware ?: ""}"}"""
+    }
+
+    data class FirmwareVersion(
+        val version: Int? = null,
+    ) : RingDecodedEvent() {
+        override val kind = "firmware_version"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"version":${version ?: 0}}"""
+    }
+
+    /**
+     * A firmware version *string* — e.g. the CRP R11's `MOY-R1K3-2.1.6` (group `3/3`). [FirmwareVersion]
+     * above carries the jring `0xF6` numeric build instead and can't hold this.
+     *
+     * Deliberately its own event rather than [Status]: `Status` bridges to
+     * `DeviceStateChanged(CONNECTED, …)`, which persistence reads as "a connection was just
+     * established" and answers by rebuilding the sleep tables from scratch. A firmware reply says
+     * nothing about the connection, and the CRP engine re-queries it on every ~30-minute sync pass.
+     */
+    data class FirmwareRevision(
+        val version: String,
+    ) : RingDecodedEvent() {
+        override val kind = "firmware_revision"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"version":"$version"}"""
+    }
+
+    /** Result of the connection-scoped J-Style 2301 credential check; carries no secret. */
+    data class AuthenticationResult(
+        val accepted: Boolean,
+    ) : RingDecodedEvent() {
+        override val kind = "authentication_result"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"accepted":$accepted}"""
+    }
+
+    data class TimeSyncAck(
+        val _timestamp: Instant
+    ) : RingDecodedEvent() {
+        override val kind = "time_sync_ack"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = "{}"
+    }
+
+    data class CommandAck(
+        val commandId: UByte
+    ) : RingDecodedEvent() {
+        override val kind = "command_ack"
+        override val confidence = DecodeConfidence.PARTIAL
+        override val debugJSON = "{}"
+    }
+
+    data class BloodPressureSample(
+        val systolic: Int,
+        val diastolic: Int,
+        val _timestamp: Instant,
+        val isHistory: Boolean = false,
+    ) : RingDecodedEvent() {
+        override val kind = "blood_pressure_sample"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"sys":$systolic,"dia":$diastolic}"""
+    }
+
+    data class BloodSugarSample(
+        val mgdl: Double,
+        val _timestamp: Instant,
+    ) : RingDecodedEvent() {
+        override val kind = "blood_sugar_sample"
+        override val confidence = DecodeConfidence.KNOWN
+        override val debugJSON = """{"mgdl":$mgdl}"""
+    }
+
+    /**
+     * One notification of a logical frame that is still being reassembled — no decode yet, and
+     * possibly never one of its own (the frame decodes as a whole).
+     *
+     * It exists for the diagnostics report. A mid-frame chunk used to reach the raw-packet log as
+     * [Unknown], and `unknown` is deliberately *not* masked on export — control and pairing frames
+     * are the data most connection bugs need, and they decode to nothing. But an intermediate chunk
+     * of a multi-frame **health** reply carries samples in exactly the same shape, so those were
+     * exported whole: the same class of defect as issue #58's undecoded temperature frames, where a
+     * decode gap had quietly become a privacy gap. A chunk is now named for what it is, and the
+     * redactor masks it because it cannot know what the assembled frame will turn out to be.
+     */
+    data class FramePending(val raw: ByteArray, val startsFrame: Boolean) : RingDecodedEvent() {
+        /**
+         * The two cases are named apart because they mask differently: only the opening chunk holds
+         * the frame's routing header, so a continuation chunk keeping six bytes "of header" would be
+         * keeping six bytes of samples.
+         */
+        override val kind = if (startsFrame) "frame_start" else "frame_chunk"
+        override val confidence = DecodeConfidence.UNKNOWN
+        override val debugJSON = "{}"
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is FramePending) return false
+            return raw.contentEquals(other.raw) && startsFrame == other.startsFrame
+        }
+
+        override fun hashCode(): Int = 31 * raw.contentHashCode() + startsFrame.hashCode()
+    }
+
+    data class Unknown(
+        val commandId: UByte,
+        val raw: ByteArray
+    ) : RingDecodedEvent() {
+        override val kind = "unknown"
+        override val confidence = DecodeConfidence.UNKNOWN
+        override val debugJSON = "{}"
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Unknown) return false
+            return commandId == other.commandId && raw.contentEquals(other.raw)
+        }
+
+        override fun hashCode(): Int = 31 * commandId.hashCode() + raw.contentHashCode()
+    }
+}

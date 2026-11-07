@@ -1,10 +1,11 @@
 /**
  * /dev/components — the living component gallery. Every primitive in its
- * variants and states, in both themes (side by side ≥ 1280 px, or switch).
+ * variants and states, in the one Ember theme (dark only, SPEC §1).
  * Lazy-loaded, built, never linked from navigation.
  */
 import { useRef, useState, type ReactNode } from 'react';
-import { Copy, Download, Ellipsis, Lock, Metrics, Pencil, Plus, Repeat, Table, Trash2 } from './galleryIcons';
+import { useCountUp, useDrawIn, useGrow, useInView, usePulse, useSweep } from '@/app/motion';
+import { ChevronRight as Chevron, CirclePause, ClipboardCheck, CloudAlert, Copy, Download, Ellipsis, Inbox, Lock, Metrics, Pencil, Plus, Repeat, ScanSearch, ShieldCheck, Table, Trash2 } from './galleryIcons';
 import {
   Checkbox,
   Chip,
@@ -49,6 +50,7 @@ import {
   Skeleton,
   Spinner,
   Stage,
+  StatusCapsule,
   StatusMark,
   Stepper,
   Switch,
@@ -62,17 +64,17 @@ import {
   CATEGORY_LABEL,
   toast,
   formatNumber,
-  useMediaQuery,
-  MQ,
+  type DomainName,
   type MetricCategory,
   type RunKeyState,
   type SheetDetent,
 } from '@/components';
 import { TopBar } from '@/app/shell';
-
-type Scope = 'split' | 'light' | 'dark' | 'app';
+import { R071Sheets, R071_JUMP } from './specimens';
 
 const CATS: MetricCategory[] = ['body', 'fuel', 'energy', 'cellular', 'performance', 'recovery', 'cardio', 'hormones'];
+/** The wheel, in its fixed order (r071): heart, energy, food, steps, recovery, body, sleep, videos. */
+const WHEEL: DomainName[] = ['heart', 'energy', 'food', 'steps', 'recovery', 'body', 'sleep', 'videos'];
 
 /* -------------------------------------------------------------------------- */
 
@@ -118,6 +120,7 @@ function TokensSheet({ anchor }: { anchor: boolean }) {
     ['face', 'var(--lm-face)'],
     ['well', 'var(--lm-well)'],
     ['raised', 'var(--lm-raised)'],
+    ['elevated', 'var(--lm-elevated)'],
     ['line', 'var(--lm-line)'],
     ['line-strong', 'var(--lm-line-strong)'],
     ['edge', 'var(--lm-edge)'],
@@ -130,14 +133,52 @@ function TokensSheet({ anchor }: { anchor: boolean }) {
     ['signal', 'var(--lm-signal)'],
   ];
   return (
-    <Sheetlet id={anchor ? 'g-tokens' : undefined} title="Tokens" caption="chrome is achromatic; colour belongs to data">
+    <Sheetlet id={anchor ? 'g-tokens' : undefined} title="Tokens" caption="Ember · dark only">
       <Specimen name="surfaces + lines">
         <Row>{surfaces.map(([l, v]) => <Chipline key={l} label={l} value={v} />)}</Row>
       </Specimen>
-      <Specimen name="ink + signal" note="yellow: run key, now-hand, indicator lights — never text, never warnings">
+      <Specimen name="ink + signal" note="gold: the brand, the primary key, the selection, focus and the moment; never a data series. Ivory marks where you are (dock, sidebar)">
         <Row>{inks.map(([l, v]) => <Chipline key={l} label={l} value={v} />)}</Row>
       </Specimen>
-      <Specimen name="category hues" note="one per metric family, fixed forever">
+      <Specimen name="domain hues" note="eight domains on one wheel, each four tokens: solid (marks) · ink (soft tint for text on the glow) · deep (the glow core only) · dim (the unlit remainder)">
+        <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(176px, 1fr))' }}>
+          {WHEEL.map((d) => (
+            <div key={d} className="grid gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs text-ink-2">
+                <Swatch domain={d} shape="square" />
+                {d}
+              </span>
+              <span className="flex h-8 overflow-hidden rounded-sm border border-line-strong">
+                {['', '-ink', '-deep', '-dim'].map((part) => (
+                  <span key={part} className="flex-1" style={{ background: `var(--lm-hue-${d}${part})` }} title={`${d}${part || ' solid'}`} />
+                ))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Specimen>
+      <Specimen name="sets that appear together" note="derived from the hues and validated: neighbours are told apart by lightness as well as hue, and always carry their names">
+        <div className="grid gap-3">
+          {(
+            [
+              ['sleep stages', ['deep', 'light', 'rem', 'awake'].map((x) => `--lm-stage-${x}`)],
+              ['energy intensity', ['resting', 'light', 'active', 'exercise'].map((x) => `--lm-intensity-${x}`)],
+              ['heart-rate zones', [1, 2, 3, 4, 5].map((n) => `--lm-hr-zone-${n}`)],
+              ['macros', ['protein', 'carbs', 'fibre', 'fat', 'alcohol'].map((x) => `--lm-macro-${x}`)],
+            ] as Array<[string, string[]]>
+          ).map(([label, vars]) => (
+            <div key={label} className="grid gap-1">
+              <span className="lm-meta text-ink-2">{label}</span>
+              <span className="flex h-3 gap-[2px] overflow-hidden">
+                {vars.map((v) => (
+                  <span key={v} className="flex-1 rounded-[3px]" style={{ background: `var(${v})` }} title={v} />
+                ))}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Specimen>
+      <Specimen name="category hues" note="one per metric family; body, energy, recovery, cardio and performance are the domain hues">
         <Row>
           {CATS.map((c) => (
             <span key={c} className="inline-flex items-center gap-1.5 text-xs text-ink-2">
@@ -147,30 +188,45 @@ function TokensSheet({ anchor }: { anchor: boolean }) {
           ))}
         </Row>
       </Specimen>
-      <Specimen name="energy balance" note="deficit ↔ maintenance ↔ surplus; neither side is good">
-        <div className="flex h-8 overflow-hidden rounded-sm border border-line-strong">
-          {['deficit-4', 'deficit-3', 'deficit-2', 'deficit-1', 'neutral', 'surplus-1', 'surplus-2', 'surplus-3', 'surplus-4'].map((t) => (
-            <span key={t} className="flex-1" style={{ background: `var(--lm-energy-${t})` }} title={t} />
-          ))}
-          <span className="flex-1" style={{ background: 'var(--lm-energy-fast)' }} title="fast" />
+      <Specimen name="energy balance" note="tide for a deficit ↔ maintenance ↔ ember for a surplus, rising above the card in 10 % bands; neither side is good. The warm legacy ramp below it is for the Simulator until the planning tools move">
+        <div className="grid gap-2">
+          <div className="flex h-8 overflow-hidden rounded-sm border border-line-strong">
+            {['deficit-6', 'deficit-5', 'deficit-4', 'deficit-3', 'deficit-2', 'deficit-1', 'neutral', 'surplus-1', 'surplus-2', 'surplus-3', 'surplus-4', 'fast'].map((t) => (
+              <span key={t} className="flex-1" style={{ background: `var(--lm-balance-${t})` }} title={t} />
+            ))}
+          </div>
+          <div className="flex h-5 overflow-hidden rounded-sm border border-line-strong">
+            {['deficit-4', 'deficit-3', 'deficit-2', 'deficit-1', 'neutral', 'surplus-1', 'surplus-2', 'surplus-3', 'surplus-4', 'fast'].map((t) => (
+              <span key={t} className="flex-1" style={{ background: `var(--lm-energy-${t})` }} title={`legacy ${t}`} />
+            ))}
+          </div>
         </div>
       </Specimen>
-      <Specimen name="type" note="Archivo — condensed 84 · normal 100 · wide 112 · display 120">
+      <Specimen name="type" note="Geist for text and numerals (300 for big numerals only, 400 · 500 · 600), Geist Mono caps for facts · tabular figures by default, proportional for big numbers">
         <div className="grid gap-2">
-          <span className="lm-title" style={{ fontSize: 'var(--lm-text-2xl)', lineHeight: 'var(--lm-text-2xl--lh)' }}>
-            Your body
+          <span className="lm-meta text-ink-2">Fri, 30 Oct · day 15 of 84</span>
+          <span className="lm-title">Today 24 — page title</span>
+          <span className="text-hero lm-num-prop">1,096</span>
+          <span className="text-num-l lm-num-prop">
+            7 h 56
           </span>
-          <span className="lm-title">Spring cut</span>
-          <span className="text-lg font-semibold">Section title 20</span>
-          <span className="text-base">UI body 15 — Paint a block across days.</span>
-          <span className="text-sm text-ink-2">Dense UI 13 — likely 18.6–21.0 kg</span>
-          <span className="lm-eng">engraved label 12 — energy · window · protein</span>
-          <span className="text-2xs text-ink-3" style={{ fontStretch: '84%' }}>
-            axis ticks 11 condensed — wk 6 · 12 · 18
+          <span className="text-num lm-num-prop">
+            85.2<span className="text-unit text-ink-2"> kg</span>
           </span>
-          <span className="lm-num" style={{ fontSize: 'var(--lm-readout-md)', lineHeight: 1.1, fontWeight: 500 }}>
-            23.4<span className="lm-unit">%</span> 2{'\u2009'}540<span className="lm-unit">kcal</span>
+          <span className="text-time">16:30</span>
+          <span className="text-display">Welcome 32</span>
+          <span className="lm-headline">
+            72.4<span className="lm-unit">kg</span>
           </span>
+          <span className="lm-title-l">Section heading 20</span>
+          <span className="lm-h3">Card heading 17</span>
+          <span className="text-card">Card title 15 — Energy</span>
+          <span className="text-body">Body 14 — paint a block across days.</span>
+          <span className="text-read">Reading 15 — the calories your body has used since midnight.</span>
+          <span className="lm-body-s text-ink-2">Secondary 12 — likely 18.6–21.0 kg</span>
+          <span className="lm-group-label">Settings group label</span>
+          <span className="text-2xs text-ink-3">Axis ticks 11 — wk 6 · 12 · 18</span>
+          <span className="text-stat">Stat 15 — 742 kcal</span>
         </div>
       </Specimen>
     </Sheetlet>
@@ -198,18 +254,38 @@ function KeysSheet({ anchor }: { anchor: boolean }) {
   const [pressed, setPressed] = useState(true);
   return (
     <Sheetlet id={anchor ? 'g-keys' : undefined} title="Keys" caption="Key · IconKey · RunKey">
-      <Specimen name="<Key variant>" note="default · solid · quiet · danger · signal (Run / Find plans only)">
+      <Specimen name="<Key variant>" note="primary is the gold pill (one per view) · outlined (default) is the neutral tile · action · text · danger">
         <Row>
-          <Key>Copy week</Key>
-          <Key variant="solid">Open in Simulator</Key>
-          <Key variant="quiet">Reset to program B</Key>
+          <Key variant="primary">Open in Simulator</Key>
+          <Key variant="action">Add meal</Key>
+          <Key variant="outlined">Copy week</Key>
+          <Key variant="text">Reset to program B</Key>
           <Key variant="danger">Reset everything</Key>
-          <Key variant="signal" shape="pill" size="lg">
+          <Key variant="primary" size="lg">
             Find plans
           </Key>
         </Row>
       </Specimen>
-      <Specimen name="size · icon · indicator · shortcut">
+      <Specimen name="the gold pill" note="48 / 40 / 32 px · label 15/600 · an arrow icon (18 px, stroke 2.25), never the glyph · hover brightens, press .98, disabled turns raised">
+        <Row>
+          <Key variant="primary" size="lg" arrow>
+            Add task
+          </Key>
+          <Key variant="primary" arrow>
+            Log snack
+          </Key>
+          <Key variant="primary" size="sm" arrow>
+            Start
+          </Key>
+          <Key variant="primary" size="lg" arrow disabledReason="Type a title first.">
+            Add task
+          </Key>
+          <Key variant="outlined" size="lg" trailingIcon={Chevron}>
+            Details
+          </Key>
+        </Row>
+      </Specimen>
+      <Specimen name="size · icon · shortcut">
         <Row>
           <Key size="sm" icon={Copy}>
             Copy
@@ -218,8 +294,6 @@ function KeysSheet({ anchor }: { anchor: boolean }) {
           <Key size="lg" icon={Download}>
             Export data
           </Key>
-          <Key indicator={false}>armed off</Key>
-          <Key indicator>armed</Key>
           <Key shortcut="⌘Z" variant="quiet">
             Undo
           </Key>
@@ -227,7 +301,7 @@ function KeysSheet({ anchor }: { anchor: boolean }) {
       </Specimen>
       <Specimen name="states" note="pressed · disabled (with reason, focusable) · disabled · loading">
         <Row>
-          <Key pressed={pressed} indicator={pressed} onClick={() => setPressed((p) => !p)}>
+          <Key pressed={pressed} onClick={() => setPressed((p) => !p)}>
             B · rest day
           </Key>
           <Key disabledReason="Select at least two days first.">Paste</Key>
@@ -252,7 +326,7 @@ function KeysSheet({ anchor }: { anchor: boolean }) {
       </Specimen>
       <Specimen name="<KeyLink>">
         <Row>
-          <KeyLink to="/settings#data" icon={Download}>
+          <KeyLink to="/settings/data" icon={Download}>
             Settings › Your data
           </KeyLink>
           <KeyLink to="/evidence" variant="quiet" size="sm">
@@ -260,7 +334,7 @@ function KeysSheet({ anchor }: { anchor: boolean }) {
           </KeyLink>
         </Row>
       </Specimen>
-      <Specimen name="<RunKey>" note="idle · stale (ink dot, 1 o'clock) · running (elapsed, arc) · disabled · lg for the mobile action bar">
+      <Specimen name="<RunKey>" note="idle · stale (dot) · running (elapsed, arc) · disabled · lg">
         <Row className="gap-6">
           <RunKey state={run} elapsed={elapsed} caption="84 days" onRun={start} />
           <RunKey state="idle" onRun={() => undefined} />
@@ -289,7 +363,7 @@ function ChoiceSheet({ anchor }: { anchor: boolean }) {
   const [horizon, setHorizon] = useState('3');
   return (
     <Sheetlet id={anchor ? 'g-choice' : undefined} title="Choice controls" caption="KeyBank · LinkBank · Tabs · Switch · Checkbox · Radio · Select">
-      <Specimen name="<KeyBank>" note="radio group; arrows move + select; yellow light on the pressed key">
+      <Specimen name="<KeyBank>" note="radio group; arrows move + select; mono-caps labels in a 12 px track, gold-wash selected segment, 44 px keys under a coarse pointer">
         <Row>
           <KeyBank label="Units" size="sm" value={units} onChange={setUnits} options={[{ value: 'metric', label: 'metric' }, { value: 'imperial', label: 'imperial' }]} />
           <KeyBank label="Chart view" size="sm" value={view} onChange={setView} options={[{ value: 'lanes', label: 'lanes' }, { value: 'overlay', label: 'overlay' }, { value: 'focus', label: 'focus' }]} />
@@ -366,7 +440,7 @@ function ChoiceSheet({ anchor }: { anchor: boolean }) {
           </TabPanel>
         </Tabs>
       </Specimen>
-      <Specimen name="<Switch>" note="on = ink track + yellow light">
+      <Specimen name="<Switch>" note="gold track when on, stone outline when off">
         <Row className="gap-6">
           <Switch checked={sw1} onChange={setSw1} label="visceral" />
           <Switch checked={sw2} onChange={setSw2} label="use measurement" />
@@ -611,7 +685,17 @@ function ReadoutSheet({ anchor }: { anchor: boolean }) {
           ]}
         />
       </Specimen>
-      <Specimen name="<Chip>" note="plain · metric · filter · status (colour on the mark only) · removable">
+      <Specimen name="<Chip>" note="pills · plain · metric · domain (the dot wears domainColor) · filter · status (colour on the mark only) · removable">
+        <Row>
+          {WHEEL.map((d) => (
+            <Chip key={d} kind="domain" domain={d}>
+              {d}
+            </Chip>
+          ))}
+          <Chip kind="domain" domain="plan">
+            plan
+          </Chip>
+        </Row>
         <Row>
           <Chip>plain</Chip>
           {CATS.slice(0, 4).map((c) => (
@@ -645,7 +729,17 @@ function ReadoutSheet({ anchor }: { anchor: boolean }) {
           </Chip>
         </Row>
       </Specimen>
-      <Specimen name="<GradeBadge>" note="achromatic by rule: A solid · B grey · C outlined · D dashed">
+      <Specimen name="<StatusCapsule>" note="header status icon: 48 px target, stone line icon, gold dot when it wants attention; its words are its name and tooltip">
+        <Row>
+          <StatusCapsule icon={ClipboardCheck} label="Weekly check-in ready" attention onClick={() => toast('Check-in sheet')} />
+          <StatusCapsule icon={Inbox} label="2 changes waiting" attention onClick={() => toast('Changes sheet')} />
+          <StatusCapsule icon={CirclePause} label="Plan paused" onClick={() => toast('Paused sheet')} />
+          <StatusCapsule icon={ShieldCheck} label="Safety mode: Gentle mode" onClick={() => toast('Safety mode')} />
+          <StatusCapsule icon={CloudAlert} label="Sync: Error · can't reach the server" attention tone="danger" onClick={() => toast('Sync settings')} />
+          <StatusCapsule icon={ScanSearch} label="Long search 42 % · 12 min left" pulse />
+        </Row>
+      </Specimen>
+      <Specimen name="<GradeBadge>" note="quiet stone pill">
         <Row>
           {(['A', 'B', 'C', 'D'] as const).map((g) => (
             <GradeBadge key={g} grade={g} />
@@ -677,7 +771,7 @@ function FeedbackSheet({ anchor }: { anchor: boolean }) {
   const [shown, setShown] = useState(true);
   return (
     <Sheetlet id={anchor ? 'g-feedback' : undefined} title="Feedback" caption="Notice · InlineWarning · Toast · Tooltip · ProgressRule · Spinner · Meter · Skeleton · EmptyStage">
-      <Specimen name="<Notice>" note="REVIEW_FINDINGS #5 — faceplate text, drawn status mark, colour on the mark only">
+      <Specimen name="<Notice>" note="banner: caution and danger draw a mark; info and ok do not">
         <div className="grid gap-3">
           <Notice
             severity="caution"
@@ -706,7 +800,7 @@ function FeedbackSheet({ anchor }: { anchor: boolean }) {
           <Notice severity="ok" title="Lose 10 kg fat — reached in plan A." />
         </div>
       </Specimen>
-      <Specimen name="layout=ruled" note="inside a faceplate: hairlines, no box">
+      <Specimen name="layout=ruled" note="plain text, no surface">
         <div>
           <Notice layout="ruled" severity="caution" title="36 h fasts follow lifting days in weeks 6–10.">
             Fasting straight after resistance training cuts the protein available for repair.
@@ -792,13 +886,14 @@ function OverlaySheet({ anchor }: { anchor: boolean }) {
   const [dialog, setDialog] = useState<null | 'plain' | 'danger'>(null);
   const [typed, setTyped] = useState('');
   const [sheet, setSheet] = useState(false);
+  const [editor, setEditor] = useState(false);
   const [detent, setDetent] = useState<SheetDetent>('half');
   const [panel, setPanel] = useState(false);
   const [responsive, setResponsive] = useState(false);
   const [pop, setPop] = useState(false);
   const popRef = useRef<HTMLButtonElement>(null);
   return (
-    <Sheetlet id={anchor ? 'g-overlays' : undefined} title="Overlays" caption="Dialog · Sheet · SidePanel · ResponsivePanel · Popover · Menu (portaled: they follow the app theme)">
+    <Sheetlet id={anchor ? 'g-overlays' : undefined} title="Overlays" caption="Dialog · Sheet · SidePanel · ResponsivePanel · Popover · Menu">
       <Specimen name="open one">
         <Row>
           <Key onClick={() => setDialog('plain')}>Dialog</Key>
@@ -806,6 +901,7 @@ function OverlaySheet({ anchor }: { anchor: boolean }) {
             Destructive dialog
           </Key>
           <Key onClick={() => setSheet(true)}>Bottom sheet</Key>
+          <Key onClick={() => setEditor(true)}>Editor sheet</Key>
           <Key onClick={() => setPanel(true)}>Side panel</Key>
           <Key onClick={() => setResponsive(true)}>Responsive panel</Key>
           <Key ref={popRef} onClick={() => setPop((p) => !p)} aria-expanded={pop}>
@@ -814,10 +910,14 @@ function OverlaySheet({ anchor }: { anchor: boolean }) {
           <Menu
             label="Scenario actions"
             items={[
-              { id: 'new', label: 'New scenario', icon: Plus, onSelect: () => toast('New scenario') },
-              { id: 'dup', label: 'Duplicate', icon: Copy, onSelect: () => toast('Duplicated') },
-              { id: 'ren', label: 'Rename', icon: Pencil, onSelect: () => toast('Rename') },
-              { id: 'del', label: 'Delete', icon: Trash2, tone: 'danger', separatorBefore: true, onSelect: () => toast('Deleted') },
+              { id: 'new', label: 'New scenario', onSelect: () => toast('New scenario') },
+              { id: 'dup', label: 'Duplicate', onSelect: () => toast('Duplicated') },
+              { id: 'ren', label: 'Rename', onSelect: () => toast('Rename') },
+              { id: 'del', label: 'Delete', tone: 'danger', onSelect: () => toast('Deleted') },
+              { kind: 'section', id: 'export', label: 'Export' },
+              { id: 'csv', label: 'Export CSV', onSelect: () => toast('Exported CSV') },
+              { kind: 'divider', id: 'global' },
+              { id: 'settings', label: 'Settings', onSelect: () => toast('Settings') },
             ]}
             trigger={(p) => <IconKey {...p} icon={Ellipsis} label="More actions" variant="default" />}
           />
@@ -888,6 +988,13 @@ function OverlaySheet({ anchor }: { anchor: boolean }) {
           <Skeleton lines={8} />
         </div>
       </Sheet>
+      <Sheet open={editor} onClose={() => setEditor(false)} title="Edit meal" onDone={() => setEditor(false)}>
+        <div className="grid gap-4 p-4">
+          <Field label="Name">
+            <TextInput defaultValue="Breakfast" />
+          </Field>
+        </div>
+      </Sheet>
       <SidePanel open={panel} onClose={() => setPanel(false)} title="Fat mass" footer={<KeyLink to="/evidence" size="sm">Open in Evidence</KeyLink>}>
         <div className="grid gap-3 p-4 text-sm leading-[1.55]">
           <Row>
@@ -915,13 +1022,9 @@ function LayoutSheet({ anchor }: { anchor: boolean }) {
     <Sheetlet id={anchor ? 'g-layout' : undefined} title="Surfaces + layout" caption="Faceplate · Section · Rule · Stage · KeyValueList · ScrollRail">
       <Specimen name="<Faceplate variant>" note="plain · inset · flush — never nested; this sheet is itself a faceplate">
         <div className="grid gap-3 sm:grid-cols-3">
-          <Stage className="grid min-h-[96px] place-items-center rounded-md border border-line-strong text-xs text-ink-2">stage-dots (perforated)</Stage>
-          <div className="rounded-md bg-well p-3 text-xs text-ink-2" style={{ boxShadow: 'var(--lm-shadow-well)' }}>
-            inset / well
-          </div>
-          <div className="rounded-md border border-line-strong bg-face p-3 text-xs text-ink-2" style={{ boxShadow: 'var(--lm-shadow-face)' }}>
-            plain faceplate surface
-          </div>
+          <Stage className="grid min-h-[96px] place-items-center rounded-md text-xs text-ink-2">stage (plain well)</Stage>
+          <div className="rounded-md bg-well p-3 text-xs text-ink-2">inset / well</div>
+          <div className="lm-material p-3 text-xs text-ink-2">card material (.lm-material)</div>
         </div>
       </Specimen>
       <Specimen name="<Section> · <Rule> · <KeyValueList>">
@@ -939,9 +1042,9 @@ function LayoutSheet({ anchor }: { anchor: boolean }) {
       <Specimen name="<ScrollRail>" note="snap rail, scroll-padding = gutter, the next cell peeks">
         <ScrollRail bleed={false} padding={0}>
           {['A', 'B', 'C', 'D', 'E', 'F'].map((l, i) => (
-            <div key={l} className="grid w-[142px] gap-1 rounded-sm border border-edge bg-raised p-2.5" style={{ boxShadow: 'var(--lm-shadow-key)' }}>
-              <span className="flex items-center gap-2 text-sm font-semibold">
-                <span style={{ fontStretch: '112%', fontWeight: 700 }}>{l}</span>
+            <div key={l} className="grid w-[142px] gap-1 rounded-md border border-edge bg-raised p-2.5">
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <span>{l}</span>
                 <span className="size-1.5 rounded-full border border-edge" style={i === 0 ? { background: 'var(--lm-signal)', borderColor: 'var(--lm-signal-edge)' } : undefined} />
                 program
               </span>
@@ -982,10 +1085,123 @@ function IconSheet({ anchor }: { anchor: boolean }) {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+
+/** A domain card: `data-domain` is the whole opt-in (the glow, the hue variables the marks read). */
+function GlowCard({ domain, title, value, unit, meta, size = 'tile' }: { domain: DomainName | 'neutral'; title: string; value: string; unit?: string; meta: string; size?: 'tile' | 'slim' }) {
+  return (
+    <Faceplate as="article" data-domain={domain} data-size={size === 'slim' ? 'slim' : undefined} title={title} className="min-h-[148px]">
+      <p className="text-num lm-num-prop">
+        {value}
+        {unit ? <span className="text-unit text-ink-2"> {unit}</span> : null}
+      </p>
+      <p className="lm-meta mt-2" style={{ color: 'var(--lm-ink-h, var(--lm-ink-2))' }}>
+        {meta}
+      </p>
+    </Faceplate>
+  );
+}
+
+/** The count-up, the line, the bars and the sweep, each starting when it is 20 % in view; "Replay" remounts them. */
+function MotionDemo() {
+  const [run, setRun] = useState(0);
+  return (
+    <div className="grid gap-3">
+      <Row>
+        <Key size="sm" variant="outlined" onClick={() => setRun((n) => n + 1)}>
+          Replay
+        </Key>
+        <span className="lm-eng">Final states under reduced motion; nothing here animates in jsdom or when Settings › Motion says reduce.</span>
+      </Row>
+      <MotionCards key={run} />
+    </div>
+  );
+}
+
+function MotionCards() {
+  const card = useRef<HTMLDivElement>(null);
+  const line = useRef<HTMLDivElement>(null);
+  const bars = useRef<HTMLDivElement>(null);
+  const inView = useInView(card);
+  const n = useCountUp(1096, { start: inView });
+  const lit = useSweep(72, { start: inView });
+  useDrawIn(line, { start: inView });
+  useGrow(bars, { start: inView });
+  const pulsing = usePulse();
+  return (
+    <div ref={card} className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+      <Faceplate as="article" data-domain="energy" title="Energy" className="min-h-[160px]">
+        <p className="text-num lm-num-prop" aria-label="1,096 kilocalories">
+          <span aria-hidden="true" className="inline-block" style={{ minWidth: '3.3ch' }}>{Math.round(n ?? 1096).toLocaleString('en-US')}</span>
+          <span className="text-unit text-ink-2"> kcal</span>
+        </p>
+        <div ref={line} className="relative mt-6 h-16">
+          <svg viewBox="0 0 200 64" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
+            <path d="M0 52 C 50 50, 90 40, 130 30 S 180 14, 196 8" fill="none" stroke="var(--lm-ink)" strokeWidth="2.25" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+          {/* the endpoint sits where the path ends: 196 / 200 across, 8 / 64 down */}
+          <span className="lm-live absolute" data-pulse={pulsing || undefined} style={{ left: '98%', top: '12.5%', marginLeft: -5, marginTop: -5 }} />
+        </div>
+      </Faceplate>
+      <Faceplate as="article" data-domain="steps" title="Steps" className="min-h-[160px]">
+        <div ref={bars} className="mt-2 flex h-24 items-end gap-1.5" aria-hidden="true">
+          {[0.5, 0.7, 0.35, 0.9, 0.6, 0.8, 0.45].map((h, i) => (
+            <i key={i} className="block flex-1 rounded-t-[4px]" style={{ height: `${h * 100}%`, background: i === 6 ? 'var(--lm-hue)' : 'color-mix(in oklab, var(--lm-ink-h) 40%, transparent)' }} />
+          ))}
+        </div>
+      </Faceplate>
+      <Faceplate as="article" data-domain="heart" title="Heart rate" className="min-h-[160px]">
+        <div className="mx-auto grid h-[110px] w-[110px] place-items-center" role="img" aria-label="79 beats per minute" style={{ position: 'relative' }}>
+          <svg viewBox="0 0 110 110" className="absolute inset-0" aria-hidden="true">
+            {Array.from({ length: 72 }, (_, i) => {
+              const a = (i / 72) * Math.PI * 2 - Math.PI / 2;
+              const major = i % 6 === 0;
+              const r1 = 52;
+              const r0 = major ? 42 : 46;
+              return <line key={i} x1={55 + Math.cos(a) * r0} y1={55 + Math.sin(a) * r0} x2={55 + Math.cos(a) * r1} y2={55 + Math.sin(a) * r1} strokeWidth="2.1" strokeLinecap="round" stroke={i < lit * 0.62 ? 'var(--lm-ink)' : 'var(--lm-unlit)'} />;
+            })}
+          </svg>
+          <span className="text-num-l lm-num-prop" style={{ fontSize: '2rem' }}>79</span>
+        </div>
+      </Faceplate>
+    </div>
+  );
+}
+
+function MaterialSheet({ anchor }: { anchor: boolean }) {
+  return (
+    <Sheetlet id={anchor ? 'g-material' : undefined} title="Material" caption="the card · one glow per domain · the live mark · picture motion">
+      <Specimen name="the card" note="radius 20 · hairline 0.5 px gold-tan · padding 18 (24 from 1024) · gap 12 (16). The default carries the faint gold wash and no glow; `data-domain` opts into ONE soft glow in the domain hue, over the grain, never animated (it fades in once)">
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))' }}>
+          <GlowCard domain="neutral" title="Default" value="42" unit="min" meta="gold wash, no glow" />
+          <GlowCard domain="energy" title="Energy" value="1,096" unit="kcal" meta="of 2,595 today" />
+          <GlowCard domain="heart" title="Heart rate" value="79" unit="bpm" meta="resting 52" />
+          <GlowCard domain="steps" title="Steps" value="7,605" meta="of 9,000" />
+          <GlowCard domain="food" title="Eaten" value="750" unit="kcal" meta="of 1,850" />
+          <GlowCard domain="recovery" title="HRV" value="48" unit="ms" meta="usual 38 to 62" />
+          <GlowCard domain="body" title="Weight" value="85.2" unit="kg" meta="-1.2 kg · 30 d" />
+          <GlowCard domain="sleep" title="Sleep" value="7 h 56" meta="in bed 8 h 20" />
+          <GlowCard domain="videos" title="Short videos" value="12" meta="library only" />
+        </div>
+        <GlowCard domain="plan" size="slim" title="Next up · Snack" value="16:30" meta="in 1 h 32" />
+      </Specimen>
+      <Specimen name="a banner is not a card" note="the Notice takes the card material with no glow and the 14 px field radius; severity lives on the mark">
+        <Notice severity="caution" title="Your plan is paused">
+          Resume it when you are ready.
+        </Notice>
+      </Specimen>
+      <Specimen name="the live mark and the picture motion" note="count-up 1100 ms · sweep 14 ms a tick · line draw 1200 ms · bars grow 700 ms, 60 ms apart · the live mark pulses twice (4.8 s) and stops · each starts at 20 % in view, once">
+        <MotionDemo />
+      </Specimen>
+    </Sheetlet>
+  );
+}
+
 function Gallery({ anchor }: { anchor: boolean }) {
   return (
     <div className="grid min-w-0 gap-4">
       <TokensSheet anchor={anchor} />
+      <MaterialSheet anchor={anchor} />
       <KeysSheet anchor={anchor} />
       <ChoiceSheet anchor={anchor} />
       <NumericSheet anchor={anchor} />
@@ -994,12 +1210,14 @@ function Gallery({ anchor }: { anchor: boolean }) {
       <OverlaySheet anchor={anchor} />
       <LayoutSheet anchor={anchor} />
       <IconSheet anchor={anchor} />
+      <R071Sheets />
     </div>
   );
 }
 
 const JUMP: Array<[string, string]> = [
   ['g-tokens', 'tokens'],
+  ['g-material', 'material'],
   ['g-keys', 'keys'],
   ['g-choice', 'choice'],
   ['g-numeric', 'numeric'],
@@ -1008,31 +1226,13 @@ const JUMP: Array<[string, string]> = [
   ['g-overlays', 'overlays'],
   ['g-layout', 'layout'],
   ['g-icons', 'icons'],
+  ...R071_JUMP,
 ];
 
 export default function ComponentGalleryPage() {
-  const wide = useMediaQuery(MQ.xl);
-  const [scope, setScope] = useState<Scope>('split');
-  const effective: Scope = scope === 'split' && !wide ? 'app' : scope;
   return (
     <>
-      <TopBar
-        title="Components"
-        documentTitle="Component gallery"
-        actions={
-          <KeyBank
-            label="Theme in the gallery"
-            size="sm"
-            value={scope}
-            onChange={setScope}
-            options={[
-              { value: 'split', label: wide ? 'side by side' : 'app theme' },
-              { value: 'light', label: 'light' },
-              { value: 'dark', label: 'dark' },
-            ]}
-          />
-        }
-      />
+      <TopBar title="Components" documentTitle="Component gallery" />
       <Page>
         <nav aria-label="Gallery sections" className="mb-4">
           <ScrollRail gap={6}>
@@ -1043,24 +1243,7 @@ export default function ComponentGalleryPage() {
             ))}
           </ScrollRail>
         </nav>
-        {effective === 'split' ? (
-          <div className="grid grid-cols-2 gap-4">
-            <div data-theme-scope="light" className="min-w-0 rounded-lg p-3" style={{ background: 'var(--lm-chassis)', color: 'var(--lm-ink)' }}>
-              <p className="lm-eng mb-3 mt-0">light</p>
-              <Gallery anchor />
-            </div>
-            <div data-theme-scope="dark" className="min-w-0 rounded-lg p-3" style={{ background: 'var(--lm-chassis)', color: 'var(--lm-ink)' }}>
-              <p className="lm-eng mb-3 mt-0">dark</p>
-              <Gallery anchor={false} />
-            </div>
-          </div>
-        ) : effective === 'app' ? (
-          <Gallery anchor />
-        ) : (
-          <div data-theme-scope={effective} className="min-w-0 rounded-lg p-3" style={{ background: 'var(--lm-chassis)', color: 'var(--lm-ink)' }}>
-            <Gallery anchor />
-          </div>
-        )}
+        <Gallery anchor />
       </Page>
     </>
   );

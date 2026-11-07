@@ -1,11 +1,69 @@
-import type { EvidenceTopic } from '../schema';
+import type { Warrant } from '@/lib/bodyContracts';
+import type { EvidenceObservation, EvidenceTopic } from '../schema';
+
+/**
+ * Shown with every article that describes a part of the autophagy index. Vitals does not quantify autophagy: the index is
+ * an exploratory research display with no goal and no planning or health credit, and its range is a parameter-sensitivity
+ * range for its timing, not a predicted range for flux. Human blood-cell flux is measurable; organ flux is not estimated.
+ */
+const INDEX_CAVEAT =
+  "Vitals does not quantify autophagy (the cell's recycling process). Flux can be measured in human blood cells with a specific laboratory assay, but no routine test measures it in your organs, and blood-cell results do not show organ flux or a health benefit. Vitals' autophagy index is kept only as an exploratory research display: a 0–100 score of conditions linked to autophagy in animal and a few small human studies (no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise). Its 0–100 scale and its value of 25 at 12 h after a meal are definitions, not measurements. It is not a percentage of autophagy, not a goal, and earns no planning or health credit. Its range shows only how sensitive the index's timing is to its assumed midpoint (anywhere from about 1 to 4 days of fasting); it is not a predicted range for flux. Evidence grade for the index: C–D (low).";
+
+/* ---- outcome-scoped warrants (shown in the info sheet; formal trial grade alone is not the warrant) */
+
+const W_HUMAN_FLUX_MIXED: Warrant = {
+  type: 'empiricalFormal',
+  confidence: 'moderate',
+  scope:
+    'direction of autophagy markers or blood-cell flux in the tissue, time and intervention studied; results are mixed and do not show organ flux',
+};
+const W_NUTRIENT_SENSING: Warrant = {
+  type: 'causallyCoherent',
+  confidence: 'high',
+  scope:
+    'qualitative nutrient-sensing biology: amino acids, insulin and energy stress steer autophagy; not its size, time course or health effect',
+};
+const W_INDEX_DEFINITION: Warrant = {
+  type: 'analyticallyTrue',
+  confidence: 'high',
+  scope:
+    'the 0–100 scale, the value of 25 at 12 h and the anchor table are definitions; matching them is a code check, not validation',
+};
+const W_NO_HEALTH_LINK: Warrant = {
+  type: 'causallyCoherent',
+  confidence: 'low',
+  scope: 'from the index to organ flux, longevity or a health benefit: the chain is missing',
+};
+const W_CHOSEN_FASTING: Warrant = {
+  type: 'timeTested',
+  confidence: 'moderate',
+  scope:
+    'a chosen fasting or eating-window practice as a personal preference; not a cellular or longevity amount',
+};
+const W_CHOSEN_FASTING_LIVED: Warrant = {
+  type: 'livedExperience',
+  confidence: 'moderate',
+  scope: 'how a chosen fasting practice suits the person; not a cellular or longevity amount',
+};
+
+/* ---- what the supporting evidence observed (tissue and observation type) */
+
+const OBS_INDEX_DEFINITION: EvidenceObservation = {
+  tissue: 'none (model definition)',
+  type: 'modelDefinition',
+};
+const bloodCellFlux = (referenceIds: string[]): EvidenceObservation => ({
+  tissue: 'blood cells (flux assay with a lysosomal blocker, after sampling)',
+  type: 'humanTissueFlux',
+  referenceIds,
+});
 
 const topic: EvidenceTopic = {
   dossier: '08',
   slug: 'autophagy-longevity',
   title: 'Autophagy and nutrient-sensing pathways',
   scope:
-    "Autophagy is the cell's recycling process. This topic covers the nutrient-sensing pathways that steer it (mTORC1, AMPK, sirtuins, insulin and IGF-1), how meals, fasting and exercise are thought to move them, and how good the human evidence really is. It also covers calorie restriction and fasting-mimicking studies, and explains why Vitals shows autophagy as a relative signal rather than a measurement.",
+    "Autophagy is the cell's recycling process. This topic covers the nutrient-sensing pathways that steer it (mTORC1, AMPK, sirtuins, insulin and IGF-1), how meals, fasting and exercise are thought to move them, and how good the human evidence really is, tissue by tissue. It also covers calorie restriction and fasting-mimicking studies, and explains why Vitals does not quantify autophagy and keeps its autophagy index only as an exploratory research display, never a goal.",
   mechanisms: [
     {
       id: '08-human-autophagy-evidence',
@@ -14,7 +72,7 @@ const topic: EvidenceTopic = {
       summary:
         "Autophagy is a process, not a level. Parts of a cell are wrapped in a membrane, carried to a recycling compartment and broken down. No routine test can tell how fast this runs in a living person's organs. The one validated human method uses blood cells that are treated in a test tube after the sample is taken, and its results for fasting, protein and calorie restriction are mostly small or null.",
       howModelled:
-        'Vitals does not treat any single human marker as autophagy itself. It uses the human studies as anchors for when the conditions that favour autophagy are present, and it labels the result a relative signal (see the Autophagy Signal Index article).',
+        'Vitals does not treat any single human marker as autophagy itself and does not estimate flux in any organ. The human studies only place the timing of the exploratory autophagy index (see the autophagy research index article); they do not validate it.',
       keyNumbers: [
         {
           label: '72 h water fast, skeletal muscle (8 healthy men)',
@@ -85,8 +143,7 @@ const topic: EvidenceTopic = {
       gradeReason:
         'The idea that fasting raises autophagy in people rests on two small muscle studies, gene-activity studies, and flux studies that are null or borderline. The direction is plausible; the size and timing are unknown.',
       status: 'contested',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. A higher LC3-II can mean more recycling or blocked clearance, and the authors of the 72 h muscle study could not rule out the second reading. Blood LC3 or Beclin-1 tests and gene-activity readings are not accepted measures of flux. Flux needs a lysosomal blocker, which is impossible in human organs in vivo.",
+      caveats: `${INDEX_CAVEAT} A higher LC3-II can mean more recycling or blocked clearance, and the authors of the 72 h muscle study could not rule out the second reading. Blood LC3 or Beclin-1 tests and gene-activity readings are not accepted measures of flux. Flux needs a lysosomal blocker, which is impossible in human organs in vivo.`,
       referenceIds: [
         'vendelbo2014',
         'dethlefsen2018',
@@ -101,6 +158,25 @@ const topic: EvidenceTopic = {
         'dastghaib2025',
         'klionsky2021',
       ],
+      warrants: [W_HUMAN_FLUX_MIXED, W_NUTRIENT_SENSING],
+      outcomeScope:
+        'Direction of autophagy markers or blood-cell flux after fasting, protein, restriction or exercise, in the tissue studied; not organ flux or a health benefit',
+      population:
+        'Small groups of healthy adults and adults with obesity or at risk of type 2 diabetes; hours to 6 months',
+      observations: [
+        bloodCellFlux(['singh2025', 'singh2026', 'bensalem2025', 'bensalem2023']),
+        {
+          tissue: 'blood cells (LC3B-II/I ratio, a static marker)',
+          type: 'humanBloodMarker',
+          referenceIds: ['espinoza2026'],
+        },
+        {
+          tissue: 'whole blood (gene activity, mRNA)',
+          type: 'humanBloodMarker',
+          referenceIds: ['jamshed2019', 'erlangga2023', 'dastghaib2025'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx'],
     },
     {
@@ -166,8 +242,7 @@ const topic: EvidenceTopic = {
       gradeReason:
         'It rests on animal data and a scaling argument, with only sparse human anchors for the midpoint.',
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. The midpoint h50 is the single most influential parameter in the model. It is bracketed by human muscle markers and state-scaled mouse data, and no human time-course of blood-cell flux has been published to replace it.",
+      caveats: `${INDEX_CAVEAT} The midpoint h50 is the single most influential parameter in the model. It is bracketed by human muscle markers and state-scaled mouse data, and no human time-course of blood-cell flux has been published to replace it.`,
       referenceIds: [
         'kleiber1947',
         'pietrocola2017',
@@ -178,6 +253,25 @@ const topic: EvidenceTopic = {
         'dethlefsen2018',
         'moller2015',
       ],
+      warrants: [
+        {
+          type: 'firstPrinciples',
+          confidence: 'moderate',
+          scope:
+            'metabolic-rate scaling: mouse hours do not map onto human hours; it gives no human time course',
+        },
+      ],
+      outcomeScope: 'Timing of the index only; no human organ time course exists',
+      population: 'Mice; human anchors from small fasting studies (36 h to 4 days)',
+      observations: [
+        {
+          tissue: 'mouse liver, muscle, brain and white blood cells',
+          type: 'animal',
+          referenceIds: ['mizushima2004', 'alirezaei2010', 'pietrocola2017'],
+        },
+        { tissue: 'none (assumed fasting-clock midpoint)', type: 'modelDefinition' },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx'],
     },
     {
@@ -230,9 +324,24 @@ const topic: EvidenceTopic = {
       gradeReason:
         'Human muscle data and known signalling biology support the direction, but blood-cell flux contradicts an acute effect and the curve is a proposed shape.',
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. The equation is proposed: Vitals' evidence review rates it D for autophagy itself and B for the mTORC1 direction. In perfused rat liver, amino acids alone controlled recycling over its full range, but that is animal work.",
+      caveats: `${INDEX_CAVEAT} The equation is proposed: Vitals' evidence review rates it D for autophagy itself and B for the mTORC1 direction. In perfused rat liver, amino acids alone controlled recycling over its full range, but that is animal work.`,
       referenceIds: ['atherton2010', 'glynn2010', 'singh2025', 'mortimore1989'],
+      warrants: [
+        W_NUTRIENT_SENSING,
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'size of the fed-state suppression in human tissue; blood-cell flux did not change at 1 h',
+        },
+      ],
+      outcomeScope: 'Direction of fed-state suppression of autophagy signalling, mainly in muscle',
+      population: 'Healthy young adults, single meals; rat liver',
+      observations: [
+        bloodCellFlux(['singh2025']),
+        { tissue: 'perfused rat liver', type: 'animal', referenceIds: ['mortimore1989'] },
+        { tissue: 'none (proposed suppression curve)', type: 'modelDefinition' },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx', 'mtorIdx'],
     },
     {
@@ -284,14 +393,33 @@ const topic: EvidenceTopic = {
       timeCourse:
         'Suppression switches on within about 1 h and switches off as insulin returns to baseline, roughly 2.5–4 h after mixed meals (the carbohydrate topic).',
       moderators:
-        "Age dulls insulin's anti-breakdown effect in muscle (−47 % vs −12 %). The model deliberately does not apply this, because it would raise older adults' fed-state signal and its meaning is unclear.",
+        "Age dulls insulin's anti-breakdown effect in muscle (−47 % vs −12 %). The model deliberately does not apply this, because it would raise older adults' fed-state index and its meaning is unclear.",
       grade: 'C',
       gradeReason:
         'The human muscle data are good for protein breakdown (grade B), but applying them to autophagy is an extrapolation, and blood-cell flux showed no change after protein.',
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. The equation is a proposed fit to protein-breakdown data, applied to autophagy signalling by analogy. The fallback insulin curve, used when the carbohydrate topic's curve is unavailable, is an unverified placeholder.",
+      caveats: `${INDEX_CAVEAT} The equation is a proposed fit to protein-breakdown data, applied to autophagy signalling by analogy. The fallback insulin curve, used when the carbohydrate topic's curve is unavailable, is an unverified placeholder.`,
       referenceIds: ['greenhaff2008', 'wilkes2009', 'fritzen2016', 'vendelbo2014', 'chan2008'],
+      warrants: [
+        W_NUTRIENT_SENSING,
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'insulin lowers leg protein breakdown; applied to autophagy signalling by analogy',
+        },
+      ],
+      outcomeScope:
+        'Direction of insulin suppression of protein breakdown and autophagy signalling after meals',
+      population: 'Healthy young and older men; insulin clamps over hours',
+      observations: [
+        {
+          tissue: 'leg muscle (protein breakdown by tracer, not autophagy flux)',
+          type: 'humanOutcome',
+          referenceIds: ['greenhaff2008', 'wilkes2009'],
+        },
+        { tissue: 'none (proposed suppression curve)', type: 'modelDefinition' },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx', 'mtorIdx'],
     },
     {
@@ -319,7 +447,7 @@ const topic: EvidenceTopic = {
         {
           label: 'Weights w_c / w_g / w_k',
           value: '0.6 / 0.2 / 0.2 (each ±50 %, renormalised)',
-          note: 'The clock is the only input with human anchors. The glycogen and ketone terms let the signal respond to diet composition and fasted exercise. Grade D.',
+          note: 'The clock is the only input with human anchors. The glycogen and ketone terms let the index respond to diet composition and fasted exercise. Grade D.',
         },
         {
           label: 'K_bhb (ketone level for half weight)',
@@ -354,15 +482,14 @@ const topic: EvidenceTopic = {
         },
       ],
       timeCourse:
-        'The clock starts at the last meaningful meal and has no memory of its own. The glycogen and ketone terms do carry memory: someone who has just eaten but still has low liver glycogen or high ketones keeps a higher signal between meals. That follows from the design and is plausible but unproven. The drive approaches about 0.95 after 5–7 days. Whether autophagy falls again after several days is unknown, so the model plateaus.',
+        'The clock starts at the last meaningful meal and has no memory of its own. The glycogen and ketone terms do carry memory: someone who has just eaten but still has low liver glycogen or high ketones keeps a higher index between meals. That follows from the design and is plausible but unproven. The drive approaches about 0.95 after 5–7 days. Whether autophagy falls again after several days is unknown, so the model plateaus.',
       moderators:
         'A blunted insulin fall in obesity enters automatically through the insulin signal. No age or sex multiplier is applied.',
       grade: 'C',
       gradeReason:
         'The direction is supported by human muscle at 72 h (grade C); the shape and weights are expert-set (grade D).',
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. BHB is a marker of fasting depth, not a proven human driver of autophagy. A ketone-ester drink after exercise raised rather than lowered muscle mTORC1 signalling, so only ketones made by the body may count. BHB blocks a class of gene-silencing enzymes and induces FOXO3A in mice, which is grade D. If endogenous and drink-derived ketones cannot be separated, the ketone weight is set to 0. Mouse liver autophagy returns toward baseline by 48 h, and a human muscle-breakdown marker (3-methylhistidine) rose to day 5 then fell; the model plateaus regardless.",
+      caveats: `${INDEX_CAVEAT} BHB is a marker of fasting depth, not a proven human driver of autophagy. A ketone-ester drink after exercise raised rather than lowered muscle mTORC1 signalling, so only ketones made by the body may count. BHB blocks a class of gene-silencing enzymes and induces FOXO3A in mice, which is grade D. If endogenous and drink-derived ketones cannot be separated, the ketone weight is set to 0. Mouse liver autophagy returns toward baseline by 48 h, and a human muscle-breakdown marker (3-methylhistidine) rose to day 5 then fell; the model plateaus regardless.`,
       referenceIds: [
         'dethlefsen2018',
         'moller2015',
@@ -377,6 +504,27 @@ const topic: EvidenceTopic = {
         'laurens2021',
         'wijngaarden2013',
       ],
+      warrants: [
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope: 'the longer since a meal, the lower insulin, the less liver glycogen and the more ketones',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope:
+            'autophagy markers change clearly only at 72 h, in muscle; the weights and shape are set by experts',
+        },
+      ],
+      outcomeScope: 'Fasting depth as a set of conditions; not autophagy flux',
+      population: 'Healthy adults in fasts of 1 to 4 days; mice',
+      observations: [
+        { tissue: 'blood (insulin and ketones)', type: 'humanBloodMarker', referenceIds: ['chan2008'] },
+        { tissue: 'mouse liver', type: 'animal', referenceIds: ['mizushima2004', 'shimazu2013'] },
+        { tissue: 'none (proposed weights and clock midpoint)', type: 'modelDefinition' },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx'],
     },
     {
@@ -457,6 +605,16 @@ const topic: EvidenceTopic = {
         'moller2015',
         'fritzen2016',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'AMPK activation in human muscle depends on exercise intensity and muscle glycogen',
+        },
+      ],
+      outcomeScope: 'Muscle AMPK signalling after exercise; a display index, not a goal',
+      population: 'Healthy, mostly young men; single sessions and fasts of up to 48 h',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['ampkIdx'],
     },
     {
@@ -466,7 +624,7 @@ const topic: EvidenceTopic = {
       summary:
         'Sirtuins are enzymes that need a molecule called NAD+ to work, and they are often linked to longevity. The human data are indirect. Early time-restricted eating raised SIRT1 gene activity in blood cells by 10 ± 3 %, and 6 months of calorie restriction raised it in muscle. No human study links any of this to autophagy flux.',
       howModelled:
-        'Not modelled as a separate state. The autophagy signal already responds to the upstream drivers (fasting and exercise), so a sirtuin term would count them twice.',
+        'Not modelled as a separate state. The autophagy index already responds to the upstream drivers (fasting and exercise), so a sirtuin term would count them twice.',
       keyNumbers: [
         {
           label: '4 days of early time-restricted eating, whole-blood SIRT1 mRNA',
@@ -500,9 +658,22 @@ const topic: EvidenceTopic = {
       gradeReason:
         'Any human link from sirtuins to autophagy rests on indirect markers and mouse mechanisms; none has been measured in people.',
       status: 'contested',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. NAD+ precursors raise NAD+ levels but no human study connects that to recycling activity.",
+      caveats: `${INDEX_CAVEAT} NAD+ precursors raise NAD+ levels but no human study connects that to recycling activity.`,
       referenceIds: ['jamshed2019', 'civitarese2007', 'costford2010', 'elhassan2019', 'martens2018'],
+      warrants: [
+        {
+          type: 'causallyCoherent',
+          confidence: 'low',
+          scope: 'a link from sirtuins to autophagy rests on mouse mechanisms and indirect human markers',
+        },
+      ],
+      outcomeScope: 'Sirtuin and NAD+ markers; no autophagy outcome',
+      population: 'Adults in short eating-window and 6-month restriction studies',
+      observations: [
+        { tissue: 'whole blood (SIRT1 mRNA)', type: 'humanBloodMarker', referenceIds: ['jamshed2019'] },
+        { tissue: 'blood (NAD+ levels)', type: 'humanBloodMarker', referenceIds: ['martens2018'] },
+      ],
+      modelStatus: 'notModelled',
       relatedMetricIds: [],
     },
     {
@@ -512,18 +683,18 @@ const topic: EvidenceTopic = {
       summary:
         'Exercise moves autophagy markers in human muscle more clearly than fasting does. Three hours after a vigorous bout, the marker LC3-II rose about 1.7-fold in muscle and blood cells of untrained men. After a 24 h run, LC3b-II in muscle was up 554 %. The changes depend on intensity and duration, were absent in endurance-trained men, and were not increased by fasting.',
       howModelled:
-        'Each bout adds a pulse that ramps up during the session and fades with a 3 h time constant. Its size grows with intensity (from 40 % to 80 % of maximal oxygen uptake) and with duration (square-root scaling, capped at 1.5), and it is damped by training status. A resistance session counts up to 0.5. The headline signal can gain up to 15 index points and the muscle-specific one up to 25. Fasting does not boost it.',
+        'Each bout adds a pulse that ramps up during the session and fades with a 3 h time constant. Its size grows with intensity (from 40 % to 80 % of maximal oxygen uptake) and with duration (square-root scaling, capped at 1.5), and it is damped by training status. A resistance session counts up to 0.5. The headline index can gain up to 15 points and the muscle-specific variant up to 25. Fasting does not boost it.',
       equation:
         'A_bout (endurance) = fI · fD · mT\nfI = clamp01( (I_frac − 0.40) / (0.80 − 0.40) )\nfD = min(1.5, √(duration_min / 60))\nmT = 1.0 untrained | 0.75 recreational | 0.5 endurance-trained\nA_bout (resistance) = 0.5 · min(1, totalSets / 15) · (1.0 untrained | 0.7 trained)\nxEx(t) = Σ_bouts A_bout · (ramp 0→1 during the bout; exp(−(t − t_end) / tauEx) after)\nasi contribution = A_ex · min(1.5, xEx); asiMuscle contribution = A_ex_m · min(1.5, xEx)',
       keyNumbers: [
         {
-          label: 'A_ex (headline signal, index points)',
+          label: 'A_ex (headline index, points)',
           value: '15 (range 5–25)',
           note: 'Grade D. Blood-cell LC3-II ×1.74 in untrained men was larger than any fasting effect seen in blood cells; the value is kept moderate.',
           referenceIds: ['specht2026'],
         },
         {
-          label: 'A_ex_m (muscle signal, index points)',
+          label: 'A_ex_m (muscle-specific index, points)',
           value: '25 (range 10–40)',
           note: 'Grade C/D.',
           referenceIds: ['schwalm2015', 'brandt2018', 'jamart2012', 'specht2026'],
@@ -577,8 +748,7 @@ const topic: EvidenceTopic = {
       gradeReason:
         'It is well supported that high-intensity or long exercise changes muscle autophagy markers (grade B); the size of the effect on the index rests on small studies with static markers.',
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. Resistance-exercise results point in different directions between studies. The study behind the size of the pulse had 12 men and static markers. In mice, exercise-induced autophagy in muscle was required for exercise's glucose benefits, which is grade D.",
+      caveats: `${INDEX_CAVEAT} Resistance-exercise results point in different directions between studies. The study behind the size of the pulse had 12 men and static markers. In mice, exercise-induced autophagy in muscle was required for exercise's glucose benefits, which is grade D.`,
       referenceIds: [
         'schwalm2015',
         'moller2015',
@@ -592,6 +762,24 @@ const topic: EvidenceTopic = {
         'wojtaszewski2000',
         'he2012',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'hard or long exercise changes static autophagy markers in muscle and blood cells; not flux',
+        },
+      ],
+      outcomeScope: 'Direction of exercise-induced autophagy markers for hours after a session',
+      population: 'Small groups of untrained and trained men; hours to 2 days after a session',
+      observations: [
+        {
+          tissue: 'blood cells (LC3-II and p62, static markers)',
+          type: 'humanBloodMarker',
+          referenceIds: ['specht2026'],
+        },
+        { tissue: 'mouse muscle', type: 'animal', referenceIds: ['he2012'] },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx', 'ampkIdx'],
     },
     {
@@ -646,19 +834,30 @@ const topic: EvidenceTopic = {
       gradeReason:
         "Vitals' evidence review rates this C/D: positive muscle data conflict with null blood-cell flux, so the term is kept small.",
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. Methionine restriction has no human autophagy data.",
+      caveats: `${INDEX_CAVEAT} Methionine restriction has no human autophagy data.`,
       referenceIds: ['bensalem2025', 'yang2016', 'das2023', 'singh2026'],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'randomised trials found no blood-cell flux change with 6 months of restriction or 4 weeks of lower protein',
+        },
+      ],
+      outcomeScope: 'Blood-cell flux and muscle gene activity under sustained restriction; not a benefit',
+      population: 'Adults with obesity (6 months), young adults (4 weeks), non-obese adults (2 years)',
+      observations: [bloodCellFlux(['bensalem2025', 'singh2026'])],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx'],
     },
     {
       id: '08-autophagy-signal-index',
-      title: 'The Autophagy Signal Index',
+      title: 'The autophagy research index',
       category: 'cellular',
       summary:
-        "Vitals' autophagy line is not a measurement. It is a relative 0–100 index of how many conditions linked to autophagy are present at a given hour: no recent protein or carbohydrate, low insulin, depleted liver glycogen, rising ketones and recent hard exercise. It is set to 25 at 12 h after a meal by definition. Changing meal timing moves its daily mean by only a few points. Multi-day fasts and hard or long exercise move it most.",
+        "Vitals' autophagy index is not a measurement and not a percentage of autophagy. It is a 0–100 research index of how many conditions linked to autophagy are present at a given hour: no recent protein or carbohydrate, low insulin, depleted liver glycogen, rising ketones and recent hard exercise. It is set to 25 at 12 h after a meal by definition. It is kept only as an exploratory research display: it is not a goal, it earns no planning or health credit, and no plan lengthens a fast, narrows an eating window or lowers protein to raise it. Changing meal timing moves its daily mean by only a few points; multi-day fasts and hard or long exercise move it most.",
       howModelled:
-        'Each hour the model works out the fasting clock, the nutrient suppression from amino acids and insulin, the fasting-depth drive, any recent exercise pulse, and a small term for sustained restriction. The core is (1 − suppression) times a baseline plus the fasting drive. A baseline constant B0 is calibrated so that the index reads exactly 25 at 12 h after a meal. The result is then plotted with a likely-range band.',
+        'Each hour the model works out the fasting clock, the nutrient suppression from amino acids and insulin, the fasting-depth drive, any recent exercise pulse, and a small term for sustained restriction. The core is (1 − suppression) times a baseline plus the fasting drive. A baseline constant B0 is set so that the index reads exactly 25 at 12 h after a meal. Its range comes from varying the timing parameters: a sensitivity range, not a predicted range for flux. The index enters no plan objective, comparison or safety check.',
       equation:
         'ASI_core = 100 · (1 − S) · ( B0 + (1 − B0) · F )\nasi = clamp( ASI_core + A_ex · min(1.5, xEx) + asi_CR, 0, 100 )\nasiMuscle = clamp( ASI_core + A_ex_m · min(1.5, xEx) + asi_CR, 0, 100 )\nB0 = (0.25 − F12) / (1 − F12), where F12 is F at 12 h since the last meal',
       keyNumbers: [
@@ -666,12 +865,15 @@ const topic: EvidenceTopic = {
           label: 'Central value by hours since the last meal',
           value:
             '0–1 h: 2–5; 4 h: 15–18; 12 h: 25 (by definition); 16 h: 28; 18 h: 30; 24 h: 36; 36 h: 49; 48 h: 60; 72 h: 75; 96 h: 84; 120 h: 89; 168 h: 94',
-          note: 'Check anchors, to be matched within ±5 points after calibration; if not, adjust h50 within 36–60 h.',
+          note: 'Definitional anchors: the code is checked against them within ±5 points. Matching them is a code check, not validation against human data.',
         },
         {
-          label: 'P10–P90 band (h50 24–96 h, nh 1.5–3; 20 000 draws)',
+          label:
+            'Sensitivity range of the index over its timing parameters (h50 24–96 h, nh 1.5–3; 20 000 draws)',
           value:
             '16 h: 26–33; 18 h: 26–37; 24 h: 28–49; 36 h: 34–69; 48 h: 41–81; 72 h: 56–92; 96 h: 67–96; 120 h: 76–98; 168 h: 86–99',
+          note: 'The 10th–90th percentiles of the index across parameter draws. Not a probability, and not a predicted range for flux.',
+          uncertaintyKind: 'parameterSensitivity',
         },
         {
           label: 'Clock reset rule',
@@ -681,7 +883,7 @@ const topic: EvidenceTopic = {
         {
           label: 'B0 with the clock-only fallback',
           value: '0.203',
-          note: 'Recalibrated per draw so that 12 h reads 25.',
+          note: 'Re-normalised per draw so that 12 h reads 25 (a definition, not a fit to data).',
         },
         {
           label: 'Labels for the display',
@@ -689,7 +891,7 @@ const topic: EvidenceTopic = {
             '0–15 “fed, suppressed”; 15–30 “post-absorptive (baseline)”; 30–50 “extended or short fast”; 50–75 “prolonged fast”; 75–100 “multi-day fast”',
         },
         {
-          label: 'Daily mean signal by eating pattern (illustrative)',
+          label: 'Daily mean index by eating pattern (illustrative)',
           value:
             '4 meals 08:00–19:00: 13; 3 meals in a 12 h window: 15; 8 h window (12/16/20): 16; early 6 h window (08:00 and 13:30): 18; 6 h window (13/19): 18; 4 h window (16:00 and 19:30): 19; one meal a day: 24; a 36 h fast day: 30; water-only fast, hours ~53–77: 72',
           note: 'Clock-only fallback with placeholder insulin and leucine curves, 120 g protein and 220 g carbohydrate a day, steady state on day 4. These figures will change once the full protein and carbohydrate curves replace the placeholders.',
@@ -702,20 +904,19 @@ const topic: EvidenceTopic = {
           label: 'Prototype weekly means for the 6-month trial arms (clock-only)',
           value:
             'Standard care 14.9; continuous restriction 18.7; intermittent fasting plus early eating window 20.6',
-          note: 'Only the order matters: fasting arm > restriction ≥ standard care.',
+          note: 'Only the order matters: fasting arm > restriction ≥ standard care. An ordering check against blood-cell flux in that trial, not validation of the scale.',
           referenceIds: ['bensalem2025'],
         },
       ],
       timeCourse:
-        'Updated hourly. The signal climbs from about 25 at 12 h to about 94 by 168 h of fasting. An exercise pulse adds points that fade with a half-life of about 2 h. Nutrient suppression switches on within about an hour of a meal.',
+        'Updated hourly. The index climbs from about 25 at 12 h to about 94 by 168 h of fasting. An exercise pulse adds points that fade with a half-life of about 2 h. Nutrient suppression switches on within about an hour of a meal.',
       moderators:
         "Deliberately none for age or sex. Blood-cell flux rises with age, older monocytes respond more to amino-acid starvation, older men lacked the resistance-exercise rise, and insulin's effect is dulled with age, so the directions conflict. Females show higher flux, but the index is relative within a person. Training status applies to exercise pulses only.",
       grade: 'D',
       gradeReason:
         "Vitals' evidence review rates the index C/D overall: the direction has some human support, but the weights are expert-set and no human data link any schedule to flux in a solid organ.",
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. One known result the model does not reproduce: 35 g of protein did not change blood-cell flux at 1 h, whereas the index drops sharply after any protein meal by design (from muscle data). The dip reflects signalling in muscle, not measured flux in blood. The midpoint h50 (24–96 h) is the most influential parameter.",
+      caveats: `${INDEX_CAVEAT} One known result the model does not reproduce: 35 g of protein did not change blood-cell flux at 1 h, whereas the index drops sharply after any protein meal by design (from muscle data). The dip reflects signalling in muscle, not measured flux in blood. The midpoint h50 (24–96 h) is the most influential parameter.`,
       referenceIds: [
         'bensalem2025',
         'singh2025',
@@ -728,6 +929,12 @@ const topic: EvidenceTopic = {
         'dethlefsen2018',
         'specht2026',
       ],
+      warrants: [W_INDEX_DEFINITION, W_NO_HEALTH_LINK],
+      outcomeScope:
+        'None: a research index of conditions linked to autophagy; no flux estimate and no health outcome',
+      population: 'Not applicable (a definition); its timing anchors come from small human fasting studies',
+      observations: [OBS_INDEX_DEFINITION],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['autophagyIdx'],
     },
     {
@@ -777,6 +984,17 @@ const topic: EvidenceTopic = {
       caveats:
         'The index tracks signalling, not protein synthesis: synthesis returns to baseline at about 2 h while signalling stays up for at least 3 h.',
       referenceIds: ['vendelbo2014', 'jamart2012', 'vandoorne2017', 'atherton2010'],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'direction and timing of mTORC1 signalling in human muscle; signalling is not protein synthesis',
+        },
+      ],
+      outcomeScope: 'Muscle growth signalling; a display index, not a goal',
+      population: 'Healthy adults, single meals, sessions and fasts of up to 72 h',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mtorIdx'],
     },
     {
@@ -786,7 +1004,7 @@ const topic: EvidenceTopic = {
       summary:
         'IGF-1 is a growth signal made mostly by the liver. It stays put in a 24 h fast, falls by about half by 72 h and to about a quarter by 10 days. Eating brings it back much more slowly than it fell. Calorie restriction with adequate protein did not lower it in people, while eating less protein did.',
       howModelled:
-        'A relative level where 1.0 is your usual on your habitual diet. A fasting target of 0.25 switches on after about 30 h. It is multiplied by a slow protein factor based on your recent protein intake. The level then drifts towards the target with a time constant of 44 h going down and 173 h going up.',
+        'A relative level where 1.0 is your usual on your habitual diet. A fasting target of 0.25 switches on after about 30 h. It is multiplied by a slow protein factor based on your recent protein intake. The level then drifts towards the target with a time constant of 44 h going down and 173 h going up. It is shown only as an exploratory direction relative to your usual level: not a predicted lab value, not a goal, and lower is not better.',
       equation:
         's = 1 / (1 + exp(−(hFast − LAG) / LW))\nT_E = 1 − (1 − A_inf) · s\nTP(P) = clamp(1 − 0.306 · (1.67 − P), 0.5, 1.0), where P is the 7-day mean protein in g/kg/d on eating days\nd(igfProt)/dt = (TP(P7) / TP(P_habitual) − igfProt) / tauP, applied only while hFast < 24\nT = T_E · igfProt\nd(igf1Rel)/dt = (T − igf1Rel) / (T < igf1Rel ? tauDown : tauUp)',
       keyNumbers: [
@@ -858,8 +1076,9 @@ const topic: EvidenceTopic = {
         },
         {
           label: 'Protein slope / tauP',
-          value: '0.306 per g/kg/d (0.2–0.4) / 168 h (72–240)',
-          note: 'The slope comes from 1.67 → 0.95 g/kg ⇒ 0.78. tauP is a compromise between the fast refeeding data and the slow fasting-mimicking data.',
+          value: '0.306 per g/kg/d (scenario range 0–0.4) / 168 h (72–240)',
+          note: 'The slope comes from 1.67 → 0.95 g/kg ⇒ 0.78. Its range includes no protein response at all: Vitals claims no single protein slope for everyone. tauP is a compromise between the fast refeeding data and the slow fasting-mimicking data.',
+          uncertaintyKind: 'scenario',
           referenceIds: ['fontana2008', 'isley1983', 'espinoza2026', 'wei2017'],
         },
         {
@@ -889,6 +1108,29 @@ const topic: EvidenceTopic = {
         'espinoza2026',
         'moro2016',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'direction of IGF-1 in multi-day fasts and under lower protein, in small groups',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'one protein slope for everyone, or a health benefit from lower IGF-1',
+        },
+      ],
+      outcomeScope: 'IGF-1 relative to your usual level; not a lab value, not a goal',
+      population:
+        'Normal-weight and obese adults in 1- to 10-day fasts; restriction practitioners; fasting-mimicking diet trials',
+      observations: [
+        {
+          tissue: 'serum IGF-1',
+          type: 'humanBloodMarker',
+          referenceIds: ['chan2008', 'isley1983', 'clemmons1981', 'fontana2008'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['igf1'],
     },
     {
@@ -939,6 +1181,7 @@ const topic: EvidenceTopic = {
       caveats:
         'The reason for leaving it out is that fructose, alcohol and sex effects swamp any fasting effect, so a fasting-only curve would not represent what people actually see.',
       referenceIds: ['galman2008', 'laeger2014', 'dushay2015', 'soberg2017', 'peterson2025'],
+      modelStatus: 'notModelled',
       relatedMetricIds: [],
     },
     {
@@ -948,7 +1191,7 @@ const topic: EvidenceTopic = {
       summary:
         'No. In muscle, a baseline level of autophagy is needed to keep muscle mass, yet too much FoxO3-driven autophagy promotes wasting. In people, a 72 h fast doubled net muscle phenylalanine release, and a 10-day fast lost 5.9 kg (7 %), of which 3.53 kg was lean soft tissue. In mice, health gains did not track lifespan gains. Health, lifespan and autophagy are three different things.',
       howModelled:
-        'Vitals never labels a higher autophagy signal as healthier. It describes the signal as a set of conditions. The Planner will not trade lean mass, bone or safety outcomes of grade A or B for a grade C/D signal gain.',
+        'Vitals never labels a higher autophagy index as healthier. It describes the index as a set of conditions and gives it no planning or health credit, so nothing in a plan trades lean mass, bone or safety against it.',
       keyNumbers: [
         {
           label: 'Muscle-specific Atg7 deletion in mice',
@@ -1002,8 +1245,7 @@ const topic: EvidenceTopic = {
       grade: 'D',
       gradeReason: 'No human study links any level of autophagy to health outcomes in a dose-response way.',
       status: 'contested',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. Brain results in mice conflict (none at 48 h with one method, profound induction with another). Ethanol inhibited recycling in perfused rat liver, which is animal evidence only.",
+      caveats: `${INDEX_CAVEAT} Brain results in mice conflict (none at 48 h with one method, profound induction with another). Ethanol inhibited recycling in perfused rat liver, which is animal evidence only.`,
       referenceIds: [
         'masiero2009',
         'mammucari2007',
@@ -1018,6 +1260,34 @@ const topic: EvidenceTopic = {
         'mizushima2004',
         'alirezaei2010',
       ],
+      warrants: [
+        {
+          type: 'causallyCoherent',
+          confidence: 'moderate',
+          scope: 'both too little and too much autophagy can harm muscle (animal work)',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'no human study links any level of autophagy to a health outcome',
+        },
+      ],
+      outcomeScope: 'Whether more autophagy is better; no dose-response link to health',
+      population: 'Mice; healthy adults in fasts of 3 to 10 days',
+      observations: [
+        {
+          tissue: 'mouse muscle and whole mouse',
+          type: 'animal',
+          referenceIds: ['masiero2009', 'mammucari2007', 'pyo2013', 'difrancesco2024'],
+        },
+        {
+          tissue: 'whole body (lean soft tissue by DXA)',
+          type: 'humanOutcome',
+          referenceIds: ['laurens2021'],
+        },
+        bloodCellFlux(['bensalem2023']),
+      ],
+      modelStatus: 'notModelled',
       relatedMetricIds: ['autophagyIdx'],
     },
     {
@@ -1027,67 +1297,66 @@ const topic: EvidenceTopic = {
       summary:
         'Autophagy-favouring and muscle-building states take turns within a day; they do not exclude each other. After a protein feeding, muscle mTORC1 signalling stays raised for about 2–4 h. A day with 3 protein feedings therefore has about 6–10 h of building state and 14–18 h of low-mTOR state. Trials of shorter eating windows with resistance training and enough protein found similar muscle gains. Multi-day fasts, sustained calorie restriction and low protein do conflict with gaining muscle.',
       howModelled:
-        'The Planner uses a compatibility table plus four proposed rules. If muscle gain ranks above autophagy: protein at least 1.6 g/kg/d in at least 3 feedings spaced 3 h or more apart (an eating window of about 7–8 h or longer), energy at or above maintenance, and no fasts over 24 h. If autophagy ranks first: allow 16–20 h windows and occasional 24–36 h fasts within the safety limits, keep protein at 1.2–1.6 g/kg/d on eating days and at least 2 resistance sessions a week, and warn that gains will be slower. Grade A or B outcomes are never traded for a C/D signal unless the user ranked autophagy first and acknowledged the evidence statement. A concave utility stops the optimiser chasing ever-longer fasts.',
-      equation: 'U(ASI) = max(0, 1 − exp(−(asiWeeklyMean − 13) / 15))',
+        'The autophagy index is not a planning goal, so no plan lengthens a fast, narrows an eating window or lowers protein to raise it, and nothing is traded against it. A fasting pattern you choose yourself (an eating window or fast days) stays your preference, inside the safety limits, without a cellular benefit attached. When muscle gain is a goal, these proposed rules keep a plan compatible with it: protein at least 1.6 g/kg/d in at least 3 feedings spaced 3 h or more apart (an eating window of about 7–8 h or longer), energy at or above maintenance, and no fasts over 24 h.',
       keyNumbers: [
         {
           label: '10–12 h eating window, 3–4 feedings',
-          value: 'Signal ≈ 13–15; fully compatible with muscle gain',
+          value: 'Fully compatible with muscle gain (index ≈ 13–15)',
         },
         {
           label:
             '8 h window, ≥ 3 feedings of ≥ 0.3–0.4 g/kg, ≥ 1.6 g/kg/d, energy ≥ maintenance, with resistance training',
-          value: '+1 to +3 points; compatible',
+          value: 'Compatible (index +1 to +3)',
           note: 'Grade B.',
           referenceIds: ['tinsley2019', 'moro2016'],
         },
         {
           label: '6 h window (2–3 feedings)',
-          value: '+3 to +5 points; mild conflict',
+          value: 'Mild conflict (index +3 to +5)',
           note: 'Grade C. Fewer, larger feedings.',
           referenceIds: ['areta2013'],
         },
         {
           label: '4 h window or one meal a day',
-          value: '+5 to +10 points; conflict',
+          value: 'Conflict (index +5 to +10)',
           note: 'Grade C. One or two feedings; hard to reach a surplus and a good distribution.',
         },
         {
           label: '24–36 h fast once a week',
-          value: '+2 to +4 points; moderate conflict',
+          value: 'Moderate conflict (index +2 to +4)',
           note: 'Grade C/D.',
         },
         {
           label: '48–72 h or longer fasts',
-          value: '+40–60 during the fast; strong conflict',
+          value: 'Strong conflict (index +40–60 during the fast)',
           note: 'Grade B. Net muscle protein loss doubled at 72 h, and lean tissue was lost.',
           referenceIds: ['vendelbo2014', 'laurens2021'],
         },
         {
           label: 'Continuous calorie restriction of 10–25 %',
-          value: '+2 to +4 points; conflict with gain',
+          value: 'Conflict with gain (index +2 to +4)',
           note: 'Grade A/B. CALERIE fat-free mass −2.2 kg over 2 years.',
           referenceIds: ['villareal2016'],
         },
         {
           label: 'Protein ≤ 0.8 g/kg',
-          value: 'About 0; strong conflict',
+          value: 'Strong conflict (index about 0)',
           note: 'Grade B. No flux effect.',
           referenceIds: ['morton2018', 'singh2026'],
         },
         {
           label: 'Hard endurance bouts ≥ 70 % VO2max',
-          value: '+10–25 transient; compatible in moderate volume',
+          value: 'Compatible in moderate volume (index +10–25, transient)',
           note: 'Grade B/C. Interference with lifting is covered in the cardio topic.',
         },
         {
           label: 'Resistance training',
-          value: 'Small transient rise; synergistic',
+          value: 'Synergistic (small transient index rise)',
           note: 'Grade A. It is required for gain.',
         },
         {
           label: 'Training fasted vs fed',
-          value: 'No extra signal; neutral to slightly negative for performance',
+          value: 'Neutral to slightly negative for performance (no extra index rise)',
           note: 'Grade B.',
           referenceIds: ['moller2015', 'schwalm2015'],
         },
@@ -1122,8 +1391,7 @@ const topic: EvidenceTopic = {
       gradeReason:
         "Vitals' evidence review mixes grade B (shorter windows with training and adequate protein) with C and D (longer windows and weekly fasts), so the overall grade is set to C.",
       status: 'proposed-fit',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. The effect-on-signal column comes from the model itself, so it is only as reliable as the index. The planner rules are proposed, not tested.",
+      caveats: `${INDEX_CAVEAT} The index figures come from the research index itself, not from measurements in people. The planner rules are proposed, not tested.`,
       referenceIds: [
         'atherton2010',
         'vendelbo2014',
@@ -1139,6 +1407,26 @@ const topic: EvidenceTopic = {
         'schwalm2015',
         'singh2026',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'shorter eating windows with resistance training and enough protein kept muscle gains in trained adults',
+        },
+        W_CHOSEN_FASTING,
+        W_CHOSEN_FASTING_LIVED,
+      ],
+      outcomeScope: 'Muscle gain alongside a chosen eating pattern; index points are a research display only',
+      population: 'Resistance-trained men and women, 8–12 weeks',
+      observations: [
+        {
+          tissue: 'whole body (fat-free mass, muscle size, strength)',
+          type: 'humanOutcome',
+          referenceIds: ['tinsley2019', 'moro2016', 'lowe2020'],
+        },
+        { tissue: 'none (index points from the research index)', type: 'modelDefinition' },
+      ],
       relatedMetricIds: ['autophagyIdx', 'mtorIdx'],
     },
     {
@@ -1148,7 +1436,7 @@ const topic: EvidenceTopic = {
       summary:
         'Some studies link lower protein intake to lower IGF-1 and lower cancer deaths in people under 65, but the same data show the opposite pattern after 65. Lower IGF-1 is not simply better: death rates are lowest in the middle. Older adults who ate more protein lost less lean mass. In a randomised trial in young adults, eating less protein produced no autophagy benefit.',
       howModelled:
-        'Protein restriction is not treated as an autophagy lever. IGF-1 is shown as an informational output with a U-shape caveat and is not a goal by default. Age-dependent protein floors override any longevity-motivated restriction. If someone still wants lower protein, the app shows the predicted IGF-1 change next to the predicted lean-mass cost.',
+        'Protein restriction is not treated as an autophagy lever and earns no cellular benefit. IGF-1 is shown as an informational output with a U-shape caveat and is not a goal by default. Age-dependent protein floors override any longevity-motivated restriction. If someone still wants lower protein, the app shows the IGF-1 direction (exploratory, not a predicted lab value) next to the estimated lean-mass cost.',
       keyNumbers: [
         {
           label:
@@ -1228,6 +1516,31 @@ const topic: EvidenceTopic = {
         'morton2018',
         'singh2026',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'a randomised trial found no blood-cell autophagy benefit from eating less protein',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'links between protein, IGF-1 and longevity are observational and reverse after 65',
+        },
+      ],
+      outcomeScope:
+        'IGF-1, mortality associations and blood-cell flux under lower protein; no cellular benefit',
+      population: 'Adults over 50 (cohorts); young adults (randomised trial, 4 weeks)',
+      observations: [
+        { tissue: 'serum IGF-1', type: 'humanBloodMarker', referenceIds: ['fontana2008'] },
+        {
+          tissue: 'whole body (mortality, observational)',
+          type: 'humanOutcome',
+          referenceIds: ['levine2014', 'burgers2011'],
+        },
+        bloodCellFlux(['singh2026']),
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['igf1'],
     },
     {
@@ -1388,7 +1701,7 @@ const topic: EvidenceTopic = {
       summary:
         'Spermidine, coffee, urolithin A, NAD+ precursors and various plant compounds are often said to trigger autophagy. In people, none of them has had autophagy itself measured. The evidence is from mice (coffee), yeast, worms and cells (spermidine), or effects on other things such as NAD+ levels and muscle endurance.',
       howModelled:
-        'No compound raises the autophagy signal. Coffee or tea without milk or sugar do not reset the fasting clock, because their energy is below the thresholds and fasting studies allowed them. Drugs such as rapamycin, metformin and aspirin are outside the scope of a lifestyle planner and are not modelled or suggested. The supplement catalogue is in the other-levers topic.',
+        'No compound raises the autophagy index. Coffee or tea without milk or sugar do not reset the fasting clock, because their energy is below the thresholds and fasting studies allowed them. Drugs such as rapamycin, metformin and aspirin are outside the scope of a lifestyle planner and are not modelled or suggested. The supplement catalogue is in the other-levers topic.',
       keyNumbers: [
         {
           label: 'Spermidine, 12-month trial (n = 100, ages 60–90, 0.9 mg/d)',
@@ -1438,8 +1751,7 @@ const topic: EvidenceTopic = {
       grade: 'D',
       gradeReason: 'For autophagy itself there are only animal, cell or indirect human data.',
       status: 'contested',
-      caveats:
-        "Autophagy (the cell's recycling process) cannot be measured in your organs by any routine test. This line is a relative model signal that shows when the conditions linked to autophagy in animal and a few small human studies are present — no recent protein or sugar, low insulin, depleted liver glycogen, rising ketones, recent hard exercise. It does not tell you how much autophagy is happening, in which tissue, or whether it improves your health; human studies measuring autophagy directly have mostly found small or no effects of fasting, protein timing or calorie restriction. Evidence grade: C–D (low). The shaded band shows how uncertain the timing is: the fasting length at which the signal reaches its midpoint could be anywhere from about 1 to 4 days. NAD+ levels and mitochondrial markers are not autophagy flux. Where Vitals' evidence review grades the human evidence for a compound's other effects, it is C for NAD+ and for urolithin A, and D for autophagy.",
+      caveats: `${INDEX_CAVEAT} NAD+ levels and mitochondrial markers are not autophagy flux. Where Vitals' evidence review grades the human evidence for a compound's other effects, it is C for NAD+ and for urolithin A, and D for autophagy.`,
       referenceIds: [
         'schwarz2022',
         'hofer2024',
@@ -1451,6 +1763,25 @@ const topic: EvidenceTopic = {
         'vandoorne2017',
         'pietrocola2017',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'for autophagy itself only animal, cell or indirect human data exist',
+        },
+      ],
+      outcomeScope: 'Autophagy claims for foods and supplements; no human autophagy measurement',
+      population: 'Mice, yeast, worms and cells; older and middle-aged adults for other outcomes',
+      observations: [
+        { tissue: 'mouse liver, muscle and heart', type: 'animal', referenceIds: ['pietrocola2014'] },
+        { tissue: 'yeast, worms and human cells', type: 'cell', referenceIds: ['hofer2024'] },
+        {
+          tissue: 'whole body (memory, muscle endurance and strength)',
+          type: 'humanOutcome',
+          referenceIds: ['schwarz2022', 'liu2022', 'singh2022'],
+        },
+      ],
+      modelStatus: 'notModelled',
       relatedMetricIds: ['autophagyIdx'],
     },
   ],
@@ -1460,7 +1791,7 @@ const topic: EvidenceTopic = {
       claim: 'Autophagy switches on after 16 hours of fasting.',
       verdict: 'oversimplified',
       explanation:
-        "Autophagy runs all the time at a low level, so there is no on switch. No human study has found an onset time. The only data near 16–18 h are gene-activity readings: a fast of about 18 h instead of 12 h raised LC3A mRNA in blood by 22 %. No one has measured recycling in solid tissue between 12 and 72 h. Vitals' signal rises smoothly instead, from 25 at 12 h to about 28 at 16 h.",
+        "Autophagy runs all the time at a low level, so there is no on switch. No human study has found an onset time. The only data near 16–18 h are gene-activity readings: a fast of about 18 h instead of 12 h raised LC3A mRNA in blood by 22 %. No one has measured recycling in solid tissue between 12 and 72 h. Vitals' research index rises smoothly instead, by definition from 25 at 12 h to about 28 at 16 h.",
       referenceIds: ['jamshed2019'],
     },
     {
@@ -1492,7 +1823,7 @@ const topic: EvidenceTopic = {
       claim: 'Ketone drinks or MCT oil give you the benefits of fasting.',
       verdict: 'not-supported',
       explanation:
-        "A ketone-ester drink raised mTORC1 signalling in human muscle, the opposite of the fasting direction, and BHB infusion slowed protein breakdown. The autophagy signal ignores ketones that do not come from the body's own production.",
+        "A ketone-ester drink raised mTORC1 signalling in human muscle, the opposite of the fasting direction, and BHB infusion slowed protein breakdown. The autophagy index ignores ketones that do not come from the body's own production.",
       referenceIds: ['vandoorne2017', 'nair1988'],
     },
     {
@@ -1569,12 +1900,12 @@ const topic: EvidenceTopic = {
     },
   ],
   openQuestions: [
-    'The whole autophagy index is a construct. No human dataset links any eating schedule to autophagy flux in a solid organ, and the weights are expert-set (grade D). The Planner treats gains in the signal as low-confidence.',
+    'The whole autophagy index is a construct. No human dataset links any eating schedule to autophagy flux in a solid organ, and the weights are expert-set (grade D). The index is therefore not a goal and earns no planning credit.',
     'The clock midpoint (48 h, range 24–96 h) is the most influential parameter. A human time-course of blood-cell flux every 12 h over a 5-day fast would replace it. None has been published: the planned study NCT04842864 was withdrawn and NCT04739852 has no posted results.',
     'Fed-state suppression is taken from muscle, where insulin and amino acids lower LC3-II, but it is contradicted in blood cells at 1 h. Tissue-specific weights may be needed.',
     'Static markers are ambiguous. A rise in LC3-II could mean blocked degradation, so the 72 h anchor could be wrong in direction for flux.',
     'The exercise weight is uncertain. PBMC and muscle LC3-II rose about 1.7-fold in untrained men after one vigorous bout, a larger change than any fasting study in blood, but with n = 12 and static markers. The direction after resistance exercise is inconsistent.',
-    'It is unknown whether the signal keeps rising, plateaus or declines in prolonged fasting. Mouse liver autophagy returns toward baseline by 48 h and human protein breakdown falls after about 5 days. The model plateaus; a decline term may be needed.',
+    'It is unknown whether autophagy keeps rising, plateaus or declines in prolonged fasting. Mouse liver autophagy returns toward baseline by 48 h and human protein breakdown falls after about 5 days. The model plateaus; a decline term may be needed.',
     "Ketones are treated as a marker of fasting depth, yet human data show ketone drinks can raise muscle mTORC1. If the body's own and drink-derived ketones cannot be separated, the ketone weight is set to 0.",
     "Whether age should shift the index is unresolved: insulin's effect on protein breakdown is dulled in older adults, and basal blood-cell flux rises with age.",
     'The IGF-1 model mixes normal-weight (5 d) and obese (10 d) fasting data from small studies (5–14 people each), and its protein time constant is a compromise between refeeding and fasting-mimicking data, with errors up to ±0.09.',

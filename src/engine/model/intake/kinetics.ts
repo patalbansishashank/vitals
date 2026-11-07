@@ -123,7 +123,11 @@ export function mClock(clockH: number, refH: number, slopePerH: number, spanH: n
   return 1 + slopePerH * (d < spanH ? d : spanH);
 }
 
-/** 15 §4.2 fibre ME correction dME_fibre, kcal/d, clamped to [−capNeg·E, +capPos·E]. */
+/**
+ * 15 §4.2 fibre ME correction dME_fibre, kcal/d, clamped to [−capNeg·E, +capPos·E]. A labelled SENSITIVITY SCENARIO
+ * (D6-08): the module applies it only when `intake.fibreMeScenario` is on, with capPos = 0 (no positive low-fibre uplift);
+ * the slope is a development fit, not a validated physiological coefficient.
+ */
 export function fibreMeCorrection(fEffG: number, energyKcal: number, kNet: number, fRefPer1000: number, capNeg: number, capPos: number): number {
   if (!(energyKcal > 0)) return 0;
   const d = -kNet * (fEffG - (fRefPer1000 * energyKcal) / 1000);

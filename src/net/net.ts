@@ -37,17 +37,53 @@ export class NetBlockedError extends Error {
 
 let allowed: Map<string, Set<NetPurpose>> | null = null;
 
-function selfOrigin(): string | null {
-  const loc = (globalThis as { location?: { origin?: string } }).location;
-  return loc?.origin && loc.origin !== 'null' ? loc.origin : null;
+/** Schemes whose URLs always carry a real (tuple) origin; the self fallback below never applies to them. */
+const SPECIAL = new Set(['http:', 'https:', 'ws:', 'wss:', 'ftp:', 'file:']);
+
+/**
+ * Where this code was loaded from, as a URL with a host, or null when there is none (Node, file://, opaque origins).
+ * Browsers report `location.origin`; for the packaged desktop app (`app://vitals`, a non-special scheme) and Capacitor iOS
+ * (`capacitor://localhost`) some runtimes report the string "null" instead, so the scheme and host are then read from
+ * `location.href`, unwrapping a `blob:` worker URL (`blob:app://vitals/<uuid>`) first. That fallback is limited to
+ * non-special schemes: an http(s) page with a "null" origin is sandboxed and really is not same-origin with anything.
+ */
+function selfBase(): URL | null {
+  const loc = (globalThis as { location?: { origin?: string; href?: string } }).location;
+  if (!loc) return null;
+  try {
+    if (loc.origin && loc.origin !== 'null') {
+      const u = new URL(loc.origin);
+      return u.hostname ? u : null;
+    }
+    let href = String(loc.href ?? '');
+    if (href.startsWith('blob:')) href = href.slice('blob:'.length);
+    const u = new URL(href);
+    return u.hostname && !SPECIAL.has(u.protocol) ? new URL(`${u.protocol}//${u.host}`) : null;
+  } catch {
+    return null;
+  }
 }
 
 function parse(url: string | URL): URL | null {
   try {
-    return new URL(String(url), selfOrigin() ?? undefined);
+    return new URL(String(url), selfBase()?.href);
   } catch {
     return null;
   }
+}
+
+/**
+ * True when `u` is on the same scheme, host and port as the page (or worker) itself. Compared field by field, not with
+ * `URL.origin`, which is "null" for non-special schemes such as `app:` and `capacitor:`. ws/wss count as their http/https
+ * twins, as everywhere else in this module.
+ */
+function isSelf(u: URL): boolean {
+  const self = selfBase();
+  if (!self) return false;
+  const a = originOf(u);
+  const b = originOf(self);
+  if (a && b) return a === b;
+  return u.protocol === self.protocol && u.hostname.toLowerCase() === self.hostname.toLowerCase() && u.port === self.port;
 }
 
 /**
@@ -136,11 +172,11 @@ export function revokeOrigin(url: string, purpose?: NetPurpose): void {
 }
 
 export function isAllowed(url: string | URL): boolean {
-  const origin = originOf(url);
-  if (!origin) return false;
-  const self = selfOrigin();
-  if (self && origin === originOf(self)) return true;
-  return secureEnough(origin) && load().has(origin);
+  const u = parse(url);
+  if (!u) return false;
+  if (isSelf(u)) return true;
+  const origin = originOf(u);
+  return !!origin && secureEnough(origin) && load().has(origin);
 }
 
 export function listAllowed(): AllowedOrigin[] {

@@ -5,13 +5,11 @@ import { MemoryRouter } from 'react-router';
 import { setPlatformForTests } from '@/platform';
 import { NoticesRegion, useNoticeStore } from '@/app/shell/notices';
 import { applyUpdate, reloadOnce, resetController, startPwa, type RegisterSW } from '../controller';
-import { InstallSection } from '../InstallSection';
+import { InstallSettings } from '@/features/settings/InstallSettings';
+import { SettingsIndex } from '@/features/settings/SettingsIndex';
 import { getInstallState, resetInstall, startInstallDetection, type BeforeInstallPromptEvent } from '../install';
 import { getSwState, resetSw, swReducer, type SwState } from '../swStatus';
 import { UPDATE_NOTICE_ID } from '../updateNotice';
-
-const syncState = vi.hoisted(() => ({ paired: false }));
-vi.mock('@/state/sync', () => ({ useSyncView: () => ({ paired: syncState.paired }) }));
 
 type Options = NonNullable<Parameters<RegisterSW>[0]>;
 
@@ -173,16 +171,17 @@ describe('update bar', () => {
   });
 });
 
-describe('Settings › Install Vitals', () => {
+describe('Settings › Install', () => {
   it('offers the one-tap install when the browser has offered it, and runs the native dialog on tap', async () => {
     const stop = startInstallDetection(window);
     const e = new Event('beforeinstallprompt', { cancelable: true }) as BeforeInstallPromptEvent;
     const prompt = vi.fn(() => Promise.resolve());
     Object.assign(e, { prompt, userChoice: Promise.resolve({ outcome: 'accepted' as const }) });
-    render(<InstallSection />, { wrapper: MemoryRouter });
+    render(<InstallSettings />, { wrapper: MemoryRouter });
     expect(screen.getByRole('region', { name: 'Install' })).toBeInTheDocument();
-    expect(screen.getByText('Your server')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Pair a server' })).toHaveAttribute('href', '/settings/server');
+    // the server pairing and its ring wording are gone from Install (Settings › Server holds pairing)
+    expect(screen.queryByText('Your server')).not.toBeInTheDocument();
+    expect(screen.queryByText(/ring/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Install' })).not.toBeInTheDocument();
     expect(screen.getByText(/Look for Install or Add to Home Screen/)).toBeInTheDocument(); // jsdom's user agent is no known browser
 
@@ -190,18 +189,16 @@ describe('Settings › Install Vitals', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Install' }));
     expect(prompt).toHaveBeenCalledTimes(1);
     expect(getInstallState().phase).toBe('installed');
-    expect(await screen.findByText('installed')).toBeInTheDocument();
+    expect(await screen.findByText('Installed')).toBeInTheDocument();
     stop();
   });
 
-  it.each(['android', 'electron'] as const)('in the %s app says installed, with no browser steps and no offline status (J2-03)', (p) => {
+  it.each(['android', 'electron'] as const)('in the %s app the Settings index has no Install row (J2-03)', (p) => {
     setPlatformForTests(p);
     try {
-      resetInstall({ platform: 'chromium', standalone: false });
-      const { container } = render(<InstallSection />, { wrapper: MemoryRouter });
-      expect(screen.getByText('installed')).toBeInTheDocument();
-      expect(screen.queryByText('not installed')).not.toBeInTheDocument();
-      expect(container.textContent).not.toMatch(/browser menu|Add to Home screen|not active here|offline/i);
+      render(<SettingsIndex />, { wrapper: MemoryRouter });
+      expect(screen.queryByRole('link', { name: /^Install/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^About/ })).toBeInTheDocument();
     } finally {
       setPlatformForTests(undefined);
     }
@@ -209,47 +206,19 @@ describe('Settings › Install Vitals', () => {
 
   it('shows plain steps for Safari on iOS and for Firefox', () => {
     resetInstall({ platform: 'safari-ios', standalone: false });
-    const { unmount } = render(<InstallSection />, { wrapper: MemoryRouter });
+    const { unmount } = render(<InstallSettings />, { wrapper: MemoryRouter });
     expect(screen.getByText(/Tap the Share button, then Add to Home Screen/)).toBeInTheDocument();
     unmount();
     act(() => resetInstall({ platform: 'firefox', standalone: false }));
-    render(<InstallSection />, { wrapper: MemoryRouter });
+    render(<InstallSettings />, { wrapper: MemoryRouter });
     expect(screen.getByText(/Firefox on a computer cannot install web apps/)).toBeInTheDocument();
-  });
-
-  it('says "Works offline after the first visit" with the live state of the worker', () => {
-    render(<InstallSection />, { wrapper: MemoryRouter });
-    expect(screen.getByText('Works offline after the first visit.')).toBeInTheDocument();
-    expect(screen.getByText('not supported by this browser')).toBeInTheDocument(); // jsdom: no service workers
-
-    stubServiceWorker();
-    const fake = fakeRegister();
-    act(() => startPwa({ registerSW: fake.registerSW, enabled: true }));
-    expect(screen.getByText('saving for offline use…')).toBeInTheDocument();
-    act(() => fake.options().onOfflineReady?.());
-    expect(screen.getByText('ready on this device')).toBeInTheDocument();
-  });
-
-  it('with sync on, says the data stays on your devices and that offline changes sync later', () => {
-    syncState.paired = true;
-    try {
-      const stop = startInstallDetection(window);
-      act(() => void window.dispatchEvent(Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: vi.fn(), userChoice: Promise.resolve({ outcome: 'dismissed' as const }) })));
-      render(<InstallSection />, { wrapper: MemoryRouter });
-      expect(screen.getByText(/Your data stays on your devices either way/)).toBeInTheDocument();
-      expect(screen.queryByText(/stays on this device/)).not.toBeInTheDocument();
-      expect(screen.getByText(/Changes made offline sync when you're back online/)).toBeInTheDocument();
-      stop();
-    } finally {
-      syncState.paired = false;
-    }
   });
 
   it('offers Reload in Settings once an update is waiting', async () => {
     stubServiceWorker();
     const fake = fakeRegister();
     startPwa({ registerSW: fake.registerSW, enabled: true });
-    render(<InstallSection />, { wrapper: MemoryRouter });
+    render(<InstallSettings />, { wrapper: MemoryRouter });
     expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument();
     act(() => fake.options().onNeedRefresh?.());
     await userEvent.click(screen.getByRole('button', { name: 'Reload' }));

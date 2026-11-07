@@ -1,100 +1,120 @@
-/**
- * Progress › Adherence (living-mode.md §8.2 item 3; CHART_SPEC §7.9; docs/SUITE_SPEC.md §3.7): the 7- and 28-day
- * readouts with "steady" or an arrow and the coverage line, the month calendar of dial glyphs (tap → that day), the
- * per-block bars with the costliest item named, and what the plan has learned. Never a streak. Quiet mode: words.
- */
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { Engraved, Faceplate, Readout, Section } from '@/components';
-import { AdherenceCalendar } from '@/features/charts/living/AdherenceCalendar';
-import { BlockBars } from '@/features/charts/living/BlockBars';
-import type { BlockBar, CalendarDay } from '@/features/charts/living/types';
-import { addDays, compareDates } from '@/living/dates';
+/** Completion over recorded items only. Unlogged items are unknown, never zero. */
+import { Check } from 'lucide-react';
+import { CardFoot, ChartTwin, HeroNumber, HighlightBars, MonoMeta } from '@/components';
 import type { LocalDate } from '@/living';
-import type { ActivePlan } from '../../activePlan';
+import { topicHref } from '@/features/evidence/links';
 import { useLiving } from '../../data/source';
 import { quietWord } from '../../format';
-import { dialItemsOf } from '../../model/adherence';
-import { livingPaths } from '../../paths';
-import { MonthNav } from '../components/MonthNav';
 import { PROGRESS_COPY as C } from '../copy';
-import { monthDates, monthOf } from '../model';
+import { ProgressCard } from '../components/ProgressCard';
 
 export interface AdherenceSectionProps {
-  plan: ActivePlan;
   today: LocalDate;
   quiet: boolean;
 }
+export const recordedDaysText = (n: number): string =>
+  `recorded ${Math.max(0, Math.min(7, Math.round(n)))}/7 days`;
+export const recordedOfText = (n: number): string =>
+  `${Math.max(0, Math.min(7, Math.round(n)))} of 7 days recorded`;
 
-export function AdherenceSection({ plan, today, quiet }: AdherenceSectionProps) {
-  const navigate = useNavigate();
-  const summary = useLiving((s) => s.adherence(today), [today]);
-  const lastDay = compareDates(addDays(plan.plannedEndDate, -1), today) < 0 ? addDays(plan.plannedEndDate, -1) : today;
-  const firstMonth = monthOf(plan.startDate);
-  const lastMonth = monthOf(lastDay);
-  const [month, setMonth] = useState(lastMonth);
-  const dates = useMemo(() => monthDates(month), [month]);
-  const glances = useLiving((s) => s.days(dates), [dates]);
-  const days = useMemo(
-    () =>
-      glances.map(
-        (g): CalendarDay => ({
-          date: g.date,
-          inPlan: g.inPlan,
-          score: g.score?.score ?? null,
-          items: dialItemsOf(g.score),
-          ...(g.assumed ? { assumed: true } : {}),
-          ...(g.paused ? { paused: true } : {}),
-          ...(g.score ? { final: g.score.final } : {}),
-        }),
-      ),
-    [glances],
+export function AdherenceSection({ today, quiet }: AdherenceSectionProps) {
+  const s = useLiving((source) => source.adherence(today), [today]);
+  const value = s.a7 !== null && Number.isFinite(s.a7) ? s.a7 : null;
+  const known = s.blocks.filter((b) => b.mean !== null && Number.isFinite(b.mean));
+  const lowest = known.reduce<(typeof known)[number] | null>(
+    (a, b) => (a === null || b.mean! < a.mean! ? b : a),
+    null,
   );
-  const bars = useMemo(() => summary.blocks.map((b): BlockBar => ({ id: b.type, label: b.label, mean: b.mean, n: b.n })), [summary.blocks]);
-  const arrow = summary.arrow ? C.arrows[summary.arrow] : null;
-
+  const label = 'Adherence by part of the plan';
   return (
-    <Faceplate id="adherence" title={C.faces.adherence} caption={C.logged7(summary.daysLogged7)} className="lv-prog-face">
-      <div className="lv-prog-adh__readouts">
-        {quiet ? (
-          <>
-            <p className="lv-prog-word">
-              <Engraved>{C.last7}</Engraved>
-              <span>{quietWord(summary.a7)}</span>
-              {arrow ? <span className="lv-prog-word__aside">{arrow}</span> : null}
-            </p>
-            <p className="lv-prog-word">
-              <Engraved>{C.last28}</Engraved>
-              <span>{quietWord(summary.a28)}</span>
-              <span className="lv-prog-word__aside">{C.scored(summary.scored28)}</span>
-            </p>
-          </>
-        ) : (
-          <>
-            <Readout label={C.last7} value={summary.a7} decimals={0} size="md" caption={arrow ?? undefined} unknownCaption={quietWord(null)} />
-            <Readout label={C.last28} value={summary.a28} decimals={0} size="md" caption={C.scored(summary.scored28)} unknownCaption={quietWord(null)} />
-          </>
-        )}
+    <ProgressCard
+      id="adherence"
+      title={C.faces.adherence}
+      icon={Check}
+      domain="plan"
+      info={{
+        title: 'How adherence is counted',
+        body: [
+          { body: 'This is how much of your plan you completed over the last week, counting only items you recorded. A day with nothing logged is left out, never scored as zero. Each bar is one part of the plan; the brightest is the lowest. There are no streaks.' },
+          ...s.learned.map((line) => ({ body: quiet ? line.replace(/\d+(?:[.,]\d+)*/g, 'some') : line })),
+        ],
+        source: { kind: 'logged', words: 'Meals, sessions, fasts and counted steps.' },
+        range:
+          'Completion runs from none to all of the recorded items. An empty slot means nothing was recorded for that part.',
+        evidence: { to: topicHref('tracking-replanning'), label: 'Tracking and replanning' },
+        twin: !quiet ? (
+          <ChartTwin
+            data={{
+              title: `${label} table`,
+              caption: label,
+              head: ['Part', 'Completion', 'Recorded items'],
+              rows: s.blocks.map((b) => [
+                b.label,
+                b.mean === null ? 'Not logged' : `${Math.round(b.mean)} %`,
+                b.n,
+              ]),
+              fileName: 'adherence.csv',
+              rowNoun: ['part', 'parts'],
+            }}
+          />
+        ) : undefined,
+      }}
+      foot={
+        <CardFoot
+          state={{
+            word: lowest
+              ? `Lowest · ${lowest.label}${quiet ? '' : ` ${Math.round(lowest.mean!)} %`}`
+              : 'Not logged',
+          }}
+        />
+      }
+    >
+      <HeroNumber
+        size="num-l"
+        value={value}
+        unit="%"
+        quietWord={quiet || value === null ? quietWord(value) : undefined}
+        label={
+          quiet
+            ? quietWord(value)
+            : value === null
+              ? 'Not enough logged'
+              : `${Math.round(value)} % completion over the last 7 days`
+        }
+      />
+      <MonoMeta>{quiet ? 'Last week' : `Last 7 days · ${recordedOfText(s.daysLogged7)}`}</MonoMeta>
+      <div
+        role="img"
+        aria-label={`${label}: ${s.blocks.map((b) => `${b.label}, ${quiet ? quietWord(b.mean) : b.mean === null ? 'Not logged' : `${Math.round(b.mean)} percent`}`).join('; ')}. ${lowest ? `Lowest: ${lowest.label}.` : 'Nothing recorded.'}`}
+      >
+        <div aria-hidden="true">
+          <HighlightBars
+            name={label}
+            dates={s.blocks.map((b) => b.label)}
+            values={s.blocks.map((b) => b.mean)}
+            max={100}
+            highlight={lowest ? s.blocks.indexOf(lowest) : null}
+            quiet={quiet}
+            height={88}
+            variant="spark"
+            showAxis={false}
+            spoken={(i) => {
+              const b = s.blocks[i]!;
+              return quiet
+                ? `${b.label}: ${quietWord(b.mean)}`
+                : `${b.label}: ${b.mean === null ? 'Not logged' : `${Math.round(b.mean)} %`}`;
+            }}
+          />
+        </div>
       </div>
-
-      <Section label={C.calendarTitle}>
-        <MonthNav month={month} first={firstMonth} last={lastMonth} onMonth={setMonth} />
-        <AdherenceCalendar month={month} days={days} today={today} quiet={quiet} caption={false} onSelect={(date) => navigate(livingPaths.today(date))} />
-      </Section>
-
-      <Section label={C.blocksCaption}>
-        <BlockBars bars={bars} {...(summary.costliest ? { costliest: summary.costliest } : {})} quiet={quiet} />
-      </Section>
-
-      {summary.learned.length ? (
-        <Section label={C.learnedTitle}>
-          <ul className="lv-prog-list">
-            {summary.learned.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-    </Faceplate>
+      <div className="lv-prog-parts" aria-hidden="true">
+        {s.blocks.map((b) => (
+          <div key={b.type}>
+            <MonoMeta>{b.label}</MonoMeta>
+            {quiet ? null : <MonoMeta>{b.mean === null ? '—' : `${Math.round(b.mean)} %`}</MonoMeta>}
+          </div>
+        ))}
+      </div>
+    </ProgressCard>
   );
 }

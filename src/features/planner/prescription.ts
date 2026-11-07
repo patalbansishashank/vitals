@@ -36,6 +36,8 @@ export interface FastRx {
   totalH: number;
   fromH: number;
   toH: number;
+  /** 'start' on a day with meals: the fast is counted from that day's last meal (at `fromH`), meal to meal. */
+  afterMeal?: boolean;
 }
 
 export interface DayRx {
@@ -100,6 +102,13 @@ function intensityWord(frac: number): string {
   return 'hard';
 }
 
+/** The template label of a day a fast is laid over: its kind becomes "fast day" (the rest of the label stays). */
+function fastDayLabel(label: string): string {
+  const parts = label.split(' · ').map((s) => s.trim());
+  if (parts.length < 2) return `${label} · fast day`;
+  return [parts[0], 'fast day', ...parts.slice(2)].join(' · ');
+}
+
 /** Readable day-type name from the planner's template label ("Moderate continuous deficit · day · resistance training"). */
 export function dayTypeName(label: string): string {
   const parts = label.split(' · ').map((s) => s.trim());
@@ -160,9 +169,26 @@ export function buildPrescription(schedule: Schedule, profile: PersonProfile, si
     for (let i = 0; i < sp.refeedDays; i++) refeedDays.add(endDay + i);
   }
 
+  // the fullest day each template gives (what its days eat without a fast laid over them)
+  const templateKcal = new Map<string, number>();
+  for (const d of compiled.days) {
+    const label = d.template.label || `program ${d.program + 1}`;
+    const k = echo(sim, 'inEnergy', d.day) ?? d.energyKcal;
+    if (Number.isFinite(k)) templateKcal.set(label, Math.max(templateKcal.get(label) ?? 0, k));
+  }
   const typeKeys = new Map<string, string>();
   const days: DayRx[] = compiled.days.map((d) => {
-    const tLabel = d.template.label || `program ${d.program + 1}`;
+    // a fast laid over a day's template makes a different day (r068 PR12): a 24 h fast day is its own type, never an
+    // "eating day" sharing a letter with the full days of the same template
+    const fastHere = fastOn(d.day);
+    const baseLabel = d.template.label || `program ${d.program + 1}`;
+    // the evening a fast starts on is still an eating day
+    // (a zero-energy day has its own template; a fast day is one whose intake the fast cut well below the fullest day
+    // of its template)
+    const dayKcal = echo(sim, 'inEnergy', d.day) ?? d.energyKcal;
+    const fullKcal = templateKcal.get(baseLabel) ?? 0;
+    const fastDay = !d.zeroIntake && fastHere !== null && fullKcal > 0 && dayKcal < 0.6 * fullKcal;
+    const tLabel = fastDay ? fastDayLabel(baseLabel) : baseLabel;
     let key = typeKeys.get(tLabel);
     if (!key) {
       key = String.fromCharCode(65 + (typeKeys.size % 26));
@@ -201,7 +227,12 @@ export function buildPrescription(schedule: Schedule, profile: PersonProfile, si
       typeLabel: dayTypeName(tLabel),
       phase: block ? block.name.replace(/\s*\(days [^)]*\)$/, '') : null,
       zero: d.zeroIntake || kcal <= 50,
-      fast: fastOn(d.day),
+      // r068 W2-2: the fast is counted meal to meal, so on the evening it starts it starts at the day's last meal, never
+      // an hour after the eating window has closed ("24 h fast starts 21:00" beside "08:00–20:00")
+      fast:
+        fastHere && fastHere.part === 'start' && d.nMeals > 0 && d.meals[d.nMeals - 1]!.clockH <= fastHere.fromH
+          ? { ...fastHere, fromH: d.meals[d.nMeals - 1]!.clockH, afterMeal: true }
+          : fastHere,
       refeed: refeedDays.has(d.day) || /refeed/i.test(tLabel),
       energyKcal: kcal,
       energyPct: energyPct !== null && Number.isFinite(energyPct) ? energyPct : null,
@@ -242,12 +273,14 @@ export function buildPrescription(schedule: Schedule, profile: PersonProfile, si
 export function fastText(f: FastRx): string {
   const total = `${formatNumber(f.totalH, 0)} h fast`;
   if (f.part === 'all-day' || f.part === 'through') return `${total} · no food today`;
-  if (f.part === 'start') return `${total} starts ${fmtClock(f.fromH)}`;
+  if (f.part === 'start') return f.afterMeal ? `${total} after the ${fmtClock(f.fromH)} meal` : `${total} starts ${fmtClock(f.fromH)}`;
   return `${total} ends ${fmtClock(f.toH)}`;
 }
 
 export function windowText(d: DayRx): string {
   if (d.windowStartH === null || d.windowEndH === null) return '—';
+  // one meal (a fast day's single meal) has no window: say when it is
+  if (d.windowEndH - d.windowStartH < 0.25) return `meal at ${fmtClock(d.windowStartH)}`;
   return `${fmtClock(d.windowStartH)}–${fmtClock(d.windowEndH)}`;
 }
 

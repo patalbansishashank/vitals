@@ -1,0 +1,239 @@
+/* ==========================================================================
+   GlowLine (r071 0B). The smooth line of a series, its band, its projection and its live end dot.
+   Tokens only; no gradient (the band and the area are flat washes); the line, the dot and the crosshair are ivory
+   (--lmz-lit), the hue lives in the band and the washed spans. Transitions run on opacity and clip-path only; the two
+   halo pulses are started from script when the picture is first revealed (Web Animations), so a picture that cannot
+   animate never has one. Reduced motion needs no rule here: such a picture is never pending.
+   ========================================================================== */
+@layer components {
+  .lmz-line {
+    --lmz-h: 120px;
+    --lmz-area: 0;
+  }
+  /* room for the "now" label over the end dot and for the x labels under the plot */
+  .lmz-line[data-now] {
+    padding-top: 28px;
+  }
+  .lmz-line[data-xaxis] {
+    padding-bottom: 26px;
+  }
+  .lmz-line__plot {
+    position: relative;
+    height: var(--lmz-h);
+    border-radius: 8px;
+    touch-action: pan-y;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lmz-line__plot:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 4px;
+  }
+  .lmz-line__layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* ---- the drawing ------------------------------------------------------------------------------------------ */
+  .lmz-line__main {
+    fill: none;
+    stroke: var(--lmz-lit);
+    stroke-width: 2.25px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .lmz-line__main[data-stale] {
+    stroke-opacity: 0.7;
+  }
+  .lmz-line__lone {
+    fill: var(--lmz-lit);
+  }
+  /* the projection: dotted, at 38 %, continuing the line */
+  .lmz-line__proj {
+    fill: none;
+    stroke: var(--lmz-lit);
+    stroke-opacity: 0.38;
+    stroke-width: 2px;
+    stroke-dasharray: 1 6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* the plan line: a hairline */
+  .lmz-line__ref {
+    fill: none;
+    stroke: var(--lmz-lit);
+    stroke-opacity: 0.4;
+    stroke-width: 1px;
+  }
+  .lmz-line__band {
+    fill: var(--lmz-ink-h);
+    fill-opacity: 0.14;
+    stroke: none;
+  }
+  .lmz-line__area {
+    fill: var(--lmz-lit);
+    fill-opacity: var(--lmz-area, 0.08);
+    stroke: none;
+  }
+  .lmz-line__grid {
+    stroke: var(--lm-ink);
+    stroke-opacity: 0.08;
+    stroke-width: 1px;
+  }
+  /* no readings, or loading: a dotted rest line at mid height */
+  .lmz-line__rest {
+    stroke: var(--lmz-unlit);
+    stroke-width: 2px;
+    stroke-linecap: round;
+    stroke-dasharray: 1 6;
+  }
+  .lmz-line__span[data-kind='workout'] {
+    fill: var(--lmz-ink-h);
+    fill-opacity: 0.12;
+  }
+  .lmz-line__hatch {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1px;
+    stroke-opacity: 0.45;
+  }
+  .lmz-line__mark {
+    fill: var(--lmz-lit);
+    stroke: color-mix(in oklab, var(--lm-chassis) 55%, transparent);
+    stroke-width: 2px;
+  }
+  .lmz-line__mark[data-hollow] {
+    fill: none;
+    stroke: var(--lmz-lit);
+    stroke-width: 1.5px;
+  }
+  .lmz-line__cross line {
+    stroke: var(--lm-ink);
+    stroke-opacity: 0.4;
+    stroke-width: 1px;
+  }
+  .lmz-line__cross circle {
+    fill: var(--lmz-lit);
+    stroke: color-mix(in oklab, var(--lm-chassis) 55%, transparent);
+    stroke-width: 2px;
+  }
+
+  /* ---- the end dot: ivory, a 2 px ring, two thin halos that pulse twice and rest ------------------------------ */
+  .lmz-line__dot {
+    fill: var(--lmz-lit);
+  }
+  .lmz-line__ring {
+    fill: none;
+    stroke: color-mix(in oklab, var(--lm-chassis) 55%, transparent);
+    stroke-width: 2px;
+  }
+  .lmz-line__end[data-hollow] .lmz-line__dot {
+    fill: var(--lmz-gap);
+    stroke: var(--lmz-lit);
+    stroke-width: 1.5px;
+  }
+  .lmz-line__halo {
+    fill: none;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  .lmz-line__halo--a {
+    stroke: color-mix(in oklab, var(--lm-ink) 55%, transparent);
+    stroke-width: 1px;
+    opacity: 0.55;
+  }
+  .lmz-line__halo--b {
+    stroke: color-mix(in oklab, var(--lm-ink) 30%, transparent);
+    stroke-width: 1px;
+    opacity: 0.3;
+  }
+
+  /* ---- words: real mono text over the plot ------------------------------------------------------------------- */
+  .lmz-line__plot > .lm-mono {
+    position: absolute;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .lmz-line__now {
+    transform: translate(-50%, -26px);
+  }
+  .lmz-line__y {
+    left: 0;
+    transform: translateY(-50%);
+  }
+  .lmz-line__x {
+    top: 100%;
+    margin-top: 8px;
+    transform: translateX(-50%);
+  }
+  .lmz-line__x[data-edge='start'] {
+    transform: none;
+  }
+  .lmz-line__x[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  .lmz-line__markword {
+    transform: translate(-50%, -24px);
+  }
+  .lmz-line__markword[data-placement='below'] {
+    transform: translate(-50%, 12px);
+  }
+  .lmz-line__spanword {
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+
+  /* ---- reveal: the line wipes in, the washes fade in after it, the projection and the end dot last ------------- */
+  .lmz-line__data {
+    clip-path: inset(-12px -12px -12px -12px);
+    transition: clip-path var(--lm-dur-draw) var(--lm-ease-out) 120ms;
+  }
+  /* the sequence, in terms of the draw: the dot lands as the line ends, the washes follow it, the projection is last */
+  .lmz-line__band,
+  .lmz-line__area,
+  .lmz-line__ref {
+    transition: opacity var(--lm-dur-needle) var(--lm-ease-out) calc(var(--lm-dur-draw) + 100ms);
+  }
+  .lmz-line__proj {
+    transition: opacity var(--lm-dur-needle) var(--lm-ease-out) calc(var(--lm-dur-draw) + 300ms);
+  }
+  .lmz-line__end,
+  .lmz-line__mark,
+  .lmz-line__now,
+  .lmz-line__markword {
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out) calc(var(--lm-dur-draw) - 200ms);
+  }
+  .lmz-line[data-reveal='pending'] .lmz-line__data {
+    clip-path: inset(-12px 100% -12px -12px);
+  }
+  .lmz-line[data-reveal='pending'] :is(.lmz-line__band, .lmz-line__area, .lmz-line__ref, .lmz-line__proj, .lmz-line__end, .lmz-line__mark, .lmz-line__now, .lmz-line__markword) {
+    opacity: 0;
+  }
+
+  @media (forced-colors: active) {
+    .lmz-line__main,
+    .lmz-line__proj,
+    .lmz-line__ref {
+      stroke: CanvasText;
+    }
+    .lmz-line__dot,
+    .lmz-line__lone,
+    .lmz-line__mark,
+    .lmz-line__cross circle {
+      fill: CanvasText;
+    }
+    .lmz-line__band {
+      fill: GrayText;
+    }
+    .lmz-line__ring,
+    .lmz-line__halo {
+      stroke: Canvas;
+    }
+    .lmz-line__halo--a {
+      stroke: CanvasText;
+    }
+    .lmz-line__grid,
+    .lmz-line__rest,
+    .lmz-line__hatch {
+      stroke: GrayText;
+    }
+  }
+}

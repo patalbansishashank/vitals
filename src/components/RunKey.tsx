@@ -9,15 +9,15 @@ export type RunKeyState = 'idle' | 'stale' | 'running';
 export interface RunKeyProps extends Omit<ComponentPropsWithoutRef<'button'>, 'children' | 'onClick'> {
   /** Runs the simulation (or the optimiser). */
   onRun: () => void;
-  /** `idle` · `stale` (inputs changed: ink dot at one o'clock) · `running` (pressed, arc spins, label = elapsed). */
+  /** `idle` · `stale` (inputs changed: a near-black dot after the label) · `running` (arc spins, label = elapsed). */
   state?: RunKeyState;
   /** Seconds elapsed while running; replaces the label ("1.2 s"). */
   elapsed?: number;
-  /** Word engraved on the cap. Lowercase "run" by default. */
+  /** Word on the pill, sentence case. "Run" by default. */
   label?: string;
   /** Small caption to the LEFT of the key, e.g. "84 days". Never repeat "Run" here (REVIEW_FINDINGS #1). */
   caption?: ReactNode;
-  /** `md` 44 px (desktop context bar) · `lg` 56 px (mobile action bar). */
+  /** `md` 40 px pill · `lg` 48 px pill. */
   size?: 'md' | 'lg';
   /** When set the key is disabled but focusable and explains why ("Paint at least one week first"). */
   disabledReason?: string;
@@ -26,14 +26,13 @@ export interface RunKeyProps extends Omit<ComponentPropsWithoutRef<'button'>, 'c
 }
 
 /**
- * The yellow key — the ET66 "=" key. The only round primary and the only yellow
- * control in the product. One per view.
+ * The Run key: the view's gold filled primary pill (Simulator, Planner). One per view.
  */
 export function RunKey({
   onRun,
   state = 'idle',
   elapsed,
-  label = 'run',
+  label = 'Run',
   caption,
   size = 'md',
   disabledReason,

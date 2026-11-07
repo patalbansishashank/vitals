@@ -1,7 +1,9 @@
 /* ==========================================================================
    <DataTable> — the table-view twin of every chart (CHART_SPEC §9): visible
-   metrics × visible time range at the current resolution, value with likely
-   range, CSV download. Sticky header + first column.
+   metrics × visible time range at the current resolution, value with its
+   10th–90th percentile range (model variations; not a likelihood, C6), CSV
+   download. A cell whose value a status hides shows the status word (C6:
+   never 0, NaN or the last value). Sticky header + first column.
    ========================================================================== */
 import { useMemo } from 'react';
 import { Download, X } from 'lucide-react';
@@ -22,6 +24,11 @@ export interface DataTableProps {
   caption?: string;
   fileName?: string;
   onClose?: () => void;
+  /**
+   * C6 status words by series id ("Unsupported", "Model limit"): a cell with no readable value in such a series shows
+   * the word instead of a dash.
+   */
+  statusWords?: Readonly<Record<string, string>>;
 }
 
 const RES_TEXT: Record<Resolution, string> = { daily: 'daily values', '6h': '6-hourly means', hourly: 'hourly values' };
@@ -38,7 +45,7 @@ export function downloadText(text: string, fileName: string, type = 'text/csv'):
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function DataTable({ time, series, x0, x1, res, intake, energyUnit, caption, fileName = 'vitals-projection.csv', onClose }: DataTableProps) {
+export function DataTable({ time, series, x0, x1, res, intake, energyUnit, caption, fileName = 'vitals-projection.csv', onClose, statusWords }: DataTableProps) {
   const model = useMemo(() => buildTable(time, series, x0, x1, res, intake, { energyUnit }), [time, series, x0, x1, res, intake, energyUnit]);
   return (
     <div className="lmc-table-block">
@@ -54,7 +61,7 @@ export function DataTable({ time, series, x0, x1, res, intake, energyUnit, capti
       </div>
       <div className="lmc-table-wrap" tabIndex={0} role="region" aria-label={caption ?? 'Projection data table'}>
         <table className="lmc-table">
-          <caption className="lmc-sr">{caption ?? 'Projection values'}; values with the likely range (80 %) in brackets.</caption>
+          <caption className="lmc-sr">{caption ?? 'Projection values'}; values with ranges in brackets.</caption>
           <thead>
             <tr>
               <th scope="col">time</th>
@@ -72,7 +79,7 @@ export function DataTable({ time, series, x0, x1, res, intake, energyUnit, capti
                 <th scope="row">{r.label}</th>
                 {r.cells.map((c, k) => (
                   <td key={model.columns[k]!.id}>
-                    {formatNumber(c.v, model.columns[k]!.decimals)}
+                    {c.status ?? (!Number.isFinite(c.v) && statusWords?.[model.columns[k]!.id] ? statusWords[model.columns[k]!.id] : formatNumber(c.v, model.columns[k]!.decimals))}
                     {Number.isFinite(c.lo) && Number.isFinite(c.hi) ? (
                       <span className="lmc-rng">({formatRange(c.lo, c.hi, model.columns[k]!.decimals)})</span>
                     ) : null}

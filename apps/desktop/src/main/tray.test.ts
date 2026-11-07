@@ -8,16 +8,15 @@ const acts = (): TrayActions => ({ open: vi.fn(), syncNow: vi.fn(), setAutostart
 const labels = (t: TrayMenuItem[]) => t.filter((i) => i.type !== 'separator').map((i) => i.label);
 
 describe('trayMenuTemplate', () => {
-  it('base menu with a not-connected line', () => {
+  it('base menu', () => {
     const t = trayMenuTemplate({ autostart: false, update: { state: 'idle' } }, acts());
-    expect(labels(t)).toEqual(['Open Vitals', 'Ring not connected', 'Sync now', 'Start with my computer', 'Quit']);
-    expect(t.find((i) => i.label === 'Ring not connected')?.enabled).toBe(false);
+    expect(labels(t)).toEqual(['Open Vitals', 'Sync now', 'Start with my computer', 'Quit']);
     expect(t.find((i) => i.label === 'Start with my computer')).toMatchObject({ type: 'checkbox', checked: false });
   });
 
-  it('shows the ring and sync text from the page', () => {
-    const t = trayMenuTemplate({ ring: 'Ring connected · 82 %', sync: 'Synced just now', autostart: true, update: { state: 'checking' } }, acts());
-    expect(labels(t)).toEqual(['Open Vitals', 'Ring connected · 82 %', 'Synced just now', 'Sync now', 'Start with my computer', 'Quit']);
+  it('shows the sync text from the page', () => {
+    const t = trayMenuTemplate({ sync: 'Synced just now', autostart: true, update: { state: 'checking' } }, acts());
+    expect(labels(t)).toEqual(['Open Vitals', 'Synced just now', 'Sync now', 'Start with my computer', 'Quit']);
     expect(t.find((i) => i.label === 'Synced just now')?.enabled).toBe(false);
     expect(t.find((i) => i.label === 'Start with my computer')?.checked).toBe(true);
   });
@@ -61,7 +60,7 @@ function fakes(opts: { throwOnCreate?: boolean; autostart?: boolean; update?: Up
       Menu: { buildFromTemplate: (t: TrayMenuItem[]) => (menus.push(t), { menu: menus.length }) },
       nativeImage: { createFromPath: vi.fn((p: string) => ({ p })) },
     },
-    iconPath: '/icons/ring.png',
+    iconPath: '/icons/tray.png',
     showWindow: vi.fn(),
     syncNow: vi.fn(),
     quit: vi.fn(),
@@ -78,7 +77,7 @@ describe('createTray', () => {
     const f = fakes();
     const h = createTray(f.deps);
     expect(h).not.toBeNull();
-    expect(f.deps.electron.nativeImage.createFromPath).toHaveBeenCalledWith('/icons/ring.png');
+    expect(f.deps.electron.nativeImage.createFromPath).toHaveBeenCalledWith('/icons/tray.png');
     expect(f.tray.setToolTip).toHaveBeenCalledWith('Vitals');
     expect(f.tray.setContextMenu).toHaveBeenCalled();
     f.handlers.click!();
@@ -93,10 +92,10 @@ describe('createTray', () => {
   it('setStatus rebuilds the menu with the new text', async () => {
     const f = fakes();
     const h = createTray(f.deps)!;
-    h.setStatus({ ring: 'Ring connected · 82 %' });
+    h.setStatus({ sync: 'Syncing…' });
     h.setStatus({ sync: 'Synced' });
     const last = f.menus.at(-1)!;
-    expect(labels(last)).toContain('Ring connected · 82 %');
+    expect(labels(last)).not.toContain('Syncing…');
     expect(labels(last)).toContain('Synced');
     await flush();
   });
@@ -127,7 +126,7 @@ describe('createTray', () => {
     expect(labels(f.menus.at(-1)!)).toContain('Restart to update to 0.5.0');
     h.destroy();
     const n = f.menus.length;
-    h.setStatus({ ring: 'x' });
+    h.setStatus({ sync: 'x' });
     h.refresh();
     expect(f.menus.length).toBe(n);
     expect(f.tray.destroy).toHaveBeenCalledTimes(1);

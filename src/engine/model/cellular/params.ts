@@ -3,8 +3,12 @@
  * Every constant of the autophagy signal index (ASI), the muscle mTORC1 index and the muscle AMPK index is one
  * ParamDef here; `prepare()` copies them into the constants object. Grades follow the dossier: the ASI is a grade C/D
  * construct (weights D), the AMPK exercise dependence is B, the mTORC1 direction is B/C.
+ *
+ * D2-02: these constants define display-only indices (the legacy ASI research index and the mTORC1/AMPK signalling
+ * views), none of which is a health objective. Each carries `distribution` metadata saying what its draw means: index
+ * sensitivity around a design point, never a calibrated prediction of autophagic flux, tissue signalling or health.
  */
-import type { ParamDef } from '../../types/params';
+import type { ParamDef, ParamDistributionMeta } from '../../types/params';
 
 const P = (
   name: string,
@@ -31,7 +35,7 @@ const FIX = (
   note?: string,
 ): ParamDef => P(name, value, unit, value, value, grade, source, dossier, status, { draw: 'fixed', ...(note ? { note } : {}) });
 
-export const CELLULAR_PARAMS: readonly ParamDef[] = [
+const RAW_PARAMS: readonly ParamDef[] = [
   // ---- suppression: amino acids (08 §4.3)
   P('ec50L', 0.5, 'fold above post-absorptive', 0.25, 1.0, 'D', 'PROPOSED; half-effect at +50 % leucine, post-meal peaks +100-150 % (Atherton 2010 PMID 20844073)', '08 §4.3', 'proposed-fit', {
     label: 'EC50 of leucine suppression',
@@ -73,7 +77,7 @@ export const CELLULAR_PARAMS: readonly ParamDef[] = [
   P('wGlyc', 0.2, '1', 0.1, 0.3, 'D', 'PROPOSED', '08 §4.5', 'proposed-fit'),
   P('wKet', 0.2, '1', 0.1, 0.3, 'D', 'PROPOSED; endogenous BHB only', '08 §4.5', 'proposed-fit'),
   P('kBhb', 1.5, 'mmol/L', 1.0, 2.5, 'D', 'PROPOSED; half weight at 1.5 mM (≈ day 2 of a water fast)', '08 §4.5', 'proposed-fit'),
-  FIX('asiRef12', 25, 'index', 'D', 'Definition: ASI = 25 at 12 h post-absorptive (every human study baseline)', '08 §4.10 step 4', 'verified', 'B0 is calibrated to this anchor, never chosen.'),
+  FIX('asiRef12', 25, 'index', 'D', 'Definition: ASI = 25 at 12 h post-absorptive (every human study baseline)', '08 §4.10 step 4', 'proposed-fit', 'Scale definition of the legacy index (D2-02): B0 is calibrated to this anchor, never chosen; tests that reproduce it are code regressions, not validation.'),
   P('bhbRef12', 0.1, 'mmol/L', 0.05, 0.5, 'B', 'McDougal 2018 PMID 29931424 (BHB 0.1 ± 0.0 at 12 h)', '05 §7 V1; 08 §4.10', 'verified', {
     note: 'Prior for the endogenous BHB at 12 h post-absorptive; replaced by the burn-in sample of the person\'s own habitual day (§3.4).',
   }),
@@ -127,3 +131,29 @@ export const CELLULAR_PARAMS: readonly ParamDef[] = [
   P('kRE', 0.3, '1', 0.1, 0.5, 'D', 'UNVERIFIED; resistance-exercise sensitisation of the acute term (reSens = mpsStimWb)', '08 §4.11', 'unverified'),
   FIX('mtorInsPerm', 0.23, '1', 'C', 'Insulin permissive additive share of the acute term (0.77 + 0.23·S_ins)', '08 §4.11', 'proposed-fit'),
 ];
+
+/** Constants of the display-only mTORC1 (08 §4.11) and AMPK (08 §4.6) signalling views (goal none, D2-02). */
+const SIGNALLING_ONLY = new Set([
+  'ampkA0', 'ampkAEx', 'ampkThr', 'ampkFull', 'ampkCap', 'tauA', 'gGly', 'fFast', 'ampkRtAmp', 'gNormDw', 'gDeplDw',
+  'mtorBase0', 'mtorFall', 'kRE', 'mtorInsPerm',
+].map((n) => `cellular.${n}`));
+
+/**
+ * What a draw of a cellular constant represents (D2-02, C6): spread of a display-only index around its design point.
+ * Measured reference values (status `verified`) stay labelled empirical; every other constant is a design prior.
+ */
+function indexDistribution(p: ParamDef): ParamDistributionMeta {
+  const fixed = p.draw === 'fixed' || p.low === p.high;
+  return {
+    uncertaintyKind: fixed ? 'heuristic' : 'parameterSensitivity',
+    bounds: 'support',
+    nominal: 'designPoint',
+    basis: SIGNALLING_ONLY.has(p.id)
+      ? 'display-only signalling index constant; not a tissue measurement or health prediction'
+      : 'legacy research index definition; index sensitivity, not an autophagic-flux or health prediction',
+    version: 1,
+    label: p.status === 'verified' ? 'empirical' : 'designPrior',
+  };
+}
+
+export const CELLULAR_PARAMS: readonly ParamDef[] = RAW_PARAMS.map((p) => ({ ...p, distribution: indexDistribution(p) }));

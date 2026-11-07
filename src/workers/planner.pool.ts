@@ -3,6 +3,11 @@
  * MessagePorts and Node's MessageChannel (tests). The coordinator (engine worker) turns each evaluator's port into a
  * `WorkerCall` for `createPooledEvaluator`, which re-assembles outputs by request index, so results never depend on the
  * worker count or completion order. Genomes travel as one transferred Float64Array per batch.
+ *
+ * Contract boundary (C6/D4-03, 2026-10-18): every field of an evaluation request and output crosses the port — a request's
+ * extra fields (e.g. a named draw stream) ride beside the packed genomes, and outputs keep every field the host returns
+ * (statuses, availability masks, margin metadata), so a pooled evaluation is the in-thread evaluation for any worker count.
+ * Nothing is dropped, and no status is re-encoded as a number.
  */
 import { EvaluatorHost, variantKey, type EvalVariant, type HostInit } from '@/engine/planner/domain/evaluatorHost';
 import { ReplanEvaluatorHost, type ReplanEvalInit } from '@/engine/planner/domain/replan';
@@ -18,13 +23,16 @@ export interface PortLike {
   close?(): void;
 }
 
+/** Per-request fields beyond structure/genome/draw (null = none), carried as structured-clone data (C6/D4-03). */
+export type RequestExtras = ReadonlyArray<Readonly<Record<string, unknown>> | null>;
+
 export type EvalMessage =
   | { type: 'init'; id: number; init: HostInit }
-  | { type: 'eval'; id: number; variant: EvalVariant; structure: Int32Array; draw: Int32Array; offsets: Int32Array; x: Float64Array }
+  | { type: 'eval'; id: number; variant: EvalVariant; structure: Int32Array; draw: Int32Array; offsets: Int32Array; x: Float64Array; extra?: RequestExtras }
   | { type: 'calibrate'; id: number; repeats: number }
   /** Living-plan re-plan problem (PLANNER_V2_SPEC §7): the evaluator builds a `ReplanEvaluatorHost` from it. */
   | { type: 'initReplan'; id: number; init: ReplanEvalInit }
-  | { type: 'evalReplan'; id: number; structure: Int32Array; draw: Int32Array; offsets: Int32Array; x: Float64Array }
+  | { type: 'evalReplan'; id: number; structure: Int32Array; draw: Int32Array; offsets: Int32Array; x: Float64Array; extra?: RequestExtras }
   | { type: 'bands'; id: number; variant: EvalVariant; structure: number; x: Float64Array; draws: number; series: string[]; drawBase?: number };
 
 export type EvalReply =
@@ -82,24 +90,55 @@ export function attachEvaluator(port: PortLike, now: () => number): () => void {
   };
 }
 
-function unpackBatch(m: { structure: Int32Array; draw: Int32Array; offsets: Int32Array; x: Float64Array }): EvalRequest[] {
+const PACKED_REQUEST_KEYS = new Set(['structure', 'x', 'draw']);
+
+/** Extra fields of each request (null when a request has none); undefined when no request has any. */
+export function requestExtras(batch: readonly EvalRequest[]): RequestExtras | undefined {
+  let any = false;
+  const out: Array<Record<string, unknown> | null> = new Array(batch.length);
+  for (let i = 0; i < batch.length; i++) {
+    const r = batch[i] as unknown as Record<string, unknown>;
+    let e: Record<string, unknown> | null = null;
+    for (const k of Object.keys(r)) {
+      if (PACKED_REQUEST_KEYS.has(k) || r[k] === undefined || typeof r[k] === 'function') continue;
+      (e ??= {})[k] = r[k];
+    }
+    out[i] = e;
+    if (e) any = true;
+  }
+  return any ? out : undefined;
+}
+
+export function unpackBatch(m: { structure: Int32Array; draw: Int32Array; offsets: Int32Array; x: Float64Array; extra?: RequestExtras }): EvalRequest[] {
   const n = m.structure.length;
   const batch: EvalRequest[] = new Array(n);
-  for (let i = 0; i < n; i++) batch[i] = { structure: m.structure[i]!, draw: m.draw[i]!, x: m.x.slice(m.offsets[i]!, m.offsets[i + 1]!) };
+  for (let i = 0; i < n; i++) {
+    const req: EvalRequest = { structure: m.structure[i]!, draw: m.draw[i]!, x: m.x.slice(m.offsets[i]!, m.offsets[i + 1]!) };
+    const e = m.extra?.[i];
+    batch[i] = e ? ({ ...e, ...req } as EvalRequest) : req;
+  }
   return batch;
 }
 
-function plainOutput(o: EvalOutput): EvalOutput {
-  const out: EvalOutput = {
-    goals: Float64Array.from(o.goals),
-    margins: Float64Array.from(o.margins),
-    regulariser: o.regulariser,
-    descriptors: Float64Array.from(o.descriptors),
-  };
-  if (o.features) out.features = Float64Array.from(o.features);
-  if (o.cost !== undefined) out.cost = o.cost;
-  if (o.aborted) out.aborted = { ...o.aborted };
-  return out;
+const NUMERIC_OUTPUT_KEYS = new Set(['goals', 'margins', 'descriptors', 'features']);
+
+/**
+ * A transferable copy of one output keeping EVERY field (C6/D4-03): the numeric vectors as compact Float64Arrays, other typed
+ * arrays copied, plain data structured-cloned, primitives as they are. Only functions and undefined are left out (they
+ * cannot cross a port).
+ */
+export function plainOutput(o: EvalOutput): EvalOutput {
+  const src = o as unknown as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(src)) {
+    const v = src[k];
+    if (v === undefined || typeof v === 'function') continue;
+    if (NUMERIC_OUTPUT_KEYS.has(k) && v !== null && typeof v === 'object') out[k] = Float64Array.from(v as ArrayLike<number>);
+    else if (ArrayBuffer.isView(v)) out[k] = (v as unknown as Float64Array).slice();
+    else if (v !== null && typeof v === 'object') out[k] = structuredClone(v);
+    else out[k] = v;
+  }
+  return out as unknown as EvalOutput;
 }
 
 /** Coordinator side of one evaluator port: request/response by id, optional pause gate. */
@@ -144,7 +183,10 @@ export class EvaluatorPort {
         draw[i] = batch[i]!.draw;
       }
       const id = this.nextId++;
-      const msg: EvalMessage = variant ? { type: 'eval', id, variant, structure, draw, offsets, x } : { type: 'evalReplan', id, structure, draw, offsets, x };
+      const extra = requestExtras(batch);
+      const msg: EvalMessage = variant
+        ? { type: 'eval', id, variant, structure, draw, offsets, x, ...(extra ? { extra } : {}) }
+        : { type: 'evalReplan', id, structure, draw, offsets, x, ...(extra ? { extra } : {}) };
       const r = await this.send(msg, [x.buffer, structure.buffer, draw.buffer, offsets.buffer]);
       if (r.type !== 'result') throw new Error(`planner pool: unexpected reply ${r.type}`);
       return r.outputs;

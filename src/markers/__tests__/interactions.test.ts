@@ -243,6 +243,12 @@ const OTHER_UNIT: Readonly<Partial<Record<MarkerId, string>>> = { hsCrp: 'mg/L',
 /** A context (and extra readings) that satisfies a rule's extra conditions. */
 function satisfy(rule: InteractionRule): { ctx: RuleContext; others: MarkerReading[]; repeat: boolean } {
   const ctx: RuleContext = { sex: 'male', today: TODAY, bmi: 27, defaultDeficitCapPct: 25, fields: {}, flags: [] };
+  // a population rule (D7-01) is exercised on its confirmed reference population
+  if (rule.applicability?.referencePhysiology) {
+    ctx.referencePhysiology = rule.applicability.referencePhysiology;
+    ctx.sex = rule.applicability.referencePhysiology === 'adultMale' ? 'male' : 'female';
+    ctx.ageYears = 40;
+  }
   const others: MarkerReading[] = [];
   let repeat = false;
   const fields = ctx.fields as Record<string, number | string | boolean | undefined>;
@@ -251,12 +257,14 @@ function satisfy(rule: InteractionRule): { ctx: RuleContext; others: MarkerReadi
     if (a.kind === 'flag') ctx.flags = [...(ctx.flags ?? []), a.flag];
     if (a.kind === 'repeat') repeat = true;
     if (a.kind === 'marker') {
+      // a bound on the rule's own marker (D7-09 half-open bands) is satisfied by the reading itself, not another draw
+      if (a.markerId === rule.markerId) continue;
       const v = a.cmp === 'gt' ? a.value + 1 : a.cmp === 'lt' ? a.value - 1 : a.value;
       others.push(reading(a.markerId, v, a.unit || OTHER_UNIT[a.markerId]!));
     }
     if (a.kind === 'field') {
       if (a.field === 'bmi') ctx.bmi = a.cmp === 'lt' ? Number(a.value) - 1 : a.cmp === 'gt' ? Number(a.value) + 1 : Number(a.value);
-      else if (a.field === 'reading.fasting') continue;
+      else if (a.field === 'reading.fasting' || a.field === 'reading.fastingEligibility') continue;
       else if (a.field.startsWith('context.')) continue;
       else if (a.cmp === 'in') fields[a.field] = (a.value as readonly string[])[0];
       else if (a.cmp === 'eq') fields[a.field] = a.value as string | boolean | number;
@@ -271,6 +279,8 @@ function docWith(rule: InteractionRule, value: number, unit: string, others: Mar
   const main = reading(rule.markerId, value, unit, extra);
   const fastingAlso = rule.also.find((a) => a.kind === 'field' && a.field === 'reading.fasting');
   if (fastingAlso && fastingAlso.kind === 'field') main.fasting = fastingAlso.value as boolean;
+  const eligibilityAlso = rule.also.find((a) => a.kind === 'field' && a.field === 'reading.fastingEligibility');
+  if (eligibilityAlso && eligibilityAlso.kind === 'field' && (eligibilityAlso.value as readonly string[]).includes('eligible')) main.fastingHours = 10;
   const ctxAlso = rule.also.find((a) => a.kind === 'field' && a.field.startsWith('context.'));
   const context: MarkersDoc['context'] = {};
   if (ctxAlso && ctxAlso.kind === 'field') (context as Record<string, unknown>)[ctxAlso.field.slice(8)] = ctxAlso.value;
@@ -305,11 +315,12 @@ describe('every rule fires at its threshold and not on the other side', () => {
             range = w.value === 'labLow' ? { low: t, high: t * 3, unit } : { low: t / 3, high: t, unit };
           }
           if (unit === 'HOMA-IR') {
-            // insulin at the HOMA-IR threshold with fasting glucose 5.0 mmol/L
-            const g = reading('fpg', 5, 'mmol/L');
+            // insulin at the HOMA-IR threshold with fasting glucose 5.0 mmol/L from the same fasting draw (D7-06)
+            const draw = { sampleId: 'draw-1', fastingHours: 10 };
+            const g = reading('fpg', 5, 'mmol/L', draw);
             unit = 'µU/mL';
             const ins = (h: number): number => (h * 22.5) / 5;
-            mk = (h: number): MarkersDoc => docWith(rule, ins(h), unit, [...others, g], repeat);
+            mk = (h: number): MarkersDoc => docWith(rule, ins(h), unit, [...others, g], repeat, draw);
           }
           const inclusive = w.cmp === 'gte' || w.cmp === 'lte';
           const outward = w.cmp === 'gte' || w.cmp === 'gt' ? 1 : -1;

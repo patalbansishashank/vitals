@@ -5,6 +5,10 @@
  */
 import type { AdherenceScore, DriftGoal, LocalDate, LogEntrySummary, PlanItemType, VersionReason } from '@/living';
 import type { TrendLaneData } from '@/features/charts/living/types';
+import type { CalendarEa } from '@/living/energyAvailability';
+import type { MonitoredGoal, BpEpisode } from '@/living/monitoring';
+import type { StatusValue } from '@/lib/bodyContracts';
+import type { WeeklyModelReview } from '@/living/weeklyModel';
 
 /** One day key of the date strip (COMPONENTS §13.8). */
 export interface DayGlance {
@@ -61,7 +65,7 @@ export interface AdherenceSummary {
   arrow: 'up' | 'down' | 'steady' | null;
   scored28: number;
   daysLogged7: number;
-  /** Per-block means for the week (training · protein · energy · fasting · steps). */
+  /** Per-block means for the week; sentence-case labels, as the bars show them ("Training", "Protein", "Fasting"). */
   blocks: Array<{ type: PlanItemType; label: string; mean: number | null; n: number }>;
   /** "Thursday's lift carried 30 % and was skipped twice". */
   costliest: string | null;
@@ -71,6 +75,11 @@ export interface AdherenceSummary {
 
 /** Weekly check-in report (living-mode.md §4.5). */
 export interface CheckInModel {
+  /** One consistent next-week target from the adopted model, with the user's whole-plan retention budget. */
+  weeklyModel?: WeeklyModelReview | null;
+  /** Exact identity of the estimate reviewed in this report. */
+  previewId: string;
+  decisionPointDate: LocalDate;
   due: boolean;
   /** "Thursday". */
   weekday: string;
@@ -81,6 +90,10 @@ export interface CheckInModel {
     goalDate: [LocalDate, LocalDate] | null;
     shiftText: string | null;
     cause: string;
+    /** (D5-02) 'unclear' overrides the state word (insufficient data is never "on track"). */
+    certainty?: DriftGoal['certainty'];
+    residual?: DriftGoal['residual'];
+    loggedIntakeDiff?: DriftGoal['loggedIntakeDiff'];
   } | null;
   trendText: string;
   missingText: string | null;
@@ -88,6 +101,22 @@ export interface CheckInModel {
   proposalId: string | null;
   nextDate: LocalDate;
   trend: TrendLaneData | null;
+  /**
+   * (D5-06, additive) The current prescription needs review (a changed screening or a blocked status from the lifecycle
+   * gate) or an entered concern was flagged: the state word reads "Review"; the reasons live in the info sheet.
+   */
+  review?: boolean;
+  reviewReasons?: string[];
+  reviewDetails?: Array<{ label: string; value: string }>;
+  /** (D5-06, additive) A plan version took effect since the last confirmed check-in: "Plan changed". */
+  planChanged?: boolean;
+  /**
+   * (D4-04/D8-04, additive) Calendar 7-day energy availability (kcal/kg FFM/day): a value or range when every day is
+   * known, a lower bound with partial-intake days, else Incomplete. Never a healthy/unsafe verdict.
+   */
+  energyAvailability?: ({ status: StatusValue['status']; value?: number; range?: readonly [number, number]; lowerBound?: number; covered: number; days: number; reasonCode?: string } & Partial<Pick<CalendarEa, 'version' | 'intakeCoveredDays' | 'exerciseCoveredDays' | 'exerciseScopes' | 'assumptions'>>) | null;
+  /** (D2-06/D8-09, additive) Entered wellbeing: the latest observed hunger and mood ratings 0–10 and the concern status. */
+  wellbeing?: { status: 'review' | 'noFlag' | 'unknown'; hunger: number | null; mood?: number | null } | null;
 }
 
 /** Composition from the latest anchored state (Progress › Body). */
@@ -97,4 +126,11 @@ export interface BodyComposition {
   girths: Array<{ label: string; value: number; method: string; date: LocalDate; repeats: number }>;
 }
 
-export type DriftCard = Pick<DriftGoal, 'goal' | 'metric' | 'state' | 'goalDate' | 'causes' | 'action' | 'text'> & { label: string };
+/** (D5-02) `certainty`, the labelled `residual` and the observed `loggedIntakeDiff` travel with the card; causes stay empty. */
+export type DriftCard = Pick<DriftGoal, 'goal' | 'metric' | 'state' | 'goalDate' | 'causes' | 'action' | 'text'> &
+  Partial<Pick<DriftGoal, 'certainty' | 'residual' | 'loggedIntakeDiff'>> & { label: string };
+
+/** Observations retain protocol details behind the goal row’s read-only sheet. */
+export type MonitoredGoalRow = MonitoredGoal & { label: string; bpEpisodes?: BpEpisode[] };
+
+export const MONITORED_LABEL: Readonly<Record<string, string>> = { sbp: 'Blood pressure', waist: 'Waist', bodyFatPct: 'Body fat', ldl: 'LDL', hdl: 'HDL', triglycerides: 'Triglycerides', apoB: 'ApoB', fastingGlucose: 'Fasting glucose', glucose: 'Glucose', crp: 'CRP', bhb: 'Ketones' };

@@ -52,7 +52,7 @@ export interface IpcDeps {
   ipcMain: IpcMainSlice;
   info: DesktopInfo;
   /** The tray, when there is one (it can be created after the window). */
-  tray(): { setStatus(s: { ring?: string; sync?: string }): void } | null;
+  tray(): { setStatus(s: { sync?: string }): void } | null;
   autostart: { get(): Promise<boolean>; set(on: boolean): Promise<void> };
   updates: { check(): Promise<void>; restart(): void };
   aiTools: { list(): Promise<AiToolRow[]>; add(id: AiToolId): Promise<AiToolRow>; remove(id: AiToolId): Promise<AiToolRow> };
@@ -60,7 +60,6 @@ export interface IpcDeps {
   setServer(info: McpServerInfo | null): void;
   /** Write only: no channel hands a secret back to the page. */
   secrets: { set(k: SecretKey, v: string | null): Promise<void> };
-  keepAlive(on: boolean, text: string): void;
   /** Main's own check that Add follows a click: the preload's `userActivation` check can be satisfied without one. */
   realInput: RealInput;
   now?: () => number;
@@ -101,7 +100,7 @@ export function registerIpc(d: IpcDeps): () => void {
 
   on(CHANNELS.trayStatus, (_e, s) => {
     const o = (s ?? {}) as Record<string, unknown>;
-    d.tray()?.setStatus({ ring: optText(o.ring), sync: optText(o.sync) });
+    d.tray()?.setStatus({ sync: optText(o.sync) });
   });
   handle(CHANNELS.autostartGet, () => d.autostart.get());
   handle(CHANNELS.autostartSet, (on) => d.autostart.set(on === true));
@@ -133,7 +132,6 @@ export function registerIpc(d: IpcDeps): () => void {
     if (v !== null && typeof v !== 'string') throw new Error('a secret is text or null');
     return d.secrets.set(k, v);
   });
-  on(CHANNELS.keepAlive, (_e, keep, text) => d.keepAlive(keep === true, typeof text === 'string' ? text.slice(0, 200) : ''));
 
   return () => {
     for (const c of handled) ipcMain.removeHandler(c);

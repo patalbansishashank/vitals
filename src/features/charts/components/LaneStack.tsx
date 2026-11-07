@@ -7,7 +7,7 @@ import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useS
 import { energyUnitSpoken, formatEnergy, Swatch, useMediaQuery, type EnergyUnitChoice } from '@/components';
 import { CATEGORY_LABEL, groupByCategory, laneKindOf, MACRO_LETTER } from '../catalogue';
 import type { ChartController } from '../core/controller';
-import { useElementWidth } from '../core/hooks';
+import { type AxisRegister, useAxisGutter, useElementWidth } from '../core/hooks';
 import type { DataArea } from '../core/interaction';
 import type { InputsMode } from '../core/inputModels';
 import { stackLayout, type StackLayout } from '../core/layout';
@@ -21,6 +21,9 @@ import { EnergyRow, InputsRow, LaneRow } from './LaneRow';
 import { CrosshairReadout, LiveReadout, type ReadoutRow } from './Readout';
 import { Crosshair, Sweep, useBodyInteractions } from './StackChrome';
 import { EventRibbon, eventTime, PhaseRuler, TimeAxis, type RowGeometry } from './TimeRows';
+
+/** Group headings in sentence case (the catalogue's names are lowercase for use mid-sentence). */
+const sentenceCase = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 
 export type ChartStatus = 'idle' | 'running' | 'stale';
 
@@ -61,6 +64,7 @@ export function seriesReadoutRow(s: ChartSeries, opts: { indexed?: (t: number, r
     color: `var(--lm-cat-${s.category})`,
     shape: laneKindOf(s) === 'stacked-area' ? 'square' : 'line',
     value: (t, res) => {
+      if (s.display?.wordOnly) return { value: s.display.wordOnly, unit: '', detail: s.label, spoken: `${s.label}: ${s.display.wordOnly}` };
       const cv = valueAt(s, t, res);
       const range = Number.isFinite(cv.lo) && Number.isFinite(cv.hi) ? formatRange(cv.lo, cv.hi, d) : '';
       const extra = opts.indexed ? opts.indexed(t, res) : NaN;
@@ -69,7 +73,7 @@ export function seriesReadoutRow(s: ChartSeries, opts: { indexed?: (t: number, r
         value: lead,
         unit: Number.isFinite(extra) ? '' : unit,
         detail: Number.isFinite(extra) ? `${s.label} · ${formatNumber(cv.v, d)}${unit ? THIN + unit : ''}` : `${s.label}${range ? ' · ' + range : ''}`,
-        spoken: `${s.label} ${formatNumber(cv.v, d, { thousands: ',' })} ${unitWords(s.unit)}${range ? `, likely ${range.replace('–', ' to ')}` : ''}`,
+        spoken: `${s.label} ${formatNumber(cv.v, d, { thousands: ',' })} ${unitWords(s.unit)}${range ? `, range ${range.replace('–', ' to ')}` : ''}`,
       };
     },
   };
@@ -82,7 +86,7 @@ export function energyReadoutRow(data: ChartData, energyUnit: EnergyUnitChoice =
   return {
     id: 'energy',
     short: 'balance',
-    color: 'var(--lm-energy-deficit-4)',
+    color: 'var(--lm-balance-deficit-4)',
     shape: 'square',
     value: (t) => {
       const d = Math.min(intake.maintenance.length - 1, Math.floor(t));
@@ -129,7 +133,9 @@ export const LaneStack = memo(function LaneStack(p: LaneStackProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(rootRef);
-  const layout = stackLayout(width || 960);
+  // one tick column for every lane (they share the time axis): sized to the widest tick label in the stack
+  const axis = useAxisGutter(controller);
+  const layout = stackLayout(width || 960, axis.width);
   const coarse = useMediaQuery('(pointer: coarse)');
   const readoutMode = p.readout === 'float' || p.readout === 'dock' ? p.readout : layout.size === 's' || coarse ? 'dock' : 'float';
 
@@ -280,7 +286,6 @@ export const LaneStack = memo(function LaneStack(p: LaneStackProps) {
           visible={visible}
           area={() => areaRef.current}
           bodyWidth={layout.width}
-          hint="to read every channel on one day."
         />
       ) : null}
       <div
@@ -310,10 +315,20 @@ export const LaneStack = memo(function LaneStack(p: LaneStackProps) {
             energyUnit={energyUnit}
             onModeChange={setInputsMode}
             onDetailChange={setDetail}
+            onAxisModel={axis.register}
           />
         ) : null}
         {p.showEnergy !== false && data.intake && !focusId ? (
-          <EnergyRow intake={data.intake} layout={layout} controller={controller} phases={data.phases} events={safety} textures={p.textures} energyUnit={energyUnit} />
+          <EnergyRow
+            intake={data.intake}
+            layout={layout}
+            controller={controller}
+            phases={data.phases}
+            events={safety}
+            textures={p.textures}
+            energyUnit={energyUnit}
+            onAxisModel={axis.register}
+          />
         ) : null}
         {groups.map((g) => (
           <LaneGroup
@@ -336,6 +351,7 @@ export const LaneStack = memo(function LaneStack(p: LaneStackProps) {
             onToggleZero={toggleZero}
             onGripDown={onLaneIdsChange ? gripDown : undefined}
             onVisible={onVisible}
+            onAxisModel={axis.register}
           />
         ))}
         <TimeAxis controller={controller} time={data.time} geom={geom} />
@@ -380,6 +396,7 @@ interface LaneGroupProps {
   onToggleZero?: (id: string) => void;
   onGripDown?: (id: string, e: ReactPointerEvent<HTMLButtonElement>) => void;
   onVisible?: (id: string, v: boolean) => void;
+  onAxisModel?: AxisRegister;
 }
 
 const LaneGroup = memo(function LaneGroup(g: LaneGroupProps) {
@@ -387,7 +404,7 @@ const LaneGroup = memo(function LaneGroup(g: LaneGroupProps) {
     <>
       <div className="lmc-ghead" data-no-crosshair="">
         <Swatch category={g.category} shape="square" />
-        {CATEGORY_LABEL[g.category]}
+        {sentenceCase(CATEGORY_LABEL[g.category])}
       </div>
       {g.lanes.map((s, k) => (
         <LaneRow
@@ -410,6 +427,7 @@ const LaneGroup = memo(function LaneGroup(g: LaneGroupProps) {
           onToggleZero={g.onToggleZero}
           onGripDown={g.onGripDown}
           onVisible={g.onVisible}
+          onAxisModel={g.onAxisModel}
         />
       ))}
     </>

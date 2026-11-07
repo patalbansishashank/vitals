@@ -3,8 +3,10 @@
  * day-to-day facts and the daily series (with the plan's own robustness band) the curves tab draws.
  */
 import { formatNumber } from '@/components';
+import { INTERPRETABLE_STATUSES, STATUS_LABEL, type OutputStatus } from '@/lib/bodyContracts';
 import type { ChartSeries, DirectionOfGood, Phase, PhaseTone } from '@/features/charts';
 import { SERIES, type SeriesDef } from '@/engine/types/metrics';
+import { goalTrajectory } from '@/engine/planner/domain/goalSpecs';
 import { balanceOf } from '@/engine/planner/domain/explain';
 import type { PhaseExplanation, PlanOption, PlannerRequest } from '@/engine/planner/domain/types';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
@@ -17,7 +19,8 @@ const DEF: ReadonlyMap<string, SeriesDef> = new Map((SERIES as readonly SeriesDe
 /* ------------------------------------------------------------------------------------------------ naming */
 
 /** Diet-brand words the UI never shows as a plan name (principle 1: composition, not labels). */
-const BRAND = /\b(keto(genic)?|paleo|atkins|carnivore|whole30|mediterranean|dash|zone diet|south beach|vegan diet|dukan|omad|warrior|5:2|16:8)\b/i;
+const BRAND =
+  /\b(keto(genic)?|paleo|atkins|carnivore|whole30|mediterranean|dash|zone diet|south beach|vegan diet|dukan|omad|warrior|5:2|16:8)\b/i;
 
 /** The engine's measurable name, or a composition-based one when the name is missing or brand-like. */
 export function planName(option: Pick<PlanOption, 'name'>, rx: Prescription | null): string {
@@ -39,8 +42,16 @@ export function fallbackName(rx: Prescription): string {
   else if (fasts >= rx.weeks * 0.6) energy = `${energy}, weekly fasts`;
   const protein = eating.reduce((a, d) => a + d.proteinG, 0) / Math.max(1, eating.length);
   const carbs = eating.reduce((a, d) => a + d.carbG, 0) / Math.max(1, eating.length);
-  const lifts = rx.days.filter((d) => d.sessions.some((s) => s.kind === 'resistance')).length / Math.max(1, rx.weeks);
-  const lever = carbs < 60 ? `net carbs under ${Math.ceil(carbs / 10) * 10} g` : protein > 150 ? 'high protein' : lifts >= 2.5 ? `lifting ${Math.round(lifts)}×` : 'balanced macros';
+  const lifts =
+    rx.days.filter((d) => d.sessions.some((s) => s.kind === 'resistance')).length / Math.max(1, rx.weeks);
+  const lever =
+    carbs < 60
+      ? `net carbs under ${Math.ceil(carbs / 10) * 10} g`
+      : protein > 150
+        ? 'high protein'
+        : lifts >= 2.5
+          ? `lifting ${Math.round(lifts)}×`
+          : 'balanced macros';
   return `${energy}, ${lever}`;
 }
 
@@ -49,7 +60,8 @@ export function fallbackName(rx: Prescription): string {
 export function toneForPct(pct: number, zeroShare: number): PhaseTone {
   if (zeroShare > 0.3) return 'fast';
   if (pct >= 97 && pct <= 103) return 'neutral';
-  if (pct < 97) return pct >= 90 ? 'deficit-1' : pct >= 82 ? 'deficit-2' : pct >= 74 ? 'deficit-3' : 'deficit-4';
+  if (pct < 97)
+    return pct >= 90 ? 'deficit-1' : pct >= 82 ? 'deficit-2' : pct >= 74 ? 'deficit-3' : 'deficit-4';
   return pct <= 108 ? 'surplus-1' : pct <= 114 ? 'surplus-2' : pct <= 120 ? 'surplus-3' : 'surplus-4';
 }
 
@@ -83,7 +95,9 @@ export interface PhaseFact {
  * The engine's energy % of a phase, read from its own text: the summary's "energy 78 %" (or "other days 80 %" for
  * low-/zero-energy-day phases), else the name's "Deficit 22 %" / "Surplus 5 %". Null when the engine states none.
  */
-export function enginePhasePct(ph: Pick<PhaseExplanation, 'name' | 'summary'>): { pct: number; otherDays: boolean } | null {
+export function enginePhasePct(
+  ph: Pick<PhaseExplanation, 'name' | 'summary'>,
+): { pct: number; otherDays: boolean } | null {
   const m = /\b(energy|other days) (\d+(?:\.\d+)?)\s?%/.exec(ph.summary ?? '');
   if (m) return { pct: Number(m[2]), otherDays: m[1] === 'other days' };
   const n = /^(Deficit|Surplus) (\d+(?:\.\d+)?)\s?%/.exec(ph.name ?? '');
@@ -94,17 +108,32 @@ export function enginePhasePct(ph: Pick<PhaseExplanation, 'name' | 'summary'>): 
 export function phaseFacts(option: Pick<PlanOption, 'phases'>, rx: Prescription): PhaseFact[] {
   const list = option.phases.length
     ? option.phases
-    : [{ name: 'Whole plan', blockId: '', startDay: 0, endDay: rx.days.length, weeks: rx.days.length / 7, summary: '', why: '' }];
+    : [
+        {
+          name: 'Whole plan',
+          blockId: '',
+          startDay: 0,
+          endDay: rx.days.length,
+          weeks: rx.days.length / 7,
+          summary: '',
+          why: '',
+        },
+      ];
   return list.map((ph) => {
     const days = rx.days.filter((d) => d.day >= ph.startDay && d.day < ph.endDay);
     const eating = days.filter((d) => !d.zero);
-    const avg = (f: (d: (typeof days)[number]) => number) => eating.reduce((a, d) => a + f(d), 0) / Math.max(1, eating.length);
+    const avg = (f: (d: (typeof days)[number]) => number) =>
+      eating.reduce((a, d) => a + f(d), 0) / Math.max(1, eating.length);
     const energyPct = avg((d) => d.energyPct ?? 100);
     // balance over every day of the phase (a water-only day is part of the phase's deficit)
     const known = days.filter((d) => d.balanceKcal !== null);
-    const balanceKcal = known.length ? known.reduce((a, d) => a + d.balanceKcal!, 0) / known.length : Number.NaN;
+    const balanceKcal = known.length
+      ? known.reduce((a, d) => a + d.balanceKcal!, 0) / known.length
+      : Number.NaN;
     const withRef = days.filter((d) => d.maintKcal !== null);
-    const maintKcal = withRef.length ? withRef.reduce((a, d) => a + d.maintKcal!, 0) / withRef.length : Number.NaN;
+    const maintKcal = withRef.length
+      ? withRef.reduce((a, d) => a + d.maintKcal!, 0) / withRef.length
+      : Number.NaN;
     const eng = enginePhasePct(ph);
     // tinted by the engine's own % when it describes the whole phase, so a phase named "Maintenance" never reads as a deficit
     const tintPct = eng && !eng.otherDays ? eng.pct : energyPct;
@@ -149,7 +178,14 @@ export function phaseKcal(f: Pick<PhaseFact, 'balanceKcal'>, energy: EnergyUnit 
 }
 
 export function chartPhases(facts: readonly PhaseFact[]): Phase[] {
-  return facts.map((f, i) => ({ startDay: f.startDay, endDay: f.endDay, label: f.name, letter: String(i + 1), tone: f.tone, balance: phaseBalance(f) ?? undefined }));
+  return facts.map((f, i) => ({
+    startDay: f.startDay,
+    endDay: f.endDay,
+    label: f.name,
+    letter: String(i + 1),
+    tone: f.tone,
+    balance: phaseBalance(f) ?? undefined,
+  }));
 }
 
 /* ------------------------------------------------------------------------------------------ practical */
@@ -171,9 +207,13 @@ export function practicalFacts(rx: Prescription): PracticalFacts {
   const lifts = rx.days.filter((d) => d.sessions.some((s) => s.kind === 'resistance')).length / weeks;
   const cardio = rx.days.filter((d) => d.sessions.some((s) => s.kind === 'cardio')).length / weeks;
   const steps = rx.days.map((d) => d.steps).filter((s) => s > 0);
-  const windows = rx.days.filter((d) => d.windowStartH !== null && d.windowEndH !== null && !d.fast).map((d) => d.windowEndH! - d.windowStartH!);
+  const windows = rx.days
+    .filter((d) => d.windowStartH !== null && d.windowEndH !== null && !d.fast)
+    .map((d) => d.windowEndH! - d.windowStartH!);
   windows.sort((a, b) => a - b);
-  const fastStarts = rx.days.filter((d) => d.fast && (d.fast.part === 'start' || (d.fast.part === 'all-day' && d.day === 0)));
+  const fastStarts = rx.days.filter(
+    (d) => d.fast && (d.fast.part === 'start' || (d.fast.part === 'all-day' && d.day === 0)),
+  );
   const longest = rx.days.reduce((a, d) => Math.max(a, d.fast?.totalH ?? 0), 0);
   return {
     liftsPerWeek: lifts,
@@ -190,10 +230,21 @@ export function practicalFacts(rx: Prescription): PracticalFacts {
 
 /* ----------------------------------------------------------------------------------------- comparison */
 
-const DIRECTION: Record<string, DirectionOfGood> = { up: 'higher', down: 'lower', target: 'in-range', context: 'neutral' };
+const DIRECTION: Record<string, DirectionOfGood> = {
+  up: 'higher',
+  down: 'lower',
+  target: 'in-range',
+  context: 'neutral',
+};
 
-function fallbackBand(def: SeriesDef | undefined, values: Float32Array, base: number): { lo: Float32Array; hi: Float32Array } | undefined {
-  const m = (def?.band === 'draws' ? def.bandFallback : def?.band)?.match(/^(fixChange|fixValue):(\d+(?:\.\d+)?)$/);
+function fallbackBand(
+  def: SeriesDef | undefined,
+  values: Float32Array,
+  base: number,
+): { lo: Float32Array; hi: Float32Array } | undefined {
+  const m = (def?.band === 'draws' ? def.bandFallback : def?.band)?.match(
+    /^(fixChange|fixValue):(\d+(?:\.\d+)?)$/,
+  );
   if (!m) return undefined;
   const k = Number(m[2]) / 100;
   const lo = new Float32Array(values.length);
@@ -212,7 +263,12 @@ function fallbackBand(def: SeriesDef | undefined, values: Float32Array, base: nu
  * index d + 1), in display units, widened where needed so the nominal line stays inside. Undefined when the ensemble
  * did not band this series.
  */
-export function ensembleBand(option: Pick<PlanOption, 'bands'>, id: string, values: Float32Array, factor: number): { lo: Float32Array; hi: Float32Array } | undefined {
+export function ensembleBand(
+  option: Pick<PlanOption, 'bands'>,
+  id: string,
+  values: Float32Array,
+  factor: number,
+): { lo: Float32Array; hi: Float32Array } | undefined {
   const b = option.bands?.series[id as keyof NonNullable<PlanOption['bands']>['series']];
   if (!b) return undefined;
   const n = values.length;
@@ -231,19 +287,61 @@ export function ensembleBand(option: Pick<PlanOption, 'bands'>, id: string, valu
 }
 
 /** A plan's daily series in display units, with its own robustness band (or the catalogue's fixed range as a fallback). */
-export function seriesFor(option: Pick<PlanOption, 'simulation' | 'bands'>, id: string, units: UnitSystem, energy: EnergyUnit = 'kcal'): ChartSeries | null {
-  const raw = option.simulation.daily[id as keyof PlanOption['simulation']['daily']];
+export function seriesFor(
+  option: Pick<PlanOption, 'simulation' | 'bands'>,
+  id: string,
+  units: UnitSystem,
+  energy: EnergyUnit = 'kcal',
+  goalStatus?: OutputStatus,
+): ChartSeries | null {
+  const trajectory =
+    id === 'bodyFatPct'
+      ? goalTrajectory(option.simulation, { metric: 'bodyFatPct', functional: 'end', useTissueMass: true })
+      : null;
+  const raw = trajectory
+    ? Float32Array.from({ length: option.simulation.meta.nDays }, (_, d) => trajectory.sample(d + 1) ?? NaN)
+    : option.simulation.daily[id as keyof PlanOption['simulation']['daily']];
   if (!raw || raw.length === 0) return null;
+  const status =
+    trajectory && !trajectory.available
+      ? 'unavailable'
+      : (goalStatus ??
+        trajectory?.status ??
+        option.simulation.meta.outputStatus?.[
+          id as keyof NonNullable<typeof option.simulation.meta.outputStatus>
+        ]?.status);
+  const display = status
+    ? !INTERPRETABLE_STATUSES.has(status)
+      ? { wordOnly: STATUS_LABEL[status] }
+      : status !== 'estimated'
+        ? { qualifier: STATUS_LABEL[status] }
+        : undefined
+    : undefined;
   const def = DEF.get(id);
   const m = goalMetric(id);
   const conv = toDisplay(id, 1, units, energy);
   const factor = conv.value; // 1 unit in display units (kg → lb etc.)
   const values = factor === 1 ? raw : Float32Array.from(raw, (v) => v * factor);
-  const base0 = option.simulation.initial[id as keyof PlanOption['simulation']['initial']];
-  const base = base0 !== undefined && Number.isFinite(base0) ? base0 * factor : (values[0] ?? NaN);
+  const base0 = trajectory
+    ? trajectory.initial
+    : option.simulation.initial[id as keyof PlanOption['simulation']['initial']];
+  const base =
+    base0 !== undefined && base0 !== null && Number.isFinite(base0) ? base0 * factor : (values[0] ?? NaN);
   return {
     id,
-    label: def?.label ?? id,
+    display,
+    ...(trajectory
+      ? {
+          trajectory: {
+            operator: trajectory.operator,
+            startDay: trajectory.startDay,
+            endDay: trajectory.endDay,
+            bandKey: trajectory.bandKey,
+            available: trajectory.available,
+          },
+        }
+      : {}),
+    label: trajectory ? 'Body fat · tissue' : (def?.label ?? id),
     unit: conv.unit || (def?.unit ?? ''),
     category: (def?.category ?? 'body') as ChartSeries['category'],
     direction: DIRECTION[def?.direction ?? 'context'] ?? 'neutral',
@@ -252,7 +350,12 @@ export function seriesFor(option: Pick<PlanOption, 'simulation' | 'bands'>, id: 
     kind: def?.presentation === 'index' ? 'index' : 'line',
     baseline: base,
     // the plan's own ensemble band when the robustness check ran; the catalogue's fixed range only as a fallback
-    daily: { values, band: ensembleBand(option, id, values, factor) ?? fallbackBand(def, values, base) },
+    daily: {
+      values,
+      band: trajectory
+        ? ensembleBand(option, trajectory.bandKey, values, factor)
+        : (ensembleBand(option, id, values, factor) ?? fallbackBand(def, values, base)),
+    },
     ...(m?.caveat ? { mechanism: m.caveat } : {}),
   };
 }
@@ -261,11 +364,17 @@ export function seriesFor(option: Pick<PlanOption, 'simulation' | 'bands'>, id: 
 export function goalText(g: PlannerRequest['goals'][number], units: UnitSystem): string {
   const m = goalMetric(g.metric);
   if (g.direction === 'maximise' && g.target === 0 && g.targetKind === 'change') return 'keep';
-  if (g.direction === 'maximise' && g.target === undefined) return m?.modes[0]?.label === 'raise' || !m ? 'raise' : m.modes[0]!.label;
+  if (g.direction === 'maximise' && g.target === undefined) return m?.modes[0]?.label ?? 'raise';
   if (g.direction === 'minimise') return 'lower';
   if (g.target === undefined) return g.direction === 'maximise' ? 'raise' : 'target';
   const shown = toDisplay(g.metric, Math.abs(g.target), units);
   const amount = `${formatNumber(shown.value, shown.decimals)}\u2009${shown.unit === '%' ? '% pts' : shown.unit}`;
-  if (g.targetKind === 'change') return g.target === 0 ? 'keep' : `${g.target < 0 ? 'lose' : 'gain'} ${amount}`;
+  if (g.targetKind === 'change') {
+    if (g.target === 0) return 'keep';
+    // D4-05: plain-quantity markers (blood pressure, glucose) are lowered by a chosen amount, never "lost"
+    const lowerBy =
+      g.target < 0 && m?.target?.quantity === 'plain' && m.modes.some((x) => x.label === 'lower by');
+    return lowerBy ? `lower by ${amount}` : `${g.target < 0 ? 'lose' : 'gain'} ${amount}`;
+  }
   return `reach ${amount}`;
 }

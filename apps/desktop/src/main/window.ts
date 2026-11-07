@@ -23,6 +23,14 @@ export interface Rect {
 }
 
 export const DEFAULT_STATE: WindowState = { width: 1200, height: 820 };
+
+/**
+ * The window's own background, painted before the page and behind it while it resizes: the Ember backdrop
+ * (--lm-chassis in src/styles/tokens.css). Vitals is dark only, so the native theme is pinned to dark as well
+ * (NATIVE_THEME), which keeps the title bar, native menus and dialogs dark whatever the OS setting.
+ */
+export const WINDOW_BACKGROUND = '#090909';
+export const NATIVE_THEME = 'dark' as const;
 export const MIN_SIZE = { width: 360, height: 480 };
 
 /** Parses a saved state file's text; anything odd gives the default. */

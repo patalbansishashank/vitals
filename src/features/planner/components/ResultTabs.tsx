@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import { Info } from 'lucide-react';
-import { IconKey, KeyValueList, Notice, Section, StatusMark, energyInText, formatNumber } from '@/components';
-import { DisclaimerLine, lockLines, type PlannerLock } from '@/features/onboarding';
+import { ChevronDown, Info } from 'lucide-react';
+import { Icon, IconKey, KeyValueList, Section, StatusMark, energyInText, formatNumber } from '@/components';
+import { lockLines, type PlannerLock } from '@/features/onboarding';
 import type { GoalFeasibility, PlannerRequest, PlannerResultV2 } from '@/engine/planner/domain/types';
 import { useEnergyUnit, type UnitSystem } from '@/state/settingsStore';
 import { goalMetric } from '../catalogue';
 import { fmtKcal, fmtMetric, fmtPct } from '../format';
-import { RUNG_TITLE, isRung, outcomeView, type LadderPlan, type PlanKind } from '../ladder';
+import { RUNG_TITLE, isRung, plainLimit, planSafetyStatus, safetyDetails, type LadderPlan, type PlanKind } from '../ladder';
 import { phaseBalance, type PhaseFact } from '../planFacts';
 import type { Prescription } from '../prescription';
 import { BurdenScale } from './BurdenScale';
@@ -56,9 +56,10 @@ function sameThroughout(rx: Prescription): string[] {
 
 /**
  * Overview tab (plan-ladder.md §6.6): phases in detail, the seven burdens in full, time to target, the fasting
- * explanation, what stays the same, decision stability, chance of reaching each target, levers and the figure.
+ * explanation, what stays the same, decision stability, check runs meeting each target (a model screen, never a chance),
+ * levers and the figure. A target the search did not reach is "not found" (C6/D4-08), never "out of reach".
  */
-export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, units, onWhy, relations = [], gentle = false, figure }: OverviewTabProps) {
+export function OverviewTab({ kind, plan, request, phases, rx, feasibility, units, onWhy, relations = [], gentle = false, figure }: OverviewTabProps) {
   const energy = useEnergyUnit();
   const s = plan.summary;
   const title = RUNG_TITLE[kind];
@@ -72,14 +73,7 @@ export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, 
   const needs = feasibility.filter((f) => f.status === 'unattainable' && (f.requiredWeeks !== null || !!f.text) && !met(f.goal));
   const explanation = plan.explanation.filter((t) => !/^The largest single lever/i.test(t) && t !== plan.fasting?.text);
   const levers = plan.contributions.filter((c) => Math.abs(c.deltaGoal1) >= 0.5);
-  const quick = v2.provenance.tier === 'S';
-  const ttt = s.outcomes
-    .filter((o) => o.tttText && request.goals[o.goal]?.target !== undefined)
-    .map((o) => {
-      const v = outcomeView(o, request.goals[o.goal], kind, units, { energy, roundChance: quick });
-      return { key: o.goal, text: `${o.goal + 1} · ${v.name}: ${o.tttText}`, chance: o.pTargetMet };
-    });
-  const chances = s.outcomes.filter((o) => o.pTargetMet !== null && Number.isFinite(o.pTargetMet) && request.goals[o.goal]?.target !== undefined && o.verdict !== 'kept');
+  // r068 PR8: time to target and the check-run share are on the plan's card already; the Overview does not repeat them
   return (
     <div className="lp-overview">
       {phases.length ? <PhaseTimeline phases={phases} days={request.horizonDays} size="detail" scale /> : null}
@@ -105,7 +99,22 @@ export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, 
                 <tr key={`${p.startDay}-${i}`}>
                   <th scope="row">
                     <span className="lp-phase-dot" data-tone={p.tone} aria-hidden="true" />
-                    {energyInText(p.name, energy)}
+                    {(() => {
+                      // r068 W2-5: the ⓘ stays on the line of the name's last word, never alone on a line of its own
+                      const name = energyInText(p.name, energy);
+                      const cut = name.lastIndexOf(' ');
+                      const info = p.why && goal1 ? <IconKey icon={Info} size="sm" variant="quiet" label={`Why: evidence for ${goalMetric(goal1)?.label.toLowerCase() ?? 'this goal'}`} onClick={() => onWhy(goal1)} /> : null;
+                      if (!info) return name;
+                      return (
+                        <>
+                          {cut > 0 ? `${name.slice(0, cut)} ` : null}
+                          <span className="lp-nowrap">
+                            {cut > 0 ? name.slice(cut + 1) : name}
+                            {info}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </th>
                   <td className="lm-num">
                     {Math.floor(p.startDay / 7) + 1}–{Math.ceil(p.endDay / 7)}
@@ -119,13 +128,18 @@ export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, 
                   <td className="num lm-num">
                     {r0(p.proteinG)} · {r0(p.carbG)} · {r0(p.fatG)} g
                   </td>
+                  {/* r068 PR8: the reason first, in reading size; the full prescription behind "Details" */}
                   <td className="lp-phase-table__why">
-                    {p.summary ? <span className="lp-phase-table__sum">{energyInText(p.summary, energy)}</span> : null}
-                    {p.why ? (
-                      <span className="lp-why">
-                        {p.why}
-                        {goal1 ? <IconKey icon={Info} size="sm" variant="quiet" label={`Why: evidence for ${goalMetric(goal1)?.label.toLowerCase() ?? 'this goal'}`} onClick={() => onWhy(goal1)} /> : null}
-                      </span>
+                    {p.why ? <span className="lp-why">{p.why}</span> : null}
+                    {p.summary ? (
+                      <details className="lp-disc lp-phase-table__more">
+                        <summary className="lp-disc__sum">
+                          <span className="lp-disc__label">Details</span>
+                          <span className="lp-disc__value" />
+                          <Icon icon={ChevronDown} size={16} className="lp-disc__chev" />
+                        </summary>
+                        <span className="lp-phase-table__sum">{energyInText(p.summary, energy)}</span>
+                      </details>
                     ) : null}
                   </td>
                 </tr>
@@ -139,25 +153,6 @@ export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, 
         <Section label="Effort">
           <BurdenScale difficulty={s.difficulty} ideal={kind === 'ideal'} gentle={gentle} footnote />
         </Section>
-        {ttt.length ? (
-          <Section label="Time to target">
-            <ul className="lp-plain-list">
-              {ttt.map((t) => (
-                <li key={t.key}>{t.text}</li>
-              ))}
-            </ul>
-          </Section>
-        ) : null}
-        {chances.length ? (
-          <Section label="Chance of reaching each target">
-            <ul className="lp-plain-list">
-              {chances.map((o) => {
-                const p = o.pTargetMet! <= 1 ? o.pTargetMet! * 100 : o.pTargetMet!;
-                return <li key={o.goal}>{`${o.goal + 1} · ${(goalMetric(o.metric)?.label ?? o.label).toLowerCase()}: ${quick ? `about ${fmtPct(Math.round(p / 10) * 10)}` : fmtPct(p)} of the check runs`}</li>;
-              })}
-            </ul>
-          </Section>
-        ) : null}
         {plan.fasting?.text && !gentle ? (
           <Section label={plan.fasting.used ? 'Why it uses a fast' : 'Why there is no fast'}>
             <p className="lp-plain">{plan.fasting.text}</p>
@@ -179,25 +174,28 @@ export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, 
           </Section>
         ) : null}
         {needs.length ? (
-          <Section label={needs.some((f) => f.requiredWeeks !== null) ? 'Time the targets need' : 'Targets out of reach'}>
+          <Section label={needs.some((f) => f.requiredWeeks !== null) ? 'Time the targets need' : 'Targets not found'}>
             <ul className="lp-plain-list">
               {needs.map((f) => (
                 <li key={f.goal}>
                   {f.text || `${f.label}: about ${Math.ceil(f.requiredWeeks!)} weeks.`}
-                  {f.nearestAttainableTarget !== null ? ` Nearest reachable in ${Math.round(request.horizonDays / 7)} weeks: ${fmtMetric(f.metric, f.nearestAttainableTarget, units, { energy })}.` : ''}
+                  {f.nearestAttainableTarget !== null ? ` Nearest found in ${Math.round(request.horizonDays / 7)} weeks: ${fmtMetric(f.metric, f.nearestAttainableTarget, units, { energy })}.` : ''}
                 </li>
               ))}
             </ul>
           </Section>
         ) : null}
         {levers.length ? (
-          <Section label="Levers behind goal 1">
-            <p className="lp-plain lp-overview__caption">Change in goal 1 if the plan were changed this way, in points of what is possible.</p>
+          <Section label="What each part adds">
+            {/* r068 W2-5: plain words, not solver points */}
+            <p className="lp-plain lp-overview__caption">
+              How goal 1{goal1 ? ` (${goalMetric(goal1)?.label.toLowerCase() ?? goal1})` : ''} would change without each part, where 100 is the best plan found.
+            </p>
             <KeyValueList
               items={levers.map((c) => {
                 // deltaGoal1 = D(plan) − D(plan with the lever removed): the row reads "without the lever", so the sign flips
                 const change = -c.deltaGoal1;
-                return { key: c.label, value: <span className="lm-num">{`${change >= 0 ? '+' : '−'}${formatNumber(Math.abs(change), 1)} pts`}</span> };
+                return { key: c.label, value: <span className="lm-num">{`${change >= 0 ? '+' : '−'}${formatNumber(Math.abs(change), 0)} of 100`}</span> };
               })}
             />
           </Section>
@@ -205,7 +203,7 @@ export function OverviewTab({ kind, plan, v2, request, phases, rx, feasibility, 
         {isRung(kind) && kind !== 'hard' && plan.hardBeatsThisShare !== null ? (
           <Section label="Stability">
             <p className="lp-plain">
-              Hard stays ahead of this plan in {fmtPct(plan.hardBeatsThisShare * (plan.hardBeatsThisShare <= 1 ? 100 : 1))} of model variations.
+              When the body model’s uncertain numbers are varied, Hard still does better than this plan in {fmtPct(plan.hardBeatsThisShare * (plan.hardBeatsThisShare <= 1 ? 100 : 1))} of the runs.
             </p>
           </Section>
         ) : null}
@@ -246,7 +244,6 @@ export function LimitsTab({ kind, plan, v2, request, units }: LimitsTabProps) {
         <Section label="What your limits cost">
           <LimitCosts ideal={v2.ideal} goals={request.goals} units={units} energy={energy} all />
         </Section>
-        <DisclaimerLine />
       </div>
     );
   }
@@ -258,11 +255,20 @@ export function LimitsTab({ kind, plan, v2, request, units }: LimitsTabProps) {
           <ul className="lp-limits-list">
             {b.map((l) => {
               const cost = v2.ideal?.limitCosts.find((c) => c.group === l.group);
+              const costLine = cost ? limitCostSentence(cost, request.goals, units, energy) : null;
+              const every = l.share >= 1;
               return (
-                <li key={l.group}>
-                  <span className="lp-limits-list__name">{l.text || l.label}</span>
-                  <span className="lp-limits-list__share lm-num">{l.share >= 1 ? 'at its bound' : `on ${fmtPct(l.share * 100)} of days`}</span>
-                  {cost ? <span className="lp-limits-list__cost">{limitCostSentence(cost, request.goals, units, energy)}</span> : null}
+                // r068 PR16 / W2-7: the limit in plain words; a bar only when it binds on some days (every day is a plain
+                // line, never an always-full bar); one line of cost, only when lifting it would change something
+                <li key={l.group} data-every={every || undefined}>
+                  <span className="lp-limits-list__name">{plainLimit((l.text || l.label).replace(/\s*\(on \d+ % of days\)/, ''))}</span>
+                  {every ? null : (
+                    <span className="lp-limits-list__bar" aria-hidden="true">
+                      <i style={{ width: `${Math.round(Math.min(1, Math.max(0, l.share)) * 100)}%` }} />
+                    </span>
+                  )}
+                  <span className="lp-limits-list__share lm-num">{every ? 'binds every day' : `binds on ${fmtPct(l.share * 100)} of days`}</span>
+                  {costLine ? <span className="lp-limits-list__cost">{costLine}</span> : null}
                 </li>
               );
             })}
@@ -296,19 +302,27 @@ export function SafetyTab({ kind, plan, request, locks }: SafetyTabProps) {
   const items = safetyItemsOf({ safetyItems: plan.safetyItems ?? plan.summary.safetyItems, safetyNotes: plan.safetyNotes });
   const flagged = items.filter((i) => i.severity !== 'info');
   const notes = items.filter((i) => i.severity === 'info');
+  const verified = planSafetyStatus(plan) === 'verified';
   return (
     <div className="lp-safetytab">
+      {/* C5/D4-01/D4-03: the check itself — status, each typed limit, exact scenario-run counts (no probability) */}
+      <Section label={`Safety check for the ${title} plan`}>
+        <KeyValueList items={safetyDetails(plan)} />
+      </Section>
       {flagged.length ? (
         <Section label={`${flagged.some((i) => i.severity === 'danger') ? 'Dangers and cautions' : 'Cautions'} for the ${title} plan`}>
-          <div className="lp-safetytab__notes">
+          <ul className="lp-notes lp-safetytab__notes">
             {flagged.map((it, i) => (
-              <Notice key={i} severity={it.severity} layout="ruled" title={it.text} />
+              <li key={i} data-severity={it.severity}>
+                <StatusMark severity={it.severity} size={16} />
+                <span>{it.text}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </Section>
       ) : (
         <p className="lp-safety-line">
-          <StatusMark severity="ok" size={16} />
+          <StatusMark severity={verified ? 'ok' : 'info'} size={16} />
           <span>No safety flags for the {title} plan.</span>
         </p>
       )}
@@ -340,7 +354,7 @@ export function SafetyTab({ kind, plan, request, locks }: SafetyTabProps) {
           </ul>
         </Section>
       )}
-      <Section label="Safety limits every plan stays inside">
+      <Section label="Safety limits for these plans">
         <ul className="lp-plain-list">
           {safetyLines.map((l) => (
             <li key={l}>{l}</li>
@@ -356,8 +370,7 @@ export function SafetyTab({ kind, plan, request, locks }: SafetyTabProps) {
           <li>Multi-day fasts over 72 hours and very-low-energy diets: these are for the Simulator only.</li>
         </ul>
       </Section>
-      <p className="lp-plain lp-safetytab__always">These plans stay within Vitals’ safety limits. They are projections, not medical advice.</p>
-      <DisclaimerLine />
+      {/* r068 W2-18: one disclaimer per page — the page's own last line, not three versions at the tab's end */}
     </div>
   );
 }

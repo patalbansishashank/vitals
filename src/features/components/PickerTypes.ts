@@ -19,7 +19,7 @@ export interface PickerEntry {
   assumed?: boolean;
   source?: 'picker' | 'coach' | 'paste';
   /**
-   * The catalogue's name of the item, added to the intake answer at Done so the answered list reads "matta rice", not
+   * The catalogue's name of the item, added to the intake answer at commit so the answered list reads "matta rice", not
    * the id. Display only: never written to the kitchen or pantry documents (`label` stays the person's own words).
    */
   name?: string;
@@ -42,15 +42,31 @@ export interface CataloguePickerProps {
   ranked?: boolean;
   /** Per-item notes (✎). Default: true for equipment and pantry. */
   notes?: boolean;
-  /** Paste-a-list disclosure. Default: true for pantry and staples. */
+  /**
+   * @deprecated The paste-a-list disclosure is gone: a pasted list goes into "Add something else" (each line an item,
+   * source "paste"). Accepted so existing callers compile; it changes nothing.
+   */
   paste?: boolean;
   /**
-   * Resolves free text ("I also have…", paste-a-list) to catalogue ids. Default: the catalogue matcher over this kind
-   * (pantry also matches staples). A Coach-backed resolver may be passed; unmatched words are always kept.
+   * Resolves free text ("Add something else", a pasted list) to catalogue ids. Default: the catalogue matcher over this
+   * kind (pantry also matches staples). A Coach-backed resolver may be passed; unmatched words are always kept.
    */
   resolve?: (text: string) => Promise<ParsedItem[]>;
-  /** Optional framing (pantry): no "required" marks, "Optional." note above the picker. */
+  /**
+   * @deprecated Optional framing (pantry). The picker no longer draws an "Optional." note (the owner's own keys say
+   * it). Accepted so existing callers compile; it changes nothing.
+   */
   optional?: boolean;
+  /**
+   * Catalogue group ids not shown unless something in them is picked (the pantry hides meat and fish for a vegetarian;
+   * `pantryGroupsHiddenFor` in `@/features/food/pantryData`). Search skips them too.
+   */
+  hiddenGroups?: readonly string[];
+  /**
+   * Open the first group that has something ticked when the picker appears (default true). Settings passes false, so a
+   * list opens with every group closed instead of unfolding dozens of chips at once.
+   */
+  openFirstTicked?: boolean;
   /** Accessible name of the whole picker, e.g. "Cooking equipment". */
   label: string;
   className?: string;

@@ -3,7 +3,7 @@
  * Every number is copied from dossier 20 (§4.1-§4.5, §4.9, §4B.2) or the spec. Where the dossier gives a formula with a
  * ± band (φ_AT, pr_late) the structural constants are `fixed` and the band is carried by one drawn shift/multiplier.
  */
-import type { ParamDef } from '../../types/params';
+import type { ParamDef, ParamDistributionMeta } from '../../types/params';
 
 // ---- sources (20 §11 reference list)
 const HALL2010 = 'Hall 2010 PMID 19934407';
@@ -33,7 +33,24 @@ const GABRIEL = 'Gabriel 2025 PMID 40765844';
 const COMMISSATI = 'Commissati 2025 PMID 40268190';
 const MCDOUGAL = 'McDougal 2018 PMID 29931424';
 
-export const FASTING_PARAMS: readonly ParamDef[] = [
+/**
+ * The four overlay criteria are the named legacy routing approximation of D2-01 (`FASTING_ROUTING` in model.ts): fixed
+ * engineering thresholds on observed rolling 24-h intake, applied identically to planned and unplanned fasts. They are
+ * routing shortcuts, not biological discontinuities, and carry no predictive distribution.
+ */
+const ROUTING_THRESHOLD: ParamDistributionMeta = {
+  uncertaintyKind: 'heuristic',
+  bounds: 'support',
+  nominal: 'designPoint',
+  basis: 'legacy routing threshold on observed rolling 24-h intake (D2-01); not fitted transition kinetics',
+  population: 'adults, water-only or modified fasts',
+  version: 1,
+  label: 'engineeringDefault',
+};
+const ROUTING_NOTE =
+  'Legacy routing approximation (D2-01): evaluated on observed rolling 24-h intake for planned and unplanned fasts alike; a planned fast label or length never activates the overlay.';
+
+const RAW_PARAMS: readonly ParamDef[] = [
   // ------------------------------------------------------------------ overlay criteria (20 §4.1, §2; MODEL_SPEC §1.4 step 1)
   {
     id: 'fasting.fastKcalFrac',
@@ -46,6 +63,8 @@ export const FASTING_PARAMS: readonly ParamDef[] = [
     source: KOLNES,
     dossier: '20 §4.1, §4B.1',
     label: 'Water-only criterion: 24-h energy < fraction of maintenance',
+    note: ROUTING_NOTE,
+    distribution: ROUTING_THRESHOLD,
   },
   {
     id: 'fasting.fastProteinMaxG',
@@ -58,6 +77,8 @@ export const FASTING_PARAMS: readonly ParamDef[] = [
     source: KOLNES,
     dossier: '20 §4.1, §4B.1',
     label: 'Fast criterion: 24-h protein below',
+    note: ROUTING_NOTE,
+    distribution: ROUTING_THRESHOLD,
   },
   {
     id: 'fasting.fastCarbMaxG',
@@ -70,6 +91,8 @@ export const FASTING_PARAMS: readonly ParamDef[] = [
     source: KOLNES,
     dossier: '20 §4.1, §4B.1',
     label: 'Water-only criterion: 24-h digestible carbohydrate below',
+    note: ROUTING_NOTE,
+    distribution: ROUTING_THRESHOLD,
   },
   {
     id: 'fasting.modKcalFrac',
@@ -82,6 +105,8 @@ export const FASTING_PARAMS: readonly ParamDef[] = [
     source: LAURENS,
     dossier: '20 §4.1, §4B.1',
     label: 'Modified (Buchinger-type) fast: 24-h energy < fraction of maintenance',
+    note: ROUTING_NOTE,
+    distribution: ROUTING_THRESHOLD,
   },
   {
     id: 'fasting.eventProteinG',
@@ -95,21 +120,6 @@ export const FASTING_PARAMS: readonly ParamDef[] = [
     dossier: '20 §2 (tFast)',
     label: 'Intake event resetting the fasting clock: protein above',
     note: 'energy part of the event rule is 17 §2.5 ZERO_INTAKE_KCAL (core/defaults)',
-  },
-  {
-    id: 'fasting.plannedMinSpanH',
-    value: 24,
-    unit: 'h',
-    low: 24,
-    high: 24,
-    grade: 'C',
-    status: 'proposed-fit',
-    source: 'MODEL_SPEC_DECISIONS 2026-09-30 (review M7)',
-    dossier: '20 §4.1, §4B.1',
-    draw: 'fixed',
-    label:
-      'A planned zero-intake span activates the overlay from its first hour only when at least this long',
-    note: "Shorter planned spans use the 24-h intake criteria (a 16-h FastEvent must not get 20's peak N rate).",
   },
   {
     id: 'fasting.eventCarbG',
@@ -747,3 +757,58 @@ export const FASTING_PARAMS: readonly ParamDef[] = [
     label: 'BHB_ref slow time constant τ2 (calibration only)',
   },
 ];
+
+/**
+ * D2-05: the labile-pool repletion and refeeding-oedema constants are broad structural scenarios — design fits that are
+ * jointly unidentifiable from scale/DXA traces (pool size, τ_rep, hydration, oedema) — never measured constants and never a
+ * precise recovery certificate. Refeeding safety does not read them.
+ */
+const STRUCTURAL_SCENARIO = new Set(
+  ['lMax', 'tauRep', 'repEnergyFrac', 'repProteinGPerKg', 'aOed', 'aOedCapL', 'oedMinFastD', 'oedRiseTauD', 'oedDecayTauD', 'oedLowMult', 'oedLowCarbG', 'oedLowNaMg'].map(
+    (n) => `fasting.${n}`,
+  ),
+);
+/** Declared approximations / documentation-only values (not engine physics). */
+const DECLARED_APPROXIMATION = new Set(['hP', 'gammaP', 'gammaF'].map((n) => `fasting.${n}`));
+/** Calibration fixture of the ketones module (20 §4.3.4 BHB_ref), never engine physics. */
+const CALIBRATION_FIXTURE = new Set(['bhbRefB1', 'bhbRefB2', 'bhbRefTau2H'].map((n) => `fasting.${n}`));
+
+function fastingDistribution(p: ParamDef): ParamDistributionMeta {
+  const fixed = p.draw === 'fixed' || p.low === p.high;
+  const id = p.id;
+  if (STRUCTURAL_SCENARIO.has(id)) {
+    return {
+      uncertaintyKind: 'scenario',
+      bounds: 'support',
+      nominal: fixed ? 'designPoint' : 'mode',
+      basis: 'broad structural scenario (labile pool / repletion / refeeding oedema): jointly unidentifiable design fit, not a measured constant or recovery certificate',
+      population: 'healthy adults in 20 §4.9 fasting and refeeding cohorts; repeated short fasts extrapolated',
+      version: 1,
+      label: 'designPrior',
+    };
+  }
+  if (DECLARED_APPROXIMATION.has(id)) {
+    return {
+      uncertaintyKind: 'heuristic',
+      bounds: 'support',
+      nominal: 'designPoint',
+      basis: id === 'fasting.hP' ? 'effective hydration convention (2.6 g lean tissue per g protein); approximation, not a measurement; composition.hP is the engine value' : 'documentation only; not used by the engine',
+      version: 1,
+      label: 'engineeringDefault',
+    };
+  }
+  if (CALIBRATION_FIXTURE.has(id)) {
+    return { uncertaintyKind: 'heuristic', bounds: 'support', nominal: 'designPoint', basis: 'calibration fixture for the ketones module (20 §4.3.4), not engine physics', version: 1, label: 'designPrior' };
+  }
+  return {
+    uncertaintyKind: fixed ? 'heuristic' : 'parameterSensitivity',
+    bounds: 'support',
+    nominal: fixed ? 'designPoint' : 'mode',
+    basis: 'fasting N / resting-EE model constant (20 §4.2-4.4): population-cohort prior; urinary N is a prior, not muscle loss',
+    population: 'healthy adults, water-only or modified fasts (20 §7 cohorts)',
+    version: 1,
+    label: p.status === 'verified' ? 'empirical' : 'designPrior',
+  };
+}
+
+export const FASTING_PARAMS: readonly ParamDef[] = RAW_PARAMS.map((p) => (p.distribution ? p : { ...p, distribution: fastingDistribution(p) }));

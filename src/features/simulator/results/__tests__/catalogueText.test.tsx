@@ -55,7 +55,6 @@ function mount(energyUnit: 'kcal' | 'kJ', url = '/simulate/s1/results') {
     },
     inputs: { profile: PROFILE, schedule: SCHEDULE },
     horizonDays: DAYS,
-    onRun: () => {},
     prefs: { units: 'metric', energyUnit, glucoseUnit: 'mmol', showFigure: true, textures: false },
     scheduleHref: () => '/simulate/s1/schedule',
   };
@@ -155,7 +154,7 @@ describe('keto-adaptation text comes from the engine catalogue', () => {
     mount('kcal', '/simulate/s1/results?explain=ketoAdaptation');
     await flush();
     const dialog = await screen.findByRole('dialog', { name: KETO.label });
-    expect(dialog.querySelector('.ev-xp__eng')!.textContent).toContain(`· ${ketoUnit}`);
+    expect(dialog.querySelector('.ev-xp__meta')!.textContent).toContain(`· ${ketoUnit}`);
     if (KETO.description) expect(within(dialog).getByText(KETO.description)).toBeInTheDocument();
   });
 
@@ -227,7 +226,7 @@ describe('results readouts follow Settings › energy (kJ)', () => {
     expect(energy.textContent).not.toMatch(/kcal/);
     const tdeeLane = container.querySelector<HTMLElement>('[data-lane="tdee"]');
     if (tdeeLane) expect(tdeeLane.textContent).not.toMatch(/kcal/);
-    expect(screen.getByText('kJ/d · daily')).toBeInTheDocument(); // "Where the energy goes" caption
+    expect(screen.getByText('kJ/d · 7-day mean')).toBeInTheDocument(); // "Where the energy goes" caption
   });
 
   it('the Explain drawer names the channel unit in kJ', async () => {

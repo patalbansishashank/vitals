@@ -32,6 +32,20 @@
  * habitual week (every day at S_hab) books exactly zero. Two people with the same body and S_hab but different jobs get
  * the same Δ for the same plan; their references differ by their TDEE0 (`core/__tests__/activityIntake.rMaint.test.ts`).
  *
+ * 2026-10-18 (D3-07, D3-08): steps enter through the shared step ledger on both sides (a total-day count minus the
+ * locomotor steps of sessions inside it, `activity.dayLedgerSteps`; the habitual count by the same rule,
+ * `ActivityModK.habStepsLedger`), so already-habitual walking logged as a session inside the same total-day count is not
+ * booked twice; sessions use the same bout ledger as the module (net above own rest − displaced lifestyle + recovery
+ * budget). The post-RT term reads the module's single `postRtRee` (0 in production and every draw), so the reference,
+ * planned expenditure, hourly release, burn-in and snapshot tails share one recovery mode.
+ *
+ * Re-audit 2026-10-19 (A1-040): both operands use one resolver. The habitual reference ledger (`habStepsLedger`) is the
+ * habitual count reconciled with the habitual sessions' included steps when they are KNOWN (`habitualStepsReference`), and
+ * the burn-in habitual week carries the same scope and included steps, so it books exactly zero and a current day with the
+ * same known physical bouts gives a step-only difference of 0. With the habitual overlap unknown nothing is subtracted from
+ * the reference (a disclosed no-subtraction scenario, `habitualStepsOverlapUnknown` in the run's assumptions); current steps
+ * are never copied into it.
+ *
  * Allocation allowed: runs once per compile (the per-profile constants are cached).
  */
 import type { DayInput } from '../types/inputs';
@@ -43,6 +57,7 @@ import {
   activityConstants,
   activityModule,
   dayAerobicDose,
+  dayLedgerSteps,
   firstRtEndH,
   sessionsBookedKcal,
   updateGainPool,
@@ -123,12 +138,15 @@ function postRtHours(day: DayInput, left: number, out: Float64Array, postRtHours
   return hrs;
 }
 
-/** Booked activity energy of one day (sessions + post-RT REE + steps above habitual), kcal, at the t = 0 state. */
+/**
+ * Booked activity energy of one day (sessions + post-RT REE + steps above habitual), kcal, at the t = 0 state. Steps: the
+ * day's ledger steps minus the habitual ledger steps (D3-07, the same overlap rule on both sides).
+ */
 function dayActivityKcal(c: ActivityRefConstants, day: DayInput, postRtHrs: number, vo2max: number): number {
   const a = c.act;
   const sessions = day.nSessions > 0 ? sessionsBookedKcal(a, day, vo2max, c.bw, c.bmi, c.rmrH) : 0;
-  const postRt = a.postRtRee * c.rmrH * (1 - a.postRtShield * c.ts0) * postRtHrs;
-  const steps = c.stepK * ((day.steps > 0 ? day.steps : 0) - a.habSteps);
+  const postRt = a.postRtRee > 0 ? a.postRtRee * c.rmrH * (1 - a.postRtShield * c.ts0) * postRtHrs : 0;
+  const steps = c.stepK * (dayLedgerSteps(day) - a.habStepsLedger);
   return sessions + postRt + steps;
 }
 

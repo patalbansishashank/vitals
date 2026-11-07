@@ -7,9 +7,17 @@
  *  - keeps absolute day/hour indices: the continuation compiles the WHOLE realised schedule from the plan's day 0 and its
  *    main loop starts at `k` (modules that remember day indices — e.g. composition's `deficitEndDay` — stay valid);
  *  - carries the core's 'blockStart' latch and the safety trace of days [0, k), so trailing windows see the same history;
- *  - is keyed WITHOUT the horizon (CR-L1). The series mask stays in the key: composition's regional state is only
- *    advanced when a regional series is recorded, so a state captured with another mask is not the same state.
+ *  - is keyed WITHOUT the horizon (CR-L1). The series mask stays in the key: the latent state consumers use (bus signals,
+ *    visceral fat — one VAT transition for every mask, D1-02 — and the safety trace) is mask-invariant
+ *    (`reviewMaskInvariant.test.ts`, D8-01), but optional display geometry may still be advanced only when recorded, so a
+ *    cross-mask restore stays rejected until equivalence is proven for every latent state (C7).
+ *  - carries every module's structured state with absolute day indices, so training history, region peaks, dose and decay
+ *    clocks continue from the confirmed state rather than restarting at the snapshot (D3-06).
  * Typed arrays whose length depends on the horizon (safety's per-day arrays) are restored as a prefix copy by the loop.
+ * W2-core (C7/D4-04): the key includes the safety-trace layout and the loop restores a day-k snapshot only when it carries
+ * the history of every trace field (the calendar energy-availability ledger included), so a snapshot captured before a
+ * trace field existed is recomputed rather than continued with a NaN gap; the module states (safety's 28-day rings) are
+ * structured clones as before.
  * The caller guarantees that days [0, k) of the continuation's schedule are the ones the snapshot was captured with
  * (the living plan hashes its logged inputs for that, `ConfirmedStateRecord.inputsHash`).
  */
@@ -29,8 +37,17 @@ export interface DayLatch {
 }
 
 /**
+ * Layout of a SafetyTrace: its field names in allocation order (C7/D4-04). Part of the day-stamped key, so a snapshot whose
+ * trace prefix was captured under another set of trace fields (e.g. before the calendar energy-availability ledger) is a
+ * different key and is never restored.
+ */
+export function traceLayout(trace: SafetyTrace): string {
+  return fnv1a(Object.keys(trace).join(','));
+}
+
+/**
  * Validity key of a day-stamped snapshot: engine version, registry hash, parameter vector, profile input, module list, start
- * date, run mode, series mask, burn-in length and the day itself — not the horizon.
+ * date, run mode, series mask, burn-in length, safety-trace layout and the day itself — not the horizon.
  */
 export function daySnapshotKey(
   profile: ResolvedProfile,
@@ -55,6 +72,7 @@ export function daySnapshotKey(
     ctx.mode,
     fnv1a(mask),
     ctx.burnInDays ?? 0,
+    `trace:${traceLayout(ctx.safetyTrace)}`,
     `@${day}`,
   ].join('|');
 }
@@ -94,12 +112,22 @@ export interface DaySnapshotParts {
   trace: SafetyTrace;
 }
 
-/** Capture the state at the start of `day` (allocation: one structured clone of every module state + trace prefix). */
+/**
+ * Capture the state at the start of `day` (allocation: one structured clone of every module state + trace prefix). Every
+ * trace field gets its prefix; an alias field (D4-04 `eatingDayEa7` is the `ea7` array) shares its source's prefix copy.
+ */
 export function captureDaySnapshot(p: DaySnapshotParts): EngineSnapshot {
   const tracePrefix: Partial<Record<SafetyTraceKey, Float32Array>> = {};
+  const copies = new Map<Float32Array, Float32Array>();
   for (const k of Object.keys(p.trace) as SafetyTraceKey[]) {
     const arr = p.trace[k];
-    if (arr) tracePrefix[k] = arr.slice(0, p.day);
+    if (!arr) continue;
+    let pre = copies.get(arr);
+    if (!pre) {
+      pre = arr.slice(0, p.day);
+      copies.set(arr, pre);
+    }
+    tracePrefix[k] = pre;
   }
   return {
     key: p.key,
@@ -113,6 +141,24 @@ export function captureDaySnapshot(p: DaySnapshotParts): EngineSnapshot {
     latch: { block: p.latch.block, maintenanceKcal: p.latch.maintenanceKcal, bodyMassKg: p.latch.bodyMassKg, ffmKg: p.latch.ffmKg },
     tracePrefix,
   };
+}
+
+/**
+ * C7/D4-04: the trace fields of `trace` a day-`day` snapshot cannot restore — no prefix, or one that is not a Float32Array
+ * of the snapshot's day count (lost in a lossy serialisation, captured by an older core). Empty = compatible. A day-0
+ * snapshot needs no history. Allocation allowed (restore time).
+ */
+export function incompatibleTracePrefix(trace: SafetyTrace, snap: EngineSnapshot, day: number): SafetyTraceKey[] {
+  if (day <= 0) return [];
+  const pre = snap.tracePrefix;
+  const out: SafetyTraceKey[] = [];
+  for (const k of Object.keys(trace) as SafetyTraceKey[]) {
+    if (!trace[k]) continue;
+    const src: unknown = pre?.[k];
+    // realm-independent type test (a snapshot may come back from a worker or a structured-clone store)
+    if (Object.prototype.toString.call(src) !== '[object Float32Array]' || (src as Float32Array).length !== day) out.push(k);
+  }
+  return out;
 }
 
 /** Copy a day-stamped snapshot's trace prefix into the run's (NaN-filled) safety trace. */

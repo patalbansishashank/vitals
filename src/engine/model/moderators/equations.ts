@@ -61,15 +61,19 @@ export function alcoholRecoveryPenalty(gPerKg: number, doseLow: number, doseHigh
 }
 
 /**
- * Sleep-quality index (MODEL_SPEC §1.1 step 6): base − TSTloss/ptsPerMin − 100·alcohol penalty, clamped to [0, 100].
- * UI heuristic (grade D): never fed back into the simulation.
+ * Legacy sleep-quality index (MODEL_SPEC §1.1 step 6): base − TSTloss/ptsPerMin − 100·alcohol penalty, clamped to [0, 100].
+ * D8-06: a heuristic EXPOSURE index of caffeine timing and alcohol (an HRV-recovery association), never a measured or
+ * subjective sleep quality; never fed back into the simulation and never subtracted from logged sleep hours.
  */
 export function sleepQualityIndex(base: number, tstLossMinutes: number, ptsPerMin: number, alcoholPenalty: number): number {
   const v = base - tstLossMinutes / ptsPerMin - 100 * alcoholPenalty;
   return v < 0 ? 0 : v > 100 ? 100 : v;
 }
 
-/** First luteal cycle day for a cycle of length L days: ceil(L/2) + 1 (16 §4.5; days 15-28 for L = 28). */
+/**
+ * First luteal cycle day for a cycle of length L days: ceil(L/2) + 1 (16 §4.5; days 15-28 for L = 28). D8-07: a design
+ * calendar rule, not measured ovulation.
+ */
 export function lutealStartDay(cycleLenD: number): number {
   return Math.ceil(cycleLenD / 2) + 1;
 }
@@ -80,8 +84,16 @@ export function lutealStartDay(cycleLenD: number): number {
  * Returns 0 when `cycleDay < 1` (not tracked).
  */
 export function lutealWeightAt(cycleDay: number, cycleLenD: number, rampDays: number): number {
+  return lutealWeightFrom(cycleDay, lutealStartDay(cycleLenD), rampDays);
+}
+
+/**
+ * `lutealWeightAt` with an explicit luteal start day (D8-07: the day after a manually confirmed ovulation, or the calendar
+ * rule). `start` is clamped to ≥ 2 so the follicular ramp stays defined.
+ */
+export function lutealWeightFrom(cycleDay: number, lutealStart: number, rampDays: number): number {
   if (cycleDay < 1) return 0;
-  const start = lutealStartDay(cycleLenD);
+  const start = lutealStart > 2 ? lutealStart : 2;
   if (cycleDay >= start) return 1;
   // days before the luteal phase: distance to its first day, or (wrapping) days since the previous cycle's last day
   const before = start - cycleDay;
@@ -91,7 +103,10 @@ export function lutealWeightAt(cycleDay: number, cycleLenD: number, rampDays: nu
   return w > 0 ? w : 0;
 }
 
-/** Mean of s(d) over one cycle (energy centres the luteal RMR term with it so that the phase-averaged RMR0 is unchanged). */
+/**
+ * Mean of s(d) over one cycle (energy centres the luteal RMR term with it so that the phase-averaged RMR0 is unchanged).
+ * D8-07: the phase-average value written for a tracked cycle whose phase is unknown or irregular (zero centred deviation).
+ */
 export function lutealMeanWeight(cycleLenD: number, rampDays: number): number {
   let sum = 0;
   for (let d = 1; d <= cycleLenD; d++) sum += lutealWeightAt(d, cycleLenD, rampDays);
@@ -132,4 +147,26 @@ export const mod = (a: number, n: number): number => ((a % n) + n) % n;
  */
 export function cycleDayOn(lastPeriodDay: number, startDay: number, dayIndex: number, cycleLenD: number): number {
   return mod(startDay - lastPeriodDay + dayIndex, cycleLenD) + 1;
+}
+
+/**
+ * Typical cycle length from observed period starts (sorted day numbers): the median of the intervals between kept starts,
+ * where a start less than `minLen` days after the previous kept one is a duplicate/spotting entry of the same period; NaN
+ * when fewer than two usable starts. Variable history is
+ * summarised, never forced to 28 d.
+ */
+export function medianCycleLength(sortedStarts: ArrayLike<number>, minLen: number): number {
+  const gaps: number[] = [];
+  if (sortedStarts.length === 0) return Number.NaN;
+  let prev = sortedStarts[0]!;
+  for (let i = 1; i < sortedStarts.length; i++) {
+    const g = sortedStarts[i]! - prev;
+    if (g < minLen) continue; // a duplicate/spotting entry of the same period
+    gaps.push(g);
+    prev = sortedStarts[i]!;
+  }
+  if (gaps.length === 0) return Number.NaN;
+  gaps.sort((a, b) => a - b);
+  const m = gaps.length >> 1;
+  return gaps.length % 2 === 1 ? gaps[m]! : 0.5 * (gaps[m - 1]! + gaps[m]!);
 }

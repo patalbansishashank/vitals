@@ -13,11 +13,11 @@ import type { ConvergenceTrace } from '../types';
 export interface ConvergenceChartProps {
   traces: readonly ConvergenceTrace[];
   height?: number;
-  /** Engraved legend caption (default "best score per plan · iterations"). */
+  /** Axis caption, sentence case (default "Best score per plan · iterations"). */
   caption?: string;
 }
 
-export const ConvergenceChart = memo(function ConvergenceChart({ traces, height = 120, caption = 'best score per plan · iterations' }: ConvergenceChartProps) {
+export const ConvergenceChart = memo(function ConvergenceChart({ traces, height = 120, caption = 'Best score per plan · iterations' }: ConvergenceChartProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(rootRef) || 480;
   const [hover, setHover] = useState<number | null>(null);
@@ -69,7 +69,7 @@ export const ConvergenceChart = memo(function ConvergenceChart({ traces, height 
       >
         {ticks.ticks.map((t) => (
           <g key={t}>
-            <line x1={m.l} x2={m.l + pw} y1={Math.round(Y(t)) + 0.5} y2={Math.round(Y(t)) + 0.5} stroke="var(--lm-chart-grid)" />
+            <line className="lmc-grid" x1={m.l} x2={m.l + pw} y1={Math.round(Y(t)) + 0.5} y2={Math.round(Y(t)) + 0.5} />
             <text className="lmc-tick-t" x={m.l - 6} y={Y(t)} textAnchor="end" dominantBaseline="central">
               {formatNumber(t, 2)}
             </text>
@@ -98,9 +98,11 @@ export const ConvergenceChart = memo(function ConvergenceChart({ traces, height 
           const ly = ends.get(t.plan) ?? Y(v);
           return (
             <g key={`e${t.plan}`}>
-              <circle cx={X(t.scores.length - 1)} cy={Y(v)} r={4} fill={`var(--lm-plan-${t.plan.toLowerCase()})`} stroke="var(--lm-face)" strokeWidth={2} />
+              {/* the end dot's halo (r071 skin): the plan's colour at 18 %, 6 px past the dot, with the canvas dot's ring */}
+              <circle className="lmc-halo" cx={X(t.scores.length - 1)} cy={Y(v)} r={12} fill={`var(--lm-plan-${t.plan.toLowerCase()})`} />
+              <circle cx={X(t.scores.length - 1)} cy={Y(v)} r={4} fill={`var(--lm-plan-${t.plan.toLowerCase()})`} stroke="var(--lm-chart-ring)" strokeWidth={2} />
               <text x={m.l + pw + 10} y={ly} dominantBaseline="central" style={{ fontSize: 11.5, fontVariantNumeric: 'tabular-nums' }}>
-                <tspan style={{ fontWeight: 700 }} fill="var(--lm-ink)">
+                <tspan style={{ fontWeight: 500 }} fill="var(--lm-ink)">
                   {t.plan}
                 </tspan>
                 <tspan fill="var(--lm-ink-2)"> {formatNumber(v, 2)}</tspan>

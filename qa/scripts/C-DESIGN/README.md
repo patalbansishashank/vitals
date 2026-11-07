@@ -10,7 +10,7 @@ BASE='<preview-url>' node qa/scripts/C-DESIGN/results.mjs before
 
 Rebuild the production site after layout changes, then use `after` for all three commands. Run one script at a time to bound browser memory. `before` records known layout defects; capture errors still need resolving. `after` exits nonzero for measured regressions.
 
-`layout.mjs` covers stable routes at 390, 768, 1024, 1280 and 1440 pixels in both themes. `states.mjs` covers first visit, screening, consent, empty and populated ring/signals, a food log sheet, Train week and a 24-pixel bottom safe inset. `results.mjs` performs a real planner search and simulation, then resizes the live result views across the matrix. Planner results cannot be restored from a storage snapshot, so this live pass is required. `seed.mjs` and `ring-seed.mjs` supply the separate synthetic profiles.
+`layout.mjs` covers stable routes at 390, 768, 1024, 1280 and 1440 pixels in both themes. `states.mjs` covers first visit, screening, consent, a food log sheet, Train week and a 24-pixel bottom safe inset. `results.mjs` performs a real planner search and simulation, then resizes the live result views across the matrix. Planner results cannot be restored from a storage snapshot, so this live pass is required. `seed.mjs` supplies the synthetic profile (`ring-seed.mjs` was removed in 0.6.0 with the Ring and Body signals pages).
 
 The short-lived floating Body preview has a separate, fresh-context SVG-fallback check. Run it after the normal renderer matrix:
 

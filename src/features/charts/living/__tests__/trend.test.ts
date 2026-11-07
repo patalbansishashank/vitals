@@ -6,6 +6,7 @@ import {
   linePathWithBreaks,
   placeLabels,
   quietScoreWord,
+  scorePointParts,
   scoreSummary,
   scoreTableRows,
   spokenDateRange,
@@ -17,6 +18,12 @@ import {
   trendTableCSV,
   trendTableRows,
   trendToChartData,
+  smoothAreaPath,
+  smoothBandPath,
+  smoothLinePath,
+  smoothLinePathWithBreaks,
+  trendTwin,
+  scoreTwin,
 } from '../trend';
 import { scoreFixture, trendFixture } from './fixtures';
 
@@ -32,11 +39,15 @@ describe('trend scales', () => {
     expect(trendDomain(trendFixture(), 'checkin').goal).toBe('below');
   });
 
-  it('includes the goal only on size progress', () => {
-    const d = trendDomain(trendFixture(), 'progress');
-    expect(d.lo).toBeCloseTo(79, 6);
-    expect(d.hi).toBeCloseTo(85, 6);
-    expect(d.goal).toBe('inside');
+  it('never stretches the scale to the goal, on any size (r071): the data fills the plot', () => {
+    for (const size of ['today', 'checkin', 'progress'] as const) {
+      const d = trendDomain(trendFixture(), size);
+      expect(d.lo).toBeCloseTo(82.289, 3);
+      expect(d.hi).toBeCloseTo(84.701, 3);
+      expect(d.goal).toBe('below');
+    }
+    // a goal inside the hugged scale is still drawn as a line
+    expect(trendDomain(trendFixture({ goal: { value: 83.5, label: 'goal 83.5 kg' } }), 'progress').goal).toBe('inside');
   });
 
   it('never rounds the domain outward; ticks are 2–3 nice values inside it', () => {
@@ -134,7 +145,7 @@ function addDays(iso: string, n: number): string {
 describe('trendSummary', () => {
   it('reads the trend, today’s expected range, weigh-ins and the goal date', () => {
     expect(trendSummary(trendFixture())).toBe(
-      'Weight trend 83.1 kilograms, expected today 82.8 to 83.6; 9 weigh-ins in the last 14 days; goal date likely 21 to 30 December.',
+      'Weight trend 83.1 kilograms, expected today 82.8 to 83.6; 9 weigh-ins in the last 14 days; goal date 21 to 30 December.',
     );
   });
 
@@ -146,7 +157,7 @@ describe('trendSummary', () => {
 
   it('quiet mode keeps the shape and drops the weights', () => {
     const s = trendSummary(trendFixture(), { quiet: true });
-    expect(s).toBe('Weight trend going down, numbers hidden; 9 weigh-ins in the last 14 days; goal date likely 21 to 30 December.');
+    expect(s).toBe('Weight trend going down, numbers hidden; 9 weigh-ins in the last 14 days; goal date 21 to 30 December.');
     expect(s).not.toMatch(/\d+\.\d/);
   });
 
@@ -156,9 +167,9 @@ describe('trendSummary', () => {
     );
   });
 
-  it('readout line: trend with its spread and today’s expected range', () => {
-    expect(trendReadoutText(trendFixture())).toBe(`trend 83.1${THIN}kg (±0.3) · expected today 82.8–83.6`);
-    expect(trendReadoutText(trendFixture(), true)).toBe('trend going down');
+  it('readout line: the trend now with its unit; quiet: the direction word', () => {
+    expect(trendReadoutText(trendFixture())).toBe(`83.1${THIN}kg`);
+    expect(trendReadoutText(trendFixture(), true)).toBe('Going down');
   });
 
   it('spells date ranges across months and years', () => {
@@ -230,6 +241,17 @@ describe('score history helpers', () => {
     expect(s).toContain('new ring on 3 October');
   });
 
+  it('a `format` speaks its own values in the summary and the readout (no unit appended)', () => {
+    const f = { text: (v: number) => `<${v.toFixed(1)}>`, spoken: (v: number) => `said ${v.toFixed(1)}` };
+    const data = scoreFixture({ format: f });
+    const s = scoreSummary(data, 'Heart-rate variability');
+    expect(s).toMatch(/^Heart-rate variability, 7-day mean said \d+\.\d on 20 October, your normal range said 38\.0 to said 47\.0;/);
+    expect(s).not.toContain('milliseconds');
+    const p = scorePointParts(data, 20);
+    expect(p.parts[0]).toMatch(/^night <\d+\.\d>$/);
+    expect(p.parts).toContain('normal <38.0>–<47.0>');
+  });
+
   it('table rows carry notes on their nights', () => {
     const rows = scoreTableRows(scoreFixture());
     expect(rows[10]!.note).toBe('new ring');
@@ -245,5 +267,63 @@ describe('quiet vocabulary', () => {
     expect([85, 84, 60, 59, 30, 29].map((v) => quietScoreWord(v))).toEqual(['as planned', 'mostly', 'mostly', 'partly', 'partly', 'a little']);
     expect(quietScoreWord(null)).toBe('not enough logged');
     expect(quietScoreWord(null, 'not logged')).toBe('not logged');
+  });
+});
+
+describe('r071 smooth paths', () => {
+  const X = (i: number) => i * 10;
+  const Y = (v: number) => 100 - v;
+
+  it('a monotone cubic through each run; NaN breaks the line and a lone value is a round dot', () => {
+    const d = smoothLinePath([1, 2, 4, NaN, 7, NaN, 9, 11], X, Y);
+    expect(d.match(/M/g)).toHaveLength(3); // three runs
+    expect(d.match(/C/g)).toHaveLength(2 + 1); // 2 segments in the first run, 1 in the last
+    expect(d).toContain('h0.01'); // the lone 7 is a zero-length segment under a round cap
+    expect(smoothLinePath([NaN, NaN], X, Y)).toBe('');
+  });
+
+  it('never overshoots a point: the curve between two values stays between them', () => {
+    const d = smoothLinePath([0, 10, 10, 0], X, Y);
+    const ys = [...d.matchAll(/C([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+),([-\d.]+)/g)].flatMap((m) => [Number(m[2]), Number(m[4])]);
+    for (const y of ys) {
+      expect(y).toBeLessThanOrEqual(100 + 1e-6);
+      expect(y).toBeGreaterThanOrEqual(90 - 1e-6);
+    }
+  });
+
+  it('the area closes down to the baseline for every run of two or more; the band needs both bounds', () => {
+    const area = smoothAreaPath([1, 2, NaN, 3], X, Y, 100);
+    expect(area.match(/Z/g)).toHaveLength(1); // the lone 3 has no area
+    expect(area).toContain('L10.0,100.0L0.0,100.0Z');
+    const band = smoothBandPath([1, 2, 3, NaN], [5, 6, 7, 8], X, Y);
+    expect(band.match(/Z/g)).toHaveLength(1);
+    expect(smoothBandPath([1], [2], X, Y)).toBe('');
+  });
+
+  it('a break (a new device) cuts the solid line and lists the dashed join', () => {
+    const { solid, joins } = smoothLinePathWithBreaks([1, 2, 3, 4, 5, 6], [3], X, Y);
+    expect(solid.match(/M/g)).toHaveLength(2);
+    expect(joins).toEqual([{ x1: 20, y1: 97, x2: 30, y2: 96 }]);
+  });
+});
+
+describe('r071 table twins for a card\'s (i) panel', () => {
+  it('trendTwin: date · scale · trend · forecast, the Event column only when a day has one', () => {
+    const t = trendTwin(trendFixture());
+    expect(t.head).toEqual(['Date', 'Scale (kg)', 'Trend (kg)', 'Forecast (kg)']);
+    expect(t.rows).toHaveLength(14);
+    expect(t.rows[13]![0]).toBe('Thu 1 Oct · today');
+    expect(t.rows[13]!.slice(1)).toEqual(['83.3', '83.1', '82.8–83.6']);
+    expect(t.caption).toMatch(/^Weight by day/);
+    const withEvent = trendTwin(trendFixture({ events: [{ day: 4, kind: 'version', label: 'v2' }] }));
+    expect(withEvent.head.at(-1)).toBe('Event');
+    expect(withEvent.rows[4]!.at(-1)).toBe('v2');
+  });
+
+  it('scoreTwin: date · value · 7-day mean · normal range, with the point noun of the chart', () => {
+    const t = scoreTwin(scoreFixture(), 'Heart-rate variability');
+    expect(t.head.slice(0, 4)).toEqual(['Date', 'Night (ms)', '7-day mean (ms)', 'Normal range (ms)']);
+    expect(t.rows).toHaveLength(28);
+    expect(t.fileName).toBe('vitals-heart-rate-variability.csv');
   });
 });

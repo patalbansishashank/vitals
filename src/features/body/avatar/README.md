@@ -1,7 +1,7 @@
 # Body avatar (`src/features/body/avatar`)
 
 The parametric two-layer figure from `design/AVATAR_SPEC.md`: a solid **lean core** inside a frosted **adipose
-envelope** on the perforated stage, front and side views, height ruler, optional girth callouts, a ghost outline for
+envelope** on a plain stage, front and side views, height ruler, optional girth callouts, a ghost outline for
 before/after, and direct-manipulation handles. It is driven entirely by the engine's `AvatarParams`
 (`stateToAvatarParams` in `src/engine/body`).
 

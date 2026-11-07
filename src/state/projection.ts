@@ -29,6 +29,8 @@ export interface ProjectionOptions<S extends object, P> {
   creator: StateCreator<S, [], []>;
   partialize: (s: S) => P;
   migrate: (persisted: unknown, version: number) => P;
+  /** Pure import migration when boot migration hands state to another store. */
+  migrateImport?: (persisted: unknown, version: number) => P;
   /** Merge of a stored state into the live one (hydration, import). `persisted` is undefined when nothing is stored. */
   merge: (persisted: P | undefined, current: S) => S;
   /** Merge of a document-derived state (remote change, undo); defaults to `merge`. */
@@ -58,5 +60,12 @@ export function createProjection<S extends object, P>(o: ProjectionOptions<S, P>
     partialize: o.partialize,
     merge: o.mergeDocs ?? ((p: P, cur: S) => o.merge(p, cur)),
   });
+  binding.prepareImport = (entry) => {
+    const initial = hook.getInitialState();
+    if (!entry) return o.partialize(initial);
+    const value = entry.version !== null && entry.version !== o.version ? (o.migrateImport ?? o.migrate)(entry.state, entry.version) : entry.state as P;
+    return o.partialize(o.merge(value, initial));
+  };
+  binding.applyImport = (state) => runInScope(createScope('restore'), () => hook.setState(o.merge(state, hook.getInitialState()), true));
   return Object.assign(hook, { binding });
 }

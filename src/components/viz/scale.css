@@ -1,0 +1,159 @@
+/* ==========================================================================
+   RangeScale (r071 0B). A printed scale: ticks in the unlit tone, the ticks of the usual range lit in the domain hue,
+   a 3 px ivory marker. Tokens only. The ticks light from the low end and the marker drops in with one damped
+   overshoot (transform and stroke colour only); a picture that cannot animate is never pending and shows the final
+   state at once.
+   ========================================================================== */
+@layer components {
+  .lmz-scale__plot {
+    position: relative;
+  }
+  .lmz-scale[data-size='full'] .lmz-scale__svg {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 300 / 28;
+  }
+  .lmz-scale[data-size='inline'] {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    vertical-align: middle;
+  }
+  .lmz-scale[data-size='inline'] .lmz-scale__plot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lmz-scale__t {
+    stroke: var(--lmz-unlit);
+    stroke-width: 1.5px;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  .lmz-scale[data-size='inline'] .lmz-scale__t {
+    stroke-width: 1.25px;
+  }
+  .lmz-scale__t[data-in] {
+    stroke: var(--lmz-hue);
+    stroke-opacity: 0.95;
+  }
+  /* a band edge: a long tick, a touch brighter than the unlit ones */
+  .lmz-scale__t[data-edge] {
+    stroke: var(--lm-ink-3);
+    stroke-opacity: 0.7;
+  }
+  .lmz-scale[data-state='calibrating'] .lmz-scale__t {
+    stroke-dasharray: 2 3;
+  }
+  .lmz-scale__marker {
+    fill: var(--lmz-lit);
+    transform-box: fill-box;
+  }
+  .lmz-scale__marker[data-hollow] {
+    fill: var(--lmz-gap);
+    stroke: var(--lmz-lit);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+  }
+  .lmz-scale[data-state='none'] .lmz-scale__t {
+    stroke-opacity: 0.7;
+  }
+
+  /* the words under the scale */
+  .lmz-scale__bands {
+    position: relative;
+    height: 18px;
+    margin-top: 6px;
+  }
+  .lmz-scale__band {
+    position: absolute;
+    top: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .lmz-scale__mark {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-ink-3);
+  }
+  .lmz-scale__band[data-severity='ok'] .lmz-scale__mark {
+    background: var(--lm-ok-mark);
+  }
+  .lmz-scale__band[data-severity='info'] .lmz-scale__mark {
+    background: var(--lm-info-mark);
+  }
+  .lmz-scale__band[data-severity='caution'] .lmz-scale__mark {
+    background: var(--lm-caution-mark);
+  }
+  .lmz-scale__band[data-severity='danger'] .lmz-scale__mark {
+    background: var(--lm-danger-mark);
+  }
+  .lmz-scale__labels {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .lmz-scale__labels[data-solo] {
+    justify-content: center;
+  }
+  .lmz-scale__mid {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  /* the current band named once, under the scale, when the words of all the bands do not fit */
+  .lmz-scale__band--solo {
+    position: static;
+    transform: none;
+  }
+  .lmz-scale__stale {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+
+  /* ---- reveal: the usual ticks light from the low end, then the marker drops in ----------------------------- */
+  .lmz-scale__t[data-in] {
+    transition: stroke var(--lm-dur-base) var(--lm-ease-out);
+    transition-delay: calc(var(--i, 0) * var(--lm-stagger-tick) + 150ms);
+  }
+  .lmz-scale__marker {
+    transition:
+      transform var(--lm-dur-needle) var(--lm-ease-needle),
+      opacity var(--lm-dur-base) var(--lm-ease-out);
+    transition-delay: 400ms;
+  }
+  .lmz-scale[data-reveal='pending'] .lmz-scale__t[data-in] {
+    stroke: var(--lmz-unlit);
+  }
+  .lmz-scale[data-reveal='pending'] .lmz-scale__marker {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+
+  @media (forced-colors: active) {
+    .lmz-scale__t {
+      stroke: GrayText;
+    }
+    .lmz-scale__t[data-in] {
+      stroke: Highlight;
+    }
+    .lmz-scale__marker {
+      fill: CanvasText;
+    }
+    .lmz-scale__mark {
+      background: CanvasText;
+    }
+  }
+}

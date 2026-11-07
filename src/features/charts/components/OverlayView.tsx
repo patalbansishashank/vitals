@@ -8,7 +8,7 @@ import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useS
 import { useMediaQuery } from '@/components';
 import { encodingsFor, OVERLAY_MAX, overlayTransformOf } from '../catalogue';
 import type { ChartController, ViewState } from '../core/controller';
-import { useElementWidth, useStore } from '../core/hooks';
+import { useAxisGutter, useAxisModel, useElementWidth, useStore } from '../core/hooks';
 import type { DataArea } from '../core/interaction';
 import { stackLayout } from '../core/layout';
 import { overlayGrid, overlayModel, type OverlayResolved } from '../core/models';
@@ -47,7 +47,9 @@ export const OverlayView = memo(function OverlayView(p: OverlayViewProps) {
   const apiRef = useRef<PlotApi | null>(null);
   const dotRefs = useRef(new Map<string, HTMLDivElement>());
   const width = useElementWidth(rootRef);
-  const layout = stackLayout(width || 960);
+  // the tick column fits the widest tick label (measured in the canvas tick font)
+  const axis = useAxisGutter(controller);
+  const layout = stackLayout(width || 960, axis.width);
   const coarse = useMediaQuery('(pointer: coarse)');
   const readoutMode = p.readout === 'float' || p.readout === 'dock' ? p.readout : layout.size === 's' || coarse ? 'dock' : 'float';
   const [isolate, setIsolate] = useState<string | null>(null);
@@ -88,9 +90,10 @@ export const OverlayView = memo(function OverlayView(p: OverlayViewProps) {
 
   const safety = useMemo(() => (data.events ?? []).filter((e) => e.severity && e.severity !== 'info'), [data.events]);
   const model = useMemo(
-    () => overlayModel(series, gridFor, { tickColCss: layout.tickCol, phases: data.phases, events: safety, state: { isolate, hidden }, smooth }),
-    [series, gridFor, layout.tickCol, data.phases, safety, isolate, hidden, smooth],
+    () => overlayModel(series, gridFor, { tickColCss: layout.tickBase, phases: data.phases, events: safety, state: { isolate, hidden }, smooth }),
+    [series, gridFor, layout.tickBase, data.phases, safety, isolate, hidden, smooth],
   );
+  useAxisModel(axis.register, 'overlay', model);
   const H = layout.size === 's' ? 300 : 360;
   const padding = useMemo(() => ({ top: 12, bottom: 12, left: layout.tickCol, right: layout.rightPad + layout.labelCol }), [layout.tickCol, layout.rightPad, layout.labelCol]);
   const [apiReady, setApiReady] = useState(0);
@@ -211,7 +214,7 @@ export const OverlayView = memo(function OverlayView(p: OverlayViewProps) {
               color={`var(--lm-cat-${s.category})`}
               dash={e.dash}
               marker={e.marker}
-              note={overlayTransformOf(s) === 'pct' ? '%' : 'pts'}
+              note={layout.size === 's' ? undefined : overlayTransformOf(s) === 'pct' ? '%' : 'pts'}
               isolated={isolate === s.id}
               hidden={hidden.has(s.id)}
               onIsolate={() => setIsolate((cur) => (cur === s.id ? null : s.id))}
@@ -221,7 +224,7 @@ export const OverlayView = memo(function OverlayView(p: OverlayViewProps) {
         })}
       </div>
       {readoutMode === 'dock' ? (
-        <CrosshairReadout controller={controller} time={data.time} phases={data.phases} events={data.events} rows={rows} mode="dock" area={() => area} bodyWidth={layout.width} hint="to compare every line on one day." />
+        <CrosshairReadout controller={controller} time={data.time} phases={data.phases} events={data.events} rows={rows} mode="dock" area={() => area} bodyWidth={layout.width} />
       ) : null}
       <div
         ref={bodyRef}
@@ -265,7 +268,7 @@ export const OverlayView = memo(function OverlayView(p: OverlayViewProps) {
                   className="lmc-dot"
                   data-on="false"
                   data-shape={enc.get(s.id)!.marker}
-                  style={{ background: `var(--lm-cat-${s.category})` }}
+                  style={{ '--lmc-dot': `var(--lm-cat-${s.category})` } as CSSProperties}
                 />
               ))}
               <svg ref={leadersRef} className="lmc-leaders" width={layout.cellW} height={H} aria-hidden="true">

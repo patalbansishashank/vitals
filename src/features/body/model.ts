@@ -11,9 +11,11 @@
  * Untouched sliders are left `undefined` (engine rule: default positions are for display only).
  */
 import type { BodyEstimate, BodyInputs, BodySliders, BodyWarning, Sex } from '@/engine/body';
+import type { BodyFatMeasurementMeta, GirthMeasurementMeta } from '@/engine/body/types';
 // the modules, not the package index: the body store reaches this file, so it is in the app's initial bundle
 import { estimateInitialState } from '@/engine/body/estimateBody';
 import { bodyFatToSlider } from '@/engine/body/sliders';
+import { projectHabitualCardioActivity } from '@/engine/core/resolveProfile';
 import type { ActivityIntake, HabitProfile, PersonProfile, PhysiologySex, TrainingHistory } from '@/engine/types/profile';
 import type { SafetyBodyContext } from '@/features/onboarding/useSafetyAccess';
 import type { BasicField, BodyProfileValues, ShapeInputs } from '@/state/profileStore';
@@ -124,6 +126,26 @@ function compact<T extends object>(o: T): T {
 }
 
 /** `BodyInputs` for one equation set (engine contract, dossier 14). */
+/** Measurement provenance of the known body-fat value (D1-03, C4); undefined when nothing beyond the number is known. */
+function bodyFatMetaOf(k: BodyProfileValues['knownBodyFat']): BodyFatMeasurementMeta | undefined {
+  const meta = compact<BodyFatMeasurementMeta>({
+    observationId: k.observationId,
+    measuredOn: k.measuredOn,
+    device: k.device,
+    protocol: k.protocol,
+    parentIds: k.parentIds?.length ? [...k.parentIds] : undefined,
+    scanMassKg: k.scanMassKg,
+    scanFatMassKg: k.scanFatMassKg,
+  });
+  return Object.keys(meta).length ? meta : undefined;
+}
+
+/** Landmark/protocol provenance of the girths (D1-03, C4); undefined when nothing beyond the numbers is known. */
+function girthMetaOf(w: BodyProfileValues['waist']): GirthMeasurementMeta | undefined {
+  const meta = compact<GirthMeasurementMeta>({ observationId: w.observationId, measuredOn: w.measuredOn, landmark: w.landmark, protocol: w.protocol });
+  return Object.keys(meta).length ? meta : undefined;
+}
+
 export function bodyInputsFor(v: BodyProfileValues, sex: Sex): BodyInputs {
   const b = effectiveBasics(v);
   const waist = v.waist.use && v.waist.cm !== null ? v.waist.cm : undefined;
@@ -138,6 +160,8 @@ export function bodyInputsFor(v: BodyProfileValues, sex: Sex): BodyInputs {
     hipCm: waist !== undefined && sex === 'female' && v.waist.hipCm !== null ? v.waist.hipCm : undefined,
     knownBodyFatPct: v.knownBodyFat.use && v.knownBodyFat.pct !== null ? v.knownBodyFat.pct : undefined,
     knownBodyFatSource: v.knownBodyFat.use && v.knownBodyFat.pct !== null ? v.knownBodyFat.source : undefined,
+    knownBodyFatMeta: v.knownBodyFat.use && v.knownBodyFat.pct !== null ? bodyFatMetaOf(v.knownBodyFat) : undefined,
+    girthMeta: waist !== undefined ? girthMetaOf(v.waist) : undefined,
     sliders: Object.keys(sliders).length ? sliders : undefined,
     trainingYears: v.training.years ?? undefined,
     trainingQuality: v.training.quality ?? undefined,
@@ -173,7 +197,17 @@ export function withIntakeActivity(v: BodyProfileValues, activity: (ActivityInta
 }
 
 function habitsFor(v: BodyProfileValues): HabitProfile | undefined {
-  const h: HabitProfile = compact({ ...v.habits, trainingHistory: trainingHistoryOf(v.training.years) });
+  const reported = (v.habits.activity as (ActivityIntake & { reportedSleep?: { availableNightMeanHours?: unknown; basis?: unknown } }) | undefined)?.reportedSleep;
+  const mean = reported?.availableNightMeanHours;
+  const documentedDuration = typeof mean === 'number' && Number.isFinite(mean) && mean > 0 && mean < 24 ? mean : undefined;
+  const h: HabitProfile = compact({
+    ...v.habits,
+    ...(v.habits.activity ? { activity: projectHabitualCardioActivity(v.habits.activity, v.habits.habitualCardio) } : {}),
+    ...(v.habits.habitualSleepDurationH === undefined && documentedDuration !== undefined
+      ? { habitualSleepDurationH: documentedDuration, ...(typeof reported?.basis === 'string' && /device/i.test(reported.basis) ? { habitualSleepDurationSource: 'deviceSummary' as const } : {}) }
+      : {}),
+    trainingHistory: trainingHistoryOf(v.training.years),
+  });
   return Object.keys(h).length ? h : undefined;
 }
 

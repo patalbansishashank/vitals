@@ -18,27 +18,31 @@
  *    across the logged past, the P10/P90 energy-bias check and the Simulator-mode re-run (R-PLAN-SAFETY) of the result.
  *  - Load: automatic changes may only lower load; a result that raises load (deeper deficit or surplus, more training,
  *    a new or longer fast, more steps) comes back as status 'proposal'.
- *  - weekly/event/user objectives read the realistic projection (each item at its revealed expected credit).
+ *  - weekly/event/user objectives read the explicit plausible-execution dose scenario.
  */
+import type { BehaviorScenario } from '@/living/behaviorPaths';
+import { freezeMuscleRetention } from './muscleRetention';
 import { snapshotFatKg } from '../../assimilation/replay';
 import { MODULES } from '../../core/moduleRegistry';
-import { buildModelParams } from '../../core/paramsRegistry';
+import { buildModelParams, quantilesToParams, variableParamCount } from '../../core/paramsRegistry';
 import { ENGINE_VERSION } from '../../core/defaults';
-import type { SeriesId } from '../../types/metrics';
+import { contentHash, hasCurrentTissueFatEndpoint, type JointScreenResult, type SafetyCertificate } from '@/lib/bodyContracts';
+import { isProductionGoalEligible } from '../../types/metrics';
 import type { SimulationResult } from '../../types/result';
 import type { DayTemplate, FastEvent, Schedule, ScheduleBlock, ScheduleDay } from '../../types/schedule';
 import { GOAL_SCORE_STEP, rocWeights, type GoalSpec } from '../optim/goals';
-import { TIER_BUDGET_EU, evaluatePlan, runPlanner, type PlannerConfig, type PlannerProblem, type Tier } from '../optim/pipeline';
-import type { Rng } from '../optim/rng';
+import { TIER_BUDGET_EU, TIER_ENSEMBLE, evaluatePlan, runPlanner, type PlannerConfig, type PlannerProblem, type Tier } from '../optim/pipeline';
+import { Rng, latinHypercube } from '../optim/rng';
+import { jointScreenOf } from '../optim/robust';
 import type { EvalOutput, EvalRequest, Evaluator, PlanModel, RepairEntry, Repaired } from '../optim/types';
 import { violation } from '../optim/types';
-import { HORIZON_MAX_DAYS, HORIZON_MIN_DAYS, compileRequest, withHorizon, type PlanningContext } from './context';
+import { HORIZON_MAX_DAYS, HORIZON_MIN_DAYS, NON_HEALTH_OBJECTIVE, labBaselineForecastIssue, compileRequest, withHorizon, type PlanningContext } from './context';
 import { estimateDay } from './dayMath';
 import { decodePlan, gridStep as gridStepOf, roundGenome as roundGenomeOf } from './decode';
 import { ruleText } from './explain';
 import { FEATURE_SCHEMA, descriptors, features, planFacts, type PlanFacts } from './features';
-import { buildGoals, goalSeries, goalValue, type BuiltGoals } from './goalSpecs';
-import { DEFAULT_CUSHION, EnginePlanModel, MARGIN_IDS, MARGIN_NA, NOMINAL_ONLY_MARGINS, regulariserOf, stateMargins } from './model';
+import { buildGoals, goalTrajectory, goalRequiredSeries, goalValueStatus, type BuiltGoals } from './goalSpecs';
+import { DEFAULT_CUSHION, EnginePlanModel, MARGIN_IDS, MARGIN_NA, NOMINAL_ONLY_MARGINS, REQUIRED_SAFETY_MARGINS, REQUIRED_SAFETY_MARGIN_IDS, missingStateMargins, regulariserOf, stateMargins } from './model';
 import { unlistableWarnings } from './planner';
 import { firstSpacingViolation, zeroSpans, type ZeroSpan } from './repair';
 import type {
@@ -52,22 +56,27 @@ import type {
   ReplanProposal,
   ReplanRequest,
   ReplanResult,
+  ReplanSafety,
   ReplanTrigger,
 } from './replanTypes';
+export type { ReplanSafety } from './replanTypes';
 import {
   ForwardModel,
+  BEHAVIOR_FORECAST,
+  behaviorSeed,
   Z90,
   absoluteGoals,
   bandsOf,
   bindingsOf,
-  crossingDay,
   dateAt,
   dayIndex,
   dayTemplate,
   creditSchedule,
+  fastOutcomeCounts,
   forecastRuns,
   futureView,
   goalOutcomes,
+  goalBandsOf,
   goalSeriesIds,
   isoWeekday,
   realisticSchedule,
@@ -80,6 +89,7 @@ import {
 import { enumerateStructures, makeStructure, mutateStructure as mutate, neighbours, toUnit, transferGenome as transfer, type SkeletonStructure } from './skeleton';
 import type { PlannerProgressV2, PlannerRequestV2, PlannerTier, RungPlan } from './types';
 import { validatePlan } from './validate';
+import { AUDIT_SAMPLER_VERSION, auditStateHash, auditSubjectHash, checkExerciseGate, contextForSchedule, evaluatePlanSafety, issueCertificate, optionSafetyStatus, plannerCertificateInputs, safetySubject, type AuditProtocol, type PlannerSafetyCertificate } from './safetyAudit';
 
 // ------------------------------------------------------------------------------------------------------------ constants
 
@@ -136,16 +146,31 @@ export interface ReplanProblemSpec {
   /** Structure ids searched, index 0 = baseline. */
   structureIds: string[];
   realistic: boolean;
+  behaviorScenario?: BehaviorScenario;
   churnLimits: boolean;
   mode: ForwardMode;
 }
+
+/**
+ * Inputs a caller attaches to a re-plan request (worker-serializable; travel inside `ReplanEvalInit.request`):
+ *  - `realisedSchedule` (C2/D5-05): the shared realised history schedule from the canonical reducer — the SAME schedule
+ *    assimilation replays, from the same anchor (its `realised` stamp names the history hash). Days before today come
+ *    from it verbatim (meals, sessions, substances and fast intervals as reduced, including coverage-zero days); no
+ *    independent re-derivation happens here.
+ *  - `currentSafety` (C5/D4-02): the person's CURRENT profile safety (symptoms, envelopes, answers) and screening input;
+ *    a re-plan never prescribes from the safety state stored with the plan when a newer one exists.
+ */
+export type ReplanRequestExtras = Pick<ReplanRequest, 'realisedSchedule' | 'currentSafety'>;
 
 export interface ReplanEvalInit {
   request: ReplanRequest;
   spec: ReplanProblemSpec;
 }
 
+
 export interface ReplanOptions {
+  /** Explicit physical execution sensitivity, independent of utility credit. */
+  behaviorScenario?: BehaviorScenario;
   signal?: { readonly aborted: boolean };
   onProgress?: (p: PlannerProgressV2) => void;
   /** Evaluator of the re-plan problem (worker pool: each worker holds a `ReplanEvaluatorHost(init)`). Default in-thread. */
@@ -203,26 +228,47 @@ function clampInt(x: number, lo: number, hi: number): number {
 }
 
 function compileAt(request: PlannerRequestV2, startDate: string, horizon: number, weightKg: number): PlanningContext {
+  request = freezeMuscleRetention(request);
   const profile = { ...request.profile, startDate, body: { ...request.profile.body, weightKg } };
   const ctx = compileRequest({ ...request, profile, startDate, horizonDays: clampInt(horizon, HORIZON_MIN_DAYS, HORIZON_MAX_DAYS) });
   return ctx.horizonDays === horizon ? ctx : withHorizon(ctx, horizon);
 }
 
+/** True when a logged meal carries verified positive energy (explicit kcal or grams, or a share of a day with energy). */
+function caloricMeal(t: DayTemplate, m: NonNullable<NonNullable<DayTemplate['meals']>['meals']>[number]): boolean {
+  if (m.energyKcal !== undefined) return m.energyKcal > 0;
+  if (m.macros && Object.values(m.macros).some((g) => typeof g === 'number' && g > 0)) return true;
+  const dayKcal = t.energy.kind === 'kcal' ? t.energy.kcal : t.energy.kind === 'pctMaintenance' ? t.energy.pct : 0;
+  return (m.share ?? 1) > 0 && dayKcal > 0 && !m.macros;
+}
+
 /**
- * Realised schedule: logged days replace the prescription (own programs). A prescribed fast starting on a logged day stays
- * unless that day's fast item was skipped (or credited below one half), as the living plan's replay does.
+ * Realised schedule of the forward runs (C2/D5-05). With the shared realised schedule (`ReplanRequestExtras`) the logged
+ * past is taken from it verbatim. Without it (legacy callers) logged days replace the prescription and a prescribed fast
+ * is resolved in absolute time: an explicitly skipped fast item removes it; the earliest logged meal with verified
+ * positive energy at an explicit clock time inside the fast ends the zero-calorie interval there (that meal is eaten,
+ * never suppressed); otherwise the prescription stands. No adherence-credit threshold decides whether a fast happened.
  */
-function realise(active: Schedule, logs: ReplanRequest['logs'], startDate: string, todayIdx: number): Schedule {
+export function realise(active: Schedule, logs: ReplanRequest['logs'], startDate: string, todayIdx: number, shared?: Schedule): Schedule {
+  if (shared && shared.days.length >= Math.min(todayIdx, active.horizonDays)) {
+    if (todayIdx <= 0) return active;
+    // the observed prefix keeps the shared history's identity (C2: the same hash assimilation replays and certificates bind)
+    const past = withPast(withLength(shared, active.horizonDays), active, todayIdx);
+    return shared.realised ? { ...past, realised: { ...shared.realised, throughDay: Math.min(todayIdx, active.horizonDays) } } : past;
+  }
   const byDay = new Map<number, DayTemplate>();
-  const fastOff = new Set<number>();
+  const skipped = new Set<number>();
+  const mealsAt: number[] = [];
   for (const l of logs) {
     const d = dayIndex(startDate, l.date);
     if (!(d >= 0 && d < todayIdx && d < active.horizonDays)) continue;
     byDay.set(d, l.inputs);
     const f = l.items.find((x) => x.type === 'fast');
-    if (f && (f.status === 'skipped' || (f.credit !== null && f.credit < 0.5))) fastOff.add(d);
+    if (f && f.status === 'skipped') skipped.add(d);
+    for (const m of l.inputs.meals?.meals ?? []) if (Number.isFinite(m.clockH) && caloricMeal(l.inputs, m)) mealsAt.push(d * 24 + m.clockH);
   }
   if (byDay.size === 0) return active;
+  mealsAt.sort((a, b) => a - b);
   const programs = [...active.programs];
   const key = new Map<string, number>();
   const days = active.days.map((x, d) => {
@@ -237,7 +283,21 @@ function realise(active: Schedule, logs: ReplanRequest['logs'], startDate: strin
     }
     return { program: i };
   });
-  const events = (active.events ?? []).filter((e) => !fastOff.has(e.startDay));
+  const events: FastEvent[] = [];
+  for (const e of active.events ?? []) {
+    if (skipped.has(e.startDay)) continue;
+    const a = e.startDay * 24 + e.startH;
+    const b = a + e.durationH;
+    const h = mealsAt.find((t) => t > a + 1e-6 && t < b - 1e-6);
+    if (h === undefined) {
+      events.push(e);
+      continue;
+    }
+    // the verified caloric event ends the zero-calorie interval globally (an observed end; no prescribed refeed rescales
+    // the logged intake after it)
+    const { refeedFactors: _rf, ...rest } = e;
+    if (h - a > 1e-6) events.push({ ...rest, durationH: +(h - a).toFixed(4), refeed: 'none', source: 'observed' });
+  }
   return { ...active, programs, days, events };
 }
 
@@ -252,7 +312,9 @@ function prepare(req: ReplanRequest, forceMode?: ForwardMode): Setup {
   const trendKg = Number.isFinite(req.state.trendWeight.kg) && req.state.trendWeight.kg > 0 ? req.state.trendWeight.kg : plan.request.profile.body.weightKg;
   // targets set at the plan start stay measured from the plan start; targets the user changes now are measured from today
   const estimate = (ctx: PlanningContext, k: number) => ctx.goals.find((g) => g.index === k)?.startEstimate ?? Number.NaN;
-  const kept = absoluteGoals(plan.request.goals, (k) => estimate(planStartCtx, k));
+  const clinical = new Set(['sbp', 'glucose', 'fastingGlucose']);
+  // Old relative clinical intent has no recoverable original baseline: keep it pending, never rebase on today.
+  const kept = absoluteGoals(plan.request.goals, (k) => clinical.has(plan.request.goals[k]!.metric) ? Number.NaN : estimate(planStartCtx, k));
   const changed = req.changes?.goals;
   let goals = kept;
   if (changed) {
@@ -263,24 +325,43 @@ function prepare(req: ReplanRequest, forceMode?: ForwardMode): Setup {
     } catch {
       fatNow = Number.NaN;
     }
+    const editFwd = new ForwardModel(plan, req.state, [...new Set(changed.flatMap((g) => goalRequiredSeries(g.metric)))]);
+    const editRun = editFwd.run(realise(active, req.logs, plan.startDate, todayIdx, req.realisedSchedule));
     goals = absoluteGoals(changed, (k) => {
       const m = changed[k]!.metric;
       if (m === 'scaleWeight') return trendKg;
       if (m === 'fatMass' && Number.isFinite(fatNow)) return fatNow;
+      if (clinical.has(m) && (!Number.isFinite(plan.request.profile.labs?.[m === 'sbp' ? 'sbpMmHg' : 'fastingGlucoseMmolL']) || labBaselineForecastIssue(plan.request.profile, m))) return Number.NaN;
+      if (clinical.has(m)) return goalTrajectory(editRun, { metric: m, functional: changed[k]!.functional ?? (m === 'glucose' ? 'mean' : 'end'), useTissueMass: false }, nowCtx).sample(todayIdx) ?? Number.NaN;
       return estimate(nowCtx, k);
     });
   }
-  const request: PlannerRequestV2 = {
+  // D2-02/C6: a research-index or otherwise non-optimizable goal is not carried into a new plan version as an objective;
+  // the stored version keeps it as history (never remapped to another numeric target)
+  const objectives = goals.filter((g) => !NON_HEALTH_OBJECTIVE.has(g.metric) && isProductionGoalEligible(g.metric));
+  if (objectives.length) goals = objectives;
+  // current safety (C5/D4-02): the person's present symptoms, envelopes and screening, never the stored plan's alone
+  const cur = req.currentSafety;
+  const originalRequest = freezeMuscleRetention(plan.request);
+  const changedConstraints = req.changes?.constraints;
+  const constraints = changedConstraints
+    ? { ...changedConstraints, ...(!Object.hasOwn(changedConstraints, 'muscleRetention') && originalRequest.constraints?.muscleRetention ? { muscleRetention: originalRequest.constraints.muscleRetention } : {}), ...(!Object.hasOwn(changedConstraints, 'enforceDefaultDeficitCap') && originalRequest.constraints?.enforceDefaultDeficitCap !== undefined ? { enforceDefaultDeficitCap: originalRequest.constraints.enforceDefaultDeficitCap } : {}), ...(!Object.hasOwn(changedConstraints, 'experimentalTracking') && originalRequest.constraints?.experimentalTracking ? { experimentalTracking: true } : {}) }
+    : { ...originalRequest.constraints };
+  if (constraints.muscleRetention && !constraints.muscleRetention.baseline && originalRequest.constraints?.muscleRetention?.baseline)
+    constraints.muscleRetention = { ...constraints.muscleRetention, baseline: originalRequest.constraints.muscleRetention.baseline };
+  const request: PlannerRequestV2 = freezeMuscleRetention({
     ...plan.request,
+    ...(cur?.profileSafety ? { profile: { ...plan.request.profile, safety: cur.profileSafety } } : {}),
     goals,
-    ...(req.changes?.constraints ? { constraints: req.changes.constraints } : {}),
+    constraints,
+    ...(cur?.input ? { safety: cur.input } : {}),
     ...(req.changes?.safety ? { safety: req.changes.safety } : {}),
     horizonDays: N,
-  };
+  });
   const todayCtx = compileAt(request, req.today, N - todayIdx, trendKg);
   const startCtx = compileAt(request, plan.startDate, N, plan.request.profile.body.weightKg);
   const fwd = new ForwardModel(plan, req.state, goalSeriesIds(todayCtx), forceMode);
-  const realised = realise(active, req.logs, plan.startDate, todayIdx);
+  const realised = realise(active, req.logs, plan.startDate, todayIdx, req.realisedSchedule);
   const base = req.baseline ? withLength(req.baseline, N) : active;
   return {
     req,
@@ -297,7 +378,7 @@ function prepare(req: ReplanRequest, forceMode?: ForwardMode): Setup {
     bindings: bindingsOf(todayCtx),
     pinned: new Set((req.pinnedDays ?? []).filter((d) => Number.isInteger(d) && d >= todayIdx && d < N)),
     base,
-    baseRealised: req.baseline ? realise(base, req.logs, plan.startDate, todayIdx) : realised,
+    baseRealised: req.baseline ? realise(base, req.logs, plan.startDate, todayIdx, req.realisedSchedule) : realised,
   };
 }
 
@@ -454,6 +535,8 @@ interface Built {
 
 interface Scored {
   goals: Float64Array;
+  /** Endpoint evidence survives worker transport and candidate reconstruction. */
+  missingGoals: number[];
   margins: Float64Array;
   vS: number;
   vL: number;
@@ -602,13 +685,13 @@ class ReplanEvaluator {
   private keepReasons: Set<string> | null = null;
   constructor(
     readonly s: Setup,
-    readonly spec: Pick<ReplanProblemSpec, 'lockEnd' | 'touchEnd' | 'judgeFrom' | 'realistic' | 'churnLimits'>,
+    readonly spec: Pick<ReplanProblemSpec, 'lockEnd' | 'touchEnd' | 'judgeFrom' | 'realistic' | 'churnLimits' | 'behaviorScenario'>,
   ) {}
 
   realisticOf(run: Schedule): Schedule {
     if (!this.spec.realistic) return run;
     let r = this.realisticCache.get(run);
-    if (!r) this.realisticCache.set(run, (r = realisticSchedule(run, this.s.todayIdx, this.s.req.adherence, this.s.fwd.rp)));
+    if (!r) this.realisticCache.set(run, (r = realisticSchedule(run, this.s.todayIdx, this.s.req.adherence, this.s.fwd.rp, { scenario: this.spec.behaviorScenario, fastOutcomes: fastOutcomeCounts(this.s.req.logs), planVersion: this.s.req.plan.version })));
     return r;
   }
 
@@ -646,17 +729,22 @@ class ReplanEvaluator {
     // validator reasons new against the plan before the person's edit (the edit itself is judged too)
     if (!this.keepReasons) this.keepReasons = new Set(validatorReasons(s, s.base));
     const fresh = b.out === s.base ? [] : validatorReasons(s, b.out).filter((r) => !this.keepReasons!.has(r));
-    margins[MARGIN_IDS.length + 1] = fresh.length ? -1 : MARGIN_NA;
+    // the exercise gate (D4-02) on the prescription from today: a new unresolved symptom is never tolerated as an
+    // "existing" reason, so the current plan becomes unsafe and the lock window opens (logged history is untouched)
+    const gate = s.todayCtx.caps.exercise.gate === 'none' ? null : checkExerciseGate(s.todayCtx, sliceSchedule(b.out, s.todayIdx, s.N));
+    margins[MARGIN_IDS.length + 1] = fresh.length || (gate && !gate.ok) ? -1 : MARGIN_NA;
     if (this.spec.churnLimits && b.out !== s.active) margins.set(churnMargins(s, b.out), N_SAFETY);
     const future = sliceSchedule(b.out, s.todayIdx, s.N);
     const reg = regulariserOf(s.todayCtx, future, fsim, b.log);
-    const goals = Float64Array.from(s.bindings, (x) => goalValue(sim, x, s.todayCtx));
+    const values = s.bindings.map((x) => goalValueStatus(sim, x, s.todayCtx));
+    const goals = Float64Array.from(values, (x) => x.value);
+    const missingGoals = values.flatMap((x, k) => x.available ? [] : [k]);
     const ids = [...MARGIN_IDS, ...SAFETY_EXTRA, ...CHURN_IDS];
     const violated: string[] = [];
     margins.forEach((m, i) => {
       if (m < 0 || Number.isNaN(m)) violated.push(ids[i]!);
     });
-    const out: Scored = { goals, margins, vS: violation(margins.subarray(0, N_SAFETY)), vL: violation(margins.subarray(N_SAFETY)), reg, violated };
+    const out: Scored = { goals, missingGoals, margins, vS: violation(margins.subarray(0, N_SAFETY)), vL: violation(margins.subarray(N_SAFETY)), reg, violated };
     this.scored.set(b.run, out);
     return out;
   }
@@ -699,6 +787,10 @@ class ReplanModel implements PlanModel<SkeletonStructure, Schedule, SimulationRe
 
   goals(sim: SimulationResult, run: Schedule): Float64Array {
     return this.scoredOf(run, sim).goals;
+  }
+
+  missingGoals(sim: SimulationResult, run: Schedule): number[] {
+    return this.scoredOf(run, sim).missingGoals;
   }
 
   constraints(sim: SimulationResult, run: Schedule): Float64Array {
@@ -756,24 +848,28 @@ export class ReplanEvaluatorHost {
 interface Scales {
   b: number[];
   u: number[];
+  available: boolean[];
 }
 
 /** Desirability scales per goal: 0 = the habitual future (or the current plan), 1 = the target or the best safe value seen. */
-function scalesOf(specs: readonly GoalSpec[], base: Float64Array, cands: readonly Evaluated[]): Scales {
+function scalesOf(specs: readonly GoalSpec[], base: Float64Array, cands: readonly Evaluated[], missing: readonly number[] = []): Scales {
   const sgn = specs.map((sp) => (sp.sense === 'min' ? -1 : 1));
-  const b = specs.map((_, k) => sgn[k]! * base[k]!);
+  const available = specs.map((_, k) => !missing.includes(k) && Number.isFinite(base[k]!));
+  const b = specs.map((_, k) => available[k] ? sgn[k]! * base[k]! : Number.NaN);
   const u = specs.map((sp, k) => {
     let best = b[k]!;
-    for (const c of cands) if (c.vS === 0 && c.vL === 0) best = Math.max(best, sgn[k]! * c.goals[k]!);
+    for (const c of cands) if (available[k] && !c.missingGoals.includes(k) && c.vS === 0 && c.vL === 0) best = Math.max(best, sgn[k]! * c.goals[k]!);
     return sp.target !== undefined ? sgn[k]! * sp.target : best;
   });
-  return { b, u };
+  return { b, u, available };
 }
 
-function goalScore(specs: readonly GoalSpec[], sc: Scales, goals: ArrayLike<number>): number {
+function goalScore(specs: readonly GoalSpec[], sc: Scales, goals: ArrayLike<number>, missing: readonly number[] = []): number {
   const w = rocWeights(specs.length);
   let g = 0;
   specs.forEach((sp, k) => {
+    // Declared no-benefit reference: missing evidence earns zero, including keep/met-at-baseline.
+    if (!sc.available[k] || missing.includes(k) || !Number.isFinite(goals[k]!)) return;
     const f = (sp.sense === 'min' ? -1 : 1) * goals[k]!;
     const den = sc.u[k]! - sc.b[k]!;
     const d = Math.abs(den) > 1e-12 ? (f - sc.b[k]!) / den : f >= sc.u[k]! - 1e-12 ? 1 : 0;
@@ -871,6 +967,7 @@ interface SearchResult {
   euExternal: number;
   /** Goals of the habitual future (the optimiser's baseline), desirability 0. */
   baseGoals: Float64Array | null;
+  baseMissing: number[];
 }
 
 /** One optimiser run over a frame and a structure subset; returns every nominal candidate it evaluated. */
@@ -889,7 +986,7 @@ async function search(
 ): Promise<SearchResult> {
   const byId = new Map(frame.structures.map((x) => [x.id, x] as const));
   const structures = subsetIds.map((id) => byId.get(id)).filter((x): x is SkeletonStructure => !!x);
-  if (structures.length < 2 || budget <= 0 || opts.signal?.aborted) return { cands: [], euExternal: 0, baseGoals: null };
+  if (specs.length === 0 || structures.length < 2 || budget <= 0 || opts.signal?.aborted) return { cands: [], euExternal: 0, baseGoals: null, baseMissing: [] };
   const model = new ReplanModel(ev, frame, structures);
   const local: Evaluator = { evaluate: (batch) => batch.map((r) => evaluatePlan(model, structures, r)) };
   const inner = opts.evaluatorFor ? opts.evaluatorFor({ request: s.req, spec: { ...spec, frame: frame.def, structureIds: structures.map((x) => x.id) } }) : local;
@@ -956,6 +1053,7 @@ async function search(
       x: r.x,
       frame,
       goals: Float64Array.from(r.out.goals),
+      missingGoals: Array.from(r.out.missingGoals ?? []),
       margins: m,
       vS: violation(m.subarray(0, N_SAFETY)),
       vL: violation(m.subarray(N_SAFETY)),
@@ -967,7 +1065,7 @@ async function search(
     });
   }
   const base = recorded.find((r) => structures[r.structure]!.skeleton.baseline);
-  return { cands, euExternal: opts.evaluatorFor ? res.provenance.euUsed : 0, baseGoals: base ? Float64Array.from(base.out.goals) : null };
+  return { cands, euExternal: opts.evaluatorFor ? res.provenance.euUsed : 0, baseGoals: base ? Float64Array.from(base.out.goals) : null, baseMissing: Array.from(base?.out.missingGoals ?? []) };
 }
 
 /** Rebuild a candidate's schedules (deterministic decode → repair → splice). */
@@ -1028,7 +1126,8 @@ interface Harbour {
 const harbours = new WeakMap<Setup, Harbour>();
 function harbourOf(s: Setup): Harbour {
   let h = harbours.get(s);
-  if (!h) harbours.set(s, (h = { schedule: creditSchedule(s.realised, s.todayIdx, s.N, () => 0, s.fwd.rp), floors: new Map(), warnings: new Map() }));
+  // the omission scenario: every remaining item omitted, every planned fast skipped whole (D5-08)
+  if (!h) harbours.set(s, (h = { schedule: creditSchedule(s.realised, s.todayIdx, s.N, () => 0, s.fwd.rp, () => false), floors: new Map(), warnings: new Map() }));
   return h;
 }
 
@@ -1138,6 +1237,136 @@ function plainReason(id: string): string {
 }
 
 /**
+ * (C5) The nominal simulation of a confirmed-state subject (adopting a re-plan, resuming a paused plan): exactly what a
+ * re-plan's own certification evaluates the typed constraints on (`runsA.nominal` of an unchanged result): the forward model
+ * from the request's confirmed state over `schedule` (the whole plan schedule, day 0 = plan start) with the realised past
+ * (the shared history, else the logged days) in place of the prescribed days before today. Indexed from plan day 0, so a
+ * subject from plan day k reads it at offset k. Throws when the state cannot be replayed (the caller then leaves the
+ * trace-based constraints Unchecked).
+ */
+export function confirmedSubjectSimulation(req: ReplanRequest, schedule: Schedule): SimulationResult {
+  const s = prepare({ ...req, plan: { ...req.plan, schedule } });
+  return s.fwd.run(s.realised);
+}
+
+/**
+ * The prescription a re-plan certificate covers (C5): `safetySubject` from today's plan day — the plan's days from `today`
+ * (start date moved) and its request at that start; on day 0 the whole schedule. Lifecycle consumers recompute the
+ * fingerprint on exactly this subject (`revalidatePlanSafety(request, version schedule, { fromDay })`).
+ */
+export function replanSafetySubject(plan: Pick<ActivePlanRecord, 'request' | 'schedule' | 'startDate'>, today: string): { request: PlannerRequestV2; schedule: Schedule; fromDay: number } {
+  return safetySubject(plan.request, plan.schedule, dayIndex(plan.startDate, today));
+}
+
+/**
+ * Hash of the immutable realised history a re-plan started from (the shared reducer's when given, else of the logged
+ * inputs). It identifies observations only: the derived state and controller the audit consumed are bound separately
+ * (`replanStateHash`, A1-012), never folded into or replaced by this hash.
+ */
+function historyHashOf(req: ReplanRequest): string {
+  const shared = req.realisedSchedule?.realised?.historyHash;
+  if (shared) return shared;
+  return contentHash({ logs: req.logs.map((l) => [l.date, l.inputs, l.items, l.coverage]) });
+}
+
+/**
+ * The actual audit initial-state/controller hash of a re-plan (A1-012): the anchor date and plan day, the full confirmed
+ * snapshot content (state, trace prefix, latches, bus), the particle states/weights, the energy-bias correction mean/sd
+ * with its application law and the trend — everything the replay forward model consumes besides the observations.
+ * Lifecycle consumers compute the same hash of the CURRENT confirmed state (`auditStateHash`).
+ */
+export function replanStateHash(req: Pick<ReplanRequest, 'state' | 'plan'>): string {
+  const s = req.state;
+  return auditStateHash({
+    anchorDate: s.anchorDate,
+    anchorDay: dayIndex(req.plan.startDate, s.anchorDate),
+    snapshot: s.snapshot,
+    ...(s.particles ? { particles: s.particles } : {}),
+    energyBiasKcal: s.energyBiasKcal,
+    trendWeight: s.trendWeight,
+  });
+}
+
+/**
+ * Independent safety audit of a frozen re-plan result (C5/D4-03): M parameter scenarios from the reserved stream
+ * 'ensemble/safetyAudit' (seeded by the plan, day and kind), each a replay of the realised past anchored at the confirmed
+ * tissue mass and the result's future; exact joint screen over the dossier-17 hard margins from `judgeFrom` (relative to
+ * the carried floors the past already fixed). A negative nominal margin is a known violation. One automatic attempt.
+ */
+function replanAudit(s: Setup, run: Schedule, out: Schedule, judgeFrom: number, M: number, seed: string, nominal: ArrayLike<number>): { screen: JointScreenResult; paramsHash: string } {
+  const defs = buildModelParams(MODULES).defs;
+  const P = variableParamCount(defs);
+  if (!(M > 0) || P <= 0) return { screen: jointScreenOf([], REQUIRED_SAFETY_MARGINS), paramsHash: contentHash({ stream: 'ensemble/safetyAudit', params: [] }) };
+  const fwd = new ForwardModel(s.plan, s.req.state, goalSeriesIds(s.todayCtx), 'replay');
+  const U = latinHypercube(M, P, new Rng(seed).fork('ensemble/safetyAudit'));
+  const outs: EvalOutput[] = [];
+  const params: number[][] = [];
+  for (let m = 0; m < M; m++) {
+    const p = quantilesToParams(defs, U.subarray(m * P, (m + 1) * P));
+    params.push(Array.from(p));
+    const sim = fwd.run(run, { params: p, paramKey: `audit${m}` });
+    const margins = relativeMargins(s, sim, out, judgeFrom, undefined, false);
+    for (const i of NOMINAL_ONLY_MARGINS) margins[i] = MARGIN_NA;
+    outs.push({ goals: [], margins, regulariser: 0, descriptors: [], missing: missingStateMargins(futureView(sim, judgeFrom)) });
+  }
+  const knownViolation = REQUIRED_SAFETY_MARGINS.some((i) => !(nominal[i]! >= 0));
+  return { screen: jointScreenOf(outs, REQUIRED_SAFETY_MARGINS, undefined, { knownViolation }), paramsHash: contentHash({ stream: 'ensemble/safetyAudit', params }) };
+}
+
+/**
+ * (C5/A1-004) The ONE declared final audit of a subject bound to the confirmed state (adopt, resume, after days lived or a
+ * check-in): exactly the certification a re-plan runs on an unchanged result, on `schedule` as it stands. From the
+ * confirmed state the request carries: the harbour day the past leaves (`judgeFrom`), the nominal margins of the schedule
+ * from today (realised past, realistic execution, validator, exercise gate, spacing), the resolved typed constraints on the
+ * nominal forward run, and the independent audit over the reserved 'ensemble/safetyAudit' stream (`replanAudit`: the
+ * dossier-17 hard margins, a negative nominal margin a known violation). The certificate binds the subject from
+ * `from.date` (`replanSafetySubject` of the lifecycle's own request, as the revalidation recomputes it), the history hash
+ * and the audited state's hash, so it re-validates only on exactly that subject, history and state. Nothing is skipped
+ * or relaxed: a failed audit or a violated constraint issues a failed / non-verified certificate, which never authorizes.
+ *
+ * The draws are seeded by the subject, the state and the history (a repeated request reproduces them: no reseed until the
+ * evidence changes); M is the plan tier's audit size, at least the source certificate's. A failed source audit is final
+ * (null, `sourceAuditFailed`); a `stateHash` that is not the hash of the state in `req` is refused (`stateMismatch`).
+ */
+export function confirmedSubjectCertificate(i: {
+  req: ReplanRequest;
+  request: PlannerRequestV2;
+  schedule: Schedule;
+  from: { planStart: string; date: string };
+  historyHash?: string;
+  stateHash: string;
+  source?: SafetyCertificate | null;
+  episodeId: string;
+  createdAt: string;
+}): { certificate: PlannerSafetyCertificate | null; reason: string | null } {
+  const src = (i.source ?? null) as PlannerSafetyCertificate | null;
+  if (src && (src.status === 'failed' || src.history?.some((h) => h.status === 'failed'))) return { certificate: null, reason: 'sourceAuditFailed' };
+  if (replanStateHash(i.req) !== i.stateHash) return { certificate: null, reason: 'stateMismatch' };
+  const subject = replanSafetySubject({ request: i.request, schedule: i.schedule, startDate: i.from.planStart }, i.from.date);
+  const subjectCtx = contextForSchedule(subject.request, subject.schedule);
+  if (subjectCtx.caps.blocked) return { certificate: null, reason: 'blocked' };
+  const s = prepare({ ...i.req, plan: { ...i.req.plan, schedule: i.schedule } });
+  // the re-plan's own judging of the current plan from here ("keep"): harbour day, realistic execution, every margin
+  const judgeFrom = harbourDay(s);
+  const probe = new ReplanEvaluator(s, { lockEnd: s.todayIdx + REPLAN.lockDays, touchEnd: s.N, judgeFrom, realistic: s.kind !== 'light', behaviorScenario: undefined, churnLimits: false });
+  const keepB = probe.keepBuilt();
+  const keep = probe.score(keepB, probe.sim(keepB.run));
+  const evaluation = evaluatePlanSafety(subjectCtx, subject.schedule, s.fwd.run(keepB.run), { simDayOffset: subject.fromDay, elapsedDays: subject.fromDay });
+  const M = Math.max(TIER_ENSEMBLE[tierOf(i.req.plan.provenance.tier)], Math.floor(src?.drawProtocol?.M ?? 0));
+  const seed = `lifecycle/${auditSubjectHash(subject.schedule)}/${i.stateHash}/${i.historyHash ?? ''}`;
+  const audited = replanAudit(s, keepB.run, keepB.out, judgeFrom, M, seed, keep.margins);
+  const protocol: AuditProtocol = { M, seed, stream: 'ensemble/safetyAudit', sampler: 'lhs', samplerVersion: AUDIT_SAMPLER_VERSION, order: 'memberAscending', paramsHash: audited.paramsHash };
+  const history = [...(src?.history ?? []), ...(src ? [{ fingerprint: src.fingerprint, episodeId: src.episodeId, status: src.status, at: src.createdAt }] : [])];
+  const certificate = issueCertificate(
+    plannerCertificateInputs(subjectCtx, subject.schedule, REQUIRED_SAFETY_MARGIN_IDS, protocol, i.historyHash, i.stateHash),
+    { screen: audited.screen, subjectHash: auditSubjectHash(subject.schedule), protocol },
+    evaluation.status,
+    { episodeId: i.episodeId, createdAt: i.createdAt, ...(history.length ? { history } : {}) },
+  );
+  return { certificate, reason: null };
+}
+
+/**
  * Re-plan a living plan from today (§7). Deterministic in the request (seeded from the plan's provenance, the date and the
  * kind) for any evaluator.
  */
@@ -1150,7 +1379,7 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
   // ---- the current plan from here ("keep"): decides the lock window, start values and the desirability baseline
   const realistic = s.kind !== 'light';
   const judgeFrom = harbourDay(s);
-  const probe = new ReplanEvaluator(s, { lockEnd: s.todayIdx + REPLAN.lockDays, touchEnd: s.N, judgeFrom, realistic, churnLimits: false });
+  const probe = new ReplanEvaluator(s, { lockEnd: s.todayIdx + REPLAN.lockDays, touchEnd: s.N, judgeFrom, realistic, behaviorScenario: opts.behaviorScenario, churnLimits: false });
   const keepB = probe.keepBuilt();
   const keepSim = probe.sim(keepB.run);
   const keepScored = probe.score(keepB, keepSim);
@@ -1162,16 +1391,11 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
   const lockEnd = Math.min(s.N - 1, bypass ? s.todayIdx : s.todayIdx + REPLAN.lockDays);
   const touchEnd = s.kind === 'light' && !safetyFirst ? Math.min(s.N, s.todayIdx + REPLAN.lightDays) : s.N;
   const churnLimits = (s.kind === 'light' || s.kind === 'weekly') && !safetyFirst;
-  const ev = new ReplanEvaluator(s, { lockEnd, touchEnd, judgeFrom, realistic, churnLimits });
+  const ev = new ReplanEvaluator(s, { lockEnd, touchEnd, judgeFrom, realistic, behaviorScenario: opts.behaviorScenario, churnLimits });
   const keep: Evaluated = { ...ev.score(ev.keepBuilt(), keepSim), id: nextId(), structure: -1, structureId: plan.structureId, x: null, frame: null, G: 0, C: 0, built: { run: s.realised, out: s.active, log: [], frameSched: null } };
 
   // start values y(today) of each goal (direction of absolute targets, keep scales)
-  const start = s.bindings.map((b) => {
-    const y = goalSeries(keepSim, b, s.todayCtx);
-    if (!y) return Number.NaN;
-    for (let t = Math.min(s.todayIdx, y.length - 1); t < y.length; t++) if (Number.isFinite(y[t]!)) return y[t]!;
-    return Number.NaN;
-  });
+  const start = s.bindings.map((b) => goalTrajectory(keepSim, b, s.todayCtx).sample(s.todayIdx) ?? Number.NaN);
   const built: BuiltGoals = buildGoals(s.todayCtx, start);
   const specs = built.specs;
 
@@ -1180,16 +1404,17 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
   const activeFrame = activeDef ? buildFrame(s, activeDef) : null;
   const ai = activeFrame ? activeFrame.structures.findIndex((x) => x.id === plan.structureId) : -1;
   const genomeOk = activeFrame !== null && ai > 0 && activeFrame.structures[ai]!.dim === plan.genome.length;
-  const baseSpec: ReplanProblemSpec = { lockEnd, touchEnd, judgeFrom, frame: activeDef ?? todayFrameDef(s), structureIds: [], realistic, churnLimits, mode: s.fwd.mode };
+  const baseSpec: ReplanProblemSpec = { lockEnd, touchEnd, judgeFrom, frame: activeDef ?? todayFrameDef(s), structureIds: [], realistic, behaviorScenario: opts.behaviorScenario, churnLimits, mode: s.fwd.mode };
   const budget = (k: ReplanKind): number => opts.totalEU ?? (k === 'light' ? REPLAN.budgetEU.light : k === 'weekly' ? REPLAN.budgetEU.weekly : TIER_BUDGET_EU[tierOf(opts.tier ?? plan.provenance.tier)]);
   const cands: Evaluated[] = [];
   let euExternal = 0;
   let base: Float64Array | null = null;
+  let baseMissing: number[] = [];
   const run = async (frame: Frame, ids: string[], seeds: Array<{ id: string; x: Float64Array }>, extra: Partial<PlannerConfig>, eu: number) => {
     const r = await search(s, ev, frame, ids, seeds, specs, extra, eu, opts, baseSpec, nextId);
     cands.push(...r.cands);
     euExternal += r.euExternal;
-    base = base ?? r.baseGoals;
+    if (!base && r.baseGoals) { base = r.baseGoals; baseMissing = r.baseMissing; }
   };
   const safeFound = () => cands.some((c) => c.vS === 0 && c.vL === 0);
   let free = 0;
@@ -1222,8 +1447,8 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
 
   // ---- selection: (v_S, v_L, −⌊(G − G_keep)/q_G⌋, λ_S·C + R, −G)
   const all = [keep, ...cands];
-  const sc = scalesOf(specs, base ?? keep.goals, all);
-  for (const c of all) c.G = goalScore(specs, sc, c.goals);
+  const sc = scalesOf(specs, base ?? keep.goals, all, base ? baseMissing : keep.missingGoals);
+  for (const c of all) c.G = goalScore(specs, sc, c.goals, c.missingGoals);
   const level = (c: Evaluated) => Math.floor((c.G - keep.G) / GOAL_SCORE_STEP + 1e-9);
   const minV = Math.min(...all.map((c) => c.vS + c.vL));
   const top = all.filter((c) => c.vS + c.vL <= minV + 1e-12);
@@ -1263,7 +1488,7 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
       ev.built.set(eb.run, eb);
       const e = ev.score(eb, ev.sim(eb.run));
       if (e.vS > 0 || e.vL > 0 || !verify(s, ev, eb).ok) continue;
-      chosen = { ...e, id: nextId(), structure: -1, structureId: plan.structureId, x: null, frame: null, G: goalScore(specs, sc, e.goals), C: null, built: eb };
+      chosen = { ...e, id: nextId(), structure: -1, structureId: plan.structureId, x: null, frame: null, G: goalScore(specs, sc, e.goals, e.missingGoals), C: null, built: eb };
       break;
     }
   }
@@ -1288,14 +1513,17 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
   const extraSeries = goalSeriesIds(s.todayCtx);
   const keepRuns = forecastRuns(s.fwd, s.realised);
   const why = WHY[req.trigger];
+  const behavior = { version: BEHAVIOR_FORECAST.version, scenario: opts.behaviorScenario ?? 'plausibleExecution', paths: 1, seed: behaviorSeed(s.realised, plan.version), assumptions: opts.behaviorScenario === 'missingData' ? ['habitualIntakeNoAddedSessionContinuation', 'noCompletionEstimate'] : ['fullDoseAsPrescribed', 'noCompletionEstimate'] };
   if (!chosen) {
     const reasons = [...new Set([...keep.violated.filter((v) => !v.startsWith('churn.')), ...keepCheck.reasons, ...rejected].map(plainReason))];
     const asP = goalOutcomes(s.todayCtx, keepRuns, fromDay, plan.startDate, wsd);
+    // both forecast variants survive every branch (D5-05): the realistic bands are returned here too
+    const keepRealistic = forecastRuns(s.fwd, realisticSchedule(s.realised, fromDay, req.adherence, s.fwd.rp, { scenario: opts.behaviorScenario, fastOutcomes: fastOutcomeCounts(req.logs), planVersion: req.plan.version }));
     return {
       status: 'noSafePlan',
       plan,
       diff: [],
-      forecast: { asPrescribed: asP, realistic: goalOutcomes(s.todayCtx, forecastRuns(s.fwd, realisticSchedule(s.realised, fromDay, req.adherence, s.fwd.rp)), fromDay, plan.startDate, wsd), bands: bandsOf(keepRuns, fromDay, s.N, extraSeries, wsd), fromDay },
+      forecast: { behavior, goalBands: goalBandsOf(s.todayCtx, keepRuns, fromDay, s.N), realisticGoalBands: goalBandsOf(s.todayCtx, keepRealistic, fromDay, s.N), asPrescribed: asP, realistic: goalOutcomes(s.todayCtx, keepRealistic, fromDay, plan.startDate, wsd), bands: bandsOf(keepRuns, fromDay, s.N, extraSeries, wsd), realisticBands: bandsOf(keepRealistic, fromDay, s.N, extraSeries, wsd), fromDay },
       goalDates: [],
       proposals: [],
       explanation: [
@@ -1335,23 +1563,14 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
 
   // forecasts: as prescribed and at revealed adherence, bands from today
   const runsA: ForecastRuns = unchanged ? keepRuns : forecastRuns(s.fwd, b.run);
-  const runsR = forecastRuns(s.fwd, realisticSchedule(b.run, fromDay, req.adherence, s.fwd.rp));
+  const runsR = forecastRuns(s.fwd, realisticSchedule(b.run, fromDay, req.adherence, s.fwd.rp, { scenario: opts.behaviorScenario, fastOutcomes: fastOutcomeCounts(req.logs), planVersion: req.plan.version }));
   const asP = goalOutcomes(s.todayCtx, runsA, fromDay, plan.startDate, wsd);
   const real = goalOutcomes(s.todayCtx, runsR, fromDay, plan.startDate, wsd);
   const keepAsP = s.base !== s.active ? goalOutcomes(s.todayCtx, forecastRuns(s.fwd, s.baseRealised), fromDay, plan.startDate, wsd) : unchanged ? asP : goalOutcomes(s.todayCtx, keepRuns, fromDay, plan.startDate, wsd);
   const bandsA = bandsOf(runsA, fromDay, s.N, extraSeries, wsd);
-  const goalDates: ReplanGoalDate[] = asP.map((g, k) => {
-    const t = g.target ?? null;
-    let range: [string, string] | null = null;
-    const band = bandsA[g.metric as SeriesId];
-    if (t !== null && band) {
-      const sign = (keepAsP[k]?.current ?? g.endP50) > t ? -1 : 1;
-      const early = crossingDay(sign < 0 ? band.p10 : band.p90, 0, band.p50.length, t, sign);
-      const late = crossingDay(sign < 0 ? band.p90 : band.p10, 0, band.p50.length, t, sign);
-      if (early !== null && late !== null) range = [dateAt(plan.startDate, fromDay + early), dateAt(plan.startDate, fromDay + late)];
-    }
-    return { goal: k, before: keepAsP[k]?.date ?? null, after: g.date ?? null, range };
-  });
+  const goalDates: ReplanGoalDate[] = asP.map((g, k) => ({
+    goal: g.goal, before: keepAsP[k]?.date ?? null, after: g.date ?? null, range: g.dateRange,
+  }));
 
   const diff = unchanged && !edited ? [] : diffRows(s.todayCtx, s.base, out, plan.startDate, s.todayIdx, Math.min(s.N, s.todayIdx + REPLAN.diffDays), why);
   const proposals: ReplanProposal[] = [];
@@ -1368,20 +1587,49 @@ export async function replan(req: ReplanRequest, opts: ReplanOptions = {}): Prom
   if (bypass && s.kind !== 'user' && !unchanged) explanation.push(`Today and tomorrow could change too: the plan from here would otherwise break ${[...new Set([...keep.violated.filter((v) => !v.startsWith('churn.')), ...keepCheck.reasons].map(plainReason))].slice(0, 2).join('; ') || 'a safety limit'}.`);
   else if (!bypass && !unchanged) explanation.push(s.kind === 'light' ? 'Only the next 7 days were looked at; today and tomorrow keep their prescription (tomorrow\'s food may move by up to a tenth).' : 'Today and tomorrow keep their prescription.');
   if (judgeFrom > s.todayIdx) explanation.push(`Because of the last few days some safety limits stay outside their range until ${dateAt(plan.startDate, judgeFrom)} whatever the plan does; the plan is judged on them from then on.`);
-  if (req.logs.length > 0) explanation.push(`The forecast starts from your confirmed state on ${req.state.anchorDate} and the ${req.logs.length} day${req.logs.length === 1 ? '' : 's'} you logged since.`);
+  // every elapsed day travels in `logs` (unknown days included, C2), so the count is of days since, not of logged days
+  if (req.logs.length > 0) explanation.push(`The forecast starts from your confirmed state on ${req.state.anchorDate} and the ${req.logs.length} day${req.logs.length === 1 ? '' : 's'} since.`);
   else explanation.push(`The forecast starts from your confirmed state on ${req.state.anchorDate}.`);
   explanation.push(...goalLines(asP, real));
-  if (realistic) explanation.push('The plan was chosen on what you have actually been doing lately, not only on the prescription.');
+  if (realistic) explanation.push('The execution scenario assumes the prescribed dose; utility credit does not predict completion.');
+
+  // C5/D4-01/D4-03: the result's prescription from today, its final resolved checks under the current request, the one
+  // independent audit and the certificate (never a reason to re-rank or repair: the result above is frozen)
+  const auditTier: Tier = s.kind === 'light' || s.kind === 'weekly' ? 'S' : tierOf(opts.tier ?? plan.provenance.tier);
+  const protocol = { M: TIER_ENSEMBLE[auditTier], seed: `${plan.provenance.seed || plan.planId}/replan/${req.today}/${s.kind}` };
+  const subject = replanSafetySubject({ request: s.request, schedule: out, startDate: plan.startDate }, req.today);
+  const subjectCtx = contextForSchedule(subject.request, subject.schedule);
+  const evaluation = evaluatePlanSafety(subjectCtx, subject.schedule, runsA.nominal, { simDayOffset: subject.fromDay, elapsedDays: subject.fromDay });
+  const nominalMargins = (chosen === keep ? keep : chosen).margins;
+  const audited = opts.signal?.aborted ? null : replanAudit(s, b.run, out, judgeFrom, protocol.M, protocol.seed, nominalMargins);
+  const audit = audited ? audited.screen : jointScreenOf([], REQUIRED_SAFETY_MARGINS);
+  const historyHash = historyHashOf(req);
+  // (A1-012) the actual initial state and controller of the audited replay, bound beside the observation history
+  const stateHash = replanStateHash(req);
+  // (A1-011/A1-035) the audit evaluated the realised past and exactly this result's future (`subject`), on the declared
+  // stream 'ensemble/safetyAudit' with these parameter vectors
+  const usedProtocol: AuditProtocol = { ...protocol, stream: 'ensemble/safetyAudit', sampler: 'lhs', samplerVersion: AUDIT_SAMPLER_VERSION, order: 'memberAscending', ...(audited ? { paramsHash: audited.paramsHash } : {}) };
+  const certificate = issueCertificate(
+    plannerCertificateInputs(subjectCtx, subject.schedule, REQUIRED_SAFETY_MARGIN_IDS, usedProtocol, historyHash, stateHash),
+    { screen: audit, subjectHash: audited ? auditSubjectHash(subject.schedule) : null, protocol: usedProtocol },
+    evaluation.status,
+    {
+      episodeId: contentHash({ plan: plan.planId, version: nextPlan.version, today: req.today, kind: s.kind }),
+      createdAt: '',
+    },
+  );
+  const safety: ReplanSafety = { status: optionSafetyStatus(evaluation.status, audit), evaluation, audit, certificate, historyHash, protocol };
 
   return {
     status,
     plan: nextPlan,
     diff,
-    forecast: { asPrescribed: asP, realistic: real, bands: bandsA, realisticBands: bandsOf(runsR, fromDay, s.N, extraSeries, wsd), fromDay, before: keepAsP },
+    forecast: { behavior, goalBands: goalBandsOf(s.todayCtx, runsA, fromDay, s.N), realisticGoalBands: goalBandsOf(s.todayCtx, runsR, fromDay, s.N), asPrescribed: asP, realistic: real, bands: bandsA, realisticBands: bandsOf(runsR, fromDay, s.N, extraSeries, wsd), fromDay, before: keepAsP },
     goalDates,
     proposals,
     explanation,
     euUsed: euUsed(),
+    safety,
   };
 }
 
@@ -1427,6 +1675,7 @@ export function toActivePlan(
 ): ActivePlanRecord {
   const decodedStart = rung.schedule.startDate;
   const startDate = opts.startDate ?? request.startDate ?? request.profile.startDate ?? decodedStart;
+  request = freezeMuscleRetention({ ...request, startDate });
   const anchored = opts.schedule ? { schedule: opts.schedule, skipped: (((isoWeekday(startDate) - isoWeekday(decodedStart)) % 7) + 7) % 7 } : anchorToStart(rung.schedule, startDate);
   const startValues = new Map(rung.scorecard.map((g) => [g.goal, g.start] as const));
   const goals = freezeTargets(request.goals, startValues);
@@ -1446,17 +1695,37 @@ export function toActivePlan(
   };
 }
 
+/** Actual scenario-start samples under each goal operator; no future endpoint or profile-lab substitution. */
+export function scenarioStartValues(schedule: Schedule, request: PlannerRequestV2): ReadonlyMap<number, number> {
+  const ctx = compileRequest(request);
+  const fwd = new ForwardModel({ request, startDate: schedule.startDate }, null, [...new Set(request.goals.flatMap((g) => goalRequiredSeries(g.metric)))]);
+  const sim = fwd.run(schedule);
+  const out = new Map<number, number>();
+  request.goals.forEach((g, k) => {
+    if (g.metric === 'bodyFatPct' && !hasCurrentTissueFatEndpoint(g.endpointSemantics)) return;
+    // Only compatible measured clinical baselines may freeze a relative aim. Model defaults are not observations.
+    if (['sbp', 'glucose', 'fastingGlucose'].includes(g.metric)) {
+      const key = g.metric === 'sbp' ? 'sbpMmHg' : 'fastingGlucoseMmolL';
+      if (!Number.isFinite(request.profile.labs?.[key]) || labBaselineForecastIssue(request.profile, g.metric)) return;
+    }
+    const value = goalTrajectory(sim, { metric: g.metric, functional: g.functional ?? (g.metric === 'glucose' ? 'mean' : 'end'), useTissueMass: g.metric === 'scaleWeight' }, ctx).sample(0);
+    if (value !== null && Number.isFinite(value)) out.set(k, value);
+  });
+  return out;
+}
+
 /**
  * `ActivePlanRecord` for a plan started from a Simulator scenario: kind 'custom', no genome (every re-plan searches the
  * full structure set on the days left; a light re-plan keeps the plan unless it became unsafe).
  */
 export function toActivePlanFromScenario(schedule: Schedule, request: PlannerRequestV2, opts: { planId: string; startDate?: string; version?: number; startValues?: ReadonlyMap<number, number> }): ActivePlanRecord {
   const startDate = opts.startDate ?? schedule.startDate;
+  request = freezeMuscleRetention({ ...request, startDate });
   return {
     planId: opts.planId,
     version: opts.version ?? 1,
     kind: 'custom',
-    request: { ...request, goals: freezeTargets(request.goals, opts.startValues ?? new Map()), startDate, profile: { ...request.profile, startDate } },
+    request: { ...request, goals: freezeTargets(request.goals, opts.startValues ?? scenarioStartValues({ ...schedule, startDate }, { ...request, startDate, profile: { ...request.profile, startDate } })), startDate, profile: { ...request.profile, startDate } },
     startDate,
     endDate: dateAt(startDate, schedule.horizonDays),
     structureId: '',

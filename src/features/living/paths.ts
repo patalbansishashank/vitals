@@ -2,10 +2,9 @@
 export const livingPaths = {
   today: (date?: string) => (date ? `/today/${date}` : '/today'),
   food: (date?: string, hash?: 'meals' | 'groceries' | 'supplements') => `${date ? `/food/${date}` : '/food'}${hash ? `#${hash}` : ''}`,
-  train: (date?: string, hash?: 'session' | 'equipment' | 'buy') => `${date ? `/train/${date}` : '/train'}${hash ? `#${hash}` : ''}`,
+  train: (date?: string, hash?: 'session') => `${date ? `/train/${date}` : '/train'}${hash ? `#${hash}` : ''}`,
   coach: (conversationId?: string) => (conversationId ? `/coach/${encodeURIComponent(conversationId)}` : '/coach'),
-  progress: (metric?: string, hash?: 'trend' | 'goals' | 'adherence' | 'body' | 'signals' | 'log' | 'checkins' | 'plan') =>
-    `${metric ? `/progress/${encodeURIComponent(metric)}` : '/progress'}${hash ? `#${hash}` : ''}`,
+  progress: (hash?: 'trend' | 'goals' | 'adherence' | 'body' | 'markers' | 'log' | 'checkins' | 'plan') => `/progress${hash ? `#${hash}` : ''}`,
   planActive: '/plan/active',
   planVersion: (n: number) => `/plan/active/versions/${n}`,
   /** "Re-plan from scratch": the planning screens with the active plan's goals prefilled. */

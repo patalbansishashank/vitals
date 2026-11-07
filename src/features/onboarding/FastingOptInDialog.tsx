@@ -115,7 +115,7 @@ function OptInBody({
           </>
         }
       >
-        <p className="m-0 font-semibold">{FASTING.expertConfirmTitle}</p>
+        <p className="m-0 font-medium">{FASTING.expertConfirmTitle}</p>
         <p className="m-0">{FASTING.expertConfirmBody}</p>
       </Dialog>
     );

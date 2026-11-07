@@ -1,0 +1,129 @@
+/* ==========================================================================
+   WindowBar (r071 0B). An axis between two instants: the usual window a hairline outline, the actual window a solid
+   ivory bar, marks as ticks, round hours as mono labels. Tokens only. The bars wipe in (clip-path); the axis never
+   moves. A picture that cannot animate is never pending.
+   ========================================================================== */
+@layer components {
+  .lmz-win {
+    --lmz-win-h: 24px;
+  }
+  .lmz-win[data-marks] {
+    padding-top: 26px;
+  }
+  .lmz-win[data-marks='2'] {
+    padding-top: 44px;
+  }
+  .lmz-win[data-axis] {
+    padding-bottom: 24px;
+  }
+  .lmz-win__plot {
+    position: relative;
+  }
+  .lmz-win__track {
+    position: relative;
+    height: var(--lmz-win-h);
+  }
+  .lmz-win__bars {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(-6px -6px -6px -6px);
+    transition: clip-path calc(var(--lm-dur-draw) / 2) var(--lm-ease-out) 120ms;
+  }
+  /* the usual window: a hairline outline, no fill */
+  .lmz-win__usual {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    box-sizing: border-box;
+    min-width: 2px;
+    border: 1px solid var(--lm-ink-3);
+    border-radius: 8px;
+  }
+  /* the window that happened: a solid ivory bar, centred in the band */
+  .lmz-win__actual {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    min-width: 4px;
+    border-radius: 6px;
+    background: var(--lmz-lit);
+  }
+  .lmz-win__actual[data-clipped] {
+    border-radius: 6px;
+  }
+  .lmz-win__mark {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: color-mix(in oklab, var(--lm-chassis) 55%, var(--lmz-lit));
+    outline: 1px solid color-mix(in oklab, var(--lm-chassis) 55%, transparent);
+  }
+  /* the hour ticks sit on the track's bottom edge */
+  .lmz-win__tick {
+    position: absolute;
+    bottom: -5px;
+    width: 1px;
+    height: 4px;
+    background: var(--lm-ink-3);
+  }
+  .lmz-win__axis,
+  .lmz-win__plot > .lmz-win__markword {
+    position: absolute;
+  }
+  .lmz-win__axis {
+    left: 0;
+    right: 0;
+    top: calc(var(--lmz-win-h) + 10px);
+    height: 14px;
+  }
+  .lmz-win__axis > .lm-mono {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .lmz-win__axis > .lm-mono[data-edge='start'] {
+    transform: translateX(-30%);
+  }
+  .lmz-win__axis > .lm-mono[data-edge='end'] {
+    transform: translateX(-70%);
+  }
+  .lmz-win__markword {
+    top: -22px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .lmz-win__markword[data-row='1'] {
+    top: -40px;
+  }
+  .lmz-win__markword[data-align='start'] {
+    transform: none;
+  }
+  .lmz-win__markword[data-align='end'] {
+    transform: translateX(-100%);
+  }
+
+  /* ---- reveal ------------------------------------------------------------------------------------------------ */
+  .lmz-win[data-reveal='pending'] .lmz-win__bars {
+    clip-path: inset(-6px 100% -6px -6px);
+  }
+
+  @media (forced-colors: active) {
+    .lmz-win__usual {
+      border-color: GrayText;
+    }
+    .lmz-win__actual {
+      background: CanvasText;
+    }
+    .lmz-win__mark {
+      background: CanvasText;
+      outline: none;
+    }
+    .lmz-win__tick {
+      background: GrayText;
+    }
+  }
+}

@@ -1,12 +1,13 @@
 /**
  * Answer keys (COMPONENTS §13.1): single-choice keys are a group of buttons with roving focus — arrows move focus only,
  * Space/Enter commits, the chosen key carries aria-pressed (never a radiogroup: radios select on arrow keys, these
- * commit and advance). Multi-select keys are a checkbox group committed with Done.
+ * commit and advance). Multi-select keys are a checkbox group committed with the step's Next.
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Key, Stepper, TextInput, cx, useReducedMotion } from '@/components';
 import { TURN } from '../copy';
 import { isTextEntry, textOf, TEXT_PREFIX, type AnswerOption } from '../flow';
+import { CommitKey } from './CommitKey';
 
 /** Commit delay after a one-tap answer so the pressed state is seen (design: 240 ms). */
 export const COMMIT_DELAY_MS = 240;
@@ -33,15 +34,12 @@ function useRovingFocus(count: number, columns: number) {
   return { refs, focus, setFocus, onKeyDown };
 }
 
-/** The accessible name: label, examples ("— for example …") and the default tag. */
-export const keyName = (o: AnswerOption, isDefault: boolean): string =>
-  `${o.label}${o.examples ? ` — for example ${o.examples}` : ''}${isDefault ? ` (${TURN.defaultTag})` : ''}`;
+/** The accessible name: the label and its examples ("— for example …"), as the key reads. */
+export const keyName = (o: AnswerOption): string => `${o.label}${o.examples ? ` — for example ${o.examples}` : ''}`;
 
 export interface AnswerKeysProps {
   options: ReadonlyArray<AnswerOption>;
   value?: string;
-  /** The option the skip default corresponds to (tagged "default"; never preselected). */
-  defaultValue?: string;
   onCommit: (value: string) => void;
   /** Cards with examples: one per row on mobile, 72 px tall. */
   cards?: boolean;
@@ -51,7 +49,7 @@ export interface AnswerKeysProps {
   className?: string;
 }
 
-export function AnswerKeys({ options, value, defaultValue, onCommit, cards, labelledBy, label, className }: AnswerKeysProps) {
+export function AnswerKeys({ options, value, onCommit, cards, labelledBy, label, className }: AnswerKeysProps) {
   const initial = Math.max(0, options.findIndex((o) => o.value === value));
   const { refs, focus, setFocus, onKeyDown } = useRovingFocus(options.length, cards ? 1 : 2);
   const [chosen, setChosen] = useState<string | undefined>(value);
@@ -80,14 +78,13 @@ export function AnswerKeys({ options, value, defaultValue, onCommit, cards, labe
           className="lm-ik-key"
           data-cards={cards || undefined}
           aria-pressed={chosen === o.value}
-          aria-label={keyName(o, defaultValue === o.value)}
+          aria-label={keyName(o)}
           tabIndex={i === focus ? 0 : -1}
           onFocus={() => setFocus(i)}
           onClick={() => choose(o.value)}
         >
           <span className="lm-ik-key__label">{o.label}</span>
           {o.examples ? <span className="lm-ik-key__examples">{o.examples}</span> : null}
-          {defaultValue === o.value ? <span className="lm-ik-key__default">{TURN.defaultTag}</span> : null}
         </button>
       ))}
     </div>
@@ -134,7 +131,7 @@ export function MultiChips({ options, value, onChange, ranked, labelledBy, label
             onFocus={() => setFocus(i)}
             onClick={() => toggle(o)}
             onKeyDown={(e) => {
-              // Enter = Done (the turn's fieldset handles it); Space toggles
+              // Enter = Next (the turn's fieldset handles it); Space toggles
               if (e.key === 'Enter') e.preventDefault();
             }}
           >
@@ -190,7 +187,7 @@ export function OtherEntries({ value, onChange, label, placeholder }: { value: r
           {texts.map((t) => (
             <li key={t}>
               <span>{textOf(t)}</span>
-              <Key size="sm" variant="quiet" aria-label={TURN.remove(textOf(t))} onClick={() => onChange(value.filter((v) => v !== t))}>
+              <Key size="sm" variant="text" aria-label={TURN.remove(textOf(t))} onClick={() => onChange(value.filter((v) => v !== t))}>
                 ×
               </Key>
             </li>
@@ -210,13 +207,12 @@ export interface NumberAnswerProps {
   name: string;
   presets: readonly number[];
   presetLabel?: (n: number) => string;
-  defaultValue?: number;
   onCommit: (n: number) => void;
   labelledBy?: string;
 }
 
-/** Stepper with a row of preset keys; a preset tap commits, the exact number commits with Done. */
-export function NumberAnswer({ value, min, max, step, unit, name, presets, presetLabel, defaultValue, onCommit, labelledBy }: NumberAnswerProps) {
+/** Stepper with a row of preset keys; a preset tap commits, the exact number commits with the step's Next. */
+export function NumberAnswer({ value, min, max, step, unit, name, presets, presetLabel, onCommit, labelledBy }: NumberAnswerProps) {
   const [n, setN] = useState<number | null>(value ?? null);
   return (
     <div className="lm-ik-number">
@@ -224,15 +220,14 @@ export function NumberAnswer({ value, min, max, step, unit, name, presets, prese
         labelledBy={labelledBy}
         options={presets.map((p) => ({ value: String(p), label: presetLabel ? presetLabel(p) : `${p}` }))}
         value={value !== undefined && presets.includes(value) ? String(value) : undefined}
-        defaultValue={defaultValue !== undefined ? String(defaultValue) : undefined}
         onCommit={(v) => onCommit(Number(v))}
         className="lm-ik-keys--presets"
       />
       <div className="lm-ik-number__exact">
         <Stepper name={name} value={n} onChange={setN} min={min} max={max} step={step} unit={unit} inputMode="numeric" />
-        <Key size="md" onClick={() => n !== null && onCommit(n)} disabledReason={n === null ? TURN.exact : undefined}>
+        <CommitKey onClick={() => n !== null && onCommit(n)} disabledReason={n === null ? TURN.exact : undefined}>
           {TURN.done}
-        </Key>
+        </CommitKey>
       </div>
     </div>
   );

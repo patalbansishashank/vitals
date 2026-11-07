@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CapabilityCache, KeyVault, MemoryKv, type Capabilities } from '@/ai';
 import { fakeFetch } from '@/ai/testing/fakeFetch';
@@ -49,6 +49,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   setServerClientForTests(null);
 });
@@ -57,15 +58,54 @@ async function pickAnthropicAndSaveKey(user: ReturnType<typeof userEvent.setup>)
   await user.click(screen.getByRole('radio', { name: /^Anthropic/ }));
   await user.type(screen.getByLabelText('API key'), KEY);
   await user.click(screen.getByRole('button', { name: 'Save key' }));
-  await screen.findByText('key saved • ends …4f2a');
+  await screen.findByText('Key saved · ends …4f2a');
 }
 
 describe('AiSection', () => {
-  it('shows the empty state; small edits default off', () => {
+  it('shows the empty state as one row, the provider list open, and no Coach behaviour before a provider', () => {
     render(<AiSection deps={makeDeps().deps} />);
-    expect(screen.getByText(/No AI provider\. The Coach is off/)).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: /small plan edits without asking/i })).not.toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('Off');
+    expect(screen.getByRole('button', { name: /^Provider/ })).toHaveAttribute('aria-expanded', 'true');
+    // a plain list of names: no "Your API key." line under each one
+    expect(screen.queryByText(/Your API key/)).toBeNull();
+    expect(screen.queryByRole('switch', { name: /small plan edits without asking/i })).toBeNull();
+    expect(screen.queryByText(/Coach behaviour/i)).toBeNull();
+  });
+
+  it('groups the providers: Hosted · On this computer · Other', () => {
+    render(<AiSection deps={makeDeps().deps} />);
+    const groups = screen.getAllByRole('group').map((g) => g.textContent ?? '');
+    expect(groups[0]).toMatch(/^Hosted/);
+    expect(groups[0]).toMatch(/Anthropic/);
+    expect(groups[1]).toMatch(/^On this computer/);
+    expect(groups[1]).toMatch(/Ollama/);
+    expect(groups[2]).toMatch(/^Other.*Custom endpoint/);
+  });
+
+  it('on a phone the provider is one row that opens the grouped list in a sheet; a choice closes it (r068 V5)', async () => {
+    const real = window.matchMedia;
+    window.matchMedia = ((q: string) => ({ matches: q === '(max-width: 47.99rem)', media: q, onchange: null, addEventListener: () => undefined, removeEventListener: () => undefined, addListener: () => undefined, removeListener: () => undefined, dispatchEvent: () => false })) as typeof window.matchMedia;
+    try {
+      const user = userEvent.setup();
+      render(<AiSection deps={makeDeps().deps} />);
+      expect(screen.queryByRole('radio', { name: /^Anthropic/ })).toBeNull();
+      await user.click(screen.getByRole('button', { name: /^Provider.*Choose/ }));
+      const sheet = await screen.findByRole('dialog', { name: 'Provider' });
+      await user.click(within(sheet).getByRole('radio', { name: /^Anthropic/ }));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Provider' })).toBeNull());
+      expect(screen.getByRole('button', { name: /^Provider.*Anthropic/ })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = real;
+    }
+  });
+
+  it('with a provider: Coach behaviour shows, small edits and stop at cap default off', async () => {
+    await dispatch('ai.configure', { preset: { presetId: 'anthropic', model: 'claude-sonnet-5-5' } });
+    render(<AiSection deps={makeDeps().deps} />);
+    expect(await screen.findByRole('switch', { name: /small plan edits without asking/i })).not.toBeChecked();
     expect(screen.getByRole('switch', { name: /stop the coach at the cap/i })).not.toBeChecked();
+    // the provider list is closed once one is chosen; its row names it
+    expect(screen.getByRole('button', { name: /^Provider.*Anthropic/ })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('saves the key into the KeyVault only, never into config, documents or the console', async () => {
@@ -96,15 +136,21 @@ describe('AiSection', () => {
     render(<AiSection deps={deps} />);
     await pickAnthropicAndSaveKey(user);
     await user.click(screen.getByRole('button', { name: 'Test connection' }));
+    expect(await screen.findByRole('list', { name: 'Model capabilities' })).toHaveTextContent('Use Vitals’ tools');
+    expect(screen.queryByRole('table', { name: /what this model can do/i })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'About What this model can do' }));
     const table = await screen.findByRole('table', { name: /what this model can do/i });
-    expect(within(table).getByRole('row', { name: /use Vitals’ tools/ })).toHaveTextContent('✓ yes');
-    expect(within(table).getByRole('row', { name: /read food photos/ })).toHaveTextContent('✓ yes');
-    expect(within(table).getByRole('row', { name: /memory/ })).toHaveTextContent(`${(200000).toLocaleString()} tokens`); // locale-formatted, like the component
-    expect(within(table).getByRole('row', { name: /latency/ })).toHaveTextContent(/\d+ ms/);
-    expect(within(table).getByRole('row', { name: /basic tier/ })).toHaveTextContent('no');
-    expect(screen.getByText('Supported')).toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /Use Vitals’ tools/ })).toHaveTextContent('Yes');
+    expect(within(table).getByRole('row', { name: /Read food photos/ })).toHaveTextContent('Yes');
+    expect(within(table).getByRole('row', { name: /Memory/ })).toHaveTextContent('200,000 tokens');
+    expect(within(table).getByRole('row', { name: /Latency/ })).toHaveTextContent(/\d+ ms/);
+    expect(within(table).getByRole('row', { name: /Basic tier/ })).toHaveTextContent('No');
+
     expect(fake.requests[0]!.url).toBe(`${ANTHROPIC_BASE}/models/claude-sonnet-5-5`);
     expect(await deps.cache.get(ANTHROPIC_BASE, 'claude-sonnet-5-5', '2026-10-02T00:00:00.000Z')).toMatchObject({ tools: true, vision: true, source: 'catalog' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Supported')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Save provider' }));
     await screen.findByText('Saved.');
@@ -130,17 +176,19 @@ describe('AiSection', () => {
     expect(probeErrorText('auth', 'your server')).toBe('Your server refused this key. Check it and try again.');
   });
 
-  it('lists the three server providers under "via your server"; without a server they ask to pair first', async () => {
-    const user = userEvent.setup();
+  it('without a server the providers that run through it are not listed (pairing lives in Sync)', () => {
     setServerClientForTests(fakeClient().client);
     render(<AiSection deps={makeDeps().deps} />, { wrapper: MemoryRouter });
-    expect(screen.getByText('via your server')).toBeInTheDocument();
-    expect(screen.getAllByText('needs your server')).toHaveLength(3);
-    await user.click(screen.getByRole('radio', { name: /NVIDIA NIM/ }));
-    expect(screen.queryByLabelText('API key')).not.toBeInTheDocument();
-    expect(screen.getByText('This provider works through your server. Pair this device with your server first.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Pair a server' })).toHaveAttribute('href', '/settings/server');
-    expect(screen.queryByRole('button', { name: 'Load the model list' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Through your server')).toBeNull();
+    expect(screen.queryByRole('radio', { name: /NVIDIA NIM/ })).toBeNull();
+    expect(screen.queryByText(/Needs your server/i)).toBeNull();
+  });
+
+  it('paired: lists the three server providers under "Through your server"', async () => {
+    setServerClientForTests(fakeClient({ paired: true }).client);
+    render(<AiSection deps={makeDeps().deps} />, { wrapper: MemoryRouter });
+    expect(screen.getByText('Through your server')).toBeInTheDocument();
+    for (const name of [/NVIDIA NIM/, /OpenCode Zen/, /Sign in with ChatGPT/]) expect(screen.getByRole('radio', { name })).toBeInTheDocument();
   });
 
   it('paired: state chips, a key typed once goes to the server and never into this browser', async () => {
@@ -150,14 +198,14 @@ describe('AiSection', () => {
     const { deps } = makeDeps();
     deps.serverOptions = () => client.chatModelOptions();
     render(<AiSection deps={deps} />, { wrapper: MemoryRouter });
-    expect(await screen.findByText('key set')).toBeInTheDocument();
-    expect(screen.getAllByText('no key').length).toBeGreaterThan(0);
-    expect(screen.getByText('not signed in')).toBeInTheDocument();
+    expect(await screen.findByText('Key set')).toBeInTheDocument();
+    expect(screen.getAllByText('No key').length).toBeGreaterThan(0);
+    expect(screen.getByText('Not signed in')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: /NVIDIA NIM/ }));
     expect(screen.getByText(/Your key is sent once to your server/)).toBeInTheDocument();
     await user.type(screen.getByLabelText('API key'), 'nvapi-SECRET-9999');
     await user.click(screen.getByRole('button', { name: 'Save key' }));
-    expect(await screen.findByText('key set on your server')).toBeInTheDocument();
+    expect(await screen.findByText('Key set on your server')).toBeInTheDocument();
     expect(server.state.keys.nim).toBe('nvapi-SECRET-9999');
     expect(await deps.vault.get('nim', 'https://integrate.api.nvidia.com/v1')).toBeNull();
     expect(JSON.stringify(readAiConfig())).not.toContain('nvapi');
@@ -193,6 +241,9 @@ describe('AiSection', () => {
   }, 30000);
 
   it('warns when the month passes 80 % of the spending cap', async () => {
+    // ai.usage reads the command bus clock, independently of the section's injected clock.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-01T09:00:00.000Z'));
     await dispatch('ai.configure', { preset: { presetId: 'anthropic', model: 'claude-sonnet-5-5', spendCapUsdMonthly: 10 } });
     await recordAiUsage({ ts: '2026-10-01T08:00:00.000Z', preset: 'anthropic', model: 'claude-sonnet-5-5', in: 1000, out: 100, cached: 0, costUsd: 8.5, estimated: false, conversationId: null });
     render(<AiSection deps={makeDeps().deps} />);
@@ -206,7 +257,7 @@ describe('AiSection', () => {
     await dispatch('ai.configure', { preset: { presetId: 'anthropic', model: 'claude-sonnet-5-5' } });
     setCoachAvailable(true);
     render(<AiSection deps={deps} />);
-    await screen.findByText('key saved • ends …4f2a');
+    await screen.findByText('Key saved · ends …4f2a');
     await user.click(screen.getByRole('button', { name: 'Remove provider' }));
     await screen.findByText(/Provider removed/);
     expect(readAiConfig()).toBeNull();
@@ -216,7 +267,7 @@ describe('AiSection', () => {
 
   it('exposes no safety controls', () => {
     render(<AiSection deps={makeDeps().deps} />);
-    const section = screen.getByRole('region', { name: 'AI provider' });
+    const section = screen.getByRole('region', { name: 'Coach' });
     expect(within(section).queryByText(/safety mode|screening|guardrail/i)).toBeNull();
   });
 });

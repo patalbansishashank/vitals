@@ -1,6 +1,6 @@
 /* ==========================================================================
    Blood markers chapter (design/screens/onboarding-intake-v3.md §8; COMPONENTS §14.3, §14.6).
-   Tokens only; both themes. Mobile first: one column, each marker a fieldset
+   Tokens only, dark only (Ember: hairlines, weights 350/400/500). Mobile first: one column, each marker a fieldset
    block; from 768 px real tables inside the card (scrolling sideways only when
    the card is narrower than the table).
    ========================================================================== */
@@ -9,8 +9,6 @@
   .lm-mk {
     display: grid;
     gap: 16px;
-    max-width: 1040px;
-    margin-inline: auto;
     padding-block: 8px 96px;
     min-width: 0;
   }
@@ -24,10 +22,10 @@
     gap: 12px;
     min-width: 0;
     padding: 16px;
-    border: 1px solid var(--lm-line);
+    border: var(--lm-hairline) solid var(--lm-line);
     border-radius: var(--lm-radius-md);
     background: var(--lm-well);
-    scroll-margin-top: 30vh;
+    scroll-margin-top: calc(var(--lm-header-h, 0px) + 12px);
   }
   .lm-mk-card--wide {
     max-width: none;
@@ -38,9 +36,6 @@
     border: 0;
     background: none;
     max-width: none;
-  }
-  .lm-mk-card:not(.lm-mk-card--wide) {
-    max-width: 720px;
   }
   .lm-mk-card__set {
     display: grid;
@@ -54,9 +49,9 @@
     float: left;
     width: 100%;
     padding: 0;
-    font-size: 1.0625rem;
-    line-height: 1.5rem;
-    font-weight: 600;
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lm-mk-card__prompt + * {
@@ -74,18 +69,12 @@
     gap: 12px;
     min-width: 0;
   }
-  .lm-mk-card__default {
-    margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-3);
-  }
   .lm-mk-card__foot {
     display: grid;
     gap: 8px;
     margin-top: 4px;
     padding-top: 12px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-footrow {
     display: flex;
@@ -122,7 +111,7 @@
     margin: 0;
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lm-mk-link {
@@ -145,8 +134,12 @@
   }
 
   /* ---- B0 statements and keys ---- */
+  /* the medical-advice statement before the answers: plain stone text, no notice box or mark */
   .lm-mk-statements {
     margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
   }
   .lm-mk-keys .lm-ik-key {
     min-height: 56px;
@@ -156,25 +149,27 @@
   .lm-mk-group {
     display: grid;
     min-width: 0;
-    border-top: 1px solid var(--lm-line-strong);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-group__head {
     margin: 0;
     font: inherit;
   }
+  /* the group's head is a disclosure row (r068 V-IK-2, as DisclosureRow on Your body): the name and its "0 of 6
+     entered" count on the content edge, the chevron at the trailing edge, turned up when open */
   .lm-mk-group__toggle {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 10px;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-inline);
     width: 100%;
-    min-height: 44px;
-    padding: 10px 0;
+    min-height: 48px;
+    padding: var(--lm-row-gap) 0;
     border: 0;
     background: none;
     color: var(--lm-ink);
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
   .lm-mk-group__toggle:focus-visible {
@@ -182,12 +177,29 @@
     outline-offset: 2px;
     border-radius: var(--lm-radius-xs);
   }
-  .lm-mk-group__toggle .lm-ik-why__chev:not(.is-open) {
-    transform: rotate(-90deg);
+  .lm-mk-group__label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px var(--lm-inline);
+    min-width: 0;
+  }
+  .lm-mk-group__chev {
+    flex: none;
+    color: var(--lm-ink-2);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-mk-group__toggle[aria-expanded='true'] .lm-mk-group__chev {
+    transform: rotate(180deg);
+  }
+  @media (hover: hover) {
+    .lm-mk-group__toggle:hover .lm-mk-group__name {
+      color: var(--lm-signal);
+    }
   }
   .lm-mk-group__name {
     font-size: var(--lm-text-base);
-    font-weight: 600;
+    font-weight: 500;
   }
   .lm-mk-group__count {
     font-size: var(--lm-text-xs);
@@ -203,18 +215,24 @@
   .lm-mk-group__bar {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 16px;
+    align-items: flex-start;
+    gap: var(--lm-card-gap) var(--lm-stack);
   }
   .lm-mk-group__clear {
+    align-self: flex-end;
     margin-left: auto;
   }
+  /* a group field: its label above it, one layout for "tested on" and "fasting?" (r068 V-IK-4) */
   .lm-mk-inline {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
+    display: inline-grid;
+    gap: 4px;
     min-width: 0;
+  }
+  @media (max-width: 47.99rem) {
+    .lm-mk-inline--bank {
+      display: grid;
+      flex: 1 1 100%;
+    }
   }
   .lm-mk-inline__label {
     font-size: var(--lm-text-xs);
@@ -345,7 +363,7 @@
     font-weight: 500;
     color: var(--lm-ink-3);
     white-space: nowrap;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-table .lm-mk-num-col {
     text-align: right;
@@ -355,7 +373,7 @@
     line-height: 40px;
   }
   .lm-mk-tr + .lm-mk-tr {
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-tr__msg > td {
     padding-top: 0;
@@ -398,7 +416,7 @@
     margin: 0;
     padding: 12px 0;
     border: 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-block:first-child {
     border-top: 0;
@@ -422,6 +440,18 @@
   .lm-mk-block__row--meta {
     justify-content: space-between;
   }
+  /* phone: the explanation on its own line under the name; the value takes the row, the unit a fixed width */
+  .lm-mk-block .lm-mk-name__plain {
+    display: block;
+  }
+  .lm-mk-block__row--value {
+    flex-wrap: nowrap;
+  }
+  .lm-mk-block__row--value > .lm-mk-num {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+  }
 
   /* ---- B2 ---- */
   .lm-mk-file {
@@ -440,8 +470,8 @@
     display: grid;
     gap: 8px;
     padding: 12px 0;
-    border-top: 1px solid var(--lm-line);
-    border-bottom: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-consent__line {
     margin: 0;
@@ -467,7 +497,7 @@
     display: grid;
     gap: 10px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-context__row {
     display: grid;
@@ -532,7 +562,7 @@
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 0 4px;
     padding: 10px 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-rblock:first-child {
     border-top: 0;
@@ -589,7 +619,6 @@
   .lm-mk-receipt {
     display: grid;
     gap: 12px;
-    max-width: 720px;
   }
   .lm-mk-receipt__rows {
     margin: 0;
@@ -603,23 +632,23 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 2px 12px;
     padding-block: 10px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-receipt__row .lm-ik-receipt__dot {
     display: none;
   }
   .lm-mk-receipt__row .lm-ik-receipt__q {
     grid-column: 1;
-    font-size: 13px;
-    line-height: 18px;
-    font-weight: 500;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-mk-receipt__row .lm-ik-receipt__a {
     grid-column: 1;
     font-size: var(--lm-text-base);
     line-height: var(--lm-text-base--lh);
-    font-weight: 500;
+    font-weight: 400;
     color: var(--lm-ink);
     overflow-wrap: anywhere;
   }
@@ -645,7 +674,7 @@
     gap: 6px;
     justify-items: start;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-mk-effect__text {
     font-size: var(--lm-text-sm);

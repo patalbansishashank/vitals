@@ -1,134 +1,178 @@
 /* ==========================================================================
-   COPIED FROM design/tokens.css (v1.0, 2026-09-30) — the design lead owns the
-   source. Do not edit values here; change design/tokens.css and re-copy.
-   Local, selector-only changes (marked "LOCAL"):
-   1. The light (base) block also matches any [data-theme-scope] element and the
-      forced dark block also matches [data-theme-scope="dark"], so a subtree
-      can be rendered in either theme (component gallery side-by-side view).
-      Aliases such as --lm-avatar-stage: var(--lm-well) are thereby re-derived
-      inside the scope instead of inheriting the root's resolved value.
-   Local VALUE changes (final QA, 2026-09-30 — port back to design/tokens.css):
-   2. Light --lm-ink-3 #6e7277 → #5f6368: it measured 4.0:1 on the chassis (3.7:1
-      on chassis-2), below WCAG 1.4.3. Now ≥ 4.5:1 on every light surface.
-      --lm-ink-2 #52565b → #4a4e53 keeps the ink-2 / ink-3 step (luminance ratio
-      1.64, was 1.52), so the three-level text hierarchy reads as before.
-   3. Light --lm-caution-fg #955e00 → #915b00: 4.5:1 → 4.7:1 on the chassis.
-   Dark values are unchanged (ink-3 ≥ 5.1:1 on every dark surface).
-   ========================================================================== */
-
-/* ==========================================================================
-   Vitals — design tokens  v1.0  (2026-09-30)
+   Vitals — design tokens  v3.0 "Ember"  (r071, 2026-10-30)
    --------------------------------------------------------------------------
-   World: a precision instrument in the Ulm / Braun lineage. Mineral-grey
-   chassis, white faceplates (anthracite in dark), hairline scales, one
-   Vitals-yellow signal key. Colour lives in data, not chrome.
+   MASTER COPY. src/styles/tokens.css is a byte-identical copy of this file
+   (src/styles/__tests__/tokens.test.ts fails when they differ): edit here,
+   then `cp design/tokens.css src/styles/tokens.css`.
+
+   World: Lumen Health "Ember" (.e6-tmp/unslop/SPEC.md §1, lumen.md), revised
+   by r068 (rounded-rect controls, no page max-width, one spacing rhythm) and by
+   r071 (Geist + Geist Mono, eight domain hues, one glow per card, 20px cards).
+   A quiet charcoal instrument: near-black #090909 backdrop with fixed fine
+   grain and a faint warm-gold wash from the top right; charcoal #1B1916 cards
+   carrying the same grain, 0.5px gold hairlines, 20px corners, no shadows;
+   ivory text, stone secondary. Gold #E3BF78 marks the action, the selection
+   and the moment (brand, primary key, focus, "now"); data wears its domain
+   (section 5); ivory marks where you are (the dock, the sidebar). A card may
+   carry ONE soft glow in its domain hue (section 15). DARK ONLY: there is one
+   palette, on :root. No light theme, no [data-theme] switch, no
+   prefers-color-scheme branch.
 
    HOW TO USE
-   - Plain CSS: import this file once at the app root. Every value is a
-     custom property prefixed `--lm-`.
-   - Tailwind v4: import this file, then `design/tailwind-theme.css`, which maps
-     these tokens into Tailwind's `@theme` namespaces (bg-face, text-ink-2,
-     rounded-md, shadow-key, ease-needle, z-sheet, ...).
-   - Theme switching: default follows the OS. `<html data-theme="light">` or
-     `data-theme="dark"` forces a theme (the settings toggle writes this).
-   - Chart/series colours are HEX on purpose: they are the documented,
-     validator-checked source of truth (dataviz six checks, see CHART_SPEC.md
-     §3). Do not eyeball replacements; re-run the validator.
+   - Plain CSS: import once at the app root. Every value is a custom property
+     prefixed `--lm-`. The names are the v1 names; only the values changed.
+   - Tailwind v4: import this file, then tailwind-theme.css, which maps these
+     tokens into Tailwind's `@theme` namespaces (bg-face, text-ink-2, ...).
+   - Material: the backdrop is painted by base.css (body::before); cards take
+     `background: var(--lm-card-bg)` or the `.lm-material-card` class; a card
+     opts into its domain glow with `data-domain` (components.css).
 
-   VALIDATION RECORD (dataviz/scripts/validate_palette.js, surfaces = --lm-face)
-   - Category palette, adjacent: light worst CVD ΔE 14.2, normal 23.8;
-                                 dark  worst CVD ΔE 11.4, normal 17.3. PASS.
-     Relief rule: recovery + cardio sit < 3:1 on the light face, so lanes and
-     overlay lines ALWAYS carry visible labels (they do by spec).
-   - Macro palette (stack order protein > net carbs > fibre > fat > alcohol),
-     adjacent: light CVD 17.3 / normal 23.8; dark CVD 11.5 / normal 16.0. PASS.
-   - Plan trio A/B/C, ALL pairs: CVD 13.9, normal 15.4 (both modes). PASS.
-   - Ketosis ordinal ramp: monotone, ΔL ≥ .06, light end ≥ 2:1. PASS.
+   DATA PALETTES (validator: dataviz scripts/validate_palette.js, --mode dark
+   --surface #1B1916; the r071 numbers are in r071/RESEARCH.md §3).
+   - Eight domain hues on one wheel (section 5), each four tokens: solid (marks),
+     ink (soft tint for text on the glow), deep (the glow core), dim (the unlit
+     remainder). Wheel neighbours: normal ΔE ≥ 15.7, colour-vision (protan and
+     deutan) ≥ 11.0, chroma ≥ 0.10, every solid ≥ 5.1:1 on the card. ALL PAIRS
+     FAIL (sleep vs recovery: deutan 3.2): the eight are never plotted together
+     and never used for a scatter. Gold vs food collapses under protan and
+     deutan, safe only because gold is an action and a state, never a series.
+   - Sets that appear together are derived from the domain hue: sleep stages,
+     energy intensity, heart-rate zones and macros (sections 6 and 8), each run
+     through the validator. Adjacent steps differ by lightness as well as hue;
+     the ordinal ramps (intensity, zones) are monotone in L with gaps ≥ 0.06.
+   - The eight-slot metric category palette (section 5b) keeps its three
+     non-coinciding warm slots (fuel, cellular, hormones); the five that
+     coincide with a domain are aliases of that domain's solid (r071 Q12).
+   - Identity is never colour alone: lanes, overlay lines, legends and stacks
+     always carry visible labels, and an ordinal step always prints its value.
    ========================================================================== */
 
-:root,
-[data-theme-scope] { /* LOCAL: scope selector (every scope re-derives the aliases, e.g. --lm-avatar-stage) */
-  color-scheme: light;
+/* The glow's one global dial: 0 turns every card glow off, 1 is full. Registered so a card can fade its glow in
+   (components.css, `data-glow='pending'`); never animate the gradient itself (banding crawls). */
+@property --lm-glow-k {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
+}
+
+:root {
+  color-scheme: dark;
 
   /* ---------------------------------------------------------------------
-     1. SURFACES  (neutral hue 255, chroma ≤ .006 — reads as mineral grey)
+     1. SURFACES  bg → bg-2 → card → card-soft → elevated
      --------------------------------------------------------------------- */
-  --lm-chassis:        #e8eaec; /* oklch(.935 .004 255) page background        */
-  --lm-chassis-2:      #dde0e3; /* oklch(.905 .005 255) rail, toolbars, tray   */
-  --lm-face:           #fbfcfd; /* oklch(.99 .0015 255) panels + chart surface */
-  --lm-well:           #f1f2f4; /* oklch(.962 .003 255) recessed: inputs, tracks, day cells */
-  --lm-raised:         #ffffff; /* popovers, menus, key caps                   */
-  /* row hover (COMPONENTS §14.1): 6 % ink over the face, background only, never on non-interactive rows. var-based, so
-     both themes re-derive it from their own --lm-face / --lm-ink. */
+  --lm-chassis:        #090909; /* page backdrop base (grain + wash sit over it, base.css) */
+  --lm-chassis-2:      #11100F; /* bg-2: sheets, rail fallback                  */
+  --lm-face:           #1B1916; /* card                                         */
+  --lm-well:           #11100F; /* inset wells, field backgrounds               */
+  --lm-raised:         #22201C; /* card-soft: secondary surfaces, segmented track */
+  --lm-elevated:       #2B2721; /* dialogs, menus, pressed rows                 */
+  /* row hover (COMPONENTS §14.1): 6 % ink over the face, background only, never on non-interactive rows. */
   --lm-face-hover:     color-mix(in oklab, var(--lm-face), var(--lm-ink) 6%);
-  --lm-scrim:          rgb(25 28 32 / 0.32);   /* behind sheets and dialogs    */
+  --lm-scrim:          rgb(0 0 0 / 0.6);  /* behind sheets and dialogs          */
 
-  /* lines */
-  --lm-line:           #d7d9dc; /* hairline dividers inside faceplates          */
-  --lm-line-strong:    #c1c4c8; /* faceplate outlines, chart baseline           */
-  --lm-edge:           #83868b; /* control boundaries: ≥3:1 on face/well/chassis (WCAG 1.4.11) */
+  /* lines — gold hairlines (draw them 0.5px: --lm-hairline) */
+  --lm-line:           rgb(198 171 124 / 0.20); /* hairline                     */
+  --lm-line-strong:    rgb(198 171 124 / 0.40); /* field outlines               */
+  --lm-edge:           rgb(198 171 124 / 0.20);
+  --lm-hairline:       0.5px;
 
   /* ink */
-  --lm-ink:            #191c20; /* 16.6:1 on face — primary text, marks of UI    */
-  --lm-ink-2:          #4a4e53; /*  8.2:1 on face, 7.0:1 on chassis — secondary (LOCAL value, see header) */
-  --lm-ink-3:          #5f6368; /*  5.9:1 on face, 5.0:1 on chassis, 4.6:1 on chassis-2 — tertiary, axis ticks (LOCAL value) */
-  --lm-ink-faint:      #a1a5aa; /*  2.4:1 — disabled only, never meaning-bearing */
-  --lm-ink-inverse:    #fbfcfd; /* text on ink fills (selected keys)             */
+  --lm-ink:            #F5F1E9; /* 15.6:1 on card, 13.2:1 on elevated — titles, values */
+  --lm-ink-2:          #C3BCB0; /*  9.3:1 on card,  7.9:1 on elevated — secondary, units, dates */
+  --lm-ink-3:          #AAA296; /*  7.0:1 on card,  5.9:1 on elevated — tertiary, inactive icons */
+  --lm-ink-faint:      rgb(170 162 150 / 0.40); /* disabled only, never meaning-bearing */
+  --lm-ink-inverse:    #090909; /* text on ink fills                           */
 
   /* ---------------------------------------------------------------------
-     2. SIGNAL — Vitals yellow. The ONE chromatic accent in chrome.
-     Used for: the Run / Optimise key, the "now" hand on clocks and the
-     playhead, the brand dot, the active indicator light on key banks.
-     Never for warnings (that is --lm-caution-*), never as text colour.
+     2. SIGNAL — gold: the brand, the primary action, the selection (gold wash),
+     focus and "now". Not a data colour any more (r071: data wears its domain).
+     Never body text, never a surface fill above a 0.055 wash.
      --------------------------------------------------------------------- */
-  --lm-signal:         #f5d336; /* oklch(.87 .165 96)  ink on it = 11.6:1        */
-  --lm-signal-hover:   #fcde4d; /* oklch(.90 .16 97)                             */
-  --lm-signal-press:   #e6c126; /* oklch(.82 .16 94)                             */
-  --lm-signal-ink:     #191c20; /* text/icon on signal — always dark, both themes */
-  --lm-signal-edge:    #191c20; /* 1px outline that lets yellow read on white     */
+  --lm-signal:         #E3BF78; /* text on gold = #090909 (11.4:1)            */
+  --lm-signal-hover:   #F5CE82; /* brightness 1.08                            */
+  --lm-signal-press:   #D5B471; /* brightness 0.94                            */
+  --lm-signal-ink:     #090909;
+  --lm-signal-edge:    transparent;
+  --lm-gold-soft:      rgb(227 191 120 / 0.18); /* selected list / picker rows  */
+  --lm-gold-wash:      rgb(227 191 120 / 0.15); /* selected segment / chip fill */
+  --lm-gold-edge:      rgb(227 191 120 / 0.40); /* selected segment / chip border */
+  --lm-gold-action:    rgb(227 191 120 / 0.16); /* action pill fill (gold text on it) */
+  --lm-gold-action-on: rgb(227 191 120 / 0.28); /* action pill, running state  */
 
   /* focus + selection (browser surfaces are themed, not default) */
-  --lm-focus:          #191c20; /* 2px ring + 2px --lm-face offset               */
-  --lm-focus-offset:   #fbfcfd;
-  --lm-text-selection: rgb(245 211 54 / 0.45);
-  --lm-caret:          #191c20;
+  --lm-focus:          #E3BF78; /* outline: 2px solid; outline-offset: 2px    */
+  --lm-focus-offset:   #090909;
+  --lm-text-selection: rgb(227 191 120 / 0.35);
+  --lm-caret:          #E3BF78;
 
   /* ---------------------------------------------------------------------
-     3. SEVERITY — info / caution / danger (+ ok for "goal met")
-     Always shipped with an icon AND a label. Never colour alone.
-     fg = text + icon on bg and on face (all ≥ 4.8:1); mark = chart/event glyph fill.
+     3. SEVERITY — info / ok are quiet neutrals, caution is gold, danger is
+     muted rose. Always shipped with an icon AND a label. Never colour alone.
+     fg = text + icon (≥ 7:1 on its bg and on the card); mark = chart glyph.
      --------------------------------------------------------------------- */
-  --lm-info-fg:        #2a669f;  --lm-info-bg:    #ebf5ff;  --lm-info-edge:    #bbd4ee;  --lm-info-mark:    #4984bf;
-  --lm-caution-fg:     #915b00;  --lm-caution-bg: #fff2d6;  --lm-caution-edge: #f0cb8d;  --lm-caution-mark: #ee9e10;
-  --lm-danger-fg:      #be2323;  --lm-danger-bg:  #ffedec;  --lm-danger-edge:  #f9bcb9;  --lm-danger-mark:  #d73431;
-  --lm-ok-fg:          #21763c;  --lm-ok-bg:      #e5f9e8;  --lm-ok-edge:      #aedbb6;  --lm-ok-mark:      #319751;
+  --lm-info-fg:        #C7C3BC;  --lm-info-bg:    #24221E;  --lm-info-edge:    #46443F;  --lm-info-mark:    #C7C3BC;
+  --lm-caution-fg:     #E3BF78;  --lm-caution-bg: #2B261E;  --lm-caution-edge: #6B5B3D;  --lm-caution-mark: #E3BF78;
+  --lm-danger-fg:      #E5A39B;  --lm-danger-bg:  #2B2321;  --lm-danger-edge:  #6C504B;  --lm-danger-mark:  #E5A39B;
+  --lm-ok-fg:          #C9C5AF;  --lm-ok-bg:      #24231D;  --lm-ok-edge:      #46443C;  --lm-ok-mark:      #C9C5AF;
 
   /* ---------------------------------------------------------------------
      4. EVIDENCE GRADES A–D — ordinal, achromatic on purpose (grades must
      never look like severity or like a series). Letter + pips always shown.
      --------------------------------------------------------------------- */
-  --lm-grade-a-bg:     #191c20;  --lm-grade-a-fg:  #fbfcfd;  --lm-grade-a-edge:  #191c20;
-  --lm-grade-b-bg:     #52565b;  --lm-grade-b-fg:  #fbfcfd;  --lm-grade-b-edge:  #52565b;
-  --lm-grade-c-bg:     transparent; --lm-grade-c-fg: #191c20; --lm-grade-c-edge: #52565b;
-  --lm-grade-d-bg:     transparent; --lm-grade-d-fg: #52565b; --lm-grade-d-edge: #83868b; /* edge is dashed for D */
+  --lm-grade-a-bg:     #F5F1E9;  --lm-grade-a-fg:  #090909;  --lm-grade-a-edge:  #F5F1E9;
+  --lm-grade-b-bg:     #AAA296;  --lm-grade-b-fg:  #090909;  --lm-grade-b-edge:  #AAA296;
+  --lm-grade-c-bg:     transparent; --lm-grade-c-fg: #F5F1E9; --lm-grade-c-edge: #C3BCB0;
+  --lm-grade-d-bg:     transparent; --lm-grade-d-fg: #C3BCB0; --lm-grade-d-edge: #6F695F; /* edge is dashed for D */
   --lm-grade-pip-on:   currentColor;
-  --lm-grade-pip-off:  #c1c4c8;
+  --lm-grade-pip-off:  #3D3933;
 
   /* ---------------------------------------------------------------------
-     5. CATEGORY PALETTE — 8 validated hues, fixed order, one per metric
-     category. A metric wears its category hue everywhere (lane, overlay line,
-     picker chip, goal row, library). `--lm-series-N` aliases the same slots.
-     Series 9–24 are COMPOSITE: hue (n-1) % 8 + 1 with dash pattern 2 or 3 and
-     marker shape (see --lm-dash-* / CHART_SPEC.md §3.3). Never generate a hue.
+     5. DOMAIN HUES (r071) — eight domains on one fixed wheel, plus gold.
+     solid = marks (a card icon, today's bar, in-range ticks, a status dot),
+     ink   = the soft tint for secondary text on the glow (units, mono meta,
+             the footer state word), derived from the hue, not generic grey,
+     deep  = the glow core only (never a mark, never text),
+     dim   = the unlit remainder of a track, gauge or tick row.
+     Text never wears the solid. Focal marks on a glow (the line, its end
+     point, lit ticks, the thumb) are ivory; the hue lives in the glow and in
+     the secondary marks. Wheel order is fixed: heart, energy, food, steps,
+     recovery, body, sleep, videos. Hex on purpose: tests and the Android
+     widgets parse them.
      --------------------------------------------------------------------- */
-  --lm-cat-body:        #2a6cc9; /* 1 cobalt  — body composition              */
-  --lm-cat-fuel:        #d6682f; /* 2 copper  — fuel & ketosis                */
-  --lm-cat-energy:      #129d97; /* 3 teal    — energy & metabolism           */
-  --lm-cat-cellular:    #694daf; /* 4 violet  — cellular signalling           */
-  --lm-cat-performance: #25873e; /* 5 green   — performance & training        */
-  --lm-cat-recovery:    #58b0db; /* 6 sky     — recovery & wellbeing (label!) */
-  --lm-cat-cardio:      #dda734; /* 7 saffron — cardiometabolic      (label!) */
-  --lm-cat-hormones:    #ca588c; /* 8 rose    — hormones & appetite           */
+  --lm-hue-heart:    #FF9EA7;  --lm-hue-heart-ink:    #F7CFD2;  --lm-hue-heart-deep:    #B61441;  --lm-hue-heart-dim:    #523939;  /* heart rate, zones, Heart Points, blood oxygen */
+  --lm-hue-energy:   #E26B1B;  --lm-hue-energy-ink:   #FBD5C2;  --lm-hue-energy-deep:   #CB5A00;  --lm-hue-energy-dim:   #4B2D17;  /* energy burned and balance, kcal, the fast */
+  --lm-hue-food:     #92D36C;  --lm-hue-food-ink:     #D0E6C5;  --lm-hue-food-deep:     #4A871B;  --lm-hue-food-dim:     #38462B;  /* eaten, macros, meals, groceries, pantry */
+  --lm-hue-steps:    #19AA8E;  --lm-hue-steps-ink:    #C4E7DC;  --lm-hue-steps-deep:    #0D7A66;  --lm-hue-steps-dim:    #1B3C33;  /* steps, distance, activity, workouts, Train */
+  --lm-hue-recovery: #6BCDE9;  --lm-hue-recovery-ink: #CCE7EF;  --lm-hue-recovery-deep: #1C7489;  --lm-hue-recovery-dim: #2E4449;  /* HRV, stress, skin temperature, recovery and day scores */
+  --lm-hue-body:     #5695E0;  --lm-hue-body-ink:     #C9DDF5;  --lm-hue-body-deep:     #0062BB;  --lm-hue-body-dim:     #293746;  /* weight, composition, girths, blood markers */
+  --lm-hue-sleep:    #BEB1FF;  --lm-hue-sleep-ink:    #DAD6F7;  --lm-hue-sleep-deep:    #5737A7;  --lm-hue-sleep-dim:    #423D4E;  /* sleep, stages, bedtime */
+  --lm-hue-videos:   #D066B1;  --lm-hue-videos-ink:   #F3CEE5;  --lm-hue-videos-deep:   #99167B;  --lm-hue-videos-dim:   #462B3B;  /* short videos (library only) */
+  --lm-hue-gold-deep: #8D6D1F;  /* the Next-up glow (plan); gold itself stays --lm-signal */
+
+  /* ---------------------------------------------------------------------
+     5b. CATEGORY PALETTE — 8 slots, fixed order, one per metric category.
+     A metric wears its category hue everywhere (lane, overlay line, picker
+     chip, goal row, library). The five slots that coincide with a domain are
+     aliases of that domain's solid (r071 Q12: body → body, energy → energy,
+     recovery → recovery, cardio → heart, performance → steps); fuel, cellular
+     and hormones keep their warm values. `--lm-series-N` aliases the same
+     slots. Series 9–24 are COMPOSITE: hue (n-1) % 8 + 1 with dash pattern 2 or
+     3 and marker shape (see --lm-dash-* / CHART_SPEC.md §3.3). Never generate
+     a hue. Neighbour ΔE in slot order (normal / colour-vision): body–fuel
+     24 / 23, fuel–energy 15.1 / 7.6, energy–cellular 17.5 / 9, cellular–steps
+     17 / 11, steps–recovery 16 / 15, recovery–heart 21 / 10, heart–hormones
+     25 / 22; fuel–energy is the one pair under 8 for colour vision, so lanes
+     carry names and the composite dash.
+     --------------------------------------------------------------------- */
+  --lm-cat-body:        var(--lm-hue-body);     /* 1 tide     — body composition  */
+  --lm-cat-fuel:        #8F6835;                /* 2 bronze   — fuel & ketosis    */
+  --lm-cat-energy:      var(--lm-hue-energy);   /* 3 ember    — energy & metabolism */
+  --lm-cat-cellular:    #7E7159;                /* 4 umber    — cellular signalling */
+  --lm-cat-performance: var(--lm-hue-steps);    /* 5 moss     — performance & training */
+  --lm-cat-recovery:    var(--lm-hue-recovery); /* 6 cyan     — recovery & wellbeing */
+  --lm-cat-cardio:      var(--lm-hue-heart);    /* 7 ruby     — cardiometabolic   */
+  --lm-cat-hormones:    #966755;                /* 8 clay     — hormones & appetite */
 
   --lm-series-1: var(--lm-cat-body);
   --lm-series-2: var(--lm-cat-fuel);
@@ -152,161 +196,398 @@
   /* ---------------------------------------------------------------------
      6. MACRONUTRIENTS — stack order is fixed: protein, net carbs, fibre, fat,
      alcohol (fibre sits beside net carbs because it IS carbohydrate).
+     Derived from the food hue (r071), validated in stack order on the card:
+     neighbour ΔE 19.5 / 30.6 / 25.4 / 18.0 (colour vision ≥ 12.1), every step
+     ≥ 3.8:1. All pairs fail (fat vs protein, deutan 4.0): never a scatter; the
+     stack keeps its 2 px card-colour gap and its names.
      --------------------------------------------------------------------- */
-  --lm-macro-protein:  #3a55b1; /* indigo */
-  --lm-macro-carbs:    #dea63d; /* grain gold (net carbs) */
-  --lm-macro-fibre:    #727018; /* olive */
-  --lm-macro-fat:      #e07a98; /* rose-coral */
-  --lm-macro-alcohol:  #68448d; /* plum */
+  --lm-macro-protein:  #6CB35D; /* food green (mid)  */
+  --lm-macro-carbs:    #EACE8C; /* sand (light, net carbs; not gold, which is brand and action) */
+  --lm-macro-fibre:    #677D51; /* olive (dark)      */
+  --lm-macro-fat:      #F3A07D; /* apricot (light)   */
+  --lm-macro-alcohol:  #A57DA1; /* mauve (mid)       */
   --lm-macro-gap:      var(--lm-face); /* 2px surface gap between stacked segments */
 
   /* ---------------------------------------------------------------------
      7. PLAN IDENTITY A / B / C (planner comparison). All-pairs validated.
      --------------------------------------------------------------------- */
-  --lm-plan-a: #2a6cc9;
-  --lm-plan-b: #d6682f;
-  --lm-plan-c: #129d97;
+  --lm-plan-a: #E3BF78; /* gold       */
+  --lm-plan-b: #7D9A66; /* moss sage  */
+  --lm-plan-c: #9C604D; /* clay       */
+
+  /* PLAN LADDER (screens/plan-ladder.md). Aliases of the A/B/C hues, so no new
+     validation is needed; the Ideal is achromatic on purpose (ink, dashed 4 3
+     line, hollow marker) — it is a reference, not a choice. */
+  --lm-rung-hard:   var(--lm-plan-a);
+  --lm-rung-medium: var(--lm-plan-b);
+  --lm-rung-easy:   var(--lm-plan-c);
+  --lm-rung-ideal:  var(--lm-ink);
+  --lm-rung-ideal-dash: 4 3;
 
   /* ---------------------------------------------------------------------
      8. ENERGY BALANCE — diverging tints for day cells & phase bands.
-     Deficit (cool) ↔ maintenance (neutral well) ↔ surplus (warm apricot).
-     Neither arm is "good". Text on any step: --lm-ink (≥ 9.5:1) or
-     --lm-ink-2 (≥ 4.5:1).
-     Step thresholds (% of maintenance): 1 = 1–10, 2 = 10–20, 3 = 20–35, 4 = >35.
+     --lm-balance-* (r071): deficit TIDE (hue 254) ↔ maintenance (card-soft) ↔
+     surplus EMBER (hue 48), the one diverging pair that survives protan and
+     deutan. Both arms rise ABOVE the card (OKLab L 0.285 → 0.42, the deepest
+     step capped so ivory text keeps 7.5:1) instead of sinking below it, in
+     10 % bands of maintenance: six deficit steps (0–10 … 50–60 %), four surplus
+     steps (0–10 … 30–40 %). Neighbour ΔE 2.9–3.6; matching steps share one
+     lightness (within 0.001), so magnitude reads the same either side, and the
+     arms part by hue (tide vs ember ΔE 6 → 17 over the four matching steps).
+     Polarity is never colour alone: the lane draws deficits below the zero
+     line, the printed % stays, a phase segment carries its name, a water-only
+     fast keeps its hatch. Neither arm is "good". Text on any step: --lm-ink
+     (≥ 7.5:1) or --lm-ink-2 (≥ 4.5:1).
      --------------------------------------------------------------------- */
-  --lm-energy-deficit-1: #e4f2fe;
-  --lm-energy-deficit-2: #cde7fe;
-  --lm-energy-deficit-3: #b4dbfd;
-  --lm-energy-deficit-4: #9cd1ff;
+  --lm-balance-deficit-1: #1E2B3B;
+  --lm-balance-deficit-2: #1C324D;
+  --lm-balance-deficit-3: #1A395D;
+  --lm-balance-deficit-4: #183F6D;
+  --lm-balance-deficit-5: #16467C;
+  --lm-balance-deficit-6: #154D8A;
+  --lm-balance-neutral:   var(--lm-raised);
+  --lm-balance-surplus-1: #37261D;
+  --lm-balance-surplus-2: #45291A;
+  --lm-balance-surplus-3: #542C16;
+  --lm-balance-surplus-4: #612F11;
+  --lm-balance-fast:      #F5F1E9; /* water-only fast day: ink cell, inverse text */
+
+  /* LEGACY warm balance (r068, 4 + 4 steps): the Simulator and the chart layer still read these until the planning
+     tools move to --lm-balance-* (r071 package 5a). Same rule as before: matching steps share one lightness. */
+  --lm-energy-deficit-1: #28251C;
+  --lm-energy-deficit-2: #322E20;
+  --lm-energy-deficit-3: #3D3724;
+  --lm-energy-deficit-4: #484028;
   --lm-energy-neutral:   var(--lm-well);
-  --lm-energy-surplus-1: #ffeee3;
-  --lm-energy-surplus-2: #ffdeca;
-  --lm-energy-surplus-3: #ffcfb1;
-  --lm-energy-surplus-4: #fdbd97;
-  --lm-energy-fast:      #191c20; /* water-only fast day: ink cell, inverse text */
+  --lm-energy-surplus-1: #2D221F;
+  --lm-energy-surplus-2: #3A2924;
+  --lm-energy-surplus-3: #473129;
+  --lm-energy-surplus-4: #56382E;
+  --lm-energy-fast:      #F5F1E9; /* water-only fast day: ink cell, inverse text */
 
-  /* ketosis state (ordinal, fuel hue): forming → nutritional → deep */
-  --lm-keto-1: #e69671;
-  --lm-keto-2: #d26e3e;
-  --lm-keto-3: #b44c0d;
+  /* ketosis state (ordinal, r071 energy hue): forming → nutritional → deep */
+  --lm-keto-1: #9C5B3F;
+  --lm-keto-2: #FE9140;
+  --lm-keto-3: #FFCE88;
 
-  /* heart-rate effort zones (ordinal, cardio hue): zone 1 → 5 (ring-pages.md §7.4.1) */
-  --lm-hr-zone-1: #cf9a22;
-  --lm-hr-zone-2: #ae7c14;
-  --lm-hr-zone-3: #8e600c;
-  --lm-hr-zone-4: #6e4707;
-  --lm-hr-zone-5: #4f3104;
+  /* heart-rate effort zones (ordinal, heart hue, r071): zone 1 → 5. Monotone in L, gaps ≥ 0.06, dim end 3.0:1 on the
+     card, neighbours only 9.2–10.9 ΔE apart, so a zone always carries its number and its word. */
+  --lm-hr-zone-1: #965255;
+  --lm-hr-zone-2: #C45A5E;
+  --lm-hr-zone-3: #F26873;
+  --lm-hr-zone-4: #FF939B;
+  --lm-hr-zone-5: #FFC2C8;
+  /* (r069 U1, re-derived r071) ROLES — one colour per meaning, wherever it is drawn (chart, legend, swatch, row); a
+     page reads the role, never the slot.
+     Sleep stages: ordered by arousal, so lightness climbs from deep to awake and awake turns warm sand (it can never
+     read as another depth). Categorical: neighbour ΔE 15.6 / 16.7 / 17.9 (colour vision ≥ 10.6), every stage ≥ 3.3:1
+     on the card. A night the ring could not stage is the OKLab midpoint of deep and light and is shown alone. Stage
+     rows always carry their names. */
+  --lm-stage-deep:        #6060C3;
+  --lm-stage-light:       #8895E2;
+  --lm-stage-rem:         #ECADF6;
+  --lm-stage-awake:       #F4E3BF;
+  --lm-stage-unspecified: #737BD3;
+  /* What the body spends through the day: sleep keeps the sleep hue (the plan strip's Sleep too); waking intensity
+     climbs the ember ramp (lighter and hotter = more), ordinal: monotone L, every gap ≥ 0.06, light end 3.3:1;
+     neighbours 11.5–14.1 ΔE, so names and values are always printed. */
+  --lm-intensity-sleep:    var(--lm-hue-sleep);
+  --lm-intensity-resting:  #9C5B3F;
+  --lm-intensity-light:    #CE7443;
+  --lm-intensity-active:   #FE9140;
+  --lm-intensity-exercise: #FFCE88;
+  /* Energy ledger parts are categories, unlike the ordinal intensity ramp above. The named parts keep the same
+     colour in Today, the period stacks and the Energy breakdown. Neutral slate marks signed model adjustments. */
+  --lm-energy-part-rmr:      #EACE8C;
+  --lm-energy-part-neat:     var(--lm-hue-steps);
+  --lm-energy-part-walking:  var(--lm-hue-food);
+  --lm-energy-part-exercise: var(--lm-hue-energy);
+  --lm-energy-part-recovery: var(--lm-hue-heart);
+  --lm-energy-part-tef:      var(--lm-hue-videos);
+  --lm-energy-part-other:    #A6B1B1;
+  /* Steps wear the steps hue everywhere (Progress, Ring, a period's bars). */
+  --lm-steps: var(--lm-hue-steps);
 
   /* ---------------------------------------------------------------------
      9. CHART CHROME
      --------------------------------------------------------------------- */
   --lm-chart-surface:     var(--lm-face);
-  --lm-chart-grid:        #e9ebee;  /* 1px solid, never dashed              */
-  --lm-chart-axis:        #c1c4c8;  /* baseline / zero line                 */
+  --lm-chart-grid:        #2C2820;  /* 1px solid, never dashed (gold hairline ≈ .10 on the card) */
+  --lm-chart-axis:        #4A4134;  /* baseline / zero line                 */
   --lm-chart-tick:        var(--lm-ink-3);
   --lm-chart-label:       var(--lm-ink-2);
-  --lm-chart-crosshair:   #52565b;  /* 1px vertical hairline                */
+  --lm-chart-crosshair:   #C3BCB0;  /* 1px vertical hairline                */
   --lm-chart-now:         var(--lm-signal); /* playhead / "today" hand      */
-  --lm-chart-phase-alt:   rgb(25 28 32 / 0.035); /* alternate schedule blocks */
-  --lm-chart-band-alpha:  0.14;     /* likely-range band = series hue @ 14% */
-  --lm-chart-area-alpha:  0.10;     /* single-series area wash              */
-  --lm-chart-dim-alpha:   0.28;     /* non-focused series in focus mode     */
+  --lm-chart-phase-alt:   rgb(245 241 233 / 0.03); /* alternate schedule blocks */
+  --lm-chart-band-alpha:  0.20;     /* likely-range band = series hue @ 20% */
+  --lm-chart-area-alpha:  0.14;     /* single-series area wash              */
+  --lm-chart-dim-alpha:   0.32;     /* non-focused series in focus mode     */
   --lm-chart-ring:        var(--lm-face); /* 2px surface ring on markers    */
 
   /* ---------------------------------------------------------------------
      10. AVATAR (see AVATAR_SPEC.md) — neutral material, never skin tone
      --------------------------------------------------------------------- */
-  --lm-avatar-lean:      #7487a5; /* lean core (muscle, organs, bone)      */
-  --lm-avatar-fat:       #d0d8e4; /* adipose envelope (frosted layer)      */
-  --lm-avatar-outline:   #333e4d; /* 1.25px silhouette edge                */
-  --lm-avatar-ghost:     #83868b; /* before-state outline in morph (1px)   */
-  --lm-avatar-visceral:  #ca9780; /* optional visceral-fat ellipse         */
-  --lm-avatar-definition: rgb(25 28 32 / 0.22); /* muscle definition strokes */
+  --lm-avatar-lean:      #6F7F8F; /* lean core (muscle, organs, bone)      */
+  --lm-avatar-fat:       #3A352D; /* adipose envelope (frosted layer)      */
+  --lm-avatar-outline:   #D9D0C1; /* 1.25px silhouette edge                */
+  --lm-avatar-ghost:     #AAA296; /* before-state outline in morph (1px)   */
+  --lm-avatar-visceral:  #9A6A55; /* optional visceral-fat ellipse (warm material, never red) */
+  --lm-avatar-definition: rgb(245 241 233 / 0.18); /* muscle definition strokes */
   --lm-avatar-stage:     var(--lm-well);
-  --lm-avatar-dot:       rgb(25 28 32 / 0.11); /* perforated stage grid    */
+  --lm-avatar-dot:       transparent; /* the perforated stage grid is retired: grain is the only texture */
+  /* visceral view (screens/body-figure-v2.md §6) */
+  --lm-avatar-organ:      #2B2721; /* organ region fill in the waist slice  */
+  --lm-avatar-organ-line: rgb(217 208 193 / 0.35); /* bowel-loop strokes   */
+  --lm-avatar-wall:       var(--lm-avatar-lean); /* abdominal muscle wall  */
+  --lm-avatar-halo-alpha: 0.34;   /* uncertainty halo around visceral fill */
 
   /* ---------------------------------------------------------------------
-     11. TYPOGRAPHY — one family, three widths.
-     Archivo (OFL, variable: wght 100–900, wdth 62–125; has tnum, zero, case,
-     frac, sups/subs). Google Fonts or self-host from google/fonts ofl/archivo.
+     11. TYPOGRAPHY (r071) — Geist and Geist Mono, both self-hosted variable
+     fonts (OFL), latin + latin-ext only (fonts.css), tabular numerals by
+     default (base.css).
+     - Sans (--lm-font-sans): Geist. Body, labels, keys, chips, tables, ticks.
+     - Title / display (--lm-font-title, --lm-font-display): the SAME family.
+       Page and card titles at 600; hero, wide and tile numbers at 300 (44–88 px,
+       proportional figures, -0.035em). No second display face and no serif
+       (owner, SPEC Q3); --lm-font-title is the one switch point if a serif
+       title is ever approved. Its stack names the 600-weight fallback face.
+     - Mono (--lm-font-mono): Geist Mono 500, UPPERCASE, +0.08em, 11 px (12 px
+       from 1024), only for facts (a date, a range, a unit, a state, a legend
+       label, a time, a tick), never above a heading: the one uppercase text in
+       the product.
+     Weights: Geist is declared 300–600 and Geist Mono 400–600 (fonts.css), so
+     nothing reaches 700, a bold request lands on 600, and 300 exists only for
+     numerals of 36 px and up (measured stem: 3.0 px at 44 px but 1.1 px at 16
+     px). Text of 24 px and under stays at 400 or more.
+     Numerals: hero, wide and tile numbers are PROPORTIONAL (--lm-num-pnum);
+     anything that changes in place, aligns in a column or reads as a clock
+     stays TABULAR (--lm-num-tnum, on :root).
      --------------------------------------------------------------------- */
-  --lm-font-sans: "Archivo", "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif;
-  --lm-font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace; /* JSON preview only */
+  --lm-font-sans:    "Geist", "Geist Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --lm-font-title:   "Geist", "Geist Title Fallback", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --lm-font-display: var(--lm-font-title);
+  --lm-font-mono:    "Geist Mono", "Geist Mono Fallback", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
 
-  --lm-wdth-condensed: 84;   /* axis ticks, lane labels on mobile, dense tables */
-  --lm-wdth-normal:    100;  /* UI + prose                                      */
-  --lm-wdth-wide:      112;  /* readouts, key captions                          */
-  --lm-wdth-display:   120;  /* screen titles, hero readouts                    */
+  /* No width axis in either face: the width tokens are neutral (all 100) and
+     the wdth-* utilities set font-stretch: normal. */
+  --lm-wdth-condensed: 100;
+  --lm-wdth-normal:    100;
+  --lm-wdth-wide:      100;
+  --lm-wdth-display:   100;
 
-  --lm-weight-regular: 400;
-  --lm-weight-medium:  500;
-  --lm-weight-semibold: 600;
-  --lm-weight-bold:    700;
+  --lm-weight-light:    300;  /* numerals of 36 px and up ONLY (hero, wide, tile, time) */
+  --lm-weight-regular:  400;  /* body text, captions                       */
+  --lm-weight-medium:   500;  /* labels, keys, chips, row values, mono meta */
+  --lm-weight-semibold: 600;  /* titles and values                         */
+  --lm-weight-bold:     600;  /* settings group labels, sheet titles (nothing is heavier than 600) */
+  --lm-num-pnum: "tnum" 0, "pnum" 1;  /* hero, wide and tile numbers (font-feature-settings) */
+  --lm-num-tnum: "tnum" 1;            /* live values, clocks, columns (stays on :root)      */
 
-  /* size / line-height / tracking  (fixed rem, ratio ≈ 1.2; root = 16px) */
-  --lm-text-2xs: 0.6875rem;  --lm-text-2xs--lh: 1rem;      --lm-text-2xs--ls: 0.01em;  /* 11 ticks        */
-  --lm-text-xs:  0.75rem;    --lm-text-xs--lh: 1rem;       --lm-text-xs--ls: 0.005em;  /* 12 engraved labels, captions */
-  --lm-text-sm:  0.8125rem;  --lm-text-sm--lh: 1.125rem;   --lm-text-sm--ls: 0;        /* 13 dense UI, table */
-  --lm-text-base: 0.9375rem; --lm-text-base--lh: 1.375rem; --lm-text-base--ls: 0;      /* 15 UI body       */
-  --lm-text-md:  1.0625rem;  --lm-text-md--lh: 1.625rem;   --lm-text-md--ls: 0;        /* 17 prose (library) */
-  --lm-text-lg:  1.25rem;    --lm-text-lg--lh: 1.625rem;   --lm-text-lg--ls: -0.005em; /* 20 section title */
-  --lm-text-xl:  1.5rem;     --lm-text-xl--lh: 1.875rem;   --lm-text-xl--ls: -0.01em;  /* 24 screen title (mobile) */
-  --lm-text-2xl: 1.875rem;   --lm-text-2xl--lh: 2.25rem;   --lm-text-2xl--ls: -0.015em;/* 30 screen title (desktop) */
-  --lm-readout-sm: 1.375rem; --lm-readout-sm--lh: 1.5rem;  /* 22 card readouts          */
-  --lm-readout-md: 2rem;     --lm-readout-md--lh: 2.125rem;/* 32 live estimates         */
-  --lm-readout-lg: 3.25rem;  --lm-readout-lg--lh: 3.25rem; /* 52 one hero readout / view */
+  /* roles. Each: size / line-height / letter-spacing / weight / family. Phone values; the 1024 block (below) steps
+     the hero, number, card, reading and meta roles up. */
+  --lm-text-display:  2rem;      --lm-text-display--lh: 2.375rem;  --lm-text-display--ls: -0.02em;  --lm-text-display--wt: 600; --lm-text-display--font: var(--lm-font-display);  /* 32/38 welcome headline */
+  --lm-text-headline: 1.75rem;   --lm-text-headline--lh: 2.125rem; --lm-text-headline--ls: -0.015em; --lm-text-headline--wt: 600; --lm-text-headline--font: var(--lm-font-display); /* 28/34 big values */
+  --lm-text-title-l:  1.25rem;   --lm-text-title-l--lh: 1.625rem;  --lm-text-title-l--ls: -0.01em;  --lm-text-title-l--wt: 600;  --lm-text-title-l--font: var(--lm-font-display);  /* 20/26 section heading */
+  --lm-text-title-m:  1.0625rem; --lm-text-title-m--lh: 1.5rem;    --lm-text-title-m--ls: -0.005em; --lm-text-title-m--wt: 600;  --lm-text-title-m--font: var(--lm-font-display);  /* 17/24 card heading, pushed-page title */
+  --lm-text-page:     1.5rem;    --lm-text-page--lh: 1.75rem;      --lm-text-page--ls: -0.02em;    --lm-text-page--wt: 600;     --lm-text-page--font: var(--lm-font-title);       /* 24/28 the top bar's title on every page (SPEC Q2: no large collapsing title) */
+  --lm-text-card:     0.9375rem; --lm-text-card--lh: 1.25rem;      --lm-text-card--ls: -0.005em;   --lm-text-card--wt: 600;     --lm-text-card--font: var(--lm-font-sans);        /* 15/20 card title in a card head */
+  --lm-text-hero:     4rem;      --lm-text-hero--lh: 1;            --lm-text-hero--ls: -0.035em;   --lm-text-hero--wt: 300;     --lm-text-hero--font: var(--lm-font-display);     /* 64 hero number, full-width hero card */
+  --lm-text-num-l:    3.25rem;   --lm-text-num-l--lh: 1;           --lm-text-num-l--ls: -0.035em;  --lm-text-num-l--wt: 300;    --lm-text-num-l--font: var(--lm-font-display);    /* 52 number, wide card */
+  --lm-text-num:      2.75rem;   --lm-text-num--lh: 1;             --lm-text-num--ls: -0.035em;    --lm-text-num--wt: 300;      --lm-text-num--font: var(--lm-font-display);      /* 44 number, tile */
+  --lm-text-time:     2.25rem;   --lm-text-time--lh: 1;            --lm-text-time--ls: -0.035em;   --lm-text-time--wt: 300;     --lm-text-time--font: var(--lm-font-display);     /* 36 next-up time (tabular) */
+  --lm-text-stat:     0.9375rem; --lm-text-stat--lh: 1.25rem;      --lm-text-stat--ls: -0.005em;   --lm-text-stat--wt: 500;     --lm-text-stat--font: var(--lm-font-sans);        /* 15/20 secondary number (tabular) */
+  --lm-text-unit:     0.9375rem; --lm-text-unit--lh: 1;            --lm-text-unit--ls: 0;          --lm-text-unit--wt: 400;     --lm-text-unit--font: var(--lm-font-sans);        /* 15 unit beside a number, ink-2 */
+  --lm-text-body:     0.875rem;  --lm-text-body--lh: 1.3125rem;    --lm-text-body--ls: 0;          --lm-text-body--wt: 400;     --lm-text-body--font: var(--lm-font-sans);        /* 14/21 default UI text */
+  --lm-text-body-l:   1rem;      --lm-text-body-l--lh: 1.5rem;     --lm-text-body-l--ls: 0;        --lm-text-body-l--wt: 400;   --lm-text-body-l--font: var(--lm-font-sans);      /* 16/24 reading text */
+  --lm-text-body-s:   0.75rem;   --lm-text-body-s--lh: 1.125rem;   --lm-text-body-s--ls: 0.005em;  --lm-text-body-s--wt: 400;   --lm-text-body-s--font: var(--lm-font-sans);      /* 12/18 secondary lines */
+  --lm-text-read:     0.9375rem; --lm-text-read--lh: 1.4375rem;    --lm-text-read--ls: 0;          --lm-text-read--wt: 400;     --lm-text-read--font: var(--lm-font-sans);        /* 15/23 the (i) panel's reading text, 62ch */
+  --lm-text-label:    0.875rem;  --lm-text-label--lh: 1.25rem;     --lm-text-label--ls: 0;         --lm-text-label--wt: 500;    --lm-text-label--font: var(--lm-font-sans);       /* 14/20 keys, segments */
+  --lm-text-label-s:  0.75rem;   --lm-text-label-s--lh: 1rem;      --lm-text-label-s--ls: 0.005em; --lm-text-label-s--wt: 500;  --lm-text-label-s--font: var(--lm-font-sans);     /* 12/16 chips, small keys */
+  --lm-text-meta:     0.6875rem; --lm-text-meta--lh: 0.875rem;     --lm-text-meta--ls: 0.08em;     --lm-text-meta--wt: 500;     --lm-text-meta--font: var(--lm-font-mono);        /* 11/14 UPPERCASE mono fact line: dates, ranges, units, states, legends, times */
+
+  /* v1 size scale, re-pointed at the roles (fixed rem; root = 16px) */
+  --lm-text-2xs: 0.6875rem;  --lm-text-2xs--lh: 1rem;       --lm-text-2xs--ls: 0.01em; /* 11/16 ticks           */
+  --lm-text-xs:  0.75rem;    --lm-text-xs--lh: 1.125rem;    --lm-text-xs--ls: 0;       /* 12/18 body-s, chips   */
+  --lm-text-sm:  0.875rem;   --lm-text-sm--lh: 1.25rem;     --lm-text-sm--ls: 0;       /* 14/20 label, dense UI */
+  --lm-text-base: 0.875rem;  --lm-text-base--lh: 1.3125rem; --lm-text-base--ls: 0;     /* 14/21 body            */
+  --lm-text-md:  1rem;       --lm-text-md--lh: 1.5rem;      --lm-text-md--ls: 0;       /* 16/24 body-l, prose   */
+  --lm-text-lg:  1.25rem;    --lm-text-lg--lh: 1.625rem;    --lm-text-lg--ls: -0.01em; /* 20/26 title-l         */
+  --lm-text-xl:  1.5rem;     --lm-text-xl--lh: 1.875rem;    --lm-text-xl--ls: -0.015em; /* 24/30 dialog headline */
+  --lm-text-2xl: 1.75rem;    --lm-text-2xl--lh: 2.125rem;   --lm-text-2xl--ls: -0.015em; /* 28/34 headline       */
+  --lm-readout-sm: 1.25rem;  --lm-readout-sm--lh: 1.5rem;   --lm-readout-sm--ls: -0.01em;  /* 20 card readouts   */
+  --lm-readout-md: 1.75rem;  --lm-readout-md--lh: 2.125rem; --lm-readout-md--ls: -0.015em; /* 28 live estimates  */
+  --lm-readout-lg: 2.5rem;   --lm-readout-lg--lh: 2.75rem;  --lm-readout-lg--ls: -0.02em;  /* 40 one hero readout / view */
 
   --lm-measure-prose: 68ch;
 
   /* ---------------------------------------------------------------------
      12. SPACING — 4px grid. Tailwind's --spacing: .25rem produces the same.
+     The semantic tokens below are the ONLY spacing a page or card should
+     need (r068 U11: one rhythm everywhere):
+       gutter     page edge ↔ content          16 phone · 24 from 1024
+       stack      card ↔ card, section ↔ section on a page        16
+       card-pad   inside a card (r071)         18 phone · 24 from 1024
+       card-gap   card ↔ card: the gap of a card grid or of a
+                  stack of cards (r071)        12 phone · 16 from 1024
+       card-inner-gap  inside a card: head ↔ body and
+                  block ↔ block (r071)         12 phone · 16 from 1024
+       row-gap    row ↔ row in a list or form                       8
+       inline     icon ↔ label, key ↔ key in a row                   8
      --------------------------------------------------------------------- */
   --lm-space-0: 0;       --lm-space-px: 1px;   --lm-space-0-5: 2px;  --lm-space-1: 4px;
   --lm-space-1-5: 6px;   --lm-space-2: 8px;    --lm-space-3: 12px;   --lm-space-4: 16px;
   --lm-space-5: 20px;    --lm-space-6: 24px;   --lm-space-8: 32px;   --lm-space-10: 40px;
   --lm-space-12: 48px;   --lm-space-16: 64px;  --lm-space-20: 80px;  --lm-space-24: 96px;
 
+  --lm-stack:    16px;   /* between cards and page sections                 */
+  --lm-card-gap: 12px;   /* between cards: a card grid, a stack of cards (16 from 1024, below) */
+  --lm-card-inner-gap: 12px; /* inside a card: head → body, block → block (16 from 1024, below); never between two cards */
+  --lm-row-gap:  8px;    /* rows of a list or a form                        */
+  --lm-inline:   8px;    /* items on one line                               */
+
   /* layout constants */
-  --lm-gutter:          16px;  /* mobile page gutter                  */
+  --lm-gutter:          16px;  /* phone page gutter                 */
   --lm-gutter-lg:       24px;  /* ≥1024                               */
-  --lm-rail-w:          76px;  /* desktop navigation rail             */
-  --lm-topbar-h:        56px;
-  --lm-tabbar-h:        64px;  /* mobile bottom bar (+ safe-area)     */
+  --lm-topbar-h:        56px;  /* legacy; AppShell writes the measured header height (without safe-top) on <html> */
+  --lm-tabbar-h:        64px;  /* legacy; inside .lm-app the shell sets it to the dock without the safe area (72px
+                                  on phones, 0 on desktop). New code reads --lm-dock-h (shell.css) */
   --lm-drawer-w:        392px; /* explain drawer, day editor panel    */
   --lm-lane-h-strip:    26px;  /* collapsed lane in focus mode         */
   --lm-lane-h:          72px;  /* default lane (64px under 768)         */
   --lm-lane-h-focus:    280px; /* focused lane (220px under 768)        */
   --lm-lane-tick-col:   32px;  /* y-tick label column inside the plot   */
   --lm-lane-label-w:    168px; /* desktop lane label gutter           */
-  --lm-hit-touch:       44px;  /* minimum touch target                */
+  --lm-hit-touch:       48px;  /* minimum touch target (Lumen 48)     */
   --lm-hit-pointer:     32px;  /* minimum pointer target (dense UI)   */
   --lm-bar-control-h:   36px;  /* every control in the top bar and the action bar (pointer) */
-  --lm-content-max:     1440px;
+  --lm-content-max:     none;  /* r068 U5: no page max-width anywhere; kept so old readers resolve */
+
+  /* navigation pill + dock (SPEC §4, lumen.md §5) */
+  --lm-nav-pill-size:   64px;  /* height (mobile) / width (desktop) */
+  --lm-nav-pill-radius: 36px;
+  --lm-nav-pill-bg:     rgb(27 25 22 / 0.94);
+  --lm-nav-pill-h:      64px;  /* the floating dock pill (r071)       */
+  --lm-nav-key-w:       56px;  /* a dock key: 56 × 48, the active one an ivory capsule */
+  --lm-nav-key-h:       48px;
+  --lm-nav-on-bg:       var(--lm-ink);     /* ivory = where you are (dock, sidebar) */
+  --lm-nav-on-fg:       var(--lm-chassis); /* dark icon and label on the ivory capsule */
+  --lm-dock-pad-y:      4px;
+  --lm-dock-pad-x:      10px;
+  --lm-pill-track:      rgb(34 32 28 / 0.4); /* legacy segmented track; selectors now use --lm-select-track */
+
+  /* card geometry (r071): radius 20 keeps the corner concentric with 18 px padding; a 173 px tile has 136 px inside,
+     enough for icon + title + (i) on one line. Gold hairline unchanged, no shadow. */
+  --lm-card-radius:     20px;
+  --lm-card-pad:        18px;  /* 24 from 1024 (below) */
+  --lm-card-pad-lg:     24px;  /* desktop */
+
+  /* controls (r068 U2/U8, r071): the SECONDARY key, fields and selectors are rounded rectangles in the card's
+     language; the PRIMARY key is a gold pill (--lm-key-h). A selector's track is 12 px (--lm-radius-track); its
+     segments sit 3 px inside, so their radius is concentric. */
+  --lm-control-radius:  10px;  /* secondary keys, fields              */
+  --lm-key-h:           48px;  /* primary key: gold pill (label 15/600 + an arrow icon) */
+  --lm-key-radius:      24px;  /* its corner: a full pill at 32 / 40 / 48 px, and a 24 px corner (not a stadium) when a label wraps to two lines */
+  --lm-key-h-sm:        40px;  /* compact primary                     */
+  --lm-info-size:       24px;  /* quiet glyph footprint; touch target stays generous */
+  --lm-info-hit:        48px;  /* ... with a 48 px hit area           */
+  --lm-info-key-bg:       transparent;  /* the (i) key's fill, hover and hairline. NOT --lm-info-bg / --lm-info-edge: */
+  --lm-info-key-bg-hover: rgb(245 241 233 / 0.07);  /* those are the "info" severity's (a notice), declared in §4 */
+  --lm-info-key-edge:     transparent;
+  --lm-dot-pitch:       8px;   /* dotted track: pitch, dot radius, thumb */
+  --lm-dot-r:           1.7px;
+  --lm-thumb:           14px;
+  --lm-select-radius:   12px;  /* selector track (= --lm-radius-track) */
+  --lm-select-inset:    3px;   /* track padding around the segments    */
+  --lm-select-key-radius: 9px; /* = select-radius − select-inset       */
+  --lm-select-track:    var(--lm-well);
+  --lm-select-on:       var(--lm-gold-wash); /* the selected segment: the week strip's gold tile */
+  --lm-select-on-edge:  var(--lm-gold-edge);
+
+  /* scrollbars (r068 U6/U7): none on touch; on desktop a thin overlay thumb
+     over a track that is always the page itself (never a black strip) */
+  --lm-scrollbar-thumb:       color-mix(in oklab, var(--lm-ink) 20%, transparent);
+  --lm-scrollbar-thumb-hover: color-mix(in oklab, var(--lm-ink) 38%, transparent);
+  --lm-scrollbar-size:        6px;
 
   /* ---------------------------------------------------------------------
-     13. RADII — soft instrument corners
+     13. RADII
      --------------------------------------------------------------------- */
-  --lm-radius-xs:   3px;   /* chips, grade badges, tick caps     */
-  --lm-radius-sm:   5px;   /* keys, inputs, day cells            */
-  --lm-radius-md:   8px;   /* faceplates, cards, popovers        */
-  --lm-radius-lg:   12px;  /* avatar stage, drawers              */
-  --lm-radius-xl:   18px;  /* mobile sheet top corners           */
-  --lm-radius-full: 9999px;/* round keys, pills, indicator dots  */
+  --lm-radius-xs:   4px;    /* tick caps, grade badges, tiny marks */
+  --lm-radius-sm:   8px;    /* small controls, day cells           */
+  --lm-radius-md:   10px;   /* keys, fields                        */
+  --lm-radius-lg:   12px;   /* selectors, menus, toasts, banners (a CARD is --lm-card-radius, 20) */
+  --lm-radius-xl:   24px;   /* sheet top corners, dialogs (r071; was 18) */
+  --lm-radius-track: 12px;  /* segmented-control track, the dotted-track wells */
+  --lm-radius-field: 14px;  /* fields, the date row                */
+  --lm-radius-full: 999px;  /* round marks: dots, switches, icon keys, chips, the nav pill (the primary key takes --lm-key-radius) */
 
   /* ---------------------------------------------------------------------
-     14. ELEVATION — physical, offset + soft blur; never coloured halos
+     14. ELEVATION — none. Depth = tone + hairline + grain. Pressed keys
+     change background, never bevel.
      --------------------------------------------------------------------- */
-  --lm-shadow-face:    0 1px 0 rgb(25 28 32 / 0.04), 0 1px 3px rgb(25 28 32 / 0.06);
-  --lm-shadow-key:     inset 0 1px 0 rgb(255 255 255 / 0.9), 0 1px 0 rgb(25 28 32 / 0.10), 0 1px 2px rgb(25 28 32 / 0.10);
-  --lm-shadow-key-pressed: inset 0 1px 2px rgb(25 28 32 / 0.22), inset 0 0 0 1px rgb(25 28 32 / 0.06);
-  --lm-shadow-well:    inset 0 1px 2px rgb(25 28 32 / 0.07);
-  --lm-shadow-thumb:   0 1px 1px rgb(25 28 32 / 0.18), 0 2px 6px rgb(25 28 32 / 0.16);
-  --lm-shadow-pop:     0 2px 4px rgb(25 28 32 / 0.06), 0 8px 24px -4px rgb(25 28 32 / 0.16);
-  --lm-shadow-sheet:   0 -2px 8px rgb(25 28 32 / 0.06), 0 -16px 40px -8px rgb(25 28 32 / 0.18);
-  --lm-shadow-drawer:  -8px 0 32px -12px rgb(25 28 32 / 0.20);
+  --lm-shadow-face:        none;
+  --lm-shadow-key:         none;
+  --lm-shadow-key-pressed: none;
+  --lm-shadow-well:        none;
+  --lm-shadow-thumb:       none;
+  --lm-shadow-pop:         none;
+  --lm-shadow-sheet:       none;
+  --lm-shadow-drawer:      none;
 
   /* ---------------------------------------------------------------------
-     15. MOTION — state, not decoration. Needles are damped, keys are quick.
+     15. MATERIAL (SPEC §3) — grain tiled at one image pixel per device pixel
+     (512px tile; the size steps down with resolution below, and src/app/grain.ts
+     sets it exactly from the live devicePixelRatio), a gold radial
+     wash from the top right. Each surface's tone is baked into its own lossless
+     tile (backdrop: 72 % #090909 over the grain = grain at .28; card: 83 %
+     #1B1916 over it = .17; sidebar: 83 % #11100F), so a surface paints one CSS
+     gradient, the wash: every CSS gradient carries the browser's ordered 4×4
+     dither, and two of them read as a woven grid. The card grain is anchored to
+     the viewport (fixed), so a card edge between device pixels never resamples it.
+     --------------------------------------------------------------------- */
+  --lm-grain:          url("/brand/grain/vitals-grain.webp"); /* the raw grain */
+  --lm-grain-backdrop: url("/brand/grain/vitals-grain-backdrop.webp");
+  --lm-grain-card:     url("/brand/grain/vitals-grain-card.webp");
+  --lm-grain-sidebar:  url("/brand/grain/vitals-grain-sidebar.webp");
+  --lm-grain-size: 512px;
+  --lm-wash-backdrop: radial-gradient(circle farthest-corner at 95% 0, rgb(227 191 120 / 0.055), rgb(227 191 120 / 0));
+  --lm-wash-card:     radial-gradient(circle farthest-corner at 95% 0, rgb(227 191 120 / 0.035), rgb(227 191 120 / 0));
+  --lm-backdrop-bg:
+    var(--lm-wash-backdrop),
+    var(--lm-grain-backdrop) 0 0 / var(--lm-grain-size) repeat,
+    var(--lm-chassis);
+  --lm-card-bg:
+    var(--lm-wash-card),
+    var(--lm-grain-card) 0 0 / var(--lm-grain-size) repeat fixed,
+    var(--lm-face);
+
+  /* GLOW (r071). A card opts in with data-domain (components.css): ONE eased radial gradient in the domain's deep
+     colour, five stops at alpha 1, .84, .50, .16, 0 across 0, 20, 42, 64, 86 %, interpolated in oklab, over the
+     existing grain tile over --lm-face; nothing else on the card carries a gradient, and it is never animated (it
+     fades in once through --lm-glow-k). Per domain: the centre of the ellipse, its size (width height) and its alpha
+     at the core. The glow is anchored away from small text: no small stone text and no solid mark in the core zone;
+     ivory text and marks are safe everywhere. --lm-glow-k (0–1) scales every glow; the card hairline keeps the default
+     border-box clip, so the glow tints the edge where it meets it. */
+  --lm-glow-k: 1;                                   /* 0 = every glow off (registered with @property, top of file) */
+  --lm-glow-energy-pos:   50% 112%; --lm-glow-energy-size:   80% 62%;   --lm-glow-energy-a:   0.78;  /* behind the line chart  */
+  --lm-glow-heart-pos:   100% 100%; --lm-glow-heart-size:   115% 100%;  --lm-glow-heart-a:    0.60;  /* behind the gauge       */
+  --lm-glow-steps-pos:     0% 0%;   --lm-glow-steps-size:   105% 80%;   --lm-glow-steps-a:    0.55;  /* behind the number      */
+  --lm-glow-sleep-pos:   100% 0%;   --lm-glow-sleep-size:    78% 105%;  --lm-glow-sleep-a:    0.62;  /* upper right            */
+  --lm-glow-body-pos:     50% 120%; --lm-glow-body-size:    105% 70%;   --lm-glow-body-a:     0.60;  /* behind the sparkline   */
+  --lm-glow-recovery-pos: 100% 0%;  --lm-glow-recovery-size: 95% 85%;   --lm-glow-recovery-a: 0.58;  /* clear of the range ticks */
+  --lm-glow-food-pos:    100% 0%;   --lm-glow-food-size:     82% 105%;  --lm-glow-food-a:     0.58;  /* clear of the two tracks */
+  --lm-glow-videos-pos:  100% 100%; --lm-glow-videos-size:  100% 100%;  --lm-glow-videos-a:   0.60;  /* not yet drawn on a real card */
+  --lm-glow-gold-pos:      0% 50%;  --lm-glow-gold-size:     60% 150%;  --lm-glow-gold-a:     0.34;  /* the Next-up card, behind its round key */
+  --lm-unlit: rgb(245 241 233 / 0.17);              /* unlit dots, ticks, track remainder */
+
+  /* frost (header + dock only): tintless, three blur layers with masks */
+  --lm-frost-1: 4px;
+  --lm-frost-2: 9px;
+  --lm-frost-3: 14px;
+  --lm-frost-scroll: 80px;  /* header frost reaches full opacity after this much scroll */
+
+  /* ---------------------------------------------------------------------
+     16. MOTION — state, not decoration. Needles are damped, keys are quick.
      --------------------------------------------------------------------- */
   --lm-dur-instant: 80ms;   /* key press, toggle                    */
   --lm-dur-fast:    140ms;  /* hover, focus, chip select            */
@@ -314,15 +595,39 @@
   --lm-dur-slow:    320ms;  /* sheets, drawers, chart re-scale      */
   --lm-dur-needle:  420ms;  /* readouts settling, slider value tween */
   --lm-dur-morph:   900ms;  /* avatar before→after auto-play        */
+  --lm-dur-frost:   300ms;  /* header frost follows scroll          */
 
-  --lm-ease-out:    cubic-bezier(0.16, 1, 0.3, 1);     /* expo-out: default */
-  --lm-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --lm-ease-press:  cubic-bezier(0.3, 0, 0.5, 1);
-  --lm-ease-needle: cubic-bezier(0.34, 1.36, 0.64, 1); /* one damped overshoot */
-  --lm-ease-sheet:  cubic-bezier(0.32, 0.72, 0, 1);    /* iOS-like sheet     */
+  --lm-ease-out:      cubic-bezier(0.16, 1, 0.3, 1);     /* expo-out: default */
+  --lm-ease-in-out:   cubic-bezier(0.65, 0, 0.35, 1);
+  --lm-ease-press:    cubic-bezier(0.3, 0, 0.5, 1);
+  --lm-ease-needle:   cubic-bezier(0.34, 1.36, 0.64, 1); /* one damped overshoot */
+  --lm-ease-sheet:    cubic-bezier(0.32, 0.72, 0, 1);    /* iOS-like sheet     */
+  --lm-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);      /* Lumen FastOutSlowIn */
+  --lm-ease-in:       cubic-bezier(0.4, 0, 1, 1);        /* a sheet or panel leaving: ease-in, 220 ms */
+  --lm-ease-expo-out: var(--lm-ease-out);                /* AUDIT §4.5 name */
+  /* a spring, sampled for linear(): a damped oscillator (ζ 0.76) that overshoots 2.5 % at 68 % of the time and is
+     settled by 100 %. Sheets and the side panel open with it (components.css, behind @supports); everything that
+     needs a plain ease keeps --lm-ease-sheet. */
+  --lm-ease-spring: linear(0, 0.0295, 0.103, 0.2023, 0.3133, 0.4261, 0.5339, 0.6323, 0.7191, 0.793, 0.8544, 0.9038, 0.9424, 0.9716, 0.9929, 1.0076, 1.0171, 1.0226, 1.025, 1.0253, 1.024, 1.0219, 1.0192, 1.0164, 1.0135, 1.0109, 1.0085, 1.0064, 1);
+  --lm-dur-spring:  320ms;  /* a sheet or panel opening (the spring)  */
+  --lm-dur-glide:   280ms;  /* the dock's thumb gliding to the pressed key (with --lm-ease-needle) */
+  --lm-dur-exit:    220ms;  /* a sheet or panel leaving               */
+
+  /* r071 picture motion (hooks in src/app/motion.ts; the prototype's measured values). State, not decoration: every
+     one has a still, final frame that is the real content; reduced motion renders it at once. */
+  --lm-dur-count:    1100ms;  /* a number counts up on first view (expo-out), 400 ms on an update */
+  --lm-dur-draw:     1200ms;  /* a line draws left to right (clip reveal)         */
+  --lm-dur-glow:      900ms;  /* the card glow fades in once                      */
+  --lm-dur-bars:      700ms;  /* bars grow from the baseline                      */
+  --lm-dur-fill:      900ms;  /* a track fills, a hypnogram wipes in              */
+  --lm-stagger-tick:   14ms;  /* ticks of a gauge light one after another         */
+  --lm-stagger-bar:    60ms;  /* bars grow one after another                      */
+  --lm-pulse-cycles:      2;  /* the live end dot pulses twice, then stops (4.8 s, under WCAG 2.2.2's five seconds) */
+  --lm-dur-tick:     var(--lm-stagger-tick);  /* AUDIT §4.5 names, aliases of the above */
+  --lm-dur-grow:     var(--lm-dur-bars);
 
   /* ---------------------------------------------------------------------
-     16. Z-INDEX
+     17. Z-INDEX
      --------------------------------------------------------------------- */
   --lm-z-base:     0;
   --lm-z-lane-label: 10;
@@ -337,7 +642,7 @@
   --lm-z-tooltip:  800;
 
   /* ---------------------------------------------------------------------
-     17. BREAKPOINTS (mobile-first; CSS media queries cannot read vars —
+     18. BREAKPOINTS (mobile-first; CSS media queries cannot read vars —
      these mirror tailwind-theme.css and are here for JS/matchMedia)
      --------------------------------------------------------------------- */
   --lm-bp-sm:  480px;
@@ -347,6 +652,17 @@
   --lm-bp-2xl: 1536px;
 }
 
+/* from 1024: the card gets room (pad 24, gap 16) and the card, hero, number, reading and meta roles step up */
+@media (min-width: 1024px) {
+  :root {
+    --lm-card-pad: 24px;  --lm-card-gap: 16px;  --lm-card-inner-gap: 16px;
+    --lm-text-card: 1rem;  --lm-text-card--lh: 1.375rem;
+    --lm-text-hero: 5.5rem;  --lm-text-num-l: 4rem;  --lm-text-num: 3.25rem;
+    --lm-text-read: 1rem;  --lm-text-read--lh: 1.5rem;
+    --lm-text-meta: 0.75rem;  --lm-text-meta--lh: 1rem;
+  }
+}
+
 /* touch screens keep the 44 px touch target for bar controls */
 @media (pointer: coarse) {
   :root {
@@ -354,91 +670,30 @@
   }
 }
 
-/* ==========================================================================
-   DARK — anthracite chassis. Same roles, re-stepped (not inverted).
-   Declared twice: OS preference (unless forced light) and forced dark.
-   ========================================================================== */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --lm-chassis: #151618; --lm-chassis-2: #181a1c; --lm-face: #1d1f22; --lm-well: #181a1c; --lm-raised: #27292c;
-    --lm-scrim: rgb(0 0 0 / 0.55);
-    --lm-line: #333639; --lm-line-strong: #45484c; --lm-edge: #717579;
-    --lm-ink: #eff0f2; --lm-ink-2: #b7bbc0; --lm-ink-3: #95999e; --lm-ink-faint: #66696e; --lm-ink-inverse: #151618;
-    --lm-signal: #f0d03c; --lm-signal-hover: #f8da4f; --lm-signal-press: #dfbb27; --lm-signal-ink: #151618; --lm-signal-edge: transparent;
-    --lm-focus: #f0d03c; --lm-focus-offset: #1d1f22; --lm-text-selection: rgb(240 208 60 / 0.32); --lm-caret: #f0d03c;
-    --lm-info-fg: #97c2f0;    --lm-info-bg: #192837;    --lm-info-edge: #2e4a67;    --lm-info-mark: #4984bf;
-    --lm-caution-fg: #f4c26a; --lm-caution-bg: #342611; --lm-caution-edge: #664610; --lm-caution-mark: #ee9e10;
-    --lm-danger-fg: #fb9890;  --lm-danger-bg: #3b1c1a;  --lm-danger-edge: #7a3430;  --lm-danger-mark: #e0514d;
-    --lm-ok-fg: #89d298;      --lm-ok-bg: #1a2b1d;      --lm-ok-edge: #295233;      --lm-ok-mark: #3c9950;
-    --lm-grade-a-bg: #eff0f2; --lm-grade-a-fg: #151618; --lm-grade-a-edge: #eff0f2;
-    --lm-grade-b-bg: #95999e; --lm-grade-b-fg: #151618; --lm-grade-b-edge: #95999e;
-    --lm-grade-c-bg: transparent; --lm-grade-c-fg: #eff0f2; --lm-grade-c-edge: #b7bbc0;
-    --lm-grade-d-bg: transparent; --lm-grade-d-fg: #b7bbc0; --lm-grade-d-edge: #717579;
-    --lm-grade-pip-off: #45484c;
-    --lm-cat-body: #4385e4; --lm-cat-fuel: #d86931; --lm-cat-energy: #129d97; --lm-cat-cellular: #8b72d7;
-    --lm-cat-performance: #3c9950; --lm-cat-recovery: #449dc7; --lm-cat-cardio: #bb8600; --lm-cat-hormones: #d36094;
-    --lm-macro-protein: #5f80e0; --lm-macro-carbs: #bf890d; --lm-macro-fibre: #6f6d13; --lm-macro-fat: #d46f8d; --lm-macro-alcohol: #825ea9;
-    --lm-plan-a: #4385e4; --lm-plan-b: #d86931; --lm-plan-c: #129d97;
-    --lm-energy-deficit-1: #1e2c37; --lm-energy-deficit-2: #1e3548; --lm-energy-deficit-3: #1e405b; --lm-energy-deficit-4: #1f4e73;
-    --lm-energy-surplus-1: #37281e; --lm-energy-surplus-2: #462d1e; --lm-energy-surplus-3: #58341e; --lm-energy-surplus-4: #6d3e1f;
-    --lm-energy-fast: #eff0f2;
-    --lm-keto-1: #84492d; --lm-keto-2: #b05e36; --lm-keto-3: #e17c4c;
-    --lm-hr-zone-1: #7d5408; --lm-hr-zone-2: #a2700f; --lm-hr-zone-3: #c48e1c; --lm-hr-zone-4: #dfae3c; --lm-hr-zone-5: #f2d27a;
-    --lm-chart-grid: #292b2e; --lm-chart-axis: #45484c; --lm-chart-crosshair: #b7bbc0; --lm-chart-phase-alt: rgb(255 255 255 / 0.03);
-    --lm-chart-band-alpha: 0.20; --lm-chart-area-alpha: 0.14; --lm-chart-dim-alpha: 0.32;
-    --lm-avatar-lean: #5f7698; --lm-avatar-fat: #373e48; --lm-avatar-outline: #b8c5d8; --lm-avatar-ghost: #95999e;
-    --lm-avatar-visceral: #9d6044; --lm-avatar-definition: rgb(239 240 242 / 0.20); --lm-avatar-dot: rgb(239 240 242 / 0.07);
-    --lm-shadow-face: 0 1px 0 rgb(0 0 0 / 0.30), 0 0 0 1px rgb(255 255 255 / 0.02);
-    --lm-shadow-key: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 1px 0 rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
-    --lm-shadow-key-pressed: inset 0 1px 3px rgb(0 0 0 / 0.55);
-    --lm-shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.35);
-    --lm-shadow-thumb: 0 1px 1px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.45);
-    --lm-shadow-pop: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -4px rgb(0 0 0 / 0.55);
-    --lm-shadow-sheet: 0 -16px 40px -8px rgb(0 0 0 / 0.6);
-    --lm-shadow-drawer: -8px 0 32px -12px rgb(0 0 0 / 0.6);
-  }
+/* Grain at one image pixel per device pixel: 512 / devicePixelRatio (the fallback before src/app/grain.ts runs). */
+@media (min-resolution: 1.25dppx), (-webkit-min-device-pixel-ratio: 1.25) {
+  :root { --lm-grain-size: 409.6px; }
 }
-
-:root[data-theme="dark"],
-[data-theme-scope="dark"] { /* LOCAL: scope selector */
-  color-scheme: dark;
-  --lm-chassis: #151618; --lm-chassis-2: #181a1c; --lm-face: #1d1f22; --lm-well: #181a1c; --lm-raised: #27292c;
-  --lm-scrim: rgb(0 0 0 / 0.55);
-  --lm-line: #333639; --lm-line-strong: #45484c; --lm-edge: #717579;
-  --lm-ink: #eff0f2; --lm-ink-2: #b7bbc0; --lm-ink-3: #95999e; --lm-ink-faint: #66696e; --lm-ink-inverse: #151618;
-  --lm-signal: #f0d03c; --lm-signal-hover: #f8da4f; --lm-signal-press: #dfbb27; --lm-signal-ink: #151618; --lm-signal-edge: transparent;
-  --lm-focus: #f0d03c; --lm-focus-offset: #1d1f22; --lm-text-selection: rgb(240 208 60 / 0.32); --lm-caret: #f0d03c;
-  --lm-info-fg: #97c2f0;    --lm-info-bg: #192837;    --lm-info-edge: #2e4a67;    --lm-info-mark: #4984bf;
-  --lm-caution-fg: #f4c26a; --lm-caution-bg: #342611; --lm-caution-edge: #664610; --lm-caution-mark: #ee9e10;
-  --lm-danger-fg: #fb9890;  --lm-danger-bg: #3b1c1a;  --lm-danger-edge: #7a3430;  --lm-danger-mark: #e0514d;
-  --lm-ok-fg: #89d298;      --lm-ok-bg: #1a2b1d;      --lm-ok-edge: #295233;      --lm-ok-mark: #3c9950;
-  --lm-grade-a-bg: #eff0f2; --lm-grade-a-fg: #151618; --lm-grade-a-edge: #eff0f2;
-  --lm-grade-b-bg: #95999e; --lm-grade-b-fg: #151618; --lm-grade-b-edge: #95999e;
-  --lm-grade-c-bg: transparent; --lm-grade-c-fg: #eff0f2; --lm-grade-c-edge: #b7bbc0;
-  --lm-grade-d-bg: transparent; --lm-grade-d-fg: #b7bbc0; --lm-grade-d-edge: #717579;
-  --lm-grade-pip-off: #45484c;
-  --lm-cat-body: #4385e4; --lm-cat-fuel: #d86931; --lm-cat-energy: #129d97; --lm-cat-cellular: #8b72d7;
-  --lm-cat-performance: #3c9950; --lm-cat-recovery: #449dc7; --lm-cat-cardio: #bb8600; --lm-cat-hormones: #d36094;
-  --lm-macro-protein: #5f80e0; --lm-macro-carbs: #bf890d; --lm-macro-fibre: #6f6d13; --lm-macro-fat: #d46f8d; --lm-macro-alcohol: #825ea9;
-  --lm-plan-a: #4385e4; --lm-plan-b: #d86931; --lm-plan-c: #129d97;
-  --lm-energy-deficit-1: #1e2c37; --lm-energy-deficit-2: #1e3548; --lm-energy-deficit-3: #1e405b; --lm-energy-deficit-4: #1f4e73;
-  --lm-energy-surplus-1: #37281e; --lm-energy-surplus-2: #462d1e; --lm-energy-surplus-3: #58341e; --lm-energy-surplus-4: #6d3e1f;
-  --lm-energy-fast: #eff0f2;
-  --lm-keto-1: #84492d; --lm-keto-2: #b05e36; --lm-keto-3: #e17c4c;
-  --lm-hr-zone-1: #7d5408; --lm-hr-zone-2: #a2700f; --lm-hr-zone-3: #c48e1c; --lm-hr-zone-4: #dfae3c; --lm-hr-zone-5: #f2d27a;
-  --lm-chart-grid: #292b2e; --lm-chart-axis: #45484c; --lm-chart-crosshair: #b7bbc0; --lm-chart-phase-alt: rgb(255 255 255 / 0.03);
-  --lm-chart-band-alpha: 0.20; --lm-chart-area-alpha: 0.14; --lm-chart-dim-alpha: 0.32;
-  --lm-avatar-lean: #5f7698; --lm-avatar-fat: #373e48; --lm-avatar-outline: #b8c5d8; --lm-avatar-ghost: #95999e;
-  --lm-avatar-visceral: #9d6044; --lm-avatar-definition: rgb(239 240 242 / 0.20); --lm-avatar-dot: rgb(239 240 242 / 0.07);
-  --lm-shadow-face: 0 1px 0 rgb(0 0 0 / 0.30), 0 0 0 1px rgb(255 255 255 / 0.02);
-  --lm-shadow-key: inset 0 1px 0 rgb(255 255 255 / 0.07), 0 1px 0 rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.35);
-  --lm-shadow-key-pressed: inset 0 1px 3px rgb(0 0 0 / 0.55);
-  --lm-shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.35);
-  --lm-shadow-thumb: 0 1px 1px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.45);
-  --lm-shadow-pop: 0 2px 4px rgb(0 0 0 / 0.3), 0 12px 32px -4px rgb(0 0 0 / 0.55);
-  --lm-shadow-sheet: 0 -16px 40px -8px rgb(0 0 0 / 0.6);
-  --lm-shadow-drawer: -8px 0 32px -12px rgb(0 0 0 / 0.6);
+@media (min-resolution: 1.5dppx), (-webkit-min-device-pixel-ratio: 1.5) {
+  :root { --lm-grain-size: 341.33px; }
+}
+@media (min-resolution: 1.75dppx), (-webkit-min-device-pixel-ratio: 1.75) {
+  :root { --lm-grain-size: 292.57px; }
+}
+@media (min-resolution: 2dppx), (-webkit-min-device-pixel-ratio: 2) {
+  :root { --lm-grain-size: 256px; }
+}
+@media (min-resolution: 2.25dppx), (-webkit-min-device-pixel-ratio: 2.25) {
+  :root { --lm-grain-size: 227.56px; }
+}
+@media (min-resolution: 2.625dppx), (-webkit-min-device-pixel-ratio: 2.625) {
+  :root { --lm-grain-size: 195.05px; }
+}
+@media (min-resolution: 3dppx), (-webkit-min-device-pixel-ratio: 3) {
+  :root { --lm-grain-size: 170.67px; }
+}
+@media (min-resolution: 3.5dppx), (-webkit-min-device-pixel-ratio: 3.5) {
+  :root { --lm-grain-size: 146.29px; }
 }
 
 /* ==========================================================================
@@ -447,7 +702,10 @@
 @media (prefers-reduced-motion: reduce) {
   :root {
     --lm-dur-fast: 0.01ms; --lm-dur-base: 0.01ms; --lm-dur-slow: 0.01ms;
-    --lm-dur-needle: 0.01ms; --lm-dur-morph: 0.01ms;
+    --lm-dur-needle: 0.01ms; --lm-dur-morph: 0.01ms; --lm-dur-frost: 0.01ms;
+    --lm-dur-count: 0.01ms; --lm-dur-draw: 0.01ms; --lm-dur-glow: 0.01ms; --lm-dur-bars: 0.01ms; --lm-dur-fill: 0.01ms;
+    --lm-dur-spring: 0.01ms; --lm-dur-exit: 0.01ms; --lm-dur-glide: 0.01ms;
+    --lm-stagger-tick: 0ms; --lm-stagger-bar: 0ms; --lm-pulse-cycles: 0;
     --lm-ease-needle: linear;
   }
 }
@@ -463,4 +721,4 @@
    BROWSER SURFACES — the parts nobody draws still carry the design
    ========================================================================== */
 ::selection { background: var(--lm-text-selection); color: var(--lm-ink); }
-:root { caret-color: var(--lm-caret); accent-color: var(--lm-ink); }
+:root { caret-color: var(--lm-caret); accent-color: var(--lm-signal); }

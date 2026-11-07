@@ -25,7 +25,7 @@ beforeAll(async () => {
     dataDir: join(dir, 'relay'),
     allowedOrigins: [],
     log: () => {},
-    home: { dataDir: dir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', mqtt: { enabled: false }, workerFactory: fakeWorkers().factory },
+    home: { dataDir: dir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', workerFactory: fakeWorkers().factory },
   });
 });
 afterAll(async () => {

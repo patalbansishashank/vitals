@@ -1,0 +1,75 @@
+.lv-intake-card .lm-gcard__body {
+  display: grid;
+  gap: 16px;
+}
+.lv-intake-card__body {
+  display: grid;
+  gap: 12px;
+}
+.lv-intake-card__hero {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.lv-intake-card__protein {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+.lv-intake-card__protein .lm-mono {
+  text-align: right;
+}
+.lv-intake-card[data-size='tile'] .lv-intake-card__hero {
+  flex-direction: column;
+  align-items: start;
+  gap: 4px;
+}
+.lv-intake-card[data-size='tile'] .lm-hero__line {
+  --lm-hero-fs: clamp(1.75rem, 7vw, 2.25rem);
+}
+.lv-intake-card[data-size='tile'] .lv-intake-card__protein {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.lv-intake-card__score {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+.lv-intake-card__score ul {
+  padding-inline-start: 18px;
+  margin: 0;
+  font-size: var(--lm-text-body, 14px);
+  line-height: 1.5;
+}
+.lv-weight-card .lm-gcard__body {
+  display: grid;
+  gap: 10px;
+}
+.lv-weight-card .lm-hero {
+  max-width: 100%;
+}
+.lv-weight-card__empty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.lv-weight-card .lm-cardfoot {
+  flex-wrap: wrap;
+}
+.lv-weight-card .lm-cardfoot__right {
+  white-space: normal;
+  text-align: right;
+}
+.lv-weight-card .lmz-glow {
+  margin-top: 4px;
+}
+.lv-weight-card .lm-hero__range {
+  font-size: var(--lm-text-meta);
+  letter-spacing: 0.04em;
+}

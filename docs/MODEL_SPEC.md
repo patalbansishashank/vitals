@@ -13,6 +13,21 @@ contract · §11 open risks & build plan.
 
 ## Changelog
 
+- **2026-10-27 (step 1 — Vitals reads the ring through ring app) — imported steps and sleep are observed inputs.**
+  - Reverses 0.6.0's manual-only rule **for steps and sleep only**. The ring app import (`log.fromGauge`,
+    `src/living/gaugeImport.ts`) writes the ring's daily step total and each waking day's main sleep episode from the
+    home server as ordinary `dailyLogs` entries (`source { by: 'device', method: 'biometrics', app: 'gauge', deviceKey }`);
+    the realised day (`toLoggedDay`, §5.2 observed `DayTemplate`) reads them exactly like logged steps and sleep.
+  - *Measurement labels:* steps `provenance: 'measured'`, scope `totalDay`, date-only calendar-local occurrence; sleep
+    `provenance: 'estimated'` (device-classified stages), the [bed, wake) interval dated by its wake date (D8-06). A ring
+    night's known total asleep hours (A1-053 `observedTotalHours`) are its `asleepMin` (deep + light + REM), not the time
+    in bed; bed/wake keep the night's timing. Each ring channel is one shared `deviceBias` uncertainty group
+    (`deviceBias:gauge:steps`, `deviceBias:gauge:sleep`) across days. No sleep quality is derived from the ring's score.
+  - *Precedence:* the person's own steps (or main sleep) for the same day always wins (`projectEntries` drops the ring
+    entry from the count; it stays stored), and the import never writes over the person's entry.
+  - Heart rate, HRV, SpO2 and skin temperature are shown in Vitals but are **not** engine, adherence or planner inputs.
+    The habitual steps of the intake (§5.5) stay the person's answer; the ring does not rewrite them.
+
 - **2026-10-01 (after launch, PLAN item 1) — activity intake (E7a; research R1).**
   - *Input (additive, §5.1, §5.5):* `HabitProfile.activity?: ActivityIntake` (work class, work days/hours, commute, steps
     answer with its source, day-off pattern, time on feet at home, recreation); defaults `DEFAULTS.activity`. Absent =
@@ -199,7 +214,7 @@ composed into `EngineState` (`types/state.ts`); `structuredClone(state)` is a va
 | 1.9 | `muscle/` | RT stimulus, accretion, retention, detraining, strength, fatigue, MPS layer | 09 §4.1-4.17; 03 §4.2/4.5/4.7/4.8/4.10/4.14 |
 | 1.10 | `water/` | glycogen water, natriuresis, sodium water, gut, plasma volume, cycle & creatine water, scale weight | 13 §4.1-4.6; 15 §4.7-4.8/4.12; 04 §4.1; 20 §4.5 |
 | 1.11 | `hormones/` | leptin, ghrelin/SPI (display), T3, cortisol, testosterone, menstrual risk, GH, IGF-1 | 12 §4.0-4.8; 08 §4.12 |
-| 1.12 | `appetite/` | Hunger Pressure Index, effort, adherence P_surv, diet fatigue (outputs only) | 12 §4.9-4.12; 15 §4.5-4.6; 21 §4 (behavioural levers) |
+| 1.12 | `appetite/` | Hunger Pressure Index (uncalibrated burden index), effort, deprecated latent adherence index (no probability), diet fatigue (outputs only) | 12 §4.9-4.12; 15 §4.5-4.6; 21 §4 (behavioural levers); review D2-06 |
 | 1.13 | `cellular/` | autophagy signal index, mTORC1 index, AMPK index | 08 §4.3-4.11 |
 | 1.14 | `cardiometabolic/` | S_hep, S_mus, carb tolerance, lipids, BP, liver fat, glycaemic markers, CRP, urate | 06 §4.1-4.16; 04 §4.13b/4.18-4.19; 13 §4.8 |
 | 1.15 | `wellbeing/` | energy availability, bone, strength/endurance multipliers, mood tier, keto-induction, micronutrients | 19 §4.1-4.20; 13 §4.10; 15 §4.9 |
@@ -286,6 +301,45 @@ Algorithm:
    `aerobicIdx` ∈ [0, 1] for 03's M_act (ruling R-AEROBIC, review M14): `aerobicIdx = clamp(mean over the last 7 days of
    the daily net cardio session EE (Σ exSessionNetKcalH of cardio sessions only) / 300 kcal·d⁻¹, 0, 1)` (≈ 150 min/wk
    moderate → 0.5; Chaston's aerobic arms ≈ 1); steps stay in NEAT only; the burn-in week initialises the 7-d ring. RMR for "net of the person's own RMR" and the post-RT REE is `rmrKcalH` of the previous hour.
+
+**Energy SPEC V1 (2026-10-27; `vitals-research/energy/SPEC.md` §V1, RESEARCH E1-E5, III).**
+- *Realised gross first.* `sessionGrossKcalPerMin` reads `SessionResolved.realisedGrossKcal` (from
+  `CardioSession`/`ResistanceSession`/`IntervalPhase.realisedGrossKcal`) before any MET, %VO2max, speed, power or rating
+  route: rate = G/duration (a phase: its own G, else its time share). It carries an approved bout's chosen estimate (V2
+  `activityEnergy`) into replay. Gate (`activity/realisedEnergy.test.ts`): the equivalent MET alone
+  (`met = G/(1.05·m·t_h)`, `realisedSessionMet`) reproduced G, R, A, D, I within 0.5 % for phases, cross-midnight bouts
+  and late edits, but not when the dated mass differed from the simulated mass (+3.1 % at 80 vs 82.5 kg) or under a drawn
+  O2 energy equivalent (−4.0 % at 4.8 kcal/L), for both kinds; so the explicit field was added (no other equation change).
+  With it every case passes and recovery is booked once. `realisedEngineDose({grossKcal, durationMin, massKg, segments?})`
+  builds both fields (`met` for descriptors, `realisedGrossKcal` for energy); segments must tile the bout.
+- *Inert HR.* `CardioSession.hr` / `ResistanceSession.hr` (`SessionHrSummary {avgBpm, maxBpm, supportedS, method}`) are
+  display/audit only; no module reads them. WHO guideline minutes keep their stated, talk-test and relative-effort sources
+  (`HealthClassSource` not extended, notes C07): an HR or calorie estimate never classifies minutes or creates sets.
+- *New hourly outputs* (no equation change): `exerciseEnergy` (= `exEEKcalH`, the booked incremental + recovery; identical
+  to `exerciseEE`) and `stepsEnergy` (= `stepsExtraKcalH`, signed, already inside `neat`), kcal/d, agg sum, lane line,
+  grade B. For the V2 energy-day display: `other = tdee − rmr − tef − neat − exerciseEnergy`; `neatBase = neat −
+  stepsEnergy` (neat is clamped at 0 per hour, so neatBase can be negative in an hour whose step deficit exceeds the NEAT
+  share).
+- *Ledger contract.* `ExerciseCostBreakdown.method` gains `'hr' | 'reported'`, plus optional `uncertaintyKind`
+  (`scenario | predictionInterval | measurementUncertainty | unknown`), `envelope {lo, hi}`, `estimatorVersion`, `inputsRef`.
+  Worked check (80 kg, 60 min, 5.0 MET, RMR 1800): G 420, R 75, A 345, D 15, I 330 kcal.
+- *Speed/grade* (catalogue `stimulus.ts`): the catalogue route `acsmWalk` is a hybrid (`walk-hybrid/1`: Ludlow level +
+  ACSM grade); the true forms `acsm-walk/1` (3.5 + 0.1·S + 1.8·S·G, 50-100 m/min), `acsm-run/1` (3.5 + 0.2·S + 0.9·S·G,
+  > 134 m/min or ≥ 80 jogging) and `acsm-cycle/1` (7 + 1.8·6.1183·P/m, 50-200 W, leg ergometers only) are in
+  `speedGradeEstimate`, with the Compendium treadmill-desk rows 11003/11004 at ≤ 2 mph. Outside a domain → null (next
+  estimator). Unknown grade = declared level, wider envelope. 80 kg, 100 m/min, 5 %, 30 min → 270 kcal.
+- *APIs for V2 (sensor algorithms) and V3 (living plan).* Engine: `realisedEngineDose`, `realisedSessionMet`,
+  `REALISED_DOSE_VERSION` (`model/activity`), `boutCost` (`core/exerciseCost`), the `exerciseEnergy`/`stepsEnergy` series,
+  `SessionHrSummary`, `StepsSource 'fused'`. Catalogue (`@/catalogues`): `speedGradeEstimate`, `acsmWalkVo2`,
+  `acsmRunVo2`, `acsmCycleVo2`, `ACSM_DOMAIN`, `EQUATION_VERSION`, `isPrescribable`. Content (`@/content/catalogues`):
+  `COMPENDIUM_2024`/`compendiumRow` (immutable official rows, `measured` flag), `resolveActivityAlias(namespace, code)`
+  (HC 61 types, Fit 114, ring app 10, ring 2; unknown → `other_moderate` + `needsReview`; `nonActivity` codes never become
+  bouts), `ACTIVITY_TRAITS`/`activityTraitsOf` (`stepsLocomotor`, `treadmill`, `carry`, `estimators[]` in booking order,
+  `hrEnergyEligible inDomain | outOfDomain | never`), `ACTIVITY_TYPE_IDS` (27 log/import-only types, `prescribable: false`,
+  never composed into plans). Every catalogue entry has `energy.analog` or `energy.mappingNote`; the air bike is an analog of
+  01228/01305, never 02119. DECISION defaults used: D2 Keytel ON only in its domain (air bike/elliptical `outOfDomain`) —
+  encoded as `hrEnergyEligible`, booked by V2; D1/D3 step policy is S2/V3's; D5 numeric scenario ranges shown (envelopes
+  here are `uncertaintyKind: 'scenario'`).
 
 Numerics: EPOC queue is two scalars (remaining kcal, τ); no per-session objects.
 Validation: 10 §7 (Ohkawara +588 kcal/d for +20 615 steps ±15 %; VO2max +15-20 % in 12 wk moderate training; detraining
@@ -1113,6 +1167,21 @@ recovery ≥ 95 % after 25 d; baseline contract (exactly 1 at t = 0; habitual-ex
 
 Orchestrator ruling: **intake is authoritative**; this module produces outputs only (`hungerIdx`, `dietFatigue`,
 `adherence`), never changes intake. 12 §4.10c's free-living intake model is future work (not implemented).
+
+**Review D2-06 (2026-10-18; `APPETITE_OUTPUT_CONTRACT`, contract C6).** (a) The HPI is an *uncalibrated burden index*
+built from interpretable drive directions; it becomes a personal 0–10 hunger forecast only through the person's own
+consistent fixed-time ratings (`appetite/ratingCalibration.ts`: `h_pred = clip(a + b·HPI, 0, 10)`, regularised, checked on
+held-out days and reported on the rating scale). Ratings calibrate burden, never endocrine mechanisms; missing ratings are
+missing (never zero hunger). Felt hunger, fullness, craving, effort and observed item completion are different
+quantities. (b) Ketosis relief has no default magnitude: `appetite.ketoAtten` = 0 (the legacy 0.9 of step 3 cancelled up
+to 90 % of every positive drive, sleep and fatigue included); 0.9 survives only as a named relief scenario. The fasting
+time course ψ (decision (f)) stays a labelled relief scenario on the acute-deficit drive. (c) `adherence` (step 4) is a
+deprecated *latent* index 100·exp(−Σh) of an undefined dropout hazard — no event definition, horizon or calibration — so
+it is never a probability of sticking with the plan, never a goal (capability `notAProbability`), and the optimiser does
+**not** multiply outcomes by it. Observed item completion with its coverage (living plan) is the behavioural record. HPI
+and the user's hunger tolerance are preferences/burden, never medical thresholds; a low burden never relaxes energy,
+protein or symptom rules. Statements below that call `adherence` a probability or a planner multiplier describe the
+superseded 2026-09-30 design.
 State: `wRef`, `sEx` (τ 28 d), `fatigue F`, `kAd`, `eS`, cumulative hazard / `P_surv`, meal-pattern memory, luteal ring
 (cycle length), 7-day expenditure window. Reads `tdeeEstKcalD`, `tissueMassKg` (h), `leptinSuffFM`, `leptinSuff0`,
 `exEEKcalH` (h), `sleepDebtFastH`, `bhbMmolL` (h), `fibreEffG`, `lutealWeight`, `ketoInduction`.
@@ -1143,8 +1212,9 @@ Algorithm (endOfDay, 12 §4.9 verbatim except rulings and the decisions marked �
 4. Adherence (12 §4.10a): `h = 0.0005·((HPI − 20)/40)²` for HPI > 20; `P_surv = exp(−Σh)` over recorded days; 21 §4G G10
    behavioural levers from `ctx.schedule.adherence` (self-monitoring 0.10, meal replacement 0.05, pre-meal water 0.03,
    flexible restraint 0.03; undefined = none) shift the hazard only: `h × (1 − min(0.15, ΣΔp))` (orchestrator ruling
-   "behavioural levers map to an adherence shift only"). Record `adherence = 100·P_surv`. Planner uses P_surv as a
-   multiplier on outcome scores (12 §4.10a; 18 §4.12).
+   "behavioural levers map to an adherence shift only"). Record `adherence = 100·exp(−Σh)` as a deprecated latent index
+   (D2-06: no probability semantics, not a goal, not a planner multiplier; the 2026-09-30 text "planner uses P_surv as a
+   multiplier on outcome scores" is withdrawn — the optimiser never applied it).
 5. Baseline and habitual week (§3.4 contract): `endBurnIn` latches ExEE0 (mean net exercise EE of the last 7 burn-in days),
    W_ref = tissue mass at t = 0 plus the habitual day's (daily mean − end-of-day) offset, dF_hab, and the expenditure
    window (shifted to the burn-in week's mean intake, §1.11); clears E_s and F; HPI = HPI(0) exactly and P_surv = 1 at
@@ -1167,8 +1237,9 @@ hunger does not habituate"). Full loop, lean man: 72-h fast HPI 65/76/54 on days
 maintenance returns to ≈ 10-20 within 3 d (the tail is D_WL of the tissue lost), a graded refeed reads 40-45 on its
 reduced-intake days (SatDef of the refeed intake). Adherence after a 72-h fast 99.8 %.
 Validation: 12 Appendix A regression values (maintenance HPI ≈ 6; 25 % deficit week 1 ≈ 40-50; contest leanness ≥ 95), 12 §7
-intake-effort targets (Polidori ≈ 100 kcal/d per kg lost), attrition calibration of P_surv (ADF 38 % vs CR 29 % at 12 mo;
-known miss), baseline contract (HPI exactly HPI(0) at t = 0; habitual-exerciser week within 0.05).
+intake-effort targets (Polidori ≈ 100 kcal/d per kg lost), the legacy ADF-vs-CR attrition comparison (ADF 38 % vs CR 29 % at
+12 mo; known miss, and since D2-06 not a calibration of any probability), baseline contract (HPI exactly HPI(0) at t = 0;
+habitual-exerciser week within 0.05).
 
 ### 1.13 `cellular` — autophagy signal, mTORC1, AMPK (08)
 
@@ -1958,7 +2029,7 @@ pure and deterministic; runtime ('current'/'blockStart') days are re-resolved by
 **Input.** `HabitProfile.activity?: ActivityIntake` — R1's eight questions as concrete time budgets and counts, every one
 skippable: `work` (desk / mixed / onFeet / manualModerate / manualHeavy / notWorking / unknown), `workDaysPerWeek` (0-7,
 default 5; 0 when not working), `workHoursPerDay` (2-14, default 8), `commute {mode none/passive/walk/cycle/mixed,
-activeMinPerWorkday}`, `steps {source wrist/phone/estimate/unknown, workday?, offDay?, weeklyMean?, daysOfHistory?,
+activeMinPerWorkday}`, `steps {source wrist/phone/fused/estimate/unknown, workday?, offDay?, weeklyMean?, daysOfHistory?,
 phoneCarried?}`, `offDay` (mostlyHome / mixed / outAndAbout), `onFeetAtHome` (little / some / aLot), `recreation[]
 {label, intensity light/moderate/vigorous, minPerWeek}` (sport that is NOT planned training). Sleep is not asked here: TEE
 is unchanged by sleep duration (dossier 16 §4); bed/wake stay the habits' timing inputs. Absent intake = the pre-intake
@@ -1983,8 +2054,9 @@ hobbies assumes the person keeps living their life; the habitual week books exac
 the Jackson PA-R comes from the 10 §4.14 selector row nearest to PAL0 instead of the steps row.
 
 **Band (R1 §3.4).** σ² = (cv_RMR·1.15·RMR0)² + (kStep·BW·S_hab)²(cv_steps² + 0.10²) + (BW·h_work·d_w/7·sd_occ)² +
-(0.6·E_home)² + (0.5·E_rec)² + (0.3·E_cyc)² + (0.2·EAT0)²; cv_RMR 0.10 (0.05 measured); cv_steps wrist 0.10, phone 0.25
-(0.35 not carried), rough or derived 0.40; sd_occ = (high − low)/3.92 of the class coefficient. σ_TDEE0 = max(√σ²/(1 − α0),
+(0.6·E_home)² + (0.5·E_rec)² + (0.3·E_cyc)² + (0.2·EAT0)²; cv_RMR 0.10 (0.05 measured); cv_steps wrist 0.10, fused
+ring/phone (`steps-fuse/1`, energy SPEC V1.4, 2026-10-27) 0.10 (product default (P), grade C: the same as a wrist device
+until counted-step trials validate it; no 95 % claim), phone 0.25 (0.35 not carried), rough or derived 0.40; sd_occ = (high − low)/3.92 of the class coefficient. σ_TDEE0 = max(√σ²/(1 − α0),
 floor·TDEE0), floor = min(route cv0 of 02 §4.12 — 0.12 equation / 0.10 BF measured / 0.08 RMR measured, intake 0.10 answered
 / 0.12 skipped); p10/p90 = TDEE0 ∓ 1.2816σ. "Answered" = a work class or a step number given.
 
@@ -2061,8 +2133,8 @@ tissue; owner composition; the goal-eligible one) are distinct metrics (INTEGRAT
 | 31 | `t3` | Thyroid (T3) | rel | hormones | hormones | d/end | up | none (guard only) | B | draws | deltaFromBaseline |  | marker | 12 §4.3 |
 | 32 | `cortisol` | Cortisol | rel | hormones | hormones | d/end | down | none | C | draws | deltaFromBaseline |  | marker | 12 §4.4 |
 | 33 | `testosterone` | Testosterone [male] | rel | hormones | hormones | d/end | up | none (guard only) | B | draws | deltaFromBaseline |  | marker | 12 §4.5 |
-| 34 | `menstrualRisk` | Menstrual disturbance risk [female] | %/cycle | hormones | hormones | d/end | down | none (constraint for women (19 §4.9)) | B | draws | absolute |  |  | 19 §4.9 P_LPD (12 §4.6 R_MD = registered alternative, MODEL_SPEC R-MENS) |
-| 35 | `adherence` | Plan adherence probability | % | hormones | appetite | d/end | up | maximise (planner ranks outcome × P_surv) | D | draws | absolute |  | index | 12 §4.10 |
+| 34 | `menstrualRisk` | Menstrual concern index (research) [female] | index (legacy %/cycle value, not a probability; D2-07) | hormones | hormones | d/end | down | none (constraint for women (19 §4.9)) | B | draws | absolute |  |  | 19 §4.9 P_LPD (12 §4.6 R_MD = registered alternative, MODEL_SPEC R-MENS) |
+| 35 | `adherence` | Latent adherence index (deprecated; no probability) | index | hormones | appetite | d/end | up | none (capability `notAProbability`, D2-06; never a multiplier) | D | draws | absolute |  | index | 12 §4.10 |
 | 36 | `insulinSensitivity` | Insulin sensitivity | rel | cardio | cardiometabolic | d/end | up | maximise | B | draws | deltaFromBaseline |  | marker | 04 §4.18 (S_I = S_hep^0.4·S_mus^0.6) |
 | 37 | `ldl` | LDL cholesterol | mmol/L | cardio | cardiometabolic | d/end | down | minimise | A | draws | deltaFromBaseline |  | marker | 06 §4.2-4.4, §4.7 |
 | 38 | `apoB` | ApoB | g/L | cardio | cardiometabolic | d/end | down | minimise | A | draws | deltaFromBaseline |  | marker | 06 §4.2 |
@@ -2075,7 +2147,7 @@ tissue; owner composition; the goal-eligible one) are distinct metrics (INTEGRAT
 | 45 | `vo2max` | VO₂max | mL/kg/min | performance | activity | d/end | up | maximise | A | draws | absolute |  |  | 10 §4.8 |
 | 46 | `strength` | Strength index | % of baseline | performance | muscle | d/end | up | maximise | B | draws | index |  |  | 09 §4.14 × 19 §4.3 M_EA |
 | 47 | `trainingStatus` | Training status | % of potential | performance | muscle | d/end | up | none | C | draws | index |  |  | 09 §4.6 |
-| 48 | `enduranceCapacity` | Endurance capacity | % of baseline | performance | wellbeing | d/end | up | maximise | B | draws | index |  |  | 19 §4.4 |
+| 48 | `enduranceCapacity` | Cycling endurance index (research) | % of baseline | performance | wellbeing | d/end | up | maximise | B | draws | index |  |  | 19 §4.4 |
 | 49 | `rtMuscleGain` | Training-attributable lean | kg | performance | muscle | d/end | up | maximise | C | draws / fixChange:64 | absolute |  |  | 09 §4.9 (Σ M_acc,r) |
 | 50 | `sleepQuality` | Sleep quality | index | recovery | moderators | d/end | up | none | C | draws | index |  | index | 16 §4.2, 19 §4.10 |
 | 51 | `moodTier` | Mood & energy | tier | recovery | wellbeing | d/end | down | none (guard only; never a cognition score) | C | none | state |  |  | 19 §4.5 (0 green, 1 amber, 2 red) |
@@ -2099,6 +2171,10 @@ Detail series (charts' decomposition layers, not goal-eligible): `tef`, `exercis
 R-MAINT reference), `inMaintRef` (the reference, kcal/d; added final round), `inBalancePlanned` (energy − reference,
 kcal/d; added final round), `inProtein`, `inCarbs`, `inFat`, `inFibre`, `inAlcohol`, `inSteps`, `inRtSets`, `inCardioMin`,
 `inSleep`.
+Wave 3 (D2-07): detail series `reproductiveConcern` (owner hormones, daily state, female only; appended after the input
+echoes so earlier indices are unchanged) records the qualitative concern code of `reproductiveConcernStatus`
+(`REPRO_CONCERN_CODE`: 0 not applicable, 1 no model concern, 2 insufficient history, 3 eligibility unknown, 4 concern,
+5 review). `menstrualRisk` stays a deprecated research value; its legacy number is not a per-cycle probability.
 Sex-gated metrics (`testosterone` male, `menstrualRisk` female) are NaN for the other sex and for unspecified sex.
 Recording: hourly series are stored hourly only with `record:'full'`; the daily value follows `agg`; `RunOptions.series`
 restricts recording (planner: goal + constraint series only).
@@ -2313,7 +2389,7 @@ report or the dossier, never to reach a target (the corrections of the finisher 
 | 09 | #1-14 (§1.9) incl. strength 19-27 % (+3) after R-STR | U/I | M (Longland/Garthe magnitudes K) |
 | 10 | V1-V5 (EE, EPOC), V6-V9 (compensation: totals ±1 kg; c_met 0.28 sensitivity reproduces Careau), V10-V11 (substrate, glycogen), V12-V13 (no fasted/HIIT fat-loss bonus), V14-V17 (VO2max), V18 (insulin) | U/I | M (V19-V21 Q; V22 VAT without weight loss K — no owner in v1, R-VATEX) |
 | 11 | §4.15 prototype table (ΔBW ±25 %), Levine β⁺ sensitivity, Horton storage 74 % vs 89 % (±8 pts), Jacquet overshoot examples | I | M; Bray 5 % arm K |
-| 12 | Appendix A regression values; leptin/T3/cortisol/testosterone fit lists (±12-15 pts); HPI scale anchors; P_surv attrition calibration | U | M (Chan 72-h leptin K) |
+| 12 | Appendix A regression values; leptin/T3/cortisol/testosterone fit lists (±12-15 pts); HPI scale anchors (uncalibrated index, D2-06); legacy attrition comparison (no probability) | U | M (Chan 72-h leptin K) |
 | 13 | V1 Hall KD −1.6 kg (±0.4), V2 Yang (±15 %), V3 Pietzner (with 20), V4 Laurens, V5 Burke, V6 Jansen slope, V7 Peos diet break (DXA +0.7 ±0.4), V8 MATADOR, V9 Vink, V10 Templeman, V11 Wilson, V12 Kerndt (±0.2 kg/d), V13 Sciarrillo, V14 gallstone ordering (Q), V15 Schrauwen | I | M (V10 fat K) |
 | 14 | body module suite (already passing, `src/engine/body/*.test.ts`); V3 CALERIE-2 regional, V5 VAT slope 1.29-1.34, V12 sensitivity table (ΔFM ±0.5 kg with the engine partition) | U/I | M |
 | 15 | V1-V20 (fibre/nut ME, sodium steps, alcohol fat-ox, caffeine residual, creatine x and water) | U | M |
@@ -2336,6 +2412,31 @@ except O-3's three glycogen/fat-oxidation rows (consequence of the fuel ruling o
 75 kg, 12 % BF, RT 3 y) in `core/__tests__/fixtures.ts` (extended by WP-V); programmes: maintenance, −25 % steady,
 −25 % with 3×/wk moderate RT and 1.6 g/kg protein, MATADOR 2:2, 5 %E-carbohydrate isocaloric, weekly 24-h fast, 72-h fast,
 7-d water fast + 3-d refeed, 21-d water fast, +15 % surplus with high-volume RT.
+
+### 9.4 Evidence classes and the release ledger (review D8-03, contract C7)
+Every scenario has an entry in `validation/ledger.ts`: **verification** (identities, definition anchors, invariances: true
+or false, no study), **conditional dynamics** (shared-input comparisons with an independent model — the Hall 2011 port,
+04 §4.11's daily carbohydrate law, a dossier's own model table: agreement tests dynamics conditional on the same inputs,
+not human prediction), **development fit** (a study the model was built, calibrated or checked against; role `estimation`
+when a registry parameter cites it, `calibration` otherwise) and **independent empirical validation** (role
+`externalEvaluation`: a study/cohort held out under a frozen model and extraction protocol, with the freeze hash recorded
+before extraction). The split unit is the study/cohort, never an arm or a row; a study that influenced a model version is
+development for it; a completed frozen-model external evaluation stays valid historical evidence for the version it
+evaluated after it is read, while a later revision tuned or selected on it is development for that revision. Historical
+scenarios are development unless provenance establishes independence: **this release has no independent holdout**, and no
+row of the suite is claimed as external validation. Each row records its tolerance type (SD, SEM, CI, clinical, design,
+direction — never interchangeable), its endpoint operator and the imputed inputs of its fixture (e.g. one representative
+person from published group means; intake as a percentage of the engine's modelled maintenance). Reports give bias and MAE
+per class and unit for point targets only (no aggregate across units or tolerance types; no interval coverage, since the
+tolerances are design bands, not predictive intervals), count independent studies separately from expectations, and list
+every attempted row (no data, errors, skipped, aborted and model-limit runs). `scenarios.test.ts` prints the regenerated
+`KNOWN_MISSES.md`, the release ledger (`docs/validation/review-release-ledger.json`) and the evidence-class section of
+`docs/VALIDATION_REPORT_INTERNAL.md`, and fails when the committed files no longer match the run. Review-decision misses
+(2026-10-18) name the decision and the labelled legacy scenario under which they met their target; the suite re-runs that
+scenario, so the miss stays attributable to the decision (passing under a scenario fitted to the same study is a development
+fit). D1-08: the Minnesota fixture (01 §7.1) is a mismatched-protocol challenge kept with its targets; its protocol-matched
+replay (01 §7.1b: absolute intakes, matched 3 630 kcal/d baseline, the observed activity fall imputed as a weekly time
+course, the same inputs in the Hall port) is non-gating and labelled matched.
 
 ---
 
@@ -2381,8 +2482,9 @@ interface SkeletonStructure extends PlanStructure {         // one skeleton of 1
 Evaluator workers (`src/workers/planner.evaluator.worker.ts`, WP-P) each hold an `EnginePlanModel` (resolved profile, goal
 list, structure list, ensemble quantiles → parameter vectors) and answer `WorkerCall` batches; the coordinator calls
 `createPooledEvaluator(workerCalls, chunkSize)`. Calibration: one nominal simulation per worker measures msPerEU for
-`budgetForDevice`. Early abort (`abortOn`) implements 18 §4.1's state-bound pruning. Adherence: `P_surv` from the
-`adherence` series multiplies outcome desirability (12 §4.10a, 18 §4.9).
+`budgetForDevice`. Early abort (`abortOn`) implements 18 §4.1's state-bound pruning. Adherence (D2-06): the latent
+`adherence` index does not multiply outcome desirability and is not an objective (the earlier statement citing 12 §4.10a,
+18 §4.9 described a design the optimiser never implemented).
 
 ### 10.3 Lever registry data (18 §4.4.1) — engine-relevant fields
 Each `LeverDef.expand` writes only Schedule fields of §5.2 (`engineInputs` checked at registration against the

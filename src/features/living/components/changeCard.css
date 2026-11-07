@@ -1,5 +1,6 @@
-/* ChangeCard (COMPONENTS §13.11): achromatic chrome; colour only on the destructive and blocked marks.
-   Standalone = a Faceplate; in the Coach conversation = an inset region (well fill, 1 px line, radius md). */
+/* ChangeCard (COMPONENTS §13.11), Ember: stone and ivory chrome; colour only on the destructive (rose) and blocked
+   (gold) marks. Standalone = a Faceplate (card material; the Coach's turns too); `conversation` = an inset region (well fill,
+   0.5 px gold hairline, radius md), now only the Coach's read line and cards inside a sheet. Weights 400 / 500, no rules between parts. */
 @layer components {
   .lv-card {
     display: grid;
@@ -11,9 +12,9 @@
     overflow-wrap: anywhere;
   }
   .lv-card[data-context='conversation'] {
-    padding: 12px 14px;
+    padding: 14px 16px;
     background: var(--lm-well);
-    border: 1px solid var(--lm-line);
+    border: var(--lm-hairline, 0.5px) solid var(--lm-line);
     border-radius: var(--lm-radius-md);
   }
 
@@ -27,7 +28,7 @@
   .lv-card__mark {
     display: inline-flex;
     align-self: center;
-    color: var(--lm-ink);
+    color: var(--lm-ink-2);
   }
   .lv-card__mark[data-class='destructive'] {
     color: var(--lm-danger-mark);
@@ -38,13 +39,15 @@
   .lv-card__title {
     margin: 0;
     min-width: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 600;
+    font-size: var(--lm-text-md);
+    line-height: var(--lm-text-md--lh);
+    font-weight: 500;
     overflow-wrap: anywhere;
   }
   .lv-card__left {
     margin-left: auto;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
     white-space: nowrap;
   }
 
@@ -165,6 +168,92 @@
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
+  /* (r068 V8) the mark stays on the title's first line (a long title wraps beside it, never under it), and what follows
+     the title in the head (its source, the time left) sits under the title, from its start */
+  .lv-card__head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+  .lv-card__head > .lv-card__mark {
+    align-self: start;
+    margin-top: calc((var(--lm-text-md--lh) - 16px) / 2);
+  }
+  .lv-card__head > :not(.lv-card__mark, .lv-card__title) {
+    grid-column: 2;
+    justify-self: start;
+    margin-left: 0;
+  }
+  /* (r068 V8) a metric's label takes the row's room and its change ends it ("Weight by the end · +0.1 kg"), never a
+     narrow label column that breaks "weight by / the end" */
+  .lv-card .lv-card__metrics .lv-card__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  /* (r068 V8) in a desktop side panel (about 360 px) a change card keeps the phone layout whatever the window's width:
+     the wide grid squeezed "30 min · 3 exercises" into a one-letter column and cut the goal dates */
+  .lm-sidepanel .lv-card .lv-card__row {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+  .lm-sidepanel .lv-card .lv-card__row:has(> .lv-card__kcal) {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'label kcal' 'after after';
+  }
+  .lm-sidepanel .lv-card .lv-card__row:has(> .lv-card__before) {
+    grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
+  }
+  .lm-sidepanel .lv-card .lv-card__row:has(> .lv-card__before) > .lv-card__label {
+    grid-column: 1 / -1;
+  }
+  .lm-sidepanel .lv-card .lv-card__metrics .lv-card__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .lm-sidepanel .lv-card .lv-card__goals .lv-card__row:has(> .lv-card__before) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .lm-sidepanel .lv-card .lv-card__goals .lv-card__row:has(> .lv-card__before) > * {
+    grid-column: 1;
+  }
+  .lm-sidepanel .lv-card .lv-card__goals .lv-card__row > .lv-card__arrow {
+    display: none;
+  }
+  .lm-sidepanel .lv-card .lv-card__goals .lv-card__before::before,
+  .lm-sidepanel .lv-card .lv-card__goals .lv-card__after::before {
+    content: 'now';
+    flex: none;
+    width: 2.75rem;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-3);
+  }
+  .lm-sidepanel .lv-card .lv-card__goals .lv-card__after::before {
+    content: 'after';
+  }
+  /* (r068 V8) goal dates on a phone: one ruler per line, named "now" and "after" (no lone arrow starting a line) */
+  @media (max-width: 47.99rem) {
+    .lv-card .lv-card__goals .lv-card__row:has(> .lv-card__before) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+    }
+    .lv-card .lv-card__goals .lv-card__row:has(> .lv-card__before) > * {
+      grid-column: 1;
+    }
+    .lv-card .lv-card__goals .lv-card__row > .lv-card__arrow {
+      display: none;
+    }
+    .lv-card .lv-card__goals .lv-card__before::before,
+    .lv-card .lv-card__goals .lv-card__after::before {
+      content: 'now';
+      flex: none;
+      width: 2.75rem;
+      font-size: var(--lm-text-xs);
+      color: var(--lm-ink-3);
+    }
+    .lv-card .lv-card__goals .lv-card__after::before {
+      content: 'after';
+    }
+  }
 
   /* "what I saw" */
   .lv-card__meal {
@@ -177,7 +266,7 @@
     grid-template-columns: 72px minmax(0, 1fr);
   }
   .lv-card__meal[data-review] .lv-card__gram {
-    border-color: var(--lm-edge);
+    border-color: var(--lm-gold-edge, var(--lm-line-strong));
   }
   .lv-card__meal-body {
     display: grid;
@@ -189,7 +278,7 @@
     height: 72px;
     object-fit: cover;
     border-radius: var(--lm-radius-sm);
-    border: 1px solid var(--lm-line);
+    border: var(--lm-hairline, 0.5px) solid var(--lm-line);
     background: var(--lm-face);
   }
   .lv-card__gram {
@@ -210,8 +299,7 @@
   .lv-card__stale {
     display: grid;
     gap: 6px;
-    padding-top: 8px;
-    border-top: 1px solid var(--lm-line);
+    padding-top: 4px;
   }
   .lv-card__stale-note {
     display: flex;
@@ -301,7 +389,7 @@
   }
   .lv-card__read-label {
     display: block;
-    font-weight: 600;
+    font-weight: 500;
   }
   .lv-card__read-sum {
     display: -webkit-box;
@@ -314,5 +402,208 @@
     .lv-card__readkey {
       min-height: 44px;
     }
+  }
+}
+
+/* r068 C4: phone layout of the change rows; the time left at the keys' end */
+@layer components {
+  /* metric impacts: the label on the left, the change on the right, at every width ("Fat mass by the end · +0.1 kg") */
+  .lv-card__metrics .lv-card__row,
+  .lv-card__metrics .lv-card__row:is(*) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  /* goal dates on a phone: the label, then "before → after" on one line (wrapping only when the bars cannot fit) */
+  @media (max-width: 47.99rem) {
+    .lv-card__goals .lv-card__row:has(> .lv-card__before) {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px 8px;
+    }
+    .lv-card__goals .lv-card__row > .lv-card__label {
+      flex-basis: 100%;
+    }
+  }
+  /* the undo window or expiry sits after the keys, always in the same spot */
+  .lv-card__keys > .lv-card__left {
+    margin-left: auto;
+    align-self: center;
+  }
+  /* a log still waiting for "Log it": the open circle in stone */
+  .lv-card__mark[data-class='log'][data-state='pending'] {
+    color: var(--lm-ink-3);
+  }
+  .lv-card__title {
+    font-family: var(--lm-font-display);
+    font-weight: 600;
+  }
+}
+
+/* r068 L18: the card's rows and keys keep to a readable measure, so a value sits beside its label at any width; one
+   row layout per meal card; the time left in one fixed spot after the keys; the explanation folded under "Why" */
+@layer components {
+  .lv-card
+    > :is(
+      .lv-card__head,
+      .lv-card__note,
+      .lv-card__line,
+      .lv-card__diff,
+      .lv-card__meal,
+      .lv-card__keys,
+      .lv-card__why,
+      .lv-card__stale,
+      .lv-card__ask
+    ) {
+    max-inline-size: 40rem;
+  }
+  .lv-card__keys {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: var(--lm-row-gap) var(--lm-inline);
+  }
+  .lv-card__keys[data-left='true'] {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .lv-card__keyset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lm-inline);
+    min-width: 0;
+  }
+  .lv-card__keyset:empty {
+    display: none;
+  }
+  .lv-card__keys > .lv-card__left {
+    grid-column: -2;
+    margin-left: 0;
+    justify-self: end;
+  }
+  /* a meal card: every component reads "name · kcal" over its amount, with or without an energy figure */
+  @media (max-width: 47.99rem) {
+    .lv-card__meal .lv-card__row,
+    .lv-card__meal .lv-card__row:has(> .lv-card__kcal) {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'label kcal' 'after after';
+    }
+    .lv-card__meal .lv-card__row > .lv-card__label {
+      grid-area: label;
+    }
+    .lv-card__meal .lv-card__row > .lv-card__after {
+      grid-area: after;
+    }
+  }
+  .lv-card__why > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    color: var(--lm-ink-2);
+    font: var(--lm-text-label-s--wt) var(--lm-text-label-s) / var(--lm-text-label-s--lh) var(--lm-font-sans);
+    cursor: pointer;
+    list-style: none;
+  }
+  .lv-card__why > summary::-webkit-details-marker {
+    display: none;
+  }
+  .lv-card__why > summary::after {
+    content: '›';
+    margin-inline-start: 6px;
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lv-card__why[open] > summary::after {
+    transform: rotate(90deg);
+  }
+  .lv-card__why > p {
+    margin-top: 4px;
+  }
+}
+
+/* r071: class identity lives in the mark, the domain and the state word; decisions keep one primary key. */
+@layer components {
+  .lv-card.lm-gcard {
+    gap: 16px;
+  }
+  .lv-card .lm-gcard__body {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+  .lv-card .lv-card__head {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 48px;
+    align-items: center;
+    gap: 8px;
+    max-inline-size: none;
+  }
+  .lv-card .lv-card__head > .lv-card__mark {
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-ink-tile);
+    color: var(--lm-hue, var(--lm-ink-2));
+    margin: 0;
+    align-self: center;
+  }
+  .lv-card .lv-card__head > .lm-info {
+    grid-column: 3;
+    justify-self: end;
+  }
+  .lv-card .lv-card__head > .lv-card__title {
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
+  }
+  .lv-card .lv-card__mark[data-class='destructive'] {
+    color: var(--lm-danger-mark);
+  }
+  .lv-card .lv-card__mark[data-class='blocked'] {
+    color: var(--lm-caution-mark);
+  }
+  .lv-card__source {
+    margin-top: -6px;
+  }
+  .lv-card__totals {
+    display: grid;
+    gap: 8px;
+  }
+  .lv-card .lm-cardfoot {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .lv-card .lm-cardfoot__extra {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: end;
+    min-width: 0;
+    width: 100%;
+  }
+  .lv-card__window {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+    flex: 1 1 9rem;
+    max-width: 15rem;
+    margin-left: auto;
+  }
+  .lv-card__window .lm-meta {
+    text-align: right;
+  }
+  .lv-card__readtext.lm-meta {
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+  }
+  .lv-card__readkey {
+    min-height: 44px;
+  }
+  .lv-card__gram {
+    min-height: 44px;
+  }
+  .lv-card__why > summary {
+    min-height: 44px;
   }
 }

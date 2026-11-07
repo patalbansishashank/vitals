@@ -6,6 +6,7 @@
  * Units: mass kg, height m, VO2 mL/kg/min, energy kcal, minutes, speed km/h, power W, fractions of VO2max `x`.
  */
 import type { SessionResolved } from '../../types/inputs';
+import type { EffortScale, HealthIntensityClass, IntervalPhase } from '../../types/schedule';
 
 /** Constants copied from the registry in `prepare` (never read in the step loop). */
 export interface ActivityK {
@@ -115,15 +116,29 @@ export function cycleGrossKcalPerMin(powerW: number, rmrKcalPerMin: number, k: A
   return k.cycleBase * rmrKcalPerMin + (powerW * 60) / (k.cycleEff * 4184);
 }
 
-/** Interim RPE (CR-10) → fraction of VO2max map (see ParamDef note): x = a + b·RPE, clamped to [0.2, 1.2]. */
+/**
+ * Interim RPE (CR-10) → fraction of VO2max map (see ParamDef note): x = a + b·RPE, clamped to [0.2, 1.2]. A broad scenario
+ * prior for a cardio bout's energy (D3-03): never a precise %VO2max, never a measured-like VO2max, never resistance RIR.
+ * Only for a Borg CR10 or an unscaled legacy rating (`rpeEnergyMapApplies`); a generic relative-effort or RIR-RPE number
+ * never enters it merely because it is a number (A1-062).
+ */
 export function rpeToX(rpe: number, k: ActivityK): number {
   const x = k.rpeA + k.rpeB * rpe;
   return x < 0.2 ? 0.2 : x > 1.2 ? 1.2 : x;
 }
 
 /**
+ * Whether a rating on `scale` may enter the interim CR-10 energy map (A1-062): Borg CR10 and unscaled legacy ratings
+ * (absent / 'unknown', the map's existing labelled scenario) do; the generic relative-effort 0-10 scale and the resistance
+ * RIR-RPE scale have other anchors and do not (their bout energy comes from MET/speed/power or the modality default).
+ */
+export function rpeEnergyMapApplies(scale: EffortScale | undefined): boolean {
+  return scale !== 'relativeEffort0To10' && scale !== 'rirRpe';
+}
+
+/**
  * Gross energy rate of a session in kcal/min (MODEL_SPEC §1.2 steps 1-2, 10 §4.17 exerciseEnergy).
- * Resolution order: given %VO2max → given MET → speed (walk: Ludlow, run: ACSM·runEff) → power (cycling formula) →
+ * Resolution order: realised gross (SPEC V1.5, an approved bout's booked estimate) → given MET → given %VO2max → speed (walk: Ludlow, run: ACSM·runEff) → power (cycling formula) →
  * RPE → modality default %VO2max. Resistance sessions: session MET (style MET from the compiler, else the default).
  */
 export function sessionGrossKcalPerMin(
@@ -135,6 +150,12 @@ export function sessionGrossKcalPerMin(
   rmrKcalPerMin: number,
   bmi: number,
 ): number {
+  // SPEC V1.5: an approved bout's chosen gross energy is booked as given (uniform over the part's minutes), for cardio and
+  // resistance alike, before any MET, speed, power or rating route — so replay reproduces the estimate whatever the engine's
+  // simulated mass or drawn O2 energy equivalent
+  const rg = s.realisedGrossKcal;
+  // (0.6.3) a booked 0 (the machine showed 0) stays 0: the net above rest clamps to 0, never a MET or modality default
+  if (rg !== undefined && rg >= 0 && s.durationMin > 0) return rg / s.durationMin;
   let vo2: number;
   if (s.kind === 'resistance') {
     vo2 = (isFin(s.met) && s.met > 0 ? s.met : k.rtMetDefault) * k.metVo2;
@@ -151,13 +172,93 @@ export function sessionGrossKcalPerMin(
     vo2 = restVo2(rmrKcalPerMin, bwKg, k.kcalPerL) + runNetVo2(s.speedKmh, k);
   } else if (isFin(s.powerW)) {
     return cycleGrossKcalPerMin(s.powerW, rmrKcalPerMin, k);
-  } else if (isFin(s.rpe)) {
+  } else if (isFin(s.rpe) && rpeEnergyMapApplies(s.rpeScale)) {
     vo2 = rpeToX(s.rpe, k) * vo2max;
   } else {
     const code = s.modality;
     vo2 = (code >= 1 && code <= 7 ? k.defaultX[code]! : k.defaultX[7]!) * vo2max;
   }
   return (vo2 * bwKg * k.kcalPerL) / 1000;
+}
+
+// ------------------------------------------------------------------ SPEC V1.5 realised-energy adapter (2026-10-27)
+
+/**
+ * kcal per kg per hour per MET of the standard conversion (3.5 mL/kg/min × 5 kcal/L × 60/1000 = 1.05), the same constant as
+ * `core/exerciseCost.KCAL_PER_KG_H_PER_MET` (kept local so this file stays free of runtime imports).
+ */
+export const REALISED_KCAL_PER_KG_H_PER_MET = (3.5 * 5 * 60) / 1000;
+
+/**
+ * Equivalent session MET of an approved bout's chosen gross energy (SPEC V1.5): met = G / (1.05 · m · t_h), with m the body
+ * mass dated to the bout. A SYNTHETIC adapter, not a Compendium measurement (notes C05): it only carries an estimate made
+ * elsewhere (V2 `activityEnergy`) into replay. NaN for non-finite or non-positive inputs. Warrant: analytically true (the
+ * inverse of the standard conversion), A; it reproduces G only when the engine's body mass equals m and its O2 energy
+ * equivalent is 5 kcal/L — the oracle tests show it does not otherwise (see `realisedGrossKcal`). G = 0 (an explicit
+ * reported 0) gives MET 0; a negative or non-finite G is NaN.
+ */
+export function realisedSessionMet(grossKcal: number, massKg: number, durationMin: number): number {
+  // (0.6.3) an explicit reported 0 ("the machine showed 0") is MET 0: replay then books no energy above rest, as the ledger
+  if (!(grossKcal >= 0) || !Number.isFinite(grossKcal) || !(massKg > 0) || !(durationMin > 0)) return Number.NaN;
+  return grossKcal / (REALISED_KCAL_PER_KG_H_PER_MET * massKg * (durationMin / 60));
+}
+
+/** Version of the realised-dose adapter (enters the realised-history hash, SPEC §1.6 / V3.8). */
+export const REALISED_DOSE_VERSION = 'realised-dose/1';
+
+/** One supported intensity segment of an approved bout (a steady speed or power run), with its chosen gross kcal. */
+export interface RealisedSegment {
+  durationMin: number;
+  grossKcal: number;
+}
+
+/** An approved bout's chosen estimate (V2 `activityEnergy` gross G) and the body mass dated to the bout. */
+export interface RealisedBout {
+  grossKcal: number;
+  durationMin: number;
+  massKg: number;
+  /**
+   * Supported intensity segments (speed or power runs) that TILE the bout; omit for HR-derived or MET bouts, which replay as
+   * one steady segment (no fabricated intensity phases, SPEC V1.5).
+   */
+  segments?: readonly RealisedSegment[];
+}
+
+/** The engine fields of an approved bout (copy onto `CardioSession` / `ResistanceSession`). */
+export interface RealisedDose {
+  /** Equivalent session MET (descriptors, hour table, planned estimators). */
+  met: number;
+  /** The booked gross, kcal: the energy authority of replay. */
+  realisedGrossKcal: number;
+  /** Cardio only: one `steady` phase per segment, each with its equivalent MET and its realised gross. */
+  phases?: IntervalPhase[];
+  version: typeof REALISED_DOSE_VERSION;
+}
+
+/**
+ * The engine dose of an approved bout (SPEC V1.5; V3 writes it into `LogEntry.session.engine`). Replay then reproduces G,
+ * R, A, D and I of the shared ledger within 0.5 % and books recovery once (oracle tests, realisedEnergy.test.ts), whatever
+ * the engine's simulated mass or drawn O2 energy equivalent. Null when the inputs are not finite and positive, or when the
+ * segments do not tile the bout (Σ minutes ≠ duration) or disagree with G by more than 0.1 %. Training stimulus is separate:
+ * this never creates sets (a resistance bout keeps `doseStatus: 'unknown'` unless sets were logged).
+ */
+export function realisedEngineDose(b: RealisedBout): RealisedDose | null {
+  const met = realisedSessionMet(b.grossKcal, b.massKg, b.durationMin);
+  if (!Number.isFinite(met)) return null;
+  const segs = b.segments;
+  if (segs === undefined || segs.length === 0) return { met, realisedGrossKcal: b.grossKcal, version: REALISED_DOSE_VERSION };
+  let mins = 0;
+  let g = 0;
+  const phases: IntervalPhase[] = [];
+  for (const sg of segs) {
+    const m = realisedSessionMet(sg.grossKcal, b.massKg, sg.durationMin);
+    if (!Number.isFinite(m)) return null;
+    mins += sg.durationMin;
+    g += sg.grossKcal;
+    phases.push({ kind: 'steady', durationMin: sg.durationMin, met: m, realisedGrossKcal: sg.grossKcal });
+  }
+  if (Math.abs(mins - b.durationMin) > 1e-6 || Math.abs(g - b.grossKcal) > 1e-3 * b.grossKcal) return null;
+  return { met, realisedGrossKcal: b.grossKcal, phases, version: REALISED_DOSE_VERSION };
 }
 
 /** VO2 (mL/kg/min) equivalent of a gross kcal/min rate. */
@@ -281,4 +382,92 @@ export function overlapH(a0: number, a1: number, b0: number, b1: number): number
 /** Net step energy above the habitual baseline for a day (kcal): stepsNet/1000·BW·(steps − habitual) (10 §4.14). */
 export function stepEnergyAboveBaseline(steps: number, habitualSteps: number, bwKg: number, k: ActivityK, bmi: number): number {
   return ((k.stepsNet * (bmi >= k.obesityBmi ? k.obesityFactor : 1)) / 1000) * bwKg * (steps - habitualSteps);
+}
+
+// ------------------------------------------------------------------ D3-08 finite recovery budget
+
+/**
+ * Normalised recovery kernel k(t) = a·e^(−t/τ1)/τ1 + (1 − a)·e^(−t/τ2)/τ2, 1/h, t ≥ 0 h (D3-08). It integrates to 1, so a
+ * bout's budget B is released exactly once (the activity module's EPOC queue releases it hour by hour with these exact
+ * exponentials, across midnight and into later days). `a` = epocFastShare, τ1/τ2 = epocTau1H/epocTau2H.
+ */
+export function recoveryKernel(tH: number, a: number, tau1: number, tau2: number): number {
+  if (!(tH >= 0)) return 0;
+  return (a * Math.exp(-tH / tau1)) / tau1 + ((1 - a) * Math.exp(-tH / tau2)) / tau2;
+}
+
+/** ∫ k(t) dt over [t0, t1] h (closed form; t0 ≥ 0): the share of a bout's recovery budget released in that interval. */
+export function recoveryKernelIntegral(t0: number, t1: number, a: number, tau1: number, tau2: number): number {
+  const lo = t0 > 0 ? t0 : 0;
+  if (!(t1 > lo)) return 0;
+  const cdf = (t: number): number => 1 - a * Math.exp(-t / tau1) - (1 - a) * Math.exp(-t / tau2);
+  return cdf(t1) - cdf(lo);
+}
+
+// ------------------------------------------------------------------ D3-03 public-health intensity classes (guideline accounting)
+
+/** WHO 2020 class bounds and the vigorous weight, copied from the registry (activity.health*). */
+export interface HealthClassK {
+  relModerateMin: number;
+  relVigorousMin: number;
+  absModerateMet: number;
+  absVigorousMet: number;
+  vigorousWeight: number;
+}
+
+/** Bounds of the WHO/CDC generic relative-effort scale (0 = sitting, 10 = maximal effort). */
+export const RELATIVE_EFFORT_MIN = 0;
+export const RELATIVE_EFFORT_MAX = 10;
+
+/**
+ * A rating on the WHO/CDC GENERIC relative-effort 0-10 scale (0 sitting, 10 maximal) → class (A1-062; official generic-scale
+ * boundaries, registry `healthRelModerateMin`/`healthRelVigorousMin`): light < 5 ≤ moderate < 7 ≤ vigorous. Nonfinite or
+ * outside [0, 10] → unknown. This is NOT Borg CR10 (3 = moderate, 5 = strong on its own anchors): never call it with a CR10,
+ * RIR-RPE or unscaled number — `healthClassFromRating` routes by the rating's declared scale.
+ */
+export function healthClassFromRelativeEffort(effort: number, k: HealthClassK): HealthIntensityClass {
+  if (!Number.isFinite(effort) || effort < RELATIVE_EFFORT_MIN || effort > RELATIVE_EFFORT_MAX) return 'unknown';
+  return effort >= k.relVigorousMin ? 'vigorous' : effort >= k.relModerateMin ? 'moderate' : 'light';
+}
+
+/**
+ * Guideline class of a subjective rating by its declared scale (A1-062): only the generic relative-effort 0-10 scale
+ * classifies; Borg CR10, RIR-RPE and unscaled/unknown ratings alone leave the class unknown (no CR10 → guideline
+ * conversion exists — their minutes stay unknown, never known light or zero; a separately stated class or talk test is used
+ * instead).
+ */
+export function healthClassFromRating(rating: number | undefined, scale: EffortScale | undefined, k: HealthClassK): HealthIntensityClass {
+  if (rating === undefined || scale !== 'relativeEffort0To10') return 'unknown';
+  return healthClassFromRelativeEffort(rating, k);
+}
+
+/**
+ * Talk test → class (D3-03): able to sing = light; talks but cannot sing = moderate; only a few words without pausing for
+ * breath = vigorous. Full sentences alone do not separate light from moderate, so they stay unknown.
+ */
+export function healthClassFromTalkTest(answer: 'canSing' | 'talkNotSing' | 'fewWords' | 'fullSentences' | 'unknown'): HealthIntensityClass {
+  switch (answer) {
+    case 'canSing':
+      return 'light';
+    case 'talkNotSing':
+      return 'moderate';
+    case 'fewWords':
+      return 'vigorous';
+    default:
+      return 'unknown';
+  }
+}
+
+/**
+ * Absolute-MET class (WHO: moderate 3-5.9, vigorous ≥ 6 MET). An ESTIMATE only: relative effort differs in fit and frail
+ * people, so callers show it as a range and never as stated guideline minutes.
+ */
+export function healthClassFromMet(met: number, k: HealthClassK): HealthIntensityClass {
+  if (!Number.isFinite(met)) return 'unknown';
+  return met >= k.absVigorousMet ? 'vigorous' : met >= k.absModerateMet ? 'moderate' : 'light';
+}
+
+/** Moderate-equivalent guideline minutes = moderate + w·vigorous (w = 2). */
+export function healthEquivalentMinutes(moderateMin: number, vigorousMin: number, k: Pick<HealthClassK, 'vigorousWeight'>): number {
+  return (moderateMin > 0 ? moderateMin : 0) + k.vigorousWeight * (vigorousMin > 0 ? vigorousMin : 0);
 }

@@ -116,13 +116,15 @@ export interface NumberFieldProps {
   name: string;
   disabled?: boolean;
   inputMode?: 'decimal' | 'numeric';
+  /** A typical value shown faintly while the field is empty ("58"), so an empty field still says what it wants. */
+  placeholder?: string;
   id?: string;
   className?: string;
 }
 
 /** Exact numeric entry with unit suffix. Use `Stepper` when ± keys help (age, height, weight). */
 export function NumberField(props: NumberFieldProps) {
-  const { value, onChange, min, max, step = 1, unit, name, disabled, inputMode = 'decimal', id, className } = props;
+  const { value, onChange, min, max, step = 1, unit, name, disabled, inputMode = 'decimal', placeholder, id, className } = props;
   const decimals = props.decimals ?? decimalsOf(step);
   const unitText = props.unitText ?? (typeof unit === 'string' ? unit : '');
   const field = useField();
@@ -133,6 +135,7 @@ export function NumberField(props: NumberFieldProps) {
     <div className={cx('grid gap-1.5 min-w-0', className)}>
       <NumWell
         id={id ?? field?.id}
+        placeholder={placeholder}
         shown={d.shown}
         onInput={d.setDraft}
         onBlur={d.commit}
@@ -155,6 +158,7 @@ export function NumberField(props: NumberFieldProps) {
 
 interface NumWellProps {
   id?: string;
+  placeholder?: string;
   shown: string;
   onInput: (v: string) => void;
   onBlur: () => void;
@@ -171,7 +175,7 @@ interface NumWellProps {
   valueText?: string;
 }
 
-function NumWell({ id, shown, onInput, onBlur, onKeyDown, unit, invalid, describedBy, label, disabled, inputMode, min, max, value, valueText }: NumWellProps) {
+function NumWell({ id, placeholder, shown, onInput, onBlur, onKeyDown, unit, invalid, describedBy, label, disabled, inputMode, min, max, value, valueText }: NumWellProps) {
   return (
     <label className="lm-numfield" data-invalid={invalid || undefined}>
       <input
@@ -181,6 +185,7 @@ function NumWell({ id, shown, onInput, onBlur, onKeyDown, unit, invalid, describ
         inputMode={inputMode}
         autoComplete="off"
         spellCheck={false}
+        placeholder={placeholder}
         value={shown}
         disabled={disabled}
         aria-label={label}
@@ -315,7 +320,7 @@ export function MeasureStepper({ quantity, value, onChange, min, max, name, syst
   const sys = system ?? globalSystem;
   const spec = SPEC[quantity][sys];
   const toggle = unitToggle ? (
-    <KeyBank
+    <KeyBank fit
       size="sm"
       label={`${name} units`}
       value={sys}

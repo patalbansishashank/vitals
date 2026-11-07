@@ -1,12 +1,16 @@
 /**
  * Dose units and dose checks per catalogue item (SUITE_SPEC §13.2 dose row; design/COMPONENTS.md §14.4).
  *
- * The dose on a row is the amount **each time** it is taken; the daily amount is dose × the number of times of day
- * (at least one). Validation errors are input errors only (no amount, a unit the item is not sold in, a number no
- * product comes in); amounts above the catalogue's upper limit are a **warning**, never a refusal.
+ * The dose on a row is the amount **each time** it is taken; a dose day's amount is dose × the number of times of day
+ * (at least one), and the recurrence (daily, weekly, alternate day…, `./exposure.ts`) turns it into a daily average.
+ * Validation errors are input errors only (no amount, a unit the item is not sold in, a number no product comes in);
+ * amounts above the catalogue's upper limit are a **warning**, never a refusal. Dose-input validity and the safety check
+ * are separate (D7-04): a valid count of capsules with no label has unknown potency, so no limit warning is a pass — the
+ * safety status (`rowExposureStatuses`) says `unchecked`.
  */
 import { SEED_SUPPLEMENTS } from '@/content/catalogues/supplements'; // not the index: it builds the whole seed catalogue
 import type { SupplementRecord } from '../types';
+import { recurrenceOf } from './schedule';
 import type { SupplementRow } from './types';
 
 /** Units offered for free-text rows (not matched to the catalogue yet). */
@@ -92,13 +96,13 @@ export function convertDose(amount: number, from: string, to: string, supplement
 
 export type DoseIssue =
   | { kind: 'error'; code: 'noDose' | 'notPositive' | 'tooLarge' | 'unit' | 'noTime'; message: string }
-  | { kind: 'warning'; code: 'aboveUpperLimit'; message: string };
+  | { kind: 'warning'; code: 'aboveUpperLimit' | 'doseDayAboveLimit'; message: string };
 
 /**
  * Checks a row. Only `taking` rows need a dose and a time; any row with a dose must have a plausible number in one of
  * the item's units. Messages are plain words for the field.
  */
-export function validateDose(row: Pick<SupplementRow, 'supplementId' | 'state' | 'dose' | 'unit' | 'timesOfDay'>): { ok: boolean; issues: DoseIssue[] } {
+export function validateDose(row: Pick<SupplementRow, 'supplementId' | 'state' | 'dose' | 'unit' | 'timesOfDay'> & Partial<Pick<SupplementRow, 'schedule'>>): { ok: boolean; issues: DoseIssue[] } {
   const issues: DoseIssue[] = [];
   const units = doseUnits(row.supplementId);
   const taking = row.state === 'taking';
@@ -115,14 +119,29 @@ export function validateDose(row: Pick<SupplementRow, 'supplementId' | 'state' |
   const lim = supplementRecord(row.supplementId)?.dose.upperLimit;
   if (lim && lim.per === 'day' && row.dose && row.unit && Number.isFinite(row.dose) && row.dose > 0) {
     const each = convertDose(row.dose, row.unit, lim.unit, row.supplementId);
-    const daily = each === null ? null : each * Math.max(1, row.timesOfDay.length);
-    if (daily !== null && daily > lim.amount + 1e-9)
-      issues.push({ kind: 'warning', code: 'aboveUpperLimit', message: `About ${Math.round(daily)} ${lim.unit} a day, above the usual upper limit of ${lim.amount} ${lim.unit} a day; worth checking with a doctor or pharmacist` });
+    const rec = recurrenceOf({ timesOfDay: row.timesOfDay, ...(row.schedule ? { schedule: row.schedule } : {}) });
+    const doseDay = each === null ? null : each * rec.occasionsPerDoseDay;
+    const average = doseDay === null || rec.doseDaysPerWeek === null ? null : (doseDay * rec.doseDaysPerWeek) / 7;
+    const intermittent = rec.kind !== 'daily' && rec.kind !== 'assumedDaily';
+    if (average !== null && average > lim.amount + 1e-9)
+      issues.push({
+        kind: 'warning',
+        code: 'aboveUpperLimit',
+        message: intermittent
+          ? `About ${Math.round(average)} ${lim.unit} a day on average, above the usual upper limit of ${lim.amount} ${lim.unit} a day; worth checking with a doctor or pharmacist`
+          : `About ${Math.round(average)} ${lim.unit} a day, above the usual upper limit of ${lim.amount} ${lim.unit} a day; worth checking with a doctor or pharmacist`,
+      });
+    // an intermittent dose is not cleared by its average (D7-04): a dose day above the daily limit is worth a regimen check
+    else if (doseDay !== null && intermittent && doseDay > lim.amount + 1e-9)
+      issues.push({ kind: 'warning', code: 'doseDayAboveLimit', message: `About ${Math.round(doseDay)} ${lim.unit} on dose days, above the usual daily limit of ${lim.amount} ${lim.unit}; worth checking this schedule with a doctor or pharmacist` });
   }
   return { ok: !issues.some((i) => i.kind === 'error'), issues };
 }
 
-/** The amount taken in a day (dose × times, at least one), in the row's unit; null without a dose. */
+/**
+ * The amount taken on a dose day (dose × times, at least one), in the row's unit; null without a dose. A weekly or
+ * alternate-day row's daily average is `rowActives(row)[i].dailyAverage` (./exposure.ts), never this number.
+ */
 export function dailyAmount(row: Pick<SupplementRow, 'dose' | 'timesOfDay'>): number | null {
   return row.dose === undefined ? null : row.dose * Math.max(1, row.timesOfDay.length);
 }

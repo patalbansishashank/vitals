@@ -12,17 +12,16 @@
  * undo/redo after the fact (the ChangeSet undo of the toast covers the 5-s window).
  */
 import { dispatch, mintConfirmation, type CommandResult } from '@/commands';
-import type { LocalDate, Mark, TodayChecklistItem } from '@/living';
+import type { DayIntakeAttestation } from '@/lib/bodyContracts';
+import { addDays, type LocalDate, type LogEntry, type Mark, type TodayChecklistItem } from '@/living';
+import { slotEntries } from '../food/slots';
 import { getActivePlanSource } from '../mode';
-import type { ActionOutcome, LivingActions, RowMark } from './actions';
+import { measurementFacts, measurementValues, type ActionOutcome, type LivingActions, type ManualMealInput, type MealAnswerInput, type RowMark } from './actions';
 import { parseProposalCardId } from './documents';
 import type { LivingDataSource } from './source';
-import { ownsStream, type OwnedKind } from './useDeviceOwnership';
 
 const NOT_YET: ActionOutcome = { ok: false, message: 'Not available yet.' };
 /** A device feeds this stream: a hand entry would be refused, so it never gets dispatched (Correct is the way). */
-const DEVICE_OWNED: ActionOutcome = { ok: false, message: 'This comes from your device. Use Correct to change it.' };
-const owned = (k: OwnedKind) => ownsStream(k);
 const MARK_OF: Record<RowMark, Mark> = { asPlanned: 'asPlanned', partly: 'partly', skipped: 'not' };
 const STATUS_OF: Record<RowMark, 'done' | 'partial' | 'skipped'> = { asPlanned: 'done', partly: 'partial', skipped: 'skipped' };
 
@@ -34,6 +33,26 @@ function instantAt(date: LocalDate, h: number): string {
 }
 
 /** The command's result as an outcome; undo retracts the entry it logged, else undoes its ChangeSet. */
+/**
+ * (D6-05/C3) The `log.meal` components that log stored meals again ("same as yesterday", recents): each table or recipe
+ * component through its frozen serving snapshot (`relogSnapshotComponents`: per-100 g composition, source id/version,
+ * recipe serving fraction, imputed and unknown fields kept), so a recipe or food edited or deleted since never changes the
+ * repeated serving; typed or label numbers through the entry's frozen per-100 g values. A legacy entry without a snapshot
+ * falls back to the stored values (ids and grams for table items). The repeat is a new event (new id, occurrence and
+ * portion group); the stored entry is never rewritten. Null when any entry can no longer be read (the caller's components
+ * then stand).
+ */
+async function storedRelog(date: LocalDate, relog: NonNullable<ManualMealInput['relog']>): Promise<unknown[] | null> {
+  if (relog.entryIds.length === 0) return null;
+  const got = await dispatch('log.get', { from: relog.date ?? addDays(date, -7), to: relog.date ?? date, kinds: ['meal'] });
+  if (!got.ok || !('output' in got) || !Array.isArray(got.output)) return null;
+  const byId = new Map((got.output as LogEntry[]).filter((e): e is Extract<LogEntry, { kind: 'meal' }> => e.kind === 'meal').map((e) => [e.id, e] as const));
+  const stored = relog.entryIds.map((id) => byId.get(id));
+  if (stored.some((e) => !e)) return null;
+  const { relogSnapshotComponents } = await import('@/commands/food');
+  return stored.flatMap((e) => relogSnapshotComponents(e!));
+}
+
 function outcome(r: CommandResult): ActionOutcome {
   if (!r.ok) return { ok: false, message: r.error.message };
   if (!('output' in r)) return { ok: true };
@@ -103,20 +122,29 @@ export function createCommandLivingActions(source: LivingDataSource): LivingActi
   const run = async (p: Promise<CommandResult>): Promise<ActionOutcome> => outcome(await p);
 
   const markDay = (date: LocalDate, mark: Mark) => run(dispatch('log.markDay', { date, marks: { all: mark } }));
-  const logSteps = (date: LocalDate, steps: number) => (owned('steps') ? Promise.resolve(DEVICE_OWNED) : run(dispatch('log.steps', { date, steps: Math.max(0, Math.round(steps)) })));
+  const logSteps = (date: LocalDate, steps: number) => run(dispatch('log.steps', { date, steps: Math.max(0, Math.round(steps)) }));
   const logSleep = (date: LocalDate, hours: number) => {
-    if (owned('sleep')) return Promise.resolve(DEVICE_OWNED);
     const wakeH = rx(date)?.sleep?.wakeH ?? 7;
     return run(dispatch('log.sleep', { bedAt: instantAt(date, wakeH - hours), wakeAt: instantAt(date, wakeH) }));
+  };
+
+  // one meal's answer is one `log.markDay` change (its `meal`): the slot's food is replaced and its own answer kept in the
+  // same transaction, so a refused answer leaves the meal as it was and Undo (`history.undo`) restores it whole
+  const answerMeal = (date: LocalDate, a: MealAnswerInput): Promise<ActionOutcome> => {
+    const s = a.mark === 'asPlanned' ? a.serving : undefined;
+    // the recipe's own numbers for one serving: one portion carrying them, as typed numbers are logged
+    // (catalogue carbohydrate is available carbohydrate: the frozen serving closes its convention energy, D6-02)
+    const components = s
+      ? [{ name: s.name, grams: 100, labelPer100g: { energyKcal: s.energyKcal, proteinG: s.proteinG, carbG: s.carbG, fatG: s.fatG, ...(s.fibreG !== undefined ? { fibreG: s.fibreG } : {}) }, carbBasis: 'available' as const }]
+      : undefined;
+    return run(dispatch('log.markDay', { date, meal: { slot: a.slot, mark: MARK_OF[a.mark], replaces: [...a.replaces], ...(components ? { components } : {}) } }));
   };
 
   const markRow = async (date: LocalDate, rowId: string, mark: RowMark): Promise<ActionOutcome> => {
     const day = rx(date);
     if (rowId.startsWith('meal:')) {
       const slot = rowId.slice(5);
-      const m = day?.meals.find((x) => x.slot === slot);
-      if (mark === 'asPlanned') return run(dispatch('log.meal', { date, slot, ...(m ? { clockH: m.clockH } : {}), components: [], method: 'asPlanned' }));
-      return run(dispatch('log.markDay', { date, marks: { food: MARK_OF[mark] } }));
+      return answerMeal(date, { slot, mark, replaces: slotEntries(source.today(date), slot).map((e) => e.id) });
     }
     if (rowId.startsWith('session:')) {
       const slotKey = rowId.slice(8);
@@ -130,7 +158,9 @@ export function createCommandLivingActions(source: LivingDataSource): LivingActi
     }
     if (rowId === 'sleep') {
       const sl = day?.sleep;
-      const target = sl ? (sl.wakeH - sl.bedH + 24) % 24 : 7.5;
+      // no night in the plan: there is no "as planned" to log, so nothing is invented
+      if (!sl) return { ok: false, message: 'Type the hours you slept.' };
+      const target = (sl.wakeH - sl.bedH + 24) % 24;
       if (mark === 'skipped') return { ok: false, message: 'Type the hours you slept to log a short night.' };
       return logSleep(date, mark === 'asPlanned' ? target : target / 2);
     }
@@ -139,7 +169,8 @@ export function createCommandLivingActions(source: LivingDataSource): LivingActi
       const id = rowId.slice(11);
       const s = day?.supplements.find((x) => x.supplementId === id);
       if (!s) return { ok: false, message: 'That supplement is not in today’s plan.' };
-      return run(dispatch('log.supplement', { date, supplementId: s.supplementId, dose: s.dose, unit: s.unit, ...(s.clockH !== undefined ? { clockH: s.clockH } : {}) }));
+      // the planned dose by its identity: the log replaces that dose instead of being added to it (C2/D5-01)
+      return run(dispatch('log.supplement', { date, supplementId: s.supplementId, dose: s.dose, unit: s.unit, itemId: s.itemId ?? `supplement:${s.supplementId}`, ...(s.clockH !== undefined ? { clockH: s.clockH } : {}) }));
     }
     return { ok: false, message: 'That row can’t be marked.' };
   };
@@ -151,29 +182,44 @@ export function createCommandLivingActions(source: LivingDataSource): LivingActi
       return markRow(date, item.id, 'asPlanned');
     },
     markRow,
+    answerMeal,
     markDay,
-    logWeight: (date, kg) => (owned('weight') ? Promise.resolve(DEVICE_OWNED) : run(dispatch('log.measurement', { date, metric: 'weightKg', value: kg, method: 'scale', context: 'morningFasted' }))),
+    confirmDayIntake: (date: LocalDate, intake: DayIntakeAttestation) => run(dispatch('log.confirmDay', { date, intake })),
+    // D5-04: an unanswered weighing context stays unknown (never stamped "morning, fasted")
+    logWeight: (date, kg) => run(dispatch('log.measurement', { date, metric: 'weightKg', value: kg, method: 'scale' })),
     logMeasurement: (date, m) => {
-      const value = m.repeats && m.repeats.length > 0 ? m.repeats.reduce((a, b) => a + b, 0) / m.repeats.length : m.value;
-      return run(dispatch('log.measurement', { date, metric: m.metric, value, ...(m.method ? { method: m.method } : {}), ...(m.context ? { context: m.context } : {}) }));
+      return run(dispatch('log.measurement', { date, metric: m.metric, ...measurementValues(m), ...(m.method ? { method: m.method } : {}), ...measurementFacts(m) }));
     },
-    logMeal: (date, meal) =>
-      run(
+    logMeal: async (date, meal) => {
+      const relogged = meal.relog ? await storedRelog(date, meal.relog) : null;
+      return run(
         dispatch('log.meal', {
           date,
-          clockH: meal.clockH,
+          // only a stated clock is an occurrence (the command fills a default clock itself and keeps the time date-only)
+          ...(meal.clockStated ? { clockH: meal.clockH } : {}),
           ...(meal.slot ? { slot: meal.slot } : {}),
           ...(meal.text ? { text: meal.text } : {}),
-          components: meal.components.map((c) => {
+          components: relogged ?? meal.components.map((c) => {
             if (c.foodId !== undefined || c.grams !== undefined || c.energyKcal === undefined) {
               return { name: c.name, ...(c.foodId !== undefined ? { foodId: c.foodId } : {}), ...(c.grams !== undefined ? { grams: c.grams } : {}) };
             }
-            // numbers the person typed ("about 600 kcal, 30 g protein"): one portion carrying them; unknown macros stay 0
-            return { name: c.name, grams: 100, labelPer100g: { energyKcal: c.energyKcal, proteinG: c.proteinG ?? 0, carbG: c.carbG ?? 0, fatG: c.fatG ?? 0 } };
+            // numbers the person typed ("about 600 kcal, 30 g protein"): one portion carrying them; a macro not typed is
+            // left out (unknown, never 0 g), so the energy stays exactly as typed (D6-02)
+            return {
+              name: c.name,
+              grams: 100,
+              labelPer100g: {
+                energyKcal: c.energyKcal,
+                ...(c.proteinG !== undefined ? { proteinG: c.proteinG } : {}),
+                ...(c.carbG !== undefined ? { carbG: c.carbG } : {}),
+                ...(c.fatG !== undefined ? { fatG: c.fatG } : {}),
+              },
+            };
           }),
           method: meal.asPlanned ? 'asPlanned' : 'typed',
         }),
-      ),
+      );
+    },
     logSession: (date, s) =>
       run(
         dispatch('log.session', {
@@ -240,7 +286,7 @@ export function createCommandLivingActions(source: LivingDataSource): LivingActi
         }),
       ),
     swapExercise: async (date, s) => swapOutcome(await dispatch('plan.swapExercise', { date, slotKey: s.slotKey, from: s.from, to: s.to as never, everyWeek: !!s.everyWeek })),
-    checkIn: () => run(dispatch('plan.checkIn', {})),
+    checkIn: (previewId) => previewId ? run(dispatch('plan.checkIn', { previewId })) : Promise.resolve({ ok: false, message: 'Review the check-in first.' }),
     setQuietMode: (on) => run(dispatch('settings.update', { patch: { quietMode: on } })),
     setAutoEase: () => Promise.resolve(NOT_YET),
   };

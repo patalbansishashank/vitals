@@ -1,7 +1,7 @@
 /**
  * Intake v2 copy (design/screens/onboarding-intake-v2.md §6; voice: DESIGN_DIRECTION §10). Plain, specific, second
  * person; questions use concrete nouns, times and counts. Never research-file names, section signs or rule ids.
- * Engraved labels are authored lowercase.
+ * Labels and keys are sentence case (Ember); the short chapter names stay lowercase because they sit mid-sentence.
  */
 
 export const CHAPTER_NAME = {
@@ -9,49 +9,37 @@ export const CHAPTER_NAME = {
   training: 'Training and equipment',
   food: 'Food and kitchen',
   markers: 'Blood markers',
-  devices: 'Devices and data',
 } as const;
 
-/** Lowercase short names for the progress scale and summaries. */
+/** "a normal day" → "A normal day": a lowercase short label used where it starts a line (summary rows, picture rows). */
+export const sentence = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** Lowercase short names for toasts, accessible names and mid-sentence use (sentence-case them with `sentence`). */
 export const CHAPTER_SHORT = {
   activity: 'a normal day',
   training: 'training',
   food: 'food',
   markers: 'blood markers',
-  devices: 'devices',
-} as const;
-
-export const CHAPTER_INTRO = {
-  activity: 'A few questions about a normal week. They set how much energy you use outside training — the number every plan is built on.',
-  training: "What you'd be willing to do, and with what. Plans use what you already have first, and say plainly if something would help.",
-  food: "What you eat, any rules you keep, and how you cook. Recipes only ever use what you've said yes to.",
-  markers: 'Optional. If you have recent blood test results, some of them change what a plan may do.',
-  devices:
-    'If you wear a ring or watch, or use a smart scale, Vitals can use its data. It stays on your own devices, and on your own server if you pair one; no one else holds it. Nothing leaves them unless you set up sync or talk to the Coach.',
 } as const;
 
 export const TURN = {
   loading: 'Loading…',
-  why: 'why we ask',
-  ifSkip: (text: string) => `if you skip: ${text}`,
-  later: 'Ask me later',
+  why: 'Why we ask',
+  /** The step row's text key: skip this question for now (plans use its default; it is asked again later). */
+  later: 'Skip',
   laterKey: 'L',
   back: 'Back',
   next: 'Next',
   nextNeedsAnswer: 'Choose an answer first',
-  because: 'because you said:',
-  questionOf: (n: number, total: number) => `question ${n} of ${total}`,
-  /** The action bar once a chapter is complete (it read "question 3 of 2"). */
-  answeredOf: (done: number, total: number) => `${done} of ${total} answered`,
-  more: (n: number) => `${n} more question${n === 1 ? '' : 's'} in this chapter`,
-  answersTitle: 'Your answers',
-  answersCount: (done: number, total: number) => `${done} of ${total}`,
+  because: 'Because you said:',
+  /** Spoken only (the progress bar's value text, the live region after a move): nothing on screen counts questions. */
+  questionOf: (n: number, total: number) => `Question ${n} of ${total}`,
   continuing: (n: number, total: number) => `Continuing at question ${n} of ${total}.`,
   movedTo: (n: number, total: number, answer: string | null) => `Question ${n} of ${total}${answer ? `, answered: ${answer}` : ''}.`,
   notUsedBecause: (why: string) => `not used: you said ${why}`,
   saveFailed: "Couldn't save this answer. Try again.",
   tryAgain: 'Try again',
-  changing: 'changing an answer',
+  changing: 'Changing an answer',
   save: 'Save',
   answerNow: 'Answer',
   change: 'Change',
@@ -59,38 +47,37 @@ export const TURN = {
   cancel: 'Cancel',
   done: 'Done',
   doneCount: (n: number) => `Done (${n})`,
-  defaultTag: 'default',
   usingLater: (text: string) => `using ${text} · asked later`,
   notUsed: 'not used',
   saved: (q: string, a: string) => `Saved: ${q}, ${a}.`,
   skippedSaved: (q: string) => `Asked later: ${q}`,
-  otherPlaceholder: 'type it',
+  otherPlaceholder: 'Type it',
   add: 'Add',
   remove: (what: string) => `Remove ${what}`,
-  exact: 'exact number',
+  exact: 'Enter a number first',
 } as const;
 
 export const BAR = {
   skipPart: 'Skip this part',
-  count: (pos: number, total: number) => `${Math.min(pos, total)} of ${total}`,
   progressLabel: 'Setup progress',
-  progressText: (chapter: string, pos: number, total: number) => `${chapter}, ${Math.min(pos, total)} of ${total}`,
   skippedToast: (chapter: string) => `Skipped "${chapter}". Plans use the defaults.`,
   progressFull: (chapter: string, pos: number, total: number, chaptersDone: number, chapters: number) =>
     `${chapter}, question ${Math.min(pos, total)} of ${total}; ${chaptersDone} of ${chapters} chapters done`,
-  receiptTitle: (chapter: string) => `${chapter} · done`,
-  receiptCounts: (answered: number, later: number) => `${answered} answered${later ? ` · ${later} asked later` : ''}`,
-  receiptLead: 'Plans use these answers from now on. You can change any of them later on the Your body page.',
+  /** The summary's scale (no chapter open). */
+  progressSummary: (chaptersDone: number, chapters: number) => `${chaptersDone} of ${chapters} chapters done`,
+  receiptTitle: (chapter: string) => `${chapter} done`,
+  /** Under the receipt title: a fact (where the answers live), no count. */
+  receiptLead: 'Plans use these answers. Change them any time on Your body.',
   nextChapter: (name: string) => `Next: ${name}`,
-  reviewLater: (n: number) => `Review asked-later (${n})`,
+  reviewLater: 'Answer skipped questions',
+  /** The chapter's last key when it was opened from Your body. */
+  done: 'Done',
   undo: 'Undo',
-  next: 'Next part',
   toSummary: "See what we'll use",
   back: 'Back',
   backToBody: 'Your body',
   chatInstead: 'Answer by chatting instead',
   chatDraft: (chapter: string) => `Ask me the questions about ${chapter.toLowerCase()} here, one at a time.`,
-  storage: "This browser isn't saving data. Your answers won't be kept after this tab closes.",
 } as const;
 
 /* --------------------------------------------------------------------------------------------- chapter 1 */
@@ -143,7 +130,6 @@ export const A = {
     skip: 'about 20 min',
     name: 'minutes a day, both ways',
     unit: 'min',
-    deviceNote: 'Your watch or ring already counts these steps, so walking minutes are not added again.',
     receipt: (n: number) => `${n} min a day`,
   },
   stepsKnown: {
@@ -162,11 +148,10 @@ export const A = {
     split: 'work days and days off differ',
     workday: 'on a work day',
     offDay: 'on a day off',
-    importLater: "I'll import it",
-    importNote: 'The devices part can import it and update this number.',
     receiptMean: (n: string) => `about ${n} a day`,
     receiptSplit: (w: string, o: string) => `${w} on work days · ${o} on days off`,
-    receiptImport: 'will import',
+    /** Older documents may hold "I'll import it" from the removed devices chapter. */
+    receiptNone: 'not given',
   },
   phoneCarried: {
     prompt: 'Your phone counts your steps: is it in your pocket or hand most of the day?',
@@ -302,34 +287,39 @@ export const DRIVER_LABEL = {
 
 export const MAINT = {
   title: 'Your maintenance',
-  label: 'maintenance',
-  headline: (kcal: string, lo: string, hi: string, unit: string) => `about ${kcal} ${unit} a day — likely ${lo}–${hi}`,
-  rail: (kcal: string, lo: string, hi: string) => `maintenance ≈ ${kcal} · likely ${lo}–${hi}`,
-  railQuiet: 'maintenance: set from your answers',
+  /** The readout's name in "Your picture so far" (the result card's own title already says it). */
+  label: 'Maintenance',
+  // the range never breaks at its dash (word joiners): "likely 2 080–" / "2 840" on a 360 px phone (r068 ON-4)
+  headline: (kcal: string, lo: string, hi: string, unit: string) => `about ${kcal} ${unit} a day — likely ${lo}\u2060–\u2060${hi}`,
+  rail: (kcal: string, lo: string, hi: string, unit: string) => `Maintenance ≈ ${kcal} ${unit} · likely ${lo}\u2060–\u2060${hi}`,
+  railQuiet: 'Maintenance: set from your answers',
   openDrivers: 'What drives it',
   quietHeadline: 'Set from your answers — open to see the numbers.',
-  showNumbers: 'show numbers',
-  hideNumbers: 'hide numbers',
+  showNumbers: 'Show numbers',
+  hideNumbers: 'Hide numbers',
   barLabel: (parts: string) => `Maintenance split into: ${parts}.`,
   tableCaption: 'What your maintenance is made of',
-  colPart: 'part',
+  colPart: 'Part',
   colKcal: 'kcal a day',
-  colFrom: 'from',
+  colFrom: 'From',
   assumed: 'assumed — you skipped this',
+  /** Your body's compact parts list: the one line kept under a part. */
+  stepsCount: (n: string) => `${n} steps`,
   dashedNote: 'Dashed = this part uses a default (you skipped the question).',
+  /**
+   * The biggest unknown (shown only when knowing it narrows the range by ≥ 20 kcal): one short line — what would
+   * narrow the 80 % range and by how much (`n` already in the unit `u`) — then its key, named for what it opens.
+   */
   unknown: {
-    steps: (n: string, u = 'kcal') => `Biggest unknown: your steps are a guess. A 2–4-week average from a watch or phone would narrow this by about ±${n} ${u}.`,
-    work: (n: string, u = 'kcal') => `Biggest unknown: your work day. Picking the card closest to your job would narrow this by about ±${n} ${u}.`,
-    rmr: (n: string, u = 'kcal') => `Biggest unknown: your resting metabolism is estimated from size and age. A measured value would narrow this by about ±${n} ${u}.`,
-    home: (n: string, u = 'kcal') => `Biggest unknown: time on your feet at home. Answering it would narrow this by about ±${n} ${u}.`,
-    commute: (n: string, u = 'kcal') => `Biggest unknown: your commute. Answering it would narrow this by about ±${n} ${u}.`,
-    recreation: (n: string, u = 'kcal') => `Biggest unknown: your sport and hobbies. Minutes a week would narrow this by about ±${n} ${u}.`,
-    training: (n: string, u = 'kcal') => `Biggest unknown: your current training. Answering it would narrow this by about ±${n} ${u}.`,
+    steps: (n: string, u = 'kcal') => `A counted week of steps would narrow this by about ±${n} ${u}`,
+    work: (n: string, u = 'kcal') => `Picking your job would narrow this by about ±${n} ${u}`,
+    rmr: (n: string, u = 'kcal') => `A measured resting rate would narrow this by about ±${n} ${u}`,
+    home: (n: string, u = 'kcal') => `Your time on your feet at home would narrow this by about ±${n} ${u}`,
+    commute: (n: string, u = 'kcal') => `Your commute would narrow this by about ±${n} ${u}`,
+    recreation: (n: string, u = 'kcal') => `Minutes of sport a week would narrow this by about ±${n} ${u}`,
+    training: (n: string, u = 'kcal') => `Your training would narrow this by about ±${n} ${u}`,
   },
-  fix: { steps: 'Add steps', work: 'Answer it', rmr: 'Answer it', home: 'Answer it', commute: 'Answer it', recreation: 'Answer it', training: 'Answer it' },
-  comparison: (level: string) => `Similar to people described as "${level}".`,
-  level: { inactive: 'inactive', lowActive: 'low active', active: 'active', veryActive: 'very active' },
-  calibration: "This is a starting estimate. Once you follow a plan, your weigh-ins and logs correct it — usually within 3–4 weeks.",
+  fix: { steps: 'Add step count', work: 'Review work day', rmr: 'Add measured value', home: 'Review time at home', commute: 'Review commute', recreation: 'Review sport and hobbies', training: 'Review training' },
   palHigh: "Your answers add up to a very active week. That's possible but rare — check the work and sport answers.",
   palCapped: 'Your answers add up to more than most people sustain, so the estimate is capped.',
   continue: 'Looks right — continue',
@@ -338,7 +328,7 @@ export const MAINT = {
     rmr: { measured: 'your measured resting rate', ffm: 'your lean mass', equation: 'your size, age and sex' },
     dailyLiving: 'sitting, standing and moving about the house',
     steps: (n: string, src: string) => `about ${n} a day, ${src}`,
-    stepsSource: { wrist: 'from a watch or ring', phone: 'from your phone', estimate: 'your rough number', unknown: 'worked out from your answers', default: 'a typical number' },
+    stepsSource: { wrist: 'from a step counter', phone: 'from your phone', fused: 'from your ring and phone', estimate: 'your rough number', unknown: 'worked out from your answers', default: 'a typical number' },
     work: (d: number, h: number) => `${d} days × ${h} h`,
     workNone: 'not working outside home',
     home: { little: 'a little on your feet', some: 'some time on your feet', aLot: 'a lot on your feet' },
@@ -503,7 +493,7 @@ export const T = {
     prompt: 'How do you want to log workouts?',
     short: 'logging',
     skip: 'quick sets × reps',
-    options: { coach: 'just tell the Coach', quick: 'quick sets × reps', detailed: 'detailed (weight, reps left in the tank)' },
+    options: { coach: 'tell the Coach', quick: 'quick sets × reps', detailed: 'detailed (weight, reps left in the tank)' },
   },
 } as const;
 
@@ -555,6 +545,8 @@ export const F = {
   eat: {
     prompt: 'Which of these do you eat?',
     lead: 'Start from one, then adjust.',
+    presetsLabel: 'Start from a pattern',
+    foodsLabel: 'Then adjust the foods you eat',
     short: 'you eat',
     skip: 'nothing is assumed — recipes pause until you answer',
     presets: { vegetarian: 'vegetarian (with dairy)', eggetarian: 'eggetarian', vegan: 'vegan', jain: 'Jain', pescatarian: 'pescatarian', everything: 'everything' },
@@ -807,119 +799,21 @@ export const WEEKDAY = {
   order: [1, 2, 3, 4, 5, 6, 0],
 } as const;
 
-/* --------------------------------------------------------------------------------------------- chapter 4 */
-
-export const D = {
-  has: {
-    prompt: 'Do you wear or use any of these?',
-    short: 'devices',
-    skip: 'none (all streams stay off)',
-    options: { ring: 'ring', watch: 'watch', band: 'fitness band', scale: 'smart scale', chestStrap: 'chest strap', phoneOnly: 'just my phone', none: 'none' },
-  },
-  which: {
-    prompt: 'Which brand and model is each of your devices?',
-    short: 'models',
-    skip: 'not sure',
-    device: (d: string) => `which ${d}`,
-    search: 'search brands',
-    notSure: 'not sure',
-  },
-  platform: {
-    prompt: 'Which kind of phone do you use?',
-    short: 'phone',
-    skip: 'not sure',
-    options: { android: 'Android', ios: 'iPhone', desktop: 'computer only' },
-  },
-  route: {
-    prompt: "How will each device's data reach Vitals?",
-    short: 'how data arrives',
-    receipt: 'not connected yet',
-    skip: 'nothing connects from here',
-    nothingHere: 'Nothing connects from here.',
-    ringLead: ' You can set up your ring on the ',
-    ringLink: 'Ring page',
-    andOthers: ' and the other devices in ',
-    anyLead: ' You can set up any of these in ',
-    settingsLink: 'Settings › Devices and streams',
-    end: '.',
-    healthConnect: (brand: string) => `${brand} writes to Health Connect. Vitals can't read Health Connect from a web page, so you export a file from it (or, later, a small helper app sends it).`,
-    direct: 'Connect directly. Sync happens while Vitals is open; close the ring\'s own app first.',
-    noBluetooth: 'Direct connection needs Chrome or Edge on Android or a computer.',
-    iphone: 'Export from Apple Health, or use a Shortcut that saves a file each day.',
-    file: (brand: string) => `Export a file from the ${brand} app and import it.`,
-    scale: 'Export your weigh-ins from the scale app as a file and import it.',
-    importFile: 'Import a file',
-    connect: 'Connect ring',
-    howTo: 'How to',
-  },
-  matrix: {
-    prompt: 'For each kind of data your device records, what may Vitals do with it?',
-    short: 'streams',
-    skip: 'everything stays off (recommended is not applied on skip)',
-    cols: { imported: 'bring in', scores: 'my scores', engine: 'my plan', coach: 'Coach sees' },
-    coach: { hidden: 'hidden', daily: 'daily', 'daily+series': 'daily + detail' },
-    streams: {
-      sleep_sessions: 'sleep',
-      heart_rate: 'heart rate',
-      hrv: 'HRV',
-      spo2: 'SpO2',
-      steps: 'steps',
-      workouts: 'workouts',
-      weight: 'weight',
-      body_fat: 'body fat',
-      skin_temp: 'skin temperature',
-      vendor_scores: 'vendor scores',
-    },
-    switchLabel: (col: 'imported' | 'scores' | 'engine', stream: string) =>
-      col === 'imported' ? `Bring ${stream} into Vitals` : col === 'scores' ? `Use ${stream} in my scores` : `Use ${stream} in my plan`,
-    coachLabel: (stream: string) => `What the Coach sees of ${stream}`,
-    never: 'never',
-    na: '—',
-    neverWhy: {
-      spo2: "No established mechanism links SpO2 to your plan, so it's shown and trended only.",
-      vendor_scores: "Vendor scores are the vendor's opinion; Vitals computes its own from the raw data.",
-    },
-    suggested: 'suggested',
-    recommended: 'Use recommended',
-    recommendedNote: 'Use recommended brings in every stream below, uses it in your scores and plan wherever Vitals can, and lets the Coach see daily summaries and detail. Change any switch here, or later in Settings › Devices and streams.',
-    none: 'No streams — pick a device above to choose.',
-    caption: 'Choose what each stream does',
-  },
-  /** "How your data is used": folded under the stream choices, where the choices are made. */
-  howUsed: {
-    key: 'How your data is used',
-    lines: [
-      'A ring you connect through Vitals shares its data with your plan, your scores and the Coach from the start. You can turn that off in one tap, or for each stream. Data from files and other apps stays off until you turn it on.',
-      "The Coach only sees a stream you let it see ('daily' or 'daily + detail'), and only when you talk to it. It never sees vendor scores unless you allow them, and they're labelled as the vendor's opinion.",
-      'Ring and watch indexes are estimates, not measurements. Vitals computes its own scores from the raw data and shows how sure each one is.',
-    ],
-  },
-} as const;
-
-export const BRANDS = ['Oura', 'Apple Watch', 'Garmin', 'Samsung', 'Fitbit / Google', 'WHOOP', 'Polar', 'Amazfit / Zepp', 'Colmi', 'J-Style ring', 'Ultrahuman', 'RingConn', 'Withings', 'Polar H10', 'other'] as const;
-
 /* --------------------------------------------------------------------------------------------- summary */
 
 export const SUMMARY = {
   title: "What we'll use",
   picture: 'Your picture so far',
-  lead: "Here's what Vitals will work from.",
-  change: 'change',
+  change: 'Change',
   changeLabel: (chapter: string) => `Change ${chapter}`,
-  askedLater: 'asked later',
+  askedLater: 'Asked later',
   askedLaterValue: (n: number) => (n === 0 ? 'nothing' : `${n} question${n === 1 ? '' : 's'}`),
   answerNow: 'Answer now',
   answer: 'Answer',
   notAnswered: 'not answered yet',
   continue: 'Looks right — continue',
-  backToBody: 'Back to Your body',
-  status: (answered: number, total: number, later: number) => `${answered} of ${total} parts answered${later ? ` · ${later} asked later` : ''}`,
   activity: (parts: string[]) => parts.join(' · '),
   foodUnset: 'not answered — recipes are paused',
-  devicesNone: 'no devices · every stream off',
-  coachNothing: 'Coach sees nothing yet',
-  coachSome: (n: number) => `Coach sees ${n} stream${n === 1 ? '' : 's'}`,
-  streamsIn: (names: string) => `${names} in`,
   /** "What we'll use", part by part: the short label of each answer, taken from the question it answers (by question id). */
   labels: {
     activity: {
@@ -993,42 +887,16 @@ export const SUMMARY = {
     markersKept: (n: number) => `${n} value${n === 1 ? '' : 's'} you saved before still count in your plan`,
     markersSaved: (n: number) => `${n} value${n === 1 ? '' : 's'} saved`,
     markersNone: 'no results yet',
-    devicesNone: 'none',
-    deviceNoBrand: 'in use',
-    deviceNotSure: 'brand not given',
-    phone: 'phone',
-    connection: 'connection',
-    brought: 'brought in',
-    scores: 'in your scores',
-    plan: 'in your plan',
-    coachDetail: 'Coach sees daily + detail',
-    coachDaily: 'Coach sees daily',
-    coachNothing: 'Coach sees',
-    nothingYet: 'nothing yet',
-    notBrought: 'not brought in',
-    allOff: 'every stream is off',
-    imports: 'files and other apps',
-    importsOff: 'off until you turn them on, in Settings › Devices and streams',
-    none: 'none',
   },
 } as const;
 
 /* --------------------------------------------------------------------------------------------- Body page */
 
 export const BODY = {
-  normalDay: 'a normal day',
-  edit: 'Edit a normal day',
-  start: 'Answer a few questions about a normal day',
-  notAnswered: 'not answered — maintenance uses typical activity',
-  reminder: (n: number) => `${n} question${n === 1 ? '' : 's'} asked later`,
+  /** The maintenance card's one key (its header): opens "A normal day" in the intake. */
+  edit: 'Edit answers',
+  start: 'Answer questions',
+  /** The header's status icon on Your body (its name and tooltip). */
   reminderLabel: (n: number) => `${n} question${n === 1 ? '' : 's'} asked later — answer now`,
-  setupTitle: 'Your setup',
-  setupLead: 'Answer any part, in any order, and change any answer later.',
-  chapterStatus: { done: 'answered', partial: (n: number, t: number) => `${n} of ${t}`, todo: 'not started' },
-  startChapter: 'start',
-  answerNow: 'answer now',
   maintTitle: 'Maintenance',
-  maintCaption: 'what drives it',
-  measuredTitle: 'Measured before?',
-  answersTitle: 'A normal day: your answers',
 } as const;

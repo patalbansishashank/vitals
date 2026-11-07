@@ -18,7 +18,7 @@ import { useSettingsStore } from '@/state/settingsStore';
 import { withSystemWrite } from '@/state/scope';
 import PlannerPage from '../PlannerPage';
 import { basedOnAnswersLine } from '../ladder';
-import { missingLink } from '../GoalsView';
+import { STARTER_GOAL_LIMIT, missingLink, starterGoals } from '../GoalsView';
 import { suggestionWhy } from '../suggestApply';
 
 const client = vi.hoisted(() => ({ planned: 0 }));
@@ -31,7 +31,30 @@ vi.mock('../plannerClient', () => ({
   checkpointFor: () => Promise.resolve({ state: 'none' }),
   discardCheckpoint: () => Promise.resolve(),
   cancelPlanning: () => {},
-  estimateTargetsAsync: () => Promise.resolve([]),
+  // rule@2 (D4-06) gives a numeric fat-loss target only from a correctly signed supported route estimate
+  estimateTargetsAsync: () =>
+    Promise.resolve([
+      {
+        goal: 0,
+        metric: 'fatMass',
+        supported: true,
+        kind: 'loss',
+        start: 25,
+        target: 20,
+        valueAtHorizon: 19,
+        changeAtHorizon: -6,
+        reachableInHorizon: true,
+        weeks: 10,
+        beyondTwoYears: false,
+        beyondSafetyLimits: false,
+        ratePerWeek: 0.5,
+        text: '',
+        outcome: 'foundUnderModel',
+        requestedHorizonDays: 112,
+        coveredDays: 112,
+        completeHorizon: true,
+      },
+    ]),
 }));
 
 let router: ReturnType<typeof createMemoryRouter>;
@@ -58,14 +81,18 @@ async function readyCard() {
   await screen.findByText('missing', {}, { timeout: 5000 });
   return card();
 }
-const keyOf = () => screen.getByRole('button', { name: 'Suggest from my answers' });
+/** "Suggest from my answers" is the first row of the Add-a-goal picker (one way to add a goal). */
+async function keyOf(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /Add a goal/ }));
+  return screen.findByRole('button', { name: 'Suggest from my answers' });
+}
 
 beforeEach(() => {
   localStorage.clear();
   client.planned = 0;
   seedClearedSafety();
   withSystemWrite(() => useSettingsStore.setState({ units: 'metric' }));
-  // 38-year-old man, 180 cm, 92 kg: body fat above the healthy band; training history not answered
+  // 38-year-old man, 180 cm, 92 kg: body fat clearly above the reference; training history not answered
   withSystemWrite(() => useProfileStore.setState({ sex: 'male', ageYears: 38, heightCm: 180, weightKg: 92, setup: 'done' }));
   withSystemWrite(() => usePlannerStore.setState({ ...pickPlannerValues({ startDate: '2026-10-05' }), run: EMPTY_RUN }));
 });
@@ -76,27 +103,27 @@ describe('Suggest from my answers', () => {
     const user = userEvent.setup();
     renderGoals();
     expect(usePlannerStore.getState().goals).toEqual([]);
-    const key = keyOf();
-    expect(key).toHaveAttribute('data-variant', 'default');
     expect(screen.queryByRole('article', { name: /Suggested goals/ })).toBeNull();
+    const key = await keyOf(user);
+    expect(key).toHaveAttribute('data-variant', 'action');
 
     await user.click(key);
     const c = await readyCard();
     const items = within(c).getAllByRole('listitem');
     expect(items[0]!.textContent).toMatch(/Fat mass.*lose.*kg/);
-    expect(items[0]!.textContent).toMatch(/above the healthy band/);
+    expect(items[0]!.textContent).toMatch(/above the reference/);
     expect(within(c).getByText('missing')).toBeInTheDocument();
     expect(within(c).getByText(/How long you have trained decides/)).toBeInTheDocument();
     expect(usePlannerStore.getState().goals).toEqual([]); // a proposal only
 
     await user.click(within(c).getByRole('button', { name: 'Apply' }));
     expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['fatMass', 'leanTissue']);
-    expect(usePlannerStore.getState().suggested).toMatchObject({ provenance: { source: 'rule', version: 'rule@1' } });
+    expect(usePlannerStore.getState().suggested).toMatchObject({ provenance: { source: 'rule', version: 'rule@2' } });
     await settleCommits();
     expect(getDocumentStore().peek<Record<string, unknown>>('goals', 'me')!.suggested).toMatchObject({ provenance: { source: 'rule' } });
-    expect(screen.getAllByText('suggested').length).toBeGreaterThan(0);
-    // each applied goal keeps its one-line reason under the row (Q3-J4-05)
-    expect(document.querySelector('.lp-goal__why')?.textContent).toMatch(/above the healthy band/);
+    // no provenance label on the rows; each applied goal keeps its one-line reason under the row (Q3-J4-05)
+    expect(screen.queryByText('suggested')).toBeNull();
+    expect(document.querySelector('.lp-goal__why')?.textContent).toMatch(/above the reference/);
     expect(client.planned).toBe(0);
 
     await user.click((await screen.findAllByRole('button', { name: 'Undo' }))[0]!);
@@ -108,14 +135,14 @@ describe('Suggest from my answers', () => {
     const user = userEvent.setup();
     withSystemWrite(() => usePlannerStore.setState({ goals: [{ key: 'v', metric: 'vo2max', mode: 'raise', amount: null, strength: 'should', functional: null }] }));
     renderGoals();
-    await user.click(keyOf());
+    await user.click(await keyOf(user));
     let c = await readyCard();
     expect(within(c).getByRole('button', { name: 'Replace my goal' })).toBeInTheDocument();
     await user.click(within(c).getAllByRole('button', { name: 'Clear' })[0]!);
     expect(screen.queryByRole('article', { name: /Suggested goals/ })).toBeNull();
     expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['vo2max']);
 
-    await user.click(keyOf());
+    await user.click(await keyOf(user));
     c = await readyCard();
     await user.click(within(c).getByRole('button', { name: 'Add only new goals' }));
     expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['vo2max', 'fatMass', 'leanTissue']);
@@ -126,7 +153,7 @@ describe('Suggest from my answers', () => {
     // a lean 30-year-old with no training answer: inside the healthy band, nothing to decide on
     withSystemWrite(() => useProfileStore.setState({ sex: 'male', ageYears: 30, heightCm: 180, weightKg: 70, setup: 'done' }));
     renderGoals();
-    await user.click(keyOf());
+    await user.click(await keyOf(user));
     const c = await readyCard();
     expect(within(c).getByText(/Not enough answered to suggest goals/)).toBeInTheDocument();
     expect(within(c).queryByRole('button', { name: 'Apply' })).toBeNull();
@@ -135,10 +162,11 @@ describe('Suggest from my answers', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/onboarding/activity'));
   });
 
-  it('the key waits for Your body', () => {
+  it('the key waits for Your body', async () => {
+    const user = userEvent.setup();
     withSystemWrite(() => useProfileStore.setState({ sex: 'unspecified', ageYears: null, heightCm: null, weightKg: null, setup: 'none' } as never));
     renderGoals();
-    expect(keyOf()).toHaveAttribute('aria-disabled', 'true');
+    expect(await keyOf(user)).toHaveAttribute('aria-disabled', 'true');
   });
 });
 
@@ -147,6 +175,12 @@ describe('helpers', () => {
     expect(missingLink('body.waist')).toBe('/body#shape');
     expect(missingLink('training.experience')).toMatch(/^\/onboarding\/training/);
     expect(missingLink('nope')).toBeNull();
+  });
+  it('the empty card offers three usable starters: a weight-loss lock swaps fat mass for the next one', () => {
+    const ids = (noWeightLoss: boolean) => starterGoals(noWeightLoss).map((s) => `${s.metric.id}:${s.mode}`);
+    expect(STARTER_GOAL_LIMIT).toBe(3);
+    expect(ids(false)).toEqual(['fatMass:lose', 'leanTissue:keep', 'hunger:lower']);
+    expect(ids(true)).toEqual(['leanTissue:keep', 'hunger:lower', 'vo2max:raise']);
   });
   it('a suggested goal shows its reason until the person edits it (Q3-J4-05)', () => {
     const suggestion = {

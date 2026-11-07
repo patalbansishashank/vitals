@@ -1,7 +1,7 @@
 /**
- * One turn of the conversation: a row separated by hairlines (no bubbles), the engraved speaker in a 64 px gutter on
- * desktop / above the text on mobile, then the text, the "looked at" line and the cards the turn produced (inset
- * regions inside the conversation's faceplate).
+ * One turn of the conversation. Yours: a plain bubble at the right (card-soft, no gold). The Coach's: text on the page
+ * at the left, then the "looked at" line and the cards the turn produced (each its own card, never inside another).
+ * The speaker is named for screen readers only; the layout shows it.
  */
 import { Suspense, lazy } from 'react';
 import { InlineWarning, Key } from '@/components';
@@ -29,41 +29,63 @@ const CoachMarkersReview = lazy(() => import('./CoachMarkersReview'));
 
 export function CoachTurnRow({ turn, now, quiet, provider, onCardAction, onRetry }: CoachTurnRowProps) {
   const paragraphs = turn.text ? turn.text.split(/\n{2,}/) : [];
+  const you = turn.role === 'you';
+  const text = paragraphs.map((p, i) => (
+    <p key={i} className="lv-coach-text">
+      {p}
+    </p>
+  ));
   return (
     <div className="lv-coach-turn" data-role={turn.role} aria-busy={turn.streaming || undefined}>
-      <span className="lv-coach-who lm-eng">{turn.role === 'you' ? T.you : T.coach}</span>
+      <span className="lm-sr">{you ? T.you : T.coach}</span>
       <div className="lv-coach-body">
         {turn.photo ? (
           <figure className="lv-coach-photo">
             {turn.photo.url ? (
-              <img src={turn.photo.url} alt={turn.photo.alt} width={96} height={96} className="lv-coach-photo__img" />
+              <img
+                src={turn.photo.url}
+                alt={turn.photo.alt}
+                width={96}
+                height={96}
+                className="lv-coach-photo__img"
+              />
             ) : (
               <span role="img" aria-label={turn.photo.alt} className="lv-coach-photo__img" />
             )}
             <figcaption className="lv-coach-note">{T.photoSent(provider)}</figcaption>
           </figure>
         ) : null}
-        {paragraphs.map((p, i) => (
-          <p key={i} className="lv-coach-text">
-            {p}
+        {you && text.length ? <div className="lv-coach-bubble">{text}</div> : null}
+        {you ? null : text}
+        {turn.streaming && turn.progress ? (
+          <p className="lv-coach-note" data-state="progress">
+            {turn.progress}
           </p>
-        ))}
-        {turn.streaming && !turn.text ? <p className="lv-coach-note">{T.writing}</p> : null}
-        {turn.reads ? <ChangeCard card={turn.reads} now={now} context="conversation" onAction={noop} /> : null}
+        ) : turn.streaming && !turn.text ? (
+          <p className="lv-coach-note">{T.writing}</p>
+        ) : null}
+        {turn.reads ? (
+          <ChangeCard card={turn.reads} now={now} context="conversation" quiet={quiet} onAction={noop} />
+        ) : null}
         {turn.cards.map((c) => (
           <div key={c.id} className="lv-coach-card" data-card-id={c.id}>
+            {/* a card of its own on the page (the conversation is no card), so it takes the standalone material */}
             <ChangeCard
               card={c}
               now={now}
-              context="conversation"
+              context="standalone"
               headingLevel="h4"
               quiet={quiet}
+              showSource={false}
               onAction={(a, x) => onCardAction(c, a, x)}
               {...(c.markers && c.state === 'pending'
                 ? {
                     detail: (
                       <Suspense fallback={null}>
-                        <CoachMarkersReview review={c.markers} onApply={(markers) => onCardAction(c, 'apply', { markers })} />
+                        <CoachMarkersReview
+                          review={c.markers}
+                          onApply={(markers) => onCardAction(c, 'apply', { markers })}
+                        />
                       </Suspense>
                     ),
                   }
@@ -76,7 +98,7 @@ export function CoachTurnRow({ turn, now, quiet, provider, onCardAction, onRetry
           <div className="lv-coach-error">
             <InlineWarning severity="caution">{turn.error.message}</InlineWarning>
             {onRetry ? (
-              <Key size="sm" onClick={onRetry}>
+              <Key size="sm" variant="action" onClick={onRetry}>
                 {T.tryAgain}
               </Key>
             ) : null}

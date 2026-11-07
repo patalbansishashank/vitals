@@ -48,7 +48,9 @@ describe('CataloguePicker', () => {
     const user = userEvent.setup();
     render(<Harness kind="equipment" />);
     const box = screen.getByRole('searchbox');
-    expect(box).toHaveAttribute('placeholder', `Search ${kit.cat.list('equipment').length} items`);
+    // a label, not a count; the "selected" count shows only once something is picked
+    expect(box).toHaveAttribute('placeholder', 'Search');
+    expect(screen.queryByText(/selected$/)).toBeNull();
     // closed groups: no chips before searching
     expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
     await user.type(box, 'kettle');
@@ -98,7 +100,7 @@ describe('CataloguePicker', () => {
     const assumed = initial.filter((e) => 'assumed' in e).length;
     expect(assumed).toBeGreaterThan(2);
     render(<Harness kind="equipment" regions={['IN-south-kerala']} initial={initial} />);
-    expect(screen.getByText("Pre-ticked: defaults for a Kerala kitchen. Untick what you don't have.")).toBeInTheDocument();
+    expect(screen.getByText('Pre-ticked for a Kerala kitchen')).toBeInTheDocument();
     // the first group with a ticked item is open
     expect(group(/^cooking/)).toHaveAttribute('aria-expanded', 'true');
     const cookingIds = new Set(kit.cat.groups('equipment').find((g) => g.id === 'cooking')!.items.map((i) => i.id));
@@ -117,34 +119,52 @@ describe('CataloguePicker', () => {
     expect(screen.queryByRole('button', { name: 'Clear defaults' })).toBeNull();
   });
 
-  it('says "pre-ticked" only while defaults are ticked; an empty list offers to tick them (Q3-J5-03)', async () => {
+  it('says "pre-ticked" only while defaults are ticked; an empty list offers them with one key and no note (Q3-J5-03)', async () => {
     const user = userEvent.setup();
-    render(<Harness kind="pantry" regions={['IN-south-kerala']} />);
+    const { container } = render(<Harness kind="pantry" regions={['IN-south-kerala']} />);
     expect(screen.queryByText(/^Pre-ticked/)).toBeNull();
-    expect(screen.getByText(/^Nothing is pre-ticked\./)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Tick the usual items for a Kerala kitchen' }));
+    expect(container.querySelector('.lm-pk__region-note')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Add Kerala staples' }));
     expect(current().length).toBeGreaterThan(0);
     expect(current().every((e) => e.assumed)).toBe(true);
-    expect(screen.getByText(/^Pre-ticked: defaults for a Kerala kitchen/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Tick the usual items/ })).toBeNull();
+    expect(screen.getByText('Pre-ticked for a Kerala kitchen')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add Kerala staples' })).toBeNull();
   });
 
-  it('shows the empty-region note', () => {
-    render(<Harness kind="equipment" regions={[]} />);
-    expect(screen.getByText('No defaults for your region; pick what you have.')).toBeInTheDocument();
+  it('draws no region note when the region has no defaults', () => {
+    const { container } = render(<Harness kind="equipment" regions={[]} />);
+    expect(container.querySelector('.lm-pk__region-note')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Add .* kitchen basics$/ })).toBeNull();
   });
 
-  it('group header counts "n of N" and clear unticks the group with an Undo toast', async () => {
+  it('hides the groups a diet rules out unless something in them is picked; search skips them', async () => {
+    const user = userEvent.setup();
+    const fish = kit.cat.groups('pantry').find((g) => g.id === 'fish-seafood')!;
+    const { unmount } = render(<Harness kind="pantry" hiddenGroups={['eggs-meat', 'fish-seafood']} />);
+    expect(screen.queryByRole('button', { name: /^fish and seafood/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^eggs and meat/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^vegetables/ })).toBeInTheDocument();
+    await user.type(screen.getByRole('searchbox'), fish.items[0]!.label.split(' ')[0]!);
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: fish.items[0]!.label })).toBeNull());
+    unmount();
+    // a picked item keeps its group on screen
+    render(<Harness kind="pantry" hiddenGroups={['fish-seafood']} initial={[{ id: fish.items[0]!.id }]} />);
+    expect(screen.getByRole('button', { name: /^fish and seafood/ })).toBeInTheDocument();
+  });
+
+  it('group header shows only selected counts and Clear removes it with Undo', async () => {
     const user = userEvent.setup();
     const cooking = kit.cat.groups('equipment').find((g) => g.id === 'cooking')!;
     render(<Harness kind="equipment" initial={[{ id: 'eq.otg' }, { id: 'eq.tawa' }, { id: cooking.items[0]!.id }]} />);
     const n = new Set(['eq.otg', 'eq.tawa', cooking.items[0]!.id].filter((id) => cooking.items.some((i) => i.id === id))).size;
-    expect(group(/^cooking/)).toHaveTextContent(`${n} of ${cooking.items.length}`);
+    expect(group(/^cooking/).querySelector('.lm-pk__group-count')).toHaveTextContent(`${n}`);
+    expect(group(/^cooking/)).not.toHaveTextContent(/ of /);
     await user.click(screen.getByRole('button', { name: 'Clear cooking' }));
-    expect(group(/^cooking/)).toHaveTextContent(`0 of ${cooking.items.length}`);
+    expect(group(/^cooking/).querySelector('.lm-pk__group-count')).toBeNull();
     expect(await screen.findByText('Cleared cooking')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo' }));
-    expect(group(/^cooking/)).toHaveTextContent(`${n} of ${cooking.items.length}`);
+    expect(group(/^cooking/).querySelector('.lm-pk__group-count')).toHaveTextContent(`${n}`);
+    expect(group(/^cooking/)).not.toHaveTextContent(/ of /);
   });
 
   it('cuisines show rank numerals in tap order and re-number on untick', async () => {
@@ -173,7 +193,7 @@ describe('CataloguePicker', () => {
     await user.click(screen.getByRole('switch', { name: "I own it but don't use it" }));
     expect(current()).toEqual([{ id: 'eq.otg', note: 'small, 28 L', ownNotUsed: true }]);
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const chip = screen.getByRole('checkbox', { name: 'OTG oven · small, 28 L · not used' });
     expect(chip).toHaveTextContent('OTG oven · small, 28 L · not used');
     expect(chip).not.toHaveAttribute('data-assumed');
@@ -192,12 +212,13 @@ describe('CataloguePicker', () => {
     expect(chip.textContent!.length).toBeLessThanOrEqual(32);
   });
 
-  it('"I also have…" adds matched and kept-as-written items to "added by you"', async () => {
+  it('"Add something else" adds matched and kept-as-written items to "added by you"', async () => {
     const user = userEvent.setup();
     render(<Harness kind="equipment" />);
-    await user.type(screen.getByRole('textbox', { name: 'I also have…' }), 'soda maker, zorbulator press{Enter}');
+    await user.type(screen.getByRole('textbox', { name: 'Add something else' }), 'soda maker, zorbulator press{Enter}');
     expect(await screen.findByText('kept as you wrote it')).toBeInTheDocument();
-    expect(screen.getByText('matched: Soda maker')).toBeInTheDocument();
+    // r068 P5: a match that only repeats what was typed ("soda maker" → Soda maker) says nothing more
+    expect(screen.queryByText('matched: Soda maker')).toBeNull();
     expect(current()).toEqual([
       { id: 'eq.soda_maker', label: 'soda maker', source: 'picker' },
       { id: 'custom:zorbulator-press', label: 'zorbulator press', source: 'picker' },
@@ -210,27 +231,25 @@ describe('CataloguePicker', () => {
     let done: (v: ParsedItem[]) => void = () => undefined;
     const resolve = () => new Promise<ParsedItem[]>((r) => (done = r));
     render(<Harness kind="equipment" resolve={resolve} />);
-    await user.type(screen.getByRole('textbox', { name: 'I also have…' }), 'a fizzy water machine{Enter}');
+    await user.type(screen.getByRole('textbox', { name: 'Add something else' }), 'a fizzy water machine');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
     expect(screen.getByText('matching…')).toBeInTheDocument();
     await act(async () => done([{ label: 'a fizzy water machine', id: 'eq.soda_maker', confidence: 0.9 }]));
     expect(screen.getByText('matched: Soda maker')).toBeInTheDocument();
     expect(screen.queryByText('matching…')).toBeNull();
   });
 
-  it('paste a list: preview counts, untick a line, add with source paste and quantities as notes', async () => {
+  it('a pasted list goes into the same field: one item per line, source paste, quantities as notes', async () => {
     const user = userEvent.setup();
-    render(<Harness kind="pantry" optional />);
-    expect(screen.getByText(PICKER_COPY.optional)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Paste a list' }));
-    await user.type(screen.getByRole('textbox', { name: 'Your list' }), '2 kg onions{Enter}bhindi 500 g{Enter}dragon jelly{Enter}moon cheese');
-    await user.click(screen.getByRole('button', { name: 'Read the list' }));
-    expect(await screen.findByText('2 matched · 2 kept as written')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Okra (bhindi)' })).toBeChecked();
-    expect(screen.getByRole('button', { name: 'Add 4 items' })).toBeInTheDocument();
-    await user.click(screen.getByRole('checkbox', { name: /moon cheese/ }));
-    await user.click(screen.getByRole('button', { name: 'Add 3 items' }));
+    render(<Harness kind="pantry" />);
+    // no "Optional" explainer and no separate paste disclosure
+    expect(screen.queryByText(/^Optional\./)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Paste a list' })).toBeNull();
+    await user.click(screen.getByRole('textbox', { name: 'Add something else' }));
+    await user.paste('2 kg onions\nbhindi 500 g\ndragon jelly');
+    await waitFor(() => expect(current()).toHaveLength(3));
+    expect(screen.getAllByText('kept as you wrote it').length).toBeGreaterThan(0);
     const v = current();
-    expect(v).toHaveLength(3);
     expect(v.every((e) => e.source === 'paste')).toBe(true);
     const okra = v.find((e) => e.id === 'pa.okra')!;
     expect(okra).toMatchObject({ label: 'bhindi', note: '500 g' });

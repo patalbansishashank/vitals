@@ -15,7 +15,7 @@ describe('table fallback', () => {
     expect(h.rows).toHaveLength(24);
     expect(h.rows[18]!.label).toBe('Thu 15 Oct 18:00');
   });
-  it('pairs every value with its likely range', () => {
+  it('pairs every value with its sensitivity range', () => {
     const t = buildTable(data.time, pick(['fat_mass']), 0, 1, 'daily');
     expect(t.rows[0]!.cells[0]!.text).toMatch(/^\d+\.\d \(\d+\.\d–\d+\.\d\)$/);
   });
@@ -23,7 +23,7 @@ describe('table fallback', () => {
     const csv = tableToCSV(buildTable(data.time, pick(['fat_mass', 'met_adaptation']), 0, 2, 'daily', data.intake));
     const lines = csv.trim().split('\n');
     expect(lines[0]).toBe(
-      'time,Intake (kcal),Maintenance (kcal),Fat mass (kg),Fat mass likely low,Fat mass likely high,Metabolic adaptation (kcal/d),Metabolic adaptation likely low,Metabolic adaptation likely high',
+      'time,Intake (kcal),Maintenance (kcal),Fat mass (kg),Fat mass range low,Fat mass range high,Metabolic adaptation (kcal/d),Metabolic adaptation range low,Metabolic adaptation range high',
     );
     expect(lines).toHaveLength(3);
     expect(lines[1]).not.toMatch(/\u2212|\u2009/);

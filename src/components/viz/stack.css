@@ -1,0 +1,135 @@
+/* ==========================================================================
+   StackBar (r071 0B). One bar, 2 px card-colour gaps, parts as wide as their share; the legend names every part.
+   Tokens only (the parts bring their own token colours inline). Segments grow with transform: scaleX from the left,
+   staggered; the gaps stay. A picture that cannot animate is never pending.
+   ========================================================================== */
+@layer components {
+  .lmz-stack__bar {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+  }
+  .lmz-stack[data-size='sm'] .lmz-stack__bar {
+    height: 6px;
+  }
+  .lmz-stack__seg,
+  .lmz-stack__rest {
+    display: block;
+    flex-basis: 0;
+    min-width: 6px;
+    border-radius: 3px;
+  }
+  .lmz-stack__seg {
+    flex-shrink: 1;
+    transform-origin: left center;
+  }
+  .lmz-stack__seg[data-unknown] {
+    border: 1px dashed var(--lm-ink-3);
+    background: transparent;
+  }
+  /* the part of the whole nothing was counted for: the bare track */
+  .lmz-stack__rest {
+    flex-shrink: 1;
+    min-width: 0;
+    background: var(--lmz-unlit);
+  }
+
+  /* ---- the legend: names always printed. It follows its own width, not the screen's: one column in a tile, two on
+     a phone-wide card, four (value over name) once there is room, as the prototype's wide cards. ------------------- */
+  .lmz-stack {
+    container-type: inline-size;
+  }
+  .lmz-stack__legend {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px 24px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lmz-stack[data-size='sm'] .lmz-stack__legend {
+    margin-top: 10px;
+    gap: 8px 20px;
+  }
+  .lmz-stack__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2px 8px;
+    min-width: 0;
+  }
+  .lmz-stack__name {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+  .lmz-stack__sw {
+    display: inline-block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 3px;
+  }
+  .lmz-stack__sw[data-unknown] {
+    border: 1px dashed var(--lm-ink-3);
+  }
+  .lmz-stack__value {
+    font-family: var(--lm-font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .lmz-stack[data-legend='inline'] .lmz-stack__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+  .lmz-stack[data-legend='inline'] .lmz-stack__item {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  @container (min-width: 17rem) {
+    .lmz-stack[data-legend='below'] .lmz-stack__legend {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @container (min-width: 34rem) {
+    .lmz-stack[data-legend='below'] .lmz-stack__legend {
+      grid-template-columns: repeat(4, auto);
+      justify-content: start;
+      gap: 12px 44px;
+    }
+    .lmz-stack[data-legend='below'] .lmz-stack__item {
+      flex-direction: column-reverse;
+      flex-wrap: nowrap;
+      align-items: flex-start;
+      justify-content: flex-start;
+      gap: 4px;
+    }
+  }
+
+  /* ---- reveal ---------------------------------------------------------------------------------------------------- */
+  .lmz-stack__seg {
+    transition: transform var(--lm-dur-bars) var(--lm-ease-out) calc(var(--i, 0) * var(--lm-stagger-bar));
+  }
+  .lmz-stack[data-reveal='pending'] .lmz-stack__seg {
+    transform: scaleX(0);
+  }
+
+  @media (forced-colors: active) {
+    .lmz-stack__seg {
+      forced-color-adjust: none;
+    }
+    .lmz-stack__rest {
+      background: GrayText;
+    }
+  }
+}

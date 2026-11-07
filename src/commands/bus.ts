@@ -20,10 +20,11 @@ import { appDay, rolloverOf } from '@/living/appDay';
 import { getBindings } from '@/state/bridge';
 import { settingsValues } from '@/state/internal/settings';
 import { getDocumentStore, commitWithToken } from '@/state/runtime';
+import { assertCurrentWrite, EXTERNAL_RESTORE_MESSAGE, externalRestoreRequired, restoreInProgress, waitForRestore, writeGeneration } from '@/state/writeBarrier';
 import { createScope, runInScope, type DocOpRecord, type WriteScope } from '@/state/scope';
 import { consumeConfirmation } from './confirm';
 import { checkGates, checkPreconditions } from './gates';
-import { addOps, coalescible, discardIfEmpty, onCommitFailure, openChangeSet, pendingWrites, scheduleCommit, summary, type ChangeSet } from './history';
+import { abandon, addOps, coalescible, discardIfEmpty, onCommitFailure, openChangeSet, pendingWrites, scheduleCommit, summary, type ChangeSet } from './history';
 import { createJobRunner } from './jobs';
 import { buildManifest } from './manifest';
 import { CommandFailure, getCommand } from './registry';
@@ -178,7 +179,7 @@ const isJobRef = (x: unknown): x is JobRef =>
 const isThenable = (x: unknown): x is PromiseLike<unknown> => !!x && typeof (x as { then?: unknown }).then === 'function';
 
 /** Buffered transaction: writes become ChangeSet ops of the command's scope (committed together). */
-function bufferedTx(scope: WriteScope, readOnly: boolean, commandId: string): Tx {
+function bufferedTx(scope: WriteScope, readOnly: boolean, commandId: string, cancelled: () => boolean): Tx {
   const store = getDocumentStore();
   const current = (col: CollectionId, id: string): Record<string, unknown> | null => {
     for (let i = scope.ops.length - 1; i >= 0; i--) {
@@ -189,18 +190,26 @@ function bufferedTx(scope: WriteScope, readOnly: boolean, commandId: string): Tx
     return d ? bodyOf(d) : null;
   };
   const guard = () => {
+    assertCurrentWrite(scope.generation);
+    if (cancelled()) throw new Error(`${commandId} was cancelled by dispatchSync`);
     if (readOnly) throw new Error(`${commandId} is a read command and cannot write documents`);
+  };
+  const guardRead = () => {
+    if (cancelled()) throw new Error(`${commandId} was cancelled by dispatchSync`);
   };
   const asDoc = <T>(col: CollectionId, id: string, body: Record<string, unknown>) => ({ ...body, _id: id, _col: col }) as unknown as Doc<T>;
   return {
     async get<T>(col: CollectionId, id: string) {
+      guardRead();
       await store.ready;
+      guardRead();
       const b = current(col, id);
       return b ? asDoc<T>(col, id, b) : null;
     },
     async put<T>(col: CollectionId, doc: T & { _id: string }) {
       guard();
       await store.ready;
+      guard();
       const before = current(col, doc._id);
       const after = bodyOf(jsonClone(doc) as unknown as Record<string, unknown>);
       scope.ops.push({ col, id: doc._id, before, after, kind: 'put' });
@@ -209,6 +218,7 @@ function bufferedTx(scope: WriteScope, readOnly: boolean, commandId: string): Tx
     async patch<T>(col: CollectionId, id: string, mergePatch: unknown) {
       guard();
       await store.ready;
+      guard();
       const before = current(col, id);
       const after = applyMergePatch(before ?? {}, jsonClone(mergePatch)) as Record<string, unknown>;
       scope.ops.push({ col, id, before, after, kind: 'put' });
@@ -217,6 +227,7 @@ function bufferedTx(scope: WriteScope, readOnly: boolean, commandId: string): Tx
     async append<T>(col: CollectionId, doc: T & { _id: string }) {
       guard();
       await store.ready;
+      guard();
       if (current(col, doc._id)) throw new Error(`${col}/${doc._id} already exists`);
       const after = bodyOf(jsonClone(doc) as unknown as Record<string, unknown>);
       scope.ops.push({ col, id: doc._id, before: null, after, kind: 'append' });
@@ -225,6 +236,7 @@ function bufferedTx(scope: WriteScope, readOnly: boolean, commandId: string): Tx
     async remove(col: CollectionId, id: string) {
       guard();
       await store.ready;
+      guard();
       const before = current(col, id);
       if (!before) return;
       scope.ops.push({ col, id, before, after: null, kind: 'remove' });
@@ -244,12 +256,17 @@ interface Started {
   notices: Notice[];
   ledgerKey: string | null;
   snapshots: Array<() => void> | null;
+  createdChangeSet: boolean;
+  previousLastAt: number | null;
+  cancel: () => void;
 }
 
 type Begin = { done: CommandResult } | { started: Started; value: unknown };
 
 function begin(id: string, input: unknown, opts: DispatchOptions): Begin {
   const def = getCommand(id);
+  if (def && def.perm !== 'read' && externalRestoreRequired()) return { done: err('precondition_failed', EXTERNAL_RESTORE_MESSAGE) };
+  if (def && def.perm !== 'read' && restoreInProgress()) return { done: err('precondition_failed', 'A data import is in progress. Try again when it finishes.') };
   if (!def) return { done: err('not_found', `Unknown command "${id}".`) };
   const actor = opts.actor ?? LOCAL_USER;
   const surface = surfaceOf(actor);
@@ -297,6 +314,8 @@ function begin(id: string, input: unknown, opts: DispatchOptions): Begin {
   const write = def.perm !== 'read';
   const dryRun = Boolean(opts.dryRun);
   let cs: ChangeSet | null = null;
+  let createdChangeSet = false;
+  let previousLastAt: number | null = null;
   let scope: WriteScope;
   if (!write) scope = createScope('derive', { commandId: def.id, label: def.id });
   else if (dryRun) scope = createScope('dryRun', { commandId: def.id, label: def.id });
@@ -304,8 +323,14 @@ function begin(id: string, input: unknown, opts: DispatchOptions): Begin {
     const coalesceKey = opts.coalesceKey ?? def.coalesce?.(input as never, actor);
     const nowMs = nowDate.getTime();
     cs = coalescible(coalesceKey, actor, def.id, nowMs);
-    if (cs) cs.lastAt = nowMs;
-    else cs = openChangeSet({ id: ulid(nowMs), commandId: def.id, actor, label: def.title, ...(coalesceKey ? { coalesceKey } : {}), at: ctxBase.now, now: nowMs });
+    if (cs) {
+      previousLastAt = cs.lastAt;
+      cs.lastAt = nowMs;
+    }
+    else {
+      cs = openChangeSet({ id: ulid(nowMs), commandId: def.id, actor, label: def.title, ...(coalesceKey ? { coalesceKey } : {}), at: ctxBase.now, now: nowMs });
+      createdChangeSet = true;
+    }
     scope = createScope('command', { token: cs.token ?? undefined, changeSetId: cs.id, commandId: def.id, label: def.title });
   }
   const snapshots = dryRun ? getBindings().map((b) => {
@@ -315,6 +340,7 @@ function begin(id: string, input: unknown, opts: DispatchOptions): Begin {
 
   const notices: Notice[] = [];
   const controller = new AbortController();
+  let cancelled = false;
   if (opts.signal) opts.signal.addEventListener('abort', () => controller.abort(), { once: true });
   const ctx: CommandContext = {
     ...ctxBase,
@@ -322,15 +348,19 @@ function begin(id: string, input: unknown, opts: DispatchOptions): Begin {
     changeSetId: cs?.id ?? null,
     dryRun,
     newId: () => ulid(),
-    docs: bufferedTx(scope, !write, def.id),
+    docs: bufferedTx(scope, !write, def.id, () => cancelled),
     jobs,
     ports,
     signal: controller.signal,
     notice: (n) => notices.push(n),
-    write: (fn) => runInScope(scope, fn),
+    write: (fn) => {
+      assertCurrentWrite(scope.generation);
+      if (cancelled) throw new Error(`${def.id} was cancelled by dispatchSync`);
+      return runInScope(scope, fn);
+    },
     ...(cs?.coalesceKey ? { coalesceKey: cs.coalesceKey } : {}),
   };
-  const started: Started = { def, input, actor, opts, scope, cs, notices, ledgerKey, snapshots };
+  const started: Started = { def, input, actor, opts, scope, cs, notices, ledgerKey, snapshots, createdChangeSet, previousLastAt, cancel: () => { cancelled = true; controller.abort(); } };
   try {
     const value = runInScope(scope, () => def.execute(ctx, input as never));
     return { started, value };
@@ -340,6 +370,10 @@ function begin(id: string, input: unknown, opts: DispatchOptions): Begin {
 }
 
 function failStarted(s: Started, e: unknown): CommandResult {
+  if (s.scope.generation !== writeGeneration() || (restoreInProgress() && s.def.id !== 'data.import')) {
+    if (s.cs) abandon(s.cs);
+    return err('precondition_failed', 'The data is being replaced or was replaced while this action was running. Try again.');
+  }
   s.snapshots?.forEach((restore) => restore());
   if (s.cs && !s.cs.committed) {
     // the projection may already show part of the change: keep what was applied (it is consistent), commit it
@@ -357,6 +391,7 @@ interface Finished {
 }
 
 function finish(s: Started, value: unknown): Finished {
+  if ((s.scope.generation !== writeGeneration() || restoreInProgress()) && !(s.def.id === 'data.import' && s.scope.ops.length === 0)) return { result: failStarted(s, new Error('Data replaced')), committed: Promise.resolve() };
   const { def, scope, cs, notices } = s;
   if (isJobRef(value)) {
     if (cs) {
@@ -501,7 +536,17 @@ const lanes = new Map<string, Promise<unknown>>();
 function dispatchInLane(id: string, input: unknown, opts: DispatchOptions): Promise<CommandResult> {
   const lane = getCommand(id)?.serial;
   if (!lane || opts.dryRun) return dispatchOnce(id, input, opts);
-  const p = (lanes.get(lane) ?? Promise.resolve()).then(() => dispatchOnce(id, input, opts));
+  return runSerial(lane, () => dispatchOnce(id, input, opts));
+}
+
+/**
+ * Run `fn` in a serial lane (CommandDef.serial) after everything already queued there, and before anything queued later:
+ * derived upkeep that must not interleave with the lane's commands (the living plan's check-in refresh, D5-06) shares
+ * the commands' lane without being a command (it emits no bus event, so it never triggers itself). A failure of `fn` is
+ * returned to its caller and does not block the lane.
+ */
+export function runSerial<T>(lane: string, fn: () => Promise<T>): Promise<T> {
+  const p = (lanes.get(lane) ?? Promise.resolve()).then(fn);
   const tail = p.catch(() => undefined);
   lanes.set(lane, tail);
   void tail.then(() => {
@@ -512,6 +557,7 @@ function dispatchInLane(id: string, input: unknown, opts: DispatchOptions): Prom
 
 async function dispatchOnce(id: string, input: unknown, opts: DispatchOptions): Promise<CommandResult> {
   const def = getCommand(id);
+  if (def?.perm === 'read' && restoreInProgress()) await waitForRestore();
   const actor = opts.actor ?? LOCAL_USER;
   // a replay of a keyed command that already ran gets its first result, even when a redirect would apply now (a ring
   // that owns steps since then must not turn an MQTT replay of `log.steps` into a new correction)
@@ -552,13 +598,16 @@ async function dispatchOnce(id: string, input: unknown, opts: DispatchOptions): 
     try {
       value = await value;
     } catch (e) {
+      if (id !== 'data.import' && restoreInProgress()) await waitForRestore();
       return failStarted(b.started, e);
     }
   }
+  if (id !== 'data.import' && restoreInProgress()) await waitForRestore();
   const { result, committed } = finish(b.started, value);
   try {
     await committed;
   } catch (e) {
+    if (externalRestoreRequired()) return err('precondition_failed', EXTERNAL_RESTORE_MESSAGE);
     // reported through `commitFailed`; when the change was rolled back, the caller hears it too
     const id = result.ok && 'changeSet' in result ? result.changeSet?.id : undefined;
     if (id && rolledBack.delete(id)) {
@@ -593,14 +642,26 @@ export function dispatchSync(id: string, input: unknown, opts: DispatchOptions =
   const redirect = redirectOf(id, input, actor);
   if (redirect && 'refuse' in redirect) return { ok: false, error: redirect.refuse };
   if (redirect) throw new Error(`${id} from ${actor.kind} is staged for review: use dispatch()`);
+  // A thenable may have changed projections before its first await. Keep shallow references
+  // so this call can restore that synchronous prefix without copying every store on success.
+  const before = getBindings().map((binding) => ({ binding, state: binding.api.getState(), known: new Map(binding.known) }));
   const b = begin(id, input, { ...opts, actor });
   if ('done' in b) return b.done;
   if (isThenable(b.value)) {
     const started = b.started;
-    void Promise.resolve(b.value).then(
-      (v) => finish(started, v),
-      (e) => failStarted(started, e),
-    );
+    started.cancel();
+    started.scope.ops.length = 0;
+    runInScope(createScope('rollback'), () => {
+      for (const { binding, state, known } of before) {
+        if (binding.api.getState() !== state) binding.api.setState(state as never, true);
+        binding.known.clear();
+        for (const [key, value] of known) binding.known.set(key, value);
+      }
+    });
+    if (started.cs && started.createdChangeSet) abandon(started.cs);
+    else if (started.cs && started.previousLastAt !== null) started.cs.lastAt = started.previousLastAt;
+    // The executor is still a promise: consume either settlement without finishing or committing it.
+    void Promise.resolve(b.value).then(() => undefined, () => undefined);
     throw new Error(`${id} is asynchronous: use dispatch()`);
   }
   return finish(b.started, b.value).result;

@@ -6,7 +6,6 @@ Set `C_WEBQA_BASE_URL` to that preview's origin. The scripts use installed Chrom
 ```sh
 node qa/scripts/C-WEBQA/static-audit.mjs
 node qa/scripts/C-WEBQA/seed.mjs
-node qa/scripts/C-WEBQA/seed.mjs --signals
 node qa/scripts/C-WEBQA/sweep.mjs
 C_WEBQA_PROFILE=seeded node qa/scripts/C-WEBQA/sweep.mjs
 node qa/scripts/C-WEBQA/regressions.mjs
@@ -21,9 +20,9 @@ node qa/scripts/C-WEBQA/offline.mjs
 node qa/scripts/C-WEBQA/summarize.mjs
 ```
 
-Run the Ring/Signals script using its environment variables documented in the file. Its fixture matrix needs a separate Vite development server because fixture injection is intentionally absent from production. Its production mode uses the synthetic seed above.
+The Ring/Signals script and the seed's `--signals` step were removed in 0.6.0 with the Ring and Body signals pages.
 
-All browser profiles, storage snapshots, screenshots, and detailed JSON logs stay under ignored `.e6-tmp/C-WEBQA/`. No real server pairing, credentials, health records, browser profiles, Bluetooth devices, or app installs are used. The seed imports existing synthetic fixtures and uses the shipped UI to create an active plan and log food. The optional `--signals` step adds the same synthetic readings shifted to the current day; the sweep prefers that snapshot when present. `C_WEBQA_STATE_PATH` can select a snapshot explicitly.
+All browser profiles, storage snapshots, screenshots, and detailed JSON logs stay under ignored `.e6-tmp/C-WEBQA/`. No real server pairing, credentials, health records, browser profiles, or app installs are used. The seed imports existing synthetic fixtures and uses the shipped UI to create an active plan and log food. `C_WEBQA_STATE_PATH` can select a snapshot explicitly.
 
 The sweep follows all route templates, friendly aliases, onboarding sections, settings paths and anchors, representative valid dynamic IDs, missing IDs, and the deliberate error route. Each runs at 390, 768, and 1440 pixels in both themes, first with a fresh profile and then with seeded data. The developer error route deliberately throws and is recorded separately.
 

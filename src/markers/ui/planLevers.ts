@@ -22,6 +22,47 @@ function grams(a: MacroAmount | undefined, kcal: number | undefined, kcalPerG: n
   return undefined;
 }
 
+/** A template's energy, kcal/d, when it says so without a maintenance lookup it cannot do (else undefined). */
+function templateKcal(t: Partial<DayTemplate>, maintenanceKcal: number | undefined): number | undefined {
+  const e = t.energy;
+  if (e?.kind === 'pctMaintenance') return maintenanceKcal ? (e.pct / 100) * maintenanceKcal : undefined;
+  if (e?.kind === 'kcal') return e.kcal;
+  return undefined;
+}
+
+/** A template's carbohydrate, g/d, when determinable (the same reading `planLevers` uses); undefined otherwise. */
+function templateCarbG(t: Partial<DayTemplate>, maintenanceKcal: number | undefined, weightKg: number | undefined): number | undefined {
+  const m = t.macros;
+  if (!m || t.energy?.kind === 'zero') return undefined;
+  const kcal = templateKcal(t, maintenanceKcal);
+  if (m.carbShareNonProtein !== undefined) {
+    if (m.carbShareNonProtein < 0.1) return 0;
+    if (kcal) return (m.carbShareNonProtein * kcal * 0.75) / 4;
+  }
+  return grams(m.carbs, kcal, 4, weightKg);
+}
+
+/**
+ * The carbohydrate class of a plan's schedule (D7-05 diet exposure): the class of most of its eating days by the lever
+ * definitions above (< 50 g very-low-carb, < 130 g low-carb, else moderate); null when no eating day's carbohydrate is
+ * determinable (never guessed).
+ */
+export function planCarbClass(i: Pick<PlanLeverInput, 'schedule' | 'maintenanceKcal' | 'weightKg'>): 'vlc' | 'lowcarb' | 'moderate' | null {
+  const sch = i.schedule;
+  if (!sch) return null;
+  const votes = { vlc: 0, lowcarb: 0, moderate: 0 };
+  for (const d of sch.days) {
+    const base = sch.programs[d.program];
+    const t: Partial<DayTemplate> | undefined = d.override ? { ...(base ?? {}), ...d.override } : base;
+    if (!t || t.energy?.kind === 'zero') continue;
+    const g = templateCarbG(t, i.maintenanceKcal, i.weightKg);
+    if (g === undefined || !Number.isFinite(g)) continue;
+    votes[g < VLC_G ? 'vlc' : g < LOWCARB_G ? 'lowcarb' : 'moderate'] += 1;
+  }
+  const best = (['vlc', 'lowcarb', 'moderate'] as const).reduce<'vlc' | 'lowcarb' | 'moderate' | null>((b, k) => (votes[k] > 0 && (b === null || votes[k] > votes[b]) ? k : b), null);
+  return best;
+}
+
 function templateLevers(t: Partial<DayTemplate>, out: Set<LeverId>, maintenanceKcal: number | undefined, weightKg: number | undefined): void {
   const e = t.energy;
   let kcal: number | undefined;

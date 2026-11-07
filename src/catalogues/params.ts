@@ -38,6 +38,8 @@ export const CATALOGUE_PARAMS: readonly ParamDef[] = [
     'A ≥ 20 s ballistic bout at RPE ≥ 7 is one set × this × region weight. R5 §3.3 alternative: f_load Tri(0.45, 0.8, 1.0) for gada (implies ≈ 0.8); the spec keeps 0.5.'),
   f('isometricNonFailureFactor', 0.5, '1', 'D', R3, 'R3 §3.1', 'proposed-fit', 'hold not ending within ~10 s of failure counts as half a set'),
   p('epleyDivisor', 30, 'reps', 25, 40, 'C', `${R3}; Epley 1985 coaching formula`, 'R3 §3.2', 'unverified', 'L_eq = 100/(1 + R_f/30); per-pattern divisors (25–40) are an open question'),
+  f('epleyDomainMaxReps', 12, 'reps', 'D', `${R3}; Nuzzo 2024 PMC10933212 (reps at %1RM vary by exercise, sex and training status); Halperin 2022 (mean RIR prediction bias 0.95 reps, I² 98 %); repetition-based 1RM prediction is commonly reported reliable only up to ~10-12 reps`, 'R3 §3.2; D3-09', 'unverified',
+    'D3-09 validity domain of the generic reps→%1RM inversion: within ≤ this many reps to failure (dynamic, non-ballistic sets) the load is an inferred scenario; beyond it, for ballistic bouts and for holds the %1RM is unknown — the raw reps and RIR are kept and the engine number is a flagged placeholder, never a reported load. An engineering domain bound, not physiology.'),
   f('ballisticDefaultLoadPct', 50, '%1RM', 'D', R3, 'R3 §3.3', 'proposed-fit', 'load of a timed ballistic bout when no reps are logged'),
   f('ballisticDefaultRir', 3, 'RIR', 'D', R3, 'R3 §3.3', 'proposed-fit'),
   f('ballisticMinWorkSec', 20, 's', 'D', R3, 'R3 §3.1', 'proposed-fit', 'shorter bouts are not counted as a set'),
@@ -45,7 +47,7 @@ export const CATALOGUE_PARAMS: readonly ParamDef[] = [
   f('maxRepsToFailureStrength', 8, 'reps', 'C', R3, 'R3 §3.2', 'proposed-fit', 'strength intent needs R_f ≤ 8 (L ≥ ~80 %1RM)'),
   f('defaultRir', 2, 'RIR', 'B', 'core/defaults DEFAULTS.rtRir', 'R3 §2.3', 'verified', 'RIR when neither RIR nor RPE is logged (engine default)'),
   f('medHypertrophySetsWk', 4, 'effective sets/region/wk', 'A', `${R3}; Pelland 2026 PMID 41343037 (dose-response curve)`, 'R3 §3.4', 'proposed-fit', 'minimum effective dose for a detectable hypertrophy response'),
-  f('medMemWk', 150, 'MEM/wk', 'A', `${R3}; WHO 2020 physical-activity guideline`, 'R3 §3.4', 'verified', '150 min/wk moderate ≈ 150 moderate-equivalent minutes'),
+  f('medMemWk', 150, 'MEM/wk', 'D', `${R3}; activity 10 §4.8B MEM weights`, 'R3 §3.4; D3-03', 'proposed-fit', 'D3-03: a heuristic FITNESS dose-index reference (relative-intensity weights 0.4/1/1.5 per minute), not WHO guideline minutes; the adult aerobic reference is activity.healthAerobicLowerMinWk on moderate + 2 × vigorous minutes of a stated class'),
   f('stairStepHeightM', 0.17, 'm', 'B', `${R3}; ACSM stepping equation`, 'R3 §4', 'unverified', 'stair step height for acsmStep when none is logged'),
   // ---- energy (R3 §4)
   f('pandolfEtaRoad', 1.0, '1', 'B', 'Pandolf 1977 doi:10.1152/jappl.1977.43.4.577', 'R3 §4', 'unverified'),
@@ -55,10 +57,13 @@ export const CATALOGUE_PARAMS: readonly ParamDef[] = [
   // ---- equivalence (R3 §5)
   f('creditFull', 0.9, '1', 'D', R3, 'R3 §5.3; PLANNER_V2 §8.6', 'proposed-fit', 'S at or above: full credit (parity)'),
   f('creditPartial', 0.6, '1', 'D', R3, 'R3 §5.3; PLANNER_V2 §8.6', 'proposed-fit', 'S below: different stimulus'),
-  f('cSamePatternSameImplement', 1.0, '1', 'C', R3, 'R3 §5.2', 'proposed-fit', 'strength transfer: same pattern, same implement geometry'),
-  f('cSamePattern', 0.8, '1', 'C', R3, 'R3 §5.2', 'proposed-fit', 'same pattern, different implement'),
-  f('cNeighbourPattern', 0.5, '1', 'C', R3, 'R3 §5.2', 'proposed-fit', 'neighbouring pattern'),
-  f('cOtherPattern', 0.2, '1', 'C', R3, 'R3 §5.2', 'proposed-fit', 'any other pattern'),
+  f('cSameTask', 1.0, '1', 'A', `${SPEC}; D3-02 (definitional)`, 'R3 §5.2; D3-02', 'verified',
+    'D3-02: the same exercise or declared task with the same implement class and compatible range of motion completes the prescribed practice set for set (analytic accounting, not a strength-gain claim)'),
+  f('cSamePatternSameImplement', 1.0, '1', 'C', R3, 'R3 §5.2; D3-02', 'proposed-fit',
+    'D3-02: LEGACY heuristic only for strength work without an exercise identity (stored vectors): same pattern + implement geometry. Pattern + implement alone never establishes the same task; identified different exercises use cSamePattern. A practical coaching/design prior, not physiological transfer'),
+  f('cSamePattern', 0.8, '1', 'C', R3, 'R3 §5.2; D3-02', 'proposed-fit', 'same pattern, different exercise or implement: a practical coaching/design prior (sensitivity 0.6–1.0), not a measured transfer'),
+  f('cNeighbourPattern', 0.5, '1', 'C', R3, 'R3 §5.2; D3-02', 'proposed-fit', 'neighbouring pattern: a practical coaching/design prior (sensitivity 0.3–0.7)'),
+  f('cOtherPattern', 0.2, '1', 'C', R3, 'R3 §5.2; D3-02', 'proposed-fit', 'any other pattern: a practical heuristic (sensitivity 0–0.4), never "20 % physiological transfer"; unknown transfer is not biological zero'),
   f('effortRirThreshold', 3, 'RIR', 'D', R3, 'R3 §5.3', 'proposed-fit', 'RIR above this triggers the "stop closer to failure" fix'),
   // ---- composer and shopping list (R3 §6, PLANNER_V2 §8.3-8.5)
   f('uAvail', 3, '1', 'D', R3, 'R3 §6', 'proposed-fit', 'utility weight of availability'),
@@ -126,11 +131,17 @@ export type GoalClass = keyof typeof INTENT_DEFAULTS;
 
 // ================================================================== engine constants (read from the engine registries)
 
-const ENGINE_INDEX: ReadonlyMap<string, number> = new Map([...MUSCLE_PARAMS, ...ACTIVITY_PARAMS].map((d) => [d.id, d.value]));
+const ENGINE_DEFS: ReadonlyMap<string, ParamDef> = new Map([...MUSCLE_PARAMS, ...ACTIVITY_PARAMS].map((d) => [d.id, d]));
 function ev(id: string): number {
-  const v = ENGINE_INDEX.get(id);
-  if (v === undefined) throw new Error(`engine param ${id} not found`);
-  return v;
+  const d = ENGINE_DEFS.get(id);
+  if (d === undefined) throw new Error(`engine param ${id} not found`);
+  return d.value;
+}
+/** [low, high] of an engine parameter (its registry range). */
+function evRange(id: string): readonly [number, number] {
+  const d = ENGINE_DEFS.get(id);
+  if (d === undefined) throw new Error(`engine param ${id} not found`);
+  return [d.low, d.high];
 }
 
 /** Nominal engine constants used by the stimulus mapping (muscle 09 §4.1/§4.14, activity 10 §4.1/§4.8). */
@@ -169,4 +180,19 @@ export const ENGINE = {
   vo2HiRefMinWk: ev('activity.vo2HiRefMinWk'),
   rpeIntercept: ev('activity.rpeIntercept'),
   rpeSlope: ev('activity.rpeSlope'),
+  // D3-03 broad RPE band: the registry range of the interim CR-10 → %VO2max map (a scenario, never a precise %VO2max)
+  rpeInterceptLow: evRange('activity.rpeIntercept')[0],
+  rpeInterceptHigh: evRange('activity.rpeIntercept')[1],
+  rpeSlopeLow: evRange('activity.rpeSlope')[0],
+  rpeSlopeHigh: evRange('activity.rpeSlope')[1],
+  // D3-07 shared bout ledger: displaced lifestyle activity, × RMR per minute (design prior)
+  displaced: ev('activity.displacedBaseline'),
+  // D3-03 public-health guideline accounting (WHO 2020)
+  healthVigorousWeight: ev('activity.healthVigorousWeight'),
+  healthAerobicLowerMinWk: ev('activity.healthAerobicLowerMinWk'),
+  healthAerobicUpperMinWk: ev('activity.healthAerobicUpperMinWk'),
+  healthRelModerateMin: ev('activity.healthRelModerateMin'),
+  healthRelVigorousMin: ev('activity.healthRelVigorousMin'),
+  healthAbsModerateMet: ev('activity.healthAbsModerateMet'),
+  healthAbsVigorousMet: ev('activity.healthAbsVigorousMet'),
 } as const;

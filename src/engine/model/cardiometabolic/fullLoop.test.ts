@@ -139,13 +139,15 @@ describe('direction of the main interventions (male 45 y, BMI 27, sedentary)', (
     expect(rel(r, 'insulinSensitivity', 59)).toBeGreaterThan(0.97);
   });
 
-  it('72-h water fast: urate and LDL rise, fasting glucose falls, insulin sensitivity does not rise during the fast (20 §4.7)', () => {
+  it('72-h water fast: urate rises, LDL response uncertain (D7-07), fasting glucose falls, insulin sensitivity does not rise during the fast (20 §4.7)', () => {
     const s = week(p, 'sed', 35);
     // meal to meal (ruling 18:10): from day 7's 20:00 dinner (a meal inside the window would be dropped)
     s.events = [{ kind: 'fast', startDay: 7, startH: 20, durationH: 72 }];
     const r = run(p, s);
     expect(rel(r, 'uricAcid', 10)).toBeGreaterThan(1.03);
-    expect(rel(r, 'ldl', 10)).toBeGreaterThan(1.02);
+    // D7-07: the LEM lean-responder rise is an opt-in scenario; the standard projection labels the response uncertain
+    expect(rel(r, 'ldl', 10)).toBeLessThan(1.02);
+    expect(r.meta.outputStatus?.ldl).toMatchObject({ status: 'scenario', reasonCode: 'ketogenicLipidResponseUncertain' });
     expect(rel(r, 'fastingGlucose', 10)).toBeLessThan(0.9);
     // the zero-intake days 8 and 9 carry no F_EBh credit (a fast transiently lowers insulin sensitivity, 20 §4.7 [69, 23]);
     // the refeed days that follow are hypocaloric and get 04's 3-day energy-balance credit like any CR day

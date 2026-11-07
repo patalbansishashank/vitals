@@ -10,17 +10,15 @@
  */
 import type { ChapterAnswers, ChapterId, IntakeSectionId } from './types';
 
-/** What the flow knows besides the answers (locale, device answers from other chapters, safety, gentle mode). */
+/** What the flow knows besides the answers (locale, safety, gentle mode). */
 export interface FlowContext {
   /** India locale: Indian examples first, ₹, Indian kitchen defaults. */
   india: boolean;
   /** Gentle mode (safety): maintenance without kcal by default, alcohol not asked. */
   gentle: boolean;
-  /** A step-counting device was named in the devices chapter (walking commute minutes are not added again). */
-  stepDevice: boolean;
 }
 
-export const DEFAULT_CONTEXT: FlowContext = { india: false, gentle: false, stepDevice: false };
+export const DEFAULT_CONTEXT: FlowContext = { india: false, gentle: false };
 
 export interface AnswerOption<V extends string = string> {
   value: V;
@@ -70,7 +68,7 @@ export interface SingleQuestion extends QuestionBase {
   options: Options;
   /** Cards with examples stack one per row on mobile. */
   cards?: boolean;
-  /** Option value the skip default corresponds to (tagged "default", never preselected). */
+  /** Option value the skip default corresponds to (never preselected; told to agents, not drawn on the keys). */
   defaultValue?: string;
 }
 
@@ -122,6 +120,7 @@ export interface NumberQuestion extends QuestionBase {
   name: string;
   presets: readonly number[];
   presetLabel?: (n: number) => string;
+  /** Preset the skip default corresponds to (told to agents, not drawn on the keys). */
   defaultValue?: number;
 }
 
@@ -135,7 +134,7 @@ export interface CustomQuestion extends QuestionBase {
    */
   ownFooter?: boolean;
   /**
-   * A card with nothing to answer (a computed card such as how each device's data arrives): Next is always enabled and
+   * A card with nothing to answer (a computed card): Next is always enabled and
    * records this value, so the person just moves on.
    */
   advance?: unknown;
@@ -146,20 +145,21 @@ export type Question = SingleQuestion | MultiQuestion | NumberQuestion | CustomQ
 /* ------------------------------------------------------------------------------------------- context as answers */
 
 /**
- * Locale, gentle mode and "a step device was named" are written into the chapter's answers at chapter entry
- * (`meta.*`, no status), so what is asked depends on nothing but the stored answers (§13.1 invariant).
+ * Locale and gentle mode are written into the chapter's answers at chapter entry (`meta.*`, no status), so what is
+ * asked depends on nothing but the stored answers (§13.1 invariant). Older documents may also carry
+ * `meta.stepDevice` (from the removed devices chapter); it is ignored.
  */
-export const META = { india: 'meta.india', gentle: 'meta.gentle', stepDevice: 'meta.stepDevice' } as const;
+export const META = { india: 'meta.india', gentle: 'meta.gentle' } as const;
 
 /** The flow context the answers carry (falls back to `live` for a key never stamped, e.g. a chapter not yet entered). */
 export function frozenContext(a: ChapterAnswers, live: FlowContext = DEFAULT_CONTEXT): FlowContext {
   const b = (k: string, d: boolean) => (typeof a.values[k] === 'boolean' ? (a.values[k] as boolean) : d);
-  return { india: b(META.india, live.india), gentle: b(META.gentle, live.gentle), stepDevice: b(META.stepDevice, live.stepDevice) };
+  return { india: b(META.india, live.india), gentle: b(META.gentle, live.gentle) };
 }
 
 /** The answers with the live context stamped in; the same object when nothing changes. */
 export function stampContext(a: ChapterAnswers, live: FlowContext): ChapterAnswers {
-  const want: Record<string, boolean> = { [META.india]: live.india, [META.gentle]: live.gentle, [META.stepDevice]: live.stepDevice };
+  const want: Record<string, boolean> = { [META.india]: live.india, [META.gentle]: live.gentle };
   if (Object.entries(want).every(([k, v]) => a.values[k] === v)) return a;
   return { ...a, values: { ...a.values, ...want } };
 }

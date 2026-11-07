@@ -9,7 +9,7 @@
  */
 import { estimateInitialState } from '../body/estimateBody'; // the module, not the index: this file is in the app's initial bundle
 import { ACTIVITY_INTAKE_K, activityTerms, assembleActivity, cappedNumerator } from '../intake/activity';
-import type { ActivityBase, PersonProfile, ResolvedHabits, ResolvedProfile } from '../types/profile';
+import type { ActivityBase, ActivityIntake, HabitualCardio, PersonProfile, ResolvedHabits, ResolvedProfile } from '../types/profile';
 import { ATWATER, DEFAULTS, KCAL_PER_MJ } from './defaults';
 
 /** 10 §4.14 selector table: default steps → PAL (used for NEAT0 calibration and the VO2max prior). */
@@ -26,6 +26,29 @@ export const STEP_NET_KCAL_PER_KG_PER_1000 = 0.44;
 /** 10 §4.1 default resistance session: 4.0 MET for 60 min incl. rest; generic cardio session: Compendium elliptical moderate 5.0 MET. */
 export const HABIT_RT_MET = 4.0;
 export const HABIT_CARDIO_MET = 5.0;
+/** Model intensity for a documented easy air-bike routine; this is not a measured MET. */
+export const DOCUMENTED_CYCLE_MET = 4.5;
+
+export class HabitualCardioSourceError extends Error {
+  constructor(message: string) { super(message); this.name = 'HabitualCardioSourceError'; }
+}
+
+/** Move only an explicitly linked raw recreation row into the documented habitual cardio dose. */
+export function projectHabitualCardioActivity(activity: ActivityIntake | undefined, cardio: HabitualCardio | undefined): ActivityIntake | undefined {
+  const id = cardio?.recreationSourceId;
+  if (!id) return activity;
+  const weeklyMinutes = cardio.sessionsPerWeek * cardio.minutesPerSession;
+  const rows = activity?.recreation ?? [];
+  if (activity?.recreationProjection?.basis === 'reclassifiedHabitualCardio' && activity.recreationProjection.removedSourceIds.includes(id)) {
+    if (rows.some((r) => r.id === id) || activity.recreationProjection.sourceMinutesPerWeek !== weeklyMinutes)
+      throw new HabitualCardioSourceError(`Habitual cardio source ${id} projection conflicts with the current weekly minutes`);
+    return activity;
+  }
+  const matched = rows.filter((r) => r.id === id);
+  if (matched.length !== 1 || Math.abs(matched[0]!.minPerWeek - weeklyMinutes) > 1e-9)
+    throw new HabitualCardioSourceError(`Habitual cardio source ${id} must identify one recreation row with matching weekly minutes`);
+  return { ...activity, recreation: rows.filter((r) => r.id !== id), recreationProjection: { basis: 'reclassifiedHabitualCardio', removedSourceIds: [id], sourceMinutesPerWeek: weeklyMinutes } };
+}
 
 function mifflin(sex: 'male' | 'female', w: number, hCm: number, age: number): number {
   return 10 * w + 6.25 * hCm - 5 * age + (sex === 'male' ? 5 : -161);
@@ -58,11 +81,38 @@ export function tefFraction(pG: number, cG: number, fG: number, fibreG: number, 
   return (0.25 * eP + 0.075 * eC + 0.025 * eF + 0.1 * eA + 0.3 * eFib) / e;
 }
 
+/**
+ * Recorded routine is separate from the population nutrition prior used for simulation. A manually edited Body habit
+ * is a self-reported estimate; missing uncertainty is stated as unknown, never upgraded to a measured intake.
+ */
+export function documentedHabitualNutrition(p: PersonProfile): {
+  protein: { value: number; unit: 'g/kg/d'; basisKg: number; source: 'selfReportedEstimate'; uncertainty: 'unrecorded' } | null;
+  sodium: { value: number; unit: 'g/d'; source: 'selfReportedEstimate'; uncertainty: 'unrecorded' } | null;
+} {
+  const protein = p.habits?.habitualProteinGPerKg;
+  const sodium = p.habits?.habitualSodiumG;
+  return {
+    protein: typeof protein === 'number' && Number.isFinite(protein) && protein >= 0 ? { value: protein, unit: 'g/kg/d', basisKg: p.body.weightKg, source: 'selfReportedEstimate', uncertainty: 'unrecorded' } : null,
+    sodium: typeof sodium === 'number' && Number.isFinite(sodium) && sodium >= 0 ? { value: sodium, unit: 'g/d', source: 'selfReportedEstimate', uncertainty: 'unrecorded' } : null,
+  };
+}
+
 export function resolveHabits(p: PersonProfile): ResolvedHabits {
   const h = p.habits ?? {};
   const sex = p.body.sex;
   return {
-    ...(h.activity ? { activity: h.activity } : {}),
+    ...(h.activity ? { activity: projectHabitualCardioActivity(h.activity, h.habitualCardio) } : {}),
+    // context fields stay optional (absent = unknown, never a default): D3-07 steps scope, D3-05 growth state + provenance
+    ...(h.stepsScope ? { stepsScope: h.stepsScope } : {}),
+    ...(h.trainingGrowthState ? { trainingGrowthState: h.trainingGrowthState } : {}),
+    ...(h.trainingGrowthStateSource ? { trainingGrowthStateSource: h.trainingGrowthStateSource } : {}),
+    ...(typeof h.habitualSleepDurationH === 'number' && Number.isFinite(h.habitualSleepDurationH) && h.habitualSleepDurationH > 0 && h.habitualSleepDurationH < 24
+      ? { habitualSleepDurationH: h.habitualSleepDurationH, ...(h.habitualSleepDurationSource ? { habitualSleepDurationSource: h.habitualSleepDurationSource } : {}) }
+      : {}),
+    // A1-040: the habitual step/session overlap travels as stated (absent = unknown: a disclosed no-subtraction reference
+    // scenario, never defaulted to known, never derived from a cardio mix or copied from current steps)
+    ...(h.habitualStepsOverlap ? { habitualStepsOverlap: h.habitualStepsOverlap } : {}),
+    ...(h.habitualCardio ? { habitualCardio: h.habitualCardio } : {}),
     trainingHistory: h.trainingHistory ?? 'none',
     sessionsPerWeek: h.sessionsPerWeek ?? 0,
     lifingCardioMix: h.lifingCardioMix ?? 0.5,
@@ -147,14 +197,19 @@ export function resolveProfile(p: PersonProfile): ResolvedProfile {
   const rmr0 = selectRmr0(p, ffm, fm, trained || highFfmi);
 
   // Habitual exercise (net, kcal/d averaged over the week): sessions × 1 h × (MET − 1) × BW / 7 (10 §4.1, 09 §4.13).
-  const metMix = HABIT_RT_MET * (1 - habits0.lifingCardioMix) + HABIT_CARDIO_MET * habits0.lifingCardioMix;
-  const eat0 = (habits0.sessionsPerWeek * (metMix - 1) * w * 1) / 7;
+  const genericRt = habits0.sessionsPerWeek * (1 - habits0.lifingCardioMix);
+  const genericCardio = habits0.habitualCardio ? 0 : habits0.sessionsPerWeek * habits0.lifingCardioMix;
+  const documentedCycleMinPerWeek = habits0.habitualCardio
+    ? habits0.habitualCardio.sessionsPerWeek * habits0.habitualCardio.minutesPerSession
+    : 0;
+  const eat0 = (genericRt * (HABIT_RT_MET - 1) * w + genericCardio * (HABIT_CARDIO_MET - 1) * w) / 7
+    + (documentedCycleMinPerWeek * (DOCUMENTED_CYCLE_MET - 1) * w) / (60 * 7);
 
   // Habitual activity (MODEL_SPEC §5.5, R1 §3): without an intake the steps tick (or 7 000) and nothing else — the
   // pre-intake TDEE0 bit for bit; with one, the weekly-mean steps S_hab become `typicalSteps` and the occupational, home,
   // commute and recreational energy enter the numerator (inside NEAT0).
   const k = ACTIVITY_INTAKE_K;
-  const intake = p.habits?.activity;
+  const intake = habits0.activity;
   const typedSteps = p.habits?.typicalSteps;
   const base0: ActivityBase = {
     weightKg: w,

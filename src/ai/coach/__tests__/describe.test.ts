@@ -85,3 +85,20 @@ describe('Coach change cards in plain words (Q4-13)', () => {
     expect(card.items[0]).toEqual({ label: '5 Oct · energy', before: 'kcal 1800', after: 'kcal 1600' });
   });
 });
+
+describe('a logged session in one human line (r068 C3)', () => {
+  it('reads status, minutes and the day, never the raw fields', () => {
+    const items = describeInput('log.session', { status: 'done', durationMin: 30, performed: [{ minutes: 30 }], date: TODAY, source: 'coach' }, TODAY);
+    expect(items).toEqual([{ label: 'session', before: null, after: 'Done · 30 min · today' }]);
+  });
+
+  it('a skipped session has no minutes; the minutes fall back to the performed parts', () => {
+    expect(describeInput('log.session', { status: 'skipped', performed: [], date: TODAY }, TODAY)[0]!.after).toBe('Skipped · today');
+    expect(describeInput('log.session', { status: 'partial', performed: [{ minutes: 20 }, { minutes: 10 }] }, TODAY)[0]!.after).toBe('Partly done · 30 min');
+  });
+
+  it('who made a change is never a row of it', () => {
+    const items = describeInput('pantry.add', { items: [{ label: 'paneer' }], source: 'coach' }, TODAY);
+    expect(items.map((i) => i.label)).not.toContain('source');
+  });
+});

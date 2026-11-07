@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, RotateCcw } from 'lucide-react';
-import { Faceplate, Key, KeyLink, Notice, ProgressRule, formatNumber, toast, useReducedMotion } from '@/components';
+import { Copy, RotateCcw, ScanSearch } from 'lucide-react';
+import { Faceplate, Key, KeyLink, ProgressRule, StatusCapsule, formatNumber, toast } from '@/components';
 import { paths } from '@/app/paths';
 import type { ConvergencePoint, PlanKind } from '@/engine/planner/domain/types';
 import type { PlannerRunState } from '@/state/plannerStore';
-import { fmtPct, fmtWeeks } from './format';
+import { fmtPct } from './format';
 import { PLAN_KINDS, RUNG_TITLE } from './ladder';
 import type { PlannerModel } from './model';
 import { cancelPlannerRun, continueSearch, plateauOf, stopPlannerRun, useLadderRun } from './run';
@@ -27,7 +27,7 @@ function stageRank(stage: string): number {
 
 /** Plain names for optimiser stages (planner-goals.md §6 stage line); never the internal stage code. */
 export function stageLabel(stage: string, goalCount: number): string {
-  if (stage === 'S2') return 'checking what’s possible';
+  if (stage === 'S2') return 'searching each goal on its own';
   if (stage === 'S4') return 'finding different options';
   if (stage === 'ttt') return 'working out how long each target needs';
   const r = stageRank(stage);
@@ -73,29 +73,28 @@ export function usePlateau(): boolean {
   return tier === 'X' && p.plateau && p.rounds >= plateauSeenAt;
 }
 
+/** Two rounds of an exhaustive search without a better plan: a fact and its two keys, inside the run card. */
 export function PlateauPrompt() {
   return (
-    <Notice
-      severity="info"
-      layout="ruled"
-      title="The last two rounds found nothing better."
-      actions={
-        <span className="lp-run__actions">
-          <Key size="sm" onClick={continueSearch}>
-            Continue
-          </Key>
-          <Key size="sm" variant="quiet" onClick={stopPlannerRun}>
-            Stop here
-          </Key>
-        </span>
-      }
-    >
-      Continuing may still find a better plan, more slowly. Stopping keeps the plans found so far.
-    </Notice>
+    <div className="lp-run__plateau" role="status">
+      <p className="lp-run__plateau-text">The last two rounds found nothing better.</p>
+      <span className="lp-run__actions">
+        <Key size="sm" variant="action" onClick={continueSearch}>
+          Continue
+        </Key>
+        <Key size="sm" variant="quiet" onClick={stopPlannerRun}>
+          Stop here
+        </Key>
+      </span>
+    </div>
   );
 }
 
-/** Context-bar chip while an exhaustive search runs in the background (plan-ladder.md §8). */
+/**
+ * The header status icon while an exhaustive search runs in the background (plan-ladder.md §8): its name says the share
+ * done and the time left, its dot breathes while it searches and holds once it finds nothing better; it opens the run
+ * screen, where the plateau's Continue · Stop here keys are.
+ */
 export function ExhaustiveChip({ run }: { run: PlannerRunState }) {
   const tier = useLadderRun((s) => s.tier);
   const elapsed = useElapsed(run);
@@ -105,21 +104,13 @@ export function ExhaustiveChip({ run }: { run: PlannerRunState }) {
   const f = run.progress?.fraction ?? 0;
   const left = timeLeft(elapsed, f);
   return (
-    <span className="lp-xchip">
-      <KeyLink to={paths.planRun} size="sm" variant="quiet" className="lp-xchip__link">
-        {`exhaustive search · ${Math.round(f * 100)} %${left ? ` · ${left}` : ''}`}
-      </KeyLink>
-      {plateau ? (
-        <>
-          <Key size="sm" onClick={continueSearch}>
-            Continue
-          </Key>
-          <Key size="sm" variant="quiet" onClick={stopPlannerRun}>
-            Stop here
-          </Key>
-        </>
-      ) : null}
-    </span>
+    <StatusCapsule
+      icon={ScanSearch}
+      label={plateau ? 'Long search: nothing better' : `Long search ${Math.round(f * 100)} %${left ? ` · ${left}` : ''}`}
+      attention={plateau}
+      pulse={!plateau}
+      to={paths.planRun}
+    />
   );
 }
 
@@ -144,11 +135,9 @@ export function slotLine(f: Slot, kind: PlanKind): string {
 /** Running state (plan-ladder.md §8 "Running"; COMPONENTS §8 OptimiserProgress with four slots). */
 export function RunView({ model, onRetry }: RunViewProps) {
   const { run } = model;
-  const reduced = useReducedMotion();
   const elapsed = useElapsed(run);
   const ladder = useLadderRun();
   const goals = run.request?.goals ?? [];
-  const days = run.request?.horizonDays ?? model.horizonDays;
   const p = run.progress;
   const stage = p?.stage ?? 'S0';
   const exhaustive = ladder.tier === 'X';
@@ -186,12 +175,13 @@ export function RunView({ model, onRetry }: RunViewProps) {
     return (
       <div className="lp-run">
         <Faceplate title="The Planner stopped unexpectedly." className="lp-run__face">
-          <p className="lp-run__lead">Your goals are saved. This is a problem on our side, not with your goals.</p>
+          <p className="lp-run__lead">Your goals are saved.</p>
           <div className="lp-run__actions">
-            <Key variant="solid" icon={RotateCcw} onClick={onRetry}>
+            <Key variant="primary" icon={RotateCcw} onClick={onRetry}>
               Try again
             </Key>
             <Key
+              variant="action"
               icon={Copy}
               onClick={() => {
                 void navigator.clipboard?.writeText(`Vitals Planner error\n${run.error ?? ''}\nrequest ${run.requestHash ?? ''}`).then(
@@ -202,7 +192,7 @@ export function RunView({ model, onRetry }: RunViewProps) {
             >
               Copy details
             </Key>
-            <KeyLink to={paths.planGoals} variant="quiet">
+            <KeyLink to={paths.planGoals} variant="outlined">
               Back to goals
             </KeyLink>
           </div>
@@ -216,10 +206,10 @@ export function RunView({ model, onRetry }: RunViewProps) {
         <Faceplate title="Stopped before a plan was found." className="lp-run__face">
           <p className="lp-run__lead">Nothing was kept. Your goals and limits are unchanged.</p>
           <div className="lp-run__actions">
-            <Key variant="solid" icon={RotateCcw} onClick={onRetry}>
+            <Key variant="primary" icon={RotateCcw} onClick={onRetry}>
               Find plans again
             </Key>
-            <KeyLink to={paths.planGoals} variant="quiet">
+            <KeyLink to={paths.planGoals} variant="outlined">
               Back to goals
             </KeyLink>
           </div>
@@ -235,13 +225,14 @@ export function RunView({ model, onRetry }: RunViewProps) {
   const slowNote = !exhaustive && elapsed > 40 && !!slots.hard && !lateStage;
   const slot = (k: PlanKind) => {
     const f = slots[k];
-    const status = f ? (lateStage && k !== 'ideal' ? 'ready' : 'provisional') : k === 'hard' ? 'searching' : k === 'ideal' ? 'fills last' : 'comes later';
+    // r068 PR-RUN1: a slot not yet reached says nothing (its name is dimmed), so only real states are read
+    const status = f ? (lateStage && k !== 'ideal' ? 'ready' : 'provisional') : k === 'hard' ? 'searching' : null;
     return (
       <li key={k} className="lp-slot" data-rung={k} data-filled={f ? true : undefined}>
         <RungKey kind={k} size="sm" pressed={!!f} />
         <span className="lp-slot__text">
           <span className="lp-slot__name">{RUNG_TITLE[k]}</span>
-          <span className="lp-slot__status">{status}</span>
+          {status ? <span className="lp-slot__status">{status}</span> : null}
           {f ? (
             <span className="lp-slot__plan" title={f.title}>
               {slotLine(f, k)}
@@ -257,7 +248,7 @@ export function RunView({ model, onRetry }: RunViewProps) {
       <Faceplate
         className="lp-run__face"
         title={run.status === 'stopping' ? 'Stopping…' : exhaustive ? 'Finding the best possible plan…' : 'Finding plans…'}
-        caption={`${goals.length} goal${goals.length === 1 ? '' : 's'} · ${fmtWeeks(days)} · ${exhaustive ? `exhaustive search${left ? ` · ${left}` : ''}` : 'usually under a minute on this device'}`}
+        caption={`${Math.round(fraction * 100)} %${left ? ` · ${left}` : ''}`}
       >
         <ProgressRule value={fraction} label="Optimiser progress" reducedText={`${Math.round(fraction * 100)} % · ${formatNumber(elapsed, 1)} s`} />
         <div role="status" className="lm-sr">
@@ -266,39 +257,20 @@ export function RunView({ model, onRetry }: RunViewProps) {
         <ol className="lp-slots" aria-label="Plan slots" data-named={anyFound || undefined}>
           {PLAN_KINDS.map(slot)}
         </ol>
+        {/* the convergence chart appears once it has points; before that the progress rule above says enough */}
         {points.length >= 2 ? (
           <div className="lp-run__chart">
             <LadderConvergence points={points} />
           </div>
-        ) : (
-          <div className="lp-run__chart lp-run__chart--empty" aria-hidden="true">
-            <span className="lm-eng">the first plan appears after goal 1 is settled</span>
-          </div>
-        )}
+        ) : null}
         {plateau ? <PlateauPrompt /> : null}
         <dl className="lp-counters">
           <div>
-            <dt className="lm-eng">evaluations</dt>
-            <dd className="lm-num">
-              {formatNumber(p?.euUsed ?? 0, 0)}
-              <span className="lm-unit">/ {formatNumber(p?.euBudget ?? 0, 0)}</span>
-            </dd>
-          </div>
-          {typeof p?.score === 'number' && Number.isFinite(p.score) ? (
-            <div>
-              <dt className="lm-eng">best score</dt>
-              <dd className="lm-num">{formatNumber(p.score, 2)}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt className="lm-eng">progress</dt>
-            <dd className="lm-num">
-              {Math.round(fraction * 100)}
-              <span className="lm-unit">%</span>
-            </dd>
+            <dt className="lm-eng">Plans tried</dt>
+            <dd className="lm-num">{formatNumber(p?.euUsed ?? 0, 0)}</dd>
           </div>
           <div>
-            <dt className="lm-eng">elapsed</dt>
+            <dt className="lm-eng">Elapsed</dt>
             <dd className="lm-num">
               {elapsed >= 120 ? formatNumber(elapsed / 60, 0) : formatNumber(elapsed, 1)}
               <span className="lm-unit">{elapsed >= 120 ? 'min' : 's'}</span>
@@ -315,22 +287,17 @@ export function RunView({ model, onRetry }: RunViewProps) {
             );
           })}
         </ol>
-        {slowNote ? (
-          <Notice severity="info" layout="ruled" title="Taking longer than usual.">
-            Hard is ready now; the other plans are still being found. You can stop and keep what’s found.
-          </Notice>
-        ) : null}
+        {slowNote ? <p className="lp-run__note">Hard is ready; the other plans are still being found.</p> : null}
         <div className="lp-run__actions">
           {anyFound ? (
-            <Key onClick={stopPlannerRun} disabled={run.status === 'stopping'} loading={run.status === 'stopping'}>
+            <Key variant="outlined" onClick={stopPlannerRun} disabled={run.status === 'stopping'} loading={run.status === 'stopping'}>
               Stop and keep what’s found
             </Key>
           ) : (
-            <Key variant="quiet" onClick={cancelPlannerRun}>
+            <Key variant="outlined" onClick={cancelPlannerRun}>
               Cancel
             </Key>
           )}
-          {reduced ? null : <span className="lm-eng lp-run__hint">you can leave this screen; a note appears when the plans are ready</span>}
         </div>
       </Faceplate>
     </div>

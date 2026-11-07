@@ -1,0 +1,11 @@
+# Server coach CLIs (docs/SERVER.md "Coach"): each Claude Code / Codex turn runs in its own transient scope under this
+# slice (systemd-run --user --scope --slice=vitals-coach.slice), outside vitals-server.service's MemoryMax, so a large
+# CLI can never get the server killed. Install: cp to ~/.config/systemd/user/ && systemctl --user daemon-reload.
+[Unit]
+Description=Vitals server coach CLIs
+
+[Slice]
+MemoryHigh=1000M
+MemoryMax=1200M
+MemorySwapMax=0
+CPUQuota=150%

@@ -12,11 +12,6 @@ import { installDefaultLiving, installLiving } from './data';
 import { createCommandLivingActions } from './data/commands';
 import { createDocumentLivingSource } from './data/documents';
 import { usesDocumentPlan } from './mode';
-import { setCorrectionDeviceLookup } from '@/ai/coach/cards';
-import { deviceValueFor } from './data/useDeviceOwnership';
-
-// Coach proposals to correct a reading say what the device recorded
-setCorrectionDeviceLookup((kind, date) => deviceValueFor(kind, date));
 
 let installed: 'documents' | 'stub' | null = null;
 

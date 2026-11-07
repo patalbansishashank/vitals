@@ -1,149 +1,164 @@
-/**
- * Progress (`/progress`; living-mode.md §8): one scrolling page of faceplates — trend · goals · adherence · body · body
- * signals · log · check-ins · plan — with an anchor-chip rail on mobile and a sticky section index on desktop. Without a
- * plan only Body, Body signals and Log show (IA §2.1). Quiet mode (or the page's "show numbers") switches the
- * restriction-adjacent numbers to words.
- */
-import { useEffect, useState } from 'react';
+/** Goal leads the plan story. Weight and Energy share a window; every card keeps its anchor. */
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
-import { Engraved, Key, KeyBank, Page, ScrollRail } from '@/components';
-import { TopBar } from '@/app/shell';
+import { Scale } from 'lucide-react';
+import { CardFoot, DottedTrack, MQ, Page, useMediaQuery } from '@/components';
+import { TopBar, type MenuEntry } from '@/app/shell';
+import { useQuietMode } from '@/state/settingsStore';
+import { useMarkersDoc } from '@/markers/ui/markersDoc';
 import { useToday } from '../clock';
 import { useLiving } from '../data/source';
 import { useAppMode } from '../mode';
+import { addDays } from '@/living/dates';
 import { PROGRESS_COPY as C } from './copy';
-import { TREND_RANGES, type TrendRange } from './model';
+import type { TrendRange } from './model';
 import { AdherenceSection } from './sections/AdherenceSection';
 import { BodySection } from './sections/BodySection';
 import { CheckInsSection } from './sections/CheckInsSection';
 import { GoalsSection } from './sections/GoalsSection';
 import { LogSection } from './sections/LogSection';
-import { PlanSection } from './sections/PlanSection';
-import { SignalsSection } from './sections/SignalsSection';
-import { BodySignalsLink } from './ring/BodySignalsLink';
-import { TrendSection } from './sections/TrendSection';
-import { MarkerTrendsSection } from '@/markers/ui/MarkerTrends'; // E20: markers
-
-export type ProgressSectionId = keyof typeof C.sections;
-// E20: markers — the "blood markers" section sits after body signals
-const WITH_PLAN: readonly ProgressSectionId[] = ['trend', 'goals', 'adherence', 'body', 'signals', 'activity', 'markers', 'log', 'checkins', 'plan'];
-const WITHOUT_PLAN: readonly ProgressSectionId[] = ['body', 'signals', 'activity', 'markers', 'log'];
-
-/** Scroll-spy: the last section whose top passed the sticky bars. */
-function useSectionInView(ids: readonly ProgressSectionId[]): ProgressSectionId {
-  const [active, setActive] = useState<ProgressSectionId>(ids[0]!);
-  const key = ids.join(',');
-  useEffect(() => {
-    const list = key.split(',') as ProgressSectionId[];
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const line = window.matchMedia?.('(min-width: 64rem)').matches ? 110 : 170;
-      let current = list[0]!;
-      for (const id of list) {
-        const el = document.getElementById(id);
-        if (el && el.getBoundingClientRect().top <= line) current = id;
-      }
-      const atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
-      setActive(atEnd && window.scrollY > 0 ? list[list.length - 1]! : current);
-    };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(measure);
-    };
-    frame = window.requestAnimationFrame(measure);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [key]);
-  return ids.includes(active) ? active : ids[0]!;
-}
+import { LogWeight, TrendSection, WeighInsSection, WeightGhost } from './sections/TrendSection';
+import { EnergySection } from './sections/EnergySection';
+import { HeartPointsSection } from './sections/HeartPointsSection';
+import { OvernightSection } from './sections/OvernightSection';
+import { StepsSection } from './sections/StepsSection';
+import { MarkerTrendsSection } from '@/markers/ui/MarkerTrends';
+import { GaugeFreshnessNotice, GaugeFreshnessProvider } from './components/GaugeFreshness';
+import { ProgressCard } from './components/ProgressCard';
 
 export function ProgressOverview() {
+  const today = useToday();
+  const sourceQuiet = useLiving((s) => s.today(today)?.quietMode ?? false, [today]);
+  const settingQuiet = useQuietMode().on;
+  const quietMode = sourceQuiet || settingQuiet;
+  // A temporary reveal never survives leaving and re-entering quiet mode.
+  return <GaugeFreshnessProvider><ProgressContent key={String(quietMode)} quietMode={quietMode} /></GaugeFreshnessProvider>;
+}
+function ProgressContent({ quietMode }: { quietMode: boolean }) {
   const { plan } = useAppMode();
   const today = useToday();
   const { hash } = useLocation();
-  const quietMode = useLiving((s) => s.today(today)?.quietMode ?? false, [today]);
   const [showNumbers, setShowNumbers] = useState(false);
   const quiet = quietMode && !showNumbers;
   const [range, setRange] = useState<TrendRange>('4wk');
-  const ids = plan ? WITH_PLAN : WITHOUT_PLAN;
-  const active = useSectionInView(ids);
-
+  const desk = useMediaQuery(MQ.lg);
+  const measurements = useLiving((s) => s.composition(), []);
+  const hasWeight = useLiving(
+    (s) => (s.trend(addDays(today, -181), today)?.weighIns.length ?? 0) > 0,
+    [today],
+  );
+  const markers = useMarkersDoc();
+  const empty =
+    !plan &&
+    !hasWeight &&
+    !(measurements?.rows.length || measurements?.girths.length) &&
+    !markers.readings.length;
   useEffect(() => {
     if (!hash) return;
-    const go = () => document.getElementById(hash.slice(1))?.scrollIntoView?.({ block: 'start' });
-    const f = window.requestAnimationFrame(go);
+    const f = window.requestAnimationFrame(() =>
+      document.getElementById(hash.slice(1))?.scrollIntoView?.({ block: 'start' }),
+    );
     return () => window.cancelAnimationFrame(f);
   }, [hash]);
-
+  const menu = useMemo<MenuEntry[] | undefined>(
+    () =>
+      quietMode
+        ? [
+            {
+              id: 'numbers',
+              label: showNumbers ? C.hideNumbers : C.showNumbers,
+              onSelect: () => setShowNumbers((v) => !v),
+            },
+          ]
+        : undefined,
+    [quietMode, showNumbers],
+  );
+  const body = (
+    <BodySection
+      key="body"
+      today={today}
+      quiet={quiet}
+      {...(quietMode ? { onShowNumbers: () => setShowNumbers(true) } : {})}
+    />
+  );
+  const checkins = plan ? <CheckInsSection key="checkins" plan={plan} today={today} quiet={quiet} /> : null;
   return (
     <>
-      <TopBar
-        title={C.title}
-        tabs={plan ? <Engraved className="lv-prog-plan">{plan.name}</Engraved> : undefined}
-        actions={
-          <>
-            {plan ? (
-              <KeyBank<TrendRange> size="sm" label={C.rangeLabel} value={range} onChange={setRange} options={TREND_RANGES.map((r) => ({ value: r, label: C.ranges[r] }))} />
-            ) : null}
-            {quietMode ? (
-              <Key size="sm" variant="quiet" pressed={showNumbers} onClick={() => setShowNumbers((v) => !v)}>
-                {showNumbers ? C.hideNumbers : C.showNumbers}
-              </Key>
-            ) : null}
-          </>
-        }
-      />
-      <nav aria-label={C.sectionsNav} className="lv-prog-rail">
-        <ScrollRail gap={6} padding={16} bleed={false}>
-          {ids.map((id) => (
-            <a key={id} href={`#${id}`} className="lm-chip lv-prog-rail__chip" data-kind="filter" aria-current={active === id ? 'true' : undefined}>
-              {C.sections[id]}
-            </a>
-          ))}
-        </ScrollRail>
-      </nav>
+      <TopBar title={C.title} {...(menu ? { menu } : {})} />
       <Page>
-        <div className="lv-prog">
-          <nav aria-label={C.sectionsNav} className="lv-prog-index">
-            <div className="lv-prog-index__sticky">
-              <p className="lm-eng lv-prog-index__label">{C.sectionsHeading}</p>
-              <div className="lm-bank" data-orientation="vertical" data-block="true">
-                {ids.map((id) => (
-                  <a key={id} href={`#${id}`} className="lm-bank__key" aria-current={active === id ? 'true' : undefined}>
-                    {C.sections[id]}
-                  </a>
-                ))}
-              </div>
+        <GaugeFreshnessNotice />
+        {empty ? (
+          <ProgressCard
+            title="Progress starts with a weigh-in"
+            icon={Scale}
+            domain="body"
+            size="hero"
+            id="progress-start"
+            info={{
+              body: 'Log a weight to begin your history. Later weigh-ins help separate your trend from day-to-day changes in water and gut contents. You can also add tape measurements or blood results. Once you have a plan, Progress compares the measurements you log with its forecast.',
+              source: { kind: 'logged' },
+              range: 'No readings yet.',
+            }}
+            foot={
+              <CardFoot state={{ word: 'Your starting point' }} tone="ink">
+                <LogWeight today={today} />
+              </CardFoot>
+            }
+          >
+            <WeightGhost />
+            <DottedTrack
+              label="Your progress"
+              value={null}
+              goal={1}
+              valueText="No weigh-in yet"
+              quiet
+              quietWord="Your starting point"
+            />
+          </ProgressCard>
+        ) : plan ? (
+          <div className="lv-prog">
+            <div className="lv-prog__hero">
+              <GoalsSection plan={plan} today={today} quiet={quiet} />
             </div>
-          </nav>
-          <div className="lv-prog-main">
-            {plan ? (
-              <>
-                <TrendSection plan={plan} today={today} range={range} quiet={quiet} />
-                <GoalsSection plan={plan} today={today} />
-                <AdherenceSection plan={plan} today={today} quiet={quiet} />
-              </>
-            ) : null}
-            <BodySection today={today} quiet={quiet} {...(quietMode ? { onShowNumbers: () => setShowNumbers(true) } : {})} />
-            <SignalsSection quiet={quiet} />
-            {/* plan 04: the ring's link card to Body signals (/signals), in place of the E29 steps and workouts */}
-            <BodySignalsLink id="activity" />
-            {/* E20: markers — readings against the plan's projection, retest due lines */}
-            <MarkerTrendsSection plan={plan ?? null} />
-            <LogSection plan={plan} today={today} quiet={quiet} />
-            {plan ? (
-              <>
-                <CheckInsSection plan={plan} today={today} quiet={quiet} />
-                <PlanSection />
-              </>
-            ) : null}
+            <div className="lv-prog__col">
+              <TrendSection plan={plan} today={today} range={range} onRange={setRange} quiet={quiet} />
+              <EnergySection plan={plan} today={today} range={range} quiet={quiet} />
+              {desk ? (
+                <StepsSection today={today} quiet={quiet} />
+              ) : (
+                <AdherenceSection today={today} quiet={quiet} />
+              )}
+              <LogSection plan={plan} today={today} quiet={quiet} />
+              {checkins}
+              {desk ? null : (
+                <>
+                  <StepsSection today={today} quiet={quiet} />
+                  <HeartPointsSection today={today} quiet={quiet} />
+                  <OvernightSection today={today} quiet={quiet} />
+                </>
+              )}
+            </div>
+            <div className="lv-prog__col">
+              {desk ? (
+                <>
+                  <AdherenceSection today={today} quiet={quiet} />
+                  <HeartPointsSection today={today} quiet={quiet} />
+                  <OvernightSection today={today} quiet={quiet} />
+                </>
+              ) : null}
+              {body}
+              <MarkerTrendsSection plan={plan} quiet={quiet} />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="lv-prog" data-single="true">
+            <div className="lv-prog__col">
+              <WeighInsSection today={today} range={range} onRange={setRange} quiet={quiet} />
+              {body}
+              <MarkerTrendsSection plan={null} quiet={quiet} />
+            </div>
+          </div>
+        )}
       </Page>
     </>
   );

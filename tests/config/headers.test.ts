@@ -68,11 +68,10 @@ describe('Permissions-Policy', () => {
     expect(viteConstant('PERMISSIONS_POLICY')).toBe(netlifyHeader('Permissions-Policy'));
   });
 
-  it('is the spec policy plus camera=(self) for the pairing QR scan', () => {
+  it('is the spec policy: camera=(self) for the pairing QR scan, no Bluetooth (Vitals reads no devices)', () => {
     const sent = netlifyHeader('Permissions-Policy');
-    expect(sent).toBe('camera=(self), microphone=(), geolocation=(), bluetooth=(self)');
-    // The spec line differs only in the camera entry (E11 widened it for scanning a pairing code).
-    expect(sent.replace('camera=(self)', 'camera=()')).toBe(specLine('Permissions-Policy'));
+    expect(sent).toBe('camera=(self), microphone=(), geolocation=(), bluetooth=()');
+    expect(sent).toBe(specLine('Permissions-Policy'));
   });
 });
 

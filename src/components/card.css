@@ -1,0 +1,275 @@
+/* ==========================================================================
+   GradientCard, CardHead, CardFoot, the (i) key (r071 0B). The card is the shared material: GradientCard renders
+   `.lm-material` (src/styles/components.css: the Ember face and its fine grain, a 0.5 px gold hairline, radius 20) and
+   `data-domain` gives it ONE eased radial glow in the domain's hue, over the grain, in `oklab`, with five eased stops. That
+   recipe and the domain wiring live there and nowhere else (and the registered `--lm-glow-k` that fades the glow in);
+   this file only lays the card out (head, body, foot, the stretched open link) and moves or holds the glow
+   (`data-glow`, `data-reveal`). Rules for what sits on the glow: no small stone text and no solid-coloured mark in the core; ivory is
+   safe everywhere; nothing else on the card carries a gradient.
+   ========================================================================== */
+@layer components {
+  .lm-gcard {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: var(--lm-card-pad);
+    color: var(--lm-ink);
+  }
+  /* the `glow` prop moves the glow, never resizes it (an object sets all three inputs inline, which beats every rule here);
+     `none` switches it off, and `data-reveal="pending"` holds it at 0 until the card is first 20 % in view, when it fades in once
+     through the registered --lm-glow-k (the material's own transition). The recipe itself is components.css's. */
+  .lm-gcard[data-glow='tl'] {
+    --lm-glow-pos: 0% 0%;
+  }
+  .lm-gcard[data-glow='tr'] {
+    --lm-glow-pos: 100% 0%;
+  }
+  .lm-gcard[data-glow='bl'] {
+    --lm-glow-pos: 0% 100%;
+  }
+  .lm-gcard[data-glow='br'] {
+    --lm-glow-pos: 100% 100%;
+  }
+  .lm-gcard[data-glow='bottom'] {
+    --lm-glow-pos: 50% 112%;
+  }
+  .lm-gcard[data-glow='none'] {
+    --lm-glow-k: 0;
+  }
+  .lm-gcard[data-reveal='pending'] {
+    --lm-glow-k: 0;
+  }
+
+  .lm-gcard[data-variant='flush'] {
+    padding: 0;
+  }
+  .lm-gcard[data-variant='inset'] {
+    background: var(--lm-well);
+    border-color: transparent;
+  }
+  /* slim: one row, the action first (Next up: a round key, the words, a time) */
+  .lm-gcard[data-size='slim'] {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px 14px 14px;
+  }
+  .lm-gcard[data-size='slim'] > .lm-gcard__body {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+  }
+
+  .lm-gcard__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    gap: 12px;
+  }
+  .lm-cardhead ~ .lm-gcard__body {
+    margin-top: 14px;
+  }
+  .lm-cardhead ~ .lm-cardfoot,
+  .lm-gcard__body ~ .lm-cardfoot {
+    margin-top: 12px;
+  }
+
+  /* the whole card opens through its title: a stretched link, with everything interactive lifted above it */
+  .lm-gcard__open {
+    position: static;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .lm-gcard__open::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .lm-gcard__open:focus-visible {
+    outline: none;
+  }
+  .lm-gcard__open:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) {
+    .lm-gcard__open:hover::after {
+      background: color-mix(in oklab, var(--lm-ink) 4%, transparent);
+    }
+  }
+  .lm-gcard[data-open] :where(button, a, input, select, textarea, [role='button'], [tabindex]):not(.lm-gcard__open) {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ---- head --------------------------------------------------------------------------------------------- */
+  .lm-cardhead {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: var(--lm-info-size);
+    margin-top: -1px;
+  }
+  .lm-cardhead__ic {
+    display: grid;
+    flex: none;
+    color: var(--lm-hue);
+  }
+  .lm-cardhead__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    color: var(--lm-ink);
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    overflow-wrap: break-word;
+  }
+  .lm-cardhead__meta {
+    margin-inline-start: auto;
+    min-width: 0;
+    max-width: 40%;
+    overflow-wrap: break-word;
+  }
+  .lm-cardhead__meta ~ .lm-info,
+  .lm-cardhead__title ~ .lm-info {
+    margin-inline-start: auto;
+  }
+  .lm-cardhead__meta ~ .lm-info {
+    margin-inline-start: 4px;
+  }
+
+  /* ---- the (i): quiet at rest, with the full touch target ------------------------------------------------- */
+  .lm-info {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--lm-info-size);
+    height: var(--lm-info-size);
+    padding: 0;
+    border: var(--lm-hairline) solid var(--lm-info-key-edge);
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-info-key-bg);
+    color: var(--lm-ink-3);
+    cursor: pointer;
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-info::after {
+    content: '';
+    position: absolute;
+    width: var(--lm-info-hit);
+    height: var(--lm-info-hit);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: var(--lm-radius-full);
+  }
+  @media (hover: hover) {
+    .lm-info:hover {
+      background: var(--lm-info-key-bg-hover);
+      border-color: color-mix(in oklab, var(--lm-ink) 14%, transparent);
+      color: var(--lm-ink);
+    }
+  }
+  .lm-info:active {
+    transform: scale(0.94);
+  }
+  .lm-info:focus-visible {
+    background: var(--lm-info-key-bg-hover);
+    color: var(--lm-ink);
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+
+  /* ---- foot ---------------------------------------------------------------------------------------------- */
+  .lm-cardfoot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    min-width: 0;
+  }
+  .lm-cardfoot__extra {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .lm-cardfoot__right {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-start: auto;
+    text-align: end;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+  .lm-cardfoot[data-stacked] .lm-cardfoot__right {
+    flex-basis: 100%;
+    margin-inline-start: 0;
+    text-align: start;
+  }
+  .lm-stateword {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .lm-stateword__word {
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  .lm-stateword__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-hue);
+  }
+  .lm-stateword__mark {
+    flex: none;
+    color: var(--lm-hue);
+  }
+  .lm-stateword[data-tone='caution'] :is(.lm-stateword__dot) {
+    background: var(--lm-caution-mark);
+  }
+  .lm-stateword[data-tone='caution'] .lm-stateword__mark {
+    color: var(--lm-caution-mark);
+  }
+  .lm-stateword[data-tone='danger'] .lm-stateword__dot {
+    background: var(--lm-danger-mark);
+  }
+  .lm-stateword[data-tone='danger'] .lm-stateword__mark {
+    color: var(--lm-danger-mark);
+  }
+
+  @media (forced-colors: active) {
+    .lm-gcard {
+      border: 1px solid CanvasText;
+      background: Canvas;
+    }
+    .lm-info {
+      border: 1px solid CanvasText;
+    }
+    .lm-stateword__dot {
+      background: CanvasText;
+    }
+  }
+}

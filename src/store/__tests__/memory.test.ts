@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDocumentStore, createMemoryBackend, mintWriteToken } from '..';
-import { conformanceCases, sealedCases } from './conformance';
+import { backendAtomicityCases, conformanceCases, sealedCases, snapshotRestoreCases } from './conformance';
 
 describe('DocumentStore conformance · memory backend', () => {
   conformanceCases(() => {
@@ -80,3 +80,11 @@ describe('DocumentStore conformance · memory backend', () => {
   });
 });
 
+
+describe('memory backend atomic batches', () => {
+  backendAtomicityCases((now) => createMemoryBackend({ now }));
+});
+
+describe('memory backend snapshot restore', () => {
+  snapshotRestoreCases(() => createMemoryBackend());
+});

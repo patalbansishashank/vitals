@@ -30,7 +30,7 @@ it('shows both meal versions and retracts only the one the person does not keep'
   expect(screen.getByText('Soup and bread')).toBeInTheDocument();
   expect(screen.getByText('2 versions · one counted in totals until you choose')).toBeInTheDocument();
 
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Keep version 2: Soup and bread' }));
+  await userEvent.setup().click(screen.getByRole('button', { name: /Keep: Soup and bread \(400\s+kcal\)/ }));
   expect(retract).toHaveBeenCalledOnce();
   expect(retract).toHaveBeenCalledWith('newer', 'other');
 });
@@ -41,30 +41,44 @@ it('hides meal energy in quiet mode while keeping both choices readable', () => 
   expect(screen.getByText('Soup and bread')).toBeInTheDocument();
   expect(screen.queryByText('350 kcal')).not.toBeInTheDocument();
   expect(screen.queryByText('400 kcal')).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Keep version 1: Rice and lentils' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Keep: Rice and lentils' })).toBeEnabled();
 });
 
 it('keeps the choices visible with a clear error if the retraction fails', async () => {
-  const retract = vi.fn<LivingActions['retract']>().mockResolvedValue({ ok: false, message: 'Could not save while offline.' });
+  const retract = vi
+    .fn<LivingActions['retract']>()
+    .mockResolvedValue({ ok: false, message: 'Could not save while offline.' });
   mount(retract);
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Keep version 1: Rice and lentils' }));
+  await userEvent
+    .setup()
+    .click(screen.getByRole('button', { name: /Keep: Rice and lentils \(350\s+kcal\)/ }));
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not save while offline.');
-  expect(screen.getByRole('button', { name: 'Keep version 1: Rice and lentils' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: /Keep: Rice and lentils \(350\s+kcal\)/ })).toBeEnabled();
 });
 
 it('offers undo if resolving three versions stops after one retraction', async () => {
   const undo = vi.fn().mockResolvedValue({ ok: true });
-  const retract = vi.fn<LivingActions['retract']>()
+  const retract = vi
+    .fn<LivingActions['retract']>()
     .mockResolvedValueOnce({ ok: true, undo })
     .mockResolvedValueOnce({ ok: false, message: 'The entry changed again.' });
   render(
     <LivingActionsProvider value={{ retract } as unknown as LivingActions}>
-      <LogConflict conflict={{ ...conflict, versions: [...conflict.versions, { id: 'third', label: 'Fruit', source: 'user' }] }} />
+      <LogConflict
+        conflict={{
+          ...conflict,
+          versions: [...conflict.versions, { id: 'third', label: 'Fruit', source: 'user' }],
+        }}
+      />
       <Toaster />
     </LivingActionsProvider>,
   );
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Keep version 1: Rice and lentils' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('The entry changed again. Earlier changes can be undone.');
+  await userEvent
+    .setup()
+    .click(screen.getByRole('button', { name: /Keep: Rice and lentils \(350\s+kcal\)/ }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'The entry changed again. Earlier changes can be undone.',
+  );
   await userEvent.setup().click(screen.getByRole('button', { name: 'Undo' }));
   expect(undo).toHaveBeenCalledOnce();
 });

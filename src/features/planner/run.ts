@@ -135,7 +135,7 @@ async function runPort(request: PlannerRequestV2, options: PortOptions): Promise
 
 /**
  * The rung genomes of a shown ladder, for the next (longer) search of the same request: Medium and Easy are re-checked
- * and kept when its own collapse; Hard is weighed only when that search is stopped early ("Stop here").
+ * and kept when its own collapse; Hard is re-checked alongside that search's own finalists.
  */
 export function previousLadder(v2: PlannerResultV2): PlannerRequestV2['previous'] {
   if (v2.status !== 'ok') return undefined;
@@ -149,7 +149,20 @@ export function previousLadder(v2: PlannerResultV2): PlannerRequestV2['previous'
 
 installPorts({
   planner: {
-    prepare: () => prepared ?? published,
+    prepare: (options) => {
+      const current = prepared ?? published;
+      if (!current) return null;
+      const tier = options?.tier;
+      if (!prepared && tier) {
+        const before = usePlannerStore.getState().run;
+        useLadderRun.setState({ ...INITIAL, tier: tier ?? null, previous: before.result && before.requestHash === current.hash ? before.result : null });
+      }
+      if (!tier || current.request.budget?.tier === tier) return current;
+      const request = { ...current.request, budget: { ...current.request.budget, tier } };
+      const extra = RUN_OPTS.get(current.request);
+      if (extra) RUN_OPTS.set(request, extra);
+      return { request, hash: current.hash };
+    },
     run: (request, options) => runPort(request as PlannerRequestV2, options as PortOptions),
     cancel: () => cancelPlanning(),
   },

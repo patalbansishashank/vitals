@@ -12,12 +12,12 @@ import type { ScenarioStartProps } from './StartPlanSheet';
 
 const StartPlanSheet = lazy(() => import('./StartPlanSheet').then((m) => ({ default: m.StartPlanSheet })));
 
-export function ScenarioStartEntry({ scenario, disabledReason, size }: ScenarioStartProps & { size?: 'sm' | 'md' | 'lg' }) {
+export function ScenarioStartEntry({ scenario, disabledReason, size, variant }: ScenarioStartProps & { size?: 'sm' | 'md' | 'lg'; variant?: 'primary' | 'outlined' }) {
   const [open, setOpen] = useState(false);
   const live = useActivePlan();
   return (
     <>
-      <Key size={size} onClick={() => setOpen(true)} disabledReason={disabledReason}>
+      <Key size={size} variant={variant} onClick={() => setOpen(true)} disabledReason={disabledReason}>
         {live ? START_COPY.replace : START_COPY.entry}
       </Key>
       {open ? (

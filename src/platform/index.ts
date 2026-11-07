@@ -11,8 +11,6 @@ export { platformCaps } from './caps';
 export type { PlatformCaps } from './caps';
 export { detectOs } from './os';
 export type { OsName } from './os';
-export { shell } from './shell';
-export type { ShellBridge } from './shell';
 
 /** The same as `detectPlatform()`; the name the first callers use. */
 export const platform = detectPlatform;

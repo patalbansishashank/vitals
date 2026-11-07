@@ -23,7 +23,11 @@ import {
 } from '../fixtures/programs';
 import { above, below, range, rel, val } from '../harness/run';
 import type { Scenario } from '../harness/types';
+import type { ArmView } from '../harness/view';
 import { REQUIRES } from '../harness/stubs';
+import { bwpInputFromProfile, intakeKcalFromArm } from '../oracle/bwpAdapter';
+import { simulateBwpKcal, type BwpTrajectory } from '../oracle/bwp';
+import type { DayTemplate } from '../../types';
 import { fatLossKg, rqNonProtein, scaleDelta, storedEnergyKcal, tdeePctVsBaseline } from './util';
 
 const CORE = REQUIRES.CORE;
@@ -46,7 +50,9 @@ export const MINNESOTA: Scenario = {
     'The engine cannot reach a 3 630 kcal/d maintenance from steps for a 69 kg man, so the deficit is applied as 43.7 % of the engine maintenance ' +
     '(same relative cut); macros 12.3/67.8/18.3 %E + 1.6 % fibre. Body: 69.4 kg (BMI 21.7 at 1.79 m), FM 9 kg (Hall 2006 Fig. 3), age 25.5 y. ' +
     'The voluntary-activity decline Hall used (δ 26 → 9 kcal/kg/d) is NOT imposed as an input: the energy module owns adaptive NEAT (02 §4.8). ' +
-    'The 12-wk controlled refeed and 8-wk ad libitum phases are not scheduled: the refeeding energies are not in the dossier and ad libitum intake is out of v1.',
+    'The 12-wk controlled refeed and 8-wk ad libitum phases are not scheduled: the refeeding energies are not in the dossier and ad libitum intake is out of v1. ' +
+    'D1-08: this is a MISMATCHED-PROTOCOL challenge (a relative cut on a baseline the engine cannot reach, scheduled activity instead of the observed fall), ' +
+    'kept with its original targets; it is not evidence that severe restriction is mispredicted. The protocol-matched replay is 01-7.1b.',
   arms: {
     main: {
       profile: KEYS_MAN,
@@ -57,6 +63,87 @@ export const MINNESOTA: Scenario = {
     { id: 'bw24wk', label: 'body weight at 24 wk (76 % of 69.4 kg)', unit: 'kg', measure: (c) => c.main.after('scaleWeight', 168), check: val(52.74, 2), source: 'dossier 01 §7.1 (BW ±2 kg)' },
     { id: 'fm24wk', label: 'fat mass at 24 wk (34 % of 9 kg)', unit: 'kg', measure: (c) => c.main.after('fatMass', 168), check: val(3.06, 1), source: 'dossier 01 §7.1 (FM ±1 kg)' },
     { id: 'loss', label: 'weight lost (16-17 kg)', unit: 'kg', measure: (c) => -scaleDelta(c.main, 168), check: range(14.7, 18.7), gate: 'Q', source: 'dossier 01 §7.1 [5,6]' },
+  ],
+};
+
+// ------------------------------------------------------------------ 7.1b Minnesota, matched-input replay (D1-08)
+
+/** Hall 2006 Minnesota inputs: weight-stable baseline intake (CI 1826 + FI 1343 + PI 461) and the semistarvation diet. */
+const MN_BASELINE_KCAL = 3630;
+const MN_SEMI_KCAL = 1585;
+/** Observed fall in the physical-activity coefficient over the 24 weeks (Hall 2006: δ 26 → 9 kcal/kg/d). */
+const MN_DELTA_RATIO_24WK = 9 / 26;
+const MN_WEEKS = 24;
+/** Matched persona: the walking requirement (22 miles/wk) as the profile's 7 habitual 60-min walks, steps solved for 3 630 kcal/d. */
+const MN_SPEC = { sex: 'male', ageYears: 25.5, heightCm: 179, weightKg: 69.4, bodyFatPct: 12.97, sessionsPerWeek: 7, liftingCardioMix: 1 } as const;
+const MN_MATCHED = personWithTdee(MN_SPEC, MN_BASELINE_KCAL);
+
+/**
+ * Week w's activity ratio (week midpoint; linear from 1 to the observed 24-wk ratio — the time course is an imputation)
+ * and the step count that gives the engine that ratio of its baseline activity energy per kg: the walks stay (protocol),
+ * the steps carry the fall. Activity energy of steps and walks scales with body mass inside the engine, like δ·BW.
+ */
+function mnActivityRatio(week: number): number {
+  return 1 + (MN_DELTA_RATIO_24WK - 1) * ((Math.min(week, MN_WEEKS - 1) + 0.5) / MN_WEEKS);
+}
+function mnStepsByWeek(): number[] {
+  const t = (steps: number, sessions: number) => tdee0Of(person({ ...MN_SPEC, sessionsPerWeek: sessions, steps }));
+  const kcalPerStep = (t(12000, 0) - t(4000, 0)) / 8000;
+  const walksKcal = t(4000, 7) - t(4000, 0);
+  const a0 = walksKcal + kcalPerStep * MN_MATCHED.steps;
+  return Array.from({ length: MN_WEEKS }, (_, w) => Math.max(1000, Math.round((mnActivityRatio(w) * a0 - walksKcal) / kcalPerStep)));
+}
+
+const mnBwp = new WeakMap<ArmView, BwpTrajectory>();
+/** The Hall 2011 port fed the same absolute intake, the matched baseline and the same imputed activity fall. */
+function mnBwpFor(v: ArmView): BwpTrajectory {
+  let t = mnBwp.get(v);
+  if (!t) {
+    t = simulateBwpKcal(bwpInputFromProfile(v.profile), intakeKcalFromArm(v), { deltaScale: (d) => mnActivityRatio(Math.floor(d / 7)) });
+    mnBwp.set(v, t);
+  }
+  return t;
+}
+
+export const MINNESOTA_MATCHED: Scenario = {
+  id: '01-7.1b-minnesota-matched',
+  dossier: '01',
+  target: '7.1b',
+  title: 'Minnesota semistarvation, matched-input replay (absolute intake, observed activity fall)',
+  level: 'I',
+  gate: 'Q',
+  requires: CORE,
+  citation: 'Keys 1950 via Hall 2006 Am J Physiol Endocrinol Metab 291:E23 (PMID 16449298); dossier 01 §7.1; review D1-08',
+  notes:
+    'D1-08 protocol-matched replay of 7.1, run in the engine and in the Hall 2011 port with identical inputs: the historical ABSOLUTE intakes ' +
+    `(baseline ${MN_BASELINE_KCAL} kcal/d, semistarvation ${MN_SEMI_KCAL} kcal/d at 12.3/67.8/18.3 %E) and the observed fall in voluntary activity (δ 26 → 9 kcal/kg/d). ` +
+    'Unavoidable imputations, recorded here and in the validation ledger: (1) one representative man from the group means; (2) the walking requirement ' +
+    '(22 miles/wk) as 7 × 60-min habitual walks and the rest of the baseline need as steps solved so the engine baseline equals 3 630 kcal/d; (3) the time ' +
+    'course of the activity fall (linear over 24 wk, weekly steps; the Hall port gets the same weekly ratio on δ); (4) the engine\'s own adaptive NEAT still ' +
+    'acts on top of the imposed fall (possible double counting, reported, not corrected). No coefficient is fitted and no row gates: the rows show whether the ' +
+    'remaining gap is protocol mismatch or model physiology (adaptation, protein, partition). Development comparison (the study informed the engine\'s design).',
+  arms: {
+    main: {
+      profile: MN_MATCHED.profile,
+      schedule: segmentSchedule(
+        mnStepsByWeek().map((steps, w): DayTemplate => ({ ...kcalProgram(`semi-w${w + 1}`, MN_SEMI_KCAL, pctMacros3(12.3, 67.8, 18.3), { steps }), habitualTraining: true })),
+        Array.from({ length: MN_WEEKS }, (_, w) => ({ days: 7, program: w })),
+      ),
+    },
+  },
+  expectations: [
+    {
+      id: 'baseline',
+      label: 'matched baseline: engine maintenance − 3 630 kcal/d (imputation check)',
+      unit: 'kcal/d',
+      measure: (c) => c.main.profile.tdee0Kcal - MN_BASELINE_KCAL,
+      check: val(0, 25),
+      source: 'Hall 2006 baseline intake (design tolerance)',
+    },
+    { id: 'bw24wk', label: 'matched inputs: body weight at 24 wk (76 % of 69.4 kg)', unit: 'kg', measure: (c) => c.main.after('scaleWeight', 168), check: val(52.74, 2), source: 'dossier 01 §7.1 (BW ±2 kg)' },
+    { id: 'fm24wk', label: 'matched inputs: fat mass at 24 wk (34 % of 9 kg)', unit: 'kg', measure: (c) => c.main.after('fatMass', 168), check: val(3.06, 1), source: 'dossier 01 §7.1 (FM ±1 kg)' },
+    { id: 'bwpBw24wk', label: 'Hall 2011 port, same inputs: body weight at 24 wk', unit: 'kg', measure: (c) => mnBwpFor(c.main).bwKg[168]!, check: val(52.74, 2), source: 'dossier 01 §7.1 (BW ±2 kg)' },
+    { id: 'vsBwp', label: 'engine − Hall 2011 port, same inputs: body weight at 24 wk', unit: 'kg', measure: (c) => c.main.after('scaleWeight', 168) - mnBwpFor(c.main).bwKg[168]!, check: val(0, 3), source: 'MODEL_SPEC §9.1 O-1 tolerance (±3 kg)' },
   ],
 };
 
@@ -414,4 +501,4 @@ export const FRIEDLANDER: Scenario = {
   ],
 };
 
-export const SCENARIOS_01: Scenario[] = [MINNESOTA, JEBB, CALERIE1, CALERIE2, HALL2015, HALL2016, BOUCHARD_OVERFEED, DIAZ_OVERFEED, BRAY2012, FRIEDLANDER];
+export const SCENARIOS_01: Scenario[] = [MINNESOTA, MINNESOTA_MATCHED, JEBB, CALERIE1, CALERIE2, HALL2015, HALL2016, BOUCHARD_OVERFEED, DIAZ_OVERFEED, BRAY2012, FRIEDLANDER];

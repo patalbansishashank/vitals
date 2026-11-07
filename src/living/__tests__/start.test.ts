@@ -30,6 +30,10 @@ describe('start this plan', () => {
     expect(out.version).toMatchObject({ version: 1, reason: 'start', genome: null });
     expect(out.version.schedule.startDate).toBe('2026-10-05');
     expect(out.anchorNotes).toEqual([]);
+    // C2/C5: no realistic forecast yet (explicitly unavailable); a custom scenario carries no certificate: Unchecked
+    expect(out.version.forecast.realisticStatus).toBe('unavailable');
+    expect(out.version.safetyStatus).toBe('unchecked');
+    expect(out.version.certificate).toBeUndefined();
     expect(startFromScenario(ctx, { id: 'sc1', rev: 'r7', name: 'x', schedule: SCHED }, MAN, [], { startDate: '2026-11-30' })).toMatchObject({ ok: false });
   });
 
@@ -53,6 +57,11 @@ describe('start this plan', () => {
     expect(out.version.forecast.asPrescribed.scaleWeight!.p50[0]).toBeCloseTo(89.9, 5);
     expect(out.version.forecast.warnings[0]!.text).toBe('Keep protein high.');
     expect(Object.values(out.version.sensitivities.itemWeights).every((w) => w > 0)).toBe(true);
+    // the realistic variant is unavailable at start (never the as-prescribed band relabelled), bands keep their semantics
+    expect(out.version.forecast.realisticStatus).toBe('unavailable');
+    expect(out.version.forecast.realistic).toEqual({});
+    expect(out.version.forecast.bandMeta?.uncertaintyKind).toBe('parameterSensitivity');
+    expect(out.version.safetyStatus).toBe('unchecked');
   });
 
   it('refuses a start date beyond 28 days', () => {
@@ -66,14 +75,25 @@ describe('estimation-loop rules', () => {
 
   it('weigh-ins: standardisation by context, ×4 noise for 4 days after an event or a block start, assumed entries ignored', () => {
     const ms: MeasurementEntry[] = [
-      { id: 'a', date: '2026-10-06', metric: 'weightKg', value: 90, source: src },
+      { id: 'a', date: '2026-10-06', metric: 'weightKg', value: 90, context: 'morningFasted', source: src },
       { id: 'b', date: '2026-10-07', metric: 'weightKg', value: 90.4, context: 'evening', source: src },
       { id: 'c', date: '2026-10-08', metric: 'weightKg', value: 90, source: src, assumed: true },
-      { id: 'd', date: '2026-11-03', metric: 'weightKg', value: 88, source: src },
+      { id: 'd', date: '2026-11-03', metric: 'weightKg', value: 88, measurementContext: 'standardized', source: src },
     ];
     const ev: LogEntry[] = [{ id: 'e', date: '2026-10-07', tz: 'UTC', source: src, kind: 'event', event: 'creatineStart' } as LogEntry];
-    const w = weighInsFor(plan, ms, [{ date: '2026-10-09', weights: [{ kg: 89.8, context: 'morning', source: 'scale' }] }], ev, blockStartsOf(SCHED));
-    expect(w.map((x) => [x.day, x.standardised, x.rMult])).toEqual([[1, true, 1], [2, false, 4], [4, true, 4], [29, true, 4]]);
+    const w = weighInsFor(plan, ms, ev, blockStartsOf(SCHED));
+    expect(w.map((x) => [x.day, x.standardised, x.rMult])).toEqual([[1, true, 1], [2, false, 4], [29, true, 4]]);
+  });
+
+  it('D5-04: an untagged or unknown weigh-in context is not standardised (old readings are not rewritten)', () => {
+    const ms: MeasurementEntry[] = [
+      { id: 'a', date: '2026-10-06', metric: 'weightKg', value: 90, source: src },
+      { id: 'b', date: '2026-10-07', metric: 'weightKg', value: 90.2, context: 'unknown', source: src },
+      { id: 'c', date: '2026-10-08', metric: 'weightKg', value: 90.1, measurementContext: 'unknown', context: 'morningFasted', source: src },
+    ];
+    const w = weighInsFor(plan, ms, []);
+    expect(w.map((x) => x.standardised)).toEqual([false, false, false]);
+    expect(ms[0]!.context).toBeUndefined();
   });
 
   it('hard re-anchor reasons in priority order', () => {
@@ -97,7 +117,8 @@ describe('estimation-loop rules', () => {
     const { anchors, offsets } = anchorsFromRecords([rec(14, 0), rec(21, -80), rec(28, -80, 0.24), rec(21, -90)]);
     expect(anchors.map((a) => a.day)).toEqual([14, 21, 28]);
     expect(anchors[2]!.split).toEqual({ fatFrac: 0.24 });
-    expect(offsets).toEqual([{ fromDay: 21, kcal: -90 }, { fromDay: 28, kcal: -80 }]);
+    // (D5-03) each δ step carries its application law (and the request/decision when the record has them)
+    expect(offsets).toEqual([{ fromDay: 21, kcal: -90, mechanism: 'absorbedMacroImputation' }, { fromDay: 28, kcal: -80, mechanism: 'absorbedMacroImputation' }]);
     expect(stableStringify({ b: 1, a: [1, { d: 2, c: 3 }] })).toBe('{"a":[1,{"c":3,"d":2}],"b":1}');
     expect(contentHash({ a: 1, b: 2 })).toBe(contentHash({ b: 2, a: 1 }));
     expect(contentHash({ a: 1 })).not.toBe(contentHash({ a: 2 }));

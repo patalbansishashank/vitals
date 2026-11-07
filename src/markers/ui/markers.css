@@ -1,4 +1,4 @@
-/* Blood-marker display hooks (COMPONENTS §14.6). Achromatic: ink, lines and the status marks only; both themes via --lm-* tokens. */
+/* Blood-marker display hooks (COMPONENTS §14.6). Statuses use a mark and a word; Progress sparklines use the body hue. */
 @layer components {
   .lm-because {
     cursor: pointer;
@@ -25,7 +25,7 @@
   }
   .lm-because:focus-visible,
   .lm-because-more:focus-visible {
-    outline: 2px solid var(--lm-ink);
+    outline: 2px solid var(--lm-focus);
     outline-offset: 2px;
   }
   .lm-because-row {
@@ -69,34 +69,49 @@
   }
   .lm-because-pop__links a,
   .lm-marker-banner__links a {
-    color: var(--lm-ink);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    min-height: 24px;
+    color: var(--lm-signal);
+    text-decoration: none;
+    min-height: var(--lm-hit-touch);
     display: inline-flex;
     align-items: center;
+    font-size: var(--lm-text-label);
+  }
+  @media (pointer: fine) {
+    .lm-because-pop__links a,
+    .lm-marker-banner__links a {
+      min-height: 32px;
+    }
+  }
+  @media (hover: hover) {
+    .lm-because-pop__links a:hover,
+    .lm-marker-banner__links a:hover {
+      color: var(--lm-signal-hover);
+    }
   }
 
+  /* card material (a sibling of the ladder cards, never inside one) */
   .lm-marker-banner {
     display: grid;
-    gap: 10px;
-    padding: 12px 14px;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    background: var(--lm-face);
+    gap: 12px;
+    padding: var(--lm-card-pad);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
+    background: var(--lm-card-bg);
     color: var(--lm-ink);
+  }
+  @media (min-width: 64rem) {
+    .lm-marker-banner {
+      padding: var(--lm-card-pad-lg);
+    }
   }
   .lm-marker-banner p,
   .lm-marker-banner h3 {
     margin: 0;
   }
   .lm-marker-banner__title {
-    font-size: var(--lm-text-sm);
-    font-weight: 600;
-  }
-  .lm-marker-banner__lead {
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 500;
   }
   .lm-marker-banner__list {
     display: grid;
@@ -110,8 +125,8 @@
     grid-template-columns: 16px minmax(0, 1fr);
     gap: 8px;
     align-items: start;
-    font-size: var(--lm-text-sm);
-    line-height: 1.45;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
   .lm-marker-banner__text .lm-chip {
     margin-top: 2px;
@@ -121,68 +136,146 @@
   }
   .lm-marker-banner__more summary {
     cursor: pointer;
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs);
+    color: var(--lm-signal);
+    font-size: var(--lm-text-label);
   }
 
-  /* Progress: marker trends */
+  /* Progress: compact rows. The card owns the material; the SVG chart skin owns hue and reveal. */
   .lm-marker-trends {
     display: grid;
-    gap: 16px;
   }
   .lm-marker-trend {
+    position: relative;
     display: grid;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 96px minmax(68px, auto);
+    column-gap: 12px;
+    row-gap: 4px;
+    align-items: center;
+    min-height: 72px;
+    padding-block: 12px;
+  }
+  .lm-marker-trend + .lm-marker-trend {
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-marker-trend__head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: var(--lm-text-sm);
+    min-width: 0;
+    display: grid;
+    gap: 4px;
   }
   .lm-marker-trend__head h4 {
     margin: 0;
-    font-size: var(--lm-text-sm);
-    font-weight: 600;
+    font: inherit;
+    font-size: var(--lm-text-body);
+    font-weight: 500;
   }
-  .lm-marker-trend__meta {
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs);
-    font-variant-numeric: tabular-nums;
+  .lm-marker-trend__open {
+    color: var(--lm-ink);
+    text-align: left;
+    cursor: pointer;
   }
-  .lm-marker-trend svg {
+  .lm-marker-trend__open::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--lm-radius-field);
+  }
+  .lm-marker-trend__open:focus-visible {
+    outline: none;
+  }
+  .lm-marker-trend__open:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-marker-trend__reading {
+    display: grid;
+    justify-items: end;
+    gap: 4px;
+  }
+  .lm-marker-trend__reading .lm-hero__line {
+    justify-content: end;
+  }
+  .lm-marker-trend__reading .lm-hero[data-unit='below'] .lm-hero__part {
+    align-items: flex-end;
+  }
+  .lm-marker-trend__reading .lm-hero__unit {
+    font-size: var(--lm-text-body-s);
+  }
+  .lm-marker-trend__reading .lm-mono {
+    text-align: right;
+  }
+  .lm-marker-trend__spark {
+    display: block;
+    width: 96px;
+    height: 28px;
+  }
+  .lm-marker-trend__spark svg {
     display: block;
     width: 100%;
-    height: auto;
+    height: 100%;
     overflow: visible;
   }
-  .lm-marker-trend__band {
-    fill: var(--lm-ink);
-    fill-opacity: 0.08;
+  .lm-marker-trend__projection {
+    grid-column: 1 / -1;
+    color: var(--lm-ink-2);
+  }
+  .lm-marker-trend__line {
+    fill: none;
+    stroke: var(--lmc-line);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .lm-marker-trend__median {
     fill: none;
     stroke: var(--lm-ink-2);
-    stroke-width: 1.5;
+    stroke-width: 1;
     stroke-dasharray: 4 3;
   }
   .lm-marker-trend__point {
-    fill: var(--lm-ink);
-    stroke: var(--lm-face);
-    stroke-width: 2;
+    fill: var(--lmc-line);
+    stroke: var(--lm-chart-ring);
+    stroke-width: 1;
   }
   .lm-marker-trend__retest {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+    stroke-dasharray: 1 3;
+  }
+  .lm-marker-trend--ghost {
+    color: var(--lm-ink-2);
+  }
+  .lm-marker-trend--ghost path {
+    fill: none;
     stroke: var(--lm-ink-3);
-    stroke-dasharray: 2 3;
+    stroke-dasharray: 3 4;
   }
-  .lm-marker-trend__axis {
-    stroke: var(--lm-line-strong);
+  @media (max-width: 400px) {
+    .lm-marker-trend {
+      grid-template-columns: minmax(0, 1fr) 76px minmax(60px, auto);
+      column-gap: 8px;
+    }
+    .lm-marker-trend__spark {
+      width: 76px;
+    }
   }
-  .lm-marker-trend__tick {
-    fill: var(--lm-ink-2);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
+  @media (hover: hover) {
+    .lm-marker-trend__open:hover {
+      color: var(--lm-hue-body-ink);
+    }
+  }
+  @media (forced-colors: active) {
+    .lm-marker-trend__band,
+    .lm-marker-trend__area {
+      fill: none;
+      stroke: CanvasText;
+    }
+    .lm-marker-trend__line,
+    .lm-marker-trend__median,
+    .lm-marker-trend__retest {
+      stroke: CanvasText;
+    }
+    .lm-marker-trend__point {
+      fill: CanvasText;
+    }
   }
 }

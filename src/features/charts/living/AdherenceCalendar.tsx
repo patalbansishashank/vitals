@@ -1,20 +1,26 @@
 /* ==========================================================================
-   <AdherenceCalendar> (CHART_SPEC §7.9) — a month of adherence: each in-plan
-   day is a key with its date and a 16 px AdherenceDial glyph when scored.
-   Unscored past days: hollow dot (unknown, never "failed"). Assumed days
-   (filled in as planned): dashed outline, not scored. Paused days: struck.
-   Future days: the number only, faint. Out-of-plan days stay blank. Today
-   carries the yellow indicator dot. Arrow keys move through the grid
-   (roving tab stop); Enter / click → onSelect(date).
+   <AdherenceCalendar> (CHART_SPEC §7.9) — a month of adherence and logging as
+   heat dots (r071): each in-plan day is a key with its date and, below it, a
+   26 px dot in the plan's hue whose intensity is the day's score (the
+   brighter, the more of the plan was done; never a verdict). Logged but not
+   scored: a small filled dot. Past days with nothing logged: a hollow ring
+   (unknown, never "failed"). Assumed days (filled in as planned): a dashed
+   ring, not scored. Paused days: struck. Future days: the number only, faint.
+   Out-of-plan days stay blank, and so do the weeks that hold none (only the
+   weeks the plan reaches are drawn). Today's date and ring are gold; the
+   selected day is the gold wash. Arrow keys move through the grid (roving
+   tab stop); Enter / click → onSelect(date). The marks are explained in the
+   card's (i), not under the grid. The per-item arcs of a day live in its
+   detail (AdherenceDial), no longer in every cell.
    ========================================================================== */
-import { memo, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Engraved } from '@/components';
-import { AdherenceDial } from './AdherenceDial';
+import { memo, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { Engraved, useReveal } from '@/components';
+import { chartHue, type ChartHue } from './skin';
 import { dateLabel, isoAddDays, isoDaysBetween, isoWeekday, monthTitle, quietScoreWord } from './trend';
 import type { CalendarDay } from './types';
 import './living-charts.css';
 
-export type CalendarCellState = 'scored' | 'unscored' | 'assumed' | 'paused' | 'today' | 'future' | 'blank';
+export type CalendarCellState = 'scored' | 'logged' | 'unscored' | 'assumed' | 'paused' | 'today' | 'future' | 'blank';
 
 export interface CalendarCell {
   date: string;
@@ -32,6 +38,7 @@ export function calendarCellState(info: CalendarDay | null, date: string, today:
   if (info.score !== null && Number.isFinite(info.score)) return 'scored';
   const rel = isoDaysBetween(today, date);
   if (rel > 0) return 'future';
+  if (info.logged) return 'logged';
   if (rel === 0) return 'today';
   return 'unscored';
 }
@@ -56,6 +63,22 @@ export function calendarWeeks(month: string, days: readonly CalendarDay[], today
   return weeks;
 }
 
+/**
+ * Only the weeks the plan reaches: a week with no in-plan day, before the first or after the last, is not drawn (a month
+ * that is mostly future or blank no longer adds empty rows). Weeks in between always stay, even when blank.
+ */
+export function trimWeeks<T extends CalendarCell | null>(weeks: Array<Array<T>>): Array<Array<T>> {
+  const live = (w: Array<T>) => w.some((c) => c !== null && c.state !== 'blank');
+  const first = weeks.findIndex(live);
+  if (first < 0) return weeks;
+  let last = weeks.length - 1;
+  while (last > first && !live(weeks[last]!)) last--;
+  return weeks.slice(first, last + 1);
+}
+
+/** The heat of a scored day, 0.14 to 1: a low score is a faint dot, never an empty one (an empty one is "not logged"). */
+export const calendarHeat = (score: number): number => 0.14 + 0.86 * Math.max(0, Math.min(1, score / 100));
+
 /** "Tue 14 Oct, adherence 84" · "…, filled in as planned, not scored" · quiet: "…, adherence mostly". */
 export function calendarDayLabel(cell: CalendarCell, opts: { quiet?: boolean } = {}): string {
   const score = cell.info?.score ?? null;
@@ -64,6 +87,9 @@ export function calendarDayLabel(cell: CalendarCell, opts: { quiet?: boolean } =
     case 'scored':
       body = opts.quiet ? `adherence ${quietScoreWord(score)}` : `adherence ${Math.round(score ?? 0)}`;
       if (cell.info?.final === false) body += ' so far';
+      break;
+    case 'logged':
+      body = cell.isToday ? 'logged, not scored yet' : 'logged, not scored';
       break;
     case 'assumed':
       body = 'filled in as planned, not scored';
@@ -87,13 +113,13 @@ export function calendarDayLabel(cell: CalendarCell, opts: { quiet?: boolean } =
 }
 
 const WEEKDAYS = [
-  { short: 'mon', long: 'Monday' },
-  { short: 'tue', long: 'Tuesday' },
-  { short: 'wed', long: 'Wednesday' },
-  { short: 'thu', long: 'Thursday' },
-  { short: 'fri', long: 'Friday' },
-  { short: 'sat', long: 'Saturday' },
-  { short: 'sun', long: 'Sunday' },
+  { short: 'Mon', long: 'Monday' },
+  { short: 'Tue', long: 'Tuesday' },
+  { short: 'Wed', long: 'Wednesday' },
+  { short: 'Thu', long: 'Thursday' },
+  { short: 'Fri', long: 'Friday' },
+  { short: 'Sat', long: 'Saturday' },
+  { short: 'Sun', long: 'Sunday' },
 ] as const;
 
 const STEP: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 };
@@ -105,21 +131,42 @@ export interface AdherenceCalendarProps {
   /** ISO date of today (from the app clock). */
   today: string;
   onSelect?: (date: string) => void;
-  /** The day currently open (outlined in ink). */
+  /** The day currently open (gold wash, gold edge). */
   selected?: string;
   /** Quiet mode: day labels use words ("adherence mostly"); the glyphs stay (they carry no number). */
   quiet?: boolean;
   weekStart?: 'mon' | 'sun';
-  /** Visible caption above the grid; default the month, engraved ("october 2026"). `false` hides it. */
+  /** Visible caption above the grid; default the month ("October 2026"). `false` hides it. */
   caption?: ReactNode | false;
   /** Accessible name of the grid; default "Adherence, October 2026". */
   label?: string;
+  /** The dots' hue (default `plan`, gold: the plan's own data). */
+  hue?: ChartHue;
+  /** Drop the weeks the plan does not reach (default true). */
+  trim?: boolean;
+  /** Rows fade in one after another on the first view (default true; reduced motion shows them at once). */
+  animate?: boolean;
   className?: string;
 }
 
 const HOLLOW = (
   <svg width="16" height="16" viewBox="0 0 16 16">
-    <circle className="lmc-cal__hollow" cx="8" cy="8" r="3" />
+    <circle className="lmc-cal__hollow" cx="8" cy="8" r="6" />
+  </svg>
+);
+const LOGGED = (
+  <svg width="16" height="16" viewBox="0 0 16 16">
+    <circle className="lmc-cal__logged" cx="8" cy="8" r="2.75" />
+  </svg>
+);
+const ASSUMED = (
+  <svg width="16" height="16" viewBox="0 0 16 16">
+    <circle className="lmc-cal__assumed" cx="8" cy="8" r="6" />
+  </svg>
+);
+const TODAY_RING = (
+  <svg width="16" height="16" viewBox="0 0 16 16">
+    <circle className="lmc-cal__todayring" cx="8" cy="8" r="6" />
   </svg>
 );
 const STRIKE = (
@@ -138,9 +185,14 @@ export const AdherenceCalendar = memo(function AdherenceCalendar({
   weekStart = 'mon',
   caption,
   label,
+  hue = 'plan',
+  trim = true,
+  animate = true,
   className,
 }: AdherenceCalendarProps) {
-  const weeks = useMemo(() => calendarWeeks(month, days, today, weekStart), [month, days, today, weekStart]);
+  const all = useMemo(() => calendarWeeks(month, days, today, weekStart), [month, days, today, weekStart]);
+  const weeks = useMemo(() => (trim ? trimWeeks(all) : all), [all, trim]);
+  const [revealRef, pending] = useReveal<HTMLDivElement>({ animate });
   const enabled = useMemo(() => weeks.flat().filter((c): c is CalendarCell => !!c && c.state !== 'blank').map((c) => c.date), [weeks]);
   const [focusDate, setFocusDate] = useState<string | null>(null);
   const buttons = useRef(new Map<string, HTMLButtonElement>());
@@ -174,12 +226,17 @@ export const AdherenceCalendar = memo(function AdherenceCalendar({
   };
 
   return (
-    <div className={['lmc-cal', className].filter(Boolean).join(' ')} data-quiet={quiet ? 'true' : undefined}>
-      {caption !== false ? <div className="lmc-cal__caption">{caption ?? <Engraved>{title.toLowerCase()}</Engraved>}</div> : null}
-      <div role="grid" aria-label={label ?? `Adherence, ${title}`} aria-readonly="true" className="lmc-cal__grid">
+    <div
+      className={['lmc-cal', 'lmc-skin', className].filter(Boolean).join(' ')}
+      data-quiet={quiet ? 'true' : undefined}
+      data-reveal={pending ? 'pending' : undefined}
+      style={{ '--lmc-hue': chartHue(hue, 'plan') } as CSSProperties}
+    >
+      {caption !== false ? <div className="lmc-cal__caption">{caption ?? <Engraved>{title}</Engraved>}</div> : null}
+      <div ref={revealRef} role="grid" aria-label={label ?? `Adherence, ${title}`} aria-readonly="true" className="lmc-cal__grid">
         <div role="row" className="lmc-cal__row">
           {wd.map((w) => (
-            <div key={w.short} role="columnheader" aria-label={w.long} className="lmc-cal__wd">
+            <div key={w.long} role="columnheader" aria-label={w.long} className="lmc-cal__wd">
               <span className="lm-eng" aria-hidden="true">
                 {w.short}
               </span>
@@ -187,7 +244,7 @@ export const AdherenceCalendar = memo(function AdherenceCalendar({
           ))}
         </div>
         {weeks.map((week, r) => (
-          <div key={r} role="row" className="lmc-cal__row">
+          <div key={r} role="row" className="lmc-cal__row" style={{ '--lmc-row': r } as CSSProperties}>
             {week.map((c, k) => {
               const isSel = !!c && c.date === selected;
               return (
@@ -215,14 +272,19 @@ export const AdherenceCalendar = memo(function AdherenceCalendar({
                       </span>
                       <span className="lmc-cal__mark" aria-hidden="true">
                         {c.state === 'scored' && c.info ? (
-                          <AdherenceDial size="glyph" items={c.info.items ?? []} score={c.info.score} final={c.info.final ?? true} />
+                          <span className="lmc-cal__heat" data-final={c.info.final === false ? 'false' : undefined} style={{ '--lmc-heat': calendarHeat(c.info.score ?? 0).toFixed(3) } as CSSProperties} />
+                        ) : c.state === 'logged' ? (
+                          LOGGED
                         ) : c.state === 'unscored' ? (
                           HOLLOW
+                        ) : c.state === 'assumed' ? (
+                          ASSUMED
+                        ) : c.state === 'today' ? (
+                          TODAY_RING
                         ) : c.state === 'paused' ? (
                           STRIKE
                         ) : null}
                       </span>
-                      {c.isToday ? <span className="lmc-cal__now" aria-hidden="true" /> : null}
                     </button>
                   ) : c ? (
                     <span className="lmc-cal__blank" aria-hidden="true" />

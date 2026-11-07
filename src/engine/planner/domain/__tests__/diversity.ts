@@ -21,10 +21,13 @@ export const DIVERSITY_REQUESTS: Record<'r1' | 'r2' | 'r3', PlannerRequest> = {
   r1: { profile: MAN, goals: [{ metric: 'fatMass', direction: 'target', target: -8, targetKind: 'change' }, { metric: 'leanTissue', direction: 'maximise' }, { metric: 'hunger', direction: 'minimise' }], horizonDays: 84, seed: 1, budget: { tier: 'M' } },
   /** 1) gain muscle, 2) minimise fat gain — 112 days. */
   r2: { profile: LEAN, goals: [{ metric: 'leanTissue', direction: 'maximise' }, { metric: 'fatMass', direction: 'minimise' }], horizonDays: 112, seed: 2, budget: { tier: 'M' } },
-  /** 1) fat loss, 2) autophagy index, 3) muscle — fasting opted in (T3) and preferred — 112 days. */
+  /**
+   * 1) fat loss, 2) muscle — fasting opted in (T3) and preferred — 112 days (the autophagy index that ranked second is no
+   * goal since D2-02; the fasting preference keeps the fasting families in the search).
+   */
   r3: {
     profile: WOMAN,
-    goals: [{ metric: 'fatMass', direction: 'minimise' }, { metric: 'autophagyIdx', direction: 'maximise' }, { metric: 'leanTissue', direction: 'maximise' }],
+    goals: [{ metric: 'fatMass', direction: 'minimise' }, { metric: 'leanTissue', direction: 'maximise' }],
     horizonDays: 112,
     seed: 3,
     budget: { tier: 'M' },

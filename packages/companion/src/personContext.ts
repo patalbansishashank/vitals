@@ -13,11 +13,17 @@ import { chmod, mkdir, readFile } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { join } from 'node:path';
 import { writeJsonSecret } from './config.ts';
-import type { ToolManifest, ToolResultEnvelope } from './toolManifest.ts';
+import type { McpToolDescriptor, ToolManifest, ToolResultEnvelope } from './toolManifest.ts';
 
 export type AgentScope = 'read' | 'log' | 'edit';
 export const AGENT_SCOPES: readonly AgentScope[] = ['read', 'log', 'edit'];
-export type TokenKind = 'device' | 'agent';
+export type TokenKind = 'device' | 'agent' | 'lumen';
+/**
+ * Labels of the server coach's own short-lived agent tokens (`coach/sessions.ts`): hidden from the token lists, usable
+ * on loopback only, removed when their session ends. A person cannot give their own agent token this label.
+ */
+export const COACH_TOKEN_PREFIX = 'coach:';
+export const isCoachTokenLabel = (label: string | undefined) => typeof label === 'string' && label.startsWith(COACH_TOKEN_PREFIX);
 export type AgentClient = 'codex' | 'opencode' | 'claude' | 'chatgpt-desktop' | 'other';
 export const AGENT_CLIENTS: readonly AgentClient[] = ['codex', 'opencode', 'claude', 'chatgpt-desktop', 'other'];
 
@@ -45,6 +51,17 @@ export interface PersonContext extends PersonDispatch {
   configDir: string;
   /** IANA zone from `person.json`; days are the person's days, never the host's. */
   timeZone: string;
+  /**
+   * Read-only tools over the person's Gauge uploads (`home/lumenTools.ts`), listed on `/mcp` beside the Vitals
+   * tools. Set by the home role; absent elsewhere.
+   */
+  lumen?: ExtraTools;
+}
+
+/** Tools answered outside the person's Vitals store (they never run through the command bus). */
+export interface ExtraTools {
+  tools(): McpToolDescriptor[];
+  call(name: string, args: Record<string, unknown>): Promise<ToolResultEnvelope>;
 }
 
 export type ResolveFailure = { error: 'unauthorized' | 'revoked' };

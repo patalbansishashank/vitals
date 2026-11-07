@@ -11,6 +11,7 @@ import { chooseRegions, type KitchenKind } from '@/catalogues/kitchen';
 import { detectIndia } from '@/features/intake/context';
 import { loadKitchen, kitchenNow, type LoadedKitchen } from '@/content/catalogues/kitchenCatalogue';
 import type { PickerValue } from '@/features/components/PickerTypes';
+import type { DietKind } from '@/features/living/food/profile';
 import { pickerToKitchenInput, pickerToPantryInput } from '@/features/components/pickerValue';
 
 export type KitchenView = OutputOf<'kitchen.get'>;
@@ -229,6 +230,18 @@ export function useAutosave(fromView: PickerValue | null, save: (value: PickerVa
   );
 
   return { value: draft ?? fromView ?? [], onChange, saving };
+}
+
+/**
+ * Pantry groups the person's diet rules out (catalogue group ids): the picker hides them unless something in them is
+ * picked. A vegetarian sees no meat or fish, a vegan no dairy either; eggs stay for an eggetarian (they share a group
+ * with meat). Unknown diet: nothing hidden.
+ */
+export function pantryGroupsHiddenFor(diet: DietKind | null): string[] {
+  if (diet === 'vegan') return ['eggs-meat', 'fish-seafood', 'dairy-cheese'];
+  if (diet === 'vegetarian') return ['eggs-meat', 'fish-seafood'];
+  if (diet === 'eggetarian') return ['fish-seafood'];
+  return [];
 }
 
 /** Regions whose defaults the pickers pre-tick: the person's choice, else the first cuisine's region, else the locale's. */

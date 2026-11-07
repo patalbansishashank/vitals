@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  (0.7.0) Gauge's engine inside Vitals: what it needs from Android, merged into the app's manifest. Every entry came from
+  Gauge 2.8.7's manifest; what stayed behind with Gauge: its launcher activity and Compose screens, its self-updater, the
+  exported provider and workout permission it offered Vitals (Vitals calls the engine in-process now), the Health Connect
+  write permissions (the write-only export had no screen left) and cleartext HTTP (the coach it was for lives in Vitals).
+
+  Nothing here runs while Gauge is still installed: the engine stays off until Vitals has taken over from it
+  (GaugeEngine.isActive), and the receivers and services check that before they do anything.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- The ring. Not required: Vitals installs on a phone without Bluetooth LE and simply has no ring there. -->
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+
+    <!-- Android 12+: find and talk to the ring; never used to work out where the phone is. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <!-- Bluetooth scanning below Android 12, and a recording's GPS route (asked only when a recording wants one). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- The always-on ring notice, ring battery alerts and the short-video capsule (Android 13+). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 16 Live Updates: the short-video capsule as a promoted ongoing notification. -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+    <!-- The ring link and the phone's step counter run in a foreground service; a recording's in another. Android 14+
+         pairs the "health" type with ACTIVITY_RECOGNITION, which the service adds only once it is granted. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Gauge is uninstalled from Vitals' own button: the system's uninstall dialog, where the owner taps OK. -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- The command loop holds the CPU through a backoff and the command it runs. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- The phone's own step counter and Activity Recognition transitions. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Below Android 10 the Transition API checks Play Services' own install-time permission. -->
+    <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" android:maxSdkVersion="28" />
+
+    <!-- The home-server upload. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- The Health Connect reader (energy SPEC §GB.2): read only, asked from one Vitals screen; the reader never asks.
+         READ_HEALTH_DATA_HISTORY gives the one-year back-fill, IN_BACKGROUND the 15-minute reads. -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <uses-permission android:name="android.permission.health.READ_VO2_MAX" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
+    <uses-permission android:name="android.permission.health.READ_SPEED" />
+    <uses-permission android:name="android.permission.health.READ_POWER" />
+    <uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+
+    <application>
+
+        <!-- The ring link and the phone's step counter: connectedDevice for the ring, health for the step counter
+             (Android 14+, added at startForeground only once ACTIVITY_RECOGNITION is granted). -->
+        <service android:name="com.pulseloop.service.RingConnectionService"
+            android:foregroundServiceType="connectedDevice|health" android:exported="false"
+            android:stopWithTask="false" />
+        <receiver android:name="com.pulseloop.service.RingScanReceiver" android:exported="false" />
+        <!-- Activity Recognition Transition API results, through an explicit PendingIntent. -->
+        <receiver android:name="com.pulseloop.phone.ActivityTransitionReceiver" android:exported="false" />
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="connectedDevice" tools:node="merge" />
+        <!-- Brings the ring link back after a restart or an app update (a no-op until the engine took over). -->
+        <receiver android:name="com.pulseloop.service.RingBootReceiver" android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- A recording (walk, run, ride…): health for the heart rate, location for its GPS route. -->
+        <service
+            android:name="com.pulseloop.service.WorkoutForegroundService"
+            android:foregroundServiceType="health|location"
+            android:exported="false" />
+
+        <!-- The Quick Settings tile that starts and finishes a recording. -->
+        <service
+            android:name="com.pulseloop.ui.tile.WorkoutTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_gauge"
+            android:label="Workout"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+        <!-- The ring notice's "Start walk" action and the tile, through explicit intents only: not exported (Vitals'
+             own screens call the engine in-process, so no permission-protected broadcast API is offered any more). -->
+        <receiver
+            android:name="com.pulseloop.ui.tile.WorkoutControlReceiver"
+            android:exported="false" />
+
+        <!-- Health Connect's rationale: the target of the permission sheet's "privacy policy" link, required for apps
+             that read health data. Pre-34 fires ACTION_SHOW_PERMISSIONS_RATIONALE at the activity; API 34+ reaches the
+             alias via VIEW_PERMISSION_USAGE + HEALTH_PERMISSIONS, guarded by START_VIEW_PERMISSION_USAGE. -->
+        <activity
+            android:name="com.pulseloop.health.HealthConnectRationaleActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name="com.pulseloop.health.ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity="com.pulseloop.health.HealthConnectRationaleActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            tools:targetApi="34">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+        <!-- The short-video counter: Instagram Reels and YouTube Shorts only (its config names the two packages). Vitals
+             shows what it reads before sending the owner to turn it on. -->
+        <service
+            android:name="com.pulseloop.shortvideo.ShortVideoAccessibilityService"
+            android:exported="true"
+            android:label="@string/short_video_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/short_video_accessibility_service" />
+        </service>
+    </application>
+
+    <!-- Health Connect: its provider app (a separate APK below Android 14) and the rationale action. -->
+    <queries>
+        <!-- The Gauge app (release and the debug build the owner's phone runs): the engine stays passive while one is there. -->
+        <package android:name="com.pulseloop" />
+        <package android:name="com.pulseloop.debug" />
+        <package android:name="com.google.android.apps.healthdata" />
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+    </queries>
+</manifest>

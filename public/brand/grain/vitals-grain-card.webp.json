@@ -1,0 +1,11 @@
+{
+  "asset": "vitals-grain-card.webp",
+  "source": "procedural (numpy), generated for Vitals on 2026-10-23 (vitals-research/grain/gen.py, candidate d)",
+  "method": "seamless film grain: per-pixel Gaussian white noise (numpy default_rng seed 20261023), a periodic Gaussian blur of sigma 0.35 px and a soft low cut (wavelengths above ~16 px attenuated by 75 %), both in the frequency domain so the tile wraps without a seam; normalised to mean 31.2 and standard deviation 6.7 on 0-255 (the Lumen grain's tone). No clump layer, so it cannot mottle.",
+  "tone": "83 % #1B1916 over the grain, rounded once",
+  "encoding": "512x512 RGB, lossless WebP (method 6): no compression blocks",
+  "replaces": "the 2026-10-18 tile (sigma 0.7 + sigma 2.0 clumps, 768 px), whose 3-6 px blotches read as felt, under a flat tint gradient whose ordered dither read as a weave",
+  "bytes": 121696,
+  "sha256": "98103391d8cde1490610f59445705e622d4029aff696f038c7263b427a3d0beb",
+  "role": "The card material tile (--lm-grain-card), anchored to the viewport so it is never resampled at a fractional offset. Drawn at one image pixel per device pixel (src/app/grain.ts)."
+}

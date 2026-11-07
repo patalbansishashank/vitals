@@ -52,7 +52,7 @@ export interface ProgressRuleProps {
 }
 
 /**
- * The 2 px working rule at the top of a region (chart frame, optimiser card).
+ * The 2 px gold working rule at the top of a region (chart frame, optimiser card).
  * The parent must be `position: relative`. With reduced motion an indeterminate
  * rule becomes static text.
  */
@@ -96,7 +96,7 @@ export interface MeterProps {
   className?: string;
 }
 
-/** A measured quantity with known bounds (storage). Ink fill; caution/danger add a mark and advice. */
+/** A measured quantity with known bounds (storage). 6 px gold pill fill; caution/danger add a mark and advice. */
 export function Meter({ value, max, valueText, label, cautionAt = 0.8, dangerAt = 0.95, advice, className }: MeterProps) {
   const f = max > 0 ? clamp(value / max, 0, 1) : 0;
   const level = f >= dangerAt ? 'danger' : f >= cautionAt ? 'caution' : 'ok';

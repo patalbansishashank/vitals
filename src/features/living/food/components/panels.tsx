@@ -1,77 +1,25 @@
 /**
- * Food's small panels (⋯ menu and supplement links): Pantry (what's already at home), Things that won't help your
- * goals (the no-benefit list with reasons), and Use what's in my kitchen (recipes from the pantry).
+ * Food's small panels (from the header ⋯): Things that won't help your goals (the no-benefit list with reasons) and
+ * Use what's in my kitchen (recipes from the pantry). There is one pantry — the document /food/pantry edits — and the
+ * kitchen panel reads it and links there; it never keeps a list of its own.
  */
-import { useState } from 'react';
-import { X } from 'lucide-react';
-import { Field, GradeBadge, IconKey, Key, KeyLink, ResponsivePanel, TextInput } from '@/components';
+import { ChevronRight } from 'lucide-react';
+import { GradeBadge, Key, KeyLink, ResponsivePanel } from '@/components';
+import { usePantryView } from '@/features/food/pantryData';
 import { FOOD_COPY } from '../copy';
 import { noBenefitItems } from '../supplements';
-
-export function PantryEditor({ pantry, onHave }: { pantry: readonly string[]; onHave(name: string, have: boolean): void }) {
-  const P = FOOD_COPY.pantry;
-  const [draft, setDraft] = useState('');
-  const add = () => {
-    if (!draft.trim()) return;
-    onHave(draft, true);
-    setDraft('');
-  };
-  return (
-    <div className="lv-food-pantry">
-      {pantry.length === 0 ? (
-        <p className="lv-food-note">{P.empty}</p>
-      ) : (
-        <ul className="lv-food-pantry__items">
-          {pantry.map((n) => (
-            <li key={n}>
-              <span>{n}</span>
-              <IconKey icon={X} size="sm" label={P.remove(n)} onClick={() => onHave(n, false)} />
-            </li>
-          ))}
-        </ul>
-      )}
-      <form
-        className="lv-food-pantry__add"
-        onSubmit={(e) => {
-          e.preventDefault();
-          add();
-        }}
-      >
-        <Field label={P.add} help={P.addHelp}>
-          <TextInput value={draft} onChange={(e) => setDraft(e.target.value)} autoComplete="off" />
-        </Field>
-        <Key type="submit" size="sm">
-          {P.addKey}
-        </Key>
-      </form>
-    </div>
-  );
-}
-
-export function PantryPanel({ open, onClose, pantry, onHave }: { open: boolean; onClose(): void; pantry: readonly string[]; onHave(name: string, have: boolean): void }) {
-  return (
-    <ResponsivePanel open={open} onClose={onClose} title={FOOD_COPY.pantry.title}>
-      <div className="lv-food-sheet">
-        <p>{FOOD_COPY.pantry.intro}</p>
-        <PantryEditor pantry={pantry} onHave={onHave} />
-      </div>
-    </ResponsivePanel>
-  );
-}
 
 export function NoBenefitPanel({ open, onClose }: { open: boolean; onClose(): void }) {
   const items = noBenefitItems();
   return (
     <ResponsivePanel open={open} onClose={onClose} title={FOOD_COPY.noBenefit.title}>
       <div className="lv-food-sheet">
-        <p>{FOOD_COPY.noBenefit.intro}</p>
         <ul className="lv-food-nobenefit">
           {items.map((i) => (
             <li key={i.record.id}>
-              <span className="lv-food-nobenefit__name">
-                {i.name} <GradeBadge grade={i.grade} size="sm" />
-              </span>
-              <span className="lv-food-note">{i.reason}</span>
+              <span className="lv-food-nobenefit__name">{i.name}</span>
+              <GradeBadge grade={i.grade} size="sm" />
+              <span className="lv-food-note lv-food-nobenefit__why">{i.reason}</span>
             </li>
           ))}
         </ul>
@@ -83,39 +31,37 @@ export function NoBenefitPanel({ open, onClose }: { open: boolean; onClose(): vo
 export interface KitchenPanelProps {
   open: boolean;
   onClose(): void;
-  pantry: readonly string[];
-  onHave(name: string, have: boolean): void;
-  /** Why recipes can't be made now (no provider, food rules not answered, past day), or null. */
+  /** Why recipes can't be made now (food rules not answered, past day, nothing open), or null. */
   blocked: { reason: string; link?: { to: string; label: string } } | null;
-  onRun(): void;
+  /** Plan the open meals from these pantry items (names). */
+  onRun(pantry: string[]): void;
 }
 
-export function KitchenPanel({ open, onClose, pantry, onHave, blocked, onRun }: KitchenPanelProps) {
+export function KitchenPanel({ open, onClose, blocked, onRun }: KitchenPanelProps) {
   const K = FOOD_COPY.kitchen;
+  const pantry = usePantryView();
+  const items = pantry.view?.items ?? [];
   const footer = blocked ? undefined : (
-    <Key onClick={onRun} disabledReason={pantry.length === 0 ? K.needPantry : undefined}>
+    <Key variant="primary" onClick={() => onRun(items.map((i) => i.label))} disabledReason={items.length === 0 ? K.needPantry : undefined}>
       {K.run}
     </Key>
   );
   return (
     <ResponsivePanel open={open} onClose={onClose} title={K.title} footer={footer}>
       <div className="lv-food-sheet">
-        <p>{K.intro}</p>
         {blocked ? (
-          <p>
+          <p className="lv-food-sheet__state">
             {blocked.reason}{' '}
             {blocked.link ? (
-              <KeyLink to={blocked.link.to} variant="quiet" size="sm">
+              <KeyLink to={blocked.link.to} variant="text" size="sm">
                 {blocked.link.label}
               </KeyLink>
             ) : null}
           </p>
-        ) : (
-          <>
-            {pantry.length === 0 ? <p className="lv-food-note">{K.needPantry}</p> : null}
-            <PantryEditor pantry={pantry} onHave={onHave} />
-          </>
-        )}
+        ) : null}
+        <KeyLink to="/food/pantry" variant="text" trailingIcon={ChevronRight} className="lv-food-sheet__row">
+          {K.pantryRow(items.length)}
+        </KeyLink>
       </div>
     </ResponsivePanel>
   );

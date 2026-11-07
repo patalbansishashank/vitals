@@ -18,7 +18,7 @@ export default defineConfig({
     testTimeout: 3 * 60 * 60 * 1000,
     hookTimeout: 60 * 60 * 1000,
     fileParallelism: true,
-    maxWorkers: 12,
+    maxWorkers: 2,
     reporters: ['default'],
   },
 });

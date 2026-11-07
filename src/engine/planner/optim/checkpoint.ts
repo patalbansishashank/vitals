@@ -15,7 +15,16 @@ import type { GoalSystemState } from './goals';
 import type { LadderCollapse } from './ladder';
 import type { ConvergencePoint, EvalOutput } from './types';
 
-export const CHECKPOINT_VERSION = 2;
+/**
+ * 3 (2026-10-18, C5/C7): outputs carry `missing` margins, the chance rule is the exact joint screen and the run reserves
+ * the safety-audit stream; a version-2 checkpoint is refused (a fresh run), never resumed under the new semantics.
+ */
+/**
+ * 4 (2026-10-18, C6/D4-05): outputs carry `missingGoals` (goals whose required output is unavailable are scored at
+ * baseline, never 0); a version-3 checkpoint is refused (a fresh run).
+ */
+/** 8: planned step targets explicitly exclude separately prescribed cardio; 7 changed materialized novice workout doses. */
+export const CHECKPOINT_VERSION = 8;
 
 export interface SerializedOutput {
   goals: number[];
@@ -25,6 +34,8 @@ export interface SerializedOutput {
   features?: number[];
   cost?: number;
   aborted?: { day: number; constraint: number; magnitude: number };
+  missing?: number[];
+  missingGoals?: number[];
 }
 
 export interface SerializedRecord {
@@ -169,6 +180,8 @@ export function serializeOutput(o: EvalOutput): SerializedOutput {
   if (o.features) s.features = Array.from(o.features);
   if (o.cost !== undefined) s.cost = o.cost;
   if (o.aborted) s.aborted = { ...o.aborted };
+  if (o.missing && o.missing.length) s.missing = Array.from(o.missing);
+  if (o.missingGoals && o.missingGoals.length) s.missingGoals = Array.from(o.missingGoals);
   return s;
 }
 
@@ -182,6 +195,8 @@ export function deserializeOutput(s: SerializedOutput): EvalOutput {
   if (s.features) o.features = Float64Array.from(s.features);
   if (s.cost !== undefined) o.cost = s.cost;
   if (s.aborted) o.aborted = { ...s.aborted };
+  if (s.missing && s.missing.length) o.missing = Int32Array.from(s.missing);
+  if (s.missingGoals && s.missingGoals.length) o.missingGoals = Int32Array.from(s.missingGoals);
   return o;
 }
 

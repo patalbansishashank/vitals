@@ -1,0 +1,68 @@
+/* Gallery layout for the r071 specimens (dev only). Tokens only. */
+.gal-section {
+  display: grid;
+  gap: 20px;
+  margin-top: 40px;
+  scroll-margin-top: 80px;
+}
+.gal-section__head {
+  display: grid;
+  gap: 6px;
+}
+.gal-section__title {
+  margin: 0;
+  font-family: var(--lm-font-sans);
+  font-size: 1.25rem;
+  line-height: 1.625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--lm-ink);
+}
+.gal-section__body {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+}
+.gal-spec {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.gal-spec__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.gal-spec__name {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--lm-ink);
+}
+.gal-spec__note {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  color: var(--lm-ink-2);
+}
+.gal-spec__body {
+  display: grid;
+  gap: var(--lm-card-gap);
+  min-width: 0;
+  align-items: start;
+}
+.gal-spec[data-cols='2'] > .gal-spec__body,
+.gal-spec[data-cols='tiles'] > .gal-spec__body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 1024px) {
+  .gal-spec[data-cols='tiles'] > .gal-spec__body {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.gal-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}

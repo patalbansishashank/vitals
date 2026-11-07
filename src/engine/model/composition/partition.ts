@@ -65,6 +65,8 @@ export interface CompositionConstants {
   mFaRefPufaShare: number;
   mFaRefSfaShare: number;
   mFaRichShare: number;
+  /** D1-04: 1 = exploratory research fat-type curve; 0 (production) = neutral m_FA = 1. */
+  mFaResearchMode: number;
   sRtSets: number;
   // 11 §4.12
   osA: number;
@@ -160,6 +162,7 @@ export function readConstants(p: ModelParams): CompositionConstants {
     mFaRefPufaShare: g('mFaRefPufaShare'),
     mFaRefSfaShare: g('mFaRefSfaShare'),
     mFaRichShare: g('mFaRichShare'),
+    mFaResearchMode: g('mFaResearchMode') === 1 ? 1 : 0,
     sRtSets: g('sRtSets'),
     osA: g('osA'),
     osB: g('osB'),
@@ -282,12 +285,15 @@ export function phiForbes(k: CompositionConstants, fmKg: number): number {
 }
 
 /**
- * 11 §4.7 fat-type modifier m_FA: 1.0 for the habitual mix; linear toward the PUFA-rich (1.5) / SFA-rich (0.7) values as
- * the PUFA / SFA share of fat rises from the habitual share to `mFaRichShare` (own interpolation of the dossier's
- * categories; see params). Both effects are applied multiplicatively.
+ * 11 §4.7 fat-type modifier m_FA. D1-04: production returns the neutral reference 1 for every fat mix, draw and parameter
+ * override — weeks-scale MRI lean-volume contrasts in one population (Rosqvist 2014, young lean; null in overweight
+ * LIPOGAIN-2 2024) do not identify a universal hourly multiplier. Only the explicitly opted-in exploratory research mode
+ * (`mFaResearchMode` = 1) applies the legacy curve: linear toward the PUFA-rich (1.5) / SFA-rich (0.7) values as the PUFA /
+ * SFA share of fat rises from the habitual share to `mFaRichShare`, multiplicatively.
  * @param pufaShare, sfaShare shares of total fat, 0..1 (NaN → habitual)
  */
 export function mFatType(k: CompositionConstants, pufaShare: number, sfaShare: number): number {
+  if (k.mFaResearchMode !== 1) return 1;
   let m = 1;
   if (pufaShare === pufaShare && pufaShare > k.mFaRefPufaShare) {
     const x = clamp((pufaShare - k.mFaRefPufaShare) / (k.mFaRichShare - k.mFaRefPufaShare), 0, 1);
@@ -307,6 +313,23 @@ export function mFatType(k: CompositionConstants, pufaShare: number, sfaShare: n
 export function surplusLeanRatio(k: CompositionConstants, pGPerKgBw: number, fmKg: number, sRt: number, mFa: number): number {
   const r = k.rAT + k.rS * mProtein(k, pGPerKgBw) * phiForbes(k, fmKg) * (1 - clamp(sRt, 0, 1)) * mFa;
   return r > 0 ? r : 0;
+}
+
+/** D1-05 surplus-partition support of a day: supported, known protein below the m_P knee, or protein only a lower bound. */
+export const SURPLUS_PROTEIN_SUPPORTED = 0;
+export const SURPLUS_PROTEIN_LOW = 1;
+export const SURPLUS_PROTEIN_UNKNOWN = 2;
+
+/**
+ * D1-05 (status only, no new coefficient): whether a surplus day's lean partition is inside the supported domain. The
+ * existing m_P knee `mPp0` (0.75 g/kg body mass/d) is a versioned model-domain routing flag, not a diagnostic threshold nor
+ * the deficit model's 0.8 g/kg FFM/d `qKnee`. Known protein below it → low-protein surplus (Bray 2012 5 %-protein arm: lean
+ * response depends on protein; no universal negative rate); a protein total that is only a known lower bound → unknown
+ * (incomplete intake is not low intake). Either way the lean partition is an unsupported scenario, never a lean benefit.
+ */
+export function surplusProteinDomain(k: CompositionConstants, pGPerKgBw: number, proteinLowerBound: boolean): number {
+  if (proteinLowerBound) return SURPLUS_PROTEIN_UNKNOWN;
+  return pGPerKgBw < k.mPp0 ? SURPLUS_PROTEIN_LOW : SURPLUS_PROTEIN_SUPPORTED;
 }
 
 /** Energy share of a surplus with lean ratio r_L: p_E = r_L·(ρL + ηL)/[(ρF + ηF) + r_L·(ρL + ηL)]. */

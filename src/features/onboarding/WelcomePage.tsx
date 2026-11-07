@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject, type SetStateAction } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { Checkbox, Dialog, Faceplate, Icon, IconKey, Key, KeyLink, Notice, VisuallyHidden, cx } from '@/components';
-import { Wordmark } from '@/app/shell';
+import { Checkbox, Dialog, Faceplate, Icon, IconKey, Key, KeyLink, MQ, Notice, cx, useMediaQuery } from '@/components';
+import { RingMark } from '@/components/brand/RingMark';
+import { Frost } from '@/app/shell/Frost';
 import { paths } from '@/app/paths';
-import { lastRoute } from '@/app/lastRoute';
+import { TODAY_PATH } from '@/app/shell/nav';
 import { isStorageAvailable } from '@/state/persistence';
 import { useSafetyStore } from '@/state/safetyStore';
 import { nowIso } from './clock';
@@ -22,8 +23,7 @@ import {
   WELCOME,
 } from './copy';
 import { DisclaimerFooter, DisclaimerFull } from './Disclaimer';
-import { DownloadsBlock } from '@/features/home/DownloadsBlock';
-import { ExampleRecording } from './ExampleRecording';
+import { FlowSteps } from './FlowSteps';
 import { gateStatus, type GateInput } from './gate';
 import { HelpCard } from './HelpCard';
 import { SafetySummary } from './SafetySummary';
@@ -38,6 +38,8 @@ import './onboarding.css';
 type Step = 'intro' | 'screening' | 'consent' | 'stop';
 type Review = 'settings' | 'import' | 'expired' | 'update' | null;
 const STEP_INDEX: Record<Exclude<Step, 'stop'>, number> = { intro: 0, screening: 1, consent: 2 };
+/** The hard stop's h1 (in the header): its card is labelled by it. */
+const STOP_TITLE_ID = 'lm-stop-title';
 
 function readReview(v: string | null): Review {
   return v === 'settings' || v === 'import' || v === 'expired' || v === 'update' ? v : null;
@@ -57,8 +59,12 @@ function draftFrom(stored: ScreeningAnswers | null): ScreeningAnswers {
 
 /**
  * /welcome — first run (design/screens/onboarding-safety.md): intro → "About you" screening → consent
- * (with the safety summary) → Your body. Also serves the hard stop (under 18), re-consent after a
- * disclaimer change, and "Review my answers" (Settings, imports, yearly review). Full-screen, no tab bar.
+ * (with the safety outcome) → Your body. Also serves the hard stop (under 18), re-consent after a
+ * disclaimer change, and "Review my answers" (Settings, imports, yearly review). Full-screen, no tab bar. The header
+ * is the setup flow's one intake header, the same as the intake chapters' (the shell's pushed header classes): Back,
+ * the step's name centred, the step segments under it; no count, no ⋯, nothing else. The step's one primary key sits
+ * in a sticky foot, in a pill of its own over the frost (on the intro, on phones only); the brand mark leads the
+ * intro's own text.
  */
 export default function WelcomePage() {
   const [params] = useSearchParams();
@@ -84,6 +90,8 @@ export default function WelcomePage() {
   const review = readReview(params.get('review'));
   const from = (location.state as { from?: string } | null)?.from;
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const barRef = useRef<HTMLElement>(null);
+  useHeaderFrost(barRef);
   const [draft, setDraft] = useState<ScreeningAnswers>(() => draftFrom(stored.answers));
   const scoffPrivacyNote = stored.answers?.scoffRisk !== undefined;
 
@@ -117,32 +125,52 @@ export default function WelcomePage() {
 
   const finish = useCallback(
     (firstRun = false) => {
-      // First run always continues to Your body setup (spec §2); reviews return where they came from.
-      const target = firstRun ? `${paths.body}?setup=basics` : (from ?? (review === 'settings' ? paths.settings('safety') : null) ?? lastRoute() ?? paths.body);
+      // First run always continues to Your body setup (spec §2); reviews return where they came from, else to Today (home
+      // in every mode, 0.6.3: never the last screen, which could be Settings)
+      const target = firstRun ? `${paths.body}?setup=basics` : (from ?? (review === 'settings' ? paths.settings('safety') : null) ?? TODAY_PATH);
       navigate(target, { replace: true });
     },
     [from, review, navigate],
   );
 
   // A fully set-up visitor who opens /welcome without a step goes back to Vitals.
-  if (gate.status === 'ready' && !requested) return <Navigate to={from ?? lastRoute() ?? paths.body} replace />;
+  if (gate.status === 'ready' && !requested) return <Navigate to={from ?? TODAY_PATH} replace />;
 
   const back: (() => void) | null =
     step === 'screening' ? () => (review === 'settings' ? finish() : go('intro')) : step === 'consent' ? () => go('screening', { review: review ?? undefined }) : null;
   const showProgress = step !== 'stop' && review !== 'settings';
+  const title = step === 'stop' ? HARD_STOP.title : STEP_NAMES[step];
 
   return (
     <div className="lm-onb" data-step={step}>
-      <header className="lm-onb__bar" data-back={back ? 'true' : undefined}>
-        {back ? <IconKey icon={ChevronLeft} label={PROGRESS.back} onClick={back} /> : <Wordmark />}
-        <div className="lm-onb__barspacer" />
-        {showProgress ? <ProgressScale current={STEP_INDEX[step as Exclude<Step, 'stop'>]} /> : null}
+      <header ref={barRef} className="lm-ctx-slot lm-onb__bar">
+        {/* the shell's tintless frost: clear at rest, in over the first 80 px of scroll (useHeaderFrost) */}
+        <Frost side="top" />
+        <div className="lm-ctx" data-phone="pushed" data-desk="pushed">
+          <div className="lm-ctx__row">
+            {back ? <IconKey className="lm-ctx__back" icon={ChevronLeft} label={PROGRESS.back} onClick={back} /> : null}
+            <div className="lm-ctx__heading">
+              {/* the step's name is its h1, as a chapter's is; the intro's h1 is its headline, so its name is plain text */}
+              {step === 'intro' ? (
+                <p className="lm-title">{title}</p>
+              ) : (
+                <h1 ref={headingRef} id={step === 'stop' ? STOP_TITLE_ID : undefined} className="lm-title" tabIndex={-1}>
+                  {title}
+                </h1>
+              )}
+            </div>
+          </div>
+          {showProgress ? (
+            <div className="lm-ctx__progress">
+              <StepSegments current={STEP_INDEX[step as Exclude<Step, 'stop'>]} />
+            </div>
+          ) : null}
+        </div>
       </header>
       <main id="main" className="lm-onb__main" tabIndex={-1}>
         {step === 'intro' ? <IntroStep headingRef={headingRef} onStart={() => go('screening')} /> : null}
         {step === 'screening' ? (
           <ScreeningStep
-            headingRef={headingRef}
             draft={draft}
             setDraft={setDraft}
             review={review ?? (gate.status === 'needs-review' ? gate.reason : null)}
@@ -159,7 +187,6 @@ export default function WelcomePage() {
         ) : null}
         {step === 'consent' ? (
           <ConsentStep
-            headingRef={headingRef}
             answers={stored.answers ?? {}}
             updated={gate.status === 'needs-consent' && gate.updated}
             onAccept={() => {
@@ -171,7 +198,6 @@ export default function WelcomePage() {
         ) : null}
         {step === 'stop' ? (
           <StopStep
-            headingRef={headingRef}
             onMistake={() => {
               clearAgeAnswer();
               setDraft((d) => ({ ...d, ageBand: undefined }));
@@ -189,25 +215,60 @@ export default function WelcomePage() {
    Chrome
    --------------------------------------------------------------------------- */
 
-function ProgressScale({ current }: { current: number }) {
+/** The header's frost follows the scroll like the shell's: `--lm-frost` 0 at the top, 1 after 80 px. */
+function useHeaderFrost(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const on = () => el.style.setProperty('--lm-frost', Math.min(1, Math.max(0, window.scrollY / 80)).toFixed(2));
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, [ref]);
+}
+
+/** The three first-run steps as the flow's segments: the finished ones filled, the step you are on gold, the track after it. */
+function StepSegments({ current }: { current: number }) {
   const names = [STEP_NAMES.intro, STEP_NAMES.screening, STEP_NAMES.consent];
   return (
-    <ol className="lm-onb-progress" aria-label={PROGRESS.label}>
-      {names.map((n, i) => (
-        <li key={n} data-state={i < current ? 'done' : i === current ? 'current' : 'todo'} aria-current={i === current ? 'step' : undefined}>
-          <VisuallyHidden>
-            {n}
-            {i < current ? PROGRESS.done : i === current ? PROGRESS.current(i + 1, names.length) : ''}
-          </VisuallyHidden>
-        </li>
-      ))}
-    </ol>
+    <FlowSteps
+      list
+      label={PROGRESS.label}
+      steps={names.map((n, i) => ({
+        id: n,
+        state: i < current ? 'done' : i === current ? 'current' : 'todo',
+        srText: `${n}${i < current ? PROGRESS.done : i === current ? PROGRESS.current(i + 1, names.length) : ''}`,
+      }))}
+    />
   );
 }
 
+/**
+ * The step's sticky foot: its keys in a floating pill over the mirrored header frost (onboarding.css). Its height is
+ * written to `--lm-onb-foot-h` so focus scrolling keeps what it moves to clear of the foot.
+ */
 function Foot({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const root = document.documentElement;
+    const set = () => root.style.setProperty('--lm-onb-foot-h', `${Math.ceil(el.getBoundingClientRect().height)}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--lm-onb-foot-h');
+    };
+  }, []);
   return (
-    <div className={cx('lm-onb-foot', className)}>
+    <div ref={ref} className={cx('lm-onb-foot', className)}>
+      <div className="lm-onb-foot__frost" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
       <div className="lm-onb-foot__inner">{children}</div>
     </div>
   );
@@ -220,38 +281,42 @@ type HeadingRef = RefObject<HTMLHeadingElement | null>;
    --------------------------------------------------------------------------- */
 
 function IntroStep({ headingRef, onStart }: { headingRef: HeadingRef; onStart: () => void }) {
+  // the import is a real secondary key (r068 V-WE-1): beside Get started inline on desktop, in the docked foot on phones
+  const desktop = useMediaQuery(MQ.lg);
   return (
     <>
       <div className="lm-onb-intro">
         <div className="lm-onb-intro__text">
+          <span className="lm-wordmark lm-onb-intro__brand" role="img" aria-label="Vitals">
+            <RingMark size={22} />
+            <span aria-hidden="true">vitals</span>
+          </span>
           <h1 ref={headingRef} className="lm-onb-display" tabIndex={-1}>
             {WELCOME.headline}
           </h1>
           <p className="lm-onb-intro__body">{WELCOME.body}</p>
-          <VisuallyHidden>{WELCOME.illustrationAlt}</VisuallyHidden>
           <div className="lm-onb-intro__actions">
-            <Key variant="solid" size="lg" trailingIcon={ChevronRight} onClick={onStart} className="lm-onb-intro__start">
+            <Key variant="primary" size="lg" arrow onClick={onStart} className="lm-onb-intro__start">
               {WELCOME.start}
             </Key>
-            <p className="lm-onb-intro__meta">{WELCOME.time}</p>
-            <p className="lm-onb-intro__meta">
-              {WELCOME.importLead}{' '}
-              <KeyLink to={paths.settings('data')} variant="quiet" size="sm">
+            {desktop ? (
+              <KeyLink to={paths.settings('data')} variant="outlined" size="lg" className="lm-onb-intro__import">
                 {WELCOME.importAction}
               </KeyLink>
-            </p>
-            <DownloadsBlock />
+            ) : null}
           </div>
-        </div>
-        <div className="lm-onb-intro__stage">
-          <ExampleRecording />
         </div>
         <div className="lm-onb-intro__footer">
           <DisclaimerFooter />
         </div>
       </div>
       <Foot className="lm-onb-intro__foot">
-        <Key variant="solid" size="lg" trailingIcon={ChevronRight} onClick={onStart}>
+        {desktop ? null : (
+          <KeyLink to={paths.settings('data')} variant="outlined" size="lg" aria-label={WELCOME.importAction} className="lm-onb-foot__second">
+            {WELCOME.importShort}
+          </KeyLink>
+        )}
+        <Key variant="primary" size="lg" arrow onClick={onStart}>
           {WELCOME.start}
         </Key>
       </Foot>
@@ -264,7 +329,6 @@ function IntroStep({ headingRef, onStart }: { headingRef: HeadingRef; onStart: (
    --------------------------------------------------------------------------- */
 
 interface ScreeningStepProps {
-  headingRef: HeadingRef;
   draft: ScreeningAnswers;
   setDraft: Dispatch<SetStateAction<ScreeningAnswers>>;
   review: Review;
@@ -273,7 +337,7 @@ interface ScreeningStepProps {
   onCommit: (answers: ScreeningAnswers) => void;
 }
 
-function ScreeningStep({ headingRef, draft, setDraft, review, scoffPrivacyNote, storedAnswers, onCommit }: ScreeningStepProps) {
+function ScreeningStep({ draft, setDraft, review, scoffPrivacyNote, storedAnswers, onCommit }: ScreeningStepProps) {
   const [confirmLift, setConfirmLift] = useState<string[] | null>(null);
   // A kept eating-questions outcome counts as answered; without one the five items are required.
   const missing = useMemo(() => missingQuestions(draft, { requireScoffItems: typeof draft.scoffRisk !== 'boolean' }), [draft]);
@@ -313,34 +377,28 @@ function ScreeningStep({ headingRef, draft, setDraft, review, scoffPrivacyNote, 
   const under18 = draft.ageBand === 'under-18';
   return (
     <>
-      <div className="lm-onb-col">
-        <header className="lm-onb-head">
-          <h1 ref={headingRef} className="lm-title" tabIndex={-1}>
-            {SCREENING.title}
-          </h1>
-          <p className="lm-onb-lead">{SCREENING.lead}</p>
-          <p className="lm-onb-sub">{SCREENING.sub}</p>
-          <details className="lm-onb-why">
-            <summary>
-              {SCREENING.whyTitle}
-              <Icon icon={ChevronRight} size={16} />
-            </summary>
-            <p>{SCREENING.why}</p>
-          </details>
-        </header>
+      <div className="lm-onb-col lm-onb-col--form">
+        <details className="lm-onb-why lm-material">
+          <summary>
+            {SCREENING.whyTitle}
+            <Icon icon={ChevronRight} size={16} />
+          </summary>
+          <p>{SCREENING.why}</p>
+        </details>
         {!storage ? <Notice severity="caution" title={SCREENING.storageBlocked} /> : null}
         {reviewNote ? <Notice severity="info" title={reviewNote} /> : null}
         <ScreeningForm answers={draft} onChange={setDraft} scoffPrivacyNote={scoffPrivacyNote} />
       </div>
       <Foot>
-        <Key variant="solid" size="lg" disabledReason={missing.length > 0 ? SCREENING.continueBlocked : undefined} onClick={submit}>
+        <Key variant="primary" size="lg" disabledReason={missing.length > 0 ? SCREENING.continueBlocked : undefined} onClick={submit}>
           {review && !under18 ? SCREENING.save : SCREENING.continue}
         </Key>
+        {/* how many are left is a real key beside Continue: it takes you to the next unanswered question (r068 WE-1) */}
         <span className="lm-onb-foot__note" aria-live="polite">
           {missing.length > 0 ? (
-            <button type="button" className="lm-link border-0 bg-transparent p-0" onClick={jumpToMissing} aria-label={`${SCREENING.remaining(missing.length)}. ${SCREENING.jumpTo}`}>
-              {SCREENING.remaining(missing.length)}
-            </button>
+            <Key variant="outlined" size="lg" trailingIcon={ArrowDown} onClick={jumpToMissing} aria-label={`${SCREENING.remaining(missing.length)}. ${SCREENING.jumpTo}`}>
+              {SCREENING.remainingShort(missing.length)}
+            </Key>
           ) : null}
         </span>
       </Foot>
@@ -351,9 +409,11 @@ function ScreeningStep({ headingRef, draft, setDraft, review, scoffPrivacyNote, 
         title={SETTINGS_SAFETY.turnOffTitle(confirmLift?.join(' and ') ?? '')}
         footer={
           <>
-            <Key onClick={() => setConfirmLift(null)}>{SETTINGS_SAFETY.turnOffKeep}</Key>
+            <Key variant="text" onClick={() => setConfirmLift(null)}>
+              {SETTINGS_SAFETY.turnOffKeep}
+            </Key>
             <Key
-              variant="solid"
+              variant="text"
               onClick={() => {
                 setConfirmLift(null);
                 onCommit(draft);
@@ -374,7 +434,7 @@ function ScreeningStep({ headingRef, draft, setDraft, review, scoffPrivacyNote, 
    Step 3 — consent ("Before you start"), with the safety summary
    --------------------------------------------------------------------------- */
 
-function ConsentStep({ headingRef, answers, updated, onAccept }: { headingRef: HeadingRef; answers: ScreeningAnswers; updated: boolean; onAccept: () => void }) {
+function ConsentStep({ answers, updated, onAccept }: { answers: ScreeningAnswers; updated: boolean; onAccept: () => void }) {
   const [checked, setChecked] = useState(false);
   const [full, setFull] = useState(false);
   const outcome = useMemo(() => evaluateScreening(answers), [answers]);
@@ -403,11 +463,6 @@ function ConsentStep({ headingRef, answers, updated, onAccept }: { headingRef: H
   return (
     <>
       <div className="lm-onb-col">
-        <header className="lm-onb-head">
-          <h1 ref={headingRef} className="lm-title" tabIndex={-1}>
-            {CONSENT.title}
-          </h1>
-        </header>
         {updated ? (
           <Notice severity="info" title={CONSENT.updatedTitle}>
             <p className="m-0">
@@ -421,26 +476,24 @@ function ConsentStep({ headingRef, answers, updated, onAccept }: { headingRef: H
             </p>
           </Notice>
         ) : null}
-        <SafetySummary outcome={outcome} />
+        <SafetySummary outcome={outcome} locks={false} bodyNote={false} />
         <Faceplate title={CONSENT.heading}>
-          <div className="grid gap-4">
-            <ol className="lm-onb-ol">
-              {CONSENT.points.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ol>
-            <div className="lm-onb-consent-check" onKeyDown={onCheckKey}>
-              <Checkbox checked={checked} onChange={setChecked} label={CONSENT.check} />
-              <button type="button" className="lm-link inline-flex items-center gap-1 border-0 bg-transparent p-0 text-sm" aria-haspopup="dialog" onClick={() => setFull(true)}>
-                {CONSENT.fullDisclaimer}
-                <Icon icon={ChevronRight} size={16} />
-              </button>
-            </div>
+          <ul className="lm-onb-points">
+            {CONSENT.points.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+          <div className="lm-onb-consent-check" onKeyDown={onCheckKey}>
+            <Checkbox checked={checked} onChange={setChecked} label={CONSENT.check} />
+            <button type="button" className="lm-onb-disclosure" aria-haspopup="dialog" onClick={() => setFull(true)}>
+              {CONSENT.fullDisclaimer}
+              <Icon icon={ChevronRight} size={16} />
+            </button>
           </div>
         </Faceplate>
       </div>
       <Foot>
-        <Key variant="solid" size="lg" disabledReason={checked ? undefined : CONSENT.continueBlocked} onClick={onAccept}>
+        <Key variant="primary" size="lg" disabledReason={checked ? undefined : CONSENT.continueBlocked} onClick={onAccept}>
           {CONSENT.continue}
         </Key>
         <span className="lm-onb-foot__note max-md:hidden">{CONSENT.shortcut}</span>
@@ -456,22 +509,19 @@ function ConsentStep({ headingRef, answers, updated, onAccept }: { headingRef: H
    Hard stop (under 18)
    --------------------------------------------------------------------------- */
 
-function StopStep({ headingRef, onMistake }: { headingRef: HeadingRef; onMistake: () => void }) {
+function StopStep({ onMistake }: { onMistake: () => void }) {
   return (
     <div className="lm-onb-col">
-      <Faceplate as="section" aria-labelledby="lm-stop-title" className="lm-onb-stop">
-        <h1 ref={headingRef} id="lm-stop-title" className="lm-title" tabIndex={-1}>
-          {HARD_STOP.title}
-        </h1>
-        <p className="m-0 text-md leading-[1.6] text-ink">{HARD_STOP.body}</p>
-        <div className="border-t border-line pt-4">
-          <HelpCard headingAs="h2" compact />
-        </div>
-        <div className="grid gap-2 border-t border-line pt-4">
+      <p className="lm-onb-lead">{HARD_STOP.body}</p>
+      <Faceplate as="section" aria-labelledby={STOP_TITLE_ID} className="lm-onb-stop">
+        <HelpCard headingAs="h2" compact />
+        <div className="lm-onb-stop__more">
           <p className="m-0 text-sm text-ink-2">{HARD_STOP.evidence}</p>
           <div className="flex flex-wrap gap-2">
-            <KeyLink to={paths.evidence}>{HARD_STOP.evidenceLink}</KeyLink>
-            <Key variant="quiet" onClick={onMistake}>
+            <KeyLink to={paths.evidence} variant="action">
+              {HARD_STOP.evidenceLink}
+            </KeyLink>
+            <Key variant="text" onClick={onMistake}>
               {HARD_STOP.mistake}
             </Key>
           </div>

@@ -93,6 +93,11 @@ export interface CoachRuntime {
   revision(): number;
   /** Resolves when the current configuration has been applied. */
   settled(): Promise<void>;
+  /**
+   * While on, the configuration is ignored as if none were set (no model, no ports, nothing called): this device is
+   * paired with a server that runs the Coach. Off again: the saved configuration comes back unchanged.
+   */
+  setSuspended(on: boolean): Promise<void>;
   stop(): void;
 }
 
@@ -121,14 +126,16 @@ export function createCoachRuntime(deps: CoachRuntimeDeps): CoachRuntime {
   let rev = 0;
   let generation = 0;
   let pending: Promise<void> = Promise.resolve();
+  let suspended = false;
   const listeners = new Set<() => void>();
   const bump = () => {
     rev++;
     listeners.forEach((l) => l());
   };
 
-  async function apply(cfg: AiProviderConfig | null): Promise<void> {
+  async function apply(given: AiProviderConfig | null): Promise<void> {
     const gen = ++generation;
+    const cfg = suspended ? null : given;
     if (!cfg) {
       current = null;
       recipes = null;
@@ -235,6 +242,14 @@ export function createCoachRuntime(deps: CoachRuntimeDeps): CoachRuntime {
     },
     revision: () => rev,
     settled: () => pending,
+    setSuspended: (on) => {
+      if (suspended === on) return pending;
+      suspended = on;
+      pending = aiConfigSettled()
+        .catch(() => undefined)
+        .then(() => apply(readAiConfig()));
+      return pending;
+    },
     stop: () => {
       off();
       generation++;

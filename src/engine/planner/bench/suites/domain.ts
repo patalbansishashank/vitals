@@ -31,7 +31,7 @@ import { canonicalSeeds } from '../../domain/reach';
 import { mutateStructure as mutate, structureGoalClasses, transferGenome as transfer, type SkeletonStructure } from '../../domain/skeleton';
 import { validatePlan } from '../../domain/validate';
 import type { PlannerRequest, RankedGoal } from '../../domain/types';
-import { AUTOPHAGY_FIRST_T3, GOLDEN, type GoldenKey } from '../../domain/__tests__/golden.requests';
+import { AUTOPHAGY_FIRST_T3, GOLDEN_V1 as GOLDEN, type GoldenKey } from '../../domain/__tests__/golden.requests';
 import type { LadderSpec } from '../algorithms';
 import { desirability, goalScore, lexReference, nondominated, type GoalRef } from '../metrics';
 import type { ProblemSpec, ReferenceSummary, Split } from '../types';

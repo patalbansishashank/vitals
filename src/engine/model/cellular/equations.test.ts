@@ -3,7 +3,7 @@
  * Unit tests of each cellular equation against worked numbers from dossier 08 (§4.3-4.11) — the module is driven
  * directly with hand-built bus values (no other module needed).
  */
-import { cellularModule, calibrateB0, asiLabel, ASI_BANDS } from './index';
+import { cellularModule, calibrateB0, asiLabel, ASI_BANDS, ASI_KETONE_WEIGHT } from './index';
 import { makeRig, stepOnce, type Rig, type RigOptions } from './testkit';
 
 /** Post-absorptive fasting state on the bus with the module's own references (F_glyc = 0, insulin at basal, BHB 0.1). */
@@ -168,15 +168,32 @@ describe('fasting depth F (08 §4.5)', () => {
     expect(b.s.fKet).toBeCloseTo(0.8, 12);
   });
 
-  it('F = 0.6·F_clock + 0.2·F_glyc + 0.2·F_ket (weights renormalised to sum 1)', () => {
+  it('F = 0.75·F_clock + 0.25·F_glyc: the ketone weight is zero (D2-03 abstention), the other weights renormalised to sum 1', () => {
     const rig = rigAt(48);
     rig.bus.liverGlycogenG = 30;
     rig.bus.bhbEndoMmolL = 1.5;
     step(rig);
-    expect(rig.s.fDepth).toBeCloseTo(0.6 * (2304 / (2304 + rig.k.h50Pow)) + 0.2 * 0.5 + 0.2 * 0.5, 12);
+    expect(ASI_KETONE_WEIGHT).toBe(0);
+    expect(rig.k.wKet).toBe(0);
+    expect(rig.s.fKet).toBeCloseTo(0.5, 12); // kept as a diagnostic
+    expect(rig.s.fDepth).toBeCloseTo(0.75 * (2304 / (2304 + rig.k.h50Pow)) + 0.25 * 0.5, 12);
     const w = makeRig({ params: { 'cellular.wClock': 0.9, 'cellular.wGlyc': 0.3, 'cellular.wKet': 0.3 } }).k;
     expect(w.wClock + w.wGlyc + w.wKet).toBeCloseTo(1, 12);
-    expect(w.wClock).toBeCloseTo(0.9 / 1.5, 12);
+    expect(w.wClock).toBeCloseTo(0.9 / 1.2, 12);
+    expect(w.wKet).toBe(0);
+  });
+
+  it('the registry ketone weight (and its draws) cannot reintroduce ketone credit', () => {
+    for (const wKet of [0.1, 0.2, 0.3]) {
+      const lo = rigAt(30, { params: { 'cellular.wKet': wKet } });
+      lo.bus.bhbEndoMmolL = 0.1;
+      step(lo);
+      const hi = rigAt(30, { params: { 'cellular.wKet': wKet } });
+      hi.bus.bhbEndoMmolL = 6;
+      step(hi);
+      expect(hi.s.asi).toBe(lo.s.asi);
+      expect(hi.s.fDepth).toBe(lo.s.fDepth);
+    }
   });
 });
 
@@ -202,7 +219,7 @@ describe('ASI combination and B0 calibration (08 §4.10)', () => {
     rig.bus.bhbEndoMmolL = 0.75;
     step(rig);
     const S = 1 - (1 - 0.6 * 0.5) * (1 - 0.75 * 0.5);
-    const F = 0.6 * (900 / (900 + rig.k.h50Pow)) + 0.2 * 0.5 + 0.2 * (0.5625 / (0.5625 + 2.25));
+    const F = 0.75 * (900 / (900 + rig.k.h50Pow)) + 0.25 * 0.5; // ketone weight 0 (D2-03)
     expect(rig.s.asi).toBeCloseTo(100 * (1 - S) * (rig.s.b0 + (1 - rig.s.b0) * F), 9);
   });
 
@@ -215,14 +232,14 @@ describe('ASI combination and B0 calibration (08 §4.10)', () => {
     }
   });
 
-  it('calibrates B0 against a keto-habitual 12 h BHB so that the person\'s own 12 h post-absorptive value is 25', () => {
+  it('B0 keeps the person\'s own 12 h post-absorptive value at 25; with the zero ketone weight a keto-habitual BHB no longer moves it', () => {
     const rig = rigAt(12);
     rig.s.bhbRef12MmolL = 0.8;
     rig.s.b0 = calibrateB0(rig.k, 0.8);
     rig.bus.bhbEndoMmolL = 0.8;
     step(rig);
     expect(rig.s.asi).toBeCloseTo(25, 9);
-    expect(rig.s.b0).toBeLessThan(calibrateB0(rig.k, 0.1));
+    expect(rig.s.b0).toBe(calibrateB0(rig.k, 0.1));
   });
 
   it('clamps to 0-100', () => {
@@ -413,8 +430,8 @@ describe('chronic restriction (08 §4.9)', () => {
   });
 });
 
-describe('ASI does not respond to any compound (ruling R-ASI): exogenous ketones cannot raise it', () => {
-  it('ignores the meter BHB / total ketones that include exogenous ketones; only bhbEndoMmolL enters', () => {
+describe('ASI does not respond to any compound (ruling R-ASI; D2-03): no ketone of any origin earns fasting-depth credit', () => {
+  it('ignores the meter BHB / total ketones and, with the zero ketone weight, the hepatic BHB too (MCT-derived ketones are hepatic)', () => {
     const base = rigAt(14);
     step(base);
     const exo = rigAt(14);
@@ -424,10 +441,11 @@ describe('ASI does not respond to any compound (ruling R-ASI): exogenous ketones
     expect(exo.s.asi).toBe(base.s.asi);
     expect(exo.s.asiMuscle).toBe(base.s.asiMuscle);
     expect(exo.s.mtor).toBe(base.s.mtor);
-    const endo = rigAt(14);
-    endo.bus.bhbEndoMmolL = 3;
-    step(endo);
-    expect(endo.s.asi).toBeGreaterThan(base.s.asi + 5);
+    const hepatic = rigAt(14);
+    hepatic.bus.bhbEndoMmolL = 3; // e.g. hepatic BHB from dietary MCT: still no credit
+    step(hepatic);
+    expect(hepatic.s.asi).toBe(base.s.asi);
+    expect(hepatic.s.fKet).toBeGreaterThan(base.s.fKet); // diagnostic only
   });
 
   it('also ignores non-nutrient intake signals: fat absorption, MCT, caffeine, alcohol', () => {

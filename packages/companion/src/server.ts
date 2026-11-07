@@ -48,6 +48,7 @@ import {
 } from './security.ts';
 import { createSiwc, type SiwcEndpoints } from './siwc.ts';
 import { HOME_ALLOW_HEADERS, startHome, type HomeOptions, type HomeServer } from './home/home.ts';
+import { loopLag, startLoopMonitor } from './loopLag.ts';
 import { createStaticHandler } from './static.ts';
 import type { ToolManifest } from './toolManifest.ts';
 
@@ -93,7 +94,7 @@ export interface CompanionOptions {
    * Settings › Agents. The CLI passes a cached probe; omitted in tests unless a test sets it.
    */
   environment?: () => Promise<CompanionEnvironment>;
-  /** The `home` role (SUITE_SPEC §14.1): persons, device tokens, person workers, the MQTT broker. */
+  /** The `home` role (SUITE_SPEC §14.1): persons, device tokens, person workers. */
   home?: Omit<HomeOptions, 'log' | 'version'>;
 }
 
@@ -110,6 +111,14 @@ export interface Companion {
   pairingCode: PairingCode | null;
   home: HomeServer | null;
   close(): Promise<void>;
+}
+
+/** `http://127.0.0.1:<port>/mcp` when the server listens on loopback (or every address); else null. */
+export function loopbackMcpUrl(host: string, port: number): string | null {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, '');
+  if (h === '0.0.0.0' || h === 'localhost' || /^127(?:\.\d{1,3}){3}$/.test(h)) return `http://${h === '0.0.0.0' || h === 'localhost' ? '127.0.0.1' : h}:${port}/mcp`;
+  if (h === '::' || h === '::1') return `http://[::1]:${port}/mcp`;
+  return null;
 }
 
 const GiB = 1024 ** 3;
@@ -153,6 +162,8 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
   })() : null;
   const serveStatic = serveApp ? createStaticHandler(serveApp) : null;
   const home = options.home ? await startHome({ ...options.home, log, version: VERSION }) : null;
+  // the server's own loopback /mcp, known once it listens: the coach's CLI reaches its tools there
+  let localMcpUrl: string | null = null;
   // the server's AI and agent routes (§14.3, §14.4) on the home role's persons and tokens
   const ai = home
     ? mountServerAi(home, {
@@ -163,6 +174,8 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
         ...(options.home?.ai?.requestsPerDay !== undefined ? { requestsPerDay: options.home.ai.requestsPerDay } : {}),
         ...(options.fetch ? { fetch: options.fetch } : {}),
         ...(options.upstreams ? { upstreams: options.upstreams } : {}),
+        coach: { settings: options.home?.coach, localMcpUrl: () => localMcpUrl, ...(options.home?.coachBackends ? { backends: options.home.coachBackends } : {}) },
+        ...(options.home?.now ? { now: options.home.now } : {}),
       })
     : null;
 
@@ -326,13 +339,14 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
     if (origin === 'forbidden') return sendJson(res, 403, { error: 'origin not allowed' });
     const isBlobs = rawPath.startsWith('/blobs/') || rawPath === '/blobs';
     if (origin === 'allowed' && (rawPath === '/health' || rawPath.startsWith('/v1/') || rawPath.startsWith('/proxy/') || rawPath === '/mcp' || (relay && isBlobs))) {
-      applyCors(req, res, isBlobs ? 'ETag' : rawPath === '/mcp' ? 'Retry-After, mcp-session-id' : 'Retry-After');
+      applyCors(req, res, isBlobs ? 'ETag' : rawPath === '/mcp' ? 'Retry-After, mcp-session-id' : rawPath.startsWith('/v1/apps/') ? 'Retry-After, Accept-Ranges, Content-Range, ETag' : rawPath.startsWith('/v1/gauge/') ? 'Retry-After, ETag, Last-Modified' : 'Retry-After');
     }
 
     if (rawPath === '/health') {
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'method' });
       const ownerCount = relay ? Math.max(relay.host.ownerCount(), await relay.blobs.ownerCount()) : 0;
-      return sendJson(res, 200, { version: VERSION, role: home ? 'home' : 'relay', roles, ownerCount, ...(home ? await home.health() : { persons: 0, mqtt: 'off' }) });
+      // eventLoop (r063): the loop's recent delay, so a stalling read shows before the watchdog restarts the server
+      return sendJson(res, 200, { version: VERSION, role: home ? 'home' : 'relay', roles, ownerCount, ...(home ? await home.health() : { persons: 0 }), eventLoop: loopLag() });
     }
     if (home) {
       try {
@@ -397,7 +411,6 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
       if (!parseOwnerIdFromOwnerWebSocketTransportUrl(url)) return rejectUpgrade(socket, 400, 'Bad Request');
       return relay.host.handleUpgrade(req, socket, head);
     }
-    if (home?.upgrade(req, socket, head, path ?? '')) return;
     if (agent && path === BRIDGE_PATH) {
       // The bridge is for browser tabs only: the `hello` token is checked against this Origin.
       if (origin !== 'allowed') return rejectUpgrade(socket, 403, 'Forbidden');
@@ -429,7 +442,9 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('Expected a TCP address.');
   const url = `http://${address.family === 'IPv6' ? `[${address.address}]` : address.address}:${address.port}`;
+  localMcpUrl = loopbackMcpUrl(host, address.port);
 
+  const stopLoopMonitor = startLoopMonitor();
   let closing: Promise<void> | null = null;
   return {
     port: address.port,
@@ -451,6 +466,7 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
           server.close(() => r());
           server.closeAllConnections();
         });
+        stopLoopMonitor();
       })();
       return closing;
     },

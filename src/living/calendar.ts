@@ -31,6 +31,19 @@ export function versionInForce<V extends Pick<PlanVersionDoc, 'status' | 'effect
   return best;
 }
 
+/** First plan day a check-in can be due (D5-06: control policy, weekly from day 7; not a biological constant). */
+export const FIRST_CHECK_IN_DAY = 7;
+
+/**
+ * (D5-06) The latest scheduled check-in date on or before `today`: the plan's check-in weekday, from day 7 on; null before.
+ * A check-in that was not confirmed on that date stays due later (late-open catch-up), decided on the current date.
+ */
+export function scheduledCheckInDate(plan: Pick<PlanDoc, 'startDate' | 'policy'>, today: LocalDate): LocalDate | null {
+  const back = (weekdayOf(today) - plan.policy.checkInWeekday + 7) % 7;
+  const d = addDays(today, -back);
+  return daysBetween(plan.startDate, d) >= FIRST_CHECK_IN_DAY ? d : null;
+}
+
 /** Head version: the adopted version with the highest number. */
 export function headAdopted<V extends Pick<PlanVersionDoc, 'status' | 'version'>>(versions: readonly V[]): V | null {
   let best: V | null = null;

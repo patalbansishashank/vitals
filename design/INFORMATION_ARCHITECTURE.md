@@ -10,7 +10,7 @@
 > document: `docs/SUITE_SPEC.md` §6 (modes, routes), §3 (plan lifecycle, log, adherence, drift),
 > §5 (AI change review), and `docs/PLANNER_V2_SPEC.md` §9.5 (the ladder). Screen specs:
 > `screens/living-mode.md`, `screens/plan-ladder.md`, `screens/onboarding-intake-v2.md`,
-> `screens/body-figure-v2.md`, `screens/settings-sync-ai.md`, `screens/scores.md`.
+> `screens/body-figure-v2.md`, `screens/settings-sync-ai.md`.
 > `REVIEW_FINDINGS.md` still wins over every design document, v0.1 or v0.2.
 
 ---
@@ -35,20 +35,17 @@ does not change the plan; the scenario shows "from Plan B · 12 Oct" as provenan
 
 | Object | What it is | Cardinality | Lives in |
 |---|---|---|---|
-| **Intake** | answers about a normal day, training and equipment, food and kitchen, supplements, devices; each section can be "ask me later" | 1, sectioned | onboarding, Body › "Your setup", Coach |
+| **Intake** | answers about a normal day, training and equipment, food and kitchen, supplements, blood markers; each section can be "ask me later" | 1, sectioned | onboarding, Body › "Your setup", Coach |
 | **Plan rung** | one plan of the ladder: **Hard · Medium · Easy** (inside your limits) and **Ideal** (no practical limits, safety still applies) | 3 + 1 per planner run | Plan › results |
 | **Active plan** | a started rung or scenario, anchored to the calendar: scheduled → active ⇄ paused → ended | at most 1 at a time (+ ended history) | Living mode |
 | **Plan version** | an immutable revision of the active plan (start, light, weekly, event, coach, user) with its forecast and diff | many per active plan | Progress › plan, `/plan/active/versions/:n` |
 | **Prescription** | what a calendar day asks: meals and targets, window, sessions on your equipment, fast, steps, sleep, supplements; frozen when the day begins | 1 per day | Today, Food, Train |
-| **Log entry** | what happened: meal, session, fast, steps, sleep, substance, supplement, how-hard-was-today, event, note; append-only with a source (you, Coach, device, import) and an uncertainty band | many per day | Today, Food, Train, Progress |
+| **Log entry** | what happened: meal, session, fast, steps, sleep, substance, supplement, how-hard-was-today, event, note; append-only with a source (you, Coach, import) and an uncertainty band | many per day | Today, Food, Train, Progress |
 | **Measurement** | scale weight, girths, body-fat readings, blood pressure, ketones, glucose, labs | many | Progress › Body |
 | **Adherence score** | 0–100 per day: how much of the day's goal value you kept, weighted by what each item contributes; coverage shown | 1 per scored day + 7 / 28-day trends | Today, Progress |
 | **Drift** | ahead / on track / behind, with the goal date as a range and the likely cause | 1 per goal per check-in | Today card, Progress |
-| **Biometric record** | a day of device data (sleep, heart rate, HRV, SpO2, skin temperature, steps, workouts, weight) with source and quality | 1 per day per source | Progress › Body signals |
-| **Score** | a Vitals-computed number from raw data (sleep, HRV status, resting HR, VO2 max, load, flags, readiness index), versioned and graded | many, rescored on new versions | Progress › Body signals |
 | **Conversation** | the Coach thread, segmented by days; change cards inside | 1 continuous (+ onboarding) | Coach |
 | **Change** | a reviewable result of an AI (or agent) action: applied with Undo, proposed with Apply/Discard, or awaiting your typed confirmation | many | Coach, Today, Settings › Agents |
-| **Stream policy** | per device stream: bring in · use in scores · use in my plan · what the Coach can see | 1 per stream | onboarding › devices, Settings › Devices |
 | **Pairing** | the 24-word key that joins this device to your sync relay | 0–1 | Settings › Sync |
 
 A **rung** becomes the **active plan** only through "Start this plan" (copied and frozen at start;
@@ -62,7 +59,7 @@ cost the most.
 
 | Path | Screen | Spec | Notes |
 |---|---|---|---|
-| `/` | redirect | — | first run → `/welcome`; else → last visited top-level route |
+| `/` | redirect | — | first run → `/welcome`; else → `/today` (0.6.3: Today is home in every mode; was the last visited top-level route) |
 | `/welcome` | Welcome + safety screening + disclaimer | `onboarding-safety.md` | 3 steps: `?step=intro\|screening\|consent` |
 | `/body` | Your body | `your-body.md` | sections as anchors: `#basics`, `#shape`, `#habits` |
 | `/simulate` | redirect | — | → `/simulate/:activeScenarioId/schedule` (creates a blank scenario if none) |
@@ -84,27 +81,30 @@ push, so the back gesture closes the Explain drawer and returns to the previous 
 
 | Path | Screen | Spec | Notes |
 |---|---|---|---|
-| `/` | redirect | — | Living mode → `/today`; Planning mode → last Planning route (v0.1 rule) |
-| `/onboarding/:section` | Intake (`activity`, `training`, `diet`, `kitchen`, `supplements`, `devices`) | `onboarding-intake-v2.md` | `?from=setup` during first run; `?from=body` from "Your setup"; also driven by the Coach |
+| `/` | redirect | — | `/today` in every mode (0.6.3). The last route only serves "Planning tools"; Settings and Safety are never remembered, so they can never be the start screen |
+| `/onboarding/:section` | Intake (`activity`, `training`, `diet`, `kitchen`, `supplements`, `markers`) | `onboarding-intake-v2.md` | `?from=setup` during first run; `?from=body` from "Your setup"; also driven by the Coach |
 | `/onboarding/summary` | "What we'll use" summary + maintenance result | `onboarding-intake-v2.md §6.6` | end of first run, before *Choose a start* |
 | `/body` | Your body (figure v2) | `your-body.md` + `body-figure-v2.md` | `#figure`, `#visceral`, `#shape`, `#setup` |
 | `/plan/results` | The ladder (Hard · Medium · Easy ‖ Ideal) | `plan-ladder.md` | `?rung=easy\|medium\|hard\|ideal&tab=overview\|days\|curves\|safety\|limits` (replaces `?plan=a\|b\|c`; old links map a→hard, b→medium, c→easy) |
 | `/plan/active` | Active plan detail: versions, diffs, proposals, pause, end | `living-mode.md §9` | `/plan/active/versions/:n` for one version |
-| `/today`, `/today/:date` | Today | `living-mode.md §4` | past dates are read and backfill views; future dates read-only previews |
+| `/today`, `/today/:date` | Today | `living-mode.md §4` | home in every mode (0.6.3). Living: the day's plan, adherence, the projection, the ring. Planning (no plan): the ring's day (sleep, steps, heart rate, Heart Points), activities to review and "No plan running" (Find a plan · Simulate a plan); `/today/:date` returns to today. Past dates are read and backfill views; future dates read-only previews |
 | `/food`, `/food/:date` | Food: meals, recipes, groceries, supplements | `living-mode.md §5` | `#meals`, `#groceries`, `#supplements`; `?recipe=:slot` opens the recipe sheet |
 | `/train`, `/train/:date` | Train: sessions, swaps, equipment, things to buy | `living-mode.md §6` | `#session`, `#equipment`, `#buy`; `?swap=:slotKey` opens the swap sheet |
 | `/coach`, `/coach/:conversationId` | Coach | `living-mode.md §7` | `?briefing=1` opens "What the Coach knows"; in Planning mode opened from the top bar |
-| `/progress`, `/progress/:metric` | Progress | `living-mode.md §8` | `#trend`, `#goals`, `#adherence`, `#body`, `#signals`, `#log`, `#checkins`, `#plan`; `:metric` may be a score id (`/progress/hrv.status`) → `scores.md` detail |
-| `/settings/:section` | Settings, scrolled to a section | `settings-data.md` + `settings-sync-ai.md` | `units`, `appearance`, `data`, `sync`, `devices`, `data-sources`, `coach` (AI provider), `agents`, `install`, `safety`, `about`; `#section` anchors still work |
+| `/progress`, `/progress/:metric` | Progress | `living-mode.md §8` | `#trend`, `#goals`, `#adherence`, `#body`, `#log`, `#checkins`, `#plan` |
+| `/settings/:section` | Settings, scrolled to a section | `settings-data.md` + `settings-sync-ai.md` | `units`, `appearance`, `data`, `sync`, `coach` (AI provider), `agents`, `install`, `safety`, `about`; `#section` anchors still work |
 
 `nav.open` (the command the Coach and agents use) accepts only these route ids. **Requested
 additions** to the suite's route table (`docs/SUITE_SPEC.md §6.2`): `/settings/{units, appearance,
 install, safety, about}` and `/onboarding/summary`.
 
-Without an active plan: `/today`, `/food` and `/train` redirect to `/plan` with a one-line notice
-("Start a plan to use Today."); `/coach` works in both modes; `/progress` works without a plan and
-shows only Body, Body signals and Log (reachable from Body › "Signals and measurements" and from
-Settings › Devices and streams).
+Without an active plan: `/food` and `/train` redirect to `/plan` with a one-line notice
+("Start a plan to use this screen."); `/today` (0.6.3), `/coach` and `/progress` work in both modes;
+`/progress` without a plan shows only Body and Log (reachable from Body).
+
+Back on a pushed page without a target of its own goes one step back in the app's history, or to
+Today when the page is the first one the app opened (0.6.3: it used to go to `/`, which in Planning
+mode reopened the last route — Settings after an update, a loop with no way out on a phone).
 
 ---
 
@@ -207,9 +207,9 @@ is scheduled, active or paused (`docs/SUITE_SPEC.md §6.1`).
 | | Planning (no plan running, or "planning tools" opened) | Living (a plan is scheduled, active or paused) |
 |---|---|---|
 | Question it answers | "What should I do, and what would happen?" | "What do I do today, and is it working?" |
-| Destinations | Body · Simulate · Plan · Evidence | **Today** (home) · **Food** · **Train** · **Coach** · **Progress** |
-| Secondary | Coach (top-bar icon key), Settings | Evidence, Planning tools, Settings (rail lower group / overflow `⋯`) |
-| Home (`/`) | last Planning route | `/today` |
+| Destinations | **Today** (home, 0.6.3) · Body · Simulate · Plan; the planning override: Body · Simulate · Plan · Evidence | **Today** (home) · **Food** · **Train** · **Coach** · **Progress** |
+| Secondary | Coach, Ring, Evidence (0.6.3: moved from the pill), Settings (sidebar foot / overflow `⋯`) | Ring, Evidence, Planning tools, Settings (rail lower group / overflow `⋯`) |
+| Home (`/`) | `/today` (0.6.3; was the last Planning route) | `/today` |
 | Primary yellow key | Run (Simulate) · Find plans (Plan) | **none on Living screens** (nothing to run; logging is ink keys) |
 
 Rules:
@@ -286,8 +286,8 @@ Rules:
  full words at 11 px and are never abbreviated (REVIEW_FINDINGS #6); "progress" fits 60 px.
 ```
 
-- `Ctrl/⌘ 1…5` = Today · Food · Train · Coach · Progress in Living mode; `Ctrl/⌘ 1…4` keep the v0.1
-  meaning in Planning mode. `Ctrl/⌘ 0` = Today from anywhere while a plan runs (also the return key
+- `Ctrl/⌘ 1…5` = Today · Food · Train · Coach · Progress in Living mode; `Ctrl/⌘ 1…4` follow the pill in
+  Planning mode (0.6.3: Today · Body · Simulate · Plan; the override: Body · Simulate · Plan · Evidence). `Ctrl/⌘ 0` = Today from anywhere while a plan runs (also the return key
   in the override).
 - The **plan-day readout** under the wordmark is the only place the rail carries data; when the
   plan is paused it reads "paused" (ink-2), when scheduled "starts Mon".
@@ -396,15 +396,16 @@ Reset → dialog: type "reset" to confirm → wipes local storage → [Welcome]
 [Intake · a normal day]        10 questions, mostly one tap → maintenance with drivers  (activity)
 [Intake · training & equipment]  willingness, kit, time, injuries                       (training)
 [Intake · food & kitchen]      what you eat, rules, cooking, supplements stance         (diet, kitchen, supplements)
-[Intake · devices & data]      what you wear → per-stream choices → import now / later  (devices)
-[What we'll use]               one summary faceplate: maintenance, kit, food rules, streams, deferred items
+[Intake · blood markers]       optional lab values, or skip                             (markers)
+[What we'll use]               one summary faceplate: maintenance, kit, food rules, markers, deferred items
 [Choose a start]               "Simulate a plan I have in mind" · "Find a plan for my goals"
 ```
 - Every intake chapter has **Skip this part** (chapter header) and every question **Ask me later**;
   nothing blocks the planner. Deferred items collect in Body › **Your setup**; the Coach asks them
   only when you open a conversation, and the lazy food questions surface the first time they matter
   (first grocery list, first swap).
-- Progress: a 4-segment scale in the top bar (`a normal day · training · food · devices`).
+- Progress: a 4-segment scale in the top bar (`a normal day · training · food · markers`). Vitals reads no devices:
+  sleep, steps and workouts are logged by hand.
 - If an AI provider is configured, each chapter offers "Answer by chatting instead" → the Coach
   runs the same questions (`intake.nextQuestions`); answers land as log-class change cards.
 
@@ -487,15 +488,7 @@ Plan reaches its end date → Today: "Spring cut is complete" → [Keep the resu
 Safety pause (danger warning or screening change) → only you can resume, from Today
 ```
 
-### 4.13 Devices and data
-
-```
-[Intake · devices] or [Settings · Devices and streams]
-   pick device(s) → how it reaches Vitals (import file / connect ring / bridge app / later)
-   → per-stream choices: bring in · use in scores · use in my plan · Coach can see
-   → [Import a file] → import report (days, records, duplicates) → scores rescore in background
-   → [Connect ring] (Chrome, Android/desktop) → device chooser → sync now → report
-```
+### 4.13 Devices and data — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
 ### 4.14 Sync and AI provider
 
@@ -532,8 +525,7 @@ Safety pause (danger warning or screening change) → only you can resume, from 
 | Food | no recipe yet → "Plan my day" (needs AI) / targets as plain meals | recipe generation: per-slot progress rule | provider failure → targets as plain meals + manual log | "closest achievable: protein short by 18 g" | quiet mode hides kcal; family-food mode |
 | Train | rest day → "Rest day" + steps target | — | unknown exercise → Coach resolves it, never rejects | injury-tagged exercise filtered (says why) | swap preview; equipment missing |
 | Coach | no provider → manual-logging fallback + "Connect an AI provider" | streaming text; "running" job chip | provider errors by kind (auth, quota, CORS, network…) | safety-blocked card with alternatives | proposal pending; stale proposal; basic-tier model (logs only) |
-| Progress | < 7 days → "Your trend starts after a week of weigh-ins" | rescoring chip "updating scores to v1.3" | — | drift behind (no red) | check-in report; version history |
-| Scores | no device → explanation + "Add a device" | rescoring | withheld (gate unmet: "needs 14 nights, 9 so far") | flags yellow/amber/red | borderline; new device = new baseline |
+| Progress | < 7 days → "Your trend starts after a week of weigh-ins" | — | — | drift behind (no red) | check-in report; version history |
 | Sync | off (default) | connecting / syncing | can't reach server; needs permission (Chrome local network) | pending changes waiting | not available in this version |
 
 ---
@@ -565,7 +557,7 @@ end-to-end-encrypted sync to a relay the person runs, export v2. The design cons
 
 | Keys | Action |
 |---|---|
-| `⌘/Ctrl 1…4` | Body · Simulate · Plan · Evidence |
+| `⌘/Ctrl 1…4` | the pill in order: Planning Today · Body · Simulate · Plan (0.6.3); the override Body · Simulate · Plan · Evidence |
 | `⌘/Ctrl Enter` | Run (Simulator) / Find plans (Planner) |
 | `⌘/Ctrl Z`, `⇧⌘Z` | Undo / redo (schedule, goals) |
 | `A…Z` (schedule, painter focused) | select program key |

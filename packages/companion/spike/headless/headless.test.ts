@@ -1,12 +1,11 @@
 // @vitest-environment node
 /**
  * R17 spike: the Vitals data layer headless in Node. One run measures and records (results/r17-results.json):
- *   (a) the command bus against a person's Evolu store, (b) the Lumen ring ingest from a JSONL fixture through
- *   `bio.import`, (c) a Coach/MCP tool call through the same guard the browser bridge uses, (d) sync through the
+ *   (a) the command bus against a person's Evolu store, (c) a Coach/MCP tool call through the same guard the browser bridge uses, (d) sync through the
  *   in-process relay to a second "device", plus start-up time, RSS, the person directory on disk, 1 vs 5 persons.
  * Every step records its outcome instead of failing fast, so one run lists every blocker.
  */
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -77,7 +76,7 @@ afterAll(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-it('one person: store, command bus, ingest, agent tool call, sync to a second device', async () => {
+it('one person: store, command bus, agent tool call, sync to a second device', async () => {
   const secret = newOwnerSecret(); // in E25: read from the person's 0600 key file, never logged
   const rss0 = rss();
   const cmds = await step('importCommandBus', async () => {
@@ -85,7 +84,7 @@ it('one person: store, command bus, ingest, agent tool call, sync to a second de
     return { commands: m.allCommands().length, rssMiB: rss(), heapMiB: heap(), deltaMiB: Math.round((rss() - rss0) * 10) / 10 };
   });
   expect(cmds).toBeTruthy();
-  const { dispatch, installPorts, jobs, allCommands, toolName } = await import('@/commands');
+  const { dispatch, allCommands, toolName } = await import('@/commands');
 
   const rss1 = rss();
   const person = (await step('openPersonStore', async () => {
@@ -143,19 +142,6 @@ it('one person: store, command bus, ingest, agent tool call, sync to a second de
   const t1 = performance.now();
   for (let i = 0; i < 20; i++) await dispatch('today.get', {});
   results.todayGetx20 = { msEach: Math.round(((performance.now() - t1) / 20) * 10) / 10, rssDeltaMiB: Math.round((rss() - rssCmd) * 10) / 10 };
-
-  // (b) ring ingest: the bio port hands the command a Blob, as the screen's file picker would
-  const jsonl = readFileSync(join(here, 'fixtures', 'ring.jsonl'), 'utf8');
-  installPorts({ bio: { takeFile: (ref: string) => (ref === 'ring' ? ({ blob: new Blob([jsonl]), name: 'ring.jsonl' } as never) : undefined), takeLink: () => undefined } });
-  await step('bioImport', async () => {
-    const r = await dispatch('bio.import', { fileRef: 'ring', format: 'lumen_cloudevents' });
-    if (!r.ok) throw new Error(`${r.error.code}: ${r.error.message}`);
-    if (!('job' in r)) throw new Error('expected a job');
-    const s = await jobs.wait(r.job.jobId);
-    const res = await dispatch('job.result', { jobId: r.job.jobId });
-    return { state: s.state, error: (s as { error?: unknown }).error, result: res.ok && 'output' in res ? res.output : res, events: jsonl.trim().split('\n').length };
-  });
-  await run('bio.daily', { from: '2026-09-30', to: '2026-10-01' });
 
   // (c) a Coach/MCP tool call through the guard the browser bridge uses (agentHub forwards to it today)
   await step('agentToolCall', async () => {

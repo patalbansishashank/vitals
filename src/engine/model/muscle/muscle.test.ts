@@ -72,7 +72,13 @@ describe('contract', () => {
     }
     expect(byId.get('muscle.kG')!.value).toBe(0.001507);
     expect(byId.get('muscle.nMaxSlope')).toMatchObject({ value: 0.125, low: 0.1, high: 0.2 }); // R-STR
-    expect(byId.get('muscle.kMem')).toMatchObject({ value: 1.3, low: 1.0, high: 1.3 }); // R-REGAIN (was R-MEM 1.0)
+    // D3-06: neutral memory 1 central; 1.3 (R-REGAIN) is the named faster-regain scenario, never drawn
+    expect(byId.get('muscle.kMem')).toMatchObject({ value: 1.0, low: 1.0, high: 1.3, draw: 'fixed' });
+    // D3-06: no guaranteed permanent trained-gain floor; nonzero shares are research scenarios, never drawn
+    expect(byId.get('muscle.detrainFloorFrac')).toMatchObject({ value: 0, low: 0, high: 0.7, draw: 'fixed' });
+    // D3-04 / D3-05 scenario switches: production values in every draw
+    expect(byId.get('muscle.eDistMode')).toMatchObject({ value: 0, draw: 'fixed' });
+    expect(byId.get('muscle.growthScenarioUnknown')).toMatchObject({ value: 0, draw: 'fixed' });
     expect(byId.get('muscle.crAccretion')).toMatchObject({ value: 0.05, low: 0, high: 0.1 }); // R-CREATINE
     expect(byId.get('muscle.uIndividual')).toMatchObject({ value: 1, low: 0.33, high: 3.0, draw: 'logTri' });
     let w = 0;
@@ -222,7 +228,7 @@ describe('burn-in on the habitual week and endBurnIn (R-BURNIN)', () => {
   });
 });
 
-describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release check 2026-10-01)', () => {
+describe('detraining towards the set-point (09 §4.10; D3-06 supersedes R-DETRAIN\'s guaranteed 50 % floor)', () => {
   const LIFTER: PersonOpts = { ...YOUNG, trainingYears: 2, trainingHistory: '1to3y' };
   const sum = (a: Float64Array): number => a.reduce((x, y) => x + y, 0);
   const rest = (sim: MuscleSim) => compileWeek(sim.profile, [program('B', { proteinGkg: 1.4 })], [0]);
@@ -232,7 +238,7 @@ describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release che
     sim.burnIn(14, rtWeek(sim, 11 / 3, 3, 1.4));
     return sim;
   };
-  it('habitual lifter: set-point = M_acc₀ − trained gains above the untrained FFMI reference; floor keeps 50 % of them', () => {
+  it('habitual lifter: set-point = M_acc₀ − trained gains above the untrained FFMI reference; the central floor is the set-point', () => {
     const sim = lifter();
     const s = sim.s;
     const tr = sim.profile.body.training;
@@ -244,8 +250,12 @@ describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release che
     expect(gTr).toBeLessThan(0.6 * sum(s.mAcc0));
     for (let r = 0; r < 9; r++) {
       expect(s.mBase[r]!).toBeGreaterThanOrEqual(0);
-      expect(s.mFloor[r]!).toBeCloseTo(s.mBase[r]! + 0.5 * (s.mAcc0[r]! - s.mBase[r]!), 12);
+      // D3-06: no permanent trained-gain floor centrally
+      expect(s.mFloor[r]!).toBeCloseTo(s.mBase[r]!, 12);
     }
+    // the legacy R-DETRAIN share (0.5) survives only as a research scenario, on the attained peak
+    const sc = lifter(LIFTER, { 'muscle.detrainFloorFrac': 0.5 }).s;
+    for (let r = 0; r < 9; r++) expect(sc.mFloor[r]!).toBeCloseTo(sc.mBase[r]! + 0.5 * (sc.mPeak[r]! - sc.mBase[r]!), 12);
   });
   it('without habitual RT the floor is the set-point, i.e. all of M_acc₀ (unchanged)', () => {
     for (const o of [{ ...YOUNG, bodyFatPct: 10 }, { ...YOUNG, trainingYears: 3, trainingHistory: 'none' as const, sessionsPerWeek: 0 }]) {
@@ -266,7 +276,7 @@ describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release che
     expect(lost[20]! / losable).toBeLessThan(0.01);
     expect(Math.abs(lost[139]! / losable - 0.82)).toBeLessThanOrEqual(0.1);
     for (let d = 1; d < 140; d++) expect(lost[d]!).toBeGreaterThanOrEqual(lost[d - 1]! - 1e-12);
-    // a year off: bounded by the floor; the set-point and half of the trained gains remain
+    // a year off: bounded by the floor (the set-point centrally); the untrained set-point is never detrained here
     sim.run(225, rest(sim));
     expect(-sim.gain()).toBeLessThanOrEqual(losable + 1e-9);
     expect(-sim.gain()).toBeGreaterThan(0.95 * losable);
@@ -282,7 +292,7 @@ describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release che
     expect(-lo.gain() / g).toBeCloseTo(0.7, 1);
     expect(-hi.gain() / g).toBeCloseTo(0.3, 1);
   });
-  it('gains accrued inside the run detrain fully (Psilander 2019): the floor covers only the long-term gains held at t = 0', () => {
+  it('gains accrued inside the run detrain fully (Psilander 2019), like the trained gains held at t = 0', () => {
     const sim = lifter();
     sim.run(84, rtWeek(sim, 20 / 3, 3, 1.8)); // V 20, 1.8 g/kg: above the habitual stimulus
     const added = sim.gain();
@@ -292,9 +302,9 @@ describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release che
     expect(-sim.gain()).toBeGreaterThan(0.95 * losable);
     expect(-sim.gain()).toBeLessThanOrEqual(losable + 1e-9);
   });
-  it('R-REGAIN: 12 weeks off, then the habitual programme — ≥ 60 % of the loss back in 16 weeks, all by 26, never above the peak', () => {
-    // basis: 09 §4.10 — regain at 09's own rate (gap term (1 − TS), habituation, κ_mem 1.3 while M_acc < 0.95·M_peak); for
-    // this lifter 09's rate without any habitual reference regains 86 % in 16 weeks (the retraining pace the ruling asks for)
+  it('regain (D3-06; R-REGAIN as a scenario): 12 weeks off, then the habitual programme — the neutral memory and the ×1.3 scenario regain fully, never above the peak; the scenario is faster', () => {
+    // basis: 09 §4.10 — below M_peak accretion is 09's own rate (gap term (1 − TS), habituation) capped at M_peak; κ_mem
+    // (×1.3 while M_acc < 0.95·M_peak) is the named faster-regain scenario, the central value is the neutral 1
     const regain = (kMem?: number): { lost: number; at: Record<number, number>; peakOk: boolean; boosted: boolean } => {
       const sim = lifter(LIFTER, kMem === undefined ? undefined : { 'muscle.kMem': kMem });
       sim.run(84, rest(sim));
@@ -311,18 +321,24 @@ describe('R-DETRAIN: detraining towards a retained floor (09 §4.10; release che
       }
       return { lost, at, peakOk, boosted };
     };
-    const def = regain(); // default κ_mem 1.3 (R-REGAIN)
-    const first = regain(1.0); // no memory boost = the first-time pace at the same training status
+    const def = regain(); // central κ_mem 1 (neutral memory)
+    const neutral = regain(1.0);
+    const memory = regain(1.3); // the named faster-regain scenario
+    expect(def.at).toEqual(neutral.at);
     expect(def.lost).toBeGreaterThan(1);
-    expect(def.boosted).toBe(true); // M_peak is kept: the memory reserve M_peak − M_acc exists after detraining
-    expect(def.at[16]!).toBeGreaterThanOrEqual(0.6); // model 0.85
-    expect(def.at[26]!).toBeGreaterThan(0.99);
-    expect(def.at[52]!).toBeCloseTo(1, 9); // back at M_acc,0 and flat: the habitual equilibrium again
-    expect(def.peakOk).toBe(true);
-    // faster than the first time: at 8 and 16 weeks the boosted regain leads the unboosted one (model 43/85 % vs 34/72 %)
-    expect(def.at[8]!).toBeGreaterThan(1.15 * first.at[8]!);
-    expect(def.at[16]!).toBeGreaterThan(first.at[16]!);
-    expect(first.at[16]!).toBeGreaterThanOrEqual(0.6); // even without the boost (R-MEM's old 1.0): 72 %
+    // memory changes regrowth propensity only: the detraining phase is identical (no retained kg from memory)
+    expect(memory.lost).toBeCloseTo(def.lost, 12);
+    expect(memory.boosted).toBe(true); // M_peak is kept: the reserve M_peak − M_acc exists after detraining
+    for (const r of [def, memory]) {
+      expect(r.at[52]!).toBeCloseTo(1, 9); // back at M_acc,0 and flat: the habitual equilibrium again
+      expect(r.peakOk).toBe(true);
+      for (let w = 2; w <= 52; w++) expect(r.at[w]!).toBeGreaterThanOrEqual(r.at[w - 1]! - 1e-12);
+    }
+    // the scenario leads the neutral memory at 8, 16 and 26 weeks (model 26/54/85 % vs 20/43/69 %)
+    expect(memory.at[8]!).toBeGreaterThan(1.15 * def.at[8]!);
+    expect(memory.at[16]!).toBeGreaterThan(def.at[16]!);
+    expect(memory.at[26]!).toBeGreaterThan(def.at[26]!);
+    expect(def.at[26]!).toBeGreaterThan(0.5);
   });
 });
 
@@ -463,16 +479,18 @@ describe('multipliers on A_r (training-day accretion)', () => {
     expect(run(1)).toBeCloseTo(14, 9);
     expect(run(0.3)).toBeCloseTo(10 + 4 * 0.95, 9);
   });
-  it('meal distribution: OMAD lowers accretion to E_dist 0.83', () => {
-    const run = (meals: number): number => {
-      const sim = new MuscleSim(person(YOUNG));
+  it('meal distribution (D3-04): neutral E_dist 1 in production; the legacy curve (OMAD → 0.83) only in research mode', () => {
+    const run = (meals: number, eDistMode = 0): number => {
+      const sim = new MuscleSim(person(YOUNG), eDistMode ? { overrides: { 'muscle.eDistMode': eDistMode } } : {});
       const A = program('A', { meals, windowLengthH: meals === 1 ? 1 : 12, sessions: [{ startH: 17, sets: 4 }] });
       const week = compileWeek(sim.profile, [A], [0]);
       sim.run(10, week);
       return sim.s.eDist;
     };
     expect(run(3)).toBe(1);
-    expect(run(1)).toBeCloseTo(0.83, 12);
+    expect(run(1)).toBe(1);
+    expect(run(3, 1)).toBe(1);
+    expect(run(1, 1)).toBeCloseTo(0.83, 12);
   });
 });
 

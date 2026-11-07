@@ -9,9 +9,8 @@ import { statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, net, powerSaveBlocker, protocol, safeStorage, screen, session, shell, Tray } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, net, protocol, safeStorage, screen, session, shell, Tray } from 'electron';
 import { autoUpdater } from 'electron-updater';
-import { attachBluetooth, enableWebBluetooth } from '../ble/main';
 import { createMcpHost } from './mcpHost';
 import { createPageRelay } from './pageRelay';
 import { createSecrets } from './secrets';
@@ -25,7 +24,7 @@ import { SCHEME_PRIVILEGES, createAppHandler } from './protocol';
 import { WEB_PREFERENCES, applySecurity } from './security';
 import { createTray } from './tray';
 import { createUpdates } from './updates';
-import { MIN_SIZE, createMainWindow } from './window';
+import { MIN_SIZE, NATIVE_THEME, WINDOW_BACKGROUND, createMainWindow } from './window';
 
 /** netlify.toml's Content-Security-Policy, compiled in by scripts/build.mjs. */
 declare const __VITALS_CSP__: string;
@@ -54,7 +53,6 @@ function startShell(): void {
     return;
   }
   protocol.registerSchemesAsPrivileged([SCHEME_PRIVILEGES]);
-  enableWebBluetooth(app);
 
   const platform = process.platform;
   const osName: DesktopOs = platform === 'win32' || platform === 'darwin' ? platform : 'linux';
@@ -72,6 +70,8 @@ function startShell(): void {
 
   void app.whenReady().then(() => {
     const userData = app.getPath('userData');
+    // dark only (Ember): native chrome, dialogs and the page's prefers-color-scheme follow it
+    nativeTheme.themeSource = NATIVE_THEME;
     applySecurity({ app, session, shell });
     protocol.handle(
       'app',
@@ -109,7 +109,7 @@ function startShell(): void {
           minHeight: MIN_SIZE.height,
           title: 'Vitals',
           autoHideMenuBar: true,
-          backgroundColor: '#181a1c',
+          backgroundColor: WINDOW_BACKGROUND,
           ...(platform === 'linux' ? { icon: nativeImage.createFromPath(res.appIcon) } : {}),
           webPreferences: { ...WEB_PREFERENCES, preload: res.preload },
         }),
@@ -120,8 +120,6 @@ function startShell(): void {
     const send = (channel: string, ...args: unknown[]): void => {
       if (!win.isDestroyed()) win.webContents.send(channel, ...args);
     };
-    // only the app's own page may be given the click's worth of activation a reconnect without a click needs
-    const detachBluetooth = attachBluetooth(win.webContents, ipcMain, { allowActivation: (url) => url.startsWith(`${APP_ORIGIN}/`) });
 
     // --- the modules behind the channels ---------------------------------------------------------------------------
     const autostart = createAutostart({ platform, home: os.homedir(), env: process.env, command: self, app });
@@ -157,15 +155,6 @@ function startShell(): void {
       command: { path: self.path, args: (id: AiToolId) => mcpArgs(self.args, id, platform) },
       server: () => serverInfo,
     });
-    let blocker: number | null = null;
-    const keepAlive = (on: boolean, text: string): void => {
-      trayHandle?.setStatus({ ring: on ? text : undefined });
-      if (on && blocker === null) blocker = powerSaveBlocker.start('prevent-app-suspension');
-      if (!on && blocker !== null) {
-        powerSaveBlocker.stop(blocker);
-        blocker = null;
-      }
-    };
     const unregisterIpc = registerIpc({
       ipcMain,
       info: { version: app.getVersion(), os: osName, secretsPersistent: secrets.persistent },
@@ -176,7 +165,6 @@ function startShell(): void {
       relay,
       setServer: (info) => void (serverInfo = info),
       secrets,
-      keepAlive,
       realInput: watchRealInput(win.webContents),
     });
 
@@ -201,7 +189,6 @@ function startShell(): void {
     app.on('before-quit', () => {
       main.allowClose();
       unregisterIpc();
-      detachBluetooth();
       updates.stop();
       trayHandle?.destroy();
       trayHandle = null;
@@ -265,7 +252,6 @@ const SMOKE_PROBE = `(async () => {
   const say = (k, v) => console.log('probe: ' + k + ': ' + v);
   say('origin', location.origin + ' secure=' + isSecureContext);
   say('desktop bridge', typeof window.vitalsDesktop + ' v' + window.vitalsDesktop?.version + ' ' + window.vitalsDesktop?.os);
-  say('bluetooth', typeof navigator.bluetooth);
   say('serviceWorker', 'serviceWorker' in navigator ? ('controller=' + !!navigator.serviceWorker.controller) : 'absent');
   try { const d = await navigator.storage.getDirectory(); const h = await d.getFileHandle('smoke.txt', { create: true }); await d.removeEntry('smoke.txt'); say('opfs', 'ok ' + h.kind); } catch (e) { say('opfs', 'FAIL ' + e); }
   try { const m = await WebAssembly.instantiate(new Uint8Array([0,97,115,109,1,0,0,0])); say('wasm', 'ok ' + typeof m.instance); } catch (e) { say('wasm', 'FAIL ' + e); }

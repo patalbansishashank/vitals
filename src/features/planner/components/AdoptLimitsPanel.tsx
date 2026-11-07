@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Checkbox, Key, KeyBank, ResponsivePanel, Stepper, formatNumber } from '@/components';
+import { Checkbox, KeyBank, ResponsivePanel, Stepper, formatNumber } from '@/components';
 import type { IdealPlanV2, LimitCost, RankedGoal } from '@/engine/planner/domain/types';
 import type { ConstraintDraft } from '@/state/plannerStore';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
@@ -26,8 +26,8 @@ interface RowState {
 
 /**
  * "Adopt some of these limits" (plan-ladder.md §6.8): one checkbox per limit group the Ideal relaxed, with its cost,
- * an intermediate value where the group has one (bounded by the Ideal's value), and the yellow "Find plans with these
- * limits" key — a planner run with the goal screen's limits updated (visible there, undoable).
+ * an intermediate value where the group has one (bounded by the Ideal's value). The header is Cancel · title · the gold
+ * "Find plans" verb (no ✕ beside a commit): a planner run with the goal screen's limits updated (visible there, undoable).
  */
 export function AdoptLimitsPanel({ open, onClose, ideal, current, goals, units, energy, onAdopt, disabledReason }: AdoptLimitsPanelProps) {
   const rows = useMemo(
@@ -51,21 +51,15 @@ export function AdoptLimitsPanel({ open, onClose, ideal, current, goals, units, 
       return r.knob && s.value !== null ? r.knob.patch(s.value) : r.patch;
     }),
   );
-  const footer = (
-    <>
-      <Key onClick={onClose}>Cancel</Key>
-      <Key
-        variant="signal"
-        shape="pill"
-        onClick={() => onAdopt(patch)}
-        disabledReason={disabledReason ?? (chosen.length === 0 ? 'Choose at least one limit to change.' : undefined)}
-      >
-        Find plans with these limits
-      </Key>
-    </>
-  );
   return (
-    <ResponsivePanel open={open} onClose={onClose} title="Which limits could you change?" footer={footer}>
+    <ResponsivePanel
+      open={open}
+      onClose={onClose}
+      title="Limits to change"
+      onDone={() => onAdopt(patch)}
+      doneLabel="Find plans"
+      doneDisabledReason={disabledReason ?? (chosen.length === 0 ? 'Choose at least one limit to change.' : undefined)}
+    >
       <div className="lp-adopt">
         <p className="lp-plain">Each row is one of your limits the Ideal goes past, with what changing it alone would add. Pick the ones you could live with; the Planner then finds a new ladder inside them.</p>
         <ul className="lp-adopt__rows">

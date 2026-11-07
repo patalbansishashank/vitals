@@ -15,6 +15,7 @@ import { clockHourOf, currentDay, type LivingClock } from '../clock';
 import type { ActionOutcome, LivingActions } from '../data/actions';
 import type { LivingDataSource } from '../data/source';
 import { fmtClock, fmtDay, kcal, mealName } from '../format';
+import { slotEntries } from '../food/slots';
 import { changeCardReducer, type ChangeAction, type ChangeCardModel, type ChangeEvent, type ChangeState } from '../model/changeCard';
 import type { ChangeActionExtra, ChangeCardView, MealCardView } from '../components/ChangeCard';
 import { COMPOSER_COPY, COACH_COPY } from './copy';
@@ -27,16 +28,16 @@ const SAY = {
   logged: (total: string, left: string | null) => `Logged. That puts you at about ${total} kcal so far${left ? `, with about ${left} kcal left for today.` : '.'}`,
   loggedNoSource: 'Logged. That puts you at about 1 240 kcal so far, with dinner still to come.',
   loggedQuiet: (slot: string) => `Logged ${slot}. It’s on Today with the rest of your day.`,
-  suggested: 'Here’s what I’d log. Nothing is saved until you confirm it.',
+  suggested: 'I’d log this. Nothing is saved until you confirm it.',
   asPlanned: (slot: string) => `Logged ${slot} as planned.`,
   notInPlan: (slot: string) => `There’s no ${slot} in today’s plan. Tell me what you ate and I’ll log it.`,
-  photo: 'Logged it from your photo. Tap an amount if you know the grams.',
+  photo: 'Logged it from your photo. Change an amount if you know the grams.',
   photoAsk: 'I need one answer before I log this.',
-  proposal: 'Here’s what that would do. Nothing changes until you apply it.',
+  proposal: 'This is what that would do. Nothing changes until you apply it.',
   nothingToMove: 'There’s no training planned Thursday to Saturday, so nothing needs to change.',
   end: 'Ending a plan needs your own confirmation. It’s below when you’re ready.',
   blocked: 'Your safety settings don’t allow that, so I can’t plan it.',
-  fast24: 'Here’s a 24-hour fast instead. Nothing changes until you apply it.',
+  fast24: 'A 24-hour fast instead. Nothing changes until you apply it.',
   uiOnly: 'Only you can change that, in Settings.',
   weight:
     'Day-to-day weight moves with water, salt and food still in transit. Your trend smooths that out, and it is inside the range the plan expects.',
@@ -374,7 +375,8 @@ export function createMockCoachAdapter(opts: MockCoachOptions): MockCoachAdapter
     if (source && !m) return [{ text: SAY.notInPlan(slot) }];
     const clockH = m?.clockH ?? clockHourOf(clock);
     const id = nextId('log');
-    const log = async () => (actions ? actions.logMeal(date, { slot, clockH, components: [], asPlanned: true }) : null);
+    // the meal's answer, as on Today and Food: it replaces whatever the slot holds right now (one Undo restores it)
+    const log = async () => (actions ? actions.answerMeal(date, { slot, mark: 'asPlanned', replaces: slotEntries(view(date), slot).map((e) => e.id) }) : null);
     loggers.set(id, log);
     let outcome: ActionOutcome | null = null;
     return [
@@ -515,7 +517,7 @@ export function createMockCoachAdapter(opts: MockCoachOptions): MockCoachAdapter
     const p = s.provider ?? providerName;
     switch (s.kind) {
       case 'noProvider':
-        return COACH_COPY.composerReason;
+        return COACH_COPY.noProvider.title;
       case 'offline':
         return COACH_COPY.offline;
       case 'keyRefused':

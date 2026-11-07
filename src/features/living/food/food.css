@@ -1,5 +1,7 @@
-/* Food screen (design/screens/living-mode.md, Food). Tokens only; achromatic chrome — colour only on data marks
-   (the macro micro-bars). Mobile: one column, 16 px gutters (Page). Desktop ≥ 1024: two equal columns, 6 | 6. */
+/* Food screen (design/screens/living-mode.md, Food), Ember: tokens only, card material from Faceplate, 0.5 px gold
+   hairlines inside cards, no boxes inside cards, no shadows; gold only on the energy trace and the keys. Weights 350 /
+   400 / 500. Mobile: one column (Page gutters). Desktop ≥ 1024: two equal columns, 6 | 6, balanced by content: what to
+   eat on the left (targets, meals), what to buy, take and have on the right (groceries, supplements, pantry). */
 @layer components {
   .lv-food {
     display: grid;
@@ -7,63 +9,34 @@
     padding-bottom: var(--lm-space-8);
   }
 
-  .lv-food-ctxdate {
-    color: var(--lm-ink-2);
-    font-variant-numeric: tabular-nums;
-  }
-
   .lv-food-note {
+    margin: 0;
     color: var(--lm-ink-2);
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
   }
 
-  .lv-food-dayline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--lm-space-2);
-    align-items: baseline;
-  }
-
-  /* ---------------------------------------------------------------- grid */
-  .lv-food-grid {
-    display: grid;
-    gap: var(--lm-space-4);
-  }
-  .lv-food-main,
-  .lv-food-side {
-    display: grid;
-    gap: var(--lm-space-4);
-    align-content: start;
-    min-width: 0;
-  }
-  @media (min-width: 64rem) {
-    .lv-food-grid {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
-    }
-    /* two equal columns on desktop */
-    .lv-food-main,
-    .lv-food-side {
-      grid-column: span 6;
-    }
-  }
-  /* Desktop: what to eat and what is at home on the left (targets, meals, pantry), what to buy and the supplements
-     on the right. On mobile the pantry lives in the ⋯ menu. */
-  @media (max-width: 63.99rem) {
-    .lv-food-pantryface {
-      display: none;
-    }
-  }
+  /* ---------------------------------------------------------------- layout (r068 F7, F8)
+     Phones: one column — targets, meals, groceries, supplements, pantry. Desktop: <Columns ratio="wide-start">, the day
+     (targets, meals) in the wide column, what to buy, take and have (groceries, supplements, pantry) beside it. The
+     pantry is on the page at every width (a short plain list; "Edit pantry" opens /food/pantry). */
 
   /* ---------------------------------------------------------------- targets */
   .lv-food-targets__quiet {
-    font-size: var(--lm-text-base);
+    margin: 0;
+    font-size: var(--lm-text-md);
+    line-height: var(--lm-text-md--lh);
   }
-  /* energy is the hero; protein, carbs and fat three equal tiles; fibre one quiet line */
+  /* energy is the hero; protein, carbs and fat one small share bar; fibre one quiet line */
   .lv-tgt {
     container-type: inline-size;
     display: grid;
     gap: var(--lm-space-5);
+  }
+  .lv-tgt__name {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
   }
   .lv-tgt__hero {
     display: grid;
@@ -72,13 +45,15 @@
   .lv-tgt__heroHead {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
+    /* (r068 final M21) what is left sits on the label's row, so it never runs into the readout on one baseline at
+       360 px ("≈ 1 180 of 2 695 kcal 1 515 kcal left") */
     grid-template-areas:
-      'name name'
-      'read left';
+      'name left'
+      'read read';
     align-items: baseline;
     gap: 2px var(--lm-space-3);
   }
-  .lv-tgt__heroHead > .lm-eng {
+  .lv-tgt__heroHead > .lv-tgt__name {
     grid-area: name;
   }
   .lv-tgt__heroHead > .lv-tread {
@@ -87,7 +62,7 @@
   .lv-tgt__left {
     grid-area: left;
     font-size: var(--lm-text-sm);
-    font-weight: 500;
+    font-variant-numeric: tabular-nums;
     color: var(--lm-ink-2);
     white-space: nowrap;
   }
@@ -97,8 +72,8 @@
     white-space: nowrap;
   }
   .lv-tread__n {
-    font-size: var(--lm-text-base);
-    font-weight: 600;
+    font-size: var(--lm-text-md);
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lv-tread__t {
@@ -107,12 +82,13 @@
   }
   .lv-tread__u {
     font-size: var(--lm-text-xs);
-    font-weight: 500;
     color: var(--lm-ink-2);
   }
+  /* the hero figure takes the headline role (28/34 500), its unit small and stone */
   .lv-tread--big .lv-tread__n {
-    font-size: var(--lm-text-2xl);
-    line-height: 1.1;
+    font-size: var(--lm-text-headline);
+    line-height: var(--lm-text-headline--lh);
+    letter-spacing: var(--lm-text-headline--ls);
   }
   .lv-tread--big .lv-tread__t {
     font-size: var(--lm-text-lg);
@@ -120,85 +96,86 @@
   .lv-tread--big .lv-tread__u {
     font-size: var(--lm-text-sm);
   }
-  .lv-tgt__range,
-  .lv-tgt__small {
-    margin: 0;
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-    font-variant-numeric: tabular-nums;
-  }
 
-  /* the bar: the whole track is the target; eaten fills from the left; the likely range is a lighter band of the same
-     colour that runs past the fill's end (drawn under it, so it never sits on top as a grey block) */
-  .lv-tbar {
+  /* energy (r068 F2): one bar — the eaten fill (gold), the part past the target (stone), the estimate's likely range as
+     a soft band, the target as a notch that stands a little proud of the track */
+  .lv-ebar {
     position: relative;
-    height: 10px;
-    overflow: hidden;
-    border-radius: 5px;
+    height: 8px;
+    margin-block: var(--lm-space-1);
+    border-radius: var(--lm-radius-full);
     background: var(--lm-well);
-    box-shadow: inset 0 0 0 1px var(--lm-line);
+    outline: var(--lm-hairline) solid var(--lm-line);
   }
-  .lv-tbar--sm {
-    height: 6px;
-    border-radius: 3px;
-  }
-  .lv-tbar__fill,
-  .lv-tbar__range {
+  .lv-ebar__fill,
+  .lv-ebar__over,
+  .lv-ebar__band {
     position: absolute;
     inset-block: 0;
+    border-radius: var(--lm-radius-full);
   }
-  .lv-tbar__fill {
-    inset-inline-start: 0;
-    border-radius: inherit;
-    background: var(--c);
+  .lv-ebar__fill {
+    left: 0;
+    background: var(--lm-signal);
   }
-  .lv-tbar__range {
-    background: color-mix(in oklab, var(--c) 35%, transparent);
+  .lv-ebar__over {
+    background: var(--lm-ink-2);
   }
-
-  .lv-tgt__tiles {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--lm-space-4);
-    margin: 0;
-    padding: var(--lm-space-4) 0 0;
-    list-style: none;
-    border-top: 1px solid var(--lm-line);
+  /* r068 L28: the likely range is a soft haze around the fill's end (no outline, no capsule), so it never reads as a
+     slider thumb */
+  .lv-ebar__band {
+    inset-block: 0;
+    border-radius: 0;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--lm-signal) 40%, transparent) 30%, color-mix(in oklab, var(--lm-signal) 40%, transparent) 70%, transparent);
+    pointer-events: none;
   }
-  .lv-tgt__tile {
-    display: grid;
-    align-content: start;
-    gap: 4px;
-    min-width: 0;
+  .lv-ebar__target {
+    position: absolute;
+    top: -5px;
+    bottom: -5px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--lm-ink);
   }
-  .lv-tgt__tile > .lv-tbar {
-    margin-top: 4px;
-  }
-  /* a very narrow card: the tiles stack, each one line wide */
-  @container (max-width: 19rem) {
-    .lv-tgt__tiles {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
+  /* fibre: one quiet row, its name left and its figure right, like the macro rows above */
   .lv-tgt__fibre {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--lm-inline);
     margin: 0;
-    padding-top: var(--lm-space-3);
-    border-top: 1px solid var(--lm-line);
     font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
+    color: var(--lm-ink);
   }
-  .lv-tgt__fibre > .lm-eng {
-    margin-inline-end: var(--lm-space-2);
+  .lv-tgt__fibreval {
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .lv-tgt__word {
+    font-weight: 400;
+    color: var(--lm-ink-3);
+  }
+  /* r068 L28: Fibre's figure and suffix in the macro rows' style (value 500 ink, unit and word small stone) */
+  .lv-tgt__fibre {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lv-tgt__fibreval .lm-unit,
+  .lv-tgt__fibreval .lv-tgt__word {
+    font-size: var(--lm-text-body-s);
+    color: var(--lm-ink-2);
+    font-weight: 400;
+  }
+  /* the day report (r068 F1): its own labelled row at the card's foot, the selector full width */
+  .lv-tgt__report {
+    display: grid;
+    gap: var(--lm-row-gap);
+    padding-top: var(--lm-card-gap);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
 
   /* ---------------------------------------------------------------- meals */
-  .lv-food-state {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--lm-space-2);
-    align-items: center;
-    margin-block-end: var(--lm-space-2);
-  }
   .lv-food-progress {
     display: flex;
     flex-wrap: wrap;
@@ -206,9 +183,6 @@
     margin: 0 0 var(--lm-space-2);
     padding: 0;
     list-style: none;
-  }
-  .lv-food-fast {
-    margin-block-end: var(--lm-space-2);
   }
   /* the meals ride the shared day rail (living.css); these are the meal's own parts */
   .lv-meal__name {
@@ -221,19 +195,46 @@
   .lv-meal .lv-food-logged-list {
     flex: 1;
   }
-  /* a logged meal reads as one line: what, about how much, who logged it */
+  /* r068 L8: a meal row opens its sheet: the name carries a chevron; the planned dish leads the line under it */
+  .lv-meal__open {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .lv-meal__label {
+    display: inline-block;
+  }
+  .lv-meal__label::first-letter {
+    text-transform: uppercase;
+  }
+  .lv-meal__chev {
+    flex: none;
+    color: var(--lm-ink-3);
+  }
+  .lv-meal__dish {
+    flex-basis: 100%;
+    color: var(--lm-ink);
+  }
+  .lv-meal__dish::first-letter {
+    text-transform: uppercase;
+  }
+  .lv-meal__outside {
+    flex-basis: 100%;
+    color: var(--lm-caution-fg, var(--lm-ink-2));
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+  }
+  /* a logged meal reads as one line: what, about how much */
   .lv-meal .lv-food-logged {
     justify-content: flex-start;
     gap: 2px 14px;
     color: var(--lm-ink-2);
   }
+  /* a suggested or accepted recipe sits under the meal's text column: no box of its own inside the card */
   .lv-food-recipe-wrap {
     display: grid;
     gap: var(--lm-space-2);
     justify-items: start;
-    padding: var(--lm-space-2) var(--lm-space-3);
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-md);
   }
   .lv-food-slot__working,
   .lv-food-slot__error,
@@ -247,12 +248,6 @@
   .lv-food-slot__working {
     color: var(--lm-ink-2);
   }
-  .lv-food-slot__prompt {
-    padding: var(--lm-space-2) var(--lm-space-3);
-    background: var(--lm-well);
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-md);
-  }
   .lv-food-slot__group {
     display: inline-flex;
     flex-wrap: wrap;
@@ -264,25 +259,51 @@
     gap: var(--lm-space-0-5);
   }
   .lv-food-recipe__dish {
-    font-size: var(--lm-text-base);
+    margin: 0;
+    font-size: var(--lm-text-md);
     font-weight: 500;
+  }
+  /* the dish opens its recipe sheet: plain text that reads as the dish, a gold underline on hover */
+  .lv-food-recipe__open {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .lv-food-recipe__open:hover {
+      text-decoration: underline;
+      text-decoration-color: var(--lm-signal);
+      text-underline-offset: 3px;
+    }
+  }
+  .lv-food-recipe__open:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
   }
   .lv-food-recipe__meta,
   .lv-food-recipe__portions,
   .lv-food-recipe__hint,
   .lv-food-plain {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
     color: var(--lm-ink-2);
   }
   .lv-food-recipe__portions {
     color: var(--lm-ink);
   }
+  /* "estimated composition": the system's dashed estimate mark, as a small pill */
   .lv-food-mark {
     display: inline-block;
-    padding: 0 var(--lm-space-1-5);
-    border: 1px dashed var(--lm-edge);
-    border-radius: var(--lm-radius-xs);
+    padding: 0 var(--lm-space-2);
+    border: var(--lm-hairline) dashed var(--lm-line-strong);
+    border-radius: var(--lm-radius-full);
     justify-self: start;
   }
 
@@ -305,46 +326,69 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  /* entries keep the words as logged ("lunch"); the row reads in sentence case */
+  .lv-food-logged__label::first-letter {
+    text-transform: uppercase;
+  }
   .lv-food-logged__none {
+    display: inline-flex;
+    gap: var(--lm-space-2);
+    align-items: baseline;
     color: var(--lm-ink-2);
   }
 
   .lv-food-other {
     display: grid;
     gap: var(--lm-space-2);
-    justify-items: start;
     padding-block-start: var(--lm-space-3);
-    border-block-start: 1px solid var(--lm-line);
+    border-block-start: var(--lm-hairline) solid var(--lm-line);
   }
   .lv-food-other__title {
     margin: 0;
     font-size: var(--lm-text-sm);
-    font-weight: 600;
+    font-weight: 500;
+  }
+  /* the card's foot: "+ Add food" (why recipes can't run is in the meal's sheet, never a line here). Text keys sit
+     flush with the text column (no stray inset). */
+  /* "Add food" is the card's own button at its foot (r068 G8): full width on phones, its own width on desktop */
+  .lv-food-meals__foot {
+    display: grid;
+    padding-block-start: var(--lm-row-gap);
+  }
+  @media (min-width: 64rem) {
+    .lv-food-meals__foot {
+      justify-items: start;
+    }
+  }
+  .lv-food-supps__stance.lm-key {
+    padding-inline: 0;
   }
 
   /* supplement options: one line each, the details open on tap */
   .lv-food-opts {
     container-type: inline-size;
     display: grid;
-    margin: var(--lm-space-2) 0 0;
+    margin: 0;
     padding: 0;
     list-style: none;
   }
-  .lv-food-opts > li {
-    border-top: 1px solid var(--lm-line);
+  .lv-food-opts > li + li {
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
-  .lv-food-opts > li:last-child {
-    border-bottom: 1px solid var(--lm-line);
+  .lv-food-opt__sum {
+    cursor: pointer;
+    list-style: none;
   }
   .lv-food-opt__sum {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
-    align-items: center;
-    gap: 4px var(--lm-space-3);
-    min-height: 44px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name grade'
+      'dose dose';
+    align-items: baseline;
+    gap: 2px var(--lm-space-3);
+    min-height: var(--lm-hit-touch);
     padding-block: var(--lm-space-2);
-    cursor: pointer;
-    list-style: none;
   }
   .lv-food-opt__sum::-webkit-details-marker {
     display: none;
@@ -353,18 +397,42 @@
     outline: 2px solid var(--lm-focus);
     outline-offset: -2px;
   }
-  .lv-food-opt__sum > :nth-child(2) {
-    justify-self: start;
-  }
   .lv-food-opt__name {
+    grid-area: name;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--lm-inline);
     margin: 0;
     font-size: var(--lm-text-sm);
-    font-weight: 600;
+    font-weight: 500;
+  }
+  /* the catalogue names run in sentences elsewhere ("creatine"); as a row title they read in sentence case */
+  .lv-food-opt__name > :first-child::first-letter {
+    text-transform: uppercase;
+  }
+  /* a caution is one word after the name, in the caution colour, never a line of its own */
+  .lv-food-opt__flag {
+    font-size: var(--lm-text-xs);
+    font-weight: 400;
+    color: var(--lm-caution-fg);
+  }
+  /* the evidence grade (r068 G6): no capsule, the letter and its pips at the row's end, the same spot on every row */
+  .lv-food-opt__sum > :nth-child(2) {
+    grid-area: grade;
+    justify-self: end;
+  }
+  .lv-food-opt .lv-food-opt__sum .lm-grade {
+    border: 0;
+    background: none;
+    padding: 0;
+    min-height: 0;
+    color: var(--lm-ink-3);
   }
   .lv-food-opt__dose {
-    justify-self: end;
-    text-align: right;
-    font-size: var(--lm-text-sm);
+    grid-area: dose;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
     color: var(--lm-ink-2);
   }
   .lv-food-opt[open] > .lv-food-opt__sum .lv-food-opt__dose {
@@ -374,26 +442,32 @@
   .lv-food-opt > dl {
     padding-bottom: var(--lm-space-3);
   }
-  @container (max-width: 26rem) {
-    .lv-food-opt__sum {
-      row-gap: 0;
+  /* r068 L11: the details are prose, so they read left-aligned: label · text side by side on wide screens, the label
+     over its text on phones (no ragged right edge, no label broken over two lines) */
+  .lv-food-opt > .lm-kv {
+    grid-template-columns: 8.5rem minmax(0, 1fr);
+    max-inline-size: 44rem;
+  }
+  .lv-food-opt > .lm-kv dt {
+    white-space: nowrap;
+  }
+  .lv-food-opt > .lm-kv dd {
+    text-align: start;
+    font-weight: 400;
+  }
+  @media (max-width: 39.99rem) {
+    .lv-food-opt > .lm-kv {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
     }
-    .lv-food-opt__dose {
-      grid-column: 1 / -1;
-      justify-self: start;
-      text-align: left;
+    .lv-food-opt > .lm-kv > :not(:first-child) > dt {
+      margin-top: var(--lm-row-gap);
     }
   }
-
   /* ---------------------------------------------------------------- groceries */
-  .lv-food-count {
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
-  }
   .lv-food-groceries {
     display: grid;
     gap: var(--lm-space-3);
-    scroll-margin-block-start: calc(var(--lm-topbar-h) + var(--lm-space-4));
   }
   .lv-food-aisle {
     display: grid;
@@ -401,8 +475,10 @@
   }
   .lv-food-aisle__name {
     margin: 0;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--lm-line);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    font-weight: 400;
   }
   .lv-food-groceries__items {
     margin: 0;
@@ -451,25 +527,20 @@
   }
   .lv-food-grocery.is-have .lv-rd__n,
   .lv-food-grocery.is-bought .lv-rd__n {
-    font-weight: 500;
     color: var(--lm-ink-2);
   }
   .lv-food-groceries__foot {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--lm-space-1);
+    gap: var(--lm-space-1) var(--lm-space-4);
     align-items: center;
-  }
-  .lv-food-groceries__budget {
-    margin-inline-start: auto;
   }
   .lv-food-budget {
     display: grid;
     gap: var(--lm-space-2);
-    padding: var(--lm-space-3);
-    background: var(--lm-well);
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-md);
+  }
+  .lv-food-budget > p {
+    margin: 0;
   }
   .lv-food-budget__keys {
     display: flex;
@@ -478,10 +549,6 @@
   }
 
   /* ---------------------------------------------------------------- supplements */
-  .lv-food-supps {
-    display: grid;
-    gap: var(--lm-space-3);
-  }
   .lv-food-supps__rows,
   .lv-food-supps__ff {
     margin: 0;
@@ -503,37 +570,11 @@
     gap: var(--lm-space-1);
     font-size: var(--lm-text-sm);
   }
+  .lv-food-supps__stance {
+    justify-self: start;
+  }
 
-  /* ---------------------------------------------------------------- pantry, panels */
-  .lv-food-pantry {
-    display: grid;
-    gap: var(--lm-space-3);
-  }
-  .lv-food-pantry__items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--lm-space-1) var(--lm-space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .lv-food-pantry__items li {
-    display: inline-flex;
-    gap: var(--lm-space-1);
-    align-items: center;
-    padding-inline-start: var(--lm-space-2);
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-sm);
-  }
-  .lv-food-pantry__add {
-    display: flex;
-    gap: var(--lm-space-2);
-    align-items: end;
-  }
-  .lv-food-pantry__add > :first-child {
-    flex: 1;
-    min-width: 0;
-  }
+  /* ---------------------------------------------------------------- panels */
   .lv-food-nobenefit {
     display: grid;
     gap: var(--lm-space-3);
@@ -541,15 +582,57 @@
     padding: 0;
     list-style: none;
   }
+  .lv-food-supps__more-sum {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    min-height: 40px;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 500;
+  }
+  .lv-food-supps__more-sum::-webkit-details-marker {
+    display: none;
+  }
+  .lv-food-supps__more-sum::after {
+    content: '›';
+    margin-inline-start: auto;
+    color: var(--lm-ink-3);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lv-food-supps__more[open] > .lv-food-supps__more-sum::after {
+    transform: rotate(90deg);
+  }
+  .lv-food-sheet__provider {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-row-gap) var(--lm-inline);
+  }
+  /* r068 L4: name · grade (unboxed, the Supplements card's quiet letter and dots, always at the row's end on the
+     name's first line), the reason under them */
   .lv-food-nobenefit li {
     display: grid;
-    gap: var(--lm-space-0-5);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'name grade' 'why why';
+    align-items: baseline;
+    gap: var(--lm-space-0-5) var(--lm-inline);
   }
   .lv-food-nobenefit__name {
-    display: inline-flex;
-    gap: var(--lm-space-2);
-    align-items: center;
+    grid-area: name;
     font-weight: 500;
+  }
+  .lv-food-nobenefit__why {
+    grid-area: why;
+  }
+  .lv-food-nobenefit .lm-grade {
+    grid-area: grade;
+    border: 0;
+    background: none;
+    padding: 0;
+    min-height: 0;
+    color: var(--lm-ink-3);
   }
 
   .lv-food-sheet {
@@ -557,6 +640,17 @@
     padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
     display: grid;
     gap: var(--lm-space-4);
+  }
+  .lv-food-sheet__state {
+    margin: 0;
+    color: var(--lm-ink-2);
+  }
+  /* the pantry row in "Use what's in my kitchen": a full-width row that opens /food/pantry */
+  .lv-food-sheet__row.lm-key {
+    justify-content: space-between;
+    width: 100%;
+    min-height: var(--lm-hit-touch);
+    padding-inline: 0;
   }
   .lv-food-sheet__ingredients {
     display: grid;
@@ -588,10 +682,18 @@
     display: grid;
     gap: var(--lm-space-4);
   }
+  /* one-tap recents (r068 F9): a short list of full-width buttons, each logs that meal again */
   .lv-food-logger__recents {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--lm-space-2);
+    display: grid;
+    gap: var(--lm-row-gap);
+  }
+  .lv-food-logger__recents > .lm-key {
+    justify-content: flex-start;
+  }
+  .lv-food-logger__label {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
   }
   .lv-food-logger__results,
   .lv-food-logger__picked {
@@ -607,7 +709,7 @@
     gap: var(--lm-space-2);
     align-items: center;
     padding-block: var(--lm-space-2);
-    border-block-end: 1px solid var(--lm-line);
+    border-block-end: var(--lm-hairline) solid var(--lm-line);
   }
   .lv-food-logger__name {
     grid-column: 1 / -1;
@@ -622,15 +724,79 @@
     grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
     gap: var(--lm-space-3);
   }
-
-  /* ---------------------------------------------------------------- ledger */
-  .lv-food-ledger {
-    display: grid;
-    gap: var(--lm-space-1);
-    padding-block-start: var(--lm-space-3);
-    border-block-start: 1px solid var(--lm-line);
-    font-size: var(--lm-text-sm);
+  /* the hand-off to the Coach: a quiet key at the end of the body, not a second commit */
+  .lv-food-logger__coach {
+    justify-self: start;
+  }
+  /* r068 L10: search results as tappable rows under the one field */
+  .lv-food-logger__results {
+    margin-top: calc(-1 * var(--lm-space-2));
+    gap: 0;
+  }
+  .lv-food-logger__result {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    width: 100%;
+    min-height: 44px;
+    padding: 0 var(--lm-space-2);
+    border: 0;
+    border-radius: var(--lm-radius-md);
+    background: none;
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-body);
+    text-align: start;
+    cursor: pointer;
+  }
+  .lv-food-logger__result:hover {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 5%);
+  }
+  .lv-food-logger__result:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lv-food-logger__result > svg {
+    flex: none;
+    color: var(--lm-ink-3);
+  }
+  .lv-food-logger__more > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
     color: var(--lm-ink-2);
+    font-size: var(--lm-text-label);
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+  }
+  .lv-food-logger__more > summary::-webkit-details-marker {
+    display: none;
+  }
+  .lv-food-logger__more > summary::after {
+    content: '›';
+    margin-inline-start: 6px;
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lv-food-logger__more[open] > summary::after {
+    transform: rotate(90deg);
+  }
+  .lv-food-logger__more[open] > .lv-food-logger__numbers {
+    padding-top: var(--lm-space-2);
+  }
+  .lv-food-logger__time {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+  }
+  .lv-food-logger__time > label {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-label);
+  }
+  .lv-food-logger__time > :not(label) {
+    flex: 0 0 8.5rem;
+    width: 8.5rem;
   }
 
   /* ---------------------------------------------------------------- print: the grocery list only */
@@ -646,7 +812,7 @@
       position: absolute;
       inset: 0 0 auto 0;
       border: 0;
-      box-shadow: none;
+      background: none;
     }
     .lv-food-groceries.is-printing .lm-bank,
     .lv-food-groceries.is-printing .lv-food-groceries__foot,
@@ -654,5 +820,91 @@
     .lv-food-groceries.is-printing .lm-key {
       display: none;
     }
+  }
+}
+
+/* the pantry card's inventory (r068 F8): one plain comma list, no chip outlines (src/features/food/PantryFaceplate.tsx) */
+@layer components {
+  .lv-pantry-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .lv-pantry-list > li {
+    display: inline;
+  }
+  .lv-pantry-list > li:not(:last-child)::after {
+    content: ', ';
+  }
+  .lv-pantry-list > li.lv-pantry-list__more {
+    color: var(--lm-ink-2);
+  }
+  .lv-pantry-list > li:has(+ .lv-pantry-list__more)::after {
+    content: ' ';
+  }
+}
+
+/* r068 F10: a fast day's status lines keep their distance from the hairline over "Other food" */
+@layer components {
+  .lv-food-meals .lv-food-note {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lv-food-meals .lv-food-other {
+    margin-top: var(--lm-row-gap);
+  }
+  /* (r068 final H3) the grocery list spans both columns of the Food grid */
+  .lv-food-grid > .lv-food-wide {
+    grid-column: 1 / -1;
+    display: grid;
+  }
+}
+
+/* r071: one intake picture and a shared meal rail. The legacy rail stays in living.css for Today. */
+@layer components {
+  .lv-food { gap: var(--lm-card-gap); }
+  .lv-food-grid { gap: var(--lm-card-gap); align-items: start; }
+  .lv-food-targets__body { display: grid; gap: 24px; min-width: 0; }
+  .lv-food-targets__ring { display: grid; justify-items: center; gap: 8px; text-align: center; }
+  .lv-food-targets__tracks { display: grid; gap: 16px; min-width: 0; }
+  .lv-food-targets .lv-tgt__report { margin: 0; border: 0; padding: 0; display: grid; gap: 8px; }
+  .lv-food-targets .lm-cardfoot__extra { width: 100%; }
+  .lv-food-targets .lv-tgt__name { font-family: var(--lm-font-mono); font-size: var(--lm-text-meta); text-transform: uppercase; letter-spacing: var(--lm-text-meta--ls); }
+  .lv-food-slots .lm-rail__row { align-items: start; padding-block: 12px; }
+  .lv-food-slots .lm-rail__time { padding-top: 13px; }
+  .lv-food-slots .lm-rail__body { padding-top: 7px; gap: 8px; }
+  .lv-food-slots .lm-rail__meta { display: grid; gap: 8px; }
+  .lv-food-slots .lv-meal__name { margin: 0; }
+  .lv-food-slots .lv-meal__open { border: 0; background: none; text-align: start; position: relative; display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0; font-size: 1rem; line-height: 1.375; font-weight: 600; color: var(--lm-ink); }
+  .lv-food-slots .lv-meal__dish { color: var(--lm-ink); font-size: 1rem; line-height: 1.375; font-weight: 600; }
+  .lv-food-slots .lm-rail__title { text-decoration: none; }
+  .lv-food-slots .lv-food-slot__body { min-width: 0; font-family: var(--lm-font-sans); text-transform: none; letter-spacing: normal; }
+  .lv-food-slots .lv-food-slot__body:empty { display: none; }
+  .lv-food-slots .lv-food-recipe { display: grid; gap: 8px; border: 0; padding: 0; margin: 0; }
+  .lv-food-slots .lv-food-recipe__dish { margin: 0; }
+  .lv-food-slots .lv-food-recipe__open { font-weight: 600; line-height: 1.4; min-height: 32px; }
+  .lv-food-recipe__fit { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 8px; }
+  .lv-food-recipe__state { color: var(--lm-hue-food-ink); }
+  .lv-food-slots .lv-food-slot__group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .lv-food-slots .lv-food-logged-list { margin: 0; }
+  .lv-food-slots .lv-food-logged { text-transform: none; letter-spacing: normal; font-family: var(--lm-font-sans); }
+  .lv-food-slots .lv-food-recipe-wrap { border: 0; padding: 0; }
+  .lv-food-slots .lv-item__word { color: var(--lm-hue-food-ink); }
+  .lv-food-recipe__amount { display: grid; gap: 4px; }
+  .lv-meal__targetlink { border: 0; padding: 0; background: none; font: inherit; color: inherit; text-transform: uppercase; letter-spacing: inherit; cursor: pointer; min-height: 28px; text-decoration: underline; text-underline-offset: 4px; }
+  .lv-meal__targetlink:focus-visible { outline: 2px solid var(--lm-focus); outline-offset: 2px; }
+  .lv-food-slots .lv-meal:has(.lv-food-recipe) .lv-meal__name { margin-bottom: 0; }
+  .lv-food-slots .lv-meal:has(.lv-food-recipe) .lv-meal__name + * { margin-top: 0; }
+  @media (min-width: 1024px) {
+    .lv-food-targets__body { grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 24px; }
+    .lv-food-targets__ring { max-width: 190px; }
+    .lv-food-grid > .lv-food-targets { grid-column: 1; grid-row: 1; }
+    .lv-food-grid > .lv-food-meals { grid-column: 2; grid-row: 1 / span 2; }
+    .lv-food-grid > .lv-food-groceries { grid-column: 2; }
+    .lv-food-grid > .lv-food-supps { grid-column: 1; grid-row: 2; }
+    .lv-food-grid > .lv-food-pantryface { grid-column: 1; }
   }
 }

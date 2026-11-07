@@ -5,6 +5,12 @@ import { defineCommand } from '../registry';
 import { T } from '../schema';
 import { ALL, UNDO } from './_shared';
 
+const Endpoint = T.Object({
+  version: T.Literal(1),
+  operator: T.Enum(['tissueFatFraction', 'scaleBodyFatWake', 'legacyUnknown']),
+  timeBasis: T.Enum(['endOfDay', 'wake', 'unknown']),
+  provenance: T.Optional(T.String()),
+});
 const Goal = T.Object({
   key: T.Optional(T.String({ minLength: 1, maxLength: 80 })),
   metric: T.String({ minLength: 1 }),
@@ -12,12 +18,14 @@ const Goal = T.Object({
   amount: T.Nullable(T.Number()),
   strength: T.Enum(['must', 'should', 'nice']),
   functional: T.Nullable(T.Enum(['end', 'mean'])),
+  endpointSemantics: T.Optional(Endpoint),
 });
 const GoalPatch = T.Object({
   mode: T.Optional(T.Enum(['lose', 'keep', 'gain', 'raise', 'lower', 'reach'])),
   amount: T.Optional(T.Nullable(T.Number())),
   strength: T.Optional(T.Enum(['must', 'should', 'nice'])),
   functional: T.Optional(T.Nullable(T.Enum(['end', 'mean']))),
+  endpointSemantics: T.Optional(Endpoint),
 });
 const Range = T.Tuple([T.Number(), T.Number()]);
 const Limits = T.Object({
@@ -25,6 +33,7 @@ const Limits = T.Object({
   trainingWeekdays: T.Optional(T.Array(T.Integer({ minimum: 0, maximum: 6 }))),
   trainingTimeH: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
   maxSessionMin: T.Optional(T.Number({ minimum: 0 })),
+  maxCardioSessionMin: T.Optional(T.Union([T.Number({ minimum: 5, maximum: 90 }), T.Null()])),
   cardioDays: T.Optional(Range),
   cardioModality: T.Optional(T.String()),
   earliestH: T.Optional(T.Number({ minimum: 0, maximum: 24 })),
@@ -38,13 +47,17 @@ const Limits = T.Object({
   carbFloorG: T.Optional(T.Number({ minimum: 0 })),
   sleepFixed: T.Optional(T.Boolean()),
   hungerTolerance: T.Optional(T.Enum(['low', 'medium', 'high'])),
+  maxMuscleLossPct: T.Optional(T.Nullable(T.Number({ minimum: 0, exclusiveMaximum: 100 }))),
 });
 
 /** `goals/me.suggested` (SUITE_SPEC §13.4): the applied suggestion with provenance. */
 const SuggestedRecordSchema = T.Object({
   suggestion: T.OpenObject({ description: 'The GoalSuggestion that was applied (goals.suggest output).' }),
   at: T.Instant(),
-  provenance: T.Object({ source: T.Enum(['rule', 'ai']), version: T.String({ minLength: 1, maxLength: 120 }) }),
+  provenance: T.Object({
+    source: T.Enum(['rule', 'ai']),
+    version: T.String({ minLength: 1, maxLength: 120 }),
+  }),
   goalKeys: T.Array(T.String({ maxLength: 80 }), { maxItems: 6 }),
 });
 

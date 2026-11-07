@@ -32,9 +32,8 @@ afterAll(async () => {
 // the app's module graph loads once here (about 15 s cold), so the test itself measures sync, not module loading
 beforeAll(async () => {
   await Promise.all([
-    import('@/commands'), import('@/commands/bus'), import('@/commands/bio/runtime'), import('@/commands/bio/store'), import('@/commands/registry'),
+    import('@/commands'), import('@/commands/bus'), import('@/commands/registry'),
     import('@/state/runtime'), import('@/state/blobStore'), import('@/agents/dispatcher'), import('@/commands/ai/agentDispatcher'),
-    import('@/biometrics/importers/lumenCloudEvents'), import('@/biometrics/importers/lumenIngest'), import('@/biometrics/core/effective'),
   ]);
 }, 120_000);
 
@@ -78,7 +77,7 @@ it('an agent log.meal on the server reaches another device within 5 s; a proposa
   let port = 0;
   const c = await startCompanion({
     port: 0, dataDir: join(dir, 'relay'), allowedOrigins: [], log: () => undefined,
-    home: { dataDir: join(dir, 'home'), allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', mqtt: { enabled: false }, workerFactory: inProcess, relayUrl: () => loopbackRelayUrl({ host: '127.0.0.1', port }) },
+    home: { dataDir: join(dir, 'home'), allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', workerFactory: inProcess, relayUrl: () => loopbackRelayUrl({ host: '127.0.0.1', port }) },
   });
   port = c.port;
   done.push(() => c.close());

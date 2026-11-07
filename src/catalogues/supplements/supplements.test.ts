@@ -23,6 +23,8 @@ import {
   type SupplementRow,
   type SupplementsSectionV2,
 } from '.';
+import { aggregateActives, rowExposureStatuses } from './exposure';
+import { SEED_SUPPLEMENTS } from '@/content/catalogues/supplements';
 
 const creatine = (o: Partial<SupplementRow> = {}): SupplementRow => ({ supplementId: 'creatine_monohydrate', state: 'taking', dose: 5, unit: 'g', timesOfDay: ['morning'], ...o });
 const sec = (stance: SupplementsSectionV2['stance'], rows: SupplementRow[] = []): SupplementsSectionV2 => ({ _v: 2, stance, rows });
@@ -145,24 +147,28 @@ describe('dose validation (units per catalogue)', () => {
 
 describe('planner inputs per state', () => {
   it('open with no rows is exactly the v1 request (creatine)', () => {
-    expect(supplementPlannerInputs(sec('open'))).toEqual({ optInLevers: ['creatine'], excludedLevers: [], habitual: [], onHand: [] });
+    expect(supplementPlannerInputs(sec('open'))).toEqual({ optInLevers: ['creatine'], excludedLevers: [], habitual: [], onHand: [], habitualActives: [] });
     expect(supplementPlannerInputs(sec('food_first')).optInLevers).toEqual([]);
     expect(supplementPlannerInputs(null).optInLevers).toEqual([]);
   });
   it('taking: consented and habitual', () => {
     const p = supplementPlannerInputs(sec('taking', [creatine(), { supplementId: 'omega3_epa_dha', state: 'taking', dose: 1, unit: 'g', timesOfDay: ['evening'] }]));
-    expect(p).toEqual({ optInLevers: ['creatine', 'omega3'], excludedLevers: [], habitual: ['L7', 'L8'], onHand: [] });
+    expect({ ...p, habitualActives: [] }).toEqual({ optInLevers: ['creatine', 'omega3'], excludedLevers: [], habitual: ['L7', 'L8'], onHand: [], habitualActives: [] });
+    expect(p.habitualActives.map((h) => [h.lever, h.active?.ingredient, h.active?.dailyAverage, h.continuation])).toEqual([
+      ['L7', 'creatine', 5, 'asTaken'],
+      ['L8', 'epaDha', 1, 'asTaken'],
+    ]);
   });
   it('onHand: consented, no purchase', () => {
     const p = supplementPlannerInputs(sec('onHand', [creatine({ state: 'onHand' }), { supplementId: 'psyllium', state: 'onHand', timesOfDay: [] }]));
-    expect(p).toEqual({ optInLevers: ['creatine', 'fibre'], excludedLevers: [], habitual: [], onHand: ['L7', 'L9'] });
+    expect(p).toEqual({ optInLevers: ['creatine', 'fibre'], excludedLevers: [], habitual: [], onHand: ['L7', 'L9'], habitualActives: [] });
   });
   it('notForMe: refused even when the stance is open', () => {
     const p = supplementPlannerInputs(sec('open', [creatine({ state: 'notForMe' })]));
-    expect(p).toEqual({ optInLevers: [], excludedLevers: ['L7'], habitual: [], onHand: [] });
+    expect(p).toEqual({ optInLevers: [], excludedLevers: ['L7'], habitual: [], onHand: [], habitualActives: [] });
   });
   it('unknown rows and display-only items do not change the request', () => {
-    expect(supplementPlannerInputs(sec('open', [creatine({ state: 'unknown' }), { supplementId: 'whey_protein', state: 'taking', dose: 25, unit: 'g', timesOfDay: ['morning'] }]))).toEqual({ optInLevers: ['creatine'], excludedLevers: [], habitual: [], onHand: [] });
+    expect(supplementPlannerInputs(sec('open', [creatine({ state: 'unknown' }), { supplementId: 'whey_protein', state: 'taking', dose: 25, unit: 'g', timesOfDay: ['morning'] }]))).toEqual({ optInLevers: ['creatine'], excludedLevers: [], habitual: [], onHand: [], habitualActives: [] });
   });
   it('cards are suggested only for the open stance and never for an item already listed', () => {
     expect(suggestible(sec('open', [creatine({ state: 'notForMe' })]))).toEqual({ allowed: true, skip: new Set(['creatine_monohydrate']) });
@@ -188,3 +194,42 @@ describe('Coach briefing fields', () => {
     expect(supplementGrade(null)).toBeNull();
   });
 });
+
+describe('D8-08 (shared active ledger contribution): known nutrients only, no fictitious credit', () => {
+  it('an unknown multivitamin grants no calcium, iodine, iron or magnesium credit — each is an unknown contribution, never zero', () => {
+    const mvm: SupplementRow = { supplementId: 'multivitamin_low_energy', state: 'taking', dose: 1, unit: 'tablet', timesOfDay: ['morning'] };
+    const agg = aggregateActives([mvm]);
+    for (const id of ['calcium', 'iodine', 'iron', 'magnesium'] as const) {
+      const e = agg.find((x) => x.ingredient === id)!;
+      expect(e, id).toBeDefined();
+      expect(e.dailyAverage, id).toBeNull();
+      expect(e.dailyAverageLowerBound, id).toBe(0);
+    }
+    // a partial record cannot clear an upper limit, and the row is never "no issues"
+    expect(rowExposureStatuses([mvm], { ageYears: 35 })[0]).toMatchObject({ doseKnown: false, safetyCheck: 'unchecked' });
+  });
+  it('elemental/form/unit fixtures: mg elemental Mg, IU→µg vitamin D, g EPA+DHA, mmol nitrate; an explicitly supplied 0 stays a known 0', () => {
+    const rows: SupplementRow[] = [
+      { supplementId: 'magnesium', state: 'taking', dose: 250, unit: 'mg', timesOfDay: ['night'] },
+      { supplementId: 'vitamin_d3', state: 'taking', dose: 2000, unit: 'IU', timesOfDay: ['morning'] },
+      { supplementId: 'omega3_epa_dha', state: 'taking', dose: 1, unit: 'g', timesOfDay: ['evening'] },
+      { supplementId: 'dietary_nitrate', state: 'taking', dose: 6.5, unit: 'mmol', timesOfDay: ['morning'] },
+      { supplementId: 'iron', state: 'taking', dose: 0, unit: 'mg', timesOfDay: ['morning'] },
+    ];
+    const by = Object.fromEntries(aggregateActives(rows).map((e) => [e.ingredient, [e.dailyAverage, e.unit]]));
+    expect(by).toEqual({ magnesium: [250, 'mg'], vitD: [50, 'ug'], epaDha: [1, 'g'], nitrate: [6.5, 'mmol'], iron: [0, 'mg'] });
+  });
+  it('an on-hand product adds no exposure (purchase cost only)', () => {
+    const onHand: SupplementRow = { supplementId: 'calcium', state: 'onHand', dose: 500, unit: 'mg', timesOfDay: ['morning'] };
+    expect(aggregateActives([onHand])).toEqual([]);
+  });
+});
+
+describe('outcome-specific evidence (D7-07)', () => {
+  it('omega-3 carries outcome-specific grades (TG, BP) and no cardiovascular-event benefit inferred from TG lowering', () => {
+    const rec = SEED_SUPPLEMENTS.find((x) => x.id === 'omega3_epa_dha')!;
+    expect(rec.outcomes.map((o) => o.outcome).sort()).toEqual(['BP', 'TG', 'weight']);
+    expect(rec.outcomes.some((o) => /event|mortality|mace|cvd|heart attack|stroke/i.test(`${o.outcome} ${o.effect ?? ''}`))).toBe(false);
+  });
+});
+

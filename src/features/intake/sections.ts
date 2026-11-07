@@ -7,11 +7,10 @@ import { SEED_CATALOGUE } from '@/content/catalogues';
 import type { HabitProfile } from '@/engine/types/profile';
 import type { ScreeningAnswers } from '@/features/onboarding/safetyRules';
 import { reduceActivity } from './chapters/activity';
-import { reduceDevices } from './chapters/devices';
 import { reduceFood } from './chapters/food';
 import { reduceTraining } from './chapters/training';
 import type { FlowContext } from './flow';
-import type { ActivitySection, ChapterAnswers, ChapterId, DevicesSection, DietSection, IntakeDoc, IntakeSectionId, KitchenProfile, MarkersSection, SupplementsAnswer, TrainingSection } from './types';
+import type { ActivitySection, ChapterAnswers, ChapterId, DietSection, IntakeDoc, IntakeSectionId, KitchenProfile, MarkersSection, SupplementsAnswer, TrainingSection } from './types';
 
 export interface SectionContext extends FlowContext {
   safety?: ScreeningAnswers | null;
@@ -26,7 +25,6 @@ export type SectionBodies = Partial<{
   kitchen: KitchenProfile;
   supplements: SupplementsAnswer;
   markers: MarkersSection;
-  devices: DevicesSection;
 }>;
 
 /** Habit fields to write on the profile; `null` clears one (a stale rough step tick after "I don't know"). */
@@ -65,10 +63,6 @@ export function chapterOutput(chapter: ChapterId, a: ChapterAnswers, ctx: Sectio
     case 'markers':
       // the values live in the markers documents (written by the chapter's own commands); the turns ride here
       return { sections: { markers: { turns } }, habits: {} };
-    case 'devices': {
-      const r = reduceDevices(a, ctx);
-      return { sections: { devices: { ...r.devices, streams: r.policies, turns } }, habits: {} };
-    }
   }
 }
 

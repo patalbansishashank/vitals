@@ -33,6 +33,13 @@ export function dateRange(time: TimeBase): string {
   return a && b ? `${a} → ${b}` : `${time.days} days`;
 }
 
+/** "84 days · 5 Oct → 27 Dec" for a horizon not yet run (just "84 days" without a start date). */
+export function horizonText(startDate: string | undefined, days: number): string {
+  const a = shortDate(startDate, 0);
+  const b = shortDate(startDate, days - 1);
+  return a && b ? `${days} days · ${a} → ${b}` : `${days} days`;
+}
+
 /** "2026-10-05" + 9 → "2026-10-14" (UTC calendar arithmetic); null for a malformed date. */
 export function addDaysISO(iso: string, days: number): string | null {
   const d = dateOf(iso, days);

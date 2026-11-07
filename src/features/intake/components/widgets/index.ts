@@ -2,7 +2,6 @@ import type { ComponentType } from 'react';
 import type { WidgetProps } from '../widgetTypes';
 import { SleepWidget, SportRowsWidget, StepsWidget, WorkTimeWidget } from './activity';
 import { PART_WIDGETS } from '../../chapters';
-import { ModelsWidget, RoutesWidget, StreamsWidget } from './devices';
 import { EatWidget, FastingDaysWidget, StaplesWidget, SupplementsWidget, TextWidget, WeekdaysWidget } from './food';
 import { MeasuredWidget } from './measured';
 import { ConditionsWidget, InjuriesWidget, KitWidget, PlaceDaysWidget, TrainTimeWidget, WeightsWidget, WillingnessWidget } from './training';
@@ -27,8 +26,5 @@ export const WIDGETS: Readonly<Record<string, ComponentType<WidgetProps<never>>>
   text: TextWidget,
   supplements: SupplementsWidget,
   staples: StaplesWidget,
-  models: ModelsWidget,
-  routes: RoutesWidget,
-  streams: StreamsWidget,
   ...PART_WIDGETS,
 } as unknown as Readonly<Record<string, ComponentType<WidgetProps<never>>>>;

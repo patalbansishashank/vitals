@@ -29,6 +29,14 @@
  * removed by cardio/RT and not yet resynthesised) and publishes it as `muscleGlycogenExDefFrac` for 05's FFA term δ_M;
  * it publishes the liver capacity `liverGlycogenMaxG` for 05's partition half-point; the fasting muscle rule
  * −k_Mf·(G_M − 0.35·G_M0) is solved exactly over the hour with k_Mf read from the fasting module's registry entry.
+ * D2-01: the fasting branch (k_Mf route, protein oxidation from `fastProtOxGH`) follows `fastActive`, which the fasting
+ * module routes from observed intake history only; a planned fast's label or length never switches it. G_M0 is the
+ * muscle glycogen at overlay activation. Broad scenario physiology for short fasts, not a fitted transition.
+ * D2-05/D1-05 (shared flux owners, C7): protein oxidation is booked here once — absorbed protein minus deposition outside
+ * fasts, absorbed protein plus the fasting module's net body-protein oxidation (`fastProtOxGH` = urinary-N prior × 6.25,
+ * an approximate conversion) during fasts. Amino-acid gluconeogenesis is part of that protein oxidation (net convention)
+ * and is never booked again as carbohydrate; the matching lean-tissue change is composition's, at the run's effective lean
+ * cost. D2-03: ketone source tags are bookkeeping inside the ketones module; no ketone energy is re-booked here.
  */
 import { defineModule } from '../../core/moduleKit';
 import { param } from '../../core/paramsRegistry';
@@ -529,7 +537,7 @@ export function stepFuelHour(
   const tee = pos(bus.teePreKcalH);
   const aKeto = clamp01(bus.ketoAdaptFast);
   const kShare = clamp01(bus.brainKetoneShare);
-  const fast = bus.fastActive > 0.5;
+  const fast = bus.fastActive > 0.5; // observed-history routing (D2-01), never the planned fast metadata
   const cM = s.cM;
   const smm = s.smmKg;
 
@@ -541,7 +549,8 @@ export function stepFuelHour(
   const gM0 = muscleGlycogenG(s);
   const gTot0 = gL0 + gM0;
 
-  // ---- step 7 first (EE_np needs it): protein oxidation = absorbed − deposited (fasts: the fasting module's rate)
+  // ---- step 7 first (EE_np needs it): protein oxidation = absorbed − deposited (fasts: absorbed + the fasting module's net
+  //      body-protein oxidation; booked once, amino-acid GNG included — D2-05)
   let protOx: number;
   if (fast) {
     protOx = prot + pos(bus.fastProtOxGH);

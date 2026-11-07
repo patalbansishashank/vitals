@@ -1,68 +1,49 @@
 /**
- * The Vitals mark's geometry, mirrored from public/brand/mark.svg (standard cut) and mark-small.svg (48 px and under).
- * The SVGs stay the source of truth: __tests__/geometry.test.ts reads them and fails when a number here drifts.
- * Everything is in the 108-unit grid both SVGs are drawn on (ring centre 54,54, radius 30).
+ * The Vitals mark, the plan ring: an ivory ring left open at four o'clock, a hairline bezel across the opening and a
+ * gold dot inside aimed at it. The numbers come from mark-geometry.ts, which design/brand/vitals-mark.py writes from
+ * the same geometry as every icon; this file adds the palette and the draw-on timing. Units are the mark's 24-unit
+ * design space (centre 12,12, outer edge 9.95), the same one Gauge's reading ring uses.
  */
+import { CROP, MEDIUM, MEDIUM_CUT_MAX_PX, SMALL, SMALL_CUT_MAX_PX, STANDARD } from './mark-geometry';
 
-export const GRID = 108;
-export const RING_CENTRE = 54;
-export const RING_RADIUS = 30;
+export { BISECTOR_DEG, CENTRE, CROP, GRID, MEDIUM, MEDIUM_CUT_MAX_PX, MONO, NOTIFICATION, OUTER, SMALL, SMALL_CUT_MAX_PX, STANDARD } from './mark-geometry';
 
-/**
- * Crop used by RingMark and the start screen: the ring's outer edge (54 ± 35 in the small cut) plus a 1-unit margin,
- * so a mark's `size` is the visible ring and not the Android icon grid's safe zone around it.
- */
-export const CROP = { x: 18, y: 18, size: 72 } as const;
 export const CROP_VIEWBOX = `${CROP.x} ${CROP.y} ${CROP.size} ${CROP.size}`;
 
-/** Marks at this size and under use the small cut (heavier stroke, wider opening). */
-export const SMALL_CUT_MAX_PX = 32;
-
 export interface MarkCut {
-  /** The open ring: one arc, round caps, drawn clockwise from the end nearest the dot. */
-  ring: { d: string; stroke: number; sweepDeg: number; length: number };
-  /** The signal dot on the bisector of the opening; `edge` is the ink outline width on light grounds. */
-  dot: { cx: number; cy: number; r: number; edge: number };
+  /** The hairline bezel, a full circle under the ring; null in the small cut. */
+  readonly track: { readonly r: number; readonly stroke: number; readonly opacity: number } | null;
+  /** The ring: one clockwise arc from just after the opening round to it, round caps. */
+  readonly ring: { readonly d: string; readonly r: number; readonly stroke: number; readonly openDeg: number; readonly length: number };
+  /** The gold dot inside the ring, on the opening's bisector; `edge` is its ink outline on light grounds. */
+  readonly dot: { readonly cx: number; readonly cy: number; readonly r: number; readonly edge: number };
 }
 
-/** Degrees swept by `M x0,y0 A r,r 0 1 1 x1,y1` (large arc, clockwise in SVG's y-down space) around the ring centre. */
-export function arcSweepDeg(d: string): number {
-  const nums = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
-  const [x0, y0, , , , , , x1, y1] = nums;
-  if (nums.length !== 9 || x0 === undefined || y0 === undefined || x1 === undefined || y1 === undefined) {
-    throw new Error(`mark geometry: unexpected ring path "${d}"`);
-  }
-  const deg = (x: number, y: number) => (Math.atan2(y - RING_CENTRE, x - RING_CENTRE) * 180) / Math.PI;
-  const sweep = (deg(x1, y1) - deg(x0, y0) + 360) % 360;
-  return Math.round(sweep * 100) / 100;
-}
+/** The cut for a mark drawn `sizePx` wide: heavier strokes and a wider opening as it gets small. */
+export const cutFor = (sizePx: number): MarkCut => (sizePx <= SMALL_CUT_MAX_PX ? SMALL : sizePx <= MEDIUM_CUT_MAX_PX ? MEDIUM : STANDARD);
 
-/** Length of the ring's arc in grid units (what stroke-dasharray needs for the draw-on). */
-export const arcLength = (sweepDeg: number): number => Math.round(((RING_RADIUS * Math.PI * sweepDeg) / 180) * 100) / 100;
+/**
+ * The Ember palette, Vitals' only one (dark only): the backdrop, the ivory ring and bezel and the gold dot, no edge.
+ * RingMark's `auto` tone resolves to these through --lm-chassis / --lm-ink / --lm-signal; the pre-JS start screen
+ * (public/brand/launch.css), every icon and tile, the Android launcher and splash and the brand cards write them out
+ * (design/brand/vitals-mark.py EMBER).
+ */
+export const EMBER = { ground: '#090909', ink: '#f5f1e9', signal: '#e3bf78', edge: null } as const;
 
-function cut(d: string, stroke: number, dot: MarkCut['dot']): MarkCut {
-  const sweepDeg = arcSweepDeg(d);
-  return { ring: { d, stroke, sweepDeg, length: arcLength(sweepDeg) }, dot };
-}
-
-/** mark.svg: stroke 7, opening 23.46 degrees, dot r 6.5 with a 1.5 edge. */
-export const STANDARD: MarkCut = cut('M74.56,75.84 A30,30 0,1 1,81.56,65.85', 7, { cx: 67.93, cy: 63.75, r: 6.5, edge: 1.5 });
-
-/** mark-small.svg: stroke 10, opening widened to 34 degrees, dot r 7.5 with a 2.5 edge. */
-export const SMALL: MarkCut = cut('M72.47,77.64 A30,30 0,1 1,82.53,63.27', 10, { cx: 66.29, cy: 62.6, r: 7.5, edge: 2.5 });
-
-export const cutFor = (sizePx: number): MarkCut => (sizePx <= SMALL_CUT_MAX_PX ? SMALL : STANDARD);
-
-/** Fixed colours for a known ground (scripts/brand/mark.mjs PALETTE); `auto` reads the --lm-* tokens instead. */
+/**
+ * Fixed colours of the transparent brand files for a known ground (public/brand/mark*.svg, the lockups, the tray
+ * icons; vitals-mark.py LIGHT). `dark` is Ember; `light` is for a light page: the Ember ground colour as the ink and
+ * a thin edge of it round the gold dot. `auto` reads the --lm-* tokens instead.
+ */
 export const PALETTE = {
-  light: { ground: '#e8eaec', ink: '#191c20', signal: '#f5d336', edge: '#191c20' },
-  dark: { ground: '#151618', ink: '#eff0f2', signal: '#f0d03c', edge: null },
+  light: { ground: EMBER.ink, ink: EMBER.ground, signal: EMBER.signal, edge: EMBER.ground },
+  dark: EMBER,
 } as const;
 
 /**
- * Lumen's draw-on, in ms from the moment the mark appears: the ring draws from 5 % to the full arc, then the dot pops
- * from its own centre with one damped overshoot. The whole thing ends under 1 s. public/brand/launch.css repeats these
- * numbers for the pre-JS start screen; the tests keep the two in step.
+ * The draw-on, in ms from the moment the mark appears: the bezel is there at once, the ring draws round it from 5 %
+ * to the full arc, then the dot pops from its own centre with one damped overshoot. The whole thing ends under 1 s.
+ * public/brand/launch.css and the Android splash use the same numbers; the tests keep them in step.
  */
 export const DRAW_ON = {
   trimFrom: 0.05,

@@ -35,13 +35,15 @@ afterEach(() => {
 });
 
 describe('Your body with Settings › energy in kJ', () => {
-  it('exposes the mobile estimates rail as a named keyboard scroll region', async () => {
+  it('lays the three smaller estimates out as one named group at every width (no clipped scroll rail)', async () => {
     const router = createMemoryRouter(routes, { initialEntries: ['/body'] });
     render(<RouterProvider router={router} />);
-    const rail = await screen.findByRole('region', { name: 'Body estimates' });
-    expect(rail).toHaveClass('lm-body-est__rail');
-    expect(rail).toHaveAttribute('tabindex', '0');
-    expect(within(rail).getByText('kJ/day')).toBeInTheDocument();
+    const grid = await screen.findByRole('group', { name: 'Body estimates' });
+    expect(grid).toHaveClass('lm-body-est__grid');
+    expect(grid.querySelectorAll(':scope > .lm-body-est__cell')).toHaveLength(3);
+    expect(document.querySelector('.lm-body-est__rail')).toBeNull();
+    // maintenance has its own card: no energy unit in Estimates
+    expect(within(grid).queryByText(/kJ\/day|kcal\/day/)).toBeNull();
   });
 
   it('shows maintenance in kJ and the fibre density per 1 000 kJ (stored per 1 000 kcal)', async () => {
@@ -53,7 +55,7 @@ describe('Your body with Settings › energy in kJ', () => {
 
     const habits = document.getElementById('body-habits') ?? document.querySelector<HTMLElement>('.lm-body-habits-face')!;
     fireEvent.click(within(habits).getByRole('button', { name: 'Edit' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'advanced · optional' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Advanced' }));
     const unit = screen.getByText('g per 1 000 kJ');
     expect(screen.queryByText('g per 1 000 kcal')).toBeNull();
     const well = unit.closest('.lm-stepper')!.querySelector('input')!;

@@ -1,0 +1,231 @@
+/* ==========================================================================
+   HighlightBars (r071 0B), proto .bars. Bars use their allotted day slot, capped on wide cards; other
+   days are the domain ink at 40 % (3.1:1 on the card), the highlighted day the solid; the goal is a hairline. Colour
+   is never driven by "goal met". First view grows the bars from the baseline with transform: scaleY (700 ms, 60 ms
+   apart, so today's bar comes last); nothing animates height. Tokens only.
+   ========================================================================== */
+@layer components {
+  .lmz-bars {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    --ml: 0px;
+    --lmz-bar-gap: 6px;
+    --lmz-bar-max: 72px;
+  }
+  .lmz-bars[data-dense] {
+    --lmz-bar-gap: 3px;
+    --lmz-bar-max: 32px;
+  }
+  .lmz-bars[data-variant='spark'] {
+    --lmz-bar-gap: 2px;
+    --lmz-bar-max: 14px;
+  }
+  .lmz-bars[data-avg] {
+    --ml: 30px;
+  }
+  .lmz-bars__img {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    border-radius: 6px;
+  }
+
+  /* ---- plot ---- */
+  .lmz-bars__plot {
+    position: relative;
+    height: var(--lmz-h, 72px);
+    margin-left: var(--ml);
+  }
+  .lmz-bars__cols {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: var(--lmz-bar-gap);
+    touch-action: pan-y;
+  }
+  .lmz-bars__col {
+    position: relative;
+    display: flex;
+    flex: 1 1 0;
+    align-items: flex-end;
+    justify-content: center;
+    min-width: 0;
+  }
+  .lmz-bars__bar {
+    display: block;
+    width: 58%;
+    max-width: var(--lmz-bar-max);
+    min-width: 2px;
+    /* a recorded zero is a stub on the baseline, so it differs from a day with no reading (no bar at all) */
+    min-height: 2px;
+    height: var(--h, 0%);
+    border-radius: 4px 4px 1.5px 1.5px;
+    background: color-mix(in oklab, var(--lmz-ink-h) 40%, transparent);
+    transform-origin: bottom;
+    transition: transform var(--lm-dur-bars) var(--lm-ease-out);
+    transition-delay: calc(var(--i, 0) * var(--lm-stagger-bar));
+  }
+  .lmz-bars[data-variant='spark'] .lmz-bars__bar {
+    border-radius: 2px 2px 1px 1px;
+  }
+  .lmz-bars__col[data-hl] .lmz-bars__bar,
+  .lmz-bars[data-nohl] .lmz-bars__bar {
+    background: var(--lmz-hue);
+  }
+  /* a partial or "at least" day: a dashed outline, no fill (a pattern, never colour alone) */
+  .lmz-bars__bar[data-outline] {
+    box-sizing: border-box;
+    border: 1.5px dashed color-mix(in oklab, var(--lmz-ink-h) 75%, transparent);
+    border-bottom-width: 0;
+    background: transparent;
+  }
+  .lmz-bars__col[data-hl] .lmz-bars__bar[data-outline],
+  .lmz-bars[data-nohl] .lmz-bars__bar[data-outline] {
+    border-color: var(--lmz-hue);
+    background: transparent;
+  }
+  /* the scrubbed bar lifts with an outline, not a filter */
+  .lmz-bars__col[data-active] .lmz-bars__bar,
+  .lmz-bars__col[data-active] .lmz-bars__stack {
+    outline: 1.5px solid var(--lmz-lit);
+    outline-offset: 1px;
+  }
+
+  /* ---- stacks: one segment per app, 2 px apart ---- */
+  .lmz-bars__stack {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 2px;
+    width: 58%;
+    max-width: var(--lmz-bar-max);
+    height: var(--h, 0%);
+    transform-origin: bottom;
+    transition: transform var(--lm-dur-bars) var(--lm-ease-out);
+    transition-delay: calc(var(--i, 0) * var(--lm-stagger-bar));
+  }
+  .lmz-bars__col:not([data-hl]) .lmz-bars__stack {
+    opacity: 0.62;
+  }
+  .lmz-bars[data-nohl] .lmz-bars__stack {
+    opacity: 1;
+  }
+  .lmz-bars__seg {
+    display: block;
+    flex-grow: var(--v, 1);
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-height: 2px;
+    border-radius: 1.5px;
+    background: var(--lm-hue, var(--lmz-ink-h));
+  }
+  .lmz-bars__seg:last-child {
+    border-radius: 4px 4px 1.5px 1.5px;
+  }
+
+  /* ---- lines across: the goal, the average, a limit ---- */
+  .lmz-bars__line {
+    position: absolute;
+    right: 0;
+    bottom: calc(var(--r, 0) * 100%);
+    left: 0;
+    height: 0;
+    border-top: 1px solid color-mix(in oklab, var(--lm-ink) 22%, transparent);
+    pointer-events: none;
+  }
+  .lmz-bars__line[data-kind='avg'] {
+    border-top-color: color-mix(in oklab, var(--lm-ink) 38%, transparent);
+  }
+  .lmz-bars__line[data-kind='limit'] {
+    border-top-color: color-mix(in oklab, var(--lm-ink-2) 60%, transparent);
+  }
+  /* the word sits in the margin: it can never overprint a bar (B P2-4) */
+  .lmz-bars__avg {
+    position: absolute;
+    bottom: calc(var(--r, 0) * 100%);
+    left: calc(var(--ml) * -1);
+    width: calc(var(--ml) - 6px);
+    text-align: right;
+    transform: translateY(50%);
+    pointer-events: none;
+  }
+
+  /* ---- the axis ---- */
+  .lmz-bars__axis {
+    display: flex;
+    gap: var(--lmz-bar-gap);
+    margin-left: var(--ml);
+  }
+  .lmz-bars__tick {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ---- the names of the stacks: two or more series always have a legend ---- */
+  .lmz-bars__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lmz-bars__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lmz-bars__legend .lm-mono {
+    white-space: nowrap;
+  }
+  .lmz-bars__sw {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--lm-hue, var(--lmz-ink-h));
+  }
+
+  /* ---- the tooltip sits above the scrubbed bar; at the ends it stays inside the picture ---- */
+  .lmz-bars__col .lmz-tip[data-edge='start'] {
+    left: 0;
+    transform: translate(0, calc(-100% - 8px));
+  }
+  .lmz-bars__col .lmz-tip[data-edge='end'] {
+    right: 0;
+    left: auto;
+    transform: translate(0, calc(-100% - 8px));
+  }
+  .lmz-bars__col .lmz-tip:not([data-edge]) {
+    left: 50%;
+  }
+
+  /* ---- first view: the bars wait flat on the baseline ---- */
+  .lmz-bars[data-reveal='pending'] :is(.lmz-bars__bar, .lmz-bars__stack) {
+    transform: scaleY(0);
+  }
+
+  @media (forced-colors: active) {
+    .lmz-bars__bar,
+    .lmz-bars__seg {
+      background: GrayText;
+    }
+    .lmz-bars__col[data-hl] .lmz-bars__bar,
+    .lmz-bars[data-nohl] .lmz-bars__bar,
+    .lmz-bars__col[data-hl] .lmz-bars__seg {
+      background: Highlight;
+    }
+    .lmz-bars__bar[data-outline] {
+      background: transparent;
+      border-color: CanvasText;
+    }
+    .lmz-bars__line {
+      border-top-color: CanvasText;
+    }
+    .lmz-bars__sw {
+      background: Highlight;
+    }
+  }
+}

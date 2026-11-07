@@ -1,0 +1,9 @@
+[Unit]
+Description=Vitals Server watchdog: restart vitals-server after 3 failed /health checks in a row
+After=vitals-server.service
+
+[Service]
+Type=oneshot
+# deploy/oci-arm.sh writes the server's port here
+Environment=VITALS_PORT=@PORT@
+ExecStart=%h/vitals-server/bin/vitals-watchdog

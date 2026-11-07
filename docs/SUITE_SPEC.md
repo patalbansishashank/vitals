@@ -12,6 +12,7 @@ named export, so a later decision changes one line, not a design.
 the planner side of every interface shared here (§3.6, §8.4). R7's engine choice is gated by a two-week spike, so the
 store is specified behind an engine-neutral interface (§2).
 **Later batches:** §13 Batch 02 contracts (plan 02) · §14 Batch 03 contracts (plan 03, v0.4.0) · §15 One app everywhere (plan 04, v0.5.0).
+**Historical scope:** This v0.2 specification records the 0.6.0 manual-only period. The current Vitals Android app includes the ring engine and sends ring and phone readings through the home server. Vitals calculates its own experimental wellness indices, while older on-device scores retain separate provenance labels. Sections that specified removed 0.6.0 behaviour keep their numbers as one-line stubs; see [SERVER.md](SERVER.md) for the current data path.
 
 ---
 
@@ -33,8 +34,8 @@ type Rev       = string;   // opaque document revision from the store engine (§
 ### 0.2 Purity tiers (enforced by ESLint, §9.3)
 | Tier | Rule | Packages |
 |---|---|---|
-| **P** pure | no DOM, no React, no IO, no clock (`Date.now`, `new Date()` without argument, `performance.now`), no `Math.random`, no globals; deterministic | `src/engine/**` (incl. new `src/engine/living/`), `src/catalogue/**`, `src/biometrics/core/**`, `src/ai/briefing/**`, `src/commands/schema/**` |
-| **H** headless | no DOM, no React, no `@/features|@/app|@/components`; IO only through injected ports; runs in browser main thread, workers, service worker and Node 22 | `src/commands/**` (except `schema`), `src/sync/**`, `src/ai/**` (except `briefing`, `ui`), `src/biometrics/{importers,ble,ingest}/**`, `src/state/docstore/core/**`, `packages/companion/**` |
+| **P** pure | no DOM, no React, no IO, no clock (`Date.now`, `new Date()` without argument, `performance.now`), no `Math.random`, no globals; deterministic | `src/engine/**` (incl. new `src/engine/living/`), `src/catalogue/**`, `src/ai/briefing/**`, `src/commands/schema/**` |
+| **H** headless | no DOM, no React, no `@/features|@/app|@/components`; IO only through injected ports; runs in browser main thread, workers, service worker and Node 26.10.0+ | `src/commands/**` (except `schema`), `src/sync/**`, `src/ai/**` (except `briefing`, `ui`), `src/state/docstore/core/**`, `packages/companion/**` |
 | **UI** | React allowed | `src/features/**`, `src/app/**`, `src/components/**`, `src/state/*.ts` hooks, `src/ai/ui/**` |
 
 ### 0.3 New and changed packages
@@ -50,7 +51,6 @@ src/state/               same hooks as v0.1; Zustand stores become projections o
 src/sync/                SyncAdapter interface, Evolu adapter (fallback PouchDB), blob client, key schedule, pairing (interface E4, engines E11)
 src/engine/living/       plan anchoring, realised schedule, assimilation, adherence, drift (pure; E5)
 src/catalogue/           exercise, equipment, food, supplement catalogues, stimulus mapping, equivalence (E8)
-src/biometrics/          core/ (schema, merge, scores, estimators, BLE protocols; tier P), importers/, ble/, ingest/ (E10)
 src/ai/                  providers/, loop/, briefing/ (tier P), multimodal/, ui/ (Coach tab components) (E9)
 src/features/{today,food,train,coach,progress}/   Living-mode screens (E13; Coach screen E9)
 packages/companion/      Node package `vitals-companion` (+ bin `vitals-mcp`) (E12)
@@ -78,7 +78,7 @@ packages/companion/      Node package `vitals-companion` (+ bin `vitals-mcp`) (E
 import type { TSchema, Static } from '@sinclair/typebox';   // or its successor 'typebox'; only Value.* APIs (no TypeCompiler: it uses new Function, blocked by CSP)
 
 type CommandDomain = 'app'|'nav'|'job'|'history'|'profile'|'intake'|'safety'|'goals'|'planner'|'scenario'|'sim'|'plan'|'today'
-  |'log'|'bio'|'catalogue'|'food'|'train'|'coach'|'evidence'|'settings'|'ai'|'sync'|'agents'|'data';
+  |'log'|'catalogue'|'food'|'train'|'coach'|'evidence'|'settings'|'ai'|'sync'|'agents'|'data';
 type CommandId = `${CommandDomain}.${string}`;              // lowerCamel verb: 'log.meal', 'plan.start'
 type Perm = 'read' | 'write' | 'destructive';
 type Impact = 'low' | 'consequential';                      // writes only; see §1.4
@@ -165,15 +165,15 @@ with a toast on failure) → ledger record → `committed` event → result.
 ### 1.4 Permission classes and confirmation
 | Perm / impact (R8 class) | Examples | `user` (UI) | `ai` (Coach) | `webmcp` / `mcp` |
 |---|---|---|---|---|
-| `read` (read) | `today.get`, `bio.daily` | run | run; collapsed "looked at …" chip | run |
+| `read` (read) | `today.get`, `log.get` | run | run; collapsed "looked at …" chip | run |
 | `write` / `low` (log) | `log.*`, `goals.edit`, `scenario.edit` | apply; undo toast | apply; inline card with values, source and band; Edit / Undo (R11 §6.3 confidence gating decides auto-commit vs one-tap chip) | apply; card in Settings › Agents activity |
 | `write` / `consequential` (edit) | `plan.shift`, `plan.editDay`, `profile.patch`, `plan.replan` | apply; undo toast | **stage** as a proposal (diff + goal-date impact; Apply / Adjust / Discard). Setting "auto-apply small edits" (≤ 3 days shifted, no safety-tier change, load not raised) applies them with Undo; default **off** | **stage**; per-client "may apply directly" (default off) |
-| `destructive` (destructive) | `plan.end`, `plan.replace`, `data.eraseAll`, `bio.deleteSource` | only with a `ConfirmationToken` minted by the confirm dialog | never executes; returns `confirmation_required`; the Coach renders the typed-confirmation dialog; never batched | never executes; queued for confirmation in the app |
+| `destructive` (destructive) | `plan.end`, `plan.replace`, `data.eraseAll` | only with a `ConfirmationToken` minted by the confirm dialog | never executes; returns `confirmation_required`; the Coach renders the typed-confirmation dialog; never batched | never executes; queued for confirmation in the app |
 
 - Automatic changes (re-plans, score effects) may only lower load; raising load, adding a fast or moving up a rung is
   always a proposal (R11 §4.3, PLANNER_V2 §7.4).
 - **AI may tighten, never loosen.** Commands that relax a safety boundary (screening answers, fasting opt-ins,
-  acknowledgements, stream policies, sync, keys, agent permissions) are UI-only (`excludedReason.ai` = "requires the
+  acknowledgements, sync, keys, agent permissions) are UI-only (`excludedReason.ai` = "requires the
   person's own consent"). Commands that only tighten (`safety.reportIllness`, lowering a planner limit) MAY be AI-callable.
 - `ConfirmationToken = { commandId; inputDigest: string; nonce: string; issuedAt: Instant; mac: string }`, HMAC with a
   per-session in-memory key, valid 60 s, single use. `mintConfirmation()` lives in `src/app/confirm/` and MUST NOT be
@@ -256,7 +256,7 @@ state in local `jobs` (E6 defines the payload).
   (≈ 28 tools, ≤ 6k tokens, inside the cached prefix): `app_status`, `nav_open`, `history_undo`, `job_status`,
   `profile_get`, `profile_patch`, `intake_answer`, `today_get`, `log_get`, `log_meal`, `log_meal_from_photo`, `log_session`,
   `log_fast`, `log_measurement`, `log_mark_day`, `log_bulk`, `plan_get`, `plan_declare_event`, `plan_shift`, `plan_replan`,
-  `plan_drift`, `sim_what_if`, `sim_series`, `bio_daily`, `catalogue_search_exercises`, `catalogue_search_foods`,
+  `plan_drift`, `sim_what_if`, `sim_series`, `catalogue_search_exercises`, `catalogue_search_foods`,
   `food_plan_day`, `evidence_search`, plus the meta-tool `app_load_tools {groups: CommandDomain[]}` that adds a domain's
   tools for the rest of the conversation segment. Small/local models ("basic" tier, R8 §3.6) get only `read` tools and
   `log_*`. `TOOLSET_HASH` = SHA-256 of the canonical manifest JSON, shown in Settings › Agents, snapshot-tested.
@@ -315,14 +315,6 @@ Idem: N natural, K key, — none; Surfaces: all = ui ai webmcp mcp; "UI" = ui on
 | `log.markDay` · `log.confirmDay` | W | `{date, marks: DayStatusDoc['marks']}` / `{date}` → `DayRecord` | IP | N | all |
 | `log.edit` · `log.retract` | W | `{entryId, patch}` / `{entryId}` → `LogResult` | RT | K | all |
 | `log.get` | R | `{from, to, kinds?}` → `LogEntryView[]` | — | — | all |
-| `log.fromBiometrics` | W | `{date}` → `PendingChangeRef[]` (proposals only) | — | N | all |
-| `bio.daily` · `bio.series` · `bio.baselines` · `bio.sources` · `bio.scores` | R | §4.1–§4.5 views (ai reads filtered by stream policy) | — | — | all |
-| `bio.manual` | W | `{date, metric, value, at?, note?}` → `{recordId}` (manual provenance; AI screenshot reading) | TS | K | all |
-| `bio.setSourcePriority` | W | `{metric, sourceKeys: string[]}` → `BioSourceView[]` | IP | N | all |
-| `bio.import` · `bio.deviceConnect` · `bio.deviceSync` | W (job) | file / Web Bluetooth (user gesture required) → `ImportReport` | TS | K | UI |
-| `bio.setPolicy` | W·c | `{stream, policy: StreamPolicy}` → `StreamPolicy[]` (consent) | IP | N | UI |
-| `bio.deleteSource` | D | `{sourceKey}` → `{deleted}` | — | N | UI |
-| `bio.rescore` | W (job) | `{scoreIds?, from?}` → `JobRef` | — | N | ui |
 | `catalogue.searchExercises` · `catalogue.getExercise` · `catalogue.searchFoods` · `catalogue.getFood` · `catalogue.supplements` · `catalogue.equipment` | R | §8 | — | — | all |
 | `catalogue.addExercise` · `catalogue.addFood` · `catalogue.addEquipment` | W | custom item with stimulus/nutrients → `{id}` | TS | K | all |
 | `catalogue.equivalence` | R | `{prescribed: StimulusRef, performed: PerformedExercise[]}` → `EquivalenceResult` | — | — | all |
@@ -349,7 +341,7 @@ Types not spelled out in this table are defined in §3–§8, in PLANNER_V2_SPEC
 fields E4 fixes in `src/commands/schema/` under the rule: views contain no typed arrays (series as `number[]`, rounded to
 display precision), no secrets and no raw screening answers. Helper names used without expansion in this spec
 (`PreconditionId`, `SafetyGateId`, `ChangeSetSummary`, `PendingChangeRef`, `JobRunner`, `CatalogueGateway`, `RouteRef`,
-`LogEntrySummary`, `CheckInReport`, `AssimilationInput`/`Result`, `ScoreInput`, `BleLink`, `RingCommand`, `ProtocolState`,
+`LogEntrySummary`, `CheckInReport`, `AssimilationInput`/`Result`,
 `UiPrefs`) are owned by the package that implements them and MUST be structured-clone-safe plain data.
 
 ```ts
@@ -422,8 +414,8 @@ The UI clipboard (`copyWeek` then `pasteWeeks`) stays a UI convenience that disp
   (`src/state/docstore/__tests__/conformance.ts`, also run against the Evolu adapter and the Companion's Node store) and the
   production store until the spike passes. Switching implementations runs `copyStore(from, to)` once at boot (marker in
   both stores); nothing else in the app changes.
-- **Raw biometric samples and attachments never go through the CRDT.** They are immutable encrypted chunks in a blob
-  store (local cache + the endpoint's `/blobs`), with one small manifest row per chunk synced as a document (§2.6, §4.2).
+- **Attachments never go through the CRDT.** They are immutable encrypted chunks in a blob store (local cache + the
+  endpoint's `/blobs`), with one small manifest row per chunk synced as a document (`bioChunks`, §2.3, §2.6).
 
 ### 2.2 Document envelope
 ```ts
@@ -476,11 +468,7 @@ their own past it, so their later edits win; nothing is lost for good.
 | `dayStatus` | `day:${LocalDate}` | `DayStatusDoc` (§3.4) | LWW-F | ≈ 0.5 MB |
 | `measurements` | `Id` | `MeasurementEntry` (§3.4), indexed by `[metric, date]` | APP | < 0.2 MB |
 | `anchors` | `${planId}:${LocalDate}` | `ConfirmedStateRecord` (§3.5) without the snapshot | IMM | < 0.1 MB |
-| `bioRecords` | `${record_id}@${version}` | canonical `daily`/`sleep`/`workout`/`spot`/`device_profile` record (§4.1) | IMM | ≈ 1.5 MB |
-| `bioChunks` | `chunkId` | `BioChunkManifest` (§4.2) | BLOB | manifest < 1 MB; bytes 0.2–70 MB by device (R9 §5) |
-| `bioSources` | `sourceKey` | `BioSourceDoc` (label, tier, priority, `StreamPolicy[]`, baseline epochs) | LWW-F | — |
-| `bioScores` | `${scoreId}@${version}|${scope}` | `ScoreResult` (§4.4) | DER (rebuilt on any device) | ≈ 1 MB |
-| `decisionLog` | `Id` | `{ at, scoreId?, version?, value?, band?, decision, planVersion?, conversationId? }` (R9 §4.2) | APP | < 0.5 MB |
+| `bioChunks` | `chunkId` | `BlobManifest` of the blob store (chunk id, size, content hash; bytes in the blob store); used for photos, name kept for compatibility | BLOB | manifest < 1 MB |
 | `conversations` · `messages` | `Id` | §5.4 (`messages` indexed by `[conversationId, at]`; tool results ≤ 4 KB) | LWW-F · APP | ≈ 15 MB |
 | `attachments` | `Id` | `{ mime, w, h, sha256, purpose, linkedIds, chunkId? }`; bytes local (photos ≤ 1024 px WebP), synced only on opt-in | BLOB | photos kept 90 d |
 | `catalogueCustom` | `Id` | user/AI-added `ExerciseDef` / `FoodRecord` / `EquipmentDef` / `MappingDef` (§8) | LWW-F | < 1 MB |
@@ -490,19 +478,22 @@ their own past it, so their later edits win; nothing is lost for good.
 | `pendingChanges` | `Id` | `PendingChange` (§1.4); `status` is the only field that changes | LWW-F | 30-day retention |
 | `providerKeys` | presetId | API key, only when the user opts in to key sync (inside E2EE; re-wrapped per device, R8 §7) | LWW-F, opt-in | — |
 | `deviceSettings` · `uiPrefs` | `me` | theme, motion, chart patterns, figure, provider choice; last route, results lanes/pins, setup step, planning override, dismissed hints | LOC | — |
-| `secrets` | presetId, `companion`, `bleCred:${driver}` | AES-GCM ciphertext under a non-extractable device `CryptoKey` (R8 §7) | LOC | — |
+| `secrets` | presetId, `companion` | AES-GCM ciphertext under a non-extractable device `CryptoKey` (R8 §7) | LOC | — |
 | `changeLog` · `commandLedger` · `jobs` · `aiUsage` | `Id` | §1.5 · §1.6 · §1.7 · §5.1 | LOC | 30-day retention (`aiUsage` 400 d) |
 | `derived` | `${kind}:${key}` | engine snapshots, assimilation caches, last simulation inputs (v0.1 `vitals.simulations`) | DER | ≤ 20 MB LRU |
 | `syncState` | `me` | `SyncStatus` + engine cursors | LOC | — |
 
-Total target excluding raw chunks and photos: ≤ 40 MB per year. `navigator.storage.persist()` is requested when the
-first plan starts, the first device stream is enabled or the first key is saved. `QuotaExceededError` maps to
-`quota_exceeded` with a "free space" action (drop `derived`, then photos older than 30 days, then local raw chunks that
-the endpoint already holds).
+Total target excluding photos: ≤ 40 MB per year. `navigator.storage.persist()` is requested when the first plan starts
+or the first key is saved. `QuotaExceededError` maps to `quota_exceeded` with a "free space" action (drop `derived`,
+then photos older than 30 days, then local chunks that the endpoint already holds).
+
+Since 0.6.0 the collections `bioRecords`, `bioSources`, `bioScores`, `bioCorrections` and `decisionLog` are no longer in
+the schema. Rows a store or an export still holds for them are ignored on load; no migration runs. Log entries a device
+wrote before 0.6.0 stay in `dailyLogs` as ordinary entries.
 
 #### 2.3.1 Intake document (R1, R3 §7, R4 §1)
 ```ts
-type IntakeSectionId = 'activity'|'training'|'diet'|'kitchen'|'supplements'|'devices';
+type IntakeSectionId = 'activity'|'training'|'diet'|'kitchen'|'supplements';
 interface IntakeDoc {
   activity?: ActivityIntake;        // R1 §3.5 verbatim: work class, work days/hours, commute, steps {source, workday, offDay,
                                     // weeklyMean, daysOfHistory}, offDay, onFeetAtHome, recreation[]; resolved terms live in
@@ -513,7 +504,6 @@ interface IntakeDoc {
                                     // skill, time budgets, batch cooking, budget, eating out, meals per day)
   kitchen?: { equipment: string[]; pantry: Array<{ foodId: string; have: boolean; qtyApprox?: string; perishable?: boolean; confirmedAt: Instant }> };
   supplements?: { stance: 'food_first' | 'open'; taking: Array<{ supplementId: string; dose: number; unit: string; clockH?: ClockH }> };
-  devices?: { has: Array<'ring'|'watch'|'band'|'scale'|'chestStrap'|'phoneOnly'|'none'>; models: string[]; platforms: Array<'android'|'ios'|'desktop'> };
   answeredAt: Partial<Record<IntakeSectionId, Instant>>; questionSetVersion: Partial<Record<IntakeSectionId, number>>;
 }
 ```
@@ -615,7 +605,7 @@ interface Encryptor { seal(plain: Uint8Array, aad: string): Promise<Uint8Array>;
   Fixture tests: every v0.1 store at its current version, plus a `lumen.*` dump; export after migration round-trips.
 - **Export v2:** `{ vitalsVersion: '2', app: 'vitals', appVersion, exportedAt, device, collections: Record<CollectionId, Doc[]>, blobs: 'omitted'|'inline' }`
   covering synced collections plus `deviceSettings` and `uiPrefs`; never `secrets`, `providerKeys`, `pendingChanges`,
-  `changeLog`, `commandLedger`, `derived`, `syncState`. Raw series export as canonical `vitals.biometrics/1` JSONL (R9 §5).
+  `changeLog`, `commandLedger`, `derived`, `syncState`.
   Import accepts v1 (through the migration mapping) and v2, in `replace` (D) or `merge` (collection strategies) mode.
 - **Erase:** "Erase this device" deletes the local database, blob cache, legacy keys and caches, then reloads; with sync
   on, "Erase everywhere" also deletes the owner on the relay; distinct confirmations, export offered first.
@@ -713,12 +703,13 @@ interface PrescribedDaySnapshot {
 
 ### 3.4 Daily log
 Tiered logging (R11 §1.2): **T0** (≤ 10 s) per-block "as planned / partly / not" plus weigh-in; **T1** (≤ 60 s) what
-differed (swap, skip, fast broken at hour X), steps and sleep from devices; **T2** meals by text, voice or photo; **T3**
+differed (swap, skip, fast broken at hour X), steps and sleep; **T2** meals by text, voice or photo; **T3**
 girths, body-fat readings, labs, hunger/energy/mood (weekly default). Plus one daily "how hard was today" 1–5.
 ```ts
 interface EntrySource { by: 'user'|'ai'|'device'|'import'|'system';
   method: 'typed'|'asPlanned'|'aiText'|'aiPhoto'|'aiPhotoUserGrams'|'label'|'dbMatch'|'biometrics'|'import'|'backfill';
   conversationId?: Id; toolCallId?: string; bioRecordId?: string; actorId?: string }
+// `by: 'device'`, `method: 'biometrics'` and `bioRecordId` only describe entries written before 0.6.0; nothing writes them now.
 interface Est { value: number; sd: number }      // P50 and SD; display band per R8 §6.3 / R4 §4.3 by method
 interface NutrientEstimate { energyKcal: Est; proteinG: Est; carbG: Est; fatG: Est; fibreG?: Est; sugarsG?: Est; satFatG?: Est; alcoholG?: Est; sodiumMg?: Est }
 interface LogEntryBase { date: LocalDate; tz: string; at?: Instant; planId?: Id; planDay?: number; source: EntrySource;
@@ -754,8 +745,9 @@ interface DayStatusDoc { date: LocalDate; planId?: Id; planDay?: number;
   meals → `energy:{kind:'kcal'}`, macro grams, explicit `meals[]`, carbohydrate-weighted GI, NOVA-4 energy share as
   `upfShare`, dominant protein source; sessions → `exercise[]` via E8 `resolveStimulus`/`toSessions` (hybrid items compile
   to two sessions, R3 §3.3); fasts → `FastEvent` from instants (a logged meal inside a prescribed fast ends it there);
-  steps device > manual > prescribed-if-`asPlanned` > habitual; sleep device > manual > prescribed (the night ending on D
-  goes to the field the engine reads for that night, MODEL_SPEC §1.1; E5 contract test); substances, supplements (§8.5)
+  steps manual > prescribed-if-`asPlanned` > habitual; sleep manual > prescribed (the night ending on D goes to the field
+  the engine reads for that night, MODEL_SPEC §1.1; E5 contract test). Vitals reads no devices: every measured input
+  (weight, measurements, sleep, steps, workouts, meals) is what the person logs by hand; substances, supplements (§8.5)
   and events (illness → `modifiers.illness`, stress) as engine inputs. Items without any log or mark are `unknown`; for
   the replay only, an unknown item is simulated at its expected credit `E[c_b]` from revealed adherence (as PLANNER_V2
   §7.6 does for future days), flagged `assumed`, and excluded from scoring and from the δ estimate.
@@ -834,7 +826,7 @@ interface AdherenceScore { score: number | null /* 0–100; null when coverage <
   protein 1 inside −10 % (overshoot scores 1); sessions `stimulusEquivalence(...).credit` (a substitute at parity scores
   1, lighter partially, skipped 0; over-delivery capped per term); fasts by hours achieved through the same sensitivity
   curve (a fast broken at 18 of 24 h earns partial credit); steps, sleep `min(1, actual/target)`; supplements 0/1.
-- **Score:** `100·Σ w_i c_i / Σ w_i` over items with known status (logged, device-covered or marked `asPlanned`);
+- **Score:** `100·Σ w_i c_i / Σ w_i` over items with known status (logged or marked `asPlanned`);
   unknown items are dropped from both sums; `coverage` = known weight share; < 0.6 shows "based on 3 of 5 items";
   < 0.4 gives no score; `assumed` days are never scored. Owner's example: all done → 100; one skipped item with
   weight 0.2 → 80; an equivalent swap → 100. Unconfirmed days are `final:false`, labelled "so far".
@@ -879,8 +871,6 @@ interface TodayView {
   drift: Array<Pick<DriftReport['goals'][number], 'metric'|'state'|'goalDate'|'text'>> | null;
   trendWeight: { kg: number; sd: number; todayExpected: { p10: number; p50: number; p90: number }; measured?: number } | null;
   checkIn: { due: boolean; lastAt: LocalDate | null };
-  biometrics: { lastNight?: { hours: number; efficiency?: number; source: string }; restingHr?: { value: number; vsBaseline: number };
-                hrv?: { state: 'below'|'normal'|'above'; metric: 'rmssd'|'sdnn' }; flags: Array<{ id: string; level: 'yellow'|'amber'|'red'; text: string }> } | null;
   notices: Notice[];                       // safety warnings, proposals, pending Coach changes, sync problems, welcome-back
   coachPrompts: string[];
 }
@@ -888,195 +878,19 @@ interface TodayView {
 
 ---
 
-## 4. Biometrics (`src/biometrics/`, E10)
+## 4. Biometrics — removed in 0.6.0
 
-### 4.1 Canonical record `vitals.biometrics/1` (wire and storage; snake_case to match the published schema)
-```ts
-interface BioBatch { schema: 'vitals.biometrics/1'; producer: { name: string; version: string }; exported_at: string; tz: string; records: BioRecord[] }
-type BioChannel = 'manual'|'file:apple_health'|'file:health_auto_export'|'file:health_connect'|'file:gadgetbridge'|'file:canonical'
-  |'file:lumen_cloudevents'|'file:lumen_archive'|'share'|'bridge:android'|'shortcut:ios'|'mqtt:lumen'|`ble:${string}`|`oauth:${string}`|'companion:ingest';
-interface BioCommon {
-  kind: 'daily'|'sleep'|'workout'|'series'|'spot'|'device_profile';
-  record_id: string;                  // UUIDv5(source, native_id) or of (kind, metric, start, source); stored as `${record_id}@${version}`
-  version: number;                    // monotonic for upserts; readers take the highest
-  time: { start?: string; end?: string; at?: string; tz_offset_s: number; local_date: string };
-  provenance: { channel: BioChannel; source_app?: string;
-    device?: { type: 'ring'|'watch'|'band'|'phone'|'scale'|'strap'|'manual'; manufacturer?: string; model?: string; firmware?: string; tier: 'A'|'B'|'C' };
-    recording_method: 'automatic'|'active'|'manual'|'unknown'; modality: 'sensed'|'self_reported'|'derived';
-    native_id?: string; native_version?: string; source_created_at?: string; ingested_at: string; decoder?: string;   // e.g. 'jstyle2301/V0789@1'
-    algorithm?: { name: string; version: string; doc_url?: string } };
-  quality: { validation: 'measured'|'vendor_proprietary'|'estimated'|'self_reported'; confidence: 'low'|'medium'|'high'|null;
-    completeness?: number; vendor_state?: string;
-    flags: Array<'provisional_stages'|'hrv_vendor_defined'|'apple_sdnn'|'out_of_range'|'partial_day'|'estimated_vo2'|'ai_extracted'|'clock_drift'> };
-}
-type BioRecord = BioCommon & (
-  | { kind: 'daily'; steps?: number; distance_m?: number; active_kcal?: number; total_kcal?: number;
-      active_min?: { light: number; moderate: number; vigorous: number }; resting_hr_bpm?: number; hr_avg_bpm?: number; hr_min_bpm?: number; hr_max_bpm?: number;
-      hrv?: { metric: 'rmssd'|'sdnn'|'vendor'; value_ms: number; window: 'night'|'deep_sleep'|'first_4h'|'morning'|'spot'; n?: number };
-      spo2_avg_pct?: number; spo2_min_pct?: number; resp_rate_brpm?: number; skin_temp_delta_c?: number; skin_temp_c?: number; body_temp_c?: number;
-      vo2max?: { ml_kg_min: number; method: 'lab'|'field_test'|'vendor_estimate'|'derived' };
-      vendor?: { stress?: { value: number; scale: string }; readiness?: number; sleep?: number; recovery?: number; strain?: number; body_battery?: number };  // opinion only
-      main_sleep_id?: string }
-  | { kind: 'sleep'; is_main: boolean; in_bed_s?: number; asleep_s: number; awake_s?: number; light_s?: number; deep_s?: number; rem_s?: number; unknown_s?: number;
-      latency_s?: number; waso_s?: number; awakenings?: number; efficiency_pct?: number;
-      stages?: Array<{ start: string; end: string; stage: 'unknown'|'awake'|'awake_in_bed'|'out_of_bed'|'asleep_unspecified'|'light'|'deep'|'rem' }>;   // Apple core → light
-      raw_codes_chunk?: string;          // chunkId of the vendor's raw stage codes + firmware (R10 §6.1), so a corrected map can rescore
-      night?: { hr_min_bpm?: number; hrv?: { metric: 'rmssd'|'sdnn'|'vendor'; value_ms: number }; spo2_avg_pct?: number; resp_rate_brpm?: number; skin_temp_delta_c?: number } }
-  | { kind: 'workout'; exercise_type: string; native_type?: string; title?: string; active_duration_s: number; distance_m?: number; active_kcal?: number;
-      hr_avg_bpm?: number; hr_max_bpm?: number; hr_zones_s?: number[]; rpe_0_10?: number; load?: { value: number; method: 'trimp'|'srpe'|'vendor' };
-      percent_recorded?: number; hr_chunk_ids?: string[] }        // routes are not stored by default
-  | { kind: 'series'; metric: BioStream; unit: string; aggregation: 'sample'|'avg'|'min'|'max'|'sum'; interval_s?: number;
-      sampling: { mode: 'continuous'|'periodic'|'spot'|'event'; nominal_interval_s?: number };
-      context?: 'sleep'|'rest'|'exercise'|'unknown'; t_offset_s?: number[]; values: number[]; wear?: Array<[number, number]>; quality_mask?: number[] }  // wire only; stored as chunks (§4.2)
-  | { kind: 'spot'; metric: 'weight_kg'|'body_fat_pct'|'lean_mass_kg'|'waist_cm'|'bp_sys_mmhg'|'bp_dia_mmhg'|'glucose_mg_dl'|'body_temp_c'|'hr_bpm'|'spo2_pct'|'hrv_ms';
-      value: number; context?: 'fasting'|'morning'|'post_workout' }
-  | { kind: 'device_profile'; model: string; firmware_range?: string; metric: BioStream; bias: number; loa_lo: number; loa_hi: number;
-      n_nights: number; reference_device: string });               // R9 §3 own validation; replaces tier C bands for that model
-type BioStream = 'hr'|'ibi'|'hrv'|'spo2'|'skin_temp'|'body_temp'|'resp_rate'|'steps'|'distance'|'active_kcal'|'motion'|'sleep_state'|'sleep_stage'|`vendor:${string}`;
-```
-HRV metrics never share a field (Apple SDNN stays `sdnn`); vendor-computed numbers (stress, readiness, vendor HRV
-transforms, BP and glucose estimates, vascular age) live only under `vendor` / `vendor:<key>` streams.
+Vitals is manual-only since 0.6.0. It reads no devices and imports no health files; `src/biometrics/`, the `bio.*` and
+`biometrics.*` commands and Vitals' own wearable scores are gone. Ring data lives in the separate Android app
+old ring app. Every measured input (weight, measurements, sleep, steps, workouts, meals) is what the person logs
+by hand (§3.4). The subsection numbers below are kept because other documents refer to them.
 
-### 4.2 Raw sample streams
-- Series are stored as **chunks per (source, stream, local date)**; a chunk over 256 KB compressed is split by UTC hour
-  (high-rate streams such as 1 Hz HR or IBI). Encoding: header `{t0_ms, dt_ms|null, scale, n, tz_offset_s}`, delta-coded
-  Int32 time offsets (omitted when regular), Int16/Float32 values, Uint8 origin (`history|spot|live|workout_stream|import`)
-  and optional quality mask; gzip (`CompressionStream`), then the blob AEAD (§2.6).
-```ts
-interface BioChunkManifest { chunkId: string; sourceKey: string; stream: BioStream; local_date: string; hourStartUtc?: string;
-  n: number; min: number; max: number; bytes: number; contentHash: string; schemaVersion: 1; decoder?: string; createdAt: Instant;
-  supersedes?: string }   // a re-sync with more samples writes a merged chunk that supersedes the old one
-```
-- Sample identity inside a chunk is `(origin, t)` (R10's deterministic id), so re-imports are no-ops; tombstoned samples
-  (user deletions) are kept as a per-source tombstone list so a re-sync never resurrects them.
-- **Retention (R9 §5 + R7 §3):** raw data is kept indefinitely on the sync endpoint (or locally when sync is off), because
-  rescoring history is the point. With sync on, phones keep 30 days of raw chunks locally and fetch older ones on demand;
-  desktops keep everything (setting). Optional "compact raw older than N months" downsamples and freezes the affected
-  scores at their current version, with a warning.
-
-### 4.3 Ingest
-
-> Batch 03 changes: see §14.5 (record ids and per-message ingest).
-
-> v0.4.0: resolution is one truth per record (correction > device > nothing) in a fixed device order, no priority lists: see §14.6.
-```ts
-interface BiometricsImporter {                        // runs in biometrics.worker.ts; one adapter per format
-  id: string; label: string; accepts: { mime: string[]; extensions: string[]; sniff(head: Uint8Array): boolean };
-  needs?: Array<'sqljs'>;                             // SQLite imports (Health Connect zip, Gadgetbridge) need 'wasm-unsafe-eval'
-  run(input: Blob, ctx: { tz: string; now: Instant; signal: AbortSignal; onProgress(p: number): void }): AsyncIterable<BioBatch>;
-}
-interface IngestReport { batches: number; records: number; samples: number; chunks: number; duplicates: number;
-  sources: string[]; days: { from: LocalDate; to: LocalDate }; warnings: string[] }
-```
-Phase A importers (E10): canonical JSON/JSONL/CSV, Apple Health `export.zip` (streaming XML, SDNN kept as SDNN), Health
-Auto Export JSON, the Lumen app's CloudEvents JSONL (`health.metric.observed`, `health.sleep.timeline.updated`,
-`health.activity.updated`, `health.insight.updated` → `modality:'derived'`), then the Health Connect export zip and
-Gadgetbridge DB (sql.js). Every channel (file, share target, Companion `/ingest`, BLE, MQTT via the Companion) produces
-`BioBatch`es and goes through one pipeline: validate → normalise units → dedupe → split series into chunks → write
-manifests and records → resolve daily views → schedule rescoring. Daily views pick **one source per metric per day** by
-the user's priority (`bio.setSourcePriority`); values are never averaged across devices; the source label shows next to
-every number. A new device starts a new baseline (the old one stays for display).
-
-### 4.4 Score catalogue (R9 §4; `src/biometrics/core/scores/`)
-```ts
-interface ScoreDef {                                   // 'vitals.score_def/1'
-  scoreId: string; title: string; version: string /* semver */; released: LocalDate; supersedes?: string;
-  kind: 'derived_measurement'|'estimate'|'index'|'flag'; label: 'measurement'|'estimate'|'convenience_index'|'flag';
-  inputs: Array<{ stream: BioStream | string; window: 'main_sleep'|'night'|'7d'|'14d'|'28d'|'60d'|'90d'|'workout'|'all';
-                  minCoverage?: number; minCount?: number; tiersAllowed: Array<'A'|'B'|'C'>; sameSourceRequired: boolean }>;
-  profileInputs: Array<'age'|'sex'|'massKg'|'hrMaxObs'|'sleepNeedH'>;
-  gates: string[];                                     // machine-readable; unmet → status 'withheld' with a reason, never a fabricated value
-  formula: { fn: string /* `${scoreId}@${version}` */; text: string /* shown in the UI */ };
-  params: Array<{ name: string; value: number; range?: [number, number]; unit: string; sourceRef: string; kind: 'published'|'proposed'|'engineering' }>;
-  output: { unit: string; range?: [number, number]; goodDirection?: 'up'|'down'; display: 'number'|'band'|'state' };
-  uncertainty: { method: 'propagated'|'empirical_profile'|'fixed_band'|'none'; notes: string };
-  evidence: EvidenceLabel;                             // §8.6 (mechanism × certainty)
-  planEffects: Array<{ target: 'training_intensity'|'training_volume'|'fast_permission'|'replan_trigger'|'engine_observation'|'trainer_briefing'|'display_only';
-                       rule: string; priority: number }>;
-  optInStreams: BioStream[];
-  compute(input: ScoreInput): ScoreResult;             // pure; tier P
-}
-interface ScoreResult {                                // 'vitals.score_result/1', a cache (collection bioScores)
-  scoreId: string; version: string; scope: { kind: 'night'|'day'|'week'|'workout'; localDate: string };
-  status: 'ok'|'withheld'|'insufficient_baseline'|'borderline'; value: number | null; state?: string;
-  band?: { lo: number; hi: number; level: 0.8 | 0.95 }; confidence: 'low'|'medium'|'high';
-  contributors: Array<{ id: string; raw?: number; unit?: string; component?: number; weightConfigured: number; weightApplied: number; available: boolean }>;
-  inputsHash: string; sourceIds: string[]; computedAt: Instant; build: string;
-}
-```
-- v1 entries are R9 §4.3 (normative list): `sleep.tst`, `sleep.debt` (dossier-16 `dF`/`dS`, need 7.5 h), `sleep.se_spt`,
-  `sleep.waso`, `sleep.midpoint`/`sjl`/`msf_sc`, `sleep.sri`, `sleep.index` (= `lumen-sleep-v4` port), `hr.rhr_night`,
-  `hrv.ln_rmssd_night`, `hrv.status` (7-day mean vs 60-day baseline ± 0.5 SD), `hrv.strain_accumulating`,
-  `illness.nightsignal` (published FSM, ported exactly), `load.trimp`/`load.srpe`/`load.ewma`, `fitness.vo2max` (Bayesian
-  ladder feeding the engine's VO2max state as an observation with variance), `autonomic.deviation` (never called
-  "stress"), `readiness.index` (`lumen-recovery-v4` parity port; display only), `spo2.night`, `temp.deviation`. Port order
-  and parity tolerances per R10 §6 (sleep v4 integer-exact; others ±0.1 against replayed CloudEvents and the owner's
-  local DB, which never enters the repo).
-- **Rescoring:** a new version is computed for every scope of history (most recent 90 days first, in the worker) and old
-  versions stay side by side; UI and Coach show which version produced a number. Whenever a score value feeds a briefing
-  or a plan change, a `decisionLog` entry records `(scoreId, version, value, band, decision)`.
-- **Vendor score as opinion:** vendor numbers are shown as "<vendor> says …", are never inputs to a `ScoreDef`, the
-  engine, the planner, the adherence score or a plan effect, and reach the Coach only when that stream's coach policy
-  allows and labelled `vendor_opinion`.
-- **Plan effects are proposals** (pending changes on Today and to the Coach), applied automatically only when they lower
-  load and `autoApplyLoadLowering` is on. When flags disagree the most protective effect wins: illness red > HRV below >
-  sleep debt > load. A planEffect other than `display_only`/`trainer_briefing` requires `evidence.mechanism.status` ≠
-  `infoOnly` (no mechanism, no model change). Device tiers set the bands (R9 §3); tier C HRV, SpO2 and stress are
-  within-person trends only.
-
-### 4.5 Opt-in matrix and use in the living plan
-
-> Batch 03 changes: see §14.6 (one source of truth).
-
-> v0.4.0: a stream a device imports is device-owned; entries by hand for it become corrections: see §14.6.
-```ts
-interface StreamPolicy { stream: BioStream | 'workouts' | 'sleep_sessions' | 'vendor_scores';
-  imported: boolean;                      // data from this stream is stored at all
-  coach: 'hidden' | 'daily' | 'daily+series';   // what the Coach may see (series only through a visible tool call)
-  engine: boolean;                        // may replace assumed inputs / feed observations (engine-eligible streams only)
-  scores: boolean }                       // may feed Vitals' own scores
-```
-Defaults: everything off until onboarding's `devices` intake; turning a device on suggests `imported`, `scores` and
-`engine` for eligible streams and `coach: 'hidden'` until the person chooses (consent; UI-only command `bio.setPolicy`).
-
-| Stream | Engine use when `engine` (via `LoggedDay.inputs` or observations) | Plan / Coach use |
-|---|---|---|
-| sleep sessions | measured bed, wake, hours, quality replace the assumed sleep | `sleep.*` scores; timing advice |
-| steps, workouts | replace planned steps; workouts matched to prescribed sessions by date, type, duration → done/partial with TRIMP or sRPE load | adherence items, equivalence |
-| weight, body fat | trend filter (§3.5) | drift |
-| VO2max | lab/field tests and Vitals' `fitness.vo2max` posterior as an observation of the VO2max state; vendor estimates shown only | cardio intensities |
-| resting HR, HRV, skin temperature | observations only where a mechanism exists (recovery, illness flags); suggested `modifiers.illness`/`stress` need the person's confirmation | `hrv.status`, `illness.*` plan effects |
-| SpO2, vendor stress, vendor scores | none | shown and trended; flags to the Coach |
-
-Every metric that replaces an assumption shows "plan assumed X, you measured Y, effect on the projection: …".
-
-### 4.6 Web Bluetooth driver registry (phase C, Chromium only, foreground "Sync now")
-```ts
-interface BleDriver {
-  id: string; family: string; label: string;
-  requestOptions: { filters: BluetoothLEScanFilter[]; optionalServices: BluetoothServiceUUID[] };   // e.g. 2301: namePrefix + 0xFFF0
-  protocol: BleProtocol;                                           // pure (tier P), golden vectors ported from the Kotlin tests
-  open(link: BleLink, opts: { credential?: string }): Promise<BleSession>;   // impure transport (src/biometrics/ble/); `credential` overrides a built-in passcode, tests only
-}
-// No ring asks the person for anything (owner, 2026-10-04): any handshake is built into its driver. 2301 V0789's 0x3C
-// passcode is a protocol constant in src/biometrics/core/ble/jstyle2301/passcode.ts, stored as bytes, never shown, logged
-// or captured (redactOutbound), and allowed in no other file (its __tests__/passcode.test.ts scans every tracked file).
-interface BleProtocol {
-  frame(cmd: RingCommand): Uint8Array[];
-  ingest(bytes: Uint8Array, state: ProtocolState): { events: RingDecodedEvent[]; state: ProtocolState };
-  planSync(cursor: Partial<Record<BioStream, string>>): RingCommand[];   // one page per stream per open + resumable backfill (R10 §4.4)
-}
-interface BleSession { info(): Promise<{ firmware: string; battery?: number; clockOffsetS: number }>;
-  sync(cursor: Partial<Record<BioStream, string>>, onProgress: (p: number) => void, signal: AbortSignal): AsyncIterable<RingDecodedEvent>; close(): Promise<void> }
-type RingDecodedEvent =
-  | { type: 'sample'; stream: BioStream; t: number; value: number; unit: string; origin: 'history'|'spot'|'live' }
-  | { type: 'sleepEpochs'; start: number; epochS: 60; stages: string[]; rawCodes: number[]; firmware: string; complete: boolean }
-  | { type: 'activityBucket'; start: number; durS: number; steps: number; distanceM?: number }
-  | { type: 'workout'; start: number; end: number; kind: string } | { type: 'vendor'; key: string; t: number; value: number; unit: string };
-```
-`mapEventsToBatch(events, ctx): BioBatch` is shared with the CloudEvents importer. Order (R10 §6): J-Style 2301 (owner's
-code; MTU spike on Chrome Android first; clock offset recorded per sync and flagged on drift), then Colmi from MIT/CC-BY
-sources only. No background promises in copy; "close the ring's own app first".
+### 4.1 Canonical record `vitals.biometrics/1` — removed in 0.6.0 (manual-only; ring data lives in old ring app).
+### 4.2 Raw sample streams — removed in 0.6.0 (manual-only; ring data lives in old ring app).
+### 4.3 Ingest — removed in 0.6.0 (manual-only; Vitals imports no health files).
+### 4.4 Score catalogue — removed in 0.6.0 (manual-only; Vitals computes no wearable scores).
+### 4.5 Opt-in matrix and use in the living plan — removed in 0.6.0 (manual-only; the living plan has no observation adapter).
+### 4.6 Web Bluetooth driver registry — removed in 0.6.0 (manual-only; `Permissions-Policy` sets `bluetooth=()`).
 
 ---
 
@@ -1145,15 +959,15 @@ and stop. "Stop" aborts the request; staged proposals stay pending.
   how Vitals works (engine, plans, ladder, living plan, logs, equivalence, adherence, uncertainty bands), evidence policy
   (mechanism first, grades as wording), units and date rules (dates resolved by code and echoed), confirmation policy,
   the safety relay rule (`safety_blocked` → relay reason and `allowedAlternatives`, never argue around it), "ask before
-  assuming" for onboarding, style (short, numbers with bands, one action).
+  assuming" for onboarding, style (short, numbers with bands, one action), and that Vitals reads no devices (every
+  measured value is one the person logged). The briefing has no body-signals or scores sections.
 - **Dynamic (≤ 1.5k tokens, rebuilt by code every turn, never by the model):** date, time zone, rollover; profile card
   (age band, sex, height, trend weight, safety mode and restriction text, effective fasting tier, diet pattern and
   exclusions, equipment, supplements taken); active plan card (name, rung, day n of N, today's prescription summary,
-  goals with date ranges, drift state, `A_7`/`A_28`, open proposals); last 7 days one line each; biometrics only for
-  streams with `coach ≠ 'hidden'` (14-day compact table with baselines, active flags, source per metric); onboarding
+  goals with date ranges, drift state, `A_7`/`A_28`, open proposals); last 7 days one line each; onboarding
   `missingFields[]` from the intake state machine (code decides completeness); quiet-mode flag (no numeric scores or
   calorie talk).
-- **Fetched through tools only:** full logs and series (`log_get`, `sim_series`, `bio_daily`, `bio_series`; `detail:
+- **Fetched through tools only:** full logs and series (`log_get`, `sim_series`; `detail:
   'summary'|'full'`, cursors, results ≤ 4k tokens with semantic labels plus ids), plan versions and diffs, what-ifs,
   evidence topics, catalogue lookups, past conversation notes (`coach_search_notes`, local BM25 over day summaries).
 
@@ -1197,22 +1011,21 @@ confirmation for destructive commands.
    0.4–0.7 → one chip on the weakest field; < 0.4 → one question. Ask only when the answer moves the meal by > 15 % of
    daily energy or decides credit for a prescribed item. User-corrected grams switch the method to `aiPhotoUserGrams`.
 4. Text ("dal, rice and two eggs") → the Coach calls `log_meal` with components and grams (recents, recipes, catalogue
-   first); labels → `report_label` transcription; scale or wearable screenshots → `report_reading` → `log_measurement` or
-   `bio_manual` with `ai_extracted`. A weight stated in conversation is logged and the forecast re-runs. If the provider
+   first); labels → `report_label` transcription; scale screenshots → `report_reading` → `log_measurement`. A weight stated in conversation is logged and the forecast re-runs. If the provider
    fails, the text is stored as an unparsed note marked "to review" and counts as unknown, never as zero.
 5. Daily intake totals carry summed variances; the estimator treats them as measurements with that variance (§3.5).
 
 ### 5.7 Safety rules for AI actions
 - The same command validators, safety gates, tiers and warnings apply to the AI as to the person (§1.1); a blocked
   action returns `safety_blocked` with `allowedAlternatives`, which the briefing tells the model to relay.
-- The AI cannot change screening answers, acknowledgements, fasting opt-ins, stream policies, sync, keys, agent
+- The AI cannot change screening answers, acknowledgements, fasting opt-ins, sync, keys, agent
   permissions or the quiet-mode default for R1; it cannot resume a safety pause; destructive commands need the person's
   typed confirmation. Automatic changes only lower load.
 - Age gate and safety modes apply to the Coach tab (R1 → quiet mode and restricted wording; H → no Coach planning tools).
   Danger warnings are surfaced verbatim. The Coach never claims to be medical advice and suggests a clinician where the
   safety rules say so.
 - Privacy: nothing leaves the device except the conversation and tool results sent to the provider the person chose,
-  named in Settings with what is sent; no name or email in prompts; biometrics only per `coach` policy; photos are sent
+  named in Settings with what is sent; no name or email in prompts; photos are sent
   only in the turn they are attached or on an explicit re-estimate.
 
 ---
@@ -1241,11 +1054,11 @@ so the active plan is never overwritten by accident.
 | `/food`, `/food/:date` | meals, recipes, groceries, supplements, AI-estimate edits | supplements and groceries live here, not as tabs |
 | `/train`, `/train/:date` | sessions, equipment, swaps with equivalence preview | equipment lives here |
 | `/coach`, `/coach/:conversationId` | Coach conversation and change cards | in Planning mode the same route, opened from the top bar |
-| `/progress`, `/progress/:metric` | trend weight with band, goal-date range, composition, girths, adherence (A_7/A_28, per-block bars), log history with backfill, measurements, biometrics, check-in reports | measurements and biometrics live here |
+| `/progress`, `/progress/:metric` | trend weight with band, goal-date range, composition, girths, adherence (A_7/A_28, per-block bars), log history with backfill, measurements, check-in reports | measurements live here |
 | `/plan/active`, `/plan/active/versions/:n` | plan detail, versions, diffs, proposals, pause/end | |
 | `/body`, `/simulate/...`, `/plan/...` (v0.1 routes) | unchanged Planning screens | `/plan/results` shows the ladder (PLANNER_V2 §9.5) |
-| `/onboarding/:section` | intake sections (activity, training, diet, kitchen, supplements, devices) | also driven by the Coach |
-| `/settings/{sync,coach,agents,data-sources,devices,data}` | new Settings sections | |
+| `/onboarding/:section` | intake sections (activity, training, diet, kitchen, supplements) | also driven by the Coach |
+| `/settings/{sync,coach,agents,data}` | new Settings sections | |
 | `/evidence/...`, `/safety`, `/welcome` | unchanged | |
 
 `/` redirects to `/today` in Living mode and to the remembered Planning route (v0.1 `lastRoute`) otherwise. `nav.open`
@@ -1267,17 +1080,16 @@ accepts only `RouteId`s from this table.
 > Batch 03 changes: see §14.1–§14.4 and §14.8; the Companion is replaced by the Vitals Server (docs/SERVER.md).
 
 ### 7.1 Boundary
-| Capability | PWA alone | Companion (Node ≥ 22, `npx vitals-companion`) |
+| Capability | PWA alone | Companion (Node ≥ 26.10.0, `npx vitals-companion`) |
 |---|---|---|
-| Engine, planner, store, commands, BYOK providers with browser CORS, WebMCP registration, file imports, Web Bluetooth | yes | — |
+| Engine, planner, store, commands, BYOK providers with browser CORS, WebMCP registration, file imports | yes | — |
 | Sign in with ChatGPT (loopback OAuth, tokens in the OS keychain, `/v1/responses` proxy); NIM and OpenCode Zen proxy | no | yes |
 | Sync relay (Evolu `createNodeJsRelay`) + encrypted `/blobs` + `/health`; optionally serving the Vitals build (narrow CSP, no LNA prompt) | no | yes (`vitals-companion sync`, default `127.0.0.1:4870`; owner: `tailscale serve --bg --https=8443 http://127.0.0.1:4870`, port 8443 because Caddy owns :443 on oci-arm; `vitals-companion service --https-port <n>` prints another port; see §13.6) |
-| Biometrics receiver (`POST /v1/ingest` canonical batches from Health Auto Export, Shortcuts, Vitals Bridge; optional Aedes MQTT broker for the Lumen app) | no | yes, **device role only** |
 | Headless MCP (`vitals-mcp` over stdio; Streamable HTTP at `/mcp`) on synced data, no tab open | no | yes, **device role only** |
 
 **Roles.** *Relay* stores ciphertext only (any server, including a VPS). *Device* is paired like a browser (holds the
 owner secret, runs the engine, `src/commands` and a Node `DocStore` that passes the conformance suite) and is required for
-ingest and headless MCP. A process may hold both roles.
+headless MCP. A process may hold both roles.
 
 **Install (E22, 0.2.0).** The CLI is put on the PATH by `vitals-companion install`, which writes a wrapper script
 `~/.local/bin/vitals-companion` that pins Node and the checkout (not `pnpm link --global`: Node refuses type stripping
@@ -1294,7 +1106,6 @@ under `node_modules`, and GUI apps without the shell PATH must start the same pr
 | `wss /sync` | relay | Evolu owner write key | RBSR relay |
 | `POST /v1/ai/siwc/login` · `GET /v1/ai/siwc/status` · `POST /v1/ai/siwc/logout` | device or proxy | local bearer | sign-in flow; tokens never reach the page |
 | `POST /v1/ai/{preset}/…` | proxy | local bearer | streaming passthrough for `siwc`, `nim`, `opencode-zen`; adds credentials; enforces `store:false` and namespaced tools for `siwc` |
-| `POST /v1/ingest` | device | bearer derived from the pairing (shown as a QR for phone apps) or the local bearer | canonical `BioBatch` ≤ 25 MB → the same ingest pipeline (§4.3) |
 | `POST /mcp` | device | local bearer; MCP Origin rule | Streamable HTTP MCP (stdio via `vitals-mcp` needs no network) |
 
 Hardening: bind 127.0.0.1 unless `--listen` names an interface (e.g. the tailnet IP); Origin allowlist =
@@ -1303,7 +1114,7 @@ rate limits per token; optional `Tailscale-User-Login` allowlist; no secrets in 
 prompt is expected once per origin (Settings explains it first).
 
 ### 7.3 Shared tool list
-- The Companion imports `src/commands` (tier H), `src/engine`, `src/catalogue` and `src/biometrics/core` from the same
+- The Companion imports `src/commands` (tier H), `src/engine` and `src/catalogue` from the same
   build; `vitals-mcp` serves `manifest('mcp')` (§1.8) and dispatches with `actor:{kind:'mcp', id:<client name>}`.
   Consequential writes are staged as pending changes, which sync (§2.3), so the person approves them in the app on any
   paired device; destructive commands are never executed for MCP clients.
@@ -1438,15 +1249,16 @@ Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval
   style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:;
   connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*;
   object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
-Permissions-Policy: camera=(), microphone=(), geolocation=(), bluetooth=(self)
+Permissions-Policy: camera=(self), microphone=(), geolocation=(), bluetooth=()
 ```
 - `connect-src` is R7 option B (user-chosen relays and AI base URLs make a fixed list impossible on a static host).
   Compensating control: `src/net/net.ts` is the only caller of `fetch`, `WebSocket` and `EventSource` (lint), and checks
   every target against a user-managed allowlist (sync endpoint, provider preset origins, Companion); provider keys are
   bound to their origin. Evolu's own socket receives only a URL that passed the same check.
-- `'wasm-unsafe-eval'` is required by Evolu's SQLite-WASM and by sql.js imports; it does not allow JavaScript `eval`.
+- `'wasm-unsafe-eval'` is required by Evolu's SQLite-WASM; it does not allow JavaScript `eval`.
   Trusted Types (`require-trusted-types-for 'script'`) is added if the build passes with it.
-- Photos use `<input type="file" accept="image/*" capture>` (no camera permission); voice uses OS dictation in v0.2.
+- Photos use `<input type="file" accept="image/*" capture>`; `camera=(self)` is for scanning a pairing QR code in
+  Settings › Sync (merged with E11). `bluetooth=()` since 0.6.0: Vitals reads no devices. Voice uses OS dictation in v0.2.
 - The Companion-served build ships a narrow CSP listing its exact origins.
 
 ### 9.2 Workers and gateways
@@ -1455,9 +1267,8 @@ Permissions-Policy: camera=(), microphone=(), geolocation=(), bluetooth=(self)
 | main | React, `CommandBus` and executors (IO through gateways), Zustand projections, AI loop (streaming through `net.ts`) |
 | `engine.worker` (×1 + simulator run/preview workers as v0.1) | `simulate`, ensembles, `assimilate`/`forecast` (§3.5), `benefitRetained` batches |
 | planner coordinator + pool (v0.1 files, PLANNER_V2 §9) | `planLadder`, `replan`, `computePlanSensitivities`, tier X checkpoints |
-| `biometrics.worker` | importers, chunk encoding, daily resolution, scoring and rescoring |
 | store worker (Evolu) / IndexedDB | documents; blob cache |
-| service worker (E3) | precache incl. WASM; Web Share Target for files; no sync in v1 |
+| service worker (E3) | precache incl. WASM; no sync in v1 |
 
 ```ts
 interface EngineGateway {           // browser: Comlink to workers; Node (Companion): direct calls
@@ -1470,12 +1281,12 @@ interface EngineGateway {           // browser: Comlink to workers; Node (Compan
 ```
 
 ### 9.3 Lint rules (`eslint.config.js`, E4)
-- **Tier P** (`src/engine/**`, `src/catalogue/**`, `src/biometrics/core/**`, `src/ai/briefing/**`, `src/commands/schema/**`):
+- **Tier P** (`src/engine/**`, `src/catalogue/**`, `src/ai/briefing/**`, `src/commands/schema/**`):
   the existing engine rule extended to these paths, plus `no-restricted-imports` of `@/net`, `@/sync`, `@/commands`
   (except `schema`); `no-restricted-globals`: `window`, `document`, `localStorage`, `navigator`, `indexedDB`, `fetch`,
   `WebSocket`; `no-restricted-properties`: `Date.now`, `Math.random`, `performance.now`; `no-restricted-syntax`:
   `new Date()` without arguments. Hashing uses a pure SHA-256 module, not `crypto.subtle`.
-- **Tier H** (`src/commands/**`, `src/sync/**`, `src/ai/**` except `ui`, `src/biometrics/{importers,ble,ingest}/**`,
+- **Tier H** (`src/commands/**`, `src/sync/**`, `src/ai/**` except `ui`,
   `src/state/docstore/core/**`, `packages/companion/**`): no `react*`, `zustand`, `@/features`, `@/app`, `@/components`;
   no `window`, `document`, `localStorage`.
 - **Everywhere:** `fetch`, `WebSocket`, `EventSource` only in `src/net/**` (and `packages/companion/**` through its own
@@ -1490,7 +1301,6 @@ interface EngineGateway {           // browser: Comlink to workers; Node (Compan
 | Store | conformance suite run against `IdbDocStore`, the Evolu adapter and the Companion's Node store; migration fixtures for every v0.1 store version and `lumen.*`; export v1/v2 round trips; quota handling |
 | Sync | property test: random interleavings of writes on 3 simulated devices converge to identical documents per strategy; join merge/replace; rotate and rekey flows; blob create-only and AAD tamper rejection; spike scripts (R7 §7.3) as `pnpm spike:sync` (manual) |
 | Living plan | `anchorSchedule` cases; synthetic truth runs (engine with perturbed parameters → noisy weigh-ins and partial logs → filter and anchors recover trend within 2 SD and δ within its SE); adherence golden days (owner's 100/80/100 example, unknown items, coverage cut-offs); drift hysteresis; pause/resume shifts; determinism across devices |
-| Biometrics | importer golden files (Apple, Health Auto Export, CloudEvents, canonical, HC zip, Gadgetbridge); chunk encode/decode; source priority; score parity with R10 tolerances (local-only fixtures via env var); NightSignal transitions; rescoring version coexistence; BLE protocol golden vectors from the Kotlin tests |
 | AI | adapters against recorded SSE fixtures per preset (no network in CI); degradation matrix; briefing token budgets and determinism; photo pipeline band arithmetic; agent-loop limits; conformance suite with real keys (manual, `src/ai/__conformance__`) |
 | Companion | Origin and auth rejection, CORS, body limits, blob quota, SIWC token never returned to the page, MCP `tools/list` equals `manifest('mcp')` |
 | UI | RTL screen suites in strict store mode (no write outside a command); Living/Planning mode switch; Today at 375 px and 1440 px in both themes (QA) |
@@ -1503,11 +1313,9 @@ interface EngineGateway {           // browser: Comlink to workers; Node (Compan
 | Today view from store | ≤ 100 ms |
 | Daily assimilation (replay ≤ 7 days from the anchor + filter) | ≤ 150 ms / ≤ 40 ms; weekly check-in with forecast ensemble ≤ 3 s / ≤ 0.8 s |
 | Adherence for one day (fast credit forms) | ≤ 20 ms; with `benefitRetained` ≤ 1 s, in the worker |
-| Rescoring one day of data, all scores | ≤ 200 ms; 90-day backfill ≤ 20 s, background, interruptible |
-| Apple Health 1 GB `export.zip` import | streaming, ≤ 300 MB memory, ≤ 3 min desktop |
 | Sync: no-change reconcile / cold pair of the R7 test dataset | ≤ 300 ms LAN / ≤ 60 s over Tailscale |
 | Coach: first token after send (excluding provider latency) | ≤ 150 ms; briefing build ≤ 20 ms |
-| Bundle | initial JS +≤ 60 KB gz (commands, store binding, Living shell); Evolu, AI, biometrics, catalogues, food table lazy |
+| Bundle | initial JS +≤ 60 KB gz (commands, store binding, Living shell); Evolu, AI, catalogues, food table lazy |
 
 ---
 
@@ -1528,20 +1336,20 @@ interface EngineGateway {           // browser: Comlink to workers; Node (Compan
 |---|---|---|
 | 1 | Evolu as the store and sync engine; `IdbDocStore` until then; PouchDB fallback (§2.1) | R7 §7.3 two-week spike (E11) |
 | 2 | Evolu row-size limit ≥ 200 KB for scenarios and plan versions; otherwise large documents go through the blob path | R7 spike, unverified claim |
-| 3 | `'wasm-unsafe-eval'` added to `script-src` (§9.1) | owner sign-off (follows from R7's engine and R4/wearables SQLite imports) |
-| 4 | Raw chunks: phones keep 30 days with sync on; endpoint keeps all; daily chunks split hourly above 256 KB (§4.2) | R7 Q3 + R9 §5 (owner) |
+| 3 | `'wasm-unsafe-eval'` added to `script-src` (§9.1) | owner sign-off (follows from R7's engine) |
+| 4 | Raw sample chunks (§4.2) — dropped in 0.6.0 (manual-only) | — |
 | 5 | Filter constants `σ_rel` 0.5 %, `q_w` 0.03, `q_r` 0.005, δ prior SD 150, clamps (§3.5) | R11 §8 Q1 (population data); weekday/menstrual offsets R11 Q2 |
 | 6 | `benefitRetained` vs fast credit forms per day, ≤ 12 runs (§3.7) | R11 §8 Q3 with PLANNER_V2 §8.6 benchmark (E5/E6) |
 | 7 | Quiet mode on by default in safety mode R1 (§3.7) | R11 §8 Q4 (owner, safety) |
 | 8 | AI-estimate confidence thresholds 0.7/0.4 and calibration from edits (§5.6) | R11 §8 Q5 (needs logged data) |
-| 9 | δ treated as one intake-plus-expenditure term; biometrics not yet used to split it | R11 §8 Q6 |
+| 9 | δ treated as one intake-plus-expenditure term | R11 §8 Q6 |
 | 10 | Equivalence display bands 0.90/0.60 (R3) next to PLANNER_V2 parity ≥ 0.95; seed vocabulary canonical over V2 `ExerciseRecord` (§8.1, §8.4) | E8 with A2 (one reconciled table) |
 | 11 | `ResistanceSession.met` (CR-E2) rather than the circuit-style MET | R3 Q1 (engine owner) |
 | 12 | USDA-based food table; IFCT 2017 only with written permission; flagged literature values for missing Indian ingredients; frying-oil absorption and yield factors | R4 §2 (owner e-mails NIN); R4 unverified list |
-| 13 | Fast-permission plan effects (no new fast > 24 h on illness red, HRV below, sleep debt > 1.5 h) | R9 Q3 + dossier-20 safety review |
-| 14 | Tier C bands and NightSignal thresholds for cheap rings | R9 Q1 (owner's 14-night validation → `device_profile`) |
-| 15 | Readiness v1 = `lumen-recovery-v4` parity incl. nutrition; HRV baseline 60 d with an Android-parity mode | R9 Q2, R10 Q3/Q5 (owner) |
-| 16 | The V0789 passcode is built in (§4.6); unverified whether one value serves every V0789 ring or is per account (only one ring tested); Chrome Android MTU unverified | R10 Q1 + MTU spike (E10); plan 04 R19 |
+| 13 | Device-score fast-permission plan effects — dropped in 0.6.0 (manual-only) | — |
+| 14 | Device tier bands — dropped in 0.6.0 (manual-only) | — |
+| 15 | Device recovery score — dropped in 0.6.0 (manual-only) | — |
+| 16 | Device driver handshake (§4.6) — dropped in 0.6.0 (manual-only) | — |
 | 17 | Core tool group (≈ 28), per-provider `maxTools`, recommended models | R8 §4.3 conformance with real keys (E9) |
 | 18 | "Auto-apply small edits" off; spend cap warn-only; optional separate `visionModel` | R8 Q1–Q3 (owner) |
 | 19 | WebMCP off by default; MCP consequential writes staged; pending-change approval across devices (§7.3) | sign-in research Q7 (owner); E12 verification of origin trial |
@@ -1556,16 +1364,16 @@ interface EngineGateway {           // browser: Comlink to workers; Node (Compan
 | **E4** | `src/commands` (registry, dispatcher, pipeline, ChangeSets, undo, idempotency, jobs, confirmation tokens, all §1.9 definitions and fixtures, parity test, tool manifest core + OpenAI/Anthropic adapters as pure functions); `src/state/docstore` (`DocStore`, `IdbDocStore`, conformance suite, `bindDocs`, collections and envelopes, migration from localStorage, export v2/import/erase); `src/net/net.ts`; `SyncAdapter`/`BlobStore`/`Encryptor` interfaces; lint rules §9.3; every v0.1 store moved behind commands | §0, §1, §2.1–2.5, §2.7–2.8, §9.1, §9.3 |
 | **E5** | `src/engine/living` (anchoring, calendar, pause/resume, `toLoggedDay`, filter, δ, anchors, forecast, adherence, revealed adherence, drift, `TodayView`); plan/log/day/today commands' executors; `plans`, `planVersions`, `dailyLogs`, `dayStatus`, `measurements`, `anchors` collections; CR-L1–L3 with the engine owner | §3, §10 |
 | **E6** | PLANNER_V2 (not this spec), plus the interfaces E5 calls: `replan`, `computePlanSensitivities`, `benefitRetained`, `projectRealistic`, `toActivePlan` | §3.6–3.7, §9.2 |
-| **E7** | intake sections and `IntakeDoc` (R1 activity, training profile, R4 diet and kitchen, supplements stance, devices), `intake.*` commands, maintenance explanation, onboarding `missingFields[]` state machine | §2.3.1, §5.3 |
+| **E7** | intake sections and `IntakeDoc` (R1 activity, training profile, R4 diet and kitchen, supplements stance), `intake.*` commands, maintenance explanation, onboarding `missingFields[]` state machine | §2.3.1, §5.3 |
 | **E8** | `src/catalogue` (seeds, `ExerciseDef`/`EquipmentDef`/`FoodRecord`/`SupplementDef`, `resolveStimulus`, `toSessions`, equivalence display layer, food table chunk, meal-estimate arithmetic, portion-fit solver, `food.*`/`catalogue.*`/`train.*` executors, `EvidenceLabel`/`MappingDef`, CR-E2, CR-E3) | §8, §5.6, §10 |
 | **E9** | `src/ai` (presets, three adapters + Companion adapter, probing, degradation, agent loop, briefing, memory and summaries, multimodal pipeline, key storage, usage ledger), Coach tab and change cards, AI safety rules, tool adapters wired to the core group | §1.4, §1.8, §5 |
-| **E10** | `src/biometrics` (canonical schema and validation, chunks, ingest pipeline, Phase A importers, source priority, scores and rescoring, decision log, stream policies, BLE registry with the 2301 driver then Colmi), `bio.*` executors, Settings › Data sources and Devices | §4 |
+| **E10** | `src/biometrics` and `bio.*` executors — removed in 0.6.0 (manual-only) | §4 |
 | **E11** | Evolu spike and adapter (fallback PouchDB), blob client, key schedule, pairing (words, QR, scan), join merge/replace, revoke/rotate/rekey, status pill, Settings › Sync, `copyStore` switch-over, Companion relay wiring with E12 | §2.1, §2.6, §2.8 |
-| **E12** | `packages/companion` (`sync` relay + blobs + health + optional static app, SIWC login and proxy, NIM/Zen proxy, `/v1/ingest` with optional MQTT, `vitals-mcp` stdio + Streamable HTTP on the shared registry, Node `DocStore`), WebMCP registration and Agents settings, origin-trial verification | §7, §1.8 |
+| **E12** | `packages/companion` (`sync` relay + blobs + health + optional static app, SIWC login and proxy, NIM/Zen proxy, `vitals-mcp` stdio + Streamable HTTP on the shared registry, Node `DocStore`), WebMCP registration and Agents settings, origin-trial verification | §7, §1.8 |
 | **E13** | mode switch, Living shell and routes, Today, Food, Train, Progress screens (Coach screen from E9), check-in card, lapse and minimal modes, quiet mode, drift presentation, re-plan and start paths, ladder start dialog | §3.9, §6 |
 | **E14** | figure and visceral view (items 2–4); consumes `profile.*` commands only | §1.1 |
 
-Plan 03 packages (E25 server core, E26 server AI and agents, E27 website → server, E28 one source of truth) build from §14.
+Plan 03 packages (E25 server core, E26 server AI and agents, E27 website → server; E28 one source of truth, removed in 0.6.0) build from §14.
 
 
 ---
@@ -1576,7 +1384,7 @@ Plan 03 packages (E25 server core, E26 server AI and agents, E27 website → ser
 summary; briefs that say "SUITE_SPEC §12 Batch 02" mean this section. Planner-side contracts (rung stability, the
 dedicated Easy search, same-scale effort bars, the four-level audit) are in `docs/PLANNER_V2_SPEC.md` §12. Owners are the
 plan-02 packages E16–E22. Store naming: a document is `<collection>/<key>`; the names `vitals.<x>/N` below are the wire
-schema ids of new collections (`_schema: N`), as with `vitals.biometrics/1`.
+schema ids of new collections (`_schema: N`).
 
 **New command domains** (add to `CommandDomain`): `kitchen`, `pantry`, `markers`. Every new command ships a fixture,
 appears in `docs/COMMANDS.md` and passes the parity test (§1.10).
@@ -1594,8 +1402,8 @@ was no or unknown) and `job=<class>` as answered turns, then `saveChapter('activ
 is now `yes`, the chapter's follow-ups (`workTime`, `commute`, `commuteMin`) become visible and unanswered, so the next
 render of the chapter (`activeQuestion`, `flow.ts:167`) opens "How many days a week, and about how long?" and "How do you
 get there?" with no context and no Back. There is no Back per question (only "ask me later" and, on a reopened receipt,
-Cancel); `FlowState.reopened` is not persisted; `ctx.stepDevice` (from the devices chapter) changes what is asked, so
-leaving and returning can show a different question. No measured-maintenance field exists in `ActivityIntake`.
+Cancel); `FlowState.reopened` is not persisted; `ctx.stepDevice` (from the devices chapter, removed in 0.6.0) changed
+what is asked, so leaving and returning could show a different question. No measured-maintenance field exists in `ActivityIntake`.
 
 **Removal plan.** Delete `CorrectPanel`, `applyWhatIf`, `CORRECT` copy, the "Add a measurement" fix key route to the
 panel and the `onKeep`/`onMeasured` props; the maintenance card becomes a result card (band, drivers, biggest unknown)
@@ -1605,7 +1413,7 @@ below). The steps/work what-if survives only as the answered list's Change on `s
 ```ts
 type QuestionId = string;                                  // stable, `${chapter}.${name}`, e.g. 'activity.commute'
 type Answers = Readonly<Record<QuestionId, unknown>>;
-type ChapterIdV3 = 'activity' | 'training' | 'food' | 'markers' | 'devices';
+type ChapterIdV3 = 'activity' | 'training' | 'food' | 'markers';   // the 'devices' chapter was removed in 0.6.0
 interface QuestionV3 {
   id: QuestionId; chapter: ChapterIdV3; section: IntakeSectionId | 'markers';
   order: number;                                           // fixed position in the chapter graph; unique per chapter
@@ -1628,7 +1436,8 @@ interface ChapterStateV3 {
 - **Order and state.** `visible(graph, a)` = questions in `order` whose `condition(a)` holds (a child is visible only if
   its parent is visible and answered). `firstOpen(graph, a)` = the first visible question with no entry. The screen
   always shows `firstOpen` unless a Change is open. Locale and gentle-mode differences become **answers** written
-  before the chapter (`meta.india`, `meta.gentle`, `devices.stepDevice` copied in at chapter entry), never hidden context.
+  before the chapter (`meta.india`, `meta.gentle` copied in at chapter entry), never hidden context. A stored
+  `meta.stepDevice` from the removed devices chapter is ignored.
 - **Controls.** *Next* commits the value (`intake.answer`). *Ask me later* records `status:'later'` (default applies,
   value dropped). *Back* moves to the previous visible question in order and opens it in Change mode without erasing
   it. *Change* (on any answered row) re-asks **only that question**; on commit, children whose `condition` became false
@@ -1636,7 +1445,7 @@ interface ChapterStateV3 {
 - **Persisted.** The `turns` blob is kept (`values`, `status` with `'skipped'` read as `'later'`), plus `order` of
   commits; the open Change is UI state.
 - **Progress** = answered (incl. later) ÷ visible questions of the chapter, per question (children count);
-  the header shows the four (five with markers) chapter segments **centred on their own row under the title below
+  the header shows the four chapter segments (activity, training, food, markers) **centred on their own row under the title below
   768 px, right-aligned on the title row from 768 px** (item 4).
 - **Invariant (determinism).** For any answers `a`, `firstOpen(graph, a)` is the same on every render, after leave and
   return, reload, another device or the Body page; it depends on nothing but `a`.
@@ -1702,10 +1511,6 @@ page Maintenance panel renders these two questions **inline** from the same grap
 | later | A few more come up when they matter … Answer them now? | ✗ removed: those questions join the graph with Ask later |
 | staples / budget / eatingOut | (current) | ✓ (staples → §13.3 picker) |
 | pantry | What is in your kitchen now? | ✓ → §13.3 pantry |
-| has | Do you wear or use any of these? | ✓ |
-| models | Which one? | ✗ "Which brand and model is your {device}?" |
-| platform | And your phone? | ✗ "Which kind of phone do you use?" |
-| streams | What should Vitals do with each stream? | ✗ "For each kind of data your device records, what may Vitals do with it?" |
 E16 owns the final copy; a test asserts every `text` is ≥ 6 words, contains no leading "And", "Mostly", "Which one"
 pattern, and that every child has a `contextLine`.
 
@@ -1826,8 +1631,8 @@ record. Nothing runs until the person presses Find plans.
 ```ts
 interface GoalSuggestionInput {            // gathered by code; the pure core is suggestGoals(input) in src/engine/planner/domain/suggestGoals.ts
   profile: ProfileView; body: { bfPct: number | null; bfBand: [number, number] | null; leanKg: number | null; waistCm?: number;
-    visceralKg?: number; trainingAgeY: number | null }; intake: IntakeDoc; markers: MarkerNote[]; devices: { sleepDebtH?: number;
-    hrvBelow?: boolean; steps7d?: number }; safety: SafetyStatus; reach: TargetReach[] }   // reach = estimateTargetsAsync
+    visceralKg?: number; trainingAgeY: number | null }; intake: IntakeDoc; markers: MarkerNote[];
+    safety: SafetyStatus; reach: TargetReach[] }   // reach = estimateTargetsAsync
 interface GoalSuggestion {
   source: 'rule' | 'ai'; version: string;                 // 'rule@1' | `ai:${model}@${BRIEFING_VERSION}`
   goals: Array<{ rank: number; metric: MetricId; target?: number; unit?: string; mode: 'target'|'minimise'|'maximise'|'keep';
@@ -1838,8 +1643,9 @@ interface GoalSuggestion {
 }
 ```
 Rules (`rule@1`): fat loss first when body fat is above the healthy band; muscle first when lean and training ≥ 6
-months; recomposition when both; a marker goal when a `MarkerNote` of severity ≥ caution exists; sleep/recovery when
-device sleep debt > 1 h/night over 14 days. With no body or intake data the result has `goals: []` and a non-empty
+months; recomposition when both; a marker goal when a `MarkerNote` of severity ≥ caution exists. Since 0.6.0 the input
+carries no device data (no sleep debt, HRV or step history from a device); everything comes from the person's answers,
+body estimate and entered markers. With no body or intake data the result has `goals: []` and a non-empty
 `missing` (never a guess). Record `goals/me.suggested = { suggestion, at: Instant, provenance: {source, version} }`.
 **AI equivalence test:** for the golden personas, the AI variant (recorded fixtures) must produce the same metric set
 in the first two ranks as `rule@1`, targets within ±10 % of the rule targets, constraints that are a subset of the
@@ -1991,7 +1797,8 @@ view of `markers` (one source of truth; migration copies existing `profile.labs`
 `confirmed: true`, dated at the profile's `_updated`).
 
 #### 13.5.5 Intake chapter and statements
-Chapter `markers` sits **after food, before devices** (`CHAPTERS = ['activity','training','food','markers','devices']`).
+Chapter `markers` sits **after food** and is the last chapter (`CHAPTERS = ['activity','training','food','markers']`; the
+`devices` chapter was removed in 0.6.0).
 Header copy, verbatim and both always visible before any value is entered:
 1. "This is the most detailed option; many values are involved."
 2. "Vitals is not medical advice; it does not diagnose or treat."
@@ -2100,27 +1907,26 @@ interface DoctorReport { version: string; node: string; os: string; configDir: s
 
 ## 14. Batch 03 contracts (plan 03 "Final scope" and item 7)
 
-**Status:** normative for v0.4.0 (package A4, 2026-10-03). Owners: E25 (server core, MQTT), E26 (server AI and agents),
-E27 (website → server), E28 (one source of truth). Research folded in: R16 (`research/R16-lumen-bridge.md`, Lumen Health as
-the ring bridge → §14.5), R17 (`research/R17-headless-node.md`, the store headless in Node → §14.1, §14.4), R18
+**Status:** normative for v0.4.0 (package A4, 2026-10-03). Owners: E25 (server core), E26 (server AI and agents),
+E27 (website → server), E28 (one source of truth, removed in 0.6.0). Research folded in: R17 (`research/R17-headless-node.md`, the store headless in Node → §14.1, §14.4), R18
 (`research/R18-server-exposure.md`, exposure, tokens, Sign in with ChatGPT on a server, remote MCP → §14.2–§14.4).
 Points those reports left unverified are named where they occur. Where this section and §7 disagree, this section wins for
 v0.4.0; §7 stays as the history of the Companion.
 
 **What changes in one paragraph.** The Companion stops being something a person installs. The headless server on oci-arm
 (role `home`) holds each person's store in plaintext, runs sync, the AI proxy, Sign in with ChatGPT, the keys, the MCP
-endpoint for agents and an MQTT broker for Lumen Health. The website and the installed PWA talk to it over HTTPS with a
-device token. Inside Vitals, each record has one truth: a correction, else the device, else nothing.
+endpoint for agents. The website and the installed PWA talk to it over HTTPS with a device token. (The MQTT broker for
+Lumen Health and the `biometrics` correction commands of v0.4.0 were removed in 0.6.0.)
 
-**New command domain:** `biometrics` (add to `CommandDomain`) for the correction commands. Server pairing, provider keys, agent
-tokens and MQTT credentials are server calls through `src/net`, not commands (they hold no document state). Rows: `docs/COMMANDS.md` §12.
+Server pairing, provider keys and agent tokens are server calls through `src/net`, not commands (they hold no document
+state). Rows: `docs/COMMANDS.md` §12.
 
 ### 14.1 Server roles and config · owner **E25**
 
 | Role | Holds | Can read health data | Runs | Default bind |
 |---|---|---|---|---|
 | `relay` | Evolu relay store (ciphertext) and encrypted blobs, for any number of owners | no | `wss /sync`, `/blobs/…`, `GET /health` (today's `vitals-companion sync`, unchanged) | `127.0.0.1:4870` |
-| `home` | everything `relay` holds, plus one plaintext replica per person (`persons/<id>/`) | **yes**, for the persons it hosts | relay + headless person store + command bus + ingest + AI proxy + Sign in with ChatGPT + MCP + MQTT broker | `127.0.0.1:4870` (HTTP), MQTT per §14.5 |
+| `home` | everything `relay` holds, plus one plaintext replica per person (`persons/<id>/`) | **yes**, for the persons it hosts | relay + headless person store + command bus + AI proxy + Sign in with ChatGPT + MCP | `127.0.0.1:4870` (HTTP) |
 
 - One package and one binary: `packages/companion` is renamed in place to the server package (directory move is E25's
   choice); the binary is `vitals-server`. `vitals-companion` stays as an alias that prints a one-line notice for one
@@ -2128,7 +1934,7 @@ tokens and MQTT credentials are server calls through `src/net`, not commands (th
   (I3: the package keeps its directory and name `vitals-companion`, version 0.4.0, matching the website's `MIN_SERVER_VERSION`. `pnpm --filter vitals-companion build` bundles the person program to `dist/person-worker.mjs` and packs a deployable directory `packages/companion/dist/server`; on the host run `npm install --omit=dev --legacy-peer-deps` inside it. The repo checkout is not needed on the host. `deploy/oci-arm.sh` deploys it, `deploy/oci-arm-rollback.sh` rolls back.)
 - `home` refuses to start bound to a non-loopback, non-tailnet address unless `tls` is configured in the config file
   (public exposure behind Caddy is an owner decision, PLAN "Open for the owner").
-- `GET /health` → `{ version, role: 'relay'|'home', persons: number, ownerCount: number, mqtt: 'on'|'off' }`; nothing
+- `GET /health` → `{ version, role: 'relay'|'home', persons: number, ownerCount: number }`; nothing
   secret, no person labels.
 
 **Config file** `$XDG_CONFIG_HOME/vitals-server/server.json` (0600; never holds a secret):
@@ -2141,7 +1947,6 @@ interface ServerConfig {
   publicHosts?: string[];                            // extra Host names accepted, e.g. server.example.com (R18 §7 item 1)
   allowedOrigins: string[];                          // §14.2; default ['https://vitals.creative.desi']
   dataDir: string;                                   // default $XDG_DATA_HOME/vitals-server
-  mqtt?: { enabled: boolean; tcp?: { host: string; port: number }; ws?: { path: '/mqtt' } };   // §14.5
   tls?: { certFile: string; keyFile: string };       // only for a direct public bind
   limits?: { aiRequestsPerMinute?: number; bodyBytes?: number };
 }
@@ -2157,24 +1962,24 @@ stdout/journald, name persons by id only, never print a token, key, password or 
 | `relay/` | relay store, blobs (as §7.2) | shared by all owners, ciphertext only |
 | `admin.token` | CLI admin bearer (hash stored, value printed once) | local CLI only, never accepted with an `Origin` (I3: the file holds only the hash; `vitals-server admin-token` prints a new token) |
 | `persons/index.json` | `[{ id, label, createdAt }]` | `id` = 16 lowercase hex chars, random, never reused; `label` is a display name |
-| `persons/<id>/vitals-<id>.db` | the person's plaintext Evolu replica (SQLite, better-sqlite3; Evolu chooses the file name) | written only through the command bus, ingest and sync |
-| `persons/<id>/local.db` | the local-only collections (`changeLog` undo, `commandLedger` idempotency keys, `jobs`, `aiUsage`, `bioScores`, `derived`, …; `src/store/collections.ts`) on a better-sqlite3 `PersistenceBackend` | R17 blocker 3: in memory in the spike; idempotency keys matter for MCP retries and MQTT replays |
-| `persons/<id>/blobs/` + chunk index | raw sample bytes (Node `BlobBackend`), uploaded to the relay's `/blobs` like a browser's | R17 blocker 2 |
+| `persons/<id>/vitals-<id>.db` | the person's plaintext Evolu replica (SQLite, better-sqlite3; Evolu chooses the file name) | written only through the command bus and sync |
+| `persons/<id>/local.db` | the local-only collections (`changeLog` undo, `commandLedger` idempotency keys, `jobs`, `aiUsage`, `derived`, …; `src/store/collections.ts`) on a better-sqlite3 `PersistenceBackend` | R17 blocker 3: in memory in the spike; idempotency keys matter for MCP retries |
+| `persons/<id>/blobs/` + chunk index | blob bytes (Node `BlobBackend`), uploaded to the relay's `/blobs` like a browser's | R17 blocker 2 |
 | `persons/<id>/owner.key` | the 32-byte owner secret, raw bytes | how the replica joins the person's sync group; read only into `sync.open`; never logged, never in `person.json`, never returned by a route |
 | `persons/<id>/person.json` | `{ label, timeZone, deviceId, relayUrl, createdAt }` | `deviceId` is fixed at creation (R17 blocker 5) |
 | `persons/<id>/devices.json` | device and agent tokens: `{ id, kind, label, origin?, scope, hash, createdAt, lastSeenAt, revokedAt? }` | SHA-256 of the token only (I3: agent tokens live in this same file, with an optional `client` field; their ids are UUIDs) |
 | `persons/<id>/credentials/providers.json` | API keys per preset (`nim`, `opencode-zen`) | never returned to any client |
 | `persons/<id>/credentials/siwc.json` | Sign in with ChatGPT tokens | refreshed in place |
-| `persons/<id>/mqtt.json` | MQTT credentials: `{ username, passwordHash (scrypt), baseTopic, createdAt, revokedAt? }[]` | §14.5 |
 | `persons/<id>/usage.jsonl` | one line per AI request: `{ at, preset, model, inputTokens, outputTokens, status }` | no prompt text |
-| `persons/<id>/ingest/wal.jsonl`, `installations.json` | write-ahead log of acknowledged MQTT messages; last device and firmware per Lumen installation (§14.5) | compacted when all entries are done |
-| `persons/<id>/deadletter/<YYYY-MM-DD>.jsonl` | rejected events with reason (§14.5) | kept 30 days (I3: the date is UTC) |
 | `persons/<id>/backup/` | `vitals-server backup <id>` output | |
+
+Since 0.6.0 a person directory left by an older build with `ingest/`, `deadletter/` or `mqtt.json` is opened as is and
+those files are ignored; no migration runs.
 
 **Person runtime (R17).** The command bus and document runtime are module singletons, so the server runs **one
 `worker_threads` Worker per person** with the bundled person program (about 100 MiB each in the spike), opened on the
-first request for that person and closed after 15 minutes idle (rescoring flushed first). The main thread owns HTTP,
-MQTT, tokens and routing; it passes `PersonContext` to the right worker and never opens a person store itself. Inside
+first request for that person and closed after 15 minutes idle. The main thread owns HTTP,
+tokens and routing; it passes `PersonContext` to the right worker and never opens a person store itself. Inside
 the worker: `installPersistenceBackend`, `startLivingAutomation()`, the person's time zone from `person.json` as the bus's
 `tz` port (never the host zone; R17 blocker 4). Commands that need a port the server lacks (the planner pool, pdf.js,
 the vision port; R17 blockers 10 and 12) answer `precondition_failed` with `detail.reason = 'not_on_server'`, and §14.4
@@ -2188,10 +1993,10 @@ server holds it, because it does the work while the person's devices are off. Se
 person's sync phrase is read from stdin with echo off, never from argv or an environment variable, so the replica joins
 an existing sync group; without it a new secret is made; prints the person id), `persons list`,
 `devices code <person> [--label]` (§14.2), `devices list <person>`, `devices revoke <person> <deviceId>`,
-`mqtt add <person>` / `mqtt revoke <person> <username>` (§14.5), `siwc import <person> <file>` / `siwc login <person> --callback-port <n>` (§14.3),
+`siwc import <person> <file>` / `siwc login <person> --callback-port <n>` (§14.3),
 `keys import <person>`, `status`,
 `backup <person>`, `service --write`, `doctor`. There is no admin web page in v0.4.0.
-(I3: the implemented CLI is `init`, `persons add|list|remove`, `pair code` (alias `devices code`), `devices list|revoke`, `mqtt add|revoke`, `admin-token`, `status`, `backup`, `restore`, `serve [--app <dir>]`, plus `siwc`, `keys`, `agent-token` and `agents register`; there is no `service --write` or `doctor` for the server.)
+(I3: the implemented CLI is `init`, `persons add|list|remove`, `pair code` (alias `devices code`), `devices list|revoke`, `admin-token`, `status`, `backup`, `restore`, `serve [--app <dir>]`, plus `siwc`, `keys`, `agent-token` and `agents register`; there is no `service --write` or `doctor` for the server.)
 
 **Migration of the owner to person 1 on oci-arm (E25, run once with the owner present):**
 0. Owner, first: R18 §6 found oci-arm's swap 99 % used with 5.9 GB RAM free; check what holds swap before adding the
@@ -2200,7 +2005,7 @@ behind `tailscale serve`). 3. `vitals-server persons add <owner label> --join`, 
 Settings › Sync on this PC; the replica pulls the owner's history through the relay and reports the document count.
 4. Delete the 9 QA owners from `relay/` (default yes per PLAN; skipped if the owner says no). 5. Pair the website on
 this PC and the phone PWA (§14.2). 6. Move the owner's provider keys (`vitals-server keys import`) and the ChatGPT
-sign-in (`siwc export` on this PC, then `siwc import` on oci-arm, §14.3; owner present, it rotates the live session). R17 ran the store, the bus and `bio.import` headless in
+sign-in (`siwc export` on this PC, then `siwc import` on oci-arm, §14.3; owner present, it rotates the live session). R17 ran the store and the bus headless in
 Node from a person directory through `evoluNode.ts`; joining the owner's existing history over the relay at real size was
 not measured there, so E25's migration log records the document count and the time it took.
 (I3: the relay data on oci-arm is `~/.local/share/vitals-companion`, not `~/.vitals`; `deploy/oci-arm.sh` copies it to `~/.local/share/vitals-server/relay`. The step list with real command names is in docs/SERVER.md "Migration steps".)
@@ -2230,7 +2035,7 @@ addresses are accepted.
 |---|---|---|---|---|
 | `POST /v1/pair/code` | device token (issues for its own person) or admin token (`{ person }` required) | `{ label?: string; person?: string /* admin only */ }` | `200 { code, expiresAt, qr: string }` | `401`, `403 wrong_kind`, `429 rate_limited` |
 | `POST /v1/pair/device` | none; `Origin` must be allowed if present | `{ code: string; label?: string }` (label ≤ 40 chars, default "Browser on <platform>") | `200 { token, deviceId, person: { id, label }, server: { version, role } }` | `400 bad_request`, `403 origin_not_allowed`, `401 invalid_code` (+`attemptsLeft`), `410 expired`, `423 locked`, `429 rate_limited` |
-| `GET /v1/pair/status` | device token | — | `{ deviceId, label, kind, scope, person: { id, label }, createdAt, lastSeenAt, server: { version, role, mqtt } }` | `401 unauthorized` / `revoked` |
+| `GET /v1/pair/status` | device token | — | `{ deviceId, label, kind, scope, person: { id, label }, createdAt, lastSeenAt, server: { version, role } }` | `401 unauthorized` / `revoked` |
 | `GET /v1/devices` | device token (kind `device`) | — | `{ devices: Array<{ id, kind, label, scope, createdAt, lastSeenAt, current: boolean }> }` | `401` |
 | `DELETE /v1/devices/{id}` | device token (kind `device`) of the same person, or admin | — | `204`; the revoked device's next request gets `401 revoked` | `401`, `404 not_found` |
 
@@ -2313,7 +2118,7 @@ it is within 60 s of expiry), the `siwc` rewrites the Companion already applies 
 dropped, tools namespaced: `proxy.ts`), and a usage line. Streaming: the server pipes the upstream SSE body chunk by
 chunk without buffering (`X-Accel-Buffering: no`, flush per chunk); a client abort cancels the upstream request.
 
-**Error contract** (I3: AI and agent routes answer `{ error: { code, message } }`; pairing, device and MQTT routes answer `{ error: "<code>", message }`; the web client reads both. Extra codes: `daily_cap`, `wrong_kind`, `bad_request`, `too_large`, `not_found`.) (JSON `{ error: { code, message } }`; `message` is shown to the person as is, so it is plain words and
+**Error contract** (I3: AI and agent routes answer `{ error: { code, message } }`; pairing and device routes answer `{ error: "<code>", message }`; the web client reads both. Extra codes: `daily_cap`, `wrong_kind`, `bad_request`, `too_large`, `not_found`.) (JSON `{ error: { code, message } }`; `message` is shown to the person as is, so it is plain words and
 names no file, module, route, package or plan id):
 
 | HTTP | `code` | `message` (exact) |
@@ -2389,174 +2194,9 @@ token in the environment variable `VITALS_TOKEN` (snippets show a placeholder, n
 - Limits: 60 tool calls per minute per token; at most 4 open MCP sessions per token and 32 per server
   (`MCP_MAX_SESSIONS`); every call logged in `GET /v1/agents/activity` and shown in the app's agent indicator (§7.3).
 
-### 14.5 MQTT ingest from Lumen Health · owner **E25** (broker), **E28** (Devices card)
+### 14.5 MQTT ingest from Lumen Health — removed in 0.6.0 (manual-only; the server has no MQTT broker or ingest, and ring data lives in old ring app).
 
-Facts about the phone side are from R16 (`research/R16-lumen-bridge.md` §1–§3, §5): Lumen Health speaks MQTT 3.1.1 through
-Paho 1.2.5, QoS 1 for every event, clean session, up to 10 messages in flight, drains of up to 2,000 rows; a row leaves its
-outbox only when the PUBACK arrives, so a PUBACK lost after the broker stored the message causes a resend **with the same
-envelope `id`**; it trusts **system CAs only** (no self-signed or private CA); keep-alive 60–900 s (240 by default).
-
-**Broker:** aedes 1.2.x embedded in the server process, `home` role only (R16 §5).
-
-| Listener | Where | TLS |
-|---|---|---|
-| `wss` on the HTTP server at path `/mqtt`, WebSocket subprotocol `mqtt` (I3: bridged to an internal loopback TCP listener of aedes) | `wss://<host>.<tailnet>.ts.net:8443/mqtt` (explicit port, R16 §1.4) | the `*.ts.net` certificate from `tailscale serve` (publicly trusted); or Caddy on a public name |
-| `tcp` (optional) | `127.0.0.1:1883`, exposed as `ssl://…` only through a TLS-terminating front (`tailscale serve` TCP or Caddy) | from the front; plain `tcp://` is never bound to a non-loopback address |
-
-Default is `wss` because it reuses the HTTPS name and port that already work. **Open for the owner** (PLAN "Final scope",
-R16 §7 q2): tailnet name only, or also a public name behind Caddy (the phone's tailnet has been unreliable).
-The TCP listener is optional and off by default; R18 did not test a `tailscale serve` TCP form, so E25 documents it only
-if it is built and checked.
-
-**Credentials.** `vitals-server mqtt add <person>` or the Devices card button "Create broker login" (device token,
-`POST /v1/mqtt/credentials`) makes one credential and returns it once:
-```ts
-interface MqttCredential { address: string /* full URI to paste, e.g. wss://host:8443/mqtt */;
-  username: string /* `p<personId>-<n>` */; password: string /* 24 random bytes base64url, shown once */;
-  baseTopic: 'lumen-health/v1' /* Lumen's default; nothing to change on the phone */ }
-```
-Server side: password stored as scrypt hash in `persons/<id>/mqtt.json`; the username alone resolves the person; the client
-id is not used for identity. At most 2 credentials per person; `DELETE /v1/mqtt/credentials/{username}` revokes and
-disconnects at once. **Installation pinning** (R16 §7 q3, decided here): the first `installationId` seen on a credential
-is pinned to it; publishes under another installation id are refused (dead letter `wrong_installation`, acknowledged).
-The Devices card offers "Allow a new phone", which clears the pin.
-(I3: the route is `POST /v1/mqtt/credentials/{username}/allow-new-phone`. The web client `src/net/mqtt.ts` grants the server origin with purpose `'server'` and reads the same `vitals.server.v1` pairing.)
-
-**Topics and authorisation.** Lumen publishes to `<baseTopic>/<installationId>/<suffix>` (R16 §2.1, e.g.
-`lumen-health/v1/<32 hex>/metrics/hr`). Publish is allowed only under `lumen-health/v1/<pinned installationId>/`. The
-broker reads the event type from the CloudEvent `type`, not from the suffix. Subscribe is refused. `retain` is cleared on
-every message (the broker keeps no retained copies, R16 §7 q5); the last `health.device.identified` and firmware event
-per installation are kept by the server in `persons/<id>/ingest/installations.json` and passed into every import (R16
-G5, G6), so a restart loses nothing.
-
-**Write-ahead, then ack (the binding rule; R16 §5).** All work happens in aedes' `authorizePublish` hook, serialised per
-person (a promise chain; aedes runs the packets of one socket read concurrently):
-
-| Step | On success | On failure |
-|---|---|---|
-| 1. size ≤ 256 KB, JSON, CloudEvents 1.0 envelope with `id` and `type` | go on | append to the dead-letter file (fsync), then PUBACK: a bad message must not block the phone's outbox |
-| 2. append `{ envelopeId, topic, receivedAt, payload }` to `persons/<id>/ingest/wal.jsonl`, fsync | `cb(null)` → aedes sends PUBACK | `cb(err)` → no PUBACK, connection closed; Lumen resends from its outbox |
-| 3. (after the PUBACK, asynchronous) import from the WAL: `lumenCloudEvents.ts` → `BioBatch` (channel `mqtt:lumen`, the person's time zone from their profile, never the host's, R16 G7) → the ingest pipeline (§4.3) → mark the envelope id done | done | dead letter `unknown_type` / `invalid_payload` / `validation_failed` / `import_error` with the envelope id; never retried silently |
-
-On start, WAL entries not marked done are imported before the broker accepts connections. A resend with an envelope id
-already in the WAL is acknowledged and skipped. The WAL is compacted once all its entries are done.
-
-**Dead letters:** `persons/<id>/deadletter/<date>.jsonl`, one line `{ at, reason, envelopeId?, type?, bytes, sample: string
-/* first 2 KB */ }`; reasons `too_large`, `not_json`, `not_cloudevent`, `wrong_installation`, `unknown_type`,
-`invalid_payload`, `validation_failed`, `import_error`. Never written to the store. Counts feed the Devices card.
-
-**Limits per connection:** message ≤ 256 KB (R16: a sleep night is about 6–9 KB); ≤ 100 messages/s sustained (Lumen's
-drain is at most about 67/s), above that the broker stops reading the socket for a moment and never drops; ≤ 2
-connections per credential; keep-alive accepted up to 900 s.
-
-**Record ids for per-message ingest (decided here; R16 G1, G2, §7 q4).** The importer was built for whole files; one
-message at a time must give the same records:
-- **Series:** `record_id` = UUIDv5 of `(source, stream, origin, local_date)`, the same window as the stored chunks
-  (§4.2); samples merge into it by their `(origin, t)` identity, so one HR sample per message no longer creates one
-  record per sample, and a file import and the live stream of the same samples give the same record.
-- (I3: one rule in `src/biometrics/core/recordIds.ts`: `recordId({ source: 'file:lumen_cloudevents', kind, metric, start })`; the sleep version is `(complete ? 2e12 : 0) + received_s × 100`. The CloudEvents importer (file and broker) and the archive importer use it, so ids of Lumen data imported before stay the same. `sourceKeyOf` maps `mqtt:lumen` and `file:lumen_archive` to the `file:lumen_cloudevents` source key.)
-- **Sleep:** `record_id` = UUIDv5 of `(source, 'sleep', session start)`; the provisional night and the complete one are
-  versions of one record (higher `version` wins, §4.1); `is_main` is recomputed per wake date across batches, not per batch.
-- Daily records keep their content-derived ids. The envelope `id` stays a delivery key only (WAL, dead letters), never
-  recomputed or verified (R16 §3.2).
-
-**Identical-batch rule.** For the same CloudEvents, the file import (`bio.import` of Lumen's JSONL, channel
-`file:lumen_cloudevents`) and the broker (channel `mqtt:lumen`, one message at a time) produce the same stored records:
-equal `record_id`, `version`, `kind`, time, values and quality flags; provenance equal except `channel` and `ingested_at`.
-An event that arrives both ways (history import, then live) is stored once. A history importer for Lumen's own export
-(R16 §4 path B) is not part of this section; if one is built, the same rule binds it. (I3: it is built, channel `file:lumen_archive` (E29), and uses the same rule.)
-
-**Devices card "Lumen Health over MQTT"** reads `GET /v1/mqtt/status` (device token):
-```ts
-interface MqttStatus { enabled: boolean; address: string | null;
-  credentials: Array<{ username: string; createdAt: string; connected: boolean; lastConnectAt: string | null }>;
-  lastEventAt: string | null;
-  eventsToday: Array<{ stream: string /* e.g. 'sleep_sessions', 'steps', 'hr' */; count: number }>;
-  /** Newest battery reading of the ring (server 0.4.1 and later; the website treats it as optional). */
-  battery?: { percent: number; at: string } | null;
-  /** `byReason`: counts over the last 7 days, for "See why" (server 0.4.1 and later; optional for the website). */
-  deadLetters: { today: number; last7d: number; lastReason: string | null; byReason?: Record<string, number> } }
-```
-The card also shows the per-stream switches (`bio.setPolicy`, §4.5; opt-in unchanged: nothing drives scores, the engine
-or the Coach until switched on) and the values to paste into Lumen Health (address, username, password once, base topic,
-client id), matching docs/SERVER.md "Phone setup". The one-time history import is offered first ("Import your Lumen Health
-history before connecting live").
-
-### 14.6 One source of truth · owner **E28**
-
-**(a) Stream ownership.** A stream family is **device-owned** for a person when a source whose channel is not `manual`
-has `imported` on for it in the policy matrix (§4.5). Pure function in `src/biometrics/core/policy.ts`:
-```ts
-type OwnedFamily = 'sleep_sessions' | 'steps' | 'body' | 'resting_hr' | 'hrv' | 'workouts';
-function streamOwner(family: OwnedFamily, sources: readonly BioSourceDoc[]): { sourceKey: string; label: string } | null;
-```
-
-| Owned family | Hidden manual entry (UI) | Commands redirected for the Coach and agents |
-|---|---|---|
-| `sleep_sessions` | Today's sleep row input (`PrescriptionRows.tsx`, `logSleep`); `bio.manual` metric `sleep_h` | `log.sleep` |
-| `steps` | Today's steps row input (`logSteps`); `bio.manual` `steps` | `log.steps` |
-| `body` (weight, body fat; only when a scale feeds it) | Today's weight input (`logWeight`); `bio.manual` `weight_kg`, `body_fat_pct` | `log.measurement` with `weightKg`/`bodyFatPct` |
-| `resting_hr`, `hrv` | `bio.manual` `resting_hr_bpm`, `hrv_ms` | `log.measurement` for those metrics |
-| `workouts` | none hidden (a training session logged against the plan is a different record); matching stays as §4.5 | — |
-
-Where an input is hidden the row shows the device value with its source label ("7 h 12 min · J-Style ring") and a
-**Correct** action that opens the correction sheet. A stream with no owner keeps today's manual logging unchanged.
-
-**Coach and agent rule.** When `log.sleep`, `log.steps`, `log.measurement` or `bio.manual` is dispatched for an owned
-stream by an actor other than `ui`, the bus does not write a log entry; it builds the equivalent `biometrics.correct`
-input and stages it as a proposal (the result is `{ redirected: 'biometrics.correct', proposalId }`, outcome `staged`).
-From the UI the hidden inputs cannot dispatch these commands; a direct UI dispatch for an owned stream returns
-`precondition_failed` with `detail.reason = 'device_owned'`. The Coach's tool descriptions say so in one sentence
-("If a device records this, your entry becomes a correction for the person to confirm.").
-
-**(b) Correction precedence.** Per record key: **correction > device > nothing.** Keys:
-
-| Record kind | Key | Corrected fields |
-|---|---|---|
-| sleep night | `sleep:<local_date>` (the main sleep of that date) | `asleep_s`, optional `bedAt`/`wakeAt` (→ `time.start`/`time.end`, `in_bed_s`) |
-| daily totals | `daily:<local_date>:<metric group>` (groups of `DAILY_METRIC_GROUPS`: `steps`, `distance_m`, `active_kcal`, `total_kcal`, `resting_hr_bpm`, `hrv`, …) | the group's fields |
-| spot value | `spot:<local_date>:<metric>[:<at>]` (`at` given when the day has several readings) | `value` |
-
-```ts
-// command `biometrics.correct`: perm write, impact consequential (class edit), surfaces ui+ai+mcp, undo RT, idempotency key
-type CorrectionTarget =
-  | { kind: 'sleep'; localDate: LocalDate }
-  | { kind: 'daily'; localDate: LocalDate; metric: keyof typeof DAILY_METRIC_GROUPS }
-  | { kind: 'spot'; localDate: LocalDate; metric: SpotRecord['metric']; at?: Instant };
-interface CorrectInput { target: CorrectionTarget;
-  value: { asleepS: number; bedAt?: Instant; wakeAt?: Instant } | { fields: Partial<DailyRecord> } | { value: number };
-  note?: string /* ≤ 500 chars, e.g. "slept six hours, the ring was off" */ }
-interface CorrectOutput { correctionId: string; key: string; replaced: { sourceKey: string; recordId: string } | null }
-// command `biometrics.clearCorrection`: perm write, impact low (class log), surfaces ui+ai+mcp, undo RT
-interface ClearCorrectionInput { key: string }
-```
-- **Propose → apply.** From the UI the correction sheet shows "Device: 5 h 10 min → Yours: 6 h 00 min" and applies on
-  confirm (the same propose → apply path as other `edit` commands); from the Coach or an agent it is staged and the person
-  applies it from the proposal card.
-- **Storage.** New collection `bioCorrections` (`vitals.bio_correction/1`), document key = the correction key:
-  `{ key, target, value, note?, createdAt, actor, replaced: { sourceKey, recordId, version } | null, clearedAt? }`. Ingest
-  never writes this collection, so a later device record, a replayed MQTT message or a re-import for the same key can
-  never replace a correction (**replay-proof**). Device records keep arriving and are stored with provenance as before.
-- **Marker and undo.** Every corrected value shows a small "corrected" marker with the time and an action "Use the device
-  value again" (`biometrics.clearCorrection`). Undo of `biometrics.correct` (RT) and `clearCorrection` both bring back the
-  device value, if there is one. Exports carry corrections as their own records.
-- **What `resolve.ts` returns.** `resolveDays(records, sources, opts, corrections)` gives one resolved record per key, with
-  where it came from:
-```ts
-type Basis = 'correction' | 'device' | 'manual';   // 'manual' only for streams without a device owner
-interface ResolvedDay { /* existing fields */ basisByMetric: Record<string, Basis>;
-  corrections: Array<{ key: string; correctionId: string; deviceValue: unknown | null }> }
-```
-  The engine, the planner, scores, `today.get`, `bio.daily` and the Coach briefing read only the resolved view; scores of a
-  corrected day are recomputed (`bio.rescore` from that date) and the score's `sourceIds` include the correction id.
-- **No priority lists.** When several device sources report the same metric on a day, the fixed order is: device tier A >
-  B > C, then the source with more coverage that day (sleep: longer `asleep_s` window recorded; daily: more fields
-  present), then the most recent `ingested_at`, then `sourceKey`. `bio.setSourcePriority` is **removed** (registry,
-  manifest, fixture, COMMANDS row, the Coach tool list); the "Source priority" block in Settings › Devices is removed;
-  stored `priority` and `priorityByMetric` on `BioSourceDoc` are ignored by `resolve.ts` and dropped by a one-time
-  migration (`biometrics.dropPriorities`, system actor, idempotent). Existing `bio.manual` records on an owned stream are
-  migrated into `bioCorrections` only when they differ from the device value of that key; otherwise dropped as
-  duplicates (migration report in the job log).
+### 14.6 One source of truth — removed in 0.6.0 (manual-only; with no device data there is nothing to reconcile, so entries by hand are ordinary log entries, not corrections).
 
 ### 14.7 Server settings page and Install section · owner **E27** (design D3)
 
@@ -2582,8 +2222,6 @@ reads "Saved on your server".
 one line each), the token shown once with the recipe steps, the list of agent tokens with last use and Remove. WebMCP
 stays as it is.
 
-**Settings › Devices:** the "Lumen Health over MQTT" card (§14.5); the source priority block removed (§14.6).
-
 **Install section:** "Install Vitals on this device" (PWA install, as today, plus where the browser puts it) and "Run
 your own Vitals server" (one paragraph and a link to docs/SERVER.md). No Companion download, no terminal command for a
 person, no pairing-code instructions.
@@ -2598,7 +2236,7 @@ All of it: plain words, kJ next to kcal where energy shows, both themes, 390/768
 | Settings copy and the Coach notice that mention the Companion; `NetPurpose` `'companion'` (→ `'server'`) | the server package and its CLI for admins (`vitals-server`) |
 | the tab bridge for agents (`agentHub.ts`, `bridgeProtocol.ts`, `/v1/agent/manifest`, `/v1/agent/call`) | `/mcp` (now executing server-side), `vitals-mcp` stdio for an admin on the server host |
 | `POST /v1/pair/local` (origin-bound browser tokens), `POST /v1/pair/client` (replaced by agent tokens) | `/v1/pair/code`, `/v1/pair/status` with the §14.2 shapes, `/v1/pair/device`, `/v1/devices/*` |
-| `docs/COMPANION.md` as a person's guide (replaced by docs/SERVER.md; the old file keeps a one-line pointer) | `/v1/ingest` canonical batches, now per person via device token |
+| `docs/COMPANION.md` as a person's guide (replaced by docs/SERVER.md; the old file keeps a one-line pointer) | |
 | `vitals-companion install` wrapper for a person's PC | `vitals-server service`/`doctor` for the host |
 
 A guard test fails if the built app contains the word "Companion" in any screen text or the old local-pairing copy
@@ -2609,13 +2247,8 @@ browser's permission for the server.
 
 | Test | Owner | What it proves | Pass condition |
 |---|---|---|---|
-| **Two-person isolation** (property) | E25 | Two persons on one `home` server (even though production has one): random sequences of commands, AI calls (stubbed upstream), MCP calls, MQTT publishes and device-list calls, each under a randomly chosen token of person A or B | No response, tool list, proposal, usage line, dead letter, MQTT status or store document of one person ever contains an id or value written by the other; a token of A on any route of §14.2–14.5 never reads or writes B's directory (checked by filesystem audit of `persons/B/` mtimes); a person id in a query parameter or body is ignored |
+| **Two-person isolation** (property) | E25 | Two persons on one `home` server (even though production has one): random sequences of commands, AI calls (stubbed upstream), MCP calls and device-list calls, each under a randomly chosen token of person A or B | No response, tool list, proposal, usage line or store document of one person ever contains an id or value written by the other; a token of A on any route of §14.2–14.4 never reads or writes B's directory (checked by filesystem audit of `persons/B/` mtimes); a person id in a query parameter or body is ignored |
 | **Token rules** | E25 | origin and Host rules, revocation, query-parameter tokens | any token with a non-allowed `Origin` → 403; an unknown Host → 403; revoked → 401 `revoked` within one request; `?token=` → 401 |
-| **Correction / replay** | E28 | correction > device > nothing, replay-proof | device sleep 5 h 10 min → correct to 6 h → resolved 6 h, `basis: 'correction'`; replay the same MQTT stream and a file re-import → still 6 h; a newer device version of that night → still 6 h, the device record stored; `clearCorrection` → the newest device value; undo of `correct` → device value; scores of the day recomputed with the correction id in `sourceIds` |
-| **Owned-stream redirect** | E28 | the Coach cannot log over a device | with sleep owned, a Coach `log.sleep` yields a staged `biometrics.correct` proposal and no log entry; UI dispatch → `precondition_failed` `device_owned`; with sleep not owned, `log.sleep` works as before |
-| **No priority** | E28 | `bio.setSourcePriority` gone | not in the registry, the manifest or the Coach tools; stored priorities have no effect on `resolveDays`; migration idempotent |
-| **Identical batch** | E25 | file ≡ broker | `qa/fixtures/lumen/cloudevents.synthetic.jsonl` through `bio.import`, and `mqtt-stream.synthetic.jsonl` (same events, R16 §2.4) one message at a time through a real MQTT client (`mqtt` package, QoS 1) into the in-process broker, give equal records up to `channel` and `ingested_at`; the second path adds zero records; the night sent twice (provisional, complete) is one sleep record |
-| **Ack after write** | E25 | no loss | with the WAL append made to fail, no PUBACK is sent and the client redelivers; a hook delay of 2 s delays the PUBACK by ≥ 2 s (R16 asks for this measurement); a resend with the same envelope id after a lost PUBACK is stored once; a WAL entry left undone at shutdown is imported at start; malformed events land in dead letters with the right reason and are acknowledged |
 | **Website through the server, Coach with tools** | E27 + E26 | the binding test rule of PLAN "Final scope" | the built website (Playwright, Chromium) paired to the server by code; Coach on `siwc` (owner's sign-in once, then recorded fixtures replayed by a stub upstream in CI) receives a typed message, streams a reply, calls at least one read tool and one `log` tool, the log entry appears in a second browser profile through sync within 5 s; same journey on oci-arm before the tag |
 | **Agent through the server** | E26 | no tab needed | with no browser open, an MCP client (the SDK client in the test; Codex on the owner's PC for the release proof) lists tools with an agent token, calls a read tool and an `edit` tool; the edit appears as a proposal on the website; destructive tools absent; a `read`-scope token cannot call a `log` tool |
 | **Error wording** | E27 | §14.3 table | every error message renders as specified and passes the forbidden-text scan |
@@ -2625,23 +2258,15 @@ browser's permission for the server.
 ## 15. One app everywhere (plan 04, v0.5.0)
 
 **Status:** normative for v0.5.0 (package A5b, 2026-10-04). Plan: `plan/04-next/PLAN.md` items 1–12 and decisions 1–13.
-Owners: `L-RINGSVC` (ring service, item 11 defaults), `L-PAGES` (Ring and Body signals pages), `L-SYNC` (pairing turns
-sync on), `L-DESKTOP` (Electron), `L-ANDROID` (Capacitor), `L-WEB` (downloads block), `S0` (`src/platform/` stub,
-completed by `L-WEB`). The ring library (`packages/rings`: `RingFamily`, `Protocol`, `Transport`, `TransportFactory`,
-`openRingSession`, `RingSession`, `RingError`, `ringIdentity`, `ringSourceKey`, `ringRecords`, `reconnectDelayMs`) is
-A5a's contract (`packages/rings/src/types.ts`, `records.ts`); the platform transports are `L-XPORT`'s
-(`src/biometrics/ble/transports`: `pickTransport()`, `requestDevice`, `reconnect`, `NoDeviceError`). This section uses
-them and does not redefine them. Visual design of every screen named here
-is `L-AUDIT`'s `design/screens/ring-pages.md`. Where this section and §4.5, §4.6 or §14 disagree, this section wins for
-v0.5.0.
+Owners: `L-SYNC` (pairing turns sync on), `L-DESKTOP` (Electron), `L-ANDROID` (Capacitor), `L-WEB` (downloads block),
+`S0` (`src/platform/` stub, completed by `L-WEB`). Where this section and §14 disagree, this section wins for v0.5.0.
+In 0.6.0 the ring parts of v0.5.0 (the ring library `packages/rings`, the platform Bluetooth transports, the ring
+service, the Ring and Body signals pages, the Android foreground service and the desktop Bluetooth bridge) were removed;
+§15.2 and §15.3 are stubs and the rest of this section describes what remains.
 
 **What changes in one paragraph.** One web build runs in four places: the website, the installed PWA, an Electron
 desktop app and a Capacitor Android app. Each place reports what it is (`src/platform/`) and what it can do; nothing
-else in the app branches on user agents. A ring service in the app connects to the person's known rings on its own,
-holds one link per ring, reads history since the last read, and writes records with provenance into the biometrics
-store, so sync carries them to every device. A ring talks to one device at a time; every device shows where it is
-connected and offers "Connect here instead". Ring data is shared with the plan, scores, Coach and agents by default.
-Pairing a server turns sync on. The website's first screen offers the apps; the apps never show that block.
+else in the app branches on user agents. Pairing a server turns sync on. The website's first screen offers the apps; the apps never show that block.
 
 ### 15.1 Platform detection (`src/platform/`, tier H) · owner **S0** (stub), **L-WEB**
 
@@ -2649,220 +2274,23 @@ Pairing a server turns sync on. The website's first screen offers the apps; the 
 export type Platform = 'web' | 'pwa' | 'electron' | 'android';
 export interface PlatformCaps {
   platform: Platform;
-  ble: 'web-bluetooth' | 'capacitor' | 'electron' | null;   // the transport `pickTransport()` returns (L-XPORT)
-  keepAlive: boolean;          // the link may outlive the visible window (Android foreground service, desktop tray)
   installedApp: boolean;       // electron | android: no downloads block, no PWA install section
   mcpHost: boolean;            // electron only (§15.6)
   os: 'android' | 'ios' | 'windows' | 'macos' | 'linux' | 'chromeos' | 'other';
 }
 export function platform(): Platform;            // decided once at boot, then frozen
 export function platformCaps(): PlatformCaps;
-export function shell(): ShellBridge;            // §15.8; a no-op implementation on web and pwa
 ```
 - Order: `window.vitalsDesktop` present (the preload bridge, §15.6; `Electron/` in the user agent until it is) → `electron`; `Capacitor.isNativePlatform()` and
   `Capacitor.getPlatform() === 'android'` → `android`; standalone display (`isStandalone` in `src/app/pwa/install.ts`,
   exported for this) → `pwa`; else `web`. No user-agent sniffing for the platform; the user agent and `navigator.userAgentData` are read only for `os`.
-- `ble` follows `pickTransport()`; on web and pwa it is `'web-bluetooth'` only when `isWebBluetoothAvailable()` (`src/biometrics/ble/webBluetooth.ts`)
-  is true, else `null` (the Ring page then says the browser cannot reach rings and offers the apps, §15.3).
-- Files: `src/platform/{index,detect,caps,shell,os}.ts`, `__tests__/detect.test.ts` (each platform from a stubbed
+- Files: `src/platform/{index,detect,caps,os}.ts` (plus the shell bridges `androidShell.ts`, `desktopShell.ts`, §15.8), `__tests__/detect.test.ts` (each platform from a stubbed
   `window`). Tier H: pure modules (tier P) never import `src/platform`.
 - Tests may force a platform with `setPlatformForTests(p)`; no URL parameter or setting changes it in a build.
 
-### 15.2 Ring service (`src/biometrics/service/`, tier H) · owner **L-RINGSVC**
+### 15.2 Ring service — removed in 0.6.0 (manual-only; ring data lives in old ring app).
 
-One instance per app (`getRingService()`), started at boot after the store opens (`start()`; idempotent). It drives
-A5a sessions over the transport from `pickTransport()` and writes with A5a's `ringRecords` through the existing ingest
-path (`ringJob` in `src/commands/bio/exec.ts` moves here and stays the only writer; `bio.deviceConnect` and
-`bio.deviceSync` remain the UI commands and call the service). The types are `src/biometrics/service/types.ts`
-(`RingService`, `RingStatus`, `RingLinkState`, `RingServiceErrorCode`, `RingCandidate`, `RingHolder`, `CheckMetric`):
-
-```ts
-type RingLinkState = 'unsupported' | 'bluetooth_off' | 'permission_needed'
-  | 'idle'          // known ring, not connected, not trying
-  | 'searching' | 'connecting' | 'connected' | 'syncing'
-  | 'elsewhere'     // another device of this person holds the ring (fresh lease, below)
-  | 'error';
-type RingServiceErrorCode = 'not_found' | 'refused' | 'unsupported_firmware' | 'bond_required' | 'disconnected'
-  | 'bluetooth_off' | 'permission_needed' | 'failed';          // mapped from RingError and NoDeviceError
-interface RingStatus { ringKey: string; label: string /* driver label, never the advertised name */; state: RingLinkState;
-  battery?: number; charging?: boolean; firmware?: string; lastSyncAt?: Instant; lastSyncBy?: string; syncProgress?: number;
-  liveHr?: { bpm: number; at: Instant }; heldBy?: RingHolder; paused?: boolean;
-  error?: { code: RingServiceErrorCode; message: string /* plain words; never names a passcode or a retail brand */ } }
-interface RingService {
-  start(): Promise<void>; stop(): Promise<void>;
-  rings(): RingStatus[]; subscribe(cb: (rings: RingStatus[]) => void): () => void;
-  availability(): 'ready' | 'unsupported' | 'bluetooth_off' | 'permission_needed';
-  scan(signal: AbortSignal): AsyncIterable<RingCandidate>;   // web: opens the browser's chooser, inside a click
-  pair(candidateId: string): Promise<RingStatus>;              // first connect + full history the ring holds
-  connectHere(ringKey: string): Promise<void>;                 // "Connect here instead"
-  syncNow(ringKey: string): Promise<void>;
-  checkNow(ringKey: string, metric: CheckMetric /* 'hr' | 'spo2' | 'hrv' | 'skin_temp' */): Promise<{ value: number; unit: string; at: Instant }>;
-  watchLiveHeartRate(ringKey: string): () => void;             // while the Ring page is visible
-  disconnect(ringKey: string): Promise<void>;                  // stays known; auto-connect paused on this device
-  forget(ringKey: string): Promise<void>;                      // removes the ring from this person (data stays)
-}
-```
-"Stale" (last sync over 24 h ago) is derived by the pages from `lastSyncAt`, not a link state.
-
-**Auto-connect.** At start, on app resume, on Bluetooth on (`shell().onBluetoothState`) and on Android boot, the service
-tries every known ring (a `bioSources` doc with `deviceType: 'ring'`) whose lease is free, stale or held by this device,
-unless the person pressed Disconnect on this device. Reconnect backoff follows the driver's rules (A5a, ported from the
-Android drivers): `reconnectDelayMs(family.reconnect, attempt, gattStatus)`, where `null` means wait for Bluetooth.
-Capacitor and Electron reconnect without a gesture through the transport's `reconnect(platformId, family)`; the
-`platformId` (`link.deviceId`, the Bluetooth address on Android and Linux) is remembered per ring in device-local state
-(`deviceSettings` id `ringLink:<ringKey>`) and is never the ring's identity. On web and pwa `requestDevice` needs a
-click, so the service reconnects on its own only where `navigator.bluetooth.getDevices()` exists and returns the ring;
-else the state is `idle` and the Ring page shows Connect. While connected the service syncs on connect, then every 30 min,
-and on `syncNow`; live heart rate is read only while the Ring page is visible.
-
-**One central at a time: the lease.** The ring allows one connection, so devices take turns through a lease document
-in `bioSources` with id `lease:<ringKey>` (beside `policy:me`; source listings skip both). `bioSources` merges per
-top-level field (`lwwField`), so holder and taker write different fields and never overwrite each other:
-```ts
-interface RingLeaseBody { kind: 'ringLease'; ringKey: string;
-  holder: { deviceId: string /* SyncView.deviceId */; deviceLabel: string; platform: Platform; since: Instant } | null;
-  heartbeatAt: Instant | null;                                     // written by the holder only
-  takeover: { deviceId: string; deviceLabel: string; at: Instant } | null }   // written by the taker only
-```
-- The holder writes `heartbeatAt` every 5 min while connected (each write is a synced change kept forever, so not
-  more often) and sets `holder: null` on a clean disconnect (Disconnect, Forget, app stop, Bluetooth off, a takeover).
-  A lease is **stale** after 15 min without a heartbeat. (`LEASE_HEARTBEAT_MS = 300_000`, `LEASE_STALE_MS = 900_000`.
-  This replaces the first draft's lease inside `SourceBody.ble.link`: one field holding both writers' data would lose a
-  takeover in a merge.)
-- **The holder keeps the ring through a drop** (v0.5.3): an unexpected drop does not release the lease; the holder
-  retries on the ladder and lets go only after `RELEASE_AFTER_ATTEMPTS = 3` failed retries in a row (a browser, which
-  cannot reopen a link on its own, lets go at once). While it holds, the other devices show `elsewhere`, make no
-  attempt, and look again only when the lease would go stale. A takeover reaches the holder whether its link is up or
-  down: its retries stop, it releases and pauses.
-- `elsewhere` shows "Connected to <deviceLabel>" with the time since, and the action **Connect here instead**.
-- `connectHere`: writes `preferred` (always: the person chose this device) and `takeover` (lease held or stale) **before
-  any attempt**; the holder sees it through sync, disconnects within 10 s, clears `holder` and pauses its own
-  auto-connect for that ring until its person presses Connect there (or 12 h pass); the new device retries the
-  connection for 60 s (BLE needs a few seconds to free the link). If the lease is stale it connects at once. The ring
-  changes hands exactly once.
-- **Who holds by default** (`preferred`, v0.5.3): when the lease is free or stale, the device named in `preferred`
-  connects at once; with none named, the phone (platform `android`) does, since it runs the background service and reads
-  the night. Every other device waits `FREE_GRACE_MS = 15_000` and reads the lease again before its own attempt. No lease
-  document at all (no device has ever held the ring) means no wait.
-- **A fresh lease that arrives late**: an auto-connect in flight is aborted when the lease turns `held`; a link that
-  comes up after another device's fresh claim landed is closed without claiming; a device whose claim lost the merge
-  (another device's fresh claim shows while its link is open) lets go within one sync round, not at the next heartbeat.
-  A drop while another device holds a fresh lease shows `elsewhere` with no retry.
-- **The ladder never bounces the ring** (`STABLE_LINK_MS = 60_000`): the reconnect counter is reset only once a link
-  has stayed up 60 s or a history read completed, not on connect, so a link another central takes away seconds after it
-  came up keeps climbing 5, 15, 30, 60, 120, 300 s, and two links in a row taken away within 60 s of coming up make the
-  next try wait the slowest step (another central wants the ring; a lone early drop still climbs the ladder as Lumen
-  does). Two devices without a shared lease (sync off, another app) therefore cannot swap the ring every 5 s. The
-  ladder starts over when the app comes to the foreground, Bluetooth comes on, or the person presses Connect (Lumen's
-  rules); on resume an open link is checked with one battery read (registered as a check, so a read or live heart
-  rate waits for it) and reopened only when the ring that gave a battery level at connect gives none now. While the
-  person's scan or pairing runs, the service's own connects wait.
-- If the ring cannot be found or refuses the connection and no fresh lease explains it, the error says "Your ring may be
-  connected to another app or phone. Close it there, then try again." Nothing else is assumed. The readouts (battery,
-  last read) stay on screen.
-- Without sync (no server, no sync group) there is no lease: the service connects and the error line above covers
-  another app holding the ring.
-
-**History since the last read.** Each device keeps its own cursor per ring in device-local state (the local-only
-collection `deviceSettings`, document id `ringCursor:<ringKey>`; the synced `SourceBody.ble.cursor` is no longer
-written). Before a sync the
-service may skip ahead to the newest sample the store already holds for that ring and stream, minus 2 hours of overlap;
-correctness never depends on this (PLAN item 1 rule f). A5a's `store.loadCursor(identity)` and `saveCursor` are
-implemented over this document; the cursor is saved only after the batch is ingested. The first `pair` reads everything
-the ring still holds. Synced
-`SourceBody.ble` keeps only facts about the ring: `driver`, `ringId`, `firmware`, `battery`, `lastSyncAt`, `lastSyncBy`
-(device label), `clockOffsetS`.
-
-**Ring identity and source key (PLAN item 1 rules a–e).**
-- `ringKey` = `ringSourceKey(ringIdentity(…))` = `ble:<family>/<model>/<ringId>` (A5a). It is both the record's
-  `provenance.channel` and the source key: `sourceKeyOf` returns such a channel unchanged. `ringId` is `serial:<S>`, else
-  `mac:<address>`, else `adv:<id>`, read from the ring (status events, Device Information, manufacturer data) or the
-  Bluetooth address where the platform exposes it. Web Bluetooth's per-origin device id is never used.
-- A device that meets a ring whose identity basis it cannot see (for example no address in a browser) looks for the
-  person's ring sources of the same family and model; if there is exactly one it uses that key, else it asks once "Is this your J-Style 2301 from <device>?" (no typing).
-- `manufacturer` and `model` come from the driver (`J-Style`, `2301`), never from the advertised name (decision 10).
-  The advertised name is not stored or shown, and it is never a `ringId`: a peripheral that gives only a name has no
-  identity (the session refuses it; a browser id gives `adv:<id>`).
-- One ring = one source. `biometrics.ringFold` (system actor, at boot and after a ring is paired, idempotent) moves a
-  `ble:` source keyed from what a ring advertised (neither a ring key nor its driver's canonical legacy key) into the
-  ring's canonical source, a Lumen source under an old key into the one Lumen key, and, when the person has exactly one
-  J-Style 2301 ring source, the Lumen source into it; from then on `bioSources/ringFold:me` `{ lumen: <ringKey> }` makes
-  the ingest pipeline file new Lumen data (MQTT, files, archive) under the ring key. Records keep their ids and samples
-  merge by `(origin, t)`, so nothing is duplicated; the old source goes as `bio.deleteSource` removes one. With two or
-  more J-Style 2301 rings nothing folds. Every case is detected by key structure, never by a name.
-- Record ids come from content, never from the read window: A5a's `ringRecords` uses `seriesRecordId`,
-  `sleepRecordId` (versioned by `sleepVersion`), `dailyRecordId` and `workoutRecordId` from
-  `src/biometrics/core/recordIds.ts` with `source = ringKey` (not today's `mapEventsToBatch`, which keys series by their
-  first sample); series are stored as chunks per (source, stream, local date) and samples merge by `(origin, t)`, §4.2. Two devices reading the same night therefore write the
-  same record; fields that differ per reader (`provenance.ingested_at`) are not part of identity.
-- Keys are never rewritten (record ids and chunk keys embed them). An existing ring source from before v0.5.0
-  (`ble:jstyle2301|…`, `ble:colmi|…`) keeps its key and history; new reads go to the new key. A stored ring
-  source whose label carries another manufacturer name is shown as `J-Style 2301` (`sourceLabel` uses the driver's
-  label for `deviceType: 'ring'`); its key lives only in the person's data. Lumen-imported data keeps its own source
-  (`file:lumen_cloudevents|…`) and record ids; it gets the ring defaults below.
-
-**Provenance on every ring record.** `channel: ringKey` on every platform; `device: { type: 'ring', manufacturer,
-model, firmware, tier }` from the family (`J-Style`, `2301`); `recording_method: 'automatic'`; `modality: 'sensed'`;
-`decoder: family.decoderTag(firmware)`; `source_app: 'Vitals'`. Which device read it is **not** part of the record (two
-devices must produce identical records); the job log keeps it.
-
-**Item 11 defaults and the master switch.**
-- A **ring source** is a source whose channel starts with `ble:`, or the Lumen source (`file:lumen_cloudevents`): one
-  test, `isRingSource` in `src/biometrics/core/policy.ts`, for the commands, the migration, `newSourceDoc` and the Ring
-  page. A `ring` device type alone does not count (Apple Health, Health Connect and Gadgetbridge files mark rings too;
-  those imports stay opt-in, §4.5). New function `ringDefaultPolicies(): StreamPolicy[]` in `src/biometrics/core/source.ts`
-  (beside `defaultPolicies` and `suggestedPolicies`) = `imported: true`, `scores: true`, `engine: true` where
-  `engineEligible`, `coach: 'daily+series'`, for every stream in `POLICY_STREAMS`. The ring job creates ring sources
-  with it and does not apply `adoptPersonPolicies` to them; every other source keeps `suggestedPolicies` plus the
-  person's matrix (`policy:me`, §4.5).
-- **Master switch** "Use my ring data in my plan and Coach" on the Ring page. UI-only command `bio.setRingSharing
-  { on: boolean }` (perm write, impact consequential, undo RT): on → the ring defaults on every ring source; off →
-  `engine: false`, `scores: false`, `coach: 'hidden'` on every stream of every ring source (`imported` stays on, so the
-  Ring pages still show the data). The switch reads **on**, **off** or **some** (any other mix; "Some of it is shared"
-  with a link to Settings › Devices). Per-stream switches stay in Settings › Devices (`bio.setPolicy`). The command
-  also stores the choice once per person in `bioSources/ringSharing:me` (`choice: 'on' | 'off'`, synced; part of the
-  same change, so Undo restores it), and every ring source created later (`newSourceDoc`, a stream new to a ring source,
-  the Lumen broker) starts from it: the ring defaults, or with the switch off what off writes.
-- A plain line under the switch: "Your ring data is used for your plan and scores, and the Coach and your AI tools can
-  see it. Turn it off here or per signal in Settings › Devices."
-- MCP read tools and `briefing_get` (item 12) apply the same visibility rule as the Coach (`coachSees` in
-  `src/commands/bio/exec.ts`), so the same switch hides ring data from agents.
-- **Existing data:** migration `biometrics.ringDefaults` (registered like `biometrics.dropPriorities` in
-  `src/commands/biometrics/index.ts`; once, system actor): a ring source whose policies were never
-  changed by the person (no policy change with a `user` actor in the ledger) gets the ring defaults and a one-time
-  notice on the Ring page; a source the person changed is left alone. It records itself (`ringDefaults:me`) only once
-  it moved or kept a ring source, so a device whose ring source has not synced in yet does not stop it for every device.
-
-### 15.3 Ring page and Body signals page · owner **L-PAGES**
-
-| Route | Page | Code | Purpose |
-|---|---|---|---|
-| `/ring` | Ring | `src/features/ring/` | the ring itself: connection, pairing, today's tiles, Check now, master switch, ring settings |
-| `/signals` | Body signals | `src/features/signals/` | what the ring measured over time: tabs Sleep, Heart and recovery, Activity |
-
-`/body` stays the existing Body page (`src/features/body/BodyPage`); `L-PAGES` owns `src/features/signals/**` in place
-of the plan's `src/features/body/**`. `S0` created both routes (`src/features/ring/RingPage.tsx`,
-`src/features/signals/SignalsPage.tsx`, helpers `paths.ring`, `paths.signals` in `src/app/paths.ts`) and left the nav
-entry point in `src/app/shell/nav.ts` (`DESTINATIONS`, `LIVING_DESTINATIONS`). Navigation
-placement (a Ring entry in the phone nav, a link from Settings › Devices on desktop) is D4's (`ring-pages.md`).
-
-**Ring page data:** `getRingService().rings()` and `subscribe` for the connection card (state, battery, last sync,
-`heldBy`, actions Connect / Sync now / Connect here instead / Check now); `today.get` and `bio.daily` for today's tiles
-(the resolved view, §14.6, so a correction shows as corrected); `bio.sources` for the master switch state. Pairing flow:
-`scan()` list of `RingCandidate` (driver label, signal), tap to `pair`; no password, key or "advanced" field for any
-ring (decision 13); the only prompt a person may see is the operating system's own pairing dialog, preceded by "Your
-phone may ask to pair with the ring. That's expected."
-
-**Body signals data:** `bio.daily` (resolved days), `bio.series` (chunks: heart rate by hour, SpO2 and temperature at
-night), sleep records (stages; `unknown` time drawn as unknown), workouts; the E29 views in
-`src/features/living/progress/ring/` (`RingViews.tsx`, `ringData.ts`) are moved here and the Progress page links to
-`/signals`. URL state: `?tab=sleep|heart|activity&period=day|week|month|year&date=YYYY-MM-DD`; periods are
-calendar-aligned (ISO week, calendar month); a day with no data is drawn as missing, never as zero. Every value shows its
-source label and, for tier C signals, the change from the person's own normal (§4.4).
-
-**States both pages render** (tested at 390 / 768 / 1440 px in both themes): unsupported browser (offers the apps),
-no ring, Bluetooth off, permission needed, searching, connecting, connected, syncing, connected elsewhere, stale (last
-sync over 24 h), error, unknown sleep stages, missing days.
+### 15.3 Ring page and Body signals page — removed in 0.6.0 (manual-only; the `/ring` and `/signals` routes and the top-bar ring key are gone).
 
 ### 15.4 Pairing turns sync on (decision 5) · owner **L-SYNC**
 
@@ -2884,7 +2312,7 @@ Contract only; shapes are `L-SYNC`'s and replace the I3 note "pairing never fill
 
 The owner's phone runs Tailscale with its DNS setting off, so `*.ts.net` names do not resolve there.
 - The server gets a public name for its HTTPS address (`publicHosts`, behind Caddy, §14.2) and that address becomes its
-  `publicOrigin`, so pairing QR codes and links (`vitals-server:1?u=…`), agent MCP addresses and the MQTT hint carry an
+  `publicOrigin`, so pairing QR codes and links (`vitals-server:1?u=…`), agent MCP addresses carry an
   address every device can reach; the tailnet address keeps working where it resolves. Steps and the chosen name are in
   `L-REL`'s survey (`.jobs/L-REL.server-address.md`), applied by the orchestrator with the owner's approval.
 - The app accepts any `https://` base URL (§14.2 rule unchanged). No hostname, address or tailnet name is written in
@@ -2901,14 +2329,9 @@ The owner's phone runs Tailscale with its DNS setting off, so `*.ts.net` names d
   `supportFetchAPI`); unknown paths fall back to `index.html`; responses carry the same CSP as `netlify.toml` plus
   nothing else. Navigation away from `app://vitals` and `window.open` go to the system browser. `contextIsolation: true`,
   `sandbox: true`, `nodeIntegration: false`, one window, single-instance lock (a second launch focuses the first).
-- **Bluetooth:** item 1's Electron transport (A5a, `L-XPORT`): `webContents.on('select-bluetooth-device')` in main forwards
-  the device list to the renderer's scan list and returns the person's choice (`L-XPORT`'s `apps/desktop/src/ble/`:
-  `enableWebBluetooth(app)` before ready, `attachBluetooth(win.webContents, ipcMain)` per window, `bluetoothBridge` in
-  the preload, exposed as `window.vitalsDesktop.bluetooth`); a `node-ble` fallback, if R21 needs it, lives behind the
-  same bridge. The ring service itself runs in the renderer.
-- **Tray:** the ring mark; menu: Open Vitals; a status line ("Ring connected · 82 %" / "Ring not connected"); Sync now;
-  Start with my computer (check box); Quit. The tray line comes from `shell().keepAlive` (§15.8). Closing the window hides it to the tray (window kept with
-  `backgroundThrottling: false`, so the ring link and sync go on). Where the desktop has no tray, closing quits.
+- **Tray:** menu: Open Vitals; Sync now; Start with my computer (check box); Quit. No ring status (removed in 0.6.0).
+  Closing the window hides it to the tray (window kept with `backgroundThrottling: false`, so sync goes on). Where the
+  desktop has no tray, closing quits.
 - **Autostart:** off by default; set from the tray or Settings › Install (desktop only row). Windows:
   `app.setLoginItemSettings({ openAtLogin, args: ['--hidden'] })`; macOS: `setLoginItemSettings({ openAtLogin })` and a
   login start is detected with `getLoginItemSettings().wasOpenedAtLogin`; Linux: `~/.config/autostart/vitals.desktop`
@@ -2943,11 +2366,11 @@ The owner's phone runs Tailscale with its DNS setting off, so `*.ts.net` names d
 - **Preload surface:** `window.vitalsDesktop`, typed by `DesktopBridge` in `apps/desktop/src/shared/bridge.ts` (with
   `APP_ORIGIN`, `FLAGS` `--hidden` / `--mcp` / `--client`, and `CHANNELS`, every one prefixed `vitals:`; main rejects a
   call whose sender frame is not `app://vitals`). The page declares the same shape structurally in
-  `src/platform/bridge.ts` and never imports desktop code. Members: `version`, `os`; `bluetooth` (`L-XPORT`); `tray.setStatus`;
+  `src/platform/bridge.ts` and never imports desktop code. Members: `version`, `os`; `tray.setStatus`;
   `autostart.get/set`; `updates.onState/check/restart` (`UpdateState`: idle, checking, downloading, ready, manual, error);
   `mcp.tools/add/remove` (`AiToolRow`), `mcp.onCall` (main → page tool calls when no server is paired, answered with the
   `ToolResultEnvelope`), `mcp.setManifest`, `mcp.setServer({ mcpUrl } | null)`; `secrets.get/set` (`agentToken:<AiToolId>`);
-  `keepAlive(on, text)`; `onShow(cb)`. `AiToolId` is `'claude-code' | 'codex' | 'opencode' | 'chatgpt-desktop'`; it maps
+  `onShow(cb)`; `onSyncNow(cb)` (the tray's Sync now). The 0.5.0 members `bluetooth` and `keepAlive` were removed in 0.6.0. `AiToolId` is `'claude-code' | 'codex' | 'opencode' | 'chatgpt-desktop'`; it maps
   to the server's `AgentClient` with `'claude-code'` → `'claude'`.
   `mcp.add` is only callable from the consent dialog's confirm handler (a user gesture); the preview is what is written.
 - **First run** without a server works locally (providers with the person's key); with a server, the Coach providers and
@@ -2958,57 +2381,35 @@ The owner's phone runs Tailscale with its DNS setting off, so `*.ts.net` names d
 - `apps/android/capacitor.config.ts`: `appId: 'desi.creative.vitals'`, `appName: 'Vitals'`, `webDir: '../../dist'`,
   `server.androidScheme: 'https'` (origin `https://localhost`). Capacitor 8, `minSdk 26`, `targetSdk 36` (Android 16).
   `versionName` = the root `package.json` version, `versionCode` = major·10000 + minor·100 + patch.
-- **Bluetooth:** `@capacitor-community/bluetooth-le` 8 through `L-XPORT`'s Capacitor transport. Permissions
-  `BLUETOOTH_SCAN` (`neverForLocation`), `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`,
-  `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `RECEIVE_BOOT_COMPLETED`, `CAMERA` (QR); for Android 8–11 also
-  `ACCESS_FINE_LOCATION`, `BLUETOOTH` and `BLUETOOTH_ADMIN` with `maxSdkVersion 30` ("Android needs location access to
-  find Bluetooth devices. Vitals does not use your location."). Each is asked when first needed, with one plain line why.
+- **Permissions:** `INTERNET` and `CAMERA` (QR), the camera asked when first needed with one plain line why. No
+  Bluetooth, location, notification, foreground-service or boot permissions since 0.6.0.
 - **Native plugin `VitalsShell`** (Kotlin, `apps/android/android/app/src/main/java/desi/creative/vitals/`), the only
-  Vitals native code besides Capacitor's own plugins: `keepAlive({ on, text })` starts or stops a foreground service of
-  type `connectedDevice` with the persistent notification ("Ring connected" / "Reading your ring…" / "Waiting for
-  Bluetooth"); `notify({ kind, title, text })`; events `bluetoothState`, `bootCompleted`, `resume`, `shared` (files
-  shared to Vitals). Android 12+ does not let a Bluetooth-on broadcast start a foreground service from the background,
-  so the service is started from the app or at boot (`BOOT_COMPLETED` is allowed) and **stays running while Bluetooth
-  is off**, reconnecting when it comes back on. The ring link and history sync stay in the web layer; the service keeps
-  the process alive. If R21 shows the WebView stalls with the screen off, `L-ANDROID` reports it and the fallback is
-  decided then (not specified here).
-- **Notifications:** channel `ring_link` (low importance, the persistent one); channel `ring_alerts`: "Ring battery low"
-  at 15 % or less (once per charge), "Ring disconnected" after 10 min without reconnecting (once until it reconnects).
-- **Keep my ring connected** (Ring page, Android only, on by default): when on and a ring is known, the service starts
-  with the app and at boot, and survives Bluetooth off and on.
+  Vitals native code besides Capacitor's own plugins: `saveFile({ name, mime, dataBase64 })` hands an export to the
+  system share sheet. The 0.5.0 foreground service, ring tick, boot receiver, `RingWebView`, ring notifications and
+  share-in of health files were removed in 0.6.0.
 - **Pairing to the server:** Settings › Server by code or by QR (the existing scanner, camera through the WebView); the
   pairing link opens the app when installed (App Link, `/.well-known/assetlinks.json` on the website, requested from
   `L-WEB`; verified only for the signed build, an unsigned APK opens the link in the browser).
-- **Files:** import through the Android file picker into `bio.import`; "Share to Vitals" (an intent filter delivered by
-  the `shared` event) for the same formats Lumen accepted; export through the system share sheet.
+- **Files:** exports are saved through the system share sheet (`saveFile`); Vitals takes no shared files in.
 - **Back button** goes back in the router and leaves the app at the root route.
 - **Build:** `pnpm --filter @vitals/android run build:apk` gives the unsigned release APK; `L-REL`'s CI signs it on the tag
   (keystore outside the repo; `Vitals-android-unsigned.apk` if CI has no key).
 
 ### 15.8 Shell bridge and how the pieces talk
 
-```ts
-// src/platform/shell.ts
-interface ShellBridge {
-  keepAlive(on: boolean, text: string): Promise<void>;     // android: foreground service; electron: tray status; web: no-op
-  notify(n: { kind: 'battery_low' | 'ring_disconnected'; title: string; text: string }): Promise<void>;
-  onBluetoothState(cb: (on: boolean) => void): () => void; // android receiver; web: navigator.bluetooth availability
-  onResume(cb: () => void): () => void;                    // android resume, electron show, web visibilitychange
-}
-```
+The shell bridges are `src/platform/androidShell.ts` (the `VitalsShell` plugin: `saveFile`) and
+`src/platform/desktopShell.ts` (the preload's `onSyncNow`); outside their app every call does nothing. The 0.5.0
+`ShellBridge` (`keepAlive`, `notify`, `onBluetoothState`, `onResume`) was removed with the ring service in 0.6.0.
 
 | From | To | Through |
 |---|---|---|
-| `packages/rings` (A5a) + transports (`L-XPORT`) | ring service | `RingFamily`, `openRingSession`, `ringRecords`; `pickTransport()` |
-| ring service | biometrics store | the ingest path (`mapEventsToBatch` → ingest → rescore), records with provenance, `SourceBody.ble` (lease, facts) |
-| ring service | Ring and Body signals pages | `getRingService().rings()` / `subscribe`; pages read history through `bio.*` commands only |
-| ring service | Android and desktop shells | `shell().keepAlive`, `shell().notify`, `onBluetoothState`, `onResume` |
-| store | every device, the server | sync (§2.6, §14.6); ring leases travel the same way |
+| store | every device, the server | sync (§2.6) |
 | desktop MCP host | command bus | local socket → main → renderer `dispatch` (no server), or the server's `/mcp` (server) |
+| desktop tray | sync | `onDesktopSyncNow` → a manual sync run (as "Sync now") |
 | pairing (§14.2) | sync | §15.4 |
-| `src/platform` | downloads block, Install section, Ring page, Settings › Agents | `platformCaps()` |
+| `src/platform` | downloads block, Install section, Settings › Agents | `platformCaps()` |
 
-No feature imports Capacitor or Electron directly: only `src/platform/` and the transports in `src/biometrics/ble/` do.
+No feature imports Capacitor or Electron directly: only `src/platform/` does.
 
 ### 15.9 Downloads block (`src/features/home/`) · owner **L-WEB**
 
@@ -3043,12 +2444,7 @@ No feature imports Capacitor or Electron directly: only `src/platform/` and the 
 | Test | Owner | Pass condition |
 |---|---|---|
 | Platform detection | S0 / L-WEB | each of web, pwa, electron, android from a stubbed `window`; `os` for Android, iOS, Windows, macOS, Linux, ChromeOS user agents |
-| Ring identity | L-RINGSVC | the same fake ring through the three transport fakes gives one `ringKey`; the advertised name never appears in a source key, label or record |
-| Two devices, one ring (PLAN item 1 binding test) | L-SYNC + L-RINGSVC | two replicas read one fake ring while offline (one more, one after a revised night), go online in either order: one record per night, one sample per (stream, time), nothing lost, on every replica and the server |
-| Lease | L-RINGSVC | holder heartbeats; second device shows `elsewhere` with the holder's label; `connectHere` moves the link within 2 min online; concurrent heartbeat and takeover writes both survive a merge; a stale lease is taken at once; no lease without sync |
-| Ring defaults | L-RINGSVC | a new ring source has the ring defaults on every platform; other imports stay off; master off removes ring data from the plan, scores, Coach briefing and `briefing_get` within one sync; `biometrics.ringDefaults` leaves a changed source alone |
-| Pages | L-PAGES | every state of §15.3 at 390 / 768 / 1440 in both themes; missing days are gaps; forbidden-text scan; no password or key text anywhere |
 | Pairing turns sync on | L-SYNC | a fresh device paired by code reaches `synced` with no other step and sees the person's data |
 | Desktop | L-DESKTOP | packaged Linux app under Playwright's Electron driver: loads from `app://vitals`, tray, autostart toggle writes and removes the entry, update check against a fixture feed, "Connect your AI tools" writes nothing before consent and exactly the preview after, `--mcp` lists tools and runs a read and a log call with and without a server |
-| Android | L-ANDROID | install, first run, pair, connect the ring, history sync, foreground notification present, screen off for an hour without losing the link, reconnect after Bluetooth off and on |
+| Android | L-ANDROID | install, first run, pair by code and by QR, the pairing App Link opens the app, an export saved through the share sheet |
 | Downloads | L-WEB | OS choice per platform; links resolve against a recorded release; fallback link on API failure; hidden on pwa, electron, android; no layout shift; both themes at 390 / 768 / 1440 |

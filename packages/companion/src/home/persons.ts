@@ -33,11 +33,10 @@ export const personPaths = (dataDir: string, id: string) => {
     ownerKey: join(dir, 'owner.key'),
     person: join(dir, 'person.json'),
     devices: join(dir, 'devices.json'),
-    mqtt: join(dir, 'mqtt.json'),
-    ingest: join(dir, 'ingest'),
-    wal: join(dir, 'ingest', 'wal.jsonl'),
-    installations: join(dir, 'ingest', 'installations.json'),
-    deadletter: join(dir, 'deadletter'),
+    /** The Gauge uploads (`./lumenStore.ts`); never part of the Evolu replica. */
+    lumen: join(dir, 'lumen.db'),
+    /** (r063) The person's step-fusion context (`./fusionContext.ts`): approved activity windows and step settings. */
+    fusionContext: join(dir, 'fusion-context.json'),
     backup: join(dir, 'backup'),
     credentials: join(dir, 'credentials'),
   };
@@ -96,13 +95,12 @@ export function createPersonRegistry(dataDir: string): PersonRegistry {
       do id = randomBytes(8).toString('hex');
       while (index.some((p) => p.id === id) || existsSync(join(dataDir, 'persons', id)));
       const p = personPaths(dataDir, id);
-      for (const d of [p.dir, p.ingest, p.deadletter, p.credentials]) await mkdirPrivate(d);
+      for (const d of [p.dir, p.credentials]) await mkdirPrivate(d);
       await writeFile(p.ownerKey, secret, { mode: 0o600, flag: 'wx' });
       const createdAt = new Date().toISOString();
       const clean = label.trim().slice(0, 60) || 'Person';
       await writeJsonSecret(p.person, { label: clean, timeZone, deviceId: newServerDeviceId(), relayUrl, createdAt } satisfies PersonFile);
       await writeJsonSecret(p.devices, []);
-      await writeJsonSecret(p.mqtt, []);
       const entry = { id, label: clean, createdAt };
       await writeJsonSecret(indexFile, [...index, entry]);
       return entry;

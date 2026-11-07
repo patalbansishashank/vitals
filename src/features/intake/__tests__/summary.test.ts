@@ -58,7 +58,7 @@ const get = (rows: ReturnType<typeof chapterRows>, label: string) => rows?.filte
 
 describe('chapterRows: one labelled row per answer', () => {
   it('is null for a part nobody has touched', () => {
-    for (const c of ['activity', 'training', 'food', 'markers', 'devices'] as const) expect(chapterRows(c, EMPTY_INTAKE, ctx)).toBeNull();
+    for (const c of ['activity', 'training', 'food', 'markers'] as const) expect(chapterRows(c, EMPTY_INTAKE, ctx)).toBeNull();
   });
 
   it('a normal day: steps, time on your feet, exercise and the energy line, each under its own label', () => {
@@ -67,7 +67,7 @@ describe('chapterRows: one labelled row per answer', () => {
       activity: { turns: { ...answered({ work: 'no', stepsKnown: 'roughly', stepsRough: 2100, offDay: 'mixed', home: 'some', sport: [], trainNow: 'sometimes', 'meta.india': false, 'meta.gentle': false, 'meta.stepDevice': false }) } },
     } as unknown as IntakeDoc;
     const rows = chapterRows('activity', doc, ctx, { energy: 'about 2 460 kcal a day — likely 2 150–2 780' })!;
-    expect(get(rows, 'steps, roughly')).toEqual(['about 2 100 a day']);
+    expect(get(rows, 'steps, roughly')).toEqual(['about 2,100 a day']);
     expect(get(rows, 'on your feet at home')).toEqual(['some (1–2 h)']);
     expect(get(rows, 'energy you burn')).toEqual(['about 2 460 kcal a day — likely 2 150–2 780']);
     // every row has a label and a value, none is a joined line of unlabelled values
@@ -121,32 +121,5 @@ describe('chapterRows: one labelled row per answer', () => {
     expect(rows.find((r) => r.label === 'sugar')!.value).toMatch(/5\.6/);
     markers = { ...emptyMarkersDoc(), chapter: 'skipped' };
     expect(chapterRows('markers', EMPTY_INTAKE, ctx)).toEqual([{ label: 'status', value: 'skipped this time' }]);
-  });
-
-  it('devices: each device with its model, the phone, what comes in, the plan and what the Coach sees', () => {
-    const streams = [
-      { stream: 'sleep_sessions', imported: true, scores: true, engine: true, coach: 'daily+series' },
-      { stream: 'heart_rate', imported: true, scores: true, engine: true, coach: 'daily+series' },
-      { stream: 'steps', imported: true, scores: false, engine: true, coach: 'daily' },
-      { stream: 'spo2', imported: false, scores: false, engine: false, coach: 'hidden' },
-    ];
-    const doc = {
-      ...EMPTY_INTAKE,
-      devices: { has: ['ring', 'phoneOnly', 'scale'], models: ['J-Style ring', 'Withings'], platforms: ['android'], streams, turns: answered({ has: ['ring'], routes: 'seen' }) },
-    } as unknown as IntakeDoc;
-    const rows = chapterRows('devices', doc, ctx)!;
-    expect(get(rows, 'ring')).toEqual(['J-Style ring']);
-    expect(get(rows, 'smart scale')).toEqual(['Withings']);
-    expect(get(rows, 'just my phone')).toEqual(['in use']);
-    expect(get(rows, 'phone')).toEqual(['Android']);
-    expect(get(rows, 'connection')).toEqual(['not connected yet']);
-    expect(get(rows, 'brought in')).toEqual(['sleep, heart rate, steps']);
-    expect(get(rows, 'in your scores')).toEqual(['sleep, heart rate']);
-    expect(get(rows, 'in your plan')).toEqual(['sleep, heart rate, steps']);
-    expect(get(rows, 'Coach sees daily + detail')).toEqual(['sleep, heart rate']);
-    expect(get(rows, 'Coach sees daily')).toEqual(['steps']);
-    expect(get(rows, 'files and other apps')![0]).toMatch(/off until you turn them on/);
-    const none = chapterRows('devices', { ...EMPTY_INTAKE, devices: { has: ['none'], models: [], platforms: [], streams: [], turns: answered({ has: ['none'] }) } } as unknown as IntakeDoc, ctx)!;
-    expect(none).toEqual([{ label: 'devices', value: SUMMARY.devicesNone }]);
   });
 });

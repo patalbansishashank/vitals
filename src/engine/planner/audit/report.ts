@@ -14,6 +14,7 @@ import type { EdgeLiveness, UndocumentedEffect } from './liveness';
 import type { DynamicStatus, GateCost } from './plan';
 import { fastingGateReport, metricLabel, type FastingGateReport, type GeneRangeReport, type ReachabilityReport, type RepairRateReport } from './static';
 import type { ModeAgreement } from './evaluator';
+import type { RefusedGoalCheck } from './corpus';
 
 /**
  * Flagged rules the owner reviewed and kept (QA pass 2, 2026-10-02). The flag stays in the numbers so a later audit
@@ -39,6 +40,8 @@ export interface StaticPart {
   masking: Array<{ key: string; formLimitH: number; masked: boolean }>;
   fastingGate: Record<string, 'graphOnly' | 'gateOnly'>;
   evaluator: { unrecorded: string[]; agreement: ModeAgreement };
+  /** D8-08/D8-09 (C6): corpus goals the production capability gate refuses (absent in parts cached before it). */
+  refusedGoals?: { checks: RefusedGoalCheck[]; failures: string[] };
 }
 
 export interface LivenessPart {
@@ -84,6 +87,8 @@ export interface CoverageSummary {
   fastingGateVsGraph: FastingGateReport;
   geneRange: { dead: string[]; outsideRegistry: string[]; effectivelyFixed: string[] };
   evaluator: { unrecordedSeries: string[]; plans: number; maxRelDiff: number; disagreements: number };
+  /** Corpus goals the production capability gate refuses, with the capability reason (D8-08/D8-09, C6). */
+  refusedGoals: Array<{ metric: string; reasonCode: string; refused: boolean }>;
 }
 
 /** Run times of the audit's parts (uncommitted, qa/results/.timing/audit.json). */
@@ -160,6 +165,7 @@ export function summarise(s: StaticPart, l: LivenessPart, p: PlanPart): Coverage
       effectivelyFixed: s.repair.effectivelyFixed,
     },
     evaluator: { unrecordedSeries: s.evaluator.unrecorded, plans: s.evaluator.agreement.plans, maxRelDiff: s.evaluator.agreement.maxRelDiff, disagreements: s.evaluator.agreement.diffs.length },
+    refusedGoals: (s.refusedGoals?.checks ?? []).map((c) => ({ metric: c.metric, reasonCode: c.reasonCode, refused: c.refused })),
   };
 }
 
@@ -217,6 +223,11 @@ export function markdown(sum: CoverageSummary, s: StaticPart, l: LivenessPart, p
   line(`| Rules flagged for review (a better safe plan without them) | ${sum.gates.flagged.length}${reviewed ? ` (${reviewed} reviewed and kept)` : ''} |`);
   line(`| Effects in the model with no documented mechanism | ${sum.undocumentedMechanisms.length} |`);
   line(`| Planner and Simulator agree on goal values | ${sum.evaluator.disagreements === 0 ? 'yes' : 'no'} (${sum.evaluator.plans} random plans, largest relative difference ${sum.evaluator.maxRelDiff.toExponential(1)}) |`);
+  if (sum.refusedGoals.length)
+    line(`| Goals the planner refuses as objectives | ${sum.refusedGoals.length}: ${sum.refusedGoals.map((r) => `${metricLabel(r.metric)}${r.refused ? '' : ' (**accepted**)'}`).join(', ')} |`);
+  line();
+  // D4-08: what the audit is and is not; external forecast accuracy is reported separately
+  line('These are checks of the software and of the model’s internal consistency: they show that the planner can reach and use each piece of evidence, not that its forecasts match what happens to people. How the model’s forecasts compare with measured outcomes is in the validation report, where checks of the software, fits to the studies the model was built from, and comparisons with studies it never saw are counted separately. A request with no plan is a search result within a budget, never proof that no safe plan exists.');
   line();
 
   line('## 1. Can every lever appear in a plan?');

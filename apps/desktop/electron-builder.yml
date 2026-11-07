@@ -33,11 +33,11 @@ linux:
   executableName: vitals
   icon: build/icons/png
   synopsis: See what a plan does before you live it
-  description: Vitals, the health app, with the ring over Bluetooth and the Vitals MCP for AI tools on this computer.
+  description: Vitals, the health app, with the Vitals MCP for AI tools on this computer.
   desktop:
     entry:
       Name: Vitals
-      Comment: Your ring, your plan, your data
+      Comment: Your plan, your data
       Categories: Utility;Health;
       StartupWMClass: vitals
 appImage:
@@ -67,7 +67,6 @@ mac:
   identity: null
   artifactName: Vitals-macos-universal.dmg
   extendInfo:
-    NSBluetoothAlwaysUsageDescription: Vitals connects to your ring over Bluetooth.
     NSCameraUsageDescription: Vitals uses the camera to scan a pairing code.
 dmg:
   artifactName: Vitals-macos-universal.dmg

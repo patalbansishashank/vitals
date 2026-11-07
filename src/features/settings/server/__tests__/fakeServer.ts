@@ -14,7 +14,7 @@ export interface FakeServerState {
   role: string;
   syncKey: string | null;
   keyIssued: boolean;
-  devices: Array<{ id: string; kind: string; label: string; scope: string; createdAt: string; lastSeenAt: string; current: boolean }>;
+  devices: Array<{ id: string; kind: string; label: string; scope: string; createdAt: string; lastSeenAt: string; current: boolean; origin?: string }>;
   presets: Array<{ id: string; label: string; ready: boolean }>;
   siwc: { signedIn: boolean; plan?: string };
   keys: Record<string, string>;

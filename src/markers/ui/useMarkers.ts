@@ -8,10 +8,12 @@
  */
 import { useMemo } from 'react';
 import { useSafetyAccess } from '@/features/onboarding';
+import type { RenalFinding } from '@/features/onboarding/renalScope';
 import type { LocalDate } from '@/store';
 import { useBodyContext, usePersonProfile } from '@/state/profileStore';
 import { useSafetyStore } from '@/state/safetyStore';
 import { markerRuleContext } from '../context';
+import { markerRenalFindings } from '../renal';
 import { blockingReasks, evaluateMarkers } from '../rules';
 import type { MarkerEvaluation, MarkersDoc, RuleContext } from '../types';
 import { useMarkerContextSources } from './contextSources';
@@ -39,6 +41,11 @@ export interface MarkerEvaluationView {
   evaluation: MarkerEvaluation;
   /** Re-asks that pause the planner until the safety questions are answered again. */
   blocking: MarkerEvaluation['reasks'];
+  /**
+   * (D4-07) Kidney findings — current or expired abnormal readings, confirmed conditions with the clinician's stage,
+   * clinician-level results — for the renal scope (`SafetyContext.renalFindings`, `withMarkerSafety`). Never a stage.
+   */
+  renalFindings: RenalFinding[];
 }
 
 /** The evaluation of the current document (notes, locks, re-asks, retests). */
@@ -49,6 +56,6 @@ export function useMarkerEvaluation(today: LocalDate = markersToday()): MarkerEv
   const answeredAt = useSafetyStore((s) => s.answeredAt);
   return useMemo(() => {
     const evaluation = evaluateMarkers(doc, ctx, { dateStyle });
-    return { doc, ctx, evaluation, blocking: blockingReasks(evaluation, screeningAnsweredOn(answeredAt)) };
+    return { doc, ctx, evaluation, blocking: blockingReasks(evaluation, screeningAnsweredOn(answeredAt)), renalFindings: markerRenalFindings(doc, evaluation, ctx.today) };
   }, [doc, ctx, dateStyle, answeredAt]);
 }

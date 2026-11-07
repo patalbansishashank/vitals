@@ -1,23 +1,46 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
-    <style name="AppTheme" parent="Theme.AppCompat.DayNight.DarkActionBar">
-        <item name="colorPrimary">@color/vitals_splash_background</item>
-        <item name="colorPrimaryDark">@color/vitals_splash_background</item>
+    <!-- Dark only (Ember): the non-DayNight AppCompat themes, so a light-mode device gets the same dark window. The
+         window is #090909; both system bars are transparent with light icons. MainActivity enables edge-to-edge
+         on older Android too, so the page's own backdrop paints the bars and cutout without a native scrim. -->
+    <style name="AppTheme" parent="Theme.AppCompat">
+        <item name="colorPrimary">@color/vitals_ember_background</item>
+        <item name="colorPrimaryDark">@color/vitals_ember_background</item>
+        <item name="android:windowBackground">@color/vitals_ember_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
     </style>
 
-    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/vitals_ember_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
     </style>
 
     <!-- Launch theme: the ring mark draws itself on (L-BRAND's animated vector, apps/android/brand/res). Android 12+
-         plays it once; older versions show the finished mark. -->
+         plays it once; older versions show the finished mark. Ground: the Ember backdrop. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/vitals_splash_background</item>
+        <item name="windowSplashScreenBackground">@color/vitals_ember_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/vitals_splash_animated</item>
         <item name="windowSplashScreenAnimationDuration">700</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

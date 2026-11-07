@@ -31,8 +31,27 @@ import {
 import { enumerateStructures, rtPrescription } from '../skeleton';
 import type { PlannerRequest, PlannerRequestV2 } from '../types';
 import { GOLDEN } from './golden.requests';
+import { repairSchedule } from '../repair';
+import { validatePlan } from '../validate';
 
 const REGIONS: readonly TrainingRegion[] = ['chest', 'upperBack', 'shoulders', 'arms', 'core', 'glutes', 'quads', 'hamstrings', 'calves'];
+
+describe('materialized novice progression', () => {
+  it('keeps composed working sets inside the same weekly ramp and retains group provenance', async () => {
+    const base = GOLDEN.b;
+    const req: PlannerRequestV2 = { ...base, horizonDays: 28, profile: { ...base.profile, body: { ...base.profile.body, trainingYears: 0.05 }, habits: { ...base.profile.habits, trainingHistory: 'lt1y' } }, training: { owned: ['dumbbell', 'bench'], access: [], refused: [], liked: [], injuries: [], skill: 2, purchaseAllowance: { maxPriceTier: 0, maxItems: 0 } }, constraints: { trainingDaysPerWeek: { min: 3, max: 3 }, cardioDaysPerWeek: { min: 0, max: 0 }, maxSessionMin: 150 } };
+    const ctx = compileRequest(req);
+    const st = enumerateStructures(ctx).find(s => s.id.startsWith('B1') && !s.skeleton.baseline)!;
+    const decoded = decodePlan(ctx, st, st.x0);
+    const abstract = repairSchedule(ctx, decoded.schedule, decoded).schedule;
+    expect(validatePlan(ctx, abstract).ok).toBe(true);
+    const composed = await equipmentFor(ctx, abstract, { ideal: false, benefitTop: 0 });
+    expect(validatePlan(ctx, composed.schedule)).toMatchObject({ ok: true });
+    const sessions = Array.from({ length: composed.schedule.horizonDays }, (_, d) => dayExercise(composed.schedule, d)).flat().filter(s => s.kind === 'resistance');
+    expect(sessions.length).toBeGreaterThan(0);
+    expect(sessions.every(s => (s.groups?.length ?? 0) > 0 && s.setsByRegionIncludesTypeFactor === true)).toBe(true);
+  });
+});
 
 const profile = (o: Partial<TrainingProfile> = {}): TrainingProfile => ({
   owned: [],

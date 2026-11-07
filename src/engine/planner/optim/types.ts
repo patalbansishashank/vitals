@@ -18,9 +18,21 @@ export type MaybePromise<T> = T | Promise<T>;
  */
 export const HOLDOUT_DRAW_OFFSET = 1 << 20;
 
+/**
+ * Reserved safety-audit stream (C5/D4-03): `SAFETY_AUDIT_DRAW_OFFSET + m` = member m of the independent final audit of a
+ * frozen candidate (stream `ensemble/safetyAudit`, size M = the selection-ensemble size of the tier). It is neither
+ * searched, selected on, repaired against nor reported as an outcome holdout.
+ */
+export const SAFETY_AUDIT_DRAW_OFFSET = 1 << 21;
+
 /** True for a draw of the holdout ensemble. */
 export function isHoldoutDraw(draw: number): boolean {
-  return draw >= HOLDOUT_DRAW_OFFSET;
+  return draw >= HOLDOUT_DRAW_OFFSET && draw < SAFETY_AUDIT_DRAW_OFFSET;
+}
+
+/** True for a draw of the reserved safety-audit stream. */
+export function isSafetyAuditDraw(draw: number): boolean {
+  return draw >= SAFETY_AUDIT_DRAW_OFFSET;
 }
 
 /** One rung of the plan ladder (same union as the domain's `RungId`). */
@@ -51,8 +63,24 @@ export interface EvalOutput {
    * State-space constraint margins, normalised so that ≥ 0 means satisfied and −1 is "one unit of
    * normalised violation" (§4.8). The adherence cap belongs here too (optionally down-weighted).
    * v_S = Σ max(0, −margin). Early-aborted simulations report the violated bound here.
+   * Each margin is (bound − value) divided by a declared positive scale in the bound's own unit (MODEL_SPEC §7.3), so
+   * margins are dimensionless and sums across them never add raw g, kcal or mmol (D4-03). Acceptance never sums them:
+   * it counts joint passes (`jointSafetyScreen`).
    */
   margins: ArrayLike<number>;
+  /**
+   * Indices of margins whose required output was not available in this evaluation (C6/D4-03): the finite value in
+   * `margins` is a compatibility number the optimizer may read, but a joint safety screen treats the member as missing
+   * (Unchecked), never as a pass. Absent = every margin was computed.
+   */
+  missing?: ArrayLike<number>;
+  /**
+   * Indices of goals whose required output was not available in this evaluation (C6/D4-05): the finite value in `goals`
+   * is a compatibility number that must never count as benefit. The coordinator carries a NaN objective with
+   * conservative desirability 0 (including keep and baseline-met goals), and reports it unavailable. A missing baseline
+   * disables that endpoint's scales. Absent = every goal was computed.
+   */
+  missingGoals?: ArrayLike<number>;
   /** Weighted regulariser R = λ_H·H + λ_C·C + λ_T·R_term (≥ 0; §4.9). */
   regulariser: number;
   /** Behaviour descriptors in [0,1] (§4.12). */
@@ -121,6 +149,10 @@ export interface PlanModel<S extends PlanStructure, Sched, Sim> {
   goals(sim: Sim, schedule: Sched): ArrayLike<number>;
   /** State-space constraint margins (≥ 0 satisfied, normalised). */
   constraints(sim: Sim, schedule: Sched, repairLog: readonly RepairEntry[]): ArrayLike<number>;
+  /** Margin indices whose required output is unavailable for this run (see `EvalOutput.missing`). */
+  missingMargins?(sim: Sim, schedule: Sched): ArrayLike<number>;
+  /** Goal indices whose required output is unavailable for this run (see `EvalOutput.missingGoals`, C6/D4-05). */
+  missingGoals?(sim: Sim, schedule: Sched): ArrayLike<number>;
   /** Behaviour descriptors in [0,1]. */
   descriptors(schedule: Sched, sim: Sim): ArrayLike<number>;
   regulariser?(schedule: Sched, sim: Sim, repairLog: readonly RepairEntry[]): number;

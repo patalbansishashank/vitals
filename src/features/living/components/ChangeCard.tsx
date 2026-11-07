@@ -9,19 +9,63 @@
  *                 the typed-confirmation dialog, which only the person can complete
  *   blocked     — the safety rule in plain words + the allowed alternatives as keys
  *   uiOnly      — "Only you can change that" + a link to the setting
- * Standalone (Today, Plan details) it is a Faceplate; inside the Coach conversation an inset region, so faceplates
- * never nest. Chrome is achromatic; colour sits on the destructive and blocked marks only.
+ * Standalone (Today, Plan details, the Coach conversation) it is a Faceplate; `conversation` (an inset region) is
+ * left for the Coach's one-line read card and for cards inside a sheet, so faceplates never nest. Chrome is achromatic; colour sits on the destructive and blocked marks only.
  */
 import { useId, useState, type ReactNode } from 'react';
-import { Check, ChevronDown, ChevronRight, Diamond, Lock, Octagon, Search, TriangleAlert } from 'lucide-react';
-import { EM_DASH, Faceplate, Field, Icon, Key, KeyLink, NumberField, RangeBar, StatusMark, cx, energyInText, formatNumber, formatSigned, type IconComponent } from '@/components';
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  Diamond,
+  Lock,
+  Octagon,
+  Search,
+  TriangleAlert,
+} from 'lucide-react';
+import {
+  CardFoot,
+  DottedTrack,
+  EM_DASH,
+  Field,
+  GradientCard,
+  HeroNumber,
+  Icon,
+  InfoKey,
+  InfoPanel,
+  Key,
+  KeyLink,
+  MonoMeta,
+  NumberField,
+  RangeBar,
+  StatusMark,
+  cx,
+  energyInText,
+  formatEnergy,
+  formatNumber,
+  formatSigned,
+  type IconComponent,
+} from '@/components';
 import { useEnergyUnit } from '@/state/settingsStore';
 import { daysBetween } from '@/living/dates';
 import { fmtDateRange, kcal as fmtKcal } from '../format';
-import { availableActions, timeLeftText, withClock, type ChangeAction, type ChangeCardModel, type ChangeClass, type ChangeState } from '../model/changeCard';
-import { CARD_COPY as C } from '../coach/copy';
+import {
+  availableActions,
+  changeWindowRatio,
+  timeLeftText,
+  withClock,
+  type ChangeAction,
+  type ChangeCardModel,
+  type ChangeClass,
+  type ChangeState,
+} from '../model/changeCard';
+import { CARD_COPY as C, INFO } from '../coach/copy';
 import type { CardActionExtra, MarkersReviewCard } from '@/ai/coach/types';
+import { localDateOf, tidyStoredItems } from '@/ai/coach/describe';
 import { SourceChip, type SourceInfo } from './Estimate';
+import { infoSpec } from './info';
 import './changeCard.css';
 
 /** One component of a logged meal, as the app computed it (grams and energy are the engine's, never the UI's). */
@@ -77,7 +121,7 @@ export interface ChangeCardProps {
   card: ChangeCardView;
   /** The clock's now (undo windows, expiry). */
   now: Date;
-  /** `standalone` = a Faceplate (Today, Plan details); `conversation` = an inset region inside the Coach's faceplate. */
+  /** `standalone` = a Faceplate (Today, Plan details, Coach turns); `conversation` = an inset region (the Coach's read line, sheets). */
   context?: 'standalone' | 'conversation';
   onAction: (action: ChangeAction, extra?: ChangeActionExtra) => void;
   headingLevel?: 'h2' | 'h3' | 'h4';
@@ -85,13 +129,25 @@ export interface ChangeCardProps {
   quiet?: boolean;
   className?: string;
   /**
+   * The card's source chip ("Coach · text"). The Coach's own conversation leaves it off: every card there is the
+   * Coach's (r068 C2). Default true.
+   */
+  showSource?: boolean;
+  /**
    * Shown in place of the item list (E20: the Coach's review table of a read blood test report). On a pending report
    * card the table's own save key is the Apply (it passes the ticked rows), so the card shows no Apply key of its own.
    */
   detail?: ReactNode;
 }
 
-const MARK: Record<ChangeClass, IconComponent> = { read: Search, log: Check, edit: Diamond, destructive: Octagon, blocked: TriangleAlert, uiOnly: Lock };
+const MARK: Record<ChangeClass, IconComponent> = {
+  read: Search,
+  log: Check,
+  edit: Diamond,
+  destructive: Octagon,
+  blocked: TriangleAlert,
+  uiOnly: Lock,
+};
 
 /** The object named on the card's keys: "logged lunch", "proposal: no training Thu–Sat", "end Spring cut". */
 export function cardObject(card: Pick<ChangeCardModel, 'class' | 'title'>): string {
@@ -115,13 +171,35 @@ export function cardTitle(card: Pick<ChangeCardModel, 'class' | 'title'>): strin
 export function withoutEnergy(line: string): string {
   return line
     .split(' · ')
-    .filter((seg) => !/\bkcal\b/.test(seg))
+    .filter((seg) => !/\b(?:kcal|kj)\b/i.test(seg))
     .join(' · ');
+}
+
+/**
+ * A proposal's explanation as a one-line lead and the rest (r068 L18): the first sentence leads, the rest folds under
+ * "Why". A one-sentence note has no rest.
+ */
+export function splitNote(note: string): { lead: string; rest: string | null } {
+  const m = note.match(/^(.+?[.!?])\s+(\S[\s\S]*)$/);
+  return m ? { lead: m[1]!, rest: m[2]!.trim() } : { lead: note, rest: null };
+}
+
+function Why({ text }: { text: string }) {
+  return (
+    <details className="lv-card__why">
+      <summary>{C.why}</summary>
+      <p className="lv-card__line">{text}</p>
+    </details>
+  );
 }
 
 function sourceInfo(s: NonNullable<ChangeCardModel['source']>): SourceInfo {
   const who = s.label.split(' · ')[0] ?? s.label;
-  return { label: s.label, ...(s.confidence !== undefined ? { detail: C.sure(who, s.confidence) } : {}), ...(s.band ? { band: s.band } : {}) };
+  return {
+    label: s.label,
+    ...(s.confidence !== undefined ? { detail: C.sure(who, s.confidence) } : {}),
+    ...(s.band ? { band: s.band } : {}),
+  };
 }
 
 function announceFor(state: ChangeState, title: string): string {
@@ -153,14 +231,22 @@ function Diff({ items, log, quiet }: { items: ChangeCardModel['items']; log?: bo
           <span className="lv-card__label">{it.label}</span>
           {log ? null : (
             <>
-              <span className="lv-card__before">{it.before === null ? EM_DASH : energyInText(it.before, eu)}</span>
+              <span className="lv-card__before">
+                {it.before === null
+                  ? EM_DASH
+                  : quiet
+                    ? withoutEnergy(it.before)
+                    : energyInText(it.before, eu)}
+              </span>
               <span className="lv-card__arrow" aria-hidden="true">
-                →
+                <Icon icon={ArrowRight} size={14} />
               </span>
               <span className="lm-sr"> {C.changesTo} </span>
             </>
           )}
-          <span className="lv-card__after">{it.after === null ? EM_DASH : quiet ? withoutEnergy(it.after) : energyInText(it.after, eu)}</span>
+          <span className="lv-card__after">
+            {it.after === null ? EM_DASH : quiet ? withoutEnergy(it.after) : energyInText(it.after, eu)}
+          </span>
         </li>
       ))}
     </ul>
@@ -175,20 +261,31 @@ function GoalDates({ rows }: { rows: NonNullable<ChangeCardModel['impact']>['goa
   const pad = Math.max(2, Math.round(hi * 0.3));
   const bar = (r: [string, string] | null) =>
     r ? (
-      <RangeBar low={off(r[0])} high={off(r[1])} value={(off(r[0]) + off(r[1])) / 2} min={-pad} max={hi + pad} width={72}>
+      <RangeBar
+        low={off(r[0])}
+        high={off(r[1])}
+        value={(off(r[0]) + off(r[1])) / 2}
+        min={-pad}
+        max={hi + pad}
+        width={72}
+      >
         <span className="lv-card__date">{fmtDateRange(r[0], r[1])}</span>
       </RangeBar>
     ) : (
       <span className="lv-card__date">{C.notReached}</span>
     );
+  const same = (a: [string, string] | null, b: [string, string] | null) =>
+    (a === null && b === null) || (!!a && !!b && a[0] === b[0] && a[1] === b[1]);
+  const changed = rows.filter((r) => !same(r.before, r.after));
+  if (!changed.length) return null;
   return (
     <ul className="lv-card__diff lv-card__goals">
-      {rows.map((r) => (
+      {changed.map((r) => (
         <li key={r.label} className="lv-card__row">
           <span className="lv-card__label">{r.label}</span>
           <span className="lv-card__before">{bar(r.before)}</span>
           <span className="lv-card__arrow" aria-hidden="true">
-            →
+            <Icon icon={ArrowRight} size={14} />
           </span>
           <span className="lm-sr"> {C.changesTo} </span>
           <span className="lv-card__after">{bar(r.after)}</span>
@@ -198,18 +295,28 @@ function GoalDates({ rows }: { rows: NonNullable<ChangeCardModel['impact']>['goa
   );
 }
 
-function Impact({ impact }: { impact: NonNullable<ChangeCardModel['impact']> }) {
+function Impact({
+  impact,
+  quiet = false,
+}: {
+  impact: NonNullable<ChangeCardModel['impact']>;
+  quiet?: boolean;
+}) {
   return (
     <>
       {impact.goalDates.length ? <GoalDates rows={impact.goalDates} /> : null}
-      {impact.metrics.length ? (
+      {!quiet && impact.metrics.length ? (
         <ul className="lv-card__diff lv-card__metrics">
           {impact.metrics.map((m) => (
             <li key={m.label} className="lv-card__row">
               <span className="lv-card__label">{m.label}</span>
-              <span className="lv-card__after lm-num">
-                {formatSigned(m.delta, m.decimals ?? 1)} <span className="lm-unit">{m.unit}</span>
-              </span>
+              <HeroNumber
+                value={formatSigned(m.delta, m.decimals ?? 1)}
+                unit={m.unit}
+                size="stat"
+                label={`${m.label}: ${formatSigned(m.delta, m.decimals ?? 1)} ${m.unit}`}
+                className="lv-card__after"
+              />
             </li>
           ))}
         </ul>
@@ -218,10 +325,46 @@ function Impact({ impact }: { impact: NonNullable<ChangeCardModel['impact']> }) 
   );
 }
 
+function LogTotals({ totals, quiet }: { totals: string; quiet: boolean }) {
+  const eu = useEnergyUnit();
+  const energy = totals.split(' · ').find((part) => /\bkcal\b/i.test(part));
+  const match = energy?.match(/^\s*(≈?\s*[\d,.\s]+)\s*kcal(?:\s*\(([^)]+)\))?/i);
+  const rest = withoutEnergy(totals);
+  if (quiet) return rest ? <MonoMeta className="lv-card__totals">{rest}</MonoMeta> : null;
+  if (!match) return <MonoMeta className="lv-card__totals">{energyInText(totals, eu)}</MonoMeta>;
+  const value = Number(match[1]!.replace(/[≈,\s]/g, ''));
+  const approximate = match[1]!.includes('≈') ? '≈ ' : '';
+  const range = match[2]?.match(/([\d,.\s]+)[–—-]([\d,.\s]+)/);
+  const rangeText = range
+    ? range
+        .slice(1)
+        .map((n) => formatEnergy(Number(n.replace(/[,\s]/g, '')), eu, { withUnit: false }))
+        .join('–')
+    : undefined;
+  const spoken = `${approximate}${formatEnergy(value, eu)}${rangeText ? ` (${rangeText})` : ''}`.replace(
+    /\s/g,
+    ' ',
+  );
+  return (
+    <div className="lv-card__totals">
+      <HeroNumber
+        value={value}
+        format={(n) => `${approximate}${formatEnergy(n, eu, { withUnit: false })}`}
+        unit={eu}
+        size="num"
+        label={spoken}
+        range={rangeText ? `Likely ${rangeText}` : undefined}
+      />
+      {rest ? <MonoMeta>{rest}</MonoMeta> : null}
+    </div>
+  );
+}
+
 function amountText(c: MealComponentView): string {
   if (c.yours) return `${formatNumber(c.grams, 0)} g`;
   const portion = c.portion ? `${c.portion} ` : '';
-  const range = c.gramsLow !== c.gramsHigh ? ` (${formatNumber(c.gramsLow, 0)}–${formatNumber(c.gramsHigh, 0)})` : '';
+  const range =
+    c.gramsLow !== c.gramsHigh ? ` (${formatNumber(c.gramsLow, 0)}–${formatNumber(c.gramsHigh, 0)})` : '';
   return `${portion}≈ ${formatNumber(c.grams, 0)} g${range}`;
 }
 
@@ -258,17 +401,33 @@ function MealBody({
                 <span className="lv-card__after">
                   {editable && (editing === 'all' || editing === c.id) ? (
                     <Field label={C.gramsOf(c.name)} hideLabel className="lv-card__grams">
-                      <NumberField value={c.grams} min={1} max={3000} step={5} unit="g" name={c.name} onChange={(g) => onAction('edit', { componentId: c.id, grams: g })} />
+                      <NumberField
+                        value={c.grams}
+                        min={1}
+                        max={3000}
+                        step={5}
+                        unit="g"
+                        name={c.name}
+                        onChange={(g) => onAction('edit', { componentId: c.id, grams: g })}
+                      />
                     </Field>
                   ) : editable ? (
-                    <button type="button" className="lm-chip lm-hit lv-card__gram" data-kind="plain" aria-label={C.changeGrams(c.name, amount)} onClick={() => onEditOne(c.id)}>
+                    <button
+                      type="button"
+                      className="lm-chip lm-hit lv-card__gram"
+                      data-kind="plain"
+                      aria-label={C.changeGrams(c.name, amount)}
+                      onClick={() => onEditOne(c.id)}
+                    >
                       {amount}
                     </button>
                   ) : (
                     <span>{amount}</span>
                   )}
                 </span>
-                {!quiet && c.kcal !== undefined ? <span className="lv-card__kcal lm-num">{energyInText(`${fmtKcal(c.kcal)} kcal`, eu)}</span> : null}
+                {!quiet && c.kcal !== undefined ? (
+                  <span className="lv-card__kcal lm-num">{energyInText(`${fmtKcal(c.kcal)} kcal`, eu)}</span>
+                ) : null}
               </li>
             );
           })}
@@ -289,18 +448,48 @@ function MealBody({
   );
 }
 
-function ReadLine({ card, titleId, context, className }: { card: ChangeCardModel; titleId: string; context: string; className?: string }) {
+function ReadLine({
+  card,
+  titleId,
+  context,
+  className,
+  quiet = false,
+}: {
+  card: ChangeCardModel;
+  titleId: string;
+  context: string;
+  className?: string;
+  quiet?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const listId = useId();
   const reads = card.reads ?? [];
-  const labels = reads.length ? reads.map((r) => r.label).join(' · ') : card.title;
+  const labels = reads.length
+    ? reads
+        .map((r) => (quiet ? withoutEnergy(r.label) : r.label))
+        .filter(Boolean)
+        .join(' · ')
+    : quiet
+      ? withoutEnergy(card.title)
+      : card.title;
   return (
-    <article className={cx('lv-card lv-card--read', className)} data-class="read" data-context={context} aria-labelledby={titleId}>
-      <button type="button" className="lv-card__readkey" aria-expanded={open} aria-controls={listId} onClick={() => setOpen((o) => !o)}>
+    <article
+      className={cx('lv-card lv-card--read', className)}
+      data-class="read"
+      data-context={context}
+      aria-labelledby={titleId}
+    >
+      <button
+        type="button"
+        className="lv-card__readkey"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((o) => !o)}
+      >
         <span className="lv-card__mark" aria-hidden="true">
           <Icon icon={Search} size={16} />
         </span>
-        <span id={titleId} className="lv-card__readtext">
+        <span id={titleId} className="lv-card__readtext lm-meta">
           <span className="lm-eng">{C.lookedAt}</span> · {labels}
         </span>
         <span className="lm-sr">{C.showLookups}</span>
@@ -310,7 +499,9 @@ function ReadLine({ card, titleId, context, className }: { card: ChangeCardModel
         {reads.map((r, i) => (
           <li key={`${r.label}-${i}`}>
             <span className="lv-card__read-label">{r.label}</span>
-            {r.summary ? <span className="lv-card__read-sum">{r.summary}</span> : null}
+            {r.summary ? (
+              <span className="lv-card__read-sum">{quiet ? withoutEnergy(r.summary) : r.summary}</span>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -320,20 +511,32 @@ function ReadLine({ card, titleId, context, className }: { card: ChangeCardModel
 
 /* ------------------------------------------------------------------------------------------------ card */
 
-export function ChangeCard({ card: given, now, context = 'standalone', onAction, headingLevel = 'h3', quiet = false, className, detail }: ChangeCardProps) {
+export function ChangeCard({
+  card: given,
+  now,
+  context = 'standalone',
+  onAction,
+  headingLevel = 'h3',
+  quiet = false,
+  className,
+  detail,
+  showSource = true,
+}: ChangeCardProps) {
   const card = withClock(given, now) as ChangeCardView;
   const titleId = useId();
+  const [infoOpen, setInfoOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [seen, setSeen] = useState<ChangeState>(card.state);
   const [said, setSaid] = useState('');
-  const title = cardTitle(card);
+  const title = quiet ? withoutEnergy(cardTitle(card)) : cardTitle(card);
   if (seen !== card.state) {
     // announce state changes (not the first render): derived during render, no effect
     setSeen(card.state);
     setSaid(announceFor(card.state, title));
   }
 
-  if (card.class === 'read') return <ReadLine card={card} titleId={titleId} context={context} className={className} />;
+  if (card.class === 'read')
+    return <ReadLine card={card} titleId={titleId} context={context} className={className} quiet={quiet} />;
 
   const H = headingLevel;
   const obj = cardObject(card);
@@ -359,11 +562,25 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
         if (tableApplies) break;
         keys.push(
           card.class === 'log' ? (
-            <Key key={a} size="sm" variant="solid" aria-label={C.name.logIt(obj)} onClick={() => onAction('apply')}>
+            <Key
+              key={a}
+              size="sm"
+              variant="primary"
+              arrow
+              aria-label={C.name.logIt(obj)}
+              onClick={() => onAction('apply')}
+            >
               {C.logIt}
             </Key>
           ) : (
-            <Key key={a} size="sm" variant="solid" aria-label={C.name.apply(obj)} onClick={() => onAction('apply')}>
+            <Key
+              key={a}
+              size="sm"
+              variant="primary"
+              arrow
+              aria-label={C.name.apply(obj)}
+              onClick={() => onAction('apply')}
+            >
               {C.apply}
             </Key>
           ),
@@ -371,14 +588,26 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
         break;
       case 'adjust':
         keys.push(
-          <Key key={a} size="sm" aria-label={C.name.adjust(obj)} onClick={() => onAction('adjust')}>
+          <Key
+            key={a}
+            size="sm"
+            variant="text"
+            aria-label={C.name.adjust(obj)}
+            onClick={() => onAction('adjust')}
+          >
             {C.adjust}
           </Key>,
         );
         break;
       case 'discard':
         keys.push(
-          <Key key={a} size="sm" variant="quiet" aria-label={C.name.discard(obj)} onClick={() => onAction('discard')}>
+          <Key
+            key={a}
+            size="sm"
+            variant="text"
+            aria-label={C.name.discard(obj)}
+            onClick={() => onAction('discard')}
+          >
             {C.discard}
           </Key>,
         );
@@ -392,7 +621,13 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
         break;
       case 'redo':
         keys.push(
-          <Key key={a} size="sm" variant="quiet" aria-label={C.name.redo(obj)} onClick={() => onAction('redo')}>
+          <Key
+            key={a}
+            size="sm"
+            variant="text"
+            aria-label={C.name.redo(obj)}
+            onClick={() => onAction('redo')}
+          >
             {C.redo}
           </Key>,
         );
@@ -404,7 +639,12 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
               {C.done}
             </Key>
           ) : (
-            <Key key={a} size="sm" aria-label={C.name.edit(obj)} onClick={() => (mealEditable ? setEditing('all') : onAction('edit'))}>
+            <Key
+              key={a}
+              size="sm"
+              aria-label={C.name.edit(obj)}
+              onClick={() => (mealEditable ? setEditing('all') : onAction('edit'))}
+            >
               {C.edit}
             </Key>
           ),
@@ -426,11 +666,23 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
       case 'dismiss':
         keys.push(
           card.class === 'destructive' ? (
-            <Key key={a} size="sm" variant="quiet" aria-label={C.name.notNow(obj)} onClick={() => onAction('dismiss')}>
+            <Key
+              key={a}
+              size="sm"
+              variant="text"
+              aria-label={C.name.notNow(obj)}
+              onClick={() => onAction('dismiss')}
+            >
               {C.notNow}
             </Key>
           ) : (
-            <Key key={a} size="sm" variant="quiet" aria-label={C.name.leaveIt(obj)} onClick={() => onAction('dismiss')}>
+            <Key
+              key={a}
+              size="sm"
+              variant="text"
+              aria-label={C.name.leaveIt(obj)}
+              onClick={() => onAction('dismiss')}
+            >
               {C.leaveIt}
             </Key>
           ),
@@ -439,7 +691,11 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
       case 'alternative':
         for (const alt of card.blocked?.alternatives ?? []) {
           keys.push(
-            <Key key={`alt-${alt.id}`} size="sm" onClick={() => onAction('alternative', { alternativeId: alt.id })}>
+            <Key
+              key={`alt-${alt.id}`}
+              size="sm"
+              onClick={() => onAction('alternative', { alternativeId: alt.id })}
+            >
               {alt.label}
             </Key>,
           );
@@ -458,33 +714,47 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
   }
 
   const note = card.class === 'destructive' ? (card.confirm?.consequence ?? card.note) : card.note;
+  // a proposal leads with its first sentence; the rest of the explanation folds under "Why" after the change (r068 L18)
+  const safeNote = quiet && note ? withoutEnergy(note) : note;
+  const noteParts = safeNote
+    ? card.class === 'edit'
+      ? splitNote(safeNote)
+      : { lead: safeNote, rest: null }
+    : null;
   let body: ReactNode = null;
   if (card.state === 'expired') {
     body = <p className="lv-card__line lv-card__expired">{C.expired}</p>;
   } else if (!collapsed) {
     body = (
       <>
-        {note ? <p className="lv-card__note">{note}</p> : null}
+        {noteParts ? <p className="lv-card__note">{noteParts.lead}</p> : null}
+        {card.class === 'log' && card.totals ? <LogTotals totals={card.totals} quiet={quiet} /> : null}
         {detail ? (
           detail
         ) : card.class === 'log' ? (
           meal ? (
-            <MealBody meal={meal} editing={editing} editable={mealEditable} quiet={quiet} onEditOne={setEditing} onAction={onAction} />
+            <MealBody
+              meal={meal}
+              editing={editing}
+              editable={mealEditable}
+              quiet={quiet}
+              onEditOne={setEditing}
+              onAction={onAction}
+            />
           ) : (
-            <Diff items={card.items} log quiet={quiet} />
+            <Diff items={tidyStoredItems(card.items, localDateOf(card.createdAt))} log quiet={quiet} />
           )
-        ) : null}
-        {card.class === 'log' && card.totals ? (
-          <p className="lv-card__line lv-card__totals">
-            <span className="lm-eng">{C.total}</span> {quiet ? withoutEnergy(card.totals) : card.totals}
-          </p>
         ) : null}
         {card.class === 'log' && meal?.ask && card.state === 'pending' ? (
           <div className="lv-card__ask" role="group" aria-label={meal.ask.question}>
             <p className="lv-card__line">{meal.ask.question}</p>
             <div className="lv-card__keys">
               {meal.ask.options.map((o) => (
-                <Key key={o.id} size="sm" onClick={() => onAction('edit', { componentId: meal.ask!.componentId, optionId: o.id })}>
+                <Key
+                  key={o.id}
+                  size="sm"
+                  onClick={() => onAction('edit', { componentId: meal.ask!.componentId, optionId: o.id })}
+                >
                   {o.label}
                 </Key>
               ))}
@@ -496,18 +766,19 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
             <p className="lv-card__line lv-card__stale-note">
               <StatusMark severity="caution" size={16} /> {C.stale}
             </p>
-            <Diff items={card.refreshed?.items ?? card.items} />
-            {card.refreshed?.impact ? <Impact impact={card.refreshed.impact} /> : null}
+            <Diff items={card.refreshed?.items ?? card.items} quiet={quiet} />
+            {card.refreshed?.impact ? <Impact impact={card.refreshed.impact} quiet={quiet} /> : null}
           </div>
         ) : card.class === 'edit' ? (
           <>
-            <Diff items={card.items} />
-            {card.impact ? <Impact impact={card.impact} /> : null}
+            <Diff items={card.items} quiet={quiet} />
+            {card.impact ? <Impact impact={card.impact} quiet={quiet} /> : null}
           </>
         ) : null}
+        {noteParts?.rest ? <Why text={noteParts.rest} /> : null}
         {card.class === 'blocked' && card.blocked ? (
           <p className="lv-card__note">
-            {card.blocked.rule}
+            {quiet ? withoutEnergy(card.blocked.rule) : card.blocked.rule}
             {card.blocked.alternatives.length ? ` ${C.options}` : ''}
           </p>
         ) : null}
@@ -515,38 +786,110 @@ export function ChangeCard({ card: given, now, context = 'standalone', onAction,
     );
   }
 
-  const inner = (
+  const domain =
+    card.class === 'edit'
+      ? 'plan'
+      : card.class === 'log'
+        ? (card.domain ?? (card.meal ? 'food' : 'neutral'))
+        : 'neutral';
+  const stateWord =
+    (card.state === 'applied' || card.state === 'pending') && card.class === 'blocked'
+      ? C.notAllowed
+      : (card.state === 'applied' || card.state === 'pending') && card.class === 'uiOnly'
+        ? C.onlyYou
+        : card.class === 'log' && card.state === 'applied'
+          ? C.logged
+          : card.state === 'pending' && card.class !== 'edit'
+            ? card.class === 'log'
+              ? 'Waiting for you'
+              : card.class === 'destructive'
+                ? C.needsConfirmation
+                : card.class === 'blocked'
+                  ? C.notAllowed
+                  : C.onlyYou
+            : C.states[card.state];
+  const heading = (
     <>
-      <div className="lv-card__head">
-        <span className="lv-card__mark" data-class={card.class} aria-hidden="true">
-          <Icon icon={MARK[card.class]} size={16} />
+      <header className="lv-card__head lm-cardhead">
+        <span className="lv-card__mark" data-class={card.class} data-state={card.state} aria-hidden="true">
+          <Icon
+            icon={card.class === 'log' && card.state === 'pending' ? Circle : MARK[card.class]}
+            size={18}
+          />
         </span>
         <H id={titleId} className="lv-card__title">
           {collapsed ? `${C.discarded} · ${title}` : title}
           {card.state === 'undone' ? <span className="lm-sr"> {C.undone}</span> : null}
         </H>
-        {card.source && !collapsed ? <SourceChip source={sourceInfo(card.source)} /> : null}
-        {left ? <span className="lm-eng lv-card__left">{left}</span> : null}
+        <InfoKey label={`About ${title}`} onClick={() => setInfoOpen(true)} expanded={infoOpen} />
+      </header>
+      <InfoPanel
+        {...infoSpec(INFO.card)}
+        cardTitle={title}
+        open={infoOpen}
+        onClose={() => setInfoOpen(false)}
+      />
+    </>
+  );
+  const source =
+    card.source && !collapsed && (showSource || card.source.label.includes(' + ')) ? (
+      <div className="lv-card__source">
+        <SourceChip source={quiet ? { label: withoutEnergy(card.source.label) } : sourceInfo(card.source)} />
       </div>
+    ) : null;
+  const foot = (
+    <CardFoot state={{ word: stateWord, icon: MARK[card.class] }}>
+      {keys.length ? <div className="lv-card__keyset">{keys}</div> : null}
+      {left ? (
+        <div className="lv-card__window">
+          <MonoMeta>
+            {quiet ? (card.state === 'applied' ? 'Undo available' : 'Proposal waiting') : left}
+          </MonoMeta>
+          <DottedTrack
+            label={C.window}
+            value={changeWindowRatio(card, now)}
+            goal={1}
+            valueText={left}
+            quiet={quiet}
+            quietWord="Time remaining"
+            dots={24}
+            thumb={false}
+            hue={domain}
+          />
+        </div>
+      ) : null}
+    </CardFoot>
+  );
+  const content = (
+    <>
+      {source}
       {body}
-      {keys.length ? <div className="lv-card__keys">{keys}</div> : null}
       <span className="lm-sr" aria-live="polite">
         {said}
       </span>
     </>
   );
-
   const data = { 'data-class': card.class, 'data-state': card.state, 'data-context': context };
-  if (context === 'standalone') {
+  if (context === 'standalone')
     return (
-      <Faceplate as="article" className={cx('lv-card', className)} aria-labelledby={titleId} {...data}>
-        {inner}
-      </Faceplate>
+      <GradientCard
+        as="article"
+        domain={domain}
+        glow={domain === 'neutral' ? 'none' : undefined}
+        className={cx('lv-card', className)}
+        aria-labelledby={titleId}
+        head={heading}
+        foot={foot}
+        {...data}
+      >
+        {content}
+      </GradientCard>
     );
-  }
   return (
     <article className={cx('lv-card', className)} aria-labelledby={titleId} {...data}>
-      {inner}
+      {heading}
+      {content}
+      {foot}
     </article>
   );
 }

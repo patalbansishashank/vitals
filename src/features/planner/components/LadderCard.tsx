@@ -1,17 +1,23 @@
 import type { KeyboardEvent, ReactNode } from 'react';
-import { Key, RangeBar, StatusMark } from '@/components';
+import { ChevronDown } from 'lucide-react';
+import { HeroNumber, Icon, Key, MonoMeta, RangeBar, StatusMark } from '@/components';
 import type { PlannerRequestV2, PlannerResultV2, RankedGoal, ShoppingItemV2 } from '@/engine/planner/domain/types';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
 import {
   IDEAL_CAPTION,
   RUNG_TITLE,
+  SAFETY_STATUS_WORD,
   SAME_AS_HARD_LINE,
   burdenRows,
   carriedNote,
   effortValue,
+  hardestPart,
   goalDelta,
+  goalStatusOf,
   liftedText,
   outcomeView,
+  plainLimit,
+  planSafetyStatus,
   type LadderPlan,
   type LiftedLimit,
   type OutcomeView,
@@ -59,7 +65,14 @@ export interface LadderCardProps {
   outsideSafety?: string | null;
   /** Standalone (no-safe-plan state): the card is not part of the aligned grid. */
   standalone?: boolean;
+  /** The seven effort parts are shown (one state for every card, so the aligned rows open together). */
+  effortOpen?: boolean;
+  onEffortToggle?: () => void;
+  /** Some card draws past its limit: every card's tracks leave the same room, so one scale holds across cards. */
+  effortReserve?: boolean;
 }
+
+
 
 const spoken = (t: string) =>
   t
@@ -90,7 +103,18 @@ function ShoppingRow({ item, goals, units, energy }: { item: ShoppingItemV2; goa
   );
 }
 
-function GoalBody({ v, hidden, onShow }: { v: OutcomeView; hidden: boolean; onShow?: () => void }) {
+function GoalBody({
+  v,
+  hidden,
+  onShow,
+  lead,
+}: {
+  v: OutcomeView;
+  hidden: boolean;
+  onShow?: () => void;
+  lead?: boolean;
+}) {
+  const parts = /^(.+?)[\s\u2009]+(kg|lb|cm|in|%|kcal|kJ|g|mmol\/L)$/.exec(v.value);
   return (
     <>
       <span className="lp-lgoal__main">
@@ -107,14 +131,26 @@ function GoalBody({ v, hidden, onShow }: { v: OutcomeView; hidden: boolean; onSh
           >
             show numbers
           </button>
+        ) : lead ? (
+          <HeroNumber
+            className="lp-lgoal__hero"
+            value={parts?.[1] ?? v.value}
+            unit={parts?.[2]}
+            size="num"
+            countUp={false}
+            label={`${v.name}: ${spoken(v.value)}${v.range ? `, ${v.range}` : ''}`}
+          />
         ) : (
           <span className="lp-lgoal__value lm-num">{v.value}</span>
         )}
       </span>
       {!hidden && v.bar ? (
         <RangeBar low={v.bar.low} high={v.bar.high} value={v.bar.value} width={88} className="lp-lgoal__bar">
-          <span className="lp-lgoal__range lm-num">{v.range?.replace(/^likely /, 'likely ')}</span>
+          <span className="lp-lgoal__range lm-num">{v.range}</span>
         </RangeBar>
+      ) : null}
+      {!hidden && !v.bar && v.status !== 'unsupported' ? (
+        <MonoMeta className="lp-lgoal__range">No range</MonoMeta>
       ) : null}
       <span className="lp-lgoal__verdict">
         <StatusGlyph status={v.status} />
@@ -129,32 +165,45 @@ function GoalBody({ v, hidden, onShow }: { v: OutcomeView; hidden: boolean; onSh
  * One goal row. With `onExplain` (and its numbers shown) the whole row is a button that opens the Explain drawer for the
  * goal's metric, and only then does it take the row hover (COMPONENTS §14.1); otherwise it is plain text.
  */
-function GoalRow({ v, hidden, onShow, onExplain }: { v: OutcomeView; hidden: boolean; onShow?: () => void; onExplain?: () => void }) {
+function GoalRow({
+  v,
+  hidden,
+  onShow,
+  onExplain,
+  lead,
+}: {
+  v: OutcomeView;
+  hidden: boolean;
+  onShow?: () => void;
+  onExplain?: () => void;
+  lead?: boolean;
+}) {
   if (onExplain && !hidden)
     return (
       <button
         type="button"
         className="lp-lgoal lp-rowbtn"
         data-status={v.status}
+        data-lead={lead || undefined}
         aria-label={`${v.name}: ${spoken(v.value)}${v.range ? `, ${v.range}` : ''}, ${v.verdict}. Explain`}
         onClick={(e) => {
           e.stopPropagation();
           onExplain();
         }}
       >
-        <GoalBody v={v} hidden={false} />
+        <GoalBody v={v} hidden={false} lead={lead} />
       </button>
     );
   return (
-    <div className="lp-lgoal" data-status={v.status}>
-      <GoalBody v={v} hidden={hidden} onShow={onShow} />
+    <div className="lp-lgoal" data-status={v.status} data-lead={lead || undefined}>
+      <GoalBody v={v} hidden={hidden} onShow={onShow} lead={lead} />
     </div>
   );
 }
 
 /**
  * LadderCard (COMPONENTS §13.6, plan-ladder.md §6.2-6.3): rung key, title, effort and the engine's measurable subtitle;
- * goals in rank order with likely ranges and time to target; the seven burdens; day to day; fasting; things to buy;
+ * goals in rank order with their ranges (or the C6 status word) and time to target; the seven burdens; day to day; fasting; things to buy;
  * limits it presses; safety; and the actions. The Ideal adds what your limits cost and is never startable. Each card
  * is an `article`; its title row is the selection toggle (`aria-pressed`).
  */
@@ -167,7 +216,8 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
   const goals = request.goals;
   const views = goals.map((g, i) => {
     const o = s.outcomes.find((x) => x.goal === i);
-    return o ? outcomeView(o, g, kind, units, { energy, roundChance: p.v2.provenance.tier === 'S' }) : null;
+    const status = goalStatusOf(plan, i);
+    return o ? outcomeView(o, g, kind, units, { energy, roundChance: p.v2.provenance.tier === 'S', ...(status ? { status } : {}) }) : null;
   });
   const g1 = views[0];
   const g1Hidden = !!(g1 && p.gentle && g1.weightType && !p.showNumbers);
@@ -177,6 +227,7 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
   const items = safetyItemsOf({ safetyItems: s.safetyItems, safetyNotes: [] });
   const counts = safetyCounts(items);
   const flagged = counts.danger + counts.caution;
+  const safetyStatus = planSafetyStatus(plan);
   // rows never hover as a whole: only a control inside a row (a goal row's button, the fasting "why", safety) does
   const row = (id: string, children: ReactNode, className?: string) => (
     <div key={id} className={className ? `lp-lcard__row ${className}` : 'lp-lcard__row'} data-row={id}>
@@ -196,7 +247,8 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
 
   return (
     <article
-      className="lp-lcard"
+      className="lp-lcard lm-material"
+      data-domain={ideal ? 'neutral' : 'body'}
       data-rung={kind}
       data-selected={p.selected || undefined}
       data-carried={carried ? true : undefined}
@@ -251,6 +303,7 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
           v ? (
             <GoalRow
               v={v}
+              lead={i === 0}
               hidden={!!(p.gentle && v.weightType && !p.showNumbers)}
               onShow={p.onShowNumbers}
               onExplain={p.onExplain && goals[i] ? () => p.onExplain!(goals[i]!.metric) : undefined}
@@ -262,10 +315,25 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
       )}
       {row(
         'effort',
-        <>
-          {section(overflow ? 'effort (past your limits)' : 'effort')}
-          <BurdenScale difficulty={s.difficulty} compact ideal={ideal} gentle={p.gentle} header={false} />
-        </>,
+        // r068 W2-6: one Effort row that opens to the seven parts, each a full-width track (one state for every card)
+        <details className="lp-disc lp-lcard__effortrow" open={p.effortOpen} onClick={(e) => e.stopPropagation()}>
+          <summary
+            className="lp-disc__sum"
+            onClick={
+              p.onEffortToggle
+                ? (e) => {
+                    e.preventDefault();
+                    p.onEffortToggle!();
+                  }
+                : undefined
+            }
+          >
+            <span className="lp-disc__label lp-lcard__sec">{overflow ? 'effort (past your limits)' : 'effort'}</span>
+            <span className="lp-disc__value">{hardestPart(s.difficulty, p.gentle)}</span>
+            <Icon icon={ChevronDown} size={16} className="lp-disc__chev" />
+          </summary>
+          <BurdenScale difficulty={s.difficulty} compact ideal={ideal} gentle={p.gentle} header={false} reserve={p.effortReserve} />
+        </details>,
       )}
       {row(
         'daytoday',
@@ -306,7 +374,7 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
                 ? `${p.v2.ideal.relaxed.length} practical limit${p.v2.ideal.relaxed.length === 1 ? '' : 's'} lifted`
                 : 'none'
               : s.bindingLimits.length
-                ? s.bindingLimits.map((b) => b.text || b.label).join(' · ')
+                ? s.bindingLimits.map((b) => plainLimit(b.text || b.label)).join(' · ')
                 : 'none'}
           </p>
           {/* E20: markers — "because your LDL was … on …" on the rungs a blood-marker note touches */}
@@ -325,12 +393,17 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
           ) : flagged ? (
             <button type="button" className="lp-lcard__safety lp-lcard__safety--btn" onClick={stop(p.onSafety)}>
               <StatusMark severity={counts.danger ? 'danger' : 'caution'} size={16} />
-              <span>{[counts.danger ? `${counts.danger} danger${counts.danger === 1 ? '' : 's'}` : null, counts.caution ? `${counts.caution} caution${counts.caution === 1 ? '' : 's'}` : null].filter(Boolean).join(', ')}</span>
+              <span>
+                {[SAFETY_STATUS_WORD[safetyStatus], counts.danger ? `${counts.danger} danger${counts.danger === 1 ? '' : 's'}` : null, counts.caution ? `${counts.caution} caution${counts.caution === 1 ? '' : 's'}` : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
             </button>
           ) : (
+            // C5/D4-01: no warnings is not a verification; the word is the plan's safety status (Unchecked when absent)
             <p className="lp-lcard__safety">
-              <StatusMark severity="ok" size={16} />
-              <span>within safety limits</span>
+              <StatusMark severity={safetyStatus === 'verified' ? 'ok' : safetyStatus === 'unchecked' ? 'info' : 'caution'} size={16} />
+              <span>{SAFETY_STATUS_WORD[safetyStatus]}</span>
             </p>
           )}
         </>,
@@ -360,12 +433,17 @@ export function LadderCard({ setToggleEl, ...p }: LadderCardProps) {
               </span>
             ) : null}
             {p.onOpenInSimulator ? (
-              <Key size="sm" variant="quiet" onClick={stop(p.onOpenInSimulator)}>
+              <Key variant="outlined" onClick={stop(p.onOpenInSimulator)}>
                 Open in Simulator
               </Key>
             ) : null}
           </>
-        ) : null,
+        ) : (
+          // r068 PR3: every rung card ends in the same footer; on an unselected card it is the way to choose it
+          <Key variant="outlined" onClick={stop(p.onSelect)} aria-label={`Choose the ${title} plan`}>
+            Choose this plan
+          </Key>
+        ),
         'lp-lcard__actions',
       )}
     </article>

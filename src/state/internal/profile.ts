@@ -4,6 +4,7 @@
  */
 import type { CycleProfile } from '@/engine';
 import { summarizeBody } from '@/features/body/model';
+import { projectHabitualCardioActivity } from '@/engine/core/resolveProfile';
 import { useProfileStore } from '../profileStore';
 import {
   BODY_RANGES,
@@ -11,7 +12,9 @@ import {
   SHAPE_RANGES,
   clampTo,
   finite,
+  pickBodyFatMeta,
   pickBodyValues,
+  pickGirthMeta,
   pickCycle,
   pickHabits,
   pickLabs,
@@ -95,11 +98,13 @@ export function applyProfilePatch(p: ProfilePatchInput): boolean {
       cm: clampOrNull(w.cm, BODY_RANGES.waistCm),
       neckCm: clampOrNull(w.neckCm, BODY_RANGES.neckCm),
       hipCm: clampOrNull(w.hipCm, BODY_RANGES.hipCm),
+      // D1-03: measurement provenance survives the patch (null clears a field; invalid values are dropped, never invented)
+      ...pickGirthMeta(w as Record<string, unknown>),
     };
   }
   if (p.knownBodyFat !== undefined) {
     const k = p.knownBodyFat === null ? DEFAULT_BODY.knownBodyFat : { ...s.knownBodyFat, ...defined(p.knownBodyFat) };
-    next.knownBodyFat = { use: k.use === true, pct: clampOrNull(k.pct, BODY_RANGES.knownBodyFatPct), source: k.source ?? 'dxa' };
+    next.knownBodyFat = { use: k.use === true, pct: clampOrNull(k.pct, BODY_RANGES.knownBodyFatPct), source: k.source ?? 'dxa', ...pickBodyFatMeta(k as Record<string, unknown>) };
   }
   if (p.training !== undefined) {
     const t = p.training === null ? DEFAULT_BODY.training : { ...s.training, ...defined(p.training) };
@@ -111,7 +116,9 @@ export function applyProfilePatch(p: ProfilePatchInput): boolean {
       if (v === null || v === undefined) delete habits[key];
       else habits[key] = v;
     }
-    next.habits = pickHabits(habits);
+    const candidate = pickHabits(habits);
+    projectHabitualCardioActivity(candidate.activity, candidate.habitualCardio);
+    next.habits = candidate;
   }
   if (p.cycle !== undefined) {
     const merged: Record<string, unknown> = p.cycle === null ? {} : { ...s.cycle };

@@ -93,7 +93,7 @@ Picker **data logic** lives here (`lib/picker.ts`: `pickerGroups`, `toggleMetric
 
 - One **uPlot** instance per plot (`core/plotEngine.ts`) used as a DPR-aware canvas renderer:
   uPlot strokes the line paths; our hooks draw layers 1–7 (phase bands, grid, printed y-scale,
-  likely-range band, thresholds/reference, markers, severity lines). uPlot's cursor/legend/axes
+  likely-range band or the single series' area, thresholds/reference, markers and end dots, severity lines). uPlot's cursor/legend/axes
   are off — the frame owns one pointer layer, so the crosshair is synced through the controller,
   not `cursor.sync` (it also has to serve gutters, ribbons, keyboard, touch intent and pinning).
 - Lanes mount their canvas only within the viewport ± 1 screen (IntersectionObserver) and skip
@@ -106,9 +106,12 @@ Picker **data logic** lives here (`lib/picker.ts`: `pickerGroups`, `toggleMetric
   redundant writes skipped; the readout's size is cached by a ResizeObserver (no forced layout).
 - Measured in Chromium at 1440 × 900, 183 days × 44 metrics (52 rows): crosshair step
   **2.9 ms median / 3.3 ms p90** (script + style + layout); Ctrl-wheel zoom frame **5.7 ms / 8.6 ms**.
-- Theme: `core/theme.ts` reads `--lm-*` once per theme change (html `data-theme` / `data-motion`,
-  OS colour scheme, forced colours, font load) and every plot redraws; `--lm-dur-slow` ≈ 0 ⇒
-  reduced motion (no zoom tween, no y-rescale tween, no playhead sweep).
+- Theme: one palette (Ember, dark only). `core/theme.ts` reads `--lm-*` and `--lmc-*` once, and again on html
+  `data-motion` / `data-contrast` / style changes, forced colours, reduced motion and font load;
+  every plot redraws; `--lm-dur-slow` ≈ 0 ⇒ reduced motion (no zoom tween, no y-rescale tween, no
+  playhead sweep). Canvas text is Geist at 400/500 (`canvasFont`; no width axis). `THEME_DEFAULTS` holds
+  the resolved value of every token the theme reads (jsdom, early boot) and `test/themeDefaults.test.ts`
+  compares each entry with `tokens.css` and `charts.css`, so a token that moves fails there.
 
 ## Accessibility
 
@@ -118,19 +121,45 @@ Table twin with CSV for every view; identity is never colour-alone (names, dash 
 marker shapes in the overlay, plan letters on end labels, macro letters in the intake legend);
 opt-in textures (`textures`) and automatic hatching/system colours in forced-colors mode.
 
+## Chart skin (r071, canvas half)
+
+What the channel stack, overlay, focus, comparison and day lanes wear (AUDIT §1.4 "Charts: visual layer"; the SVG
+charts in `living/` and Progress carry the same marks through their own CSS):
+
+| Mark | Canvas | Where |
+|---|---|---|
+| Line | 2 px, round caps (joins are round in uPlot already), the category hue (`--lm-cat-*`, five of the eight alias a domain hue); the focused lane's and the isolated overlay series' 2.5 px; strips 1.5 px at the dim alpha | `models.ts`, `plotEngine.ts` (`PlotLine.cap`) |
+| Grid | horizontal only, dotted (1 css px on, 3 off), ink at `--lmc-grid-a` (0.10); ticks and the spine are as before (`--lm-ink-3` 11 px) | `drawGrid` (`ChartTheme.gridDot`) |
+| End dot | `drawEndDot`: the hue fill, a 2 px `--lm-chart-ring` ring, and with a glow a flat halo disc (hue at 0.18, 6 px past a dot of r 4 or more) plus a soft shadow (hue at 0.45, blur 12 px). A lane's is r 3.5 (a lighter glow, no disc), the focused lane's r 5; overlay and comparison ends are r 4 and keep their marker shape; the start of a lane or a comparison is the same dot without a glow | `draw.ts` (`END_DOT_R`, `EndDotOptions`) |
+| Pulse | the focused lane only: a ring from its end dot, scale 1 to 1.9 and opacity 0.45 to 0, 2.4 s, `--lm-pulse-cycles` (2) times, then the element unmounts (4.8 s, under WCAG 2.2.2). DOM, on the compositor: `LaneRow`'s `EndPulse` places it with `PlotApi.onDraw` + `PlotModel.endPoint` after every draw | `LaneRow.tsx`, `.lmc-pulse` |
+| Area | a single series with no band: a vertical gradient, hue at `--lmc-area-top` (0.26) at the series' highest visible point, 0 at the plot baseline; bands stay flat at `--lm-chart-band-alpha`. `CanvasGradient`s are cached per (context, hue, alpha, top, bottom) like `hatch()` patterns | `drawAreaGradient`, `areaGradient` |
+| Crosshair | a hairline that fades at both ends, 8 px dots in the series hue (`--lmc-dot`) with a ring and the halo, the readout on `--lm-elevated` with the card radius, its head in mono caps and its values first in the display face | `charts.css` |
+| Energy balance | the r071 balance ramp: tide below maintenance (`--lm-balance-deficit-1..6`), ember above (`--lm-balance-surplus-1..4`), 10 % bands (`energyStep`: 6 + 4 steps), fast days hatched on the deepest tide | `inputModels.ts`, `lib/intake.ts` |
+
+No glow, no halo and no pulse under forced colours, `prefers-contrast: more` / `html[data-contrast=more|high]` or reduced motion
+(`ChartTheme.glow` is false: the dot and its ring stay; the CSS marks hide under the same three switches). Gold leaves the data
+palette: the playhead sweep, plan A and goal lines are the only gold left in the module.
+
+Pure helpers for a page that draws its own: `lastPointIn(xs, ys, x0, x1)` (the end of a line in a window), `energyStep`.
+
 ## Chart-local tokens (promote to `design/tokens.css` when convenient)
 
-Defined in `charts.css`, validated with the dataviz script:
-`--lmc-energy-ramp-1..4` (TDEE stack, ordinal teal, lowest-contrast step at the bottom) and
-`--lmc-decomp-fat|lean|glycogen|water` (all-pairs PASS in both themes).
+Defined in `charts.css` (`:root`), from r071 tokens:
+`--lmc-energy-ramp-1..4` (TDEE stack, ordinal: the intensity set resting · light · active · exercise, lowest-contrast step at the
+bottom), `--lmc-decomp-fat|lean|glycogen|water` (macro fat apricot · macro protein green · fuel bronze · body tide; columns stack
+lean, fat, glycogen, water out from zero so green and bronze never touch while fat moves the same way; every part is labelled),
+and the skin: `--lmc-grid-a` 0.10, `--lmc-area-top` 0.26, `--lmc-dot-halo-a` 0.18, `--lmc-dot-halo` 6px, `--lmc-dot-glow-a` 0.45,
+`--lmc-dot-glow` 12px, `--lmc-pulse-dur` 2.4s. The canvas reads them through `ChartTheme` (`gridDot`, `areaTop`, `dot`), the DOM marks with `var()`.
+`--lm-chart-area-alpha` (0.14, tokens.css) is no longer read by the module: the area's top stop is `--lmc-area-top`.
 
 ## Deviations from CHART_SPEC (deliberate)
 
-- **Decomposition colours** (§7.5): the specified cobalt / cobalt-300 / copper / sky set fails
-  validation (lean ↔ water ΔE 4.9 normal vision). Used a macro-semantic set instead — stored fat
-  = fat colour, lean = protein colour, glycogen = carbohydrate colour, water = sky — all-pairs PASS.
+- **Decomposition colours** (§7.5): token aliases instead of the specified cobalt / copper / sky set —
+  stored fat = macro fat (apricot), lean = macro protein (green), glycogen = fuel (bronze), water =
+  body (tide); the stack order keeps like-signed neighbours apart and every part carries its name.
 - **TDEE ramp order** (§7.3): lowest-contrast step at the bottom (BMR) so the large resting area
-  stays quiet; spec listed 700 → 250 bottom → top.
+  stays quiet; spec listed 700 → 250 bottom → top. The four steps are the intensity set
+  (`--lm-intensity-*`), the same ember steps as the Energy card.
 - **Threshold domains** (§4.3): zero-anchored only for near-zero data (min < ½ max), extending to
   1.2 × the highest threshold the data comes near; other threshold lanes (BP, LDL) hug the data
   and include nearby thresholds, so 124–131 mmHg is not flattened on a 0–156 axis.
@@ -175,32 +204,35 @@ Living screens do) needs nothing else; everything is also exported from `@/featu
 | `AdherenceDial` | `items, score, size? ('glyph' 16 · 'sm' 64 · 'md' 120), final?, coverageText?, quietWord?, onArcClick?, label?` (geometry: `dialArcs`, `dialSentence`) |
 
 - **TrendLane** marks, bottom → top: pause hatch · grid + printed tick column (32 px, 26 px under
-  500 px; 2–3 nice ticks inside the hugged domain; unit over the column) · realistic band
-  (`--lm-cat-body` at band alpha) + optional p50 hairline · as-prescribed band as a 1 px dashed
-  (`3 3`, ink-3) outline · goal (1 px ink + engraved label) · weigh-ins (4 px body-hue dots at 35 %;
-  flagged = hollow ring, never removed) · trend (2 px, round joins, NaN = gap) · version / reset
-  hairlines with engraved labels · the yellow now-hand (1.5 px + 6 px counterweight; the only
-  yellow) · crosshair. X: dates ("1 Oct"), every 1st–7th day counted back from today up to 14
+  500 px; 2–3 nice ticks inside the hugged domain; unit over the column) · forecast band (gold at
+  band alpha) + optional p50 hairline · as-prescribed band as a 1 px dashed (`3 3`, ink-3) outline,
+  only when the data carries it (Progress drops it) · goal (1 px ink-2 + label) · weigh-ins (4 px
+  ink-3 dots; flagged = hollow ring, never removed) · trend (2 px gold, round joins, NaN = gap: the
+  one gold trace) · version / reset hairlines with labels · the stone now-hand (1 px dashed + 6 px
+  counterweight) · crosshair. X: dates ("1 Oct"), every 1st–7th day counted back from today up to 14
   days, Mondays beyond; the goal-date range is a bracket on the x-axis ("likely 21–30 Dec"),
   clipped to the window with an arrow. The domain hugs bands, dots and trend (+10 %); the goal
   stretches it only on `progress` — elsewhere a far goal becomes an edge label ("goal 79.5 kg ↓").
 - **Interaction** (TrendLane, ScoreHistory): the plot is one tab stop, `role="img"` with a generated
   summary (`trendSummary`: "Weight trend 83.1 kilograms, expected today 82.8 to 83.6; 9 weigh-ins in
-  the last 14 days; goal date likely 21 to 30 December."). Hover / tap / ←→ (⇧ ×7, Home/End, Esc)
+  the last 14 days; goal date 21 to 30 December."). Hover / tap / ←→ (⇧ ×7, Home/End, Esc)
   move a day crosshair with a small readout (docked as one line on `today`), mirrored to a polite
-  live region after 400 ms. A quiet "table" key (or `T`) toggles the table twin with CSV.
-- **Quiet mode**: no y numerals, no unit, no weights in readout, summary or crosshair ("trend going
-  down"); the table key is hidden (the screen's "show numbers" key lifts quiet). Calendar labels and
+  live region after 400 ms. On `progress` a "Table" text key toggles the table twin with CSV; `T`
+  toggles it on every size (the small charts show no key). The default readout is the trend now
+  ("83.1 kg"; quiet "Going down").
+- **Quiet mode**: no y numerals, no unit, no weights in readout, summary or crosshair ("Going
+  down"); the table key is hidden (the screen's "Show numbers" lifts quiet). Calendar labels and
   BlockBars use the dial's vocabulary (≥ 85 "as planned" · 60–84 "mostly" · 30–59 "partly" · < 30
   "a little"; `quietScoreWord`).
 - **Calendar**: in-plan days are keys (44 px touch / 36 px fine pointer) with the date and a 16 px
-  dial glyph when scored; unscored past days a hollow dot; assumed days a dashed outline; paused
-  days struck; future days the number only, faint; out-of-plan days blank; today the yellow
-  indicator dot. Labels: "Wed 14 Oct, adherence 84" · "…, filled in as planned, not scored" · quiet
-  "…, adherence mostly". Roving tab stop; arrows / Home / End move focus.
-- **BlockBars**: 8 px well track, ink fill to the mean, printed ticks at 0 / 50 / 100 (numerals once
-  under the bars), value at the end ("84" or "not logged"), **no target line**, the costliest item in
-  text underneath. A list: each row reads "training 84 out of 100".
+  dial glyph when scored (credited arcs gold); logged but not scored a small filled dot; past days
+  with nothing logged a hollow ring; assumed days a dashed outline; paused days struck; future days
+  the number only, faint; out-of-plan days blank; today's date in gold (no indicator dot). Labels:
+  "Wed 14 Oct, adherence 84" · "…, logged, not scored" · "…, filled in as planned, not scored" ·
+  quiet "…, adherence mostly". Roving tab stop; arrows / Home / End move focus.
+- **BlockBars**: 6 px pill track, gold fill to the mean, value at the end ("84 %" or "Not logged"),
+  labels and words in sentence case, **no scale, no ticks, no target line**, an optional plain line
+  underneath naming the biggest gap. A list: each row reads "Training 84 %".
 - **ScoreHistory**: nightly dots (category hue, 35 %), 7-day mean 2 px in `--lm-cat-recovery` /
   `-performance` / `-cardio`, personal normal range as an ink band (12 %), version lines with
   engraved labels, a new device as a dashed join of the mean line plus an engraved mark, optional
@@ -235,8 +267,8 @@ Living screens do) needs nothing else; everything is also exported from `@/featu
   and table. The compare line uses the category hue dashed `4 3` (identity within a category = hue +
   dash, §3.1).
 - **Calendar**: future in-plan days are keys too (they open a read-only preview); today without a
-  score shows no mark (the day is not over); `selected` outlines the open day in ink; the grid caps
-  at 560 px.
+  score shows no mark (the day is not over); `selected` gives the open day a gold wash and edge; the
+  grid spans its container and each day key stays compact (≤ 56 px) in the centre of its column.
 - **BlockBars** use list semantics with full text per row instead of `role="img"`.
 - **CSS**: the trend / calendar / bars / score rules live in `@layer components` (the dial's rules
   above them predate this and stay unlayered). The ISO date helpers in `living/trend.ts` duplicate a

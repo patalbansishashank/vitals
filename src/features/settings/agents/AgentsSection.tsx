@@ -1,13 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useAgentActivity } from '@/agents/activity';
-import { Engraved, InlineWarning, Switch } from '@/components';
+import { InlineWarning, Switch } from '@/components';
 import { dispatch } from '@/commands';
 import { readAgentSettings, type AgentSettings } from '@/commands/ai/settings';
 import { useWebMcpEnabled, useWebMcpSupported } from '@/agents/webmcp';
-import { platformCaps } from '@/platform';
+import { platform, platformCaps } from '@/platform';
 import { SettingsSection } from '../sections';
-import { SettingRow, useSavedFlash } from '../SettingRow';
+import { SettingRow, SettingsGroup, useSavedFlash } from '../SettingRow';
 import { AGENTS_COPY } from './copy';
+import { ConnectTools } from './ConnectTools';
 import { ProposalsList } from './ProposalsList';
 import { ServerAgentsCard } from './ServerAgentsCard';
 
@@ -17,11 +18,15 @@ export function useAgentsSettings() {
   return { webmcp, setWebmcp };
 }
 
-type Configure = (input: { webmcp?: boolean; clients?: Record<string, { directApply: boolean }> }) => Promise<boolean>;
+type Configure = (input: {
+  webmcp?: boolean;
+  clients?: Record<string, { directApply: boolean }>;
+}) => Promise<boolean>;
 
 /**
- * Settings › Agents: WebMCP in this browser, agents on other computers through the person's server (address and
- * agent keys, SUITE_SPEC §14.4), which agents may apply plan changes directly, and the proposals waiting. The agent
+ * Settings › Agents: the proposals waiting (first, and only when there are some), WebMCP in this browser (only where the
+ * browser offers it), agents on other computers through the person's server (address and agent keys, SUITE_SPEC
+ * §14.4), the AI tools on this computer (desktop app), and which agents may apply plan changes directly. The agent
  * permissions go through `agents.configure` (recorded in `uiPrefs/me.agents`, undoable); the WebMCP switch of this
  * device follows once the command succeeded.
  */
@@ -45,49 +50,44 @@ export function AgentsSection() {
   );
   return (
     <SettingsSection id="agents" title="Agents" saved={saved}>
-      <div className="grid gap-4">
-        <div className="grid gap-1">
-          <p className="m-0 text-sm leading-[1.5] text-ink">{AGENTS_COPY.intro}</p>
-          <p className="m-0 text-xs leading-[1.45] text-ink-2">{AGENTS_COPY.rules}</p>
-        </div>
-        <WebMcpRow configure={configure} />
-        <ServerAgentsCard />
-        <DirectApplyList settings={settings} configure={configure} />
-        {error ? (
-          <InlineWarning severity="danger" alert>
-            {error}
-          </InlineWarning>
-        ) : null}
-        <ProposalsList />
-      </div>
+      <ProposalsList />
+      <WebMcpGroup configure={configure} />
+      <ServerAgentsCard />
+      {platform() === 'electron' ? <ConnectTools /> : null}
+      <DirectApplyList settings={settings} configure={configure} />
+      {error ? (
+        <InlineWarning severity="danger" alert>
+          {error}
+        </InlineWarning>
+      ) : null}
     </SettingsSection>
   );
 }
 
-function WebMcpRow({ configure }: { configure: Configure }) {
+/** Agents built into this browser (WebMCP): the switch only where the browser can share tools; nothing otherwise. */
+function WebMcpGroup({ configure }: { configure: Configure }) {
   const { webmcp, setWebmcp } = useAgentsSettings();
   const supported = useWebMcpSupported();
   const app = platformCaps().installedApp;
   const C = AGENTS_COPY;
+  if (!supported) return null;
   return (
-    <SettingRow
-      label={app ? C.webmcpLabelApp : C.webmcpLabel}
-      help={supported ? (app ? C.webmcpHelpApp : C.webmcpHelp) : app ? C.webmcpUnsupportedApp : C.webmcpUnsupported}
-    >
-      {({ labelId, helpId }) => (
-        <Switch
-          checked={supported && webmcp}
-          disabled={!supported}
-          labelledBy={labelId}
-          describedBy={helpId}
-          onChange={(v) => {
-            void configure({ webmcp: v }).then((ok) => {
-              if (ok) setWebmcp(v);
-            });
-          }}
-        />
-      )}
-    </SettingRow>
+    <SettingsGroup>
+      <SettingRow label={app ? C.webmcpLabelApp : C.webmcpLabel} help={app ? C.webmcpHelpApp : C.webmcpHelp}>
+        {({ labelId, helpId }) => (
+          <Switch
+            checked={webmcp}
+            labelledBy={labelId}
+            describedBy={helpId}
+            onChange={(v) => {
+              void configure({ webmcp: v }).then((ok) => {
+                if (ok) setWebmcp(v);
+              });
+            }}
+          />
+        )}
+      </SettingRow>
+    </SettingsGroup>
   );
 }
 
@@ -103,25 +103,23 @@ function DirectApplyList({ settings, configure }: { settings: AgentSettings; con
   }, [settings, activity, webmcp]);
   if (names.length === 0) return null;
   return (
-    <div className="grid gap-3 border-t border-line pt-4">
-      <div className="grid gap-1">
-        <Engraved as="p" className="m-0">
-          {AGENTS_COPY.directHeading}
-        </Engraved>
-        <p className="m-0 text-xs leading-[1.45] text-ink-2">{AGENTS_COPY.directHelp}</p>
-      </div>
-      {names.map((name) => (
-        <SettingRow key={name} label={AGENTS_COPY.directLabel(name, platformCaps().installedApp)}>
-          {({ labelId }) => (
-            <Switch
-              checked={settings.clients[name]?.directApply === true}
-              labelledBy={labelId}
-              onChange={(v) => void configure({ clients: { [name]: { directApply: v } } })}
-            />
-          )}
-        </SettingRow>
-      ))}
-    </div>
+    <>
+      <SettingsGroup
+        label={AGENTS_COPY.directHeading}
+        info={{ title: AGENTS_COPY.directHeading, body: AGENTS_COPY.directHelp }}
+      >
+        {names.map((name) => (
+          <SettingRow key={name} label={AGENTS_COPY.directLabel(name, platformCaps().installedApp)}>
+            {({ labelId }) => (
+              <Switch
+                checked={settings.clients[name]?.directApply === true}
+                labelledBy={labelId}
+                onChange={(v) => void configure({ clients: { [name]: { directApply: v } } })}
+              />
+            )}
+          </SettingRow>
+        ))}
+      </SettingsGroup>
+    </>
   );
 }
-

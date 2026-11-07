@@ -48,7 +48,7 @@ function Convergence({ points, height: fixedHeight }: { points: readonly Converg
   return (
     <div className="lp-conv" ref={boxRef}>
       <p className="lp-conv__legend">
-        <span className="lm-eng">best plan’s goal score and the ladder’s coverage · by evaluations</span>
+        <span className="lm-eng">Search progress</span>
         <span className="lm-num" aria-hidden="true">
           {h ? `${formatNumber(h.eu, 0)} evaluations · best ${formatNumber(h.G, 2)}${Number.isFinite(h.hvLadder) ? ` · ladder ${formatNumber(h.hvLadder, 2)}` : ''}` : ''}
         </span>

@@ -1,8 +1,8 @@
 /**
  * Publishes the Planner's current request (goals, limits, body, safety, markers) to the planner port, and what the
  * goal suggester needs (effective limits, safety access) to its port, while mounted, so `planner.find` and
- * `goals.suggest` from the Coach or an agent use what the Planner screens would. Mounted lazily by the Coach runtime
- * (src/ai/coach/CoachRuntimeProvider.tsx) once a provider is configured.
+ * `goals.suggest` from the Coach or an agent use what the Planner screens would. Mounted once by AgentSurfaces,
+ * independently of whether a Coach provider was configured. Publication does not start a reach-estimate search.
  */
 import { useEffect } from 'react';
 import { usePlannerModel } from './model';
@@ -10,7 +10,7 @@ import { publishPlannerRequest } from './run';
 import { setSuggestContext } from './suggestInput';
 
 export default function PlannerRequestPublisher(): null {
-  const { request, hash, constraints, access, startDate } = usePlannerModel();
+  const { request, hash, constraints, access, startDate } = usePlannerModel({ estimateReach: false });
   useEffect(() => {
     publishPlannerRequest(request, hash);
     return () => publishPlannerRequest(null, null);

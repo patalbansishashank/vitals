@@ -1,15 +1,14 @@
 /* ==========================================================================
-   BodyAvatar - the two-layer figure on the perforated stage (AVATAR_SPEC §4-§8).
+   BodyAvatar - the two-layer figure on a plain stage (AVATAR_SPEC §4-§8).
    Tokens only. Text inside the SVG is set in real pixels (the viewBox is the
    stage's pixel box), never below 11 px (REVIEW_FINDINGS #8).
    ========================================================================== */
 
 @layer components {
   .lm-avatar {
-    /* Materials. REVIEW_FINDINGS #8: on the light stage the frosted fat layer is pulled a quarter of the way toward
-       the lean material so the envelope separates from the well (L ~.82 vs .96) while staying clearly lighter than
-       the core (L ~.62). Dark keeps the token and turns slightly translucent so the core reads through (§4.1). */
-    --av-fat: var(--lm-avatar-fat);
+    /* Materials (dark only): the frosted fat layer keeps its token, slightly translucent so the core reads through
+       (§4.1). */
+    --av-fat: color-mix(in oklab, var(--lm-avatar-fat) 92%, transparent);
     --av-lean: var(--lm-avatar-lean);
     --av-edge: var(--lm-avatar-outline);
     --av-edge-w: 1.25px;
@@ -17,14 +16,6 @@
     min-width: 0;
     display: grid;
     gap: 8px;
-  }
-  @supports (color: light-dark(#000, #fff)) {
-    .lm-avatar {
-      --av-fat: light-dark(
-        color-mix(in oklab, var(--lm-avatar-fat) 74%, var(--lm-avatar-lean)),
-        color-mix(in oklab, var(--lm-avatar-fat) 92%, transparent)
-      );
-    }
   }
   .lm-avatar[data-size='fill'] {
     height: 100%;
@@ -112,7 +103,6 @@
     shape-rendering: crispEdges;
   }
   .lm-avatar__svg .lm-avatar__num {
-    font-stretch: 84%;
     font-variant-numeric: tabular-nums;
   }
   .lm-avatar__height-tick {
@@ -122,7 +112,7 @@
   }
   .lm-avatar__svg .lm-avatar__height {
     fill: var(--lm-ink);
-    font-weight: 600;
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
   .lm-avatar__leader {
@@ -139,15 +129,14 @@
   }
   .lm-avatar__svg .lm-avatar__measure-value {
     fill: var(--lm-ink);
-    font-weight: 600;
-    font-stretch: 112%;
+    font-weight: 500;
     font-variant-numeric: tabular-nums slashed-zero;
   }
   .lm-avatar__views text {
     text-anchor: middle;
   }
 
-  /* ---- handles: 12 px raised caps, 44 px hit areas (AVATAR_SPEC §8) ---- */
+  /* ---- handles: 12 px flat caps, 44 px hit areas (AVATAR_SPEC §8); gold while held ---- */
   .lm-avatar__handles {
     position: absolute;
     inset: 0;
@@ -173,8 +162,7 @@
     height: 12px;
     border-radius: 50%;
     background: var(--lm-raised);
-    border: 1px solid var(--lm-edge);
-    box-shadow: var(--lm-shadow-key);
+    border: 1px solid var(--lm-line-strong);
     transition:
       background-color var(--lm-dur-fast) var(--lm-ease-out),
       transform var(--lm-dur-instant) var(--lm-ease-press);
@@ -192,7 +180,7 @@
   .lm-avatar__handle:hover .lm-avatar__cap,
   .lm-avatar__handle[data-active] .lm-avatar__cap {
     background: var(--lm-signal);
-    border-color: var(--lm-signal-edge);
+    border-color: var(--lm-signal);
   }
   .lm-avatar__handle[data-active] .lm-avatar__cap {
     transform: scale(1.15);
@@ -228,23 +216,23 @@
   .lm-avatar__tip {
     position: absolute;
     transform: translate(-50%, calc(-100% - 16px));
-    padding: 4px 8px;
-    border-radius: var(--lm-radius-xs);
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    font-weight: 500;
+    padding: 4px 10px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-elevated);
+    color: var(--lm-ink);
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     pointer-events: none;
-    box-shadow: var(--lm-shadow-pop);
     z-index: 1;
   }
 
   .lm-avatar__caption {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
+    font-size: 12px;
+    line-height: 18px;
     color: var(--lm-ink-2);
     text-align: center;
     text-wrap: balance;

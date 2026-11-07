@@ -5,6 +5,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { ensureConfigDir, readJsonFile, writeJsonSecret } from '../config.ts';
+import type { CoachSettings } from '../coach/config.ts';
 import { PUBLIC_APP_ORIGIN } from '../security.ts';
 
 export const SERVER_DIR_NAME = 'vitals-server';
@@ -18,12 +19,14 @@ export interface ServerConfig {
   publicHosts?: string[];
   allowedOrigins: string[];
   dataDir: string;
-  /** `tls`: MQTT over TLS for phones that reach the server by a public name (certFile/keyFile are read at start; replace them and restart to renew). */
-  mqtt?: { enabled: boolean; tcp?: { host: string; port: number }; tls?: { listen: Array<{ host: string; port: number }>; certFile: string; keyFile: string }; ws?: { path: '/mqtt' } };
   tls?: { certFile: string; keyFile: string };
   limits?: { aiRequestsPerMinute?: number; aiRequestsPerDay?: number; bodyBytes?: number };
   /** Person workers open at once (default 4); the least recently used idle one closes to make room. */
   maxOpenPersons?: number;
+  /** The server coach (docs/SERVER.md "Coach"); absent: off. `{}` turns it on with the defaults. */
+  coach?: CoachSettings;
+  /** Over-the-air updates (docs/SERVER.md "Updates"). `publicInstall` (default true): the token-free `/install` page, tailnet only. */
+  releases?: { publicInstall?: boolean };
 }
 
 export const serverConfigDir = (env: NodeJS.ProcessEnv = process.env, home: string = homedir()) =>
@@ -42,7 +45,6 @@ export function defaultServerConfig(env: NodeJS.ProcessEnv = process.env): Serve
     publicOrigin: '',
     allowedOrigins: [PUBLIC_APP_ORIGIN],
     dataDir: defaultServerDataDir(env),
-    mqtt: { enabled: true, ws: { path: '/mqtt' } },
   };
 }
 

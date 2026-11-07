@@ -6,7 +6,7 @@
  *   describeConformance('evolu', () => ({ store: createDocumentStore({ backend: evoluStore }), remote: … }));
  */
 import { expect, it } from 'vitest';
-import { WriteOutsideCommand, mintWriteToken, revokeWriteToken, type DocumentStore, type Encryptor, type StoreChange } from '..';
+import { createDocumentStore, WriteOutsideCommand, mintWriteToken, revokeWriteToken, type DocumentStore, type Encryptor, type StoreChange, type PersistenceBackend } from '..';
 
 export interface ConformanceTarget {
   store: DocumentStore;
@@ -193,5 +193,71 @@ export function sealedCases(make: (encryptor: Encryptor | null) => ConformanceTa
     const { store } = await make(xor);
     await store.transact(token(), (tx) => tx.put('secrets', { _id: 'openai', key: 'sk-test' }));
     expect((await store.get<{ key: string }>('secrets', 'openai'))!.key).toBe('sk-test');
+  });
+}
+
+/** Faults during backend commit must not escape the atomic batch boundary. */
+export function backendAtomicityCases(make: (now: () => number) => PersistenceBackend): void {
+  it('rolls back rows and revision history when preparing a later batch write fails', async () => {
+    let writes = 0;
+    let failAt = Infinity;
+    const backend = make(() => {
+      if (++writes === failAt) throw new Error('clock failed');
+      return Date.UTC(2026, 9, 1) + writes;
+    });
+    await backend.put('settings', 'me', { units: 'metric' });
+    const original = await backend.get('settings', 'me');
+    const changes: unknown[] = [];
+    backend.subscribe((change) => changes.push(change));
+    failAt = writes + 2;
+    await expect(backend.batch!([
+      { kind: 'put', col: 'settings', id: 'me', value: { units: 'imperial' }, schema: 1 },
+      { kind: 'put', col: 'uiPrefs', id: 'new', value: { active: true }, schema: 1 },
+    ])).rejects.toThrow('clock failed');
+    expect(await backend.get('settings', 'me')).toEqual(original);
+    expect(await backend.get('uiPrefs', 'new')).toBeNull();
+    expect(await backend.history!('settings', 'me', 10)).toEqual([]);
+    expect(changes).toEqual([]);
+    // The aborted transaction must not poison subsequent writes.
+    await backend.put('settings', 'me', { units: 'imperial' });
+    expect((await backend.get('settings', 'me'))?.value).toEqual({ units: 'imperial' });
+    expect(await backend.history!('settings', 'me', 10)).toEqual([original]);
+    expect(changes).toHaveLength(1);
+  });
+
+  it('preserves earlier operations and revision history for repeated ids in one batch', async () => {
+    let writes = 0;
+    const backend = make(() => Date.UTC(2026, 9, 1) + ++writes);
+    await backend.batch!([
+      { kind: 'put', col: 'settings', id: 'me', value: { units: 'metric' }, schema: 1 },
+      { kind: 'put', col: 'settings', id: 'me', value: { units: 'imperial' }, schema: 1 },
+    ]);
+    expect((await backend.get('settings', 'me'))?.value).toEqual({ units: 'imperial' });
+    expect((await backend.history!('settings', 'me', 10)).map((d) => d.value)).toEqual([{ units: 'metric' }]);
+  });
+}
+
+/** A restore must enumerate the backend's current rows, including another tab's unseen writes. */
+export function snapshotRestoreCases(make: () => PersistenceBackend): void {
+  it('replaces unseen rows and retains tombstones when publishing a complete restored cache', async () => {
+    const backend = make();
+    const store = createDocumentStore({ backend });
+    await store.ready;
+    const old = '01J0000000000000000000000B';
+    const deleted = '01J0000000000000000000000C';
+    const incoming = '01J0000000000000000000000A';
+    const body = (steps: number) => ({ date: '2026-10-31', kind: 'steps', source: { by: 'user' }, steps });
+    // Local notifications intentionally do not refresh this store: this models another open tab.
+    await backend.put('dailyLogs', old, body(20));
+    await backend.put('dailyLogs', deleted, body(30));
+    await backend.delete('dailyLogs', deleted);
+    expect(store.peekAll('dailyLogs')).toEqual([]);
+    await store.restoreSnapshot!(mintWriteToken('migration'), { dailyLogs: [{ ...body(100), _id: incoming } as never] }, { id: 'synthetic-restore', mirrors: {} });
+    expect(store.peekAll<{ steps: number }>('dailyLogs').map(d => [d._id, d.steps])).toEqual([[incoming, 100]]);
+    expect((await backend.get('dailyLogs', old))?._deleted).toBe(true);
+    expect(store.peekAll('dailyLogs', { includeDeleted: true }).filter(d => d._deleted)).toHaveLength(2);
+    const backup = store.peek<{ before: { dailyLogs: Array<{ _id: string }> } }>('syncState', 'restore')!;
+    expect(backup.before.dailyLogs.map(d => d._id).sort()).toEqual([old, deleted].sort());
+    for (const id of [old, deleted]) await expect(store.transact(mintWriteToken('command'), tx => tx.append('dailyLogs', { _id: id, ...body(999) }))).rejects.toThrow('already exists');
   });
 }

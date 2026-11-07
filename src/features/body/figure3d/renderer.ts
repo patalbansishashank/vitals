@@ -13,6 +13,10 @@ export interface FigureColours {
   core: [number, number, number];
   outline: [number, number, number];
   ghost: [number, number, number];
+  /** Reference anatomy and the fat-under-skin layer (figure3d.css `--lm-fig3d-*`, the layer swatches' colours). */
+  bone: [number, number, number];
+  muscle: [number, number, number];
+  fat: [number, number, number];
 }
 
 export interface FigureFrame {
@@ -451,9 +455,9 @@ export class FigureRenderer {
             );
           }
         };
-        if (layers.skeleton) drawAnatomy('bone', [0.84, 0.81, 0.72]);
+        if (layers.skeleton) drawAnatomy('bone', frame.colours.bone);
         if (layers.skeleton) gl.depthMask(false);
-        if (layers.muscles) drawAnatomy('muscle', [0.64, 0.28, 0.26]);
+        if (layers.muscles) drawAnatomy('muscle', frame.colours.muscle);
         gl.depthMask(true);
         gl.uniform3f(this.u.scale, 1, 1, 1);
         gl.uniform3f(this.u.anchor, 0, 0, 0);
@@ -515,14 +519,16 @@ export class FigureRenderer {
           gl.depthFunc(gl.LESS);
         };
         // Shown alone, the fat layer needs more cover to read on a dark stage.
-        if (showSat && frame.core) blendNearest(1, [0.9, 0.64, 0.4], showSkin ? 0.19 : 0.3);
+        const fat = frame.colours.fat;
+        // the inner (lean-side) face of the fat layer reads a shade deeper than its outer face
+        if (showSat && frame.core) blendNearest(1, [fat[0] * 0.94, fat[1] * 0.9, fat[2] * 0.86], showSkin ? 0.19 : 0.3);
         gl.depthMask(true);
         gl.colorMask(false, false, false, false);
         drawMesh(0, frame.colours.body, 1, false);
         gl.colorMask(true, true, true, true);
         gl.depthMask(false);
         gl.depthFunc(gl.LEQUAL);
-        if (showSat) drawMesh(0, [0.95, 0.74, 0.48], showSkin ? 0.22 : 0.5, false);
+        if (showSat) drawMesh(0, fat, showSkin ? 0.22 : 0.5, false);
         if (showSkin) {
           const b = frame.colours.body,
             e = frame.colours.outline;
@@ -584,19 +590,31 @@ export function cssColour(value: string, fallback: [number, number, number]): [n
 
 let colourMemo: { key: string; colours: FigureColours } | null = null;
 
-/** Avatar colour tokens (light/dark follow the theme scope of `el`); parsed only when the token strings change. */
+/**
+ * The figure's colour tokens as seen from `el` (the avatar tokens plus figure3d.css's `--lm-fig3d-*` materials);
+ * parsed only when the token strings change. Fallbacks are the Ember values.
+ */
 export function readColours(el: Element): FigureColours {
   const cs = getComputedStyle(el);
-  const raw = ['--lm-avatar-fat', '--lm-avatar-lean', '--lm-avatar-outline', '--lm-avatar-ghost'].map((n) =>
-    cs.getPropertyValue(n),
-  );
+  const raw = [
+    '--lm-avatar-fat',
+    '--lm-avatar-lean',
+    '--lm-avatar-outline',
+    '--lm-avatar-ghost',
+    '--lm-fig3d-bone',
+    '--lm-fig3d-muscle',
+    '--lm-fig3d-fat',
+  ].map((n) => cs.getPropertyValue(n));
   const key = raw.join('|');
   if (colourMemo?.key === key) return colourMemo.colours;
   const colours: FigureColours = {
-    body: cssColour(raw[0]!, [0.82, 0.85, 0.89]),
-    core: cssColour(raw[1]!, [0.45, 0.53, 0.65]),
-    outline: cssColour(raw[2]!, [0.2, 0.24, 0.3]),
-    ghost: cssColour(raw[3]!, [0.51, 0.53, 0.55]),
+    body: cssColour(raw[0]!, [0.227, 0.208, 0.176]),
+    core: cssColour(raw[1]!, [0.435, 0.498, 0.561]),
+    outline: cssColour(raw[2]!, [0.851, 0.816, 0.757]),
+    ghost: cssColour(raw[3]!, [0.667, 0.635, 0.588]),
+    bone: cssColour(raw[4]!, [0.925, 0.878, 0.792]),
+    muscle: cssColour(raw[5]!, [0.659, 0.455, 0.416]),
+    fat: cssColour(raw[6]!, [0.89, 0.749, 0.471]),
   };
   colourMemo = { key, colours };
   return colours;

@@ -1,0 +1,709 @@
+package com.pulseloop.data.dao
+
+import androidx.room.*
+import com.pulseloop.data.entity.*
+import kotlinx.coroutines.flow.Flow
+
+/** Aggregated bucket returned by hourlyAggregates / dailyAggregates queries. */
+data class Bucket(
+    val bucket: Long,
+    val avgValue: Double,
+    val minValue: Double,
+    val maxValue: Double,
+)
+
+data class ActivityBucketTotals(val steps: Int, val distanceMeters: Double)
+
+@Dao
+interface DeviceDao {
+    // A real ring always outranks the seeded demo row ('demo-device'), regardless of which row
+    // was written last — otherwise a demo reseed would make the UI show a fake connected ring
+    // over the actually paired one.
+    @Query("SELECT * FROM devices ORDER BY (id = 'demo-device') ASC, updatedAt DESC LIMIT 1")
+    suspend fun current(): DeviceEntity?
+
+    @Query("SELECT * FROM devices ORDER BY (id = 'demo-device') ASC, updatedAt DESC LIMIT 1")
+    fun currentFlow(): Flow<DeviceEntity?>
+
+    /** The paired ring's row only — ring event handlers write here so a real ring's identity,
+     *  battery, and state can never land on (or be deleted with) the demo device row. */
+    @Query("SELECT * FROM devices WHERE id != 'demo-device' ORDER BY updatedAt DESC LIMIT 1")
+    suspend fun currentReal(): DeviceEntity?
+
+    @Upsert
+    suspend fun upsert(device: DeviceEntity)
+
+    @Query("DELETE FROM devices")
+    suspend fun clear()
+
+    /** Targeted removal (e.g. the demo device) without touching a paired ring's row. */
+    @Query("DELETE FROM devices WHERE id = :id")
+    suspend fun deleteById(id: String)
+}
+
+@Dao
+interface MeasurementDao {
+    /** Invalidates after committed measurement inserts; consumers can debounce bursty history. */
+    // Room emits on every invalidation even when this scalar is unchanged. Never distinct this
+    // flow: updates and deletions need to wake consumers too.
+    @Query("SELECT MAX(rowid) FROM measurements")
+    fun changeFlow(): Flow<Long?>
+
+    @Query("SELECT * FROM measurements WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end ORDER BY timestamp ASC")
+    suspend fun range(kind: String, start: Long, end: Long): List<MeasurementEntity>
+
+    @Query("SELECT * FROM measurements WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end ORDER BY timestamp ASC")
+    fun rangeFlow(kind: String, start: Long, end: Long): Flow<List<MeasurementEntity>>
+
+    @Query("SELECT value FROM measurements WHERE kindRaw = :kind AND timestamp <= :before ORDER BY timestamp DESC LIMIT 1")
+    suspend fun latest(kind: String, before: Long = System.currentTimeMillis()): Double?
+
+    @Query("SELECT * FROM measurements WHERE kindRaw = :kind ORDER BY timestamp DESC LIMIT 1")
+    fun latestFlow(kind: String): Flow<MeasurementEntity?>
+
+    @Query("SELECT * FROM measurements WHERE kindRaw = :kind AND sourceRaw NOT IN ('demo','mock') ORDER BY timestamp DESC LIMIT 1")
+    fun latestRealFlow(kind: String): Flow<MeasurementEntity?>
+
+    /** Newest measurement of any kind — iOS `latestMeasurementTimestamp()`, the live-data leg of
+     *  the coach check-in's hasRecentData freshness fallback. */
+    @Query("SELECT MAX(timestamp) FROM measurements")
+    suspend fun latestTimestamp(): Long?
+
+    /** Whether any demo-seeded row exists for a kind — mirrors iOS `hasMockMeasurement(kind:)`,
+     *  which switches chart fetches from the range window to full history in demo mode. */
+    @Query("SELECT EXISTS(SELECT 1 FROM measurements WHERE kindRaw = :kind AND sourceRaw = 'demo')")
+    suspend fun hasDemo(kind: String): Boolean
+
+    /** Whether the ring has ever synced this kind. The demo/real chooser (`DemoDataPolicy`):
+     *  once this is true a reader takes the `*Real` query and stops charting seeded rows, instead
+     *  of interleaving the two into one series. */
+    @Query("SELECT EXISTS(SELECT 1 FROM measurements WHERE kindRaw = :kind AND sourceRaw NOT IN ('demo','mock'))")
+    suspend fun hasReal(kind: String): Boolean
+
+    @Insert
+    suspend fun insert(measurement: MeasurementEntity)
+
+    /** Timestamps of one kind's rows from one source since [since] — primes the persistence
+     *  subscriber's memory of the spot readings it stored (issue #60). */
+    @Query("SELECT timestamp FROM measurements WHERE kindRaw = :kind AND sourceRaw = :source AND timestamp >= :since")
+    suspend fun timestampsBySource(kind: String, source: String, since: Long): List<Long>
+
+    /** Remove one kind's rows from one source inside a window — how a spot reading yields to the
+     *  ring's own copy of it once history supplies that (issue #60). */
+    @Query("DELETE FROM measurements WHERE kindRaw = :kind AND sourceRaw = :source AND timestamp BETWEEN :start AND :end")
+    suspend fun deleteBySourceBetween(kind: String, source: String, start: Long, end: Long): Int
+
+    @Upsert
+    suspend fun upsert(measurement: MeasurementEntity)
+
+    /** The rows behind a set of ids — how the readings list resolves a user's pick back into the
+     *  entities [com.pulseloop.data.MeasurementDeletion] needs to tombstone (issue #60). */
+    @Query("SELECT * FROM measurements WHERE id IN (:ids)")
+    suspend fun byIds(ids: List<String>): List<MeasurementEntity>
+
+    /** Delete one reading (issue #60). Pair with [MeasurementDeletionDao.record] for anything the
+     *  ring could re-sync, or the next history pass writes it back. */
+    @Query("DELETE FROM measurements WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
+
+    /** Ring-history rows of one kind in an inclusive range (the clock-duplicate check). */
+    @Query(
+        "SELECT * FROM measurements WHERE kindRaw = :kindRaw AND sourceRaw IN ('history','vendor_history') " +
+            "AND timestamp BETWEEN :from AND :to ORDER BY timestamp ASC",
+    )
+    suspend fun historyBetween(kindRaw: String, from: Long, to: Long): List<MeasurementEntity>
+
+    @Query("DELETE FROM measurements WHERE sourceRaw = 'demo'")
+    suspend fun clearDemo()
+
+    @Query("DELETE FROM measurements")
+    suspend fun clear()
+
+    /** Average per LOCAL-day bucket — pass tzOffsetMs = ZoneId.systemDefault() offset for now.
+     *  Week = 7 buckets, Month = ~30 buckets. */
+    @Query("""
+        SELECT (CAST((timestamp + :tzOffsetMs) / 86400000 AS INTEGER) * 86400000) - :tzOffsetMs AS bucket,
+               AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue
+        FROM measurements
+        WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end
+        GROUP BY bucket ORDER BY bucket ASC
+    """)
+    suspend fun dailyAggregates(kind: String, start: Long, end: Long, tzOffsetMs: Long): List<Bucket>
+
+    /** Average per UTC-hour bucket — used for the Today view. */
+    @Query("""
+        SELECT CAST(timestamp / 3600000 AS INTEGER) * 3600000 AS bucket,
+               AVG(value) AS avgValue, MIN(value) AS minValue, MAX(value) AS maxValue
+        FROM measurements
+        WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end
+        GROUP BY bucket ORDER BY bucket ASC
+    """)
+    suspend fun hourlyAggregates(kind: String, start: Long, end: Long): List<Bucket>
+
+    /**
+     * Health Connect export selection: rows committed after [watermark], by `createdAt` —
+     * deliberately NOT the sample timestamp, so late-arriving ring history is still picked up
+     * (plan §3). Demo/mock-seeded rows never reach Health Connect (mirrors iOS). There was
+     * previously no `createdAt`-based query at all — only [range] by sample timestamp.
+     */
+    @Query("SELECT * FROM measurements WHERE kindRaw = :kind AND createdAt > :watermark AND sourceRaw NOT IN ('demo','mock') ORDER BY createdAt ASC")
+    suspend fun createdSince(kind: String, watermark: Long): List<MeasurementEntity>
+
+    /**
+     * Full window re-read by sample timestamp for the heart-rate hour rebuild (plan Phase 1):
+     * after [createdSince] tells us which local hours are touched, each hour is re-read in full
+     * and its series records rebuilt from scratch. Demo/mock excluded, same as [createdSince].
+     */
+    @Query("SELECT * FROM measurements WHERE kindRaw = :kind AND timestamp BETWEEN :start AND :end AND sourceRaw NOT IN ('demo','mock') ORDER BY timestamp ASC")
+    suspend fun rangeReal(kind: String, start: Long, end: Long): List<MeasurementEntity>
+}
+
+@Dao
+interface ActivityDailyDao {
+    @Query("SELECT * FROM activity_daily WHERE date = :day LIMIT 1")
+    suspend fun byDay(day: Long): ActivityDailyEntity?
+
+    @Query("SELECT * FROM activity_daily WHERE date = :day LIMIT 1")
+    fun byDayFlow(day: Long): Flow<ActivityDailyEntity?>
+
+    @Query("SELECT * FROM activity_daily ORDER BY date DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 7): List<ActivityDailyEntity>
+
+    @Query("SELECT * FROM activity_daily ORDER BY date DESC LIMIT :limit")
+    fun recentFlow(limit: Int = 7): Flow<List<ActivityDailyEntity>>
+
+    /** Synced days only — the trend leg of the demo/real chooser (`DemoDataPolicy`). */
+    @Query("SELECT * FROM activity_daily WHERE source NOT IN ('demo','mock') ORDER BY date DESC LIMIT :limit")
+    suspend fun recentReal(limit: Int = 7): List<ActivityDailyEntity>
+
+    /** Calendar history window. End is exclusive so adjacent periods never share a midnight. */
+    @Query("SELECT * FROM activity_daily WHERE date >= :startInclusive AND date < :endExclusive ORDER BY date ASC")
+    suspend fun inRange(startInclusive: Long, endExclusive: Long): List<ActivityDailyEntity>
+
+    /** Real-over-demo counterpart to [inRange]. */
+    @Query("SELECT * FROM activity_daily WHERE date >= :startInclusive AND date < :endExclusive AND source NOT IN ('demo','mock') ORDER BY date ASC")
+    suspend fun inRangeReal(startInclusive: Long, endExclusive: Long): List<ActivityDailyEntity>
+
+    /** Whether the ring has ever synced a day. */
+    @Query("SELECT EXISTS(SELECT 1 FROM activity_daily WHERE source NOT IN ('demo','mock'))")
+    suspend fun hasReal(): Boolean
+
+    @Upsert
+    suspend fun upsert(entry: ActivityDailyEntity)
+
+    @Query("DELETE FROM activity_daily")
+    suspend fun clear()
+
+    @Query("DELETE FROM activity_daily WHERE source = 'demo'")
+    suspend fun clearDemo()
+
+    // Health Connect export (Phase 3): days whose totals changed since the watermark. Demo/mock
+    // rows never leave the app — note this table names the column `source`, not the `sourceRaw`
+    // the measurement/sleep tables use.
+    // ORDER BY updatedAt, NOT date: healthConnectInsertChunked advances the watermark to the max
+    // high water of the last *successful* chunk, which is only safe if the records arrive in
+    // high-water order. A history re-sync restamps an OLD day's updatedAt, so ordering by date
+    // would put the newest watermark value in the first chunk and let a later chunk's failure
+    // strand days below an already-advanced watermark (iOS sorts on updatedAt too —
+    // HealthSyncService.swift:257). `date` only breaks ties, for deterministic output.
+    @Query(
+        "SELECT * FROM activity_daily WHERE updatedAt > :watermark " +
+            "AND source NOT IN ('demo','mock') ORDER BY updatedAt ASC, date ASC",
+    )
+    suspend fun updatedSince(watermark: Long): List<ActivityDailyEntity>
+}
+
+@Dao
+interface ActivityBucketDao {
+    @Query("SELECT COALESCE(SUM(steps),0) AS steps, COALESCE(SUM(distanceMeters),0) AS distanceMeters FROM activity_buckets WHERE date = :day")
+    suspend fun totals(day: Long): ActivityBucketTotals
+    @Query("SELECT * FROM activity_buckets WHERE date = :day ORDER BY startEpoch ASC")
+    suspend fun byDay(day: Long): List<ActivityBucketEntity>
+
+    /** Distinct past days that have synced buckets — the DataRepairs recompute scope. */
+    @Query("SELECT DISTINCT date FROM activity_buckets WHERE date < :day ORDER BY date ASC")
+    suspend fun daysBefore(day: Long): List<Long>
+
+    @Upsert
+    suspend fun upsert(bucket: ActivityBucketEntity)
+
+    /** Inclusive range on the start time (the primary key). */
+    @Query("SELECT * FROM activity_buckets WHERE startEpoch BETWEEN :from AND :to ORDER BY startEpoch ASC")
+    suspend fun startingBetween(from: Long, to: Long): List<ActivityBucketEntity>
+
+    @Query("DELETE FROM activity_buckets WHERE startEpoch IN (:starts)")
+    suspend fun deleteAt(starts: List<Long>)
+
+    @Query("DELETE FROM activity_buckets")
+    suspend fun clear()
+}
+
+@Dao
+interface BatterySampleDao {
+    @Query("SELECT * FROM battery_samples WHERE timestamp BETWEEN :start AND :end ORDER BY timestamp ASC LIMIT :limit")
+    suspend fun samplesBetween(start: Long, end: Long, limit: Int = 1000): List<BatterySampleEntity>
+
+    @Insert
+    suspend fun insert(sample: BatterySampleEntity)
+
+    /** The newest reading: when the battery percent shown was last read from the ring. */
+    @Query("SELECT * FROM battery_samples ORDER BY timestamp DESC LIMIT 1")
+    suspend fun latest(): BatterySampleEntity?
+}
+
+@Dao
+interface DeviceMeasurementConfigDao {
+    @Query("SELECT * FROM device_measurement_configs WHERE deviceId = :deviceId LIMIT 1")
+    suspend fun byDevice(deviceId: String): DeviceMeasurementConfigEntity?
+
+    @Query("SELECT * FROM device_measurement_configs WHERE deviceId = :deviceId LIMIT 1")
+    fun byDeviceFlow(deviceId: String): Flow<DeviceMeasurementConfigEntity?>
+
+    @Upsert
+    suspend fun upsert(config: DeviceMeasurementConfigEntity)
+
+    @Query("DELETE FROM device_measurement_configs")
+    suspend fun clear()
+}
+
+@Dao
+interface ActivitySessionDao {
+    @Query("SELECT * FROM activity_sessions WHERE statusRaw = 'finished' AND startedAt < :to AND endedAt > :from ORDER BY startedAt ASC, id ASC")
+    suspend fun finishedOverlapping(from: Long, to: Long): List<ActivitySessionEntity>
+
+    @Query("SELECT * FROM activity_sessions WHERE statusRaw = 'recording' OR statusRaw = 'paused' LIMIT 1")
+    suspend fun active(): ActivitySessionEntity?
+
+    @Query("SELECT * FROM activity_sessions WHERE id = :id LIMIT 1")
+    suspend fun byId(id: String): ActivitySessionEntity?
+
+    @Query("SELECT * FROM activity_sessions ORDER BY startedAt DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 10): List<ActivitySessionEntity>
+
+    @Query("SELECT * FROM activity_sessions ORDER BY startedAt DESC LIMIT :limit")
+    fun recentFlow(limit: Int = 10): Flow<List<ActivitySessionEntity>>
+
+    // iOS #57e post-workout vitals backfill: sessions still eligible to have late ring-log
+    // HR/SpO2 history re-attach after finish (see ActivityAggregates.backfillWindowMillis).
+    @Query("SELECT * FROM activity_sessions WHERE statusRaw = 'finished' AND endedAt >= :cutoff")
+    suspend fun finishedSince(cutoff: Long): List<ActivitySessionEntity>
+
+    // Health Connect export (Phase 3): finished workouts that STARTED in [from, to) — the netting
+    // set for the daily aggregates (iOS keys netting on startedAt, so a session crossing midnight
+    // nets entirely against the day it began).
+    @Query(
+        "SELECT * FROM activity_sessions WHERE statusRaw = 'finished' AND endedAt IS NOT NULL " +
+            "AND startedAt >= :from AND startedAt < :to ORDER BY startedAt ASC",
+    )
+    suspend fun finishedStartedBetween(from: Long, to: Long): List<ActivitySessionEntity>
+
+    // Health Connect export selection (Phase 4): finished sessions committed after [watermark],
+    // by updatedAt — a workout is a mutable group (a post-finish edit or vitals backfill bumps it),
+    // so the watermark follows the row's last update and a changed session re-upserts the SAME
+    // pl-wk-<id> records in place. ORDER BY updatedAt, not startedAt: healthConnectInsertChunked
+    // advances the watermark to the max high water of the last successful chunk, which is only
+    // safe when records arrive in high-water order (the Phase 2/3 fix).
+    // No source filter: this table has no source column, and the demo seeder never creates
+    // sessions — rows here are recorded or archive-restored workouts.
+    @Query(
+        "SELECT * FROM activity_sessions WHERE statusRaw = 'finished' AND endedAt IS NOT NULL " +
+            "AND updatedAt > :watermark ORDER BY updatedAt ASC",
+    )
+    suspend fun finishedUpdatedSince(watermark: Long): List<ActivitySessionEntity>
+
+    // Home-server upload: every settled session (finished, cancelled or deleted) changed after the
+    // keyset cursor, in (updatedAt, id) order so a page boundary can never skip or repeat a row.
+    @Query(
+        "SELECT * FROM activity_sessions WHERE statusRaw IN ('finished', 'cancelled', 'deleted') " +
+            "AND (updatedAt > :afterUpdatedAt OR (updatedAt = :afterUpdatedAt AND id > :afterId)) " +
+            "ORDER BY updatedAt ASC, id ASC LIMIT :limit",
+    )
+    suspend fun settledChangedAfter(afterUpdatedAt: Long, afterId: String, limit: Int): List<ActivitySessionEntity>
+
+    @Upsert
+    suspend fun upsert(session: ActivitySessionEntity)
+}
+
+@Dao
+interface ActivitySensorPollDao {
+    @Insert
+    suspend fun insert(poll: ActivitySensorPollEntity)
+
+    @Query("SELECT * FROM activity_sensor_polls WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    suspend fun forSession(sessionId: String): List<ActivitySensorPollEntity>
+}
+
+@Dao
+interface ActivityGpsPointDao {
+    @Query("SELECT * FROM activity_gps_points WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    suspend fun forSession(sessionId: String): List<ActivityGpsPointEntity>
+
+    /** All fixes for the given sessions in one query — the Phase 4 export backfill can span
+     *  years of rows, so one query over the whole pending set rather than one per session. */
+    @Query(
+        "SELECT * FROM activity_gps_points WHERE sessionId IN (:sessionIds) " +
+            "ORDER BY sessionId ASC, timestamp ASC",
+    )
+    suspend fun forSessions(sessionIds: List<String>): List<ActivityGpsPointEntity>
+
+    @Insert
+    suspend fun insert(point: ActivityGpsPointEntity)
+}
+
+@Dao
+interface ActivityEventDao {
+    // iOS ActivityRepository.events(): the pause/resume lifecycle markers the live-workout
+    // recorder writes (LiveWorkoutManager.pause/resume mirror PulseServices.pause/resume). The
+    // Strava TCX build reads them to drop trackpoints recorded while paused — before this DAO
+    // existed the table had neither an Android writer nor a reader, so every upload carried the
+    // paused span's fixes.
+    @Query("SELECT * FROM activity_events WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    suspend fun forSession(sessionId: String): List<ActivityEventEntity>
+
+    @Insert
+    suspend fun insert(event: ActivityEventEntity)
+}
+
+@Dao
+interface SleepSessionDao {
+    @Query("SELECT * FROM sleep_sessions WHERE startAt >= :start AND startAt <= :end AND sourceRaw NOT IN ('demo','mock') AND totalMinutes > 0 ORDER BY startAt")
+    suspend fun startingInRangeReal(start: Long, end: Long): List<SleepSessionEntity>
+    // A day can now hold several sessions (main night + daytime naps, split by SleepSegmentation).
+    // Single-session callers (Today tile, widget, coach) want the *main* sleep, so surface the
+    // longest. Ring sessions still outrank demo ones (the seeder skips days that have a ring
+    // session, so the sourceRaw tiebreak is defensive). Mirrors iOS `sleepForDate` (PR #83).
+    @Query("SELECT * FROM sleep_sessions WHERE date = :day ORDER BY (sourceRaw = 'demo') ASC, totalMinutes DESC LIMIT 1")
+    suspend fun byDay(day: Long): SleepSessionEntity?
+
+    @Query("SELECT * FROM sleep_sessions WHERE date = :day ORDER BY (sourceRaw IN ('demo','mock')) ASC, totalMinutes DESC LIMIT 1")
+    fun byDayFlow(day: Long): Flow<SleepSessionEntity?>
+
+    /** All sessions for a day, earliest first — feeds the Day-view carousel. */
+    @Query("SELECT * FROM sleep_sessions WHERE date = :day ORDER BY startAt ASC")
+    suspend fun allByDay(day: Long): List<SleepSessionEntity>
+
+    /** The synced (non-demo) session for a day — the seeder's "already has ring data" guard. */
+    @Query("SELECT * FROM sleep_sessions WHERE date = :day AND sourceRaw != 'demo' LIMIT 1")
+    suspend fun ringByDay(day: Long): SleepSessionEntity?
+
+    @Query("SELECT * FROM sleep_sessions WHERE sourceRaw != 'demo' AND startAt < :end AND endAt > :start")
+    suspend fun ringOverlapping(start: Long, end: Long): List<SleepSessionEntity>
+
+    /** All synced (non-demo) sessions for a waking day, earliest first — the reconcile target. */
+    @Query("SELECT * FROM sleep_sessions WHERE date = :day AND sourceRaw != 'demo' ORDER BY startAt ASC")
+    suspend fun ringAllByDay(day: Long): List<SleepSessionEntity>
+
+    @Query("SELECT * FROM sleep_sessions ORDER BY date DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 7): List<SleepSessionEntity>
+
+    @Query("SELECT * FROM sleep_sessions ORDER BY date DESC LIMIT :limit")
+    fun recentFlow(limit: Int = 7): Flow<List<SleepSessionEntity>>
+
+    @Query("SELECT * FROM sleep_sessions WHERE date BETWEEN :start AND :end ORDER BY date ASC")
+    suspend fun inRange(start: Long, end: Long): List<SleepSessionEntity>
+
+    /** Synced sessions in a window — the aggregate leg of the demo/real chooser
+     *  (`DemoDataPolicy`). Blending demo and ring nights across a week skews every average, and
+     *  two sessions on the SAME date collapse into one impossible ~13h night. */
+    @Query("SELECT * FROM sleep_sessions WHERE date BETWEEN :start AND :end AND sourceRaw NOT IN ('demo','mock') ORDER BY date ASC")
+    suspend fun inRangeReal(start: Long, end: Long): List<SleepSessionEntity>
+
+    @Query("SELECT * FROM sleep_sessions WHERE sourceRaw NOT IN ('demo','mock') ORDER BY date DESC LIMIT :limit")
+    suspend fun recentReal(limit: Int = 7): List<SleepSessionEntity>
+
+    /** Whether the ring has ever synced a night. */
+    @Query("SELECT EXISTS(SELECT 1 FROM sleep_sessions WHERE sourceRaw NOT IN ('demo','mock'))")
+    suspend fun hasReal(): Boolean
+
+    /**
+     * Health Connect export selection (Phase 2): sessions committed after [watermark], by
+     * `updatedAt` — sleep is a mutable group (plan §3): a re-synced night must re-upsert the SAME
+     * record in place, so the watermark follows the row's last update, not its sample span.
+     * Demo rows never reach Health Connect (mirrors iOS; sleep's sourceRaw is "ring" | "demo").
+     */
+    // Ordered by updatedAt for the same reason as ActivityDailyDao.updatedSince: the chunked
+    // watermark advance is only sound when records arrive in high-water order, and a re-synced
+    // old night carries a fresh updatedAt. date/startAt only break ties. (Corrected in Phase 3;
+    // Phase 2 ordered by date and could strand a night below an advanced watermark.)
+    @Query("SELECT * FROM sleep_sessions WHERE updatedAt > :watermark AND sourceRaw NOT IN ('demo','mock') ORDER BY updatedAt ASC, date ASC, startAt ASC")
+    suspend fun updatedSince(watermark: Long): List<SleepSessionEntity>
+
+    /** Earliest tracked day key (local midnight millis) — bounds how far Day navigation can page back. */
+    @Query("SELECT MIN(date) FROM sleep_sessions WHERE totalMinutes > 0")
+    suspend fun earliestDay(): Long?
+
+    /** Every stored session, for the one-time repairs in `DataRepairs`. */
+    @Query("SELECT * FROM sleep_sessions")
+    suspend fun all(): List<SleepSessionEntity>
+
+    @Upsert
+    suspend fun upsert(session: SleepSessionEntity)
+
+    /** Delete one session by id; its stage blocks cascade. Used to drop rows the reconcile emptied. */
+    @Query("DELETE FROM sleep_sessions WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM sleep_sessions")
+    suspend fun clear()
+
+    @Query("DELETE FROM sleep_sessions WHERE sourceRaw = 'demo'")
+    suspend fun clearDemo()
+}
+
+@Dao
+interface SleepStageBlockDao {
+    @Query("SELECT * FROM sleep_stage_blocks WHERE sessionId = :sessionId ORDER BY startAt ASC")
+    suspend fun forSession(sessionId: String): List<SleepStageBlockEntity>
+
+    /** Blocks across several sessions (a waking day's rows) — feeds the reconcile's block merge. */
+    @Query("SELECT * FROM sleep_stage_blocks WHERE sessionId IN (:sessionIds) ORDER BY startAt ASC")
+    suspend fun forSessions(sessionIds: List<String>): List<SleepStageBlockEntity>
+
+    @Insert
+    suspend fun insert(block: SleepStageBlockEntity)
+
+    @Query("SELECT * FROM sleep_stage_blocks WHERE sessionId = :sessionId AND startAt = :startAt LIMIT 1")
+    suspend fun findBlock(sessionId: String, startAt: Long): SleepStageBlockEntity?
+
+    @Query("DELETE FROM sleep_stage_blocks WHERE sessionId = :sessionId")
+    suspend fun deleteBySession(sessionId: String)
+
+    @Query("DELETE FROM sleep_stage_blocks")
+    suspend fun clear()
+
+    /** Demo blocks only — demo sessions use the "demo-sleep-" id prefix. */
+    @Query("DELETE FROM sleep_stage_blocks WHERE sessionId LIKE 'demo-sleep-%'")
+    suspend fun clearDemo()
+}
+
+@Dao
+interface UserProfileDao {
+    @Query("SELECT * FROM user_profiles LIMIT 1")
+    suspend fun get(): UserProfileEntity?
+
+    @Query("SELECT * FROM user_profiles LIMIT 1")
+    fun getFlow(): Flow<UserProfileEntity?>
+
+    @Upsert
+    suspend fun upsert(profile: UserProfileEntity)
+}
+
+@Dao
+interface UserGoalDao {
+    @Query("SELECT * FROM user_goals LIMIT 1")
+    suspend fun get(): UserGoalEntity?
+
+    @Query("SELECT * FROM user_goals LIMIT 1")
+    fun getFlow(): kotlinx.coroutines.flow.Flow<UserGoalEntity?>
+
+    @Upsert
+    suspend fun upsert(goal: UserGoalEntity)
+}
+
+@Dao
+interface WearableLogDao {
+    @Query("SELECT * FROM wearable_logs ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 500): List<WearableLogEntity>
+
+    @Insert
+    suspend fun insert(log: WearableLogEntity)
+
+    @Query("DELETE FROM wearable_logs WHERE timestamp < :before")
+    suspend fun deleteOlderThan(before: Long)
+}
+
+@Dao
+interface RawPacketDao {
+    @Query("SELECT COUNT(*) FROM raw_packets")
+    fun countFlow(): Flow<Int>
+
+    @Query("SELECT COALESCE(SUM(length(hexPayload) + 100), 0) FROM raw_packets")
+    suspend fun estimatedBytes(): Long
+
+    @Query("DELETE FROM raw_packets WHERE id NOT IN (SELECT id FROM raw_packets ORDER BY timestamp DESC, id DESC LIMIT :keep) AND timestamp < :before")
+    suspend fun prune(before: Long, keep: Int = 5000): Int
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(packet: RawPacketEntity)
+
+    @Query("SELECT * FROM raw_packets ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 500): List<RawPacketEntity>
+
+    /** Exact provenance for narrowly scoped protocol repairs; never infer from the active ring. */
+    @Query("SELECT * FROM raw_packets WHERE firmwareRevision = :firmwareRevision AND decodedKind = :decodedKind")
+    suspend fun byFirmwareAndKind(firmwareRevision: String, decodedKind: String): List<RawPacketEntity>
+}
+
+// ── Nutrition (iOS #96) — leftover data, kept after the feature's removal ───────────
+/*
+ * Nutrition was removed from Gauge (food planning and logging live in the Vitals app).
+ * The `meal_entries` and `food_products` tables, their entities and DAOs are kept on
+ * purpose, with every row: no migration drops them, so the owner can still decide whether to
+ * move past meals into Vitals. Only the data archive (export/import) and "delete all data"
+ * still read or write them. Do not add new UI on top of them. (The `user_goals` intake goals
+ * were settings, not meal data, and were removed: MIGRATION_32_33.)
+ */
+
+@Dao
+interface MealEntryDao {
+    @Query("SELECT * FROM meal_entries WHERE date = :day ORDER BY timestamp ASC")
+    suspend fun byDay(day: Long): List<MealEntryEntity>
+
+    @Query("SELECT * FROM meal_entries WHERE date = :day ORDER BY timestamp ASC")
+    fun byDayFlow(day: Long): Flow<List<MealEntryEntity>>
+
+    /** Process-level invalidation stream for derived nutrition score/broadcast refreshes. */
+    @Query("SELECT * FROM meal_entries ORDER BY date ASC, timestamp ASC, id ASC")
+    fun allFlow(): Flow<List<MealEntryEntity>>
+
+    @Query("""
+        SELECT mealTypeRaw, SUM(calories) as totalCal, SUM(proteinG) as totalP,
+               SUM(carbsG) as totalC, SUM(fatG) as totalF
+        FROM meal_entries WHERE date = :day GROUP BY mealTypeRaw
+    """)
+    suspend fun dayTotals(day: Long): List<MealTotals>
+
+    /** Meals newer than the nutrition watermark, on `updatedAt` (Phase 6): a logged meal is
+     *  insert-once so `updatedAt == createdAt` today, but an in-place edit bumps `updatedAt`
+     *  and the row re-selects — the same watermark semantics the other groups use. Same
+     *  demo/mock exclusion as the other groups. */
+    @Query("SELECT * FROM meal_entries WHERE updatedAt > :watermark AND sourceRaw NOT IN ('demo','mock') ORDER BY updatedAt ASC")
+    suspend fun updatedSince(watermark: Long): List<MealEntryEntity>
+
+    /** Coach update/delete meal tools (iOS #96): single-entry lookup by primary key.
+     *  Query-only — no schema change. (Deletion already exists as [deleteById].) */
+    @Query("SELECT * FROM meal_entries WHERE id = :id LIMIT 1")
+    suspend fun byId(id: String): MealEntryEntity?
+
+    @Upsert
+    suspend fun upsert(entry: MealEntryEntity)
+
+    @Query("DELETE FROM meal_entries WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM meal_entries")
+    suspend fun clear()
+}
+
+data class MealTotals(
+    val mealTypeRaw: String, val totalCal: Double, val totalP: Double,
+    val totalC: Double, val totalF: Double,
+)
+
+@Dao
+interface FoodProductDao {
+    @Query("SELECT * FROM food_products WHERE code = :code LIMIT 1")
+    suspend fun byCode(code: String): CachedFoodProductEntity?
+
+    @Query("SELECT * FROM food_products ORDER BY lastUsedAt DESC LIMIT :limit")
+    suspend fun recent(limit: Int = 20): List<CachedFoodProductEntity>
+
+    @Query("SELECT * FROM food_products WHERE name LIKE '%' || :q || '%' ORDER BY useCount DESC LIMIT :limit")
+    suspend fun search(q: String, limit: Int = 10): List<CachedFoodProductEntity>
+
+    @Upsert
+    suspend fun upsert(product: CachedFoodProductEntity)
+
+    /** Row count — the cheap probe iOS's `upsertCachedProduct` runs before deciding to prune. */
+    @Query("SELECT COUNT(*) FROM food_products")
+    suspend fun count(): Int
+
+    /**
+     * Bounded LRU (iOS `pruneProductCache`): keep the [keep] most recently used rows and
+     * delete the rest in a single statement. The NOT IN subquery is the whole table when the
+     * cache is at or under the cap, so the statement is a no-op there; `code` only breaks
+     * `lastUsedAt` ties, deterministically. Query-only — no schema change.
+     */
+    @Query(
+        "DELETE FROM food_products WHERE code NOT IN " +
+            "(SELECT code FROM food_products ORDER BY lastUsedAt DESC, code ASC LIMIT :keep)",
+    )
+    suspend fun prune(keep: Int)
+
+    @Query("DELETE FROM food_products")
+    suspend fun clear()
+}
+
+/**
+ * The tombstones behind "delete this reading" (issue #60) — see [MeasurementDeletionEntity] for
+ * why a delete needs a memory at all.
+ */
+@Dao
+interface MeasurementBatchDeletionDao {
+    @Query("SELECT measurementId FROM measurement_deletions WHERE measurementId IN (:ids)")
+    suspend fun deletedIds(ids: List<String>): List<String>
+
+    @Query("SELECT * FROM measurement_deletions WHERE kindRaw IN (:kinds) AND measurementId LIKE 'spot:%' AND timestamp BETWEEN :start AND :end")
+    suspend fun spotWindows(kinds: List<String>, start: Long, end: Long): List<MeasurementDeletionEntity>
+}
+
+@Dao
+interface MeasurementDeletionDao {
+    /** Asked on every history write, so a re-sync can't restore a reading the user removed. */
+    @Query("SELECT EXISTS(SELECT 1 FROM measurement_deletions WHERE measurementId = :id)")
+    suspend fun isDeleted(id: String): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(rows: List<MeasurementDeletionEntity>)
+
+    /**
+     * Is the ring's own copy of a deleted spot reading due back? A `spot` row's id is a fresh UUID,
+     * so it cannot be tombstoned by id — but the reading it holds *is* regenerable, under the
+     * `history:` id the ring's copy arrives with up to
+     * [EventPersistenceSubscriber.SPOT_MATCH_MS][com.pulseloop.service.EventPersistenceSubscriber.Companion.SPOT_MATCH_MS]
+     * away. Matched the way `adoptRingsCopy` matches the pair it reconciles: same kind, within the
+     * window either side.
+     */
+    @Query("""
+        SELECT EXISTS(SELECT 1 FROM measurement_deletions
+        WHERE kindRaw = :kind AND measurementId LIKE 'spot:%' AND timestamp BETWEEN :from AND :to)
+    """)
+    suspend fun isSpotDeleted(kind: String, from: Long, to: Long): Boolean
+
+    /**
+     * Remember [measurements] as deleted — but only the ones a later sync could actually rewrite.
+     * A live reading is stored under a fresh UUID that nothing regenerates, so tombstoning it would
+     * grow this table for no benefit.
+     *
+     * **A `spot` row is the exception, and it needs a range.** It carries a UUID like any live row,
+     * but it exists precisely because the ring logs that measurement itself and will hand it back
+     * under a `history:` id on the next sync ([isSpotDeleted]) — so tombstoning by id alone let the
+     * ring's copy walk straight back in, and the reading had to be deleted twice. The ring stamps
+     * its log to the minute rather than to our settled instant, so the tombstone cannot name the id
+     * it has to suppress; it records the kind and our timestamp instead, under a deterministic
+     * `spot:` key so re-deleting the same reading replaces the row rather than growing the table.
+     *
+     * A measurement retaken inside that window inherits the suppression: the retake itself is
+     * stored and displayed (it is our own row, not a history write), it simply never adopts the
+     * ring's copy and stays marked `spot`. That is the same ±90 s ambiguity `adoptRingsCopy`
+     * already carries, and it fails in the direction that keeps a reading the user asked for.
+     */
+    suspend fun record(measurements: List<MeasurementEntity>) {
+        val regenerable = measurements.mapNotNull { row ->
+            when {
+                row.id.startsWith(HISTORY_ID_PREFIX) ->
+                    MeasurementDeletionEntity(measurementId = row.id, kindRaw = row.kindRaw, timestamp = row.timestamp)
+                row.sourceRaw == SPOT_SOURCE ->
+                    MeasurementDeletionEntity(
+                        measurementId = "$SPOT_ID_PREFIX${row.kindRaw}:${row.timestamp}",
+                        kindRaw = row.kindRaw,
+                        timestamp = row.timestamp,
+                    )
+                else -> null
+            }
+        }
+        if (regenerable.isNotEmpty()) insertAll(regenerable)
+    }
+
+    companion object {
+        /** The prefix `EventPersistenceSubscriber.historyMeasurementId` builds its stable ids from.
+         *  A measurement whose id starts with this is one the ring can hand us again. */
+        const val HISTORY_ID_PREFIX = "history:"
+        /** Key prefix for a range tombstone standing in for a deleted `spot` row — see [record].
+         *  Distinct from [HISTORY_ID_PREFIX] so `isDeleted`'s id lookup can never match one. */
+        const val SPOT_ID_PREFIX = "spot:"
+        /** `EventPersistenceSubscriber.SOURCE_SPOT`, duplicated to keep this DAO off the service
+         *  layer. Asserted equal in `MeasurementDeletionTest`. */
+        const val SPOT_SOURCE = "spot"
+    }
+}

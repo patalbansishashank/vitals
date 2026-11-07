@@ -161,7 +161,7 @@ documents and back:
 
 Strict store everywhere outside `src/commands`, `src/state`, `src/store`, `src/sync`: no `useXStore.setState(…)`, no
 `.transact(…)`, no `@/state/internal/*`, no `mintWriteToken`. Tier P (`src/engine`, `src/catalogues`, `src/living`,
-`src/biometrics/core`, `src/ai/briefing`, `src/commands/schema`): no UI/state/storage/IO imports, no DOM/IO globals, no
+`src/ai/briefing`, `src/commands/schema`): no UI/state/storage/IO imports, no DOM/IO globals, no
 `Date.now` / `Math.random` / `new Date()` (engine run telemetry via `performance.now` stays allowed). Tier H
 (`src/commands`, `src/store`, `src/sync`): no React, Zustand or UI imports, no `window` / `document` / `localStorage`.
 `mintConfirmation` cannot be imported from `src/ai`, `src/commands/adapters` or `packages/companion`.
@@ -254,7 +254,7 @@ version in force; at boot, on day change and after `plan.*` commands) and the **
 debounced 1 s after `log.*` and `plan.checkIn`, replay + trend filter from the latest confirmed snapshot cached by the
 record's `inputsHash` (in memory), trend kept in `derived/trend:<planId>`).
 
-## 9b. I1 integration (sync, biometrics, catalogues, AI/agents, Living on the bus)
+## 9b. I1 integration (sync, catalogues, AI/agents, Living on the bus)
 
 - **Navigation and saves.** The app installs the `nav.open` port at start. If the document store refuses a ChangeSet
   (quota, IndexedDB error), the change is rolled back: screens and boot cache are restored, the history row is dropped
@@ -270,14 +270,9 @@ record's `inputsHash` (in memory), trend kept in `derived/trend:<planId>`).
   `sync.unpair` is destructive, needs a confirmation, forgets the key and keeps all local data. Pair, join, rotate,
   configure and unpair are UI-only. Device-local collections never reach Evolu; erasing this device never deletes
   anything on the server.
-- **Biometrics (`bio.*`, 13).** Implemented over E10's BioStore on documents (`DocBioStore`) and the app blob store. Files and
-  Bluetooth links are handed from the screen by reference (`fileRef` / `linkRef`). `bio.import`, `deviceConnect`,
-  `deviceSync` and `rescore` run as jobs and write in derive transactions; `bio.manual`, `setPolicy`,
-  `setSourcePriority` and the source document of `deleteSource` join the command's ChangeSet. Reads filter by the
-  person's Coach sharing for non-UI actors and name what was left out in `hidden`. After small changes the app
-  dispatches `bio.rescore` itself as SYSTEM, a short delay after the last change.
+- **Biometrics.** The `bio.*` and `biometrics.*` command domains were removed in 0.6.0. Current ring and phone data reaches Vitals through the Android app and home server; `activity.fromGauge` and `log.fromGauge` retain their compatibility ids for the automatic import.
 - **Catalogues.** `catalogue.addEquipment` is called from the intake's training chapter for each newly typed
-  "something else" item; the devices chapter calls `bio.setPolicy` for each changed stream policy.
+  "something else" item.
 - **Tools.** Tools are projected from the one manifest (`vitals.tools/1`, `toolManifest()`; `TOOLSET_HASH =
   toolManifest().hash`). The strict projection (`src/commands/adapters/strict.ts`) makes every property required, turns
   an optional `T` into `anyOf [T, null]`, closes every object and strips keywords strict modes reject; a schema it cannot
@@ -287,16 +282,8 @@ record's `inputsHash` (in memory), trend kept in `derived/trend:<planId>`).
   object schema (MCP and the Companion reject anything else). Consequential writes from MCP and WebMCP agents are
   staged as proposals unless the person allowed that client to apply plan changes directly (`agents.configure`); the
   Companion's `call.stage` flag is informational.
-- **Device logs.** `log.fromBiometrics {date?}` (default the current app day) writes the day's steps, sleep and workouts
-  as `dailyLogs` entries with `source {by:'device', method:'biometrics', bioRecordId, deviceKey}`. It reads only streams
-  the person lets their plan use (Settings › Devices "my plan": `engine` on for `steps`, `sleep_sessions`, `workouts`),
-  one source per metric by priority. Sleep is the main sleep ending on that app day (04:00 rollover); a workout belongs to
-  the app day it starts on and carries type, duration, active kcal, distance and heart rate (`session` entry with
-  `workout`, `bioWorkoutId` and engine sessions; Living treats it as a device workout, never twice). Natural key per day
-  and stream (`${date}:steps`, `${date}:sleep_sessions`, `${date}:workouts:${recordId}`): a re-run with the same value
-  writes nothing, a changed value supersedes the device entry, and a device entry the person removed stays removed. An
-  entry the person (or the Coach) made for the same item wins and is returned in `skipped` (`userEntry`). Undo: each
-  created entry is removed with `log.retract`; retracting an entry that superseded another brings that one back.
+- **Device logs.** `log.fromBiometrics` was removed in 0.6.0. Entries a device wrote earlier
+  (`source.by: 'device'`) stay as ordinary log entries.
 - **Profile.** `profile.patch` takes `figure: { frame: number | null }` instead of `figureBase`; `null` matches the
   basics. The frame changes only the drawing, never an estimate.
 
@@ -361,7 +348,6 @@ items not confirmed for 14 days, which the Coach may ask about when a recipe dep
 - Living plan (E5; need E6/E8/E9/E10 ports): `log.meal`, `log.mealFromPhoto`, `log.session`, `log.bulk`,
   `plan.replan`, `plan.declareEvent`, `plan.shift`, `plan.editDay`, `plan.replace`,
   `plan.swapExercise`.
-- Biometrics (E10): every `bio.*`.
 - Sync (wp/E11): every `sync.*`; agents (E12): `agents.configure`.
 - Catalogues (E8): `catalogue.*`, `food.*`, `train.*`; intake questions (E7): `intake.nextQuestions` (the screens walk
   the question sets themselves; the Coach needs them as headless data).
@@ -374,33 +360,22 @@ Perm: R read, W write (low impact), W·c consequential write (staged for agents)
 Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Idem: N natural, K key, — none.
 
 <!-- commands:start -->
-169 commands (169 implemented, 0 stubs) in 32 domains: agents 1 · ai 2 · app 1 · bio 14 · biometrics 5 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 18 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 4 · profile 5 · safety 9 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
+164 commands (164 implemented, 0 stubs) in 31 domains: activity 8 · agents 1 · ai 2 · app 1 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 20 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 5 · profile 5 · safety 12 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
 
 | Command | Tool name | Perm | Surfaces | Undo | Idem | Run | Status | Title |
 |---|---|---|---|---|---|---|---|---|
+| `activity.approve` | `activity_approve` | W·c | all | IP | N |  | implemented | Approve an activity |
+| `activity.approveAll` | `activity_approve_all` | W·c | all | IP | N |  | implemented | Approve all activities |
+| `activity.autoAccept` | `activity_auto_accept` | W | ui | IP | N |  | implemented | Decide detected activities automatically |
+| `activity.candidates` | `activity_candidates` | R | all | — | — |  | implemented | Detected activities |
+| `activity.edit` | `activity_edit` | W·c | all | IP | N |  | implemented | Edit an activity |
+| `activity.fromGauge` | `activity_from_gauge` | W | ui | IP | N |  | implemented | Bring in detected activities |
+| `activity.logManual` | `activity_log_manual` | W | all | IP | K |  | implemented | Log an activity by hand |
+| `activity.reject` | `activity_reject` | W·c | all | IP | N |  | implemented | Reject an activity |
 | `agents.configure` | `agents_configure` | W·c | ui | IP | N |  | implemented | Agent access |
 | `ai.configure` | `ai_configure` | W·c | ui | IP | N |  | implemented | Configure the AI provider |
 | `ai.usage` | `ai_usage` | R | all | — | — |  | implemented | AI usage |
 | `app.status` | `app_status` | R | all | — | — |  | implemented | App status |
-| `bio.baselines` | `bio_baselines` | R | all | — | — |  | implemented | Personal baselines |
-| `bio.daily` | `bio_daily` | R | all | — | — |  | implemented | Daily biometrics |
-| `bio.deleteSource` | `bio_delete_source` | D | ui | — | N |  | implemented | Delete a source |
-| `bio.deviceConnect` | `bio_device_connect` | W | ui | TS | K | job | implemented | Connect a device |
-| `bio.deviceSync` | `bio_device_sync` | W | ui | TS | K | job | implemented | Sync a device |
-| `bio.dismissRingDefaultsNotice` | `bio_dismiss_ring_defaults_notice` | W | ui | — | N |  | implemented | Hide the ring data notice |
-| `bio.import` | `bio_import` | W | ui | TS | K | job | implemented | Import health data |
-| `bio.manual` | `bio_manual` | W | all | TS | K |  | implemented | Enter a device value |
-| `bio.rescore` | `bio_rescore` | W | ui | — | N | job | implemented | Recompute scores |
-| `bio.scores` | `bio_scores` | R | all | — | — |  | implemented | Scores |
-| `bio.series` | `bio_series` | R | all | — | — |  | implemented | Biometric series |
-| `bio.setPolicy` | `bio_set_policy` | W·c | ui | IP | N |  | implemented | Sharing policy |
-| `bio.setRingSharing` | `bio_set_ring_sharing` | W·c | ui | IP | N |  | implemented | Use my ring data in my plan and Coach |
-| `bio.sources` | `bio_sources` | R | all | — | — |  | implemented | Data sources |
-| `biometrics.clearCorrection` | `biometrics_clear_correction` | W | all | RT | N |  | implemented | Use the device value again |
-| `biometrics.correct` | `biometrics_correct` | W·c | all | RT | K |  | implemented | Correct a device value |
-| `biometrics.dropPriorities` | `biometrics_drop_priorities` | W | ui | — | N |  | implemented | Drop source priorities |
-| `biometrics.ringDefaults` | `biometrics_ring_defaults` | W | ui | — | N |  | implemented | Move ring data to the ring defaults |
-| `biometrics.ringFold` | `biometrics_ring_fold` | W | ui | — | N |  | implemented | One ring, one source |
 | `briefing.get` | `briefing_get` | R | ui webmcp mcp | — | — |  | implemented | Read the person’s briefing |
 | `catalogue.addEquipment` | `catalogue_add_equipment` | W | all | TS | K |  | implemented | Add equipment |
 | `catalogue.addExercise` | `catalogue_add_exercise` | W | all | TS | K |  | implemented | Add an exercise |
@@ -419,7 +394,7 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `coach.history` | `coach_history` | R | ui ai | — | — |  | implemented | Conversation history |
 | `coach.pending` | `coach_pending` | R | ui ai | — | — |  | implemented | Proposals waiting |
 | `coach.searchNotes` | `coach_search_notes` | R | ui ai | — | — |  | implemented | Search Coach notes |
-| `data.eraseAll` | `data_erase_all` | D | ui | — | — |  | implemented | Erase everything on this device |
+| `data.eraseAll` | `data_erase_all` | D | ui | — | — |  | implemented | Delete planning data |
 | `data.export` | `data_export` | R | ui | — | — |  | implemented | Export your data |
 | `data.import` | `data_import` | D | ui | — | — |  | implemented | Import a data file |
 | `data.usage` | `data_usage` | R | all | — | — |  | implemented | Storage used |
@@ -454,7 +429,7 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `log.confirmDay` | `log_confirm_day` | W | all | IP | N |  | implemented | Confirm a day |
 | `log.edit` | `log_edit` | W | all | RT | K |  | implemented | Edit an entry |
 | `log.fast` | `log_fast` | W | all | RT | K |  | implemented | Log a fast |
-| `log.fromBiometrics` | `log_from_biometrics` | W | all | RT | N |  | implemented | Log the day from devices |
+| `log.fromGauge` | `log_from_gauge` | W | ui | RT | N |  | implemented | Bring in ring steps and sleep |
 | `log.get` | `log_get` | R | all | — | — |  | implemented | Read the log |
 | `log.markDay` | `log_mark_day` | W | all | IP | N |  | implemented | Mark a day |
 | `log.meal` | `log_meal` | W | all | RT | K |  | implemented | Log a meal |
@@ -464,7 +439,9 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `log.retract` | `log_retract` | W | all | RT | K |  | implemented | Remove an entry |
 | `log.session` | `log_session` | W | all | RT | K |  | implemented | Log a training session |
 | `log.sleep` | `log_sleep` | W | all | RT | K |  | implemented | Log sleep |
+| `log.sleepTimes` | `log_sleep_times` | W | all | RT | K |  | implemented | Log lights-out or getting up |
 | `log.steps` | `log_steps` | W | all | RT | K |  | implemented | Log steps |
+| `log.stepsCorrection` | `log_steps_correction` | W | ui | RT | K |  | implemented | Correct steps |
 | `log.subjective` | `log_subjective` | W | all | RT | K |  | implemented | How today felt |
 | `log.substance` | `log_substance` | W | all | RT | K |  | implemented | Log caffeine or alcohol |
 | `log.supplement` | `log_supplement` | W | all | RT | K |  | implemented | Log a supplement |
@@ -497,6 +474,7 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `plan.swapExercise` | `plan_swap_exercise` | W | all | IP | K |  | implemented | Swap an exercise |
 | `plan.versions` | `plan_versions` | R | all | — | — |  | implemented | Plan versions |
 | `planner.find` | `planner_find` | W | all | — | K | job | implemented | Find plans |
+| `planner.inputs` | `planner_inputs` | R | all | — | — |  | implemented | Inspect the current planner inputs |
 | `planner.openInSimulator` | `planner_open_in_simulator` | W | all | TS | K |  | implemented | Open a plan in the Simulator |
 | `planner.result` | `planner_result` | R | all | — | — |  | implemented | Read the Planner result |
 | `planner.stop` | `planner_stop` | W | all | — | N |  | implemented | Stop the Planner |
@@ -507,13 +485,16 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `profile.setSetupStep` | `profile_set_setup_step` | W | ui | IP | N |  | implemented | Move through the body setup |
 | `safety.acknowledge` | `safety_acknowledge` | W·c | ui | IP | N |  | implemented | Acknowledge safety copy |
 | `safety.acknowledgeDanger` | `safety_acknowledge_danger` | W·c | ui | IP | N |  | implemented | Acknowledge a danger warning |
+| `safety.addNutritionGuidance` | `safety_add_nutrition_guidance` | W·c | ui | IP | N |  | implemented | Record clinician nutrition guidance |
 | `safety.clearAgeAnswer` | `safety_clear_age_answer` | W·c | ui | IP | N |  | implemented | Forget the age answer |
 | `safety.clearFastingOptIn` | `safety_clear_fasting_opt_in` | W·c | ui | IP | N |  | implemented | Turn off longer fasts |
 | `safety.commitScreening` | `safety_commit_screening` | W·c | ui | IP | N |  | implemented | Save the safety answers |
 | `safety.reportIllness` | `safety_report_illness` | W | all | IP | N |  | implemented | Report a recent illness |
+| `safety.revokeNutritionGuidance` | `safety_revoke_nutrition_guidance` | W·c | ui | IP | N |  | implemented | Withdraw clinician nutrition guidance |
 | `safety.setFastingOptIn` | `safety_set_fasting_opt_in` | W·c | ui | IP | N |  | implemented | Opt in to longer fasts |
 | `safety.setShortWindow` | `safety_set_short_window` | W·c | ui | IP | N |  | implemented | Short eating window |
 | `safety.status` | `safety_status` | R | all | — | — |  | implemented | Read the safety status |
+| `safety.updateNutritionGuidance` | `safety_update_nutrition_guidance` | W·c | ui | IP | N |  | implemented | Update clinician nutrition guidance |
 | `scenario.applyStarter` | `scenario_apply_starter` | W | all | IP | N |  | implemented | Start from a starter |
 | `scenario.create` | `scenario_create` | W | all | TS | K |  | implemented | New scenario |
 | `scenario.delete` | `scenario_delete` | W | all | TS | N |  | implemented | Delete scenario |
@@ -551,17 +532,13 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 
 ## 12. Batch 03 commands (SUITE_SPEC §14)
 
-`biometrics.correct`, `biometrics.clearCorrection` and `biometrics.dropPriorities` are registered (E28,
-`src/commands/biometrics/`) and listed in the generated table above. `biometrics.correct` is open to every surface
-(the planned row said ui ai mcp; WebMCP agents log too, so a redirected entry from them must be able to stage).
-`biometrics.dropPriorities` runs once as the system actor when stored data needs it, in one ChangeSet (not a job).
+The `biometrics.*` commands (`correct`, `clearCorrection`, `dropPriorities`, `ringDefaults`, `ringFold`) that batch 03
+added were removed in 0.6.0 with the rest of the ring code, as was the redirect of `log.sleep`, `log.steps` and
+`log.measurement` to `biometrics.correct` for a stream a device owned: these commands now always write what the person
+logs.
 
-**Removed in v0.4.0:** `bio.setSourcePriority` (fixed precedence replaces priority lists, SUITE_SPEC §14.6b).
+**Removed in v0.4.0:** `bio.setSourcePriority` (fixed precedence replaced priority lists). The whole `bio.*` domain
+followed in 0.6.0.
 
-**Changed behaviour (E28):** `log.sleep`, `log.steps`, `log.measurement` (weight, body fat, resting HR, HRV) and
-`bio.manual` for a stream a device owns: from the Coach, agents or MCP they are staged as a `biometrics.correct`
-proposal (`{ redirected: 'biometrics.correct', proposalId }`); from the UI they return `precondition_failed` with
-`detail.reason = 'device_owned'`. Unchanged when no device owns the stream.
-
-**New domain:** `biometrics` (add to `CommandDomain`). Server pairing, provider keys, agent tokens and MQTT credentials
-are server calls through `src/net` (SUITE_SPEC §14.2–14.5), not commands: they hold no document state.
+Server pairing, provider keys and agent tokens are server calls through `src/net` (SUITE_SPEC §14.2–14.4), not
+commands: they hold no document state.

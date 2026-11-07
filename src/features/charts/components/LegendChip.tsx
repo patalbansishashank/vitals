@@ -31,11 +31,11 @@ export function KeyGlyph({ color, dash, marker, kind = 'line' }: Pick<LegendChip
     <svg width="22" height="10" aria-hidden="true" style={{ overflow: 'visible' }}>
       <line x1="1" x2="21" y1="5" y2="5" stroke={color} strokeWidth="2" strokeLinecap="round" strokeDasharray={dash?.length ? dash.map((d) => d * 0.75).join(' ') : undefined} />
       {marker === 'square' ? (
-        <rect x="7.5" y="1.5" width="7" height="7" fill={color} stroke="var(--lm-face)" strokeWidth="1.5" />
+        <rect x="7.5" y="1.5" width="7" height="7" fill={color} stroke="var(--lm-chart-ring)" strokeWidth="1.5" />
       ) : marker === 'triangle' ? (
-        <path d="M11,0.8 L15,8.6 L7,8.6 Z" fill={color} stroke="var(--lm-face)" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M11,0.8 L15,8.6 L7,8.6 Z" fill={color} stroke="var(--lm-chart-ring)" strokeWidth="1.5" strokeLinejoin="round" />
       ) : marker === 'circle' ? (
-        <circle cx="11" cy="5" r="3.6" fill={color} stroke="var(--lm-face)" strokeWidth="1.5" />
+        <circle cx="11" cy="5" r="3.6" fill={color} stroke="var(--lm-chart-ring)" strokeWidth="1.5" />
       ) : null}
     </svg>
   );

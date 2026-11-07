@@ -14,7 +14,7 @@ describe('safety limits in kJ', () => {
     act(() => useSettingsStore.getState().set({ energyUnit: 'kJ' }));
     const { container } = render(<MemoryRouter><LimitsList /></MemoryRouter>);
     expect(container.textContent).not.toMatch(/kcal/);
-    expect(container.textContent).toMatch(/3[\s\u2009\u202f]?350[\s\u2009\u202f]?kJ/); // 800 kcal
+    expect(container.textContent).toMatch(/3,350[\s\u2009\u202f]?kJ/); // 800 kcal
   });
 
   it('lock lines take the unit', () => {

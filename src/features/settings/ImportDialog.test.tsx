@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { setSyncPairedHint } from '@/state/runtime';
 import type { ImportPreview } from '@/state/persistence';
 import { ImportDialog, holdsNoUserData } from './ImportDialog';
 
@@ -14,11 +15,25 @@ describe('Import defaults', () => {
 
   it('defaults to Replace on an empty device, so the starter scenario is not duplicated', () => {
     open(preview([entry('vitals.scenarios', true), entry('vitals.settings', true), entry('vitals.body', false)]));
-    expect(screen.getByRole('radio', { name: /Replace everything/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /Replace planning data/ })).toBeChecked();
   });
 
   it('defaults to Merge when the device holds the person’s own data', () => {
     open(preview([entry('vitals.scenarios', true), entry('vitals.body', true)]));
     expect(screen.getByRole('radio', { name: /Merge/ })).toBeChecked();
+  });
+});
+
+describe('paired document sync', () => {
+  afterEach(() => setSyncPairedHint(false));
+  it('starts with Merge and explains the Replace precondition before import can be confirmed', () => {
+    setSyncPairedHint(true);
+    open(preview([entry('vitals.settings', true)]));
+    expect(screen.getByRole('radio', { name: /Merge/ })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: /Replace planning data/ }));
+    expect(screen.getByText('Disconnect document sync in Settings before replacing data, or choose Merge.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: /Merge/ }));
+    expect(screen.getByRole('button', { name: 'Import' })).toBeEnabled();
   });
 });

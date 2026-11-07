@@ -54,6 +54,15 @@ export function bodyOf<T = Record<string, unknown>>(doc: Doc<unknown> | Record<s
   return out as T;
 }
 
+/**
+ * A document's body with its id restored (`_id` → `id`). Log and measurement bodies are stored without `id` (the
+ * document key carries it), so every reader that projects or deduplicates them by id goes through this adapter
+ * (`readDocs()`, the Ring's activity read; r063 FX3 aR01).
+ */
+export function withDocId<T>(doc: Doc<unknown>): T & { id: string } {
+  return { ...bodyOf<T>(doc), id: doc._id };
+}
+
 function b64(bytes: Uint8Array): string {
   let s = '';
   for (const b of bytes) s += String.fromCharCode(b);
@@ -87,6 +96,7 @@ export function createDocumentStore(options: DocumentStoreOptions): DocumentStor
   let device: DeviceId = options.device ?? '';
   /** Bumped by `erase`, which clears the cache without change events: query watchers rebuild on their next change. */
   let epoch = 0;
+  let restoreEpoch = 0;
 
   async function toDoc(raw: BackendDoc): Promise<Doc<unknown> | null> {
     if (!isCollectionId(raw._col)) return null;
@@ -308,7 +318,7 @@ export function createDocumentStore(options: DocumentStoreOptions): DocumentStor
     };
   }
 
-  async function commit(token: WriteToken, pending: Map<string, Pending>): Promise<void> {
+  async function commit(token: WriteToken, pending: Map<string, Pending>, snapshot?: readonly CollectionId[]): Promise<void> {
     if (pending.size === 0) return;
     const b = backend!;
     const ops: BackendOp[] = [];
@@ -317,7 +327,10 @@ export function createDocumentStore(options: DocumentStoreOptions): DocumentStor
       else ops.push({ kind: 'put', col: p.col, id: p.id, value: await seal(p.col, p.id, p.body), schema: options.migrations?.[p.col]?.version ?? COLLECTIONS[p.col].schemaVersion });
     }
     let written: BackendDoc[];
-    if (b.batch) written = await b.batch(ops);
+    if (snapshot) {
+      if (!b.restoreSnapshot) throw new Error('This backend cannot restore an atomic local snapshot.');
+      written = await b.restoreSnapshot(snapshot, ops);
+    } else if (b.batch) written = await b.batch(ops);
     else {
       written = [];
       for (const op of ops) {
@@ -329,7 +342,20 @@ export function createDocumentStore(options: DocumentStoreOptions): DocumentStor
         }
       }
     }
-    for (const raw of written) await absorb(raw, raw._col, raw._id, 'local', token);
+    if (snapshot) {
+      // Publish the new cache together: a watcher handling the first event must
+      // already see every restored collection, including removals.
+      const next = await Promise.all(written.map(async (raw) => ({ raw, doc: await toDoc(raw) })));
+      epoch++;
+      restoreEpoch++;
+      for (const col of snapshot) cache.get(col)!.clear();
+      for (const { raw, doc } of next) {
+        const col = raw._col as CollectionId;
+        if (doc) cache.get(col)!.set(raw._id, doc);
+        else cache.get(col)!.delete(raw._id);
+      }
+      for (const { raw, doc } of next) emit({ col: raw._col as CollectionId, id: raw._id, doc: doc ? jsonClone(doc) : null, origin: 'local', writer: token.kind });
+    } else for (const raw of written) await absorb(raw, raw._col, raw._id, 'local', token);
   }
 
   const store: DocumentStore = {
@@ -410,8 +436,10 @@ export function createDocumentStore(options: DocumentStoreOptions): DocumentStor
           return Promise.reject(e);
         }
       }
+      const expectedEpoch = restoreEpoch;
       const run = async (): Promise<R> => {
         await ready;
+        if (expectedEpoch !== restoreEpoch) throw new Error('The data was replaced before this write could commit. Try again.');
         if (closed) throw new Error('The document store is closed.');
         const pending = new Map<string, Pending>();
         const k = (col: string, id: string) => `${col}\u0000${id}`;
@@ -477,6 +505,39 @@ export function createDocumentStore(options: DocumentStoreOptions): DocumentStor
         const result = await fn(tx);
         await commit(token, pending);
         return result;
+      };
+      const p = queue.then(run, run);
+      queue = p.catch(() => undefined);
+      return p;
+    },
+    async assertCurrent() {
+      await ready;
+      await backend?.assertCurrent?.();
+    },
+    restoreSnapshot(token, snapshot, recovery) {
+      if (!isValidWriteToken(token) || token.kind !== 'migration') return Promise.reject(new Error('Restore requires a migration token.'));
+      const run = async () => {
+        await ready;
+        if (closed) throw new Error('The document store is closed.');
+        if (!backend?.restoreSnapshot || !['memory', 'idb'].includes(backend.engine)) throw new Error('Disconnect document sync before replacing this device’s data, or use Merge.');
+        const pending = new Map<string, Pending>();
+        for (const [col, docs] of Object.entries(snapshot) as Array<[CollectionId, Array<Doc<unknown>>]>) {
+          checkCol(col);
+          if (!COLLECTIONS[col].exported && !['derived', 'changeLog', 'commandLedger', 'jobs'].includes(col)) throw new Error(`Cannot restore ${col}.`);
+          const ids = new Set<string>();
+          for (const doc of docs) {
+            if (!doc || typeof doc._id !== 'string' || ids.has(doc._id) || doc._deleted) throw new Error(`Invalid or duplicate ${col} document.`);
+            const body = bodyOf(jsonClone(doc) as unknown as Record<string, unknown>);
+            const errors = validateDoc(col, doc._id, body);
+            if (errors.length) throw new Error(`Invalid ${col} document: ${errors[0]!.message}`);
+            ids.add(doc._id);
+            pending.set(`${col}\0${doc._id}`, { kind: 'put', col, id: doc._id, body });
+          }
+        }
+        // The backend fills the previous snapshot and absent-ID removals from its
+        // current rows under the SAME transaction as this recovery marker.
+        pending.set('syncState\0restore', { kind: 'put', col: 'syncState', id: 'restore', body: { id: recovery.id, mirrors: recovery.mirrors } });
+        await commit(token, pending, Object.keys(snapshot) as CollectionId[]);
       };
       const p = queue.then(run, run);
       queue = p.catch(() => undefined);

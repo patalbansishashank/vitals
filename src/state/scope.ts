@@ -10,13 +10,14 @@
  * Ephemeral fields (simulation results, planner run progress, undo history, clipboard) are not user data and are not
  * guarded.
  */
+import { assertCurrentWrite, writeGeneration } from './writeBarrier';
 import { defaultStrictMode, WriteOutsideCommand, type CollectionId, type WriteToken } from '@/store';
 
 /**
  * Who is writing. `hydrate` and `dryRun` never reach the document store; neither does `rollback` (a failed commit puts the
  * projections back to what the documents still hold: the boot cache is rewritten, no document op is produced).
  */
-export type ScopeKind = 'command' | 'sync' | 'migration' | 'derive' | 'hydrate' | 'dryRun' | 'system' | 'rollback';
+export type ScopeKind = 'command' | 'sync' | 'migration' | 'derive' | 'hydrate' | 'dryRun' | 'system' | 'rollback' | 'restore';
 
 export interface DocOpRecord {
   col: CollectionId;
@@ -34,6 +35,7 @@ export interface DocOpRecord {
 
 export interface WriteScope {
   kind: ScopeKind;
+  generation: number;
   token?: WriteToken;
   changeSetId?: string;
   commandId?: string;
@@ -51,11 +53,12 @@ export function currentScope(): WriteScope | null {
 }
 
 export function createScope(kind: ScopeKind, init: Partial<Omit<WriteScope, 'kind' | 'ops'>> = {}): WriteScope {
-  return { kind, ops: [], ...init };
+  return { kind, generation: writeGeneration(), ops: [], ...init };
 }
 
 /** Run `fn` inside `scope` (synchronous part; async executors re-enter with `ctx.write`). Nested scopes restore. */
 export function runInScope<R>(scope: WriteScope, fn: () => R): R {
+  if (scope.kind !== 'restore' && scope.kind !== 'hydrate' && scope.generation !== writeGeneration()) assertCurrentWrite(scope.generation);
   const prev = current;
   current = scope;
   try {
@@ -85,7 +88,9 @@ export function guardMode(): GuardMode {
 
 /** Called by guarded stores before a persisted field changes. */
 export function assertWritable(storeName: string, fields: readonly string[]): void {
-  if (current || mode === 'off' || fields.length === 0) return;
+  if (fields.length === 0) return;
+  if (current?.kind !== 'restore' && current?.kind !== 'hydrate') assertCurrentWrite(current?.generation ?? writeGeneration());
+  if (current || mode === 'off') return;
   const err = new WriteOutsideCommand(`${storeName}: "${fields.join('", "')}" changed outside a command`);
   if (mode === 'strict') throw err;
   console.error(err);

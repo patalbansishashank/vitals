@@ -24,7 +24,6 @@ concept helps. If you are not sure whether something counts, report it anyway.
 - the server and its pairing, sync relay, AI proxy and agent (MCP) endpoints (`packages/companion`, see
   [docs/SERVER.md](docs/SERVER.md))
 - the desktop app and the Android app
-- the ring drivers (`src/biometrics`), including how they talk over Bluetooth
 
 Out of scope: problems in a third-party service you connect on your own (an AI provider, Tailscale,
 GitHub), and problems that need someone to already have root on your server or your unlocked device.

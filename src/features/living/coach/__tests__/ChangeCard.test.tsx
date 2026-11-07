@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useSettingsStore } from '@/state/settingsStore';
 import { renderLiving } from '../../testing';
 import { ChangeCard, cardObject, withoutEnergy, type ChangeCardView } from '../../components/ChangeCard';
 
@@ -30,7 +31,9 @@ const EDIT: ChangeCardView = {
   createdAt: ago(HOUR),
   items: [{ label: 'Thu 1 Oct', before: 'strength session 17:30', after: 'rest, your usual steps' }],
   impact: {
-    goalDates: [{ label: 'goal date', before: ['2026-12-21', '2026-12-30'], after: ['2026-12-23', '2027-01-01'] }],
+    goalDates: [
+      { label: 'goal date', before: ['2026-12-21', '2026-12-30'], after: ['2026-12-23', '2027-01-01'] },
+    ],
     metrics: [{ label: 'weight by the end', delta: 0.2, unit: 'kg', decimals: 1 }],
   },
   state: 'pending',
@@ -42,7 +45,11 @@ const CONFIRM: ChangeCardView = {
   title: 'end Spring cut',
   createdAt: ago(HOUR),
   items: [],
-  confirm: { consequence: 'Ends the plan today. Logs and versions are kept; you can restore it for 7 days.', word: 'end', actionLabel: 'End plan' },
+  confirm: {
+    consequence: 'Ends the plan today. Logs and versions are kept; you can restore it for 7 days.',
+    word: 'end',
+    actionLabel: 'End plan',
+  },
   state: 'pending',
 };
 
@@ -52,7 +59,10 @@ const BLOCKED: ChangeCardView = {
   title: 'a 48-hour fast',
   createdAt: ago(HOUR),
   items: [],
-  blocked: { rule: 'Your fasting opt-in allows up to 24 hours.', alternatives: [{ id: 'fast24', label: 'Plan a 24-hour fast instead' }] },
+  blocked: {
+    rule: 'Your fasting opt-in allows up to 24 hours.',
+    alternatives: [{ id: 'fast24', label: 'Plan a 24-hour fast instead' }],
+  },
   state: 'applied',
 };
 
@@ -65,7 +75,15 @@ const PHOTO: ChangeCardView = {
   meal: {
     photo: { url: '', alt: 'Your photo: dal tadka, rice, roti' },
     components: [
-      { id: 'dal', name: 'dal tadka', portion: '1 katori', grams: 150, gramsLow: 100, gramsHigh: 210, kcal: 240 },
+      {
+        id: 'dal',
+        name: 'dal tadka',
+        portion: '1 katori',
+        grams: 150,
+        gramsLow: 100,
+        gramsHigh: 210,
+        kcal: 240,
+      },
       { id: 'rice', name: 'rice', portion: '1 plate', grams: 250, gramsLow: 180, gramsHigh: 330, kcal: 325 },
     ],
     cue: 'looks glossy: about 2 tsp oil added',
@@ -75,9 +93,20 @@ const PHOTO: ChangeCardView = {
   },
 };
 
-function show(card: ChangeCardView, extra: { context?: 'standalone' | 'conversation'; quiet?: boolean } = {}) {
+function show(
+  card: ChangeCardView,
+  extra: { context?: 'standalone' | 'conversation'; quiet?: boolean } = {},
+) {
   const onAction = vi.fn();
-  const h = renderLiving(<ChangeCard card={card} now={NOW} onAction={onAction} context={extra.context ?? 'conversation'} quiet={extra.quiet} />);
+  const h = renderLiving(
+    <ChangeCard
+      card={card}
+      now={NOW}
+      onAction={onAction}
+      context={extra.context ?? 'conversation'}
+      quiet={extra.quiet}
+    />,
+  );
   return { onAction, ...h };
 }
 
@@ -96,11 +125,53 @@ describe('ChangeCard', () => {
     expect(within(article).getByText('Coach · text')).toBeInTheDocument();
     expect(within(article).getByText('23 h to undo')).toBeInTheDocument();
     expect(within(article).getByText('1 katori ≈ 150 g (110–200) · 230 kcal')).toBeInTheDocument();
-    expect(within(article).getByText('≈ 640 kcal (510–780) · protein 33 g (25–41)')).toBeInTheDocument();
+    expect(within(article).getByRole('img', { name: '≈ 640 kcal (510–780)' })).toBeInTheDocument();
+    expect(within(article).getByText('Likely 510–780')).toBeInTheDocument();
+    expect(within(article).getByText('protein 33 g (25–41)')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Undo logged lunch' }));
     expect(onAction).toHaveBeenLastCalledWith('undo');
     await user.click(screen.getByRole('button', { name: 'Edit logged lunch' }));
     expect(onAction).toHaveBeenLastCalledWith('edit');
+  });
+
+  it('uses the selected energy unit for both the hero and its likely range', () => {
+    act(() => useSettingsStore.getState().set({ energyUnit: 'kJ' }));
+    try {
+      show(LOG);
+      expect(screen.getByRole('img', { name: /≈ 2.680.kJ \(2.130–3.260\)/ })).toBeInTheDocument();
+      expect(screen.getByText(/Likely 2.130–3.260/)).toBeInTheDocument();
+    } finally {
+      act(() => useSettingsStore.getState().set({ energyUnit: 'kcal' }));
+    }
+  });
+
+  it('gives proposals a plan glow, meal logs a food glow and safety cards no glow', () => {
+    const first = show(EDIT, { context: 'standalone' });
+    expect(screen.getByRole('article')).toHaveAttribute('data-domain', 'plan');
+    first.result.unmount();
+    const second = show(PHOTO, { context: 'standalone' });
+    expect(screen.getByRole('article')).toHaveAttribute('data-domain', 'food');
+    second.result.unmount();
+    show(BLOCKED, { context: 'standalone' });
+    expect(screen.getByRole('article')).toHaveAttribute('data-glow', 'none');
+  });
+
+  it('quiet proposals hide energy before and after, including a refreshed proposal and source detail', async () => {
+    const user = userEvent.setup();
+    show(
+      {
+        ...EDIT,
+        source: { label: 'Coach · proposal', confidence: 0.78, band: '2000 kcal' },
+        state: 'stale',
+        refreshed: { items: [{ label: 'Food', before: '2200 kcal', after: '2000 kcal' }] },
+      },
+      { quiet: true },
+    );
+    expect(document.body.textContent).not.toMatch(/kcal|0\.78/);
+    expect(screen.getByText('Coach · proposal').closest('button')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /^About / }));
+    expect(screen.getByText('What this card means')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/kcal|0\.78/);
   });
 
   it('log in quiet mode shows portions without kcal', () => {
@@ -133,9 +204,16 @@ describe('ChangeCard', () => {
   it('destructive: carries no action itself — only Review and confirm… and Not now', async () => {
     const user = userEvent.setup();
     const { onAction } = show(CONFIRM);
-    expect(screen.getByRole('article', { name: 'Needs your confirmation · end Spring cut' })).toBeInTheDocument();
-    expect(screen.getByText('Ends the plan today. Logs and versions are kept; you can restore it for 7 days.')).toBeInTheDocument();
-    const keys = screen.getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent);
+    expect(
+      screen.getByRole('article', { name: 'Needs your confirmation · end Spring cut' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Ends the plan today. Logs and versions are kept; you can restore it for 7 days.'),
+    ).toBeInTheDocument();
+    const keys = screen
+      .getAllByRole('button')
+      .filter((b) => !b.getAttribute('aria-label')?.startsWith('About '))
+      .map((b) => b.getAttribute('aria-label') ?? b.textContent);
     expect(keys).toEqual(['Review and confirm: end Spring cut', 'Not now: end Spring cut']);
     expect(screen.queryByRole('button', { name: /^(apply|confirm|end plan)/i })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Review and confirm: end Spring cut' }));
@@ -147,7 +225,9 @@ describe('ChangeCard', () => {
   it('blocked: names the rule and offers the allowed alternatives as keys', async () => {
     const user = userEvent.setup();
     const { onAction } = show(BLOCKED);
-    expect(screen.getByRole('article', { name: 'Not allowed by your safety settings · a 48-hour fast' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: 'Not allowed by your safety settings · a 48-hour fast' }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Your fasting opt-in allows up to 24 hours\./)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Plan a 24-hour fast instead' }));
     expect(onAction).toHaveBeenLastCalledWith('alternative', { alternativeId: 'fast24' });
@@ -157,8 +237,14 @@ describe('ChangeCard', () => {
 
   it('stale: shows the refreshed diff and offers the update instead of Apply', async () => {
     const user = userEvent.setup();
-    const { onAction } = show({ ...EDIT, state: 'stale', refreshed: { items: [{ label: 'Fri 2 Oct', before: 'cardio session 07:30', after: 'rest' }] } });
-    expect(screen.getByText('Something changed since this was proposed. Updated version:')).toBeInTheDocument();
+    const { onAction } = show({
+      ...EDIT,
+      state: 'stale',
+      refreshed: { items: [{ label: 'Fri 2 Oct', before: 'cardio session 07:30', after: 'rest' }] },
+    });
+    expect(
+      screen.getByText('Something changed since this was proposed. Updated version:'),
+    ).toBeInTheDocument();
     expect(screen.getByText('cardio session 07:30')).toBeInTheDocument();
     expect(screen.queryByText('strength session 17:30')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Apply/ })).not.toBeInTheDocument();
@@ -179,25 +265,45 @@ describe('ChangeCard', () => {
   it('expired: an out-of-date proposal says so and offers nothing', () => {
     show({ ...EDIT, createdAt: ago(25 * HOUR) });
     expect(screen.getByText('Expired — ask again')).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /^About / })).toBeInTheDocument();
   });
 
   it('discarded: collapses to one line', () => {
     show({ ...EDIT, state: 'discarded' });
-    expect(screen.getByRole('heading', { name: 'Discarded · Proposal · no training Thu–Sat' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Discarded · Proposal · no training Thu–Sat' }),
+    ).toBeInTheDocument();
     expect(screen.queryByText('strength session 17:30')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /^About / })).toBeInTheDocument();
   });
 
   it('UI-only: "Only you can change that" with a link to the setting', () => {
-    show({ id: 'ui-1', class: 'uiOnly', title: 'sync', createdAt: ago(HOUR), items: [], setting: { label: 'Open Settings', to: '/settings' }, state: 'applied' });
+    show({
+      id: 'ui-1',
+      class: 'uiOnly',
+      title: 'sync',
+      createdAt: ago(HOUR),
+      items: [],
+      setting: { label: 'Open Settings', to: '/settings' },
+      state: 'applied',
+    });
     expect(screen.getByRole('article', { name: 'Only you can change that · sync' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings');
   });
 
   it('read: one collapsed line that discloses each lookup', async () => {
     const user = userEvent.setup();
-    show({ id: 'read-1', class: 'read', title: 'looked at', createdAt: ago(HOUR), items: [], reads: [{ label: 'today’s log', summary: 'Nothing since breakfast.' }, { label: 'plan v3' }], state: 'applied' });
+    show({
+      id: 'read-1',
+      class: 'read',
+      title: 'looked at',
+      createdAt: ago(HOUR),
+      items: [],
+      reads: [{ label: 'today’s log', summary: 'Nothing since breakfast.' }, { label: 'plan v3' }],
+      state: 'applied',
+    });
     const toggle = screen.getByRole('button', { name: /looked at · today’s log · plan v3/ });
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText('Nothing since breakfast.')).not.toBeVisible();
@@ -208,11 +314,11 @@ describe('ChangeCard', () => {
 
   it('is a faceplate standalone and an inset region inside the conversation', () => {
     const a = show(LOG, { context: 'standalone' });
-    expect(screen.getByRole('article', { name: 'Logged lunch · 13:00' })).toHaveClass('lm-face');
+    expect(screen.getByRole('article', { name: 'Logged lunch · 13:00' })).toHaveClass('lm-gcard');
     a.result.unmount();
     show(LOG, { context: 'conversation' });
     const inset = screen.getByRole('article', { name: 'Logged lunch · 13:00' });
-    expect(inset).not.toHaveClass('lm-face');
+    expect(inset).not.toHaveClass('lm-gcard');
     expect(inset).toHaveAttribute('data-context', 'conversation');
   });
 

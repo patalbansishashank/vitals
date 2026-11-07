@@ -34,6 +34,7 @@ export interface EngineMetricMeta {
   thresholds?: Threshold[];
   reference?: { lo: number; hi: number; label?: string };
   mechanism?: string;
+  display?: ChartSeries['display'];
 }
 
 export interface EngineLikeResult {
@@ -81,6 +82,7 @@ export function toChartSeries(meta: EngineMetricMeta, r: EngineLikeResult): Char
     thresholds: meta.thresholds,
     reference: meta.reference,
     mechanism: meta.mechanism,
+    display: meta.display,
     baseline: r.baseline?.[meta.id],
     daily: { values, band: band ? { lo: band.p10, hi: band.p90 } : undefined },
     hourly: hv ? { values: hv, band: hb ? { lo: hb.p10, hi: hb.p90 } : undefined } : undefined,

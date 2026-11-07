@@ -394,7 +394,7 @@ interface DragState {
 
 /**
  * The parametric two-layer body figure (AVATAR_SPEC): a solid lean core inside a frosted adipose envelope on the
- * perforated stage, front and/or side view, shared vertical scale, height ruler, optional girth callouts, ghost
+ * plain stage, front and/or side view, shared vertical scale, height ruler, optional girth callouts, ghost
  * outline and direct-manipulation handles. Pure view: the parent owns all state.
  */
 export function BodyAvatar({

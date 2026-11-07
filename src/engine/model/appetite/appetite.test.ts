@@ -11,8 +11,12 @@
  */
 import type { PersonProfile, ResolvedProfile } from '../../types/profile';
 import { MI } from '../../types/metrics';
-import { DayDriver, makeProfile, type ContextOpts } from '../hormones/testHarness';
-import { fastHungerFactor } from './index';
+import { buildModelParams } from '../../core/paramsRegistry';
+import { DayDriver, makeProfile, TEST_MODULES, type ContextOpts } from '../hormones/testHarness';
+import { APPETITE_OUTPUT_CONTRACT, fastHungerFactor } from './index';
+
+/** D2-06: the legacy 0.9 ketosis attenuation, now a named scenario (default 0); 12's reference implementation used it. */
+const LEGACY_KETO_ATTEN = APPETITE_OUTPUT_CONTRACT.ketosisRelief.legacyScenario.value;
 
 const MAN90: PersonProfile = { schemaVersion: 1, body: { sex: 'male', ageYears: 35, heightCm: 180, weightKg: 90 } };
 
@@ -35,6 +39,8 @@ interface Regime {
   meals?: number;
   exerciseKcalD?: (d: number) => number;
   lutealWeight?: (d: number) => number;
+  /** Override of `appetite.ketoAtten` (the named legacy ketosis-relief scenario); default = production (0). */
+  ketoAtten?: number;
 }
 
 interface Trace {
@@ -56,7 +62,13 @@ function runRegime(r: Regime, days: number, subj: Subject = DEFAULT_SUBJECT): Tr
     habitualProteinG: subj.pRef,
     habitualFibreG: 16,
   });
-  const dr = new DayDriver(profile);
+  let paramValues: Float64Array | undefined;
+  if (r.ketoAtten !== undefined) {
+    const base = buildModelParams(TEST_MODULES);
+    paramValues = new Float64Array(base.values);
+    paramValues[base.index.get('appetite.ketoAtten')!] = r.ketoAtten;
+  }
+  const dr = new DayDriver(profile, paramValues ? { paramValues } : {});
   let w = subj.w;
   let fm = subj.fm;
   const t: Trace = { hpi: [dr.as.hpi], eK: [dr.as.effortK], pSurv: [1], dr, w: [w] };
@@ -103,7 +115,8 @@ const A = (): Regime => ({ ei: () => 1950, protein: 100 });
 const B = (): Regime => ({ ei: () => 1950, protein: 170 });
 const C = (): Regime => ({ ei: () => 1950, protein: 170, fibre: 35 });
 const D = (): Regime => ({ ei: () => 1560, protein: 100 });
-const E = (): Regime => ({ ei: () => 700, protein: 60, bhb: 0.6 });
+/** E: the reference implementation's ketotic VLED, under its legacy ketosis relief (D2-06: a named scenario now). */
+const E = (): Regime => ({ ei: () => 700, protein: 60, bhb: 0.6, ketoAtten: LEGACY_KETO_ATTEN });
 const F = (): Regime => ({ ei: () => 700, protein: 60, bhb: 0.1 });
 const H = (): Regime => ({ ei: () => 1950, protein: 100, sleepDebtH: 1.5 });
 const K = (): Regime => ({ ei: () => 2600, protein: 100 });
@@ -201,13 +214,14 @@ describe('12 §7 intake-effort targets', () => {
     }
   });
 
-  it('Nymo 2017/2018: ketogenic VLED — HPI up in days 1-21, back toward baseline by week 4-8; after refeeding out of ketosis at ≈ 16 % loss HPI clearly above baseline and still elevated at 1 y', () => {
+  it('Nymo 2017/2018 (legacy ketosis-relief scenario, D2-06): ketogenic VLED — HPI up in days 1-21, back toward baseline by week 4-8; after refeeding out of ketosis at ≈ 16 % loss HPI clearly above baseline and still elevated at 1 y', () => {
     const vled = (d: number) => d <= 63;
     const t = runRegime(
       {
         ei: (d, tee) => (vled(d) ? 700 : tee),
         protein: (d) => (vled(d) ? 60 : 100),
         bhb: 0.6,
+        ketoAtten: LEGACY_KETO_ATTEN,
       },
       63,
     );
@@ -377,16 +391,20 @@ describe('properties', () => {
     expect(t.dr.record()[MI.adherence]).toBe(100);
   });
 
-  it('21 days of zero intake stay finite and bounded, then recover on refeeding', () => {
-    const t = runRegime({ ei: (d, tee) => (d <= 21 ? 0 : tee), protein: (d) => (d <= 21 ? 0 : 100), fibre: 0, bhb: 3, meals: 0 }, 42);
-    for (let d = 0; d <= 42; d++) {
-      expect(Number.isFinite(t.hpi[d]!)).toBe(true);
-      expect(t.hpi[d]!).toBeGreaterThanOrEqual(0);
-      expect(t.hpi[d]!).toBeLessThanOrEqual(100);
-      expect(t.pSurv[d]!).toBeGreaterThan(0);
-      expect(t.pSurv[d]!).toBeLessThanOrEqual(1);
+  it('21 days of zero intake stay finite and bounded (default and legacy relief), then recover on refeeding under the legacy ketosis-relief scenario', () => {
+    const fast = (ketoAtten?: number): Regime => ({ ei: (d, tee) => (d <= 21 ? 0 : tee), protein: (d) => (d <= 21 ? 0 : 100), fibre: 0, bhb: 3, meals: 0, ...(ketoAtten !== undefined ? { ketoAtten } : {}) });
+    const legacy = runRegime(fast(LEGACY_KETO_ATTEN), 42);
+    for (const t of [runRegime(fast(), 42), legacy]) {
+      for (let d = 0; d <= 42; d++) {
+        expect(Number.isFinite(t.hpi[d]!)).toBe(true);
+        expect(t.hpi[d]!).toBeGreaterThanOrEqual(0);
+        expect(t.hpi[d]!).toBeLessThanOrEqual(100);
+        expect(t.pSurv[d]!).toBeGreaterThan(0);
+        expect(t.pSurv[d]!).toBeLessThanOrEqual(1);
+      }
     }
-    expect(t.hpi[42]!).toBeLessThan(t.hpi[21]!);
+    // D2-06: the fall after refeeding is the legacy relief scenario's ketosis offset; the default has no such offset
+    expect(legacy.hpi[42]!).toBeLessThan(legacy.hpi[21]!);
   });
 
   it('monotone: deeper deficit → higher HPI and lower P_surv; more protein/fibre → lower HPI', () => {

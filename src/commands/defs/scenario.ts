@@ -32,9 +32,10 @@ export const ScenarioView = T.Object({
   blocks: T.Array(T.OpenObject()),
   fasts: T.Integer(),
   days: T.Optional(T.Array(T.Object({ day: T.Integer(), program: T.String(), override: T.Boolean() }))),
+  schedule: T.Optional(ScheduleDoc),
 });
 
-function view(sc: Scenario, days?: readonly [number, number]) {
+function view(sc: Scenario, days?: readonly [number, number], includeSchedule = false) {
   const s = sc.schedule;
   const out: Static<typeof ScenarioView> = {
     id: sc.id,
@@ -58,6 +59,7 @@ function view(sc: Scenario, days?: readonly [number, number]) {
       override: Boolean(d.override),
     }));
   }
+  if (includeSchedule) out.schedule = structuredClone(s) as unknown as Static<typeof ScheduleDoc>;
   return out;
 }
 
@@ -90,8 +92,8 @@ export const scenarioGet = defineCommand({
   id: 'scenario.get',
   version: 1,
   title: 'Read a scenario',
-  description: 'One scenario: programs (day templates by letter), blocks, fasts; with `days: [from, to]` (day indexes from the start date) also the program and override of each day in that range.',
-  input: T.Object({ id: T.String({ minLength: 1 }), days: T.Optional(T.Tuple([T.Integer({ minimum: 0 }), T.Integer({ minimum: 0 })])) }),
+  description: 'One scenario: programs (day templates by letter), blocks, fasts; with `days: [from, to]` (day indexes from the start date) also each day in that range. Set includeSchedule to read the complete saved prescription, including meals, exercise doses, overrides and events.',
+  input: T.Object({ id: T.String({ minLength: 1 }), days: T.Optional(T.Tuple([T.Integer({ minimum: 0 }), T.Integer({ minimum: 0 })])), includeSchedule: T.Optional(T.Boolean()) }),
   output: ScenarioView,
   perm: 'read',
   surfaces: ALL,
@@ -99,7 +101,7 @@ export const scenarioGet = defineCommand({
   undo: UNDO.none,
   idempotency: 'none',
   sideEffects: [],
-  execute: (_ctx, input) => view(need(input.id), input.days),
+  execute: (_ctx, input) => view(need(input.id), input.days, input.includeSchedule),
 });
 
 export const scenarioCreate = defineCommand({

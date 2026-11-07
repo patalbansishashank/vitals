@@ -9,10 +9,22 @@ import { RT_PRESETS } from '../../core/defaults';
 import type { DayInput } from '../../types/inputs';
 import type { ModuleContext } from '../../types/module';
 import type { ModelParams } from '../../types/params';
+import type { LabBaselineMeta, LabBaselines } from '../../types/profile';
+import type { ObservedAnchor, SeriesStatusMeta } from '../../types/result';
 import { SERIES_INDEX, type SeriesId } from '../../types/metrics';
 import { CORR, MGDL_PER_MMOLL_CHOL, MGDL_PER_MMOLL_GLC, MGDL_PER_MMOLL_TG, N_Z, Z_MARKERS, cholesky, correlatedZ, type ZMarker } from './baselines';
 import { Diet, readDiet } from './diet';
 import { lnOnePlus, nutsLdl, tgOmega3Fraction, urateDashEffect, viscousFibreLdl } from './equations';
+import {
+  homaEligibility,
+  medicationChronology,
+  medicationStateAt,
+  type DatedMedicationChange,
+  type HomaEligibility,
+  type LabSample,
+  type LabSampleContext,
+  type MedicationScreen,
+} from '@/lib/measurementOperators';
 
 export interface CardiometabolicK {
   // ------------------------------------------------------------------------------------------ person baselines
@@ -24,7 +36,11 @@ export interface CardiometabolicK {
   fm0Kg: number;
   ffm0Kg: number;
   tdee0Kcal: number;
-  /** Baseline (t = 0) marker levels: lab value when given, else NHANES generator + correlated z (06 §2.3, §4.17). */
+  /**
+   * Solver-domain baseline marker levels (06 §2.3, §4.17): the lab value when given and inside the calibration domain,
+   * else the domain-truncated value; the NHANES generator + correlated z when no lab. Response equations read these.
+   * The recorded t = 0 value is the anchor below (D7-02), never this truncation.
+   */
   ldl0: number; // mg/dL
   hdl0: number; // mg/dL
   tg0: number; // mg/dL
@@ -32,10 +48,25 @@ export interface CardiometabolicK {
   sbp0: number; // mmHg
   fpg0: number; // mg/dL
   a1c0: number; // %
+  /** hs-CRP and urate are recorded relative to their baseline: the measured value itself (exact) is the reference. */
   crp0: number; // mg/L
   ua0: number; // mg/dL
   apoB0: number; // mg/dL
   l0: number; // % intrahepatic triglyceride
+  /**
+   * D7-02: t = 0 anchors in the same units. An accepted measured value is used exactly (never clamped into a plausible
+   * replacement); without a lab, or for a value inside the domain, the anchor equals the solver value above.
+   */
+  ldlAnchor: number;
+  hdlAnchor: number;
+  tgAnchor: number;
+  sbpAnchor: number;
+  fpgAnchor: number;
+  a1cAnchor: number;
+  apoBAnchor: number;
+  lAnchor: number;
+  /** D7-02: measured baselines outside the calibration domain (their projection is unavailable; the anchor stays exact). */
+  outOfDomain: readonly CardiometabolicLab[];
   /** Habitual references. */
   hab: Diet;
   chol0Mg: number;
@@ -54,8 +85,32 @@ export interface CardiometabolicK {
   eIs0: number;
   /** F_adip reference body fat, % FM (sex-resolved). */
   fmRefPct: number;
-  /** Lab-anchored hepatic-sensitivity calibration (04 §4.18 moderators): 1 without labs. */
+  /**
+   * Hepatic-sensitivity calibration factor (04 §4.18 moderators): 1 = the latent S_hep prior (D7-06 default). Only the
+   * opt-in legacy scenario (`si.homaCalibration` = 1) with an eligible same-draw fasting glucose/insulin pair off insulin
+   * sets HOMA_ref/HOMA_user — an unvalidated sensitivity scenario, never a measured hepatic sensitivity.
+   */
   hepCal: number;
+  /** D7-06: the legacy HOMA calibration actually applied this run (scenario on and an eligible pair). */
+  hepCalibrated: boolean;
+  /** D7-08: the legacy sustained ketosis liver-fat term is on (labelled scenario; standard 0). */
+  liverKetoScenario: number;
+  /** D7-09: the FPG-linked HbA1c sensitivity scenario is on (standard 0: HbA1c stays its anchor). */
+  a1cFpgScenario: number;
+  /** D7-08: liver fat has a measured (non-generated) anchor; otherwise its trajectory starts from a latent BMI prior. */
+  liverMeasured: boolean;
+  /** D7-07: non-HDL descriptor anchor, mg/dL: a measured non-HDL when given, else the LDL + TG/divisor model proxy. */
+  nonHdlAnchor: number;
+  nonHdlMeasured: boolean;
+  /** D7-09: glucose-lowering medication context (screening or dated changes): glycaemic responses are not attributable. */
+  glucoseLoweringContext: boolean;
+  /**
+   * A1-063: first run day (0-based, the daily-sample index) from which the glycaemic response is in that context: 0 when a
+   * current screen names a glucose-lowering drug or the class is active/unknown at the baseline sample; the day of the
+   * first dated change inside the run otherwise; −1 when unaffected (a stop before a newer baseline, a start past the
+   * horizon). `glucoseLoweringContext` is `glucoseLoweringFromDay >= 0`.
+   */
+  glucoseLoweringFromDay: number;
   // ------------------------------------------------------------------------------------------ 04 §4.18 S factors
   tauHepF: number; fHep: number; fMus: number; fSteps: number; fSfa: number; fSugar: number;
   expHep: number; lfA: number; lfRef: number; ebDefA: number; ebSurA: number; ebScale: number;
@@ -150,6 +205,15 @@ class CardiometabolicKImpl implements CardiometabolicK {
   ua0 = 0;
   apoB0 = 0;
   l0 = 0;
+  ldlAnchor = 0;
+  hdlAnchor = 0;
+  tgAnchor = 0;
+  sbpAnchor = 0;
+  fpgAnchor = 0;
+  a1cAnchor = 0;
+  apoBAnchor = 0;
+  lAnchor = 0;
+  outOfDomain: readonly CardiometabolicLab[] = [];
   hab = new Diet();
   chol0Mg = 0;
   cholZ0 = 0;
@@ -160,6 +224,14 @@ class CardiometabolicKImpl implements CardiometabolicK {
   eIs0 = 0;
   fmRefPct = 0;
   hepCal = 0;
+  hepCalibrated = false;
+  liverKetoScenario = 0;
+  a1cFpgScenario = 0;
+  liverMeasured = false;
+  nonHdlAnchor = 0;
+  nonHdlMeasured = false;
+  glucoseLoweringContext = false;
+  glucoseLoweringFromDay = -1;
   tauHepF = 0;
   fHep = 0;
   fMus = 0;
@@ -417,6 +489,100 @@ function paramGetter(p: ModelParams): (id: string) => number {
   };
 }
 
+/* ------------------------------------------------------------------------------------------- observed baselines (D7-02) */
+
+/** Measured cardiometabolic baselines the module anchors on. */
+export type CardiometabolicLab = 'ldl' | 'hdl' | 'tg' | 'sbp' | 'fpg' | 'a1c' | 'crp' | 'ua' | 'apoB' | 'liverFat';
+
+interface Domain {
+  lo: number;
+  hi: number;
+}
+
+/**
+ * Calibration domain per baseline, in the module's units (mg/dL, mmHg, %, mg/L): the engineering truncation bounds of
+ * the population generator (06 §2.3), inside which the response equations were set up. They are not clinical cutoffs
+ * and never relabel a measurement: a generated prior is truncated to them; a measured value outside them stays exact at
+ * t = 0 and its projection is reported as out of domain (D7-02). Liver fat uses the store bounds `liver.min/max`.
+ */
+export const CARDIOMETABOLIC_DOMAIN: Readonly<Record<Exclude<CardiometabolicLab, 'liverFat'>, Domain>> & { liverFat: Domain } = {
+  ldl: { lo: 40, hi: 250 },
+  hdl: { lo: 20, hi: 120 },
+  tg: { lo: 30, hi: 800 },
+  sbp: { lo: 85, hi: 200 },
+  fpg: { lo: 65, hi: 240 },
+  a1c: { lo: 4.2, hi: 12 },
+  crp: { lo: 0.1, hi: 30 },
+  ua: { lo: 2, hi: 12 },
+  apoB: { lo: 20, hi: 300 },
+  // default of the fixed parameters liver.min / liver.max (buildK reads the run's values)
+  liverFat: { lo: 0.5, hi: 50 },
+};
+
+/** Lab field, factor to the module unit, and the recorded series (absent: no absolute series) of each baseline. */
+const LAB_SOURCE: Readonly<Record<CardiometabolicLab, { field: keyof LabBaselines; toModel: number; series?: SeriesId; seriesUnit?: string; seriesRelative?: true }>> = {
+  ldl: { field: 'ldlMmolL', toModel: MGDL_PER_MMOLL_CHOL, series: 'ldl', seriesUnit: 'mmol/L' },
+  hdl: { field: 'hdlMmolL', toModel: MGDL_PER_MMOLL_CHOL, series: 'hdl', seriesUnit: 'mmol/L' },
+  tg: { field: 'tgMmolL', toModel: MGDL_PER_MMOLL_TG, series: 'triglycerides', seriesUnit: 'mmol/L' },
+  sbp: { field: 'sbpMmHg', toModel: 1, series: 'sbp', seriesUnit: 'mmHg' },
+  fpg: { field: 'fastingGlucoseMmolL', toModel: MGDL_PER_MMOLL_GLC, series: 'fastingGlucose', seriesUnit: 'mmol/L' },
+  a1c: { field: 'hba1cPct', toModel: 1 },
+  crp: { field: 'crpMgL', toModel: 1, series: 'crp', seriesRelative: true },
+  ua: { field: 'urateMgDl', toModel: 1, series: 'uricAcid', seriesRelative: true },
+  apoB: { field: 'apoBgL', toModel: 100, series: 'apoB', seriesUnit: 'g/L' },
+  liverFat: { field: 'liverFatPct', toModel: 1, series: 'liverFat', seriesUnit: '%' },
+};
+
+/**
+ * An accepted measured baseline in the module's unit, or undefined when absent or invalid. Non-finite and non-positive
+ * values are rejected at this boundary (C6: never NaN onto the bus); the generator then supplies a bounded prior.
+ */
+function observedModelValue(labs: LabBaselines | undefined, id: CardiometabolicLab): number | undefined {
+  const raw = labs?.[LAB_SOURCE[id].field];
+  if (typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) return undefined;
+  return raw * LAB_SOURCE[id].toModel;
+}
+
+/**
+ * D7-02: the measured baselines a run uses exactly as t = 0 anchors and the per-series status of those outside the
+ * calibration domain. `fromDay` is the zero-based daily-sample index (A1-052): daily[0] is the end of day 0 — one day of
+ * modelled response, not the observation — so an out-of-domain baseline makes every modelled sample unsupported from
+ * index 0, while the exact observation stays in `SimulationResult.initial` / `meta.observedAnchors`.
+ * Pure; the core puts the result into `SimulationMeta.observedAnchors` / `outputStatus`.
+ */
+export function cardiometabolicObservedAnchors(
+  labs: LabBaselines | undefined,
+  liverDomain: Domain = CARDIOMETABOLIC_DOMAIN.liverFat,
+): { anchors: ObservedAnchor[]; outputStatus: Partial<Record<SeriesId, SeriesStatusMeta>>; outOfDomain: CardiometabolicLab[] } {
+  const anchors: ObservedAnchor[] = [];
+  const outputStatus: Partial<Record<SeriesId, SeriesStatusMeta>> = {};
+  const outOfDomain: CardiometabolicLab[] = [];
+  for (const id of Object.keys(LAB_SOURCE) as CardiometabolicLab[]) {
+    const v = observedModelValue(labs, id);
+    if (v === undefined) continue;
+    const d = id === 'liverFat' ? liverDomain : CARDIOMETABOLIC_DOMAIN[id];
+    const out = v < d.lo || v > d.hi;
+    if (out) outOfDomain.push(id);
+    const src = LAB_SOURCE[id];
+    if (src.series && !src.seriesRelative) anchors.push({ series: src.series, value: v / src.toModel, unit: src.seriesUnit!, outOfDomain: out });
+    if (src.series && out) outputStatus[src.series] = { status: 'outOfDomain', reasonCode: 'observedBaselineOutsideCalibration', fromDay: 0 };
+  }
+  // validity follows the dependencies: ApoB moves with the LDL/TG proxy response; S_I with the glycaemic domain
+  for (const [series, deps] of DERIVED_DEPENDENCIES)
+    if (!outputStatus[series] && deps.some((d) => outOfDomain.includes(d))) outputStatus[series] = { status: 'outOfDomain', reasonCode: 'dependsOnOutOfDomainBaseline', fromDay: 0 };
+  return { anchors, outputStatus, outOfDomain };
+}
+
+/**
+ * Recorded series whose projection depends on another baseline (apoB moves with the LDL/TG non-HDL proxy; S_I is modelled
+ * for the glycaemic range of its calibration — a fasting-glucose baseline outside it puts the insulin-sensitivity
+ * projection outside it too, and under the opt-in legacy HOMA scenario S_I also reads that anchor, D7-06).
+ */
+const DERIVED_DEPENDENCIES: ReadonlyArray<readonly [SeriesId, readonly CardiometabolicLab[]]> = [
+  ['apoB', ['ldl', 'tg']],
+  ['insulinSensitivity', ['fpg']],
+];
+
 /** Generator parameter ids per marker and sex (built once: no template strings per run). */
 const GEN_IDS = new Map<string, readonly [string, string, string, string]>();
 for (const m of Z_MARKERS) for (const sex of ['m', 'f']) GEN_IDS.set(`${m}.${sex}`, [`base.${m}.${sex}.a`, `base.${m}.${sex}.bAge`, `base.${m}.${sex}.bBmi`, `base.${m}.${sex}.sd`]);
@@ -437,6 +603,139 @@ export function generatorValue(get: (id: string) => number, marker: ZMarker, sex
   return 0.5 * (one('m') + one('f'));
 }
 
+/** Glucose-lowering classes whose start/stop/dose change segments glycaemic calibration (D7-09). */
+export const GLUCOSE_LOWERING_CLASSES: readonly string[] = ['insulin', 'sulfonylurea', 'sglt2', 'glp1', 'metformin'];
+
+/** Whether the current screening names a glucose-lowering drug or type 1 diabetes (an independent current fact). */
+function screenedGlucoseLowering(f: NonNullable<ModuleContext['profile']['safety']>['flags'] | undefined): boolean {
+  const med = f?.diabetesMedication;
+  return f?.type1Diabetes === true || (med !== undefined && med !== 'none' && med !== 'dietOnly');
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A1-063: as-of glucose-lowering medication context of a run (D7-09), from the shared chronology resolver
+ * (`medicationChronology`): the class state at the fasting-glucose baseline sample (the run start without a measured one)
+ * and the dated changes from that baseline through the horizon. A current screen naming a glucose-lowering drug (or type 1
+ * diabetes) is an independent fact: the context holds from day 0 whatever the history says. A future change cannot alter
+ * the earlier prefix (it applies from its own day), a change past the horizon cannot affect the run, and a stop before a
+ * newer baseline is not current exposure; an ambiguous history stays in context. A run without a start date cannot place
+ * dated changes, so any recorded change keeps the conservative whole-run context. No washout duration is assumed.
+ */
+export function glucoseLoweringChronology(prof: Pick<ModuleContext['profile'], 'safety' | 'input'>, runDays?: number): { fromDay: number | null; reason: 'currentScreening' | 'activeAtBaseline' | 'unknownAtBaseline' | 'changeSinceBaseline' | 'undatedRun' | null } {
+  const f = prof.safety?.flags;
+  if (screenedGlucoseLowering(f)) return { fromDay: 0, reason: 'currentScreening' };
+  const changes: DatedMedicationChange[] = (prof.input.medications ?? []).filter((m) => GLUCOSE_LOWERING_CLASSES.includes(m.medicationClass));
+  if (!changes.length) return { fromDay: null, reason: null };
+  const runStart = prof.input.startDate;
+  if (!runStart || !ISO_DAY.test(runStart)) return { fromDay: 0, reason: 'undatedRun' };
+  const meta = prof.input.labMeta?.fastingGlucoseMmolL;
+  const measured = prof.input.labs?.fastingGlucoseMmolL !== undefined && meta?.source !== 'generated' && meta?.measuredOn !== undefined && ISO_DAY.test(meta.measuredOn) ? meta.measuredOn : undefined;
+  const med = f?.diabetesMedication;
+  const screen: MedicationScreen | undefined = med === 'none' || med === 'dietOnly' ? { status: 'none', asOf: runStart } : undefined;
+  const c = medicationChronology({ changes, classes: GLUCOSE_LOWERING_CLASSES, runStart, ...(runDays !== undefined ? { runDays } : {}), ...(measured ? { baselineDate: measured } : {}), ...(screen ? { screen } : {}) });
+  return { fromDay: c.affectedFromDay, reason: c.reason };
+}
+
+/**
+ * D7-09: glucose-lowering medication context — a current glucose-lowering drug or type 1 diabetes on the screening, or a
+ * dated glucose-lowering class that is active or ambiguous at the baseline or changes during the run (A1-063 chronology,
+ * `glucoseLoweringChronology`). Fasting-glucose and HbA1c changes in this context are observations, not attributable
+ * responses (no causal credit, no target achievement); no medication coefficient is encoded.
+ */
+export function glucoseLoweringContext(prof: Pick<ModuleContext['profile'], 'safety' | 'input'>, runDays?: number): boolean {
+  return glucoseLoweringChronology(prof, runDays).fromDay !== null;
+}
+
+/**
+ * Exogenous insulin at a sample date (D7-06, A1-063), one rule for the marker HOMA and the opt-in engine calibration: the
+ * as-of chronology of the dated insulin changes (`medicationStateAt`) with the current screen — a future start never applies
+ * to an earlier sample, a stop before it ends the course, an ambiguous same-class history or a withheld answer stays
+ * unknown. A current affirmative insulin screen with no recorded insulin history is insulin (the screen is the only fact,
+ * never cleared by a missing history). No washout duration is assumed.
+ */
+export function insulinExposureAt(changes: readonly DatedMedicationChange[], date: string, screen?: MedicationScreen): 'yes' | 'no' | 'unknown' {
+  const insulin = changes.filter((c) => c.medicationClass === 'insulin');
+  if (screen?.status === 'active' && insulin.length === 0) return 'yes';
+  const s = medicationStateAt(insulin, ['insulin'], date, screen);
+  return s.exposure === 'active' ? 'yes' : s.exposure === 'notActive' ? 'no' : 'unknown';
+}
+
+const finiteNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+
+/**
+ * A draw's recorded context as the shared HOMA operator reads it (A1-047), one sanitiser for the marker rules and the
+ * engine: only the facts actually recorded, with their declared types (a known illness; hard training; hours since a fast
+ * ended; an explicit prolonged-fast protocol; hours into a logged fast). Absent = unknown — never a forced screening — and
+ * the stored context is never rewritten.
+ */
+export function homaSampleContext(raw: unknown): LabSampleContext | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const c = raw as Record<string, unknown>;
+  const out: { -readonly [K in keyof LabSampleContext]?: LabSampleContext[K] } = {};
+  if (typeof c.illness === 'boolean') out.illness = c.illness;
+  if (typeof c.hardTraining48h === 'boolean') out.hardTraining48h = c.hardTraining48h;
+  if (finiteNum(c.afterFastHours) && c.afterFastHours >= 0) out.afterFastHours = c.afterFastHours;
+  if (typeof c.prolongedFastProtocol === 'boolean') out.prolongedFastProtocol = c.prolongedFastProtocol;
+  if (finiteNum(c.loggedFastHoursAtSample) && c.loggedFastHoursAtSample >= 0) out.loggedFastHoursAtSample = c.loggedFastHoursAtSample;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** One lab baseline's provenance as the shared sample contract reads it (absent facts stay unknown). */
+export function labSampleOfMeta(m: LabBaselineMeta, exogenousInsulin: boolean): LabSample {
+  const context = homaSampleContext(m.sampleContext);
+  return {
+    date: m.measuredOn ?? '',
+    ...(m.sampleId ? { sampleId: m.sampleId } : {}),
+    ...(m.sampledAt ? { sampledAt: m.sampledAt } : {}),
+    ...(m.fastingHours !== undefined ? { fastingHours: m.fastingHours } : {}),
+    ...(m.fastingStatus ? { fastingStatus: m.fastingStatus } : {}),
+    ...(m.confirmedPairWith ? { confirmedPairWith: m.confirmedPairWith } : {}),
+    ...(context ? { sampleContext: context } : {}),
+    ...(exogenousInsulin ? { exogenousInsulin: true } : {}),
+  };
+}
+
+/** HOMA eligibility of the run's glucose/insulin baselines with the insulin-treatment state of the draw (null: no measured pair). */
+export interface EngineHomaEligibility extends HomaEligibility {
+  insulin: 'yes' | 'no' | 'unknown';
+}
+
+/**
+ * D7-06 (A1-034, A1-047, A1-063): HOMA eligibility of the run's glucose and insulin baselines through the same shared
+ * operator the marker rules use (`homaEligibility`): the same draw (shared sample id or confirmed pairing, with no
+ * conflicting recorded date or instant), both fasting ≥ 8 h, a routine basal context (no known illness or prolonged fast),
+ * measured (not generated) and no exogenous insulin at the draw (as-of chronology, `insulinExposureAt`). Null when a
+ * baseline is missing or generated.
+ */
+export function homaPairEligibility(prof: Pick<ModuleContext['profile'], 'safety' | 'input'>): EngineHomaEligibility | null {
+  const meta = prof.input.labMeta;
+  const g = meta?.fastingGlucoseMmolL;
+  const i = meta?.fastingInsulinUuMl;
+  if (!g || !i || g.source === 'generated' || i.source === 'generated') return null;
+  const f = prof.safety?.flags;
+  const asOf = prof.input.startDate && ISO_DAY.test(prof.input.startDate) ? prof.input.startDate : (i.measuredOn ?? '');
+  const med = f?.diabetesMedication;
+  // the same screen the marker rules read: insulin / type 1 → active; a withheld diabetes or medicines answer → undisclosed
+  const withheld = f?.answers?.['insulin'] === 'preferNot' || f?.answers?.['other-medication'] === 'preferNot';
+  const screen: MedicationScreen | undefined =
+    med === 'insulin' || f?.type1Diabetes === true ? { status: 'active', asOf } : withheld ? { status: 'undisclosed', asOf } : med !== undefined ? { status: 'none', asOf } : undefined;
+  const insulin = insulinExposureAt(prof.input.medications ?? [], i.measuredOn ?? asOf, screen);
+  const h = homaEligibility(labSampleOfMeta(g, insulin === 'yes'), labSampleOfMeta(i, insulin === 'yes'));
+  return { ...h, insulin };
+}
+
+/**
+ * D7-06: whether the run's glucose and insulin baselines are one eligible routine-basal pair (`homaPairEligibility`):
+ * same date alone, unknown fasting, unknown pairing, conflicting occurrence, a known confounder or unknown insulin
+ * treatment is not eligible.
+ */
+export function homaPairEligible(prof: Pick<ModuleContext['profile'], 'safety' | 'input'>): boolean {
+  const h = homaPairEligibility(prof);
+  return !!h && h.eligible && h.insulin === 'no';
+}
+
 export function buildK(ctx: ModuleContext): CardiometabolicK {
   const get = paramGetter(ctx.params);
   const prof = ctx.profile;
@@ -455,17 +754,52 @@ export function buildK(ctx: ModuleContext): CardiometabolicK {
   const gen = (m: ZMarker): number => generatorValue(get, m, sexCode, prof.ageYears, bmi0, zOf(m));
 
   const labs = prof.labs;
-  const ldl0 = clamp(labs.ldlMmolL !== undefined ? labs.ldlMmolL * MGDL_PER_MMOLL_CHOL : gen('ldl'), 40, 250);
-  const hdl0 = clamp(labs.hdlMmolL !== undefined ? labs.hdlMmolL * MGDL_PER_MMOLL_CHOL : gen('hdl'), 20, 120);
-  const tg0 = clamp(labs.tgMmolL !== undefined ? labs.tgMmolL * MGDL_PER_MMOLL_TG : Math.exp(gen('lnTg')), 30, 800);
-  const sbp0 = clamp(labs.sbpMmHg !== undefined ? labs.sbpMmHg : gen('sbp'), 85, 200);
-  const fpg0 = clamp(labs.fastingGlucoseMmolL !== undefined ? labs.fastingGlucoseMmolL * MGDL_PER_MMOLL_GLC : gen('fpg'), 65, 240);
-  const a1c0 = clamp(labs.hba1cPct !== undefined ? labs.hba1cPct : gen('a1c'), 4.2, 12);
-  const crp0 = clamp(labs.crpMgL !== undefined ? labs.crpMgL : Math.exp(gen('lnCrp')), 0.1, 30);
-  const ua0 = clamp(labs.urateMgDl !== undefined ? labs.urateMgDl : gen('ua'), 2, 12);
+  // D7-02: generated priors are truncated to the calibration domain; an accepted measured value anchors t = 0 exactly
+  // (solver-domain copy for the response equations; outside the domain its projection is unavailable, never clamped)
+  const liverDomain: Domain = { lo: get('liver.min'), hi: get('liver.max') };
+  const outOfDomain: CardiometabolicLab[] = [];
+  const base = (id: CardiometabolicLab, prior: () => number, domain: Domain = CARDIOMETABOLIC_DOMAIN[id]): { solver: number; anchor: number } => {
+    const obs = observedModelValue(labs, id);
+    if (obs === undefined) {
+      const v = clamp(prior(), domain.lo, domain.hi);
+      return { solver: v, anchor: v };
+    }
+    // a value marked generated is a prior, not an observation: truncated to the domain like any generated value
+    if (prof.input.labMeta?.[LAB_SOURCE[id].field]?.source === 'generated') {
+      const v = clamp(obs, domain.lo, domain.hi);
+      return { solver: v, anchor: v };
+    }
+    if (obs < domain.lo || obs > domain.hi) outOfDomain.push(id);
+    return { solver: clamp(obs, domain.lo, domain.hi), anchor: obs };
+  };
+  const ldl = base('ldl', () => gen('ldl'));
+  const hdl = base('hdl', () => gen('hdl'));
+  const tg = base('tg', () => Math.exp(gen('lnTg')));
+  const sbp = base('sbp', () => gen('sbp'));
+  const fpg = base('fpg', () => gen('fpg'));
+  const a1c = base('a1c', () => gen('a1c'));
+  const crp = base('crp', () => Math.exp(gen('lnCrp')));
+  const ua = base('ua', () => gen('ua'));
+  const ldl0 = ldl.solver;
+  const hdl0 = hdl.solver;
+  const tg0 = tg.solver;
+  const sbp0 = sbp.solver;
+  const fpg0 = fpg.solver;
+  const a1c0 = a1c.solver;
+  // hs-CRP and urate are recorded relative to their baseline: the measured value itself is the reference (kept exact)
+  const crp0 = crp.anchor;
+  const ua0 = ua.anchor;
   const nonHdl0 = ldl0 + tg0 / get('lipid.vldlDivisor');
-  const apoB0 = clamp(labs.apoBgL !== undefined ? labs.apoBgL * 100 : get('apob.intercept') + get('apob.perNonHdl') * nonHdl0, 20, 300);
-  const l0 = clamp(labs.liverFatPct !== undefined ? labs.liverFatPct : get('liver.l0A') * Math.exp(get('liver.l0B') * (bmi0 - 22)), get('liver.min'), get('liver.max'));
+  // D7-07: a measured non-HDL (matched panel or the lab's own) is kept exactly; LDL + TG/5 is only a model proxy
+  const nonHdlObs = labs?.nonHdlMmolL;
+  const nonHdlMeasured = typeof nonHdlObs === 'number' && Number.isFinite(nonHdlObs) && nonHdlObs > 0 && prof.input.labMeta?.nonHdlMmolL?.source !== 'generated';
+  const nonHdlAnchor = nonHdlMeasured ? nonHdlObs * MGDL_PER_MMOLL_CHOL : ldl.anchor + tg.anchor / get('lipid.vldlDivisor');
+  // ApoB without a lab is a cross-sectional regression prior from non-HDL (the measured one when given), truncated like a
+  // generated value; it is a labelled prior, not a posterior conditional on the panel
+  const apoB = base('apoB', () => get('apob.intercept') + get('apob.perNonHdl') * (nonHdlMeasured ? clamp(nonHdlAnchor, 20, 500) : nonHdl0));
+  const apoB0 = apoB.solver;
+  const liver = base('liverFat', () => get('liver.l0A') * Math.exp(get('liver.l0B') * (bmi0 - 22)), liverDomain);
+  const l0 = liver.solver;
 
   // ---- habitual references from the burn-in day (identical to what the loop feeds during burn-in)
   const hab = new Diet();
@@ -496,9 +830,12 @@ export function buildK(ctx: ModuleContext): CardiometabolicK {
 
   const fmRefPct = sexCode === 0 ? get('si.fmRefM') : sexCode === 1 ? get('si.fmRefF') : 0.5 * (get('si.fmRefM') + get('si.fmRefF'));
 
-  // ---- hepatic-sensitivity anchor from labs (04 §4.18 moderators): S_hep,0 = HOMA_ref / HOMA_user
+  // ---- hepatic sensitivity (D7-06): the latent prior (hepCal = 1) unless the opt-in legacy scenario applies to an eligible
+  // same-draw fasting pair off insulin (S_hep,0 = HOMA_ref / HOMA_user; an unvalidated mapping, never a measurement)
   let hepCal = 1;
-  if (labs.fastingGlucoseMmolL !== undefined && labs.fastingInsulinUuMl !== undefined && labs.fastingGlucoseMmolL > 0 && labs.fastingInsulinUuMl > 0) {
+  const homaScenario = get('si.homaCalibration') === 1;
+  const pairOk = homaScenario && homaPairEligible(prof);
+  if (pairOk && labs.fastingGlucoseMmolL !== undefined && labs.fastingInsulinUuMl !== undefined && labs.fastingGlucoseMmolL > 0 && labs.fastingInsulinUuMl > 0) {
     const homaUser = (labs.fastingGlucoseMmolL * labs.fastingInsulinUuMl) / 22.5;
     const target = get('si.homaRef') / homaUser;
     const lf = 1 / (1 + get('si.lfA') * Math.max(0, l0 - get('si.lfRef')));
@@ -531,6 +868,15 @@ export function buildK(ctx: ModuleContext): CardiometabolicK {
   K.ua0 = ua0;
   K.apoB0 = apoB0;
   K.l0 = l0;
+  K.ldlAnchor = ldl.anchor;
+  K.hdlAnchor = hdl.anchor;
+  K.tgAnchor = tg.anchor;
+  K.sbpAnchor = sbp.anchor;
+  K.fpgAnchor = fpg.anchor;
+  K.a1cAnchor = a1c.anchor;
+  K.apoBAnchor = apoB.anchor;
+  K.lAnchor = liver.anchor;
+  K.outOfDomain = outOfDomain;
   K.hab = hab;
   K.chol0Mg = chol0Mg;
   K.cholZ0 = cholZ0;
@@ -541,6 +887,15 @@ export function buildK(ctx: ModuleContext): CardiometabolicK {
   K.eIs0 = eIs0;
   K.fmRefPct = fmRefPct;
   K.hepCal = hepCal;
+  K.hepCalibrated = pairOk && (labs.fastingGlucoseMmolL ?? 0) > 0 && (labs.fastingInsulinUuMl ?? 0) > 0;
+  K.liverKetoScenario = get('liver.ketoScenario') === 1 ? 1 : 0;
+  K.a1cFpgScenario = get('a1c.fpgScenario') === 1 ? 1 : 0;
+  K.liverMeasured = observedModelValue(labs, 'liverFat') !== undefined && prof.input.labMeta?.liverFatPct?.source !== 'generated';
+  K.nonHdlAnchor = nonHdlAnchor;
+  K.nonHdlMeasured = nonHdlMeasured;
+  const glc = glucoseLoweringChronology(prof, ctx.nDays);
+  K.glucoseLoweringFromDay = glc.fromDay ?? -1;
+  K.glucoseLoweringContext = glc.fromDay !== null;
   K.tauHepF = get('si.tauHep');
   K.fHep = df(get('si.tauHep'));
   K.fMus = df(get('si.tauMus'));
@@ -696,7 +1051,8 @@ export function buildK(ctx: ModuleContext): CardiometabolicK {
   K.fBpExercise = df(get('tau.bpExercise'));
   K.fBpSauna = df(get('tau.bpSauna'));
   K.liverWl = get('liver.wl');
-  K.liverCr = get('liver.cr');
+  // D7-08: the sustained independent ketosis term is 0 in the standard projection (model containment, not zero biology)
+  K.liverCr = get('liver.ketoScenario') === 1 ? get('liver.cr') : 0;
   K.liverEx = get('liver.ex');
   K.liverExRef = get('liver.exRefMetH');
   K.liverExStack = get('liver.exStack');

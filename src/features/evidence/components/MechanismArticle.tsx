@@ -1,30 +1,44 @@
 import { useId, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { GradeBadge, Icon, Notice } from '@/components';
+import { Icon, InfoKey } from '@/components';
 import type { EvidenceTopic, Mechanism } from '@/content/evidence/schema';
 import { topicDisplayName } from '@/content/evidence/sources';
-import { GRADE_D_BANNER, STATUS_TEXT } from '../copy';
+import { GRADE_D_NOTE, GRADE_MEANING, GRADES_HELP_TITLE, STATUS_TEXT } from '../copy';
 import { numberReferences } from '../data/citations';
 import { ARTICLE_SECTIONS, mechanismHref, topicHref, type EvidenceNavState } from '../links';
-import { EquationBlock, KeyNumbersTable, SourcesList } from './ArticleParts';
-import { CategoryMark, GoalLinks, UsedByChips } from './bits';
+import { EquationBlock, KeyNumbersTable, SourcesSection } from './ArticleParts';
+import { UsedByChips } from './bits';
 import { ParamCards } from './ParamCard';
 import type { PageSection } from './PageNav';
+import {
+  WARRANT_LABEL,
+  hasWarrantContent,
+  modelStatusLabel,
+  observationText,
+} from '@/content/evidence/warrants';
+
+/** Section id of the warrant block (C6: outcome-scoped warrants, population, what the evidence observed). */
+export const WARRANT_SECTION = 'warrant';
+
+/** The mechanism carries C6 warrant content (shown only in the library and the Explain sheet, never inline). */
+export const hasWarrant = (m: Mechanism): boolean => hasWarrantContent(m);
 
 const NAV_STATE: EvidenceNavState = { from: 'evidence' };
 
-/** The sections an article actually has, in reading order (for "on this page" and j/k). */
+/** The sections an article actually has, in reading order (for "On this page" and j/k). */
 export function articleSections(m: Mechanism): PageSection[] {
-  const s: PageSection[] = [{ id: 'mechanism', label: 'mechanism' }];
-  s.push({ id: ARTICLE_SECTIONS.equation, label: m.equation ? 'equation' : 'how it is modelled' });
-  if (m.keyNumbers.length) s.push({ id: ARTICLE_SECTIONS.parameters, label: 'key numbers' });
-  if (m.relatedParamIds?.length) s.push({ id: ARTICLE_SECTIONS.modelParameters, label: 'parameters' });
-  if (m.timeCourse) s.push({ id: ARTICLE_SECTIONS.timing, label: 'timing' });
-  if (m.moderators) s.push({ id: ARTICLE_SECTIONS.moderators, label: 'what changes it' });
-  if (m.relatedMetricIds.length) s.push({ id: ARTICLE_SECTIONS.usedBy, label: 'used by' });
-  if (m.caveats) s.push({ id: ARTICLE_SECTIONS.contested, label: 'contested' });
-  s.push({ id: ARTICLE_SECTIONS.citations, label: 'sources' });
+  const s: PageSection[] = [{ id: 'mechanism', label: 'Overview' }];
+  s.push({ id: ARTICLE_SECTIONS.equation, label: 'How Vitals models it' });
+  if (m.equation || m.keyNumbers.length)
+    s.push({ id: ARTICLE_SECTIONS.parameters, label: 'Technical details' });
+  if (m.relatedParamIds?.length) s.push({ id: ARTICLE_SECTIONS.modelParameters, label: 'Model parameters' });
+  if (m.timeCourse) s.push({ id: ARTICLE_SECTIONS.timing, label: 'Timing' });
+  if (m.moderators) s.push({ id: ARTICLE_SECTIONS.moderators, label: 'What changes it' });
+  if (m.relatedMetricIds.length) s.push({ id: ARTICLE_SECTIONS.usedBy, label: 'Used by' });
+  if (m.caveats) s.push({ id: ARTICLE_SECTIONS.contested, label: 'Contested and uncertain' });
+  if (hasWarrant(m)) s.push({ id: WARRANT_SECTION, label: 'Warrant' });
+  s.push({ id: ARTICLE_SECTIONS.citations, label: 'Sources' });
   return s;
 }
 
@@ -47,20 +61,20 @@ export interface MechanismArticleProps {
   /** Position within the topic (previous / next). */
   index: number;
   headingRef?: Ref<HTMLHeadingElement>;
-  /** From Explain: "‹ Back to Spring cut results". */
-  returnTo?: { to: string; label: string };
+  /** Opens "How grades work" (the link at the end of the grade line). */
+  onGradesHelp?: () => void;
 }
 
 /**
- * One mechanism, read-mode: plain language before notation, then the numbers,
- * timing, moderators, what it drives, what is contested, and the sources.
+ * One mechanism, read-mode: the title and its grade, the plain-language summary, how Vitals models it (equation and
+ * key numbers behind "Technical details"), timing, moderators, what it drives, what is contested, and the sources.
  */
 export function MechanismArticle({
   mechanism: m,
   topic,
   index,
   headingRef,
-  returnTo,
+  onGradesHelp,
 }: MechanismArticleProps) {
   const titleId = useId();
   const refs = numberReferences(m, topic);
@@ -68,38 +82,30 @@ export function MechanismArticle({
   const prev = index > 0 ? topic.mechanisms[index - 1] : undefined;
   const next = topic.mechanisms[index + 1];
   const status = STATUS_TEXT[m.status];
+  const technical = Boolean(m.equation) || m.keyNumbers.length > 0;
+  const techId = `${ARTICLE_SECTIONS.parameters}-title`;
 
   return (
-    <article className="ev-article lm-face" aria-labelledby={titleId}>
-      {returnTo ? (
-        <Link to={returnTo.to} className="ev-backlink">
-          <Icon icon={ChevronLeft} size={16} />
-          Back to {returnTo.label}
-        </Link>
-      ) : null}
+    <article className="ev-article" aria-labelledby={titleId}>
       <header id="mechanism" className="ev-article__head">
-        <p className="ev-article__eng lm-eng">
-          <CategoryMark category={m.category} />
-          <span aria-hidden="true">·</span>
-          <Link to={topicHref(topic.slug)} state={NAV_STATE} className="ev-englink">
-            {topicDisplayName(topic.slug, topic.title)}
-          </Link>
-          <span aria-hidden="true">·</span>
-          <span>{status.label}</span>
-        </p>
         <h2 id={titleId} ref={headingRef} tabIndex={-1} className="ev-title">
           {m.title}
         </h2>
-        <p className="ev-gradeline">
-          <GradeBadge grade={m.grade} />
-          <span className="ev-gradeline__g">Grade {m.grade}</span> — {m.gradeReason}{' '}
-          <Link to={{ pathname: '/evidence', hash: 'grades' }} className="ev-link ev-small">
-            How grades work
-          </Link>
-        </p>
+        {/* one grade label (the letter and its word), "How grades work" as an info key beside it, the reason under it */}
+        <div className="ev-gradeline">
+          <p className="ev-gradeline__top">
+            <span className="ev-gradeline__g">Grade {m.grade}</span>
+            <span className="ev-gradeline__w">{GRADE_MEANING[m.grade].word}</span>
+            {onGradesHelp ? (
+              <InfoKey label={GRADES_HELP_TITLE} className="ev-gradeline__help" onClick={onGradesHelp} />
+            ) : null}
+          </p>
+          <p className="ev-gradeline__why">{m.gradeReason}</p>
+        </div>
+        {m.grade === 'D' ? <p className="ev-statusline">{GRADE_D_NOTE}</p> : null}
         {m.status !== 'established' ? (
           <p className="ev-statusline">
-            <b>{status.label === 'contested' ? 'Contested' : status.label}:</b> {status.text}
+            <span className="ev-statusline__w">{status.label}:</span> {status.text}
           </p>
         ) : null}
       </header>
@@ -107,40 +113,39 @@ export function MechanismArticle({
       {m.summary ? (
         <p className="ev-lead">{m.summary}</p>
       ) : (
-        <Notice severity="info" layout="ruled" title="Evidence write-up in progress.">
-          <p>
-            The plain-language summary for this mechanism is not written yet. What the research does give is
-            shown below.
-          </p>
-        </Notice>
+        <p className="ev-lead ev-muted">The plain-language summary isn’t written yet.</p>
       )}
 
-      {m.grade === 'D' ? (
-        <Notice severity="info" layout="ruled" title={GRADE_D_BANNER.title} className="ev-dnote">
-          <p>{GRADE_D_BANNER.body}</p>
-        </Notice>
-      ) : null}
-
       <Sec id={ARTICLE_SECTIONS.equation} title="How Vitals models it">
-        <div className="ev-well">
-          <p className="lm-eng ev-well__label">in plain language</p>
-          <p className="ev-prose">{m.howModelled}</p>
-          {m.equation ? <EquationBlock equation={m.equation} /> : null}
-        </div>
+        <p className="ev-prose">{m.howModelled}</p>
       </Sec>
 
-      {m.keyNumbers.length ? (
-        <Sec id={ARTICLE_SECTIONS.parameters} title="Key numbers">
-          <KeyNumbersTable mechanism={m} numbers={numbers} />
-        </Sec>
+      {technical ? (
+        <details id={ARTICLE_SECTIONS.parameters} className="ev-sec ev-disclose">
+          <summary className="ev-disclose__sum">
+            <h3 id={techId} className="ev-sec__h" tabIndex={-1}>
+              Technical details
+            </h3>
+          </summary>
+          <div className="ev-disclose__body">
+            {m.equation ? (
+              <>
+                <h4 className="ev-sub">Equation</h4>
+                <EquationBlock equation={m.equation} />
+              </>
+            ) : null}
+            {m.keyNumbers.length ? (
+              <>
+                <h4 className="ev-sub">Key numbers</h4>
+                <KeyNumbersTable mechanism={m} numbers={numbers} />
+              </>
+            ) : null}
+          </div>
+        </details>
       ) : null}
 
       {m.relatedParamIds?.length ? (
         <Sec id={ARTICLE_SECTIONS.modelParameters} title="Model parameters">
-          <p className="ev-prose ev-prose--small">
-            The numbers the model uses for this mechanism, with the two evidence labels: whether the mechanism is known,
-            and how certain the measured value is. Lower certainty widens the range the model samples, never its centre.
-          </p>
           <ParamCards mechanism={m} />
         </Sec>
       ) : null}
@@ -159,37 +164,68 @@ export function MechanismArticle({
 
       {m.relatedMetricIds.length ? (
         <Sec id={ARTICLE_SECTIONS.usedBy} title="Used by">
-          <p className="ev-prose ev-prose--small">
-            The Simulator channels this mechanism drives. Open one to see it in your results.
-          </p>
-          <UsedByChips ids={m.relatedMetricIds} label={false} />
-          <GoalLinks ids={m.relatedMetricIds} />
+          <UsedByChips ids={m.relatedMetricIds} />
         </Sec>
       ) : null}
 
       {m.caveats ? (
         <Sec id={ARTICLE_SECTIONS.contested} title="Contested and uncertain">
-          <div className="ev-box">
-            <p className="ev-prose">{m.caveats}</p>
-          </div>
+          <p className="ev-prose">{m.caveats}</p>
         </Sec>
       ) : null}
 
-      <Sec id={ARTICLE_SECTIONS.citations} title="Sources">
-        {refs.length ? (
-          <SourcesList refs={refs} />
-        ) : (
-          <p className="ev-prose ev-prose--small">No sources are listed for this mechanism yet.</p>
-        )}
-      </Sec>
+      {hasWarrant(m) ? (
+        <Sec id={WARRANT_SECTION} title="Warrant">
+          <dl className="ev-xp__numbers">
+            {m.modelStatus && m.modelStatus !== 'production' ? (
+              <div>
+                <dt>In the model</dt>
+                <dd>{modelStatusLabel(m)}</dd>
+              </div>
+            ) : null}
+            {(m.warrants ?? []).map((w, i) => (
+              <div key={`w${i}`}>
+                <dt>{WARRANT_LABEL[w.type] ?? w.type}</dt>
+                <dd>{[w.confidence, w.scope].filter(Boolean).join(' · ')}</dd>
+              </div>
+            ))}
+            {m.outcomeScope ? (
+              <div>
+                <dt>Covers</dt>
+                <dd>{m.outcomeScope}</dd>
+              </div>
+            ) : null}
+            {m.population ? (
+              <div>
+                <dt>Population</dt>
+                <dd>{m.population}</dd>
+              </div>
+            ) : null}
+            {(m.observations ?? []).map((o, i) => (
+              <div key={`o${i}`}>
+                <dt>Observed</dt>
+                <dd>{observationText(o)}</dd>
+              </div>
+            ))}
+          </dl>
+        </Sec>
+      ) : null}
+
+      {refs.length ? (
+        <SourcesSection id={ARTICLE_SECTIONS.citations} refs={refs} />
+      ) : (
+        <Sec id={ARTICLE_SECTIONS.citations} title="Sources">
+          <p className="ev-prose ev-muted">No sources are listed for this mechanism yet.</p>
+        </Sec>
+      )}
 
       <footer className="ev-article__foot">
         {prev || next ? (
           <nav aria-label={`More in ${topicDisplayName(topic.slug, topic.title)}`} className="ev-pager">
             {prev ? (
               <Link to={mechanismHref(prev.id)} state={NAV_STATE} className="ev-pager__a" data-dir="prev">
-                <span className="lm-eng">
-                  <Icon icon={ChevronLeft} size={14} /> previous
+                <span className="ev-pager__k">
+                  <Icon icon={ChevronLeft} size={14} /> Previous
                 </span>
                 <span className="ev-pager__t">{prev.title}</span>
               </Link>
@@ -198,8 +234,8 @@ export function MechanismArticle({
             )}
             {next ? (
               <Link to={mechanismHref(next.id)} state={NAV_STATE} className="ev-pager__a" data-dir="next">
-                <span className="lm-eng">
-                  next <Icon icon={ChevronRight} size={14} />
+                <span className="ev-pager__k">
+                  Next <Icon icon={ChevronRight} size={14} />
                 </span>
                 <span className="ev-pager__t">{next.title}</span>
               </Link>
@@ -211,8 +247,7 @@ export function MechanismArticle({
           <Link to={topicHref(topic.slug)} state={NAV_STATE} className="ev-link">
             {topic.title}
           </Link>
-          : {topic.mechanisms.length} mechanisms, {topic.myths.length} common claims and{' '}
-          {topic.openQuestions.length} open questions.
+          .
         </p>
       </footer>
     </article>

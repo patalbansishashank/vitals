@@ -31,14 +31,14 @@ describe('<FigureOverTime>', () => {
   it('draws the figure with the start as a ghost, and a figure | visceral switch', () => {
     setup();
     expect(screen.getByRole('heading', { name: 'Figure over time' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'figure' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Figure' })).toBeChecked();
     expect(screen.queryByTestId('rs-visceral')).toBeNull();
     expect(document.querySelector('.rs-figure__stage .lm-fig3d')).not.toBeNull();
   });
 
   it('the visceral view follows the crosshair day', async () => {
     const { controller } = setup();
-    await userEvent.click(screen.getByRole('radio', { name: 'visceral' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Visceral' }));
     expect(screen.getByTestId('rs-visceral')).toBeInTheDocument();
     expect(document.querySelector('.rs-figure__stage')).toBeNull();
     act(() => controller.setCursor(0.5, 'program', { force: true, pin: true }));
@@ -51,7 +51,7 @@ describe('<FigureOverTime>', () => {
   it('reduced motion: Play jumps start to end and speaks the day once', async () => {
     document.documentElement.setAttribute('data-motion', 'reduce');
     const { controller } = setup();
-    await userEvent.click(screen.getByRole('radio', { name: 'visceral' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Visceral' }));
     await userEvent.click(screen.getByRole('button', { name: 'Play' }));
     // jumped straight to the last day, no running animation (the key never flips to "Stop")
     expect(Math.floor(controller.cursor.get().t ?? -1)).toBe(DAYS - 1);
@@ -61,7 +61,7 @@ describe('<FigureOverTime>', () => {
 
   it('with the figure hidden in Settings it shows the numbers only', () => {
     setup({ showFigure: false });
-    expect(screen.queryByRole('radio', { name: 'visceral' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'Visceral' })).toBeNull();
     expect(document.querySelector('.lm-fig3d')).toBeNull();
     expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
   });

@@ -1,109 +1,168 @@
-/* ==========================================================================
-   Plan details (design/screens/living-mode.md §9–§10): faceplates on the
-   chassis — the plan's facts, the ease switch and the lifecycle keys on the
-   left; proposals and versions on the right (≥ 1024). Achromatic chrome.
-   Tokens only (var(--lm-*)).
-   ========================================================================== */
-
+/* The plan's position, intentions and history share one day track. */
 @layer components {
   .lv-plan {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
     align-items: start;
+    gap: var(--lm-card-gap);
   }
   .lv-plan__col {
     display: grid;
-    gap: 16px;
+    gap: var(--lm-card-gap);
     min-width: 0;
   }
-  @media (min-width: 64rem) {
-    .lv-plan {
-      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-      gap: 24px;
-    }
-    .lv-plan--version {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-  .lv-plan-section {
-    margin-top: 20px;
-  }
-  .lv-plan-section > * + * {
-    margin-top: 10px;
-  }
-  .lv-plan-list {
+  .lv-plan-hero {
     display: grid;
-    gap: 6px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    justify-items: start;
+    gap: 10px;
   }
-  .lv-plan-prose {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
-  }
-  .lv-plan-note {
-    margin: 0;
-    font-size: 12px;
-    line-height: 16px;
-    color: var(--lm-ink-3);
-  }
-  .lv-plan-actions {
-    display: flex;
-    flex-wrap: wrap;
+  .lv-plan-track {
+    display: grid;
     gap: 8px;
+    margin-block: 20px;
+  }
+  .lv-plan-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px 16px;
+    margin: 24px 0 0;
+  }
+  .lv-plan-fact {
+    display: grid;
+    gap: 8px;
+    align-content: start;
+    min-width: 0;
+  }
+  .lv-plan-fact dt,
+  .lv-plan-fact dd {
+    margin: 0;
+  }
+  .lv-plan-fact .lm-meta {
+    overflow-wrap: anywhere;
+  }
+  .lv-plan-fact .lv-daydots {
+    gap: 5px;
+  }
+  .lv-plan-ease {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .lv-plan .lm-cardfoot__extra {
+    width: 100%;
+  }
+  .lv-plan-drift {
+    display: block;
+    margin-block: 12px;
   }
   .lv-plan-proposals {
     display: grid;
-    gap: 12px;
+    gap: var(--lm-card-gap);
     min-width: 0;
   }
   .lv-plan-h {
     margin: 4px 0 0;
   }
   .lv-plan-versions {
-    display: grid;
-    gap: 2px;
+    margin-top: 12px;
+  }
+  .lv-plan-versions .lm-rail__node[data-status='done'] .lm-rail__ring {
+    --ring: 8px;
+  }
+  .lv-plan-versions .lm-rail__node[data-status='done'] .lm-rail__check {
+    display: none;
+  }
+  .lv-plan-versions .lm-rail__node[data-status='empty'] .lm-rail__ring {
+    border-color: var(--lm-ink);
+  }
+  .lv-plan-versions .lm-rail__title {
+    font-weight: 600;
+  }
+  .lv-plan-versions .lm-rail__body a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .lv-plan-versions .lm-rail__body a::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .lv-plan-versions .lm-rail__body a:focus-visible {
+    outline: none;
+  }
+  .lv-plan-versions .lm-rail__body a:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+    border-radius: var(--lm-radius-field);
+  }
+  .lv-plan-versions .lm-rail__trail {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .lv-plan-prose {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-plan-section,
+  .lv-plan-goals {
+    margin-top: 24px;
+  }
+  .lv-plan-section h3,
+  .lv-plan-goals h3 {
+    margin: 0 0 12px;
+  }
+  .lv-plan-diffs {
+    list-style: none;
     margin: 0;
     padding: 0;
-    list-style: none;
+    display: grid;
+    gap: 16px;
   }
-  .lv-plan-versions__link {
-    justify-content: flex-start;
-    height: auto;
-    min-height: 44px;
-    padding-block: 8px;
-    /* the row text lines up with the faceplate title; the hover fill bleeds 8 px (Q6: text sat 17 px in, lines touched) */
-    padding-inline: 8px;
-    margin-inline: -8px;
-    line-height: 1.4;
-    text-align: left;
-    white-space: normal;
-    font-variant-numeric: tabular-nums;
+  .lv-plan-diffs li {
+    display: grid;
+    gap: 8px;
+    padding-block: 12px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
-  .lv-plan-versions__link .lm-key__label {
-    display: block;
+  .lv-plan-diffs li:last-child {
+    border: 0;
+  }
+  .lv-plan-diff__values {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lv-plan-diff__values > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lv-plan-diff__values > :first-child:not(:last-child) {
+    color: var(--lm-ink-2);
+  }
+  .lv-plan-diff__values > .lm-icon {
+    flex: none;
+    color: var(--lm-ink-2);
   }
   .lv-plan-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
   }
   .lv-plan-table th,
   .lv-plan-table td {
     padding: 8px 10px 8px 0;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
     text-align: left;
     vertical-align: baseline;
+    overflow-wrap: anywhere;
   }
   .lv-plan-table thead th {
-    font-size: 12px;
     font-weight: 500;
     color: var(--lm-ink-2);
   }
@@ -111,7 +170,44 @@
     font-weight: 500;
   }
   .lv-plan-pause {
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
     display: grid;
     gap: 16px;
+  }
+  @media (min-width: 64rem) {
+    .lv-plan {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    }
+    .lv-plan--version {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .lv-plan--version .lv-plan-diffs li {
+      grid-template-columns: minmax(8rem, 1fr) minmax(0, 3fr);
+    }
+    .lv-plan--version .lv-plan-diffs .lv-plan-prose {
+      grid-column: 2;
+    }
+  }
+}
+@layer components {
+  .lv-plan-experimental {
+    margin-block-start: var(--lm-stack);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    overflow-wrap: anywhere;
+  }
+  .lv-plan-experimental > summary {
+    cursor: pointer;
+    padding-block: var(--lm-inline);
+    min-height: 44px;
+    align-content: center;
+  }
+  .lv-plan-experimental > summary:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lv-plan-experimental li + li {
+    margin-block-start: var(--lm-row-gap);
   }
 }

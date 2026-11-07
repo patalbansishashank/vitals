@@ -142,7 +142,7 @@ export function bwpWeight(x: ArrayLike<number>): number {
  * Right-hand side. Writes d/dt into `out` and returns EE (MJ/d). `ei` = intake MJ/d held constant over the call.
  * Closed-form EE (Eq. 9) resolves the algebraic loop between EE and the deposition-cost term.
  */
-export function bwpDerivatives(init: BwpInit, x: ArrayLike<number>, ei: number, out: Float64Array): number {
+export function bwpDerivatives(init: BwpInit, x: ArrayLike<number>, ei: number, out: Float64Array, deltaScale = 1): number {
   const F = x[0]!;
   const L = x[1]!;
   const G = x[2]!;
@@ -155,7 +155,7 @@ export function bwpDerivatives(init: BwpInit, x: ArrayLike<number>, ei: number, 
   const p = BWP.forbesC / (BWP.forbesC + F);
   const s = (p * BWP.etaL) / BWP.rhoL + ((1 - p) * BWP.etaF) / BWP.rhoF;
   const ee =
-    (init.k + BWP.gammaF * F + BWP.gammaL * L + init.delta * bw + BWP.betaTEF * dEi + AT + (ei - BWP.rhoG * dG) * s) / (1 + s);
+    (init.k + BWP.gammaF * F + BWP.gammaL * L + init.delta * deltaScale * bw + BWP.betaTEF * dEi + AT + (ei - BWP.rhoG * dG) * s) / (1 + s);
   const surplus = ei - ee - BWP.rhoG * dG;
   out[0] = ((1 - p) * surplus) / BWP.rhoF;
   out[1] = (p * surplus) / BWP.rhoL;
@@ -175,6 +175,12 @@ export interface BwpOptions {
   dtDays?: number;
   /** Integrator (default 'rk4'; 'euler' reproduces the dossier's Python at dt = 0.05). */
   method?: 'rk4' | 'euler';
+  /**
+   * Relative physical-activity coefficient over time, δ(t) = δ·deltaScale(t) (default 1). D1-08: Hall 2006 reproduced
+   * Minnesota only with the observed fall in voluntary activity as an input; a matched-input replay feeds that fall here
+   * (an imputed input, recorded by the scenario), never a fitted coefficient.
+   */
+  deltaScale?: (tDays: number) => number;
 }
 
 export interface BwpTrajectory {
@@ -227,6 +233,7 @@ export function simulateBwp(input: BwpInput | BwpInit, intake: BwpIntake, opts: 
   const k3 = new Float64Array(N);
   const k4 = new Float64Array(N);
   const tmp = new Float64Array(N);
+  const ds = opts.deltaScale ?? (() => 1);
   const sample = (i: number, ei: number): void => {
     tr.tDays[i] = i;
     tr.bwKg[i] = bwpWeight(x);
@@ -236,7 +243,7 @@ export function simulateBwp(input: BwpInput | BwpInit, intake: BwpIntake, opts: 
     tr.ecfKg[i] = x[3]!;
     tr.atMj[i] = x[4]!;
     tr.eiMj[i] = ei;
-    tr.eeMj[i] = bwpDerivatives(init, x, ei, tmp);
+    tr.eeMj[i] = bwpDerivatives(init, x, ei, tmp, ds(i));
   };
   for (let d = 0; d < days; d++) {
     const eiDay = intakeAt(intake, d + 0.5 * dt);
@@ -248,16 +255,16 @@ export function simulateBwp(input: BwpInput | BwpInit, intake: BwpIntake, opts: 
       if (method === 'euler') {
         // the dossier's Python evaluates EI at the step start
         const eiStart = typeof intake === 'function' ? intakeAt(intake, t) : eiDay;
-        bwpDerivatives(init, x, eiStart, k1);
+        bwpDerivatives(init, x, eiStart, k1, ds(t));
         for (let j = 0; j < N; j++) x[j] = x[j]! + dt * k1[j]!;
       } else {
-        bwpDerivatives(init, x, ei, k1);
+        bwpDerivatives(init, x, ei, k1, ds(t));
         for (let j = 0; j < N; j++) tmp[j] = x[j]! + 0.5 * dt * k1[j]!;
-        bwpDerivatives(init, tmp, ei, k2);
+        bwpDerivatives(init, tmp, ei, k2, ds(t + 0.5 * dt));
         for (let j = 0; j < N; j++) tmp[j] = x[j]! + 0.5 * dt * k2[j]!;
-        bwpDerivatives(init, tmp, ei, k3);
+        bwpDerivatives(init, tmp, ei, k3, ds(t + 0.5 * dt));
         for (let j = 0; j < N; j++) tmp[j] = x[j]! + dt * k3[j]!;
-        bwpDerivatives(init, tmp, ei, k4);
+        bwpDerivatives(init, tmp, ei, k4, ds(t + dt));
         for (let j = 0; j < N; j++) x[j] = x[j]! + (dt / 6) * (k1[j]! + 2 * k2[j]! + 2 * k3[j]! + k4[j]!);
       }
     }

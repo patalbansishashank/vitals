@@ -10,7 +10,8 @@
  * - Body context: body mass = the plan's trend weight (`derived/trend:<planId>`, E5's assimilation) when there is one,
  *   else the profile weight; VO2max = a measured value (labs) when known, else the engine's initial value (40 mL/kg/min)
  *   — the same rule as the living-plan session compiler, so a composed session and its logged credit agree; height and
- *   resting metabolism from the profile.
+ *   resting metabolism from the profile. (0.6.3 INT, S2) Typical values never pass for the person's: without age and height
+ *   there is no resting metabolism, and a typical body mass is flagged (`typicalBody`) so no energy figure is shown as theirs.
  * - Prescribed days: the frozen prescription (`dayStatus.prescribed`) for past and current plan days, else the
  *   prescription the plan's version in force gives that date (`freezePrescription`, compiled once per version).
  *
@@ -42,6 +43,8 @@ import {
 import type { DocumentStore } from '@/store';
 import { getDocumentStore } from '@/state/runtime';
 import { simulatorProfileNow } from '@/state/internal/simulatorProfile';
+import { pickBodyValues } from '@/state/internal/profileModel';
+import { useProfileStore } from '@/state/profileStore';
 import { readLivingDocs } from '../livingWiring';
 
 export interface CatalogueModules {
@@ -109,9 +112,39 @@ export function stimulusContextOf(profile: PersonProfile, trendKg: number | null
   };
 }
 
-/** The person's body context now. */
-export function stimulusContextNow(store: DocumentStore = getDocumentStore()): StimulusContext {
-  return stimulusContextOf(simulatorProfileNow(), trendWeightNow(store));
+/**
+ * (0.6.3 INT, S2) Which of the body context's facts are the person's own. The engine profile fills basics nobody entered
+ * with typical values (86 kg, 40 years, 175 cm); composing a session may stand on that placeholder body, but an energy or
+ * points figure shown as the person's never does:
+ *  - `massTypical`: no trend weight and no weight entered → the body mass is the typical placeholder; Train refuses its
+ *    energy figures ("Needs weight") and the Coach's tools say the kcal rest on a typical body;
+ *  - `rmrTypical`: age or height not entered → no resting metabolism in the context (own rest falls back to 1 MET, as the
+ *    activity estimators do).
+ */
+export interface BodyBasis {
+  massTypical: boolean;
+  rmrTypical: boolean;
+}
+
+/** The body basis now: the profile store's raw basics (null = never entered) and the plan's trend weight. */
+export function bodyBasisNow(store: DocumentStore = getDocumentStore()): BodyBasis {
+  let v: { weightKg: number | null; ageYears: number | null; heightCm: number | null };
+  try {
+    v = pickBodyValues(useProfileStore.getState());
+  } catch {
+    v = { weightKg: null, ageYears: null, heightCm: null };
+  }
+  const own = (x: number | null | undefined) => typeof x === 'number' && Number.isFinite(x) && x > 0;
+  const massTypical = trendWeightNow(store) === null && !own(v.weightKg);
+  return { massTypical, rmrTypical: massTypical || !own(v.ageYears) || !own(v.heightCm) };
+}
+
+/** The person's body context now (no resting metabolism from typical basics, `bodyBasisNow`). */
+export function stimulusContextNow(store: DocumentStore = getDocumentStore(), basis: BodyBasis = bodyBasisNow(store)): StimulusContext {
+  const ctx = stimulusContextOf(simulatorProfileNow(), trendWeightNow(store));
+  if (!basis.rmrTypical) return ctx;
+  const { rmrKcalPerDay: _typical, ...rest } = ctx;
+  return rest;
 }
 
 /* ---------------------------------------------------------------- training setup */
@@ -123,6 +156,8 @@ export interface TrainingSetupNow extends PersonCatalogue {
   answered: boolean;
   /** Typed "something else" items no catalogue item matches yet. */
   unresolvedEquipment: string[];
+  /** (0.6.3 INT, S2) The context's body mass is the typical placeholder (no weight entered): no energy shown as personal. */
+  typicalBody: boolean;
 }
 
 /** The person's training setup now. */
@@ -130,7 +165,8 @@ export function trainingSetupNow(m: CatalogueModules, store: DocumentStore = get
   const pc = personCatalogueNow(m, store);
   const intake = store.peek<{ training?: unknown }>('intake', 'me');
   const r = m.cat.trainingProfileFromIntake(intake?.training, { catalogue: pc.catalogue, ownedEquipment: pc.user.ownedEquipment });
-  return { ...pc, profile: r.profile, ctx: stimulusContextNow(store), answered: r.answered, unresolvedEquipment: r.unresolvedEquipment };
+  const basis = bodyBasisNow(store);
+  return { ...pc, profile: r.profile, ctx: stimulusContextNow(store, basis), answered: r.answered, unresolvedEquipment: r.unresolvedEquipment, typicalBody: basis.massTypical };
 }
 
 /* ---------------------------------------------------------------- prescribed days */

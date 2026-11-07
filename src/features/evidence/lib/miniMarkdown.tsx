@@ -148,74 +148,100 @@ export interface MarkdownProps {
   source: string;
   /** Heading level offset so a document's "#" can sit below the page title (default 1: "#" renders as h2). */
   headingOffset?: number;
+  /** Fold each heading of this level (and what follows it) into a disclosure; `open` names the ones open at first. */
+  fold?: { level: 1 | 2 | 3 | 4 | 5 | 6; open?: readonly string[] };
   className?: string;
 }
 
 /** Render bundled Markdown as plain semantic HTML. */
-export function Markdown({ source, headingOffset = 1, className }: MarkdownProps) {
+export function Markdown({ source, headingOffset = 1, className, fold }: MarkdownProps) {
   const blocks = parseMarkdown(source);
+  const block = (b: MdBlock, i: number): ReactNode => {
+    switch (b.kind) {
+      case 'heading': {
+        const H = `h${Math.min(6, b.level + headingOffset)}` as 'h2';
+        return (
+          <H key={i} id={b.id}>
+            {renderInline(b.text)}
+          </H>
+        );
+      }
+      case 'paragraph':
+        return <p key={i}>{renderInline(b.text)}</p>;
+      case 'quote':
+        return <blockquote key={i}>{renderInline(b.text)}</blockquote>;
+      case 'rule':
+        return <hr key={i} />;
+      case 'code':
+        return (
+          <pre key={i}>
+            <code>{b.text}</code>
+          </pre>
+        );
+      case 'list': {
+        const L = b.ordered ? 'ol' : 'ul';
+        return (
+          <L key={i}>
+            {b.items.map((it, j) => (
+              <li key={j}>{renderInline(it)}</li>
+            ))}
+          </L>
+        );
+      }
+      case 'table':
+        return (
+          <div key={i} className="ev-md__table" role="region" aria-label="Table" tabIndex={0}>
+            <table data-cols={b.head.length}>
+              <thead>
+                <tr>
+                  {b.head.map((c, j) => (
+                    <th key={j} scope="col" style={b.align[j] ? { textAlign: b.align[j]! } : undefined}>
+                      {renderInline(c)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {b.rows.map((r, j) => (
+                  <tr key={j}>
+                    {r.map((c, k) => (
+                      // the column's name rides on each cell, so a narrow screen can show a row as label: value lines;
+                      // the content is one element, so bold text and plain text never split into separate grid cells
+                      <td key={k} data-label={b.head[k]?.replace(/[*_`]/g, '') || undefined} style={b.align[k] ? { textAlign: b.align[k]! } : undefined}>
+                        <span className="ev-cell">{renderInline(c)}</span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+    }
+  };
+  if (!fold) return <div className={className}>{blocks.map(block)}</div>;
+  // folded: everything before the first heading of `fold.level` stays open; each such section becomes a disclosure,
+  // its heading the summary, open when its title is in `fold.open`
+  const intro: MdBlock[] = [];
+  const sections: Array<{ head: Extract<MdBlock, { kind: 'heading' }>; body: MdBlock[] }> = [];
+  for (const b of blocks) {
+    if (b.kind === 'heading' && b.level === fold.level) sections.push({ head: b, body: [] });
+    else if (sections.length) sections[sections.length - 1]!.body.push(b);
+    else intro.push(b);
+  }
   return (
     <div className={className}>
-      {blocks.map((b, i) => {
-        switch (b.kind) {
-          case 'heading': {
-            const H = `h${Math.min(6, b.level + headingOffset)}` as 'h2';
-            return (
-              <H key={i} id={b.id}>
-                {renderInline(b.text)}
-              </H>
-            );
-          }
-          case 'paragraph':
-            return <p key={i}>{renderInline(b.text)}</p>;
-          case 'quote':
-            return <blockquote key={i}>{renderInline(b.text)}</blockquote>;
-          case 'rule':
-            return <hr key={i} />;
-          case 'code':
-            return (
-              <pre key={i}>
-                <code>{b.text}</code>
-              </pre>
-            );
-          case 'list': {
-            const L = b.ordered ? 'ol' : 'ul';
-            return (
-              <L key={i}>
-                {b.items.map((it, j) => (
-                  <li key={j}>{renderInline(it)}</li>
-                ))}
-              </L>
-            );
-          }
-          case 'table':
-            return (
-              <div key={i} className="ev-md__table" role="region" aria-label="Table" tabIndex={0}>
-                <table>
-                  <thead>
-                    <tr>
-                      {b.head.map((c, j) => (
-                        <th key={j} scope="col" style={b.align[j] ? { textAlign: b.align[j]! } : undefined}>
-                          {renderInline(c)}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {b.rows.map((r, j) => (
-                      <tr key={j}>
-                        {r.map((c, k) => (
-                          <td key={k} style={b.align[k] ? { textAlign: b.align[k]! } : undefined}>
-                            {renderInline(c)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-        }
+      {intro.map(block)}
+      {sections.map(({ head, body }, si) => {
+        const H = `h${Math.min(6, head.level + headingOffset)}` as 'h2';
+        return (
+          <details key={head.id} className="ev-md__sec" open={fold.open?.includes(head.text) || undefined}>
+            <summary className="ev-md__sum">
+              <H id={head.id}>{renderInline(head.text)}</H>
+            </summary>
+            <div className="ev-md__body">{body.map((b, i) => block(b, si * 10000 + i))}</div>
+          </details>
+        );
       })}
     </div>
   );

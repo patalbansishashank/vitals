@@ -73,6 +73,26 @@ describe('supplements commands', () => {
     expect(gone.ok ? null : gone.error.code).toBe('not_found');
   });
 
+  it('shared suggestion policy (D7-03): a negative screen allows, an unanswered fact is Unchecked, a kidney answer means Not suggested; logs stay', async () => {
+    // the standard (all "no") screening settles kidney disease; the food allergies were never answered
+    const fresh = outputOf(await dispatch('supplements.get', {}))!;
+    expect(fresh.notSuggested.find((x) => x.supplementId === 'creatine_monohydrate')).toBeUndefined();
+    expect(fresh.notSuggested.find((x) => x.supplementId === 'whey_protein')).toEqual({ supplementId: 'whey_protein', status: 'Unchecked', reasons: ['milk allergy (not answered)'] });
+    expect(fresh.rowStatus).toEqual([]);
+    await dispatch('safety.commitScreening', {
+      answers: { ageBand: '18-64', pregnancy: 'no', eatingDisorder: 'no', scoffRisk: false, diabetes: 'no', conditions: 'yes', conditionItems: ['kidney'], metabolic: 'no', medications: 'no', symptoms: 'no', supervisedExercise: 'no', musculoskeletal: 'no', alcohol: 'no' },
+      at: '2026-10-01T09:00:00.000Z',
+    });
+    await settleCommits();
+    // logging a product already taken stays possible; the row shows a review status, the suggestion is withheld
+    const a = outputOf(await dispatch('supplements.set', { supplementId: 'creatine', state: 'taking', dose: 5, unit: 'g', timesOfDay: ['morning'] }))!;
+    expect(a.rows).toEqual([expect.objectContaining({ supplementId: 'creatine_monohydrate', state: 'taking', dose: 5 })]);
+    expect(a.rowStatus).toEqual([{ supplementId: 'creatine_monohydrate', status: 'review', reasons: ['kidney disease'] }]);
+    expect(a.notSuggested).toContainEqual({ supplementId: 'creatine_monohydrate', status: 'Not suggested', reasons: ['kidney disease'] });
+    expect(a.notSuggested.find((x) => x.supplementId === 'whey_protein')).toMatchObject({ status: expect.stringMatching(/^(Review|Unchecked)$/) });
+    expect(a.planner.habitual).toEqual(['L7']);
+  });
+
   it('permission classes: get is read; set and remove are edits (the Coach proposes, the person applies)', async () => {
     expect(classOf(getCommand('supplements.get')!)).toBe('read');
     expect(classOf(getCommand('supplements.set')!)).toBe('edit');

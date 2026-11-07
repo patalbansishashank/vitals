@@ -1,6 +1,9 @@
 /** "Erase this device" leaves nothing of Vitals in localStorage, including device bookkeeping outside `vitals.*`. */
 import { expect, it, vi } from 'vitest';
 
+// each test re-imports the store graph cold (vi.resetModules): slow under a loaded full run, not a hang
+const COLD_IMPORT_MS = 30_000;
+
 it('erases vitals.*, lumen.* and the vitals-* device keys, and leaves other sites alone', async () => {
   localStorage.clear();
   vi.resetModules();
@@ -19,7 +22,7 @@ it('erases vitals.*, lumen.* and the vitals-* device keys, and leaves other site
   const left: string[] = [];
   for (let i = 0; i < localStorage.length; i++) left.push(localStorage.key(i)!);
   expect(left).toEqual(['other-app']);
-});
+}, COLD_IMPORT_MS);
 
 it('erase deletes vitals-planner', async () => {
   vi.resetModules();
@@ -42,4 +45,4 @@ it('erase deletes vitals-planner', async () => {
     vi.unstubAllGlobals();
   }
   expect(deleted).toContain('vitals-planner');
-});
+}, COLD_IMPORT_MS);

@@ -1,4 +1,6 @@
 include ':app'
+// (0.7.0) Gauge's engine, a library the app depends on
+include ':gauge'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 

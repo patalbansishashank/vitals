@@ -13,6 +13,7 @@ import {
   rxWords,
   sessionLogPlan,
   sessionModels,
+  sessionProgress,
   shortName,
   swapParam,
   weekRows,
@@ -86,6 +87,27 @@ describe('train view models', () => {
     expect(skipped.result.credit).toBeLessThan(1);
     const chips = sessionLogPlan(m!, { ...EMPTY_DRAFT, logs: { 0: { kind: 'chips', done: [true, true, false, false] } } }, setup);
     expect(chips.performed[0]).toMatchObject({ exerciseId: 'dand', setCount: 2 });
+  });
+
+  it('reports explicit set progress without counting untouched exercises as done', () => {
+    const [model] = sessionModels(fixturePrescription(fixturePlan('2026-10-01'), WED), WED, setup);
+    const items = model!.session.items;
+    const total = items.reduce((n, item) => n + Math.max(1, item.sets ?? 0), 0);
+    expect(sessionProgress(items, EMPTY_DRAFT)).toEqual({ setsDone: 0, setsTotal: total, itemsDone: 0, itemsTotal: items.length, skipped: 0 });
+    const draft = { ...EMPTY_DRAFT, logs: { 0: { kind: 'chips' as const, done: [true, false, true, false] } }, skips: { 1: true as const } };
+    const progress = sessionProgress(items, draft);
+    expect(progress.setsDone).toBe(2);
+    expect(progress.skipped).toBe(Math.max(1, items[1]!.sets ?? 0));
+    expect(progress.itemsDone).toBe(0);
+    expect(sessionProgress(items, { ...EMPTY_DRAFT, logs: { 0: { kind: 'sets', sets: [{ reps: 0 }, { reps: 20 }, { reps: 0 }, { reps: 0 }] } } }).setsDone).toBe(1);
+    expect(sessionProgress(items, { ...EMPTY_DRAFT, ticks: Object.fromEntries(items.map((_, i) => [i, true as const])) }).setsDone).toBe(total);
+  });
+
+  it('counts a minutes item proportionally and caps work at its planned count', () => {
+    const [model] = sessionModels(fixturePrescription(fixturePlan('2026-10-01'), WED), WED, setup);
+    const item = { ...model!.session.items[0]!, sets: undefined, minutes: 30 };
+    expect(sessionProgress([item], { ...EMPTY_DRAFT, logs: { 0: { kind: 'minutes', minutes: 15 } } }).setsDone).toBe(0.5);
+    expect(sessionProgress([item], { ...EMPTY_DRAFT, logs: { 0: { kind: 'minutes', minutes: 90 } } }).setsDone).toBe(1);
   });
 
   it('resolves free text into a new record, never rejecting it', () => {

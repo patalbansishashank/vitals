@@ -1,0 +1,32 @@
+@layer components {
+  .lv-food-sheet__summary,
+  .lv-food-logger__summary {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .lv-food-sheet__summary {
+    padding-bottom: var(--lm-space-4);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-food-sheet__summary > .lm-hero,
+  .lv-food-logger__summary > .lm-hero {
+    color: var(--lm-ink);
+  }
+  .lv-food-logger .lv-food-logger__recents {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-2);
+  }
+  .lv-food-logger__recents > .lv-food-logger__label {
+    flex-basis: 100%;
+  }
+  .lv-food-logger__recents > .lm-key {
+    width: auto;
+    max-width: 100%;
+    min-height: var(--lm-hit-touch);
+    white-space: normal;
+    text-align: start;
+  }
+}

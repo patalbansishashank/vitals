@@ -316,6 +316,9 @@ const topic: EvidenceTopic = {
       caveats:
         'The kernel comes from four small tracer studies. It is not integrated to predict growth, because acute MPS did not predict hypertrophy in untrained muscle.',
       referenceIds: ['chesley1992', 'macdougall1995', 'phillips1997', 'tang2008', 'damas2016b', 'damas2015'],
+      outcomeScope:
+        'Muscle protein synthesis for hours to days after a session (tracer studies); a drawn curve, not growth',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mps', 'mtorIdx'],
     },
     {

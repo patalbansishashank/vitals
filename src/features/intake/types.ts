@@ -6,9 +6,8 @@
  * package produces live there under the spec's names:
  *   - training and equipment → `training`: the catalogue's `TrainingProfile` (exported here as `EquipmentProfile`)
  *     plus `prefs: TrainingPreferences` (time, logging, custom items: what the profile has no field for);
- *   - food and kitchen       → `diet` (`DietProfile`) + `kitchen` + `supplements` (together `FoodProfile`);
- *   - devices and streams    → `devices` + `devices.streams: StreamPolicy[]` (together `StreamOptIns`; the policies
- *     move to `bioSources` through `bio.setPolicy` once the biometrics package lands).
+ *   - food and kitchen       → `diet` (`DietProfile`) + `kitchen` + `supplements` (together `FoodProfile`).
+ * Older documents may still carry a `devices` section (the removed devices chapter); it is never read.
  * Each chapter's raw turns (value + answered/skipped) ride along in its first section as `turns`, so receipts, "change"
  * and "not used" survive a reload and another device.
  */
@@ -19,15 +18,15 @@ import type { TrainingProfile, Weekday } from '@/catalogues';
 export type { ActivityIntake, TrainingProfile, Weekday };
 
 /** URL sections (SUITE_SPEC §6.2 `/onboarding/:section`). */
-export type IntakeSectionId = 'activity' | 'training' | 'diet' | 'kitchen' | 'supplements' | 'markers' | 'devices';
-/** The chapters the sections are presented as (v3: five; blood markers is optional and present once its module lands). */
-export type ChapterId = 'activity' | 'training' | 'food' | 'markers' | 'devices';
+export type IntakeSectionId = 'activity' | 'training' | 'diet' | 'kitchen' | 'supplements' | 'markers';
+/** The chapters the sections are presented as (v3: four; blood markers is optional and present once its module lands). */
+export type ChapterId = 'activity' | 'training' | 'food' | 'markers';
 
 /**
  * Every chapter in its fixed order (SUITE_SPEC §13.1, §13.5.5). The chapters actually shown are `CHAPTERS` in
  * `./chapters` (a chapter with no registered questions — markers before its module lands — is left out).
  */
-export const ALL_CHAPTERS: readonly ChapterId[] = ['activity', 'training', 'food', 'markers', 'devices'];
+export const ALL_CHAPTERS: readonly ChapterId[] = ['activity', 'training', 'food', 'markers'];
 export const SECTION_CHAPTER: Readonly<Record<IntakeSectionId, ChapterId>> = {
   activity: 'activity',
   training: 'training',
@@ -35,17 +34,15 @@ export const SECTION_CHAPTER: Readonly<Record<IntakeSectionId, ChapterId>> = {
   kitchen: 'food',
   supplements: 'food',
   markers: 'markers',
-  devices: 'devices',
 };
 export const CHAPTER_SECTIONS: Readonly<Record<ChapterId, readonly IntakeSectionId[]>> = {
   activity: ['activity'],
   training: ['training'],
   food: ['diet', 'kitchen', 'supplements'],
   markers: ['markers'],
-  devices: ['devices'],
 };
 /** The route section a chapter opens at. */
-export const CHAPTER_ROUTE: Readonly<Record<ChapterId, IntakeSectionId>> = { activity: 'activity', training: 'training', food: 'diet', markers: 'markers', devices: 'devices' };
+export const CHAPTER_ROUTE: Readonly<Record<ChapterId, IntakeSectionId>> = { activity: 'activity', training: 'training', food: 'diet', markers: 'markers' };
 
 /* ------------------------------------------------------------------------------------------- raw answers */
 
@@ -269,38 +266,6 @@ export interface FoodProfile {
   supplements: SupplementsAnswer;
 }
 
-/* ------------------------------------------------------------------------------------------- devices (SUITE_SPEC §4.5) */
-
-export type DeviceKind = 'ring' | 'watch' | 'band' | 'scale' | 'chestStrap' | 'phoneOnly' | 'none';
-export type Platform = 'android' | 'ios' | 'desktop';
-
-export interface DevicesAnswer {
-  has: DeviceKind[];
-  /** Brand/model per device, as chosen ("Oura", "Colmi", "not sure"), aligned with `has`. */
-  models: string[];
-  platforms: Platform[];
-}
-
-export type StreamId = 'sleep_sessions' | 'heart_rate' | 'hrv' | 'spo2' | 'steps' | 'workouts' | 'weight' | 'body_fat' | 'skin_temp' | 'vendor_scores';
-export type CoachVisibility = 'hidden' | 'daily' | 'daily+series';
-
-/** SUITE_SPEC §4.5 `StreamPolicy` (stream ids are the intake's subset of `BioStream`). */
-export interface StreamPolicy {
-  stream: StreamId;
-  /** Data from this stream is stored at all ("bring in"). */
-  imported: boolean;
-  coach: CoachVisibility;
-  /** May replace assumed inputs / feed observations ("my plan"). */
-  engine: boolean;
-  /** May feed Vitals' own scores ("my scores"). */
-  scores: boolean;
-}
-
-export interface StreamOptIns {
-  devices: DevicesAnswer;
-  policies: StreamPolicy[];
-}
-
 /* ------------------------------------------------------------------------------------------- the document */
 
 /** The chapter's raw turns ride along in its first section (additive `turns` key; consumers ignore it). */
@@ -317,8 +282,6 @@ export type TrainingSection = TrainingProfile & { prefs: TrainingPreferences } &
  * only `{ rulesComplete: false }` — food rules are never guessed, and recipes pause.
  */
 export type DietSection = (DietProfile & { rulesComplete: true } & WithTurns) | ({ rulesComplete: false } & WithTurns);
-/** `intake.devices`: devices + the per-stream choices (move to `bioSources` via `bio.setPolicy` when that lands). */
-export type DevicesSection = DevicesAnswer & { streams: StreamPolicy[] } & WithTurns;
 /** `intake.markers`: the blood-markers chapter's turns (the values themselves live in the markers documents). */
 export type MarkersSection = WithTurns;
 
@@ -341,7 +304,6 @@ export interface IntakeDoc {
   kitchen?: KitchenProfile;
   supplements?: SupplementsAnswer | SupplementsAnswerV1;
   markers?: MarkersSection;
-  devices?: DevicesSection;
   answeredAt: Partial<Record<IntakeSectionId, string>>;
   questionSetVersion: Partial<Record<IntakeSectionId, number>>;
   /** Sections skipped as a whole ("Skip this part"), with when. */
@@ -356,10 +318,9 @@ export const QUESTION_SET_VERSION: Readonly<Record<IntakeSectionId, number>> = {
   kitchen: 1,
   supplements: 1,
   markers: 1,
-  devices: 1,
 };
 
 export const EMPTY_INTAKE: IntakeDoc = { answeredAt: {}, questionSetVersion: {} };
 
 /** Which section body carries a chapter's turns. */
-export const TURNS_SECTION: Readonly<Record<ChapterId, IntakeSectionId>> = { activity: 'activity', training: 'training', food: 'diet', markers: 'markers', devices: 'devices' };
+export const TURNS_SECTION: Readonly<Record<ChapterId, IntakeSectionId>> = { activity: 'activity', training: 'training', food: 'diet', markers: 'markers' };

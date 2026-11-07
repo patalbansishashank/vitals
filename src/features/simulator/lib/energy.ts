@@ -1,10 +1,11 @@
 /**
  * Energy encoding for the raster and the program keys.
  *
- * REVIEW_FINDINGS #4: the fill is stepped every 5 % of maintenance so 85 / 80 / 75 % stay distinguishable in both
- * themes. Deficit steps run to −12 (≤ 40 %), surplus steps to +8 (≥ 140 %). The colours are mixed in OKLab between
- * the neutral well and a deeper end-of-ramp tone defined per theme in simulator.css (`--sim-deficit-end`,
- * `--sim-surplus-end`), so every step is a near-equal perceptual increment. Water-only days have their own treatment.
+ * REVIEW_FINDINGS #4: the fill is stepped every 5 % of maintenance so 85 / 80 / 75 % stay distinguishable. Deficit
+ * steps run to −12 (≤ 40 %), surplus steps to +8 (≥ 140 %). Ember keeps the ramps warm (simulator.css): a maintenance
+ * day is card-soft (`--sim-neutral`), a deficit sinks towards a warm black inset (an 80 % day lands on the stepper's
+ * well tone), a surplus warms towards bronze (`--sim-surplus-end`). Colours mix in OKLab, so every step is a near-equal
+ * lightness increment. Water-only days have their own treatment (a hollow cell).
  */
 import { formatNumber, toEnergyUnit, type EnergyUnitChoice } from '@/components';
 import type { EnergySpec } from '@/engine';
@@ -20,21 +21,20 @@ export function energyStep(pct: number): number {
 }
 
 /**
- * Mix share (0..100) of the end tone for a step. Deficit: 10 % per 5 % step down to 50 % of maintenance (≈ 2.6
- * ΔE_OK×100 between neighbours in both themes; 40–50 % share the end tone and are labelled danger anyway).
- * Surplus: 12.5 % per step to 140 %.
+ * Mix share (0..100) of the end tone for a step. Deficit: 7.5 % per 5 % step (≈ 1.8 ΔE_OK×100 between neighbours;
+ * 80 % of maintenance mixes 30 % and lands near the well, #11100F). Surplus: 12.5 % per step to 140 %.
  */
 export function stepMix(step: number): number {
   if (step === 0) return 0;
-  if (step < 0) return Math.min(100, -step * 10);
+  if (step < 0) return Math.min(100, -step * 7.5);
   return Math.min(100, Math.round(step * 12.5));
 }
 
-/** CSS background for an energy step (tokens only). */
+/** CSS background for an energy step (feature tokens, simulator.css). */
 export function energyFill(step: number): string {
-  if (step === 0) return 'var(--lm-energy-neutral)';
+  if (step === 0) return 'var(--sim-neutral)';
   const end = step < 0 ? 'var(--sim-deficit-end)' : 'var(--sim-surplus-end)';
-  return `color-mix(in oklab, ${end} ${stepMix(step)}%, var(--lm-energy-neutral))`;
+  return `color-mix(in oklab, ${end} ${stepMix(step)}%, var(--sim-neutral))`;
 }
 
 /** Percent of maintenance a spec asks for, given the (baseline) maintenance. NaN for fasts. */

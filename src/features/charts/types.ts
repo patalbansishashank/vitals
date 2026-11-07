@@ -41,7 +41,7 @@ export interface NumberFormat {
   decimals: number;
 }
 
-/** 80 % likely range (10th–90th percentile of the inter-individual distribution). */
+/** Display range; its source and coverage are described separately. */
 export interface Band {
   lo: Float32Array;
   hi: Float32Array;
@@ -74,6 +74,10 @@ export interface StackComponent {
 
 export interface ChartSeries {
   id: string;
+  /** Operating display policy, independent of finite compatibility arrays and engine status. */
+  display?: { wordOnly?: string; qualifier?: string; observed?: { value: number; unit: string } };
+  /** Goal panels retain their physical operator, absolute coverage and dedicated band identity. */
+  trajectory?: { operator: string; startDay: number; endDay: number; bandKey: string; available: boolean };
   /** Sentence case, plain first: "Fat mass", "Blood ketones (BHB)". */
   label: string;
   /** Lowercase short name for rails and overlay labels on mobile: "fat". */

@@ -124,6 +124,44 @@ const topic: EvidenceTopic = {
       relatedMetricIds: [],
     },
     {
+      id: '27-warrant-kinds',
+      title: 'Kinds of warrant: why a claim is believed, and for which outcome',
+      category: 'cellular',
+      summary:
+        'A trial grade is one reason to believe a claim, not the only one. A definition or a calculation is true by construction, a mechanism can be well understood with few trials, and a practice can be time-tested or match lived experience. Vitals records the kind of warrant behind a claim together with the outcome and population it covers, so strong biology for a direction never lends certainty to a health benefit it does not cover.',
+      howModelled:
+        'Each warrant has a kind, a confidence (high, moderate, low or provisional) and the outcome it covers. Warrants decide what a number may be used for, not how narrow its range is. A definition is exact but says nothing about your body. A time-tested practice can stay as your preference without earning a forecast benefit. A mechanism with no route to a health outcome stays educational or exploratory and earns no planning credit. Warrants appear in the info sheet, never as a score.',
+      keyNumbers: [
+        {
+          label: 'From studies',
+          value: 'empirical, formal studies: trials, cohorts and measured human data',
+        },
+        {
+          label: 'From reasoning',
+          value: 'analytically true, first-principles derived, causally coherent, physiologically intuitive',
+        },
+        {
+          label: 'From practice',
+          value:
+            'ecologically valid, functionally true, tacit knowledge, time-tested, lived experience, common sense, expert opinion',
+        },
+        {
+          label: 'Example: the autophagy index',
+          value:
+            'Analytically true for its scale (a definition); causally coherent for the direction of nutrient sensing; no warrant for a health benefit',
+          note: 'So it stays an exploratory research display with no goal and no planning credit.',
+        },
+      ],
+      grade: 'D',
+      gradeReason:
+        'The warrant kinds are a Vitals classification for keeping different reasons apart; they are a design choice, not a study finding.',
+      status: 'proposed-fit',
+      caveats:
+        'A warrant from reasoning or practice can support a direction, a preference or a bounded planning scenario. It never stands in for a measured quantity or a calibrated range.',
+      referenceIds: ['russo2007', 'howick2009'],
+      relatedMetricIds: [],
+    },
+    {
       id: '27-band-floor',
       title: 'Lower certainty widens the uncertainty band and never moves the centre',
       category: 'cellular',

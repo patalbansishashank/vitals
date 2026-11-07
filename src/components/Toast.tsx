@@ -1,4 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { CircleCheck } from 'lucide-react';
+import { Icon, type IconComponent } from './icons/Icon';
 import { Key } from './Key';
 
 export interface ToastOptions {
@@ -8,6 +10,8 @@ export interface ToastOptions {
   duration?: number;
   /** Replace an existing toast with the same id instead of stacking. */
   id?: string;
+  /** The leading status icon (default: a gold check, "done"); null for none. */
+  icon?: IconComponent | null;
 }
 
 interface ToastItem {
@@ -15,6 +19,7 @@ interface ToastItem {
   message: ReactNode;
   action?: ToastOptions['action'];
   duration: number;
+  icon: IconComponent | null;
 }
 
 let items: ToastItem[] = [];
@@ -23,14 +28,15 @@ let seq = 0;
 const emit = () => listeners.forEach((l) => l());
 
 /**
- * Confirm a background completion or an undoable action
- * ("Week 3 copied to weeks 4–6 · Undo"). Never for errors that need action —
- * those are Notices. Returns the toast id.
+ * Snackbar: confirm the person's own action or a background completion
+ * ("Meal logged · Undo"). One at a time (a new one replaces the last), at most
+ * one action, auto-dismiss. Never for errors that need action — those are
+ * Notices. Returns the toast id.
  */
 export function toast(message: ReactNode, options: ToastOptions = {}): string {
   const id = options.id ?? `t${++seq}`;
-  const item: ToastItem = { id, message, action: options.action, duration: options.duration ?? 5000 };
-  items = [...items.filter((t) => t.id !== id), item].slice(-3);
+  const item: ToastItem = { id, message, action: options.action, duration: options.duration ?? 5000, icon: options.icon === undefined ? CircleCheck : options.icon };
+  items = [item];
   emit();
   return id;
 }
@@ -53,7 +59,11 @@ function subscribe(cb: () => void) {
 }
 const snapshot = () => items;
 
-/** Mount once (the app shell does). Bottom-centre above the tab bar on mobile, bottom-left on desktop. */
+/**
+ * Mount once (the app shell does). Phones: full width in the gutters, 12 px above the dock (reads `--lm-dock-h`, the
+ * dock's full height including the safe area; falls back to 80 px + safe area). Desktop: at the bottom right of the
+ * content column, 24 px in, as desktop apps place their notifications (r068 S14).
+ */
 export function Toaster() {
   const list = useSyncExternalStore(subscribe, snapshot, snapshot);
   return (
@@ -90,11 +100,11 @@ function ToastView({ item }: { item: ToastItem }) {
 
   return (
     <div className="lm-toast" onPointerEnter={pause} onPointerLeave={start} onFocus={pause} onBlur={start}>
+      {item.icon ? <Icon icon={item.icon} size={20} className="lm-toast__icon" /> : null}
       <span className="lm-toast__msg">{item.message}</span>
       {item.action ? (
         <Key
-          variant="quiet"
-          size="sm"
+          variant="text"
           onClick={() => {
             item.action?.onClick();
             dismissToast(item.id);

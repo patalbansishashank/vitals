@@ -69,7 +69,6 @@ function fakeElectron() {
     created?: (event: unknown, contents: WebContentsSlice) => void;
     request?: (wc: unknown, permission: string, callback: (granted: boolean) => void, details: object) => void;
     check?: (wc: unknown, permission: string, origin: string, details: object) => boolean;
-    pairing?: (details: { pairingKind: string; deviceId: string }, callback: (r: { confirmed: boolean }) => void) => void;
   } = {};
   const openExternal = vi.fn(async () => undefined);
   const e: SecurityElectron = {
@@ -78,7 +77,6 @@ function fakeElectron() {
       defaultSession: {
         setPermissionRequestHandler: (h) => void (handlers.request = h),
         setPermissionCheckHandler: (h) => void (handlers.check = h),
-        setBluetoothPairingHandler: (h) => void (handlers.pairing = h),
       },
     },
     shell: { openExternal },
@@ -142,15 +140,5 @@ describe('applySecurity', () => {
     expect(granted).toHaveBeenLastCalledWith(false);
     expect(handlers.check!(undefined, 'notifications', 'app://vitals', {})).toBe(true);
     expect(handlers.check!(undefined, 'notifications', 'https://example.org', {})).toBe(false);
-  });
-
-  it('confirms a Just Works pairing and declines a PIN it cannot show', () => {
-    const { e, handlers } = fakeElectron();
-    applySecurity(e);
-    const cb = vi.fn();
-    handlers.pairing!({ pairingKind: 'confirm', deviceId: 'd' }, cb);
-    expect(cb).toHaveBeenCalledWith({ confirmed: true });
-    handlers.pairing!({ pairingKind: 'providePin', deviceId: 'd' }, cb);
-    expect(cb).toHaveBeenLastCalledWith({ confirmed: false });
   });
 });

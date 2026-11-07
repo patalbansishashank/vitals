@@ -1,0 +1,155 @@
+/* The Day score card (r071): the ring with its three parts as rows. Lays itself out from its own width. Tokens only. */
+@layer components {
+  .rgs-day {
+    margin-block: auto;
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  /* the ring takes its own width (a shrink-wrapped grid item would give its percentage width nothing to resolve against) */
+  .rgs-day__ring {
+    display: grid;
+    justify-items: center;
+    justify-self: center;
+    gap: var(--lm-space-2);
+    width: min(100%, 176px);
+  }
+  .rgs-parts {
+    display: grid;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rgs-part {
+    display: grid;
+    gap: var(--lm-space-1);
+    padding: var(--lm-space-3) 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .rgs-part:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .rgs-part__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--lm-space-3);
+  }
+  .rgs-part__name {
+    font-size: var(--lm-text-read);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .rgs-part__val {
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-stat);
+    font-weight: 400;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .rgs-part__val .lm-unit {
+    margin-inline-start: var(--lm-space-1);
+    color: var(--lm-ink-2);
+  }
+  .rgs-part__track {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgs-part__track > :first-child {
+    flex: 1 1 96px;
+    max-width: 160px;
+    min-width: 0;
+  }
+  /* low confidence is a word and a dashed marker, never a colour alone */
+  .rgs-part__low {
+    padding: 0 var(--lm-space-2);
+    border: 1px dashed var(--lm-line-strong);
+    border-radius: var(--lm-radius-full);
+  }
+  .rgs-part > .rg-contrib {
+    margin-top: var(--lm-space-1);
+  }
+  @container (min-width: 34rem) {
+    .rgs-day {
+      grid-template-columns: 176px minmax(0, 1fr);
+      align-items: center;
+      justify-items: stretch;
+      column-gap: var(--lm-space-8);
+    }
+    .rgs-day__ring {
+      justify-self: start;
+    }
+  }
+}
+
+@layer components {
+  .rgs-page { container-type: inline-size; min-width: 0; }
+  .rgs-index .lm-cardhead__title { white-space: normal; overflow: visible; }
+  .rgs-indexgrid, .rgs-gauge, .rgs-gauge__cards {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .rgs-heading {
+    margin: var(--lm-space-3) 0 0;
+    font: var(--lm-weight-semibold) var(--lm-text-card)/var(--lm-text-card--lh) var(--lm-font-sans);
+    color: var(--lm-ink);
+  }
+  .rgs-index__value {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgs-index__value > .rgs-part__low { justify-self: start; }
+  .rgs-index__missing {
+    display: grid;
+    place-items: center;
+    width: min(120px, 100%);
+    min-height: 120px;
+    justify-self: center;
+    padding: var(--lm-space-3);
+    border: 1px dashed var(--lm-line-strong);
+    border-radius: var(--lm-radius-full);
+    text-align: center;
+    color: var(--lm-ink-2);
+  }
+  .rgs-day__trend { width: 100%; min-width: 0; }
+  .rgs-gauge__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-space-3);
+    align-items: center;
+  }
+  .rgs-gauge__card .rgs-part__low { justify-self: start; }
+  .rgs-indices {
+    display: grid;
+    gap: var(--lm-space-5);
+    margin: 0;
+  }
+  .rgs-indices__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--lm-space-2) var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgs-indices__row dt { color: var(--lm-ink); font-size: var(--lm-text-read); }
+  .rgs-indices__row dd { margin: 0; }
+  .rgs-indices__row > .lmz-scale,
+  .rgs-indices__row > .lm-meta { grid-column: 1 / -1; }
+  .rg-contrib[data-hue] .rg-contrib__weight > span { background: var(--lm-hue); }
+  @container (min-width: 40rem) {
+    .rgs-indexgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .rgs-gauge__row { grid-template-columns: 140px minmax(0, 1fr); }
+    .rgs-gauge__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rgs-gauge__card .rgs-gauge__row { grid-template-columns: minmax(0, 1fr); }
+    .rgs-day[data-parts='none'] { grid-template-columns: 176px minmax(0, 1fr); align-items: center; justify-items: stretch; }
+  }
+}

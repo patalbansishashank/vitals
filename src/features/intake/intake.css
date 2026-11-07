@@ -1,32 +1,28 @@
 /* ==========================================================================
-   Intake v3 (design/screens/onboarding-intake-v3.md; COMPONENTS §13.2, §13.15, §14.2, §14.3).
-   Tokens only. Mobile first: one column below 768 px with the page's 16 px gutters, nothing wider than the column
-   (no horizontal scroll). From 768 px the step is laid out like Your body's Basics and Shape: "Your answers" on the
-   left (75 %) and "Your picture so far" on the right (25 %), the page's own padding around them and the same 16 px
-   gap between the two columns; neither column has a width cap.
+   Intake v3 (design/screens/onboarding-intake-v3.md; COMPONENTS §13.2, §13.15, §14.2, §14.3), Ember (SPEC §1–§5).
+   Tokens only, dark only, weights 300 / 400 / 500 / 600. Mobile first: one column below 768 px inside the page gutters,
+   nothing wider than the column (no horizontal scroll). From 768 px the step sits on the left (75 %) and "Your
+   picture so far" on the right (25 %). The open question is the step's one card; everything else is plain rows,
+   hairlines and space (no nested cards, no shadows, no indicator dots).
    ========================================================================== */
 
 @layer components {
   .lm-ik {
     display: grid;
     gap: 16px;
-    max-width: 1040px;
-    margin-inline: auto;
-    padding-block: 8px 96px;
     min-width: 0;
+    padding-block: 4px 24px;
   }
   @media (min-width: 48rem) {
     .lm-ik {
       grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
       align-items: start;
-      max-width: none;
-      margin-inline: 0;
-      padding-block: 0 32px;
+      padding-block: 0 24px;
     }
   }
   .lm-ik__col {
     display: grid;
-    gap: 20px;
+    gap: 16px;
     min-width: 0;
   }
   .lm-ik__aside {
@@ -37,155 +33,23 @@
     .lm-ik__aside {
       display: block;
       position: sticky;
-      top: calc(var(--lm-topbar-h) + 20px);
+      top: calc(var(--lm-header-h, 0px) + 16px);
     }
   }
-  .lm-ik__intro {
-    margin: 0;
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    max-width: 60ch;
-  }
-  .lm-ik__footer-note {
-    margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-3);
-  }
 
-  /* ---- chapter scale (design v3 §3.4): own centred row < 768 px; right-aligned on the title row from 768 px ---- */
+  /* ---- chapter scale: the setup flow's segments (FlowSteps, onboarding.css) in the header's progress row ---- */
   .lm-ik-progress {
     display: grid;
-    justify-items: center;
-    gap: 4px;
     width: 100%;
     min-width: 0;
-    min-height: 32px;
-    align-content: center;
-  }
-  /* equal 1fr segments; from 768 px the scale is content-sized, so every segment is at least the widest label */
-  .lm-ik-progress__segs {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: 6px;
-    width: min(100% - 32px, 360px);
-  }
-  .lm-ik-progress__seg {
-    display: grid;
-    gap: 3px;
-    min-width: 0;
-  }
-  .lm-ik-progress__bar {
-    position: relative;
-    height: 4px;
-    border-radius: 999px;
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well), inset 0 0 0 1px var(--lm-line-strong);
-    overflow: hidden;
-  }
-  .lm-ik-progress__seg[data-optional='true'] .lm-ik-progress__bar {
-    box-shadow: none;
-    background: transparent;
-    outline: 1px dashed var(--lm-line-strong);
-    outline-offset: -1px;
-  }
-  .lm-ik-progress__fill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    background: var(--lm-ink);
-    transition: width var(--lm-dur-needle) var(--lm-ease-out);
-  }
-  .lm-ik-progress__later {
-    position: absolute;
-    inset-block: 0;
-    background: repeating-linear-gradient(45deg, var(--lm-ink) 0 1px, transparent 1px 4px);
-  }
-  .lm-ik-progress__notch {
-    position: absolute;
-    inset-block: 0;
-    width: 1px;
-    background: var(--lm-face);
-  }
-  .lm-ik-progress__label,
-  .lm-ik-progress__one {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    line-height: 12px;
-    font-weight: 500;
-    color: var(--lm-ink-3);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .lm-ik-progress__one {
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-progress__seg[data-current='true'] .lm-ik-progress__label {
-    color: var(--lm-ink);
-    font-weight: 600;
-  }
-  .lm-ik-progress__dot {
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--lm-signal);
-  }
-  /* < 768: one label under the bar; segment labels hidden */
-  .lm-ik-progress__label {
-    display: none;
-  }
-  @media (min-width: 48rem) {
-    /* at least 420 px, wider when five equal segments at the widest label need it */
-    .lm-ik-progress {
-      width: auto;
-      min-width: 420px;
-      justify-items: stretch;
-    }
-    .lm-ik-progress__segs {
-      width: 100%;
-    }
-    /* block, not inline-flex: text-overflow only works on a block box, so a long name ends in "…" instead of being cut
-       into another word ("blood marker", Q6; REVIEW_FINDINGS 6). The ellipsis is only a last resort now: the segments
-       are sized to the widest label. */
-    .lm-ik-progress__label {
-      display: block;
-    }
-    /* reserves the current label's width (dot + bold), so segments keep their size from chapter to chapter */
-    .lm-ik-progress__label::after {
-      content: attr(data-label);
-      display: block;
-      height: 0;
-      padding-left: 10px;
-      font-weight: 600;
-      visibility: hidden;
-    }
-    .lm-ik-progress__label > .lm-ik-progress__dot {
-      display: inline-block;
-      margin-right: 4px;
-      vertical-align: 1px;
-    }
-    .lm-ik-progress__one {
-      display: none;
-    }
-  }
-  @media (min-width: 64rem) {
-    .lm-ik-progress {
-      min-width: 440px;
-    }
   }
 
-  /* ---- live readout rail (below 768 px; from 768 px "Your picture so far" sits beside the answers) ---- */
+  /* ---- live readout rail (below 768 px, until the result card shows; from 768 px the picture panel has it) ---- */
   .lm-ik-rail {
     display: grid;
     gap: 8px;
-    padding: 4px 0;
-    border-bottom: 1px solid var(--lm-line);
-    font-size: var(--lm-text-sm);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
   .lm-ik-rail__head {
     display: flex;
@@ -205,13 +69,47 @@
   .lm-ik-rail__text {
     min-width: 0;
     overflow-wrap: anywhere;
+    color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
   }
 
-  /* ---- answered list (COMPONENTS §14.2) ---- */
-  .lm-ik-answers {
-    display: grid;
-    gap: 4px;
+  /* ---- a disclosure ("What drives it" under the maintenance result) ---- */
+  .lm-ik-fold {
+    min-width: 0;
+  }
+  .lm-ik-fold > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--lm-hit-touch);
+    cursor: pointer;
+    list-style: none;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 400;
+    color: var(--lm-signal);
+    border-radius: var(--lm-radius-xs);
+  }
+  .lm-ik-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+  /* the chevron: a drawn mark that turns down when open */
+  .lm-ik-fold > summary::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    margin-left: 2px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-ik-fold[open] > summary::after {
+    transform: rotate(45deg);
+  }
+  .lm-ik-fold > summary:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
   }
   .lm-ik-list {
     display: grid;
@@ -230,7 +128,7 @@
     gap: 2px 12px;
     min-height: 56px;
     padding-block: 12px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-ik-row-a[data-depth] {
     padding-left: 16px;
@@ -246,35 +144,23 @@
     top: 0;
     bottom: 0;
     width: 1px;
-    background: var(--lm-line-strong);
+    background: var(--lm-line);
   }
   .lm-ik-row-a[data-depth='2']::before {
     left: 22px;
   }
   .lm-ik-row-a__q {
     grid-column: 1;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    font-size: 13px;
-    line-height: 18px;
-    font-weight: 500;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
-  }
-  .lm-ik-row-a__dot {
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 1px var(--lm-ink-2);
-    transform: translateY(-1px);
   }
   .lm-ik-row-a__a {
     grid-column: 1;
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 500;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
     color: var(--lm-ink);
     overflow-wrap: anywhere;
   }
@@ -289,8 +175,13 @@
   }
   .lm-ik-row-a__key {
     grid-column: 2;
-    grid-row: 2;
-    align-self: start;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  /* the receipt ends on its last answer: no rule under it */
+  .lm-ik-receipt-end .lm-ik-row-a:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
   }
   .lm-ik-list__slot {
     position: relative;
@@ -299,73 +190,81 @@
   .lm-ik-list__slot[data-depth] {
     padding-left: 16px;
   }
-  .lm-ik-list__more {
-    margin: 4px 0 0;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-3);
+
+  /* ---- the step: the maintenance result when it leads, then the open question ---- */
+  .lm-ik-step {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+    scroll-margin-top: calc(var(--lm-header-h, 0px) + 12px);
   }
 
-  /* ---- question card (COMPONENTS §14.3): an inset region inside the list, never a nested faceplate ---- */
+  /* ---- the open question (COMPONENTS §14.3): the step's one card ---- */
   .lm-ik-card {
     display: grid;
     gap: 12px;
     min-width: 0;
-    margin: 12px 0;
-    padding: 16px;
-    background: var(--lm-well);
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-md);
-    scroll-margin-top: 30vh;
+    margin: 0;
+    padding: var(--lm-card-pad);
+    scroll-margin-top: calc(var(--lm-header-h, 0px) + 12px);
+    scroll-margin-bottom: calc(var(--lm-actionbar-h, 0px) + 16px);
+  }
+  @media (min-width: 64rem) {
+    .lm-ik-card {
+      padding: var(--lm-card-pad-lg);
+    }
+  }
+  /* Your body: the card sits inside the maintenance card, so it is a plain well there (never a card in a card) */
+  .lm-face .lm-ik-card {
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+  .lm-face .lm-ik-list__slot .lm-ik-card {
+    padding-block: 12px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   @media (prefers-reduced-motion: no-preference) {
     :root:not([data-motion='reduce']) .lm-ik-card {
-      animation: lm-ik-enter var(--lm-dur-slow) var(--lm-ease-needle) both;
+      animation: lm-ik-enter var(--lm-dur-base) var(--lm-ease-out) both;
     }
   }
   @keyframes lm-ik-enter {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(6px);
     }
   }
-  .lm-ik-card__intro {
-    margin: 0;
+  .lm-ik-card__state,
+  .lm-ik-card__context {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    max-width: 60ch;
-  }
-  .lm-ik-card__count {
-    color: var(--lm-ink-3);
-  }
-  .lm-ik-chip-parent {
-    justify-self: start;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 24px;
-    max-width: 100%;
-    padding: 2px 10px;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: 999px;
-    background: var(--lm-face);
-    font-size: var(--lm-text-xs);
-    line-height: 16px;
-    font-weight: 500;
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-chip-parent > span {
     overflow-wrap: anywhere;
+  }
+  .lm-ik-card__state {
+    color: var(--lm-signal);
   }
   .lm-ik-card__prompt {
     float: left;
     width: 100%;
     padding: 0;
-    font-size: 1.0625rem;
-    line-height: 1.5rem;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
     font-weight: 600;
+    letter-spacing: var(--lm-text-title-l--ls, -0.01em);
     color: var(--lm-ink);
+    text-wrap: pretty;
+  }
+  /* a card with "Why we ask": the prompt leaves room for the info key at the card's top-right corner */
+  .lm-ik-card[data-why] > .lm-ik-card__prompt {
+    padding-inline-end: 48px;
+  }
+  .lm-face .lm-ik-card__prompt {
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
   }
   .lm-ik-card__prompt + * {
     clear: both;
@@ -375,116 +274,127 @@
   .lm-ik-card__prompt:focus-visible {
     outline: none;
   }
-  .lm-ik-card__default {
-    margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-3);
-  }
-  .lm-ik-card__foot {
+
+  /* ---- the step row: Back (text) · Cancel / Skip (text) · Next (gold pill). In the card on Your body; the screen's
+          ActionBar on the chapter screen (docked at the bottom on phones by the shell) ---- */
+  .lm-ik-nav {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
     gap: 8px;
+    min-width: 0;
+  }
+  .lm-ik-card > .lm-ik-nav {
     margin-top: 4px;
     padding-top: 12px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
-  .lm-ik-card__foot-right {
+  .lm-ik-nav__end {
     display: inline-flex;
     flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
     gap: 8px;
     margin-left: auto;
   }
   /* a widget's own keys (markers table: Save 6 values) in Next's place */
-  .lm-ik-card__foot-slot {
+  .lm-ik-nav__slot {
     display: contents;
   }
+  /* desktop: the docked row lines up under the step's column, not under the picture panel */
+  @media (min-width: 48rem) {
+    .lm-actionbar-slot .lm-actionbar > .lm-ik-nav[data-docked] {
+      flex: 0 1 calc((100% - 16px) * 0.75);
+    }
+  }
+  /* Docked at the foot of a phone or tablet screen, the row sits on the shell's control pill (shell.css: the nav
+     pill's material, so nothing scrolling under it shows through Back, Skip or Next): one line, and Back's text keeps
+     the pill's inset instead of hanging into the gutter. */
+  @media (max-width: 63.99rem) {
+    .lm-actionbar-slot[data-docked] .lm-ik-nav,
+    .lm-actionbar-slot[data-docked] .lm-ik-nav__end {
+      flex-wrap: nowrap;
+    }
+  }
 
-  /* ---- maintenance result and chapter receipt (inset regions with the card's metrics) ---- */
+  /* ---- the fix Next names when there is nothing to keep yet (rose, under the answers; out of the layout while empty,
+          but still in the tree so its live region speaks) ---- */
+  .lm-ik-nudge {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-danger-fg);
+  }
+  .lm-ik-nudge:empty {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  /* ---- maintenance result and chapter receipt ---- */
   .lm-ik-result,
   .lm-ik-receipt-end {
     display: grid;
     gap: 12px;
     min-width: 0;
-    margin: 12px 0;
-    padding: 16px;
-    background: var(--lm-well);
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-md);
+    margin: 0;
+    padding: var(--lm-card-pad);
+  }
+  @media (min-width: 64rem) {
+    .lm-ik-result,
+    .lm-ik-receipt-end {
+      padding: var(--lm-card-pad-lg);
+    }
   }
   .lm-ik-result--plain {
-    margin: 0;
     padding: 0;
     background: none;
     border: 0;
+    border-radius: 0;
   }
   .lm-ik-result__title {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-ik-readout-wrap {
+    display: grid;
+    gap: var(--lm-row-gap);
+    min-width: 0;
   }
   .lm-ik-result__measured {
     color: var(--lm-ink) !important;
-  }
-  .lm-ik-receipt-end__head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 4px 12px;
-  }
-  .lm-ik-receipt-end__counts {
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-receipt-end__keys {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .lm-ik-maint > .lm-ik-result__title {
-    margin-top: 8px;
   }
   .lm-ik-measured .lm-ik-inline {
     flex-wrap: wrap;
   }
 
+  /* ---- "Why we ask": an info key at the card's top-right corner (r068 ON-8); its answer opens under the prompt ---- */
+  .lm-ik-card {
+    position: relative;
+  }
   .lm-ik-turn__why {
-    display: grid;
-    gap: 4px;
+    display: contents;
   }
   .lm-ik-why {
-    justify-self: start;
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-    min-height: 32px;
-    padding: 0;
-    border: 0;
-    background: none;
-    font: inherit;
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-    cursor: pointer;
+    position: absolute;
+    top: var(--lm-card-pad);
+    right: var(--lm-card-pad);
   }
-  .lm-ik-why__chev {
-    display: inline-block;
-    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
-  }
-  .lm-ik-why__chev.is-open {
-    transform: rotate(180deg);
+  .lm-face .lm-ik-why {
+    top: -10px;
+    right: -10px;
   }
   .lm-ik-why__text {
     margin: 0;
     max-width: 60ch;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
   }
   .lm-ik-turn__answers {
@@ -492,6 +402,7 @@
     gap: 12px;
     min-width: 0;
   }
+  /* a widget's commit outside a question card (it hands it to Next inside one) */
   .lm-ik-done {
     display: flex;
     justify-content: flex-end;
@@ -503,15 +414,27 @@
     align-items: center;
   }
 
-  /* ---- answer keys (single choice) ---- */
+  /* ---- answer keys (single choice): Lumen picker rows — card-soft, hairline, gold wash when chosen ---- */
+  /* one column of full-width choices on a phone (a long answer never breaks into three lines beside a short one);
+     two from 480 px, three from 768 px (r068 ON-3) */
   .lm-ik-keys {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
+  }
+  @media (min-width: 30rem) {
+    .lm-ik-keys {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
   @media (min-width: 48rem) {
     .lm-ik-keys {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }  /* (r068 final M8) four answers sit 2 × 2, not three and one left over */
+  @media (min-width: 48rem) {
+    .lm-ik-keys:has(> :nth-child(4):last-child) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
   .lm-ik-keys--cards {
@@ -522,7 +445,7 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
-  .lm-ik-keys--presets {
+  .lm-ik-keys.lm-ik-keys--presets {
     grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
   }
   .lm-ik-key {
@@ -531,12 +454,11 @@
     align-content: center;
     gap: 2px;
     min-width: 0;
-    min-height: 64px;
-    padding: 10px 12px 10px 20px;
-    border-radius: var(--lm-radius-sm);
-    border: 1px solid var(--lm-edge);
+    min-height: 56px;
+    padding: 10px 14px;
+    border-radius: var(--lm-radius-md);
+    border: var(--lm-hairline) solid var(--lm-line);
     background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-key);
     color: var(--lm-ink);
     font: inherit;
     text-align: left;
@@ -544,99 +466,144 @@
     touch-action: manipulation;
     transition:
       background-color var(--lm-dur-fast) var(--lm-ease-out),
-      color var(--lm-dur-fast) var(--lm-ease-out),
-      box-shadow var(--lm-dur-instant) var(--lm-ease-press),
-      transform var(--lm-dur-instant) var(--lm-ease-press);
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-ik-keys--presets .lm-ik-key {
     min-height: 48px;
     padding-block: 8px;
+    text-align: center;
   }
   .lm-ik-key[data-cards='true'] {
-    min-height: 72px;
+    min-height: 64px;
   }
-  .lm-ik-key:hover {
-    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
+  @media (hover: hover) {
+    .lm-ik-key:hover {
+      background: var(--lm-elevated);
+    }
+  }
+  .lm-ik-key:active {
+    background: var(--lm-elevated);
   }
   .lm-ik-key[aria-pressed='true'] {
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    box-shadow: var(--lm-shadow-key-pressed);
-    transform: translateY(1px);
-  }
-  .lm-ik-key[aria-pressed='true']::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 8px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+    background: var(--lm-gold-wash);
+    border-color: var(--lm-gold-edge);
   }
   .lm-ik-key__label {
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 500;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
     overflow-wrap: anywhere;
   }
+  /* (r068 final S8) answers are written lowercase so they also read inside sentences ("using not sure"); as a key they
+     start with a capital, like every other control label */
+  .lm-ik-key__label::first-letter {
+    text-transform: uppercase;
+  }
   .lm-ik-key__examples {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
-  .lm-ik-key[aria-pressed='true'] .lm-ik-key__examples,
-  .lm-ik-key[aria-pressed='true'] .lm-ik-key__default {
-    color: color-mix(in oklab, var(--lm-ink-inverse), transparent 20%);
-  }
-  .lm-ik-key__default {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-3);
-  }
 
-  /* ---- answer chips (multi select) ---- */
+  /* ---- answer chips (multi select): a regular grid of checkbox rows in the card's language (rounded rectangles,
+     gold wash + gold edge when ticked) — two columns on a phone, as many 11rem columns as fit from 768 px; never a
+     ragged cloud of pills (r068 ON-2) ---- */
   .lm-ik-chips {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     min-width: 0;
   }
+  @media (min-width: 48rem) {
+    .lm-ik-chips {
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+    }
+  }
   .lm-ik-chip {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     min-height: 44px;
-    max-width: 100%;
-    padding: 6px 14px 6px 10px;
-    border-radius: var(--lm-radius-sm);
-    border: 1px solid var(--lm-edge);
+    min-width: 0;
+    padding: 8px 12px;
+    border-radius: var(--lm-radius-md);
+    border: var(--lm-hairline) solid var(--lm-line);
     background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-key);
     color: var(--lm-ink);
     font: inherit;
-    font-size: var(--lm-text-base);
+    font-size: var(--lm-text-body);
     line-height: 1.25;
     text-align: left;
+    overflow-wrap: anywhere;
     cursor: pointer;
     touch-action: manipulation;
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  /* the small label over a group of choices ("Start from a pattern", "Foods you eat") */
+  .lm-ik-grouplabel {
+    margin: 4px 0 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lm-ik-presetgrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  /* a long pattern name ("vegetarian (with dairy)") wraps inside its tile instead of being cut */
+  .lm-ik-presetgrid > .lm-key.lm-key {
+    height: auto;
+    min-height: 48px;
+    padding-block: 8px;
+    white-space: normal;
+  }
+  .lm-ik-presetgrid > .lm-key.lm-key .lm-key__label {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    text-align: center;
+  }
+  @media (min-width: 48rem) {
+    .lm-ik-presetgrid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (hover: hover) {
+    .lm-ik-chip:hover {
+      background: var(--lm-elevated);
+    }
   }
   .lm-ik-chip[aria-checked='true'] {
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    box-shadow: var(--lm-shadow-key-pressed);
+    background: var(--lm-gold-wash);
+    border-color: var(--lm-gold-edge);
   }
+  /* the tick box: an outline when off, gold with a dark tick when on */
   .lm-ik-chip__box {
     flex: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
-    box-shadow: inset 0 0 0 1px var(--lm-edge);
+    position: relative;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--lm-radius-xs);
+    border: 1px solid var(--lm-ink-3);
   }
   .lm-ik-chip[aria-checked='true'] .lm-ik-chip__box {
     background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+    border-color: var(--lm-signal);
+  }
+  .lm-ik-chip[aria-checked='true'] .lm-ik-chip__box::after {
+    content: '';
+    position: absolute;
+    left: 4.5px;
+    top: 1.5px;
+    width: 4px;
+    height: 8px;
+    border-right: 1.5px solid var(--lm-signal-ink);
+    border-bottom: 1.5px solid var(--lm-signal-ink);
+    transform: rotate(45deg);
   }
   .lm-ik-chip__rank {
     flex: none;
@@ -647,12 +614,13 @@
     border-radius: 50%;
     background: var(--lm-signal);
     color: var(--lm-signal-ink);
-    font-size: var(--lm-text-xs);
-    font-weight: 600;
+    font-size: var(--lm-text-body-s);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
   }
   .lm-ik-chip__examples {
-    font-size: var(--lm-text-xs);
-    opacity: 0.8;
+    font-size: var(--lm-text-body-s);
+    color: var(--lm-ink-2);
   }
   .lm-ik-other {
     display: grid;
@@ -680,10 +648,11 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding-left: 10px;
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-well);
-    font-size: var(--lm-text-sm);
+    padding-left: 12px;
+    border-radius: var(--lm-radius-full);
+    border: var(--lm-hairline) solid var(--lm-line);
+    background: var(--lm-face);
+    font-size: var(--lm-text-body);
   }
 
   /* ---- numbers ---- */
@@ -705,8 +674,8 @@
     min-width: 0;
   }
   .lm-ik-row__label {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
   .lm-ik-inline {
@@ -718,15 +687,15 @@
   }
   .lm-ik-group-title {
     margin: 4px 0 0;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    font-weight: 500;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-ik-note {
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
     max-width: 60ch;
   }
@@ -735,7 +704,7 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     padding: 8px 0;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   @media (min-width: 48rem) {
     .lm-ik-bankrow {
@@ -744,89 +713,105 @@
     }
   }
   .lm-ik-bankrow__name {
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
   .lm-ik-sportrow {
     display: grid;
     gap: 8px;
     padding: 10px 0;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
 
-  /* ---- chapter end ---- */
-  .lm-ik-end {
-    display: grid;
-    gap: 12px;
-    padding-top: 16px;
-    border-top: 1px solid var(--lm-line-strong);
+  /* Shared StackBar and table twin use the ember intensity ramp. Labels carry identity; assumed parts are marked. */
+  .lm-ik-driverbar,
+  .lm-ik-table {
+    --lm-ik-part-1: var(--lm-intensity-resting);
+    --lm-ik-part-2: var(--lm-intensity-light);
+    --lm-ik-part-3: var(--lm-intensity-active);
+    --lm-ik-part-4: var(--lm-intensity-exercise);
+    --lm-ik-part-5: var(--lm-intensity-light);
+    --lm-ik-part-6: var(--lm-intensity-active);
+    --lm-ik-part-7: var(--lm-intensity-exercise);
+    --lm-ik-part-8: var(--lm-intensity-light);
+    --lm-ik-part-9: color-mix(in oklab, var(--lm-ink-3) 60%, var(--lm-face));
   }
-
-  /* ---- driver bar (COMPONENTS §13.2) ---- */
+  .lm-ik-table tbody tr:nth-child(1) {
+    --lm-ik-part: var(--lm-ik-part-1);
+  }
+  .lm-ik-table tbody tr:nth-child(2) {
+    --lm-ik-part: var(--lm-ik-part-2);
+  }
+  .lm-ik-table tbody tr:nth-child(3) {
+    --lm-ik-part: var(--lm-ik-part-3);
+  }
+  .lm-ik-table tbody tr:nth-child(4) {
+    --lm-ik-part: var(--lm-ik-part-4);
+  }
+  .lm-ik-table tbody tr:nth-child(5) {
+    --lm-ik-part: var(--lm-ik-part-5);
+  }
+  .lm-ik-table tbody tr:nth-child(6) {
+    --lm-ik-part: var(--lm-ik-part-6);
+  }
+  .lm-ik-table tbody tr:nth-child(7) {
+    --lm-ik-part: var(--lm-ik-part-7);
+  }
+  .lm-ik-table tbody tr:nth-child(8) {
+    --lm-ik-part: var(--lm-ik-part-8);
+  }
+  .lm-ik-table tbody tr:nth-child(9) {
+    --lm-ik-part: var(--lm-ik-part-9);
+  }
   .lm-ik-driverbar {
     display: grid;
-    gap: 8px;
+    gap: 10px;
     min-width: 0;
-  }
-  .lm-ik-driverbar__bar {
-    display: flex;
-    height: 20px;
-    gap: 2px;
-    min-width: 0;
-    background: var(--lm-face);
-  }
-  .lm-ik-driverbar__seg {
-    position: relative;
-    min-width: 2px;
-    background: var(--lm-cat-energy);
-    transition: flex-grow var(--lm-dur-needle) var(--lm-ease-out);
-  }
-  .lm-ik-driverbar__seg[data-alt='true'] {
-    background: color-mix(in oklab, var(--lm-cat-energy) 55%, var(--lm-face));
-  }
-  .lm-ik-driverbar__seg[data-assumed='true'] {
-    outline: 1px dashed var(--lm-ink);
-    outline-offset: -1px;
-  }
-  .lm-ik-driverbar__labels {
-    display: flex;
-    gap: 2px;
-    min-width: 0;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-driverbar__labels > span {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
+    container-type: inline-size;
   }
   .lm-ik-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     table-layout: fixed;
-  }
-  .lm-ik-table caption {
-    text-align: left;
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-    padding-bottom: 4px;
   }
   .lm-ik-table th,
   .lm-ik-table td {
-    padding: 6px 6px 6px 0;
-    border-bottom: 1px solid var(--lm-line);
+    padding: 8px 6px 8px 0;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
     text-align: left;
     vertical-align: top;
     overflow-wrap: anywhere;
     font-weight: 400;
   }
   .lm-ik-table thead th {
-    font-weight: 500;
-    font-size: var(--lm-text-xs);
+    font-weight: 400;
+    font-size: var(--lm-text-body-s);
     color: var(--lm-ink-2);
+  }
+  .lm-ik-table tbody th {
+    font-weight: 400;
+    color: var(--lm-ink);
+  }
+  /* each row's swatch names its segment (a 10 px dot on the label's first line, as on /body) */
+  .lm-ik-table tbody .lm-ik-table__label {
+    position: relative;
+    padding-left: 18px;
+  }
+  .lm-ik-table tbody .lm-ik-table__label::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: calc(8px + (var(--lm-text-body--lh) - 10px) / 2);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--lm-ik-part, var(--lm-ik-part-1));
+  }
+  .lm-ik-table tbody tr:has(.lm-ik-assumed) .lm-ik-table__label::before {
+    outline: 1px dashed var(--lm-ink);
+    outline-offset: -1px;
   }
   .lm-ik-table .lm-ik-num {
     text-align: right;
@@ -834,21 +819,15 @@
     width: 4rem;
   }
   .lm-ik-table .lm-ik-table__part {
-    width: 32%;
-  }
-  .lm-ik-table .lm-ik-table__act {
-    width: 5.5rem;
-    padding-right: 0;
-    text-align: right;
-    overflow-wrap: normal;
-  }
-  .lm-ik-table .lm-ik-table__part {
     width: 30%;
   }
-  /* Narrow rows keep the amount aligned and give its source a readable measure. */
+  .lm-ik-table__source {
+    color: var(--lm-ink-2);
+  }
+  /* Narrow rows keep the amount aligned and give its source a readable measure; the header is one row (Part · kcal a
+     day): the "From" heading stays for screen readers only */
   @media (max-width: 47.99rem) {
     .lm-ik-table,
-    .lm-ik-table caption,
     .lm-ik-table thead,
     .lm-ik-table tbody {
       display: block;
@@ -858,7 +837,7 @@
       grid-template-columns: minmax(0, 1fr) max-content;
       gap: var(--lm-space-1) var(--lm-space-2);
       padding-block: var(--lm-space-2);
-      border-bottom: 1px solid var(--lm-line);
+      border-bottom: var(--lm-hairline) solid var(--lm-line);
       align-items: start;
     }
     .lm-ik-table th,
@@ -868,6 +847,14 @@
       padding: 0;
       border: 0;
       overflow-wrap: normal;
+    }
+    .lm-ik-table thead .lm-ik-table__source {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
     .lm-ik-table .lm-ik-table__part,
     .lm-ik-table .lm-ik-table__label {
@@ -885,38 +872,28 @@
       grid-column: 1;
       grid-row: 2;
     }
-    .lm-ik-table .lm-ik-table__act {
-      grid-column: 2;
-      grid-row: 2;
-      width: auto;
-      justify-self: end;
-    }
-    .lm-ik-table__act .lm-key {
-      min-height: var(--lm-hit-touch);
+    .lm-ik-table tbody .lm-ik-table__label::before {
+      top: calc((var(--lm-text-body--lh) - 10px) / 2);
     }
   }
-  /* Your body › Maintenance: chapter A's answers fold under a disclosure (inline, never a sheet) */
-  .lm-ik-fold {
-    border-top: 1px solid var(--lm-line);
-    padding-top: 4px;
+  /* compact (Your body): part · amount with its unit; the space before the unit is the text's own */
+  .lm-ik-table[data-compact='true'] .lm-ik-num {
+    width: 7rem;
+    white-space: nowrap;
   }
-  .lm-ik-fold > summary {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    cursor: pointer;
-    font-size: var(--lm-text-base);
-    font-weight: 600;
-    list-style-position: inside;
+  .lm-ik-table[data-compact='true'] .lm-unit {
+    margin-left: 0;
   }
-  .lm-ik-fold > summary:focus-visible {
-    outline: 2px solid var(--lm-focus);
-    outline-offset: 2px;
+  .lm-ik-table__sub {
+    display: block;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
   }
   .lm-ik-assumed {
     display: block;
     color: var(--lm-ink-3);
-    font-size: var(--lm-text-xs);
+    font-size: var(--lm-text-body-s);
   }
 
   /* ---- maintenance result ---- */
@@ -929,10 +906,14 @@
     display: grid;
     gap: 6px;
   }
+  /* nothing to say (no warning, no measured figure, no unknown worth fixing): no empty row in the card's gap */
+  .lm-ik-maint__lines:empty {
+    display: none;
+  }
   .lm-ik-maint__lines p {
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
     max-width: 62ch;
   }
@@ -947,6 +928,7 @@
     flex: 1 1 16rem;
     color: var(--lm-ink);
   }
+
   /* ---- "Your picture so far" ---- */
   .lm-ik-picture {
     display: grid;
@@ -958,104 +940,50 @@
     row-gap: 2px;
     white-space: normal;
   }
-  .lm-ik-picture .lm-ik-driverbar__labels > span {
-    text-overflow: ellipsis;
-  }
-  @media (min-width: 48rem) and (max-width: 63.99rem) {
-    .lm-ik-picture .lm-ik-summary__row dd {
-      font-size: var(--lm-text-sm);
-      line-height: var(--lm-text-sm--lh);
-    }
-  }
-
-  /* the summary's keys in the action bar (once): they fill the phone foot bar, Back then the wider primary key; on desktop
-     the status sits on the left and the keys keep their own width on the right */
-  .lm-ik-summary-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    min-width: 0;
-  }
-  .lm-ik-summary-keys {
-    display: flex;
-    gap: 8px;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-  .lm-ik-summary-keys > * {
-    flex: 1 1 auto;
-  }
-  .lm-ik-summary-keys > .lm-key[data-variant='solid'] {
-    flex: 2 1 auto;
-  }
-  @media (min-width: 64rem) {
-    .lm-ik-summary-keys {
-      flex: 0 0 auto;
-      margin-inline-start: auto;
-    }
-    .lm-ik-summary-keys > * {
-      flex: none;
-    }
-  }
-
-  /* ---- summary: the whole content width, one column; each row is its own full-width line. From 768 px a row reads as
-          label | answer | change with a fixed label column; on a phone the label sits above the answer ---- */
-  .lm-ik-summary {
-    display: grid;
-    gap: 16px;
-    padding-block: 8px 96px;
-    min-width: 0;
-  }
-  @media (min-width: 48rem) {
-    .lm-ik-summary {
-      padding-block: 0 32px;
-    }
-  }
   .lm-ik-summary__rows {
     display: grid;
     margin: 0;
   }
   .lm-ik-summary__row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 12px;
-    padding-block: 12px;
-    border-bottom: 1px solid var(--lm-line);
+    gap: 2px;
+    padding-block: 10px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
-  /* the card ends on its last row (the page's keys live in the action bar) */
-  .lm-ik-summary__row:last-child {
-    border-bottom: 0;
+  .lm-ik-summary__rows[data-lead='true'] > .lm-ik-summary__row:first-child {
+    padding-top: 0;
+    border-top: 0;
   }
   .lm-ik-summary__row dt {
-    grid-column: 1;
-    font-size: var(--lm-text-xs);
-    font-weight: 500;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
   .lm-ik-summary__row dd {
-    grid-column: 1;
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     overflow-wrap: anywhere;
   }
-  /* ---- "What we'll use": the parts. Each part is a heading with its change key, then one labelled line per answer,
-          with a hairline above every part but the first (no nested cards). From 768 px the labels are a fixed column. ---- */
-  .lm-ik-parts {
+
+  /* ---- "What we'll use": a heading with its Change key over one card of single-line rows per part ---- */
+  /* every part is the same card: its name and a secondary Change / Answer key, then its rows or one quiet line */
+  .lm-ik-summary {
     display: grid;
+    gap: var(--lm-stack);
     min-width: 0;
+    padding-block: 4px 24px;
   }
   .lm-ik-part {
     display: grid;
-    gap: 12px;
-    padding-block: 20px;
-    border-top: 1px solid var(--lm-line);
+    gap: var(--lm-card-gap);
     min-width: 0;
+    padding: var(--lm-card-pad);
   }
-  .lm-ik-part:first-child {
-    border-top: 0;
-    padding-top: 8px;
+  @media (min-width: 64rem) {
+    .lm-ik-part {
+      padding: var(--lm-card-pad-lg);
+    }
   }
   .lm-ik-part__head {
     display: flex;
@@ -1066,7 +994,9 @@
   }
   .lm-ik-part__name {
     margin: 0;
-    font-size: var(--lm-text-md, 15px);
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     font-weight: 600;
     color: var(--lm-ink);
     min-width: 0;
@@ -1074,174 +1004,186 @@
   }
   .lm-ik-part__rows {
     display: grid;
-    gap: 10px;
     margin: 0;
     min-width: 0;
   }
   .lm-ik-part__row {
+    position: relative;
     display: grid;
-    gap: 2px;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: baseline;
+    gap: 12px;
+    min-height: 48px;
+    padding-block: 12px;
     min-width: 0;
   }
+  /* inset hairlines: inside the card's padding, aligned to the text */
+  .lm-ik-part__row + .lm-ik-part__row {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
   .lm-ik-part__row dt {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    font-weight: 500;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
   }
   .lm-ik-part__row dd {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+    text-align: right;
     overflow-wrap: anywhere;
   }
   .lm-ik-part__row[data-later='true'] dd,
   .lm-ik-part__none {
     color: var(--lm-ink-3);
   }
+  /* a row that opens its question: the value with a trailing chevron, the whole row the target (Lumen list rows) */
+  .lm-ik-part__link {
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 100%;
+    color: inherit;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lm-ik-part__link > span {
+    min-width: 0;
+  }
+  .lm-ik-part__link > .lm-icon {
+    flex: none;
+    align-self: center;
+    color: var(--lm-ink-3);
+    transition: color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-ik-part__link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--lm-radius-sm);
+  }
+  .lm-ik-part__link:focus-visible {
+    outline: none;
+  }
+  .lm-ik-part__link:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  @media (hover: hover) {
+    .lm-ik-part__link:hover > .lm-icon {
+      color: var(--lm-ink);
+    }
+  }
   .lm-ik-part__none {
     margin: 0;
-    font-size: var(--lm-text-base);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
-  @media (min-width: 48rem) {
-    .lm-ik-part__row {
-      grid-template-columns: minmax(8rem, 13rem) minmax(0, 1fr);
-      column-gap: 16px;
-      align-items: baseline;
-    }
-    .lm-ik-part__row dt {
-      font-size: var(--lm-text-sm);
-      line-height: var(--lm-text-sm--lh);
-    }
-  }
+}
 
-  /* ---- devices: route cards, "How your data is used", stream matrix (COMPONENTS §13.15) ---- */
-  .lm-ik-howused {
-    display: grid;
-    gap: 6px;
+@layer components {
+  .lm-ik-result .lm-cardhead {
+    margin-bottom: 2px;
   }
-  .lm-ik-howused[hidden] {
-    display: none;
+  .lm-ik-result .lm-hero {
+    display: block;
   }
-  .lm-ik-routes {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+  .lm-ik-rail__text .lm-hero {
+    font-size: var(--lm-text-num);
   }
-  .lm-ik-route {
-    display: grid;
-    gap: 2px;
-    padding: 10px 12px;
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
+  .lm-ik-table tbody tr {
+    position: relative;
   }
-  .lm-ik-route__name {
-    font-weight: 600;
-    font-size: var(--lm-text-base);
-  }
-  .lm-ik-route__text {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-matrix {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: var(--lm-text-sm);
-  }
-  .lm-ik-matrix th,
-  .lm-ik-matrix td {
-    padding: 8px 8px 8px 0;
-    border-bottom: 1px solid var(--lm-line);
-    text-align: left;
-    vertical-align: middle;
-  }
-  .lm-ik-matrix thead th {
-    font-size: var(--lm-text-xs);
-    font-weight: 500;
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-matrix tbody th {
-    font-weight: 500;
-  }
-  .lm-ik-matrix-blocks {
-    display: grid;
-  }
-  .lm-ik-matrix-block {
-    display: grid;
-    gap: 8px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--lm-line);
-  }
-  .lm-ik-matrix-block__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .lm-ik-matrix-block__name {
-    font-weight: 600;
-  }
-  .lm-ik-matrix-block__rest {
-    display: grid;
-    gap: 6px;
-    margin: 0;
-    padding-top: 8px;
-    border-top: 1px solid var(--lm-line);
-  }
-  .lm-ik-matrix-block__rest > div {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .lm-ik-matrix-block__rest dt {
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-matrix-block__rest dd {
-    margin: 0;
-  }
-  .lm-ik-cell {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .lm-ik-cell__hint {
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-never {
-    display: inline-grid;
-    gap: 4px;
-    color: var(--lm-ink-2);
-  }
-  .lm-ik-never__key {
-    min-height: 32px;
+  .lm-ik-table__link {
     padding: 0;
     border: 0;
     background: none;
-    font: inherit;
     color: inherit;
-    text-align: left;
+    font: inherit;
+    text-align: start;
     cursor: pointer;
   }
-  .lm-ik-never__why {
-    max-width: 28ch;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
+  .lm-ik-table__link::after,
+  .lm-ik-row-a__key::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--lm-radius-xs);
   }
-
-  /* ---- Your body: a normal day, Your setup ---- */
-  .lm-ik-normalday {
+  .lm-ik-table__link:focus-visible,
+  .lm-ik-row-a__key:focus-visible {
+    outline: none;
+  }
+  .lm-ik-table__link:focus-visible::after,
+  .lm-ik-row-a__key:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-ik-row-a__key {
     display: grid;
-    gap: 4px;
-    padding-bottom: 8px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid var(--lm-line);
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lm-ink-2);
+    cursor: pointer;
+  }
+  .lm-ik-row-a__state {
+    grid-column: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lm-ik-row-a__state::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+  }
+  .lm-ik-part__foot {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+  }
+  .lm-ik-summary[data-empty='true'] {
+    padding: var(--lm-card-pad);
+    gap: 0;
+  }
+  .lm-ik-summary[data-empty='true'] .lm-ik-part {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 16px 0;
+  }
+  .lm-ik-summary[data-empty='true'] .lm-ik-part__head { display: grid; gap: 6px; }
+  .lm-ik-summary[data-empty='true'] .lm-ik-part__none { display: none; }
+  .lm-ik-summary[data-empty='true'] .lm-ik-part__foot { margin: 0; }
+  .lm-ik-summary[data-empty='true'] .lm-ik-part + .lm-ik-part {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-ik-driverbar .lmz-stack__seg[data-unknown='true'] {
+    outline: 1px dashed var(--lm-ink);
+    outline-offset: -1px;
+  }
+  @media (hover: hover) {
+    .lm-ik-table tbody tr:has(.lm-ik-table__link):hover,
+    .lm-ik-row-a:has(.lm-ik-row-a__key):hover {
+      background: var(--lm-face-hover);
+    }
+  }
+}
+
+@layer components {
+  .lm-ik-summary__row[data-state] dt { display: flex; align-items: center; gap: 8px; }
+  .lm-ik-summary__row[data-state] dt::before { content: ''; width: 6px; height: 6px; border: 1px solid var(--lm-ink-2); border-radius: 50%; }
+  .lm-ik-summary__row[data-state='answered'] dt::before { border-color: var(--lm-signal); background: var(--lm-signal); }
+  .lm-ik-summary__row[data-state='later'] dt::before { border-color: var(--lm-signal); background: var(--lm-signal); border-inline-end: 3px solid var(--lm-face); }
+  .lm-ik-picture { container-type: inline-size; }
+  @container (max-width: 14rem) {
+    .lm-ik-picture .lm-hero[data-size] { --lm-hero-fs: var(--lm-text-time); }
   }
 }

@@ -1,5 +1,12 @@
 import type { EvidenceTopic } from '../schema';
 
+/** One current definition for the transition and wellbeing evidence consumers. */
+export const INDUCTION_MODEL_DESCRIPTION =
+  'The induction curve starts on the first eating day below 50 g/day after not being below that model knee. Its trigger-day load is zero, with positive subsequent daily samples. The amplitude uses the drop from the previous seven-day carbohydrate EMA to that day’s intake, not an unweighted seven-day mean or a seven-day trigger threshold. A fasting-only day does not trigger it. A later low-carbohydrate crossing replaces the curve only if its starting amplitude exceeds the still-running load. The nominal peak time is 2.5 days; the 6-day branch is a designed sensitivity selected in 25 % of ensemble draws, not measured symptom prevalence. Sodium does not change it by default: a 30 % reduction at 2 g a day or more is kept only as an unvalidated sensitivity setting, never a salt recommendation or a promise of relief, and any electrolyte suggestion follows the kidney, blood-pressure and medication limits. The curve is not a personal symptom probability; actual dizziness or fatigue overrides a reassuring model tier.';
+
+export const INDUCTION_MODEL_EQUATION =
+  't_k = first eligible eating-day crossing from not below to C_day < 50 g/day, with fastSeenDay === 0\nA = clamp((C_prevEMA7 − C_day) / C_prevEMA7, 0, 1), or 0 if C_prevEMA7 ≤ 0\nΦ_max = A · (1 − s_Na · I[Na ≥ 2 g/day]); s_Na = 0 by default (0.3 only as an unvalidated sensitivity setting)\nΔt = day − t_k; Φ_ind = 0 for Δt ≤ 0, otherwise min(1, Φ_max · (Δt / τ_p) · exp(1 − Δt / τ_p))\nτ_p = 2.5 d nominal; τ_p = 6 d in the designed 25 % sensitivity branch\nRetrigger only if the new Φ_max exceeds the still-running Φ_ind';
+
 const topic: EvidenceTopic = {
   dossier: '13',
   slug: 'transitions-periodisation',
@@ -604,16 +611,14 @@ const topic: EvidenceTopic = {
       title: 'Induction symptoms when carbohydrate drops',
       category: 'performance',
       summary:
-        'In the first days of very-low-carbohydrate eating some people get flu-like symptoms (“keto flu”): headache, fatigue, nausea, dizziness, brain fog. In an analysis of 300 forum users, symptoms peaked in the first week and dwindled after 4 weeks, with a median time to resolution of 4.5 days (IQR 3–15). Submaximal endurance was preserved after about 4 weeks, but high-intensity performance is impaired while fat-adapted.',
-      howModelled:
-        'A symptom intensity rises and falls after carbohydrate drops below 50 g a day, peaking at about 2.5 days. Its size scales with how big the drop in carbohydrate is, and is reduced by 30 % when sodium is at least 2 g a day. A quarter of simulated users get a slower, 6-day profile.',
-      equation:
-        'Φ_ind(t) = Φ_max · (Δt / τ_p) · exp(1 − Δt / τ_p), Δt = days since carbohydrate fell below 50 g/d\nΦ_max = clamp((C_prev − C_new) / C_prev, 0, 1) · (1 − 0.3 · I[Na ≥ 2 g/d])\nτ_p = 2.5 d; 25 % of simulated users follow τ_p = 6 d',
+        'In the first days of very-low-carbohydrate eating some people get flu-like symptoms (“keto flu”): headache, fatigue, nausea, dizziness, brain fog. In an analysis of 300 forum users, symptoms peaked in the first week and dwindled after 4 weeks, with resolution timing reported by eight users (median 4.5 days, IQR 3–15). Submaximal endurance was preserved after about 4 weeks, but high-intensity performance is impaired while fat-adapted.',
+      howModelled: INDUCTION_MODEL_DESCRIPTION,
+      equation: INDUCTION_MODEL_EQUATION,
       keyNumbers: [
         {
           label: '300 forum users',
           value: 'Resolution between days 3 and 30; median 4.5 d (IQR 3–15)',
-          note: 'Symptoms peaked in the first week and dwindled after 4 weeks. 101 of 300 reported symptoms, which is not a prevalence.',
+          note: 'Symptoms peaked in the first week and dwindled after 4 weeks. 101 of 300 reported symptoms, which is not a prevalence; only eight reported resolution timing.',
           referenceIds: ['bostock2020'],
         },
         {
@@ -640,19 +645,41 @@ const topic: EvidenceTopic = {
         },
         {
           label: 'τ_p and sodium mitigation',
-          value: '2.5 d (6 d for 25 % of users); −30 % with sodium ≥ 2 g/d',
-          note: 'Proposed. The sodium effect is grade D. A carbohydrate refeed re-triggers symptoms in the model, scaled to its depth (grade D, no data).',
+          value:
+            '2.5 d (6 d in a designed 25 % sensitivity branch); sodium: none by default (−30 % at ≥ 2 g/d only as a sensitivity setting)',
+          note: 'Proposed curve, not a measured personal time course. The sodium effect and stronger-retrigger rule are unvalidated design sensitivities (grade D).',
         },
       ],
       timeCourse:
-        'Onset on days 1–3, peak at about 2–4 days, median resolution 4.5 days, and dwindling by 4 weeks.',
+        'Model: zero on the trigger day, then a smooth rise and fall peaking at 2.5 days (6 days in the sensitivity branch). Separately, forum symptom reports peaked in week 1 and dwindled by 4 weeks; only eight users reported resolution timing (median 4.5 days).',
       moderators: 'Size of the drop in carbohydrate, and possibly sodium intake (grade D).',
       grade: 'C',
       gradeReason: 'The evidence is self-reported and clinical description.',
       status: 'proposed-fit',
       caveats:
-        'The self-report data come from forum users, so they show how symptoms resolve, not how common they are.',
+        'Selected forum reports describe perceived symptoms, not prevalence or a validated personal time course. Reported symptoms override a low model tier; the curve cannot dismiss actual dizziness or fatigue.',
       referenceIds: ['bostock2020', 'nymo2017', 'chang2014', 'phinney1983', 'greene2018'],
+      warrants: [
+        {
+          type: 'functionallyTrue',
+          confidence: 'low',
+          scope: 'a transparent induction scenario curve, to be checked against personal symptom logs',
+        },
+        {
+          type: 'livedExperience',
+          confidence: 'moderate',
+          scope: 'flu-like symptoms in the first days of very-low-carbohydrate eating, as people report them',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'a fixed sodium effect on symptoms',
+        },
+      ],
+      outcomeScope:
+        'Timing of self-reported induction symptoms after a large carbohydrate drop; not how common they are',
+      population:
+        'Adults starting very-low-carbohydrate or very-low-energy diets (forum survey, clinical descriptions)',
       relatedMetricIds: ['ketoInduction', 'moodTier'],
     },
     {
@@ -664,7 +691,7 @@ const topic: EvidenceTopic = {
       howModelled:
         "Vitals uses the hormones topic's models rather than these hooks. T3 keeps this topic's 50 g carbohydrate threshold inside the hormones topic's T3 model, which also responds to the deficit (falling over about 2 days and recovering over about 3). Leptin follows the hormones topic's model of fat mass and recent energy balance, in which extra carbohydrate raises leptin more than extra fat; this topic's 3-day cumulative-balance form is not used.",
       equation:
-        'T3_rel* = 1 − 0.5 · (1 − min(1, C/50)) · s_def − (deficit term from the hormones topic); τ_T3 ≈ 4 d\nleptin_rel = f(FM) · exp(k_L · B_cum_CHO)',
+        'Proposed alternatives, not run: T3_rel* = 1 − 0.5 · (1 − min(1, C/50)) · s_def − (deficit term from the hormones topic); τ_T3 ≈ 4 d\nleptin_rel = f(FM) · exp(k_L · B_cum_CHO)',
       keyNumbers: [
         {
           label: 'Total fast 7–18 days',
@@ -712,13 +739,13 @@ const topic: EvidenceTopic = {
         },
       ],
       timeCourse:
-        'T3 takes about 1–2 weeks to reach its low and returns to baseline within a week of a mixed diet (time constant about 4 days). Leptin integrates about 3 days of cumulative balance. Hormonal recovery after extreme leanness takes 3–5 months.',
+        'Observed T3 recovered within a week of a mixed diet in the cited study. The running thyroid model uses 2-day down/3-day up time constants and habitual reference normalization, as defined in “Thyroid hormones when eating less” in the hormones topic. The alternative 4-day thyroid and 3-day cumulative-balance leptin hooks above are not run. Hormonal recovery after extreme leanness can take months.',
       moderators: 'Carbohydrate intake, depth of the deficit and cumulative energy balance.',
       grade: 'B',
       gradeReason: 'The controlled human data are grade B; the hooks are proposed.',
       status: 'proposed-fit',
       caveats:
-        'These hooks differ in form from the fuller thyroid and leptin models in the hormones topic. That topic uses a 130 g carbohydrate knee for T3 and follows the majority of studies, while this one treats 50 g or more as protective at 800 kcal.',
+        'These unused hooks differ from the running thyroid and leptin models. The current definition in “Thyroid hormones when eating less” uses a selected 50 g/day model knee in both deficit and surplus branches. This is narrow-study provenance, not universal protection from thyroid changes or a carbohydrate minimum; cortisol has a separate 130 g/day knee.',
       referenceIds: [
         'spaulding1976',
         'mathieson1986',
@@ -728,6 +755,9 @@ const topic: EvidenceTopic = {
         'dirlewanger2000',
         'hengist2023',
       ],
+      outcomeScope:
+        'T3 and leptin around diet switches; exploratory directions relative to your baseline, not lab values',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['t3'],
     },
     {

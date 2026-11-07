@@ -2,7 +2,7 @@
  * Hard food filters and meal targets (R4 §1.1, §3.1, §3.5): which foods are allowed on a date and slot, and what each
  * meal slot asks for. Pure: the executors pass the person's rules, the day's prescription and the food table.
  */
-import { netCarbPer100g } from '@/catalogues';
+import { planningCarbOf, sourceEnergyOf } from '@/catalogues/foods';
 import type { FoodRecord, FoodTable } from '@/catalogues/types';
 import { matchScore } from '@/catalogues/text';
 import { weekdayOf, type PrescribedDaySnapshot } from '@/living';
@@ -119,7 +119,9 @@ export function excludedBy(f: FoodRecord, o: { diet: DietRules | null; date: str
       if (r.rule === 'vrat' && !has('vrat', 'vrat_ok')) return 'day rule: vrat foods only';
     }
   }
-  if (isLowCarbDay(o.rx) && netCarbPer100g(f.per100g) > 10) return 'day rule: low-carbohydrate day';
+  // (D6-01, A1-028) the record's own basis, once: an available-basis record is never fibre-subtracted again; an unresolved
+  // basis or an unmodelled polyol route is judged by its upper bound (a low-carbohydrate day is never certified by a guess)
+  if (isLowCarbDay(o.rx) && planningCarbOf(f).highG > 10) return 'day rule: low-carbohydrate day';
   if (isPsmfDay(o.rx) && f.per100g.fatG > 15) return 'day rule: PSMF day (lean foods)';
   return null;
 }
@@ -129,7 +131,13 @@ export interface Candidate {
   name: string;
   aliases: readonly string[];
   group: string;
-  per100g: { energyKcal: number; proteinG: number; netCarbG: number; fatG: number; fibreG: number };
+  /**
+   * Per 100 g, through the shared source resolver (the values logging uses for the record's own form): `energyKcal` the
+   * chosen source energy (a measured-ME form replaces the source energy once; `sourceEnergyKcal` keeps the source's own),
+   * `netCarbG` the record-aware available carbohydrate; `carbStatus` 'bounded' = an unresolved basis or unmodelled polyol
+   * route, with `netCarbHighG` its upper bound.
+   */
+  per100g: { energyKcal: number; proteinG: number; netCarbG: number; fatG: number; fibreG: number; sourceEnergyKcal?: number; carbStatus?: 'resolved' | 'bounded'; netCarbHighG?: number };
   portions: ReadonlyArray<{ label: string; g: number }>;
   verified: boolean;
   /** In the person's kitchen (pantry "have"). */
@@ -151,12 +159,18 @@ export function allowedFoods(table: FoodTable, o: { setup: FoodSetup; date: stri
     if (excludedBy(f, { diet: o.setup.diet, date: o.date, rx: o.rx })) continue;
     const disliked = dislikes.some((x) => x.trim() && matchScore(x, [f.name, ...f.aliases]) >= 0.5);
     const n = f.per100g;
+    const e = sourceEnergyOf(f);
+    const carb = planningCarbOf(f);
     out.push({
       id: f.id,
       name: f.name,
       aliases: f.aliases,
       group: f.group,
-      per100g: { energyKcal: n.energyKcal, proteinG: n.proteinG, netCarbG: netCarbPer100g(n), fatG: n.fatG, fibreG: n.fibreG ?? 0 },
+      per100g: {
+        energyKcal: e.kcal, proteinG: n.proteinG, netCarbG: carb.netCarbG, fatG: n.fatG, fibreG: n.fibreG ?? 0,
+        ...(e.basis === 'measuredME' ? { sourceEnergyKcal: e.sourceKcal } : {}),
+        ...(carb.status === 'bounded' ? { carbStatus: 'bounded' as const, netCarbHighG: carb.highG } : {}),
+      },
       portions: f.portions,
       verified: f.verified,
       inKitchen: have.has(f.id),

@@ -18,7 +18,7 @@ import { WOMAN_78 } from './golden.requests';
 const KETO_FIRST_T2: PlannerRequest = {
   profile: WOMAN_78,
   goals: [
-    { metric: 'bhb', direction: 'maximise' },
+    { metric: 'bhb', direction: 'target', target: 1.0 },
     { metric: 'fatMass', direction: 'minimise' },
   ],
   horizonDays: 84,

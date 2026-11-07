@@ -5,8 +5,9 @@
    (number) · md 120 (number + "so far"/coverage). Quiet mode: empty centre,
    the word under the dial. role="img" + full sentence + hidden table.
    ========================================================================== */
-import { memo, useId } from 'react';
+import { memo, useId, type CSSProperties } from 'react';
 import { arcPath, bandOutline, dialArcs, dialSentence } from './adherenceGeometry';
+import { chartHue, type ChartHue } from './skin';
 import type { DialItem } from './types';
 import './living-charts.css';
 
@@ -33,10 +34,15 @@ export interface AdherenceDialProps {
   onArcClick?: (id: string) => void;
   /** Overrides the generated sentence. */
   label?: string;
+  /** (r071) The arcs' hue: a category or a domain through `chartHue`. Default `plan` (gold: the plan's own data). */
+  hue?: ChartHue;
   className?: string;
 }
 
-export const AdherenceDial = memo(function AdherenceDial({ items, score, size = 'sm', final = false, coverageText, quietWord, onArcClick, label, className }: AdherenceDialProps) {
+/** Quiet mode's word for one item's credit (no digits). */
+const creditWord = (c: number): string => (c >= 0.85 ? 'done' : c > 0 ? 'partly' : 'missed');
+
+export const AdherenceDial = memo(function AdherenceDial({ items, score, size = 'sm', final = false, coverageText, quietWord, onArcClick, label, hue, className }: AdherenceDialProps) {
   const g = GEOM[size];
   const c = g.px / 2;
   const arcs = dialArcs(items, g.r, size === 'glyph' ? 1.25 : 2);
@@ -44,7 +50,7 @@ export const AdherenceDial = memo(function AdherenceDial({ items, score, size = 
   const sentence = label ?? dialSentence(items, score, { final, ...(quietWord !== undefined ? { quietWord } : {}) });
   const quiet = quietWord !== undefined;
   return (
-    <div className={['lmc-dial', className].filter(Boolean).join(' ')} data-size={size}>
+    <div className={['lmc-dial', className].filter(Boolean).join(' ')} data-size={size} style={hue ? ({ '--lmc-hue': chartHue(hue, 'plan') } as CSSProperties) : undefined}>
       <svg className="lmc-dial__svg" width={g.px} height={g.px} viewBox={`0 0 ${g.px} ${g.px}`} role="img" aria-label={sentence} aria-describedby={size === 'glyph' ? undefined : tableId}>
         <circle className="lmc-dial__hair" cx={c} cy={c} r={g.r} strokeWidth={g.hair * 0.75} />
         {arcs.map((a) => {
@@ -101,8 +107,8 @@ export const AdherenceDial = memo(function AdherenceDial({ items, score, size = 
               {arcs.map((a) => (
                 <tr key={a.id}>
                   <th scope="row">{a.label}</th>
-                  <td>{Math.round(a.share * 100)} %</td>
-                  <td>{a.credit === null ? 'not logged' : `${Math.round(a.credit * 100)} %`}</td>
+                  <td>{quiet ? (a.share >= 0.25 ? 'large' : 'small') : `${Math.round(a.share * 100)} %`}</td>
+                  <td>{a.credit === null ? 'not logged' : quiet ? creditWord(a.credit) : `${Math.round(a.credit * 100)} %`}</td>
                 </tr>
               ))}
             </tbody>

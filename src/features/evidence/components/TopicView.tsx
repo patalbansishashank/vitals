@@ -1,45 +1,40 @@
 import { useEffect, useId, useRef, type Ref } from 'react';
 import { Link, useLocation } from 'react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import {
-  EmptyStage,
-  Faceplate,
-  Icon,
-  Key,
-  KeyLink,
-  Notice,
-  formatNumber,
-  useReducedMotion,
-} from '@/components';
+import { EmptyStage, Icon, Key, KeyLink, Page, useReducedMotion } from '@/components';
+import { TopBar, type BackTarget } from '@/app/shell';
 import { paths } from '@/app/paths';
 import type { EvidenceTopic } from '@/content/evidence/schema';
 import { numberTopicReferences, resolveTopicHash } from '../data/citations';
 import type { MechanismDoc } from '../data/search';
+import { useGradesHelp } from '../GradeLegend';
 import { useEvidenceRepository, type TopicState } from '../hooks';
 import { claimAnchor, topicHref, type EvidenceNavState } from '../links';
 import { ArticleLoading } from './ArticleView';
-import { SourceRefs, SourcesList } from './ArticleParts';
+import { SourceRefs, SourcesSection } from './ArticleParts';
 import { Disclaimer, VerdictChip } from './bits';
 import { Sec } from './MechanismArticle';
 import {
   AllTopicsNav,
   EvidenceLayout,
-  MiniHeader,
   OnThisPage,
   jumpToSection,
   useActiveSection,
+  useContents,
+  useTitleScrolledAway,
   type PageSection,
 } from './PageNav';
 import { MechanismRow } from './Rows';
+import { countGrades, GradeShare } from './GradeShare';
 
 const NAV_STATE: EvidenceNavState = { from: 'evidence' };
 
 function topicSections(t: EvidenceTopic): PageSection[] {
-  const s: PageSection[] = [{ id: 'overview', label: 'overview' }];
-  if (t.mechanisms.length) s.push({ id: 'mechanisms', label: 'mechanisms' });
-  if (t.myths.length) s.push({ id: 'claims', label: 'common claims' });
-  if (t.openQuestions.length) s.push({ id: 'open-questions', label: 'open questions' });
-  s.push({ id: 'citations', label: 'sources' });
+  const s: PageSection[] = [{ id: 'overview', label: 'Overview' }];
+  if (t.mechanisms.length) s.push({ id: 'mechanisms', label: 'Mechanisms' });
+  if (t.myths.length) s.push({ id: 'claims', label: 'Common claims' });
+  if (t.openQuestions.length) s.push({ id: 'open-questions', label: 'Open questions' });
+  s.push({ id: 'citations', label: 'Sources' });
   return s;
 }
 
@@ -61,17 +56,8 @@ function TopicArticle({ topic, headingRef }: { topic: EvidenceTopic; headingRef:
   const next = at >= 0 ? repo.entries[at + 1] : undefined;
 
   return (
-    <article className="ev-article lm-face" aria-labelledby={titleId}>
+    <article className="ev-article" aria-labelledby={titleId}>
       <header id="overview" className="ev-article__head">
-        <p className="ev-article__eng lm-eng">
-          <span>topic</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatNumber(topic.mechanisms.length)} mechanisms</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatNumber(topic.myths.length)} common claims</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatNumber(refs.length)} sources</span>
-        </p>
         <h2 id={titleId} ref={headingRef} tabIndex={-1} className="ev-title">
           {topic.title}
         </h2>
@@ -80,9 +66,10 @@ function TopicArticle({ topic, headingRef }: { topic: EvidenceTopic; headingRef:
 
       {docs.length ? (
         <Sec id="mechanisms" title="Mechanisms">
-          <ul className="ev-list">
+          <GradeShare counts={countGrades(topic.mechanisms)} />
+          <ul className="ev-list lm-material">
             {docs.map((d) => (
-              <MechanismRow key={d.id} doc={d} context="category" />
+              <MechanismRow key={d.id} doc={d} />
             ))}
           </ul>
         </Sec>
@@ -90,21 +77,20 @@ function TopicArticle({ topic, headingRef }: { topic: EvidenceTopic; headingRef:
 
       {topic.myths.length ? (
         <Sec id="claims" title="Common claims">
-          <p className="ev-prose ev-prose--small">
-            Popular statements about this topic, stated fairly, and what the evidence says about them.
-          </p>
           <ol className="ev-claims">
             {topic.myths.map((y) => (
               <li key={y.id} id={claimAnchor(y.id)} className="ev-claim" tabIndex={-1}>
                 <p className="ev-claim__text">“{y.claim}”</p>
                 <VerdictChip verdict={y.verdict} />
-                <p className="ev-claim__body">{y.explanation}</p>
-                {y.referenceIds.length ? (
-                  <p className="ev-claim__refs">
-                    <span className="lm-eng">sources</span>{' '}
-                    <SourceRefs ids={y.referenceIds} numbers={numbers} label="Sources for this claim" />
-                  </p>
-                ) : null}
+                <p className="ev-claim__body">
+                  {y.explanation}
+                  {y.referenceIds.length ? (
+                    <>
+                      {' '}
+                      <SourceRefs ids={y.referenceIds} numbers={numbers} label="Sources for this claim" />
+                    </>
+                  ) : null}
+                </p>
               </li>
             ))}
           </ol>
@@ -113,9 +99,6 @@ function TopicArticle({ topic, headingRef }: { topic: EvidenceTopic; headingRef:
 
       {topic.openQuestions.length ? (
         <Sec id="open-questions" title="Open questions">
-          <p className="ev-prose ev-prose--small">
-            What the research has not settled, and how it affects the model.
-          </p>
           <ul className="ev-questions">
             {topic.openQuestions.map((q, i) => (
               <li key={i}>{q}</li>
@@ -124,16 +107,14 @@ function TopicArticle({ topic, headingRef }: { topic: EvidenceTopic; headingRef:
         </Sec>
       ) : null}
 
-      <Sec id="citations" title="Sources">
-        <SourcesList refs={refs} />
-      </Sec>
+      <SourcesSection id="citations" refs={refs} />
 
       <footer className="ev-article__foot">
         <nav aria-label="Other topics" className="ev-pager">
           {prev ? (
             <Link to={topicHref(prev.slug)} state={NAV_STATE} className="ev-pager__a" data-dir="prev">
-              <span className="lm-eng">
-                <Icon icon={ChevronLeft} size={14} /> previous topic
+              <span className="ev-pager__k">
+                <Icon icon={ChevronLeft} size={14} /> Previous topic
               </span>
               <span className="ev-pager__t">{prev.title}</span>
             </Link>
@@ -142,8 +123,8 @@ function TopicArticle({ topic, headingRef }: { topic: EvidenceTopic; headingRef:
           )}
           {next ? (
             <Link to={topicHref(next.slug)} state={NAV_STATE} className="ev-pager__a" data-dir="next">
-              <span className="lm-eng">
-                next topic <Icon icon={ChevronRight} size={14} />
+              <span className="ev-pager__k">
+                Next topic <Icon icon={ChevronRight} size={14} />
               </span>
               <span className="ev-pager__t">{next.title}</span>
             </Link>
@@ -159,10 +140,12 @@ export interface TopicViewProps {
   state: TopicState;
   lg: boolean;
   xl: boolean;
+  /** The header's Back: where the reader came from. */
+  back: BackTarget;
 }
 
-/** `/evidence/topics/:slug`: one topic — scope, mechanisms, common claims, open questions, sources. */
-export function TopicView({ slug, state, lg, xl }: TopicViewProps) {
+/** `/evidence/topics/:slug`, a pushed page: scope, mechanisms, common claims, open questions, sources. */
+export function TopicView({ slug, state, lg, xl, back }: TopicViewProps) {
   const repo = useEvidenceRepository();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const location = useLocation();
@@ -174,6 +157,9 @@ export function TopicView({ slug, state, lg, xl }: TopicViewProps) {
     sections.map((s) => s.id),
     ready,
   );
+  const jump = (id: string) => jumpToSection(id, reduced);
+  const contents = useContents(sections, active, jump);
+  const grades = useGradesHelp();
 
   useEffect(() => {
     if (!ready) return;
@@ -194,76 +180,75 @@ export function TopicView({ slug, state, lg, xl }: TopicViewProps) {
   }, [ready, slug, topic, location.hash]);
 
   const side = lg ? <AllTopicsNav entries={repo.entries} currentSlug={slug} /> : null;
+  const shown = ready && topic ? topic : null;
+  const away = useTitleScrolledAway(headingRef, shown?.slug);
+  const header = (
+    <TopBar
+      title={
+        shown ? (
+          <span className="ev-hdrtitle" data-shown={away || undefined}>
+            {shown.title}
+          </span>
+        ) : (
+          'Evidence'
+        )
+      }
+      documentTitle={shown ? shown.title : 'Evidence'}
+      back={back}
+      menu={shown ? (xl ? [grades.menuItem] : [contents.menuItem, grades.menuItem]) : undefined}
+    />
+  );
 
+  let body;
   if (state.status === 'loading') {
-    return (
+    body = (
       <EvidenceLayout side={side}>
         <ArticleLoading label="Loading the topic" />
       </EvidenceLayout>
     );
-  }
-  if (state.status === 'error') {
-    return (
+  } else if (state.status === 'error') {
+    body = (
       <EvidenceLayout side={side}>
-        <Faceplate as="div" className="ev-state">
-          <Notice
-            severity="danger"
-            layout="ruled"
-            title="This topic couldn’t be loaded."
-            actions={
-              <Key size="sm" onClick={state.retry}>
-                Try again
-              </Key>
-            }
-          >
-            <p>
-              Vitals may have been updated while this tab was open, or the connection dropped. Your data is
-              safe.
-            </p>
-          </Notice>
-        </Faceplate>
+        <EmptyStage
+          title="This topic couldn’t be loaded."
+          action={<Key onClick={state.retry}>Try again</Key>}
+        >
+          Vitals may have been updated, or the connection dropped. Your data is safe.
+        </EmptyStage>
       </EvidenceLayout>
     );
-  }
-  if (!topic) {
-    return (
+  } else if (!shown) {
+    body = (
       <EvidenceLayout side={side}>
         <EmptyStage
           title="No topic with this address."
-          art={null}
           action={
-            <KeyLink variant="solid" to={`${paths.evidence}?group=topic`}>
+            <KeyLink variant="solid" to={paths.evidence}>
               Browse the topics
             </KeyLink>
           }
-        >
-          {`“${slug ?? ''}” isn’t one of the library’s topics.`}
-        </EmptyStage>
+        />
+      </EvidenceLayout>
+    );
+  } else {
+    body = (
+      <EvidenceLayout
+        side={side}
+        aside={xl ? <OnThisPage sections={sections} active={active} onJump={jump} /> : null}
+        asideLabel="On this page"
+      >
+        <TopicArticle key={shown.slug} topic={shown} headingRef={headingRef} />
+        <Disclaimer />
       </EvidenceLayout>
     );
   }
 
-  const jump = (id: string) => jumpToSection(id, reduced);
   return (
     <>
-      <EvidenceLayout
-        side={side}
-        aside={xl ? <OnThisPage sections={sections} active={active} onJump={jump} hint={false} /> : null}
-        asideLabel="On this page"
-      >
-        <TopicArticle key={topic.slug} topic={topic} headingRef={headingRef} />
-        <Disclaimer />
-      </EvidenceLayout>
-      {!lg ? (
-        <MiniHeader
-          key={topic.slug}
-          title={topic.title}
-          sections={sections}
-          active={active}
-          onJump={jump}
-          watch={headingRef}
-        />
-      ) : null}
+      {header}
+      <Page className="ev-page">{body}</Page>
+      {shown && !xl ? contents.panel : null}
+      {grades.panel}
     </>
   );
 }

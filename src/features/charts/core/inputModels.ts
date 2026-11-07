@@ -23,6 +23,7 @@ import {
   haloText,
   hatch,
   markerPath,
+  yAxisLabelsIn,
 } from './draw';
 import type { PlotData, PlotModel } from './plotEngine';
 import { canvasFont, withAlpha } from './theme';
@@ -79,9 +80,16 @@ export function inputsModel(intake: IntakeContext, o: InputsOptions): PlotModel 
     return (o.textures || a.theme.forced) && tx ? hatch(a.ctx, c, tx.angle, a.dpr, tx.dense) : c;
   };
 
-  return {
+  const ticksIn = (lo: number, hi: number, view: ViewState) =>
+    o.mode === 'pct' && !isMealView(view) ? { ticks: [0, 50, 100], step: 50 } : niceTicksInside(lo, hi, { min: 2, max: 3 });
+  const axisFormat = (v: number, st: number) => (o.mode === 'pct' ? `${v}` : formatTick(v, st, o.tickColCss));
+  const model: PlotModel = {
     lines: [],
     data: () => data,
+    yLabels(view) {
+      const [lo, hi] = model.domain(view);
+      return yAxisLabelsIn(ticksIn(lo, hi, view), lo, hi, { colCss: o.tickColCss, format: axisFormat });
+    },
     domain(view) {
       if (isMealView(view)) {
         let mx = 0;
@@ -95,11 +103,12 @@ export function inputsModel(intake: IntakeContext, o: InputsOptions): PlotModel 
         if (o.mode === 'kcal') mx = Math.max(mx, o.detail ? kc.totalWithFibre[i]! : kc.total[i]!, maint[i]!);
         else for (const k of groupKeys) mx = Math.max(mx, intake.grams[k][i]!);
       }
-      return [0, Math.max(1, mx * 1.1)];
+      // kcal: headroom over the maintenance line for its "maintenance" label, which then never lands on the bars (r068 W2-9)
+      return [0, Math.max(1, mx * (o.mode === 'kcal' ? 1.3 : 1.1))];
     },
     under(a, view) {
       drawPhaseBands(a, o.phases);
-      const t = o.mode === 'pct' && !isMealView(view) ? { ticks: [0, 50, 100], step: 50 } : niceTicksInside(a.yMin, a.yMax, { min: 2, max: 3 });
+      const t = ticksIn(a.yMin, a.yMax, view);
       drawGrid(a, t.ticks.filter((v) => v !== 0));
       drawHLine(a, 0, a.theme.axis);
       const { ctx, dpr } = a;
@@ -112,7 +121,7 @@ export function inputsModel(intake: IntakeContext, o: InputsOptions): PlotModel 
       else if (o.mode === 'grams') drawGrouped(a, view, base);
       else drawStacked(a, view, base);
       ctx.restore();
-      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: (v, st) => (o.mode === 'pct' ? `${v}` : formatTick(v, st, o.tickColCss)) });
+      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: axisFormat });
     },
     over(a, view) {
       drawSeverityLines(a, o.events);
@@ -122,6 +131,7 @@ export function inputsModel(intake: IntakeContext, o: InputsOptions): PlotModel 
       }
     },
   };
+  return model;
 
   function slotPx(a: DrawArgs, view: ViewState) {
     return a.box.width / (view.x1 - view.x0 || 1);
@@ -209,7 +219,7 @@ export function inputsModel(intake: IntakeContext, o: InputsOptions): PlotModel 
         const v = intake.grams[k][i]!;
         if (v <= 0) return;
         ctx.beginPath();
-        columnPath(ctx, left0 + j * (cw + gap), a.y(v), cw, base, cw >= 6 * dpr ? 3 * dpr : 0);
+        columnPath(ctx, left0 + j * (cw + gap), a.y(v), cw, base, cw >= 6 * dpr ? 4 * dpr : 0);
         ctx.fillStyle = fill(a, k);
         ctx.fill();
       });
@@ -321,7 +331,7 @@ export function inputsModel(intake: IntakeContext, o: InputsOptions): PlotModel 
 
     // "maintenance" label at the right end, never over the step line (REVIEW_FINDINGS 8)
     ctx.save();
-    ctx.font = canvasFont(a.theme, 11 * dpr, { stretch: 'condensed', weight: 500 });
+    ctx.font = canvasFont(a.theme, 11 * dpr, { weight: 500 });
     const text = 'maintenance';
     const w = ctx.measureText(text).width;
     const right = a.box.left + a.box.width - 4 * dpr;
@@ -368,9 +378,14 @@ export function energyModel(intake: IntakeContext, o: EnergyOptions): PlotModel 
   const bal = kc.balance;
   const ef = toEnergyUnit(1, unit);
   const data: PlotData = { x, ys: [] };
-  return {
+  const axisFormat = (v: number, st: number) => (v === 0 ? '0' : (v > 0 ? '+' : '') + formatTick(v, st, o.tickColCss));
+  const model: PlotModel = {
     lines: [],
     data: () => data,
+    yLabels(view) {
+      const [lo, hi] = model.domain(view);
+      return yAxisLabelsIn(niceTicksInside(lo, hi, { min: 2, max: 3 }), lo, hi, { colCss: o.tickColCss, format: axisFormat });
+    },
     domain(view) {
       const [i0, i1] = visibleIndexRange(view.x0, view.x1, 'daily', days, 0);
       let lo = 0;
@@ -407,7 +422,8 @@ export function energyModel(intake: IntakeContext, o: EnergyOptions): PlotModel 
         const v = bal[i]!;
         const yv = a.y(v);
         const left = a.x(x[i]!) - bw / 2;
-        const r = bw >= 6 * dpr ? 3 * dpr : 0;
+        // the skin's column: a 4 px rounded end, square at the zero line
+        const r = bw >= 6 * dpr ? 4 * dpr : 0;
         ctx.beginPath();
         if (v >= 0) columnPath(ctx, left, yv, bw, zero, r);
         else {
@@ -420,7 +436,7 @@ export function energyModel(intake: IntakeContext, o: EnergyOptions): PlotModel 
         }
         if (st.side === 'fast' && a.theme.dark) {
           // dark: fast days get their own texture; white stays reserved for selection (REVIEW_FINDINGS 4)
-          ctx.fillStyle = a.theme.deficit[3];
+          ctx.fillStyle = a.theme.deficit[a.theme.deficit.length - 1]!;
           ctx.fill();
           ctx.fillStyle = hatch(ctx, a.theme.ink2, 45, dpr, true);
         } else ctx.fillStyle = (o.textures || a.theme.forced) && st.side !== 'neutral' ? hatch(ctx, col, st.side === 'deficit' ? 45 : 135, dpr, st.step > 2) : col;
@@ -428,10 +444,11 @@ export function energyModel(intake: IntakeContext, o: EnergyOptions): PlotModel 
       }
       ctx.restore();
       drawHLine(a, 0, a.theme.dark ? a.theme.ink3 : a.theme.edge, 1);
-      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: (v, st) => (v === 0 ? '0' : (v > 0 ? '+' : '') + formatTick(v, st, o.tickColCss)) });
+      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: axisFormat });
     },
     over(a) {
       drawSeverityLines(a, o.events);
     },
   };
+  return model;
 }

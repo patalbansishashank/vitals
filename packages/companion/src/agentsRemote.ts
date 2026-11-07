@@ -14,9 +14,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { codexWithout, MCP_NAME, opencodeConfigPath, codexConfigPath, AgentConfigError } from './agents.ts';
 import { forbiddenEnvelope, idempotencyKeyFor } from './agentHub.ts';
 import { createServerMcpHttp, type McpBackend } from './mcp.ts';
-import { AGENT_CLIENTS, AGENT_SCOPES, isFailure, type AgentClient, type AgentScope, type PersonContext, type ResolvePerson, type TokenStore } from './personContext.ts';
+import { AGENT_CLIENTS, AGENT_SCOPES, isCoachTokenLabel, isFailure, type AgentClient, type AgentScope, type PersonContext, type ResolvePerson, type TokenStore } from './personContext.ts';
 import { AiError, sendAiError } from './providers.ts';
-import { createRateLimiter, HttpError, readBody, readJson, sendJson, type Logger } from './security.ts';
+import { createRateLimiter, hostName, HttpError, readBody, readJson, sendJson, type Logger } from './security.ts';
 import { backupFile, type Sys } from './sys.ts';
 import { exposedTo, manifestForScope, rejected, scopeAllows, toMcpTools, type ToolManifestEntry, type ToolResultEnvelope } from './toolManifest.ts';
 
@@ -148,6 +148,18 @@ export interface AgentRoutesOptions {
   maxSessions?: number;
   maxSessionsPerToken?: number;
   now?: () => number;
+  /** Every tool call's result, after it ran (the server coach maps them to `tool` and `proposal` events). */
+  onToolCall?: (e: { personId: string; tokenId: string; tool: string; envelope: ToolResultEnvelope }) => void;
+}
+
+const LOOPBACK = /^(127(?:\.\d{1,3}){3}|::1|::ffff:127(?:\.\d{1,3}){3}|localhost|\[::1\])$/i;
+
+/** A request made on this host straight to the server's loopback listener (not through a reverse proxy or tailscale serve). */
+export function isDirectLoopback(req: IncomingMessage): boolean {
+  const h = req.headers;
+  if (h['x-forwarded-for'] !== undefined || h.forwarded !== undefined || h['x-forwarded-host'] !== undefined || h['x-real-ip'] !== undefined) return false;
+  const host = typeof h.host === 'string' ? hostName(h.host) : '';
+  return LOOPBACK.test(req.socket.remoteAddress ?? '') && LOOPBACK.test(host);
 }
 
 export const CLIENT_LABELS: Record<AgentClient, string> = { codex: 'Codex', opencode: 'OpenCode', claude: 'Claude Code', 'chatgpt-desktop': 'ChatGPT desktop app', other: 'Other agent' };
@@ -179,15 +191,28 @@ export function createAgentRoutes(opts: AgentRoutesOptions) {
     const scope = p.scope as AgentScope;
     return {
       async listTools() {
-        return toMcpTools(manifestForScope(await p.manifest(), scope, excludedFor(p.id)));
+        const vitals = toMcpTools(manifestForScope(await p.manifest(), scope, excludedFor(p.id)));
+        return p.lumen ? [...vitals, ...p.lumen.tools()] : vitals;
       },
       async call(tool, args, ctx) {
-        const manifest = await p.manifest();
-        const entry: ToolManifestEntry | undefined = manifest.tools.find((t) => t.name === tool);
         const finish = (e: ToolResultEnvelope) => {
           record(p.id, { at: new Date(now()).toISOString(), tokenId: p.deviceId, tool: String(tool).slice(0, 64), outcome: outcomeOf(e) });
+          try {
+            opts.onToolCall?.({ personId: p.id, tokenId: p.deviceId, tool: String(tool).slice(0, 64), envelope: e });
+          } catch {
+            // an observer never fails the call
+          }
           return e;
         };
+        // Gauge tools: read-only, so every agent scope has them; they never touch the person's Vitals store
+        if (p.lumen?.tools().some((t) => t.name === tool)) {
+          const r = limiter.take(p.deviceId);
+          if (!r.ok) return finish(rejected('rate_limited', `Too many tool calls in a minute. Wait ${r.retryAfterSec} s and try again.`));
+          if (!args || typeof args !== 'object' || Array.isArray(args)) return finish(rejected('invalid_input', 'Tool arguments must be a JSON object.'));
+          return finish(await p.lumen.call(tool, args as Record<string, unknown>));
+        }
+        const manifest = await p.manifest();
+        const entry: ToolManifestEntry | undefined = manifest.tools.find((t) => t.name === tool);
         if (!entry || !exposedTo(entry, 'mcp')) return finish(forbiddenEnvelope(tool));
         if (!scopeAllows(entry, scope)) {
           return finish(rejected('scope', `This agent's connection can ${SCOPE_WORDS[scope]}. The person can give it more in Settings › Agents.`));
@@ -221,6 +246,8 @@ export function createAgentRoutes(opts: AgentRoutesOptions) {
       const r = await resolvePerson(req);
       if (isFailure(r)) throw new AiError(r.error);
       if (r.kind !== 'agent' || !AGENT_SCOPES.includes(r.scope as AgentScope)) throw new AiError('wrong_kind');
+      // the server coach's tokens work only from this host, straight to the loopback listener
+      if (isCoachTokenLabel(r.label) && !isDirectLoopback(req)) throw new AiError('wrong_kind');
       if (!['GET', 'POST', 'DELETE'].includes(req.method ?? '')) throw new AiError('not_found');
       res.setHeader('Access-Control-Expose-Headers', 'mcp-session-id');
       let body: unknown;
@@ -238,7 +265,7 @@ export function createAgentRoutes(opts: AgentRoutesOptions) {
     if (path === '/v1/agents/tokens') {
       const p = await deviceOnly(req);
       if (req.method === 'GET') {
-        const list = await tokens.list(p.id, 'agent');
+        const list = (await tokens.list(p.id, 'agent')).filter((t) => !isCoachTokenLabel(t.label));
         return void sendJson(res, 200, {
           tokens: list.map((t) => ({ id: t.id, client: t.client ?? 'other', label: t.label, scope: t.scope, createdAt: t.createdAt, lastUsedAt: t.lastSeenAt })),
         });
@@ -250,7 +277,9 @@ export function createAgentRoutes(opts: AgentRoutesOptions) {
       const client = body.client as AgentClient;
       const scope = (body.scope ?? 'log') as AgentScope;
       if (!AGENT_CLIENTS.includes(client) || !AGENT_SCOPES.includes(scope)) throw new AiError('bad_request');
-      const label = typeof body.label === 'string' && body.label.trim() ? body.label.trim().slice(0, 40) : CLIENT_LABELS[client];
+      const given = typeof body.label === 'string' ? body.label.trim() : '';
+      // the coach's own label is refused even when only the store's label cleaning would produce it
+      const label = given && !isCoachTokenLabel(given.replace(/[^\p{L}\p{N} ._:/@()'-]/gu, '')) ? given.slice(0, 40) : CLIENT_LABELS[client];
       const { token, record: rec } = await tokens.mint(p.id, { kind: 'agent', label, scope, client });
       log.addSecret(token);
       log(`agents: token ${rec.id} made for ${client} (person ${p.id}, scope ${scope})`);
@@ -261,7 +290,7 @@ export function createAgentRoutes(opts: AgentRoutesOptions) {
     if (del) {
       const p = await deviceOnly(req);
       if (req.method !== 'DELETE') throw new AiError('not_found');
-      const mine = (await tokens.list(p.id, 'agent')).some((t) => t.id === del[1]);
+      const mine = (await tokens.list(p.id, 'agent')).some((t) => t.id === del[1] && !isCoachTokenLabel(t.label));
       if (!mine || !(await tokens.revoke(p.id, del[1]!))) throw new AiError('not_found');
       await mcp.revokeToken(del[1]!);
       log(`agents: token ${del[1]} removed (person ${p.id})`);
@@ -291,9 +320,11 @@ export function createAgentRoutes(opts: AgentRoutesOptions) {
     },
     /** Tool names an agent token of this person and scope would see (for the tool-list test and status). */
     async toolNames(p: PersonContext, scope: AgentScope) {
-      return manifestForScope(await p.manifest(), scope, excludedFor(p.id)).tools.map((t) => t.name);
+      return [...manifestForScope(await p.manifest(), scope, excludedFor(p.id)).tools.map((t) => t.name), ...(p.lumen?.tools().map((t) => t.name) ?? [])];
     },
     activityOf: (personId: string) => activity.get(personId) ?? [],
+    /** Closes the MCP sessions of a token that was just revoked or removed. */
+    revokeToken: (tokenId: string) => mcp.revokeToken(tokenId),
     close: () => mcp.close(),
   };
 }

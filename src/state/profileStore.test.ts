@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { resolveProfile } from '@/engine/core/resolveProfile';
 import { bodyFatToSlider } from '@/engine/body';
-import { buildPersonProfile, summarizeBody, TYPICAL_BASICS } from '@/features/body/model';
+import { buildPersonProfile, summarizeBody, TYPICAL_BASICS, withIntakeActivity } from '@/features/body/model';
 import { estimateMaintenance } from '@/features/body/maintenance';
 import { displayMeasure, sameDisplayed } from '@/features/body/units';
 import { lbToKg } from '@/lib/units';
@@ -184,6 +184,33 @@ describe('profile store: touched sliders', () => {
 });
 
 describe('PersonProfile production (validated by the engine)', () => {
+  it('keeps the raw air-bike report while projecting a linked habitual cardio source only once', () => {
+    const raw = { recreation: [{ id: 'air-bike-report', label: 'air bike', intensity: 'moderate' as const, minPerWeek: 90 }] };
+    const v = withIntakeActivity({ ...DEFAULT_BODY, habits: {
+      habitualCardio: { modality: 'cycle', sessionsPerWeek: 6, minutesPerSession: 15, weekdays: [0, 1, 2, 3, 4, 5], source: 'userReport', recreationSourceId: 'air-bike-report' },
+    } }, raw);
+    expect(v.habits.activity?.recreation).toHaveLength(1);
+    const p = buildPersonProfile(v);
+    expect(p.habits?.activity?.recreation).toEqual([]);
+    expect(p.habits?.activity?.recreationProjection).toEqual({ basis: 'reclassifiedHabitualCardio', removedSourceIds: ['air-bike-report'], sourceMinutesPerWeek: 90 });
+    expect(resolveProfile(p).activity?.recreationKcal).toBe(0);
+  });
+
+  it('carries a documented device sleep mean without promoting it to clock observations', () => {
+    const v: BodyProfileValues = {
+      ...DEFAULT_BODY,
+      habits: { activity: { reportedSleep: { availableNightMeanHours: 6.86, basis: 'Recent device-log summary; not a new sleep measurement' } } } as BodyProfileValues['habits'],
+    };
+    const p = buildPersonProfile(v);
+    expect(p.habits).toMatchObject({ habitualSleepDurationH: 6.86, habitualSleepDurationSource: 'deviceSummary' });
+    expect(p.habits?.bedTimeH).toBeUndefined();
+    expect(p.habits?.wakeTimeH).toBeUndefined();
+    expect(p.habits?.activity).toMatchObject({ reportedSleep: { availableNightMeanHours: 6.86 } });
+    expect(resolveProfile(p).habits.habitualSleepDurationH).toBe(6.86);
+    const explicit = buildPersonProfile({ ...v, habits: { ...v.habits, habitualSleepDurationH: 7.5, habitualSleepDurationSource: 'userReport' } });
+    expect(explicit.habits).toMatchObject({ habitualSleepDurationH: 7.5, habitualSleepDurationSource: 'userReport' });
+  });
+
   const variants: Array<[string, (v: BodyProfileValues) => BodyProfileValues]> = [
     ['first run (nothing entered)', (v) => v],
     ['male basics', (v) => ({ ...v, sex: 'male', ageYears: 36, heightCm: 178, weightKg: 84.9 })],

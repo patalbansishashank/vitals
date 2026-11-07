@@ -1,0 +1,113 @@
+/* ==========================================================================
+   InfoPanel (r071 0B): what the (i) opens. The panel's chrome (spring, head, close) is Sheet / SidePanel's; this styles
+   the content: a 22/26 title, one reading paragraph (15/23, 62ch), mono labels, evidence rows, the Table twin.
+   ========================================================================== */
+@layer components {
+  .lm-infopanel {
+    --lm-twin-bg: var(--lm-chassis-2); /* the twin's sticky head and first column match the panel surface */
+  }
+  .lm-infopanel .lm-panel__title {
+    font-size: 1.375rem;
+    line-height: 1.625rem;
+    letter-spacing: -0.015em;
+  }
+  .lm-infopanel__body {
+    display: grid;
+    gap: 20px;
+    padding: 4px var(--lm-gutter) 24px;
+  }
+  .lm-infopanel__read {
+    display: grid;
+    gap: 14px;
+    max-width: 62ch;
+  }
+  .lm-infopanel__section {
+    display: grid;
+    gap: 6px;
+  }
+  .lm-infopanel__heading {
+    margin: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+  }
+  .lm-infopanel__text {
+    margin: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-read);
+    line-height: var(--lm-text-read--lh);
+    font-weight: 400;
+  }
+  .lm-infopanel__row {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lm-infopanel__small {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    max-width: 62ch;
+  }
+  .lm-infopanel__terms {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+    max-width: 62ch;
+  }
+  .lm-infopanel__term {
+    display: grid;
+    gap: 2px;
+  }
+  .lm-infopanel__term dt {
+    color: var(--lm-ink);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+  }
+  .lm-infopanel__term dd {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lm-infopanel__evidence {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-infopanel__evidence li {
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-infopanel__elink {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .lm-infopanel__elabel {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lm-infopanel__elink .lm-icon:last-child {
+    color: var(--lm-ink-3);
+  }
+  .lm-infopanel__twin {
+    gap: 10px;
+  }
+  @media (forced-colors: active) {
+    .lm-infopanel__evidence,
+    .lm-infopanel__evidence li {
+      border-color: CanvasText;
+    }
+  }
+}

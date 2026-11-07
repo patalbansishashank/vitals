@@ -1,0 +1,95 @@
+# Comments sheet blip (1 s out) keeps the session; leaving for 5 s ends it;
+# coming back to the same item within 90 s does not count it again; a different item does.
+# expect reels=3 sessions=3
+0 screen youtube in key=fp:a h=2772
+250 tick
+500 tick
+750 tick
+1000 tick
+1250 tick
+1500 tick
+1500 screen youtube out
+1750 tick
+2000 tick
+2250 tick
+2500 tick
+2500 screen youtube in key=fp:a h=2772
+2750 tick
+3000 tick
+3250 tick
+3500 tick
+3750 tick
+4000 tick
+4000 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+4016 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+4032 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+4048 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+4064 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+4080 scroll youtube from=1 to=1 n=40 dy=462 h=2772
+4096 screen youtube in key=fp:b h=2772
+4346 tick
+4596 tick
+4846 tick
+5096 tick
+5346 tick
+5596 tick
+5596 screen none out
+5846 tick
+6096 tick
+6346 tick
+6596 tick
+6846 tick
+7096 tick
+7346 tick
+7596 tick
+7846 tick
+8096 tick
+8346 tick
+8596 tick
+8846 tick
+9096 tick
+9346 tick
+9596 tick
+9846 tick
+10096 tick
+10346 tick
+10596 tick
+10596 screen youtube in key=fp:b h=2772
+10846 tick
+11096 tick
+11346 tick
+11596 tick
+11846 tick
+12096 tick
+12346 tick
+12596 tick
+12596 screen none out
+12846 tick
+13096 tick
+13346 tick
+13596 tick
+13846 tick
+14096 tick
+14346 tick
+14596 tick
+14846 tick
+15096 tick
+15346 tick
+15596 tick
+15846 tick
+16096 tick
+16346 tick
+16596 tick
+16846 tick
+17096 tick
+17346 tick
+17596 tick
+17596 screen youtube in key=fp:z h=2772
+17846 tick
+18096 tick
+18346 tick
+18596 tick
+18846 tick
+19096 tick
+19346 tick
+19596 tick

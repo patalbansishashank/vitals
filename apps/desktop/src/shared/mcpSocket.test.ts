@@ -34,6 +34,14 @@ describe('mcpSocketPath', () => {
 });
 
 describe('hello line', () => {
+  it('owner delegation is explicit, session-scoped and requires a valid local client id', () => {
+    expect(parseHello(helloLine('codex', true))).toEqual({ client: 'codex', fullControl: true });
+    expect(parseHello(helloLine('codex'))).toEqual({ client: 'codex' });
+    expect(parseHello('{"client":"codex","fullControl":"true"}')).toEqual({ client: 'codex' });
+    expect(parseHello('{"client":"bad id!","fullControl":true}')).toEqual({ client: null });
+    expect(parseHello(helloLine(null, true))).toEqual({ client: null });
+  });
+
   it('round-trips the client id and rejects anything else', () => {
     expect(helloLine('claude-code')).toBe('{"client":"claude-code"}\n');
     expect(parseHello('{"client":"claude-code"}')).toEqual({ client: 'claude-code' });

@@ -6,12 +6,20 @@
  * habituation h, H_def, W_Cr); 04 §4.1 (h = 3.0 g/g); 20 §4.5 (fasting natriuresis magnitude, oedema); 16 §4.5 (cycle).
  * Owned files: src/engine/model/water/** only.
  *
- * Bookkeeping (MODEL_SPEC §1.10, review B1/M15/M16):
+ * Bookkeeping (MODEL_SPEC §1.10, review B1/M15/M16; D1-06):
  *   labileWaterKg  = (1 + h)·(G_L + G_M − G_ref)/1000                    glycogen mass and its bound water
- *                  + [E_cna + S_na/140 + E_oed + P_ex + W_mc + W_Cr − H_def − ECF_ref]   sodium/fluid shift
+ *                  + [E_cna + S_na/140 + E_oed + P_ex + W_mc + W_Cr − ECF_ref]   sodium/fluid shift
  *                  + (M_gut − M_gut,ref)                                 gut contents
  *   scaleWeightKg  = tissueMassKg + labileWaterKg                        (O-5: = FM + FFM_act + labile water)
- *   leanMass       = scaleWeightKg − fatMassKg                           (DXA-equivalent lean)
+ *   leanMass       = scaleWeightKg − fatMassKg                           inferred non-fat scale mass: tissue lean plus
+ *                                                                        glycogen, labile water and gut contents; not DXA
+ *                                                                        lean, not skeletal muscle
+ * D1-06: the beverage-deficit estimate H_def (15 §4.8) is a context-only exploratory state (`hydrationDeficitKg`): water
+ * turnover is far more than beverages, so a logged beverage shortfall cannot identify dehydration kilograms and is no
+ * longer subtracted from scale mass (nominal and every draw). No fluid log means hydration Unknown, never assured
+ * (`hydrationContextStatus`). Cycle water: the individual amplitude is unknown, so the nominal numeric contribution is 0
+ * while the transient stays structural uncertainty (`WATER_CYCLE_SCENARIOS`); an unknown/irregular phase (cycleDay −1)
+ * contributes its phase average, zero (D8-07). No fluid or cycle term creates or removes tissue energy.
  * All references (G_ref, ECF_ref, M_gut,ref) follow the state during burn-in (clock.day < 0) and are set at t = 0 by the
  * MORNING ANCHOR (orchestrator ruling 2026-09-30, MODEL_SPEC §3.4): the entered weight is a wake-hour (post-void, fasted)
  * weight, so each reference is the value the quantity will have at the habitual wake hour of day 0 — the t = 0 (midnight)
@@ -22,14 +30,82 @@
  *
  * Time base: hourly steps with exact first-order relaxations (`x ← x* + (x − x*)·f`, f = exp(−Δt/τ) precomputed in
  * `prepare`); the hot path allocates nothing.
+ *
+ * Observables (C4/D5-02): `scaleWeight` (scaleWake operator) and `waterWeight` (labile water) are sampled at the same
+ * wake hour of the same path, so their difference is the water-adjusted wake mass (= tissue mass at that hour) of that
+ * path. Compare forecasts with water-adjusted observations only through that same-path difference, applied to every
+ * member before quantiles (`./operators`), never by subtracting percentile endpoints of the two series.
+ *
+ * Causal resolution (C2/D2-01): the fast branch reads only the history-driven `fastActive` flag and the fasting module's
+ * oedema; no planned fast length, label or span (`planMetadataReads` is empty). Dietary sodium is spread over the day's
+ * waking hours and the hydration shortfall over 24 h from whole-day totals (13 §4.4, 15 §4.8 daily models, kept as
+ * fitted), so the sodium/fluid shift and everything built on it are daily-native (`WATER_CAUSAL_RESOLUTION`).
  */
 import { defineModule } from '../../core/moduleKit';
 import { param } from '../../core/paramsRegistry';
 import { relax, relax2, wakeRecordHour } from '../../core/math';
 import { MMOL_NA_PER_G } from '../../core/defaults';
-import { MI } from '../../types/metrics';
+import type { CausalResolution, HistoryAssumptionKind } from '@/lib/bodyContracts';
+import { MI, type SeriesId } from '../../types/metrics';
 import type { EventSink } from '../../types/module';
+import type { DayInput } from '../../types/inputs';
+import type { ModuleId, SignalName } from '../../types/signals';
 import { WATER_PARAMS } from './params';
+
+/**
+ * Causal-resolution declaration (C2/D2-01): whole-day DayInput fields read at startDay, daily-cadence bus values latched
+ * there, and the outputs inheriting that daily-native resolution. `glycogenWater` is not listed: it follows the fuel
+ * module's hourly glycogen and inherits fuel's resolution. Declarative only; nothing here changes physiology.
+ */
+export const WATER_CAUSAL_RESOLUTION = {
+  module: 'water',
+  nativeResolution: 'daily',
+  dailyInputs: ['sodiumMg', 'sleepHours', 'fluidL', 'sweatLPerH', 'sessions', 'nSessions'],
+  dayStartSignals: ['creatineSatFrac', 'fibreEffG', 'cycleDay', 'tissueMassKg'],
+  planMetadataReads: [],
+  series: ['scaleWeight', 'bodyFatPct', 'leanMass', 'waterWeight', 'ecfShift', 'gutContent'],
+  signals: ['labileWaterKg', 'scaleWeightKg', 'hydrationDeficitKg'],
+  assumption: 'dailyNativeModel',
+  reasonCode: 'dailyNativeSodiumFluid',
+} as const satisfies {
+  module: ModuleId;
+  nativeResolution: CausalResolution;
+  dailyInputs: readonly (keyof DayInput)[];
+  dayStartSignals: readonly SignalName[];
+  planMetadataReads: readonly (keyof DayInput)[];
+  series: readonly SeriesId[];
+  signals: readonly SignalName[];
+  assumption: HistoryAssumptionKind;
+  reasonCode: string;
+};
+
+/**
+ * D1-06 cycle-water structural scenarios (declarative). Nominal: unknown individual amplitude → zero numeric contribution,
+ * while the transient stays a nonzero structural uncertainty that a trend filter must not shrink to zero or turn into a
+ * fat/lean correction. Alternatives are examples, not a coverage range or a universal sinusoid; a personal recurring
+ * pattern may be learned only from repeated cycles with shrinkage toward 0 (future-cycle holdout).
+ */
+export const WATER_CYCLE_SCENARIOS = {
+  version: 1,
+  nominal: 'unknownAmplitude',
+  scenarios: {
+    unknownAmplitude: { meanContributionKg: 0, transientUncertainty: 'structuralNonzero', reasonCode: 'cycleAmplitudeUnknown' },
+    legacyPriorShape: { peakToTroughKg: 0.2, shape: 'piecewiseLinear', warrant: 'assumedPrior', source: 'White 2011 PMID 21845193' },
+    studyContrast: { contrastKg: 0.45, contrast: 'menstruation vs first quarter, one cycle, BIA ECW, n = 42 (ages 19-35)', warrant: 'populationExample', source: 'doi 10.1002/ajhb.23951' },
+  },
+  /** Structural examples of the transient magnitude, kg (0, legacy peak-to-trough, study contrast): not quantiles. */
+  structuralExamplesKg: [0, 0.2, 0.45],
+  personalPattern: 'repeatedCyclesWithShrinkage',
+} as const;
+
+/**
+ * D1-06 hydration context (C6 boundary type pieces): a day without a beverage log is Unknown, never hydrated or dehydrated;
+ * a logged volume is an observed beverage total (mL/day), not water balance. No hydration diagnosis, no drinking target.
+ */
+export function hydrationContextStatus(fluidL: number | null | undefined): { status: 'unknown' | 'observed'; beverageMl?: number; reasonCode: string } {
+  if (fluidL === null || fluidL === undefined || !Number.isFinite(fluidL) || fluidL < 0) return { status: 'unknown', reasonCode: 'noBeverageLog' };
+  return { status: 'observed', beverageMl: Math.round(fluidL * 1000), reasonCode: 'beverageVolumeOnly' };
+}
 
 /**
  * Glycogen-water ratio h, g/g. Owned and registered by fuel (`fuel.hWater`, MODEL_SPEC §1.6, ruling R-GLYW) — water reads
@@ -58,7 +134,7 @@ export interface WaterState {
   pExL: number;
   /** Menstrual water W_mc, kg (13 §4.6), 0 unless the cycle is tracked. */
   wMcKg: number;
-  /** Hydration deficit H_def, kg (15 §4.8). */
+  /** Hydration deficit H_def, kg (15 §4.8): context-only exploratory state, not part of the scale/labile sum (D1-06). */
   hDefKg: number;
   /** Creatine water W_Cr, kg (15 §4.12). */
   wCrKg: number;
@@ -107,7 +183,7 @@ export interface WaterState {
   // ---- outputs of the last step (for recording), kg
   /** (1 + h)·ΔG/1000: glycogen mass and its bound water relative to t = 0. */
   glycogenWaterKg: number;
-  /** Sodium/fluid shift relative to t = 0 (E_cna, S_na, oedema, PV, cycle, creatine, −H_def). */
+  /** Sodium/fluid shift relative to t = 0 (E_cna, S_na, oedema, PV, cycle, creatine; no H_def, D1-06). */
   ecfShiftKg: number;
   /** M_gut − M_gut,ref. */
   gutDevKg: number;
@@ -160,7 +236,7 @@ export interface WaterConstants {
   pvLPerKg: number;
   pvCapL: number;
   fPv: number;
-  // cycle
+  // cycle (D1-06: 0 unless the legacy scenario is selected)
   cycleAmp: number;
   cycleLen: number;
   cTrough: number;
@@ -325,7 +401,7 @@ export const waterModule = defineModule<WaterState, WaterConstants>({
       pvLPerKg: P('pvMlPerKg') / 1000,
       pvCapL: P('pvCapL'),
       fPv: Math.exp(-1 / (24 * P('pvTau'))),
-      cycleAmp: P('cycleAmpKg'),
+      cycleAmp: P('cycleWaterScenario') === 1 ? P('cycleAmpKg') : 0,
       cycleLen: Math.min(40, Math.max(21, cl)),
       cTrough,
       cOvEnd,
@@ -453,9 +529,11 @@ export const waterModule = defineModule<WaterState, WaterConstants>({
     const fasting = bus.fastActive > 0.5;
     const tissue = bus.tissueMassKg;
 
-    // 1. E_cna: carbohydrate/insulin-sensitive natriuresis (13 §4.3). While a fast is active the target is 20 §4.5.2's
-    //    body-size-scaled E_fast* (starts with the fast: the 24-h rolling carbohydrate would delay it by 12-24 h); otherwise
-    //    13's −E_max·(1 − C/C_ref) below C_ref. Same state and time constants either way (one implementation, R-WATER).
+    // 1. E_cna: carbohydrate/insulin-sensitive natriuresis (13 §4.3). While the fast overlay is active the target is
+    //    20 §4.5.2's body-size-scaled E_fast*; otherwise 13's −E_max·(1 − C/C_ref) below C_ref, which already falls with
+    //    the rolling 24-h carbohydrate before the overlay switches on. `fastActive` is the fasting module's routing flag
+    //    from observed intake history (D2-01: never the planned fast length). Same state and time constants either way
+    //    (one implementation, R-WATER).
     let target: number;
     if (fasting) target = k.eFastTargetL;
     else {
@@ -492,7 +570,9 @@ export const waterModule = defineModule<WaterState, WaterConstants>({
     } else s.prevHard = 0;
     s.pExL = pEx;
 
-    // 5. cycle water (only when the cycle is tracked), hydration deficit (creatine water is set at startDay)
+    // 5. cycle water (only when the cycle is tracked and the legacy cycle scenario is selected; D1-06 nominal 0; an
+    //    unknown/irregular phase, cycleDay −1, is phase-average zero, D8-07), hydration-deficit context state (creatine
+    //    water is set at startDay)
     let wMc = 0;
     if (s.cycleDay >= 1 && k.cycleAmp > 0) {
       let pos = (s.cycleDay - 1 + hour.hourOfDay * INV24) / k.cycleLen;
@@ -507,9 +587,9 @@ export const waterModule = defineModule<WaterState, WaterConstants>({
       s.hDefKg = hDef;
     }
 
-    // 6. labile deviations from the t = 0 references
+    // 6. labile deviations from the t = 0 references (D1-06: H_def is context only, never a mass term)
     const gTot = bus.liverGlycogenG + bus.muscleGlycogenG;
-    const ecf = eCna + sNa * k.invNaPerL + bus.fastOedemaL + pEx + wMc + s.wCrKg - hDef;
+    const ecf = eCna + sNa * k.invNaPerL + bus.fastOedemaL + pEx + wMc + s.wCrKg;
     let gly = 0;
     let ecfDev = 0;
     let gutDev = 0;
@@ -571,7 +651,7 @@ export const waterModule = defineModule<WaterState, WaterConstants>({
     // tissue offset: the t = 0 (midnight) scale is the entered weight plus the habitual overnight fall.
     const night = (ctx.burnInDays ?? 0) > 0 ? 1 : 0;
     const g = bus.liverGlycogenG + bus.muscleGlycogenG;
-    const ecf = s.eCnaL + s.sNaMmol * k.invNaPerL + bus.fastOedemaL + s.pExL + s.wMcKg + s.wCrKg - s.hDefKg;
+    const ecf = s.eCnaL + s.sNaMmol * k.invNaPerL + bus.fastOedemaL + s.pExL + s.wMcKg + s.wCrKg;
     s.glycogenRefG = g + night * s.nightGlyG;
     s.ecfRefKg = ecf + night * s.nightEcfKg;
     s.mGutRefKg = s.mGutKg + night * s.nightGutKg;

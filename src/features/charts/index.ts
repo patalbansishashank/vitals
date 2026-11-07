@@ -36,6 +36,10 @@ export type { ControllerOptions, CursorState, ViewState } from './core/controlle
 export { useChartController, useChartTheme } from './core/hooks';
 export { readChartTheme } from './core/theme';
 export type { ChartTheme } from './core/theme';
+/* the r071 skin's canvas helpers, for a page that draws its own marks (README "Chart skin") */
+export { drawEndDot, drawAreaGradient, areaGradient, drawGrid, lastPointIn, END_DOT_R } from './core/draw';
+export type { DrawArgs, EndDotOptions } from './core/draw';
+export { energyStep, BALANCE_STEPS } from './lib/intake';
 
 /* data */
 export { adaptResult, toChartSeries } from './adapt';

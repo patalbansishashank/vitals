@@ -1,18 +1,25 @@
 /**
- * The open question (COMPONENTS §14.3; design onboarding-intake-v3 §3): an inset region in the answered list with
- * "question n of N", the parent-answer chip ("because you said: …"), the self-contained prompt, "why we ask", the
- * answer controls for its kind, the default line, and the footer Back · Ask me later · Next. A single-choice key still
- * commits on press (the pressed state shows for 240 ms); Next on a card that already has an answer keeps it. Change
- * mode (Change on a row, or Back): Cancel instead of Ask me later, Save instead of Next.
- * Keys: Enter = Next · Alt+← = Back · L = Ask me later · Esc = Cancel.
+ * The open question (COMPONENTS §14.3; design onboarding-intake-v3 §3), the hero of a chapter step: the parent answer
+ * it depends on ("Because you said: …"), the self-contained prompt, "Why we ask", the answer controls for its kind, and
+ * one step row — Back (text) · Skip (text, asked later) · Next (the gold pill, always). A single-choice key still
+ * commits on press (the pressed state shows for 240 ms); Next on a card that already has an answer keeps it; a
+ * composite answer hands its commit to Next (`CommitKey`); with nothing to keep yet, Next moves focus to the answers
+ * and names the fix under them. Change mode (Change on a row, or Back): Cancel instead of Skip, Save instead
+ * of Next. On the chapter screen (`dock`) the step row is the screen's ActionBar, docked at the bottom on phones.
+ * Keys: Enter = Next · Alt+← = Back · L = Skip · Esc = Cancel.
  */
-import { Suspense, forwardRef, useId, useState, type ComponentType, type KeyboardEvent, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, CornerDownRight } from 'lucide-react';
-import { InlineWarning, Key, cx } from '@/components';
+import { Suspense, forwardRef, useId, useMemo, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from 'react';
+import { Info } from 'lucide-react';
+import { Icon, InlineWarning, Key } from '@/components';
+import { ActionBar } from '@/app/shell';
 import { TURN } from '../copy';
 import { optionsOf, type CustomQuestion, type FlowContext, type MultiQuestion, type Question } from '../flow';
 import { AnswerKeys, MultiChips, NumberAnswer, OtherEntries } from './AnswerKeys';
-import { CardFootSlot, type WidgetProps } from './widgetTypes';
+import { CommitKey } from './CommitKey';
+import { CardCommit, CardFootSlot, type CardCommitApi, type WidgetProps } from './widgetTypes';
+
+/** The first answer control Next sends focus to when there is nothing to keep yet. */
+const ANSWER_FOCUS = ['[role="radio"][tabindex="0"]', 'button:not([aria-disabled="true"]):not([disabled])', 'input:not([disabled])', 'select:not([disabled])', 'textarea:not([disabled])'].join(', ');
 
 export interface QuestionCardProps {
   q: Question;
@@ -23,16 +30,13 @@ export interface QuestionCardProps {
   /** Composite answers by widget id. */
   widgets: Readonly<Record<string, ComponentType<WidgetProps<never>>>>;
   onCommit: (value: unknown) => void;
-  /** Position among the chapter's visible questions. */
-  position: number;
-  total: number;
-  /** The parent answer this question depends on (the chip), if any. */
+  /** The parent answer this question depends on, if any. */
   context?: string | null;
   /** Answered before: the card is a Change (Cancel · Save). */
   changing?: boolean;
   /** Back to the previous question (hidden when there is none). */
   onBack?: () => void;
-  /** Ask me later (absent: not allowed here, e.g. change mode or a gating question). */
+  /** Skip = ask later (absent: not allowed here, e.g. change mode or a gating question). */
   onLater?: () => void;
   /** Keep the current answer and move on (enabled only when there is one). */
   onKeep?: () => void;
@@ -40,10 +44,10 @@ export interface QuestionCardProps {
   /** The last save of this question failed. */
   failed?: boolean;
   onRetry?: () => void;
-  /** Text above the prompt (chapter intro on the first card). */
-  intro?: string;
   /** Extra content under the answers (inline notes). */
   footnote?: ReactNode;
+  /** The step row goes into the screen's ActionBar (the chapter screen); default: inside the card (Your body). */
+  dock?: boolean;
 }
 
 function MultiTurn({ q, value, values, ctx, onCommit, labelledBy }: { q: MultiQuestion; value: unknown; values: Readonly<Record<string, unknown>>; ctx: FlowContext; onCommit: (v: string[]) => void; labelledBy: string }) {
@@ -54,17 +58,15 @@ function MultiTurn({ q, value, values, ctx, onCommit, labelledBy }: { q: MultiQu
     <>
       <MultiChips options={optionsOf(q, ctx)} value={picked} onChange={setPicked} ranked={q.ranked} labelledBy={labelledBy} />
       {q.otherLabel ? <OtherEntries value={picked} onChange={setPicked} label={q.otherLabel} /> : null}
-      <div className="lm-ik-done">
-        <Key variant="default" onClick={() => onCommit(picked)} disabledReason={blocked ? TURN.ifSkip(q.skipText) : undefined} data-ik-done="true">
-          {count ? TURN.doneCount(count) : TURN.done}
-        </Key>
-      </div>
+      <CommitKey onClick={() => onCommit(picked)} disabledReason={blocked ? TURN.nextNeedsAnswer : undefined}>
+        {count ? TURN.doneCount(count) : TURN.done}
+      </CommitKey>
     </>
   );
 }
 
 export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(function QuestionCard(
-  { q, value, values, ctx, widgets, onCommit, position, total, context, changing, onBack, onLater, onKeep, onCancel, failed, onRetry, intro, footnote },
+  { q, value, values, ctx, widgets, onCommit, context, changing, onBack, onLater, onKeep, onCancel, failed, onRetry, footnote, dock = false },
   legendRef,
 ) {
   const id = useId();
@@ -73,14 +75,40 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
   const chipId = `${id}-chip`;
   const [whyOpen, setWhyOpen] = useState(false);
   const [footSlot, setFootSlot] = useState<HTMLElement | null>(null);
+  // a composite answer's commit, registered by its CommitKey: Next runs it
+  const commitRun = useRef<(() => void) | null>(null);
+  const [commitReason, setCommitReason] = useState<string | null | undefined>(undefined);
+  const commitApi = useMemo<CardCommitApi>(
+    () => ({
+      setRun: (run) => {
+        commitRun.current = run;
+      },
+      setReason: setCommitReason,
+    }),
+    [],
+  );
+  const registered = commitReason !== undefined;
   const hasAnswer = value !== undefined;
   const ownFooter = q.kind === 'custom' && q.ownFooter === true;
   // a card with nothing to answer: Next records `advance` (see `CustomQuestion.advance`)
   const advance = q.kind === 'custom' ? q.advance : undefined;
-  const canNext = (hasAnswer && onKeep !== undefined) || advance !== undefined;
-  const next = () => (hasAnswer && onKeep ? onKeep() : advance !== undefined ? onCommit(advance) : undefined);
+  const canNext = registered ? commitReason === null : (hasAnswer && onKeep !== undefined) || advance !== undefined;
+  // Next is always the step's gold primary. Pressed before there is anything to keep, it moves focus to the answers and
+  // names the fix under them (the reason stays up until the card can go on); a failed save is the one disabled state.
+  const [nudged, setNudged] = useState(false);
+  const answersRef = useRef<HTMLDivElement>(null);
+  const next = () => {
+    if (registered && commitReason === null) commitRun.current?.();
+    else if (!registered && hasAnswer && onKeep) onKeep();
+    else if (!registered && advance !== undefined) onCommit(advance);
+    else {
+      setNudged(true);
+      answersRef.current?.querySelector<HTMLElement>(ANSWER_FOCUS)?.focus();
+    }
+  };
+  const nudge = nudged && !canNext ? (commitReason ?? TURN.nextNeedsAnswer) : null;
 
-  const onKeyDown = (e: KeyboardEvent<HTMLFieldSetElement>) => {
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     const target = e.target as HTMLElement;
     const typing = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable;
     if (e.key === 'Escape' && onCancel) {
@@ -92,10 +120,7 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
     } else if ((e.key === 'l' || e.key === 'L') && onLater && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
       e.preventDefault();
       onLater();
-    } else if (e.key === 'Enter' && !typing && target.getAttribute('role') === 'checkbox') {
-      e.preventDefault();
-      e.currentTarget.querySelector<HTMLButtonElement>('[data-ik-done="true"]')?.click();
-    } else if (e.key === 'Enter' && !typing && (target === e.currentTarget || target.tagName === 'LEGEND') && canNext) {
+    } else if (e.key === 'Enter' && !typing && (target === e.currentTarget || target.tagName === 'LEGEND' || target.getAttribute('role') === 'checkbox') && canNext && !failed) {
       e.preventDefault();
       next();
     }
@@ -103,7 +128,7 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
 
   let body: ReactNode;
   if (q.kind === 'single') {
-    body = <AnswerKeys options={optionsOf(q, ctx)} value={typeof value === 'string' ? value : undefined} defaultValue={q.defaultValue} cards={q.cards} labelledBy={legendId} onCommit={onCommit} />;
+    body = <AnswerKeys options={optionsOf(q, ctx)} value={typeof value === 'string' ? value : undefined} cards={q.cards} labelledBy={legendId} onCommit={onCommit} />;
   } else if (q.kind === 'multi') {
     body = <MultiTurn key={q.id} q={q} value={value} values={values} ctx={ctx} onCommit={onCommit} labelledBy={legendId} />;
   } else if (q.kind === 'number') {
@@ -117,7 +142,6 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
         name={q.name}
         presets={q.presets}
         presetLabel={q.presetLabel}
-        defaultValue={q.defaultValue}
         onCommit={onCommit}
         labelledBy={legendId}
       />
@@ -136,88 +160,84 @@ export const QuestionCard = forwardRef<HTMLLegendElement, QuestionCardProps>(fun
   const describedBy = [context ? chipId : null, whyOpen ? whyId : null].filter(Boolean).join(' ') || undefined;
   const shortcuts = [canNext ? 'Enter' : null, onBack ? 'Alt+ArrowLeft' : null, onLater ? 'L' : null, onCancel ? 'Escape' : null].filter(Boolean).join(' ');
 
-  return (
-    <fieldset className="lm-ik-card" id={`ik-${q.id}`} data-kind={q.kind} data-changing={changing || undefined} onKeyDown={onKeyDown} aria-describedby={describedBy} aria-keyshortcuts={shortcuts || undefined}>
-      {intro ? <p className="lm-ik-card__intro">{intro}</p> : null}
-      <span className="lm-ik-card__count lm-eng">
-        {changing ? TURN.changing : TURN.questionOf(position, total)}
+  const steps = (
+    <div className="lm-ik-nav" data-docked={dock || undefined} onKeyDown={dock ? onKeyDown : undefined}>
+      {onBack ? (
+        <Key variant="outlined" onClick={onBack} aria-keyshortcuts="Alt+ArrowLeft" className="lm-ik-nav__back">
+          {TURN.back}
+        </Key>
+      ) : null}
+      <span className="lm-ik-nav__end">
+        {onCancel ? (
+          <Key variant="outlined" onClick={onCancel} aria-keyshortcuts="Escape">
+            {TURN.cancel}
+          </Key>
+        ) : null}
+        {onLater ? (
+          <Key variant="outlined" onClick={onLater} aria-keyshortcuts="L">
+            {TURN.later}
+          </Key>
+        ) : null}
+        {ownFooter ? (
+          <span className="lm-ik-nav__slot" ref={setFootSlot} />
+        ) : (
+          <Key variant="primary" onClick={next} disabledReason={failed ? TURN.saveFailed : undefined}>
+            {changing ? TURN.save : TURN.next}
+          </Key>
+        )}
       </span>
-      {context ? (
-        <span className="lm-ik-chip-parent" id={chipId}>
-          <CornerDownRight size={12} aria-hidden="true" />
-          <span>
+    </div>
+  );
+
+  return (
+    <CardCommit.Provider value={commitApi}>
+      <fieldset className="lm-ik-card lm-material" id={`ik-${q.id}`} data-enter="" data-kind={q.kind} data-why={q.why ? '' : undefined} data-changing={changing || undefined} onKeyDown={onKeyDown} aria-describedby={describedBy} aria-keyshortcuts={shortcuts || undefined}>
+        <legend ref={legendRef} id={legendId} className="lm-ik-card__prompt" tabIndex={-1}>
+          {q.prompt}
+        </legend>
+        {changing ? <span className="lm-ik-card__state">{TURN.changing}</span> : null}
+        {/* why this question shows: a quiet caption under the prompt, not a line above it (r068 ON-8) */}
+        {context ? (
+          <span className="lm-ik-card__context" id={chipId}>
             {TURN.because} {context}
           </span>
-        </span>
-      ) : null}
-      <legend ref={legendRef} id={legendId} className="lm-ik-card__prompt" tabIndex={-1}>
-        {q.prompt}
-      </legend>
-      {q.why ? (
-        <div className="lm-ik-turn__why">
-          <button type="button" className="lm-ik-why" aria-expanded={whyOpen} aria-controls={whyId} onClick={() => setWhyOpen((o) => !o)}>
-            {TURN.why}
-            <span aria-hidden="true" className={cx('lm-ik-why__chev', whyOpen && 'is-open')}>
-              ▾
-            </span>
-          </button>
-          <p id={whyId} className="lm-ik-why__text" hidden={!whyOpen}>
-            {q.why}
-          </p>
+        ) : null}
+        {q.why ? (
+          <div className="lm-ik-turn__why">
+            <button type="button" className="lm-info lm-ik-why" aria-label={TURN.why} aria-expanded={whyOpen} aria-controls={whyId} onClick={() => setWhyOpen((o) => !o)}>
+              <Icon icon={Info} size={15} />
+            </button>
+            <p id={whyId} className="lm-ik-why__text" hidden={!whyOpen}>
+              {q.why}
+            </p>
+          </div>
+        ) : null}
+        <div className="lm-ik-turn__answers" ref={answersRef}>
+          {body}
         </div>
-      ) : null}
-      <div className="lm-ik-turn__answers">{body}</div>
-      {footnote}
-      <p className="lm-ik-card__default">{TURN.ifSkip(q.skipText)}</p>
-      {failed ? (
-        <InlineWarning
-          severity="danger"
-          alert
-          action={
-            onRetry ? (
-              <Key size="sm" onClick={onRetry}>
-                {TURN.tryAgain}
-              </Key>
-            ) : undefined
-          }
-        >
-          {TURN.saveFailed}
-        </InlineWarning>
-      ) : null}
-      <div className="lm-ik-card__foot">
-        {onBack ? (
-          <Key size="md" icon={ChevronLeft} onClick={onBack} aria-keyshortcuts="Alt+ArrowLeft">
-            {TURN.back}
-          </Key>
-        ) : (
-          <span />
-        )}
-        <span className="lm-ik-card__foot-right">
-          {onCancel ? (
-            <Key variant="quiet" size="md" onClick={onCancel} aria-keyshortcuts="Escape">
-              {TURN.cancel}
-            </Key>
-          ) : null}
-          {onLater ? (
-            <Key variant="quiet" size="md" onClick={onLater} aria-keyshortcuts="L">
-              {TURN.later}
-            </Key>
-          ) : null}
-          {ownFooter ? (
-            <span className="lm-ik-card__foot-slot" ref={setFootSlot} />
-          ) : (
-            <Key
-              variant="solid"
-              size="md"
-              trailingIcon={ChevronRight}
-              onClick={next}
-              disabledReason={failed ? TURN.saveFailed : canNext ? undefined : TURN.nextNeedsAnswer}
-            >
-              {changing ? TURN.save : TURN.next}
-            </Key>
-          )}
-        </span>
-      </div>
-    </fieldset>
+        {/* the fix, after Next was pressed with nothing to keep: always in the tree, so the live region speaks */}
+        <p className="lm-ik-nudge" aria-live="polite">
+          {nudge}
+        </p>
+        {footnote}
+        {failed ? (
+          <InlineWarning
+            severity="danger"
+            alert
+            action={
+              onRetry ? (
+                <Key size="sm" variant="text" onClick={onRetry}>
+                  {TURN.tryAgain}
+                </Key>
+              ) : undefined
+            }
+          >
+            {TURN.saveFailed}
+          </InlineWarning>
+        ) : null}
+        {dock ? null : steps}
+      </fieldset>
+      {dock ? <ActionBar>{steps}</ActionBar> : null}
+    </CardCommit.Provider>
   );
 });

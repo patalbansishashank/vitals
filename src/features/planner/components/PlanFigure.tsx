@@ -49,7 +49,7 @@ export function PlanFigure({
   start: BodyEstimate;
   sim: SimulationResult;
   planTitle: string;
-  size?: 'xs' | 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md' | 'fill';
 }) {
   const params = useMemo(() => {
     try {
@@ -67,8 +67,37 @@ export function PlanFigure({
   // the person's drawing frame (Body › Shape), as on the Body page and the Simulator figure
   const frame = useProfileStore((st) => figureFrameOf(st));
   if (!params) return null;
+  // r068 W2-14: the Overview's figure fills its column, the start's outline behind the end, with a one-line key
+  if (size === 'fill')
+    return (
+      <div className="lp-figure">
+        <div className="lp-figure__stage">
+          <Figure3D
+            params={params.to}
+            compareTo={params.from}
+            frame={frame}
+            size="fill"
+            caption={false}
+            ruler={false}
+            tween={false}
+            label={`Illustrative figure at the end of the ${planTitle} plan, outline of the start behind it; fat mass ${params.fat <= 0 ? 'down' : 'up'} ${formatNumber(Math.abs(params.fat), 1)} kilograms.`}
+          />
+        </div>
+        <p className="lp-figure__key" aria-hidden="true">
+          <span>
+            <i data-k="start" />
+            start (outline)
+          </span>
+          <span>
+            <i data-k="end" />
+            end of the {planTitle} plan · fat {params.fat <= 0 ? '−' : '+'}
+            {formatNumber(Math.abs(params.fat), 1)} kg
+          </span>
+        </p>
+      </div>
+    );
   return (
-    <div className="lp-card__figure" style={{ width: size === 'xs' ? 56 : 112, overflow: 'visible' }}>
+    <div className="lp-card__figure" style={{ width: size === 'xs' ? 56 : size === 'sm' ? 112 : 200, overflow: 'visible' }}>
       <Figure3D
         params={params.to}
         compareTo={params.from}

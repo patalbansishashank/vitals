@@ -79,7 +79,11 @@ describe('training as usual: prescribed sessions (starter scenario plan)', () =>
       const b = toLoggedDay(logged(before, date)).loggedDay.inputs;
       expect(a.habitualTraining).toBe(true);
       expect(a.exercise).toEqual([]);
-      expect(a).toEqual(b);
+      // the replayed inputs are the same; only the day's observation metadata names the habitual assumption (C2)
+      const { observed: oa, ...ia } = a;
+      const { observed: ob, ...ib } = b;
+      expect(ia).toEqual(ib);
+      expect(oa?.coverage).toEqual(ob?.coverage);
       // something else logged (a free session): the usual session is dropped as before, not added on top
       const free = [sessionLog(date, 'free:1')];
       const c = toLoggedDay(logged(now, date, free)).loggedDay.inputs;
@@ -87,6 +91,33 @@ describe('training as usual: prescribed sessions (starter scenario plan)', () =>
       expect(c.exercise).toEqual(e.exercise);
       expect(c.habitualTraining).toBe(false);
     }
+  });
+
+  it('D5-01: a usual session marked not has no habitual dose; partly replays an explicit scaled usual dose; skipped removes it', () => {
+    const d = habitualDays()[0]!;
+    const date = addDays(START, d);
+    const r = rx(date);
+    const s = r.sessions[0]!;
+    const status = (train: 'not' | 'partly' | 'asPlanned'): DayStatusDoc => ({ date, marks: { train } }) as DayStatusDoc;
+    const not = toLoggedDay({ ...logged(r, date), status: status('not') }).loggedDay.inputs;
+    expect(not.habitualTraining).toBe(false);
+    expect(not.exercise).toEqual([]);
+    const partly = toLoggedDay({ ...logged(r, date), status: status('partly') }).loggedDay.inputs;
+    expect(partly.habitualTraining).toBe(false);
+    expect(partly.exercise).toHaveLength(s.engine.length);
+    const e0 = s.engine[0]!;
+    const p0 = partly.exercise![0]!;
+    if (e0.kind === 'cardio' && p0.kind === 'cardio') expect(p0.durationMin).toBeCloseTo(e0.durationMin * 0.5, 9);
+    const asPlanned = toLoggedDay({ ...logged(r, date), status: status('asPlanned') }).loggedDay.inputs;
+    expect(asPlanned.habitualTraining).toBe(true);
+    const itemId = `${s.kind === 'resistance' ? 'rtSession' : 'cardioSession'}:${s.slotKey}`;
+    const skipped = toLoggedDay(logged(r, date, [{ ...sessionLog(date, itemId), status: 'skipped' } as LogEntry])).loggedDay.inputs;
+    expect(skipped.habitualTraining).toBe(false);
+    expect(skipped.exercise).toEqual([]);
+    // an explicit "dose unknown" never invents the full session
+    const unknown = toLoggedDay(logged(r, date, [{ ...sessionLog(date, itemId), status: 'partial', habitualDose: { kind: 'unknown' } } as LogEntry]));
+    expect(unknown.loggedDay.inputs.exercise).toEqual([]);
+    expect(unknown.assumptions.some((a) => a.reasonCode === 'usualDoseUnknown')).toBe(true);
   });
 
   it('logging the usual session counts it once and credits its item', () => {

@@ -1,8 +1,9 @@
 /**
  * Review V1c: double submits of keyed commands and proposals, and the persisted idempotency ledger.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
-import { dispatch, resetBusState, settleCommits } from '..';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { dispatch, installLivingPorts, resetBusState, settleCommits } from '..';
+import type { LifecycleRevalidation } from '@/living';
 import { getDocumentStore } from '@/state/runtime';
 import { defineCommand } from '../registry';
 import { T } from '../schema';
@@ -98,7 +99,10 @@ describe('V1c proposals', () => {
 });
 
 describe('V1c plan lifecycle double submit', () => {
+  // the planner's lifecycle decision is out of scope here (A1-001: activation needs it): a startable revalidation
+  afterAll(() => installLivingPorts());
   it('two taps on "start" start one plan', async () => {
+    installLivingPorts({ revalidate: async () => ({ status: 'verified', certificateValid: true, startable: true }) as LifecycleRevalidation });
     const created = await dispatch('scenario.create', { starter: 'blank', name: 'Start me' });
     const scenarioId = created.ok && 'output' in created ? (created.output as { scenarioId: string }).scenarioId : '';
     await settleCommits();

@@ -1,7 +1,9 @@
-// Measures every control in the top bars and the action bar on every route and fails unless they are all exactly
-// the bar control height (--lm-bar-control-h): 36 px for a fine pointer, 44 px under touch emulation.
+// Measures every control a screen puts in its header (.lm-ctx) and in its ActionBar row (.lm-actionbar) on every route
+// and fails unless they are all exactly the bar control height (--lm-bar-control-h): 36 px for a fine pointer, 44 px
+// under touch emulation. The header's own keys (Back, the one ⋯: 48 px) and the status capsule (30 px) keep their own
+// sizes and are checked against those instead.
 //   BASE=http://127.0.0.1:5300 STATE_PLANNING=<storageState.json> STATE_LIVING=<storageState.json> \
-//   KIND=fine|coarse SCHEME=light|dark [WIDTHS=390,768,1440,1920] [SHOTS=dir] node scripts/qa/bar-heights.mjs
+//   KIND=fine|coarse [WIDTHS=390,768,1440,1920] [SHOTS=dir] node scripts/qa/bar-heights.mjs
 // The state files are synthetic browser-local storage states (qa/scripts/C-DESIGN/seed.mjs makes them).
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -10,7 +12,8 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '../..');
 const BASE = process.env.BASE || 'http://127.0.0.1:5300';
 const KIND = process.env.KIND || 'fine';
-const SCHEME = process.env.SCHEME || 'light';
+// Vitals is dark only (SPEC §1); SCHEME only sets the emulated OS preference, which the app ignores.
+const SCHEME = process.env.SCHEME || 'dark';
 const EXPECT = KIND === 'coarse' ? 44 : 36;
 const widths = (process.env.WIDTHS || (KIND === 'coarse' ? '390,768' : '390,768,1440,1920')).split(',').map(Number);
 const planning = process.env.STATE_PLANNING || path.join(root, '.e6-tmp/live-actionbar/state-planning.json');
@@ -23,11 +26,11 @@ const PLANNING_ROUTES = [
   '/body', '/body?setup=basics', '/body?setup=shape', '/body?setup=habits', '/body?setup=start',
   '/plan/goals', '/simulate/starter/schedule', '/simulate/starter/results',
   '/onboarding/activity', '/onboarding/training', '/onboarding/diet', '/onboarding/kitchen', '/onboarding/supplements', '/onboarding/devices', '/onboarding/summary',
-  '/settings', '/settings/units', '/evidence', '/safety', '/ring', '/signals',
+  '/settings', '/settings/units', '/evidence', '/safety',
 ];
 const LIVING_ROUTES = ['/today', '/food', '/food/pantry', '/train', '/progress', '/coach', '/plan/active'];
 
-/** In the page: every control inside a visible bar, as { bar, kind, h, w, text }. */
+/** In the page: every control inside a visible header or action row, as { bar, kind, h, w, text, want }. */
 function measure() {
   const vis = (el) => {
     const r = el.getBoundingClientRect();
@@ -35,20 +38,22 @@ function measure() {
     const cs = getComputedStyle(el);
     return cs.visibility !== 'hidden' && cs.display !== 'none';
   };
-  const bars = [...document.querySelectorAll('.lm-topbar, .lm-ctx, .lm-actionbar')].filter((b) => vis(b) && b.getBoundingClientRect().height > 20);
+  const bars = [...document.querySelectorAll('.lm-ctx, .lm-actionbar')].filter((b) => vis(b) && b.getBoundingClientRect().height > 20);
   const out = [];
   for (const bar of bars) {
-    const name = bar.classList.contains('lm-actionbar') ? 'action' : bar.classList.contains('lm-topbar') ? 'top' : 'ctx';
-    const cands = [...bar.querySelectorAll('button, a[href], select, input:not([type=hidden]), textarea, [role=radio], [role=tab], .lm-switch, .lm-bank, .lm-stepper, .lm-numfield, .lm-chip, .lm-runkey')];
+    const name = bar.classList.contains('lm-actionbar') ? 'action' : 'header';
+    const cands = [...bar.querySelectorAll('button, a[href], select, input:not([type=hidden]), textarea, [role=radio], [role=tab], .lm-switch, .lm-bank, .lm-stepper, .lm-numfield, .lm-chip, .lm-status-icon, .lm-runkey')];
     for (const el of cands) {
-      const container = el.closest('.lm-bank, .lm-stepper, .lm-numfield, .lm-switch, .lm-runkey, .lm-chip');
+      const container = el.closest('.lm-bank, .lm-stepper, .lm-numfield, .lm-switch, .lm-runkey, .lm-chip, .lm-status-icon');
       if (container && container !== el) continue; // measured as one control
-      if (!vis(el) || el.closest('.lm-sr, [aria-hidden="true"], .lm-ik-progress')) continue;
-      if (el.matches('a[href]') && !el.matches('.lm-key, .lm-chip, .lm-topbar__back, .lm-bank__key, [role=tab]')) continue; // plain text links
+      if (!vis(el) || el.closest('.lm-sr, [aria-hidden="true"], .lm-ik-progress, h1')) continue; // the h1's own switcher is the title, not a bar control
+      if (el.matches('a[href]') && !el.matches('.lm-key, .lm-chip, .lm-status-icon, .lm-bank__key, [role=tab]')) continue; // plain text links
       const r = el.getBoundingClientRect();
       const run = el.matches('.lm-runkey') ? el.querySelector('.lm-runkey__cap') : null;
       const h = run ? run.getBoundingClientRect().height : r.height;
-      out.push({ bar: name, kind: el.className && typeof el.className === 'string' ? el.className.split(' ').slice(0, 2).join('.') : el.tagName.toLowerCase(), h: Math.round(h * 10) / 10, w: Math.round(r.width), text: (el.getAttribute('aria-label') || el.textContent || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 28) });
+      // the header's own keys and its status icons are 48 px targets; everything a screen adds is the bar height
+      const want = el.matches('.lm-ctx__toggle, .lm-ctx__back, .lm-ctx__more, .lm-status-icon') ? 48 : null;
+      out.push({ bar: name, want, kind: el.className && typeof el.className === 'string' ? el.className.split(' ').slice(0, 2).join('.') : el.tagName.toLowerCase(), h: Math.round(h * 10) / 10, w: Math.round(r.width), text: (el.getAttribute('aria-label') || el.textContent || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 28) });
     }
   }
   return { controls: out, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth, bars: bars.length };
@@ -58,9 +63,9 @@ const failures = [];
 const summary = [];
 async function check(page, label, w, route) {
   const m = await page.evaluate(measure);
-  const bad = m.controls.filter((c) => Math.abs(c.h - EXPECT) > 0.6);
+  const bad = m.controls.filter((c) => Math.abs(c.h - (c.want ?? EXPECT)) > 0.6);
   summary.push(`${label.padEnd(8)} ${String(w).padStart(4)} ${SCHEME.padEnd(5)} ${route.padEnd(34)} bars=${m.bars} controls=${m.controls.length} ${bad.length ? 'BAD ' + bad.length : 'ok'}${m.overflow > 1 ? ' hscroll=' + m.overflow : ''}`);
-  for (const c of bad) failures.push(`${KIND} ${w} ${SCHEME} ${route}: ${c.bar} ${c.kind} "${c.text}" is ${c.h} px (want ${EXPECT})`);
+  for (const c of bad) failures.push(`${KIND} ${w} ${SCHEME} ${route}: ${c.bar} ${c.kind} "${c.text}" is ${c.h} px (want ${c.want ?? EXPECT})`);
   if (m.overflow > 1) failures.push(`${KIND} ${w} ${SCHEME} ${route}: horizontal scroll ${m.overflow}px`);
   if (shots && SHOT_ROUTES.has(route.split('?')[0]) && !route.includes('?')) {
     const slug = `${route.replace(/\W+/g, '_')}-${w}-${SCHEME}-${KIND}`;
@@ -153,4 +158,4 @@ if (failures.length) {
   console.log(`\nFAILED (${failures.length}):\n${failures.slice(0, 60).join('\n')}`);
   process.exit(1);
 }
-console.log(`\nOK: every bar control is ${EXPECT} px (${KIND}, ${SCHEME}).`);
+console.log(`\nOK: every header and action-row control is ${EXPECT} px, the header's own keys 48 px (${KIND}).`);

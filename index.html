@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <!-- Cascade layer order, fixed before any stylesheet loads: a lazily split CSS chunk (e.g. the shell's) can arrive
@@ -7,9 +7,9 @@
     <style>@layer properties, theme, base, components, utilities;</style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Vitals helps you explore a plan before you follow it, then track food, activity and body signals in one private place." />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#dde0e3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#181a1c" media="(prefers-color-scheme: dark)" />
+    <!-- Dark only (Ember): one colour scheme; the browser chrome matches the #090909 backdrop. -->
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#090909" />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png" />
@@ -29,14 +29,27 @@
     <script src="/theme-boot.js"></script>
   </head>
   <body>
+    <!-- DIRECTION CONTRACT (Ember)
+         THESIS: a quiet charcoal instrument you read in seconds: one header, one menu, content, a floating pill. It refuses
+         the stacked-bars, captioned-everything dashboard.
+         OWN-WORLD: #090909 backdrop, fixed grain, faint gold wash; #1B1916 grained cards, 0.5px gold hairlines, 20px
+         corners, one domain glow, no shadows; ivory #F5F1E9 text, stone #C3BCB0/#AAA296; gold #E3BF78 for action,
+         selection, the moment; Geist, Geist Mono caps, tabular numerals; frosted header and dock.
+         STORY: open, see today and the next thing, log it in one tap, leave.
+         FIRST VIEWPORT: "Today" with the date, one ⋯, optional status capsule; week strip; Next up; plan cards; icon pill
+         over a frosted dock.
+         FORM: brief-pinned (owner) — Lumen Health "Ember"; impeccable concept seed 97bfc117 overridden by the pinned brief.
+         FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance.
+    -->
     <div id="root">
       <!-- Start screen: the mark draws on before any script runs (public/brand/launch.css). React replaces it on
-           its first render; src/components/brand/LaunchScreen.tsx carries the animation on. Geometry from
-           public/brand/mark.svg, cropped to the ring (src/components/brand/geometry.ts). -->
+           its first render; src/components/brand/LaunchScreen.tsx carries the animation on. The <svg> is written
+           by design/brand/vitals-mark.py from the mark's geometry (src/components/brand/mark-geometry.ts). -->
       <div class="vitals-launch" aria-hidden="true">
-        <svg class="vitals-launch__mark" viewBox="18 18 72 72" width="88" height="88" focusable="false">
-          <path class="vitals-launch__ring" d="M74.56,75.84 A30,30 0,1 1,81.56,65.85" />
-          <circle class="vitals-launch__dot" cx="67.93" cy="63.75" r="6.5" />
+        <svg class="vitals-launch__mark" viewBox="2 2 20 20" width="88" height="88" focusable="false">
+          <circle class="vitals-launch__track" cx="12" cy="12" r="9.35" />
+          <path class="vitals-launch__ring" d="M17.756,19.368 A9.35,9.35 0 1 1 20.892,14.889" />
+          <circle class="vitals-launch__dot" cx="16.342" cy="15.04" r="1.5" />
         </svg>
       </div>
     </div>

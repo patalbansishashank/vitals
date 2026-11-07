@@ -33,13 +33,11 @@ export const COLLECTION_IDS = [
   'dayStatus',
   'measurements',
   'anchors',
-  'bioRecords',
+  // energy SPEC §V3.1: activity candidates (review queue) and their source-ref alias index
+  'activityCandidates',
+  'activityCandidateRefs',
+  // the blob store's manifest rows (photos); the name is historical
   'bioChunks',
-  'bioSources',
-  'bioScores',
-  'decisionLog',
-  // E28 (SUITE_SPEC §14.6): the person's corrections of device values, `vitals.bio_correction/1`
-  'bioCorrections',
   'conversations',
   'messages',
   'attachments',
@@ -170,6 +168,10 @@ export interface DocumentStore {
   watch<T>(col: CollectionId, q: Query | { id: string }, cb: (docs: Doc<T>[]) => void): () => void;
   /** Atomic: every write inside `fn` lands together or not at all. Requires a valid token. */
   transact<R>(token: WriteToken, fn: (tx: Tx) => Promise<R>): Promise<R>;
+  /** Reject a replica whose local database was replaced in another window. */
+  assertCurrent?(): Promise<void>;
+  /** Validated local snapshot replacement. Ordinary transactions retain append-only rules. */
+  restoreSnapshot?(token: WriteToken, snapshot: Partial<Record<CollectionId, Array<Doc<unknown>>>>, recovery: { id: string; mirrors: Record<string, string> }): Promise<void>;
   history?<T>(col: CollectionId, id: string, limit: number): Promise<Array<{ rev: string; at: Instant; device: DeviceId; doc: Doc<T> }>>;
   estimate(): Promise<Partial<Record<CollectionId, CollectionStats>>>;
   /** Every document (including soft-deleted ones) of the given collections: export, `copyStore`. */

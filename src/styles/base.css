@@ -1,14 +1,10 @@
 /* ==========================================================================
-   Vitals — base layer: document typography, browser surfaces, motion policy.
-   Everything reads --lm-* tokens (tokens.css). No literal colours here.
+   Vitals — base layer: document typography, the Ember backdrop, browser
+   surfaces, motion policy. Everything reads --lm-* tokens (tokens.css).
    ========================================================================== */
 
-/* Font stack with the metric-matched fallback (fonts.css). Unlayered so it
-   beats the token declaration it refines; also re-applied inside theme scopes. */
-:root,
-[data-theme-scope] {
-  --lm-font-sans: 'Archivo', 'Archivo Fallback', 'Helvetica Neue', Helvetica, Arial, system-ui, sans-serif;
-  /* safe-area insets as tokens so layout math stays readable */
+/* safe-area insets as tokens so layout math stays readable */
+:root {
   --lm-safe-top: env(safe-area-inset-top, 0px);
   --lm-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lm-safe-left: env(safe-area-inset-left, 0px);
@@ -25,6 +21,19 @@
   --lm-dur-slow: 0.01ms;
   --lm-dur-needle: 0.01ms;
   --lm-dur-morph: 0.01ms;
+  --lm-dur-frost: 0.01ms;
+  /* r071 picture motion: every picture renders its final state at once (the hooks in src/app/motion.ts do the same) */
+  --lm-dur-count: 0.01ms;
+  --lm-dur-draw: 0.01ms;
+  --lm-dur-glow: 0.01ms;
+  --lm-dur-bars: 0.01ms;
+  --lm-dur-fill: 0.01ms;
+  --lm-dur-spring: 0.01ms;
+  --lm-dur-exit: 0.01ms;
+  --lm-dur-glide: 0.01ms;
+  --lm-stagger-tick: 0ms;
+  --lm-stagger-bar: 0ms;
+  --lm-pulse-cycles: 0;
   --lm-ease-needle: linear;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -34,6 +43,18 @@
     --lm-dur-slow: 320ms;
     --lm-dur-needle: 420ms;
     --lm-dur-morph: 900ms;
+    --lm-dur-frost: 300ms;
+    --lm-dur-count: 1100ms;
+    --lm-dur-draw: 1200ms;
+    --lm-dur-glow: 900ms;
+    --lm-dur-bars: 700ms;
+    --lm-dur-fill: 900ms;
+    --lm-dur-spring: 320ms;
+    --lm-dur-exit: 220ms;
+    --lm-dur-glide: 280ms;
+    --lm-stagger-tick: 14ms;
+    --lm-stagger-bar: 60ms;
+    --lm-pulse-cycles: 2;
     --lm-ease-needle: cubic-bezier(0.34, 1.36, 0.64, 1);
   }
   :root:not([data-motion='full']) *,
@@ -54,49 +75,63 @@
   scroll-behavior: auto !important;
 }
 
-/* Theme change cross-fade (settings-data.md §7). theme.ts adds the class for
-   ~260 ms; reduced motion collapses the durations above. */
-:root.lm-theme-fading,
-:root.lm-theme-fading *,
-:root.lm-theme-fading *::before,
-:root.lm-theme-fading *::after {
-  transition-property: background-color, border-color, color, fill, stroke, box-shadow !important;
-  transition-duration: var(--lm-dur-base) !important;
-  transition-timing-function: var(--lm-ease-out) !important;
-}
-
 @layer base {
   html {
-    scrollbar-gutter: stable;
+    color-scheme: dark;
+    background: var(--lm-chassis);
+    color: var(--lm-ink);
+    font-family: var(--lm-font-sans);
+    font-size: 100%;
+    /* Lumen sets tabular numerals on every role; inherited, so it reaches every
+       descendant that does not set its own font-feature-settings. */
+    font-feature-settings: 'tnum' 1;
+    font-variant-numeric: tabular-nums;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    scroll-padding-top: calc(var(--lm-topbar-h) * 2 + var(--lm-safe-top));
-  }
-  @media (min-width: 64rem) {
-    html {
-      scroll-padding-top: calc(var(--lm-topbar-h) + 16px);
-    }
+    /* clear of the sticky header (its measured height, written by AppShell; shell.css refines this inside the app) */
+    scroll-padding-top: calc(var(--lm-header-h, 0px) + var(--lm-update-notice-h, 0px) + 12px);
   }
   body {
     margin: 0;
     min-height: 100vh;
     min-height: 100dvh;
     font-family: var(--lm-font-sans);
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: var(--lm-text-body--wt);
     color: var(--lm-ink);
-    background: var(--lm-chassis);
+    /* transparent on purpose: the backdrop is body::before (z-index -1), which an
+       opaque body (or #root / app shell) background would cover */
+    background: transparent;
     -webkit-tap-highlight-color: transparent;
     font-synthesis: none;
+  }
+  /* The Ember backdrop (SPEC §3): the backdrop grain tile (72 % #090909 baked
+     over the grain = grain at .28) at one image pixel per device pixel, and a
+     gold wash from the top right. Fixed, so it does not scroll; the wash is its
+     one CSS gradient (each gradient adds the browser's ordered dither). */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--lm-backdrop-bg);
   }
   #root {
     min-height: 100vh;
     min-height: 100dvh;
   }
+  /* the display face carries every heading (fonts.css renders it at 600 or heavier) */
   h1,
   h2,
   h3,
   h4 {
+    font-family: var(--lm-font-display);
     text-wrap: balance;
   }
   p {
@@ -111,7 +146,7 @@
   }
   a {
     color: inherit;
-    text-decoration-color: var(--lm-edge);
+    text-decoration-color: var(--lm-line-strong);
     text-underline-offset: 3px;
     text-decoration-thickness: 1px;
   }
@@ -121,12 +156,13 @@
     font-family: var(--lm-font-mono);
     font-size: 0.92em;
   }
-  table {
-    font-variant-numeric: tabular-nums;
-  }
   ::placeholder {
     color: var(--lm-ink-3);
     opacity: 1;
+  }
+  ::selection {
+    background: var(--lm-text-selection);
+    color: var(--lm-ink);
   }
   :focus-visible {
     outline: 2px solid var(--lm-focus);
@@ -139,10 +175,60 @@
   :is(h1, h2, h3, legend, main, section)[tabindex='-1']:focus-visible {
     outline: none;
   }
-  /* Scrollbars carry the chassis, not the OS default. */
+  /* Scrollbars (r068 U6/U7). Every inner scroller (a sheet, a panel, a menu, a table) gets a thin, quiet thumb in
+     the theme's ink on a transparent track, so its track is the surface it sits on.
+     The page itself shows no native bar: Chromium paints the root scrollbar's track in the root's flat background
+     colour, a #090909 strip beside the grained, gold-washed backdrop (the "black track" in the desktop app). On
+     desktop pointers the shell draws an overlay thumb instead (src/app/shell/OverlayScrollbar.tsx), over the backdrop
+     with no track at all; on touch there is none. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--lm-line-strong) transparent;
+    scrollbar-color: var(--lm-scrollbar-thumb) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: var(--lm-scrollbar-size);
+    height: var(--lm-scrollbar-size);
+    background: transparent;
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--lm-scrollbar-thumb);
+    border-radius: var(--lm-radius-full);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--lm-scrollbar-thumb-hover);
+  }
+  html {
+    scrollbar-width: none;
+  }
+  html::-webkit-scrollbar {
+    display: none;
+  }
+  /* touch (phones, tablets, the Android app) and narrow windows: no visible scrollbar anywhere */
+  /* (r068 final U6) !important: this rule sits in @layer base, so a component's own `scrollbar-width: thin`
+     (strips, planner lists) in a later layer would otherwise win; an important declaration in an earlier layer beats
+     every normal one */
+  @media (pointer: coarse), (max-width: 47.99rem) {
+    * {
+      scrollbar-width: none !important;
+    }
+    ::-webkit-scrollbar {
+      display: none !important;
+    }
+  }
+  :root[data-platform='android'] * {
+    scrollbar-width: none !important;
+  }
+  :root[data-platform='android'],
+  :root[data-platform='android'] body {
+    scrollbar-gutter: auto;
+    overscroll-behavior-x: none;
+  }
+  :root[data-platform='android'] ::-webkit-scrollbar {
+    display: none !important;
   }
   [hidden] {
     display: none !important;
@@ -161,4 +247,23 @@
   clip-path: inset(50%) !important;
   white-space: nowrap !important;
   border: 0 !important;
+}
+
+/* Lenis smooth scrolling (src/app/motion.ts; desktop fine pointers only). The library's own rules (lenis/dist/lenis.css),
+   inlined so nothing loads for touch. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
 }

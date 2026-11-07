@@ -6,7 +6,7 @@
 import { compileSchedule } from '../../core/compileSchedule';
 import { captureInitialSnapshot, runEngine } from '../../core/loop';
 import { MODULES } from '../../core/moduleRegistry';
-import { worstMargin } from '../../model/safety/constraints';
+import { eaUnevaluatedDays, worstMargin } from '../../model/safety/constraints';
 import { ketoFedStrict } from '../../model/safety/derived';
 import { defaultSafetyConstants } from '../../model/safety/params';
 import { PLANNER_MODULES } from './engineModules';
@@ -16,22 +16,31 @@ import type { EngineSnapshot, RunOptions, SimulationResult, StateBound } from '.
 import type { Schedule } from '../../types/schedule';
 import { complexityPenalty, hungerCapMargin, hungerPenalty } from '../optim/goals';
 import { Rng, latinHypercube } from '../optim/rng';
-import { HOLDOUT_DRAW_OFFSET, type PlanModel, type RepairEntry, type Repaired } from '../optim/types';
+import { HOLDOUT_DRAW_OFFSET, SAFETY_AUDIT_DRAW_OFFSET, type PlanModel, type RepairEntry, type Repaired } from '../optim/types';
 
 /** First draw index of the holdout ensemble (optim `HOLDOUT_DRAW_OFFSET`, PLANNER_V2_SPEC §4.7). */
 export const HOLDOUT_DRAW_BASE = HOLDOUT_DRAW_OFFSET;
+/** First draw index of the reserved safety-audit stream (optim `SAFETY_AUDIT_DRAW_OFFSET`, C5/D4-03). */
+export const SAFETY_AUDIT_DRAW_BASE = SAFETY_AUDIT_DRAW_OFFSET;
 import type { PlanningContext } from './context';
 import { baselineSchedule, decodePlan, type DecodedPlan } from './decode';
 import { complexityCounts, descriptors, features, planFacts } from './features';
 import { difficultyD } from './difficulty';
-import { goalValue, type GoalBinding } from './goalSpecs';
+import { goalSeries, goalTrajectory, goalValue, missingGoalIndices, type GoalBinding } from './goalSpecs';
 import { repairSchedule } from './repair';
+import { closedRunStatuses, goalSense, guardedGoalValue, type PlannerCondition, type StatusEntry } from './capabilities';
+import { OBJECTIVE_STATUSES } from '@/lib/bodyContracts';
 import { HC } from './safety';
+import { BLOCKS } from './registry/blocks';
+import { reviewMuscleRetention } from './muscleRetention';
 import type { SkeletonStructure } from './skeleton';
 
 /** State-space constraint margins, in this order (17 §2.2 via MODEL_SPEC §7.3 scales). */
 export const MARGIN_IDS = ['HC-E1', 'HC-E3', 'HC-E4', 'HC-E5', 'HC-E6', 'HC-E8', 'HC-P4', 'HC-P5', 'HC-E7', 'hungerCap', 'abort', 'gainRate', 'W-E07', 'W-M06', 'W-05-KETO-FED', 'W-S03',
-  'W-E01', 'W-E03', 'W-E05', 'W-E10', 'W-E11', 'W-E13', 'W-E15', 'W-M01', 'W-S01', 'W-13-ALPERT', 'HC-E3.28'] as const;
+  'W-E01', 'W-E03', 'W-E05', 'W-E10', 'W-E11', 'W-E13', 'W-E15', 'W-M01', 'W-S01', 'W-13-ALPERT', 'HC-E3.28', 'userMuscleRetention'] as const;
+
+/** User's model-scenario budget, separate from the clinical safety margins and never relaxed by Ideal. */
+export const MUSCLE_RETENTION_MARGIN_INDEX = MARGIN_IDS.indexOf('userMuscleRetention');
 
 /**
  * Simulator-warning margins taken from the engine (`SimulationResult.warningMargins`, safety `computeWarningMargins`,
@@ -55,6 +64,10 @@ const SAFETY_K = defaultSafetyConstants();
  * series is defined on exactly those days) — with the nominal headroom `CHANCE_CUSHION` (0.25 × 5 = 1.25 kcal/kg FFM,
  * so ≈ 31). The 35 kcal/kg FFM edge of W-E07 (30-35 for more than 14 days, a caution) is not a constraint: a deficit
  * plan for someone who trains may sit in that band and then lists the caution with its other safety notes.
+ * D4-04: 30 is an explicit precautionary design policy on the eating-day statistic (`eatingDayEa7`), not a universal safe
+ * boundary — meeting it never certifies safety, and logged menstrual/fatigue/performance/injury concerns trigger review
+ * at any EA (`eaExposureReview`). The calendar exposure (`calendarEa7`/`calendarEa28`, fast days included) is reported
+ * beside it and does not add a new blanket fasting prohibition.
  */
 export const EA_FLOOR = { floor: SAFETY_K.eaHardMin, scale: SAFETY_K.scaleEa, cautionUpper: SAFETY_K.eaReducedUpper } as const;
 
@@ -94,8 +107,21 @@ export function eaFloorMargin(sim: SimulationResult): number {
 export const GAIN_RATE_TARGET_PCT: Readonly<Record<string, number>> = { none: 0.5, lt1y: 0.5, '1to3y': 0.5, gt3y: 0.25 };
 export type MarginId = (typeof MARGIN_IDS)[number];
 
-/** Margin used when a quantity is not available (stub module → NaN trace): "not evaluated", never a violation. */
+/**
+ * Finite compatibility margin for "not evaluated" (C6): a rule that does not apply on any day (no deficit day, no fast) or
+ * a quantity whose trace is unavailable. The optimizer may read it; it is never a pass for the joint safety screen when
+ * the required output is unavailable — those indices are reported by `missingStateMargins` (`EvalOutput.missing`).
+ */
 export const MARGIN_NA = 10;
+/**
+ * Dossier-17 hard margins the independent safety audit requires (C5/D4-03): HC-E1, E3, E4, E5, E6, E8, P4, P5, E7, the
+ * early abort and the 28-day deficit leg. The hunger cap is a tolerance, not safety; the Simulator-caution margins are
+ * judged on the nominal run (their draws report the compatibility value by design) and enter the audit as a known
+ * violation when the frozen candidate's nominal margin is negative.
+ */
+export const REQUIRED_SAFETY_MARGINS: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 26];
+/** The same as margin ids (certificate `requiredMargins`). */
+export const REQUIRED_SAFETY_MARGIN_IDS: readonly string[] = REQUIRED_SAFETY_MARGINS.map((i) => MARGIN_IDS[i]!);
 const MARGIN_CLAMP = 100;
 
 /** Regulariser weights λ_H, λ_C, λ_T (18 §4.7.3 gives the form only; PROPOSED planner tuning constants). */
@@ -107,8 +133,11 @@ const HUNGER_CAP_UNIT = 0.1;
 
 export interface ModelOptions {
   bindings: readonly GoalBinding[];
-  /** Ensemble: seed and size M; the LHS is drawn once in quantile space (18 §4.15). */
-  ensemble?: { seed: number | string; size: number; holdoutSize?: number };
+  /**
+   * Ensemble: seed and size M; the LHS is drawn once in quantile space (18 §4.15). `safetyAuditSize` sizes the reserved
+   * safety-audit stream (default `size`), drawn from its own stream `ensemble/safetyAudit`.
+   */
+  ensemble?: { seed: number | string; size: number; holdoutSize?: number; safetyAuditSize?: number };
   /** Extra series to record (explanations / final options). */
   extraSeries?: readonly SeriesId[];
   /** Record every series (final option re-simulation). */
@@ -156,7 +185,7 @@ export function ketoFedDailyLimits(ctx: PlanningContext, fastDay: ArrayLike<numb
 }
 
 /** Curves that get daily P10-P90 bands in the result (besides the goal metrics). */
-export const BAND_SERIES: readonly SeriesId[] = ['scaleWeight', 'fatMass', 'leanTissue', 'bodyFatPct', 'hunger'];
+export const BAND_SERIES: readonly SeriesId[] = ['scaleWeight', 'fatMass', 'leanTissue', 'bodyFatPct', 'hunger', 'skeletalMuscle', 'tdee', 'inEnergy'];
 
 /** Stable key of a genome (quantised like the optimiser's cache, 1e-6). */
 export function genomeKey(structureId: string, x: ArrayLike<number>): string {
@@ -165,13 +194,24 @@ export function genomeKey(structureId: string, x: ArrayLike<number>): string {
   return s;
 }
 
+/**
+ * Per-path observable keys a band record carries besides the metric series (C4/D5-02): the measurement operator is
+ * applied to EACH ensemble member before any quantile, so a drift comparison never subtracts independent percentile
+ * endpoints. `op:modelTissueMass` = FM + FFM_act of the same path at the end of each day (the engine's tissue-mass
+ * convention: no glycogen/water transients); index 0 (t = 0) is NaN (the operator has no pre-run sample).
+ */
+export const BAND_OPERATOR_KEYS = ['op:modelTissueMass'] as const;
+export type BandOperatorKey = (typeof BAND_OPERATOR_KEYS)[number];
+
 /** Daily series y(0..T) (index 0 = t = 0) of the band series of one ensemble evaluation. */
-export type BandRecord = Map<SeriesId, Float32Array>;
+export type BandRecord = Map<SeriesId | BandOperatorKey | `goal:${string}`, Float32Array>;
 
 export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, SimulationResult> {
   private readonly plans = new WeakMap<Schedule, DecodedPlan>();
   private readonly keys = new WeakMap<Schedule, string>();
   private readonly simDraw = new WeakMap<SimulationResult, number>();
+  /** Schedule each run simulated (planner conditions read the planned inputs, D1-05/D7-07). */
+  private readonly simSchedule = new WeakMap<SimulationResult, Schedule>();
   /** Band series of recent ensemble evaluations (draw ≥ 0), keyed by genome and draw (bounded FIFO). */
   private readonly bandCache = new Map<string, BandRecord>();
   static readonly BAND_CACHE_MAX = 800;
@@ -183,6 +223,7 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
   private readonly abortOn: StateBound[];
   private ensembleU: Float64Array | null = null;
   private holdoutU: Float64Array | null = null;
+  private auditU: Float64Array | null = null;
   private P = 0;
 
   constructor(
@@ -190,6 +231,9 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
     readonly opts: ModelOptions,
   ) {
     const set = new Set<SeriesId>(BASE_SERIES);
+    set.add('tdee');
+    set.add('inEnergy');
+    if (ctx.request.constraints?.muscleRetention) set.add('skeletalMuscle');
     for (const b of opts.bindings) set.add(b.metric as SeriesId);
     for (const s of opts.extraSeries ?? []) set.add(s);
     this.series = [...set];
@@ -214,7 +258,7 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
     return this.bandCache.get(`${genomeKey(structureId, x)}|${draw}`);
   }
 
-  /** Band series of one simulation: y(0..T) per series. */
+  /** Band series of one simulation: y(0..T) per series, plus the per-path operator values (`BAND_OPERATOR_KEYS`). */
   bandRecord(sim: SimulationResult): BandRecord {
     const rec: BandRecord = new Map();
     for (const id of new Set<SeriesId>([...this.opts.bindings.map((b) => b.metric as SeriesId), ...BAND_SERIES])) {
@@ -224,6 +268,18 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
       y[0] = sim.initial[id] ?? Number.NaN;
       y.set(d, 1);
       rec.set(id, y);
+    }
+    const tm = sim.safety?.tissueMassKg;
+    if (tm && tm.length) {
+      const y = new Float32Array(tm.length + 1);
+      y[0] = Number.NaN;
+      y.set(tm, 1);
+      rec.set('op:modelTissueMass', y);
+    }
+    // Preserve the operator of each complete path; bands of marginal FM/LT quantiles cannot form a BF band.
+    for (const binding of this.opts.bindings) {
+      const trajectory = goalTrajectory(sim, binding, this.ctx);
+      if (trajectory.available && trajectory.values) rec.set(trajectory.bandKey as `goal:${string}`, Float32Array.from(trajectory.values));
     }
     return rec;
   }
@@ -248,7 +304,16 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
     const defs = buildModelParams(MODULES).defs;
     this.P = variableParamCount(defs);
     let v: Float64Array | undefined;
-    if (draw >= HOLDOUT_DRAW_BASE) {
+    if (draw >= SAFETY_AUDIT_DRAW_BASE) {
+      // reserved safety-audit stream (C5/D4-03): its own Latin hypercube from 'ensemble/safetyAudit', separate from the
+      // selection and the outcome-holdout streams; never searched, selected on or repaired against
+      const m = draw - SAFETY_AUDIT_DRAW_BASE;
+      if (!this.auditU) {
+        const Ma = Math.max(1, this.opts.ensemble.safetyAuditSize ?? this.opts.ensemble.size);
+        this.auditU = this.P > 0 ? latinHypercube(Ma, this.P, new Rng(this.opts.ensemble.seed).fork('ensemble/safetyAudit')) : new Float64Array(0);
+      }
+      v = this.P > 0 && (m + 1) * this.P <= this.auditU.length ? quantilesToParams(defs, this.auditU.subarray(m * this.P, (m + 1) * this.P)) : undefined;
+    } else if (draw >= HOLDOUT_DRAW_BASE) {
       // holdout ensemble (PLANNER_V2_SPEC §4.7): its own Latin hypercube from the stream 'ensemble/holdout', never searched on
       const m = draw - HOLDOUT_DRAW_BASE;
       if (!this.holdoutU) {
@@ -310,6 +375,7 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
     if (useSnap) opts.initialSnapshot = this.snapshotFor(draw);
     const sim = runEngine(this.ctx.rp, cs, opts, PLANNER_MODULES);
     this.simDraw.set(sim, draw);
+    this.simSchedule.set(sim, schedule);
     const key = this.keys.get(schedule);
     if (draw >= 0 && key) {
       if (this.bandCache.size >= EnginePlanModel.BAND_CACHE_MAX) this.bandCache.delete(this.bandCache.keys().next().value!);
@@ -319,8 +385,18 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
   }
 
   // ---- goal functionals (metric units)
+  /**
+   * Objective goal values (C6): the raw functional, with no credited benefit where the run's statuses withhold one
+   * (`objectiveGoalValues`: D1-05 lean partition, D7-07 ketogenic lipid response, D1-08 out-of-domain runs).
+   */
   goals(sim: SimulationResult): Float64Array {
-    return Float64Array.from(this.opts.bindings, (b) => goalValue(sim, b, this.ctx));
+    return objectiveGoalValues(this.ctx, this.opts.bindings, sim, this.simSchedule.get(sim));
+  }
+
+  /** Per-series statuses of a run this model simulated, closed over output dependencies (C6), with planner conditions. */
+  statuses(sim: SimulationResult): Record<string, StatusEntry> {
+    const schedule = this.simSchedule.get(sim);
+    return closedRunStatuses(sim, schedule ? plannerConditions(this.ctx, schedule, sim) : []);
   }
 
   // ---- state-space margins (≥ 0 satisfied)
@@ -332,6 +408,16 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
     // headroom), not at P90: the chance constraint is for dossier 17's hard limits
     if (!nominal) for (const i of NOMINAL_ONLY_MARGINS) m[i] = MARGIN_NA;
     return m;
+  }
+
+  /** Margin indices whose required output is unavailable in this run (C6/D4-03; see `missingStateMargins`). */
+  missingMargins(sim: SimulationResult): number[] {
+    return missingStateMargins(sim, this.ctx);
+  }
+
+  /** Goal indices whose required output is unavailable in this run (C6/D4-05): scored at baseline, shown Unavailable. */
+  missingGoals(sim: SimulationResult): number[] {
+    return missingGoalIndices(sim, this.opts.bindings, this.ctx);
   }
 
   /**
@@ -360,10 +446,131 @@ export class EnginePlanModel implements PlanModel<SkeletonStructure, Schedule, S
   }
 }
 
+/**
+ * Hunger burden of the run on the normalised [0, 1] scale, finite days only (D2-06): the HPI is an uncalibrated burden
+ * index and the tolerance a subjective preference, never a medical threshold; a day without a value is missing, not zero
+ * hunger (it neither lowers the penalty nor passes the tolerance cap).
+ */
 function hungerNorm(sim: SimulationResult): Float64Array | null {
   const h = sim.daily.hunger;
   if (!h || !h.length || !Number.isFinite(h[0]!)) return null;
-  return Float64Array.from(h, (v) => (Number.isFinite(v) ? v / 100 : 0));
+  let n = 0;
+  for (let i = 0; i < h.length; i++) if (Number.isFinite(h[i]!)) n++;
+  if (n === h.length) return Float64Array.from(h, (v) => v / 100);
+  const out = new Float64Array(n);
+  for (let i = 0, j = 0; i < h.length; i++) if (Number.isFinite(h[i]!)) out[j++] = h[i]! / 100;
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// planner conditions and objective goal values (C6; D1-05, D1-08, D7-07)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * D1-05: the surplus partition's protein routing knee (`composition.mPp0`, g/kg body mass/day): a versioned model-domain
+ * routing flag of the existing surplus model, not a clinical requirement, a diagnostic threshold or the deficit model's
+ * 0.8 g/kg FFM/day knee. Read from the parameter registry so the planner and the composition model use one value.
+ */
+export const LOW_PROTEIN_SURPLUS_ROUTING = { paramId: 'composition.mPp0', fallbackGPerKg: 0.75, version: 1 } as const;
+let routingKnee: number | null = null;
+function proteinRoutingKnee(): number {
+  if (routingKnee === null) {
+    const d = buildModelParams(MODULES).defs.find((x) => x.id === LOW_PROTEIN_SURPLUS_ROUTING.paramId);
+    routingKnee = d && Number.isFinite(d.value) ? d.value : LOW_PROTEIN_SURPLUS_ROUTING.fallbackGPerKg;
+  }
+  return routingKnee;
+}
+
+/**
+ * Conditions the planner detects from a candidate's planned inputs and its run (C6), on top of the engine's own series
+ * statuses (which win when they already mark the same series):
+ *  - D1-05 `lowProteinSurplusPartition`: a surplus day (resolved 7-day balance more than 5 % above maintenance) whose
+ *    trailing 7-day planned protein on eating days is below the routing knee — the lean partition is scenario-only from
+ *    that day (`limited`); fat, scale weight and body fat become conditional through the output dependencies;
+ *  - D7-07 `uncertainKetogenicResponse`: a very-low-carbohydrate (ketogenic) pattern — the individual LDL response is
+ *    uncertain (a nominally zero modelled response is not zero biological response), so LDL is `limited` from the
+ *    pattern's start and ApoB follows it (`ketogenicFromDay`).
+ */
+export function plannerConditions(ctx: PlanningContext, schedule: Schedule, sim: SimulationResult): PlannerCondition[] {
+  const out: PlannerCondition[] = [];
+  const st = sim.meta.outputStatus ?? {};
+  if (!st.leanTissue || OBJECTIVE_STATUSES.has(st.leanTissue.status)) {
+    const f = planFacts(ctx, schedule);
+    const def7 = sim.safety.deficitPct7;
+    const knee = proteinRoutingKnee() * ctx.rp.weightKg;
+    const n = Math.min(def7.length, f.proteinG.length);
+    for (let d = 0; d < n; d++) {
+      const v = def7[d]!;
+      if (!(v < -DEFICIT_ANY_PCT)) continue;
+      let sum = 0;
+      let c = 0;
+      for (let j = Math.max(0, d - 6); j <= d; j++) {
+        if (f.zero[j]) continue;
+        sum += f.proteinG[j]!;
+        c++;
+      }
+      if (c > 0 && sum / c < knee) {
+        out.push({ series: 'leanTissue', status: 'limited', reasonCode: 'lowProteinSurplusPartition', fromDay: d });
+        break;
+      }
+    }
+  }
+  if (!st.ldl || OBJECTIVE_STATUSES.has(st.ldl.status)) {
+    const from = ketogenicFromDay(ctx, schedule);
+    if (from !== null) out.push({ series: 'ldl', status: 'limited', reasonCode: 'uncertainKetogenicResponse', fromDay: from });
+  }
+  return out;
+}
+
+/**
+ * First plan day of a very-low-carbohydrate (ketogenic) pattern (D7-07), or null: the start of a B2 block, else the first
+ * day whose trailing 7 days hold at least 4 eating days averaging no more planned carbohydrate than the B2 block's own
+ * upper bound (`BLOCKS.B2.carbG.max`; schedules without block ids — habitual, Simulator or living — keep the condition).
+ * Fast days are not eating days: a fast alone is not a ketogenic diet.
+ */
+export function ketogenicFromDay(ctx: PlanningContext, schedule: Schedule): number | null {
+  const block = (schedule.blocks ?? []).filter((b) => b.buildingBlockId === 'B2' && b.endDay > b.startDay).sort((x, y) => x.startDay - y.startDay)[0];
+  if (block) return block.startDay;
+  const maxCarbG = BLOCKS.B2.carbG?.max;
+  if (maxCarbG === undefined) return null;
+  const f = planFacts(ctx, schedule);
+  for (let d = 0; d < f.carbKcal.length; d++) {
+    let sum = 0;
+    let c = 0;
+    for (let j = Math.max(0, d - 6); j <= d; j++) {
+      if (f.zero[j]) continue;
+      sum += f.carbKcal[j]! / 4;
+      c++;
+    }
+    if (c >= 4 && sum / c <= maxCarbG) return Math.max(0, d - 6);
+  }
+  return null;
+}
+
+/** +1 when the goal on `metric` wants it higher (`goalSense`); a binding outside the ranked goals reads as +1. */
+function senseOf(ctx: PlanningContext, metric: string, start: number): 1 | -1 {
+  const g = ctx.goals.find((x) => x.metric === metric);
+  return g ? goalSense(g, start) : 1;
+}
+
+/**
+ * Objective goal values of one run (C6; every route that ranks plans with an `EnginePlanModel` uses it): the raw goal
+ * functional, guarded by `guardedGoalValue` under the run's closed statuses — no positive lean change under an
+ * unsupported partition (D1-05), no LDL/ApoB reduction under an uncertain ketogenic response (D7-07), no change at all in
+ * an out-of-domain run (D1-08). Time-to-target functionals are left to their own search.
+ */
+export function objectiveGoalValues(ctx: PlanningContext, bindings: readonly GoalBinding[], sim: SimulationResult, schedule?: Schedule): Float64Array {
+  const raw = Float64Array.from(bindings, (b) => goalValue(sim, b, ctx));
+  const conditions = schedule ? plannerConditions(ctx, schedule, sim) : [];
+  if (!conditions.length && !sim.meta.outputStatus && !sim.meta.validity) return raw;
+  const statuses = closedRunStatuses(sim, conditions);
+  bindings.forEach((b, k) => {
+    if (b.functional === 'ttt') return;
+    const y = goalSeries(sim, b, ctx);
+    const start = y && Number.isFinite(y[0]!) ? y[0]! : Number.NaN;
+    raw[k] = guardedGoalValue(b.metric, senseOf(ctx, b.metric, start), raw[k]!, start, statuses, sim.meta.validity);
+  });
+  return raw;
 }
 
 export function regulariserOf(ctx: PlanningContext, schedule: Schedule, sim: SimulationResult, log: readonly RepairEntry[]): number {
@@ -466,6 +673,46 @@ export function calibrateCushion(margins: ReadonlyArray<ReadonlyArray<ArrayLike<
   return out;
 }
 
+/** Safety-trace series each engine margin reads (an absent or all-NaN trace = the quantity is unavailable). */
+const ENGINE_TRACE: Readonly<Record<string, keyof SimulationResult['safety']>> = {
+  'HC-E1': 'ei7', 'HC-E3': 'deficitPct7', 'HC-E4': 'ea7', 'HC-E5': 'rate14PctPerWk', 'HC-E6': 'cumLossPct', 'HC-E8': 'rate14PctPerWk',
+  'HC-P4': 'bmi', 'HC-P5': 'bodyFatPct', 'HC-E7': 'deficitPct7',
+};
+
+/**
+ * Required margins whose output is unavailable (C6/D4-03): an engine margin the run did not compute, or whose safety
+ * trace is absent or entirely non-finite (a stub), and the 28-day deficit leg without its traces. A rule that is simply
+ * not applicable on any day (finite trace, no applicable day) is not missing.
+ */
+export function missingStateMargins(sim: SimulationResult, ctx?: PlanningContext): number[] {
+  const s = sim.safety as unknown as Partial<Record<string, ArrayLike<number> | undefined>>;
+  const unavailable = (key: string | undefined) => {
+    const a = key ? s[key] : undefined;
+    if (!a || !a.length) return true;
+    for (let i = 0; i < a.length; i++) if (Number.isFinite(a[i]!)) return false;
+    return true;
+  };
+  const out: number[] = [];
+  for (const [id, idx] of ENGINE_IDS) {
+    const computed = sim.constraints ? sim.constraints.some((c) => c.id === id) : id !== 'HC-E7';
+    if (!computed || unavailable(ENGINE_TRACE[id] as string)) out.push(idx);
+    else if (id === 'HC-E4' && eaUnevaluated(sim)) out.push(idx);
+  }
+  if (unavailable('deficitPct28') || !s['fastDay']) out.push(26);
+  const budget = ctx?.request.constraints?.muscleRetention;
+  if (budget && reviewMuscleRetention(budget, sim).status === 'unavailable') out.push(MUSCLE_RETENTION_MARGIN_INDEX);
+  return out.sort((a, b) => a - b);
+}
+
+/**
+ * D8-04: a day on which the energy-availability rules apply (exercise in the trailing 7 days, a deficit, not a fast-event
+ * day) but EA_7 has no value (missing intake or an invalid fat-free mass): the exposure is incomplete, so the floor is
+ * unchecked for the run — never a pass by "not applicable".
+ */
+export function eaUnevaluated(sim: SimulationResult): boolean {
+  return eaUnevaluatedDays(sim.safety, SAFETY_K).length > 0;
+}
+
 /** Engine margin ids merged into the planner's margin vector (HC-F2 is enforced input-side by the tier rules). */
 const ENGINE_IDS: ReadonlyArray<[string, number]> = [
   ['HC-E1', 0], ['HC-E3', 1], ['HC-E4', 2], ['HC-E5', 3], ['HC-E6', 4], ['HC-E8', 5], ['HC-P4', 6], ['HC-P5', 7], ['HC-E7', 8],
@@ -481,6 +728,12 @@ export function stateMargins(ctx: PlanningContext, sim: SimulationResult, _sched
   const s = sim.safety;
   const caps = ctx.caps;
   const out = new Float64Array(MARGIN_IDS.length).fill(MARGIN_NA);
+  const muscleBudget = ctx.request.constraints?.muscleRetention;
+  if (muscleBudget) {
+    const review = reviewMuscleRetention(muscleBudget, sim);
+    // Missing predictions cannot satisfy a user budget. This is a model feasibility condition, not a health claim.
+    out[MUSCLE_RETENTION_MARGIN_INDEX] = Number.isFinite(review.margin) ? fin(review.margin) : -1;
+  }
   if (sim.constraints?.length) {
     for (const cm of sim.constraints) {
       const hit = ENGINE_IDS.find(([id]) => id === cm.id);
@@ -512,6 +765,9 @@ export function stateMargins(ctx: PlanningContext, sim: SimulationResult, _sched
   if (h) out[9] = fin((0.5 * hungerCapMargin(h, ctx.practical.hTol)) / (HUNGER_CAP_UNIT / 2));
   const a = sim.meta.aborted;
   out[10] = a ? -(1 + Math.max(0, a.magnitude)) : MARGIN_NA;
+  // D1-08: a model-limit termination (a numerical tissue floor ended the run with its last conserved hour) is not a
+  // forecast: the candidate is infeasible like an early abort, so no clipped later day can win the ranking
+  if (sim.meta.validity?.status === 'modelLimit') out[10] = Math.min(a ? out[10]! : 0, -1);
   // gain-rate target of a surplus (prescription quality, 13 B21): on surplus days, from day 14 (14-day trend)
   const gt = GAIN_RATE_TARGET_PCT[ctx.rp.habits.trainingHistory] ?? 0.5;
   let gm = Infinity;

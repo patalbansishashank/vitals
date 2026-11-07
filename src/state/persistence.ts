@@ -22,10 +22,13 @@
  * `./sync`) plugs the Evolu engine in through it; nothing in this file knows whether sync is on. `registerEraseHook`
  * lets sync detach and delete its local database before an erase, so "Erase this device" stays local.
  */
-import { COLLECTIONS, exportedCollections, isCollectionId, jsonClone, IDB_DATABASE, type CollectionId, type Doc, type Tx } from '@/store';
-import { bindingCollections, forgetKnown, getBinding, getBindings, knownReader, type DocReader } from './bridge';
-import { bootDocuments, clearUnsyncedWrites, deviceId, getDocumentStore, INTERNAL_KEYS, setSyncPairedHint, writeOps } from './runtime';
-import { createScope, runInScope, withSystemWrite } from './scope';
+import { COLLECTIONS, exportedCollections, isCollectionId, jsonClone, IDB_DATABASE, mintWriteToken, revokeWriteToken, ulid, validateDoc, type CollectionId, type Doc, type Tx } from '@/store';
+import { CONTRACT_FINGERPRINT, CONTRACT_VERSIONS } from '@/lib/bodyContracts';
+import { bindingCollections, cancelMirror, forgetKnown, getBinding, getBindings, knownReader, ownsDoc, type DocReader } from './bridge';
+import { bootDocuments, clearUnsyncedWrites, deviceId, getDocumentStore, INTERNAL_KEYS, setSyncPairedHint, settleUnscopedWrites, syncPairedHint, writeOps } from './runtime';
+import { assertCurrentWrite, beginRestore, restoreInProgress, writeGeneration } from './writeBarrier';
+import { applyRestoreMirrors, clearRestoreJournal, withRestoreLock, RESTORE_JOURNAL_KEY, type RestoreJournal } from './restoreJournal';
+import { createScope, runInScope, withSystemWrite, type DocOpRecord } from './scope';
 
 export type { PersistenceBackend } from '@/store';
 export { installPersistenceBackend, bootDocuments, getDocumentStore, type InstallOptions } from './runtime';
@@ -80,6 +83,12 @@ export interface DataExport {
   collections?: Partial<Record<CollectionId, Array<Doc<unknown>>>>;
   device?: string;
   blobs?: 'omitted' | 'inline';
+  /**
+   * Body-model contract versions the exporting app ran (C7, 2026-10-18). Observations travel unchanged; derived artifacts
+   * stamped under other versions (forecasts, filter states, certificates, caches) are recomputed, never trusted. Files
+   * without it come from before the contracts (every derived artifact in them is legacy).
+   */
+  contracts?: { fingerprint: string; versions: Record<string, number> };
 }
 
 const registry = new Map<string, StoreRegistration>();
@@ -276,6 +285,7 @@ export function exportAll(now: Date = new Date()): DataExport {
     blobs: 'omitted',
     stores,
     collections: exportCollections(),
+    contracts: { fingerprint: CONTRACT_FINGERPRINT, versions: { ...CONTRACT_VERSIONS } },
   };
 }
 
@@ -317,6 +327,11 @@ export interface ImportPreview {
   entries: ImportPreviewEntry[];
   /** Entries that cannot be imported; the rest can ("Import the rest?"). */
   damaged: ImportProblem[];
+  /**
+   * C7: true when the file's contract fingerprint differs from this app's (or is absent): its observations import as they
+   * are, its derived artifacts are stale and get recomputed under the current versions. Optional for hand-built previews.
+   */
+  derivedStale?: boolean;
 }
 
 export type ImportErrorCode = 'not-json' | 'not-export' | 'newer-version' | 'empty';
@@ -348,8 +363,18 @@ function storesFromCollections(collections: Record<string, unknown>): Record<str
   };
   const out: Record<string, ExportEntry> = {};
   for (const b of getBindings()) {
-    if (!bindingCollections(b).some((c) => byCol.has(c))) continue;
-    const state = b.fromDocs(reader);
+    // A shared collection may contain only another projection's fields. Do not
+    // turn that into an invented empty import for this binding.
+    const owned = b.owns.some((col) => byCol.has(col)) || Object.entries(b.ownsPrefix ?? {}).some(([col, prefix]) => {
+      const rows = byCol.get(col);
+      return rows !== undefined && (rows.size === 0 || [...rows.keys()].some((id) => id.startsWith(prefix!)));
+    });
+    const shared = b.shares?.some(({ col, id, fields }) => {
+      const body = byCol.get(col)?.get(id);
+      return body !== undefined && fields.some((field) => Object.hasOwn(body, field));
+    });
+    if (!owned && !shared) continue;
+    const state = b.fromDocs(reader, true);
     if (state !== null) out[b.key] = { version: b.version, state };
   }
   return out;
@@ -378,8 +403,9 @@ export function parseImport(input: string | unknown): ImportPreview | ImportFail
   }
   const collections = d.collections && typeof d.collections === 'object' ? (d.collections as Record<string, unknown>) : null;
   let stores = d.stores as Record<string, unknown> | undefined;
-  // A v2 file without the v1 section (another producer): rebuild the projections' states from the documents.
-  if ((!stores || typeof stores !== 'object') && collections) stores = storesFromCollections(collections);
+  // Rebuild every missing projection entry, including exports with a partial legacy
+  // section. Explicit store entries still take precedence over their document view.
+  if (collections) stores = { ...storesFromCollections(collections), ...(stores && typeof stores === 'object' ? stores : {}) };
   if (!stores || typeof stores !== 'object')
     return { ok: false, code: 'not-export', message: "This file isn't a complete Vitals export: it has no data section. Choose a .json file exported from Settings › Your data." };
 
@@ -421,16 +447,18 @@ export function parseImport(input: string | unknown): ImportPreview | ImportFail
       registered: Boolean(reg),
     });
   }
-  // Collections no projection owns (intake, plans, logs, …) travel as documents.
-  const unbound: Partial<Record<CollectionId, Array<Doc<unknown>>>> = {};
+  // Preserve all exported collections, including ones whose projection loads
+  // later. Import re-normalizes this complete section after bindings boot.
+  const cleanCollections: Partial<Record<CollectionId, Array<Doc<unknown>>>> = {};
   if (collections) {
     const bound = new Set<string>();
     for (const b of getBindings()) bindingCollections(b).forEach((c) => bound.add(c));
     for (const [col, docs] of Object.entries(collections)) {
-      if (!isCollectionId(col) || bound.has(col) || !COLLECTIONS[col].exported || !Array.isArray(docs)) continue;
-      const ok = docs.filter((x): x is Doc<unknown> => !!x && typeof x === 'object' && typeof (x as { _id?: unknown })._id === 'string');
-      if (ok.length) {
-        unbound[col] = ok;
+      if (!isCollectionId(col) || !COLLECTIONS[col].exported || !Array.isArray(docs)) continue;
+      if (docs.some((x) => !x || typeof x !== 'object' || typeof (x as { _id?: unknown })._id !== 'string')) return { ok: false, code: 'not-export', message: `This file has a damaged ${col} document. Nothing was imported.` };
+      const ok = docs as Array<Doc<unknown>>;
+      cleanCollections[col] = ok;
+      if (ok.length && !bound.has(col)) {
         entries.push({ key: `${STORAGE_PREFIX}${col}`, label: col, version: null, summary: `${ok.length} ${col} document${ok.length === 1 ? '' : 's'}`, exists: getDocumentStore().peekAll(col).length > 0, registered: true });
       }
     }
@@ -441,6 +469,7 @@ export function parseImport(input: string | unknown): ImportPreview | ImportFail
       : { ok: false, code: 'empty', message: 'This Vitals export is empty. There is nothing to import.' };
   }
   const exportedAt = typeof d.exportedAt === 'string' && !Number.isNaN(Date.parse(d.exportedAt)) ? new Date(d.exportedAt) : null;
+  const contracts = contractsOf(d.contracts);
   return {
     ok: true,
     data: {
@@ -449,13 +478,25 @@ export function parseImport(input: string | unknown): ImportPreview | ImportFail
       appVersion: String(d.appVersion ?? ''),
       exportedAt: d.exportedAt ?? '',
       stores: clean,
-      ...(Object.keys(unbound).length ? { collections: unbound } : {}),
+      ...(Object.keys(cleanCollections).length ? { collections: cleanCollections } : {}),
+      ...(contracts ? { contracts } : {}),
     },
     exportedAt,
     appVersion: typeof d.appVersion === 'string' ? d.appVersion : null,
     entries,
     damaged,
+    derivedStale: contracts?.fingerprint !== CONTRACT_FINGERPRINT,
   };
+}
+
+/** A file's contract stamp, when well-formed (finite integer versions, string fingerprint); anything else reads as absent. */
+function contractsOf(x: unknown): DataExport['contracts'] | null {
+  if (!x || typeof x !== 'object') return null;
+  const c = x as { fingerprint?: unknown; versions?: unknown };
+  if (typeof c.fingerprint !== 'string' || !c.versions || typeof c.versions !== 'object') return null;
+  const versions: Record<string, number> = {};
+  for (const [k, v] of Object.entries(c.versions as Record<string, unknown>)) if (typeof v === 'number' && Number.isInteger(v) && v >= 0) versions[k] = v;
+  return { fingerprint: c.fingerprint, versions };
 }
 
 async function safeAsync(fn: () => Promise<void> | void): Promise<void> {
@@ -484,28 +525,49 @@ export interface ImportResult {
 }
 
 export interface ImportOptions {
+  /** Cancellation is honored before the atomic restore starts, never midway through commit. */
+  signal?: AbortSignal;
   /**
    * Runs the projection writes in the caller's write scope (the `data.import` command passes `ctx.write`, so the
    * import is one ChangeSet). Direct calls run as a system write.
    */
   write?: <R>(fn: () => R) => R;
-  /** Where documents of collections no projection owns go (the command's buffered transaction). */
-  docs?: Pick<Tx, 'put'>;
+  /** Unowned documents and shared-field patches join the command's buffered transaction. */
+  docs?: Pick<Tx, 'put' | 'patch'>;
 }
 
 /**
- * Write a validated export. `replace` removes every vitals.* key first; `merge`
- * keeps existing data (using the store's `merge` rule when registered).
- * Registered stores are rehydrated afterwards, and their documents follow.
+ * Write a validated export. Local `replace` stages and atomically restores a document snapshot,
+ * with a durable mirror-recovery journal. Paired replacement is refused; `merge` keeps existing data.
  */
 export async function importAll(input: string | unknown | ImportPreview, mode: ImportMode = 'replace', options: ImportOptions = {}): Promise<ImportResult> {
-  const preview = isPreview(input) ? input : parseImport(input);
+  if (restoreInProgress()) throw new Error('A data import is already in progress.');
+  if (options.signal?.aborted) throw new Error('The import was cancelled.');
+  if (mode === 'replace') {
+    // Pairing is a precondition, never an implicit detach or remote-delete policy.
+    const sync = (await import('./sync')).getSyncRuntime();
+    if (syncPairedHint() || await sync.load()) throw new Error('Disconnect document sync before replacing this device’s data, or choose Merge. Other devices keep their data.');
+    await bootDocuments();
+    await (await import('@/commands/history')).settleCommits();
+    await settleUnscopedWrites();
+    const parsed = parseImport(isPreview(input) ? input.data : input);
+    if (!parsed.ok) throw new Error(parsed.message);
+    preserveImportProblems(parsed, input);
+    return withRestoreLock(() => restoreAll(parsed, options.signal), true);
+  }
+  // A cold Merge must not write collection-only data before migration seeds its
+  // defaults: that would overwrite imported singletons and leave projections stale.
+  await bootDocuments();
+  await settleUnscopedWrites();
+  await getDocumentStore().assertCurrent?.();
+  if (options.signal?.aborted) throw new Error('The import was cancelled.');
+  const preview = parseImport(isPreview(input) ? input.data : input);
   if (!preview.ok) throw new Error(preview.message);
+  preserveImportProblems(preview, input);
   const s = storage();
   if (!s) throw new Error("This browser isn't saving data, so nothing can be imported.");
   const system = createScope('system', { label: 'import' });
   const inScope = options.write ?? (<R>(fn: () => R): R => runInScope(system, fn));
-  if (mode === 'replace') for (const k of listStoredKeys()) s.removeItem(k);
 
   const written: string[] = [];
   const kept: string[] = [];
@@ -525,28 +587,151 @@ export async function importAll(input: string | unknown | ImportPreview, mode: I
     s.setItem(key, raw);
     written.push(key);
   }
-  const regs = getRegisteredStores().filter((r) => r.rehydrate && (written.includes(r.key) || mode === 'replace'));
+  const regs = getRegisteredStores().filter((r) => r.rehydrate && written.includes(r.key));
   for (const r of regs) await inScope(() => r.rehydrate?.());
   // the projections changed from the boot cache: their documents follow, in the caller's scope
   inScope(() => {
     for (const r of regs) getBinding(r.key)?.capture();
   });
-  // documents of collections no projection owns
+  // Unbound documents and fields of shared documents travel alongside projections.
   const docs = preview.data.collections ?? {};
-  const ops = [];
+  const ops: DocOpRecord[] = [];
+  const bindings = getBindings();
+  const bound = new Set(bindings.flatMap(bindingCollections));
   for (const [col, list] of Object.entries(docs) as Array<[CollectionId, Array<Doc<unknown>>]>) {
+    const beforeCount = ops.length;
     const existing = new Set(getDocumentStore().peekAll(col).map((d) => d._id));
     for (const d of list) {
-      if (mode === 'merge' && existing.has(d._id)) continue;
-      ops.push({ col, id: d._id, before: null, after: stripMeta(d) });
+      if (bindings.some((binding) => ownsDoc(binding, col, d._id))) continue;
+      const fields = new Set(bindings.flatMap((binding) => (binding.shares ?? []).filter((share) => share.col === col && share.id === d._id).flatMap((share) => share.fields)));
+      if (fields.size > 0) {
+        const current = getDocumentStore().peek(col, d._id);
+        const incoming = Object.fromEntries(Object.entries(stripMeta(d)).filter(([key]) => !fields.has(key) && (!current || !Object.hasOwn(current, key))));
+        if (Object.keys(incoming).length) ops.push({ col, id: d._id, before: null, after: incoming, fields: Object.keys(incoming) });
+      } else if (!existing.has(d._id)) ops.push({ col, id: d._id, before: null, after: stripMeta(d) });
     }
-    written.push(`${STORAGE_PREFIX}${col}`);
+    if (!bound.has(col) || ops.length > beforeCount) written.push(`${STORAGE_PREFIX}${col}`);
   }
   if (ops.length) {
-    if (options.docs) for (const op of ops) await options.docs.put(op.col, { ...op.after, _id: op.id });
+    if (options.docs) for (const op of ops) {
+      if (op.fields) await options.docs.patch(op.col, op.id, op.after);
+      else await options.docs.put(op.col, { ...op.after, _id: op.id });
+    }
     else await writeOps('migration', ops, 'import');
   }
   return { written, kept, skipped: preview.damaged };
+}
+
+/** Stage a complete local snapshot before changing either mirrors or documents. */
+async function restoreAll(preview: ImportPreview, signal?: AbortSignal): Promise<ImportResult> {
+  const s = storage();
+  if (!s) throw new Error("This browser isn't saving data, so nothing can be imported.");
+  const store = getDocumentStore();
+  if (!store.restoreSnapshot || !['memory', 'idb'].includes(store.engine) || syncPairedHint()) throw new Error('Disconnect document sync before replacing this device’s data, or choose Merge.');
+  await store.assertCurrent?.();
+  if (store.engine === 'idb' && !globalThis.navigator?.locks) throw new Error('Use Merge or update this browser to replace data safely.');
+  const file = jsonClone(preview.data);
+  const states = new Map<string, unknown>();
+  const rows = new Map<string, Doc<unknown>>();
+  const snapshot: Partial<Record<CollectionId, Array<Doc<unknown>>>> = {};
+  for (const col of [...exportedCollections(), 'derived', 'changeLog', 'commandLedger', 'jobs'] as CollectionId[]) snapshot[col] = [];
+  for (const [col, docs] of Object.entries(file.collections ?? {}) as Array<[CollectionId, Array<Doc<unknown>>]>) {
+    const seen = new Set<string>();
+    for (const doc of docs) {
+      if (seen.has(doc._id) || doc._deleted || validateDoc(col, doc._id, stripMeta(doc)).length) throw new Error(`The file has an invalid or duplicate ${col} document. Nothing was changed.`);
+      seen.add(doc._id);
+      rows.set(`${col}\0${doc._id}`, { ...doc, _col: col });
+    }
+  }
+  const bindings = getBindings();
+  for (const b of bindings) {
+    if (!b.prepareImport || !b.applyImport) throw new Error(`Cannot safely restore ${b.key}.`);
+    states.set(b.key, b.prepareImport(file.stores[b.key]));
+    // Owned collections follow the normalized store section. Shared document fields keep the file's other fields.
+    for (const col of b.owns) for (const key of rows.keys()) if (key.startsWith(`${col}\0`)) rows.delete(key);
+  }
+  // Preserve the existing safety-review and legacy consent hand-off without touching live projections while staging.
+  const safety = states.get('vitals.safety') as Record<string, unknown> | undefined;
+  if (safety) {
+    const previous = getBinding('vitals.safety')?.snapshot() as Record<string, unknown> | undefined;
+    if (safety.answers && JSON.stringify(safety.answers) !== JSON.stringify(previous?.answers)) safety.pendingReview = true;
+    const settings = file.stores['vitals.settings'];
+    if (settings && (settings.version ?? 0) < 3 && (settings.state as { allowLongFasts?: unknown })?.allowLongFasts === true && !safety.fastingOptIn) safety.legacyLongFastsRequest = true;
+  }
+  const after: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(file.stores)) {
+    const version = entry.version ?? registry.get(key)?.version ?? null;
+    after[key] = version !== null ? JSON.stringify({ state: entry.state, version }) : typeof entry.state === 'string' ? entry.state : JSON.stringify(entry.state);
+  }
+  for (const b of bindings) {
+    const state = states.get(b.key);
+    after[b.key] = JSON.stringify({ state, version: b.version });
+    for (const w of b.toDocs(state)) {
+      const key = `${w.col}\0${w.id}`;
+      const old = rows.get(key);
+      rows.set(key, { ...(w.fields && old ? stripMeta(old) : {}), ...w.body, _id: w.id, _col: w.col } as Doc<unknown>);
+    }
+  }
+  const ui = rows.get('uiPrefs\0me');
+  if (ui) {
+    if (file.stores['vitals.ui.lastRoute']) (ui as unknown as Record<string, unknown>).lastRoute = file.stores['vitals.ui.lastRoute']!.state;
+    if (file.stores['vitals.results']) {
+      const { sanitizeResultsUi } = await import('@/features/simulator/results/store');
+      (ui as unknown as Record<string, unknown>).resultsUi = sanitizeResultsUi(file.stores['vitals.results']!.state);
+    }
+  }
+  for (const doc of rows.values()) {
+    const col = doc._col;
+    if (validateDoc(col, doc._id, stripMeta(doc)).length) throw new Error(`The file has an invalid ${col} document. Nothing was changed.`);
+    snapshot[col]?.push(doc);
+  }
+  const { resetHistory } = await import('@/commands/history');
+  const { resetBusState } = await import('@/commands/bus');
+  if (signal?.aborted) throw new Error('The import was cancelled.');
+  const barrier = beginRestore();
+  const token = mintWriteToken('migration', { label: 'local snapshot restore' });
+  let journal: RestoreJournal | null = null;
+  let committed = false;
+  try {
+    if (store !== getDocumentStore() || syncPairedHint()) throw new Error('Sync changed while preparing the import. Choose Merge or disconnect sync and try again.');
+    bindings.forEach((b) => b.flushMirror());
+    const before = Object.fromEntries(listStoredKeys().map((key) => [key, s.getItem(key)!]));
+    // Observation replacement invalidates the local import cursor, but keeps server pairing.
+    const watermark = s.getItem('vitals.gaugeImport.v1');
+    if (watermark !== null) before['vitals.gaugeImport.v1'] = watermark;
+    journal = { id: ulid(), before, after };
+    // If storage/quota fails, rollback happens before the document batch is attempted.
+    s.setItem(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
+    applyRestoreMirrors(journal, 'after');
+    await store.restoreSnapshot(token, snapshot, { id: journal.id, mirrors: before });
+    committed = true;
+    barrier.committed(journal.id);
+    for (const b of bindings) {
+      cancelMirror(b.key);
+      b.applyImport!(states.get(b.key));
+      b.flushMirror();
+    }
+    resetHistory();
+    resetBusState();
+    for (const reg of getRegisteredStores()) if (!getBinding(reg.key)) await safeAsync(() => reg.rehydrate?.());
+    try { clearRestoreJournal(); } catch { /* the committed marker makes cleanup retryable at next boot */ }
+    return { written: [...Object.keys(file.stores), ...Object.keys(file.collections ?? {}).filter((col) => !bindings.some((b) => bindingCollections(b).includes(col as CollectionId))).map((col) => `${STORAGE_PREFIX}${col}`)], kept: [], skipped: preview.damaged };
+  } catch (error) {
+    if (!committed && journal) {
+      applyRestoreMirrors(journal, 'before');
+      clearRestoreJournal();
+    }
+    throw error;
+  } finally {
+    revokeWriteToken(token);
+    barrier.release();
+  }
+}
+
+/** A cold preview may gain validators at boot; keep both old and newly discovered problems. */
+function preserveImportProblems(preview: ImportPreview, input: unknown): void {
+  if (!isPreview(input)) return;
+  preview.damaged = [...input.damaged, ...preview.damaged.filter((problem) => !input.damaged.some((old) => old.key === problem.key && old.reason === problem.reason))];
 }
 
 function isPreview(x: unknown): x is ImportPreview {
@@ -558,8 +743,22 @@ function isPreview(x: unknown): x is ImportPreview {
  * `lumen.*` keys left from before the rename) and the registered IndexedDB databases. In-memory stores keep their
  * values until the page reloads — callers should navigate with a full reload.
  */
-export async function eraseAll(): Promise<{ keys: number; databases: number }> {
+export async function eraseAll(options: { signal?: AbortSignal } = {}): Promise<{ keys: number; databases: number }> {
+  const generation = writeGeneration();
+  const assertReady = () => {
+    if (options.signal?.aborted) throw new Error('Erasing device data was cancelled.');
+    assertCurrentWrite(generation);
+  };
+  assertReady();
+  await getDocumentStore().assertCurrent?.();
+  assertReady();
+  // Native uploads must detach successfully before the web identity or planning data disappears.
+  await (await import('./gaugeEngine')).clearGaugeEngineServer();
+  await getDocumentStore().assertCurrent?.();
+  assertReady();
   for (const hook of eraseHooks) await safeAsync(hook);
+  await getDocumentStore().assertCurrent?.();
+  assertReady();
   const s = storage();
   const keys = listStoredKeys();
   getBindings().forEach((b) => b.flushMirror());
@@ -605,6 +804,8 @@ registerDatabase(IDB_DATABASE);
 // and deletes its own local database first, and forgets the secret; nothing is deleted on the sync server.
 registerDatabase('vitals-sync');
 registerDatabase('vitals-blobs');
+// Recent ring responses are device-local health data and follow Erase this device.
+registerDatabase('vitals-gauge-cache');
 // The AI layer's database (also registered by Settings › AI; listed here so an erase covers it even if that never loaded).
 registerDatabase('vitals-ai');
 // The planner worker's checkpoints (each keeps the full request, body inputs included).
@@ -629,6 +830,8 @@ if (typeof window !== 'undefined' && env?.MODE !== 'test') {
           c.loadChangeLog(); // undo keeps working across reloads
           void c.pruneLocalLogs();
           c.startLivingAutomation();
+          // ring steps and sleep from the home server (S1): at start and every few minutes, on every platform
+          void import('./gaugeImport').then((g) => g.startGaugeImport());
         }),
       )
       .catch((e: unknown) => console.error('Vitals: document store boot failed', e));

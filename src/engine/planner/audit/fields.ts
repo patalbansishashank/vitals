@@ -70,7 +70,7 @@ const RUNTIME_STRUCTURES = 20;
 function contextJson(ctx: PlanningContext): string {
   const caps = { ...ctx.caps, flags: [...ctx.caps.flags].sort(), optInLevers: [...ctx.caps.optInLevers].sort(), reasons: [] };
   const practical = { ...ctx.practical, excluded: [...ctx.practical.excluded].sort() };
-  return JSON.stringify({ caps, practical, fasting: [ctx.fastingRelevant, ctx.fastingReason, ctx.fastingServedGoal], equipment: equipmentEnvelope(ctx), problems: ctx.problems });
+  return JSON.stringify({ caps, practical, muscleRetention: ctx.request.constraints?.muscleRetention, enforceDefaultDeficitCap: ctx.request.constraints?.enforceDefaultDeficitCap, experimentalTracking: ctx.request.constraints?.experimentalTracking, fasting: [ctx.fastingRelevant, ctx.fastingReason, ctx.fastingServedGoal], equipment: equipmentEnvelope(ctx), problems: ctx.problems });
 }
 
 /**
@@ -191,6 +191,9 @@ const EXCLUDE_MANY = ['fastDay24', 'refeedDay', 'waterFast', 'zeroDay', 'L7', 'L
 /** Perturbation of every classed field, keyed `${from}.${field}`. */
 export const PERTURBATIONS: Readonly<Record<string, Perturbation>> = {
   // ---- PracticalConstraints
+  'PracticalConstraints.enforceDefaultDeficitCap': { change: (b) => withC(b, { enforceDefaultDeficitCap: false }) },
+  'PracticalConstraints.experimentalTracking': { change: (b) => withC(b, { experimentalTracking: true }) },
+  'PracticalConstraints.muscleRetention': { change: (b) => withC(b, { muscleRetention: { maxLossPct: 5 } }) },
   'PracticalConstraints.trainingDaysPerWeek': {
     relax: (b) => withC(b, { trainingDaysPerWeek: { min: 0, max: 6 } }),
     // fewer days at the same minimum (a lower maximum alone would also drop the person's own minimum)
@@ -202,6 +205,7 @@ export const PERTURBATIONS: Readonly<Record<string, Perturbation>> = {
   'PracticalConstraints.allowedTrainingWeekdays': { tighten: (b) => withC(b, { allowedTrainingWeekdays: [0, 3] }) },
   'PracticalConstraints.trainingTimeH': { change: (b) => withC(b, { trainingTimeH: 7 }) },
   'PracticalConstraints.maxSessionMin': { relax: (b) => withC(b, { maxSessionMin: 150 }), tighten: (b) => withC(b, { maxSessionMin: 30 }) },
+  'PracticalConstraints.maxCardioSessionMin': { relax: (b) => withC(b, { maxCardioSessionMin: 90 }), tighten: (b) => withC(b, { maxCardioSessionMin: 15 }) },
   'PracticalConstraints.cardioDaysPerWeek': { relax: (b) => withC(b, { cardioDaysPerWeek: { min: 0, max: 6 } }), tighten: (b) => withC(b, { cardioDaysPerWeek: { min: 0, max: 0 } }) },
   'PracticalConstraints.cardioModality': { change: (b) => withC(b, { cardioModality: 'run' }) },
   'PracticalConstraints.eatingWindow': { relax: (b) => withC(b, { eatingWindow: { earliestH: 5, latestH: 23 } }), tighten: (b) => withC(b, { eatingWindow: { earliestH: 11, latestH: 17 } }) },
@@ -216,6 +220,7 @@ export const PERTURBATIONS: Readonly<Record<string, Perturbation>> = {
   'PracticalConstraints.proteinFloorGPerKg': { tighten: (b) => withC(b, { proteinFloorGPerKg: 2.0 }) },
   'PracticalConstraints.carbFloorGPerDay': { tighten: (b) => withC(b, { carbFloorGPerDay: 120 }) },
   // ---- ConstraintDraft (through the app's toPracticalConstraints)
+  'ConstraintDraft.maxMuscleLossPct': { change: (b, m) => withDraft(b, m, { maxMuscleLossPct: 5 }) },
   'ConstraintDraft.trainingDays': {
     relax: (b, m) => withDraft(b, m, { trainingDays: [0, 6] }),
     tighten: (b, m) => withDraft(b, m, { trainingDays: [(b.draft.trainingDays as [number, number])[0], (b.draft.trainingDays as [number, number])[0]] }),
@@ -223,6 +228,7 @@ export const PERTURBATIONS: Readonly<Record<string, Perturbation>> = {
   'ConstraintDraft.trainingWeekdays': { tighten: (b, m) => withDraft(b, m, { trainingWeekdays: [0, 3] }) },
   'ConstraintDraft.trainingTimeH': { change: (b, m) => withDraft(b, m, { trainingTimeH: 7 }) },
   'ConstraintDraft.maxSessionMin': { relax: (b, m) => withDraft(b, m, { maxSessionMin: 150 }), tighten: (b, m) => withDraft(b, m, { maxSessionMin: 30 }) },
+  'ConstraintDraft.maxCardioSessionMin': { relax: (b, m) => withDraft(b, m, { maxCardioSessionMin: 90 }), tighten: (b, m) => withDraft(b, m, { maxCardioSessionMin: 15 }) },
   'ConstraintDraft.cardioDays': { relax: (b, m) => withDraft(b, m, { cardioDays: [0, 6] }), tighten: (b, m) => withDraft(b, m, { cardioDays: [0, 0] }) },
   'ConstraintDraft.cardioModality': { change: (b, m) => withDraft(b, m, { cardioModality: 'run' }) },
   'ConstraintDraft.earliestH': { relax: (b, m) => withDraft(b, m, { earliestH: 5 }), tighten: (b, m) => withDraft(b, m, { earliestH: 12 }) },
@@ -297,11 +303,12 @@ export const PERTURBATIONS: Readonly<Record<string, Perturbation>> = {
 // bases and trace
 // ---------------------------------------------------------------------------------------------------------------
 
+// the transient-marker bases rank blood ketones (the autophagy index they once ranked is no goal since D2-02, C6)
 const BASE_SPECS: ReadonlyArray<{ id: string; persona: string; goals: PlannerRequest['goals']; optedTier: FieldBase['optedTier'] }> = [
-  { id: 'man88 · autophagy, triglycerides · T3', persona: 'man88', goals: [{ metric: 'autophagyIdx', direction: 'maximise' }, { metric: 'triglycerides', direction: 'minimise' }], optedTier: 'T3' },
+  { id: 'man88 · ketones, triglycerides · T3', persona: 'man88', goals: [{ metric: 'bhb', direction: 'target', target: 1.0 }, { metric: 'triglycerides', direction: 'minimise' }], optedTier: 'T3' },
   { id: 'woman78 · fat loss, LDL · T2', persona: 'woman78', goals: [{ metric: 'fatMass', direction: 'target', target: -6, targetKind: 'change' }, { metric: 'ldl', direction: 'minimise' }], optedTier: 'T2' },
   { id: 'leanTrained · lean tissue, strength', persona: 'leanTrained', goals: [{ metric: 'leanTissue', direction: 'maximise' }, { metric: 'strength', direction: 'maximise' }], optedTier: null },
-  { id: 'obeseMan · autophagy, fat mass · T4', persona: 'obeseMan', goals: [{ metric: 'autophagyIdx', direction: 'maximise' }, { metric: 'fatMass', direction: 'minimise' }], optedTier: 'T4' },
+  { id: 'obeseMan · ketones, fat mass · T4', persona: 'obeseMan', goals: [{ metric: 'bhb', direction: 'target', target: 1.0 }, { metric: 'fatMass', direction: 'minimise' }], optedTier: 'T4' },
 ];
 
 /**

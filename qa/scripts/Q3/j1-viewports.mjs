@@ -1,7 +1,7 @@
 // Q3 journey 1 at mobile 390×844 and tablet 768×1024 (no AI provider): the whole first run with quick default answers,
 // checking on every screen: no horizontal overflow, the forbidden-text scan, no console/page errors; the progress bar
 // position (centred under the title on mobile, right-aligned on the title row on tablet); the summary card footer
-// insets. Mobile takes the blood-markers skip path and "Skip this list" on the pantry; tablet uploads a report with a
+// insets. Mobile takes the blood-markers skip path and an empty pantry (Clear defaults, then Next); tablet uploads a report with a
 // page that has no text (hospital-si.pdf) and a photo, both without a provider, and checks the honest messages.
 //   BASE=http://127.0.0.1:5191 node qa/scripts/Q3/j1-viewports.mjs
 import { fresh, results, closeAll, mainText, shot } from './lib.mjs';
@@ -87,7 +87,7 @@ async function walk(vp) {
     R.check(`${vp} ${ch.id}: chapter done (${n} answered, none open)`, !(await cardState(page)) && open.length === 0, `open=${open.join(',')}`);
     if (ch.id === 'food' && vp === 'mobile') {
       const pantry = (await rows(page)).find((r) => r.q.startsWith('What’s in your kitchen right now'));
-      R.check(`${vp} food: "Skip this list" on the pantry is recorded as answered "skipped, by choice", not asked later`, pantry && !pantry.later && /skipped, by choice/.test(pantry.a) && t.status['food.pantry'] === 'answered', JSON.stringify(pantry));
+      R.check(`${vp} food: an empty pantry (Clear defaults, then Next) is recorded as answered "skipped, by choice", not asked later`, pantry && !pantry.later && /skipped, by choice/.test(pantry.a) && t.status['food.pantry'] === 'answered', JSON.stringify(pantry));
     }
     if (ch.id === 'markers' && vp === 'mobile') {
       R.check(`${vp} markers: skip path stores "skip" and no readings`, t.values.has === 'skip' && ((await read(page, 'markers.get')).doc?.readings ?? []).length === 0, JSON.stringify(t.values).slice(0, 100));

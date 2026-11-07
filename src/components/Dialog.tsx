@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { cx } from './lib/cx';
 import { useFocusTrap, useRestoreFocus } from './lib/focus';
 import { PortalContainerContext } from './lib/portal';
-import { usePresence, useScrollLock } from './lib/overlay';
+import { REDUCED_EXIT_MS, usePresence, useScrollLock } from './lib/overlay';
 import { useIsoLayoutEffect, useLatest } from './lib/hooks';
 import { IconKey } from './Key';
 
@@ -11,13 +11,22 @@ export interface DialogProps {
   open: boolean;
   /** Esc, scrim press and the close key call this (unless `dismissible` is false). */
   onClose: () => void;
-  /** Title (17/600). Destructive dialogs ask a question: "Reset everything?" */
+  /** Headline title (24/500). Destructive dialogs ask a question: "Reset everything?" */
   title: ReactNode;
   children?: ReactNode;
-  /** Right-aligned keys. Destructive: the action verb on the key ("Delete everything"), never "OK". */
+  /**
+   * Right-aligned keys, drawn as gold text buttons (danger stays rose): Cancel first, then the action verb on the key
+   * ("Delete everything"), never "OK". A dialog with footer keys dismisses through its own Cancel (and Esc and the
+   * scrim), so it shows no ✕.
+   */
   footer?: ReactNode;
   /** false for the first-run consent: no Esc, no scrim close, no close key. */
   dismissible?: boolean;
+  /**
+   * The ✕ in the title row. Default: only a dialog without footer keys has it (read-only: title · ✕); a dialog with
+   * footer keys has its Cancel instead. Pass true only when the footer has no way out (no Cancel key).
+   */
+  closeKey?: boolean;
   /** `alertdialog` for destructive confirmations. */
   role?: 'dialog' | 'alertdialog';
   size?: 'default' | 'wide';
@@ -27,12 +36,15 @@ export interface DialogProps {
 }
 
 /**
- * Modal dialog on native <dialog> (top layer, inert page, ::backdrop scrim),
+ * Modal dialog on native <dialog> (top layer, inert page, ::backdrop scrim):
+ * elevated surface, 24 px corners, 24 px padding, headline title, stone body,
  * plus a focus trap and Escape handling that also work where showModal is
  * missing. Only for destructive confirmation, import preview and first-run
  * consent — never a first resort.
+ * Header grammar (as the Sheet's): a dialog that asks for a decision is title + body + Cancel · verb in the footer,
+ * with no ✕; a read-only dialog (no footer keys) is title · ✕.
  */
-export function Dialog({ open, onClose, title, children, footer, dismissible = true, role = 'dialog', size = 'default', initialFocus, className }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, dismissible = true, closeKey, role = 'dialog', size = 'default', initialFocus, className }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [el, setEl] = useState<HTMLDialogElement | null>(null);
@@ -40,7 +52,7 @@ export function Dialog({ open, onClose, title, children, footer, dismissible = t
     ref.current = node;
     setEl(node);
   }, []);
-  const [mounted, phase] = usePresence(open, 200);
+  const [mounted, phase] = usePresence(open, 200, REDUCED_EXIT_MS);
   const titleId = useId();
   const bodyId = useId();
   const close = useLatest(() => {
@@ -48,7 +60,7 @@ export function Dialog({ open, onClose, title, children, footer, dismissible = t
   });
 
   useScrollLock(open);
-  useRestoreFocus(open);
+  useRestoreFocus(open, ref);
   useFocusTrap(ref, open);
 
   useIsoLayoutEffect(() => {
@@ -106,7 +118,7 @@ export function Dialog({ open, onClose, title, children, footer, dismissible = t
           <h2 ref={titleRef} id={titleId} className="lm-dialog__title" tabIndex={-1}>
             {title}
           </h2>
-          {dismissible ? <IconKey icon={X} label="Close" size="sm" onClick={() => close.current()} className="-mr-2 -mt-1" /> : null}
+          {dismissible && (closeKey ?? !footer) ? <IconKey icon={X} label="Close" size="sm" onClick={() => close.current()} className="-mr-2 -mt-1" /> : null}
         </div>
         {children ? (
           <div className="lm-dialog__body" id={bodyId}>

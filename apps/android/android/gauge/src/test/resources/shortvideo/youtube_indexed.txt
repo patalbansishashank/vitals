@@ -1,0 +1,188 @@
+# YouTube Shorts (reel_recycler reports fromIndex/toIndex/scrollDeltaY).
+# Enter on item 0, swipe forward 5, back 2, forward 2 (already seen), forward 1 new.
+# expect reels=7
+1000 screen youtube in h=2772
+1040 scroll youtube from=0 to=0 n=40 dy=0 h=2772
+1290 tick
+1540 tick
+1790 tick
+2040 tick
+2290 tick
+2540 tick
+2790 tick
+3040 tick
+3040 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+3056 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+3072 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+3088 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+3104 scroll youtube from=0 to=1 n=40 dy=462 h=2772
+3120 scroll youtube from=1 to=1 n=40 dy=462 h=2772
+3386 tick
+3636 tick
+3886 tick
+4136 tick
+4386 tick
+4636 tick
+4886 tick
+5136 tick
+5386 tick
+5636 tick
+5636 scroll youtube from=1 to=2 n=40 dy=462 h=2772
+5652 scroll youtube from=1 to=2 n=40 dy=462 h=2772
+5668 scroll youtube from=1 to=2 n=40 dy=462 h=2772
+5684 scroll youtube from=1 to=2 n=40 dy=462 h=2772
+5700 scroll youtube from=1 to=2 n=40 dy=462 h=2772
+5716 scroll youtube from=2 to=2 n=40 dy=462 h=2772
+5982 tick
+6232 tick
+6482 tick
+6732 tick
+6982 tick
+7232 tick
+7482 tick
+7732 tick
+7982 tick
+8232 tick
+8232 scroll youtube from=2 to=3 n=40 dy=462 h=2772
+8248 scroll youtube from=2 to=3 n=40 dy=462 h=2772
+8264 scroll youtube from=2 to=3 n=40 dy=462 h=2772
+8280 scroll youtube from=2 to=3 n=40 dy=462 h=2772
+8296 scroll youtube from=2 to=3 n=40 dy=462 h=2772
+8312 scroll youtube from=3 to=3 n=40 dy=462 h=2772
+8578 tick
+8828 tick
+9078 tick
+9328 tick
+9578 tick
+9828 tick
+10078 tick
+10328 tick
+10578 tick
+10828 tick
+10828 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+10844 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+10860 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+10876 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+10892 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+10908 scroll youtube from=4 to=4 n=40 dy=462 h=2772
+11174 tick
+11424 tick
+11674 tick
+11924 tick
+12174 tick
+12424 tick
+12674 tick
+12924 tick
+13174 tick
+13424 tick
+13424 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+13440 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+13456 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+13472 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+13488 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+13504 scroll youtube from=5 to=5 n=40 dy=462 h=2772
+13770 tick
+14020 tick
+14270 tick
+14520 tick
+14770 tick
+15020 tick
+15270 tick
+15520 tick
+15770 tick
+16020 tick
+16020 scroll youtube from=4 to=5 n=40 dy=-462 h=2772
+16036 scroll youtube from=4 to=5 n=40 dy=-462 h=2772
+16052 scroll youtube from=4 to=5 n=40 dy=-462 h=2772
+16068 scroll youtube from=4 to=5 n=40 dy=-462 h=2772
+16084 scroll youtube from=4 to=5 n=40 dy=-462 h=2772
+16100 scroll youtube from=4 to=4 n=40 dy=-462 h=2772
+16366 tick
+16616 tick
+16866 tick
+17116 tick
+17366 tick
+17616 tick
+17866 tick
+18116 tick
+18366 tick
+18616 tick
+18616 scroll youtube from=3 to=4 n=40 dy=-462 h=2772
+18632 scroll youtube from=3 to=4 n=40 dy=-462 h=2772
+18648 scroll youtube from=3 to=4 n=40 dy=-462 h=2772
+18664 scroll youtube from=3 to=4 n=40 dy=-462 h=2772
+18680 scroll youtube from=3 to=4 n=40 dy=-462 h=2772
+18696 scroll youtube from=3 to=3 n=40 dy=-462 h=2772
+18962 tick
+19212 tick
+19462 tick
+19712 tick
+19962 tick
+20212 tick
+20462 tick
+20712 tick
+20962 tick
+21212 tick
+21212 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+21228 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+21244 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+21260 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+21276 scroll youtube from=3 to=4 n=40 dy=462 h=2772
+21292 scroll youtube from=4 to=4 n=40 dy=462 h=2772
+21558 tick
+21808 tick
+22058 tick
+22308 tick
+22558 tick
+22808 tick
+23058 tick
+23308 tick
+23558 tick
+23808 tick
+23808 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+23824 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+23840 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+23856 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+23872 scroll youtube from=4 to=5 n=40 dy=462 h=2772
+23888 scroll youtube from=5 to=5 n=40 dy=462 h=2772
+24154 tick
+24404 tick
+24654 tick
+24904 tick
+25154 tick
+25404 tick
+25654 tick
+25904 tick
+26154 tick
+26404 tick
+26404 scroll youtube from=5 to=6 n=40 dy=462 h=2772
+26420 scroll youtube from=5 to=6 n=40 dy=462 h=2772
+26436 scroll youtube from=5 to=6 n=40 dy=462 h=2772
+26452 scroll youtube from=5 to=6 n=40 dy=462 h=2772
+26468 scroll youtube from=5 to=6 n=40 dy=462 h=2772
+26484 scroll youtube from=6 to=6 n=40 dy=462 h=2772
+26750 tick
+27000 tick
+27250 tick
+27500 tick
+27750 tick
+28000 tick
+28250 tick
+28500 tick
+28750 tick
+29000 tick
+29100 screen none out
+29350 tick
+29600 tick
+29850 tick
+30100 tick
+30350 tick
+30600 tick
+30850 tick
+31100 tick
+31350 tick
+31600 tick
+31850 tick
+32100 tick
+32350 tick
+32600 tick

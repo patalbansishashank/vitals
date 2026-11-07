@@ -21,9 +21,7 @@ import type { ChapterPart } from './index';
 export const M = {
   name: 'Blood markers',
   short: 'blood markers',
-  intro: 'Optional. Results from a recent blood test can make plans safer and more specific.',
-  /** SUITE_SPEC §13.5.5, verbatim. */
-  statement1: 'This is the most detailed option; many values are involved.',
+  /** SUITE_SPEC §13.5.5, verbatim. (Its first statement, "the most detailed option", was an explainer: dropped.) */
   statement2: 'Vitals is not medical advice; it does not diagnose or treat.',
   /** design intake-v3 §8.1's addition, after the spec sentence. */
   statement3: 'Anything your lab marks as abnormal should be discussed with a doctor.',
@@ -32,8 +30,10 @@ export const M = {
     why: 'Some results change what a plan may do, for example how much saturated fat or how long a fast it allows. Values only adjust the simulation and its safety checks.',
     skipText: 'plans start from typical values for your age and sex',
     short: 'blood test results',
-    options: { skip: 'No, skip this chapter', manual: 'Type the values', report: 'Let the Coach read my report' },
+    options: { skip: 'No', manual: 'Type the values', report: 'Let the Coach read my report' },
     reportSub: 'PDF or photo. Text PDFs are read on this device; photos need an AI provider.',
+    /** Paired: the Coach runs on the server, nothing on this device reads photos. */
+    reportSubOnServer: 'A PDF with text, read on this device.',
   },
   manual: {
     prompt: 'Type the values from your blood test',
@@ -62,6 +62,8 @@ export const M = {
     rangeAsText: 'type the range as text',
     rangeAsNumbers: 'type low and high',
     rangeTextPlaceholder: 'e.g. desirable < 200',
+    addRange: 'Add lab range',
+    addRangeLabel: (marker: string) => `Add the lab's range for ${marker}`,
     dateLabel: (group: string) => `${group}, tested on`,
     fastingLabel: (group: string) => `${group}, fasting`,
     converted: (v: string, unit: string) => `= ${v} ${unit}`,
@@ -84,6 +86,7 @@ export const M = {
     chooseLabel: 'Choose a lab report, PDF or photo',
     privacy: 'Your name and patient details are removed before anything is read. The file stays on this device; you can delete it after review.',
     photoNeedsProvider: 'Reading photos needs an AI provider. Connect one in Settings, or type the values.',
+    photoOnServer: 'Photos of reports aren’t read on this device. Choose a PDF, or type the values.',
     reading: 'Reading the report…',
     readingPage: (p: number, n: number) => `Reading page ${p} of ${n}…`,
     cancel: 'Cancel',
@@ -92,6 +95,7 @@ export const M = {
     send: 'Send',
     typeInstead: 'Type instead',
     noTextNoProvider: 'This PDF has no text Vitals can read on this device. Connect an AI provider to read it as images, or type the values.',
+    noTextOnServer: 'This PDF has no text Vitals can read on this device. Type the values.',
     typeValues: 'Type the values',
     notReport: "This doesn't look like a lab report.",
     chooseAnother: 'Choose another file',

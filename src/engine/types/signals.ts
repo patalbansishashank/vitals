@@ -6,7 +6,11 @@
  * Naming: value + unit suffix. G = grams, GH = g/h, KcalH = kcal/h, KcalD = kcal/d, Kg, MmolL, UuMl (µU/mL),
  * H = hours, Frac = 0..1 fraction, Idx = 0..100 index, Rel = ratio to the person's own baseline (1 = baseline),
  * Mult = multiplier (1 = no effect). Daily signals (cadence 'day') are written in startDay/endOfDay.
+ *
+ * `SIGNAL_META` (2026-10-18 contracts, D8-07/C7) adds provenance, hook/lag and status labels beside the table without
+ * changing the bus layout (snapshots keep their order); the table itself is unchanged.
  */
+import type { ModuleHook } from './module';
 
 export type ModuleId =
   | 'moderators'
@@ -227,3 +231,70 @@ export function resetSignalBus(bus: SignalBus): void {
 }
 
 export const SIGNAL_BY_NAME: ReadonlyMap<string, SignalDef> = new Map(SIGNAL_DEFS.map((d) => [d.name, d]));
+
+/** Provenance class of a signal (D8-07): observed input echo, derived from other signals, latent model state, assumed, informational. */
+export type SignalProvenance = 'observedInput' | 'derived' | 'latent' | 'assumed' | 'informational';
+
+/**
+ * Contract metadata of a signal (D8-07, C6/C7): provenance, the hook it is written in, its readers' hooks and lags, a
+ * status label and the operator it maps to when observable. Labels never change physiology; they decide how consumers may
+ * present or optimise a value.
+ */
+export interface SignalMeta {
+  readonly provenance: SignalProvenance;
+  readonly writeHook?: ModuleHook;
+  readonly reads?: ReadonlyArray<{ readonly module: ModuleId; readonly hook: ModuleHook; readonly lag: 0 | 1 }>;
+  /**
+   * production = usable as is; approximation = named legacy routing/kinetic approximation; exploratory = latent mechanism,
+   * no health objective; contextOnly = context/advice only, not a mass or tissue term; deprecatedName = the name overstates
+   * the meaning (kept for compatibility, see `note`).
+   */
+  readonly status: 'production' | 'approximation' | 'exploratory' | 'contextOnly' | 'deprecatedName';
+  /** Measurement operator id (`@/lib/measurementOperators` OPERATOR_TAGS) when the signal is compared with an observation. */
+  readonly operator?: string;
+  readonly population?: string;
+  readonly note: string;
+}
+
+/** Signal contract metadata (partial: signals without an entry are production model quantities with no special label). */
+export const SIGNAL_META: Readonly<Partial<Record<SignalName, SignalMeta>>> = {
+  kcalEaten24: { provenance: 'derived', status: 'approximation', note: 'Rolling 24-h energy actually eaten up to this hour; its fasting-activation thresholds are a named legacy routing approximation (D2-01).' },
+  carbAbs24G: { provenance: 'derived', status: 'approximation', note: 'Rolling 24-h net carbohydrate eaten; legacy routing approximation for fasting/ketone activation (D2-01).' },
+  fastActive: { provenance: 'derived', status: 'approximation', note: 'Fast overlay routing flag. Contract: depends on observed intake history only; planned future fast length is policy metadata (D2-01).' },
+  hoursSinceIntakeH: { provenance: 'derived', status: 'production', note: 'Hours since the last intake > 50 kcal (adherence/safety tolerance), not the literal zero-calorie clock (D5-05).' },
+  eAbsKcalH: { provenance: 'derived', status: 'production', note: 'Metabolizable energy appearing this hour; intake boundary is reported ME (no second urinary/fecal charge, C3/C7).' },
+  raGlcGH: { provenance: 'derived', status: 'approximation', note: 'Phenomenological gut appearance (not verified intestinal maxima; appearance ≠ oxidation, D6-07).' },
+  raFruGalGH: { provenance: 'derived', status: 'approximation', note: 'Phenomenological appearance of fructose + galactose (D6-07).' },
+  raProtGH: { provenance: 'derived', status: 'approximation', note: 'Phenomenological absorbed protein appearance (D6-07).' },
+  bhbMmolL: { provenance: 'latent', status: 'production', operator: 'bhbHourlyMean', note: 'Model blood BHB, hour mean; compare a meter reading through the endpoint operator at its sampling time (D2-08).' },
+  bhbEndoMmolL: { provenance: 'latent', status: 'deprecatedName', note: 'Hepatic BHB (body-substrate plus dietary-MCT production); excludes ingested D-BHB. Not a fasting-depth or energy-deprivation measure (D2-03).' },
+  ketoAdaptFast: { provenance: 'latent', status: 'exploratory', note: 'Latent model state, not a percent adaptation certificate (D2-08).' },
+  ketoAdaptSlow: { provenance: 'latent', status: 'exploratory', note: 'Latent model state, not a percent adaptation certificate (D2-08).' },
+  asiIdx: { provenance: 'latent', status: 'exploratory', note: 'Legacy research index; no autophagic flux estimate, no health objective (D2-02).' },
+  mpsStimWb: { provenance: 'latent', status: 'exploratory', note: 'Simulated anabolic-response index; not measured fractional synthesis or tissue gain (D3-04).' },
+  fastProtOxGH: { provenance: 'latent', status: 'approximation', note: 'Model protein oxidation in fasts; urinary N × 6.25 is an approximate conversion, not muscle loss (D2-05).' },
+  leanTissueKg: { provenance: 'latent', status: 'production', operator: 'modelLeanTissue', note: 'Model lean tissue (Hall convention); not DXA lean or skeletal muscle (D1-06).' },
+  tissueMassKg: { provenance: 'latent', status: 'production', operator: 'modelTissueMass', note: 'FM + FFM_act; tissue fat fraction = 100·FM/(FM + FFM_act) (C6).' },
+  labileWaterKg: { provenance: 'latent', status: 'production', note: 'Model labile mass; water-adjusted mass = same-path scale − labile water (C4/D5-02).' },
+  scaleWeightKg: { provenance: 'latent', status: 'production', operator: 'scaleWake', note: 'Model scale weight; compared with weigh-ins at the wake sample through the scale operator (C4).' },
+  hydrationDeficitKg: { provenance: 'latent', status: 'contextOnly', note: 'Beverage-deficit estimate: hydration context only; not a production scale/FFM mass term (D1-06).' },
+  lutealWeight: { provenance: 'assumed', status: 'approximation', note: 'Calendar-estimated luteal phase; irregular/unknown cycles use phase-average effects (D8-07).' },
+  cycleDay: { provenance: 'assumed', status: 'approximation', note: 'Calendar-estimated cycle day (D8-07).' },
+  stressLevel: { provenance: 'informational', status: 'contextOnly', note: 'Informational; no stress-to-fat pathway is modelled (D8-07).' },
+  testosteroneRel: { provenance: 'latent', status: 'exploratory', note: 'Directional mechanism relative to baseline, not a lab prediction (D2-07).' },
+  leptinRel: { provenance: 'latent', status: 'exploratory', note: 'Directional mechanism relative to baseline, not a lab prediction (D2-07).' },
+  t3Rel: { provenance: 'latent', status: 'exploratory', note: 'Directional mechanism relative to baseline, not a lab prediction (D2-07).' },
+  igf1Rel: { provenance: 'latent', status: 'exploratory', note: 'Directional mechanism; no goal benefit until a validated response model exists (D2-07).' },
+  reproRiskFemale: { provenance: 'latent', status: 'exploratory', note: 'Model concern indicator; not a calibrated per-cycle probability (D2-07).' },
+  hungerIdx: { provenance: 'latent', status: 'exploratory', note: 'Uncalibrated hunger burden index until anchored to personal 0–10 ratings (D2-06).' },
+  sHep: { provenance: 'latent', status: 'production', note: 'Hepatic insulin sensitivity prior; HOMA calibration only from an eligible paired fasting sample (D7-06).' },
+  liverFatPct: { provenance: 'latent', status: 'production', note: 'Latent liver fat; a measured value stays a separate observation; no sustained ketosis bonus by default (D7-08).' },
+  exEEKcalH: { provenance: 'derived', status: 'production', note: 'Net exercise energy incl. EPOC/post-RT REE; the energy ledger books incremental cost once (D3-07).' },
+  exSessionNetKcalH: { provenance: 'derived', status: 'production', note: 'Session energy net of own rest: the EEE of energy availability (D3-07/D8-04).' },
+  exSessionNetKcalD: { provenance: 'derived', status: 'production', writeHook: 'endOfDay', reads: [{ module: 'wellbeing', hook: 'endOfDay', lag: 0 }], note: 'Daily session net EE written in activity endOfDay, read by wellbeing in the same endOfDay (D8-07).' },
+  stepsExtraKcalH: { provenance: 'derived', status: 'approximation', note: 'Steps above the habitual baseline; session/step overlap needs the steps scope (D3-07).' },
+  eaKcalKgFfm: { provenance: 'derived', status: 'approximation', note: 'Smoothed, clipped internal EA drive; raw unclipped exposure and calendar EA are separate (D8-04/D4-04).' },
+  ea7KcalKgFfm: { provenance: 'derived', status: 'approximation', note: 'Legacy eating-day EA_7 (clipped samples, non-fast days); not calendar EA (D4-04).' },
+  strengthEaMult: { provenance: 'latent', status: 'exploratory', writeHook: 'endOfDay', reads: [{ module: 'muscle', hook: 'endOfDay', lag: 1 }], note: 'Exploratory structural strength penalty from low EA; muscle (earlier in the day order) reads the previous day\'s value (D8-04/D8-07).' },
+};
+

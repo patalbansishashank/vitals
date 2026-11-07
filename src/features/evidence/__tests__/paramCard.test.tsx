@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { findParam } from '@/content/evidence/params';
 import { paramEvidence } from '@/content/evidence/paramEvidence';
@@ -19,7 +20,11 @@ const def = (over: Partial<ParamDef>): ParamDef => ({
   ...over,
 });
 
-const MECH = { id: '22-test', title: 'Work energy above sitting', relatedParamIds: ['activityIntake.occMixed', 'nope.missing'] } as Mechanism;
+const MECH = {
+  id: '22-test',
+  title: 'Work energy above sitting',
+  relatedParamIds: ['activityIntake.occMixed', 'nope.missing'],
+} as Mechanism;
 
 describe('parameter evidence labels', () => {
   it('certainty is the grade; the mechanism label exists only when a mechanism documents the parameter', () => {
@@ -42,29 +47,47 @@ describe('parameter evidence labels', () => {
 });
 
 describe('ParamCard', () => {
-  it('shows value, range, both labels, the inflation and the sources without the maintainers’ pointer', () => {
+  it('shows the parameter and published range, with the mechanism and widened band in its explanation', async () => {
+    const user = userEvent.setup();
     render(<ParamCard def={def({ grade: 'D' })} documentedBy={[MECH]} />);
     const card = screen.getByRole('article', { name: 'Test coefficient' });
-    expect(card).toHaveTextContent('1 kcal/kg/h');
-    expect(card).toHaveTextContent('plausible range 0.9–1.1 kcal/kg/h');
-    expect(card).toHaveTextContent('known, modelled: Work energy above sitting');
-    expect(card).toHaveTextContent('Grade D');
-    expect(card).toHaveTextContent(/band widened ×\d\.\d\d for grade D/);
+    expect(
+      screen.getByRole('img', { name: '1 kcal/kg/h; plausible range 0.9–1.1 kcal/kg/h' }),
+    ).toBeInTheDocument();
+    expect(card).toHaveTextContent('Published 0.9–1.1 kcal/kg/h');
+    expect(screen.getByRole('meter', { name: 'Test coefficient: grade-widened band' })).toHaveAttribute(
+      'aria-valuenow',
+      '1',
+    );
+    expect(card).not.toHaveTextContent('Known, modelled');
     expect(card).toHaveTextContent('Body-weight models › Hall 2011');
     expect(card.textContent).not.toMatch(/§|01 /);
+    await user.click(screen.getByRole('button', { name: 'About Test coefficient' }));
+    const panel = await screen.findByRole('dialog', { name: 'How the band is set' });
+    expect(panel).toHaveTextContent('Known, modelled: Work energy above sitting');
+    expect(panel).toHaveTextContent('Grade D');
+    expect(panel).toHaveTextContent(/Band widened ×\d\.\d\d for grade D/);
   });
 
   it('writes a dimensionless unit with a note as the note alone, never as a bare "1"', () => {
-    render(<ParamCard def={def({ value: 0.005, low: 0.004, high: 0.008, unit: '1 (fraction of body mass)' })} />);
+    render(
+      <ParamCard def={def({ value: 0.005, low: 0.004, high: 0.008, unit: '1 (fraction of body mass)' })} />,
+    );
     const card = screen.getByRole('article', { name: 'Test coefficient' });
-    expect(card).toHaveTextContent('0.005 fraction of body mass');
-    expect(card).toHaveTextContent('plausible range 0.004–0.008 fraction of body mass');
+    expect(
+      screen.getByRole('img', {
+        name: '0.005 fraction of body mass; plausible range 0.004–0.008 fraction of body mass',
+      }),
+    ).toBeInTheDocument();
+    expect(card).toHaveTextContent('Published 0.004–0.008 fraction of body mass');
     expect(card.textContent).not.toMatch(/\b1 \(/);
   });
 
   it('renders the cards of a mechanism’s linked parameters and skips unknown ids', () => {
     render(<ParamCards mechanism={MECH} />);
     expect(screen.getAllByRole('article')).toHaveLength(1);
-    expect(screen.getByRole('article', { name: findParam('activityIntake.occMixed')!.label! })).toBeInTheDocument();
+    expect(
+      screen.getByRole('article', { name: findParam('activityIntake.occMixed')!.label! }),
+    ).toBeInTheDocument();
   });
 });

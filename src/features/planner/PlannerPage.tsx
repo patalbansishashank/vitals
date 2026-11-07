@@ -1,36 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
-import {
-  Engraved,
-  GradeBadge,
-  Key,
-  KeyLink,
-  MQ,
-  Notice,
-  Page,
-  Popover,
-  formatNumber,
-  toast,
-  useMediaQuery,
-  usePopover,
-} from '@/components';
-import { ActionBar, TopBar } from '@/app/shell';
+import { History, UserRound } from 'lucide-react';
+import { Key, MQ, Page, toast, useMediaQuery } from '@/components';
+import { StatusCapsule, TopBar, type MenuEntry } from '@/app/shell';
 import { paths } from '@/app/paths';
 import { SafetyGate } from '@/features/onboarding';
 import type { PlannerRequestV2 } from '@/engine/planner/domain/types';
 import type { ConstraintDraft } from '@/state/plannerStore';
-import { goalMetric } from './catalogue';
 import { editGoals } from './commands';
-import { fmtDate, fmtWeeks } from './format';
+import { fmtWeeks } from './format';
 import { GoalsView } from './GoalsView';
-import { RUNG_TITLE, isRung, kindFromParams, ladderOf, planOf, type PlanKind, type RungId } from './ladder';
+import { RUNG_TITLE, kindFromParams, ladderOf, type PlanKind, type RungId } from './ladder';
 import { usePlannerModel } from './model';
 import { openRungAsScenario } from './openInSimulator';
 import { checkpointFor, discardCheckpoint, type CheckpointState } from './plannerClient';
-import { addDaysISO } from './request';
-import { ResultsView, RungStart, lowestGrade, type LadderView } from './ResultsView';
+import { staleReason } from './request';
+import { ResultsView, type LadderView } from './ResultsView';
 import { ExhaustiveChip, RunView } from './RunView';
-import { PlannerSafetyPanel } from './components/SafetyPanel';
 import { setOpenResults, setPlannerVisible, startPlannerRun, useLadderRun } from './run';
 import './planner.css';
 import './ladder.css';
@@ -44,9 +30,13 @@ function viewOf(pathname: string): View {
   return 'redirect';
 }
 
-const TIER_WORD = { S: 'quick', M: 'standard', L: 'thorough', X: 'exhaustive' } as const;
-export const EXHAUSTIVE_HELP =
-  'Searches for 15–60 minutes using all your processor cores. You can keep using Vitals.';
+/** The header capsule while plans on screen were found for other inputs ("Find plans again" is the header's key). */
+/** The stale results' status icon: why the plans shown are out of date (its name and tooltip; a press shows it). */
+const STALE_CAPSULE = {
+  body: 'Plans out of date: your body changed',
+  safety: 'Plans out of date: safety settings changed',
+  goals: 'Plans out of date: goals or limits changed',
+} as const;
 
 /**
  * The Planner (Feature 2): /plan (redirect) · /plan/goals · /plan/run · /plan/results?rung=hard|medium|easy|ideal&tab=….
@@ -72,9 +62,6 @@ export default function PlannerPage() {
   const v2 = ladderOf(result);
   const [adoptOpen, setAdoptOpen] = useState(false);
   const [checkpoint, setCheckpoint] = useState<{ hash: string; state: CheckpointState } | null>(null);
-  const [discardSeen, setDiscardSeen] = useState(false);
-  const best = usePopover();
-  const evidence = usePopover();
 
   useEffect(() => {
     setPlannerVisible(true);
@@ -90,8 +77,10 @@ export default function PlannerPage() {
   const blockedReason =
     model.access.plannerAccess === 'blocked'
       ? 'The Planner is off for your safety answers.'
-      : model.goals.length === 0
-        ? 'Add at least one goal'
+      : model.runnableGoalCount === 0
+        ? model.goals.length
+          ? 'Review goals · choose target'
+          : 'Add at least one goal'
         : !model.body.complete
           ? 'Finish Your body first'
           : running
@@ -104,20 +93,14 @@ export default function PlannerPage() {
     navigate(paths.planRun);
   }, [blockedReason, model.request, model.hash, navigate]);
 
-  /** Tier X: started only from "Find the best possible plan"; runs in the background with a chip in the context bar. */
+  /** Tier X: started only from the ⋯ "Find the best possible plan"; runs in the background with a header capsule. */
   const findBest = useCallback(
     (resumeKey?: string) => {
       if (blockedReason || !model.request || !model.hash) return;
-      best.setOpen(false);
       void startPlannerRun(model.request, model.hash, { tier: 'X', ...(resumeKey ? { resumeKey } : {}) });
-      toast(
-        resumeKey
-          ? 'Resuming the exhaustive search'
-          : 'Exhaustive search started · you can keep using Vitals',
-        { id: 'planner-x' },
-      );
+      toast(resumeKey ? 'Long search resumed' : 'Long search started', { id: 'planner-x' });
     },
-    [blockedReason, model.request, model.hash, best],
+    [blockedReason, model.request, model.hash],
   );
 
   // "Adopt some of these limits": the goal screen's limits change (one undoable edit), then a re-run finds a new ladder
@@ -135,7 +118,7 @@ export default function PlannerPage() {
     findPlans();
   }, [model.hash, findPlans]);
 
-  // a stored exhaustive search for these goals (desktop): offer to resume it, or say an older one was set aside
+  // a stored exhaustive search for these goals (desktop): offered in the ⋯; one for other goals is set aside
   useEffect(() => {
     if (!desktop || running || !model.request || !model.hash) return;
     let alive = true;
@@ -143,7 +126,7 @@ export default function PlannerPage() {
     void checkpointFor(model.request as PlannerRequestV2).then((state) => {
       if (!alive) return;
       setCheckpoint({ hash, state });
-      // a checkpoint for other goals is set aside, never merged: delete it once the person has been told
+      // a checkpoint for other goals is set aside, never merged
       if (state.state === 'discarded') void discardCheckpoint(state.key).catch(() => undefined);
     });
     return () => {
@@ -210,78 +193,56 @@ export default function PlannerPage() {
   if (view === 'results' && !result)
     return <Navigate to={running ? paths.planRun : paths.planGoals} replace />;
 
-  const findKey = (size: 'md' | 'lg') => (
+  /* ---- the header: one primary key, one status capsule, the page's items of the one ⋯ ---- */
+  const findKey = (
     <Key
-      variant="signal"
-      shape="pill"
-      size={size}
+      variant="primary"
+      size="sm"
       onClick={findPlans}
       disabledReason={blockedReason}
-      shortcut={size === 'md' ? '⌘↵' : undefined}
-      indicator={model.stale ? false : undefined}
+      aria-keyshortcuts="Meta+Enter Control+Enter"
     >
       {model.stale ? 'Find plans again' : 'Find plans'}
     </Key>
   );
-  const endIso = addDaysISO(model.startDate, model.horizonDays - 1);
   const goalsCaption = `${model.goals.length} goal${model.goals.length === 1 ? '' : 's'} · ${fmtWeeks(model.horizonDays)}`;
-  const chip = <ExhaustiveChip run={run} />;
-  const resumeNotice =
-    desktop && cp?.state === 'resume' ? (
-      <Notice
-        severity="info"
-        layout="ruled"
-        className="lp-notice"
-        title={`Resume the exhaustive search${cp.fraction !== null ? ` · ${Math.round(cp.fraction * 100)} % done` : ''}`}
-        actions={
-          <Key size="sm" onClick={() => findBest(cp.key)} disabledReason={blockedReason}>
-            Resume
-          </Key>
-        }
-      >
-        A long search for these goals was paused. It continues where it stopped.
-      </Notice>
-    ) : desktop && cp?.state === 'discarded' && !discardSeen ? (
-      <Notice
-        severity="info"
-        layout="ruled"
-        className="lp-notice"
-        title="An earlier long search was for different goals, so it was set aside."
-        onDismiss={() => setDiscardSeen(true)}
-      />
-    ) : null;
+  const xChip = <ExhaustiveChip run={run} />;
+  const xRunning = running && ladderRun.tier === 'X';
+  const resumeItem: MenuEntry[] =
+    desktop && cp?.state === 'resume'
+      ? [
+          {
+            id: 'resume',
+            label: 'Resume the long search',
+            hint: cp.fraction !== null ? `${Math.round(cp.fraction * 100)} %` : undefined,
+            onSelect: () => findBest(cp.key),
+            disabled: !!blockedReason,
+          },
+        ]
+      : [];
 
   if (view === 'goals') {
+    const status = xRunning ? (
+      xChip
+    ) : !model.body.complete ? (
+      <StatusCapsule icon={UserRound} label="Your body isn’t finished yet" attention to={paths.body} />
+    ) : undefined;
     return (
       <>
         <TopBar
           title="Plan"
           documentTitle="Plan · goals"
-          params={
-            <Engraved>{`${fmtWeeks(model.horizonDays)} · ${fmtDate(model.startDate)} → ${fmtDate(endIso)}`}</Engraved>
-          }
-          actions={
-            <span className="lp-bar-actions">
-              {chip}
-              {result ? (
-                <KeyLink to={paths.planResults} variant="quiet" size="sm" className="max-lg:hidden">
-                  Last plans
-                </KeyLink>
-              ) : null}
-              <span className="max-lg:hidden">{findKey('md')}</span>
-            </span>
-          }
+          status={status}
+          primary={findKey}
+          menu={[
+            ...(result
+              ? [{ id: 'last', label: 'Show the last plans', onSelect: () => navigate(paths.planResults) }]
+              : []),
+            ...resumeItem,
+          ]}
         />
-        <ActionBar>
-          <div className="lp-actionbar-text">
-            <Engraved>{goalsCaption}</Engraved>
-          </div>
-          {findKey('lg')}
-        </ActionBar>
         <Page className="lp-page">
           <SafetyGate feature="planner" context={model.bodyContext} summary={false}>
-            <PlannerSafetyPanel access={model.access} context={model.bodyContext} />
-            {resumeNotice}
             <GoalsView model={model} onFindPlans={findPlans} />
           </SafetyGate>
         </Page>
@@ -292,7 +253,7 @@ export default function PlannerPage() {
   if (view === 'run') {
     return (
       <>
-        <TopBar title="Plan" documentTitle="Finding plans" params={<Engraved>{goalsCaption}</Engraved>} />
+        <TopBar title="Plan" documentTitle="Finding plans" subtitle={goalsCaption} />
         <Page className="lp-page">
           <SafetyGate feature="planner" context={model.bodyContext} summary={false}>
             <RunView model={model} onRetry={findPlans} />
@@ -303,110 +264,44 @@ export default function PlannerPage() {
   }
 
   // results
-  const lowest = lowestGrade(v2);
   const req = run.request ?? model.request;
   const weeks = Math.round((req?.horizonDays ?? model.horizonDays) / 7);
   const nGoals = req?.goals.length ?? model.goals.length;
-  const searched = v2 ? v2.provenance.euUsed : (result?.provenance.euUsed ?? 0);
-  const selPlan = v2 ? planOf(v2, selected) : null;
-  const outcomes =
-    (v2?.rungs.hard ?? v2?.rungs.medium ?? v2?.rungs.easy ?? v2?.ideal)?.summary.outcomes ?? [];
+  const status = xRunning ? (
+    xChip
+  ) : model.stale ? (
+    <StatusCapsule
+      icon={History}
+      label={STALE_CAPSULE[staleReason(model.run.request, model.request)]}
+      attention
+    />
+  ) : undefined;
   return (
     <>
       <TopBar
-        title="Plans for your goals"
+        title="Plan"
         documentTitle="Plans"
-        params={
-          <span className="lp-bar-params">
-            <Engraved>{`${nGoals} goal${nGoals === 1 ? '' : 's'} · ${weeks} weeks${searched ? ` · searched ${formatNumber(searched, 0)} plans` : ''}`}</Engraved>
-            {lowest ? (
-              <>
-                <button
-                  type="button"
-                  className="lp-evidence-key"
-                  {...evidence.triggerProps}
-                  aria-label="Evidence behind these plans"
-                >
-                  <GradeBadge grade={lowest} size="sm" />
-                  <span>evidence A–D ⓘ</span>
-                </button>
-                <Popover
-                  open={evidence.open}
-                  onOpenChange={evidence.setOpen}
-                  anchorRef={evidence.anchorRef}
-                  label="Evidence behind these plans"
-                >
-                  <div className="lp-evidence-pop">
-                    <p className="lm-eng">how sure the model is, per goal</p>
-                    <ul className="lp-plain-list">
-                      {outcomes.map((o) => (
-                        <li key={o.goal}>
-                          {`${(goalMetric(o.metric)?.label ?? o.label).toLowerCase()} · grade ${o.grade}`}
-                          {o.grade === 'D' ? ' — wide ranges, read the shape' : ''}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="lp-plain">
-                      Grades describe the evidence; they never rank or weight the plans.
-                    </p>
-                    {v2 ? <p className="lm-eng">{`search: ${TIER_WORD[v2.provenance.tier]}`}</p> : null}
-                  </div>
-                </Popover>
-              </>
-            ) : null}
-          </span>
-        }
-        actions={
-          <span className="lp-bar-actions">
-            {chip}
-            <KeyLink to={paths.planGoals} variant="quiet" size="sm">
-              Adjust goals
-            </KeyLink>
-            {desktop && v2 ? (
-              <>
-                <Key size="sm" variant="quiet" {...best.triggerProps} disabledReason={blockedReason}>
-                  Find the best possible plan
-                </Key>
-                <Popover
-                  open={best.open}
-                  onOpenChange={best.setOpen}
-                  anchorRef={best.anchorRef}
-                  label="Find the best possible plan"
-                  placement="bottom-end"
-                >
-                  <div className="lp-best-pop">
-                    <p className="lp-plain">{EXHAUSTIVE_HELP}</p>
-                    <Key
-                      variant="signal"
-                      shape="pill"
-                      size="sm"
-                      onClick={() => findBest()}
-                      disabledReason={blockedReason}
-                    >
-                      Start the long search
-                    </Key>
-                  </div>
-                </Popover>
-              </>
-            ) : null}
-          </span>
-        }
+        subtitle={`${nGoals} goal${nGoals === 1 ? '' : 's'} · ${weeks} weeks`}
+        status={status}
+        primary={model.stale ? findKey : undefined}
+        menu={[
+          { id: 'goals', label: 'Adjust goals', onSelect: () => navigate(paths.planGoals) },
+          ...(desktop && v2
+            ? [
+                {
+                  id: 'best',
+                  label: 'Find the best possible plan',
+                  hint: '15–60 min',
+                  onSelect: () => findBest(),
+                  disabled: !!blockedReason,
+                },
+              ]
+            : []),
+          ...resumeItem,
+        ]}
       />
-      {v2 && selPlan && v2.status === 'ok' ? (
-        <ActionBar>
-          <div className="lp-actionbar-text">
-            <Engraved>{`${RUNG_TITLE[selected]} selected`}</Engraved>
-          </div>
-          {isRung(selected) ? (
-            <RungStart model={model} result={result!} v2={v2} kind={selected} replacing={replacing} />
-          ) : v2.ideal ? (
-            <Key onClick={() => setAdoptOpen(true)}>Adopt some of these limits</Key>
-          ) : null}
-        </ActionBar>
-      ) : null}
       <Page className="lp-page">
         <SafetyGate feature="planner" context={model.bodyContext} summary={false}>
-          {resumeNotice}
           <ResultsView
             model={model}
             result={result!}

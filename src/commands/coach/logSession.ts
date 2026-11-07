@@ -21,6 +21,7 @@ import {
   type StimulusVector,
   type TrainingRegion,
 } from '@/catalogues';
+import { doseCompletionOf } from '@/living/loggedDay';
 import { simulatorProfileNow } from '@/state/internal/simulatorProfile';
 import { aiPorts } from '../aiPorts';
 import { implementLate as implement } from './late';
@@ -200,6 +201,12 @@ async function logSession(ctx: CommandContext, input: Input) {
     shortfall: Array<{ term: string; missing: number; text: string }>;
     alsoTrained: string[];
     note?: string;
+    /**
+     * (D3-09/A1-022) Whether the comparison is quantitatively known: with an unknown hard-set count (prescribed or done) the
+     * muscle/strength completion is unknown — `credit`/`parity` are then null, the independently known terms (energy,
+     * cardio, mobility) keep `knownTermsScore`, and `scenarioScore` is the named legacy minute-conversion score only.
+     */
+    completion?: { status: 'known' | 'partial' | 'unknown'; unknownTerms: string[]; knownTermsScore: number | null; scenarioScore?: number; scenario?: 'legacyMinuteConversion' };
   };
   if (input.status === 'skipped') {
     equivalence = { credit: 0, score: 0, parity: false, band: pre ? 'different' : null, vsSlotKey: slot?.slotKey ?? null, perRegion: regionNotes(pre, stimulus), shortfall: [], alsoTrained: [], note: 'skipped' };
@@ -209,15 +216,30 @@ async function logSession(ctx: CommandContext, input: Input) {
     equivalence = { credit: 1, score: 1, parity: true, band: 'full', vsSlotKey: slot!.slotKey, perRegion: regionNotes(pre, stimulus), shortfall: [], alsoTrained: [] };
   } else {
     const e = stimulusEquivalence(pre, stimulus);
+    const completion = doseCompletionOf(e, pre, stimulus);
+    const known = completion.status === 'known';
     equivalence = {
-      credit: round2(e.credit),
-      score: round2(e.score),
-      parity: e.parity,
-      band: e.band,
+      // an unknown hard-set count never becomes a rounded credit or full parity (never a sentinel zero either)
+      credit: known ? round2(e.credit) : null,
+      score: known ? round2(e.score) : null,
+      parity: known ? e.parity : null,
+      band: known ? e.band : null,
       vsSlotKey: slot!.slotKey,
       perRegion: regionNotes(pre, stimulus),
       shortfall: e.shortfall.map((s) => ({ term: s.term, missing: round2(s.missing), text: s.text })),
       alsoTrained: e.alsoTrained,
+      ...(known
+        ? {}
+        : {
+            completion: {
+              status: completion.status,
+              unknownTerms: completion.unknownTerms,
+              knownTermsScore: completion.knownTermsScore === null ? null : round2(completion.knownTermsScore),
+              scenarioScore: round2(e.score),
+              scenario: completion.scenario ?? 'legacyMinuteConversion',
+            },
+            note: 'muscle dose unknown',
+          }),
     };
   }
 
@@ -232,6 +254,10 @@ async function logSession(ctx: CommandContext, input: Input) {
     ...(input.rpe !== undefined ? { rpe: input.rpe } : {}),
     ...(input.bioWorkoutId ? { bioWorkoutId: input.bioWorkoutId } : {}),
     stimulus,
+    // (D3-09/D3-07) the provider's dose status and bout cost travel on the entry itself (the replay reads them; a
+    // minutes-only record stays unknown, never reported hard sets)
+    ...(stimulus.doseStatus ? { doseStatus: stimulusDoseOf(stimulus) } : {}),
+    ...(stimulus.cost ? { cost: stimulus.cost } : {}),
     catalogueVersion: catalogue.version,
     ...(itemId ? { itemId } : {}),
     ...(resolved.some((r) => r.isNew) ? { assumed: true, confidence: Math.min(...resolved.map((r) => r.confidence)) } : {}),
@@ -240,6 +266,12 @@ async function logSession(ctx: CommandContext, input: Input) {
 }
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;
+
+/** The muscle-dose status a vector states: unknown when its hypertrophy/strength dose is unknown, else its own status. */
+function stimulusDoseOf(v: StimulusVector): NonNullable<StimulusVector['doseStatus']> {
+  const o = v.outcomeDoseStatus;
+  return o?.hypertrophy === 'unknown' || o?.strength === 'unknown' ? 'unknown' : (v.doseStatus ?? 'unknown');
+}
 
 /** Fill the dose of a typed item: what was typed, else the exercise's default. */
 function withDose(p: PerformedExercise, ex: ExerciseRecord, typed: { sets?: number; reps?: number; minutes?: number }, already: boolean): PerformedExercise {

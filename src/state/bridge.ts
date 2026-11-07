@@ -13,9 +13,11 @@
  *   the rollback of a ChangeSet whose commit failed (`restoreProjections`, `rollback` scope: boot cache rewritten, no
  *   document ops).
  */
+import { currentRestoreEpoch, externalRestoreRequired } from './writeBarrier';
+import { pendingMirrorBeforeRecovery } from './restoreJournal';
 import type { StateCreator, StoreApi } from 'zustand';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import { deepEqual, isPlainObject, jsonClone, type CollectionId } from '@/store';
+import { deepEqual, isPlainObject, jsonClone, type CollectionId, type DocumentStore } from '@/store';
 import { assertWritable, createScope, currentScope, runInScope, type DocOpRecord, type ScopeKind } from './scope';
 
 /* ---------------------------------------------------------------- guard middleware */
@@ -76,13 +78,21 @@ export interface BindingSpec<P> {
   /** Collections where the binding owns only the ids with this prefix (e.g. `derived` → `sim:`). */
   ownsPrefix?: Partial<Record<CollectionId, string>>;
   /** Shared documents this binding writes some fields of (uiPrefs). */
-  shares?: ReadonlyArray<{ col: CollectionId; id: string; fields: readonly string[] }>;
+  shares?: ReadonlyArray<{
+    col: CollectionId;
+    id: string;
+    fields: readonly string[];
+    /** false: unrelated fields in this shared row must not decide boot-cache freshness. */
+    reconcileClock?: boolean;
+  }>;
   toDocs(state: P): DocWrite[];
   /** Persisted state rebuilt from documents; null when the documents hold nothing for this binding. */
-  fromDocs(read: DocReader): P | null;
+  fromDocs(read: DocReader, includeEmpty?: boolean): P | null;
   /** Mirror write debounce, ms (the profile autosaves at 300 ms). */
   mirrorDebounceMs?: number;
   onSaveStatus?: (s: 'saved' | 'saving' | 'unavailable') => void;
+  /** Capture loaded migration inputs; finish only after normal boot reconciliation. */
+  prepareBoot?: (store: DocumentStore) => () => Promise<void>;
 }
 
 interface Known {
@@ -98,6 +108,10 @@ export interface Binding<P = unknown> extends BindingSpec<P> {
   known: Map<string, Known>;
   /** Persisted state now (partialized). */
   snapshot(): P;
+  /** Build an imported/default persisted state without changing the live projection. */
+  prepareImport?(entry?: { state: unknown; version: number | null }): P;
+  /** Apply the staged state with fresh ephemeral defaults after a restore commit. */
+  applyImport?(state: P): void;
   /**
    * Apply a persisted state to the projection (merge rule of the store). `kind` opens a scope ('sync' never writes
    * back); 'current' runs in the caller's scope (undo inside a command records its ops there).
@@ -155,12 +169,13 @@ function ls(): Storage | null {
   }
 }
 
-export function readMirror(key: string): (StorageValue<unknown> & { at?: string }) | null {
+export function readMirror(key: string): (StorageValue<unknown> & { at?: string; restoreEpoch?: string | null }) | null {
   const s = ls();
-  const raw = s?.getItem(key);
+  const overlay = pendingMirrorBeforeRecovery(key);
+  const raw = overlay ? overlay.value : s?.getItem(key);
   if (!raw) return null;
   try {
-    const v = JSON.parse(raw) as StorageValue<unknown> & { at?: string };
+    const v = JSON.parse(raw) as StorageValue<unknown> & { at?: string; restoreEpoch?: string | null };
     return v && typeof v === 'object' && 'state' in v ? v : null;
   } catch {
     return null;
@@ -174,6 +189,7 @@ interface MirrorPending {
 const mirrorPending = new Map<string, MirrorPending>();
 
 function writeMirrorNow(b: BindingSpec<unknown>, raw: string): void {
+  if (externalRestoreRequired()) { b.onSaveStatus?.('unavailable'); return; }
   const s = ls();
   try {
     if (!s) throw new Error('no storage');
@@ -185,7 +201,7 @@ function writeMirrorNow(b: BindingSpec<unknown>, raw: string): void {
 }
 
 function writeMirror(b: BindingSpec<unknown>, value: StorageValue<unknown>): void {
-  const raw = JSON.stringify({ ...value, [MIRROR_STAMP]: new Date().toISOString() });
+  const raw = JSON.stringify({ ...value, [MIRROR_STAMP]: new Date().toISOString(), restoreEpoch: currentRestoreEpoch() });
   if (!b.mirrorDebounceMs) return writeMirrorNow(b, raw);
   const p = mirrorPending.get(b.key) ?? { timer: null, value: null };
   p.value = raw;
@@ -272,7 +288,7 @@ function route(ops: DocOpRecord[]): void {
   if (ops.length === 0) return;
   const scope = currentScope();
   if (scope?.kind === 'command' || scope?.kind === 'dryRun') scope.ops.push(...ops);
-  else if (scope?.kind === 'sync' || scope?.kind === 'hydrate' || scope?.kind === 'rollback') return;
+  else if (scope?.kind === 'sync' || scope?.kind === 'hydrate' || scope?.kind === 'rollback' || scope?.kind === 'restore') return;
   else unscopedSink(scope?.kind ?? null, ops);
 }
 

@@ -3,7 +3,8 @@ import { createBrowserRouter, RouterProvider } from 'react-router';
 import { CoachRuntimeProvider } from '@/ai/coach/CoachRuntimeProvider';
 import { installDocumentPlanSource } from '@/features/living/mode';
 import { LaunchScreen } from '@/components/brand/LaunchScreen';
-import { installNavigatePort } from './navPort';
+import { onWidgetOpen } from '@/platform/widgets';
+import { installNavigatePort, navigatePort } from './navPort';
 import { startStoragePersistence } from './persistStorage';
 import { routes } from './routes';
 
@@ -21,6 +22,8 @@ export function App() {
   const [router] = useState(createAppRouter);
   // `nav.open` (Coach, agents) opens screens through this router
   useEffect(() => installNavigatePort(router), [router]);
+  // (0.6.6) a home-screen widget tap opens its screen through the same router (Android app only)
+  useEffect(() => onWidgetOpen(navigatePort(router)), [router]);
   // ask the browser to keep the data when space runs low, at a sensible moment (./persistStorage)
   useEffect(() => startStoragePersistence(), []);
   return (

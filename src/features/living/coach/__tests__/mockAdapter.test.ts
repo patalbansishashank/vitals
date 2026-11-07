@@ -44,6 +44,23 @@ describe('mock Coach adapter', () => {
     expect((await coach.act(id, 'undo')).ok).toBe(false);
   });
 
+  it('"as planned" replaces what the meal already holds (no plan on top), and its undo brings the typed food back', async () => {
+    const { coach, stub } = setup();
+    await send(coach, 'had dal for lunch');
+    const typed = stub.source.today(FIXTURE_TODAY)!.logged.entries.filter((e) => e.kind === 'meal');
+    expect(typed).toHaveLength(1);
+    await send(coach, 'log lunch as planned');
+    const planned = stub.source.today(FIXTURE_TODAY)!.prescription!.meals.find((m) => m.slot === 'lunch')!;
+    const after = stub.source.today(FIXTURE_TODAY)!.logged.entries.filter((e) => e.kind === 'meal');
+    expect(after).toHaveLength(1);
+    expect(after[0]!.id).not.toBe(typed[0]!.id);
+    expect(after[0]!.energyKcal?.value).toBe(planned.energyKcal);
+    const card = coach.history(MAIN_CONVERSATION)[3]!.cards[0]!;
+    expect(card.state).toBe('applied');
+    expect(await coach.act(card.id, 'undo')).toEqual({ ok: true });
+    expect(stub.source.today(FIXTURE_TODAY)!.logged.entries.filter((e) => e.kind === 'meal').map((e) => e.id)).toEqual([typed[0]!.id]);
+  });
+
   it('stops between chunks when aborted and keeps what was already made', async () => {
     const { coach } = setup();
     const ctrl = new AbortController();
@@ -68,7 +85,7 @@ describe('mock Coach adapter', () => {
   it('provider failures become an error turn with the plain reason', async () => {
     const { coach } = setup('keyRefused');
     const events = await send(coach, 'had dal');
-    expect(events).toEqual([{ type: 'error', kind: 'keyRefused', message: 'Your key was refused by Anthropic. Check it in Settings › AI provider.' }]);
+    expect(events).toEqual([{ type: 'error', kind: 'keyRefused', message: 'Your key was refused by Anthropic. Check it in Settings › Coach.' }]);
     expect(coach.history(MAIN_CONVERSATION)[1]!.error?.kind).toBe('keyRefused');
   });
 
@@ -88,21 +105,25 @@ describe('Coach briefing', () => {
     const clock = fixedClock(`${FIXTURE_TODAY}T13:00:00`);
     const stub = createStubLiving({ clock, plan: fixedPlanControl(fixturePlan(FIXTURE_TODAY)) });
     const b = briefingFromLiving(stub.source, clock, { provider: { name: 'Anthropic', model: 'Claude Sonnet 5.5' } });
-    expect(b.sections.map((s) => s.title)).toEqual(['Always', 'About you', 'Your plan', 'Last 7 days', 'Body signals it can see', 'Still to ask', 'Sent to']);
+    expect(b.sections.map((s) => s.title)).toEqual(['Always', 'About you', 'Your plan', 'Last 7 days', 'Still to ask', 'Sent to']);
     const plan = b.sections.find((s) => s.id === 'plan')!;
-    expect(plan.lines[0]).toBe('Spring cut · medium · day 15 of 84');
+    expect(plan.lines[0]).toBe('Spring cut · day 15 of 84');
+    // facts carry their unit, once: the 7-day adherence only, no rung repeated, no device wording
+    expect(plan.lines.filter((l) => l.startsWith('Adherence'))).toEqual([expect.stringMatching(/^Adherence \d+ % over 7 days$/)]);
+    expect(b.sections.flatMap((s) => s.lines).join('\n')).not.toMatch(/device sharing|sync|· medium/);
     expect(b.sections.find((s) => s.id === 'week')!.lines).toHaveLength(7);
     expect(b.sections.find((s) => s.id === 'sentTo')!.lines[0]).toMatch(/^Anthropic \(Claude Sonnet 5\.5\): this conversation/);
   });
 
   it('without a plan says so; quiet mode keeps numbers out', async () => {
-    expect(buildCoachBriefing({ today: null }).sections.find((s) => s.id === 'plan')!.lines).toEqual(['No plan is running. It can help you choose one.']);
+    expect(buildCoachBriefing({ today: null }).sections.find((s) => s.id === 'plan')!.lines).toEqual(['No plan is running.']);
     const clock = fixedClock(`${FIXTURE_TODAY}T13:00:00`);
     const stub = createStubLiving({ clock, plan: fixedPlanControl(fixturePlan(FIXTURE_TODAY)) });
     await stub.actions.setQuietMode(true);
     const b = briefingFromLiving(stub.source, clock);
     const text = b.sections.flatMap((s) => (s.id === 'plan' || s.id === 'about' || s.id === 'week' ? s.lines : [])).join('\n');
     expect(text).not.toMatch(/\d+ kg/);
-    expect(text).not.toMatch(/last 7 days \d/);
+    expect(text).not.toMatch(/\d+ %/);
+    expect(text).toMatch(/^Adherence over 7 days · /m);
   });
 });

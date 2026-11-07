@@ -40,5 +40,7 @@ describe('published planner benchmark', () => {
     expect(isPlannerBenchmarkSummary({ ...(docs as object), version: 2 })).toBe(false);
     expect(isPlannerBenchmarkSummary({ ...(docs as object), headline: [{ suite: 'T1' }] })).toBe(false);
     expect(isPlannerBenchmarkSummary({ ...(docs as object), perf: [{ request: 'a' }] })).toBe(false);
+    expect(isPlannerBenchmarkSummary({ ...(docs as object), policy: { version: 'two' } })).toBe(false);
+    expect(isPlannerBenchmarkSummary({ ...(docs as object), policy: { version: 2, fingerprint: 'pol2-x', reference: null } })).toBe(true);
   });
 });

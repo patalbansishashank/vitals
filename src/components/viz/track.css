@@ -1,0 +1,196 @@
+/* ==========================================================================
+   DottedTrack (r071 0B), proto .track. Two to four SVG layers of the same dots sit on top of each other: the unlit
+   remainder, a second tone, the lit dots and the second lap. A lit layer shows only the part up to its width, through
+   clip-path: inset(), which is what animates (first view 900 ms, a later change 420 ms), and the thumb moves with a
+   transform. Nothing animates width or left. The lit width is snapped to whole dots in the model, so the clip lands on a
+   dot edge. Tokens only; the thumb is ivory with a ring in the card's colour (a border, not a shadow).
+   ========================================================================== */
+@layer components {
+  .lmz-track {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+  .lmz-track__bar {
+    position: relative;
+    width: 100%;
+    height: 16px;
+  }
+
+  /* ---- the dots ---- */
+  .lmz-track__layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    overflow: visible;
+    color: var(--lmz-lit);
+  }
+  .lmz-track__layer circle {
+    fill: currentColor;
+  }
+  .lmz-track__layer[data-layer='unlit'] {
+    color: var(--lmz-unlit);
+  }
+  /* the dots wear the domain solid only when the track is given a hue (protein green); the thumb never does */
+  .lmz-track[data-hue] .lmz-track__layer[data-layer='lit'] {
+    color: var(--lm-hue);
+  }
+  .lmz-track__layer[data-layer='b'] {
+    color: var(--lm-hue, var(--lmz-ink-h));
+  }
+  .lmz-track__layer[data-layer='lap'] {
+    color: var(--lmz-ink-h);
+  }
+  .lmz-track__layer[data-layer='lit'] {
+    clip-path: inset(0 calc(var(--span, 0px) - var(--lit, 0px)) 0 0);
+  }
+  .lmz-track__layer[data-layer='b'] {
+    clip-path: inset(0 calc(var(--span, 0px) - var(--litb, 0px)) 0 0);
+  }
+  .lmz-track__layer[data-layer='lap'] {
+    clip-path: inset(0 calc(var(--span, 0px) - var(--lap, 0px)) 0 0);
+  }
+  .lmz-track__layer:not([data-layer='unlit']) {
+    transition: clip-path var(--lm-dur-fill) var(--lm-ease-out) 200ms;
+  }
+  /* a pattern, never colour alone: a provisional track is dotted rings, not discs */
+  .lmz-track[data-state='provisional'] .lmz-track__layer:not([data-layer='unlit']) circle {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.1px;
+    stroke-dasharray: 1.6 1.2;
+  }
+
+  /* ---- the thumb: 14 px ivory, a 3 px ring in the card's colour ---- */
+  .lmz-track__thumb {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    box-sizing: content-box;
+    width: var(--lm-thumb);
+    height: var(--lm-thumb);
+    margin: calc(var(--lm-thumb) / -2 - 3px) 0 0 calc(var(--lm-thumb) / -2 - 3px);
+    border: 3px solid var(--lmz-gap);
+    border-radius: 50%;
+    background: var(--lmz-lit);
+    background-clip: padding-box;
+    transform: translateX(var(--thumb, 0px));
+    transition: transform var(--lm-dur-fill) var(--lm-ease-out) 200ms;
+  }
+  /* after the first view a change settles with the damped overshoot */
+  .lmz-track[data-live] .lmz-track__layer:not([data-layer='unlit']) {
+    transition: clip-path var(--lm-dur-needle) var(--lm-ease-out);
+  }
+  .lmz-track[data-live] .lmz-track__thumb {
+    transition: transform 280ms var(--lm-ease-needle);
+  }
+
+  /* ---- marks on the track ---- */
+  .lmz-track__notch,
+  .lmz-track__mark,
+  .lmz-track__ghost,
+  .lmz-track__band {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out) 700ms;
+  }
+  .lmz-track__notch {
+    width: 2px;
+    height: 16px;
+    border-radius: 1px;
+    background: color-mix(in oklab, var(--lmz-lit) 55%, transparent);
+  }
+  /* a limit is not a finish line: its notch is taller, so the end reads as a boundary */
+  .lmz-track[data-kind='limit'] .lmz-track__notch {
+    top: -3px;
+    height: 22px;
+  }
+  .lmz-track__mark {
+    width: 2px;
+    height: 16px;
+    border-radius: 1px;
+    background: color-mix(in oklab, var(--lmz-lit) 70%, transparent);
+  }
+  .lmz-track__mark[data-tone='hue'] {
+    background: var(--lmz-hue);
+  }
+  .lmz-track__mark[data-tone='caution'] {
+    background: var(--lm-caution-mark, var(--lm-signal));
+  }
+  .lmz-track__ghost {
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    box-sizing: border-box;
+    border: 1.5px solid color-mix(in oklab, var(--lmz-lit) 60%, transparent);
+    border-radius: 50%;
+  }
+  .lmz-track__band {
+    height: 16px;
+    border-radius: 8px;
+    background: color-mix(in oklab, var(--lmz-ink-h) 18%, transparent);
+  }
+
+  /* ---- first view: the dots are unlit and the thumb waits at the start ---- */
+  .lmz-track[data-reveal='pending'] .lmz-track__layer:not([data-layer='unlit']) {
+    clip-path: inset(0 var(--span, 0px) 0 0);
+  }
+  .lmz-track[data-reveal='pending'] .lmz-track__thumb {
+    transform: translateX(var(--thumb0, 0px));
+  }
+  .lmz-track[data-reveal='pending'] :is(.lmz-track__band, .lmz-track__ghost, .lmz-track__mark) {
+    opacity: 0;
+  }
+
+  /* ---- words under the track ---- */
+  .lmz-track__marks {
+    position: relative;
+    max-width: 100%;
+    height: 14px;
+  }
+  .lmz-track__marklabel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    white-space: nowrap;
+    transform: translateX(calc(var(--x, 0px) - 50%));
+  }
+  .lmz-track__marklabel[data-align='start'] {
+    transform: translateX(var(--x, 0px));
+  }
+  .lmz-track__marklabel[data-align='end'] {
+    transform: translateX(calc(var(--x, 0px) - 100%));
+  }
+  .lmz-track__ends {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  @media (forced-colors: active) {
+    .lmz-track__layer {
+      color: Highlight;
+    }
+    .lmz-track__layer[data-layer='unlit'] {
+      color: GrayText;
+    }
+    .lmz-track__thumb {
+      background: CanvasText;
+      border-color: Canvas;
+    }
+    .lmz-track__notch,
+    .lmz-track__mark {
+      background: CanvasText;
+    }
+    .lmz-track__ghost {
+      border-color: CanvasText;
+    }
+    .lmz-track__band {
+      background: GrayText;
+    }
+  }
+}

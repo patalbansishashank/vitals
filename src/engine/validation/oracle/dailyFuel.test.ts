@@ -1,6 +1,7 @@
 // @vitest-environment node
 /** Unit tests of the O-3 daily carbohydrate-balance oracle (dossier 04 §4.11). Runs for real; no engine involved. */
 import { dailyFuelBalance, glycogenTauDays, steadyGlycogenG } from './dailyFuel';
+import { G_PER_MMOL } from '../../model/fuel';
 
 const base = { gRefG: 500, ciHabG: 330, teeKcal: 2700, proteinOxG: 100 };
 
@@ -53,5 +54,36 @@ describe('daily fuel oracle (04 §4.11)', () => {
     const a = dailyFuelBalance({ ...base, ciG: 20, days: 5, ketoAdapt: 0 });
     const b = dailyFuelBalance({ ...base, ciG: 20, days: 5, ketoAdapt: 1 });
     expect(b.gG[5]!).toBeGreaterThan(a.gG[5]!);
+  });
+});
+
+/**
+ * D2-04 diagnostics (production solver replacement deferred): the carbohydrate currencies the engine and this oracle use are
+ * declared, distinct and not interchangeable. Free glucose C6H12O6 is 0.180 g/mmol; a glycogen glucosyl unit C6H10O5 is
+ * 0.162 g/mmol (one water of hydrolysis less); 4/4.207 = 0.9508 is an ENERGY conversion between nutritional carbohydrate
+ * conventions, not carbon stoichiometry. A residual carbon flux nobody measured is unsupported, not a fitted zero.
+ */
+describe('carbohydrate currency (D2-04 diagnostics)', () => {
+  const GLUCOSE_G_PER_MMOL = 180.156 / 1000;
+  const GLUCOSYL_G_PER_MMOL = 162.141 / 1000;
+
+  it('the engine stores glycogen in anhydro-glucosyl units (0.162 g/mmol), not free glucose (0.180 g/mmol)', () => {
+    expect(G_PER_MMOL).toBeCloseTo(GLUCOSYL_G_PER_MMOL, 3);
+    expect(Math.abs(G_PER_MMOL - GLUCOSE_G_PER_MMOL)).toBeGreaterThan(0.015);
+    // one mmol of glycogen glucosyl hydrolyses to one mmol of glucose: 1.111 g of glucose per g of glycogen
+    expect(GLUCOSE_G_PER_MMOL / GLUCOSYL_G_PER_MMOL).toBeCloseTo(1.111, 3);
+  });
+
+  it('the 4/4.207 energy conversion is not the glucose/glucosyl mass ratio (energy and carbon ledgers stay separate)', () => {
+    const energyRatio = 4 / 4.207;
+    const massRatio = GLUCOSYL_G_PER_MMOL / GLUCOSE_G_PER_MMOL;
+    expect(energyRatio).toBeCloseTo(0.9508, 4);
+    expect(massRatio).toBeCloseTo(0.9, 3);
+    expect(Math.abs(energyRatio - massRatio)).toBeGreaterThan(0.04);
+  });
+
+  it('the oracle closes its own energy ledger in kcal (a conditional dynamics reference, not a carbon balance)', () => {
+    const r = dailyFuelBalance({ ...base, ciG: 150, days: 5 });
+    for (let d = 0; d < 5; d++) expect(4.1 * r.choOxG[d]! + 9.44 * r.fatOxG[d]! + 4.7 * base.proteinOxG).toBeCloseTo(base.teeKcal, 6);
   });
 });

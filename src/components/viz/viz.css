@@ -1,0 +1,1628 @@
+/* ==========================================================================
+   Shared viz modules (SPEC A.3.2, DATAVIZ P1–P11), Ember. Tokens only;
+   chrome achromatic; gold only on the goal, the head, the needle, the low
+   point and now. Flat: no glow, shadow, gradient or particles. Dashes mean
+   provisional only. Tabular numerals throughout. Motion uses the needle and
+   fast tokens, which tokens.css and base.css collapse under reduced motion.
+   ========================================================================== */
+@layer components {
+  /* The ordinal state ramp (DATAVIZ P5): dusk taupe (--lm-cat-recovery, OKLCH hue 5, C 0.027) in four lightness steps
+     (L 0.51 / 0.60 / 0.69 / 0.78, ΔL 0.09; the dim end 3.0:1 on the card). The SPEC puts --lm-state-1..4 in
+     tokens.css; until they land there these are the fallbacks, and a set token wins. */
+  .lmv {
+    --lmv-state-1: var(--lm-state-1, #746064);
+    --lmv-state-2: var(--lm-state-2, #8f7a7e);
+    --lmv-state-3: var(--lm-state-3, #ab9599);
+    --lmv-state-4: var(--lm-state-4, #c8b1b5);
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --------------------------------------------------------- shared bits */
+  .lmv-fact {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .lmv-fact__value {
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .lmv-fact__of {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lmv-unit {
+    font-size: var(--lm-text-sm);
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lmv-note {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lmv-empty {
+    margin: 0;
+    padding: 24px 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-stale-dot {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    vertical-align: middle;
+  }
+  .lmv-mark {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-ink-3);
+  }
+  [data-severity='ok'] > .lmv-mark {
+    background: var(--lm-ok-mark);
+  }
+  [data-severity='info'] > .lmv-mark {
+    background: var(--lm-info-mark);
+  }
+  [data-severity='caution'] > .lmv-mark {
+    background: var(--lm-caution-mark);
+  }
+  [data-severity='danger'] > .lmv-mark {
+    background: var(--lm-danger-mark);
+  }
+  .lmv-hatch-line {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-opacity: 0.45;
+  }
+  .lmv-twinkey {
+    flex: none;
+  }
+
+  /* chips (P7 vocabulary), on the lm-chip base */
+  .lmv-chip[data-kind='delta'],
+  .lmv-chip[data-kind='qualifier'],
+  .lmv-chip[data-kind='provisional'] {
+    color: var(--lm-ink-2);
+  }
+  .lmv-chip[data-kind='provisional'] {
+    border-style: dashed;
+    border-color: var(--lm-line-strong);
+  }
+  .lmv-chip[data-kind='unavailable'] {
+    color: var(--lm-ink-3);
+  }
+  .lmv-chip__arrow {
+    color: var(--lm-ink-2);
+  }
+  .lmv-chip[data-caution] .lmv-chip__arrow {
+    color: var(--lm-caution-mark);
+  }
+
+  /* ----------------------------------------------------- P2 tick strip */
+  .lmv-tick {
+    display: grid;
+    gap: 6px;
+  }
+  .lmv-tick__plot {
+    position: relative;
+    height: 36px;
+    margin: 0 1px;
+  }
+  .lmv-tick__t {
+    position: absolute;
+    bottom: 0;
+    width: var(--lmv-tick-w, 1.5px);
+    height: 14px;
+    border-radius: 1px;
+    background: var(--lm-chart-axis);
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lmv-tick__t[data-major] {
+    height: 18px;
+  }
+  .lmv-tick__t[data-lit] {
+    background: var(--lm-ink-2);
+  }
+  .lmv-tick__t[data-hidden] {
+    visibility: hidden;
+  }
+  .lmv-tick[data-state='learning'] .lmv-tick__t[data-lit] {
+    width: 0;
+    background: none;
+    border-left: var(--lmv-tick-w, 1.5px) dashed var(--lm-ink-2);
+  }
+  .lmv-tick__value,
+  .lmv-tick__goal {
+    position: absolute;
+    bottom: 0;
+    width: 2px;
+    height: 22px;
+    border-radius: 1px;
+    background: var(--lm-ink);
+    transition: left var(--lm-dur-needle) var(--lm-ease-needle);
+  }
+  .lmv-tick__goal {
+    background: var(--lm-signal);
+  }
+  .lmv-tick__tri {
+    position: absolute;
+    top: 4px;
+    width: 0;
+    height: 0;
+    margin-left: -4.5px;
+    border-left: 4.5px solid transparent;
+    border-right: 4.5px solid transparent;
+    border-top: 8px solid var(--lm-signal);
+  }
+  .lmv-tick__goalword {
+    position: absolute;
+    top: -1px;
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
+    font-weight: 400;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lmv-tick__goalword[data-side='right'] {
+    transform: translateX(9px);
+  }
+  .lmv-tick__goalword[data-side='left'] {
+    transform: translateX(calc(-100% - 9px));
+  }
+  .lmv-tick__limit {
+    position: absolute;
+    bottom: 0;
+    height: 14px;
+    overflow: hidden;
+  }
+  .lmv-tick__scale {
+    position: relative;
+    height: 16px;
+    margin: -2px 1px 0;
+  }
+  .lmv-tick__scale span {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 0.6875rem;
+    line-height: 16px;
+    color: var(--lm-chart-tick);
+    white-space: nowrap;
+  }
+  .lmv-tick__scale span[data-edge='start'] {
+    transform: none;
+  }
+  .lmv-tick__scale span[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  .lmv-tick__foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    min-width: 0;
+  }
+  .lmv-tick__status,
+  .lmv-tick__words {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
+    color: var(--lm-ink);
+  }
+  .lmv-tick__words {
+    color: var(--lm-ink-2);
+  }
+
+  /* ------------------------------------------------------ P3 dotted fill */
+  .lmv-dots {
+    display: grid;
+    gap: 6px;
+  }
+  .lmv-dots__head {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    min-width: 0;
+  }
+  .lmv-dots__head .lmv-chip {
+    align-self: center;
+    margin-left: auto;
+  }
+  .lmv-dots__over {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .lmv-dots__svg {
+    display: block;
+    width: 100%;
+    overflow: visible;
+  }
+  .lmv-dots__svg circle {
+    fill: var(--lm-chart-axis);
+    transition: fill var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lmv-dots__svg circle[data-filled] {
+    fill: var(--lm-ink-3);
+  }
+  /* (r068) past the goal: the second lap's dots in the trace's gold */
+  .lmv-dots__svg circle[data-lap='2'] {
+    fill: color-mix(in oklab, var(--lm-chart-now) 78%, transparent);
+  }
+  .lmv-dots[data-state='provisional'] .lmv-dots__svg circle[data-filled] {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 1.6 1.3;
+  }
+  .lmv-dots__pill {
+    fill: var(--lm-chart-now);
+  }
+  .lmv-dots__pill[data-hollow] {
+    fill: none;
+    stroke: var(--lm-chart-now);
+    stroke-width: 1.5;
+  }
+
+  /* --------------------------------------------------------- P7 stat tiles */
+  /* (r071) quiet tiles: spacing separates the cells (no rules between them), the label is mono caps (with a 6 px dot in
+     the domain hue when the tile has one), the value 22 px regular with its unit small and muted, the chip one fact
+     line under it */
+  .lmv-stats__dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 24px;
+    margin: 0;
+  }
+  @media (min-width: 64rem) {
+    .lmv-stats[data-columns='3'] .lmv-stats__dl {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .lmv-stats[data-columns='4'] .lmv-stats__dl,
+    .lmv-stats[data-columns='3'][data-count='4'] .lmv-stats__dl {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .lmv-stat {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+  }
+  .lmv-stat__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 16px;
+    color: var(--lm-ink-2);
+  }
+  .lmv-stat[data-hue] .lmv-stat__label::before {
+    content: '';
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-hue);
+  }
+  .lmv-stat__label > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .lmv-stat__info {
+    margin: -7px -8px -7px -4px;
+    color: var(--lm-ink-3);
+  }
+  .lmv-stat__value {
+    margin: 0;
+    font-family: var(--lm-font-sans);
+    font-size: 1.375rem;
+    line-height: 1.625rem;
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    color: var(--lm-ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lmv-stat__value .lmv-unit {
+    font-size: var(--lm-text-unit, 0.9375rem);
+    letter-spacing: 0;
+    color: var(--lm-ink-2);
+  }
+  .lmv-stat__chip {
+    margin: 0;
+    min-width: 0;
+  }
+  /* the chip is a fact line, not a tag: no box, the words in mono caps, a line wraps rather than cut its words */
+  .lmv-stat__chip .lm-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--lm-ink-2);
+    white-space: normal;
+  }
+  .lmv-stat__chip .lm-chip svg {
+    flex: none;
+    align-self: center;
+  }
+  .lmv-stat__chip .lm-chip__text {
+    overflow: visible;
+    font-family: var(--lm-font-mono, ui-monospace, monospace);
+    font-size: var(--lm-text-meta, 0.6875rem);
+    line-height: var(--lm-text-meta--lh, 0.875rem);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+  }
+  .lmv-pop {
+    max-width: 280px;
+    padding: 10px 12px;
+  }
+  .lmv-pop__text {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .lmv-pop__method {
+    margin: 6px 0 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+
+  /* ------------------------------------------------------ P6 overnight */
+  .lmv-trace {
+    display: grid;
+    gap: 8px;
+  }
+  .lmv-trace__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+  }
+  .lmv-trace__trend {
+    display: grid;
+  }
+  /* (r068 S04) the hatched awake columns' key, in the head row before the Table key */
+  .lmv-trace__key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-inline-end: auto;
+    min-height: 32px;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-trace__trend + .lmv-trace__key {
+    margin-inline-start: 0;
+  }
+  .lmv-trace__key rect {
+    stroke: var(--lm-line-strong);
+    stroke-width: 1;
+  }
+  .lmv-trace__word {
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lmv-trace__mag,
+  .lmv-trace__note {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-trace__note {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lmv-trace__svg {
+    width: 100%;
+  }
+  .lmv-trace__line {
+    fill: none;
+    stroke: var(--lm-cat-cardio);
+    stroke-width: 1.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .lmv-trace__dot {
+    fill: var(--lm-cat-cardio);
+  }
+  .lmv-trace__awake {
+    opacity: 0.7;
+  }
+  .lmv-trace__low {
+    fill: var(--lm-chart-now);
+    stroke: var(--lm-chart-ring);
+    stroke-width: 2;
+  }
+  .lmv-trace__lowtext {
+    fill: var(--lm-ink);
+  }
+
+  /* ----------------------------------------------------- P5 state strip */
+  .lmv-strip {
+    display: grid;
+    gap: 6px;
+  }
+  /* (r071) a domain ramp: four lightness steps of the hue over the card, the dim end 3:1 on it; without a hue the
+     dusk ramp of .lmv stands unchanged */
+  .lmv-strip[data-hue] {
+    --lmv-state-1: color-mix(in oklab, var(--lm-hue) 38%, var(--lm-face));
+    --lmv-state-2: color-mix(in oklab, var(--lm-hue) 58%, var(--lm-face));
+    --lmv-state-3: color-mix(in oklab, var(--lm-hue) 79%, var(--lm-face));
+    --lmv-state-4: var(--lm-hue);
+  }
+  .lmv-strip__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+  }
+  .lmv-strip__summary {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-strip__plot {
+    position: relative;
+    border-radius: var(--lm-radius-sm);
+    outline: none;
+    touch-action: pan-y;
+  }
+  .lmv-strip__plot:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 3px;
+  }
+  /* (r071) first view: the strip wipes in from the left (clip-path only); the final frame is the base rule */
+  .lmv-strip__svg {
+    display: block;
+    overflow: visible;
+    clip-path: inset(-8px -8px -8px -8px);
+    transition: clip-path var(--lm-dur-bars) var(--lm-ease-out);
+  }
+  .lmv-strip[data-reveal='pending'] .lmv-strip__svg {
+    clip-path: inset(-8px 100% -8px -8px);
+  }
+  .lmv-strip__track {
+    fill: var(--lm-well);
+  }
+  .lmv-strip__seg rect[data-step='1'] {
+    fill: var(--lmv-state-1);
+  }
+  .lmv-strip__seg rect[data-step='2'] {
+    fill: var(--lmv-state-2);
+  }
+  .lmv-strip__seg rect[data-step='3'] {
+    fill: var(--lmv-state-3);
+  }
+  .lmv-strip__seg rect[data-step='4'] {
+    fill: var(--lmv-state-4);
+  }
+  .lmv-strip__seg rect[data-cat='0'] {
+    --lmv-seg: var(--lm-cat-energy);
+    fill: var(--lmv-seg);
+  }
+  .lmv-strip__seg rect[data-cat='1'] {
+    --lmv-seg: var(--lm-cat-fuel);
+    fill: var(--lmv-seg);
+  }
+  .lmv-strip__seg rect[data-cat='2'] {
+    --lmv-seg: var(--lm-cat-performance);
+    fill: var(--lmv-seg);
+  }
+  .lmv-strip__seg rect[data-cat='3'] {
+    --lmv-seg: var(--lm-cat-recovery);
+    fill: var(--lmv-seg);
+  }
+  .lmv-strip__seg rect[data-cat='4'] {
+    --lmv-seg: var(--lm-cat-body);
+    fill: var(--lmv-seg);
+  }
+  .lmv-strip__seg rect[data-cat='5'] {
+    --lmv-seg: var(--lm-cat-hormones);
+    fill: var(--lmv-seg);
+  }
+  /* (r071) a category that names its domain wears the domain's solid (after the data-cat rules, so it wins) */
+  .lmv-strip__seg rect[data-hue] {
+    --lmv-seg: var(--lm-hue);
+    fill: var(--lmv-seg);
+  }
+  .lmv-strip__seg rect[data-mixed] {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.5;
+  }
+  /* (r069 U1) what is still planned keeps its hue as an edge over a faint wash of it: at 40 % over the well the warm
+     hues had turned into muddy grey-greens and browns that no longer matched their legend */
+  .lmv-strip__seg[data-planned] rect {
+    fill-opacity: 0.22;
+  }
+  .lmv-strip__seg[data-planned] rect[data-cat] {
+    stroke: var(--lmv-seg);
+    stroke-width: 1;
+    stroke-opacity: 0.85;
+    paint-order: fill;
+  }
+  .lmv-strip__hatchline {
+    stroke: var(--lm-face);
+    stroke-width: 1.25;
+  }
+  .lmv-strip__none {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 1 2;
+  }
+  .lmv-strip__focus {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+  }
+  .lmv-strip__now {
+    fill: var(--lm-chart-now);
+    transition: opacity var(--lm-dur-bars) var(--lm-ease-out) var(--lm-dur-bars);
+    /* it pulses twice (4.8 s in all, under the WCAG 2.2.2 five seconds) and stops; reduced motion zeroes the duration */
+    animation: lmv-now-pulse 2.4s ease-in-out 1s var(--lm-pulse-cycles, 2) forwards;
+  }
+  .lmv-strip[data-reveal='pending'] .lmv-strip__now {
+    opacity: 0;
+    animation: none;
+  }
+  @keyframes lmv-now-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+  /* (r071) a labelled strip: the state word inside a segment wide enough for it, dark on the solid fills, ivory on the
+     faint planned wash and on the darkest ramp step */
+  .lmv-strip__label {
+    fill: var(--lm-signal-ink);
+    font-weight: 500;
+    pointer-events: none;
+    user-select: none;
+  }
+  .lmv-strip__label[data-step='1'],
+  .lmv-strip__label[data-cat='1']:not([data-hue]),
+  .lmv-strip__label[data-cat='5']:not([data-hue]),
+  .lmv-strip__seg[data-planned] .lmv-strip__label {
+    fill: var(--lm-ink);
+  }
+  .lmv-strip__ticks {
+    position: relative;
+    height: 16px;
+    margin-top: 4px;
+  }
+  .lmv-strip__ticks span {
+    position: absolute;
+    transform: translateX(-50%);
+    line-height: 16px;
+    white-space: nowrap;
+  }
+  .lmv-strip__ticks span[data-edge='start'] {
+    transform: none;
+  }
+  .lmv-strip__ticks span[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  .lmv-strip__tip {
+    position: absolute;
+    bottom: calc(100% + 2px);
+    z-index: 3;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-elevated);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .lmv-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lmv-legend__sw {
+    display: block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    overflow: visible;
+  }
+  .lmv-legend__sw rect[data-step='1'] {
+    fill: var(--lmv-state-1);
+  }
+  .lmv-legend__sw rect[data-step='2'] {
+    fill: var(--lmv-state-2);
+  }
+  .lmv-legend__sw rect[data-step='3'] {
+    fill: var(--lmv-state-3);
+  }
+  .lmv-legend__sw rect[data-step='4'] {
+    fill: var(--lmv-state-4);
+  }
+  .lmv-legend__sw rect[data-cat='0'] {
+    fill: var(--lm-cat-energy);
+  }
+  .lmv-legend__sw rect[data-cat='1'] {
+    fill: var(--lm-cat-fuel);
+  }
+  .lmv-legend__sw rect[data-cat='2'] {
+    fill: var(--lm-cat-performance);
+  }
+  .lmv-legend__sw rect[data-cat='3'] {
+    fill: var(--lm-cat-recovery);
+  }
+  .lmv-legend__sw rect[data-cat='4'] {
+    fill: var(--lm-cat-body);
+  }
+  .lmv-legend__sw rect[data-cat='5'] {
+    fill: var(--lm-cat-hormones);
+  }
+  .lmv-legend__sw rect[data-hue] {
+    fill: var(--lm-hue);
+  }
+  .lmv-legend__sw rect[data-mixed] {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.5;
+  }
+  .lmv-legend__sw rect[data-none] {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-dasharray: 1 1.5;
+  }
+  .lmv-legend__sw line {
+    stroke: var(--lm-face);
+    stroke-width: 1.25;
+  }
+
+  /* ------------------------------------------------------ P8 share bar */
+  .lmv-share__list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lmv-share__row {
+    display: grid;
+    align-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 4px 0;
+  }
+  .lmv-share[data-size='sm'] .lmv-share__row {
+    min-height: 36px;
+    gap: 4px;
+  }
+  .lmv-share__line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  /* (r071) the swatch is a 6 px dot in the row's hue; the name 14/500, the value 15/500 tabular, the share mono caps
+     (the lm-mono class on its span sets the face) */
+  .lmv-share__sw {
+    flex: none;
+    align-self: center;
+    box-sizing: border-box;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-ink-3);
+  }
+  .lmv-share__row[data-unknown] .lmv-share__sw {
+    background: none;
+    border: 1px solid var(--lm-ink-3);
+  }
+  .lmv-share__name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lmv-share__value {
+    font-size: var(--lm-text-stat, 0.9375rem);
+    line-height: var(--lm-text-stat--lh, 1.25rem);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .lmv-share__pct {
+    min-width: 4.5ch;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .lmv-share__track {
+    display: block;
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-raised);
+  }
+  .lmv-share[data-size='sm'] .lmv-share__track {
+    height: 4px;
+  }
+  /* (r071) the fill grows from the left on first view: transform only, rows 60 ms apart (a layout property never
+     animates); the final frame is the base rule */
+  .lmv-share__fill {
+    display: block;
+    height: 100%;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-ink-3);
+    transform-origin: left center;
+    transition: transform var(--lm-dur-bars) var(--lm-ease-out) calc(var(--lmv-i, 0) * var(--lm-stagger-bar));
+  }
+  .lmv-share[data-reveal='pending'] .lmv-share__fill {
+    transform: scaleX(0);
+  }
+  .lmv-share__row[data-unknown] .lmv-share__fill {
+    background: var(--lm-chart-axis);
+  }
+  .lmv-share .lmv-note {
+    margin-top: 6px;
+  }
+
+  /* ------------------------------------------------------ P1 level bar */
+  .lmv-level {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    vertical-align: middle;
+  }
+  .lmv-level__cells {
+    display: inline-grid;
+    grid-auto-flow: column;
+    gap: 3px;
+  }
+  .lmv-level__cell {
+    box-sizing: border-box;
+    width: 6px;
+    height: 14px;
+    border-radius: 2px;
+    background: var(--lm-chart-axis);
+  }
+  .lmv-level__cell[data-usual] {
+    background: var(--lm-line-strong);
+  }
+  .lmv-level__cell[data-lit] {
+    --lmv-mark: var(--lm-ink-2);
+    background: var(--lmv-mark);
+  }
+  .lmv-level[data-severity='ok'] .lmv-level__cell[data-lit] {
+    --lmv-mark: var(--lm-ok-mark);
+  }
+  .lmv-level[data-severity='info'] .lmv-level__cell[data-lit] {
+    --lmv-mark: var(--lm-info-mark);
+  }
+  .lmv-level[data-severity='caution'] .lmv-level__cell[data-lit] {
+    --lmv-mark: var(--lm-caution-mark);
+  }
+  .lmv-level[data-severity='danger'] .lmv-level__cell[data-lit] {
+    --lmv-mark: var(--lm-danger-mark);
+  }
+  .lmv-level[data-state='stale'] .lmv-level__cell[data-lit] {
+    background: none;
+    border: 1px solid var(--lmv-mark);
+  }
+  .lmv-level[data-state='calibrating'] .lmv-level__cell {
+    background: none;
+    border: 1px dashed var(--lm-line-strong);
+  }
+
+  /* ------------------------------------------------------- P4 arc ruler */
+  .lmv-arc {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    text-align: center;
+  }
+  .lmv-arc__value {
+    min-height: 34px;
+    font-size: var(--lm-text-headline);
+    line-height: var(--lm-text-headline--lh);
+    letter-spacing: var(--lm-text-headline--ls);
+    font-weight: 500;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .lmv-arc__value .lmv-unit {
+    letter-spacing: 0;
+  }
+  .lmv-arc__svg {
+    display: block;
+    width: min(100%, 300px);
+    height: auto;
+    margin-top: 2px;
+  }
+  .lmv-arc[data-size='tile'] .lmv-arc__svg {
+    width: min(100%, 150px);
+  }
+  .lmv-arc[data-size='tile'] .lmv-arc__value {
+    min-height: 27px;
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+    letter-spacing: 0;
+  }
+  .lmv-arc__tick {
+    stroke: var(--lm-chart-axis);
+    stroke-width: 1;
+    stroke-linecap: round;
+  }
+  .lmv-arc__tick[data-major] {
+    stroke: var(--lm-ink-3);
+  }
+  .lmv-arc__tick[data-edge] {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1.5;
+  }
+  .lmv-arc__numeral {
+    fill: var(--lm-ink-3);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .lmv-arc__edge {
+    font-size: 12px;
+  }
+  /* (r068 SG5) the usual value: one gold notch with its word */
+  .lmv-arc__tick[data-usual] {
+    stroke: var(--lm-signal);
+    stroke-width: 2;
+  }
+  .lmv-arc__edge[data-usual] {
+    fill: var(--lm-signal);
+  }
+  .lmv-arc__needle {
+    stroke: var(--lm-chart-now);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .lmv-arc[data-state='stale'] .lmv-arc__numeral,
+  .lmv-arc[data-state='none'] .lmv-arc__numeral,
+  .lmv-arc[data-state='none'] .lmv-arc__tick {
+    opacity: 0.45;
+  }
+  .lmv-arc[data-state='none'] .lmv-arc__needle {
+    stroke: var(--lm-ink-faint);
+  }
+  .lmv-arc__foot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    min-height: 28px;
+  }
+  .lmv-arc__word {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .lmv-arc__note {
+    margin-top: 4px;
+  }
+  .lmv-arc[data-variant='straight'] {
+    justify-items: stretch;
+    text-align: left;
+  }
+  .lmv-arc[data-variant='straight'] .lmv-arc__value {
+    min-height: 27px;
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+    letter-spacing: 0;
+  }
+  .lmv-arc[data-variant='straight'] .lmv-arc__foot {
+    justify-content: flex-start;
+  }
+  .lmv-arc__straight {
+    display: grid;
+    gap: 4px;
+    margin: 4px 0 2px;
+  }
+  .lmv-arc__straight .lm-scale__well {
+    cursor: default;
+    touch-action: auto;
+  }
+  .lmv-arc__straight .lm-scale__needle {
+    transition: none;
+  }
+  .lmv-arc[data-state='none'] .lm-scale__needle {
+    background: var(--lm-ink-faint);
+  }
+
+  /* -------------------------------------------------------- P9 day disc */
+  .lmv-disc {
+    display: grid;
+    justify-items: center;
+    gap: 12px;
+  }
+  .lmv-disc__figure {
+    position: relative;
+    width: min(100%, 260px);
+    aspect-ratio: 1;
+  }
+  .lmv-disc[data-size='compact'] .lmv-disc__figure {
+    width: 64px;
+  }
+  .lmv-disc__svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .lmv-disc__svg circle {
+    fill: var(--lm-chart-axis);
+  }
+  .lmv-disc__svg circle[data-lit] {
+    fill: var(--lm-ink-2);
+  }
+  .lmv-disc__missing {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+  }
+  .lmv-disc__name {
+    fill: var(--lm-ink-2);
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .lmv-disc__needs {
+    fill: var(--lm-ink-3);
+    font-size: 11px;
+  }
+  .lmv-disc__centre {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 0;
+    text-align: center;
+    pointer-events: none;
+  }
+  .lmv-disc__score {
+    position: relative;
+    font-size: 2rem;
+    line-height: 2.375rem;
+    letter-spacing: -0.5px;
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .lmv-disc__score .lmv-stale-dot {
+    position: absolute;
+    top: 6px;
+    right: -10px;
+  }
+  .lmv-disc[data-size='compact'] .lmv-disc__score {
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    letter-spacing: 0;
+  }
+  .lmv-disc__band {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-disc__based {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-3);
+  }
+  .lmv-disc__chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+  }
+  .lmv-disc__target {
+    justify-self: stretch;
+  }
+  .lmv-disc__foot {
+    justify-self: end;
+    margin-top: -8px;
+  }
+  .lmv-disc > .lmc-twin {
+    justify-self: stretch;
+  }
+
+  /* -------------------------------------------------- P10 monitor sheet */
+  .lmv-mon {
+    display: grid;
+    gap: 12px;
+    padding: 4px 16px 20px;
+  }
+  .lmv-mon__cap {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-mon__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lmv-mon__row {
+    display: grid;
+    grid-template-columns: 48px 20px minmax(0, 1fr) 48px;
+    align-items: center;
+    column-gap: 8px;
+    min-height: 56px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lmv-mon__row[data-grabbed] {
+    background: var(--lm-elevated);
+  }
+  .lmv-mon__grip {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    margin-left: -12px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lm-radius-full);
+    background: none;
+    color: var(--lm-ink-3);
+    cursor: grab;
+    touch-action: none;
+  }
+  .lmv-mon__grip:hover {
+    color: var(--lm-ink);
+  }
+  .lmv-mon__grip:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -4px;
+  }
+  .lmv-mon__grip[aria-pressed='true'] {
+    color: var(--lm-signal);
+    cursor: grabbing;
+  }
+  .lmv-mon__icon {
+    color: var(--lm-ink-2);
+  }
+  .lmv-mon__text {
+    display: grid;
+    min-width: 0;
+  }
+  .lmv-mon__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .lmv-mon__value {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-mon__key {
+    justify-self: end;
+  }
+  .lmv-mon__head {
+    margin: 8px 0 8px;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lmv-mon__foot {
+    display: flex;
+    margin-left: -12px;
+  }
+
+  /* --------------------------------------------------------- P11 marks */
+  .lmv-age {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lmv-learning {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lmv-learning__dots {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .lmv-learning__dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--lm-chart-axis);
+  }
+  .lmv-learning__dots span[data-filled] {
+    background: var(--lm-ink-3);
+  }
+
+  /* ------------------------------------------------ forced colours (§10) */
+  @media (forced-colors: active) {
+    .lmv-tick__t,
+    .lmv-level__cell,
+    .lmv-learning__dots span {
+      background: GrayText;
+    }
+    .lmv-tick__t[data-lit],
+    .lmv-tick__value,
+    .lmv-level__cell[data-lit],
+    .lmv-learning__dots span[data-filled] {
+      background: CanvasText;
+    }
+    .lmv-tick__goal,
+    .lmv-stale-dot,
+    .lmv-mark {
+      background: Highlight;
+    }
+    .lmv-tick__tri {
+      border-top-color: Highlight;
+    }
+    .lmv-dots__svg circle,
+    .lmv-disc__svg circle {
+      fill: GrayText;
+    }
+    .lmv-dots__svg circle[data-filled],
+    .lmv-disc__svg circle[data-lit],
+    .lmv-trace__dot,
+    .lmv-strip__seg rect {
+      fill: CanvasText;
+    }
+    .lmv-dots__pill,
+    .lmv-trace__low,
+    .lmv-strip__now {
+      fill: Highlight;
+    }
+    .lmv-trace__line,
+    .lmv-arc__tick {
+      stroke: CanvasText;
+    }
+    .lmv-arc__needle {
+      stroke: Highlight;
+    }
+    .lmv-strip__hatchline,
+    .lmv-legend__sw line {
+      stroke: Canvas;
+    }
+    .lmv-share__fill {
+      background: CanvasText;
+    }
+    .lmv-share__track {
+      border: 1px solid CanvasText;
+    }
+    .lmv-share__sw,
+    .lmv-hyp__lsw,
+    .lmv-stat[data-hue] .lmv-stat__label::before {
+      background: CanvasText;
+    }
+    .lmv-hyp__bar {
+      fill: CanvasText;
+    }
+    .lmv-strip__label {
+      fill: Canvas;
+    }
+    .lmv-strip__seg[data-planned] .lmv-strip__label {
+      fill: CanvasText;
+    }
+  }
+
+  /* ==========================================================================
+     Chart chrome copied from charts/living/living-charts.css (components never
+     import features): the lmc-lv-* marks and the lmc-twin table twin. The
+     declarations must stay equal; __tests__/contract.test.tsx compares them.
+     ========================================================================== */
+  /* copy:begin */
+  .lmc-lv-svg {
+    display: block;
+    overflow: visible;
+  }
+  .lmc-lv-svg text {
+    font-family: var(--lm-font-sans);
+  }
+  .lmc-lv-tick {
+    fill: var(--lm-ink-3);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+  .lmc-lv-eng {
+    fill: var(--lm-ink-2);
+    font-size: 11px;
+    font-weight: 400;
+  }
+  .lmc-lv-halo {
+    paint-order: stroke;
+    stroke: var(--lm-face);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+  .lmc-lv-grid {
+    stroke: var(--lm-chart-grid);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-lv-axis {
+    stroke: var(--lm-chart-axis);
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+  }
+  .lmc-lv-hatch {
+    stroke: var(--lm-ink-3);
+    stroke-width: 1;
+    stroke-opacity: 0.45;
+  }
+  .lmc-twin {
+    margin-top: 10px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lmc-twin__bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin__grow {
+    flex: 1;
+  }
+  .lmc-twin__wrap {
+    max-height: 320px;
+    overflow: auto;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lmc-twin__wrap:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lmc-twin__table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    font-size: var(--lm-text-sm);
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  .lmc-twin__table th,
+  .lmc-twin__table td {
+    padding: 5px 10px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    white-space: nowrap;
+    text-align: right;
+    color: var(--lm-ink);
+  }
+  .lmc-twin__table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--lm-face);
+    font-weight: 500;
+    vertical-align: bottom;
+  }
+  .lmc-twin__table thead th small {
+    display: block;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin__table th[scope='row'],
+  .lmc-twin__table thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--lm-face);
+    text-align: left;
+    font-weight: 500;
+  }
+  .lmc-twin__table thead th:first-child {
+    z-index: 3;
+  }
+  .lmc-twin__table td:last-child,
+  .lmc-twin__table thead th:last-child {
+    text-align: right;
+  }
+  .lmc-twin__table td small,
+  .lmc-twin__table th[scope='row'] small {
+    margin-left: 4px;
+    font-size: 11px;
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin__table tr[data-today='true'] th,
+  .lmc-twin__table tr[data-today='true'] td {
+    background: var(--lm-well);
+  }
+  /* copy:end */
+
+  /* ------------------------------------------- r071 table twin, restyled OUTSIDE the copied block
+     The markup and the lmc-twin rules above are pinned equal to charts/living, so the calmer look is added here with
+     more specific selectors: stone labels and row heads, the figures in ivory, one size down. */
+  .lmc-twin .lmc-twin__bar {
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin .lmc-twin__table {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+  }
+  .lmc-twin .lmc-twin__table thead th {
+    color: var(--lm-ink-2);
+  }
+  .lmc-twin .lmc-twin__table th[scope='row'] {
+    color: var(--lm-ink-2);
+    font-weight: 400;
+  }
+  /* the sticky head and first column are opaque so scrolled cells never show through them; a container whose surface
+     is not the card's (the (i) panel's sheet) names it here so the column does not read as a darker strip */
+  .lmc-twin .lmc-twin__table thead th,
+  .lmc-twin .lmc-twin__table th[scope='row'] {
+    background: var(--lm-twin-bg, var(--lm-face));
+  }
+  .lmc-twin .lmc-twin__table tr[data-today='true'] th {
+    background: var(--lm-well);
+  }
+
+  /* ------------------------------------------- r064 hypnogram (four levels) */
+  .lmv-hyp {
+    --lmv-stage-awake: var(--lm-stage-awake);
+    --lmv-stage-rem: var(--lm-stage-rem);
+    --lmv-stage-light: var(--lm-stage-light);
+    --lmv-stage-deep: var(--lm-stage-deep);
+    display: grid;
+    gap: 4px;
+  }
+  .lmv-hyp__plot {
+    position: relative;
+    border-radius: var(--lm-radius-sm);
+    outline: none;
+    touch-action: pan-y;
+  }
+  .lmv-hyp__plot:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 3px;
+  }
+  .lmv-hyp__svg {
+    display: block;
+    overflow: visible;
+  }
+  .lmv-hyp__guide {
+    stroke: var(--lm-chart-grid);
+    stroke-width: 1;
+    stroke-dasharray: 1 3;
+    shape-rendering: crispEdges;
+  }
+  /* (r071) the row words and the hour ticks are mono meta (the lm-mono class on the svg text gives the caps; the face
+     and size are set here because .lmc-lv-svg text, in the copied block, forces the sans face) */
+  .lmv-hyp text.lm-mono {
+    font-family: var(--lm-font-mono, ui-monospace, monospace);
+    font-size: var(--lm-text-meta, 0.6875rem);
+    fill: var(--lm-ink-2);
+  }
+  /* the hairline between levels: ivory, quiet */
+  .lmv-hyp__step {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-opacity: 0.18;
+    stroke-width: 1;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    transition: opacity var(--lm-dur-bars) var(--lm-ease-out) calc(var(--lm-dur-bars) * 0.6);
+  }
+  /* (r071) first view: each block grows from its left edge, in time order (transform only); the connectors, the gap
+     band and the legend fade in after. The final frame is the base rule. */
+  .lmv-hyp__run {
+    transform-box: fill-box;
+    transform-origin: 0 50%;
+    transition: transform var(--lm-dur-bars) var(--lm-ease-out) calc(var(--lmv-t, 0) * var(--lm-dur-bars) * 0.5);
+  }
+  .lmv-hyp[data-reveal='pending'] .lmv-hyp__run {
+    transform: scaleX(0);
+  }
+  .lmv-hyp[data-reveal='pending'] :is(.lmv-hyp__step, .lmv-hyp__gap, .lmv-hyp__legend) {
+    opacity: 0;
+  }
+  /* the chartPatterns texture: card-coloured lines cut through the block at 45 degrees (deep dense, light open, REM
+     mirrored), so a stage is never told by colour alone */
+  .lmv-hyp__hatchline {
+    stroke: var(--lm-face);
+    stroke-width: 1.25;
+  }
+  .lmv-hyp__tex {
+    pointer-events: none;
+  }
+  .lmv-hyp :is(.lmv-hyp__bar, .lmv-hyp__sw)[data-stage='awake'] {
+    fill: var(--lmv-stage-awake);
+  }
+  .lmv-hyp :is(.lmv-hyp__bar, .lmv-hyp__sw)[data-stage='rem'] {
+    fill: var(--lmv-stage-rem);
+  }
+  .lmv-hyp :is(.lmv-hyp__bar, .lmv-hyp__sw)[data-stage='light'] {
+    fill: var(--lmv-stage-light);
+  }
+  .lmv-hyp :is(.lmv-hyp__bar, .lmv-hyp__sw)[data-stage='deep'] {
+    fill: var(--lmv-stage-deep);
+  }
+  .lmv-hyp__gap {
+    opacity: 0.8;
+    transition: opacity var(--lm-dur-bars) var(--lm-ease-out) calc(var(--lm-dur-bars) * 0.6);
+  }
+  .lmv-hyp__gapsw {
+    stroke: var(--lm-ink-3);
+    stroke-opacity: 0.5;
+    stroke-width: 1;
+  }
+  .lmv-hyp__focus {
+    fill: none;
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+  }
+  .lmv-hyp__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 32px;
+  }
+  /* (r071) the stage totals under the chart: name (mono caps, swatch) and duration (sans 15/500 tabular); 2 x 2 on a
+     phone, name over duration in four columns from 1024 */
+  .lmv-hyp__legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 24px;
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+    transition: opacity var(--lm-dur-bars) var(--lm-ease-out) var(--lm-dur-bars);
+  }
+  .lmv-hyp__legend li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .lmv-hyp .lmv-hyp__lname {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+  .lmv-hyp__lsw {
+    display: block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 3px;
+  }
+  .lmv-hyp__lsw[data-stage='awake'] {
+    background: var(--lmv-stage-awake);
+  }
+  .lmv-hyp__lsw[data-stage='rem'] {
+    background: var(--lmv-stage-rem);
+  }
+  .lmv-hyp__lsw[data-stage='light'] {
+    background: var(--lmv-stage-light);
+  }
+  .lmv-hyp__lsw[data-stage='deep'] {
+    background: var(--lmv-stage-deep);
+  }
+  .lmv-hyp__lval {
+    font-size: var(--lm-text-stat, 0.9375rem);
+    line-height: var(--lm-text-stat--lh, 1.25rem);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink);
+  }
+  @media (min-width: 64rem) {
+    .lmv-hyp__legend {
+      grid-template-columns: repeat(4, auto);
+      justify-content: start;
+      gap: 12px 44px;
+    }
+    .lmv-hyp__legend li {
+      flex-direction: column-reverse;
+      align-items: flex-start;
+      gap: 4px;
+    }
+  }
+  .lmv-hyp__tip {
+    position: absolute;
+    bottom: calc(100% + 2px);
+    z-index: 3;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-elevated);
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  /* ------------------------------------------- r064 smoothed trace band */
+  .lmv-trace__band {
+    fill: var(--lm-cat-cardio);
+    fill-opacity: 0.18;
+    stroke: none;
+  }
+  .lmv-trace__lowtick {
+    stroke: var(--lm-chart-now);
+    stroke-width: 1;
+    stroke-opacity: 0.6;
+    stroke-dasharray: 2 3;
+  }
+}

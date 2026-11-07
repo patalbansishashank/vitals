@@ -1,4 +1,4 @@
-/** Saved intake answers reach the catalogue ("something else" equipment) and the biometric policies (devices matrix). */
+/** Saved intake answers reach the catalogue ("something else" equipment). */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { dispatch as Dispatch } from '@/commands/bus';
 import '@/commands';
@@ -22,8 +22,6 @@ beforeEach(() => {
   vi.mocked(dispatch).mockClear();
 });
 
-const ids = () => vi.mocked(dispatch).mock.calls.map((c) => c[0]);
-
 describe('intake hooks', () => {
   it('adds new "something else" equipment to the catalogue, once', async () => {
     const training = (names: string[]) => ({ training: { prefs: { customEquipment: names } } });
@@ -32,13 +30,5 @@ describe('intake hooks', () => {
     expect(adds.map((c) => (c[1] as { equipment: { name: string } }).equipment.name)).toEqual(['Gym Wheel']);
     const docs = getDocumentStore().peekAll<{ kind: string }>('catalogueCustom');
     expect(docs.filter((d) => d.kind === 'equipment')).toHaveLength(1);
-  });
-
-  it('sets the biometric policy of changed device streams only', async () => {
-    const row = (stream: string, imported: boolean) => ({ stream, imported, coach: 'hidden', engine: imported, scores: imported });
-    await applyDerived('devices', { ...EMPTY_INTAKE, devices: { streams: [row('steps', true)] } } as never, { devices: { streams: [row('steps', true), row('hrv', true)] } });
-    const calls = vi.mocked(dispatch).mock.calls.filter((c) => c[0] === 'bio.setPolicy').map((c) => (c[1] as { stream: string }).stream);
-    expect(calls.sort()).toEqual(['hrv', 'ibi']);
-    expect(ids().every((i) => i === 'bio.setPolicy')).toBe(true);
   });
 });

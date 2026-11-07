@@ -9,9 +9,6 @@
     },
     {
       "path": "./packages/companion/tsconfig.json"
-    },
-    {
-      "path": "./packages/rings/tsconfig.json"
     }
   ]
 }

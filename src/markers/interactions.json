@@ -13784,7 +13784,17 @@
     "value": 126,
     "unit": "mg/dL"
    },
-   "also": [],
+   "also": [
+    {
+     "kind": "field",
+     "field": "reading.fastingEligibility",
+     "cmp": "in",
+     "value": [
+      "eligible",
+      "unknown"
+     ]
+    }
+   ],
    "severity": "info",
    "message": "Because your fasting glucose was {value} mg/dL on {date}, please answer the diabetes question again. Fasts over 24 h and very-low-carb wait for your answer.",
    "effect": {
@@ -13824,7 +13834,21 @@
     "value": 100,
     "unit": "mg/dL"
    },
-   "also": [],
+   "also": [
+    {
+     "kind": "field",
+     "field": "reading.fasting",
+     "cmp": "eq",
+     "value": true
+    },
+    {
+     "kind": "marker",
+     "markerId": "fpg",
+     "cmp": "lt",
+     "value": 126,
+     "unit": "mg/dL"
+    }
+   ],
    "severity": "info",
    "message": "Because your fasting glucose was {value} mg/dL on {date} (prediabetes range), the plan ranks fibre, weight loss and training higher.",
    "effect": {
@@ -13908,7 +13932,17 @@
     "value": 100,
     "unit": "mg/dL"
    },
-   "also": [],
+   "also": [
+    {
+     "kind": "field",
+     "field": "reading.fastingEligibility",
+     "cmp": "in",
+     "value": [
+      "eligible",
+      "unknown"
+     ]
+    }
+   ],
    "severity": "info",
    "message": "Because your fasting glucose was {value} mg/dL on {date}, retest it with HbA1c about 12 weeks after your plan starts.",
    "effect": {
@@ -13979,7 +14013,15 @@
     "value": 5.7,
     "unit": "%"
    },
-   "also": [],
+   "also": [
+    {
+     "kind": "marker",
+     "markerId": "hba1c",
+     "cmp": "lt",
+     "value": 6.5,
+     "unit": "%"
+    }
+   ],
    "severity": "info",
    "message": "Because your HbA1c was {value} % on {date} (prediabetes range), the plan ranks fibre, weight loss, unsaturated fats and training higher.",
    "effect": {
@@ -14039,7 +14081,7 @@
     }
    ],
    "severity": "caution",
-   "message": "Your report shows low haemoglobin or a haemoglobin variant, so your HbA1c of {value} % on {date} may be off. The plan leans on fasting glucose instead.",
+   "message": "Your report shows low haemoglobin or a haemoglobin variant, so your HbA1c of {value} % on {date} may read wrong with some test methods. Ask your lab which method it used.",
    "effect": {
     "levers": [],
     "displayValue": {
@@ -14597,7 +14639,14 @@
     "value": 126,
     "unit": "mg/dL"
    },
-   "also": [],
+   "also": [
+    {
+     "kind": "field",
+     "field": "reading.fasting",
+     "cmp": "eq",
+     "value": true
+    }
+   ],
    "severity": "caution",
    "message": "Your fasting glucose is in the diabetes range. Please confirm it with a doctor; one result is not a diagnosis.",
    "effect": {
@@ -17838,7 +17887,11 @@
      "note": "Loucks AB, Heath EM. 1994. Induction of low-T3 syndrome in exercising women occurs at a threshold of energy availability. Am J Physiol. PMID 8160876; doi:10.1152/ajpregu.1994.266.3.R817. <https://pubmed.ncbi.nlm.nih.gov/8160876/>. *Used …"
     }
    ],
-   "target": "deficit_large"
+   "target": "deficit_large",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true
+   }
   },
   {
    "id": "W-L-FT3-4",
@@ -17939,7 +17992,11 @@
      "note": "Mulhall JP et al. 2018. Evaluation and management of testosterone deficiency: AUA guideline. J Urol. PMID 29601923; doi:10.1016/j.juro.2018.03.115. <https://www.auanet.org/guidelines-and-quality/guidelines/testosterone-deficiency-guideli…"
     }
    ],
-   "target": "testosterone"
+   "target": "testosterone",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true
+   }
   },
   {
    "id": "W-L-TESTOSTERONE-2",
@@ -17958,7 +18015,7 @@
     }
    ],
    "severity": "danger",
-   "message": "Your testosterone has been below 264 ng/dL on two morning tests ({date}). Please see a clinician.",
+   "message": "Your testosterone has been below 264 ng/dL on two {sampleClaim}tests ({date}). Please see a clinician.",
    "effect": {
     "levers": []
    },
@@ -17986,7 +18043,15 @@
      "note": "Mulhall JP et al. 2018. Evaluation and management of testosterone deficiency: AUA guideline. J Urol. PMID 29601923; doi:10.1016/j.juro.2018.03.115. <https://www.auanet.org/guidelines-and-quality/guidelines/testosterone-deficiency-guideli…"
     }
    ],
-   "target": "plan"
+   "target": "plan",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true,
+    "sample": {
+     "morning": true,
+     "fasting": true
+    }
+   }
   },
   {
    "id": "W-L-TESTOSTERONE-3",
@@ -18008,7 +18073,7 @@
     }
    ],
    "severity": "caution",
-   "message": "Because your testosterone was {value} ng/dL on {date} during a large deficit, the deficit is capped at moderate and a diet break is suggested; this usually recovers with more food.",
+   "message": "Because your testosterone was {value} ng/dL on {date} during a large deficit, the deficit is capped at moderate and a diet break is suggested.",
    "effect": {
     "levers": [
      "deficit_large"
@@ -18037,7 +18102,11 @@
      "note": "Rossow LM et al. 2013. Natural bodybuilding competition preparation and recovery: a 12-month case study. Int J Sports Physiol Perform. PMID 23412685. <https://pubmed.ncbi.nlm.nih.gov/23412685/>. *Used for:* One man, 6 months prep: T 922→…"
     }
    ],
-   "target": "deficit_large"
+   "target": "deficit_large",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true
+   }
   },
   {
    "id": "W-L-TESTOSTERONE-4",
@@ -18059,7 +18128,7 @@
     }
    ],
    "severity": "caution",
-   "message": "Because your testosterone was {value} ng/dL on {date} and you sleep under 6 hours, sleep is the first lever: one week of 5-hour nights lowers it 10–15 %.",
+   "message": "Because your testosterone was {value} ng/dL on {date} and you sleep under 6 hours, more sleep is worth trying: a week of 5-hour nights lowered it 10–15 % in young men.",
    "effect": {
     "levers": [
      "sleep_debt"
@@ -18075,13 +18144,17 @@
      "note": "Leproult R, Van Cauter E. 2011. Effect of 1 week of sleep restriction on testosterone levels in young healthy men. JAMA. PMID 21632481; doi:10.1001/jama.2011.710. <https://pubmed.ncbi.nlm.nih.gov/21632481/>. *Used for:* ~5 h/night for 1 …"
     }
    ],
-   "target": "sleep_debt"
+   "target": "sleep_debt",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true
+   }
   },
   {
    "id": "W-L-TESTOSTERONE-5",
    "markerId": "testosterone",
    "dossier": "R13-markers-haem-thyroid-inflammation-hormones.md",
-   "kind": "cap",
+   "kind": "warn",
    "when": {
     "op": "cmp",
     "cmp": "lt",
@@ -18090,18 +18163,16 @@
    },
    "also": [],
    "severity": "info",
-   "message": "Because your testosterone was {value} ng/dL on {date}, protein stays at or below 3.4 g/kg and very-low-carb plans keep enough fat.",
+   "message": "Because your testosterone was {value} ng/dL on {date}: very high protein with very little carbohydrate has been linked to lower testosterone (limited evidence).",
    "effect": {
     "levers": [
-     "highprotein"
+     "highprotein",
+     "vlc"
     ],
-    "locks": [
-     {
-      "lock": "protein-cap",
-      "value": 3.4,
-      "unit": "g/kg"
-     }
-    ]
+    "displayValue": {
+     "name": "proteinGPerKg",
+     "value": 3.4
+    }
    },
    "grade": "C",
    "sources": [
@@ -18127,7 +18198,11 @@
      "note": "Whittaker J, Wu K. 2021. Low-fat diets and testosterone in men: systematic review and meta-analysis. J Steroid Biochem Mol Biol. PMID 33741447; doi:10.1016/j.jsbmb.2021.105878. <https://pubmed.ncbi.nlm.nih.gov/33741447/>. *Used for:* Low…"
     }
    ],
-   "target": "highprotein"
+   "target": "highprotein",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true
+   }
   },
   {
    "id": "W-L-TESTOSTERONE-6",
@@ -18166,7 +18241,11 @@
      "note": "Corona G et al. 2013. Body weight loss reverts obesity-associated hypogonadotropic hypogonadism: meta-analysis. Eur J Endocrinol. PMID 23482592; doi:10.1530/EJE-12-0955. <https://pubmed.ncbi.nlm.nih.gov/23482592/>. *Used for:* Low-calori…"
     }
    ],
-   "target": "weight_loss"
+   "target": "weight_loss",
+   "applicability": {
+    "referencePhysiology": "adultMale",
+    "adultOnly": true
+   }
   },
   {
    "id": "W-L-CORTISOL-1",

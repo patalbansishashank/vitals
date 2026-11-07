@@ -1,22 +1,14 @@
 /* ==========================================================================
-   COPIED FROM design/tailwind-theme.css (v1.0, 2026-09-30) — unchanged.
-   The design lead owns the source; re-copy rather than editing here.
-   Imported by src/styles/index.css after tokens.css.
-   ========================================================================== */
-
-/* ==========================================================================
-   Vitals — Tailwind CSS v4 theme mapping
+   Vitals — Tailwind CSS v4 theme mapping  v3.0 "Ember"  (r071, 2026-10-30)
    --------------------------------------------------------------------------
-   Usage (e.g. src/styles/app.css):
+   MASTER COPY. src/styles/tailwind-theme.css is a byte-identical copy
+   (src/styles/__tests__/tokens.test.ts): edit here, then copy it over.
+   Imported by src/styles/index.css after tokens.css.
 
-     @import "tailwindcss";
-     @import "../../design/tokens.css";          // raw --lm-* tokens, both themes
-     @import "../../design/tailwind-theme.css";  // this file
-
-   `@theme inline` makes every utility reference the live CSS variable, so the
-   light/dark swap in tokens.css re-themes all utilities at runtime without
-   `dark:` variants. Default Tailwind colours are reset: only system roles
-   exist, so an off-system colour cannot be typed by accident.
+   `@theme inline` makes every utility reference the live CSS variable.
+   Default Tailwind colours are reset: only system roles exist, so an
+   off-system colour cannot be typed by accident. Dark only: there is one
+   palette, so the `dark:` variant always applies and is never needed.
    ========================================================================== */
 
 @theme inline {
@@ -35,6 +27,7 @@
   --color-face: var(--lm-face);
   --color-well: var(--lm-well);
   --color-raised: var(--lm-raised);
+  --color-elevated: var(--lm-elevated);
   --color-scrim: var(--lm-scrim);
 
   --color-line: var(--lm-line);
@@ -51,6 +44,10 @@
   --color-signal-hover: var(--lm-signal-hover);
   --color-signal-press: var(--lm-signal-press);
   --color-signal-ink: var(--lm-signal-ink);
+  --color-gold-soft: var(--lm-gold-soft);
+  --color-gold-wash: var(--lm-gold-wash);
+  --color-gold-edge: var(--lm-gold-edge);
+  --color-gold-action: var(--lm-gold-action);
   --color-focus: var(--lm-focus);
 
   --color-info: var(--lm-info-fg);
@@ -88,6 +85,41 @@
   --color-cat-cardio: var(--lm-cat-cardio);
   --color-cat-hormones: var(--lm-cat-hormones);
 
+  /* r071 domain hues: solid (marks) · ink (soft tint for text on the glow) · deep (the glow core) · dim (the unlit remainder) */
+  --color-hue-heart: var(--lm-hue-heart);
+  --color-hue-heart-ink: var(--lm-hue-heart-ink);
+  --color-hue-heart-deep: var(--lm-hue-heart-deep);
+  --color-hue-heart-dim: var(--lm-hue-heart-dim);
+  --color-hue-energy: var(--lm-hue-energy);
+  --color-hue-energy-ink: var(--lm-hue-energy-ink);
+  --color-hue-energy-deep: var(--lm-hue-energy-deep);
+  --color-hue-energy-dim: var(--lm-hue-energy-dim);
+  --color-hue-food: var(--lm-hue-food);
+  --color-hue-food-ink: var(--lm-hue-food-ink);
+  --color-hue-food-deep: var(--lm-hue-food-deep);
+  --color-hue-food-dim: var(--lm-hue-food-dim);
+  --color-hue-steps: var(--lm-hue-steps);
+  --color-hue-steps-ink: var(--lm-hue-steps-ink);
+  --color-hue-steps-deep: var(--lm-hue-steps-deep);
+  --color-hue-steps-dim: var(--lm-hue-steps-dim);
+  --color-hue-recovery: var(--lm-hue-recovery);
+  --color-hue-recovery-ink: var(--lm-hue-recovery-ink);
+  --color-hue-recovery-deep: var(--lm-hue-recovery-deep);
+  --color-hue-recovery-dim: var(--lm-hue-recovery-dim);
+  --color-hue-body: var(--lm-hue-body);
+  --color-hue-body-ink: var(--lm-hue-body-ink);
+  --color-hue-body-deep: var(--lm-hue-body-deep);
+  --color-hue-body-dim: var(--lm-hue-body-dim);
+  --color-hue-sleep: var(--lm-hue-sleep);
+  --color-hue-sleep-ink: var(--lm-hue-sleep-ink);
+  --color-hue-sleep-deep: var(--lm-hue-sleep-deep);
+  --color-hue-sleep-dim: var(--lm-hue-sleep-dim);
+  --color-hue-videos: var(--lm-hue-videos);
+  --color-hue-videos-ink: var(--lm-hue-videos-ink);
+  --color-hue-videos-deep: var(--lm-hue-videos-deep);
+  --color-hue-videos-dim: var(--lm-hue-videos-dim);
+  --color-hue-gold-deep: var(--lm-hue-gold-deep);
+
   --color-macro-protein: var(--lm-macro-protein);
   --color-macro-carbs: var(--lm-macro-carbs);
   --color-macro-fibre: var(--lm-macro-fibre);
@@ -97,6 +129,10 @@
   --color-plan-a: var(--lm-plan-a);
   --color-plan-b: var(--lm-plan-b);
   --color-plan-c: var(--lm-plan-c);
+  --color-rung-hard: var(--lm-rung-hard);
+  --color-rung-medium: var(--lm-rung-medium);
+  --color-rung-easy: var(--lm-rung-easy);
+  --color-rung-ideal: var(--lm-rung-ideal);
 
   --color-deficit-1: var(--lm-energy-deficit-1);
   --color-deficit-2: var(--lm-energy-deficit-2);
@@ -107,6 +143,16 @@
   --color-surplus-3: var(--lm-energy-surplus-3);
   --color-surplus-4: var(--lm-energy-surplus-4);
   --color-fast: var(--lm-energy-fast);
+  --color-balance-deficit-1: var(--lm-balance-deficit-1);
+  --color-balance-deficit-2: var(--lm-balance-deficit-2);
+  --color-balance-deficit-3: var(--lm-balance-deficit-3);
+  --color-balance-deficit-4: var(--lm-balance-deficit-4);
+  --color-balance-deficit-5: var(--lm-balance-deficit-5);
+  --color-balance-deficit-6: var(--lm-balance-deficit-6);
+  --color-balance-surplus-1: var(--lm-balance-surplus-1);
+  --color-balance-surplus-2: var(--lm-balance-surplus-2);
+  --color-balance-surplus-3: var(--lm-balance-surplus-3);
+  --color-balance-surplus-4: var(--lm-balance-surplus-4);
 
   --color-keto-1: var(--lm-keto-1);
   --color-keto-2: var(--lm-keto-2);
@@ -124,16 +170,100 @@
   --color-avatar-lean: var(--lm-avatar-lean);
   --color-avatar-fat: var(--lm-avatar-fat);
   --color-avatar-outline: var(--lm-avatar-outline);
+  --color-avatar-organ: var(--lm-avatar-organ);
 
   /* ---- type ------------------------------------------------------------ */
   --font-sans: var(--lm-font-sans);
+  --font-title: var(--lm-font-title);
+  --font-display: var(--lm-font-display);
   --font-mono: var(--lm-font-mono);
 
+  /* r071 weights: 400 text · 500 labels, keys and mono meta · 600 titles and values (`font-display` + `font-semibold`);
+     `font-light` (300) is for numerals of 36 px and up only (Geist is declared 300–600); `font-bold` is 600. */
+  --font-weight-light: 300;
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --font-weight-bold: 700;
+  --font-weight-bold: 600;
 
+  /* roles (SPEC §2, r071): text-display, text-headline, text-title-l, text-title-m, text-page, text-card, text-hero,
+     text-num-l, text-num, text-time, text-stat, text-unit, text-body, text-body-l, text-body-s, text-read, text-label,
+     text-label-s, text-meta (the last also needs `uppercase font-mono text-ink-2`: the one uppercase text in the
+     product). Each sets size, line height, tracking and weight; components.css gives the title and numeral roles the
+     display face. Hero, wide and tile numbers also take `lm-num-prop` (proportional figures). */
+  --text-display: var(--lm-text-display);
+  --text-display--line-height: var(--lm-text-display--lh);
+  --text-display--letter-spacing: var(--lm-text-display--ls);
+  --text-display--font-weight: var(--lm-text-display--wt);
+  --text-headline: var(--lm-text-headline);
+  --text-headline--line-height: var(--lm-text-headline--lh);
+  --text-headline--letter-spacing: var(--lm-text-headline--ls);
+  --text-headline--font-weight: var(--lm-text-headline--wt);
+  --text-title-l: var(--lm-text-title-l);
+  --text-title-l--line-height: var(--lm-text-title-l--lh);
+  --text-title-l--letter-spacing: var(--lm-text-title-l--ls);
+  --text-title-l--font-weight: var(--lm-text-title-l--wt);
+  --text-title-m: var(--lm-text-title-m);
+  --text-title-m--line-height: var(--lm-text-title-m--lh);
+  --text-title-m--letter-spacing: var(--lm-text-title-m--ls);
+  --text-title-m--font-weight: var(--lm-text-title-m--wt);
+  --text-body: var(--lm-text-body);
+  --text-body--line-height: var(--lm-text-body--lh);
+  --text-body--font-weight: var(--lm-text-body--wt);
+  --text-body-l: var(--lm-text-body-l);
+  --text-body-l--line-height: var(--lm-text-body-l--lh);
+  --text-body-l--font-weight: var(--lm-text-body-l--wt);
+  --text-body-s: var(--lm-text-body-s);
+  --text-body-s--line-height: var(--lm-text-body-s--lh);
+  --text-body-s--font-weight: var(--lm-text-body-s--wt);
+  --text-label: var(--lm-text-label);
+  --text-label--line-height: var(--lm-text-label--lh);
+  --text-label--font-weight: var(--lm-text-label--wt);
+  --text-label-s: var(--lm-text-label-s);
+  --text-label-s--line-height: var(--lm-text-label-s--lh);
+  --text-label-s--font-weight: var(--lm-text-label-s--wt);
+  --text-page: var(--lm-text-page);
+  --text-page--line-height: var(--lm-text-page--lh);
+  --text-page--letter-spacing: var(--lm-text-page--ls);
+  --text-page--font-weight: var(--lm-text-page--wt);
+  --text-card: var(--lm-text-card);
+  --text-card--line-height: var(--lm-text-card--lh);
+  --text-card--letter-spacing: var(--lm-text-card--ls);
+  --text-card--font-weight: var(--lm-text-card--wt);
+  --text-hero: var(--lm-text-hero);
+  --text-hero--line-height: var(--lm-text-hero--lh);
+  --text-hero--letter-spacing: var(--lm-text-hero--ls);
+  --text-hero--font-weight: var(--lm-text-hero--wt);
+  --text-num-l: var(--lm-text-num-l);
+  --text-num-l--line-height: var(--lm-text-num-l--lh);
+  --text-num-l--letter-spacing: var(--lm-text-num-l--ls);
+  --text-num-l--font-weight: var(--lm-text-num-l--wt);
+  --text-num: var(--lm-text-num);
+  --text-num--line-height: var(--lm-text-num--lh);
+  --text-num--letter-spacing: var(--lm-text-num--ls);
+  --text-num--font-weight: var(--lm-text-num--wt);
+  --text-time: var(--lm-text-time);
+  --text-time--line-height: var(--lm-text-time--lh);
+  --text-time--letter-spacing: var(--lm-text-time--ls);
+  --text-time--font-weight: var(--lm-text-time--wt);
+  --text-stat: var(--lm-text-stat);
+  --text-stat--line-height: var(--lm-text-stat--lh);
+  --text-stat--letter-spacing: var(--lm-text-stat--ls);
+  --text-stat--font-weight: var(--lm-text-stat--wt);
+  --text-unit: var(--lm-text-unit);
+  --text-unit--line-height: var(--lm-text-unit--lh);
+  --text-unit--letter-spacing: var(--lm-text-unit--ls);
+  --text-unit--font-weight: var(--lm-text-unit--wt);
+  --text-read: var(--lm-text-read);
+  --text-read--line-height: var(--lm-text-read--lh);
+  --text-read--letter-spacing: var(--lm-text-read--ls);
+  --text-read--font-weight: var(--lm-text-read--wt);
+  --text-meta: var(--lm-text-meta);
+  --text-meta--line-height: var(--lm-text-meta--lh);
+  --text-meta--letter-spacing: var(--lm-text-meta--ls);
+  --text-meta--font-weight: var(--lm-text-meta--wt);
+
+  /* v1 size scale (re-pointed at the roles in tokens.css) */
   --text-2xs: var(--lm-text-2xs);
   --text-2xs--line-height: var(--lm-text-2xs--lh);
   --text-2xs--letter-spacing: var(--lm-text-2xs--ls);
@@ -159,8 +289,10 @@
   --text-readout-sm--line-height: var(--lm-readout-sm--lh);
   --text-readout-md: var(--lm-readout-md);
   --text-readout-md--line-height: var(--lm-readout-md--lh);
+  --text-readout-md--letter-spacing: var(--lm-readout-md--ls);
   --text-readout-lg: var(--lm-readout-lg);
   --text-readout-lg--line-height: var(--lm-readout-lg--lh);
+  --text-readout-lg--letter-spacing: var(--lm-readout-lg--ls);
 
   /* ---- spacing: 4px grid (p-1 = 4px, p-4 = 16px, ...) ------------------ */
   --spacing: 0.25rem;
@@ -171,9 +303,12 @@
   --radius-md: var(--lm-radius-md);
   --radius-lg: var(--lm-radius-lg);
   --radius-xl: var(--lm-radius-xl);
+  --radius-track: var(--lm-radius-track);
+  --radius-field: var(--lm-radius-field);
+  --radius-card: var(--lm-card-radius);
   --radius-full: var(--lm-radius-full);
 
-  /* ---- elevation ------------------------------------------------------- */
+  /* ---- elevation: every shadow token is `none` in Ember ---------------- */
   --shadow-face: var(--lm-shadow-face);
   --shadow-key: var(--lm-shadow-key);
   --shadow-key-pressed: var(--lm-shadow-key-pressed);
@@ -189,6 +324,9 @@
   --ease-press: var(--lm-ease-press);
   --ease-needle: var(--lm-ease-needle);
   --ease-sheet: var(--lm-ease-sheet);
+  --ease-standard: var(--lm-ease-standard);
+  --ease-in: var(--lm-ease-in);
+  --ease-spring: var(--lm-ease-spring);
 
   /* ---- breakpoints (must be literal for media queries) ----------------- */
   --breakpoint-sm: 30rem;   /* 480  */
@@ -198,33 +336,28 @@
   --breakpoint-2xl: 96rem;  /* 1536 */
 }
 
-/* ---- dark variant: honours both OS preference and the forced toggle ---- */
-@custom-variant dark {
-  @media (prefers-color-scheme: dark) {
-    &:where(:root:not([data-theme="light"]) *) { @slot; }
-  }
-  &:where([data-theme="dark"], [data-theme="dark"] *) { @slot; }
-}
+/* ---- dark only: the variant always applies (kept so `dark:` never falls
+   back to Tailwind's OS-preference default) ------------------------------ */
+@custom-variant dark (&);
 
 /* ---- utilities without a v4 theme namespace ----------------------------- */
-@utility wdth-condensed { font-stretch: 84%; }
-@utility wdth-normal    { font-stretch: 100%; }
-@utility wdth-wide      { font-stretch: 112%; }
-@utility wdth-display   { font-stretch: 120%; }
+/* Neither face has a width axis: the v1 width utilities are kept as no-ops. */
+@utility wdth-condensed { font-stretch: normal; }
+@utility wdth-normal    { font-stretch: normal; }
+@utility wdth-wide      { font-stretch: normal; }
+@utility wdth-display   { font-stretch: normal; }
 
-@utility engraved {           /* instrument label: lowercase caption */
-  font-size: var(--lm-text-xs);
-  line-height: var(--lm-text-xs--lh);
-  font-weight: 500;
-  letter-spacing: 0.005em;
-  text-transform: lowercase;
+@utility engraved {           /* v1 caption utility, now body-s in ink-2 (sentence case) */
+  font-size: var(--lm-text-body-s);
+  line-height: var(--lm-text-body-s--lh);
+  font-weight: var(--lm-text-body-s--wt);
+  letter-spacing: 0;
   color: var(--lm-ink-2);
 }
 @utility readout {            /* live numeric value: fixed places, no jitter */
-  font-stretch: 112%;
-  font-variant-numeric: tabular-nums slashed-zero;
-  font-feature-settings: "tnum" 1, "zero" 1;
-  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  font-weight: var(--lm-weight-medium);
 }
 @utility nums-tabular { font-variant-numeric: tabular-nums; }
 
@@ -250,24 +383,17 @@
   outline-offset: 2px;
 }
 
-@utility stage-dots {         /* perforated avatar / empty-state stage */
+@utility stage-dots {         /* v1 perforated stage: now a plain well; the page grain is the only texture */
   background-color: var(--lm-avatar-stage);
-  background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1.1px, transparent 1.3px);
-  background-size: 12px 12px;
-  background-position: 6px 6px;
+  background-image: none;
 }
 
-/* ---- base layer ----------------------------------------------------------- */
-@layer base {
-  html {
-    font-family: var(--lm-font-sans);
-    font-size: 100%;
-    background: var(--lm-chassis);
-    color: var(--lm-ink);
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-  :focus-visible { outline: 2px solid var(--lm-focus); outline-offset: 2px; }
-  ::selection { background: var(--lm-text-selection); color: var(--lm-ink); }
-  * { scrollbar-width: thin; scrollbar-color: var(--lm-line-strong) transparent; }
+/* Ember card material (SPEC §3). Use the class in markup (`className="lm-material-card"`) or, in CSS, the same
+   declarations from the tokens: background: var(--lm-card-bg); border: var(--lm-hairline) solid var(--lm-line);
+   border-radius: var(--lm-card-radius). Padding stays with the component (--lm-card-pad / --lm-card-pad-lg). */
+@utility lm-material-card {
+  background: var(--lm-card-bg);
+  border: var(--lm-hairline) solid var(--lm-line);
+  border-radius: var(--lm-card-radius);
+  box-shadow: none;
 }

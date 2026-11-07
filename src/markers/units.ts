@@ -8,15 +8,27 @@
  * Bounds: `plausible` blocks entry (values no living adult's lab prints; engineering values, wider than any range in
  * the research files); `soft` asks "is this right?" (outside it a typo or a unit slip is likelier than the value; set
  * at or beyond the research files' clinician-only thresholds so a real critical value is asked about, not blocked).
+ *
+ * eGFR (D7-02): mL/min/1.73 m² (indexed eGFR) and bare mL/min (absolute GFR, creatinine clearance, or an indexed value
+ * printed without its index) are different quantities. They never convert into each other by a unit factor; an
+ * ambiguous mL/min reading keeps its raw value and stays unresolved for indexed thresholds until the person confirms
+ * what it is. A confirmed absolute GFR converts only with sample-date height and weight and a declared BSA method.
  */
 import { MGDL_PER_MMOLL_CHOL, MGDL_PER_MMOLL_GLC, MGDL_PER_MMOLL_TG } from '@/engine/model/cardiometabolic/baselines';
-import type { MarkerGroupId, MarkerId } from './types';
+import { formatNumber } from '@/components/lib/format';
+import { gfrQuantityFromUnit, indexGfr, type GfrQuantityKind } from '@/lib/measurementOperators';
+import type { MarkerGroupId, MarkerId, MarkerReading } from './types';
 
 /** One accepted unit: canonical = value × factor (+ offset). */
 interface UnitDef {
   unit: string;
   factor: number;
   offset?: number;
+  /**
+   * A distinct quantity measured in this unit (D7-02): it is its own canonical unit and never converts to the marker's
+   * other units (eGFR mL/min is not mL/min/1.73 m²).
+   */
+  distinct?: true;
 }
 
 export interface MarkerUnitSpec {
@@ -247,7 +259,7 @@ export const MARKER_UNITS: Readonly<Record<MarkerId, MarkerUnitSpec>> = {
     canonical: 'mL/min/1.73 m²',
     units: [
       { unit: 'mL/min/1.73 m²', factor: 1 },
-      { unit: 'mL/min', factor: 1 },
+      { unit: 'mL/min', factor: 1, distinct: true },
     ],
     plausible: [2, 200],
     soft: [15, 150],
@@ -518,10 +530,11 @@ function unitDef(id: MarkerId, unit: string): UnitDef | null {
 
 export const isAcceptedUnit = (id: MarkerId, unit: string): boolean => unitDef(id, unit) !== null;
 
-/** Canonical unit of a reading: the marker's canonical unit, or for Lp(a) the entered unit. */
+/** Canonical unit of a reading: the marker's canonical unit, or for Lp(a) and a distinct quantity (eGFR mL/min) the entered unit. */
 export function canonicalUnitOf(id: MarkerId, unit: string): string {
   const spec = MARKER_UNITS[id];
-  if (spec.noConversion) return unitDef(id, unit)?.unit ?? spec.canonical;
+  const d = unitDef(id, unit);
+  if (spec.noConversion || d?.distinct) return d?.unit ?? spec.canonical;
   return spec.canonical;
 }
 
@@ -529,31 +542,99 @@ export function canonicalUnitOf(id: MarkerId, unit: string): string {
 export function toCanonical(id: MarkerId, value: number, unit: string): number {
   const d = unitDef(id, unit);
   if (!d) throw new Error('unit not recognised');
-  if (MARKER_UNITS[id].noConversion) return value;
+  if (MARKER_UNITS[id].noConversion || d.distinct) return value;
   return r(value * d.factor + (d.offset ?? 0));
 }
 
-/** canonical → value in `unit` (Lp(a): only its own unit). */
+/** canonical → value in `unit` (Lp(a) and distinct quantities: only their own unit). */
 export function fromCanonical(id: MarkerId, canonical: number, unit: string): number {
   const d = unitDef(id, unit);
   if (!d) throw new Error('unit not recognised');
-  if (MARKER_UNITS[id].noConversion) return canonical;
+  if (MARKER_UNITS[id].noConversion || d.distinct) return canonical;
   return r((canonical - (d.offset ?? 0)) / d.factor);
 }
 
-/** Convert between two accepted units of a marker. Lp(a) mg/dL ↔ nmol/L is refused (returns null). */
+/**
+ * Convert between two accepted units of a marker. Lp(a) mg/dL ↔ nmol/L and eGFR mL/min ↔ mL/min/1.73 m² (different
+ * quantities) are refused (null).
+ */
 export function convert(id: MarkerId, value: number, from: string, to: string): number | null {
   const a = unitDef(id, from);
   const b = unitDef(id, to);
   if (!a || !b) return null;
   if (a.unit === b.unit) return value;
-  if (MARKER_UNITS[id].noConversion) return null;
+  if (MARKER_UNITS[id].noConversion || a.distinct || b.distinct) return null;
   return fromCanonical(id, toCanonical(id, value, a.unit), b.unit);
+}
+
+/* ------------------------------------------------------------------------------------------- kidney function (D7-02) */
+
+/** The indexed eGFR unit the kidney rules and the engine baseline are written in. */
+export const EGFR_INDEXED_UNIT = 'mL/min/1.73 m²';
+
+/**
+ * Quantity kind of an eGFR reading: the confirmed kind when the person or lab gave one, else what the printed unit says
+ * (an explicit /1.73 m² is indexed eGFR; bare mL/min is `indexingUnconfirmed`). Legacy readings are never rewritten.
+ */
+export function gfrQuantityOf(r: Pick<MarkerReading, 'unit' | 'quantityKind'>): GfrQuantityKind {
+  return r.quantityKind ?? gfrQuantityFromUnit(r.unit);
+}
+
+export type IndexedEgfr =
+  | { status: 'resolved'; value: number; source: 'printedIndexed' | 'confirmedIndexed' | 'bsaConverted' }
+  | { status: 'unresolved'; reason: 'indexingUnconfirmed' | 'creatinineClearance' | 'absoluteNeedsBsa' | 'notEgfr' | 'nonFinite' };
+
+/**
+ * The indexed eGFR (mL/min/1.73 m²) a reading supports (D7-02): the printed indexed value, an mL/min value the person
+ * confirmed is indexed eGFR printed without its index, or the stored explicit BSA conversion of a confirmed absolute GFR.
+ * Anything else (ambiguous mL/min, creatinine clearance, absolute GFR without sample-date anthropometry) is unresolved.
+ */
+export function indexedEgfrOf(r: Pick<MarkerReading, 'id' | 'value' | 'unit' | 'quantityKind' | 'indexed'>): IndexedEgfr {
+  if (r.id !== 'egfr') return { status: 'unresolved', reason: 'notEgfr' };
+  if (!Number.isFinite(r.value)) return { status: 'unresolved', reason: 'nonFinite' };
+  const kind = gfrQuantityOf(r);
+  switch (kind) {
+    case 'egfrIndexed': {
+      const printed = unitDef('egfr', r.unit)?.unit === EGFR_INDEXED_UNIT;
+      return { status: 'resolved', value: r.value, source: printed ? 'printedIndexed' : 'confirmedIndexed' };
+    }
+    case 'gfrAbsolute':
+      return r.indexed && Number.isFinite(r.indexed.valueMlMin173) ? { status: 'resolved', value: r.indexed.valueMlMin173, source: 'bsaConverted' } : { status: 'unresolved', reason: 'absoluteNeedsBsa' };
+    case 'creatinineClearance':
+      return { status: 'unresolved', reason: 'creatinineClearance' };
+    case 'indexingUnconfirmed':
+      return { status: 'unresolved', reason: 'indexingUnconfirmed' };
+  }
+}
+
+/**
+ * The explicit absolute→indexed conversion of a confirmed absolute GFR reading (D7-02), kept beside the raw value:
+ * indexed = absolute × 1.73 / BSA with Mosteller BSA from sample-date height and weight. Refuses (with the reason) for
+ * an ambiguous or clearance quantity, an already indexed value, or anthropometry from another date; never guesses.
+ */
+export function indexedConversionOf(
+  r: Pick<MarkerReading, 'id' | 'value' | 'unit' | 'quantityKind' | 'date'>,
+  body: { heightCm?: number; weightKg?: number; date?: string },
+): { ok: true; indexed: NonNullable<MarkerReading['indexed']> } | { ok: false; reason: string } {
+  if (r.id !== 'egfr') return { ok: false, reason: 'notEgfr' };
+  const res = indexGfr({
+    valueMlMin: r.value,
+    quantity: gfrQuantityOf(r),
+    sampleDate: r.date,
+    ...(body.heightCm !== undefined ? { heightCm: body.heightCm } : {}),
+    ...(body.weightKg !== undefined ? { weightKg: body.weightKg } : {}),
+    ...(body.date !== undefined ? { anthropometryDate: body.date } : {}),
+  });
+  if (res.status === 'refused') return { ok: false, reason: res.reason };
+  return {
+    ok: true,
+    indexed: { valueMlMin173: res.indexedMlMin173, bsaM2: res.bsaM2, bsaMethod: res.bsaMethod, heightCm: res.anthropometry.heightCm, weightKg: res.anthropometry.weightKg, anthropometryDate: res.anthropometry.date },
+  };
 }
 
 export type BoundCheck = { ok: true } | { ok: false; level: 'block' | 'ask'; message: string };
 
-const fmt = (x: number): string => (Math.abs(x) >= 1000 ? Math.round(x).toLocaleString('en-GB').replace(/,/g, ' ') : String(Math.round(x * 100) / 100));
+const fmt = (x: number): string => (Math.abs(x) >= 1000 ? formatNumber(Math.round(x)) : String(Math.round(x * 100) / 100));
 
 /** Plausibility (block) and soft (ask) bounds for one entered value. */
 export function checkBounds(id: MarkerId, value: number, unit: string): BoundCheck {

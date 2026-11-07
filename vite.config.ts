@@ -11,7 +11,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // rules are Netlify-only (they mean nothing on http://localhost).
 const CSP =
   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
-const PERMISSIONS_POLICY = 'camera=(self), microphone=(), geolocation=(), bluetooth=(self)';
+const PERMISSIONS_POLICY = 'camera=(self), microphone=(), geolocation=(), bluetooth=()';
 
 // Evolu (opt-in sync, E11) is lazy: loaded only after a device pairs. Its files are kept OUT of the service worker's precache
 // (every first-time visitor would otherwise download ~1.5 MB raw / ~700 KB gz for a feature most never turn on) and are
@@ -35,6 +35,22 @@ const PKG_VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.me
 // The cascade layer order index.html declares before any stylesheet (L-QA J5-01): a split CSS chunk linked before the
 // main one would otherwise fix the order with `components` first, below Tailwind's `base`. The build fails without it.
 const LAYER_ORDER = 'properties,theme,base,components,utilities';
+
+// Both release partitions share this exact list: no substring filters that can omit a new test file.
+const RESOURCE_SENSITIVE_TESTS = [
+  '**/*bench*.test.{ts,tsx}',
+  '**/safety.props.test.ts',
+  '**/validation/invariants.test.ts',
+  '**/evidence/__tests__/page.test.tsx',
+  '**/living/progress/__tests__/r071Cards.test.tsx',
+  'tests/figure/morph-smoothness-report.test.ts',
+  'src/features/body/figure3d/__tests__/anatomyWorker.test.ts',
+  'src/engine/model/moderators/moderators.test.ts',
+];
+const testGroup = process.env.VITALS_TEST_GROUP;
+const selectedTests: unknown = process.env.VITALS_TEST_FILES ? JSON.parse(readFileSync(process.env.VITALS_TEST_FILES, 'utf8')) : undefined;
+if (selectedTests !== undefined && (!Array.isArray(selectedTests) || selectedTests.length === 0 || selectedTests.some((file) => typeof file !== 'string'))) throw new Error('Invalid explicit test partition');
+if (testGroup && testGroup !== 'core' && testGroup !== 'serial') throw new Error(`Unknown VITALS_TEST_GROUP: ${testGroup}`);
 
 export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(PKG_VERSION) },
@@ -81,7 +97,7 @@ export default defineConfig({
         // first use: the Body page draws it for everyone, it is small next to the rest of the shell, and "works offline"
         // should not depend on having opened that page once. Its file name is versioned, so the revision never churns.
         // No `.wasm` here: the only WebAssembly is Evolu's, which is runtime-cached below.
-        globPatterns: ['**/*.{js,css,html,woff2,svg,png,ico,webmanifest}', 'figure/*.bin'],
+        globPatterns: ['**/*.{js,css,html,woff2,svg,png,webp,ico,webmanifest}', 'figure/*.bin'],
         // sourcemaps are never precached (and are off in this build anyway); Evolu stays out of the precache (see EVOLU_PREFIXES).
         globIgnores: ['**/*.map', ...EVOLU_PRECACHE_IGNORES, ...PDF_PRECACHE_IGNORES],
         // 5 MiB per file. The largest precached file is the engine worker, ~1.3 MB; the default 2 MiB leaves too little
@@ -133,7 +149,7 @@ export default defineConfig({
       },
     },
   },
-  // Same CSP and Permissions-Policy as netlify.toml, so `pnpm preview` shows WASM, workers, the camera and Bluetooth under
+  // Same CSP and Permissions-Policy as netlify.toml, so `pnpm preview` shows WASM, workers and the camera under
   // the production policy.
   preview: {
     headers: {
@@ -148,9 +164,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}', 'packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.{ts,tsx}'],
+    include: (selectedTests as string[] | undefined) ?? (testGroup === 'serial' ? RESOURCE_SENSITIVE_TESTS : ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.{ts,tsx}', 'packages/*/src/**/*.test.ts', 'apps/*/src/**/*.test.{ts,tsx}']),
     // the desktop and Android apps' build output (and the generated Android project) is never a test source
-    exclude: [...configDefaults.exclude, 'apps/*/dist/**', 'apps/*/release/**', 'apps/android/android/**'],
+    exclude: [...configDefaults.exclude, ...(testGroup === 'core' ? RESOURCE_SENSITIVE_TESTS : []), 'apps/*/dist/**', 'apps/*/release/**', 'apps/android/android/**'],
     css: false,
+    maxWorkers: 2,
+    fileParallelism: testGroup !== 'serial',
+    reporters: process.env.VITALS_TEST_REPORT ? ['default', './scripts/validation/status-reporter.mjs'] : ['default'],
   },
 });

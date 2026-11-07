@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The short-video counter (Gauge's, in Vitals since 0.7.0). Restricted to Instagram and YouTube: no other app's events reach it.
+     flagIncludeNotImportantViews + flagReportViewIds expose the pager/player view ids the matchers
+     use; canRetrieveWindowContent lets it read the layout (ids, classes, bounds). -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewScrolled"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagReportViewIds|flagIncludeNotImportantViews|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="false"
+    android:notificationTimeout="100"
+    android:packageNames="com.instagram.android,com.google.android.youtube"
+    android:description="@string/short_video_service_description"
+    android:summary="@string/short_video_service_summary"
+    android:isAccessibilityTool="false"
+    android:settingsActivity="desi.creative.vitals.MainActivity" />

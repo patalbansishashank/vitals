@@ -19,3 +19,14 @@ export interface WidgetProps<V = unknown> {
  * where the widget portals its keys. Null elsewhere: the widget renders its own footer.
  */
 export const CardFootSlot = createContext<HTMLElement | null>(null);
+
+/**
+ * Inside a QuestionCard: the card's Next runs the widget's commit. A widget registers it with `<CommitKey>` (its old
+ * "Done" key), so the step row has one forward key (Next, or Save when changing) instead of Done plus Next.
+ * `setReason(null)` = ready, a string = the reason Next waits for, undefined = nothing registered.
+ */
+export interface CardCommitApi {
+  setRun: (run: (() => void) | null) => void;
+  setReason: (reason: string | null | undefined) => void;
+}
+export const CardCommit = createContext<CardCommitApi | null>(null);

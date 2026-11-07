@@ -21,34 +21,13 @@ export interface PersonInit {
   instance: string;
 }
 
-export interface LumenInstallation {
-  deviceType?: string;
-  modelId?: string;
-  firmware?: string;
-  updatedAt?: string;
-}
-
 export type PersonRequest =
   | { op: 'dispatch'; command: string; input: unknown; source: 'ui' | 'coach' | 'agent' | 'server'; idempotencyKey?: string }
-  | { op: 'ingestLumen'; events: unknown[]; installations: Record<string, LumenInstallation> }
   | { op: 'stats' }
   /** Agent tool calls through the server (§14.4): the person's `vitals.tools/1` manifest and one guarded call. */
   | { op: 'agentManifest' }
   | { op: 'agentCall'; command: string; input: Record<string, unknown>; actorId: string; idempotencyKey?: string; stage?: boolean }
   | { op: 'flush' };
-
-export interface IngestLumenResult {
-  /** Records the importer produced from the accepted events (a series record carries many samples). */
-  records: number;
-  /** Records plus raw samples newly stored (0 when every event was already there). */
-  added: number;
-  installations: Record<string, LumenInstallation>;
-  status: Array<{ kind: 'battery' | 'connection'; at: string; installationId?: string; value: unknown }>;
-  /** Events per stream (policy stream names: hr, steps, sleep_sessions, …). */
-  streams: Record<string, number>;
-  /** Events refused before mapping (`checkLumenEvent`), by their index in `events`. */
-  rejected?: Array<{ index: number; reason: 'unknown_type' | 'invalid_payload' | 'validation_failed'; type?: string }>;
-}
 
 export interface PersonStats {
   personId: string;

@@ -8,7 +8,7 @@
  * The glycogen-water ratio h (3.0 g/g [2, 4]) is deliberately NOT declared here: fuel owns it (`fuel.hWater`, MODEL_SPEC
  * §1.6 / R-GLYW) and water reads it in `prepare` (see index.ts).
  */
-import type { DrawKind, EvidenceGrade, ParamDef, ParamStatus } from '../../types/params';
+import type { DrawKind, EvidenceGrade, ParamDef, ParamDistributionMeta, ParamStatus } from '../../types/params';
 
 function def(
   id: string,
@@ -22,6 +22,7 @@ function def(
   status: ParamStatus,
   note?: string,
   draw?: DrawKind,
+  distribution?: ParamDistributionMeta,
 ): ParamDef {
   return {
     id: `water.${id}`,
@@ -35,6 +36,7 @@ function def(
     status,
     ...(note !== undefined ? { note } : {}),
     ...(draw !== undefined ? { draw } : {}),
+    ...(distribution !== undefined ? { distribution } : {}),
   };
 }
 
@@ -113,8 +115,24 @@ export const WATER_PARAMS: readonly ParamDef[] = [
     'Saturation of P_ex when sessions repeat daily (chronic training PV expansion ~0.4-0.5 L); range assumed.'),
 
   // ---- menstrual water (13 §4.6; 16 §4.5), opt-in through cycle tracking (cycleDay >= 1)
-  def('cycleAmpKg', 0.2, 'kg', 0, 0.5, 'D', 'White 2011 PMID 21845193', '13 §4.6; 16 §4.5', 'unverified',
-    'Peak-to-trough amplitude of the deterministic cycle term, peak day 1 of flow. 16 §4.5 treats the effect as a display band only (sign inconsistent across studies); set 0 to disable.'),
+  // D1-06: the individual cycle amplitude is unknown. Nominal: zero numeric contribution (`cycleWaterScenario` 0) with the
+  // transient kept as structural uncertainty (`WATER_CYCLE_SCENARIOS`), never learned from sparse weights. The legacy 0.2 kg
+  // peak-to-trough shape is an explicit assumed prior (scenario 1); the ≈ 0.45 kg menstruation-vs-first-quarter study
+  // contrast (n = 42, one cycle, BIA ECW) is another structural example, not an individual amplitude or a coverage bound.
+  def('cycleAmpKg', 0.2, 'kg', 0, 0.5, 'D', 'White 2011 PMID 21845193 (legacy assumed prior shape)', '13 §4.6; 16 §4.5; review D1-06', 'unverified',
+    'Peak-to-trough amplitude of the legacy cycle scenario (peak day 1 of flow), used only when cycleWaterScenario = 1; never drawn. [low, high] documents structural alternatives (0 = no transient; ~0.45 kg study contrast doi 10.1002/ajhb.23951), not coverage.',
+    'fixed',
+    {
+      uncertaintyKind: 'scenario',
+      bounds: 'support',
+      nominal: 'designPoint',
+      basis: 'legacy assumed prior shape; structural alternatives 0 and the 0.45 kg one-cycle BIA study contrast are examples, not a 0-0.45 range',
+      population: 'menstruating adults with supplied cycle dates; heterogeneous, some studies null',
+      version: 1,
+      label: 'designPrior',
+    }),
+  fixed('cycleWaterScenario', 0, 'flag', 'D', 'Review D1-06 (unknown individual amplitude); White 2011 PMID 21845193; doi 10.1002/ajhb.23951', '13 §4.6; 16 §4.5; review D1-06', 'unverified',
+    'Structural mode: 0 = unknown amplitude, zero numeric cycle-water contribution (transient stays structural uncertainty); 1 = legacy assumed prior shape at cycleAmpKg. Never drawn.'),
   def('cycleTroughPos', 0.25, '1', 0.2, 0.35, 'D', 'White 2011 PMID 21845193 (via 16 §4.5)', '16 §4.5', 'proposed-fit',
     'Position in the cycle (fraction of its length) of the lowest self-reported fluid retention (mid-follicular).'),
   def('cycleOvEndPos', 0.6, '1', 0.5, 0.7, 'D', 'White 2011 PMID 21845193 (via 16 §4.5)', '16 §4.5', 'proposed-fit',
@@ -126,7 +144,8 @@ export const WATER_PARAMS: readonly ParamDef[] = [
   def('creatineWaterKg', 0.9, 'kg', 0.5, 1.5, 'C', 'Powers 2003 PMID 12937471', '15 §4.12', 'proposed-fit',
     'W_Cr = 0.9 kg x creatineSatFrac (x / x_max).'),
 
-  // ---- hydration deficit H_def (15 §4.8), grade D
+  // ---- hydration deficit H_def (15 §4.8), grade D. D1-06: context-only exploratory state (hydrationDeficitKg); it is no
+  // longer subtracted from scale weight / inferred non-fat scale mass in production (nominal and every draw).
   def('hDefTau', 0.5, 'd', 0.25, 1, 'D', 'Proposed (15 §4.8)', '15 §4.8', 'unverified', 'Thirst-driven recovery; range assumed.'),
   def('hDefFKidney', 0.6, '1', 0.3, 1, 'D', 'Proposed (15 §4.8)', '15 §4.8', 'unverified',
     'Share of the fluid shortfall that shows as mass (kidneys conserve water first); range assumed.'),

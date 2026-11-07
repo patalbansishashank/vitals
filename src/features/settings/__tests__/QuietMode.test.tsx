@@ -20,13 +20,13 @@ describe('Settings › quiet mode', () => {
         <AppearanceSection />
       </MemoryRouter>,
     );
-    const sw = screen.getByRole('switch', { name: 'quiet mode' });
+    const sw = screen.getByRole('switch', { name: 'Quiet mode' });
     expect(sw).toHaveAttribute('aria-checked', 'false');
     await user.click(sw);
     await waitFor(() => expect(useSettingsStore.getState().quietMode).toBe(true));
-    expect(screen.getByRole('switch', { name: 'quiet mode' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('switch', { name: 'Quiet mode' })).toHaveAttribute('aria-checked', 'true');
     await waitFor(() => expect(getDocumentStore().peek<{ quietMode?: boolean }>('settings', 'me')?.quietMode).toBe(true));
-    await user.click(screen.getByRole('switch', { name: 'quiet mode' }));
+    await user.click(screen.getByRole('switch', { name: 'Quiet mode' }));
     await waitFor(() => expect(useSettingsStore.getState().quietMode).toBe(false));
   });
 
@@ -42,11 +42,11 @@ describe('Settings › quiet mode', () => {
     seedClearedSafety({ ...STANDARD_ANSWERS, eatingDisorder: 'yes' });
     const user = userEvent.setup();
     renderSection();
-    const sw = screen.getByRole('switch', { name: 'quiet mode' });
+    const sw = screen.getByRole('switch', { name: 'Quiet mode' });
     expect(sw).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText(WHY)).toBeInTheDocument();
     await user.click(sw);
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'quiet mode' })).toHaveAttribute('aria-checked', 'false'));
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Quiet mode' })).toHaveAttribute('aria-checked', 'false'));
     expect(useSettingsStore.getState()).toMatchObject({ quietMode: false, quietModeSet: true });
     expect(screen.queryByText(WHY)).toBeNull();
   });
@@ -54,7 +54,7 @@ describe('Settings › quiet mode', () => {
   it('standard mode, never set: off, no reason line', () => {
     seedClearedSafety(STANDARD_ANSWERS);
     renderSection();
-    expect(screen.getByRole('switch', { name: 'quiet mode' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('switch', { name: 'Quiet mode' })).toHaveAttribute('aria-checked', 'false');
     expect(screen.queryByText(WHY)).toBeNull();
   });
 });

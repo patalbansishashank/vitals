@@ -35,6 +35,8 @@ import {
 } from '@/store';
 import { bindingsFor, docKey, getBindings, ownsDoc, pickFields, readMirror, setUnscopedSink, type Binding, type DocReader } from './bridge';
 import { migrateProfileDocBody } from './internal/profileModel';
+import { assertCurrentWrite, currentRestoreEpoch, externalRestoreRequired, invalidateExternalRestore, setRestoreEpoch, writeGeneration } from './writeBarrier';
+import { applyRestoreMirrors, clearRestoreJournal, readRestoreJournal, RESTORE_JOURNAL_KEY, RESTORE_MARKER_ID, withRestoreLock } from './restoreJournal';
 import { createScope, runInScope, type DocOpRecord, type ScopeKind } from './scope';
 
 export const DEVICE_KEY = 'vitals.device';
@@ -42,7 +44,7 @@ export const DEVICE_KEY = 'vitals.device';
 export const MIGRATED_KEY = 'vitals.migratedToStore';
 /** Keys under `vitals.*` that are not user data (never listed, exported or imported). */
 /** Device-local keys under `vitals.` that are never exported, imported or synced (`vitals.server.v1` holds the server pairing, SUITE_SPEC §14.2). */
-export const INTERNAL_KEYS: ReadonlySet<string> = new Set([DEVICE_KEY, MIGRATED_KEY, 'vitals.__probe', 'vitals.server.v1']);
+export const INTERNAL_KEYS: ReadonlySet<string> = new Set([RESTORE_JOURNAL_KEY, DEVICE_KEY, MIGRATED_KEY, 'vitals.__probe', 'vitals.server.v1', 'vitals.gaugeImport.v1']);
 const MARKER_COL: CollectionId = 'syncState';
 const MARKER_ID = 'me';
 
@@ -89,11 +91,15 @@ function defaultStore(): DocumentStore {
     device,
     migrations: STATE_MIGRATIONS,
     backend: async () => {
-      const idb = createIdbBackend({ device });
+      const idb = createIdbBackend({ device, onExternalRestore: invalidateExternalRestore });
       try {
         await idb.list('syncState');
         return idb;
       } catch (e) {
+        if (externalRestoreRequired() || (e && typeof e === 'object' && 'name' in e && e.name === 'VersionError')) {
+          invalidateExternalRestore();
+          throw e; // an old renderer must not pretend a newer database is writable memory
+        }
         // private windows that refuse IndexedDB: the boot cache still holds everything (as in v0.1)
         console.warn('IndexedDB unavailable; documents stay in memory for this session', e);
         return createMemoryBackend({ device });
@@ -224,9 +230,12 @@ const tokenKind = (k: ScopeKind | null): WriteTokenKind => (k === 'derive' ? 'de
 /** Write ops outside the dispatcher (migration, derive, system seeds, production fallbacks). */
 export async function writeOps(kind: WriteTokenKind, ops: readonly DocOpRecord[], label?: string): Promise<void> {
   if (ops.length === 0) return;
+  const generation = writeGeneration();
+  assertCurrentWrite(generation);
   const token = mintWriteToken(kind, { label });
   try {
     await getDocumentStore().transact(token, async (tx) => {
+      assertCurrentWrite(generation);
       for (const op of ops) await applyOp(tx, op);
     });
   } finally {
@@ -237,8 +246,9 @@ export async function writeOps(kind: WriteTokenKind, ops: readonly DocOpRecord[]
 let unscopedChain: Promise<void> = Promise.resolve();
 setUnscopedSink((kind, ops) => {
   const copy = ops.map((o) => jsonClone(o));
+  const generation = writeGeneration();
   unscopedChain = unscopedChain
-    .then(() => writeOps(tokenKind(kind), copy, kind ?? 'unscoped'))
+    .then(() => { assertCurrentWrite(generation); return writeOps(tokenKind(kind), copy, kind ?? 'unscoped'); })
     .catch((e: unknown) => console.error('Vitals: could not save to the document store', e));
 });
 
@@ -249,7 +259,10 @@ export function settleUnscopedWrites(): Promise<void> {
 
 /** Commit with an existing token (the dispatcher's ChangeSet commit). */
 export async function commitWithToken(token: WriteToken, ops: readonly DocOpRecord[], extra?: (tx: Tx) => Promise<void>): Promise<void> {
+  const generation = writeGeneration();
+  assertCurrentWrite(generation);
   await getDocumentStore().transact(token, async (tx) => {
+    assertCurrentWrite(generation);
     for (const op of ops) await applyOp(tx, op);
     if (extra) await extra(tx);
   });
@@ -316,7 +329,7 @@ function latestUpdate(b: Binding, s: DocumentStore): string | null {
   for (const col of b.owns) for (const d of s.peekAll<unknown>(col)) consider(d);
   for (const [col, prefix] of Object.entries(b.ownsPrefix ?? {}) as Array<[CollectionId, string]>)
     for (const d of s.peekAll<unknown>(col)) if (d._id.startsWith(prefix)) consider(d);
-  for (const sh of b.shares ?? []) consider(s.peek<unknown>(sh.col, sh.id));
+  for (const sh of b.shares ?? []) if (sh.reconcileClock !== false) consider(s.peek<unknown>(sh.col, sh.id));
   return max;
 }
 
@@ -371,12 +384,15 @@ async function reconcile(s: DocumentStore, report: BootReport, prefer: BootOptio
       });
     if (same) continue;
     const docsAt = latestUpdate(b, s);
-    const mirrorAt = readMirror(b.key)?.at ?? null;
-    const fromDocs = stored.size > 0 ? b.fromDocs(read) : null;
+    const mirror = readMirror(b.key);
+    const mirrorAt = mirror?.at ?? null;
+    const sameRestore = (mirror?.restoreEpoch ?? null) === currentRestoreEpoch();
+    const fromDocs = !sameRestore ? (b.fromDocs(read, true) ?? b.prepareImport?.()) : stored.size > 0 ? b.fromDocs(read) : null;
     // after a sync engine switch the documents are the truth wherever they exist (prefer 'docs'); otherwise the newer
     // of the documents and the boot cache wins
-    if (fromDocs && (prefer === 'docs' || (docsAt && (!mirrorAt || docsAt > mirrorAt)))) {
-      b.apply(fromDocs, 'sync');
+    if (fromDocs && (!sameRestore || prefer === 'docs' || (docsAt && (!mirrorAt || docsAt > mirrorAt)))) {
+      if (!sameRestore && b.applyImport) b.applyImport(fromDocs);
+      else b.apply(fromDocs, 'sync');
       report.fromDocs.push(b.key);
     } else if (writeDefaults) {
       // the boot cache is newer (a write that never reached IndexedDB): bring the documents up to date
@@ -454,6 +470,21 @@ export function bootDocuments(options: BootOptions = {}): Promise<BootReport> {
     await loadBindings();
     const s = getDocumentStore();
     await s.ready;
+    await withRestoreLock(async () => {
+      await s.assertCurrent?.();
+      setRestoreEpoch(s.peek<{ id: string }>('syncState', RESTORE_MARKER_ID)?.id ?? null);
+      const journal = readRestoreJournal();
+      if (journal) {
+        const committed = s.peek<{ id: string }>('syncState', RESTORE_MARKER_ID)?.id === journal.id;
+        applyRestoreMirrors(journal, committed ? 'after' : 'before');
+        if (committed) for (const b of getBindings()) {
+          const raw = journal.after[b.key];
+          if (b.prepareImport && b.applyImport) b.applyImport(b.prepareImport(raw ? JSON.parse(raw) : undefined));
+        }
+        clearRestoreJournal();
+      }
+    });
+    const finishBootMigrations = options.writeDefaults === false ? [] : getBindings().flatMap((binding) => binding.prepareBoot ? [binding.prepareBoot(s)] : []);
     const at = new Date().toISOString();
     const report: BootReport = { migrated: false, fromDocs: [], fromCache: [], at };
     const marker = s.peek<{ migratedFromLocalStorage?: Instant }>(MARKER_COL, MARKER_ID);
@@ -473,6 +504,10 @@ export function bootDocuments(options: BootOptions = {}): Promise<BootReport> {
       // never written back (a catch-up would carry fresh field clocks into the engine and beat newer remote edits)
       await reconcile(s, report, 'docs', false);
     } else await reconcile(s, report, options.prefer, options.writeDefaults !== false);
+    if (finishBootMigrations.length) {
+      await settleUnscopedWrites();
+      for (const finish of finishBootMigrations) await finish();
+    }
     attachFeed(s);
     return report;
   })();
@@ -502,6 +537,8 @@ export interface InstallOptions {
  * remote-change feed moves over. A boot still in progress finishes first.
  */
 export async function installPersistenceBackend(backend: PersistenceBackend, options: InstallOptions = {}): Promise<DocumentStore> {
+  const generation = writeGeneration();
+  assertCurrentWrite(generation);
   if (booted) await booted.catch(() => undefined);
   const previous = getDocumentStore();
   const next = createDocumentStore({ backend, device: previous.device || deviceId(), migrations: STATE_MIGRATIONS });
@@ -509,6 +546,7 @@ export async function installPersistenceBackend(backend: PersistenceBackend, opt
   await previous.ready.catch(() => undefined);
   if (typeof options.copy === 'function') await options.copy(previous, next);
   else if (options.copy !== false) await copyStore(previous, next);
+  assertCurrentWrite(generation);
   feedOff?.();
   feedOff = null;
   store = next;

@@ -1,0 +1,689 @@
+{
+  "route": "/v1/gauge/daily",
+  "tool": "gauge_daily_summary",
+  "args": {
+    "date": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "ring data for 2026-10-20: activity, sleep, 5 metrics.",
+    "data": {
+      "date": "2026-10-20",
+      "from": "2026-10-20T00:00:00+05:30",
+      "to": "2026-10-21T00:00:00+05:30",
+      "units": {
+        "steps": "steps (the ring's daily total, its latest revision)",
+        "distanceM": "m",
+        "distanceSource": "healthConnect (one origin, distanceOrigin) on a day the ring has no distance; absent: the ring's",
+        "caloriesKcal": "kcal, Phone estimate (method: the ring vendor's daily total; energy basis not stated by the device)",
+        "activeMinutes": "min",
+        "bucketSteps": "steps (sum of the ring's history buckets)",
+        "bucketDistanceM": "m",
+        "fusedHeadline": "steps (steps-fuse/1 headline: at least, or located when the ring's detail is complete)",
+        "fusedLocated": "steps placed in time (steps-fuse/1)",
+        "sleepMinutes": "min",
+        "metrics": "see each metric's unit; medianGapS in s",
+        "ringStepGoal": "steps (the ring's own goal setting)",
+        "derived": "bpm; workoutS in s"
+      },
+      "activity": {
+        "date": "2026-10-20",
+        "steps": 9000,
+        "activeMinutes": 90,
+        "bucketSteps": 4436,
+        "distanceM": 6300,
+        "caloriesKcal": 360,
+        "bucketDistanceM": 3105,
+        "lastUpdate": "2026-10-20T19:30:00+05:30",
+        "fusedHeadline": 9000,
+        "fusedHeadlinePolicy": "atLeast",
+        "fusedLocated": 8750,
+        "fusionVersion": "steps-fuse/1",
+        "ringStepGoal": 8000
+      },
+      "sleep": [
+        {
+          "source": "ring",
+          "wakingDate": "2026-10-20",
+          "start": "2026-10-19T23:00:00+05:30",
+          "end": "2026-10-20T04:49:00+05:30",
+          "recordedWindowMinutes": 349,
+          "inBedMinutes": 349,
+          "asleepMinutes": 323,
+          "minutes": {
+            "deep": 65,
+            "light": 188,
+            "rem": 70,
+            "awake": 26,
+            "unknown": 0
+          },
+          "noDataMinutes": 0,
+          "efficiencyPercent": 93,
+          "kind": "primary",
+          "blocks": [
+            {
+              "start": "2026-10-19T23:00:00+05:30",
+              "end": "2026-10-19T23:12:00+05:30",
+              "stage": "awake",
+              "minutes": 12
+            },
+            {
+              "start": "2026-10-19T23:12:00+05:30",
+              "end": "2026-10-20T00:12:00+05:30",
+              "stage": "light",
+              "minutes": 60
+            },
+            {
+              "start": "2026-10-20T00:12:00+05:30",
+              "end": "2026-10-20T00:57:00+05:30",
+              "stage": "deep",
+              "minutes": 45
+            },
+            {
+              "start": "2026-10-20T00:57:00+05:30",
+              "end": "2026-10-20T01:37:00+05:30",
+              "stage": "light",
+              "minutes": 40
+            },
+            {
+              "start": "2026-10-20T01:37:00+05:30",
+              "end": "2026-10-20T01:43:00+05:30",
+              "stage": "awake",
+              "minutes": 6
+            },
+            {
+              "start": "2026-10-20T01:43:00+05:30",
+              "end": "2026-10-20T02:13:00+05:30",
+              "stage": "rem",
+              "minutes": 30
+            },
+            {
+              "start": "2026-10-20T02:13:00+05:30",
+              "end": "2026-10-20T03:03:00+05:30",
+              "stage": "light",
+              "minutes": 50
+            },
+            {
+              "start": "2026-10-20T03:03:00+05:30",
+              "end": "2026-10-20T03:23:00+05:30",
+              "stage": "deep",
+              "minutes": 20
+            },
+            {
+              "start": "2026-10-20T03:23:00+05:30",
+              "end": "2026-10-20T03:26:00+05:30",
+              "stage": "awake",
+              "minutes": 3
+            },
+            {
+              "start": "2026-10-20T03:26:00+05:30",
+              "end": "2026-10-20T04:04:00+05:30",
+              "stage": "light",
+              "minutes": 38
+            },
+            {
+              "start": "2026-10-20T04:04:00+05:30",
+              "end": "2026-10-20T04:44:00+05:30",
+              "stage": "rem",
+              "minutes": 40
+            },
+            {
+              "start": "2026-10-20T04:44:00+05:30",
+              "end": "2026-10-20T04:49:00+05:30",
+              "stage": "awake",
+              "minutes": 5
+            }
+          ],
+          "metrics": {
+            "version": "sleep-metrics/1",
+            "K": 323,
+            "A": 26,
+            "U": 0,
+            "G": 0,
+            "tstLowerMin": 323,
+            "tstUpperMin": 323,
+            "nativeEpochS": null,
+            "coveragePct": 100,
+            "leadingWakeMin": 12,
+            "stageMinutes": {
+              "deep": 65,
+              "light": 188,
+              "rem": 70,
+              "asleepUnspecified": 0,
+              "awake": 9,
+              "unknown": 0,
+              "gap": 0
+            },
+            "restorativeEstimatedMin": 135,
+            "restorativeSharePct": 41.8,
+            "namedCoveragePct": 100,
+            "incomplete": false,
+            "windowContinuityPct": 97.3,
+            "wasoMin": 9,
+            "awakeningRuns": 2,
+            "wakeUps": 1,
+            "avgSleepHr": null,
+            "avgSleepHrSupportedS": 0,
+            "sampledMeanSleepHr": {
+              "bpm": 53.1,
+              "n": 65
+            },
+            "nightlyLowHrP10": {
+              "bpm": 50,
+              "bins": 65
+            },
+            "timeToLowMin": null,
+            "hrTrend": {
+              "word": "rising",
+              "magnitude": "slight",
+              "deltaBpm": 4
+            },
+            "tooFewHrReadings": false,
+            "hrReadings": 67,
+            "hrMedianGapS": 300,
+            "hrvNightlyMs": {
+              "ms": 42.5,
+              "n": 6,
+              "firmware": []
+            },
+            "hrvWithinNightMs": null,
+            "skinTempNightC": {
+              "c": 35.6,
+              "n": 6
+            },
+            "spo2Night": {
+              "meanPct": 96,
+              "minPct": 95,
+              "count": 3
+            },
+            "minutesBelow90": null,
+            "respRate": null,
+            "tossesTurns": null,
+            "sleepLatency": null,
+            "reasons": {
+              "respRate": "unsupported",
+              "tossesTurns": "unsupported",
+              "sleepLatency": "unsupported",
+              "avgSleepHr": "cadenceUnknown",
+              "timeToLowMin": "cadenceUnknown",
+              "hrvWithinNightMs": "tooFewReadings",
+              "minutesBelow90": "cadenceUnknown"
+            },
+            "onset": "2026-10-19T23:12:00+05:30",
+            "finalWake": "2026-10-20T04:44:00+05:30",
+            "midpoint": "2026-10-20T01:58:00+05:30",
+            "trace5min": [
+              {
+                "start": "2026-10-19T23:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:02:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:07:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:02:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:07:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:12:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:17:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:22:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:27:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:32:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:37:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:42:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:47:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:52:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:57:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:02:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:07:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:12:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:17:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:02:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:07:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:02:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:07:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              }
+            ],
+            "statuses": {
+              "onset": "inferred",
+              "finalWake": "inferred",
+              "midpoint": "inferred",
+              "tstLowerMin": "inferred",
+              "tstUpperMin": "inferred",
+              "stageMinutes": "inferred",
+              "restorativeEstimatedMin": "inferred",
+              "leadingWakeMin": "inferred",
+              "wakeUps": "inferred",
+              "windowContinuityPct": "inferred",
+              "namedCoveragePct": "observed",
+              "nightlyLowHrP10": "observed",
+              "avgSleepHr": "observed",
+              "sampledMeanSleepHr": "observed",
+              "timeToLowMin": "observed",
+              "hrTrend": "inferred",
+              "hrvNightlyMs": "observed",
+              "hrvWithinNightMs": "observed",
+              "spo2Night": "observed",
+              "minutesBelow90": "observed",
+              "skinTempNightC": "observed",
+              "respRate": "unavailable",
+              "tossesTurns": "unavailable",
+              "sleepLatency": "unavailable"
+            }
+          }
+        }
+      ],
+      "scores": {},
+      "metrics": {
+        "hr": {
+          "unit": "bpm",
+          "count": 121,
+          "mean": 63.5,
+          "min": 50,
+          "max": 190,
+          "latest": {
+            "at": "2026-10-20T22:15:00+05:30",
+            "value": 69
+          },
+          "medianGapS": 900
+        },
+        "hrv": {
+          "unit": "ms",
+          "count": 5,
+          "mean": 43,
+          "min": 41,
+          "max": 45,
+          "latest": {
+            "at": "2026-10-20T03:40:00+05:30",
+            "value": 45
+          },
+          "medianGapS": 3000
+        },
+        "spo2": {
+          "unit": "%",
+          "count": 3,
+          "mean": 96,
+          "min": 95,
+          "max": 97,
+          "latest": {
+            "at": "2026-10-20T03:00:00+05:30",
+            "value": 97
+          },
+          "medianGapS": 5400
+        },
+        "stress": {
+          "unit": "index (device scale)",
+          "count": 32,
+          "mean": 49.8,
+          "min": 20,
+          "max": 83,
+          "latest": {
+            "at": "2026-10-20T21:30:00+05:30",
+            "value": 27
+          },
+          "medianGapS": 1800
+        },
+        "temp": {
+          "unit": "°C",
+          "count": 5,
+          "mean": 35.6,
+          "min": 35.6,
+          "max": 35.6,
+          "latest": {
+            "at": "2026-10-20T03:50:00+05:30",
+            "value": 35.6
+          },
+          "medianGapS": 3000
+        }
+      },
+      "derived": {
+        "version": "day-metrics/1",
+        "peakHr": {
+          "bpm": 172,
+          "at": "2026-10-20T08:08:40+05:30",
+          "source": "workout:w-airbike",
+          "lowerBound": true,
+          "label": "Highest reading"
+        },
+        "nonExerciseHr": {
+          "median": 71,
+          "n": 54,
+          "label": "Non-exercise HR (sampled; not a resting heart rate)"
+        },
+        "avgWorkoutHr": {
+          "bpm": 116.7,
+          "workoutS": 5340
+        },
+        "ringStepGoal": 8000
+      },
+      "inputsHash": "sha256:4072833237e53415560250750dea32b3",
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T22:15:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 75
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

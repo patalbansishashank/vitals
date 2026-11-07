@@ -71,11 +71,11 @@ describe('detectPlatform', () => {
   });
   it('gives the caps of each platform', () => {
     setPlatformForTests('electron');
-    expect(platformCaps()).toMatchObject({ installedApp: true, mcpHost: true, keepAlive: true, ble: 'electron' });
+    expect(platformCaps()).toMatchObject({ installedApp: true, mcpHost: true });
     setPlatformForTests('android');
-    expect(platformCaps()).toMatchObject({ installedApp: true, mcpHost: false, keepAlive: true, ble: 'capacitor', os: 'android' });
+    expect(platformCaps()).toMatchObject({ installedApp: true, mcpHost: false, os: 'android' });
     setPlatformForTests('pwa');
-    expect(platformCaps()).toMatchObject({ installedApp: false, mcpHost: false, keepAlive: false });
+    expect(platformCaps()).toMatchObject({ installedApp: false, mcpHost: false });
     setPlatformForTests('web');
     expect(platformCaps().installedApp).toBe(false);
   });

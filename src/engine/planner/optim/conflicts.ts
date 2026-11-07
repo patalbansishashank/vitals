@@ -7,6 +7,8 @@
  *   class: synergy (κ < 0.10 ∧ ρ ≥ 0.30) | compatible (κ < 0.10) | trade-off (κ < 0.50) | conflict
  * plus the payoff table (goal vector at each single-goal anchor, Miettinen [25]), priority costs,
  * user-facing messages and a knee-point helper for ε-constraint trade-off curves (Branke et al. [28]).
+ * D4-08: κ and ρ are computed over plans the search selected (top-utility conditioned) and repaired; they describe
+ * model-conditional relationships between goals under the model, never causal synergy measured in this person.
  */
 import { spearman } from './stats';
 
@@ -169,8 +171,10 @@ const pct = (v: number) => `${Math.round(v * 100)} %`;
 export function formatRelationMessage(msg: GoalRelationMessage, labels: readonly string[]): string {
   const hi = `goal ${msg.higher + 1} (${labels[msg.higher] ?? '?'})`;
   const lo = `Goal ${msg.lower + 1} (${labels[msg.lower] ?? '?'})`;
+  // D4-08: ρ is a correlation over the top-utility plans the search evaluated — a model-conditional pattern, never a
+  // measured personal synergy (no causal claim)
   if (msg.kind === 'synergy')
-    return `Goals ${msg.higher + 1} and ${msg.lower + 1} work together here: plans that are better for ${labels[msg.higher] ?? '?'} are also better for ${labels[msg.lower] ?? '?'}.`;
+    return `Goals ${msg.higher + 1} and ${msg.lower + 1} go together in the plans found: those better for ${labels[msg.higher] ?? '?'} also tend to be better for ${labels[msg.lower] ?? '?'} (a model pattern, not a measured personal effect).`;
   const verb = msg.kind === 'conflict' ? 'conflicts with' : 'trades off against';
   let s = `${lo} ${verb} ${hi}: keeping goal ${msg.higher + 1} within ${pct(msg.epsilon)} of its best leaves at most ${pct(msg.retainedShare)} of goal ${msg.lower + 1}'s potential.`;
   if (msg.obtainedShare !== null && Number.isFinite(msg.obtainedShare))

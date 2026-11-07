@@ -125,11 +125,13 @@ const DESK_DAY = {
   commuteMin: 20,
   stepsKnown: 'roughly',
   stepsRough: 7000,
+  stepsScope: 'totalDay',
   offDay: 'mixed',
   home: 'some',
   sport: [],
   trainNow: '1-2',
   trainMix: 'mixed',
+  trainTrend: 'progressing',
   sleep: { bed: 23, wake: 7 },
   sleepQuality: 'good',
   measuredEver: 'no',
@@ -197,9 +199,9 @@ describe('Back and Change (acceptance 1)', () => {
 describe('determinism (acceptance 2): the open question depends on the stored answers only', () => {
   it('after any step of 200 random sequences, the stored-and-read-back answers give the same first open question, in every live context', () => {
     const contexts: FlowContext[] = [
-      { india: false, gentle: false, stepDevice: false },
-      { india: true, gentle: true, stepDevice: true },
-      { india: true, gentle: false, stepDevice: false },
+      { india: false, gentle: false },
+      { india: true, gentle: true },
+      { india: true, gentle: false },
     ];
     for (let seed = 1; seed <= 200; seed++) {
       const r = rng(seed);
@@ -319,7 +321,7 @@ describe('the graph and its wording (no-vagueness test)', () => {
   });
 
   it('without a blood-markers module the chapter is not shown', () => {
-    expect(CHAPTERS).toEqual(CHAPTER_QUESTIONS.markers.length ? ['activity', 'training', 'food', 'markers', 'devices'] : ['activity', 'training', 'food', 'devices']);
+    expect(CHAPTERS).toEqual(CHAPTER_QUESTIONS.markers.length ? ['activity', 'training', 'food', 'markers'] : ['activity', 'training', 'food']);
   });
 });
 

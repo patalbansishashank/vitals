@@ -10,8 +10,14 @@ import { resetActivePlan } from '../../activePlan';
 import { installDocumentPlanSource, getActivePlanSource } from '../../mode';
 import { seedPlanDocs, SEED_PLAN_ID } from '../../__tests__/seedPlanDocs';
 import { ScenarioStartEntry } from '../ScenarioStartEntry';
+import { installLivingPorts } from '@/commands/livingWiring';
+import type { LifecycleRevalidation } from '@/living';
 
 installDocumentPlanSource();
+// These tests cover the start sheet's flow, not the lifecycle safety gate (C5, covered in commands/living historySafety
+// and StartPlanSheet.lifecycle): their fixtures were not built to the planner's current safety rules, so the revalidation
+// port reports a valid current check (startable). An absent revalidation never authorizes a start (A1-001).
+installLivingPorts({ revalidate: async () => ({ status: 'verified', certificateValid: true, startable: true }) as LifecycleRevalidation });
 const TODAY = currentDay(systemClock);
 
 async function scenario() {

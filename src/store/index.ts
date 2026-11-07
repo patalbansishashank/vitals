@@ -9,7 +9,7 @@
 export * from './types';
 export type { BackendChange, BackendDoc, BackendOp, PersistenceBackend } from './backend';
 export { COLLECTIONS, collectionDef, exportedCollections, orderedCollections, validateDoc, type CollectionDef } from './collections';
-export { bodyOf, createDocumentStore, type DocumentStoreOptions } from './documentStore';
+export { bodyOf, withDocId, createDocumentStore, type DocumentStoreOptions } from './documentStore';
 export { createIdbBackend, isIndexedDbAvailable, IDB_DATABASE, type IdbBackendOptions } from './idbBackend';
 export { createMemoryBackend, type MemoryBackend } from './memoryBackend';
 export { copyStore, type CopyReport } from './copy';

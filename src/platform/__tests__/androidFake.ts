@@ -10,21 +10,11 @@ export function installFakeCapacitor(opts: { platform?: string; pending?: Shared
   const contents = { ...(opts.contents ?? {}) };
   const removes: Array<ReturnType<typeof vi.fn>> = [];
   const plugin = {
-    keepAlive: vi.fn(async (_o: unknown) => ({})),
-    notify: vi.fn(async (_o: unknown) => ({})),
-    clearNotice: vi.fn(async (_o: unknown) => ({})),
-    setPrefs: vi.fn(async (_o: unknown) => ({})),
-    getState: vi.fn(async () => ({ bluetoothOn: true, notificationsAllowed: false, keepAliveOn: false, launchReason: 'share' as const })),
-    requestNotificationPermission: vi.fn(async () => ({ granted: true })),
     takeSharedFiles: vi.fn(async () => {
       const files = pending;
       pending = [];
       return { files };
     }),
-    batteryOptimisation: vi.fn(async () => ({ restricted: true })),
-    openBatterySettings: vi.fn(async () => ({})),
-    setRingTick: vi.fn(async (_o: { everyMs: number }) => ({})),
-    ringTickDone: vi.fn(async () => ({})),
     saveFile: vi.fn(async (_o: { name: string; mime: string; dataBase64: string }) => ({})),
     addListener: vi.fn(async (event: string, cb: Listener) => {
       const set = listeners.get(event) ?? new Set<Listener>();

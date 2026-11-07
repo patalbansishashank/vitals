@@ -1,0 +1,194 @@
+/* ==========================================================================
+   The ring engine's screens (r070): the move card, the Ring device page and the
+   short-video limit. Material is the shared Faceplate; structure inside a card is
+   rows, facts and space. Gold only on the current step and the card's one verb.
+   Tokens only.
+   ========================================================================== */
+@layer components {
+  .eg-body {
+    display: grid;
+    gap: var(--lm-space-3);
+  }
+  .eg-ring__hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-4);
+  }
+  .eg-ring__name {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .eg-line {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .eg-keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-2) var(--lm-space-3);
+  }
+  .eg-ring > .eg-keys,
+  .eg-ring > .rg-none,
+  .eg-ring > .eg-error,
+  .eg-limit > .eg-error,
+  .eg-limit > .eg-keys,
+  .eg-move > .eg-error,
+  .eg-ring > .rg-facts {
+    margin-top: var(--lm-space-3);
+  }
+  .eg-ring > .rg-facts {
+    margin-top: 0;
+  }
+  .eg-error {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-danger-fg);
+  }
+  .eg-error__label {
+    font-weight: 600;
+  }
+
+  /* ---- the three steps: a bar each, the current one gold (the flow-step pattern) ---- */
+  .eg-steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--lm-space-2);
+    margin: 0 0 var(--lm-space-4);
+    padding: 0;
+    list-style: none;
+  }
+  .eg-steps__item {
+    display: grid;
+    gap: var(--lm-space-2);
+    min-width: 0;
+  }
+  .eg-steps__bar {
+    height: 4px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-raised);
+  }
+  .eg-steps__item[data-state='current'] .eg-steps__bar {
+    background: var(--lm-signal);
+  }
+  .eg-steps__item[data-state='done'] .eg-steps__bar {
+    background: color-mix(in oklab, var(--lm-signal) 52%, var(--lm-face));
+  }
+  .eg-steps__label {
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
+    color: var(--lm-ink-3);
+    overflow-wrap: anywhere;
+  }
+  .eg-steps__item[data-state='current'] .eg-steps__label {
+    color: var(--lm-ink);
+  }
+  .eg-steps__item[data-state='done'] .eg-steps__label {
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- permission rows ---------------------------------------------------------------- */
+  .eg-perms {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .eg-perm {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-3);
+    min-height: 52px;
+    padding: var(--lm-space-2) 0;
+  }
+  .eg-perm + .eg-perm::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .eg-perm__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .eg-perm__opt {
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-body-s);
+  }
+  .eg-perm__status,
+  .eg-perm__ok {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-space-1);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .eg-perm__ok {
+    color: var(--lm-ok-fg);
+  }
+
+  /* ---- (r071) the "allow it first" guide: three numbered steps, one key ---------------------- */
+  .eg-guide {
+    display: grid;
+    gap: var(--lm-space-2);
+    margin-top: var(--lm-space-3);
+    padding-top: var(--lm-space-3);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .eg-guide__title {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .eg-guide__steps {
+    margin: 0;
+    padding: 0 0 0 var(--lm-space-5);
+    list-style: decimal;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .eg-guide__steps > li + li {
+    margin-top: var(--lm-space-2);
+  }
+  .eg-guide__steps > li::marker {
+    color: var(--lm-ink-3);
+  }
+  .eg-guide__steps .eg-keys {
+    margin-top: var(--lm-space-2);
+  }
+  .eg-guide__note {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-3);
+  }
+
+  /* ---- the scan sheet ------------------------------------------------------------------- */
+  .eg-scan {
+    display: grid;
+    gap: var(--lm-space-4);
+    justify-items: start;
+  }
+  .eg-scan__busy {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-space-2);
+  }
+  .eg-limit__form {
+    display: grid;
+    gap: var(--lm-space-4);
+  }
+}

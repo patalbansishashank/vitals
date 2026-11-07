@@ -11,6 +11,7 @@
  */
 import { createCatalogue, validateExercise, USER_SOURCE, type CatalogueInput } from './catalogue';
 import { draftToRecord, resolveUnknownEquipment, resolveUnknownSync, validateDraft } from './equivalence';
+import { CARB_BASES, FOOD_NUTRIENT_KEYS, fibreInclusive, validateFoodRecord } from './foods';
 import { exerciseMapping } from './evidence';
 import { equipmentIdFor } from './setup';
 import { energyText, normName } from './text';
@@ -100,12 +101,66 @@ function equipmentOk(q: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * (D6-05) A stored/synced food item goes through the same validator as every other entry path (`validateFoodRecord`):
+ * malformed optional nutrients (NaN, Infinity, negative, strings) or an incompatible basis quarantine the item instead of
+ * reaching arithmetic. Returns the first issue, or null.
+ */
 function foodOk(f: Record<string, unknown>): string | null {
   if (!isStr(f.id) || !isStr(f.name) || !f.name.trim()) return 'food id or name';
   const n = f.per100g;
   if (!isObj(n) || !['energyKcal', 'proteinG', 'fatG', 'carbG'].every((k) => isNum(n[k]) && (n[k] as number) >= 0)) return 'food nutrients';
   if (!strList(f.aliases) || !strList(f.tags) || !Array.isArray(f.portions)) return 'food fields';
-  return null;
+  const issues = validateFoodRecord(f);
+  return issues.length > 0 ? `food: ${issues[0]}` : null;
+}
+
+/**
+ * (D6-05) The person's foods from raw `catalogueCustom` bodies, without the seed catalogue (the food table's light path):
+ * `{ kind: 'food', item }` documents (`catalogue.addFood`) and legacy bodies that carry `per100g` themselves. Each goes
+ * through the shared validator; malformed ones are listed in `skipped`, never thrown on or normalised. Oldest first; the
+ * first item of an id wins (sync merges) — unless a later valid record explicitly `supersedes` it (D6-01: a corrected
+ * custom food replaces the earlier record, which is listed as skipped 'superseded').
+ */
+export function userFoodsFromDocs(docs: ReadonlyArray<Record<string, unknown>>): { foods: FoodRecord[]; skipped: Array<{ docId: string | null; reason: string }> } {
+  const sorted = [...docs].sort((a, b) => String(a._id ?? '').localeCompare(String(b._id ?? '')));
+  const foods: FoodRecord[] = [];
+  const skipped: Array<{ docId: string | null; reason: string }> = [];
+  const ids = new Set<string>();
+  const docIds: Array<string | null> = [];
+  for (const doc of sorted) {
+    if (doc._deleted === true) continue;
+    const docId = isStr(doc._id) ? doc._id : null;
+    let body: Record<string, unknown> | null = null;
+    if (doc.kind === 'food' && isObj(doc.item)) body = doc.item;
+    else if (doc.kind === undefined && isObj(doc.per100g) && isStr(doc.name)) {
+      // legacy body: the record itself, with the defaults the old reader filled
+      body = { aliases: [], group: 'other', tags: [], source: 'user', verified: false, state: 'as-eaten', portions: [], sources: [], ...doc, id: isStr(doc.id) ? doc.id : docId };
+      delete body._id;
+      delete body._rev;
+      delete body._deleted;
+    }
+    if (!body) continue;
+    const bad = foodOk(body);
+    const replaces = !bad && isStr(body.supersedes) ? body.supersedes : null;
+    if (replaces !== null && ids.has(replaces)) {
+      const i = foods.findIndex((f) => f.id === replaces);
+      if (i >= 0) {
+        skipped.push({ docId: docIds[i] ?? null, reason: 'superseded' });
+        foods.splice(i, 1);
+        docIds.splice(i, 1);
+        ids.delete(replaces);
+      }
+    }
+    if (bad || ids.has(body.id as string)) {
+      skipped.push({ docId, reason: bad ?? 'id taken' });
+      continue;
+    }
+    ids.add(body.id as string);
+    foods.push(body as unknown as FoodRecord);
+    docIds.push(docId);
+  }
+  return { foods, skipped };
 }
 
 /**
@@ -369,16 +424,17 @@ export function buildUserExercise(input: Record<string, unknown>, o: { catalogue
   return { kind: 'new', key, item: record, warnings };
 }
 
-const NUTRIENT_KEYS: readonly NutrientKey[] = [
-  'energyKcal', 'proteinG', 'fatG', 'carbG', 'fibreG', 'sugarsG', 'satFatG', 'mufaG', 'pufaG', 'epaG', 'dhaG', 'alaG', 'cholesterolMg', 'waterG',
-  'alcoholG', 'caffeineMg', 'sodiumMg', 'potassiumMg', 'calciumMg', 'ironMg', 'magnesiumMg', 'zincMg', 'b12Ug', 'folateDfeUg', 'vitDUg', 'vitCMg',
-  'vitARaeUg', 'leucineG', 'lysineG',
-];
+const NUTRIENT_KEYS: readonly NutrientKey[] = FOOD_NUTRIENT_KEYS;
 
 /**
- * `catalogue.addFood`: `{ name, per100g: { energyKcal, proteinG, fatG, carbG, fibreG?, … }, aliases?, group?, tags?,
- * portions?: [{ label, g }], state? }` (from a label or the person; stored unverified). Energy that disagrees with the
- * macros by more than 25 % is kept with a warning (labels round, and some count sugar alcohols).
+ * `catalogue.addFood`: `{ name, per100g: { energyKcal, proteinG, fatG, carbG, fibreG?, … }, carbBasis?, label?, polyolsG?,
+ * aliases?, group?, tags?, portions?: [{ label, g }], state?, preparation?, fortified? }` (from a label or the person;
+ * stored unverified). The record goes through the shared validator (`validateFoodRecord`, D6-05).
+ *
+ * Carbohydrate (D6-01): `carbBasis` says what `carbG` means; a new label without a declared basis is stored as `unknown`
+ * (never inferred from geography), so its available carbohydrate stays unresolved while its energy counts. Fibre ≤
+ * carbohydrate is checked only for fibre-inclusive totals. Energy outside what the known macros allow (by more than 25 %,
+ * min 40 kcal) is kept with a warning (labels round, and some count polyols).
  */
 export function buildUserFood(input: Record<string, unknown>, o: { user: ParsedUserItems; foods: ReadonlyArray<Pick<FoodRecord, 'id' | 'name' | 'aliases'>> }): AddOutcome<FoodRecord> {
   const name = nameOf(input, 'food');
@@ -401,12 +457,8 @@ export function buildUserFood(input: Record<string, unknown>, o: { user: ParsedU
     }
     for (const k of ['energyKcal', 'proteinG', 'fatG', 'carbG'] as const) if (per100g[k] === undefined && n[k] === undefined) issues.push(`food.per100g.${k} is required`);
   }
-  const p = per100g as Nutrients;
-  if (!issues.length) {
-    if (p.proteinG + p.fatG + p.carbG + (p.alcoholG ?? 0) > 105) issues.push('protein, fat and carbohydrate add up to more than 100 g per 100 g');
-    if (p.energyKcal > 902) issues.push('energy above 900 kcal (3 770 kJ) per 100 g');
-    if ((p.fibreG ?? 0) > p.carbG + 0.5) issues.push('fibre is part of carbohydrate (carbohydrate by difference) and cannot exceed it');
-  }
+  const carbBasis = input.carbBasis === undefined ? 'unknown' : input.carbBasis;
+  if (!(CARB_BASES as readonly unknown[]).includes(carbBasis) || carbBasis === 'legacyTotalByDifference') issues.push('food.carbBasis must be totalByDifference, available, monosaccharideEquivalent, labelConvention or unknown');
   const portions: Array<{ label: string; g: number }> = [];
   if (input.portions !== undefined) {
     if (!Array.isArray(input.portions) || !input.portions.every((x) => isObj(x) && isStr(x.label) && x.label.trim() && isNum(x.g) && x.g > 0 && x.g <= 5000))
@@ -420,11 +472,12 @@ export function buildUserFood(input: Record<string, unknown>, o: { user: ParsedU
   if (input.group !== undefined && !isStr(input.group)) issues.push('food.group must be text');
   const state = input.state === undefined ? 'as-eaten' : input.state;
   if (!['raw', 'cooked', 'as-eaten'].includes(state as string)) issues.push('food.state must be raw, cooked or as-eaten');
+  if (input.preparation !== undefined && !isStr(input.preparation)) issues.push('food.preparation must be text');
+  if (input.fortified !== undefined && typeof input.fortified !== 'boolean') issues.push('food.fortified must be true or false');
+  const label = labelOf(input.label, issues);
   if (issues.length) return { kind: 'invalid', issues };
 
-  const fibre = p.fibreG ?? 0;
-  const atwater = 4 * p.proteinG + 9 * p.fatG + 4 * Math.max(0, p.carbG - fibre) + 2 * fibre + 7 * (p.alcoholG ?? 0);
-  const warnings = Math.abs(p.energyKcal - atwater) > Math.max(40, 0.25 * atwater) ? [`The energy (${energyText(p.energyKcal)}) does not match the macros (about ${energyText(atwater)}); kept as given.`] : [];
+  const p = per100g as Nutrients;
   const id = userItemId(name, (x) => o.user.ids.has(x) || o.foods.some((f) => f.id === x));
   const item: FoodRecord = {
     id,
@@ -438,6 +491,49 @@ export function buildUserFood(input: Record<string, unknown>, o: { user: ParsedU
     portions,
     per100g: p,
     sources: [USER_SOURCE.key],
+    carbBasis: carbBasis as NonNullable<FoodRecord['carbBasis']>,
+    ...(label ? { label } : {}),
+    ...(isObj(input.polyolsG) ? { polyolsG: input.polyolsG as Record<string, number> } : {}),
+    ...(isStr(input.preparation) && input.preparation.trim() ? { preparation: input.preparation.trim() } : {}),
+    ...(typeof input.fortified === 'boolean' ? { fortified: input.fortified } : {}),
   };
+  const invalid = validateFoodRecord(item);
+  if (invalid.length) return { kind: 'invalid', issues: invalid.map((i) => (i.startsWith('per100g') || i.startsWith('polyolsG') ? `food.${i}` : i)) };
+
+  // energy check against what the known macros allow: fibre inside a total is at 2 kcal/g, outside it is added; an
+  // unresolved basis bounds carbohydrate between 0 (all fibre/polyol) and the reported value
+  const fibre = p.fibreG ?? 0;
+  const inclusive = fibreInclusive(item.carbBasis!);
+  const fixed = 4 * p.proteinG + 9 * p.fatG + 7 * (p.alcoholG ?? 0) + 2 * fibre;
+  const carbHi = 4 * Math.max(0, inclusive ? p.carbG - fibre : p.carbG);
+  const carbLo = item.carbBasis === 'available' || inclusive ? carbHi : 0;
+  const lo = fixed + carbLo;
+  const hi = fixed + carbHi;
+  const tol = Math.max(40, 0.25 * hi);
+  const mid = (lo + hi) / 2;
+  const warnings = p.energyKcal < lo - tol || p.energyKcal > hi + tol ? [`The energy (${energyText(p.energyKcal)}) does not match the macros (about ${energyText(mid)}); kept as given.`] : [];
   return { kind: 'new', key, item, warnings };
+}
+
+/** Original label fields as printed (D6-01): `{ per: '100g' | 'serving', servingG?, fields: { name: number | null }, text? }`. */
+function labelOf(v: unknown, issues: string[]): FoodRecord['label'] | undefined {
+  if (v === undefined) return undefined;
+  if (!isObj(v) || (v.per !== '100g' && v.per !== 'serving') || !isObj(v.fields)) {
+    issues.push('food.label must be { per: "100g" | "serving", fields: { … } }');
+    return undefined;
+  }
+  const fields: Record<string, number | null> = {};
+  for (const [k, x] of Object.entries(v.fields)) {
+    if (x === null) fields[k] = null;
+    else if (isNum(x) && x >= 0) fields[k] = x;
+    else {
+      issues.push(`food.label.fields.${k} must be a number ≥ 0 or null`);
+      return undefined;
+    }
+  }
+  if (v.servingG !== undefined && !(isNum(v.servingG) && v.servingG > 0)) {
+    issues.push('food.label.servingG must be > 0');
+    return undefined;
+  }
+  return { per: v.per, fields, ...(isNum(v.servingG) ? { servingG: v.servingG } : {}), ...(isStr(v.text) ? { text: v.text } : {}) };
 }

@@ -1,11 +1,12 @@
 /**
- * Small pieces shared by the markers chapter's screens: the question card shell (an inset region with the prompt as
- * legend, "why we ask", the default line and a footer: COMPONENTS §14.3, kept local so the v3 card can re-host the
- * bodies), the range status text and the date field.
+ * Small pieces shared by the markers chapter's screens: the question card shell (the prompt as legend, "Why we ask"
+ * and a footer: COMPONENTS §14.3, kept local so the v3 card can re-host the bodies), the range status text and the
+ * date field.
  */
 import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { StatusMark, cx } from '@/components';
+import { ChevronRight } from 'lucide-react';
+import { Icon, StatusMark, cx } from '@/components';
 import { CardFootSlot } from '../components/widgetTypes';
 import { TURN } from '../copy';
 import { M, type RangeStatus } from './markers';
@@ -16,8 +17,6 @@ export interface MarkersCardProps {
   lead?: ReactNode;
   prompt: string;
   why?: string;
-  /** "if you skip: …" */
-  skipText?: string;
   footer?: ReactNode;
   children?: ReactNode;
   className?: string;
@@ -27,12 +26,12 @@ export interface MarkersCardProps {
 }
 
 /**
- * True inside the intake's v3 QuestionCard, which already shows the prompt, "why we ask", the default line and Back:
- * the card then renders only its lead, body and footer.
+ * True inside the intake's v3 QuestionCard, which already shows the prompt, "Why we ask" and Back: the card then
+ * renders only its lead, body and footer.
  */
 export const MarkersEmbedded = createContext(false);
 
-export function MarkersCard({ lead, prompt, why, skipText, footer, children, className, id, legendId }: MarkersCardProps) {
+export function MarkersCard({ lead, prompt, why, footer, children, className, id, legendId }: MarkersCardProps) {
   const embedded = useContext(MarkersEmbedded);
   const auto = useId();
   const lid = legendId ?? `${auto}-legend`;
@@ -65,9 +64,7 @@ export function MarkersCard({ lead, prompt, why, skipText, footer, children, cla
           <div className="lm-mk-card__why">
             <button type="button" className="lm-ik-why" aria-expanded={open} aria-controls={whyId} onClick={() => setOpen((o) => !o)}>
               {TURN.why}
-              <span aria-hidden="true" className={cx('lm-ik-why__chev', open && 'is-open')}>
-                ▾
-              </span>
+              <Icon icon={ChevronRight} size={16} className={cx('lm-ik-why__chev', open && 'is-open')} />
             </button>
             <p id={whyId} className="lm-ik-why__text" hidden={!open}>
               {why}
@@ -75,7 +72,6 @@ export function MarkersCard({ lead, prompt, why, skipText, footer, children, cla
           </div>
         ) : null}
         <div className="lm-mk-card__body">{children}</div>
-        {skipText ? <p className="lm-mk-card__default">{TURN.ifSkip(skipText)}</p> : null}
       </fieldset>
       {footer ? <div className="lm-mk-card__foot">{footer}</div> : null}
     </section>

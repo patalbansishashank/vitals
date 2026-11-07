@@ -131,7 +131,9 @@ describe('parameter registry (10 §4.1-4.3, §4.8-4.9; 09 §4.13)', () => {
     expect(tri('epocPhiMax')[0]).toBe(0.15);
     expect(tri('epocPhiMaxInterval')[0]).toBe(0.2);
     expect(by('epocPhiFloor').value).toBe(0.02);
-    expect(tri('postRtRee')[0]).toBe(0.05);
+    // D3-08: the prolonged post-RT REE (Heden 0.05) is a research scenario; production books 0 in every draw
+    expect(tri('postRtRee')).toEqual([0, 0, 0.1]);
+    expect(by('postRtRee').draw).toBe('fixed');
     expect(by('postRtHours').value).toBe(72);
     expect([by('memW1').value, by('memW2').value, by('memW3').value]).toEqual([0.4, 1.0, 1.5]);
     expect([by('memBand1').value, by('memBand2').value, by('memBand3').value, by('hardX').value]).toEqual([0.4, 0.55, 0.7, 0.85]);
@@ -405,10 +407,16 @@ describe('session energy through the module (hourly signals)', () => {
   });
 });
 
-describe('post-RT REE (09 §4.13) and step energy (10 §4.14)', () => {
-  it('after an RT session REE is elevated by 0.05·REE·(1 − 0.5·TS) for 72 h, not additive across sessions', () => {
+describe('post-RT REE (09 §4.13; D3-08 research scenario) and step energy (10 §4.14)', () => {
+  /** The protocol-specific Heden rectangle, set by override (production value 0). */
+  const HEDEN = { 'activity.postRtRee': 0.05 };
+  it('production books no prolonged post-RT REE (D3-08)', () => {
+    const { log } = runDays(P75, (pr, d) => (d === 0 ? withSessions(makeDay(pr), [resistance(8, 60, 3.5)]) : makeDay(pr)), 4);
+    for (let h = 9; h < 4 * 24; h++) expect(log.exEE[h]!).toBe(0);
+  });
+  it('research scenario: after an RT session REE is elevated by 0.05·REE·(1 − 0.5·TS) for 72 h, not additive across sessions', () => {
     const mk = (extraSessionDay: number | null) =>
-      runDays(P75, (pr, d) => (d === 0 || d === extraSessionDay ? withSessions(makeDay(pr), [resistance(8, 60, 3.5)]) : makeDay(pr)), 8);
+      runDays(P75, (pr, d) => (d === 0 || d === extraSessionDay ? withSessions(makeDay(pr), [resistance(8, 60, 3.5)]) : makeDay(pr)), 8, HEDEN);
     const one = mk(null).log;
     const rate = 0.05 * (1750 / 24);
     // hours 9..80 (72 h) carry the elevation; the session hour itself and hours after are unchanged
@@ -422,10 +430,10 @@ describe('post-RT REE (09 §4.13) and step energy (10 §4.14)', () => {
     expect(two.exEE[32 + 73]!).toBe(0);
   });
 
-  it('trainingStatus shields the elevation: rate × (1 − 0.5·TS)', () => {
+  it('research scenario: trainingStatus shields the elevation: rate × (1 − 0.5·TS)', () => {
     const bus = busFor();
     bus.trainingStatus = 1;
-    const { log } = runDays(P75, (pr, d) => (d === 0 ? withSessions(makeDay(pr), [resistance(8, 60, 3.5)]) : makeDay(pr)), 4, {}, { bus });
+    const { log } = runDays(P75, (pr, d) => (d === 0 ? withSessions(makeDay(pr), [resistance(8, 60, 3.5)]) : makeDay(pr)), 4, HEDEN, { bus });
     expect(log.exEE[12]!).toBeCloseTo(0.05 * (1750 / 24) * 0.5, 9);
   });
 
@@ -940,14 +948,16 @@ describe('wiring and records', () => {
     }
   });
 
-  it('records vo2max (daily) and exerciseEE (hourly)', () => {
+  it('records vo2max (daily), exerciseEE and the SPEC V1.1 exerciseEnergy / stepsEnergy (hourly)', () => {
     const { run, s, k } = runDays(P75, (pr, d) => withSessions(makeDay(pr), d === 0 ? [cardio(8, 60, 0.8)] : []), 1);
     const frame = new Float64Array(N_SERIES);
     activityModule.recordHour(s, k, run.bus, frame);
     activityModule.recordDay(s, k, run.bus, frame);
     expect(frame[MI.exerciseEE]).toBe(run.bus.exEEKcalH);
+    expect(frame[MI.exerciseEnergy]).toBe(run.bus.exEEKcalH);
+    expect(frame[MI.stepsEnergy]).toBe(run.bus.stepsExtraKcalH);
     expect(frame[MI.vo2max]).toBe(s.vo2max);
-    expect(activityModule.records).toEqual(['vo2max', 'exerciseEE']);
+    expect(activityModule.records).toEqual(['vo2max', 'exerciseEE', 'exerciseEnergy', 'stepsEnergy']);
   });
 });
 

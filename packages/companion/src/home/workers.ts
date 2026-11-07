@@ -30,8 +30,9 @@ export const MEMORY_LOG_MS = 60_000;
 const MB = 1024 * 1024;
 const mb = (n: number) => Math.round(n / MB);
 
-/** Imports get the long limit: a Lumen batch from the broker and a file import. */
-export const isImport = (req: PersonRequest) => req.op === 'ingestLumen' || (req.op === 'dispatch' && req.command.startsWith('bio.import'));
+/** File imports get the long limit. */
+const IMPORT_COMMANDS = new Set(['data.import', 'markers.import']);
+export const isImport = (req: PersonRequest) => req.op === 'dispatch' && IMPORT_COMMANDS.has(req.command);
 export const timeoutOf = (req: PersonRequest, t: { commandMs: number; importMs: number }) => (isImport(req) ? t.importMs : t.commandMs);
 
 export const RESTARTING: PersonResponse = {

@@ -27,9 +27,9 @@ export interface PopoverProps {
 }
 
 /**
- * Raised floating surface (menus, date picker, conflict explanations): radius md,
- * shadow pop, 8 px from its anchor, portaled so it escapes overflow. Closes on
- * Escape (focus returns to the anchor) and on outside press.
+ * Floating surface (menus, date picker, conflict explanations): elevated #2B2721,
+ * 0.5 px hairline, 12 px corners, no shadow, 8 px from its anchor, portaled so it
+ * escapes overflow. Closes on Escape (focus returns to the anchor) and on outside press.
  */
 export function Popover({
   open,

@@ -1,6 +1,7 @@
 /**
  * "Explain this curve" context for the results screen (QA 11): the metric's value where the reader is looking (the
- * crosshair, the pinned sample, or the end of the projection) with its unit and likely range, and "what is driving it
+ * crosshair, the pinned sample, or the end of the projection) with its unit and range (P10–P90 of the model variations),
+ * its C6 status with the reason, range basis, model limit, resolution and assumptions, and "what is driving it
  * here" — a short, per-metric list of related values the result already carries. No engine changes: everything is
  * read from the simulation result, the compiled schedule and the adapted chart data.
  *
@@ -12,7 +13,10 @@ import type { CompiledSchedule, SimulationResult } from '@/engine';
 import { describeSample, formatValueRange, valueAt, type ChartData, type Resolution } from '@/features/charts';
 import { formatNumber, formatSigned } from '@/components';
 import type { ExplainDriver, ExplainReading } from '@/features/evidence';
-import { convertUnit, seriesDefOf, toDisplayMetric, type UnitPrefs } from './metrics';
+import type { ExplainStatus } from '@/features/evidence/ExplainDrawer';
+import { EXPLORATORY_SERIES, type SeriesId } from '@/engine/types/metrics';
+import { INTERPRETABLE_STATUSES, STATUS_LABEL, type BandMeta, type UncertaintyKind } from '@/lib/bodyContracts';
+import { WORD_ONLY, convertUnit, seriesDefOf, toDisplayMetric, type UnitPrefs } from './metrics';
 
 /** Where the reader is looking: snapped time (days) and the resolution the chart shows. */
 export interface ExplainCursor {
@@ -68,6 +72,159 @@ export function explainDriversTitle(id: string): string {
   if (id === 'scaleWeight' || id === 'leanMass') return 'what it is made of · change since the start';
   if (id === 'tdee' || id === 'maintenance') return 'what it is made of';
   return 'what is driving it here';
+}
+
+/**
+ * Plain reasons for the run statuses the engine sets (C6 `reasonCode`), for the Explain sheet only (the operating screen
+ * shows the word). Unknown codes show the status word alone; prefixed codes (`intakeTiming:…`, `eaExposure.…`) match on
+ * their prefix.
+ */
+const STATUS_REASON: Readonly<Record<string, string>> = {
+  outOfDomain: 'outside the model’s calibration range; the measured value stays at the start',
+  measuredAnchorOutOfDomain: 'outside the model’s calibration range; the measured value stays at the start',
+  observedBaselineOutsideCalibration: 'measured value outside the model’s calibration range; it stays as measured at the start',
+  measuredBaselineOutsideModelDomain: 'measured value outside the model’s calibration range; it stays as measured at the start',
+  measuredBaselineFlaggedOutOfDomain: 'measured value marked outside the model’s range; it stays as measured at the start',
+  measuredBaselineNotReproduced: 'the model cannot start from this measured value; it stays as measured at the start',
+  dependsOnOutOfDomainBaseline: 'depends on a measured value outside the model’s calibration range',
+  modelLimit: 'the model reached a numerical limit',
+  tissueFloorModelLimit: 'the run reached a tissue floor the model does not support; later days are not shown',
+  tissueLedgerNotConserved: 'the tissue energy ledger stopped closing; later days are not shown',
+  unsupportedPartition: 'depends on a lean-tissue split the inputs do not support',
+  veryLowIntakeOutsideSupport: 'very low intake, outside the range the fat and lean split was fitted on',
+  lowProteinSurplusPartition: 'a surplus with low protein: lean gain is a broad scenario',
+  unknownProteinSurplusPartition: 'a surplus with unknown protein: lean gain is a broad scenario',
+  legacyRollingIntakeRouting: 'fasting routing reads the last 24 h of actual intake (an approximation)',
+  dailyResolution: 'daily model: within-day timing is not resolved',
+  apoBProxyResponseUnvalidated: 'follows a proxy relation that has not been validated',
+  liverFatLatentPrior: 'no measured liver fat: starts from a population prior',
+  lemAdverseResponseScenario: 'opt-in adverse LDL response scenario',
+  ketogenicLipidResponseUncertain: 'the lipid response to very-low-carbohydrate eating varies widely between people',
+  liverKetoCompositionScenario: 'early liver-fat response to low-carbohydrate eating, not a sustained effect',
+  liverKetoResponseUnsupported: 'early liver-fat response to low-carbohydrate eating, not a sustained effect',
+  homaHepaticCalibrationScenario: 'liver insulin sensitivity is not calibrated from HOMA',
+  glucoseLoweringMedicationContext: 'glucose-lowering medication changes the response',
+  simulatedResponseIndex: 'a simulated response index, not measured synthesis or muscle growth',
+  growthBurnInAnchor: 'training growth anchored on your usual week',
+  growthPlateauReference: 'training growth from a plateau reference',
+  growthProgressScenario: 'training growth from a progressing scenario',
+  taskSpecificIndex: 'a task-specific index, not a strength test',
+  fitnessResponseScenario: 'fitness response from effort ratings; a dated field test can calibrate it',
+  carbMixtureUnknown: 'carbohydrate taken during sessions is treated as glucose (mixture unknown)',
+  fibreHourlyTimingUnsupported: 'hourly timing of fibre energy is not supported',
+  genericFibreMeScenario: 'generic fibre energy scenario switched on',
+  genericNutMeScenario: 'generic nut energy scenario switched on',
+  energyOnlyIntakeTefPrior: 'meals logged as energy only: the digestion cost uses your usual macro mix',
+  proteinLowerBoundOnly: 'protein totals are a lower bound (some foods have no protein figure)',
+  researchScenarioNoPersonalForecast: 'a research scenario; no personal bone forecast',
+  taskScopedTteResearchIndex: 'a research index for one cycling task; not a race time or general endurance',
+  patternHeuristicNotIntake: 'a food-pattern heuristic, not measured intake or adequacy',
+  modelConcernFlagsNotObservedWellbeing: 'model concern flags, not how you feel',
+  exerciseCompensationZeroRmrReference: 'exercise compensation: the no-resting-rate-change reference',
+  exerciseCompensationLegacyRmrScenario: 'exercise compensation: a resting-rate response scenario',
+};
+
+const PREFIX_REASON: ReadonlyArray<[string, string]> = [
+  ['intakeTiming:', 'hourly appearance is not supported with this medication or condition; daily totals still apply'],
+  ['eaExposure.', 'a coarse exposure from logged intake, exercise and lean mass; not a diagnosis'],
+  ['dailyNative', 'daily model: within-day timing is not resolved'],
+];
+
+/** Why a research index reads as a word only (`WORD_ONLY`), for the Explain sheet. */
+const WORD_ONLY_REASON: Readonly<Record<string, string>> = {
+  autophagyIdx: 'a legacy signalling index; not a measured amount of autophagy',
+  mtorIdx: 'a signalling index, not a measurement',
+  ampkIdx: 'a signalling index, not a measurement',
+  mps: 'a simulated response index, not measured synthesis or muscle growth',
+  ketoAdaptation: 'not a percent of adaptation; blood ketones in mmol/L are the observable',
+  ketoAdaptFast: 'not a percent of adaptation; blood ketones in mmol/L are the observable',
+  ketoAdaptSlow: 'not a percent of adaptation; blood ketones in mmol/L are the observable',
+  igf1: 'a mechanism direction, not a predicted lab result',
+  leptin: 'a mechanism direction, not a predicted lab result',
+  t3: 'a mechanism direction, not a predicted lab result',
+  cortisol: 'a mechanism direction, not a predicted lab result',
+  testosterone: 'a mechanism direction, not a predicted lab result',
+  menstrualRisk: 'a model index, not a chance per cycle',
+  adherence: 'a model index, not a chance of keeping to the plan',
+  micronutrientScore: 'a food-pattern heuristic, not intake or adequacy',
+  hipBmdChange: 'no personal bone density forecast; a dated DXA scan is the observation',
+  enduranceCapacity: 'scoped to one cycling task near 75 % of VO₂max; not a race time',
+  sleepQuality: 'projected from the model; a quality word is what you enter',
+};
+
+export function reasonText(code: string | undefined): string | undefined {
+  if (!code) return undefined;
+  const direct = STATUS_REASON[code];
+  if (direct) return direct;
+  return PREFIX_REASON.find(([p]) => code.startsWith(p))?.[1];
+}
+
+/** Where the readout's range came from (the adapter's `bandSource`), with the band semantics when the store has them. */
+export interface ExplainBandInfo {
+  source?: 'draws' | 'fallback' | 'none';
+  meta?: BandMeta;
+}
+
+/** Plain names of the named run assumptions (`meta.assumptions`) for the details rows; unknown ids are left out. */
+const ASSUMPTION_TEXT: Readonly<Record<string, string>> = {
+  legacyRollingIntakeRouting: 'fasting routing from the last 24 h of intake',
+  unallocatedEnergyHabitualTefMix: 'energy-only meals at your usual macro mix',
+  proteinLowerBoundTurnover: 'protein as a lower bound',
+  unknownCarbMixtureAsGlucose: 'session carbohydrate as glucose',
+  fibreEnergyHourlyTiming: 'fibre energy without hourly timing',
+  fibreMeScenario: 'generic fibre energy scenario',
+  nutMeScenario: 'generic nut energy scenario',
+  growthBurnInAnchor: 'training growth anchored on your usual week',
+  growthPlateauReference: 'training growth from a plateau reference',
+  growthProgressScenario: 'training growth progressing',
+};
+
+/**
+ * The C6 status of a channel in this run for the Explain drawer: the engine's `meta.outputStatus` (with its uncertainty
+ * kind and reason), else the readout's word-only status, else Exploratory for a research index; a range is a
+ * parameter-sensitivity range unless the band says otherwise (`meta` band semantics are never relabelled as a prediction
+ * interval). Details: what the range is made of, a model-limit stop, the time resolution, named assumptions and the
+ * model version. Null when there is nothing to say.
+ */
+export function explainStatus(result: SimulationResult, id: string, band?: ExplainBandInfo | null): ExplainStatus | null {
+  const st = result.meta.outputStatus?.[id as SeriesId];
+  const resolution = result.meta.resolution;
+  const details = explainDetails(result, band);
+  const word = WORD_ONLY.get(id);
+  const bandKind: UncertaintyKind | undefined = band?.source === 'fallback' ? 'heuristic' : band?.source === 'draws' ? (band.meta?.uncertaintyKind ?? 'parameterSensitivity') : undefined;
+  const withDetails = (x: ExplainStatus): ExplainStatus => (details.length ? { ...x, details } : x);
+  if (st) {
+    // the readout's word-only status wins over an interpretable engine status (the sheet says why no number is shown)
+    const wordWins = word !== undefined && INTERPRETABLE_STATUSES.has(st.status);
+    const reason = (wordWins ? WORD_ONLY_REASON[id] : undefined) ?? reasonText(st.reasonCode) ?? (st.resolution === 'daily' ? STATUS_REASON.dailyResolution : undefined);
+    const kind = st.uncertaintyKind ?? bandKind;
+    return withDetails({ status: wordWins ? word : st.status, ...(kind ? { uncertaintyKind: kind } : {}), ...(reason ? { reason } : {}) });
+  }
+  if (word) return withDetails({ status: word, reason: WORD_ONLY_REASON[id] ?? 'a research index, not a measurement or a goal' });
+  if (EXPLORATORY_SERIES.has(id as SeriesId)) return withDetails({ status: 'exploratory', reason: 'a research index, not a measurement or a goal' });
+  if (resolution === 'daily' || resolution === 'scenario') return withDetails({ status: resolution === 'scenario' ? 'scenario' : 'estimated', reason: STATUS_REASON.dailyResolution, ...(bandKind ? { uncertaintyKind: bandKind } : {}) });
+  if (details.length || bandKind) return { ...(bandKind ? { uncertaintyKind: bandKind } : {}), ...(details.length ? { details } : {}) };
+  return null;
+}
+
+/** Info-sheet rows of a run (C6/C7): range basis, model-limit stop, time resolution, named assumptions, model version. */
+export function explainDetails(result: SimulationResult, band?: ExplainBandInfo | null): Array<{ label: string; value: string }> {
+  const rows: Array<{ label: string; value: string }> = [];
+  if (band?.source === 'draws') {
+    const n = band.meta?.draws ?? 0;
+    rows.push({ label: 'Range from', value: `${n > 0 ? `${formatNumber(n, 0)} model variations` : 'model variations'} · coverage not validated` });
+  } else if (band?.source === 'fallback') rows.push({ label: 'Range from', value: 'a fixed display range while the variations run' });
+  const v = result.meta.validity;
+  if (v && v.status !== 'valid') {
+    const through = v.validThroughHour !== undefined && Number.isFinite(v.validThroughHour) ? `valid through day ${formatNumber(Math.floor(v.validThroughHour / 24) + 1, 0)}` : null;
+    rows.push({ label: v.status === 'modelLimit' ? 'Model limit' : 'Outside the model’s range', value: [through, reasonText(v.reasonCode)].filter(Boolean).join(' · ') || STATUS_LABEL.modelLimit });
+  }
+  if (result.meta.resolution === 'daily') rows.push({ label: 'Time resolution', value: 'daily' });
+  else if (result.meta.resolution === 'scenario') rows.push({ label: 'Time resolution', value: 'scenario days' });
+  const named = (result.meta.assumptions ?? []).map((a) => ASSUMPTION_TEXT[a]).filter((x): x is string => !!x);
+  if (named.length) rows.push({ label: 'Assumptions', value: [...new Set(named)].join(' · ') });
+  if (result.meta.engineVersion) rows.push({ label: 'Model version', value: result.meta.engineVersion });
+  return rows;
 }
 
 /* ------------------------------------------------------------------------------------------------- moment */

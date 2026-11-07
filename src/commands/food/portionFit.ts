@@ -4,9 +4,14 @@
  * weighted least squares toward the slot's targets with a proximity term, rounds to 5 g, and checks the day:
  * energy ±5 % (at least ±75 kcal), protein −5 %/+20 %, carbohydrate ±10 % (or ≤ target + 5 g on low-carbohydrate
  * days), fat ±15 %, fibre ≥ −10 %.
+ *
+ * Totals come from the shared source resolver (`mealTotals`, A1-028): the energy a fitted portion shows is the energy the
+ * same portion logs. Carbohydrate of a food with an unresolved basis or an unmodelled polyol route is an interval, never a
+ * precise total: the day check passes it only when the whole interval is inside the allowed range (`status: 'bounded'`),
+ * otherwise it is `unresolved` (not a pass); energy and protein stay precise.
  */
-import { mealTotals } from '@/catalogues';
-import type { FoodTable, MealTotals } from '@/catalogues/types';
+import { mealTotals, type PlanningTotals } from '@/catalogues/foods';
+import type { FoodTable } from '@/catalogues/types';
 import type { MealSlotTarget } from './rules';
 
 export interface PlanItem {
@@ -21,20 +26,31 @@ export interface PlanItem {
 export interface MealFit {
   slot: string;
   items: Array<PlanItem & { gramsProposed: number }>;
-  totals: MealTotals;
-  /** SUITE_SPEC §8.3 `PortionFitResult`. */
-  fit: { grams: Record<string, number>; totals: Record<'energyKcal' | 'proteinG' | 'carbG' | 'fatG' | 'fibreG', number>; withinTolerance: boolean; deltas: Record<string, number>; binding: string[] };
+  totals: PlanningTotals;
+  /**
+   * SUITE_SPEC §8.3 `PortionFitResult`. `carbStatus` 'bounded' (A1-028): `totals.carbG` is a planning upper bound and
+   * `carbRange` the interval of available carbohydrate, g.
+   */
+  fit: { grams: Record<string, number>; totals: Record<'energyKcal' | 'proteinG' | 'carbG' | 'fatG' | 'fibreG', number>; withinTolerance: boolean; deltas: Record<string, number>; binding: string[]; carbStatus?: 'resolved' | 'bounded'; carbRange?: [number, number] };
 }
 
 export interface Deviation {
   nutrient: 'energyKcal' | 'proteinG' | 'carbG' | 'fatG' | 'fibreG';
   target: number;
+  /** The value checked (for a bounded carbohydrate: the upper end of its interval). */
   actual: number;
   /** (actual − target) / target, rounded to 0.1 %. */
   deltaPct: number;
   ok: boolean;
   /** Allowed range. */
   allowed: [number, number];
+  /**
+   * (A1-028) `precise` = a known value; `bounded` = only an interval is known and all of it is inside the allowed range (a
+   * proven pass, not a precise one); `unresolved` = the interval reaches outside the range (not a pass).
+   */
+  status?: 'precise' | 'bounded' | 'unresolved';
+  /** The interval behind a bounded/unresolved check. */
+  range?: [number, number];
 }
 
 const LO = 0.5;
@@ -44,7 +60,7 @@ const LAMBDA = 0.05;
 const r1 = (x: number): number => Math.round(x * 10) / 10;
 
 type Vec = [number, number, number, number];
-const vecOf = (t: MealTotals): Vec => [t.energyKcal, t.proteinG, t.netCarbG, t.fatG];
+const vecOf = (t: PlanningTotals): Vec => [t.energyKcal, t.proteinG, t.netCarbG, t.fatG];
 
 /** Fit one meal's items to its slot target. */
 export function fitMeal(items: readonly PlanItem[], target: MealSlotTarget, table: FoodTable): MealFit {
@@ -91,6 +107,7 @@ export function fitMeal(items: readonly PlanItem[], target: MealSlotTarget, tabl
       fatG: r1(totals.fatG - target.fatG),
     },
     binding,
+    ...(totals.carbStatus === 'bounded' ? { carbStatus: 'bounded' as const, carbRange: [r1(totals.netCarbLowG), r1(totals.netCarbHighG)] as [number, number] } : {}),
   };
   return { slot: target.slot, items: fitted, totals, fit };
 }
@@ -98,7 +115,7 @@ export function fitMeal(items: readonly PlanItem[], target: MealSlotTarget, tabl
 /** Day tolerances over the planned slots (sum of their targets vs the fitted totals). */
 export function checkDay(fits: readonly MealFit[], targets: readonly MealSlotTarget[]): { ok: boolean; deviations: Deviation[] } {
   const sum = (f: (t: MealSlotTarget) => number) => targets.reduce((s, t) => s + f(t), 0);
-  const got = (f: (t: MealTotals) => number) => fits.reduce((s, m) => s + f(m.totals), 0);
+  const got = (f: (t: PlanningTotals) => number) => fits.reduce((s, m) => s + f(m.totals), 0);
   const low = targets.some((t) => t.lowCarbDay);
   const dev = (nutrient: Deviation['nutrient'], target: number, actual: number, allowed: [number, number]): Deviation => ({
     nutrient,
@@ -113,14 +130,25 @@ export function checkDay(fits: readonly MealFit[], targets: readonly MealSlotTar
   const C = sum((t) => t.carbG);
   const F = sum((t) => t.fatG);
   const eTol = Math.max(0.05 * E, 75);
+  const carbAllowed: [number, number] = low ? [0, C + 5] : [C - Math.max(0.1 * C, 5), C + Math.max(0.1 * C, 5)];
+  // (A1-028) an unresolved carbohydrate basis or unmodelled polyol route gives an interval: it passes only when all of it is
+  // inside the allowed range, and never as a precise value
+  const bounded = fits.some((m) => m.totals.carbStatus === 'bounded');
+  const carbDev = (): Deviation => {
+    if (!bounded) return { ...dev('carbG', C, got((t) => t.netCarbG), carbAllowed), status: 'precise' };
+    const lo = got((t) => t.netCarbLowG);
+    const hi = got((t) => t.netCarbHighG);
+    const inside = lo >= carbAllowed[0] - 1e-9 && hi <= carbAllowed[1] + 1e-9;
+    return { ...dev('carbG', C, hi, carbAllowed), ok: inside, status: inside ? 'bounded' : 'unresolved', range: [r1(lo), r1(hi)] };
+  };
   const out: Deviation[] = [
-    dev('energyKcal', E, got((t) => t.energyKcal), [E - eTol, E + eTol]),
-    dev('proteinG', P, got((t) => t.proteinG), [0.95 * P, 1.2 * P]),
-    dev('carbG', C, got((t) => t.netCarbG), low ? [0, C + 5] : [C - Math.max(0.1 * C, 5), C + Math.max(0.1 * C, 5)]),
-    dev('fatG', F, got((t) => t.fatG), [F - Math.max(0.15 * F, 3), F + Math.max(0.15 * F, 3)]),
+    { ...dev('energyKcal', E, got((t) => t.energyKcal), [E - eTol, E + eTol]), status: 'precise' },
+    { ...dev('proteinG', P, got((t) => t.proteinG), [0.95 * P, 1.2 * P]), status: 'precise' },
+    carbDev(),
+    { ...dev('fatG', F, got((t) => t.fatG), [F - Math.max(0.15 * F, 3), F + Math.max(0.15 * F, 3)]), status: 'precise' },
   ];
   const fib = targets.every((t) => t.fibreG !== undefined) ? sum((t) => t.fibreG ?? 0) : 0;
-  if (fib > 0) out.push(dev('fibreG', fib, got((t) => t.fibreG), [0.9 * fib, Number.POSITIVE_INFINITY]));
+  if (fib > 0) out.push({ ...dev('fibreG', fib, got((t) => t.fibreG), [0.9 * fib, Number.POSITIVE_INFINITY]), status: 'precise' });
   return { ok: out.every((d) => d.ok), deviations: out };
 }
 
@@ -132,6 +160,9 @@ export function repairHints(deviations: readonly Deviation[]): string[] {
   return deviations
     .filter((d) => !d.ok)
     .map((d) => {
+      if (d.status === 'unresolved' && d.range) {
+        return `carbohydrate cannot be checked (${Math.round(d.range[0])}–${Math.round(d.range[1])} of ${Math.round(d.target)} g): a food has an unknown carbohydrate basis or polyols; swap it for a food with a stated basis, or accept the closest fit.`;
+      }
       const lowSide = d.actual < d.allowed[0];
       const what = `${WORDS[d.nutrient]} is ${Math.abs(d.deltaPct)} % ${lowSide ? 'low' : 'high'} (${Math.round(d.actual)} of ${Math.round(d.target)} ${UNIT[d.nutrient]})`;
       const fix =

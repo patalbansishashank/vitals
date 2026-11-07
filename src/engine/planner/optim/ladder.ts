@@ -37,7 +37,15 @@ export interface LadderSpec {
    * evaluated first and becomes Hard whenever it is safe, validated and chance-feasible; Medium and Easy are built
    * around it. Absent → Hard is the best plan under the robust Hard key.
    */
-  pinHard?: { structure: number; x: ArrayLike<number>; /** The caller already validated and chance-checked it on its own ensemble (trusted). */ chanceChecked?: boolean } | null;
+  pinHard?: {
+    structure: number;
+    x: ArrayLike<number>;
+    /**
+     * @deprecated Ignored (C5/D4-03): a caller's boolean never authorizes; the pinned Hard must pass this run's own
+     * validator and joint screen. Kept so serialized legacy specs still parse.
+     */
+    chanceChecked?: boolean;
+  } | null;
 }
 
 /** Rung constants (§1.3; PROPOSED unless the spec fixes them). */

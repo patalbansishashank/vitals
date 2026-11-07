@@ -42,10 +42,12 @@ describe('rolling 7-day rules: the block that produced the mean, from day 0', ()
     expect(runs(w, 'W-M01')).toEqual([[0, 13]]);
     expect(runs(w, 'W-M06')).toEqual([[0, 13]]);
   });
-  it('deficit from day 0 (60 % for 28 d): W-E03 from day 0 (was day 4), the loss-rate rule W-E05 from day 0 (was 9)', () => {
+  it('deficit from day 0 (60 % for 28 d): W-E03 from day 0 (was day 4), the loss-rate rule W-E05 from the deficit start (was 9)', () => {
     const w = warnings(28, [P('deficit', 60, 30)], () => 0);
     expect(runs(w, 'W-E03')).toEqual([[0, 27]]);
-    expect(runs(w, 'W-E05')[0]![0]).toBe(0);
+    // the first day whose own tissue loss exceeds the cap: day 0 sits at the cap (≈ 0.75 %/wk, glycogen covers part of the
+    // first deficit day), so the run opens on day 0 or 1 — never days later with the 14-day slope
+    expect(runs(w, 'W-E05')[0]![0]).toBeLessThanOrEqual(1);
   });
   it('deficit from day 0 (45 %): W-E04, W-E01 and W-M02 from day 0; no W-E03 caution run under the danger run', () => {
     const w = warnings(28, [P('deficit', 45, 30)], () => 0);

@@ -5,7 +5,6 @@
  * nothing.
  */
 import type { SimulationResult } from '@/engine';
-import { METRIC_IDS } from '@/engine/types/metrics';
 import * as sched from '@/state/internal/schedule';
 import * as sim from '@/state/internal/simulation';
 import { simulatorProfileNow } from '@/state/internal/simulatorProfile';
@@ -14,25 +13,17 @@ import { T } from '../schema';
 import './safety'; // registers the safety gates this domain declares
 import { ALL, UNDO, stub } from './_shared';
 import { ScheduleOp } from '../schema/scheduleOp';
+import { simulationSummaryMetrics } from '../simulationSummary';
 
 const r2 = (x: number | undefined) => (x === undefined || !Number.isFinite(x) ? null : Math.round(x * 100) / 100);
-
-function metricsOf(values: Partial<Record<string, number>>): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const id of METRIC_IDS) {
-    const v = r2(values[id]);
-    if (v !== null) out[id] = v;
-  }
-  return out;
-}
 
 export const SimSummary = T.Object({
   scenarioId: T.String(),
   status: T.String(),
   hash: T.Nullable(T.String()),
   days: T.Integer(),
-  initial: T.Record(T.Number(), { description: 'Metric values at day 0 (engine units: kg, %, mmol/L …).' }),
-  final: T.Record(T.Number(), { description: 'Metric values on the last day.' }),
+  initial: T.Record(T.Number(), { description: 'Starting stock values (kg, %, mmol/L); daily energy flows use the first-day total in kcal/day, not an hourly rate.' }),
+  final: T.Record(T.Number(), { description: 'Last-day values in the declared metric units and daily sampling basis (wake, end, mean or total).' }),
   warnings: T.Array(T.Object({ id: T.String(), severity: T.String(), startDay: T.Integer(), endDay: T.Integer(), message: T.String() })),
 });
 
@@ -42,8 +33,8 @@ function summarize(scenarioId: string, result: SimulationResult | null, status: 
     status,
     hash,
     days: result?.meta ? Number((result.meta as { nDays?: number }).nDays ?? 0) : 0,
-    initial: metricsOf(result?.initial ?? {}),
-    final: metricsOf(result?.final ?? {}),
+    initial: simulationSummaryMetrics(result, 'initial'),
+    final: simulationSummaryMetrics(result, 'final'),
     warnings: (result?.warnings ?? []).map((w) => ({ id: String(w.id), severity: String(w.severity), startDay: w.startDay, endDay: w.endDay, message: w.message })),
   };
 }
@@ -155,13 +146,13 @@ function whatIf(kind: 'whatIf' | 'compare') {
     return ctx.jobs.start('whatIf', async (job) => {
       const base = await sim.simulateOnce(profile, sc.schedule);
       job.progress(1 / (schedules.length + 1), kind);
-      const baseFinal = metricsOf(base.final);
+      const baseFinal = simulationSummaryMetrics(base, 'final');
       const baseWarnings = new Set(base.warnings.map((w) => String(w.id)));
       const variants = [];
       for (const [i, s] of schedules.entries()) {
         const r = await sim.simulateOnce(profile, s);
         job.progress((i + 2) / (schedules.length + 1), kind);
-        const final = metricsOf(r.final);
+        const final = simulationSummaryMetrics(r, 'final');
         const deltas: Record<string, number> = {};
         for (const [k, v] of Object.entries(final)) if (baseFinal[k] !== undefined) deltas[k] = Math.round((v - baseFinal[k]!) * 100) / 100;
         variants.push({ final, deltas, newWarnings: r.warnings.map((w) => String(w.id)).filter((id) => !baseWarnings.has(id)) });

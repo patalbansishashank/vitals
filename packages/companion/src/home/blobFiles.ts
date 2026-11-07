@@ -1,5 +1,5 @@
 /**
- * A person's raw-sample bytes on disk (R17 blocker 2): a create-only file `BlobBackend` under `persons/<id>/blobs/`
+ * A person's blob bytes on disk, photos (R17 blocker 2): a create-only file `BlobBackend` under `persons/<id>/blobs/`
  * (`<first 2 chars>/<chunkId>`, written to a temporary name and renamed, so a crash never leaves a half chunk under its
  * final name) and the chunk index in `blobs/index.db` (better-sqlite3). Together they make the app's `ChunkStore`
  * (`src/sync/blobs/chunkStore.ts`), which seals and uploads to the relay's `/blobs` like a browser's.

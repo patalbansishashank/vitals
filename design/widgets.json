@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "note": "The registry of the Android home-screen widgets (r071). One source for three readers: scripts/android-design.mjs writes WidgetRegistry.kt and WidgetTargets.kt from it; WidgetRegistryTest checks every card against the manifest, its provider info file and its strings; src/features/widgets/__tests__/registry.test.ts checks that every tap target is a screen of the app. A provider's class name never changes (renaming or removing one deletes placed widgets from the home screen): a restyled widget keeps its class, a new widget adds one.",
+  "targets": {
+    "today": "/today",
+    "ring": "/ring",
+    "log": "/train?log=1",
+    "record": "/today?record=1",
+    "energy": "/energy",
+    "sleep": "/sleep",
+    "steps": "/ring/activity",
+    "hr": "/ring/signals/hr",
+    "weight": "/progress#trend"
+  },
+  "widgets": [
+    { "id": "today", "provider": "TodayWidgetProvider", "label": "Vitals · Today", "kind": "trio", "hue": "gold", "cells": [4, 2], "tap": "today" },
+    { "id": "ring", "provider": "RingWidgetProvider", "label": "Vitals · Heart rate", "kind": "card", "hue": "heart", "cells": [2, 2], "tap": "hr" },
+    { "id": "actions", "provider": "ActionsWidgetProvider", "label": "Vitals · Log or record", "kind": "keys", "hue": "gold", "cells": [4, 1], "tap": "log" },
+    { "id": "log", "provider": "LogWidgetProvider", "label": "Vitals · Log", "kind": "key", "hue": "gold", "cells": [1, 1], "tap": "log" },
+    { "id": "energy", "provider": "EnergyWidgetProvider", "label": "Vitals · Energy", "kind": "card", "hue": "energy", "cells": [2, 2], "tap": "energy" },
+    { "id": "sleep", "provider": "SleepWidgetProvider", "label": "Vitals · Sleep", "kind": "card", "hue": "sleep", "cells": [2, 2], "tap": "sleep" },
+    { "id": "steps", "provider": "StepsWidgetProvider", "label": "Vitals · Steps", "kind": "card", "hue": "steps", "cells": [2, 2], "tap": "steps" },
+    { "id": "weight", "provider": "WeightWidgetProvider", "label": "Vitals · Weight", "kind": "card", "hue": "body", "cells": [2, 2], "tap": "weight", "optIn": true }
+  ],
+  "icons": {
+    "energy": "flame",
+    "sleep": "moon",
+    "steps": "footprints",
+    "ring": "heart-pulse",
+    "weight": "scale",
+    "plus": "plus",
+    "record": "circle-dot"
+  }
+}

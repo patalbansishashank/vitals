@@ -6,13 +6,41 @@
  * sync starts on the words' own path (`sync.join`, see `./serverSync.ts`).
  */
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Copy, KeyRound, Link2, RefreshCw, ScanLine, Trash2 } from 'lucide-react';
-import { RingMark } from '@/components/brand/RingMark';
-import { Chip, Dialog, Faceplate, FaceplateHeader, Field, InlineWarning, Key, KeyValueList, Notice, TextInput, toast, type Severity } from '@/components';
+import {
+  Bot,
+  Circle,
+  ChevronRight,
+  Copy,
+  Globe,
+  KeyRound,
+  Link2,
+  Monitor,
+  RefreshCw,
+  ScanLine,
+  Server,
+  Smartphone,
+  Trash2,
+} from 'lucide-react';
+import {
+  Dialog,
+  Field,
+  Icon,
+  InlineWarning,
+  Key,
+  IconKey,
+  KeyLink,
+  MonoMeta,
+  Notice,
+  StatusDot,
+  TextInput,
+  toast,
+  type Severity,
+} from '@/components';
 import { mintConfirmation } from '@/commands';
+import { platform } from '@/platform';
 import { sendCommand } from '@/features/lib/sendCommand';
-import { platformCaps } from '@/platform';
 import { useSyncView, type SyncView } from '@/state/sync';
+import { clearGaugeEngineServer } from '@/state/gaugeEngine';
 import {
   defaultDeviceLabel,
   MIN_SERVER_VERSION,
@@ -27,18 +55,20 @@ import {
   type ServerDevice,
   type ServerPairing,
 } from '@/net/server';
+import { SettingsCard, SettingsGroup, SettingsItem } from '../SettingRow';
+import { GaugeImportRow } from '../GaugeImportRow';
+import { LinkStrip } from './LinkStrip';
 import { ExistingDataDialog } from '../sync/ExistingDataDialog';
 import { QrCode } from '../sync/QrCode';
 import { SyncPillView } from '../sync/SyncPill';
 import { countdown, formatDay, relativeTime, SERVER_COPY as C } from './copy';
-import { useServerClient, useServerConnection, useServerPairing } from './hooks';
+import { useServerClient, useServerConnection, useServerNow, useServerPairing } from './hooks';
 import { PairingCodeField } from './PairingCodeField';
 import { dropHeldSyncKey, joinSyncFromServer, syncsThroughServer } from './serverSync';
 
 const ScanDialog = lazy(() => import('../sync/ScanDialog'));
 
-const TITLE_ID = 'settings-server-title';
-const wrap = 'break-words [overflow-wrap:anywhere]';
+const wrap = 'settings-wrap';
 const hostOf = (url: string) => {
   try {
     return new URL(url).host;
@@ -63,9 +93,19 @@ export function ServerPill({ connection }: { connection: ServerConnection }) {
   return (
     <span role="status" className="inline-flex">
       <span className="lm-sr">Server: </span>
-      <Chip kind="status" severity={severity}>
-        {word}
-      </Chip>
+      <StatusDot
+        tone={
+          severity === 'ok'
+            ? 'live'
+            : severity === 'caution'
+              ? 'caution'
+              : severity === 'danger'
+                ? 'danger'
+                : 'neutral'
+        }
+        label={word}
+        pulse={connection.state === 'checking'}
+      />
     </span>
   );
 }
@@ -98,7 +138,10 @@ export function ServerSection() {
   useEffect(() => {
     syncRef.current = sync;
   }, [sync]);
-  const [existing, setExisting] = useState<{ summary: string; resolve: (c: 'merge' | 'replace') => void } | null>(null);
+  const [existing, setExisting] = useState<{
+    summary: string;
+    resolve: (c: 'merge' | 'replace') => void;
+  } | null>(null);
   const [joinNote, setJoinNote] = useState<{ text: string; retry: boolean } | null>(null);
   const [joining, setJoining] = useState(false);
   // a key held for Try again lives only as long as this pairing and this page
@@ -126,7 +169,7 @@ export function ServerSection() {
   );
 
   return (
-    <div id="server" className="grid scroll-mt-2 gap-4">
+    <div id="server" className="settings-section">
       {pairing ? (
         <PairedView
           pairing={pairing}
@@ -177,7 +220,8 @@ function UnpairedView({
 }) {
   const client = useServerClient();
   const ended = client.ended();
-  const removed = connection.state === 'revoked' || ended?.reason === 'revoked' || ended?.reason === 'unauthorized';
+  const removed =
+    connection.state === 'revoked' || ended?.reason === 'revoked' || ended?.reason === 'unauthorized';
   const [open, setOpen] = useState(Boolean(link));
   const [scan, setScan] = useState(false);
   const [prefill, setPrefill] = useState<ParsedPairingLink | null>(link);
@@ -192,10 +236,12 @@ function UnpairedView({
   };
 
   return (
-    <Faceplate as="section" aria-labelledby={TITLE_ID}>
-      <FaceplateHeader title={C.title} titleId={TITLE_ID} actions={<ServerPill connection={removed ? { state: 'revoked' } : { state: 'unpaired' }} />} />
-      <div className="grid gap-4">
-        {removed ? (
+    <SettingsGroup
+      label={C.title}
+      aside={removed ? <ServerPill connection={{ state: 'revoked' }} /> : undefined}
+    >
+      {removed ? (
+        <SettingsItem>
           <Notice
             severity="danger"
             layout="ruled"
@@ -214,18 +260,19 @@ function UnpairedView({
               )
             }
           />
-        ) : null}
-        {forgotten ? (
+        </SettingsItem>
+      ) : null}
+      {forgotten ? (
+        <SettingsItem>
           <Notice severity="info" layout="ruled" title={C.forgotten} onDismiss={onDismissForgotten} />
-        ) : null}
-        <div className="flex items-start gap-3">
-          <RingMark size={36} className="mt-0.5 shrink-0" />
-          <div className="grid gap-1">
-            <p className="m-0 text-[15px] leading-[1.5] text-ink">{C.intro}</p>
-            <p className="m-0 text-sm text-ink-2">{C.introOnce}</p>
-          </div>
-        </div>
-        {platformCaps().installedApp ? null : <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.localNetwork}</p>}
+        </SettingsItem>
+      ) : null}
+      <SettingsItem>
+        {removed ? null : (
+          <p className="settings-text" role="status">
+            {C.notPaired}
+          </p>
+        )}
         {open ? (
           <PairPanel
             key={prefill ? `${prefill.baseUrl}|${prefill.code}` : 'blank'}
@@ -236,22 +283,16 @@ function UnpairedView({
             onPaired={onPaired}
           />
         ) : (
-          <div className="grid gap-2 sm:flex sm:flex-wrap">
-            <Key ref={enterRef} icon={KeyRound} block className="sm:w-auto" onClick={() => setOpen(true)}>
+          <div className="settings-keys" data-equal="">
+            <Key ref={enterRef} variant="primary" icon={KeyRound} onClick={() => setOpen(true)}>
               {C.enterCode}
             </Key>
-            <Key icon={ScanLine} block className="sm:w-auto" onClick={() => setScan(true)}>
+            <Key icon={ScanLine} onClick={() => setScan(true)}>
               {C.scan}
             </Key>
           </div>
         )}
-        <div className="grid gap-1 border-t border-line pt-4">
-          <a className="lm-link text-sm" href={C.noServerUrl} target="_blank" rel="noreferrer noopener">
-            {C.noServer} ›
-          </a>
-          <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.noServerHelp}</p>
-        </div>
-      </div>
+      </SettingsItem>
       {scan ? (
         <Suspense fallback={null}>
           <ScanDialog
@@ -270,7 +311,7 @@ function UnpairedView({
           />
         </Suspense>
       ) : null}
-    </Faceplate>
+    </SettingsGroup>
   );
 }
 
@@ -326,9 +367,22 @@ function PairPanel({
       } catch (e) {
         if (e instanceof DOMException && e.name === 'AbortError') return;
         const err = e instanceof ServerError ? e : new ServerError('server_unreachable');
-        if (err.code === 'invalid_code' || err.code === 'expired' || err.code === 'locked' || err.code === 'bad_request') {
-          setCodeError(err.code === 'invalid_code' && err.attemptsLeft !== undefined ? `${err.message} ${C.attemptsLeft(err.attemptsLeft)}` : err.message);
-        } else if (err.code === 'invalid_address' || err.code === 'http_address' || err.code === 'not_vitals') {
+        if (
+          err.code === 'invalid_code' ||
+          err.code === 'expired' ||
+          err.code === 'locked' ||
+          err.code === 'bad_request'
+        ) {
+          setCodeError(
+            err.code === 'invalid_code' && err.attemptsLeft !== undefined
+              ? `${err.message} ${C.attemptsLeft(err.attemptsLeft)}`
+              : err.message,
+          );
+        } else if (
+          err.code === 'invalid_address' ||
+          err.code === 'http_address' ||
+          err.code === 'not_vitals'
+        ) {
           setAddressError(err.message);
         } else {
           setError(err.message);
@@ -353,8 +407,8 @@ function PairPanel({
   const busy = step !== null;
   const complete = Boolean(address.trim()) && normalizeServerCode(code) !== null;
   return (
-    <div className="grid gap-3 rounded-md border border-line p-3">
-      {fromLink && initial ? <p className="m-0 text-sm font-[550] text-ink">{C.linkAsk(hostOf(initial.baseUrl))}</p> : null}
+    <div className="grid gap-3">
+      {fromLink && initial ? <p className="settings-text">{C.linkAsk(hostOf(initial.baseUrl))}</p> : null}
       <Field label={C.addressLabel} help={C.addressHelp} error={addressError}>
         <TextInput
           type="url"
@@ -385,10 +439,18 @@ function PairPanel({
         help={C.codeHelp}
         error={codeError}
       />
+      <details className="settings-details">
+        <summary>
+          {C.codeWhere}
+          <Icon icon={ChevronRight} size={16} className="settings-details__chev" />
+        </summary>
+        <p className="settings-note">{C.codeWhereText}</p>
+      </details>
       <Field label={C.nameLabel}>
         <TextInput autoComplete="off" maxLength={40} value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <p className="m-0 min-h-[1.25rem] text-sm text-ink-2" aria-live="polite">
+      {/* the step line has no height while there is no step to say (no dead gap above the keys, r068 S23) */}
+      <p className="settings-note" aria-live="polite">
         {step === 'reach' ? C.stepReach : step === 'code' ? C.stepCode : ''}
       </p>
       {error ? (
@@ -396,8 +458,13 @@ function PairPanel({
           {error}
         </InlineWarning>
       ) : null}
-      <div className="flex flex-wrap gap-2">
-        <Key variant="solid" loading={busy} disabledReason={busy ? C.pairing : complete ? undefined : C.codeIncomplete} onClick={() => void pair()}>
+      <div className="settings-keys" data-equal="">
+        <Key
+          variant="solid"
+          loading={busy}
+          disabledReason={busy ? C.pairing : complete ? undefined : C.codeIncomplete}
+          onClick={() => void pair()}
+        >
           {busy ? C.pairing : fromLink ? C.pairThis : C.pair}
         </Key>
         <Key
@@ -432,6 +499,7 @@ function PairedView({
   note: string | null;
   /** Set when trying the join again can work (§15.4: failure shows the reason with Try again). */
   onRetry?: (() => void) | undefined;
+  /** The join is running (the first one right after pairing, or Try again). */
   retrying: boolean;
 }) {
   const client = useServerClient();
@@ -439,7 +507,8 @@ function PairedView({
   const [checking, setChecking] = useState(false);
   const [devicesRev, setDevicesRev] = useState(0);
   const [confirmForget, setConfirmForget] = useState(false);
-  const status = connection.state === 'reachable' || connection.state === 'version' ? connection.status : null;
+  const status =
+    connection.state === 'reachable' || connection.state === 'version' ? connection.status : null;
   const lastContact = 'lastContactAt' in connection ? connection.lastContactAt : null;
 
   const checkNow = async () => {
@@ -453,9 +522,19 @@ function PairedView({
   };
 
   // on and working: "on"; anything else (offline, error, waiting) shows the sync pill with its count or reason
-  const syncWord: ReactNode = sync.status.state === 'synced' || sync.status.state === 'syncing' ? C.syncOn : <SyncPillView status={sync.status} />;
+  const syncWord: ReactNode =
+    sync.status.state === 'synced' || sync.status.state === 'syncing' ? (
+      C.syncOn
+    ) : (
+      <SyncPillView status={sync.status} />
+    );
+  // while the join runs (fetching the synced data can take a while after Merge or Replace) the row says so, never "Off"
   const syncState: ReactNode = !sync.paired ? (
-    C.syncOff
+    retrying ? (
+      <span role="status">{C.syncStarting}</span>
+    ) : (
+      C.syncOff
+    )
   ) : syncsThroughServer(sync, pairing.baseUrl) ? (
     typeof syncWord === 'string' ? (
       C.syncThrough(syncWord, hostOf(pairing.baseUrl))
@@ -472,27 +551,43 @@ function PairedView({
   const items: Array<{ key: string; value: ReactNode }> = [
     { key: C.keys.address, value: <span className={wrap}>{pairing.baseUrl}</span> },
     ...(pairing.person.label ? [{ key: C.keys.person, value: pairing.person.label }] : []),
-    {
-      key: C.keys.answers,
-      value: connection.state === 'reachable' ? C.answersYes(connection.latencyMs) : connection.state === 'checking' ? C.answersChecking : connection.state === 'version' ? 'yes' : C.answersNo,
-    },
-    { key: C.keys.lastContact, value: relativeTime(lastContact) },
     ...(status?.server.version ? [{ key: C.keys.version, value: status.server.version }] : []),
     ...(role ? [{ key: C.keys.role, value: role }] : []),
-    { key: C.keys.sync, value: syncState },
     { key: C.keys.device, value: status?.label || pairing.deviceId },
   ];
 
+  const unreachable = connection.state === 'unreachable' && connection.error.code !== 'server_busy';
   return (
     <>
-      <Faceplate as="section" aria-labelledby={TITLE_ID}>
-        <FaceplateHeader title={C.title} titleId={TITLE_ID} actions={<ServerPill connection={connection} />} />
-        <div className="grid gap-4">
-          {connection.state === 'unreachable' ? (
+      <SettingsCard
+        icon={Server}
+        title={C.title}
+        info={{
+          title: 'Your server',
+          body: (
+            <>
+              <p>
+                Your server keeps your plan, logs, body data and Coach conversations in one folder on that
+                computer, and runs the Coach. It can read all of it: that is how the Coach and agents work
+                while your devices are off. Anyone who can open that computer’s files can read it too.
+                Reachability and speed come from the server’s own status check, once a minute.
+              </p>
+              <p>{C.syncHint}</p>
+            </>
+          ),
+        }}
+        className="settings-server-card"
+      >
+        {connection.state === 'unreachable' ? (
+          <SettingsItem>
             <Notice
               severity={connection.error.code === 'server_busy' ? 'info' : 'caution'}
               layout="ruled"
-              title={connection.error.code === 'local_network_denied' || connection.error.code === 'server_busy' ? connection.error.message : C.unreachable}
+              title={
+                connection.error.code === 'local_network_denied' || connection.error.code === 'server_busy'
+                  ? connection.error.message
+                  : C.unreachable
+              }
               actions={
                 <Key size="sm" icon={RefreshCw} loading={checking} onClick={() => void checkNow()}>
                   {C.tryAgain}
@@ -501,61 +596,85 @@ function PairedView({
             >
               {lastContact ? C.lastContactAt(relativeTime(lastContact)) : null}
             </Notice>
-          ) : null}
-          {connection.state === 'version' ? <Notice severity="caution" layout="ruled" title={C.versionOld(connection.status.server.version, MIN_SERVER_VERSION)} /> : null}
-          <div className="grid gap-4 min-[1200px]:grid-cols-2">
-            <div className="grid gap-2">
-              <KeyValueList items={items} />
-              <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.readable}</p>
-              {note ? (
-                <InlineWarning
-                  severity="caution"
-                  action={
-                    onRetry ? (
-                      <Key size="sm" icon={RefreshCw} loading={retrying} onClick={onRetry}>
-                        {C.tryAgain}
-                      </Key>
-                    ) : undefined
-                  }
-                >
-                  {note}
-                </InlineWarning>
-              ) : null}
-              {!sync.paired ? <p className="m-0 text-xs leading-[1.45] text-ink-2">{C.syncHint}</p> : null}
-              <div>
-                <Key size="sm" icon={RefreshCw} loading={checking || connection.state === 'checking'} onClick={() => void checkNow()}>
-                  {C.checkNow}
-                </Key>
+          </SettingsItem>
+        ) : null}
+        {connection.state === 'version' ? (
+          <SettingsItem>
+            <Notice
+              severity="caution"
+              layout="ruled"
+              title={C.versionOld(connection.status.server.version, MIN_SERVER_VERSION)}
+            />
+          </SettingsItem>
+        ) : null}
+        <SettingsItem>
+          <LinkStrip
+            host={hostOf(pairing.baseUrl)}
+            connection={connection}
+            sync={syncsThroughServer(sync, pairing.baseUrl) ? sync.status : null}
+            syncState={syncState}
+          />
+          <div className="settings-server-foot">
+            <ServerPill connection={connection} />
+            <MonoMeta>Last contact {relativeTime(lastContact)}</MonoMeta>
+          </div>
+          <dl className="settings-server-facts">
+            {items.map((item) => (
+              <div key={item.key}>
+                <dt>
+                  <MonoMeta>{item.key}</MonoMeta>
+                </dt>
+                <dd>
+                  <MonoMeta tone="ink">{item.value}</MonoMeta>
+                </dd>
               </div>
-            </div>
-            <div className="border-t border-line pt-4 min-[1200px]:border-0 min-[1200px]:pt-0">
-              <AddDevice baseUrl={pairing.baseUrl} onPaired={() => setDevicesRev((n) => n + 1)} disabled={connection.state === 'unreachable' && connection.error.code !== 'server_busy'} />
-            </div>
-          </div>
-        </div>
-      </Faceplate>
-
-      <DevicesFaceplate rev={devicesRev} disabled={connection.state === 'unreachable' && connection.error.code !== 'server_busy'} />
-
-      <Faceplate as="section" aria-labelledby="settings-server-holds-title">
-        <FaceplateHeader title={C.holdsTitle} titleId="settings-server-holds-title" />
-        <div className="grid gap-3">
-          <ul className="m-0 grid list-disc gap-1 pl-5 text-sm leading-[1.5] text-ink">
-            {C.holds.map((h) => (
-              <li key={h}>{h}</li>
             ))}
-          </ul>
-          <p className="m-0 text-sm leading-[1.5] text-ink-2">{C.holdsRead}</p>
-          <div className="grid gap-1 border-t border-line pt-4">
-            <div>
-              <Key variant="danger" onClick={() => setConfirmForget(true)}>
-                {C.forget}
-              </Key>
-            </div>
-            <p className="m-0 text-xs text-ink-2">{C.forgetHelp}</p>
+          </dl>
+          {note ? (
+            <InlineWarning
+              severity="caution"
+              action={
+                onRetry ? (
+                  <Key size="sm" icon={RefreshCw} loading={retrying} onClick={onRetry}>
+                    {C.tryAgain}
+                  </Key>
+                ) : undefined
+              }
+            >
+              {note}
+            </InlineWarning>
+          ) : null}
+          <div className="settings-keys">
+            <Key
+              size="sm"
+              variant="text"
+              icon={RefreshCw}
+              loading={checking || connection.state === 'checking'}
+              onClick={() => void checkNow()}
+            >
+              {C.checkNow}
+            </Key>
           </div>
-        </div>
-      </Faceplate>
+        </SettingsItem>
+        <SettingsItem>
+          <AddDevice
+            baseUrl={pairing.baseUrl}
+            onPaired={() => setDevicesRev((n) => n + 1)}
+            disabled={unreachable}
+          />
+        </SettingsItem>
+        <GaugeImportRow bare />
+        <SettingsItem>
+          <div>
+            <Key variant="danger" onClick={() => setConfirmForget(true)}>
+              {C.forget}
+            </Key>
+          </div>
+          <p className="settings-note">{C.forgetHelp}</p>
+        </SettingsItem>
+      </SettingsCard>
+
+      <DevicesGroup rev={devicesRev} disabled={unreachable} />
 
       <Dialog
         open={confirmForget}
@@ -567,17 +686,26 @@ function PairedView({
             <Key onClick={() => setConfirmForget(false)}>{C.cancel}</Key>
             <Key
               variant="danger"
-              onClick={() => {
+              onClick={async () => {
                 setConfirmForget(false);
                 // the confirm says this device stops syncing: the relay on this server does not check the device token,
                 // so forgetting the pairing alone would leave sync running through it. Stopping keeps this device's data.
                 const stopSync = syncsThroughServer(sync, pairing.baseUrl);
                 client.forget();
-                onForgot();
                 if (stopSync)
-                  void sendCommand('sync.unpair', {}, { confirmation: mintConfirmation('sync.unpair', {}), silent: true }).then((r) => {
+                  void sendCommand(
+                    'sync.unpair',
+                    {},
+                    { confirmation: mintConfirmation('sync.unpair', {}), silent: true },
+                  ).then((r) => {
                     if (!r.ok) toast(C.forgetSyncFailed(r.error.message));
                   });
+                try {
+                  await clearGaugeEngineServer();
+                  onForgot();
+                } catch {
+                  toast('Ring uploads could not be disconnected. Open Vitals again to retry.');
+                }
               }}
             >
               {C.forgetConfirm}
@@ -591,7 +719,15 @@ function PairedView({
   );
 }
 
-function AddDevice({ baseUrl, onPaired, disabled }: { baseUrl: string; onPaired: () => void; disabled: boolean }) {
+function AddDevice({
+  baseUrl,
+  onPaired,
+  disabled,
+}: {
+  baseUrl: string;
+  onPaired: () => void;
+  disabled: boolean;
+}) {
   const client = useServerClient();
   const [code, setCode] = useState<PairCode | null>(null);
   const [busy, setBusy] = useState(false);
@@ -640,14 +776,17 @@ function AddDevice({ baseUrl, onPaired, disabled }: { baseUrl: string; onPaired:
     const t = window.setInterval(tick, 1000);
     const poll = window.setInterval(() => {
       if (!known) return;
-      void client.devices().then((d) => {
-        const added = d.find((x) => !known!.has(x.id));
-        if (added) {
-          setAnnounce(`${added.label} paired.`);
-          onPaired();
-          setCode(null);
-        }
-      }, () => undefined);
+      void client.devices().then(
+        (d) => {
+          const added = d.find((x) => !known!.has(x.id));
+          if (added) {
+            setAnnounce(`${added.label} paired.`);
+            onPaired();
+            setCode(null);
+          }
+        },
+        () => undefined,
+      );
     }, 4000);
     return () => {
       window.clearInterval(t);
@@ -656,20 +795,26 @@ function AddDevice({ baseUrl, onPaired, disabled }: { baseUrl: string; onPaired:
   }, [client, code, onPaired]);
 
   const display = code ? `${code.code.slice(0, 4)}–${code.code.slice(4)}` : '';
-  const link = code ? pairingLinkFor(code.qr, typeof window === 'undefined' ? undefined : window.location.origin) : '';
-  const copy = (text: string) => void navigator.clipboard?.writeText(text).then(() => toast(C.newCodeCopied), () => undefined);
+  const link = code
+    ? pairingLinkFor(code.qr, typeof window === 'undefined' ? undefined : window.location.origin)
+    : '';
+  const copy = (text: string) =>
+    void navigator.clipboard?.writeText(text).then(
+      () => toast(C.newCodeCopied),
+      () => undefined,
+    );
   return (
     <div className="grid gap-2">
       <p className="lm-sr" aria-live="polite">
         {announce}
       </p>
       {code ? (
-        <div role="region" aria-labelledby="server-new-code-title" className="grid gap-3 rounded-md border border-line p-3">
-          <h3 id="server-new-code-title" className="lm-eng m-0">
+        <div role="region" aria-labelledby="server-new-code-title" className="grid gap-3">
+          <h4 id="server-new-code-title" className="settings-list__title m-0">
             {C.newCodeTitle}
-          </h3>
+          </h4>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-[28px] font-[500] tabular-nums tracking-[0.08em] text-ink">{display}</span>
+            <span className="settings-code-big">{display}</span>
             <Key size="sm" icon={Copy} onClick={() => copy(code.code)}>
               {C.newCodeCopy}
             </Key>
@@ -679,11 +824,13 @@ function AddDevice({ baseUrl, onPaired, disabled }: { baseUrl: string; onPaired:
           </div>
           <div className="flex flex-wrap items-start gap-3">
             <QrCode text={link} label={C.newCodeTitle} className="w-[200px] max-w-full shrink-0 rounded-sm" />
-            <p className={`m-0 min-w-[12rem] flex-1 text-sm leading-[1.5] text-ink-2 ${wrap}`}>{C.newCodeHow(baseUrl)}</p>
+            <p className={`settings-note min-w-[12rem] flex-1 ${wrap}`}>{C.newCodeHow(baseUrl)}</p>
           </div>
-          <p className="m-0 text-sm tabular-nums text-ink">{left > 0 ? C.newCodeExpires(countdown(left)) : C.newCodeExpired}</p>
+          <p className="settings-text tabular-nums">
+            {left > 0 ? C.newCodeExpires(countdown(left)) : C.newCodeExpired}
+          </p>
           <InlineWarning severity="caution">{C.newCodeCaution}</InlineWarning>
-          <div className="flex flex-wrap gap-2">
+          <div className="settings-keys">
             {left <= 0 ? (
               <Key size="sm" loading={busy} onClick={() => void make()}>
                 {C.newCodeAgain}
@@ -696,7 +843,12 @@ function AddDevice({ baseUrl, onPaired, disabled }: { baseUrl: string; onPaired:
         </div>
       ) : (
         <div>
-          <Key ref={openRef} loading={busy} disabledReason={disabled ? C.unreachable : undefined} onClick={() => void make()}>
+          <Key
+            ref={openRef}
+            loading={busy}
+            disabledReason={disabled ? C.unreachable : undefined}
+            onClick={() => void make()}
+          >
             {C.addDevice}
           </Key>
         </div>
@@ -710,8 +862,37 @@ function AddDevice({ baseUrl, onPaired, disabled }: { baseUrl: string; onPaired:
   );
 }
 
-function DevicesFaceplate({ rev, disabled }: { rev: number; disabled: boolean }) {
+/** The apps that are not a browser (the shells' origins, as the home server allows them). */
+const DESKTOP_ORIGIN = 'app://vitals';
+const PHONE_ORIGINS = new Set(['https://localhost', 'capacitor://localhost']);
+
+/**
+ * What a paired device is, in one word: Gauge (a Lumen token), an agent, the desktop app, a phone (the Android app, or
+ * a browser on a phone) or a browser. The server says where a device paired from; this device knows its own platform;
+ * an older server's list falls back to the default label ("Chrome on Android").
+ */
+function deviceKind(d: Pick<ServerDevice, 'kind' | 'label' | 'current' | 'origin'>): string {
+  if (d.kind === 'lumen') return C.kindGauge;
+  if (d.kind === 'agent') return C.kindAgent;
+  const here = d.current ? platform() : null;
+  if (here === 'electron' || d.origin === DESKTOP_ORIGIN) return C.kindDesktop;
+  if (here === 'android' || (d.origin && PHONE_ORIGINS.has(d.origin))) return C.kindPhone;
+  if ((here === 'web' || here === 'pwa') && /Android|iPhone|iPad/.test(globalThis.navigator?.userAgent ?? ''))
+    return C.kindPhone;
+  if (!here && /\bon (Android|iPhone)$/.test(d.label)) return C.kindPhone;
+  return C.kindBrowser;
+}
+
+/** Present only the old app's generated device-name prefix differently; keep custom labels and stored ids intact. */
+function deviceDisplayLabel(d: ServerDevice): string {
+  const label = d.label || d.id;
+  if (d.kind !== 'lumen') return label;
+  return label.replace(/^Gauge(?=\s*(?:·|$))/, C.kindGauge);
+}
+
+function DevicesGroup({ rev, disabled }: { rev: number; disabled: boolean }) {
   const client = useServerClient();
+  const now = useServerNow();
   const [devices, setDevices] = useState<ServerDevice[] | null>(null);
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<ServerDevice | null>(null);
@@ -726,7 +907,10 @@ function DevicesFaceplate({ rev, disabled }: { rev: number; disabled: boolean })
         setDevices(d);
         setError(null);
       },
-      (e: unknown) => live && !(e instanceof ServerError && (e.code === 'unauthorized' || e.code === 'revoked')) && setError(e instanceof Error ? e.message : String(e)),
+      (e: unknown) =>
+        live &&
+        !(e instanceof ServerError && (e.code === 'unauthorized' || e.code === 'revoked')) &&
+        setError(e instanceof Error ? e.message : String(e)),
     );
     return () => {
       live = false;
@@ -746,45 +930,105 @@ function DevicesFaceplate({ rev, disabled }: { rev: number; disabled: boolean })
     }
   };
 
-  const sorted = devices ? [...devices].sort((a, b) => (a.current ? -1 : b.current ? 1 : b.lastSeenAt.localeCompare(a.lastSeenAt))) : [];
+  const sorted = devices
+    ? [...devices].sort((a, b) => (a.current ? -1 : b.current ? 1 : b.lastSeenAt.localeCompare(a.lastSeenAt)))
+    : [];
   return (
-    <Faceplate as="section" aria-labelledby="settings-server-devices-title">
-      <FaceplateHeader title={C.devicesTitle} titleId="settings-server-devices-title" actions={devices ? <span className="text-sm tabular-nums text-ink-2">{devices.length}</span> : null} />
+    <SettingsGroup label={C.devicesTitle}>
       {error ? (
-        <InlineWarning severity="danger" alert>
-          {error}
-        </InlineWarning>
+        <SettingsItem>
+          <InlineWarning severity="danger" alert>
+            {error}
+          </InlineWarning>
+        </SettingsItem>
       ) : null}
-      {devices && devices.length === 0 ? <p className="m-0 text-sm text-ink-2">{C.devicesNone}</p> : null}
-      <ul className={`m-0 grid list-none p-0 ${disabled ? 'opacity-60' : ''}`}>
-        {sorted.map((d) => {
-          const gone = removed.has(d.id);
-          return (
-            <li key={d.id} className="grid gap-1 border-t border-line py-3 first:border-t-0 first:pt-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-3">
-              <div className="grid min-w-0 gap-0.5">
-                <span className={`text-sm font-[550] text-ink ${wrap}`}>
-                  {d.label || d.id}
-                  <span className="font-normal text-ink-2"> · {d.kind === 'agent' ? C.kindAgent : C.kindBrowser}</span>
-                  {d.current ? <span className="font-normal text-ink-2"> · {C.thisDevice}</span> : null}
-                </span>
-                <span className="text-xs text-ink-2">{gone ? C.removedNow : `${C.pairedOn(formatDay(d.createdAt))} · ${C.seen(relativeTime(d.lastSeenAt))}`}</span>
-              </div>
-              {!d.current && !gone ? (
-                <div className="justify-self-end">
-                  <Key size="sm" variant="quiet" icon={Trash2} aria-label={C.revokeName(d.label || d.id)} onClick={() => setConfirm(d)}>
-                    {C.revoke}
-                  </Key>
+      {devices && devices.length === 0 ? (
+        <SettingsItem>
+          <p className="settings-note">{C.devicesNone}</p>
+        </SettingsItem>
+      ) : null}
+      {sorted.length ? (
+        <ul className={`settings-list ${disabled ? 'opacity-60' : ''}`}>
+          {sorted.map((d) => {
+            const gone = removed.has(d.id);
+            const label = deviceDisplayLabel(d);
+            const kind = deviceKind(d);
+            const showKind = kind.toLowerCase() !== label.toLowerCase() && !(d.kind === 'lumen' && label.startsWith(`${kind} ·`));
+            return (
+              <li key={d.id}>
+                <Icon
+                  icon={
+                    kind === C.kindAgent
+                      ? Bot
+                      : kind === C.kindGauge
+                        ? Circle
+                        : kind === C.kindDesktop
+                          ? Monitor
+                          : kind === C.kindPhone
+                            ? Smartphone
+                            : Globe
+                  }
+                  size={22}
+                  className="settings-device-icon"
+                />
+                <div className="settings-list__text">
+                  <span className="settings-list__title">
+                    {label}
+                    {showKind ? (
+                      <span className="text-ink-2"> · {kind}</span>
+                    ) : null}
+                    {d.current ? <span className="text-ink-2"> · {C.thisDevice}</span> : null}
+                  </span>
+                  <span
+                    className="settings-freshness"
+                    data-fresh={(!gone && now - Date.parse(d.lastSeenAt) < 300_000) || undefined}
+                  >
+                    <StatusDot
+                      tone="neutral"
+                      label={gone ? C.removedNow : C.seen(relativeTime(d.lastSeenAt, new Date(now)))}
+                    />
+                    {!gone ? <MonoMeta>{C.pairedOn(formatDay(d.createdAt))}</MonoMeta> : null}
+                  </span>
                 </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
+                {!d.current && !gone ? (
+                  d.kind === 'agent' ? (
+                    <KeyLink to="/settings/agents" variant="text" size="sm">
+                      Agent keys
+                    </KeyLink>
+                  ) : (
+                    <IconKey
+                      icon={Trash2}
+                      label={C.revokeName(label)}
+                      onClick={() => setConfirm(d)}
+                    />
+                  )
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {devices ? (
+        <SettingsItem>
+          <MonoMeta>
+            {devices.length - removed.size} devices ·{' '}
+            {
+              devices.filter((d) => !removed.has(d.id) && now - Date.parse(d.lastSeenAt) < 300_000)
+                .length
+            }{' '}
+            online
+          </MonoMeta>
+        </SettingsItem>
+      ) : null}
       <Dialog
         open={confirm !== null}
         onClose={() => setConfirm(null)}
         role="alertdialog"
-        title={confirm ? (confirm.kind === 'agent' ? C.revokeAgentTitle : C.revokeTitle)(confirm.label || confirm.id) : ''}
+        title={
+          confirm
+            ? (confirm.kind === 'agent' ? C.revokeAgentTitle : C.revokeTitle)(deviceDisplayLabel(confirm))
+            : ''
+        }
         footer={
           <>
             <Key onClick={() => setConfirm(null)}>{C.cancel}</Key>
@@ -797,6 +1041,6 @@ function DevicesFaceplate({ rev, disabled }: { rev: number; disabled: boolean })
         <p className="m-0">{confirm?.kind === 'agent' ? C.revokeAgentBody : C.revokeBody}</p>
         {confirm?.kind === 'agent' ? null : <p className="m-0 text-sm text-ink-2">{C.revokeKeepsKey}</p>}
       </Dialog>
-    </Faceplate>
+    </SettingsGroup>
   );
 }

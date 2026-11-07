@@ -68,7 +68,6 @@ export function todayViewFixture(over: Partial<TodayView> = {}): TodayView {
     drift: [{ metric: 'scaleWeight', state: 'onTrack', goalDate: { range: ['2026-12-21', '2026-12-30'], shiftDays: 9, shiftSd: 6 }, text: 'On track.' }],
     trendWeight: { kg: 83.1, sd: 0.3, todayExpected: { p10: 82.8, p50: 83.2, p90: 83.6 }, measured: 83.4 },
     checkIn: { due: false, lastAt: '2026-09-24' },
-    biometrics: null,
     notices: [],
     coachPrompts: ['log dinner as planned', 'why is my weight up?'],
     ...over,

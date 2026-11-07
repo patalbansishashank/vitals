@@ -57,6 +57,8 @@ export interface ResistancePrescription {
   maxMin: number;
   /** Effective sets per region for this session. */
   setsByRegion: Partial<Record<TrainingRegion, number>>;
+  /** Hard counted-set ceilings, including spill from compound exercises (separate from effective-set targets). */
+  maxCountedSetsByRegion?: Partial<Record<TrainingRegion, number>>;
   /** Target load, %1RM (default: engine default 70). */
   loadPct1RM?: number;
   /** Target reps in reserve (default 2). */
@@ -138,6 +140,8 @@ export interface ConcreteSession {
   engine: EngineTrainingDose;
   /** Equipment from the purchase list the session relies on. */
   purchasesUsed: string[];
+  /** The proposed optimizer dose was reduced to obey a hard ramp budget; the target below is the actual prescription. */
+  doseAdjustment?: { reason: 'noviceCountedSetBudget'; requestedEffectiveSetsByRegion: Partial<Record<TrainingRegion, number>> };
 }
 
 // ================================================================== availability and willingness
@@ -177,6 +181,13 @@ function enjoyOf(ex: ExerciseRecord, p: TrainingProfile): number {
   return p.liked.includes(ex.id) || p.liked.includes(ex.pattern) || p.liked.includes(ex.tradition) ? 1 : 0;
 }
 
+/**
+ * Whether the composer may prescribe an item (SPEC V1.6, 2026-10-27): activity types added for logging and import mapping
+ * (`prescribable: false`) are never offered by composition, swaps, the training envelope or the shopping list, so the
+ * planner's choices are unchanged by them. Absent = prescribable.
+ */
+export const isPrescribable = (ex: ExerciseRecord): boolean => ex.prescribable !== false;
+
 /** Hard filters (R3 §6, PLANNER_V2 §8.3 step 1) except equipment: refusal, contraindication, skill, impact. */
 export function isWilling(ex: ExerciseRecord, o: Pick<ComposeOptions, 'profile' | 'allowImpact'>): boolean {
   const p = o.profile;
@@ -197,6 +208,7 @@ interface Planned {
   /** One-set (or one-round) log at the planned intensity; the composer sets `setCount`. */
   perf: PerformedExercise;
   perSet: Partial<Record<TrainingRegion, number>>;
+  perCountedSet: Partial<Record<TrainingRegion, number>>;
   perSetMin: number;
   loadPct: number;
   enjoy: number;
@@ -231,7 +243,7 @@ function planResistance(ex: ExerciseRecord, rx: ResistancePrescription, o: Compo
     perf = { exerciseId: ex.id, setCount: 1 };
   }
   const one = resolveDose(ex, perf, o.ctx);
-  return { ex, perf, perSet: one.effectiveSetsByRegion, perSetMin: one.minutes, loadPct: one.meanLoadPct, enjoy: enjoyOf(ex, o.profile), skillGap: Math.max(0, ex.skill - o.profile.skill) };
+  return { ex, perf, perSet: one.effectiveSetsByRegion, perCountedSet: one.setsByRegion, perSetMin: one.minutes, loadPct: one.meanLoadPct, enjoy: enjoyOf(ex, o.profile), skillGap: Math.max(0, ex.skill - o.profile.skill) };
 }
 
 const totalOf = (o: Partial<Record<TrainingRegion, number>>): number => Object.values(o).reduce<number>((a, b) => a + Math.max(0, b ?? 0), 0);
@@ -284,6 +296,19 @@ function gainOf(p: Planned, n: number, deficit: Partial<Record<TrainingRegion, n
   let g = 0;
   for (const [r, c] of Object.entries(p.perSet) as Array<[TrainingRegion, number]>) g += Math.min(c * n, Math.max(0, deficit[r] ?? 0));
   return g;
+}
+
+/** Whole-set allocation under the physical/countable budget; never hide compound spill in the engine readout. */
+function withinCountedBudget(p: Planned, n: number, chosen: readonly Chosen[], rx: ResistancePrescription): number {
+  if (!rx.maxCountedSetsByRegion) return n;
+  for (const r of REGIONS) {
+    const cap = rx.maxCountedSetsByRegion[r];
+    const per = p.perCountedSet[r] ?? 0;
+    if (cap === undefined || !(per > 0)) continue;
+    const used = chosen.reduce((s, k) => s + (k.p.perCountedSet[r] ?? 0) * k.n, 0);
+    n = Math.min(n, Math.max(0, Math.floor((cap - used + 1e-9) / per)));
+  }
+  return n;
 }
 
 function strengthFactor(p: Planned, rx: ResistancePrescription): number {
@@ -339,7 +364,7 @@ function composeResistance(rx: ResistancePrescription, o: ComposeOptions, planne
     for (const c of cands) {
       if (picks.some((k) => k.p.ex.id === c.p.ex.id)) continue;
       if ((patternCount.get(c.p.ex.pattern) ?? 0) >= cp('maxExercisesPerPattern')) continue;
-      const n = chooseSets(c.p, deficit, rx.maxMin - minutes);
+      const n = withinCountedBudget(c.p, chooseSets(c.p, deficit, rx.maxMin - minutes), picks, rx);
       if (n < 1) continue;
       const gain = gainOf(c.p, n, deficit);
       if (gain < 0.25) continue;
@@ -372,7 +397,7 @@ function composeResistance(rx: ResistancePrescription, o: ComposeOptions, planne
       if (picks.some((k) => k.p.ex.id === c.p.ex.id)) continue;
       const sameAsReplaced = c.p.ex.pattern === picks[i]!.p.ex.pattern;
       if (!sameAsReplaced && others.filter((k) => k.p.ex.pattern === c.p.ex.pattern).length >= cp('maxExercisesPerPattern')) continue;
-      const n = chooseSets(c.p, def, rx.maxMin - usedMin);
+      const n = withinCountedBudget(c.p, chooseSets(c.p, def, rx.maxMin - usedMin), others, rx);
       if (n < 1 || gainOf(c.p, n, def) < 0.25) continue;
       const trial = [...others.slice(0, i), { p: c.p, avail: c.avail, equipment: c.equipment, n }, ...others.slice(i)];
       const sh = shortfallBeyondTolerance(trial, target);
@@ -415,7 +440,7 @@ function composeCardio(rx: CardioPrescription, o: ComposeOptions, owned: Readonl
   const maxMin = rx.maxMin ?? Math.ceil(rx.minutes * 1.5);
   let best: { ex: ExerciseRecord; equipment: string[]; perf: PerformedExercise; avail: number; u: number; rank: number } | null = null;
   const usable = o.catalogue.exercises.filter(
-    (ex) => ex.hybridCardioShare > 0 && isWilling(ex, o) && exerciseAvailability(ex, rx.weekday, rx.startH, o, owned, purchases, refused).avail > 0,
+    (ex) => ex.hybridCardioShare > 0 && isPrescribable(ex) && isWilling(ex, o) && exerciseAvailability(ex, rx.weekday, rx.startH, o, owned, purchases, refused).avail > 0,
   );
   // the prescribed modality when any available item delivers it, else any cardio-capable item
   const same = rx.modality === 'other' ? usable : usable.filter((ex) => ex.cardioModality === rx.modality);
@@ -478,9 +503,9 @@ function emptyVector(): StimulusVector {
 
 function finish(rx: SessionPrescription, items: ConcreteItem[], doses: ExerciseDose[], target: StimulusVector, alpha: StimulusIntent, purchases: ReadonlySet<string>, owned: ReadonlySet<string>): ConcreteSession {
   const delivered = doses.length > 0 ? aggregateStimulus(doses) : emptyVector();
-  const equivalence = stimulusEquivalence(target, delivered, alpha);
+  let equivalence = stimulusEquivalence(target, delivered, alpha);
   const tol = cp('sessionSetTolerance');
-  const spill: Partial<Record<TrainingRegion, number>> = {};
+  let spill: Partial<Record<TrainingRegion, number>> = {};
   let ok = true;
   if (rx.kind === 'resistance') {
     for (const r of REGIONS) {
@@ -490,6 +515,17 @@ function finish(rx: SessionPrescription, items: ConcreteItem[], doses: ExerciseD
       if (d > t + tol) spill[r] = d - t;
     }
   } else ok = equivalence.parity;
+  let doseAdjustment: ConcreteSession['doseAdjustment'];
+  if (!ok && rx.kind === 'resistance' && rx.maxCountedSetsByRegion && items.length > 0) {
+    // A generic optimizer dose is not a user-specified set target. Prescribe the feasible working sets explicitly,
+    // retain the requested dose as provenance, and let the planner re-simulate/audit the ACTUAL delivered program.
+    doseAdjustment = { reason: 'noviceCountedSetBudget', requestedEffectiveSetsByRegion: { ...rx.setsByRegion } };
+    rx = { ...rx, setsByRegion: { ...delivered.effectiveSetsByRegion } };
+    target = { ...target, effectiveSetsByRegion: { ...delivered.effectiveSetsByRegion } };
+    equivalence = stimulusEquivalence(target, delivered, alpha);
+    ok = true;
+    spill = {};
+  }
   const minutes = (rx.kind === 'resistance' && items.length > 0 ? cp('warmupMin') : 0) + doses.reduce((a, d) => a + d.minutes, 0);
   const purchasesUsed = [...new Set(items.flatMap((i) => i.equipment).filter((q) => purchases.has(q) && !owned.has(q)))].sort();
   return {
@@ -504,6 +540,7 @@ function finish(rx: SessionPrescription, items: ConcreteItem[], doses: ExerciseD
     spill,
     engine: toEngineDose(doses, rx.startH),
     purchasesUsed,
+    ...(doseAdjustment ? { doseAdjustment } : {}),
   };
 }
 
@@ -523,7 +560,7 @@ interface PlannedVariants {
 function planAll(rx: ResistancePrescription, o: ComposeOptions): PlannedVariants[] {
   const out: PlannedVariants[] = [];
   for (const ex of o.catalogue.exercises) {
-    if (!isWilling(ex, o)) continue;
+    if (!isPrescribable(ex) || !isWilling(ex, o)) continue;
     const canLoad = ex.equipmentAnyOf.some((alt) => loadable(ex, alt));
     const canUnload = ex.equipmentAnyOf.some((alt) => !loadable(ex, alt));
     const loaded = canLoad ? planResistance(ex, rx, o, true) : null;
@@ -610,7 +647,7 @@ export function trainingEnvelope(
   const startH = o.startH ?? 18;
   const rx: ResistancePrescription = { kind: 'resistance', weekday: days[0]!, startH, maxMin: o.maxMinPerSession ?? 120, setsByRegion: {}, loadPct1RM: 70, rir: 2 };
   const avail = (ex: ExerciseRecord): boolean => days.some((d) => exerciseAvailability(ex, d, startH, o, owned, purchases, refused).avail > 0);
-  const willing = o.catalogue.exercises.filter((ex) => isWilling(ex, o) && avail(ex));
+  const willing = o.catalogue.exercises.filter((ex) => isPrescribable(ex) && isWilling(ex, o) && avail(ex));
   const maxSets: Partial<Record<TrainingRegion, number>> = {};
   const maxLoad: Partial<Record<TrainingRegion, number>> = {};
   const limited: TrainingRegion[] = [];
@@ -735,7 +772,7 @@ export function shoppingList(rxs: readonly SessionPrescription[], o: ComposeOpti
   // candidate bundles: what each willing exercise is missing (≤ 3 purchasable items)
   const bundles = new Map<string, string[]>();
   for (const ex of o.catalogue.exercises) {
-    if (!isWilling(ex, o)) continue;
+    if (!isPrescribable(ex) || !isWilling(ex, o)) continue;
     for (const alt of ex.equipmentAnyOf) {
       if (alt.some((q) => refused.has(q))) continue;
       const missing = alt.filter((q) => !days.some((d) => equipmentAvail(q, d, startH, base, owned, purchases) > 0));
@@ -750,7 +787,7 @@ export function shoppingList(rxs: readonly SessionPrescription[], o: ComposeOpti
     const patterns = new Set<string>();
     const modalities = new Set<string>();
     for (const ex of o.catalogue.exercises) {
-      if (!isWilling(ex, o)) continue;
+      if (!isPrescribable(ex) || !isWilling(ex, o)) continue;
       const ok = ex.equipmentAnyOf.some((alt) => alt.every((q) => own.has(q) || days.some((d) => equipmentAvail(q, d, startH, base, owned, purchases) > 0)));
       if (!ok) continue;
       patterns.add(ex.pattern);
@@ -854,7 +891,7 @@ export function swapOptions(
   const isCardio = Object.keys(target.effectiveSetsByRegion).length === 0 && (target.mem > 0 || target.netKcal > 0);
   const out: SwapOption[] = [];
   for (const ex of o.catalogue.exercises) {
-    if (exclude.has(ex.id) || !isWilling(ex, o)) continue;
+    if (exclude.has(ex.id) || !isPrescribable(ex) || !isWilling(ex, o)) continue;
     const a = exerciseAvailability(ex, o.weekday, o.startH, o, owned, purchases, refused);
     if (a.avail <= 0) continue;
     let best: { perf: PerformedExercise; eq: EquivalenceResult; minutes: number } | null = null;

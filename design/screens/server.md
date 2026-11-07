@@ -2,14 +2,14 @@
 
 > Batch 03 (2026-10-03, design D3). The server on the person's own machine replaces the Vitals
 > Companion as the thing a person sets up: it runs sync, the Coach's providers that need a server
-> (Sign in with ChatGPT, OpenCode Zen, NVIDIA), the keys for those, the address agents use, and the
-> receiver for Lumen Health's ring events. The website and the installed app talk to it over HTTPS
+> (Sign in with ChatGPT, OpenCode Zen, NVIDIA), the keys for those and the address agents use.
+> (Until 0.6.0 it also received ring events from Lumen Health over MQTT; that was removed when
+> Vitals became manual-only.) The website and the installed app talk to it over HTTPS
 > with a device token obtained by pairing **once per device**.
 > Contracts: `docs/SUITE_SPEC.md` §14 "Batch 03 contracts" (A4, in progress when this was written:
 > command and field names in §11 below are proposals to reconcile with §14, not settled names).
-> Components: `COMPONENTS.md §15` (pairing field, shown-once block, server status pill, corrected
-> marker). Related: `settings-sync-ai.md §13` (providers, agents, install with the server),
-> `settings-data.md §11` (Lumen Health over MQTT, corrections).
+> Components: `COMPONENTS.md §15` (pairing field, shown-once block, server status pill). Related:
+> `settings-sync-ai.md §13` (providers, agents, install with the server).
 > Every control here is **UI-only**: neither the Coach nor any agent can pair, revoke or forget.
 > All names, addresses, codes and dates are synthetic examples.
 
@@ -24,12 +24,12 @@ clear action each, and never lose data on this device while doing so.
 
 | In | Out |
 |---|---|
-| Settings index "server" · server status pill popover "Server settings" · AI provider row "needs your server" → "Pair a server" · Agents "Pair a server first" · Install "Your server" · Devices "Lumen Health over MQTT" (when not paired) · first-run step (§7) · `/settings/server` deep link · a pairing link `…/settings/server#pair=…` from the server's QR | back to where it came from · after pairing from the first run: Today (data received) or intake (empty server) |
+| Settings index "server" · server status pill popover "Server settings" · AI provider row "needs your server" → "Pair a server" · Agents "Pair a server first" · Install "Your server" · first-run step (§7) · `/settings/server` deep link · a pairing link `…/settings/server#pair=…` from the server's QR | back to where it came from · after pairing from the first run: Today (data received) or intake (empty server) |
 
 ## 3. Layout
 
 Settings index order with batch 03: **units · appearance · kitchen · supplements · your data ·
-server · sync · devices and streams · AI provider · agents · install · safety · about**. Server
+server · sync · AI provider · agents · install · safety · about**. Server
 comes right after "your data" because it answers the same question: where the data lives.
 
 | Width | Frame |
@@ -45,7 +45,7 @@ not paired. No nested faceplates: inside each, hairlines and spacing.
 ```
 ┌──────────────────────────────────────────┐
 │ ‹  Settings                              │
-│ [data][●server][sync][devices][ai…]      │ anchor chips
+│ [data][●server][sync][ai provider]…      │ anchor chips
 ├──────────────────────────────────────────┤
 │ ┌ Server ───────────────────────────────┐│
 │ │ Your server is a small program on a   ││ two lines, 15/400 ink
@@ -95,11 +95,9 @@ not paired. No nested faceplates: inside each, hairlines and spacing.
 │ │   computer                             ││
 │ │ • your AI keys and your ChatGPT        ││
 │ │   sign-in, if you added them there    ││
-│ │ • your ring's data from Lumen Health,  ││
-│ │   if you connected it                  ││
 │ │ It can read all of this: that is how   ││
-│ │ the Coach, agents and your ring work   ││
-│ │ while your devices are off. Anyone who ││
+│ │ the Coach and agents work while your   ││
+│ │ devices are off. Anyone who            ││
 │ │ can open that computer's files can     ││
 │ │ read it too.                           ││
 │ │ ─────────────────────────────────────  ││
@@ -184,7 +182,7 @@ paired."
 
 ### 4.6 Forget this server
 Confirm dialog (not typed): title "Forget home server on this device?", body "This device stops
-syncing and stops using the Coach providers, agent address and ring data that go through your
+syncing and stops using the Coach providers and agent address that go through your
 server. What is already on this device stays here. Your other devices keep working. To use the
 server again, pair this device again." [Cancel] [Forget server]. After: §3.1, plus a one-time info
 Notice "This device no longer uses your server. Its data is still here."
@@ -228,7 +226,7 @@ The pill also appears in the sync pill's place in the top bar when a server is p
 | paired | "Paired with {name}." |
 | keys | "answers now" · "last sync" · "server version" · "this device" |
 | holdsTitle | "What your server holds" |
-| holds | see §3.2 (three bullets + the two sentences) |
+| holds | see §3.2 (two bullets + the two sentences) |
 | addDevice | "Add another device" |
 | forget | "Forget this server" / help "This device stops using the server. Its data stays here." |
 | revoke | "Revoke" |
@@ -297,7 +295,7 @@ both themes so cameras read it.
 - [ ] Merge / Replace is asked only when both this device and the server hold data; Replace needs the typed word.
 - [ ] Paired: name, address, status pill, answers now, last sync, server version, this device, Check now.
 - [ ] Devices list shows name, platform, paired date, last seen; Revoke on every row but this device; revoke dialog says the data on that device stays.
-- [ ] "What your server holds" lists data, keys and sign-in, ring data, and says plainly that the server can read them.
+- [ ] "What your server holds" lists data, keys and sign-in, and says plainly that the server can read them.
 - [ ] Forget this server: dialog says this device's data stays; afterwards the not-paired state and a one-time notice.
 - [ ] Add another device: code + QR + address, "works once · expires in", caution line; closes by itself when the new device pairs.
 - [ ] Errors: unreachable, not a Vitals server, code wrong, too many tries, code expired, code used, device removed, version mismatch, server error — each in the §5 words with its one action.
@@ -318,7 +316,7 @@ both themes so cameras read it.
 | Devices | `server.devices → [{id, name, platform, pairedAt, lastSeenAt, current}]`; `server.revoke(id)` (UI only) |
 | New device code | `server.newPairingCode → {code, link, expiresAt}` (UI only) |
 | Forget | `server.forget` (UI only; local data kept) |
-| What it holds | static copy; the ring line shows only when the MQTT credential exists |
+| What it holds | static copy |
 
 ## 12. Decisions & rationale
 
@@ -326,7 +324,7 @@ both themes so cameras read it.
   server or a paired device is the whole ceremony. The QR carries the address too, so phones need
   no typing.
 - **Say plainly that the server can read the data.** Unlike the earlier scrambled-only relay, this
-  server works on the data (Coach, agents, ring) while devices are off. Saying so is the honest
+  server works on the data (Coach, agents) while devices are off. Saying so is the honest
   trade; the person chose to run it on their own computer.
 - **Revoke and Forget are not typed.** Both are undone by pairing again and neither deletes data;
   typed confirmations stay for deleting.

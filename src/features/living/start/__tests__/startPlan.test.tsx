@@ -11,9 +11,18 @@ import { resetActivePlan } from '../../activePlan';
 import { installDocumentPlanSource, getActivePlanSource } from '../../mode';
 import { seedPlanDocs, SEED_PLAN_ID } from '../../__tests__/seedPlanDocs';
 import { StartPlanEntry } from '../StartPlanSheet';
+import { installLivingPorts } from '@/commands/livingWiring';
+import type { LifecycleRevalidation } from '@/living';
 
 // the start sheet writes through plan.start / plan.replace; the mode reads the plan documents (as in the app)
 installDocumentPlanSource();
+// These tests cover the start sheet's flow, not the lifecycle safety gate (C5, covered in commands/living historySafety
+// and StartPlanSheet.lifecycle): their fixtures were not built to the planner's current safety rules, so the revalidation
+// port reports a valid current check (startable). An absent revalidation never authorizes a start (A1-001).
+installLivingPorts({
+  revalidate: async () =>
+    ({ status: 'verified', certificateValid: true, startable: true }) as LifecycleRevalidation,
+});
 // The bus reads the system clock and the sheet its Living clock; both are pinned to the same wall time, once in the
 // afternoon and once at 01:30 — after midnight but before the 04:00 rollover, when the app's day is still yesterday and
 // a plan started "tomorrow" must start on the calendar date that has just begun, not go live at once (LIV-06, LIV-17).
@@ -33,7 +42,12 @@ function renderEntry() {
         path: '/plan/results',
         element: (
           <LivingClockContext.Provider value={fixedClock(WALL)}>
-            <StartPlanEntry option={option} request={fixtureRequest()} provenance={result.provenance} name={option.name} />
+            <StartPlanEntry
+              option={option}
+              request={fixtureRequest()}
+              provenance={result.provenance}
+              name={option.name}
+            />
           </LivingClockContext.Provider>
         ),
       },
@@ -55,7 +69,11 @@ describe.each(WALLS)('Start this plan (plan-ladder §6.7) $label', ({ wall, appT
     freshState({ cleared: true });
     resetActivePlan();
     // the Planner result the sheet was opened from (plan.start reads the rung from it)
-    withSystemWrite(() => usePlannerStore.setState({ run: { ...EMPTY_RUN, status: 'done', request: fixtureRequest(), result: fixtureResult() } }));
+    withSystemWrite(() =>
+      usePlannerStore.setState({
+        run: { ...EMPTY_RUN, status: 'done', request: fixtureRequest(), result: fixtureResult() },
+      }),
+    );
   });
   afterEach(() => vi.useRealTimers());
 
@@ -74,6 +92,28 @@ describe.each(WALLS)('Start this plan (plan-ladder §6.7) $label', ({ wall, appT
     expect(plan.version?.version).toBe(1);
     expect(plan.intentions).toMatchObject({ weighInClockH: 7, missedSessionPlan: 'nextDay' });
     expect(plan.policy.checkInWeekday).toBeGreaterThanOrEqual(0);
+  });
+
+  it('previews the duration and updates its training-day marks before starting', async () => {
+    renderEntry();
+    fireEvent.click(screen.getByRole('button', { name: 'Start this plan' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Start Hard' });
+    expect(within(sheet).getByRole('meter', { name: 'Plan length' })).toHaveAttribute(
+      'aria-valuemax',
+      String(fixtureResult().options[0]!.schedule.horizonDays),
+    );
+    const preview = within(sheet).getByRole('img', { name: /^Training days:/ });
+    const monday = within(sheet).getByRole('button', { name: 'Mon' });
+    const wasOn = monday.getAttribute('aria-pressed') === 'true';
+    fireEvent.click(monday);
+    expect(monday).toHaveAttribute('aria-pressed', String(!wasOn));
+    expect(preview.getAttribute('aria-label')?.includes('Mon')).toBe(!wasOn);
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'today' }));
+    expect(within(sheet).getByLabelText('Plan preview')).toHaveTextContent(/days/);
+    fireEvent.click(within(sheet).getByRole('button', { name: 'About Safety check' }));
+    const info = await screen.findByRole('dialog', { name: 'Safety check' });
+    expect(within(info).getByText(/Before a plan starts, Vitals checks it/)).toBeInTheDocument();
+    expect(getActivePlanSource().get().plan).toBeNull();
   });
 
   it('with a plan running the key reads "Replace active plan…" and needs the typed word', async () => {

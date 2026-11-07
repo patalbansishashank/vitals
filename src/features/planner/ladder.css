@@ -26,31 +26,22 @@
     flex: none;
     width: 24px;
     height: 24px;
-    border-radius: 5px;
+    border-radius: var(--lm-radius-full);
     background: var(--lp-rung);
     color: var(--lm-ink-inverse);
-    font-size: 13px;
-    font-weight: 700;
-    font-stretch: 112%;
+    font-size: 12px;
+    font-weight: 500;
     line-height: 1;
-    box-shadow: var(--lm-shadow-key);
   }
   .lp-rkey[data-size='sm'] {
     width: 18px;
     height: 18px;
-    font-size: 11px;
-    box-shadow: none;
-  }
-  .lp-rkey[data-pressed] {
-    box-shadow: var(--lm-shadow-key-pressed);
-    transform: translateY(1px);
+    font-size: 10px;
   }
   .lp-rkey[data-rung='ideal'] {
     background: transparent;
     color: var(--lm-ink);
-    border: 1px dashed var(--lm-ink);
-    box-shadow: none;
-    transform: none;
+    border: 1px dashed var(--lm-ink-2);
   }
 
   /* ---- results layout ------------------------------------------------------------------------------------- */
@@ -59,9 +50,6 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
-  .lp-results--ladder > .lp-notice {
-    margin: 0;
-  }
   .lp-results.is-stale .lp-ladder,
   .lp-results.is-stale .lp-ladder-face,
   .lp-results.is-stale .lp-ltable-wrap,
@@ -69,11 +57,36 @@
     opacity: 0.6;
   }
 
+  /* facts about the result, on the ladder card (stopped early, kept after a stop, placeholder physiology) */
+  .lp-ladder__note {
+    margin: 0 0 10px;
+    font-size: var(--lm-text-xs);
+    line-height: 1.125rem;
+    color: var(--lm-ink-2);
+  }
+  /* each goal's evidence grade: a quiet row at the foot of the ladder card */
+  .lp-grades {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lp-grades__item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-row-gap);
+  }
+
   /* ---- ladder strip (LadderScale) ----------------------------------------------------------------------------- */
   .lp-scale {
     margin: 0;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     min-width: 0;
   }
   .lp-scale__title {
@@ -91,14 +104,21 @@
   .lp-scale__view {
     justify-self: end;
   }
+  /* r068 PR6: the plot runs the card's full width (end labels turn inward), a short strip with the labels above their
+     dots on a plate, clear of the ceiling line */
+  .lp-scale__goal {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-row-gap);
+  }
   .lp-scale__plot {
     position: relative;
-    height: 72px;
-    margin: 8px 64px 0 12px;
+    height: 64px;
+    margin: calc(var(--lm-stack) + var(--lm-row-gap)) var(--lm-row-gap) 0;
   }
   @media (min-width: 64rem) {
     .lp-scale__plot {
-      height: 96px;
+      height: 72px;
     }
   }
   .lp-scale__svg {
@@ -126,7 +146,7 @@
     vector-effect: non-scaling-stroke;
   }
   .lp-scale__xlabel {
-    margin: 2px 64px 0 12px;
+    margin: 2px var(--lm-row-gap) 0;
     color: var(--lm-ink-3);
   }
   .lp-scale__frontier {
@@ -158,24 +178,25 @@
     flex: none;
     border-radius: 50%;
     background: var(--lp-rung);
-    box-shadow: 0 0 0 2px var(--lm-face);
+    /* a face-coloured ring keeps lines off the dot (a ring, not a shadow) */
+    outline: 2px solid var(--lm-face);
   }
   .lp-scale__mark[aria-pressed='true'] i {
-    box-shadow:
-      0 0 0 2px var(--lm-face),
-      0 0 0 3.5px var(--lm-ink);
+    outline: 1.5px solid var(--lm-signal);
+    outline-offset: 2px;
   }
   .lp-scale__label {
-    font-size: var(--lm-text-2xs);
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
     white-space: nowrap;
-    /* a plate under the text so the ceiling line never strikes through it (a rung near the ceiling, phones) */
-    padding: 0 3px;
-    margin-top: -14px;
+    /* a plate under the text so the ceiling line never strikes through it */
+    padding: 0 4px;
+    margin-top: -20px;
     background: var(--lm-face);
     border-radius: var(--lm-radius-xs);
   }
   .lp-scale__mark[aria-pressed='true'] .lp-scale__label {
-    font-weight: 600;
+    font-weight: 500;
   }
   /* crowded markers: the label sits below the dot (always when the neighbour is very close, on narrow plots when it is
      close), so labels never cover another rung's dot or label */
@@ -184,18 +205,18 @@
   }
   .lp-scale__mark[data-crowd='close'] .lp-scale__label {
     margin-top: 0;
-    translate: 0 14px;
+    translate: 0 18px;
   }
   @container lp-scale (max-width: 640px) {
     .lp-scale__mark[data-crowd='tight'] .lp-scale__label {
       margin-top: 0;
-      translate: 0 14px;
+      translate: 0 18px;
     }
   }
   .lp-scale__axis {
     position: relative;
     height: 14px;
-    margin: 0 64px 0 12px;
+    margin: 0 var(--lm-row-gap);
     border-top: 1px solid var(--lm-chart-axis);
     font-size: 11px;
     color: var(--lm-ink-3);
@@ -214,10 +235,13 @@
     transform: translateX(-100%);
   }
   .lp-scale__how {
-    margin: 4px 0 0;
+    margin: var(--lm-row-gap) 0 0;
     font-size: var(--lm-text-xs);
-    line-height: 1.5;
+    line-height: 1.125rem;
     color: var(--lm-ink-2);
+  }
+  .lp-scale__how p {
+    margin: 0 0 var(--lm-row-gap);
   }
 
   /* ---- the ladder of cards: only the cards that exist (plan-ladder.md §12.3) -----------------------------------
@@ -288,8 +312,6 @@
     writing-mode: vertical-rl;
     transform: rotate(180deg);
     font-size: var(--lm-text-2xs);
-    letter-spacing: 0.04em;
-    text-transform: lowercase;
     color: var(--lm-ink-3);
     white-space: nowrap;
     height: max-content;
@@ -352,9 +374,6 @@
       text-align: right;
       transform: translateY(-50%);
     }
-    .lp-ladder[data-n='1'] .lp-ladder__col {
-      max-width: 520px;
-    }
     .lp-ladder__rule {
       display: none;
     }
@@ -391,6 +410,62 @@
     }
   }
 
+  /* r068 PR4: below 1024 px one card shows at the page's full width, chosen with the Hard · Medium · Easy selector
+     above it (no peek rail, no dots); the subgrid rows then size to that one card, so nothing reserves empty bands */
+  .lp-ladder-wrap > .lp-rungbank.lm-bank[data-segments] {
+    display: none;
+  }
+  @media (max-width: 63.99rem) {
+    .lp-ladder-wrap > .lp-rungbank.lm-bank[data-segments] {
+      display: grid;
+    }
+    .lp-ladder,
+    .lp-ladder[data-ideal] {
+      grid-auto-flow: row;
+      grid-template-columns: minmax(0, 1fr);
+      overflow: visible;
+      scroll-snap-type: none;
+      margin: 0;
+      padding: 0;
+    }
+    .lp-ladder__col:not([data-current]),
+    .lp-ladder__rule {
+      display: none;
+    }
+    .lp-ladder__col[data-current] {
+      grid-column: 1;
+    }
+    /* r068 W2-6: one card at a time, so no rows to align: Start / Open sit right under the goals, the detail after */
+    .lp-ladder .lp-lcard {
+      display: flex;
+      flex-direction: column;
+      gap: var(--lm-card-gap);
+    }
+    .lp-ladder .lp-lcard > [data-row='actions'] {
+      order: 1;
+      align-self: stretch;
+    }
+    .lp-ladder .lp-lcard > [data-row='effort'],
+    .lp-ladder .lp-lcard > [data-row='daytoday'],
+    .lp-ladder .lp-lcard > [data-row='fasting'],
+    .lp-ladder .lp-lcard > [data-row='buy'],
+    .lp-ladder .lp-lcard > [data-row='limits'],
+    .lp-ladder .lp-lcard > [data-row='safety'],
+    .lp-ladder .lp-lcard > [data-row='cost'] {
+      order: 2;
+    }
+    .lp-ladder .lp-lcard > .lp-lcard__row:empty {
+      display: none;
+    }
+    .lp-ladder .lp-lcard > [data-row='actions']:not(:empty) {
+      padding-bottom: var(--lm-card-gap);
+      border-bottom: var(--lm-hairline) solid var(--lm-line);
+    }
+  }
+  .lp-dots {
+    display: none;
+  }
+
   /* ---- collapsed rungs: chips under the graph ------------------------------------------------------------- */
   .lp-lchips {
     list-style: none;
@@ -406,10 +481,10 @@
     gap: 8px;
     min-height: 32px;
     max-width: 100%;
-    padding: 6px 12px 6px 8px;
-    background: var(--lm-face);
+    padding: 6px 14px 6px 8px;
+    background: transparent;
     border: 1px dashed var(--lm-line-strong);
-    border-radius: var(--lm-radius-sm);
+    border-radius: var(--lm-radius-md);
     font-size: var(--lm-text-xs);
     line-height: 1.45;
     color: var(--lm-ink-2);
@@ -425,6 +500,7 @@
   }
   .lp-lchip__text .lm-eng {
     color: var(--lm-ink);
+    font-size: inherit;
   }
   @media (max-width: 47.99rem) {
     .lp-lchip {
@@ -434,40 +510,31 @@
 
   /* ---- ladder card ----------------------------------------------------------------------------------------- */
   .lp-lcard {
-    /* the card's own surface, and the row hover mixed into it (COMPONENTS §14.1: 6 % ink, never a tinted fill) */
-    --lp-surface: var(--lm-face);
-    --lp-face-hover: var(--lm-face-hover);
-    --lp-face-press: color-mix(in oklab, var(--lp-surface), var(--lm-ink) 10%);
+    /* Ember card material (SPEC §3); a control's hover is a gold-soft wash, never a tinted card */
+    --lp-face-hover: var(--lm-gold-soft);
+    --lp-face-press: var(--lm-elevated); /* SPEC §1: elevated = pressed rows */
     grid-row: 1 / -1;
     display: grid;
     grid-template-rows: subgrid;
     row-gap: 10px;
     min-width: 0;
-    padding: 14px 16px 16px;
-    background: var(--lp-surface);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
+    padding: var(--lm-card-pad);
+    background: var(--lm-card-bg);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
     cursor: pointer;
-    transition:
-      box-shadow var(--lm-dur-fast) var(--lm-ease-out),
-      border-color var(--lm-dur-fast) var(--lm-ease-out);
+    transition: border-color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lp-lcard:hover {
-    border-color: var(--lm-edge);
+    border-color: var(--lm-line-strong);
   }
+  /* selected = the gold edge (selection is gold), no ring, no shadow */
   .lp-lcard[data-selected] {
-    border-color: var(--lm-ink);
-    box-shadow:
-      0 0 0 1px var(--lm-ink),
-      var(--lm-shadow-face);
+    border: 1px solid var(--lm-gold-edge);
   }
   .lp-lcard[data-rung='ideal'] {
-    --lp-surface: color-mix(in oklab, var(--lm-face) 70%, var(--lm-chassis));
-    /* the token's 6 % ink mix, over the Ideal's own surface */
-    --lp-face-hover: color-mix(in oklab, var(--lp-surface), var(--lm-ink) 6%);
-    border-style: dashed;
-    border-color: var(--lm-ink-3);
+    background: transparent;
+    border: 1px dashed var(--lm-line-strong);
   }
   /* a rung kept from the previous, shorter search */
   .lp-lcard[data-carried] {
@@ -478,13 +545,12 @@
     color: var(--lm-ink-3);
   }
   .lp-lcard[data-rung='ideal'][data-selected] {
-    border-color: var(--lm-ink);
+    border-color: var(--lm-gold-edge);
   }
   .lp-lcard[data-standalone] {
     grid-template-rows: none;
     grid-row: auto;
     cursor: default;
-    max-width: 520px;
   }
   .lp-lcard__row {
     min-width: 0;
@@ -582,24 +648,12 @@
     outline-offset: 4px;
     position: relative;
   }
-  .lp-lcard[data-selected] .lp-lcard__toggle::after {
-    content: '';
-    position: absolute;
-    left: -10px;
-    top: 50%;
-    width: 6px;
-    height: 6px;
-    margin-top: -3px;
-    border-radius: 50%;
-    background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
-  }
   .lp-lcard__title {
     flex: 1;
     min-width: 0;
-    font-size: var(--lm-text-md, 17px);
-    font-weight: 600;
-    line-height: 1.25;
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.4375rem;
   }
   .lp-lcard__effort {
     font-size: var(--lm-text-xs);
@@ -617,16 +671,14 @@
     margin: 2px 0 0;
     color: var(--lm-ink-3);
   }
+  /* section labels inside a card: label-s, stone, sentence case, no rule line */
   .lp-lcard__sec {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 6px;
+    display: block;
+    margin: 0 0 4px;
+    font-weight: 400;
   }
-  .lp-lcard__sec::after {
-    content: '';
-    flex: 1;
-    border-top: 1px solid var(--lm-line);
+  .lp-lcard__sec::first-letter {
+    text-transform: uppercase;
   }
   .lp-lcard__line {
     margin: 0;
@@ -650,7 +702,7 @@
   .lp-lcard__safety {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     margin: 0;
     padding: 0;
     border: 0;
@@ -665,29 +717,37 @@
     padding: 2px 4px;
     border-radius: var(--lm-radius-sm);
   }
+  /* the card's footer: full-width keys of one height, stacked on a phone, side by side where the card is wide
+     (r068 PR5: a filled primary and an outlined secondary, never a pill beside a text link) */
   .lp-lcard__actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+    align-items: stretch;
+    gap: var(--lm-row-gap);
     align-self: end;
   }
-  .lp-lcard__actions:not(:empty) {
-    padding-top: 10px;
-    border-top: 1px solid var(--lm-line);
-  }
-  /* below 1024 the Start key lives in the action bar (the only solid key in the view) */
-  .lp-lcard__start {
-    display: none;
-  }
-  @media (min-width: 64rem) {
-    .lp-lcard__start {
-      display: inline-flex;
-    }
+  /* direct children only: below 1024 px the start sheet renders inline in .lv-start-entry, and its own keys
+     (the close X) must keep their size (r068 W2-1) */
+  .lp-lcard__actions > .lm-key,
+  .lp-lcard__actions > * > .lm-key,
+  .lp-lcard__start,
+  .lp-lcard__start > .lv-start-entry,
+  .lp-lcard__start > .lv-start-entry > .lm-key {
+    width: 100%;
   }
   .lp-lcard__start .lv-start-entry {
-    display: inline-flex;
+    margin: 0;
+  }
+  .lp-lcard__actions:not(:empty) {
+    padding-top: var(--lm-card-gap);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  /* "Start this plan" on the selected card, every width (the only gold filled key in the view) */
+  .lp-lcard__start {
+    display: flex;
+  }
+  .lp-lcard__start .lv-start-entry {
+    display: flex;
   }
 
   /* goal rows */
@@ -723,7 +783,7 @@
     flex: none;
     max-width: 100%;
     margin-left: auto;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
     white-space: nowrap;
   }
@@ -750,7 +810,7 @@
   .lp-lgoal__verdict {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     margin: 0 0 0 calc(1.1em + 6px);
     font-size: var(--lm-text-xs);
     color: var(--lm-ink-2);
@@ -774,7 +834,7 @@
   .lp-buy {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 8px;
+    gap: 2px var(--lm-row-gap);
   }
   .lp-buy__name {
     color: var(--lm-ink);
@@ -796,11 +856,12 @@
     --lp-track: 120px;
     --lp-reserve: 0px;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     min-width: 0;
   }
+  /* the card's tracks are wide enough to compare (Codex w2 #4: 64 px was too short to read a difference) */
   .lp-burden[data-size='compact'] {
-    --lp-track: 64px;
+    --lp-track: 112px;
   }
   .lp-burden[data-overflow] {
     --lp-reserve: calc(var(--lp-track) / 2);
@@ -846,30 +907,50 @@
   .lp-burden__row:not([data-active]) .lp-burden__text {
     color: var(--lm-ink-3);
   }
-  /* phones, full size (Overview): the sentence goes under its bar instead of a one-word-wide column */
-  @media (max-width: 47.99rem) {
-    .lp-burden[data-size='full'] .lp-burden__row {
-      align-items: start;
-    }
-    .lp-burden[data-size='full'] .lp-burden__val {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 4px;
-      padding-top: 4px;
-    }
-  }
+  /* r068 PR2 / PR8: on a ladder card (compact), and on phones everywhere, each part reads label · bar on one line and
+     its sentence under them at the row's full width, wrapping; never cut to an ellipsis or squeezed into a narrow
+     column */
   .lp-burden[data-size='compact'] .lp-burden__row {
     grid-template-columns: 7.2em minmax(0, 1fr);
-    gap: 8px;
+    gap: 2px var(--lm-row-gap);
   }
   .lp-burden[data-size='compact'] .lp-burden__val {
-    gap: 8px;
+    display: contents;
   }
   .lp-burden[data-size='compact'] .lp-burden__text {
-    font-size: var(--lm-text-2xs);
+    grid-column: 1 / -1;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  }
+  .lp-burden[data-size='compact'] .lp-burden__rows {
+    gap: var(--lm-card-gap);
+  }
+  /* r068 W2-6: on a card each track runs the row's full width (the same width on every card, so values compare);
+     when any card draws past its limit, every card leaves the same third for it */
+  .lp-burden[data-size='compact'] .lp-burden__bar {
+    width: 100%;
+    justify-self: stretch;
+  }
+  .lp-burden[data-size='compact'][data-overflow] .lp-burden__bar,
+  .lp-burden[data-size='compact'][data-reserve] .lp-burden__bar {
+    width: calc(200% / 3);
+    justify-self: start;
+  }
+  /* (r068 final S13) at every width, as on phones: label · bar, its words under them at the row's width (on desktop
+     the words were squeezed into a narrow third column, four lines each) */
+  .lp-burden[data-size='full'] .lp-burden__row {
+    grid-template-columns: 8.5em minmax(0, 1fr);
+    gap: 2px var(--lm-row-gap);
+  }
+  .lp-burden[data-size='full'] .lp-burden__val {
+    display: contents;
+  }
+  .lp-burden[data-size='full'] .lp-burden__text {
+    grid-column: 1 / -1;
+  }
+  .lp-burden[data-size='full'] .lp-burden__rows {
+    gap: var(--lm-row-gap);
   }
   .lp-burden__bar {
     position: relative;
@@ -877,7 +958,6 @@
     height: 8px;
     border-radius: 4px;
     background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
   }
   .lp-burden[data-size='compact'] .lp-burden__bar {
     height: 6px;
@@ -969,7 +1049,7 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
   }
   .lp-lcost {
     display: grid;
@@ -979,7 +1059,7 @@
     color: var(--lm-ink);
   }
   .lp-lcost strong {
-    font-weight: 600;
+    font-weight: 500;
   }
   .lp-lcost__deltas,
   .lp-lcost__effort {
@@ -1006,6 +1086,9 @@
   .lp-lcosts__block > .lm-eng {
     margin: 0;
   }
+  .lp-lcosts__block > .lm-eng::first-letter {
+    text-transform: uppercase;
+  }
   .lp-lcosts__text {
     margin: 0;
     font-size: var(--lm-text-xs);
@@ -1014,7 +1097,7 @@
   }
   .lp-lcosts__advised {
     padding-top: 8px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-lcosts__advised .lp-lcosts__text {
     color: var(--lm-ink-2);
@@ -1037,14 +1120,13 @@
     padding-bottom: 4px;
     font-size: var(--lm-text-2xs);
     color: var(--lm-ink-3);
-    text-transform: lowercase;
   }
   .lp-rival th,
   .lp-rival td {
     padding: 2px 12px 2px 0;
     text-align: left;
     font-weight: 400;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-rival td {
     text-align: right;
@@ -1052,21 +1134,21 @@
   }
 
   /* ---- comparison table ------------------------------------------------------------------------------------- */
+  /* r068 PR15: the table grows with the page (no inner vertical scroller); only a phone scrolls it sideways, with the
+     row labels held in a sticky first column, once */
   .lp-ltable-wrap {
     max-width: 100%;
-    overflow: auto;
-    max-height: 80vh;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
+    overflow-x: auto;
+    overflow-y: hidden;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
     background: var(--lm-face);
-    box-shadow: var(--lm-shadow-face);
   }
   .lp-ltable {
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 13px;
-    font-variation-settings: 'wdth' var(--lm-wdth-condensed, 84);
     font-variant-numeric: tabular-nums;
     line-height: 1.4;
   }
@@ -1075,15 +1157,17 @@
     padding: 6px 10px;
     text-align: left;
     vertical-align: top;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lp-ltable thead th:last-child,
+  .lp-ltable tbody td:last-child {
+    text-align: right;
   }
   .lp-ltable td {
     min-width: 168px;
     color: var(--lm-ink);
   }
   .lp-ltable thead th {
-    position: sticky;
-    top: 0;
     z-index: 2;
     background: var(--lm-face);
     border-bottom: 1px solid var(--lm-line-strong);
@@ -1106,72 +1190,177 @@
     font-weight: 400;
   }
   .lp-ltable tr[data-row='effort'] td {
-    font-weight: 600;
+    font-weight: 500;
   }
-  .lp-ltable [data-selected] {
-    box-shadow:
-      inset 2px 0 0 var(--lm-ink),
-      inset -2px 0 0 var(--lm-ink);
+  /* the selected plan's column: the gold-soft selection wash */
+  .lp-ltable td[data-selected] {
+    background: var(--lm-gold-soft);
+  }
+  .lp-ltable th[data-selected] {
+    background: color-mix(in oklab, var(--lm-face), var(--lm-signal) 18%);
   }
   .lp-ltable td[data-rung='ideal'],
   .lp-ltable th[data-rung='ideal'] {
     border-left: 1px dashed var(--lm-line-strong);
   }
   @media (min-width: 82.5rem) {
-    /* wide: the plans are equal columns that share the width left of the row labels */
+    /* wide: the plans are equal columns that share the width right of the row labels */
     .lp-ltable {
       table-layout: fixed;
     }
     .lp-ltable td {
       min-width: 0;
     }
-    /* the row labels move into each plan's cell, so the plans are four equal quarters of the full width */
     .lp-ltable tbody th,
     .lp-ltable .lp-ltable__corner {
-      position: static;
-      width: 0;
-      min-width: 0;
-      padding: 0;
-      overflow: hidden;
-      font-size: 0;
-      border: 0;
+      width: 13rem;
     }
-    .lp-ltable td::before {
-      content: attr(data-label);
+  }
+  .lp-ltable__plan,
+  .lp-ltable__foot {
+    display: none;
+  }
+  .lp-ltable__note {
+    display: block;
+    margin-top: 4px;
+    font-weight: 400;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+    white-space: normal;
+  }
+  /* r068 W2-8: phones read the table as one block per measure (the measure, then each plan's name and value), inside
+     the card's gutters, with no sideways scroll; the plan keys stay as a row of buttons on top */
+  @media (max-width: 47.99rem) {
+    .lp-ltable-wrap {
+      overflow: visible;
+      padding: var(--lm-card-pad);
+    }
+    .lp-ltable,
+    .lp-ltable thead,
+    .lp-ltable tbody,
+    .lp-ltable tr,
+    .lp-ltable tbody th,
+    .lp-ltable td {
       display: block;
-      margin-bottom: 1px;
-      font-size: var(--lm-text-2xs);
+    }
+    .lp-ltable thead tr {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--lm-inline);
+      padding-bottom: var(--lm-card-gap);
+      border-bottom: var(--lm-hairline) solid var(--lm-line-strong);
+    }
+    .lp-ltable thead th {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      text-align: left;
+    }
+    .lp-ltable thead .lp-ltable__corner,
+    .lp-ltable__note {
+      display: none;
+    }
+    .lp-ltable tbody tr {
+      padding: var(--lm-card-gap) 0;
+      border-bottom: var(--lm-hairline) solid var(--lm-line);
+    }
+    .lp-ltable tbody tr:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+    .lp-ltable tbody th,
+    .lp-ltable tr[data-group='effort']:not([data-row='effort']) th {
+      position: static;
+      min-width: 0;
+      padding: 0 0 var(--lm-row-gap);
+      border: 0;
+      background: transparent;
+      color: var(--lm-ink);
+      font-weight: 500;
+    }
+    .lp-ltable td {
+      display: grid;
+      grid-template-columns: 6.5rem minmax(0, 1fr);
+      gap: var(--lm-inline);
+      align-items: baseline;
+      min-width: 0;
+      padding: 2px 0;
+      border: 0;
+      background: transparent;
       font-weight: 400;
-      letter-spacing: 0.04em;
-      text-transform: lowercase;
-      color: var(--lm-ink-3);
+      text-align: left;
+    }
+    .lp-ltable__val {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+    .lp-ltable td[data-selected] {
+      background: transparent;
+    }
+    .lp-ltable td[data-rung='ideal'] {
+      border-left: 0;
+    }
+    .lp-ltable__plan {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--lm-row-gap);
+      color: var(--lm-ink-2);
+      font-size: var(--lm-text-body-s);
+    }
+    .lp-ltable td[data-selected] .lp-ltable__plan {
+      color: var(--lm-ink);
+      font-weight: 500;
+    }
+    .lp-ltable__foot {
+      display: block;
+      margin: var(--lm-card-gap) 0 0;
+      font-size: var(--lm-text-body-s);
+      line-height: var(--lm-text-body-s--lh);
+      color: var(--lm-ink-2);
+    }
+    .lp-ltable thead th[data-selected] {
+      background: transparent;
+    }
+    .lp-ltable .lp-ltable__head {
+      min-height: 36px;
+      padding: 0 var(--lm-card-gap) 0 var(--lm-inline);
+      border: 1px solid var(--lm-line-strong);
+      border-radius: var(--lm-control-radius);
+    }
+    .lp-ltable .lp-ltable__head[aria-pressed='true'] {
+      background: var(--lm-gold-wash);
+      border-color: var(--lm-gold-edge);
     }
   }
   .lp-ltable__head {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     padding: 0;
     border: 0;
     background: transparent;
     font: inherit;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
     cursor: pointer;
     border-radius: var(--lm-radius-xs);
   }
 
   /* ---- curves --------------------------------------------------------------------------------------------------- */
+  /* one column of full-width charts at every width (r068 PR14: no half-empty second column) */
+  .lp-curves__lead {
+    margin: 0;
+    max-width: var(--lm-measure-prose, 72ch);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
   .lp-curves__grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
-    margin: 12px 0;
-  }
-  @media (min-width: 48rem) {
-    .lp-curves__grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+    gap: var(--lm-gutter-lg);
+    margin: var(--lm-card-gap) 0;
   }
   .lp-curve {
     min-width: 0;
@@ -1182,9 +1371,50 @@
     justify-content: space-between;
     gap: 2px 10px;
     margin: 0 0 4px;
-    font-size: var(--lm-text-xs);
-    font-weight: 600;
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
     color: var(--lm-ink);
+  }
+  .lp-curve__raw {
+    fill: none;
+    stroke: var(--lp-rung);
+    stroke-width: 1;
+    opacity: 0.22;
+  }
+  /* the end values as a legend row under the plot: a rung swatch and "Hard −6.0 kg" */
+  .lp-curve__legend {
+    list-style: none;
+    margin: var(--lm-row-gap) 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px var(--lm-stack);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lp-curve__legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-row-gap);
+  }
+  .lp-curve__legend li[data-selected] {
+    color: var(--lm-ink);
+    font-weight: 500;
+  }
+  .lp-curve__legend i {
+    width: 12px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--lp-rung);
+  }
+  .lp-curve__legend li[data-rung='ideal'] i {
+    background: repeating-linear-gradient(90deg, var(--lm-ink) 0 4px, transparent 4px 7px);
+  }
+  .lp-curve__legend-note {
+    color: var(--lm-ink-3);
   }
   .lp-curve__read {
     font-weight: 400;
@@ -1297,38 +1527,12 @@
   }
 
   /* ---- header, chips, panels -------------------------------------------------------------------------------- */
-  .lp-evidence-key {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 2px;
-    border: 0;
-    background: transparent;
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-    cursor: pointer;
-    border-radius: var(--lm-radius-xs);
-  }
-  .lp-evidence-pop,
-  .lp-best-pop {
-    display: grid;
-    gap: 8px;
-    max-width: 340px;
-  }
-  .lp-best-pop .lp-plain {
-    margin: 0;
-  }
-  .lp-xchip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .lp-xchip__link {
-    font-variant-numeric: tabular-nums;
-  }
   .lp-between {
     display: grid;
-    gap: 8px;
+    gap: var(--lm-card-gap);
+  }
+  .lp-between > .lm-face-head {
+    margin-bottom: 0;
   }
   .lp-nosafe__ideal {
     margin-top: 12px;
@@ -1355,7 +1559,7 @@
     display: grid;
     gap: 8px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-adopt__label {
     display: grid;
@@ -1375,16 +1579,55 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 10px;
+    gap: var(--lm-card-gap);
   }
+  /* each limit: its name, then a bar of how much of the plan presses it with the share beside it, then its cost */
   .lp-limits-list li {
     display: grid;
-    gap: 2px;
-    font-size: var(--lm-text-sm);
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'name name' 'bar share' 'cost cost';
+    align-items: center;
+    gap: 4px var(--lm-card-gap);
+    padding-bottom: var(--lm-card-gap);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lp-limits-list li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .lp-limits-list__name {
+    grid-area: name;
+    color: var(--lm-ink);
+  }
+  .lp-limits-list__bar {
+    grid-area: bar;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--lm-well);
+    overflow: hidden;
+  }
+  .lp-limits-list__bar i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--lm-ink-3);
+  }
+  .lp-limits-list__share {
+    grid-area: share;
+  }
+  /* binds every day: no bar, the words sit under the name */
+  .lp-limits-list li[data-every] {
+    grid-template-areas: 'name name' 'share share' 'cost cost';
+  }
+  .lp-limits-list__cost {
+    grid-area: cost;
   }
   .lp-limits-list__share,
   .lp-limits-list__cost {
-    font-size: var(--lm-text-xs);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
   .lp-limitstab {
@@ -1435,5 +1678,88 @@
   .lp-print__sessions ol {
     margin: 0;
     padding-left: 12pt;
+  }
+}
+
+/* r068 (Codex w2 #2): where one card is read at a time, its actions follow the goals it reaches, not two screens of
+   effort detail later; side by side (from 1024 px) the shared rows keep them at the foot so the cards line up */
+@layer components {
+  @media (max-width: 63.99rem) {
+    .lp-lcard > .lp-lcard__row {
+      order: 2;
+    }
+    .lp-lcard > .lp-lcard__row:is([data-row='head'], [data-row='phases'], [data-row='goals-h'], [data-row^='goal-'], [data-row='actions']) {
+      order: 1;
+    }
+    .lp-lcard > .lp-lcard__row[data-row='actions']:not(:empty) {
+      margin-bottom: var(--lm-card-gap);
+      padding-bottom: var(--lm-card-gap);
+      border-bottom: var(--lm-hairline) solid var(--lm-line);
+    }
+  }
+}
+
+/* r071: the first ranked outcome leads each card; its range stays beside it on phones. */
+@layer components {
+  .lp-lcard .lp-lgoal[data-lead] {
+    gap: 8px;
+    padding-block: 6px;
+  }
+  .lp-lgoal[data-lead] .lp-lgoal__main {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+  }
+  .lp-lgoal[data-lead] .lp-lgoal__name {
+    max-width: none;
+    font-weight: 500;
+    white-space: normal;
+    overflow: visible;
+  }
+  .lp-lgoal__hero {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .lp-lgoal__hero .lm-hero__line {
+    flex-wrap: wrap;
+  }
+  .lp-lgoal[data-lead] .lp-lgoal__bar,
+  .lp-lgoal[data-lead] .lp-lgoal__verdict,
+  .lp-lgoal[data-lead] .lp-lgoal__vs {
+    margin-inline-start: 0;
+  }
+  .lp-lgoal__bar {
+    flex-wrap: wrap;
+  }
+  .lp-lgoal__range,
+  .lp-lcard__sec,
+  .lp-lcard__effort,
+  .lp-phases__rwk {
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    text-transform: uppercase;
+  }
+  .lp-lcard__title {
+    font-size: var(--lm-text-card);
+    font-weight: 600;
+  }
+  .lp-lcard__row[data-row='goal-0'] {
+    padding-bottom: var(--lm-card-gap);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+}
+@layer components {
+  .lp-score__hero {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+  .lp-score__hero .lm-hero__line,
+  .lp-score__hero .lm-hero__part,
+  .lp-lgoal__hero .lm-hero__part {
+    flex-wrap: wrap;
+    white-space: normal;
+    max-width: 100%;
   }
 }

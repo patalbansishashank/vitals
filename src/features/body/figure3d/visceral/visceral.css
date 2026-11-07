@@ -1,77 +1,45 @@
 /* ==========================================================================
    Visceral view - the waist slice as an axial anatomical plate (R2 sec. 3.4).
-   Same stage as the 3D figure (figure3d.css: dotted --lm-avatar-stage) and the same materials as its layers (fat under
-   skin #f2bd7a, fat around organs #f79e42, muscles #a34742, bones #d6cfb8), muted to the app's instrument palette:
-   fat under the skin a pale cream, the deep fat (the subject) a warm ochre that stands apart from it, muscle a dusty
-   brick with pale fascia lines, bowel a neutral warm grey. Depth comes from an inner rim per layer, not outlines.
+   Ember, dark only: the plate sits straight on the card (no stage pattern; the card's grain is the texture) and uses
+   the 3D figure's materials, warm and muted: fat under the skin a dark parchment, the deep fat (the subject) a gold
+   that stands apart from it, muscle a dusty clay with pale fascia lines, bowel a warm stone. Depth comes from an
+   inner rim per layer, not outlines.
    ========================================================================== */
 
 @layer components {
   .lm-visc {
-    /* light values first; light-dark() below picks the dark ones where supported */
-    --vs-sat: #f1e4cc;
-    --vs-sat-rim: #e2cfac;
-    --vs-deep: #d49a52;
-    --vs-deep-in: #ddab69;
-    --vs-deep-line: #8f5a1f;
-    --vs-band: rgb(150 90 30 / 0.2);
-    --vs-muscle: #a8645a;
-    --vs-muscle-in: #b5736a;
-    --vs-psoas: #b8746a;
-    --vs-fascia: rgb(255 244 236 / 0.62);
-    --vs-loop: #c4b7b0;
-    --vs-loop-hi: #ddd3cd;
-    --vs-loop-line: #8e7f78;
-    --vs-lumen: #d8cec8;
-    --vs-gas: #f7f4f0;
-    --vs-colon: #c2b4a5;
-    --vs-colon-hi: #d6cbbf;
-    --vs-colon-lumen: #d2c5b7;
-    --vs-aorta: #b45a4f;
-    --vs-ivc: #7c7393;
-    --vs-bone: #ece5d3;
-    --vs-bone-core: #e0d6bd;
-    --vs-bone-edge: #9b917a;
-    --vs-canal: #9b8a82;
+    --vs-sat: #6e604c;
+    --vs-sat-rim: #5c4f3d;
+    --vs-deep: #c9a15e;
+    --vs-deep-in: #d6b06c;
+    --vs-deep-line: #f0d39a;
+    --vs-band: rgb(227 191 120 / 0.14);
+    --vs-muscle: #82483f;
+    --vs-muscle-in: #8f544a;
+    --vs-psoas: #915950;
+    --vs-fascia: rgb(255 226 214 / 0.3);
+    --vs-loop: #5d5452;
+    --vs-loop-hi: #6d6461;
+    --vs-loop-line: #2f2928;
+    --vs-lumen: #685f5c;
+    --vs-gas: #8f8884;
+    --vs-colon: #5a5049;
+    --vs-colon-hi: #6a5f57;
+    --vs-colon-lumen: #665c55;
+    --vs-aorta: #a24d43;
+    --vs-ivc: #6c6485;
+    --vs-bone: #c9c1ab;
+    --vs-bone-core: #b5ac94;
+    --vs-bone-edge: #ede6d2;
+    --vs-canal: #4a3f3b;
     --vs-edge: var(--lm-avatar-outline);
-    --vs-ring: rgb(40 34 30 / 0.7);
-    --vs-shade: rgb(60 30 15 / 0.26);
-    --vs-lift: rgb(25 28 32 / 0.16);
+    --vs-ring: rgb(240 236 230 / 0.75);
+    --vs-shade: rgb(0 0 0 / 0.5);
+    --vs-lift: rgb(0 0 0 / 0.55);
     margin: 0;
     min-width: 0;
     font-family: var(--lm-font-sans);
     color: var(--lm-ink);
-  }
-  @supports (color: light-dark(#000, #fff)) {
-    .lm-visc {
-      --vs-sat: light-dark(#f1e4cc, #6e604c);
-      --vs-sat-rim: light-dark(#e2cfac, #5c4f3d);
-      --vs-deep: light-dark(#d49a52, #b98443);
-      --vs-deep-in: light-dark(#ddab69, #c79450);
-      --vs-deep-line: light-dark(#8f5a1f, #f0c58d);
-      --vs-band: light-dark(rgb(150 90 30 / 0.2), rgb(255 214 160 / 0.14));
-      --vs-muscle: light-dark(#a8645a, #82483f);
-      --vs-muscle-in: light-dark(#b5736a, #8f544a);
-      --vs-psoas: light-dark(#b8746a, #915950);
-      --vs-fascia: light-dark(rgb(255 244 236 / 0.62), rgb(255 226 214 / 0.3));
-      --vs-loop: light-dark(#c4b7b0, #5d5452);
-      --vs-loop-hi: light-dark(#ddd3cd, #6d6461);
-      --vs-loop-line: light-dark(#8e7f78, #2f2928);
-      --vs-lumen: light-dark(#d8cec8, #685f5c);
-      --vs-gas: light-dark(#f7f4f0, #8f8884);
-      --vs-colon: light-dark(#c2b4a5, #5a5049);
-      --vs-colon-hi: light-dark(#d6cbbf, #6a5f57);
-      --vs-colon-lumen: light-dark(#d2c5b7, #665c55);
-      --vs-aorta: light-dark(#b45a4f, #a24d43);
-      --vs-ivc: light-dark(#7c7393, #6c6485);
-      --vs-bone: light-dark(#ece5d3, #c9c1ab);
-      --vs-bone-core: light-dark(#e0d6bd, #b5ac94);
-      --vs-bone-edge: light-dark(#9b917a, #ede6d2);
-      --vs-canal: light-dark(#9b8a82, #4a3f3b);
-      --vs-ring: light-dark(rgb(40 34 30 / 0.7), rgb(240 236 230 / 0.75));
-      --vs-shade: light-dark(rgb(60 30 15 / 0.26), rgb(0 0 0 / 0.5));
-      --vs-lift: light-dark(rgb(25 28 32 / 0.16), rgb(0 0 0 / 0.55));
-    }
   }
 
   /* ---- the view: plate over words; the plate takes the room the words leave ---- */
@@ -85,8 +53,8 @@
     min-width: 0;
   }
 
-  /* ---- the plate: the 3D figure's stage surface. One margin (--vs-m) for every corner: the locator top left,
-     "front" top centre, the scale bar bottom right ---- */
+  /* ---- the plate: straight on the card, like the 3D figure. One margin (--vs-m) for every corner: the locator top
+     left, "front" top centre, the scale bar bottom right ---- */
   .lm-visc__plate {
     --vs-m: 12px;
     --vs-chrome: 14px; /* height of the top and bottom label rows */
@@ -95,9 +63,6 @@
     min-height: var(--vs-plate-min, 13rem);
     overflow: hidden;
     border-radius: var(--lm-radius-lg);
-    background-color: var(--lm-avatar-stage);
-    background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1px, transparent 1.4px);
-    background-size: 12px 12px;
   }
   /* The drawing box: absolutely placed, so its size is definite (container units on a flex-sized box resolve against
      the flex measuring pass in Chromium); the drawing keeps its proportions and fits ("contain"). */
@@ -340,13 +305,11 @@
     border-top: 0;
   }
 
-  /* ---- words under the plate: framed like the 3D figure's layer strip ---- */
+  /* ---- words under the plate, like the 3D figure's layer row: no rule, no surface of their own ---- */
   .lm-visc__readout {
     display: grid;
     gap: 8px;
     padding: 12px 14px 14px;
-    border-top: 1px solid var(--lm-line);
-    background: var(--lm-face);
     font-size: var(--lm-text-sm);
     line-height: var(--lm-text-sm--lh);
     color: var(--lm-ink-2);
@@ -359,7 +322,7 @@
     text-wrap: pretty;
   }
   .lm-visc__number strong {
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
@@ -383,7 +346,8 @@
       color-mix(in oklab, var(--vs-deep) 32%, var(--lm-well)) var(--vs-t1) var(--vs-t2),
       color-mix(in oklab, var(--vs-deep) 64%, var(--lm-well)) var(--vs-t2) 100%
     );
-    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+    outline: var(--lm-hairline) solid var(--lm-line-strong);
+    outline-offset: calc(-1 * var(--lm-hairline));
   }
   /* the likely range: a soft band, densest at the estimate, fading to both ends */
   .lm-visc__bar-range {
@@ -439,7 +403,7 @@
   }
   .lm-visc__bands [data-current] {
     color: var(--lm-ink);
-    font-weight: 600;
+    font-weight: 500;
   }
   .lm-visc__span {
     margin: 0;
@@ -483,8 +447,9 @@
   .lm-visc__swatch[data-k='range'] {
     border-color: transparent;
     border-radius: 2px;
-    background: linear-gradient(to right, transparent, var(--vs-band) 50%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--vs-deep-line) 30%, transparent);
+    background: var(--vs-band);
+    outline: 1px solid color-mix(in oklab, var(--vs-deep-line) 30%, transparent);
+    outline-offset: -1px;
   }
   .lm-visc__swatch[data-k='ring'] {
     border: 1px dashed var(--vs-ring);
@@ -557,8 +522,6 @@
       align-content: start;
       gap: 10px;
       padding: 0.9rem 1rem 1rem;
-      border-top: 0;
-      border-left: 1px solid var(--lm-line);
     }
   }
   /* a narrow card: the plate takes a little more height, so the slice is not a thumbnail on a phone */

@@ -3,7 +3,7 @@
  * (03 §4.4.2 model table and grids, 03 §4.13 cross-check, 03 §4.14, 11 §4.7 m_P fit, 11 §4.12 Jacquet examples).
  */
 import { describe, expect, it } from 'vitest';
-import { buildModelParams } from '../../core/paramsRegistry';
+import { buildModelParams, drawKindOf, withOverrides } from '../../core/paramsRegistry';
 import { validateParamDefs } from '../../core/paramsRegistry';
 import type { AnyEngineModule } from '../../types/module';
 import { compositionModule } from './index';
@@ -22,12 +22,22 @@ import {
   poxLeanRateKgD,
   poxRate,
   readConstants,
+  SURPLUS_PROTEIN_LOW,
+  SURPLUS_PROTEIN_SUPPORTED,
+  SURPLUS_PROTEIN_UNKNOWN,
   surplusEnergyShare,
   surplusLeanRatio,
+  surplusProteinDomain,
 } from './partition';
 
 const modules = [compositionModule] as unknown as readonly AnyEngineModule[];
 const K = readConstants(buildModelParams(modules));
+const withValues = (o: Record<string, number>) => {
+  const base = buildModelParams(modules);
+  const v = Float64Array.from(base.values);
+  for (const [id, x] of Object.entries(o)) v[base.index.get(id)!] = x;
+  return withOverrides(base, v);
+};
 
 /**
  * 03 §4.4.2 in its original argument form (protein g/kg BM, deficit %, BF %); RT enters only through the dossier's own
@@ -174,11 +184,47 @@ describe('11 §4.7 surplus partition', () => {
     expect(surplusLeanRatio(K, 0.3, 5, 0, 1)).toBeCloseTo(0.2 - 0.45 * 0.3, 12);
   });
 
-  it('m_FA: 1.0 for the habitual mix, → 1.5 PUFA-rich, → 0.7 SFA-rich', () => {
-    expect(mFatType(K, 0.23, 0.32)).toBe(1);
-    expect(mFatType(K, Number.NaN, Number.NaN)).toBe(1);
-    expect(mFatType(K, 0.6, 0.1)).toBeCloseTo(1.5, 12);
-    expect(mFatType(K, 0.05, 0.6)).toBeCloseTo(0.7, 12);
+  it('D1-04: production m_FA is the neutral reference 1 for every fat mix, draw and override of the old values', () => {
+    for (const [pufa, sfa] of [[0.23, 0.32], [Number.NaN, Number.NaN], [0.6, 0.1], [0.05, 0.6], [1, 0], [0, 1]] as const) {
+      expect(mFatType(K, pufa, sfa)).toBe(1);
+    }
+    // overriding the exploratory values does not reach production
+    expect(mFatType({ ...K, mFaPufa: 3, mFaSfa: 0.1 }, 0.6, 0.1)).toBe(1);
+    expect(K.mFaResearchMode).toBe(0);
+    for (const id of ['mFaPufa', 'mFaSfa', 'mFaResearchMode']) {
+      expect(drawKindOf(compositionModule.params.find((p) => p.id === `composition.${id}`)!), id).toBe('fixed');
+    }
+  });
+
+  it('D1-04: the legacy curve exists only in the explicitly opted-in exploratory research mode', () => {
+    const R = { ...K, mFaResearchMode: 1 };
+    expect(mFatType(R, 0.23, 0.32)).toBe(1);
+    expect(mFatType(R, Number.NaN, Number.NaN)).toBe(1);
+    expect(mFatType(R, 0.6, 0.1)).toBeCloseTo(1.5, 12);
+    expect(mFatType(R, 0.05, 0.6)).toBeCloseTo(0.7, 12);
+    const R2 = readConstants(withValues({ 'composition.mFaResearchMode': 1 }));
+    expect(R2.mFaResearchMode).toBe(1);
+  });
+
+  it('D1-04: a fat-class swap at fixed energy and protein gives the same nominal surplus partition', () => {
+    const pufaRich = surplusLeanRatio(K, 1.6, 15, 0, mFatType(K, 0.6, 0.1));
+    const sfaRich = surplusLeanRatio(K, 1.6, 15, 0, mFatType(K, 0.05, 0.6));
+    const habitual = surplusLeanRatio(K, 1.6, 15, 0, mFatType(K, 0.23, 0.32));
+    expect(pufaRich).toBe(habitual);
+    expect(sfaRich).toBe(habitual);
+  });
+});
+
+describe('D1-05 surplus-protein support domain (status only)', () => {
+  it('known protein below the 0.75 g/kg BW m_P knee is low-protein surplus; a lower-bound total is unknown, not low', () => {
+    expect(surplusProteinDomain(K, 0.5, false)).toBe(SURPLUS_PROTEIN_LOW);
+    expect(surplusProteinDomain(K, 0.75, false)).toBe(SURPLUS_PROTEIN_SUPPORTED);
+    expect(surplusProteinDomain(K, 1.6, false)).toBe(SURPLUS_PROTEIN_SUPPORTED);
+    expect(surplusProteinDomain(K, 0.5, true)).toBe(SURPLUS_PROTEIN_UNKNOWN);
+    expect(surplusProteinDomain(K, 2.0, true)).toBe(SURPLUS_PROTEIN_UNKNOWN);
+    // the routing flag is the existing m_P knee (body mass basis), not the deficit model's FFM-based qKnee
+    expect(K.mPp0).toBe(0.75);
+    expect(K.qKnee).toBe(0.8);
   });
 });
 

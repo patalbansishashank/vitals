@@ -1,4 +1,7 @@
 # Finish-review findings on the prototype (apply these in the real implementation)
+> **Superseded (2026-10-17):** written for the v1 Braun look. The app now uses Ember (dark only, Manrope, gold on
+> charcoal; `tokens.css`). The look notes below are history; the copy and behaviour notes still hold where they apply.
+
 An independent review of `design/prototype` came back after the design hand-off. The prototype was NOT
 updated. Where the prototype and this list disagree, **this list wins**.
 

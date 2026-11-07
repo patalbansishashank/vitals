@@ -1,0 +1,51 @@
+@layer components {
+  .settings-spend {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .settings-spend__head,
+  .settings-capabilities__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-space-3);
+  }
+  .settings-spend__head .lm-info,
+  .settings-capabilities__head .lm-info {
+    margin-block: -6px;
+  }
+  .settings-spend__periods {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--lm-card-gap);
+    margin: 0;
+  }
+  .settings-spend__periods > div {
+    display: grid;
+    gap: 4px;
+  }
+  .settings-spend__periods dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .settings-capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .settings-capabilities li {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--lm-text-body);
+    color: var(--lm-ink);
+  }
+  .settings-capabilities .lm-icon {
+    flex: none;
+    color: var(--lm-ink-2);
+  }
+}

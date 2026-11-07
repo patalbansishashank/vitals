@@ -1,16 +1,87 @@
 {
  "version": 1,
  "format": "vitals.tools/1",
- "agentToolsetHash": "72e80e7b6e51d3f5600debb0e7bc9e11faf2a808583976d1b6fc368613252666",
+ "agentToolsetHash": "8557707f8507a9a207e6329e39dc1005661d555a1e0ed5f01bd9a4a79d95169b",
  "toolsetHash": {
-  "ui": "1838a0d97c6f444c0de1e9aa34fd56de183d1041eba3325d4a7bcba93a5b28e5",
-  "ai": "63354116ae81bfc060faf4ba0a69ff86506587e1f91032a3002babc19ee3d47f",
-  "webmcp": "e0ce618b24e851adada262877e7b8db39e911a0eb9ed0d91c399bb014d714d5b",
-  "mcp": "70c6873997e06c515b63f1d3f621bbfa355dd8a4b29bcf5e8b755bc93ac88738"
+  "ui": "277c24265ed02e44d74c2b18aa0690c8d00e2adf55badb418753690c3e0a0219",
+  "ai": "655e7cffd5fb7dcb56b36558f9757b7f006cb43e9fd1a9f92a3be342abd06091",
+  "webmcp": "2ff6468afaa833da0bcf8c2e185684f35723183a8c30592ab76e9e1b8721fc4b",
+  "mcp": "7ee9944828a9747e60b49c3d6511e2296c647961ee81ce055c78f8e653ccb9e0"
  },
  "surfaces": {
   "ui": {
    "tools": [
+    {
+     "name": "activity_approve",
+     "commandId": "activity.approve",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cbacf39a8f432e21"
+    },
+    {
+     "name": "activity_approve_all",
+     "commandId": "activity.approveAll",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "7274f2116342aa3b"
+    },
+    {
+     "name": "activity_auto_accept",
+     "commandId": "activity.autoAccept",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "ca0d998151e33499"
+    },
+    {
+     "name": "activity_candidates",
+     "commandId": "activity.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "469b3a1494e80d5c"
+    },
+    {
+     "name": "activity_edit",
+     "commandId": "activity.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "56b23e8872f9822d"
+    },
+    {
+     "name": "activity_from_gauge",
+     "commandId": "activity.fromGauge",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "b7d675f4e05e2543"
+    },
+    {
+     "name": "activity_log_manual",
+     "commandId": "activity.logManual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "774dc4f6c21e40e9"
+    },
+    {
+     "name": "activity_reject",
+     "commandId": "activity.reject",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "64b734048c82268c"
+    },
     {
      "name": "agents_configure",
      "commandId": "agents.configure",
@@ -46,171 +117,6 @@
      "schemaHash": "3e95c1a916484101"
     },
     {
-     "name": "bio_baselines",
-     "commandId": "bio.baselines",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b6a38c44dccace5a"
-    },
-    {
-     "name": "bio_daily",
-     "commandId": "bio.daily",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "8c7e6e09d91cf5f5"
-    },
-    {
-     "name": "bio_delete_source",
-     "commandId": "bio.deleteSource",
-     "version": 1,
-     "perm": "destructive",
-     "confirm": "destructive",
-     "schemaHash": "88ddf060299d390a"
-    },
-    {
-     "name": "bio_device_connect",
-     "commandId": "bio.deviceConnect",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "04ddf7d38ef1abfd"
-    },
-    {
-     "name": "bio_device_sync",
-     "commandId": "bio.deviceSync",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "496322169099c5ea"
-    },
-    {
-     "name": "bio_dismiss_ring_defaults_notice",
-     "commandId": "bio.dismissRingDefaultsNotice",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "3043a04c94bbe264"
-    },
-    {
-     "name": "bio_import",
-     "commandId": "bio.import",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "f1cbf5abef1edfbb"
-    },
-    {
-     "name": "bio_manual",
-     "commandId": "bio.manual",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ece5ec5bd1e8b357"
-    },
-    {
-     "name": "bio_rescore",
-     "commandId": "bio.rescore",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "7df37c0718468a57"
-    },
-    {
-     "name": "bio_scores",
-     "commandId": "bio.scores",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b0b4184101f516d8"
-    },
-    {
-     "name": "bio_series",
-     "commandId": "bio.series",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "7589456bc2fecaf1"
-    },
-    {
-     "name": "bio_set_policy",
-     "commandId": "bio.setPolicy",
-     "version": 1,
-     "perm": "write",
-     "impact": "consequential",
-     "confirm": "edit",
-     "schemaHash": "23612d0a15385103"
-    },
-    {
-     "name": "bio_set_ring_sharing",
-     "commandId": "bio.setRingSharing",
-     "version": 1,
-     "perm": "write",
-     "impact": "consequential",
-     "confirm": "edit",
-     "schemaHash": "42ca72197c8da95a"
-    },
-    {
-     "name": "bio_sources",
-     "commandId": "bio.sources",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "68eea8ae3d43afa5"
-    },
-    {
-     "name": "biometrics_clear_correction",
-     "commandId": "biometrics.clearCorrection",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ff5fe386ee6262c0"
-    },
-    {
-     "name": "biometrics_correct",
-     "commandId": "biometrics.correct",
-     "version": 1,
-     "perm": "write",
-     "impact": "consequential",
-     "confirm": "edit",
-     "schemaHash": "1dc03b967d1e856d"
-    },
-    {
-     "name": "biometrics_drop_priorities",
-     "commandId": "biometrics.dropPriorities",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "c99f7ec42e2c4a76"
-    },
-    {
-     "name": "biometrics_ring_defaults",
-     "commandId": "biometrics.ringDefaults",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "27a5af3da686a215"
-    },
-    {
-     "name": "biometrics_ring_fold",
-     "commandId": "biometrics.ringFold",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "0097b415c6f32c54"
-    },
-    {
      "name": "briefing_get",
      "commandId": "briefing.get",
      "version": 1,
@@ -243,7 +149,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e40ae7c4e60881af"
+     "schemaHash": "317e57a3d14a8bfd"
     },
     {
      "name": "catalogue_equipment",
@@ -480,7 +386,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c21ed4647e6b6c6"
+     "schemaHash": "e0b3044239c33f28"
     },
     {
      "name": "goals_edit",
@@ -489,7 +395,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "3833c1460101e13a"
+     "schemaHash": "85ac8316442b0552"
     },
     {
      "name": "goals_get",
@@ -505,7 +411,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "5bee78f0ca618831"
+     "schemaHash": "84e5cd90def98fe8"
     },
     {
      "name": "history_list",
@@ -540,7 +446,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "59867041d087c73a"
+     "schemaHash": "14728de5cbfd08d9"
     },
     {
      "name": "intake_get",
@@ -548,7 +454,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "82f97bd765a59179"
+     "schemaHash": "519231fc22dc40ef"
     },
     {
      "name": "intake_next_questions",
@@ -556,7 +462,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "fac23073462cc2b0"
+     "schemaHash": "ca584e87cad86acd"
     },
     {
      "name": "intake_skip",
@@ -565,7 +471,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d1a9faa7b814d798"
+     "schemaHash": "8816155a993d740e"
     },
     {
      "name": "job_cancel",
@@ -634,7 +540,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "26418dddff861151"
+     "schemaHash": "f5387ebb5d2cd7e3"
     },
     {
      "name": "log_edit",
@@ -652,16 +558,16 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d65488c52342036e"
+     "schemaHash": "6e869543c68ff177"
     },
     {
-     "name": "log_from_biometrics",
-     "commandId": "log.fromBiometrics",
+     "name": "log_from_gauge",
+     "commandId": "log.fromGauge",
      "version": 1,
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "ffe30523fd724b53"
+     "schemaHash": "a60fa1b3b42e28c5"
     },
     {
      "name": "log_get",
@@ -678,7 +584,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "547c113024358d95"
+     "schemaHash": "8ec82dfb6da97ee2"
     },
     {
      "name": "log_meal",
@@ -687,7 +593,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6635a32a6f9267b5"
+     "schemaHash": "2851f0a43292da54"
     },
     {
      "name": "log_meal_from_photo",
@@ -705,7 +611,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "aa1fce3dac3d1790"
+     "schemaHash": "383ba91f37a6ef5c"
     },
     {
      "name": "log_note",
@@ -732,7 +638,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c3801768e66bcfb"
+     "schemaHash": "bd0691969b6f18e3"
     },
     {
      "name": "log_sleep",
@@ -741,7 +647,16 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c223c1eb72c1b77"
+     "schemaHash": "61cbe3af55f1cffc"
+    },
+    {
+     "name": "log_sleep_times",
+     "commandId": "log.sleepTimes",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "73585ff237ee3dbb"
     },
     {
      "name": "log_steps",
@@ -750,7 +665,16 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d522d9ca143248f5"
+     "schemaHash": "c6a3f8ff4ea685d5"
+    },
+    {
+     "name": "log_steps_correction",
+     "commandId": "log.stepsCorrection",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "8df68ab4d42cb55f"
     },
     {
      "name": "log_subjective",
@@ -759,7 +683,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e262b931650242f5"
+     "schemaHash": "996d0814ca4b6602"
     },
     {
      "name": "log_substance",
@@ -768,7 +692,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "5d759313fd20143e"
+     "schemaHash": "d744c897df828785"
     },
     {
      "name": "log_supplement",
@@ -777,7 +701,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "0beb15799d81909e"
+     "schemaHash": "83b1f5d626a5840f"
     },
     {
      "name": "markers_confirm",
@@ -786,7 +710,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "905f4260d6632445"
+     "schemaHash": "0a8917d0914e5f7b"
     },
     {
      "name": "markers_get",
@@ -821,7 +745,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "8f757ecfbff10467"
+     "schemaHash": "c1760f5386ceae80"
     },
     {
      "name": "nav_open",
@@ -889,7 +813,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "f60c2492c81e954c"
+     "schemaHash": "bd0519ba8add13f3"
     },
     {
      "name": "plan_declare_event",
@@ -966,7 +890,7 @@
      "version": 1,
      "perm": "destructive",
      "confirm": "destructive",
-     "schemaHash": "b7231d3eeb432846"
+     "schemaHash": "55431be4265efa9b"
     },
     {
      "name": "plan_replan",
@@ -1002,7 +926,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "cdd995625f9098ca"
+     "schemaHash": "367ca0330d0bd264"
     },
     {
      "name": "plan_swap_exercise",
@@ -1028,7 +952,40 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "f1735e131e32afd5"
+     "schemaHash": "06317b3fccca0553"
+    },
+    {
+     "name": "planner_improve_current",
+     "commandId": "planner.improveCurrent",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "55e6108f1956d34d"
+    },
+    {
+     "name": "planner_improvement_result",
+     "commandId": "planner.improvementResult",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f13f3869f96f3b8c"
+    },
+    {
+     "name": "planner_inputs",
+     "commandId": "planner.inputs",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f1a0d00dbecd18c1"
+    },
+    {
+     "name": "planner_open_improvement",
+     "commandId": "planner.openImprovement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "cfa0a8f0034a18bf"
     },
     {
      "name": "planner_open_in_simulator",
@@ -1045,7 +1002,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "806fbaf51772e9c6"
+     "schemaHash": "8637d2313fcb3d95"
     },
     {
      "name": "planner_stop",
@@ -1079,7 +1036,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "00e4615b831237cb"
+     "schemaHash": "bdd3379826d3016c"
     },
     {
      "name": "profile_reset_shape",
@@ -1118,6 +1075,15 @@
      "schemaHash": "bf6fb79a335cfeaf"
     },
     {
+     "name": "safety_add_nutrition_guidance",
+     "commandId": "safety.addNutritionGuidance",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "de8c502ba954267b"
+    },
+    {
      "name": "safety_clear_age_answer",
      "commandId": "safety.clearAgeAnswer",
      "version": 1,
@@ -1154,6 +1120,15 @@
      "schemaHash": "31d332d5a244bfbf"
     },
     {
+     "name": "safety_revoke_nutrition_guidance",
+     "commandId": "safety.revokeNutritionGuidance",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "24ab6854ee7fba8d"
+    },
+    {
      "name": "safety_set_fasting_opt_in",
      "commandId": "safety.setFastingOptIn",
      "version": 1,
@@ -1180,13 +1155,22 @@
      "schemaHash": "68911cb0091b18c0"
     },
     {
+     "name": "safety_update_nutrition_guidance",
+     "commandId": "safety.updateNutritionGuidance",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "0894291a673fa88d"
+    },
+    {
      "name": "scenario_apply_starter",
      "commandId": "scenario.applyStarter",
      "version": 1,
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9b273648719d210f"
+     "schemaHash": "e05db4844eff228f"
     },
     {
      "name": "scenario_create",
@@ -1239,7 +1223,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "833d897e442041dd"
+     "schemaHash": "e1eb5763ed0d4466"
     },
     {
      "name": "scenario_list",
@@ -1247,7 +1231,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "3fe1099f700aea45"
+     "schemaHash": "f499d7d82848d7b2"
     },
     {
      "name": "scenario_redo",
@@ -1265,7 +1249,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "dc32128da46e1850"
+     "schemaHash": "8259109afa230e57"
     },
     {
      "name": "scenario_set_active",
@@ -1274,7 +1258,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "4df27287968e59c7"
+     "schemaHash": "9682f3d18119aa18"
     },
     {
      "name": "scenario_undo",
@@ -1291,7 +1275,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "99534f77db0b85b6"
+     "schemaHash": "957775fad41b6acd"
     },
     {
      "name": "settings_update",
@@ -1300,7 +1284,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6299a067c6ff5e1e"
+     "schemaHash": "06e6c41751d3d3f8"
     },
     {
      "name": "sim_compare",
@@ -1324,7 +1308,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "eae751f221497f98"
+     "schemaHash": "354723ef26711e05"
     },
     {
      "name": "sim_series",
@@ -1348,7 +1332,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "8b4114bee670f582"
+     "schemaHash": "1f9d2aae3dce890f"
     },
     {
      "name": "supplements_remove",
@@ -1357,7 +1341,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "27ee1b16559fa3ee"
+     "schemaHash": "134af3f179a5da92"
     },
     {
      "name": "supplements_set",
@@ -1366,7 +1350,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "86dc9ad584518962"
+     "schemaHash": "5e2b02381e0f681d"
     },
     {
      "name": "sync_configure",
@@ -1467,6 +1451,59 @@
   "ai": {
    "tools": [
     {
+     "name": "activity_approve",
+     "commandId": "activity.approve",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cbacf39a8f432e21"
+    },
+    {
+     "name": "activity_approve_all",
+     "commandId": "activity.approveAll",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "7274f2116342aa3b"
+    },
+    {
+     "name": "activity_candidates",
+     "commandId": "activity.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "469b3a1494e80d5c"
+    },
+    {
+     "name": "activity_edit",
+     "commandId": "activity.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "56b23e8872f9822d"
+    },
+    {
+     "name": "activity_log_manual",
+     "commandId": "activity.logManual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "774dc4f6c21e40e9"
+    },
+    {
+     "name": "activity_reject",
+     "commandId": "activity.reject",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "64b734048c82268c"
+    },
+    {
      "name": "ai_usage",
      "commandId": "ai.usage",
      "version": 1,
@@ -1481,73 +1518,6 @@
      "perm": "read",
      "confirm": "read",
      "schemaHash": "3e95c1a916484101"
-    },
-    {
-     "name": "bio_baselines",
-     "commandId": "bio.baselines",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b6a38c44dccace5a"
-    },
-    {
-     "name": "bio_daily",
-     "commandId": "bio.daily",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "8c7e6e09d91cf5f5"
-    },
-    {
-     "name": "bio_manual",
-     "commandId": "bio.manual",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ece5ec5bd1e8b357"
-    },
-    {
-     "name": "bio_scores",
-     "commandId": "bio.scores",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b0b4184101f516d8"
-    },
-    {
-     "name": "bio_series",
-     "commandId": "bio.series",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "7589456bc2fecaf1"
-    },
-    {
-     "name": "bio_sources",
-     "commandId": "bio.sources",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "68eea8ae3d43afa5"
-    },
-    {
-     "name": "biometrics_clear_correction",
-     "commandId": "biometrics.clearCorrection",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ff5fe386ee6262c0"
-    },
-    {
-     "name": "biometrics_correct",
-     "commandId": "biometrics.correct",
-     "version": 1,
-     "perm": "write",
-     "impact": "consequential",
-     "confirm": "edit",
-     "schemaHash": "1dc03b967d1e856d"
     },
     {
      "name": "catalogue_add_equipment",
@@ -1574,7 +1544,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e40ae7c4e60881af"
+     "schemaHash": "317e57a3d14a8bfd"
     },
     {
      "name": "catalogue_equipment",
@@ -1770,7 +1740,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c21ed4647e6b6c6"
+     "schemaHash": "e0b3044239c33f28"
     },
     {
      "name": "goals_edit",
@@ -1779,7 +1749,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "3833c1460101e13a"
+     "schemaHash": "85ac8316442b0552"
     },
     {
      "name": "goals_get",
@@ -1795,7 +1765,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "5bee78f0ca618831"
+     "schemaHash": "84e5cd90def98fe8"
     },
     {
      "name": "history_list",
@@ -1830,7 +1800,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "59867041d087c73a"
+     "schemaHash": "14728de5cbfd08d9"
     },
     {
      "name": "intake_get",
@@ -1838,7 +1808,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "82f97bd765a59179"
+     "schemaHash": "519231fc22dc40ef"
     },
     {
      "name": "intake_next_questions",
@@ -1846,7 +1816,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "fac23073462cc2b0"
+     "schemaHash": "ca584e87cad86acd"
     },
     {
      "name": "intake_skip",
@@ -1855,7 +1825,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d1a9faa7b814d798"
+     "schemaHash": "8816155a993d740e"
     },
     {
      "name": "job_cancel",
@@ -1924,7 +1894,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "26418dddff861151"
+     "schemaHash": "f5387ebb5d2cd7e3"
     },
     {
      "name": "log_edit",
@@ -1942,16 +1912,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d65488c52342036e"
-    },
-    {
-     "name": "log_from_biometrics",
-     "commandId": "log.fromBiometrics",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ffe30523fd724b53"
+     "schemaHash": "6e869543c68ff177"
     },
     {
      "name": "log_get",
@@ -1968,7 +1929,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "547c113024358d95"
+     "schemaHash": "8ec82dfb6da97ee2"
     },
     {
      "name": "log_meal",
@@ -1977,7 +1938,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6635a32a6f9267b5"
+     "schemaHash": "2851f0a43292da54"
     },
     {
      "name": "log_meal_from_photo",
@@ -1995,7 +1956,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "aa1fce3dac3d1790"
+     "schemaHash": "383ba91f37a6ef5c"
     },
     {
      "name": "log_note",
@@ -2022,7 +1983,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c3801768e66bcfb"
+     "schemaHash": "bd0691969b6f18e3"
     },
     {
      "name": "log_sleep",
@@ -2031,7 +1992,16 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c223c1eb72c1b77"
+     "schemaHash": "61cbe3af55f1cffc"
+    },
+    {
+     "name": "log_sleep_times",
+     "commandId": "log.sleepTimes",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "73585ff237ee3dbb"
     },
     {
      "name": "log_steps",
@@ -2040,7 +2010,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d522d9ca143248f5"
+     "schemaHash": "c6a3f8ff4ea685d5"
     },
     {
      "name": "log_subjective",
@@ -2049,7 +2019,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e262b931650242f5"
+     "schemaHash": "996d0814ca4b6602"
     },
     {
      "name": "log_substance",
@@ -2058,7 +2028,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "5d759313fd20143e"
+     "schemaHash": "d744c897df828785"
     },
     {
      "name": "log_supplement",
@@ -2067,7 +2037,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "0beb15799d81909e"
+     "schemaHash": "83b1f5d626a5840f"
     },
     {
      "name": "markers_get",
@@ -2102,7 +2072,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "8f757ecfbff10467"
+     "schemaHash": "c1760f5386ceae80"
     },
     {
      "name": "nav_open",
@@ -2170,7 +2140,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "f60c2492c81e954c"
+     "schemaHash": "bd0519ba8add13f3"
     },
     {
      "name": "plan_declare_event",
@@ -2247,7 +2217,7 @@
      "version": 1,
      "perm": "destructive",
      "confirm": "destructive",
-     "schemaHash": "b7231d3eeb432846"
+     "schemaHash": "55431be4265efa9b"
     },
     {
      "name": "plan_replan",
@@ -2283,7 +2253,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "cdd995625f9098ca"
+     "schemaHash": "367ca0330d0bd264"
     },
     {
      "name": "plan_swap_exercise",
@@ -2309,7 +2279,40 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "f1735e131e32afd5"
+     "schemaHash": "06317b3fccca0553"
+    },
+    {
+     "name": "planner_improve_current",
+     "commandId": "planner.improveCurrent",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "55e6108f1956d34d"
+    },
+    {
+     "name": "planner_improvement_result",
+     "commandId": "planner.improvementResult",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f13f3869f96f3b8c"
+    },
+    {
+     "name": "planner_inputs",
+     "commandId": "planner.inputs",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f1a0d00dbecd18c1"
+    },
+    {
+     "name": "planner_open_improvement",
+     "commandId": "planner.openImprovement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "cfa0a8f0034a18bf"
     },
     {
      "name": "planner_open_in_simulator",
@@ -2326,7 +2329,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "806fbaf51772e9c6"
+     "schemaHash": "8637d2313fcb3d95"
     },
     {
      "name": "planner_stop",
@@ -2360,7 +2363,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "00e4615b831237cb"
+     "schemaHash": "bdd3379826d3016c"
     },
     {
      "name": "profile_reset_shape",
@@ -2395,7 +2398,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9b273648719d210f"
+     "schemaHash": "e05db4844eff228f"
     },
     {
      "name": "scenario_create",
@@ -2448,7 +2451,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "833d897e442041dd"
+     "schemaHash": "e1eb5763ed0d4466"
     },
     {
      "name": "scenario_list",
@@ -2456,7 +2459,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "3fe1099f700aea45"
+     "schemaHash": "f499d7d82848d7b2"
     },
     {
      "name": "scenario_redo",
@@ -2474,7 +2477,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "dc32128da46e1850"
+     "schemaHash": "8259109afa230e57"
     },
     {
      "name": "scenario_set_active",
@@ -2483,7 +2486,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "4df27287968e59c7"
+     "schemaHash": "9682f3d18119aa18"
     },
     {
      "name": "scenario_undo",
@@ -2500,7 +2503,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "99534f77db0b85b6"
+     "schemaHash": "957775fad41b6acd"
     },
     {
      "name": "settings_update",
@@ -2509,7 +2512,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6299a067c6ff5e1e"
+     "schemaHash": "06e6c41751d3d3f8"
     },
     {
      "name": "sim_compare",
@@ -2533,7 +2536,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "eae751f221497f98"
+     "schemaHash": "354723ef26711e05"
     },
     {
      "name": "sim_series",
@@ -2557,7 +2560,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "8b4114bee670f582"
+     "schemaHash": "1f9d2aae3dce890f"
     },
     {
      "name": "supplements_remove",
@@ -2566,7 +2569,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "27ee1b16559fa3ee"
+     "schemaHash": "134af3f179a5da92"
     },
     {
      "name": "supplements_set",
@@ -2575,7 +2578,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "86dc9ad584518962"
+     "schemaHash": "5e2b02381e0f681d"
     },
     {
      "name": "sync_now",
@@ -2629,56 +2632,20 @@
    ],
    "excluded": [
     {
+     "commandId": "activity.autoAccept",
+     "reason": "the app brings detected activities in by itself; agents read them with activity.candidates"
+    },
+    {
+     "commandId": "activity.fromGauge",
+     "reason": "the app brings detected activities in by itself; agents read them with activity.candidates"
+    },
+    {
      "commandId": "agents.configure",
      "reason": "requires the person's own consent in the app"
     },
     {
      "commandId": "ai.configure",
      "reason": "keys and providers are configured by the person in the app"
-    },
-    {
-     "commandId": "bio.deleteSource",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "bio.deviceConnect",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.deviceSync",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.dismissRingDefaultsNotice",
-     "reason": "screen progress of the app itself, not a change an agent should make"
-    },
-    {
-     "commandId": "bio.import",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.rescore",
-     "reason": "background maintenance the app schedules itself"
-    },
-    {
-     "commandId": "bio.setPolicy",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "bio.setRingSharing",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "biometrics.dropPriorities",
-     "reason": "a one-time migration the app runs itself"
-    },
-    {
-     "commandId": "biometrics.ringDefaults",
-     "reason": "a one-time migration the app runs itself"
-    },
-    {
-     "commandId": "biometrics.ringFold",
-     "reason": "a migration the app runs itself"
     },
     {
      "commandId": "briefing.get",
@@ -2705,6 +2672,14 @@
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
     {
+     "commandId": "log.fromGauge",
+     "reason": "the app imports the ring data by itself; agents read it with the gauge_* tools"
+    },
+    {
+     "commandId": "log.stepsCorrection",
+     "reason": "the person corrects steps on the steps-by-source panel; agents read the fused steps with gauge_steps"
+    },
+    {
      "commandId": "markers.confirm",
      "reason": "the person checks and confirms the review table themselves; the Coach only shows it"
     },
@@ -2721,6 +2696,10 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "safety.addNutritionGuidance",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "safety.clearAgeAnswer",
      "reason": "requires the person's own consent in the app"
     },
@@ -2733,11 +2712,19 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "safety.revokeNutritionGuidance",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "safety.setFastingOptIn",
      "reason": "requires the person's own consent in the app"
     },
     {
      "commandId": "safety.setShortWindow",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.updateNutritionGuidance",
      "reason": "requires the person's own consent in the app"
     },
     {
@@ -2765,6 +2752,59 @@
   "webmcp": {
    "tools": [
     {
+     "name": "activity_approve",
+     "commandId": "activity.approve",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cbacf39a8f432e21"
+    },
+    {
+     "name": "activity_approve_all",
+     "commandId": "activity.approveAll",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "7274f2116342aa3b"
+    },
+    {
+     "name": "activity_candidates",
+     "commandId": "activity.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "469b3a1494e80d5c"
+    },
+    {
+     "name": "activity_edit",
+     "commandId": "activity.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "56b23e8872f9822d"
+    },
+    {
+     "name": "activity_log_manual",
+     "commandId": "activity.logManual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "774dc4f6c21e40e9"
+    },
+    {
+     "name": "activity_reject",
+     "commandId": "activity.reject",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "64b734048c82268c"
+    },
+    {
      "name": "ai_usage",
      "commandId": "ai.usage",
      "version": 1,
@@ -2779,73 +2819,6 @@
      "perm": "read",
      "confirm": "read",
      "schemaHash": "3e95c1a916484101"
-    },
-    {
-     "name": "bio_baselines",
-     "commandId": "bio.baselines",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b6a38c44dccace5a"
-    },
-    {
-     "name": "bio_daily",
-     "commandId": "bio.daily",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "8c7e6e09d91cf5f5"
-    },
-    {
-     "name": "bio_manual",
-     "commandId": "bio.manual",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ece5ec5bd1e8b357"
-    },
-    {
-     "name": "bio_scores",
-     "commandId": "bio.scores",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b0b4184101f516d8"
-    },
-    {
-     "name": "bio_series",
-     "commandId": "bio.series",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "7589456bc2fecaf1"
-    },
-    {
-     "name": "bio_sources",
-     "commandId": "bio.sources",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "68eea8ae3d43afa5"
-    },
-    {
-     "name": "biometrics_clear_correction",
-     "commandId": "biometrics.clearCorrection",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ff5fe386ee6262c0"
-    },
-    {
-     "name": "biometrics_correct",
-     "commandId": "biometrics.correct",
-     "version": 1,
-     "perm": "write",
-     "impact": "consequential",
-     "confirm": "edit",
-     "schemaHash": "1dc03b967d1e856d"
     },
     {
      "name": "briefing_get",
@@ -2880,7 +2853,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e40ae7c4e60881af"
+     "schemaHash": "317e57a3d14a8bfd"
     },
     {
      "name": "catalogue_equipment",
@@ -3035,7 +3008,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c21ed4647e6b6c6"
+     "schemaHash": "e0b3044239c33f28"
     },
     {
      "name": "goals_edit",
@@ -3044,7 +3017,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "3833c1460101e13a"
+     "schemaHash": "85ac8316442b0552"
     },
     {
      "name": "goals_get",
@@ -3060,7 +3033,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "5bee78f0ca618831"
+     "schemaHash": "84e5cd90def98fe8"
     },
     {
      "name": "history_list",
@@ -3095,7 +3068,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "59867041d087c73a"
+     "schemaHash": "14728de5cbfd08d9"
     },
     {
      "name": "intake_get",
@@ -3103,7 +3076,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "82f97bd765a59179"
+     "schemaHash": "519231fc22dc40ef"
     },
     {
      "name": "intake_next_questions",
@@ -3111,7 +3084,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "fac23073462cc2b0"
+     "schemaHash": "ca584e87cad86acd"
     },
     {
      "name": "intake_skip",
@@ -3120,7 +3093,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d1a9faa7b814d798"
+     "schemaHash": "8816155a993d740e"
     },
     {
      "name": "job_cancel",
@@ -3189,7 +3162,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "26418dddff861151"
+     "schemaHash": "f5387ebb5d2cd7e3"
     },
     {
      "name": "log_edit",
@@ -3207,16 +3180,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d65488c52342036e"
-    },
-    {
-     "name": "log_from_biometrics",
-     "commandId": "log.fromBiometrics",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ffe30523fd724b53"
+     "schemaHash": "6e869543c68ff177"
     },
     {
      "name": "log_get",
@@ -3233,7 +3197,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "547c113024358d95"
+     "schemaHash": "8ec82dfb6da97ee2"
     },
     {
      "name": "log_meal",
@@ -3242,7 +3206,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6635a32a6f9267b5"
+     "schemaHash": "2851f0a43292da54"
     },
     {
      "name": "log_meal_from_photo",
@@ -3260,7 +3224,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "aa1fce3dac3d1790"
+     "schemaHash": "383ba91f37a6ef5c"
     },
     {
      "name": "log_note",
@@ -3287,7 +3251,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c3801768e66bcfb"
+     "schemaHash": "bd0691969b6f18e3"
     },
     {
      "name": "log_sleep",
@@ -3296,7 +3260,16 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c223c1eb72c1b77"
+     "schemaHash": "61cbe3af55f1cffc"
+    },
+    {
+     "name": "log_sleep_times",
+     "commandId": "log.sleepTimes",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "73585ff237ee3dbb"
     },
     {
      "name": "log_steps",
@@ -3305,7 +3278,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d522d9ca143248f5"
+     "schemaHash": "c6a3f8ff4ea685d5"
     },
     {
      "name": "log_subjective",
@@ -3314,7 +3287,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e262b931650242f5"
+     "schemaHash": "996d0814ca4b6602"
     },
     {
      "name": "log_substance",
@@ -3323,7 +3296,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "5d759313fd20143e"
+     "schemaHash": "d744c897df828785"
     },
     {
      "name": "log_supplement",
@@ -3332,7 +3305,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "0beb15799d81909e"
+     "schemaHash": "83b1f5d626a5840f"
     },
     {
      "name": "markers_get",
@@ -3367,7 +3340,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "8f757ecfbff10467"
+     "schemaHash": "c1760f5386ceae80"
     },
     {
      "name": "nav_open",
@@ -3503,7 +3476,7 @@
      "version": 1,
      "perm": "destructive",
      "confirm": "destructive",
-     "schemaHash": "b7231d3eeb432846"
+     "schemaHash": "55431be4265efa9b"
     },
     {
      "name": "plan_replan",
@@ -3539,7 +3512,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "cdd995625f9098ca"
+     "schemaHash": "367ca0330d0bd264"
     },
     {
      "name": "plan_swap_exercise",
@@ -3565,7 +3538,40 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "f1735e131e32afd5"
+     "schemaHash": "06317b3fccca0553"
+    },
+    {
+     "name": "planner_improve_current",
+     "commandId": "planner.improveCurrent",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "55e6108f1956d34d"
+    },
+    {
+     "name": "planner_improvement_result",
+     "commandId": "planner.improvementResult",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f13f3869f96f3b8c"
+    },
+    {
+     "name": "planner_inputs",
+     "commandId": "planner.inputs",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f1a0d00dbecd18c1"
+    },
+    {
+     "name": "planner_open_improvement",
+     "commandId": "planner.openImprovement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "cfa0a8f0034a18bf"
     },
     {
      "name": "planner_open_in_simulator",
@@ -3582,7 +3588,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "806fbaf51772e9c6"
+     "schemaHash": "8637d2313fcb3d95"
     },
     {
      "name": "planner_stop",
@@ -3616,7 +3622,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "00e4615b831237cb"
+     "schemaHash": "bdd3379826d3016c"
     },
     {
      "name": "profile_reset_shape",
@@ -3651,7 +3657,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9b273648719d210f"
+     "schemaHash": "e05db4844eff228f"
     },
     {
      "name": "scenario_create",
@@ -3704,7 +3710,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "833d897e442041dd"
+     "schemaHash": "e1eb5763ed0d4466"
     },
     {
      "name": "scenario_list",
@@ -3712,7 +3718,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "3fe1099f700aea45"
+     "schemaHash": "f499d7d82848d7b2"
     },
     {
      "name": "scenario_rename",
@@ -3721,7 +3727,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "dc32128da46e1850"
+     "schemaHash": "8259109afa230e57"
     },
     {
      "name": "scenario_set_active",
@@ -3730,7 +3736,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "4df27287968e59c7"
+     "schemaHash": "9682f3d18119aa18"
     },
     {
      "name": "settings_get",
@@ -3738,7 +3744,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "99534f77db0b85b6"
+     "schemaHash": "957775fad41b6acd"
     },
     {
      "name": "settings_update",
@@ -3747,7 +3753,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6299a067c6ff5e1e"
+     "schemaHash": "06e6c41751d3d3f8"
     },
     {
      "name": "sim_compare",
@@ -3771,7 +3777,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "eae751f221497f98"
+     "schemaHash": "354723ef26711e05"
     },
     {
      "name": "sim_series",
@@ -3795,7 +3801,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "8b4114bee670f582"
+     "schemaHash": "1f9d2aae3dce890f"
     },
     {
      "name": "supplements_remove",
@@ -3804,7 +3810,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "27ee1b16559fa3ee"
+     "schemaHash": "134af3f179a5da92"
     },
     {
      "name": "supplements_set",
@@ -3813,7 +3819,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "86dc9ad584518962"
+     "schemaHash": "5e2b02381e0f681d"
     },
     {
      "name": "sync_now",
@@ -3867,56 +3873,20 @@
    ],
    "excluded": [
     {
+     "commandId": "activity.autoAccept",
+     "reason": "the app brings detected activities in by itself; agents read them with activity.candidates"
+    },
+    {
+     "commandId": "activity.fromGauge",
+     "reason": "the app brings detected activities in by itself; agents read them with activity.candidates"
+    },
+    {
      "commandId": "agents.configure",
      "reason": "requires the person's own consent in the app"
     },
     {
      "commandId": "ai.configure",
      "reason": "keys and providers are configured by the person in the app"
-    },
-    {
-     "commandId": "bio.deleteSource",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "bio.deviceConnect",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.deviceSync",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.dismissRingDefaultsNotice",
-     "reason": "screen progress of the app itself, not a change an agent should make"
-    },
-    {
-     "commandId": "bio.import",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.rescore",
-     "reason": "background maintenance the app schedules itself"
-    },
-    {
-     "commandId": "bio.setPolicy",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "bio.setRingSharing",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "biometrics.dropPriorities",
-     "reason": "a one-time migration the app runs itself"
-    },
-    {
-     "commandId": "biometrics.ringDefaults",
-     "reason": "a one-time migration the app runs itself"
-    },
-    {
-     "commandId": "biometrics.ringFold",
-     "reason": "a migration the app runs itself"
     },
     {
      "commandId": "coach.applyPending",
@@ -3959,6 +3929,14 @@
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
     {
+     "commandId": "log.fromGauge",
+     "reason": "the app imports the ring data by itself; agents read it with the gauge_* tools"
+    },
+    {
+     "commandId": "log.stepsCorrection",
+     "reason": "the person corrects steps on the steps-by-source panel"
+    },
+    {
      "commandId": "markers.confirm",
      "reason": "the person checks and confirms the review table in the app"
     },
@@ -3979,6 +3957,10 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "safety.addNutritionGuidance",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "safety.clearAgeAnswer",
      "reason": "requires the person's own consent in the app"
     },
@@ -3991,11 +3973,19 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "safety.revokeNutritionGuidance",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "safety.setFastingOptIn",
      "reason": "requires the person's own consent in the app"
     },
     {
      "commandId": "safety.setShortWindow",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.updateNutritionGuidance",
      "reason": "requires the person's own consent in the app"
     },
     {
@@ -4031,6 +4021,59 @@
   "mcp": {
    "tools": [
     {
+     "name": "activity_approve",
+     "commandId": "activity.approve",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "cbacf39a8f432e21"
+    },
+    {
+     "name": "activity_approve_all",
+     "commandId": "activity.approveAll",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "7274f2116342aa3b"
+    },
+    {
+     "name": "activity_candidates",
+     "commandId": "activity.candidates",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "469b3a1494e80d5c"
+    },
+    {
+     "name": "activity_edit",
+     "commandId": "activity.edit",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "56b23e8872f9822d"
+    },
+    {
+     "name": "activity_log_manual",
+     "commandId": "activity.logManual",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "774dc4f6c21e40e9"
+    },
+    {
+     "name": "activity_reject",
+     "commandId": "activity.reject",
+     "version": 1,
+     "perm": "write",
+     "impact": "consequential",
+     "confirm": "edit",
+     "schemaHash": "64b734048c82268c"
+    },
+    {
      "name": "ai_usage",
      "commandId": "ai.usage",
      "version": 1,
@@ -4045,73 +4088,6 @@
      "perm": "read",
      "confirm": "read",
      "schemaHash": "3e95c1a916484101"
-    },
-    {
-     "name": "bio_baselines",
-     "commandId": "bio.baselines",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b6a38c44dccace5a"
-    },
-    {
-     "name": "bio_daily",
-     "commandId": "bio.daily",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "8c7e6e09d91cf5f5"
-    },
-    {
-     "name": "bio_manual",
-     "commandId": "bio.manual",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ece5ec5bd1e8b357"
-    },
-    {
-     "name": "bio_scores",
-     "commandId": "bio.scores",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "b0b4184101f516d8"
-    },
-    {
-     "name": "bio_series",
-     "commandId": "bio.series",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "7589456bc2fecaf1"
-    },
-    {
-     "name": "bio_sources",
-     "commandId": "bio.sources",
-     "version": 1,
-     "perm": "read",
-     "confirm": "read",
-     "schemaHash": "68eea8ae3d43afa5"
-    },
-    {
-     "name": "biometrics_clear_correction",
-     "commandId": "biometrics.clearCorrection",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ff5fe386ee6262c0"
-    },
-    {
-     "name": "biometrics_correct",
-     "commandId": "biometrics.correct",
-     "version": 1,
-     "perm": "write",
-     "impact": "consequential",
-     "confirm": "edit",
-     "schemaHash": "1dc03b967d1e856d"
     },
     {
      "name": "briefing_get",
@@ -4146,7 +4122,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e40ae7c4e60881af"
+     "schemaHash": "317e57a3d14a8bfd"
     },
     {
      "name": "catalogue_equipment",
@@ -4301,7 +4277,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c21ed4647e6b6c6"
+     "schemaHash": "e0b3044239c33f28"
     },
     {
      "name": "goals_edit",
@@ -4310,7 +4286,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "3833c1460101e13a"
+     "schemaHash": "85ac8316442b0552"
     },
     {
      "name": "goals_get",
@@ -4326,7 +4302,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "5bee78f0ca618831"
+     "schemaHash": "84e5cd90def98fe8"
     },
     {
      "name": "history_list",
@@ -4361,7 +4337,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "59867041d087c73a"
+     "schemaHash": "14728de5cbfd08d9"
     },
     {
      "name": "intake_get",
@@ -4369,7 +4345,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "82f97bd765a59179"
+     "schemaHash": "519231fc22dc40ef"
     },
     {
      "name": "intake_next_questions",
@@ -4377,7 +4353,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "fac23073462cc2b0"
+     "schemaHash": "ca584e87cad86acd"
     },
     {
      "name": "intake_skip",
@@ -4386,7 +4362,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d1a9faa7b814d798"
+     "schemaHash": "8816155a993d740e"
     },
     {
      "name": "job_cancel",
@@ -4455,7 +4431,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "26418dddff861151"
+     "schemaHash": "f5387ebb5d2cd7e3"
     },
     {
      "name": "log_edit",
@@ -4473,16 +4449,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d65488c52342036e"
-    },
-    {
-     "name": "log_from_biometrics",
-     "commandId": "log.fromBiometrics",
-     "version": 1,
-     "perm": "write",
-     "impact": "low",
-     "confirm": "log",
-     "schemaHash": "ffe30523fd724b53"
+     "schemaHash": "6e869543c68ff177"
     },
     {
      "name": "log_get",
@@ -4499,7 +4466,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "547c113024358d95"
+     "schemaHash": "8ec82dfb6da97ee2"
     },
     {
      "name": "log_meal",
@@ -4508,7 +4475,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6635a32a6f9267b5"
+     "schemaHash": "2851f0a43292da54"
     },
     {
      "name": "log_meal_from_photo",
@@ -4526,7 +4493,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "aa1fce3dac3d1790"
+     "schemaHash": "383ba91f37a6ef5c"
     },
     {
      "name": "log_note",
@@ -4553,7 +4520,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c3801768e66bcfb"
+     "schemaHash": "bd0691969b6f18e3"
     },
     {
      "name": "log_sleep",
@@ -4562,7 +4529,16 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9c223c1eb72c1b77"
+     "schemaHash": "61cbe3af55f1cffc"
+    },
+    {
+     "name": "log_sleep_times",
+     "commandId": "log.sleepTimes",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "73585ff237ee3dbb"
     },
     {
      "name": "log_steps",
@@ -4571,7 +4547,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "d522d9ca143248f5"
+     "schemaHash": "c6a3f8ff4ea685d5"
     },
     {
      "name": "log_subjective",
@@ -4580,7 +4556,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "e262b931650242f5"
+     "schemaHash": "996d0814ca4b6602"
     },
     {
      "name": "log_substance",
@@ -4589,7 +4565,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "5d759313fd20143e"
+     "schemaHash": "d744c897df828785"
     },
     {
      "name": "log_supplement",
@@ -4598,7 +4574,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "0beb15799d81909e"
+     "schemaHash": "83b1f5d626a5840f"
     },
     {
      "name": "markers_get",
@@ -4633,7 +4609,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "8f757ecfbff10467"
+     "schemaHash": "c1760f5386ceae80"
     },
     {
      "name": "pantry_add",
@@ -4761,7 +4737,7 @@
      "version": 1,
      "perm": "destructive",
      "confirm": "destructive",
-     "schemaHash": "b7231d3eeb432846"
+     "schemaHash": "55431be4265efa9b"
     },
     {
      "name": "plan_replan",
@@ -4797,7 +4773,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "cdd995625f9098ca"
+     "schemaHash": "367ca0330d0bd264"
     },
     {
      "name": "plan_swap_exercise",
@@ -4823,7 +4799,40 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "f1735e131e32afd5"
+     "schemaHash": "06317b3fccca0553"
+    },
+    {
+     "name": "planner_improve_current",
+     "commandId": "planner.improveCurrent",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "55e6108f1956d34d"
+    },
+    {
+     "name": "planner_improvement_result",
+     "commandId": "planner.improvementResult",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f13f3869f96f3b8c"
+    },
+    {
+     "name": "planner_inputs",
+     "commandId": "planner.inputs",
+     "version": 1,
+     "perm": "read",
+     "confirm": "read",
+     "schemaHash": "f1a0d00dbecd18c1"
+    },
+    {
+     "name": "planner_open_improvement",
+     "commandId": "planner.openImprovement",
+     "version": 1,
+     "perm": "write",
+     "impact": "low",
+     "confirm": "log",
+     "schemaHash": "cfa0a8f0034a18bf"
     },
     {
      "name": "planner_open_in_simulator",
@@ -4840,7 +4849,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "806fbaf51772e9c6"
+     "schemaHash": "8637d2313fcb3d95"
     },
     {
      "name": "planner_stop",
@@ -4874,7 +4883,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "00e4615b831237cb"
+     "schemaHash": "bdd3379826d3016c"
     },
     {
      "name": "profile_reset_shape",
@@ -4909,7 +4918,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "9b273648719d210f"
+     "schemaHash": "e05db4844eff228f"
     },
     {
      "name": "scenario_create",
@@ -4962,7 +4971,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "833d897e442041dd"
+     "schemaHash": "e1eb5763ed0d4466"
     },
     {
      "name": "scenario_list",
@@ -4970,7 +4979,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "3fe1099f700aea45"
+     "schemaHash": "f499d7d82848d7b2"
     },
     {
      "name": "scenario_rename",
@@ -4979,7 +4988,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "dc32128da46e1850"
+     "schemaHash": "8259109afa230e57"
     },
     {
      "name": "scenario_set_active",
@@ -4988,7 +4997,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "4df27287968e59c7"
+     "schemaHash": "9682f3d18119aa18"
     },
     {
      "name": "settings_get",
@@ -4996,7 +5005,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "99534f77db0b85b6"
+     "schemaHash": "957775fad41b6acd"
     },
     {
      "name": "settings_update",
@@ -5005,7 +5014,7 @@
      "perm": "write",
      "impact": "low",
      "confirm": "log",
-     "schemaHash": "6299a067c6ff5e1e"
+     "schemaHash": "06e6c41751d3d3f8"
     },
     {
      "name": "sim_compare",
@@ -5029,7 +5038,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "eae751f221497f98"
+     "schemaHash": "354723ef26711e05"
     },
     {
      "name": "sim_series",
@@ -5053,7 +5062,7 @@
      "version": 1,
      "perm": "read",
      "confirm": "read",
-     "schemaHash": "8b4114bee670f582"
+     "schemaHash": "1f9d2aae3dce890f"
     },
     {
      "name": "supplements_remove",
@@ -5062,7 +5071,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "27ee1b16559fa3ee"
+     "schemaHash": "134af3f179a5da92"
     },
     {
      "name": "supplements_set",
@@ -5071,7 +5080,7 @@
      "perm": "write",
      "impact": "consequential",
      "confirm": "edit",
-     "schemaHash": "86dc9ad584518962"
+     "schemaHash": "5e2b02381e0f681d"
     },
     {
      "name": "sync_now",
@@ -5125,56 +5134,20 @@
    ],
    "excluded": [
     {
+     "commandId": "activity.autoAccept",
+     "reason": "the app brings detected activities in by itself; agents read them with activity.candidates"
+    },
+    {
+     "commandId": "activity.fromGauge",
+     "reason": "the app brings detected activities in by itself; agents read them with activity.candidates"
+    },
+    {
      "commandId": "agents.configure",
      "reason": "requires the person's own consent in the app"
     },
     {
      "commandId": "ai.configure",
      "reason": "keys and providers are configured by the person in the app"
-    },
-    {
-     "commandId": "bio.deleteSource",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "bio.deviceConnect",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.deviceSync",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.dismissRingDefaultsNotice",
-     "reason": "screen progress of the app itself, not a change an agent should make"
-    },
-    {
-     "commandId": "bio.import",
-     "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
-    },
-    {
-     "commandId": "bio.rescore",
-     "reason": "background maintenance the app schedules itself"
-    },
-    {
-     "commandId": "bio.setPolicy",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "bio.setRingSharing",
-     "reason": "requires the person's own consent in the app"
-    },
-    {
-     "commandId": "biometrics.dropPriorities",
-     "reason": "a one-time migration the app runs itself"
-    },
-    {
-     "commandId": "biometrics.ringDefaults",
-     "reason": "a one-time migration the app runs itself"
-    },
-    {
-     "commandId": "biometrics.ringFold",
-     "reason": "a migration the app runs itself"
     },
     {
      "commandId": "coach.applyPending",
@@ -5217,6 +5190,14 @@
      "reason": "needs a device gesture (file picker, Bluetooth pairing or download) in the app"
     },
     {
+     "commandId": "log.fromGauge",
+     "reason": "the app imports the ring data by itself; agents read it with the gauge_* tools"
+    },
+    {
+     "commandId": "log.stepsCorrection",
+     "reason": "the person corrects steps on the steps-by-source panel; agents read the fused steps with gauge_steps"
+    },
+    {
      "commandId": "markers.confirm",
      "reason": "the person checks and confirms the review table in the app"
     },
@@ -5241,6 +5222,10 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "safety.addNutritionGuidance",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "safety.clearAgeAnswer",
      "reason": "requires the person's own consent in the app"
     },
@@ -5253,11 +5238,19 @@
      "reason": "requires the person's own consent in the app"
     },
     {
+     "commandId": "safety.revokeNutritionGuidance",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
      "commandId": "safety.setFastingOptIn",
      "reason": "requires the person's own consent in the app"
     },
     {
      "commandId": "safety.setShortWindow",
+     "reason": "requires the person's own consent in the app"
+    },
+    {
+     "commandId": "safety.updateNutritionGuidance",
      "reason": "requires the person's own consent in the app"
     },
     {

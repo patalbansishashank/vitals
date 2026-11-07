@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { ArrowLeftRight, Info, Link2 } from 'lucide-react';
-import { Faceplate, Icon, IconKey, Key, KeyBank, KeyLink, Notice, Section, Tab, TabList, TabPanel, Tabs, cx, energyInText, formatNumber, useReducedMotion } from '@/components';
+import { Faceplate, Icon, IconKey, Key, KeyBank, KeyLink, Tab, TabList, TabPanel, Tabs, cx, energyInText, formatNumber, useReducedMotion } from '@/components';
 import { paths } from '@/app/paths';
 import { formatValueRange } from '@/features/charts';
 import { ExplainDrawer, type ExplainReading } from '@/features/evidence';
+import type { ExplainStatus } from '@/features/evidence/ExplainDrawer';
+import { INTERPRETABLE_STATUSES, SEARCH_OUTCOME_LABEL } from '@/lib/bodyContracts';
 import { DISCLAIMER } from '@/features/onboarding/copy';
 import { PlannerDisclaimer } from '@/features/onboarding';
 import { StartPlanSheet, type StartPlanEntryProps } from '@/features/living/start/StartPlanSheet';
@@ -13,16 +15,16 @@ import { useActivePlan } from '@/features/living/mode';
 import { toV1Option } from '@/engine/planner/domain/compat';
 import { STOPPED_BEFORE_PLAN } from '@/engine/planner/domain/stoppedLadder';
 import type { PlannerRequestV2, PlannerResult, PlannerResultV2, RungSummary } from '@/engine/planner/domain/types';
-import { usePlannerStore, type ConstraintDraft } from '@/state/plannerStore';
+import type { ConstraintDraft } from '@/state/plannerStore';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
 import { useEnergyUnit, useSettingsStore } from '@/state/settingsStore';
 import { goalMetric } from './catalogue';
 import { fmtClock, fmtMetric, fmtPct, toDisplay } from './format';
 import {
-  PLAN_KINDS,
   RUNG_IDS,
   RUNG_TITLE,
   SAME_AS_HARD_LINE,
+  burdenRows,
   collapsedChips,
   comparisonRows,
   fmtTrainingTime,
@@ -36,12 +38,10 @@ import {
   type LadderPlan,
   type PlanKind,
   type RungId,
-  basedOnAnswersLine,
 } from './ladder';
 import type { PlannerModel } from './model';
 import { goalText, phaseFacts, phaseKcal, phaseBalance, type PhaseFact } from './planFacts';
 import { buildPrescription, downloadFile, prescriptionCsv, prescriptionText, type Prescription } from './prescription';
-import { staleReason } from './request';
 import { AdoptLimitsPanel } from './components/AdoptLimitsPanel';
 import { DaysTab } from './components/DaysTab';
 import { CollapsedChip, LadderCard, cardRows } from './components/LadderCard';
@@ -59,7 +59,6 @@ import { editGoalsLater } from './commands';
 type TabId = 'overview' | 'days' | 'curves' | 'limits' | 'safety';
 export type LadderView = 'cards' | 'table';
 
-const STALE_TITLE = { body: 'Your body changed', safety: 'Your safety settings changed', goals: 'Your goals or limits changed' } as const;
 const TABS: readonly TabId[] = ['overview', 'days', 'curves', 'limits', 'safety'];
 const TIER_WORD = { S: 'quick', M: 'standard', L: 'thorough', X: 'exhaustive' } as const;
 
@@ -71,9 +70,12 @@ function safeRx(p: LadderPlan, profile: Parameters<typeof buildPrescription>[1])
   }
 }
 
-/** "hunger: high · 4 h training a week · window 8 h (12:00–20:00) · 3 meals". */
+/**
+ * "4 h training a week · window 8 h (12:00–20:00) · 3 meals". Hunger is not repeated here: the card's Effort row says it
+ * once, in the burden's own words (r068 W2-6: "hunger: low" beside "above your comfort level on 29 % of days").
+ */
 export function dayToDay(s: RungSummary, rx: Prescription | null): string {
-  const parts = [s.hunger.rating === 'unknown' ? 'hunger: not modelled yet' : `hunger: ${s.hunger.rating}`];
+  const parts: string[] = [];
   parts.push(s.weeklyTrainingMin > 0 ? `${fmtTrainingTime(s.weeklyTrainingMin).replace(/ a week$/, '')} training a week` : 'no training');
   const eating = rx ? rx.days.filter((d) => !d.zero && !d.fast && d.windowStartH !== null && d.windowEndH !== null) : [];
   const mid = <T,>(xs: T[], key: (x: T) => number) => (xs.length ? key([...xs].sort((a, b) => key(a) - key(b))[Math.floor(xs.length / 2)]!) : NaN);
@@ -86,11 +88,38 @@ export function dayToDay(s: RungSummary, rx: Prescription | null): string {
   return parts.join(' · ');
 }
 
-/** The selected plan's value of a goal metric for the Explain drawer: end (or mean) value, likely range, start and target. */
+/**
+ * What the Explain sheet says about a plan's goal (C6 info sheet, never the card): the score's status, its range basis
+ * (check runs, coverage not validated), the finite-search outcome with tier and budget (D4-08: not found within the budget
+ * is not a proof), and the planner policy and model versions (D4-09: in the info sheet, no badges on the cards).
+ */
+export function planGoalStatus(plan: LadderPlan, result: Pick<PlannerResult, 'feasibility'>, v2: Pick<PlannerResultV2, 'provenance'>, request: PlannerRequestV2, metricId: string): ExplainStatus | null {
+  const i = request.goals.findIndex((g) => g.metric === metricId);
+  if (i < 0) return null;
+  const sc = plan.scorecard?.find((x) => x.goal === i);
+  const details: Array<{ label: string; value: string }> = [];
+  const draws = sc?.bandMeta?.draws ?? plan.bands?.draws ?? 0;
+  if (sc?.band) details.push({ label: 'Range from', value: `${draws > 0 ? `${formatNumber(draws, 0)} check runs` : 'check runs'} · coverage not validated` });
+  const f = result.feasibility.find((x) => x.goal === i);
+  const pv = v2.provenance;
+  if (f?.outcome) {
+    const o = f.outcome;
+    const budget = o.budget ? `${TIER_WORD[o.budget.tier as keyof typeof TIER_WORD] ?? o.budget.tier} search` : `${TIER_WORD[pv.tier]} search`;
+    details.push({ label: 'Search', value: [SEARCH_OUTCOME_LABEL[o.outcome], budget, o.termination ?? null].filter(Boolean).join(' · ') });
+  } else details.push({ label: 'Search', value: `${TIER_WORD[pv.tier]} search · ${formatNumber(pv.euUsed, 0)} of ${formatNumber(pv.budgetEU, 0)} units` });
+  if (pv.policyVersion !== undefined) details.push({ label: 'Planner policy', value: `version ${pv.policyVersion}${pv.policyFingerprint ? ` · ${pv.policyFingerprint.slice(0, 8)}` : ''}` });
+  if (pv.engineVersion) details.push({ label: 'Model version', value: pv.engineVersion });
+  return { ...(sc?.status ? { status: sc.status } : {}), ...(sc?.band ? { uncertaintyKind: sc.bandMeta?.uncertaintyKind ?? 'parameterSensitivity' } : {}), details };
+}
+
+/** The selected plan's value of a goal metric for the Explain drawer: end (or mean) value, range, start and target. */
 function planReading(kind: PlanKind, plan: LadderPlan, request: PlannerRequestV2, metricId: string, units: UnitSystem, energy: EnergyUnit): ExplainReading | null {
   const i = request.goals.findIndex((g) => g.metric === metricId);
   const o = plan.summary.outcomes.find((x) => x.goal === i);
   if (!o) return null;
+  // C6: a score whose status forbids its number has no reading (the sheet's status rows say why)
+  const st = plan.scorecard?.find((x) => x.goal === i)?.status;
+  if (st && !INTERPRETABLE_STATUSES.has(st)) return null;
   const g = request.goals[i];
   const change = g?.targetKind === 'change';
   const shift = change ? o.start : 0;
@@ -204,9 +233,8 @@ export function ResultsView(props: ResultsViewProps) {
   if (!v2) {
     return (
       <Faceplate title="These plans came from an earlier version of the Planner." className="lp-nosafe">
-        <p className="lp-plain">Find plans again to see them as a ladder: Hard, Medium and Easy within your limits, and the Ideal without them.</p>
         <div className="lp-run__actions">
-          <Key variant="signal" shape="pill" onClick={onFindPlans}>
+          <Key variant="primary" onClick={onFindPlans}>
             Find plans again
           </Key>
         </div>
@@ -216,7 +244,7 @@ export function ResultsView(props: ResultsViewProps) {
   return <Ladder {...props} v2={v2} />;
 }
 
-function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpenInSimulator, onAdopt, replacing = false, adoptOpen, onAdoptOpen: setAdoptOpen }: ResultsViewProps & { v2: PlannerResultV2 }) {
+function Ladder({ model, result, v2, selected, view, onView, onOpenInSimulator, onAdopt, replacing = false, adoptOpen, onAdoptOpen: setAdoptOpen }: ResultsViewProps & { v2: PlannerResultV2 }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const reduced = useReducedMotion();
@@ -225,15 +253,12 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
   const energy = useEnergyUnit();
   const gentle = model.access.outcome.modeName === 'gentle';
   const showFigure = useSettingsStore((s) => s.showFigure) && !gentle;
-  // E19 (wired by I2): "Goals based on your answers." when the goals of this result came from goals.suggest
-  const suggested = usePlannerStore((s) => s.suggested);
-  const goalKeys = usePlannerStore((s) => s.goals.map((g) => g.key).join('|'));
-  const answersLine = useMemo(() => basedOnAnswersLine(suggested, goalKeys ? goalKeys.split('|') : []), [suggested, goalKeys]);
   const tabParam = params.get('tab') as TabId | null;
   const tab: TabId = tabParam && TABS.includes(tabParam) ? tabParam : 'overview';
   const railRef = useRef<HTMLDivElement>(null);
   const [explain, setExplain] = useState<string | null>(null);
   const [showNumbers, setShowNumbers] = useState(false);
+  const [effortOpen, setEffortOpen] = useState(false);
 
   const kinds = useMemo(() => presentKinds(v2), [v2]);
   const sameAsHard = useMemo(() => idealSameAsHard(v2), [v2]);
@@ -284,10 +309,12 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
         <p className="lp-plain">{v2.message}</p>
         {v2.status === 'blocked' ? <p className="lp-plain">The Simulator still works.</p> : null}
         <div className="lp-run__actions">
-          <KeyLink to={paths.planGoals} variant="solid">
+          <KeyLink to={paths.planGoals} variant="primary">
             Adjust goals
           </KeyLink>
-          <KeyLink to={paths.simulate}>Open the Simulator</KeyLink>
+          <KeyLink to={paths.simulate} variant="action">
+            Open the Simulator
+          </KeyLink>
         </div>
       </Faceplate>
     );
@@ -322,17 +349,17 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
     const g1Name = g1 ? (goalMetric(g1.metric)?.label.toLowerCase() ?? g1.metric) : null;
     return (
       <div className="lp-results">
-        <Faceplate title={!v2.complete && v2.message === STOPPED_BEFORE_PLAN ? STOPPED_BEFORE_PLAN : g1Name ? `No safe plan reaches ${g1Name} ${goalText(g1!, units)} in ${weeks} weeks within your limits.` : 'No safe plan was found within your limits.'} className="lp-nosafe">
+        <Faceplate title={!v2.complete && v2.message === STOPPED_BEFORE_PLAN ? STOPPED_BEFORE_PLAN : g1Name ? `No plan found that reaches ${g1Name} ${goalText(g1!, units)} in ${weeks} weeks within your limits.` : 'No plan was found within your limits.'} className="lp-nosafe">
           {f?.text ? <p className="lp-plain">{f.text}</p> : null}
           {f && f.bestAchievable !== null && Number.isFinite(f.bestAchievable) ? (
             <p className="lp-plain">
-              The best safe plan reaches {fmtMetric(f.metric, f.bestAchievable, units, { energy })}
+              The best plan found reaches {fmtMetric(f.metric, f.bestAchievable, units, { energy })}
               {need ? `. About ${need} weeks would be needed.` : '.'}
             </p>
           ) : null}
           {v2.noSafePlanReasons.length ? (
             <>
-              <p className="lm-eng">what blocked it</p>
+              <p className="lp-label">What blocked it</p>
               <ul className="lp-plain-list">
                 {v2.noSafePlanReasons.map((r) => (
                   <li key={r}>{r}</li>
@@ -342,14 +369,14 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
           ) : null}
           {ideal ? (
             <>
-              <p className="lp-plain lp-nosafe__ideal">Without your practical limits it’s reachable — here’s what blocks it:</p>
+              <p className="lp-plain lp-nosafe__ideal">Without your practical limits a plan was found. What blocks it:</p>
               <LimitCosts ideal={ideal} goals={request.goals} units={units} energy={energy} extras={false} />
             </>
           ) : null}
           <div className="lp-run__actions">
             {need && need <= 26 ? (
               <Key
-                variant="solid"
+                variant="primary"
                 onClick={() => {
                   editGoalsLater([{ op: 'setHorizon', days: need * 7 }]);
                   navigate(paths.planGoals);
@@ -358,7 +385,11 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
                 Extend to {need} weeks
               </Key>
             ) : null}
-            {ideal ? <Key onClick={() => setAdoptOpen(true)}>Adopt some of these limits</Key> : null}
+            {ideal ? (
+              <Key variant="action" onClick={() => setAdoptOpen(true)}>
+                Adopt some of these limits
+              </Key>
+            ) : null}
             <KeyLink to={paths.planGoals} variant="quiet">
               Adjust goals and limits
             </KeyLink>
@@ -487,15 +518,19 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
   const ready = RUNG_IDS.filter((k) => v2.rungs[k]).map((k) => RUNG_TITLE[k]);
   const hasIdeal = !!idealCard;
   const chips = collapsedChips(v2);
+  // the evidence grade of each goal's outcome (how sure the model is), from the strongest plan shown
+  const grades = (v2.rungs.hard ?? v2.rungs.medium ?? v2.rungs.easy ?? v2.ideal)?.summary.outcomes ?? [];
   // the grid holds only the cards that exist: n columns (rungs ‖ Ideal), no slot for a collapsed rung
   const inside = kinds.filter(isRung).length;
+  // the Ideal's tracks run past the limit: every card leaves that room, so the seven tracks share one scale
+  const effortReserve = !!idealCard && burdenRows(idealCard.summary.difficulty, { ideal: true, gentle }).some((r) => r.over > 0);
   const gridStyle = { '--lp-rows': rows.length, '--lp-rows2': rows.length * 2, '--lp-row2': rows.length + 1, '--lp-inside': inside } as CSSProperties;
 
   const card = (k: PlanKind, pos: number) => {
     const p = planOf(v2, k);
     if (!p) return null;
     return (
-      <div key={k} className="lp-ladder__col lp-ladder__col--card" data-col={k} data-pos={pos} data-x={pos % 2} data-y={Math.floor(pos / 2)}>
+      <div key={k} className="lp-ladder__col lp-ladder__col--card" data-col={k} data-current={k === sel || undefined} data-pos={pos} data-x={pos % 2} data-y={Math.floor(pos / 2)}>
         <LadderCard
           kind={k}
           plan={p}
@@ -522,6 +557,9 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
           }}
           onOpenInSimulator={isRung(k) && !replacing ? () => onOpenInSimulator(k) : undefined}
           onAdopt={k === 'ideal' ? () => setAdoptOpen(true) : undefined}
+          effortOpen={effortOpen}
+          onEffortToggle={() => setEffortOpen((o) => !o)}
+          effortReserve={effortReserve}
           start={isRung(k) && k === sel ? <RungStart model={model} result={result} v2={v2} kind={k} replacing={replacing} /> : undefined}
           outsideSafety={outsideSafety(p, maxFast)}
         />
@@ -529,43 +567,19 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
     );
   };
 
+  // r068 W2-5: the plan the tabs describe heads their panel (never a caption floating between the tabs and the card)
+  const panelHead = (
+    <p className="lp-tabpanel__head">
+      <span className="lp-tabpanel__title">{RUNG_TITLE[sel]} plan</span>
+      <span className="lp-tabpanel__sub">{selPlan.summary.subtitle}</span>
+    </p>
+  );
+
   return (
     <div className={cx('lp-results', 'lp-results--ladder', model.stale && 'is-stale')}>
-      {model.stale ? (
-        <Notice
-          severity="info"
-          layout="ruled"
-          className="lp-notice"
-          title={`${STALE_TITLE[staleReason(model.run.request, model.request)]} since these plans were found · Find plans again`}
-          actions={
-            <Key size="sm" onClick={onFindPlans}>
-              Find plans again
-            </Key>
-          }
-        >
-          Goals, limits, your body or safety settings differ from the ones these plans were made for.
-        </Notice>
-      ) : null}
-      {!v2.complete ? (
-        <Notice severity="info" layout="ruled" className="lp-notice" title={`Stopped at ${Math.round((model.run.progress?.fraction ?? 0) * 100)} %.`}>
-          {`${listAnd(ready)} ${ready.length === 1 ? 'is' : 'are'} ready; range checks were skipped, so ranges may be too narrow.`}
-          {hasIdeal ? ' Some limit costs weren’t checked.' : ''}
-          {v2.idealSkipped === 'stopped' ? ' The Ideal (your plan without the practical limits) wasn’t searched.' : ''}
-        </Notice>
-      ) : null}
-      {v2.keptAfterStop ? (
-        <Notice severity="info" layout="ruled" className="lp-notice lp-notice--kept" title={keptAfterStopTitle(v2.keptAfterStop.tier, v2.provenance.tier)}>
-          {KEPT_AFTER_STOP[v2.keptAfterStop.why]}
-        </Notice>
-      ) : null}
-      {v2.stubModules.length ? (
-        <Notice severity="info" layout="ruled" className="lp-notice" title="Some physiology is still being built.">
-          These parts of the model are placeholders, so their curves and anything that depends on them are not meaningful yet: {v2.stubModules.join(', ')}.
-        </Notice>
-      ) : null}
-
       <Faceplate
-        title="The ladder"
+        title="Plans by effort"
+        caption={!v2.complete ? `Stopped at ${Math.round((model.run.progress?.fraction ?? 0) * 100)} %` : undefined}
         className="lp-ladder-face"
         actions={
           onView ? (
@@ -575,15 +589,28 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
               value={view}
               onChange={onView}
               options={[
-                { value: 'cards', label: 'cards' },
-                { value: 'table', label: 'table' },
+                { value: 'cards', label: 'Cards' },
+                { value: 'table', label: 'Table' },
               ]}
             />
           ) : undefined
         }
       >
-        {answersLine ? <p className="lp-plain lp-ladder__answers">{answersLine}</p> : null}
-        <LadderScale v2={v2} goal1={g1} units={units} energy={energy} selected={sel} onSelect={select} hideValues={gentle && !showNumbers && !!g1 && /fatMass|scaleWeight|bodyFatPct|waist|visceralFat/.test(g1.metric)} />
+        {/* facts about this result, on the card they describe (never boxed notices between sections) */}
+        {!v2.complete ? (
+          <p className="lp-ladder__note">
+            {`${listAnd(ready)} ${ready.length === 1 ? 'is' : 'are'} ready; range checks were skipped, so ranges may be too narrow.`}
+            {hasIdeal ? ' Some limit costs weren’t checked.' : ''}
+            {v2.idealSkipped === 'stopped' ? ' The Ideal (your plan without the practical limits) wasn’t searched.' : ''}
+          </p>
+        ) : null}
+        {v2.keptAfterStop ? (
+          <p className="lp-ladder__note lp-ladder__note--kept">
+            <span>{keptAfterStopTitle(v2.keptAfterStop.tier, v2.provenance.tier)}</span> <span>{KEPT_AFTER_STOP[v2.keptAfterStop.why]}</span>
+          </p>
+        ) : null}
+        {v2.stubModules.length ? <p className="lp-ladder__note">{`Placeholder physiology, not meaningful yet: ${v2.stubModules.join(', ')}.`}</p> : null}
+        <LadderScale v2={v2} goal1={g1} units={units} energy={energy} selected={sel} onSelect={select} grade={grades.find((o) => o.goal === 0)?.grade} hideValues={gentle && !showNumbers && !!g1 && /fatMass|scaleWeight|bodyFatPct|waist|visceralFat/.test(g1.metric)} />
         {chips.length ? (
           <ul className="lp-lchips" aria-label="Plans the ladder did not keep">
             {chips.map((c) => (
@@ -596,12 +623,18 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
       <LadderMarkerBanner request={request} />
 
       {view === 'table' ? (
-        <>
-          {sameAsHard ? <p className="lp-plain lp-ltable__same">{SAME_AS_HARD_LINE}</p> : null}
-          <LadderTable v2={v2} goals={request.goals} units={units} energy={energy} selected={sel} onSelect={select} gentle={gentle && !showNumbers} />
-        </>
+        <LadderTable v2={v2} goals={request.goals} units={units} energy={energy} selected={sel} onSelect={select} gentle={gentle && !showNumbers} hardNote={sameAsHard ? SAME_AS_HARD_LINE : null} />
       ) : (
         <div className="lp-ladder-wrap">
+          {kinds.length > 1 ? (
+            <KeyBank<PlanKind>
+              className="lp-rungbank"
+              label="Plan"
+              value={sel}
+              onChange={select}
+              options={kinds.map((k) => ({ value: k, label: RUNG_TITLE[k] }))}
+            />
+          ) : null}
           <div ref={railRef} className="lp-ladder" data-ideal={hasIdeal || undefined} data-n={kinds.length} data-inside={inside} style={gridStyle} role="group" aria-label="Plans">
             {kinds.filter(isRung).map((k, i) => card(k, i))}
             {hasIdeal ? (
@@ -639,13 +672,13 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
           ) : null}
         </div>
       )}
-      <PlannerDisclaimer className="lp-cards__disclaimer" />
-
+      {/* r068 PR7: what holds between the goals is a card of its own (label over its text); the disclaimer is the
+          page's last line */}
       {v2.relations.length || v2.fasting.reason ? (
-        <Section label="Between your goals" className="lp-between">
+        <Faceplate title="Between your goals" className="lp-between">
           {v2.fasting.reason ? (
             <p className="lp-why-face__fasting">
-              <span className="lm-eng">fasting</span> <span>{sentence(v2.fasting.reason)}</span>
+              <strong>Fasting</strong> <span>{sentence(v2.fasting.reason)}</span>
             </p>
           ) : null}
           {v2.relations.length ? (
@@ -664,26 +697,24 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
               })}
             </ul>
           ) : null}
-        </Section>
+        </Faceplate>
       ) : null}
 
       <div id="lp-plan-tabs" className="lp-tabs">
         <Tabs value={tab} onChange={(v) => goTab(v as TabId)}>
           <div className="lp-tabs__bar">
             <TabList label={`${RUNG_TITLE[sel]} plan details`} size="md">
-              <Tab value="overview">overview</Tab>
-              <Tab value="days">days</Tab>
-              <Tab value="curves">curves</Tab>
-              <Tab value="limits">limits</Tab>
+              <Tab value="overview">Overview</Tab>
+              <Tab value="days">Days</Tab>
+              <Tab value="curves">Curves</Tab>
+              <Tab value="limits">Limits</Tab>
               <Tab value="safety" badge={safetyItemsOf({ safetyItems: selPlan.safetyItems ?? selPlan.summary.safetyItems, safetyNotes: selPlan.safetyNotes }).some((it) => it.severity !== 'info')}>
-                safety
+                Safety
               </Tab>
             </TabList>
-            <span className="lm-eng lp-tabs__for">
-              for {RUNG_TITLE[sel]} · {selPlan.summary.subtitle}
-            </span>
           </div>
           <TabPanel value="overview" className="lp-tabpanel">
+            {panelHead}
             <OverviewTab
               kind={sel}
               plan={selPlan}
@@ -696,10 +727,11 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
               onWhy={setExplain}
               relations={v2.relations}
               gentle={gentle}
-              figure={showFigure && model.body.complete && sel !== 'ideal' ? <PlanFigure start={model.body.estimate} sim={selPlan.simulation} planTitle={RUNG_TITLE[sel]} size="sm" /> : undefined}
+              figure={showFigure && model.body.complete && sel !== 'ideal' ? <PlanFigure start={model.body.estimate} sim={selPlan.simulation} planTitle={RUNG_TITLE[sel]} size="fill" /> : undefined}
             />
           </TabPanel>
           <TabPanel value="days" className="lp-tabpanel">
+            {panelHead}
             {selRx ? (
               <DaysTab
                 key={sel}
@@ -718,34 +750,31 @@ function Ladder({ model, result, v2, selected, view, onView, onFindPlans, onOpen
             )}
           </TabPanel>
           <TabPanel value="curves" className="lp-tabpanel">
+            {panelHead}
             {tab === 'curves' ? <LadderCurves v2={v2} request={request} units={units} energy={energy} selected={sel} gentle={gentle} showNumbers={showNumbers} /> : null}
           </TabPanel>
           <TabPanel value="limits" className="lp-tabpanel">
+            {panelHead}
             <LimitsTab kind={sel} plan={selPlan} v2={v2} request={request} units={units} />
           </TabPanel>
           <TabPanel value="safety" className="lp-tabpanel">
+            {panelHead}
             <SafetyTab kind={sel} plan={selPlan} request={request} locks={model.access.plannerLocks} />
           </TabPanel>
         </Tabs>
       </div>
+
+      <PlannerDisclaimer className="lp-cards__disclaimer" />
 
       <ExplainDrawer
         open={explain !== null}
         onClose={() => setExplain(null)}
         metricId={explain ?? undefined}
         reading={explain ? planReading(sel, selPlan, request, explain, units, energy) : null}
+        status={explain ? planGoalStatus(selPlan, result, v2, request, explain) : null}
         returnTo={{ to: `${paths.planResults}?${params.toString()}`, label: 'Planner results' }}
       />
       {adoptPanel}
     </div>
   );
-}
-
-/** For the page header: the lowest evidence grade among the plans' goal outcomes. */
-export function lowestGrade(v2: PlannerResultV2 | null): 'A' | 'B' | 'C' | 'D' | null {
-  if (!v2) return null;
-  const rank = { A: 0, B: 1, C: 2, D: 3 } as const;
-  let low: 'A' | 'B' | 'C' | 'D' | null = null;
-  for (const k of PLAN_KINDS) for (const o of planOf(v2, k)?.summary.outcomes ?? []) if (low === null || rank[o.grade] > rank[low]) low = o.grade;
-  return low;
 }

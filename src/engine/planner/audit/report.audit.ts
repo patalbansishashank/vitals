@@ -54,10 +54,11 @@ it('writes the coverage report', () => {
   writeFileSync(path.join(TIMING_DIR, 'audit.json'), JSON.stringify(auditTiming(s!, l!, planPart, generated), null, 1) + '\n');
   expect(leak(md)).toBeNull();
   expect(leak(json)).toBeNull();
-  writeFileSync(`${REPO_ROOT}docs/PLANNER_COVERAGE.md`, md);
-  mkdirSync(`${REPO_ROOT}public/validation`, { recursive: true });
-  writeFileSync(`${REPO_ROOT}public/validation/planner-coverage.json`, json + '\n');
   expect(GATES.filter((g) => g.source === null).map((g) => g.id)).toEqual([]);
   expect(sum.fastingGateVsGraph.unexpected, 'fasting gate vs evidence graph').toEqual([]);
   expect(levels.failures, 'every ladder level is a valid card or absent with a verified reason').toEqual([]);
+  // Failed evidence checks must not replace the last successful published report.
+  writeFileSync(`${REPO_ROOT}docs/PLANNER_COVERAGE.md`, md);
+  mkdirSync(`${REPO_ROOT}public/validation`, { recursive: true });
+  writeFileSync(`${REPO_ROOT}public/validation/planner-coverage.json`, json + '\n');
 });

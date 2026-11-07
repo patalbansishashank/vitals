@@ -6,7 +6,7 @@ import { expect, it } from 'vitest';
 // eslint-disable-next-line no-restricted-imports -- the dead-field audit traces the Goals screen's limits form into the request
 import { defaultConstraints, defaultLongestFast, profileSafetyFrom, toPracticalConstraints, toSafetyInput } from '@/features/planner/request';
 import { writePart } from './cache';
-import { coverageCorpus } from './corpus';
+import { coverageCorpus, refusedGoalReport } from './corpus';
 import { plannerVsSimulator, unrecordedEdgeSeries } from './evaluator';
 import { defaultFastMasking, traceFields, type AppMapping } from './fields';
 import type { StaticPart } from './report';
@@ -27,8 +27,11 @@ it('static checks (1a, 1b, 3, 4, fasting gate)', () => {
     masking: defaultFastMasking(mapping),
     fastingGate: fastingGateAgreement(corpus[0]!.request.profile),
     evaluator: { unrecorded: unrecordedEdgeSeries(), agreement: plannerVsSimulator(50) },
+    refusedGoals: refusedGoalReport(),
   };
   part.ms = performance.now() - t0;
   writePart('static', part);
   expect(part.reach.requests).toBe(corpus.length);
+  // D8-08/D8-09 (C6): the generic endurance index, the micronutrient score and the other refused goals stay refused
+  expect(part.refusedGoals!.failures).toEqual([]);
 });

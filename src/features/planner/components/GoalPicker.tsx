@@ -1,8 +1,11 @@
-import { useMemo, useRef, useState, type RefObject } from 'react';
-import { Check, Plus, Search } from 'lucide-react';
-import { CATEGORY_LABEL, GradeBadge, Icon, MQ, Popover, Sheet, Swatch, TextInput, useMediaQuery } from '@/components';
+import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Check, Search } from 'lucide-react';
+import { CATEGORY_LABEL, Icon, Key, MQ, Popover, Sheet, Swatch, TextInput, useMediaQuery } from '@/components';
 import type { MetricId } from '@/engine/types/metrics';
 import { gradeDHelp, GOAL_METRICS, groupedMetrics, matchesGoalQuery, type GoalMetric } from '../catalogue';
+
+/** Group headings in sentence case (the catalogue's names are lowercase for use mid-sentence). */
+const sentenceCase = (t: string): string => t.charAt(0).toUpperCase() + t.slice(1);
 
 export interface GoalPickerProps {
   open: boolean;
@@ -15,6 +18,11 @@ export interface GoalPickerProps {
   onPick: (metric: MetricId) => void;
   /** Physiology sex, to hide the other sex's markers. */
   sex?: 'male' | 'female' | null;
+  /** "Suggest from my answers" (planner-goals.md §12), the picker's first row: closes the picker and proposes goals. */
+  onSuggest?: () => void;
+  suggesting?: boolean;
+  /** Why suggesting is unavailable (Your body unfinished, a run in progress). */
+  suggestDisabledReason?: string;
 }
 
 /**
@@ -22,9 +30,16 @@ export interface GoalPickerProps {
  * Sheet. The metric catalogue grouped by the 8 categories, with search, grade badges, goal-eligibility (metrics that
  * are not goal-eligible are listed with the reason and cannot be added) and each metric's mandatory caveat.
  */
-export function GoalPicker({ open, onClose, anchorRef, selected, full, onPick, sex }: GoalPickerProps) {
+export function GoalPicker({ open, onClose, anchorRef, selected, full, onPick, sex, onSuggest, suggesting, suggestDisabledReason }: GoalPickerProps) {
   const desktop = useMediaQuery(MQ.lg);
-  const body = <PickerBody selected={selected} full={full} sex={sex} onPick={onPick} />;
+  const suggest = onSuggest ? (
+    <div className="lp-picker__suggest">
+      <Key variant="action" size="sm" block onClick={onSuggest} loading={suggesting} disabledReason={suggestDisabledReason}>
+        Suggest from my answers
+      </Key>
+    </div>
+  ) : null;
+  const body = <PickerBody selected={selected} full={full} sex={sex} onPick={onPick} lead={suggest} />;
   if (desktop)
     return (
       <Popover open={open} onOpenChange={(o) => !o && onClose()} anchorRef={anchorRef} label="Add a goal" className="lp-picker-pop" placement="bottom-start">
@@ -38,7 +53,7 @@ export function GoalPicker({ open, onClose, anchorRef, selected, full, onPick, s
   );
 }
 
-function PickerBody({ selected, full, sex, onPick }: { selected: ReadonlySet<string>; full: boolean; sex?: 'male' | 'female' | null; onPick: (m: MetricId) => void }) {
+function PickerBody({ selected, full, sex, onPick, lead }: { selected: ReadonlySet<string>; full: boolean; sex?: 'male' | 'female' | null; onPick: (m: MetricId) => void; lead?: ReactNode }) {
   const [query, setQuery] = useState('');
   const [onlyGoals, setOnlyGoals] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +64,7 @@ function PickerBody({ selected, full, sex, onPick }: { selected: ReadonlySet<str
   const count = groups.reduce((a, g) => a + g.metrics.length, 0);
   return (
     <div className="lp-picker">
+      {lead}
       <div className="lp-picker__search">
         <Icon icon={Search} size={16} className="lp-picker__search-icon" />
         <TextInput
@@ -64,7 +80,7 @@ function PickerBody({ selected, full, sex, onPick }: { selected: ReadonlySet<str
       <div className="lp-picker__bar">
         <label className="lp-picker__toggle">
           <input type="checkbox" checked={onlyGoals} onChange={(e) => setOnlyGoals(e.target.checked)} />
-          <span>goal-able only</span>
+          <span>Goals only</span>
         </label>
         <span className="lm-eng" aria-live="polite">
           {count} outcome{count === 1 ? '' : 's'}
@@ -77,10 +93,10 @@ function PickerBody({ selected, full, sex, onPick }: { selected: ReadonlySet<str
         {groups.map((grp) => {
           const eligible = grp.metrics.filter((m) => m.eligible).length;
           return (
-            <section key={grp.category} className="lp-picker__group" aria-label={CATEGORY_LABEL[grp.category]}>
+            <section key={grp.category} className="lp-picker__group" aria-label={sentenceCase(CATEGORY_LABEL[grp.category])}>
               <h3 className="lp-picker__cat">
                 <Swatch category={grp.category} shape="square" />
-                <span>{CATEGORY_LABEL[grp.category]}</span>
+                <span>{sentenceCase(CATEGORY_LABEL[grp.category])}</span>
                 <span className="lp-picker__count lm-num">
                   {eligible}/{grp.metrics.length}
                 </span>
@@ -112,14 +128,17 @@ function PickerRow({ metric: m, added, full, onPick }: { metric: GoalMetric; add
           if (!disabledReason) onPick(m.id);
         }}
       >
-        <Swatch category={m.category} />
+        {/* r068 W2-16: a row is the name and its unit; the whole row adds (an added row shows its check). The grade and
+            the C6 "scenario" status word stay in the accessible name and in the goal's Explain sheet once added. */}
         <span className="lp-pick__name">{m.label}</span>
         <span className="lp-pick__unit">{m.unit}</span>
-        <GradeBadge grade={m.grade} size="sm" tooltip={false} />
         <span className="lp-pick__act" aria-hidden="true">
-          {added ? <Icon icon={Check} size={16} /> : m.eligible ? <Icon icon={Plus} size={16} /> : null}
+          {added ? <Icon icon={Check} size={16} /> : null}
         </span>
-        <span className="lm-sr">{added ? ', added' : m.eligible ? ', add as a goal' : ', not a goal'}</span>
+        <span className="lm-sr">
+          {`, evidence grade ${m.grade}${m.eligible && m.availability === 'scenario' ? ', scenario' : ''}`}
+          {added ? ', added' : m.eligible ? ', add as a goal' : ', not a goal'}
+        </span>
       </button>
       <div id={detailId} className="lp-pick__detail">
         {!m.eligible ? <p className="lp-pick__reason">Not a goal · {m.reason}</p> : null}

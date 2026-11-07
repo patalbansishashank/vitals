@@ -1,0 +1,69 @@
+{
+  "route": "/v1/gauge/hc",
+  "tool": "gauge_hc",
+  "args": {
+    "type": "Steps",
+    "from": "2026-10-20",
+    "to": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "1 Health Connect Steps records from 2026-10-20T00:00:00+05:30 to 2026-10-20T23:59:59+05:30.",
+    "data": {
+      "type": "Steps",
+      "from": "2026-10-20T00:00:00+05:30",
+      "to": "2026-10-20T23:59:59+05:30",
+      "records": [
+        {
+          "id": "fit-walk-steps",
+          "recordType": "Steps",
+          "start": "2026-10-20T17:00:00+05:30",
+          "end": "2026-10-20T17:40:00+05:30",
+          "origin": "com.google.android.apps.fitness",
+          "deviceNative": false,
+          "originPackage": "com.google.android.apps.fitness",
+          "originIsDeviceNative": false,
+          "lineage": "phone",
+          "device": {
+            "type": 2,
+            "manufacturer": "Google",
+            "model": "Pixel 8"
+          },
+          "recordingMethod": 2,
+          "lastModified": "2026-10-20T17:40:00+05:30",
+          "zoneOffsets": {
+            "start": 19800,
+            "end": 19800
+          },
+          "payload": {
+            "count": 4150
+          }
+        }
+      ],
+      "deleted": [],
+      "next": null,
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T17:40:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 350
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

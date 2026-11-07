@@ -1,7 +1,7 @@
 // Four-replica sync harness (plan 04 item 3): three Node replicas running the app's sync code (A = desktop app, B =
 // phone app, C = website profile stand-ins) and the server person on the real Vitals Server, one sync group. Scenarios
 // print PASS/FAIL lines and write qa/results/sync/<scenario>.json; the test person is removed at the end, also on failure.
-//   node qa/scripts/sync/run.mjs [S1 S2 S3 S4 S5 S6]        (default: all)
+//   node qa/scripts/sync/run.mjs [S1 S2 S3 S4 S6]        (default: all)
 //   SYNC_OFFLINE_S=60 (S2's offline period), SYNC_KEEP=1 (keep the person and the replica data for a look afterwards)
 import './lib/tsResolve.mjs';
 import fs from 'node:fs';
@@ -470,7 +470,7 @@ async function S6({ A, B, C, S, day }) {
 
 /* ------------------------------------------------------------------------------------------------ main */
 
-const ALL = { S1, S2, S3, S4, S5, S6 };
+const ALL = { S1, S2, S3, S4, S6 }; // S5 (one ring, two devices) removed in 0.6.0 with the ring code
 const want = process.argv.slice(2).filter((a) => ALL[a]);
 const list = want.length ? want : Object.keys(ALL);
 const cfg = harnessConfig();

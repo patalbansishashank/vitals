@@ -1,6 +1,7 @@
 /* ==========================================================================
-   Catalogue picker (design/COMPONENTS.md §14.5). Tokens only; both themes via tokens.
-   Chips: 28 px on pointer, 32 px on touch with a 44 px hit area, 13/500, 8 px gaps.
+   Catalogue picker (design/COMPONENTS.md §14.5), Ember. Tokens only.
+   Chips (SPEC §5): pill, card surface, 0.5 px hairline, label-s 12/400; picked = gold wash with a gold .40 edge and
+   ink text. 28 px on pointer, 32 px on touch with a 44 px hit area, 8 px gaps. Group rows: 0.5 px hairlines.
    ========================================================================== */
 
 @layer components {
@@ -17,7 +18,6 @@
     gap: 12px;
     min-width: 0;
   }
-  .lm-pk__optional,
   .lm-pk__region-note,
   .lm-pk__count,
   .lm-pk__nomatch {
@@ -121,7 +121,7 @@
     display: grid;
     gap: 8px;
     padding-block: 4px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-pk__group:first-child {
     border-top: 0;
@@ -138,7 +138,7 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
-    min-height: var(--lm-hit-pointer);
+    min-height: var(--lm-hit-touch);
     padding: 0 6px;
     border: 0;
     border-radius: var(--lm-radius-sm);
@@ -158,18 +158,22 @@
   }
   @media (hover: hover) {
     .lm-pk__group-key:hover {
-      background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 6%);
+      background: var(--lm-face-hover);
     }
   }
   .lm-pk__group-key:focus-visible {
     outline: 2px solid var(--lm-focus);
     outline-offset: var(--lm-focus-offset);
   }
+  /* (r068 final M8) a long group name wraps ("Indian, by community and tradition") instead of ending in "tra…" */
   .lm-pk__group-name {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+  /* the catalogue's group names are lowercase ("dairy and cheese"); labels read in sentence case */
+  .lm-pk__group-name::first-letter {
+    text-transform: uppercase;
   }
   .lm-pk__group-count {
     margin-left: auto;
@@ -204,18 +208,21 @@
     gap: 6px;
     height: 28px;
     max-width: 100%;
-    padding: 0 10px;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-xs);
+    padding: 0 12px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-full);
     background: var(--lm-face);
-    color: var(--lm-ink);
+    color: var(--lm-ink-2);
     font: inherit;
-    font-size: var(--lm-text-sm);
-    font-weight: var(--lm-weight-medium);
+    font-size: var(--lm-text-label-s);
+    font-weight: var(--lm-weight-regular);
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
-    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out),
+      color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-pk__chip::after {
     content: '';
@@ -232,24 +239,25 @@
   }
   @media (hover: hover) {
     .lm-pk__chip:hover {
-      background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 6%);
+      color: var(--lm-ink);
+      background: var(--lm-face-hover);
     }
     .lm-pk__chip[aria-checked='true']:hover {
-      background: color-mix(in oklab, var(--lm-ink), var(--lm-face) 12%);
+      background: var(--lm-gold-soft);
     }
   }
   .lm-pk__chip:active {
-    background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 10%);
+    background: var(--lm-elevated);
   }
   .lm-pk__chip[aria-checked='true'] {
-    border-color: var(--lm-ink);
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
+    border-color: var(--lm-gold-edge);
+    background: var(--lm-gold-wash);
+    color: var(--lm-ink);
   }
-  /* region default not touched yet: the system's dashed "assumed" mark */
+  /* region default not touched yet: the system's dashed "assumed" edge, in place of the solid one */
   .lm-pk__chip[data-assumed='true'] {
-    outline: 1px dashed var(--lm-ink);
-    outline-offset: 2px;
+    border-style: dashed;
+    border-color: var(--lm-signal);
   }
   .lm-pk__chip:focus-visible {
     outline: 2px solid var(--lm-focus);
@@ -260,8 +268,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* the searched part of a name: ink and 500 against the chip's stone 400 */
   .lm-pk__chip-text b {
-    font-weight: var(--lm-weight-bold);
+    color: var(--lm-ink);
+    font-weight: var(--lm-weight-medium);
   }
   .lm-pk__rank {
     display: inline-grid;
@@ -270,24 +280,20 @@
     height: 16px;
     padding: 0 3px;
     border-radius: var(--lm-radius-full);
-    background: var(--lm-ink-inverse);
-    color: var(--lm-ink);
+    background: var(--lm-signal);
+    color: var(--lm-signal-ink);
     font-size: var(--lm-text-2xs);
-    font-weight: var(--lm-weight-semibold);
+    font-weight: var(--lm-weight-medium);
     font-variant-numeric: tabular-nums;
   }
   .lm-pk__notused {
-    color: var(--lm-ink-2);
-    font-weight: var(--lm-weight-regular);
+    color: var(--lm-ink-3);
   }
-  .lm-pk__chip[aria-checked='true'] .lm-pk__notused {
-    color: color-mix(in oklab, var(--lm-ink-inverse), var(--lm-ink) 25%);
-  }
-  /* 16 px pencil, 24 px hit */
+  /* The note key stays reachable beside the chip on every pointer. */
   .lm-key.lm-pk__note-key {
-    width: 24px;
-    min-width: 24px;
-    height: 24px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
     padding: 0;
   }
 
@@ -307,65 +313,25 @@
   }
   .lm-pk__pending {
     font-size: var(--lm-text-sm);
-    font-weight: var(--lm-weight-medium);
   }
 
-  /* I also have… */
+  /* "Add something else": one field with its + inside, at the end */
   .lm-pk__also {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 12px;
-  }
-  .lm-pk__also-label {
-    font-size: var(--lm-text-sm);
-    font-weight: var(--lm-weight-medium);
-  }
-  .lm-pk__also-input {
-    flex: 1 1 200px;
     min-width: 0;
   }
-
-  /* paste a list */
-  .lm-pk__paste {
-    display: grid;
-    gap: 8px;
+  .lm-pk__also-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-right: 48px;
   }
-  .lm-pk__paste-body {
-    display: grid;
-    gap: 8px;
-    padding-left: 6px;
-  }
-  .lm-pk__textarea {
-    width: 100%;
-    min-height: 0;
-    height: auto;
-    padding-block: 8px;
-    resize: vertical;
-  }
-  .lm-pk__preview {
-    display: grid;
-    gap: 8px;
-    justify-items: start;
-  }
-  .lm-pk__preview-sum {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    font-weight: var(--lm-weight-medium);
-  }
-  .lm-pk__preview-list {
-    display: grid;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .lm-pk__preview-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: var(--lm-hit-pointer);
-    font-size: var(--lm-text-sm);
+  .lm-key.lm-pk__also-add {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    color: var(--lm-signal);
   }
 
   /* note popover */
@@ -397,14 +363,130 @@
   }
 }
 
-/* intake turn footer (Done / Skip this list), docked like the question card footer */
-.lm-pk__intake-footer {
-  position: sticky;
-  bottom: calc(var(--lm-tabbar-h, 0px) + 8px);
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-block: 8px;
-  background: var(--lm-well);
-  border-top: 1px solid var(--lm-line);
+/* r068 (Pantry, P1–P4): the picker in the card's language */
+@layer components {
+  /* the search takes the full width; the count reads under it (no squeezed field) */
+  .lm-pk__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-space-1);
+  }
+  .lm-pk__total {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+  }
+  /* a group's head: name · count in a fixed column at the end (it never jumps); Clear sits under the open group */
+  .lm-pk__group-count {
+    flex: none;
+    min-width: 1.5rem;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    font-weight: var(--lm-text-meta--wt);
+    letter-spacing: var(--lm-text-meta--ls);
+    text-align: right;
+  }
+  .lm-pk__group-foot {
+    display: flex;
+    justify-content: flex-end;
+    padding-bottom: var(--lm-row-gap);
+  }
+  /* chips are small rounded rectangles (the selector's segment radius), not capsules; a selected item is the gold tile
+     with a check, so it reads at a glance */
+  .lm-pk__chip {
+    border-radius: var(--lm-select-key-radius, 9px);
+    background: var(--lm-well);
+    color: var(--lm-ink);
+  }
+  .lm-pk__chip[aria-checked='true'] {
+    padding-left: 8px;
+    border-color: var(--lm-select-on-edge, var(--lm-gold-edge));
+    background: var(--lm-select-on, var(--lm-gold-wash));
+    font-weight: 500;
+  }
+  .lm-pk__chip[aria-checked='true']::before {
+    content: '';
+    flex: none;
+    width: 10px;
+    height: 6px;
+    margin-top: -3px;
+    border-left: 1.5px solid var(--lm-signal);
+    border-bottom: 1.5px solid var(--lm-signal);
+    transform: rotate(-45deg);
+  }
+  .lm-pk__chips {
+    padding-left: 0;
+  }
+  /* the note editor stays inside a phone's screen with room to spare (it overhung the card by 25 px) */
+  .lm-pk__note {
+    width: min(256px, calc(100vw - 104px));
+  }
+  /* the groups never grow past the card's inner width (a row's count sat 15 px over its edge at 360 px) */
+  .lm-pk__groups,
+  .lm-pk__group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lm-pk__group-head {
+    min-width: 0;
+  }
+}
+
+/* r068 L16/L26: what is in the pantry first, as rows under its count; the region's staples a full-width row after the
+   groups; a chip's note in its own panel ("Note for Okra"), inset like every panel body */
+@layer components {
+  .lm-pk__have {
+    display: grid;
+    gap: var(--lm-row-gap);
+  }
+  .lm-pk__have-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--lm-inline);
+    margin: 0;
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-pk__have-n {
+    color: var(--lm-ink-2);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-pk__have-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lm-pk__have-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-pk__have-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    overflow-wrap: anywhere;
+  }
+  .lm-pk__have-note {
+    color: var(--lm-ink-2);
+  }
+  .lm-pk__region,
+  .lm-pk__region-keys {
+    display: grid;
+    width: 100%;
+  }
+  .lm-pk__region-keys .lm-key[data-block='true'] {
+    width: 100%;
+  }
+  .lm-pk__note-panel .lm-pk__note {
+    width: auto;
+    padding: var(--lm-space-2) var(--lm-gutter) var(--lm-gutter);
+  }
 }

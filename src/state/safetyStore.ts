@@ -30,6 +30,9 @@ export const useSafetyStore = createProjection<SafetyState, SafetyValues>({
   persistedFields: PERSISTED,
   creator: () => ({
     ...DEFAULT_SAFETY,
+    addNutritionGuidance: (envelope, at) => void dispatchSync('safety.addNutritionGuidance', { envelope: envelope as unknown as Record<string, unknown>, at }),
+    updateNutritionGuidance: (id, envelope, at) => void dispatchSync('safety.updateNutritionGuidance', { id, envelope: envelope as unknown as Record<string, unknown>, at }),
+    revokeNutritionGuidance: (id, at) => void dispatchSync('safety.revokeNutritionGuidance', { id, at }),
     commitAnswers: (answers, at) => void dispatchSync('safety.commitScreening', { answers: answers as Record<string, unknown>, at }),
     clearAgeAnswer: () => void dispatchSync('safety.clearAgeAnswer', {}),
     acknowledge: (id, version, at) => void dispatchSync('safety.acknowledge', { id, version, at }),

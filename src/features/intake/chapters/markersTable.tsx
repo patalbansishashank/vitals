@@ -7,11 +7,13 @@
  * A real table from 768 px; below, one fieldset block per marker.
  */
 import { useEffect, useId, useMemo, useState } from 'react';
-import { ErrorText, Key, KeyBank, Notice, Select, TextInput, cx, useMediaQuery, MQ } from '@/components';
+import { ChevronDown } from 'lucide-react';
+import { ErrorText, Icon, Key, KeyBank, Notice, Select, TextInput, useMediaQuery, MQ } from '@/components';
 import { GROUP_LABEL, GROUP_ORDER, MARKER_UNITS, checkBounds, formatMarkerDate, markersOfGroup, unitsOf, type BoundCheck, type MarkerGroupId, type MarkerId, type MarkerReading, type MarkerReadingInput, type MarkersView } from '@/markers';
 import { FASTING_GROUPS, M, convertTyped, convertedText, parseTyped, rangeStatus, todayIso, type RangeStatus } from './markers';
 import { setMarkers } from './markersApi';
 import { MarkerDateInput, MarkersCard, MarkersFoot, RangeStatusText } from './markersParts';
+import { GFR_UNIT_UNCLEAR, gfrUnitUnclear } from './markersStatus';
 
 type Fasting = 'yes' | 'no' | 'unsure';
 
@@ -183,8 +185,8 @@ export function MarkersTable({ initial = [], focusMarker, today = todayIso(), on
       notice={error ? <Notice severity="danger" layout="ruled" title={error} announce /> : null}
       left={
         onBack ? (
-          <Key variant="default" onClick={onBack}>
-            ‹ {M.table.back}
+          <Key variant="text" onClick={onBack}>
+            {M.table.back}
           </Key>
         ) : null
       }
@@ -205,7 +207,7 @@ export function MarkersTable({ initial = [], focusMarker, today = todayIso(), on
   );
 
   return (
-    <MarkersCard prompt={M.manual.prompt} skipText={M.manual.skipText} footer={footer} id="ik-markers-manual" className="lm-mk-card--wide">
+    <MarkersCard prompt={M.manual.prompt} footer={footer} id="ik-markers-manual" className="lm-mk-card--wide">
       <p className="lm-mk-note">{M.table.lead}</p>
       {GROUP_ORDER.map((g) => (
         <MarkerGroup
@@ -250,11 +252,12 @@ function MarkerGroup({ group, draft, rows, evals, today, wide, onGroup, onRow, o
     <section className="lm-mk-group" data-open={draft.open || undefined} aria-label={label}>
       <h3 className="lm-mk-group__head">
         <button type="button" className="lm-mk-group__toggle" aria-expanded={draft.open} aria-controls={panelId} aria-label={`${label} · ${M.table.entered(entered, ids.length)}`} onClick={() => onGroup({ open: !draft.open })}>
-          <span aria-hidden="true" className={cx('lm-ik-why__chev', draft.open && 'is-open')}>
-            ▾
+          {/* the disclosure-row look (r068 V-IK-2): name and count on the content edge, the chevron at the trailing edge */}
+          <span className="lm-mk-group__label">
+            <span className="lm-mk-group__name">{label}</span>
+            <span className="lm-mk-group__count">{M.table.entered(entered, ids.length)}</span>
           </span>
-          <span className="lm-mk-group__name">{label}</span>
-          <span className="lm-mk-group__count">{M.table.entered(entered, ids.length)}</span>
+          <Icon icon={ChevronDown} size={18} className="lm-mk-group__chev" />
         </button>
       </h3>
       <div id={panelId} hidden={!draft.open} className="lm-mk-group__panel">
@@ -264,11 +267,13 @@ function MarkerGroup({ group, draft, rows, evals, today, wide, onGroup, onRow, o
             <MarkerDateInput value={draft.date} max={today} onChange={(date) => onGroup({ date })} label={M.table.dateLabel(label)} />
           </label>
           {FASTING_GROUPS.has(group) ? (
-            <span className="lm-mk-inline">
+            <span className="lm-mk-inline lm-mk-inline--bank">
               <span className="lm-mk-inline__label" aria-hidden="true">
                 {M.table.fasting}
               </span>
+              {/* sized to its labels beside the date on desktop; the full width on a phone (r068 V-IK-4) */}
               <KeyBank<Fasting>
+                fit={wide}
                 size="md"
                 label={M.table.fastingLabel(label)}
                 value={draft.fasting}
@@ -299,14 +304,12 @@ function MarkerGroup({ group, draft, rows, evals, today, wide, onGroup, onRow, o
                   </th>
                   <th scope="col">{M.table.cols.unit}</th>
                   <th scope="col">{M.table.cols.range}</th>
-                  <th scope="col" className="lm-mk-col-date">
-                    {M.table.cols.date}
-                  </th>
-                  <th scope="col">{M.table.cols.status}</th>
+                  {/* the status column only once a value exists (r068 V-IK-3: no always-empty column) */}
+                  {entered > 0 ? <th scope="col">{M.table.cols.status}</th> : null}
                 </tr>
               </thead>
               {ids.map((id) => (
-                <MarkerRowWide key={id} id={id} d={rows[id]} e={evals[id]} date={dateText} onRow={(p) => onRow(id, p)} onUnit={(u) => onUnit(id, u)} />
+                <MarkerRowWide key={id} id={id} d={rows[id]} e={evals[id]} status={entered > 0} onRow={(p) => onRow(id, p)} onUnit={(u) => onUnit(id, u)} />
               ))}
             </table>
           </div>
@@ -385,7 +388,9 @@ function RangeInputs({ id, d, onRow }: Pick<RowProps, 'id' | 'd' | 'onRow'>) {
 
 /** Field error, the "is this right?" question, the conversion line and the Lp(a) note. */
 function RowMessages({ id, d, e, onRow, ids }: Pick<RowProps, 'id' | 'd' | 'e' | 'onRow'> & { ids: ReturnType<typeof useRowIds> }) {
-  const conv = e.n !== null && !e.blocked ? convertedText(id, e.n, d.unit) : null;
+  // D7-02: eGFR in bare mL/min is kept exactly as typed, never converted or staged as indexed: "Unit unclear"
+  const unclear = gfrUnitUnclear(id, d.unit);
+  const conv = e.n !== null && !e.blocked && !unclear ? convertedText(id, e.n, d.unit) : null;
   const msg = e.check && !e.check.ok ? e.check.message : M.table.enterNumber;
   return (
     <>
@@ -393,6 +398,7 @@ function RowMessages({ id, d, e, onRow, ids }: Pick<RowProps, 'id' | 'd' | 'e' |
         {conv ? `= ${conv}` : null}
       </span>
       {d.relabelled ? <span className="lm-mk-conv">{M.table.noConvert}</span> : null}
+      {unclear && d.value.trim() !== '' ? <span className="lm-mk-conv">{GFR_UNIT_UNCLEAR}</span> : null}
       {d.touched && e.blocked ? <ErrorText id={ids.err}>{msg}</ErrorText> : null}
       {d.touched && e.ask ? (
         <span className="lm-mk-ask" id={ids.ask} role="group" aria-label={msg}>
@@ -416,9 +422,28 @@ function RowMessages({ id, d, e, onRow, ids }: Pick<RowProps, 'id' | 'd' | 'e' |
   );
 }
 
-function MarkerRowWide({ id, d, e, date, onRow, onUnit }: RowProps) {
+/**
+ * The lab's own range waits behind an "Add lab range" key until wanted (most reports print one only for a few markers,
+ * r068 ON-5 on phones, V-IK-3 on desktop); a row with a range already typed shows it.
+ */
+function useRangeOpen(d: RowDraft): [boolean, () => void] {
+  const hasRange = d.low.trim() !== '' || d.high.trim() !== '' || d.text.trim() !== '';
+  const [open, setOpen] = useState(hasRange);
+  return [open || hasRange, () => setOpen(true)];
+}
+
+function AddRangeKey({ id, onOpen }: { id: MarkerId; onOpen: () => void }) {
+  return (
+    <Key variant="outlined" size="sm" onClick={onOpen} aria-label={M.table.addRangeLabel(MARKER_UNITS[id].label)}>
+      {M.table.addRange}
+    </Key>
+  );
+}
+
+function MarkerRowWide({ id, d, e, status, onRow, onUnit }: Omit<RowProps, 'date'> & { status: boolean }) {
   const ids = useRowIds(id);
   const spec = MARKER_UNITS[id];
+  const [showRange, openRange] = useRangeOpen(d);
   return (
     <tbody id={`marker-${id}`} data-marker-row={id} className="lm-mk-tr">
       <tr>
@@ -432,17 +457,16 @@ function MarkerRowWide({ id, d, e, date, onRow, onUnit }: RowProps) {
         <td>
           <UnitSelect id={id} d={d} onUnit={onUnit} />
         </td>
-        <td>
-          <RangeInputs id={id} d={d} onRow={onRow} />
-        </td>
-        <td className="lm-mk-date-cell lm-mk-col-date">{e.n !== null ? date : '—'}</td>
-        <td>
-          <RangeStatusText status={e.status} id={ids.status} />
-        </td>
+        <td className="lm-mk-range-col">{showRange ? <RangeInputs id={id} d={d} onRow={onRow} /> : <AddRangeKey id={id} onOpen={openRange} />}</td>
+        {status ? (
+          <td>
+            <RangeStatusText status={e.status} id={ids.status} />
+          </td>
+        ) : null}
       </tr>
       <tr className="lm-mk-tr__msg">
         <td />
-        <td colSpan={5}>
+        <td colSpan={status ? 4 : 3}>
           <RowMessages id={id} d={d} e={e} onRow={onRow} ids={ids} />
         </td>
       </tr>
@@ -453,24 +477,36 @@ function MarkerRowWide({ id, d, e, date, onRow, onUnit }: RowProps) {
 function MarkerRowBlock({ id, d, e, date, onRow, onUnit }: RowProps) {
   const ids = useRowIds(id);
   const spec = MARKER_UNITS[id];
+  const [showRange, openRange] = useRangeOpen(d);
   return (
     <fieldset id={`marker-${id}`} data-marker-row={id} className="lm-mk-block">
       <legend className="lm-mk-name">
         <span className="lm-mk-name__label">{spec.label}</span> <span className="lm-mk-name__plain">{spec.plain}</span>
       </legend>
-      <div className="lm-mk-block__row">
+      <div className="lm-mk-block__row lm-mk-block__row--value">
         <ValueInput id={id} d={d} e={e} onRow={onRow} ids={ids} />
         <UnitSelect id={id} d={d} onUnit={onUnit} />
       </div>
       <RowMessages id={id} d={d} e={e} onRow={onRow} ids={ids} />
-      <div className="lm-mk-block__row lm-mk-block__row--range">
-        <span className="lm-mk-inline__label">{M.table.cols.range}</span>
-        <RangeInputs id={id} d={d} onRow={onRow} />
-      </div>
-      <div className="lm-mk-block__row lm-mk-block__row--meta">
-        <span className="lm-mk-date-cell">{e.n !== null ? date : '—'}</span>
-        <RangeStatusText status={e.status} id={ids.status} />
-      </div>
+      {showRange ? (
+        <div className="lm-mk-block__row lm-mk-block__row--range">
+          <span className="lm-mk-inline__label">{M.table.cols.range}</span>
+          <RangeInputs id={id} d={d} onRow={onRow} />
+        </div>
+      ) : (
+        <div className="lm-mk-block__row">
+          <AddRangeKey id={id} onOpen={openRange} />
+        </div>
+      )}
+      {/* the date and the status only once there is a value: no row of dashes under every empty marker */}
+      {e.n !== null ? (
+        <div className="lm-mk-block__row lm-mk-block__row--meta">
+          <span className="lm-mk-date-cell">{date}</span>
+          <RangeStatusText status={e.status} id={ids.status} />
+        </div>
+      ) : (
+        <RangeStatusText status={null} id={ids.status} />
+      )}
     </fieldset>
   );
 }

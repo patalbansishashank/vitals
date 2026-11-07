@@ -1,9 +1,9 @@
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { OFF_STATUS, type SyncStatus } from '@/sync/types';
-import { SyncPill } from './SyncPill';
+import { SyncPillView, SyncStatusIcon } from './SyncPill';
 
-// The pill reads the live status; replace it with a small fake that tests can change.
+// The header icon reads the live status; replace it with a small fake that tests can change.
 const fake = vi.hoisted(() => ({ status: null as unknown, listeners: new Set<() => void>() }));
 vi.mock('@/state/sync', async () => {
   const react = await import('react');
@@ -16,62 +16,84 @@ const show = (s: Partial<SyncStatus>) => {
   fake.status = { ...OFF_STATUS, ...s };
   return render(
     <MemoryRouter>
-      <SyncPill />
+      <SyncStatusIcon />
     </MemoryRouter>,
   );
 };
+const icon = () => screen.getByRole('link');
 
-describe('SyncPill', () => {
-  it('says Synced', () => {
+describe('SyncStatusIcon (the header’s sync status, SPEC §9)', () => {
+  it('Synced: a quiet icon that opens Settings › Sync, its state in its name', () => {
     show({ state: 'synced', endpoint: 'relay.example.ts.net' });
-    expect(screen.getByRole('status')).toHaveTextContent('Synced');
-    expect(screen.getByRole('link', { name: /Synced/ })).toHaveAttribute('href', '/settings/sync');
+    expect(icon()).toHaveAccessibleName('Sync: Synced');
+    expect(icon()).toHaveAttribute('href', '/settings/sync');
+    expect(icon()).toHaveTextContent('');
+    expect(icon().querySelector('.lm-status-icon__dot')).toBeNull();
   });
 
-  it('says Syncing', () => {
+  it('Syncing: the dot breathes', () => {
     show({ state: 'syncing', pendingChanges: 2 });
-    expect(screen.getByText('Syncing')).toBeInTheDocument();
+    expect(icon()).toHaveAccessibleName('Sync: Syncing');
+    expect(icon().querySelector('.lm-status-icon__dot')).toHaveAttribute('data-pulse', 'true');
   });
 
-  it('says Offline with the number of changes and uploads waiting', () => {
-    show({ state: 'offline', pendingChanges: 3 });
-    expect(screen.getByText('Offline · 3 waiting')).toBeInTheDocument();
-    expect(screen.getByRole('link')).toHaveAttribute('title', expect.stringContaining('3 changes waiting'));
-  });
-
-  it('counts uploads with changes, and says plain Offline with nothing waiting', () => {
+  it('Offline: the number of changes and uploads waiting, with the gold dot while anything waits', () => {
     const { unmount } = show({ state: 'offline', pendingChanges: 3, pendingBlobs: 2 });
-    expect(screen.getByText('Offline · 5 waiting')).toBeInTheDocument();
+    expect(icon()).toHaveAccessibleName('Sync: Offline · 5 waiting');
+    expect(icon().querySelector('.lm-status-icon__dot')).not.toBeNull();
     unmount();
     show({ state: 'offline' });
-    expect(screen.getByText('Offline')).toBeInTheDocument();
+    expect(icon()).toHaveAccessibleName('Sync: Offline');
+    expect(icon().querySelector('.lm-status-icon__dot')).toBeNull();
   });
 
-  it('says Error with a short reason', () => {
+  it('Error: the reason in its sentence, with a rose dot', () => {
     const { unmount } = show({ state: 'error', lastError: { code: 'quota', message: 'The relay is full.' } as SyncStatus['lastError'] });
-    expect(screen.getByText('Error · The relay is full')).toBeInTheDocument();
+    expect(icon()).toHaveAccessibleName('Sync stopped: The relay is full.');
+    expect(icon()).toHaveAttribute('data-tone', 'danger');
     unmount();
-    show({ state: 'error', lastError: { code: 'x', message: 'A very long reason that goes on and on past what a pill can hold' } as SyncStatus['lastError'] });
-    expect(screen.getByText(/^Error · A very long reason that goes on and on…$/)).toBeInTheDocument();
+    show({ state: 'error', lastError: { code: 'network', message: 'socket closed' }, pendingChanges: 2 } as Partial<SyncStatus>);
+    expect(icon()).toHaveAccessibleName(/^Can't reach your sync server\..*2 changes waiting/);
   });
 
-  it('says the server cannot be reached when the error is a network one', () => {
-    show({ state: 'error', lastError: { code: 'network', message: 'socket closed' } as SyncStatus['lastError'] });
-    expect(screen.getByText("Error · can't reach the server")).toBeInTheDocument();
+  it('renders nothing while sync is off', () => {
+    show({ state: 'off' });
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
-  it('renders nothing when sync is off', () => {
-    const { container } = show({ state: 'off' });
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  it('follows the status as it changes', () => {
+  it('follows the status as it changes, and announces it', () => {
     show({ state: 'synced' });
-    expect(screen.getByText('Synced')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Sync: Synced');
     act(() => {
       fake.status = { ...OFF_STATUS, state: 'offline', pendingChanges: 1 };
       fake.listeners.forEach((l) => l());
     });
-    expect(screen.getByText('Offline · 1 waiting')).toBeInTheDocument();
+    expect(icon()).toHaveAccessibleName(/^Sync: Offline · 1 waiting/);
+    expect(screen.getByRole('status')).toHaveTextContent(/^Sync: Offline · 1 waiting/);
+  });
+});
+
+describe('SyncPillView (the words, where a page already holds the status)', () => {
+  const view = (s: Partial<SyncStatus>) =>
+    render(
+      <MemoryRouter>
+        <SyncPillView status={{ ...OFF_STATUS, ...s }} />
+      </MemoryRouter>,
+    );
+
+  it('says the state in a few words and links to Settings › Sync', () => {
+    view({ state: 'offline', pendingChanges: 3 });
+    expect(screen.getByText('Offline · 3 waiting')).toBeInTheDocument();
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/settings/sync');
+    expect(screen.getByRole('link')).toHaveAttribute('title', expect.stringContaining('3 changes waiting'));
+  });
+
+  it('cuts a long reason and renders nothing while sync is off', () => {
+    const { unmount } = view({ state: 'error', lastError: { code: 'x', message: 'A very long reason that goes on and on past what a pill can hold' } as SyncStatus['lastError'] });
+    expect(screen.getByText(/^Error · A very long reason that goes on and on…$/)).toBeInTheDocument();
+    unmount();
+    const { container } = view({ state: 'off' });
+    expect(container).toBeEmptyDOMElement();
   });
 });

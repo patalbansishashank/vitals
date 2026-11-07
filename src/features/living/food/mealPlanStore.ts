@@ -1,9 +1,11 @@
 /**
  * Food's in-memory state: accepted recipes per (plan, date, slot) — the day's meal plan — the latest recipe run per
- * slot, the "don't suggest again" list, the pantry, ticked grocery items and the lazy budget answer.
+ * slot, the "don't suggest again" list, the grocery list's "have it" marks, ticked grocery items and the lazy budget
+ * answer. The pantry itself is the `pantry/me` document (groceries.ts writes "have it" there); these marks only keep
+ * the list's own state on screen.
  *
  * TODO(E4): persist `accepted` as the `mealPlans` collection (SUITE_SPEC §8.3 `MealPlanDoc`), `dontSuggest` as food
- * dislikes, `pantry` as `intake.kitchen.pantry` and `budget` as `intake.diet.budget`.
+ * dislikes and `budget` as `intake.diet.budget`.
  */
 import { create } from 'zustand';
 import type { LocalDate } from '@/living';
@@ -32,7 +34,7 @@ interface FoodState {
   swapPrompt: Record<string, string>;
   /** Main dish names not to suggest again (lowercase). */
   dontSuggest: string[];
-  /** Ingredient names marked "already have" (lowercase). */
+  /** Ingredient names marked "have it" on the grocery list (lowercase); the pantry document gets them too. */
   pantry: string[];
   /** Ingredient names un-marked on the grocery list although the pantry document holds them (lowercase). */
   notHave: string[];

@@ -1,7 +1,7 @@
 /* ==========================================================================
    Vitals mark (RingMark) and the launch hand-over (LaunchScreen).
    Geometry comes from geometry.ts as inline attributes; this file only holds
-   Lumen's draw-on: ring from 5 % to full over 500 ms, fast-out-slow-in, then
+   the draw-on: the bezel at once, the ring from 5 % to full over 500 ms, then
    the dot pops from its own centre with one damped overshoot (ends at 640 ms).
    public/brand/launch.css repeats the same numbers for the pre-JS start screen.
    Reduced motion (OS or the settings override) shows the still mark.

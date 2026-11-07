@@ -1,7 +1,7 @@
 {
  "version": 1,
- "generatedAt": "2026-10-01T23:03:45.685Z",
- "engineVersion": "1.0.0-contract",
+ "generatedAt": "2026-10-18T19:18:16.435Z",
+ "engineVersion": "1.3.0-policy",
  "plannerVersion": "2.0 (hybrid)",
  "machine": "32-thread desktop shared with other work",
  "seeds": {
@@ -48,7 +48,7 @@
   },
   {
    "id": "hybrid",
-   "label": "combined planner (previous search for the hardest plan, new ladder)",
+   "label": "shipped planner (previous search proposes the hardest plan, new ladder)",
    "role": "candidate"
   }
  ],
@@ -58,300 +58,300 @@
    "label": "Full requests",
    "description": "The reference requests and generated requests in full; the reference is the best plan any run has found.",
    "reference": "best-known",
-   "problems": 16,
+   "problems": 12,
    "results": [
     {
      "algorithmId": "v1",
-     "runs": 240,
+     "runs": 180,
      "lexSuccess": {
-      "median": 0.25,
-      "p10": 0.1875,
-      "p90": 0.35
+      "median": 0.3333333333333333,
+      "p10": 0.25,
+      "p90": 0.5
      },
      "regretPct": {
-      "median": 1.9520615920681827,
+      "median": 0.46041957618117024,
       "p10": 0,
-      "p90": 10.32921469493704
+      "p90": 20.721093872550867
      },
      "hypervolume": {
-      "median": 0.4976805523829493,
-      "p10": 0.26238262631173187,
-      "p90": 0.7372839082849831
+      "median": 0.4725446885827388,
+      "p10": 0.1309748685094913,
+      "p90": 0.751117810021499
      },
      "timeToQuality": [
       {
        "evaluations": 10,
-       "solved": 0.2592
+       "solved": 0.4367
       },
       {
        "evaluations": 13,
-       "solved": 0.2758
+       "solved": 0.4444
       },
       {
        "evaluations": 16,
-       "solved": 0.285
+       "solved": 0.4544
       },
       {
        "evaluations": 20,
-       "solved": 0.2942
+       "solved": 0.4689
       },
       {
        "evaluations": 25,
-       "solved": 0.3233
+       "solved": 0.52
       },
       {
        "evaluations": 32,
-       "solved": 0.3333
+       "solved": 0.5467
       },
       {
        "evaluations": 40,
-       "solved": 0.3408
+       "solved": 0.56
       },
       {
        "evaluations": 50,
-       "solved": 0.3483
+       "solved": 0.5678
       },
       {
        "evaluations": 63,
-       "solved": 0.35
+       "solved": 0.5678
       },
       {
        "evaluations": 79,
-       "solved": 0.3717
+       "solved": 0.5756
       },
       {
        "evaluations": 100,
-       "solved": 0.3742
+       "solved": 0.5811
       },
       {
        "evaluations": 126,
-       "solved": 0.3775
+       "solved": 0.5878
       },
       {
        "evaluations": 158,
-       "solved": 0.38
+       "solved": 0.6067
       },
       {
        "evaluations": 200,
-       "solved": 0.3817
+       "solved": 0.6078
       },
       {
        "evaluations": 251,
-       "solved": 0.3858
+       "solved": 0.6178
       },
       {
        "evaluations": 316,
-       "solved": 0.4092
+       "solved": 0.64
       },
       {
        "evaluations": 398,
-       "solved": 0.4533
+       "solved": 0.6844
       },
       {
        "evaluations": 501,
-       "solved": 0.495
+       "solved": 0.7467
       },
       {
        "evaluations": 631,
-       "solved": 0.5275
+       "solved": 0.7767
       },
       {
        "evaluations": 794,
-       "solved": 0.5717
+       "solved": 0.7989
       },
       {
        "evaluations": 1000,
-       "solved": 0.605
+       "solved": 0.8111
       },
       {
        "evaluations": 1259,
-       "solved": 0.6475
+       "solved": 0.8489
       },
       {
        "evaluations": 1585,
-       "solved": 0.72
+       "solved": 0.88
       },
       {
        "evaluations": 1995,
-       "solved": 0.7708
+       "solved": 0.9078
       },
       {
        "evaluations": 2512,
-       "solved": 0.8025
+       "solved": 0.9178
       },
       {
        "evaluations": 3162,
-       "solved": 0.8167
+       "solved": 0.9267
       },
       {
        "evaluations": 3981,
-       "solved": 0.8167
+       "solved": 0.9267
       },
       {
        "evaluations": 5012,
-       "solved": 0.8167
+       "solved": 0.9267
       },
       {
        "evaluations": 6310,
-       "solved": 0.8167
+       "solved": 0.9267
       },
       {
        "evaluations": 7110,
-       "solved": 0.8167
+       "solved": 0.9267
       }
      ],
-     "anytimeScore": 0.45112795108349674,
+     "anytimeScore": 0.6534842864010997,
      "wallMs": {
-      "median": 18631,
-      "p10": 12891.9,
-      "p90": 24278.3
+      "median": 19463,
+      "p10": 13308,
+      "p90": 25423.6
      }
     },
     {
      "algorithmId": "hybrid",
-     "runs": 240,
+     "runs": 180,
      "lexSuccess": {
-      "median": 0.25,
-      "p10": 0.1875,
-      "p90": 0.4125
+      "median": 0.3333333333333333,
+      "p10": 0.25,
+      "p90": 0.4666666666666667
      },
      "regretPct": {
-      "median": 1.8581862499353008,
+      "median": 0.46041957618117024,
       "p10": 0,
-      "p90": 10.535976060406165
+      "p90": 18.332212868415365
      },
      "hypervolume": {
-      "median": 0.5910606015494593,
-      "p10": 0.3357745737846883,
-      "p90": 0.7476495763904569
+      "median": 0.6574465394302822,
+      "p10": 0.10530151013771863,
+      "p90": 0.8220684430272278
      },
      "timeToQuality": [
       {
        "evaluations": 10,
-       "solved": 0.2592
+       "solved": 0.4367
       },
       {
        "evaluations": 13,
-       "solved": 0.2758
+       "solved": 0.4444
       },
       {
        "evaluations": 16,
-       "solved": 0.285
+       "solved": 0.4544
       },
       {
        "evaluations": 20,
-       "solved": 0.2942
+       "solved": 0.4689
       },
       {
        "evaluations": 25,
-       "solved": 0.3233
+       "solved": 0.52
       },
       {
        "evaluations": 32,
-       "solved": 0.3333
+       "solved": 0.5467
       },
       {
        "evaluations": 40,
-       "solved": 0.3408
+       "solved": 0.56
       },
       {
        "evaluations": 50,
-       "solved": 0.3483
+       "solved": 0.5678
       },
       {
        "evaluations": 63,
-       "solved": 0.35
+       "solved": 0.5678
       },
       {
        "evaluations": 79,
-       "solved": 0.3717
+       "solved": 0.5756
       },
       {
        "evaluations": 100,
-       "solved": 0.3742
+       "solved": 0.5811
       },
       {
        "evaluations": 126,
-       "solved": 0.3775
+       "solved": 0.5878
       },
       {
        "evaluations": 158,
-       "solved": 0.38
+       "solved": 0.6067
       },
       {
        "evaluations": 200,
-       "solved": 0.3817
+       "solved": 0.6078
       },
       {
        "evaluations": 251,
-       "solved": 0.3858
+       "solved": 0.6178
       },
       {
        "evaluations": 316,
-       "solved": 0.4092
+       "solved": 0.64
       },
       {
        "evaluations": 398,
-       "solved": 0.4533
+       "solved": 0.6844
       },
       {
        "evaluations": 501,
-       "solved": 0.495
+       "solved": 0.7467
       },
       {
        "evaluations": 631,
-       "solved": 0.5275
+       "solved": 0.7767
       },
       {
        "evaluations": 794,
-       "solved": 0.5717
+       "solved": 0.7989
       },
       {
        "evaluations": 1000,
-       "solved": 0.605
+       "solved": 0.8111
       },
       {
        "evaluations": 1259,
-       "solved": 0.6475
+       "solved": 0.8489
       },
       {
        "evaluations": 1585,
-       "solved": 0.72
+       "solved": 0.88
       },
       {
        "evaluations": 1995,
-       "solved": 0.7708
+       "solved": 0.9078
       },
       {
        "evaluations": 2512,
-       "solved": 0.8025
+       "solved": 0.9178
       },
       {
        "evaluations": 3162,
-       "solved": 0.8217
+       "solved": 0.9267
       },
       {
        "evaluations": 3981,
-       "solved": 0.8442
+       "solved": 0.9411
       },
       {
        "evaluations": 5012,
-       "solved": 0.8442
+       "solved": 0.9411
       },
       {
        "evaluations": 6310,
-       "solved": 0.8467
+       "solved": 0.9411
       },
       {
        "evaluations": 7110,
-       "solved": 0.8475
+       "solved": 0.9411
       }
      ],
-     "anytimeScore": 0.5022878786720032,
+     "anytimeScore": 0.6908751270965481,
      "wallMs": {
-      "median": 27921,
-      "p10": 19988.6,
-      "p90": 36058.2
+      "median": 34190,
+      "p10": 25234.6,
+      "p90": 48463.399999999994
      }
     }
    ]
@@ -368,146 +368,146 @@
      "runs": 186,
      "lexSuccess": {
       "median": 0.6666666666666666,
-      "p10": 0.5,
-      "p90": 0.8333333333333334
+      "p10": 0.6666666666666666,
+      "p90": 0.6666666666666666
      },
      "regretPct": {
       "median": 0,
       "p10": 0,
-      "p90": 8.073592670013763
+      "p90": 6.40930577178257
      },
      "hypervolume": {
-      "median": 0.4077900577756669,
-      "p10": 0.14325230520744545,
-      "p90": 0.8763575336027162
+      "median": 0.232599365273579,
+      "p10": 0,
+      "p90": 1
      },
      "timeToQuality": [
       {
        "evaluations": 10,
-       "solved": 0.5796
+       "solved": 0.243
       },
       {
        "evaluations": 13,
-       "solved": 0.6032
+       "solved": 0.243
       },
       {
        "evaluations": 16,
-       "solved": 0.6409
+       "solved": 0.243
       },
       {
        "evaluations": 20,
-       "solved": 0.6935
+       "solved": 0.243
       },
       {
        "evaluations": 25,
-       "solved": 0.7086
+       "solved": 0.243
       },
       {
        "evaluations": 32,
-       "solved": 0.7344
+       "solved": 0.243
       },
       {
        "evaluations": 40,
-       "solved": 0.7441
+       "solved": 0.243
       },
       {
        "evaluations": 50,
-       "solved": 0.7634
+       "solved": 0.243
       },
       {
        "evaluations": 63,
-       "solved": 0.7774
+       "solved": 0.243
       },
       {
        "evaluations": 79,
-       "solved": 0.7892
+       "solved": 0.243
       },
       {
        "evaluations": 100,
-       "solved": 0.8054
+       "solved": 0.243
       },
       {
        "evaluations": 126,
-       "solved": 0.8172
+       "solved": 0.243
       },
       {
        "evaluations": 158,
-       "solved": 0.8226
+       "solved": 0.243
       },
       {
        "evaluations": 200,
-       "solved": 0.8957
+       "solved": 0.2796
       },
       {
        "evaluations": 251,
-       "solved": 0.9323
+       "solved": 0.2882
       },
       {
        "evaluations": 316,
-       "solved": 0.9591
+       "solved": 0.2903
       },
       {
        "evaluations": 398,
-       "solved": 0.9656
+       "solved": 0.2914
       },
       {
        "evaluations": 501,
-       "solved": 0.9656
+       "solved": 0.2935
       },
       {
        "evaluations": 631,
-       "solved": 0.9699
+       "solved": 0.2935
       },
       {
        "evaluations": 794,
-       "solved": 0.9828
+       "solved": 0.2957
       },
       {
        "evaluations": 1000,
-       "solved": 0.9849
+       "solved": 0.2957
       },
       {
        "evaluations": 1259,
-       "solved": 0.9882
+       "solved": 0.2989
       },
       {
        "evaluations": 1585,
-       "solved": 0.9935
+       "solved": 0.2989
       },
       {
        "evaluations": 1995,
-       "solved": 0.9935
+       "solved": 0.3
       },
       {
        "evaluations": 2512,
-       "solved": 0.9946
+       "solved": 0.3011
       },
       {
        "evaluations": 3162,
-       "solved": 0.9946
+       "solved": 0.3011
       },
       {
        "evaluations": 3981,
-       "solved": 0.9946
+       "solved": 0.3011
       },
       {
        "evaluations": 5012,
-       "solved": 0.9946
+       "solved": 0.3011
       },
       {
        "evaluations": 6310,
-       "solved": 0.9946
+       "solved": 0.3011
       },
       {
        "evaluations": 7110,
-       "solved": 0.9946
+       "solved": 0.3011
       }
      ],
-     "anytimeScore": 0.8509378549305336,
+     "anytimeScore": 0.268303869912254,
      "wallMs": {
-      "median": 16964.5,
-      "p10": 12110.5,
-      "p90": 18667
+      "median": 2155,
+      "p10": 45,
+      "p90": 19218.5
      }
     },
     {
@@ -515,146 +515,146 @@
      "runs": 186,
      "lexSuccess": {
       "median": 0.6666666666666666,
-      "p10": 0.5,
+      "p10": 0.6666666666666666,
       "p90": 0.8333333333333334
      },
      "regretPct": {
       "median": 0,
       "p10": 0,
-      "p90": 7.977357355559544
+      "p90": 6.40930577178257
      },
      "hypervolume": {
-      "median": 0.400631909829547,
-      "p10": 0.1415588907251563,
-      "p90": 0.9147822631638733
+      "median": 0.2475048427018697,
+      "p10": 0,
+      "p90": 1
      },
      "timeToQuality": [
       {
        "evaluations": 10,
-       "solved": 0.5796
+       "solved": 0.243
       },
       {
        "evaluations": 13,
-       "solved": 0.6032
+       "solved": 0.243
       },
       {
        "evaluations": 16,
-       "solved": 0.6409
+       "solved": 0.243
       },
       {
        "evaluations": 20,
-       "solved": 0.6935
+       "solved": 0.243
       },
       {
        "evaluations": 25,
-       "solved": 0.7086
+       "solved": 0.243
       },
       {
        "evaluations": 32,
-       "solved": 0.7344
+       "solved": 0.243
       },
       {
        "evaluations": 40,
-       "solved": 0.7441
+       "solved": 0.243
       },
       {
        "evaluations": 50,
-       "solved": 0.7634
+       "solved": 0.243
       },
       {
        "evaluations": 63,
-       "solved": 0.7774
+       "solved": 0.243
       },
       {
        "evaluations": 79,
-       "solved": 0.7892
+       "solved": 0.243
       },
       {
        "evaluations": 100,
-       "solved": 0.8054
+       "solved": 0.243
       },
       {
        "evaluations": 126,
-       "solved": 0.8172
+       "solved": 0.243
       },
       {
        "evaluations": 158,
-       "solved": 0.8226
+       "solved": 0.243
       },
       {
        "evaluations": 200,
-       "solved": 0.8957
+       "solved": 0.2796
       },
       {
        "evaluations": 251,
-       "solved": 0.9323
+       "solved": 0.2882
       },
       {
        "evaluations": 316,
-       "solved": 0.9591
+       "solved": 0.2903
       },
       {
        "evaluations": 398,
-       "solved": 0.9656
+       "solved": 0.2914
       },
       {
        "evaluations": 501,
-       "solved": 0.9656
+       "solved": 0.2935
       },
       {
        "evaluations": 631,
-       "solved": 0.9699
+       "solved": 0.2935
       },
       {
        "evaluations": 794,
-       "solved": 0.9828
+       "solved": 0.2957
       },
       {
        "evaluations": 1000,
-       "solved": 0.9849
+       "solved": 0.2957
       },
       {
        "evaluations": 1259,
-       "solved": 0.9882
+       "solved": 0.2989
       },
       {
        "evaluations": 1585,
-       "solved": 0.9935
+       "solved": 0.2989
       },
       {
        "evaluations": 1995,
-       "solved": 0.9935
+       "solved": 0.3
       },
       {
        "evaluations": 2512,
-       "solved": 0.9946
+       "solved": 0.3011
       },
       {
        "evaluations": 3162,
-       "solved": 0.9957
+       "solved": 0.3011
       },
       {
        "evaluations": 3981,
-       "solved": 0.9968
+       "solved": 0.3011
       },
       {
        "evaluations": 5012,
-       "solved": 0.9968
+       "solved": 0.3011
       },
       {
        "evaluations": 6310,
-       "solved": 0.9968
+       "solved": 0.3011
       },
       {
        "evaluations": 7110,
-       "solved": 0.9968
+       "solved": 0.3011
       }
      ],
-     "anytimeScore": 0.8585472136195252,
+     "anytimeScore": 0.2700180226996548,
      "wallMs": {
-      "median": 27675,
-      "p10": 19391,
-      "p90": 30971
+      "median": 8799,
+      "p10": 100,
+      "p90": 32255
      }
     }
    ]
@@ -803,9 +803,9 @@
      ],
      "anytimeScore": 0.6405667411417519,
      "wallMs": {
-      "median": 169,
-      "p10": 151,
-      "p90": 347.80000000000007
+      "median": 166,
+      "p10": 143.1,
+      "p90": 340
      }
     },
     {
@@ -945,9 +945,9 @@
      ],
      "anytimeScore": 0.6409139258157056,
      "wallMs": {
-      "median": 164,
-      "p10": 146,
-      "p90": 345.90000000000003
+      "median": 162,
+      "p10": 139.1,
+      "p90": 298.90000000000003
      }
     }
    ]
@@ -1096,9 +1096,9 @@
      ],
      "anytimeScore": 0.5977455807499064,
      "wallMs": {
-      "median": 193,
-      "p10": 179,
-      "p90": 214.5
+      "median": 191,
+      "p10": 168.5,
+      "p90": 216
      }
     },
     {
@@ -1238,9 +1238,9 @@
      ],
      "anytimeScore": 0.5964313486102846,
      "wallMs": {
-      "median": 192,
-      "p10": 175,
-      "p90": 210
+      "median": 189,
+      "p10": 165.5,
+      "p90": 212
      }
     }
    ]
@@ -1389,9 +1389,9 @@
      ],
      "anytimeScore": 0.44283189484986774,
      "wallMs": {
-      "median": 152,
-      "p10": 138.5,
-      "p90": 169.5
+      "median": 149,
+      "p10": 132,
+      "p90": 168
      }
     },
     {
@@ -1531,8 +1531,8 @@
      ],
      "anytimeScore": 0.4387645457407701,
      "wallMs": {
-      "median": 150,
-      "p10": 136.5,
+      "median": 147,
+      "p10": 129,
       "p90": 165
      }
     }
@@ -1687,9 +1687,9 @@
      ],
      "anytimeScore": 0.7028116880666004,
      "wallMs": {
-      "median": 163.5,
-      "p10": 149,
-      "p90": 177
+      "median": 157.5,
+      "p10": 141.5,
+      "p90": 174
      }
     },
     {
@@ -1701,14 +1701,14 @@
       "p90": 1
      },
      "regretPct": {
-      "median": 0.00016882365634907082,
-      "p10": 0.000025640875589427736,
-      "p90": 0.009094709480306218
+      "median": 0.00010116125151449218,
+      "p10": 0,
+      "p90": 0.0012901420235911232
      },
      "hypervolume": {
-      "median": 0.7048051737876473,
-      "p10": 0,
-      "p90": 0.9952951591375917
+      "median": 0.9126404024326016,
+      "p10": 0.7249102109969239,
+      "p90": 1.142345429335859
      },
      "timeToQuality": [
       {
@@ -1834,9 +1834,9 @@
      ],
      "anytimeScore": 0.7183676895066455,
      "wallMs": {
-      "median": 194,
-      "p10": 179,
-      "p90": 212.5
+      "median": 197,
+      "p10": 175.5,
+      "p90": 215
      }
     }
    ]
@@ -1985,9 +1985,9 @@
      ],
      "anytimeScore": 0.5960575260786223,
      "wallMs": {
-      "median": 192.5,
-      "p10": 174,
-      "p90": 213.7
+      "median": 185,
+      "p10": 164,
+      "p90": 204.7
      }
     },
     {
@@ -1999,9 +1999,9 @@
       "p90": 1
      },
      "regretPct": {
-      "median": 0.06134291759047339,
-      "p10": 0.006900877298544606,
-      "p90": 0.4437104496183522
+      "median": 0.07458384912181204,
+      "p10": 0.00752426539323392,
+      "p90": 0.6073515637963658
      },
      "timeToQuality": [
       {
@@ -2127,9 +2127,9 @@
      ],
      "anytimeScore": 0.6072719823404763,
      "wallMs": {
-      "median": 196.5,
-      "p10": 176,
-      "p90": 213
+      "median": 190,
+      "p10": 169,
+      "p90": 210.7
      }
     }
    ]
@@ -2147,32 +2147,32 @@
    {
     "suiteId": "R2",
     "lexSuccessDiff": {
-     "estimate": 1.6666666666666667,
-     "lower": 0
+     "estimate": -1.6666666666666667,
+     "lower": -4.444444444444445
     },
     "regretDiff": {
-     "estimate": 0.07815029894845826,
-     "upper": 0.29379348813171946
+     "estimate": -0.8514288157880942,
+     "upper": 0.5915415764929375
     },
-    "nonInferior": true,
+    "nonInferior": false,
     "superior": false,
-    "effectSize": 0.4916059027777778,
+    "effectSize": 0.48686728395061735,
     "pAdjusted": 1
    },
    {
     "suiteId": "R1",
     "lexSuccessDiff": {
-     "estimate": 1.6129032258064515,
-     "lower": 0.5376344086021506
+     "estimate": 1.0752688172043012,
+     "lower": 0
     },
     "regretDiff": {
-     "estimate": -0.019247701539515175,
-     "upper": 0.03618133176351408
+     "estimate": -0.1965152147904617,
+     "upper": -0.07646900384047094
     },
     "nonInferior": true,
     "superior": false,
-    "effectSize": 0.5397878367441323,
-    "pAdjusted": 0.2828036908318776
+    "effectSize": 0.5051017458665741,
+    "pAdjusted": 1
    },
    {
     "suiteId": "T1",
@@ -2217,7 +2217,7 @@
     "nonInferior": true,
     "superior": true,
     "effectSize": 0.5757602034917332,
-    "pAdjusted": 0.0006222370764681351
+    "pAdjusted": 0.0005185308970567792
    },
    {
     "suiteId": "T4",
@@ -2226,32 +2226,32 @@
      "lower": 0
     },
     "regretDiff": {
-     "estimate": 0,
-     "upper": 0
+     "estimate": -0.0147412274753233,
+     "upper": -0.0028682604742062165
     },
     "nonInferior": true,
-    "superior": false,
-    "effectSize": 0.5,
-    "pAdjusted": 1
+    "superior": true,
+    "effectSize": 0.5870476355648052,
+    "pAdjusted": 6.821210263296962e-13
    },
    {
     "suiteId": "T5",
     "lexSuccessDiff": {
-     "estimate": 38.70967741935484,
-     "lower": 30.64516129032258
+     "estimate": 41.935483870967744,
+     "lower": 34.67741935483871
     },
     "regretDiff": {
-     "estimate": -4.841957905562396,
-     "upper": -4.005532292050892
+     "estimate": -4.672035383416055,
+     "upper": -3.820728518546921
     },
     "nonInferior": true,
     "superior": false,
-    "effectSize": 0.47099375650364206,
-    "pAdjusted": 1
+    "effectSize": 0.3821540062434964,
+    "pAdjusted": 0.32790039268453164
    }
   ],
   "safetyTestsPassed": true,
   "deterministic": true,
-  "passed": true
+  "passed": false
  }
 }

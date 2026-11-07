@@ -52,6 +52,10 @@ describe('collapse sentences (batch 02)', () => {
     );
     expect(collapseText('medium', 'tooClose', { carried: 1, dGap: 0.1, minDGap: 0.15 }, 'fat mass', 'M')).toBe('The earlier search\'s Medium is now almost as much effort as the new Hard.');
     expect(collapseText('easy', 'infeasible', { carried: 1, carriedChance: 0 }, 'fat mass', 'M')).toMatch(/no longer passes the safety checks/);
+    // D4-08: a longer search whose Hard falls short of the least worthwhile change states the carried-rung failure
+    expect(collapseText('easy', 'tooClose', { carried: 1, carriedHardShort: 1, gHard: 0.1495, gMin: 0.15 }, 'skeletal muscle', 'M')).toBe(
+      "The earlier search's Easy can't sit under this search's Hard, which falls short of the least worthwhile change in your skeletal muscle.",
+    );
   });
   it('a rung a stopped search never checked says the search stopped (no unproven "no plan")', () => {
     expect(collapseText('medium', 'stopped', {}, 'fat mass')).toBe('The search was stopped before Medium was found or checked.');

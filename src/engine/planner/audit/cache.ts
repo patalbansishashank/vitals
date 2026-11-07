@@ -4,17 +4,18 @@
  */
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
+import path from 'node:path';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
-export const CACHE_DIR = `${REPO_ROOT}node_modules/.cache/planner-audit/`;
+export const CACHE_DIR = process.env.VITALS_AUDIT_CACHE_DIR ?? `${REPO_ROOT}node_modules/.cache/planner-audit/`;
 
 export function writePart(name: string, data: unknown): void {
   mkdirSync(CACHE_DIR, { recursive: true });
-  writeFileSync(`${CACHE_DIR}${name}.json`, JSON.stringify(data));
+  writeFileSync(path.join(CACHE_DIR, `${name}.json`), JSON.stringify(data));
 }
 
 export function readPart<T>(name: string): T | null {
-  const f = `${CACHE_DIR}${name}.json`;
+  const f = path.join(CACHE_DIR, `${name}.json`);
   return existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as T) : null;
 }
 

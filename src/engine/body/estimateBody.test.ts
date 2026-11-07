@@ -1,7 +1,7 @@
 // estimateInitialState: golden end-to-end results (dossier 14 sec. 7), dossier worked tables (M5, M6, M8), properties and edges.
 import { FAT_ANCHORS, FFMI_ANCHORS, toSlider } from './anchors';
 import { cunBae, dxaFrameOffset } from './equations';
-import { estimateBodyFat, estimateInitialState } from './estimateBody';
+import { KNOWN_BF_SIGMA, estimateBodyFat, estimateInitialState, knownNavyIndependentOfGirths } from './estimateBody';
 import type { BodyEstimate, BodyInputs, Sex } from './types';
 
 /** |actual - printed| <= `units` x one unit of the printed last digit (dossier: "treat the last digit as +-1"). */
@@ -338,7 +338,7 @@ describe('properties', () => {
     expect(sa.fat.vatKg / (sa.fat.vatKg + sa.fat.trunkSatKg)).toBeGreaterThan(w.fat.vatKg / (w.fat.vatKg + w.fat.trunkSatKg));
   });
 
-  it('Navy is added as a 3rd anthropometric estimator when neck (and hip for women) are given', () => {
+  it('Navy is reported as a 3rd anthropometric estimator when neck (and hip for women) are given', () => {
     const f = estimateBodyFat({ sex: 'female', ageYears: 30, heightCm: 165, weightKg: 65, waistCm: 75, hipCm: 100, neckCm: 33 });
     expect(f.observations.map((o) => o.id)).toEqual(['eq', 'rfm', 'navy']);
     const withoutHip = estimateBodyFat({ sex: 'female', ageYears: 30, heightCm: 165, weightKg: 65, waistCm: 75, neckCm: 33 });
@@ -417,4 +417,104 @@ describe('edge cases', () => {
       checkInvariants(old);
     }
   });
+});
+
+// ---------------------------------------------------------------- D1-03 provenance-aware fusion
+
+describe('D1-03 — body-fat evidence is deduplicated by provenance and its uncertainty is conditional, not calibrated', () => {
+  const MAN_G: BodyInputs = { sex: 'male', ageYears: 40, heightCm: 180, weightKg: 92, waistCm: 98 };
+  const withNeck: BodyInputs = { ...MAN_G, neckCm: 39 };
+  const navyOf = (i: BodyInputs): number => estimateBodyFat(i).observations.find((o) => o.id === 'navy')!.valuePct;
+
+  it('shared-input Navy and RFM: one girth estimator is used (RFM, smaller prior SD); Navy is reported with weight 0', () => {
+    const a = estimateBodyFat(MAN_G);
+    const b = estimateBodyFat(withNeck);
+    expect(b.observations.find((o) => o.id === 'navy')!.weight).toBe(0);
+    expect(b.collapsed).toEqual([{ ids: ['rfm', 'navy'], reason: 'sharedInputs' }]);
+    expect(b.bodyFatPct).toBe(a.bodyFatPct);
+    expect(b.sdPct).toBe(a.sdPct);
+    expect(b.observations.reduce((s, o) => s + o.weight, 0)).toBeCloseTo(1, 12);
+    for (const o of b.observations) expect(o.family).toBeDefined();
+  });
+
+  it('copying the derived Navy result into the known field leaves mean and uncertainty unchanged (unknown provenance)', () => {
+    const base = estimateBodyFat(withNeck);
+    const copy = estimateBodyFat({ ...withNeck, knownBodyFatPct: navyOf(withNeck), knownBodyFatSource: 'navy' });
+    expect(copy.bodyFatPct).toBe(base.bodyFatPct);
+    expect(copy.sdPct).toBe(base.sdPct);
+    expect(copy.collapsed).toContainEqual({ ids: ['rfm', 'known'], reason: 'sameSource' });
+  });
+
+  it('entering the same derived Navy result twice (lineage pointing at the current girths) does not narrow the interval', () => {
+    const girthMeta = { observationId: 'g-1', measuredOn: '2026-10-10' };
+    const base = estimateBodyFat({ ...withNeck, girthMeta });
+    const again = estimateBodyFat({
+      ...withNeck,
+      girthMeta,
+      knownBodyFatPct: navyOf(withNeck),
+      knownBodyFatSource: 'navy',
+      knownBodyFatMeta: { observationId: 'n-1', parentIds: ['g-1'], measuredOn: '2026-10-10' },
+    });
+    expect(again.sdPct).toBe(base.sdPct);
+    expect(again.bodyFatPct).toBe(base.bodyFatPct);
+    expect(knownNavyIndependentOfGirths({ girthMeta, knownBodyFatMeta: { observationId: 'n-1', parentIds: ['g-1'], measuredOn: '2026-08-01' } })).toBe(false);
+  });
+
+  it('a different-date Navy reading with its own lineage is retained as independent evidence', () => {
+    const girthMeta = { observationId: 'g-now', measuredOn: '2026-10-10' };
+    const knownBodyFatMeta = { observationId: 'n-old', parentIds: ['g-old'], measuredOn: '2026-08-01' };
+    expect(knownNavyIndependentOfGirths({ girthMeta, knownBodyFatMeta })).toBe(true);
+    const base = estimateBodyFat({ ...MAN_G, girthMeta });
+    const both = estimateBodyFat({ ...MAN_G, girthMeta, knownBodyFatPct: 24, knownBodyFatSource: 'navy', knownBodyFatMeta });
+    const known = both.observations.find((o) => o.id === 'known')!;
+    expect(known.weight).toBeGreaterThan(0);
+    expect(known.family).toBe('measured');
+    expect(known.sourceObservationId).toBe('n-old');
+    expect(both.sdPct).toBeLessThan(base.sdPct);
+  });
+
+  it('a repeated Navy method never removes its common bias: the current Navy is not fused next to an independent Navy reading', () => {
+    const girthMeta = { observationId: 'g-now', measuredOn: '2026-10-10' };
+    const knownBodyFatMeta = { observationId: 'n-old', parentIds: ['g-old'], measuredOn: '2026-08-01' };
+    const known = { knownBodyFatPct: 24, knownBodyFatSource: 'navy' as const, knownBodyFatMeta, girthMeta };
+    const a = estimateBodyFat({ ...MAN_G, ...known });
+    const b = estimateBodyFat({ ...withNeck, ...known });
+    expect(b.sdPct).toBe(a.sdPct);
+    expect(b.observations.find((o) => o.id === 'navy')!.weight).toBe(0);
+  });
+
+  it('legacy known Navy without provenance and without girths still counts (the girth family’s only member)', () => {
+    const f = estimateBodyFat({ sex: 'male', ageYears: 40, heightCm: 180, weightKg: 92, knownBodyFatPct: 24, knownBodyFatSource: 'navy' });
+    const known = f.observations.find((o) => o.id === 'known')!;
+    expect(known.weight).toBeGreaterThan(0);
+    expect(known.family).toBe('girth');
+    expect(f.collapsed).toBeUndefined();
+  });
+
+  it('untouched avatar sliders add no evidence and never narrow the interval', () => {
+    const a = estimateBodyFat(MAN_G);
+    const b = estimateBodyFat({ ...MAN_G, sliders: {} });
+    expect(b.sdPct).toBe(a.sdPct);
+    expect(b.observations.map((o) => o.id)).toEqual(a.observations.map((o) => o.id));
+  });
+
+  it('a BIA reading (also with the method omitted) keeps its method sigma: it cannot silently become an exact DXA anchor', () => {
+    const bia = estimateBodyFat({ ...MAN_G, knownBodyFatPct: 20 });
+    const dxa = estimateBodyFat({ ...MAN_G, knownBodyFatPct: 20, knownBodyFatSource: 'dxa' });
+    const k = bia.observations.find((o) => o.id === 'known')!;
+    expect(k.sdPct).toBe(KNOWN_BF_SIGMA.bia);
+    expect(k.family).toBe('measured');
+    expect(bia.sdPct).toBeGreaterThan(dxa.sdPct);
+    expect(bia.sdPct).toBeGreaterThan(2);
+    expect(bia.bodyFatPct).not.toBe(20);
+  });
+
+  it('the reported SD is the conditional model SD; band coverage is unvalidated (no 80 % claim)', () => {
+    const e = estimateInitialState({ ...withNeck, knownBodyFatPct: 22, knownBodyFatSource: 'bia' });
+    expect(e.fusion.conditionalSdPct).toBe(e.fusion.sdPct);
+    expect(e.fusion.coverage).toBe('unvalidated');
+    expect(e.uncertainty.bandCoverage).toBe('unvalidated');
+  });
+
+  it.todo('coverage and method bias against held-out reference datasets (DXA/4C, whole people held out) before any coverage label');
 });

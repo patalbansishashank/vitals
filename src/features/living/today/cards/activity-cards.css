@@ -1,0 +1,106 @@
+.lv-energy-card .lm-gcard__body {
+  display: grid;
+  gap: 10px;
+}
+.lv-energy-card__parts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 12px 18px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lv-energy-card__part {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+.lv-energy-card__part-name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.lv-energy-card__part-name i {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.lv-energy-card__part-figures {
+  display: block;
+  min-width: 0;
+  font-size: var(--lm-text-stat);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.lv-energy-card__empty {
+  margin: 0;
+  color: var(--lm-ink-2);
+  font-size: var(--lm-text-body);
+  line-height: var(--lm-text-body--lh);
+}
+.lv-energy-card[data-size='tile'] .lm-hero__line {
+  --lm-hero-fs: clamp(1.75rem, 7vw, 2.25rem);
+}
+.lv-steps-card .lm-gcard__body {
+  display: grid;
+  justify-items: stretch;
+  gap: 8px;
+}
+.lv-steps-card__source {
+  max-width: 100%;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.lv-activity-card__row {
+  grid-template-columns: 28px minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 10px;
+}
+.lv-activity-card__row .lv-act__mark {
+  width: 26px;
+  height: 26px;
+  background: transparent;
+  border: 1.5px solid var(--lm-hue-steps);
+  border-radius: 50%;
+}
+.lv-act__list [data-status='pending'] .lv-activity-card__row .lv-act__mark {
+  border-style: dashed;
+}
+.lv-activity-card__row .lv-act__what {
+  display: grid;
+  gap: 4px;
+}
+.lv-activity-card__value {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.lv-activity-card__value .lm-mono {
+  display: block;
+}
+.lv-activity-card__row .lm-mono {
+  color: var(--lm-ink-2);
+}
+.lv-activity-card__row .lm-mono .lm-overflow {
+  max-width: 100%;
+}
+.lv-activity-card__row .lv-act__name {
+  overflow-wrap: anywhere;
+}
+.lv-activity-card__facts {
+  font-size: var(--lm-text-sm);
+  line-height: 1.4;
+  color: var(--lm-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.lv-steps-card[data-size='tile'] .lm-hero__line {
+  --lm-hero-fs: clamp(1.75rem, 7vw, 2.25rem);
+}
+.lv-steps-card__source .lm-overflow {
+  white-space: normal;
+}

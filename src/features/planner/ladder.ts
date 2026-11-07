@@ -15,6 +15,7 @@ import {
   type DifficultyComponentId,
   type FastingVerdict,
   type ConvergencePoint,
+  type GoalFeasibility,
   type GoalOutcome,
   type IdealPlanV2,
   type LimitCost,
@@ -31,6 +32,7 @@ import {
 } from '@/engine/planner/domain/types';
 import type { ConstraintDraft, LongestFast } from '@/state/plannerStore';
 import type { EnergyUnit, UnitSystem } from '@/state/settingsStore';
+import { INTERPRETABLE_STATUSES, STATUS_LABEL, searchOutcomeFromLegacy, type BoundStatus, type JointScreenResult, type OutputStatus, type SafetyStatus } from '@/lib/bodyContracts';
 import { goalMetric } from './catalogue';
 import { fmtMetric, fmtPct, fmtSignedRange, fmtMetricRange, toDisplay } from './format';
 import { LONGEST_FAST_OPTIONS } from './request';
@@ -46,7 +48,26 @@ export const PLAN_KINDS: readonly PlanKind[] = ['hard', 'medium', 'easy', 'ideal
 export const RUNG_TITLE: Readonly<Record<PlanKind, string>> = { hard: 'Hard', medium: 'Medium', easy: 'Easy', ideal: 'Ideal' };
 /** The rung key's initial (identity never by colour alone). */
 export const RUNG_INITIAL: Readonly<Record<PlanKind, string>> = { hard: 'H', medium: 'M', easy: 'E', ideal: 'I' };
-export const IDEAL_CAPTION = 'scientific ceiling — your practical limits removed, safety kept';
+/** C6/D4-08: the Ideal is the best plan the search found without your practical limits, not a proven ceiling. */
+export const IDEAL_CAPTION = 'best found without your practical limits · safety kept';
+
+/**
+ * The reference of the engine's `percentOfAchievable` (C6/D4-08): the best value the finite search found for that goal,
+ * never "what's possible" (not finding more is not proof that more is impossible).
+ */
+export const OF_BEST_FOUND = 'of the best found';
+
+/**
+ * A missed target in finite-search words (C6/D4-08): "limit conflict" only with a proven policy conflict, "limited"
+ * outside the supported domain or with an uncertain response, else "not found" (within the search budget). Legacy
+ * feasibility rows read through `searchOutcomeFromLegacy` (unattainable without a stored proof is "not found").
+ */
+export function searchWord(feas: Pick<GoalFeasibility, 'status' | 'outcome'> | null | undefined): string {
+  const o = feas?.outcome?.outcome ?? (feas ? searchOutcomeFromLegacy(feas.status).outcome : 'notFoundWithinBudget');
+  if (o === 'provenPolicyConflict') return 'limit conflict';
+  if (o === 'outsideSupportedDomain' || o === 'uncertainResponse') return 'limited';
+  return 'not found';
+}
 
 export const isRung = (k: string | null | undefined): k is RungId => k === 'hard' || k === 'medium' || k === 'easy';
 export const isPlanKind = (k: string | null | undefined): k is PlanKind => isRung(k) || k === 'ideal';
@@ -180,7 +201,7 @@ export const PAST_LIMIT = 'past your limit';
 /** The ladder caption (under the graph). */
 export const IDEAL_NOT_HARDER = 'The Ideal is not meant to be harder, only free of your practical limits.';
 /** The effort axis, in words. */
-export const EFFORT_AXIS = 'Effort (0 = how you live now, 100 = your limits)';
+export const EFFORT_AXIS = 'Effort: 0 = as you live now, 100 = your limits';
 /** Longest overflow drawn past the limit tick, as a share of the habit-to-limit track. */
 export const OVER_CAP = 0.5;
 const GENTLE_OFF: ReadonlySet<DifficultyComponentId> = new Set(['deficit', 'fastingLoad']);
@@ -213,6 +234,13 @@ export function burdenRows(d: DifficultyBreakdown, opts: { ideal?: boolean; gent
   });
 }
 
+/** The card's Effort row, closed: "hardest: hunger" (the largest part shown; gentle mode skips the parts it hides). */
+export function hardestPart(d: DifficultyBreakdown, gentle = false): string {
+  const shown = burdenRows(d, { gentle }).filter((r) => r.active);
+  const top = d.hardest && shown.some((r) => r.id === d.hardest) ? BURDEN_LABEL[d.hardest] : shown.reduce<BurdenRow | null>((m, r) => (!m || r.value > m.value ? r : m), null)?.label;
+  return top ? `hardest: ${top}` : 'close to how you live now';
+}
+
 /** "effort 64 / 100 · hardest part: hunger". */
 export function effortHeader(d: DifficultyBreakdown): string {
   const hard = d.hardest ? ` · hardest part: ${BURDEN_LABEL[d.hardest]}` : '';
@@ -227,21 +255,30 @@ const WEIGHT_METRICS: ReadonlySet<string> = new Set(['fatMass', 'scaleWeight', '
 /** Weight-type numbers sit behind "show numbers" in gentle mode. */
 export const isWeightMetric = (metric: string): boolean => WEIGHT_METRICS.has(metric);
 
-export type OutcomeStatus = 'reached' | 'partial' | 'missed' | 'near' | 'directional';
+/** `unsupported`: the goal's C6 status forbids reading its forecast (the row shows the status word). */
+export type OutcomeStatus = 'reached' | 'partial' | 'missed' | 'near' | 'directional' | 'unsupported';
 
 export interface OutcomeView {
   rank: number;
   /** "fat mass" (engraved row name). */
   name: string;
-  /** "−8.1 kg", or "↑ 62 % of what’s possible" for a goal without a target. */
+  /** "−8.1 kg", or "↑ 62 % of the best found" for a goal without a target. */
   value: string;
-  /** "likely 6.9–9.2 kg" (P10–P90 of the check runs), null without a band. */
+  /**
+   * "6.9–9.2 kg": P10–P90 of the check runs, a parameter-sensitivity range with unvalidated coverage (C6/D4-03), so it
+   * reads as a range with its unit, never as a likelihood. Null without a band.
+   */
   range: string | null;
   /** RangeBar glyph in display units (null without a band). */
   bar: { low: number; high: number; value: number } | null;
   status: OutcomeStatus;
-  /** "reached in about 15 weeks · 82 % chance" / "kept" / "about 23 weeks at this plan’s effort". */
+  /**
+   * "reached in about 15 weeks" / "kept" / "about 23 weeks at this plan’s effort". The share of check runs meeting the
+   * target is a design robustness screen, not a chance (D4-03): it lives in the plan details, never inline.
+   */
   verdict: string;
+  /** Short display qualification, independent of engine attainment. */
+  qualifier: string | null;
   /** "2.5 kg more lost than Hard" (every plan but Hard). */
   vsHard: string | null;
   weightType: boolean;
@@ -256,24 +293,34 @@ export function isLoseGoal(g: Pick<RankedGoal, 'direction' | 'target' | 'targetK
   return start !== undefined && g.target < start;
 }
 
-const chance = (p: number | null, round10: boolean): string | null => {
-  if (p === null || !Number.isFinite(p)) return null;
-  const pct = p <= 1 ? p * 100 : p;
-  return `${fmtPct(round10 ? Math.round(pct / 10) * 10 : pct)} chance`;
-};
+/**
+ * Share of the check runs that met a target, as the plan details print it ("13 of 16 check runs", or a percentage when
+ * the run count is unknown): a model-scenario screen across parameter variations, never a probability for the person
+ * (C6/D4-03). Null when there is no share.
+ */
+export function checkRunShare(p: number | null | undefined, draws?: number, round10 = false): string | null {
+  if (p === null || p === undefined || !Number.isFinite(p)) return null;
+  const share = p <= 1 ? p : p / 100;
+  if (draws !== undefined && Number.isFinite(draws) && draws > 0) return `${Math.round(share * draws)} of ${Math.round(draws)} check runs`;
+  const pct = share * 100;
+  return `${round10 ? `about ${fmtPct(Math.round(pct / 10) * 10)}` : fmtPct(pct)} of the check runs`;
+}
 
 /**
  * The goal's gap to Hard in words that say which way: "0.8 kg less lost than Hard" (a goal being lost), "1.1 kg more
  * gained than Hard", "0.4 kg higher than Hard"; "the same as Hard" when it rounds to zero.
  */
 function vsHardText(o: GoalOutcome, goal: RankedGoal | undefined, change: boolean, units: UnitSystem, energy: EnergyUnit): string {
-  const mag = fmtMetric(o.metric, Math.abs(o.vsHard), units, { energy });
-  const zero = fmtMetric(o.metric, 0, units, { energy });
-  if (!Number.isFinite(o.vsHard) || mag === zero) return 'the same as Hard';
-  // both shown values round alike ("−0.1 kg" against "−0.1 kg"): no gap worth naming
+  if (!Number.isFinite(o.vsHard)) return 'the same as Hard';
+  // r068 W2-6: the gap is the difference of the two values as shown ("−5.9" against "−5.7" is 0.2, never the raw 0.3)
   const mine = change ? o.change : o.p50;
-  const show = (v: number) => fmtMetric(o.metric, v, units, { signed: change, energy });
-  if (show(mine) === show(mine - o.vsHard)) return 'the same as Hard';
+  const a = toDisplay(o.metric, mine, units, energy);
+  const b = toDisplay(o.metric, mine - o.vsHard, units, energy);
+  const k = 10 ** a.decimals;
+  const gap = Math.abs(Math.round(a.value * k) - Math.round(b.value * k)) / k;
+  // both shown values round alike ("−0.1 kg" against "−0.1 kg"): no gap worth naming
+  if (gap === 0) return 'the same as Hard';
+  const mag = `${formatNumber(gap, a.decimals)}${a.unit ? `\u2009${a.unit}` : ''}`;
   const up = o.vsHard > 0;
   if (change) {
     const hardChange = o.change - o.vsHard;
@@ -285,17 +332,27 @@ function vsHardText(o: GoalOutcome, goal: RankedGoal | undefined, change: boolea
   return `${mag} ${up ? 'higher' : 'lower'} than Hard`;
 }
 
+/** The C6 status of goal `i` in a plan's scorecard (absent on older results: a plain estimate). */
+export function goalStatusOf(plan: Pick<LadderPlan, 'scorecard'> | null | undefined, i: number): OutputStatus | undefined {
+  return plan?.scorecard?.find((sc) => sc.goal === i)?.status;
+}
+
 /** One goal row of a card or the table (rank order, never re-sorted). */
 export function outcomeView(
   o: GoalOutcome,
   goal: RankedGoal | undefined,
   kind: PlanKind,
   units: UnitSystem,
-  opts: { energy?: EnergyUnit; roundChance?: boolean } = {},
+  opts: { energy?: EnergyUnit; roundChance?: boolean; status?: OutputStatus } = {},
 ): OutcomeView {
   const energy = opts.energy ?? 'kcal';
   const m = goalMetric(o.metric);
   const name = (m?.label ?? o.label).toLowerCase();
+  // C6: the plan's score status for this goal (its scorecard): a forbidding status shows the word, no number or range
+  if (opts.status && !INTERPRETABLE_STATUSES.has(opts.status)) {
+    const word = STATUS_LABEL[opts.status];
+    return { rank: o.goal + 1, name, value: word, range: null, bar: null, status: 'unsupported', verdict: word.toLowerCase(), qualifier: null, vsHard: null, weightType: isWeightMetric(o.metric) };
+  }
   const directional = !goal || goal.target === undefined;
   const change = goal?.targetKind === 'change';
   const shift = change ? o.start : 0;
@@ -304,26 +361,25 @@ export function outcomeView(
   let bar: OutcomeView['bar'] = null;
   if (directional) {
     const arrow = goal?.direction === 'minimise' ? '↓' : '↑';
-    value = `${arrow} ${fmtPct(o.percentOfAchievable)} of what’s possible`;
+    value = `${arrow} ${fmtPct(o.percentOfAchievable)} ${OF_BEST_FOUND}`;
   } else value = change ? fmtMetric(o.metric, o.change, units, { signed: true, energy }) : fmtMetric(o.metric, o.p50, units, { energy });
   if (o.band && Number.isFinite(o.band.p10) && Number.isFinite(o.band.p90)) {
     const lo = o.band.p10 - shift;
     const hi = o.band.p90 - shift;
     const lose = change && isLoseGoal(goal, o.start);
-    range = `likely ${lose && lo < 0 && hi < 0 ? fmtMetricRange(o.metric, -hi, -lo, units, energy) : change ? fmtSignedRange(o.metric, lo, hi, units, energy) : fmtMetricRange(o.metric, lo, hi, units, energy)}`;
+    range = lose && lo < 0 && hi < 0 ? fmtMetricRange(o.metric, -hi, -lo, units, energy) : change ? fmtSignedRange(o.metric, lo, hi, units, energy) : fmtMetricRange(o.metric, lo, hi, units, energy);
     const d = (v: number) => toDisplay(o.metric, v, units, energy).value;
     bar = { low: d(Math.min(lo, hi)), high: d(Math.max(lo, hi)), value: d(o.p50 - shift) };
   }
   let status: OutcomeStatus;
   let verdict: string;
-  const tail = chance(o.pTargetMet, !!opts.roundChance);
   if (o.verdict === 'kept') {
     status = 'reached';
     verdict = 'kept';
   } else if (o.verdict === 'reached') {
     status = 'reached';
     const t = o.tttText?.trim();
-    verdict = [t && /^reach/i.test(t) ? t : t ? `reached · ${t}` : 'reached', tail].filter(Boolean).join(' · ');
+    verdict = t && /^reach/i.test(t) ? t : t ? `reached · ${t}` : 'reached';
   } else if (o.verdict === 'notReached') {
     status = o.beyondTwoYears ? 'missed' : 'partial';
     verdict = o.tttText?.trim() || (o.beyondTwoYears ? 'more than two years at this plan’s effort' : 'not reached in this horizon');
@@ -333,7 +389,10 @@ export function outcomeView(
     verdict = [near ? 'near its best' : 'partial', o.grade === 'D' ? 'grade D' : null].filter(Boolean).join(' · ');
   }
   const vsHard = kind === 'hard' || directional ? null : vsHardText(o, goal, change, units, energy);
-  return { rank: o.goal + 1, name, value, range, bar, status, verdict, vsHard, weightType: isWeightMetric(o.metric) };
+  // a scenario or limited forecast keeps its numbers and says so (C6 inline status word)
+  const q = opts.status === 'scenario' || opts.status === 'limited' || opts.status === 'partial' || opts.status === 'exploratory' ? STATUS_LABEL[opts.status] : null;
+  if (q) verdict = `${verdict} · ${q}`;
+  return { rank: o.goal + 1, name, value, range, bar, status, verdict, qualifier: q, vsHard, weightType: isWeightMetric(o.metric) };
 }
 
 /* ---------------------------------------------------------------------------------------------- fasting */
@@ -399,11 +458,25 @@ export interface LimitCostView {
   effort: string | null;
 }
 
+/**
+ * A limit in short plain words (r068 W2-6, W2-7): "08:00–20:00 · 2–4 meals" for "meals between 08:00 and 20:00, 2-4 meals a
+ * day"; a pressed limit drops "(the plan uses all of it)", which pressing already says.
+ */
+export function plainLimit(t: string): string {
+  return t
+    .replace(/\s*\((?:the plan uses all of it|at its bound)\)/g, '')
+    .replace(/meals between (\d{1,2}:\d{2}) and (\d{1,2}:\d{2}), (\d+)(?:\s*[-–]\s*(\d+))? meals? a day/, (_m, a: string, b: string, lo: string, hi?: string) => `${a}–${b} · ${hi ? `${lo}–${hi}` : lo} meal${hi || lo !== '1' ? 's' : ''}`);
+}
+
+/** The limit itself, without its notes: "fasts up to 24 h" for "fasts up to 24 h (what your safety settings allow)". */
+const limitCore = (t: string): string => plainLimit(t).replace(/\s*\([^)]*\)/g, '').split(', ')[0]!.trim();
+
 export function limitCostView(c: LimitCost, goals: readonly RankedGoal[], units: UnitSystem, energy: EnergyUnit = 'kcal'): LimitCostView {
   const deltas = c.deltas.filter((d) => Math.abs(d.delta) > TINY && shownNonZero(d, goals, units, energy)).map((d) => goalDelta(d, goals, units, energy));
   const dD = Math.round(c.deltaD * 100);
   const lead = c.group === 'equipment' ? 'buying' : 'allowing';
-  const tail = c.group === 'equipment' ? '' : ` instead of ${c.current}`;
+  // r068 W2-7: never "allowing fasts up to 24 h instead of fasts up to 24 h"
+  const tail = c.group === 'equipment' || limitCore(c.relaxedTo) === limitCore(c.current) ? '' : ` instead of ${plainLimit(c.current)}`;
   return { group: c.group, lead: `${lead} ${c.relaxedTo}${tail}`, strong: c.relaxedTo, deltas, effort: dD !== 0 ? `effort ${formatSigned(dD, 0)}` : null };
 }
 
@@ -423,7 +496,7 @@ export function idealCosts(ideal: IdealPlanV2, goals: readonly RankedGoal[], uni
 }
 
 export const NOTHING_BINDS_LEAD = 'Your limits cost nothing measurable for these goals.';
-export const NOTHING_BINDS_TAIL = 'Hard already matches the ceiling.';
+export const NOTHING_BINDS_TAIL = 'Hard already matches the Ideal.';
 export const NOTHING_BINDS = `${NOTHING_BINDS_LEAD} ${NOTHING_BINDS_TAIL}`;
 export const IDEAL_KEEPS = 'Your food rules, allergies, safety answers and opt-ins still apply.';
 
@@ -550,15 +623,87 @@ export function fmtTrainingTime(min: number): string {
   return `${h ? `${h} h` : ''}${h && m ? ' ' : ''}${m || !h ? `${m} min` : ''} a week`;
 }
 
-const hungerCell = (s: RungSummary) =>
-  s.hunger.rating === 'unknown' ? 'not modelled yet' : `${s.hunger.rating}${Number.isFinite(s.hunger.peak7Idx) ? ` · peaks ${formatNumber(s.hunger.peak7Idx, 0)} / 100` : ''}`;
+/** D2-06: the hunger burden as its rating word (low · moderate · high · unknown), an uncalibrated forecast status. */
+const hungerCell = (s: RungSummary) => s.hunger.rating;
 
-function safetyCell(s: RungSummary): string {
+/**
+ * The plan's safety status (C5/D4-01/D4-03): the typed evaluation of its final resolved schedule and the independent
+ * audit, when the planner attached one. Absent = Unchecked: an empty list of safety notes is never a verification.
+ */
+export function planSafetyStatus(plan: { safety?: { status: SafetyStatus } | undefined } | null | undefined): SafetyStatus {
+  return plan?.safety?.status ?? 'unchecked';
+}
+
+/** Inline word of a plan safety status (C6 vocabulary: Verified · Unchecked · Limit conflict · Review). */
+export const SAFETY_STATUS_WORD: Readonly<Record<SafetyStatus, string>> = {
+  verified: 'Verified',
+  unchecked: 'Unchecked',
+  conflict: 'Limit conflict',
+  review: 'Review',
+  violation: 'Review',
+};
+
+const BOUND_WORD: Readonly<Record<BoundStatus, string>> = { pass: 'Verified', violation: 'Review', unchecked: 'Unchecked', notApplicable: 'Not applicable' };
+
+function screenLine(label: string, r: JointScreenResult): { key: string; value: string } {
+  if (r.status === 'unchecked' || !(r.M > 0)) return { key: label, value: r.missing.length ? `Unchecked · missing ${r.missing.join(', ')}` : 'Unchecked' };
+  const need = r.required !== null && Number.isFinite(r.required) ? ` · ${r.required} needed` : '';
+  return { key: label, value: `${r.passes} of ${r.M} scenario runs passed every required limit${need}` };
+}
+
+/**
+ * What the plan details say about its safety check (C5/D4-01/D4-03): the status, each typed limit with its unit and
+ * result (an unsupported mandatory limit reads Unchecked), the selection screen and the independent audit as exact
+ * counts of model scenario runs (a design screen, not a probability for the person), and that the outcome holdout is
+ * kept apart. Empty extras for a plan the planner attached nothing to: it is Unchecked.
+ */
+/** Plain names for the safety limits a plan is checked against (r068 PR10: never an internal rule code on screen). */
+const LIMIT_NAME: Readonly<Record<string, string>> = {
+  'deficit-cap': 'Largest deficit (%)',
+  'max-fast': 'Longest fast (h)',
+  'HC-M1': 'Protein floor (g a day)',
+  'HC-M1.deficit': 'Protein floor in a deficit (g a day)',
+  'HC-M3': 'Fat floor (% of energy)',
+};
+
+export function safetyDetails(plan: Pick<PlanOption, 'safety'> | null | undefined): Array<{ key: string; value: string }> {
+  const out: Array<{ key: string; value: string }> = [{ key: 'Status', value: SAFETY_STATUS_WORD[planSafetyStatus(plan)] }];
+  const sf = plan?.safety;
+  if (!sf) return out;
+  // one row per limit: a limit checked on many days (a daily floor) reads "Verified · 112 checks", not 112 rows
+  const groups = new Map<string, { key: string; words: Map<string, number> }>();
+  for (const e of sf.evaluations ?? []) {
+    const base = e.capability === 'unsupported' ? 'Unchecked · not supported' : BOUND_WORD[e.status];
+    const word = e.mandatory ? base : `${base} · optional`;
+    const id = `${e.constraintId}|${e.unit}`;
+    const g = groups.get(id) ?? { key: LIMIT_NAME[e.constraintId] ?? `${e.constraintId} (${e.unit})`, words: new Map<string, number>() };
+    g.words.set(word, (g.words.get(word) ?? 0) + 1);
+    groups.set(id, g);
+  }
+  for (const g of groups.values()) {
+    const words = [...g.words];
+    const total = words.reduce((a, [, n]) => a + n, 0);
+    const value =
+      words.length === 1
+        ? total > 1
+          ? `${words[0]![0]} · ${total} checks`
+          : words[0]![0]
+        : words.map(([w, n]) => `${w} ${n}`).join(' · ');
+    out.push({ key: g.key, value });
+  }
+  for (const c of sf.conflicts ?? []) out.push({ key: c.key, value: `Limit conflict · floor ${formatNumber(c.floor.value, 1)} ${c.floor.unit} above cap ${formatNumber(c.cap.value, 1)} ${c.cap.unit}` });
+  if (sf.selection) out.push(screenLine('Selection screen', sf.selection));
+  out.push(sf.audit ? screenLine('Safety audit', sf.audit) : { key: 'Safety audit', value: 'Not run · Unchecked' });
+  if (sf.outcomeHoldout) out.push({ key: 'Outcome holdout', value: sf.outcomeHoldout.status === 'evaluated' ? `${sf.outcomeHoldout.draws} runs · kept apart from the safety audit` : 'Not run' });
+  if (sf.certificate) out.push({ key: 'Certificate', value: `${sf.certificate.status === 'verified' ? 'Verified' : sf.certificate.status === 'failed' ? 'Failed' : 'Unchecked'} · ${sf.certificate.fingerprint.slice(0, 8)}` });
+  return out;
+}
+
+function safetyCell(s: RungSummary, plan: LadderPlan | null): string {
   const flagged = s.safetyItems.filter((i) => i.severity !== 'info' && !/model projections|not medical advice/i.test(i.text));
-  if (!flagged.length) return 'within safety limits';
   const d = flagged.filter((i) => i.severity === 'danger').length;
   const c = flagged.length - d;
-  return [d ? `${d} danger${d === 1 ? '' : 's'}` : null, c ? `${c} caution${c === 1 ? '' : 's'}` : null].filter(Boolean).join(', ');
+  return [SAFETY_STATUS_WORD[planSafetyStatus(plan)], d ? `${d} danger${d === 1 ? '' : 's'}` : null, c ? `${c} caution${c === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ');
 }
 
 export function equipmentCell(s: RungSummary, kind: PlanKind): string {
@@ -602,9 +747,10 @@ export function comparisonRows(
       cells: each((s, k) => {
         const o = s.outcomes.find((x) => x.goal === i);
         if (!o) return '—';
-        const v = outcomeView(o, g, k, units, { energy });
+        const status = goalStatusOf(planOf(v2, k), i);
+        const v = outcomeView(o, g, k, units, { energy, ...(status ? { status } : {}) });
         if (opts.gentle && v.weightType) return 'hidden in gentle mode';
-        return [v.value, v.range, v.status === 'reached' ? (o.verdict === 'kept' ? 'kept' : 'reached') : v.status === 'missed' || v.status === 'partial' ? 'not reached' : null].filter(Boolean).join(' · ');
+        return [v.value, v.range, v.qualifier, v.status === 'reached' ? (o.verdict === 'kept' ? 'kept' : 'reached') : v.status === 'missed' || v.status === 'partial' ? 'not reached' : null].filter(Boolean).join(' · ');
       }),
     });
   });
@@ -616,13 +762,13 @@ export function comparisonRows(
       return t.length ? t.join(' · ') : '—';
     }),
   });
-  rows.push({ id: 'hunger', label: 'hunger', cells: each(hungerCell) });
+  rows.push({ id: 'hunger', label: 'hunger level', cells: each(hungerCell) });
   rows.push({ id: 'training', label: 'weekly training time', cells: each((s) => fmtTrainingTime(s.weeklyTrainingMin)) });
   rows.push({ id: 'window', label: 'eating window', cells: each((s) => (Number.isFinite(s.meanWindowH) && s.meanWindowH > 0 ? `${formatNumber(s.meanWindowH, s.meanWindowH % 1 ? 1 : 0)} h` : '—')) });
   rows.push({ id: 'fasting', label: 'fasting', cells: each((s) => (opts.gentle ? 'not shown in gentle mode' : fastingLine(s.fasting, v2.fasting).text)) });
   rows.push({ id: 'buy', label: 'things to buy', cells: each(equipmentCell) });
   rows.push({ id: 'limits', label: 'limits it presses', cells: each((s) => (s.bindingLimits.length ? s.bindingLimits.map((b) => b.text || b.label).join(' · ') : 'none')) });
-  rows.push({ id: 'safety', label: 'safety', cells: each(safetyCell) });
+  rows.push({ id: 'safety', label: 'safety', cells: each((s, k) => safetyCell(s, planOf(v2, k))) });
   if (v2.ideal && kinds.includes('ideal')) {
     const ideal = v2.ideal;
     const c = idealCosts(ideal, goals, units, energy);
@@ -645,7 +791,8 @@ export interface ScalePoint {
 
 /**
  * The ladder at a glance (COMPONENTS §13.5): each rung at (effort, goal 1 change), the frontier of the search (goal score
- * against effort, scaled to goal 1's units through Hard so the rungs sit on it) and the Ideal's ceiling.
+ * against effort, scaled to goal 1's units through Hard so the rungs sit on it) and the Ideal's line (`ceiling`: the
+ * best found without your limits, a search result, never a proven ceiling, D4-08).
  */
 export function ladderScale(v2: PlannerResultV2, goal1: RankedGoal | undefined, units: UnitSystem, energy: EnergyUnit = 'kcal') {
   const metric = goal1?.metric;
@@ -662,7 +809,7 @@ export function ladderScale(v2: PlannerResultV2, goal1: RankedGoal | undefined, 
   }
   const io = v2.ideal?.summary.outcomes.find((x) => x.goal === 0);
   const same = idealSameAsHard(v2) !== null;
-  const ceiling = io ? { y: disp(io.change), label: `${same ? 'ceiling = Hard' : 'ceiling (Ideal)'} ${formatSigned(disp(io.change), decimals)}${unit ? `\u2009${unit}` : ''}` } : null;
+  const ceiling = io ? { y: disp(io.change), label: `${same ? 'Ideal = Hard' : 'Ideal'} ${formatSigned(disp(io.change), decimals)}${unit ? `\u2009${unit}` : ''}` } : null;
   // the frontier F(D) in goal score units, mapped through Hard (score at Hard's effort ↔ Hard's change)
   const hard = points.find((p) => p.kind === 'hard');
   const front = [...(v2.ladder.frontier ?? [])].filter((p) => Number.isFinite(p.D) && Number.isFinite(p.g)).sort((a, b) => a.D - b.D);

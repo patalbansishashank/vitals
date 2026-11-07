@@ -35,7 +35,6 @@ UI (React, src/features/*)  ──►  state (Zustand, src/state)  ──►  en
 | `src/commands/`, `src/store/` | command layer (single mutation path) and local-first document store | E4 |
 | `src/sync/`, `src/state/sync/`, `src/net/` | Evolu sync, encrypted blob store, pairing, the only network module | E11 |
 | `src/ai/`, `src/agents/` | provider wrapper and tool registry; WebMCP and Companion client | E9, E12 |
-| `src/biometrics/` | `vitals.biometrics/1`, importers, scores, Web Bluetooth drivers, opt-in policy, engine adapter | E10 |
 | `src/catalogues/`, `src/content/catalogues/` | exercise/equipment/food/supplement schemas, seed data, stimulus mapping, evidence labels | E8 |
 | `src/living/`, `src/features/living/`, `src/features/intake/` | living plan domain; its screens; intake flow | E5, E13, E7b |
 | `src/features/body/figure3d/` | 3D figure and visceral view | E14 |
@@ -118,11 +117,9 @@ primitives) · `src/features/charts` (chart engine wrapper).
 Status as of 2026-10-01: the packages below have landed on their `wp/*` branches and been merged into the integration
 branch (E5, E7, E8, E9–E14); E4 (commands/store) is merged but several executors are still stubs, E6 (planner v2) and
 E9b (Coach on the AI layer) are not finished (see `docs/ROADMAP.md`). Normative specs: `docs/SUITE_SPEC.md` (suite,
-commands, store, sync, AI, biometrics, living plan) and `docs/PLANNER_V2_SPEC.md` (planner).
+commands, store, sync, AI, living plan) and `docs/PLANNER_V2_SPEC.md` (planner).
 
 ```
- devices/files ──► src/biometrics ──► scores ──► engine adapter ──┐   (opt-in per stream; vendor scores never used)
-                                                                  ▼
  UI (features/*) ─┐                                    src/living ──► src/engine/assimilation ──► engine/planner
  AI tools (src/ai)├─► src/commands (dispatch) ─► src/store (documents, IndexedDB) ◄─► src/sync (Evolu, E2E encrypted)
  WebMCP / MCP    ─┘            ▲                                                          │
@@ -181,24 +178,8 @@ commands, store, sync, AI, biometrics, living plan) and `docs/PLANNER_V2_SPEC.md
   `vitals.tools/1`). Settings › Agents is `src/features/settings/agents`.
 - Status: the Coach screen (`src/features/living/coach`) still runs on a mock adapter; wiring it to `src/ai` is E9b.
 
-### Biometrics (`src/biometrics`, docs/biometrics, docs/wp/E10.md)
-- Contract `vitals.biometrics/1` (`core/types.ts`): canonical streams (hr, ibi, hrv, spo2, skin/body temp, steps, sleep
-  stages, …) and records (sleep sessions, workouts, daily summaries, body), with source resolution (`core/resolve.ts`,
-  `source.ts`) so overlapping devices do not double count.
-- Inputs: file importers (`importers/`: canonical JSONL, Apple Health XML/zip, Health Connect, Gadgetbridge SQLite, Health
-  Auto Export, Lumen CloudEvents) and Web Bluetooth drivers (`ble/`: registry, session runner, drivers for the J-Style 2301
-  ring and Colmi R02, recorded-link fake for tests). `ingest/` is the pipeline (validate, dedupe, chunk to the blob
-  store); `store/` holds the in-memory store. Third-party licences: `src/biometrics/LICENSES.md`.
-- Scores are computed from raw data, versioned and re-runnable (`core/scores/`: sleep.index 4.0.0 and readiness.index
-  1.0.0 as exact ports of the Android estimators, VO2max Kalman ladder, load/ACWR, HRV status with a 60-day baseline,
-  resting HR, night vitals, overreaching, autonomic, illness signal; `rescore.ts`, `ingest/rescoreJob.ts`). Vendor scores
-  are stored but never taken at face value.
-- Boundary to the engine: `core/policy.ts` is the opt-in matrix (all streams off by default; only eligible streams can
-  drive the engine) and `core/engineAdapter.ts` turns resolved days and scores into observation inputs with provenance
-  (measured / estimated / assumed). Flow: importers or drivers → ingest → store/blobs → scores → policy → engine adapter →
-  `src/living` (`LoggedDay` observations) → assimilation. Pure tier (P) except `ble/`, `importers/` and `ingest/` (H).
-- Status: the `bio.*` commands are stubs, and Settings › Devices defers to the intake's devices chapter
-  (`src/features/intake/chapters/devices.ts`) until the stream matrix UI lands.
+### Ring and phone data
+The Android app contains the ring engine. It connects over Bluetooth, reads permitted phone data, and uploads through the person's home server. Web and desktop read those server answers. `src/living` combines approved device entries with the person's logs; its experimental wellness indices are calculated in Vitals. Older scores calculated on the phone remain labelled as on-device scores. The `/v1/gauge/*` routes and `gauge_*` tool names remain for compatibility.
 
 ### Catalogues (`src/catalogues`, `src/content/catalogues`, docs/CATALOGUES.md)
 - Pure (no React/state/clock). Schemas and `createCatalogue`/`validateCatalogue` (`catalogue.ts`, `types.ts`); stimulus
@@ -245,7 +226,7 @@ commands, store, sync, AI, biometrics, living plan) and `docs/PLANNER_V2_SPEC.md
   docs/wp/E14.md. It is not mounted on the Body page yet (only the `/dev/figure` route uses it).
 
 ### Companion (`packages/companion`, its README)
-- `vitals-companion`: an optional Node (22.18+) program the user runs on their own machine; Node runs the TypeScript directly.
+- `vitals-companion`: an optional Node (26.10.0+) program the user runs on their own machine; Node runs the TypeScript directly.
   Subcommands `sync`, `serve`, `proxy`, `pair`, `mcp`, `keys`, `siwc` on one port (default `127.0.0.1:4870`).
 - It provides what a static app cannot: a sync relay and blob store (`relay.ts`, `blobs.ts`, `evoluNode.ts`); an AI proxy
   for providers that need a server-held key or sign-in (`proxy.ts`: NVIDIA NIM, OpenCode Zen, Sign in with ChatGPT with
@@ -257,9 +238,9 @@ commands, store, sync, AI, biometrics, living plan) and `docs/PLANNER_V2_SPEC.md
 - Not part of the static deploy; the app works without it.
 
 ### Evidence library additions (`src/content/evidence`, `src/features/evidence`)
-- Six new topics (dossier files 22-27): Daily activity and maintenance energy, Scores from wearable data, Tracking and
-  re-planning, Training catalogue evidence, Supplements, How Vitals weighs evidence. They are registered in
-  `content/evidence/index.ts` (files `topics/22-*` to `27-*`). After-launch research pointers on parameters ("R1 §3.2")
+- New topics (dossier files 22 and 24-27): Daily activity and maintenance energy, Tracking and re-planning, Training
+  catalogue evidence, Supplements, How Vitals weighs evidence. They are registered in `content/evidence/index.ts` (files
+  `topics/22-*` and `24-*` to `27-*`). Topic 23, Scores from wearable data, was removed in 0.6.0. After-launch research pointers on parameters ("R1 §3.2")
   map to these topics in `sources.ts`, so parameter evidence lines cite them by name.
 - Parameter cards: a mechanism lists `relatedParamIds`; `content/evidence/params.ts` resolves them against every
   `ParamDef` (engine modules, activity intake, assimilation, catalogue constants) so a card shows value, range, grade and
@@ -274,7 +255,7 @@ commands, store, sync, AI, biometrics, living plan) and `docs/PLANNER_V2_SPEC.md
 
 ### Boundaries that hold across the suite
 - Client-only: the production site is static; there is no backend, no account, no analytics and no data held by us.
-- Engine and `src/living`, `src/catalogues`, `src/biometrics/core` (except `ble`/`importers`/`ingest`) stay pure: no DOM, React,
+- Engine and `src/living`, `src/catalogues` stay pure: no DOM, React,
   clock or randomness; effects arrive through ports.
 - All writes are commands; all network goes through `src/net`; secrets never enter synced documents or exports
   (`vitals-net.*`, `vitals-companion.*` keys are device-local).

@@ -239,14 +239,12 @@ export function ClockRing({
   const fastHours = fast ? fast.hours : 24 - w.length;
   const oneMeal = times.length === 1;
   const centre1 = `fast ${hoursText(fastHours)} h`;
-  const whole = Math.abs(w.length - Math.round(w.length)) < 1e-6;
   const centre2 = fast
     ? fast.caption
     : oneMeal
       ? 'one meal'
-      : whole
-        ? `${24 - Math.round(w.length)}:${Math.round(w.length)}`
-        : `window ${hoursText(w.length)} h`;
+      : // r068 W2-10: "window 12 h", never the "12:12" ratio
+        `window ${hoursText(w.length)} h`;
 
   const sessionsShown = sessions.map((s, i) =>
     draftSession?.i === i ? { ...s, startH: draftSession.startH } : s,

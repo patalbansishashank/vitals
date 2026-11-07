@@ -1,4 +1,4 @@
-// The visceral view (R2 sec. 3.4): the waist slice as a plate on the same dotted stage as the 3D figure (a small
+// The visceral view (R2 sec. 3.4): the waist slice as a plate straight on the card, like the 3D figure (a small
 // figure in the corner marks where the slice is taken), one accessible image named by `visceralWords`, and the numbers,
 // band scale and legend underneath, framed like the figure's layer strip. Pure view of AvatarParams; the drawing eases
 // to new numbers (reduced motion snaps), the words change at once.

@@ -7,14 +7,19 @@ import type { ModuleContext } from '../../types/module';
 import { param } from '../../core/paramsRegistry';
 import { decayFactor } from '../../core/math';
 import { MICRO_NUTRIENTS, N_MICRO } from './microTables';
+import { driReferences, type DriPerson } from './dri';
 
 /** Capacity of every daily ring (windows are clamped to it). */
 export const RING_CAP = 32;
 
 export interface WellbeingConstants {
-  // ------------------------------------------------------------ recording (MODEL_SPEC §0.3: display-only layers are skipped
-  // when their series is not recorded, e.g. planner mode); signals other modules read are always computed
-  /** 1 when `micronutrientScore` / `enduranceCapacity` / `moodTier` / `hipBmdChange` is recorded. */
+  // ------------------------------------------------------------ recording (MODEL_SPEC §0.3; D8-01 dependency closure)
+  /**
+   * 1 when `micronutrientScore` / `enduranceCapacity` / `moodTier` / `hipBmdChange` is recorded. Only genuinely
+   * display-only work is skipped with these flags (the pattern score, the endurance research index, the BMD research
+   * scenario); exposure states (EA, known nutrients incl. calcium), signals other modules read and the concern flags are
+   * always computed, so a recording mask never changes shared outputs, safety or continuation state.
+   */
   recMicro: number;
   recEndurance: number;
   recMood: number;
@@ -26,10 +31,14 @@ export interface WellbeingConstants {
   boneSexF: number;
   /** 0 pre, 1 peri, 2 post menopause. */
   menopause: number;
-  /** 1 when menstruating (female-like and not postmenopausal). */
+  /**
+   * Stated menstrual status (D8-08): 1 yes, 0 no (a stated "no" or post-menopause), −1 unknown. Never inferred from sex or
+   * age; unknown leaves life-stage reference applicability unresolved and does not trigger the menstrual iron rule.
+   */
   menstruating: number;
   /** 0 omnivore, 1 pescatarian, 2 vegetarian, 3 vegan. */
   animalLevel: number;
+  /** Reported multivitamin use (composition unknown): informational only, no nutrient credit (D8-08). */
   multivitamin: number;
   /** Habitual references for state initialisation. */
   eiHabKcal: number;
@@ -66,21 +75,19 @@ export interface WellbeingConstants {
   fLowChoP1npDecay: number;
   fLowChoCtxDecay: number;
 
-  // ------------------------------------------------------------ BMD
+  // ------------------------------------------------------------ BMD research scenario (D8-05: no RT-set protection, no
+  // calcium multiplier, no automatic recovery; those parameters stay registered as INACTIVE)
   kHip: number;
   kSpine: number;
   mAgeHigh: number;
   ageStepYears: number;
-  rhoRt: number;
-  rtPerWeekMin: number;
   mSrcEx: number;
   srcShare: number;
-  mCaLow: number;
-  caThresholdMg: number;
   fBmdLoss: number;
-  fBmdRec: number;
 
-  // ------------------------------------------------------------ strength
+  // ------------------------------------------------------------ strength (exploratory structural scenario, D8-04)
+  /** 1 = legacy baseline-relative EA penalty, 0 = the no-penalty structural alternative. */
+  strengthPenaltyOn: number;
   strengthA: number;
   strengthWidth: number;
   strengthCap: number;
@@ -145,15 +152,21 @@ export interface WellbeingConstants {
   ironRiskKcal: number;
   ironRiskTrainHWk: number;
   ironVegMult: number;
+  /** Observation window of the known-nutrient summaries, days (≤ RING_CAP). */
+  nutWindow: number;
+  /** Adequate Intakes of α-linolenic and linoleic acid for the person's life stage, g/d (NASEM; sex-blended when unspecified). */
+  efaAiAlaG: number;
+  efaAiLaG: number;
+  /** Iodine EAR for the person's life stage, µg/d (NASEM; applied only to a KNOWN logged iodine amount). */
+  iodineEarUg: number;
   /**
    * Effective density per 1000 kcal for every nutrient and every (food-quality class × carbohydrate pattern) combination:
    * index (qClass·2 + lowCarb)·N_MICRO + n, qClass 0 = quality 1, 1 = quality 2, 2 = quality 3. Already includes the
    * animal-food pattern of the profile (15 §4.9 tables), which is constant for a run.
    */
   microD: Float64Array;
-  /** 1/EAR per nutrient (sex-blended, post-menopausal iron, vegetarian iron ×1.8) and the multivitamin contribution to R = intake/EAR. */
+  /** 1/EAR per nutrient (sex-blended, non-menstruating iron, vegetarian iron ×1.8). No multivitamin credit (D8-08). */
   microInvEar: Float64Array;
-  microMvmR: Float64Array;
 }
 
 const P = 'wellbeing.';
@@ -171,6 +184,9 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
   const boneSexF = sexMix * boneSexFMale + (1 - sexMix) * 1;
   const menopause = pr.menopause === 'post' ? 2 : pr.menopause === 'peri' ? 1 : 0;
   const femaleLike = 1 - sexMix > 0;
+  // D8-08: only a stated status (or post-menopause) counts; female sex or age never imply menstruation
+  const stated = pr.cycle.menstruating;
+  const menstruating = !femaleLike || menopause === 2 || stated === 'no' ? 0 : stated === 'yes' ? 1 : -1;
   const level = pr.habits.dietAnimalLevel;
   const animalLevel = level === 'vegan' ? 3 : level === 'vegetarian' ? 2 : level === 'pescatarian' ? 1 : 0;
 
@@ -179,7 +195,8 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
   const weightWin = Math.min(RING_CAP, Math.max(2, Math.round(g('weightWindowD'))));
   const sxx = (weightWin * (weightWin * weightWin - 1)) / 12;
 
-  // ---- keto-induction: τ_p with the heavy tail mapped from the latent quantile (MODEL_SPEC §8.1)
+  // ---- keto-induction: τ_p with the heavy tail mapped from the latent quantile U ~ Uniform(0, 1) (MODEL_SPEC §8.1, D8-02):
+  // the designed heavy branch (fraction 0.25) is selected when U > 1 − fraction; nominal U = 0.5 → ordinary branch
   const heavyFrac = g('ketoHeavyTailFraction');
   const ketoTau = g('ketoHeavyTailQuantile') > 1 - heavyFrac ? g('ketoTauPHeavy') : g('ketoTauP');
 
@@ -192,10 +209,6 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
   // ---- micronutrient tables → run-constant arrays indexed like MICRO_NUTRIENTS (see the field docs)
   const microD = new Float64Array(6 * N_MICRO);
   const microInvEar = new Float64Array(N_MICRO);
-  const microMvmR = new Float64Array(N_MICRO);
-  const rda = g('microMvmVitaminRdaMult');
-  const mineralFrac = g('microMvmMineralFrac');
-  const mvm = pr.habits.multivitamin ? 1 : 0;
   for (let i = 0; i < N_MICRO; i++) {
     const n = MICRO_NUTRIENTS[i]!;
     const q1 = gOr(`micro.${n.key}.q1`, 1);
@@ -211,15 +224,20 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
     }
     const isIron = n.key === 'iron';
     const earM = g(`micro.${n.key}.earM`);
-    // post-menopausal women use the men's iron EAR (RDA 8 mg, 15 §4.9)
-    const earF = isIron && menopause === 2 ? earM : g(`micro.${n.key}.earF`);
+    // non-menstruating women (post-menopause or a stated "no") use the men's iron EAR (RDA 8 mg, 15 §4.9)
+    const earF = isIron && menstruating === 0 && femaleLike ? earM : g(`micro.${n.key}.earF`);
     let ear = sexMix * earM + (1 - sexMix) * earF;
     if (isIron && animalLevel >= 2) ear *= g('microIronVegMult');
     microInvEar[i] = ear > 0 ? 1 / ear : 0;
-    // multivitamin: vitamins 100 % of the RDA (1.2 EAR), Mg/Ca 40 % of the RDA, other minerals 0 (15 §4.9)
-    const mvmEar = n.mvm === 'vitamin' ? rda : n.mvm === 'mineral' ? mineralFrac * rda : 0;
-    microMvmR[i] = mvm === 1 ? mvmEar : 0;
+    // D8-08: a multivitamin of unknown composition adds no dose (the 15 §4.9 1.2-EAR / 40 %-RDA credit is retired)
   }
+
+  // D8-08: essential fatty-acid Adequate Intakes for the life stage (known ALA/LA intake replaces the total-fat proxy)
+  const ai = (n: 'ala' | 'linoleic', sex: DriPerson['sex']): number => driReferences(n, { sex, ageYears: pr.ageYears, menstruating: 'unknown' }).ai?.value ?? 0;
+  const efaAiAlaG = sexMix * ai('ala', 'male') + (1 - sexMix) * ai('ala', 'female');
+  const efaAiLaG = sexMix * ai('linoleic', 'male') + (1 - sexMix) * ai('linoleic', 'female');
+  const earOf = (n: 'iodine', sex: DriPerson['sex']): number => driReferences(n, { sex, ageYears: pr.ageYears, menstruating: 'unknown' }).ear?.value ?? 0;
+  const iodineEarUg = sexMix * earOf('iodine', 'male') + (1 - sexMix) * earOf('iodine', 'female');
 
   const rec = (id: 'micronutrientScore' | 'enduranceCapacity' | 'moodTier' | 'hipBmdChange'): number =>
     ctx.seriesEnabled && ctx.seriesEnabled.length > 0 ? (ctx.seriesEnabled[SERIES_INDEX[id]] === 1 ? 1 : 0) : 1;
@@ -231,7 +249,7 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
     sexMix,
     boneSexF,
     menopause,
-    menstruating: femaleLike && menopause < 2 ? 1 : 0,
+    menstruating,
     animalLevel,
     multivitamin: pr.habits.multivitamin ? 1 : 0,
     eiHabKcal: pr.tdee0Kcal,
@@ -270,15 +288,11 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
     kSpine: g('bmdKSpine'),
     mAgeHigh: g('bmdMAgeHigh'),
     ageStepYears: g('bmdAgeStepYears'),
-    rhoRt: g('bmdRhoRt'),
-    rtPerWeekMin: g('bmdRtSessionsPerWeek'),
     mSrcEx: g('bmdMSrc'),
     srcShare: g('bmdSrcShare'),
-    mCaLow: g('bmdMCaLow'),
-    caThresholdMg: g('bmdCaThresholdMg'),
     fBmdLoss: decayFactor(1, g('bmdTauLoss')),
-    fBmdRec: decayFactor(1, g('bmdTauRecovery')),
 
+    strengthPenaltyOn: gOr('strengthPenaltyStructure', 1) > 0.5 ? 1 : 0,
     strengthA: g('strengthA'),
     strengthWidth: g('strengthEaWidth'),
     strengthCap: g('strengthEaRampCap'),
@@ -337,8 +351,11 @@ export function buildConstants(ctx: ModuleContext): WellbeingConstants {
     ironRiskKcal: g('microIronRiskKcal'),
     ironRiskTrainHWk: g('microIronRiskTrainHWk'),
     ironVegMult: g('microIronVegMult'),
+    nutWindow: Math.min(RING_CAP, Math.max(1, Math.round(gOr('microObservationWindowD', 28)))),
+    efaAiAlaG,
+    efaAiLaG,
+    iodineEarUg,
     microD,
     microInvEar,
-    microMvmR,
   };
 }

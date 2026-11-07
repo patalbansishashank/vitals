@@ -1,20 +1,21 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
-import {
-  EmptyStage,
-  Faceplate,
-  Key,
-  KeyLink,
-  Notice,
-  ProgressRule,
-  Skeleton,
-  useReducedMotion,
-} from '@/components';
+import { EmptyStage, Key, KeyLink, Page, ProgressRule, Skeleton, useReducedMotion } from '@/components';
+import { TopBar, type BackTarget } from '@/app/shell';
 import { paths } from '@/app/paths';
+import { useGradesHelp } from '../GradeLegend';
 import type { MechanismState } from '../hooks';
 import { Disclaimer } from './bits';
 import { MechanismArticle, articleSections } from './MechanismArticle';
-import { EvidenceLayout, MiniHeader, OnThisPage, TopicNav, jumpToSection, useActiveSection } from './PageNav';
+import {
+  EvidenceLayout,
+  OnThisPage,
+  TopicNav,
+  jumpToSection,
+  useActiveSection,
+  useContents,
+  useTitleScrolledAway,
+} from './PageNav';
 
 const isEditable = (t: EventTarget | null): boolean => {
   const el = t as HTMLElement | null;
@@ -23,10 +24,9 @@ const isEditable = (t: EventTarget | null): boolean => {
 
 export function ArticleLoading({ label }: { label: string }) {
   return (
-    <div className="ev-article lm-face" aria-busy="true">
+    <div className="ev-article" aria-busy="true">
       <ProgressRule label={label} reducedText="Loading…" className="ev-progress" />
       <div className="ev-article__skeleton" aria-hidden="true">
-        <Skeleton width={180} height={10} />
         <Skeleton width="80%" height={24} />
         <Skeleton width="45%" height={14} />
         <Skeleton lines={4} height={14} />
@@ -39,11 +39,15 @@ export interface ArticleViewProps {
   state: MechanismState;
   lg: boolean;
   xl: boolean;
-  returnTo?: { to: string; label: string };
+  /** The header's Back: where the reader came from (the library, a topic, or Explain's chart). */
+  back: BackTarget;
 }
 
-/** `/evidence/:mechanismId`: states around the article, focus on arrival, j/k, "on this page". */
-export function ArticleView({ state, lg, xl, returnTo }: ArticleViewProps) {
+/**
+ * `/evidence/:mechanismId`, a pushed page: the header (Back, the mechanism's name, the ⋯ with "On this page" and
+ * "How grades work"), then the article. Focus lands on the title (or the requested section); j/k walk the sections.
+ */
+export function ArticleView({ state, lg, xl, back }: ArticleViewProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const location = useLocation();
   const reduced = useReducedMotion();
@@ -53,6 +57,9 @@ export function ArticleView({ state, lg, xl, returnTo }: ArticleViewProps) {
   const ids = sections.map((s) => s.id);
   const idsKey = ids.join('|');
   const active = useActiveSection(ids, ready);
+  const jump = (id: string) => jumpToSection(id, reduced);
+  const contents = useContents(sections, active, jump);
+  const grades = useGradesHelp();
 
   // Arrival: go to the requested section (Explain opens at "equation"), else focus the title.
   useEffect(() => {
@@ -94,90 +101,89 @@ export function ArticleView({ state, lg, xl, returnTo }: ArticleViewProps) {
     return () => document.removeEventListener('keydown', onKey);
   }, [ready, lg, idsKey, active, reduced]);
 
+  const found = ready && m && state.topic ? { m, topic: state.topic } : null;
+  const away = useTitleScrolledAway(headingRef, found?.m.id);
+  const header = (
+    <TopBar
+      title={
+        found ? (
+          <span className="ev-hdrtitle" data-shown={away || undefined}>
+            {found.m.title}
+          </span>
+        ) : (
+          'Evidence'
+        )
+      }
+      documentTitle={found ? found.m.title : state.status === 'not-found' ? 'Mechanism not found' : 'Evidence'}
+      back={back}
+      menu={found ? (xl ? [grades.menuItem] : [contents.menuItem, grades.menuItem]) : undefined}
+    />
+  );
+
+  let body;
   if (state.status === 'loading') {
-    return (
+    body = (
       <EvidenceLayout side={lg ? <span /> : null}>
         <ArticleLoading label="Loading the mechanism" />
       </EvidenceLayout>
     );
-  }
-
-  if (state.status === 'not-found' || !m || !state.topic) {
-    if (state.status === 'error') {
-      return (
-        <EvidenceLayout side={lg ? <span /> : null}>
-          <Faceplate as="div" className="ev-state">
-            <Notice
-              severity="danger"
-              layout="ruled"
-              title="This part of the library couldn’t be loaded."
-              actions={
-                <>
-                  <Key size="sm" onClick={state.retry}>
-                    Try again
-                  </Key>
-                  <KeyLink size="sm" variant="quiet" to={paths.evidence}>
-                    Go to Evidence
-                  </KeyLink>
-                </>
-              }
-            >
-              <p>
-                Vitals may have been updated while this tab was open, or the connection dropped. Your data is
-                safe.
-              </p>
-            </Notice>
-          </Faceplate>
-        </EvidenceLayout>
-      );
-    }
-    return (
+  } else if (state.status === 'error') {
+    body = (
+      <EvidenceLayout side={lg ? <span /> : null}>
+        <EmptyStage
+          title="This part of the library couldn’t be loaded."
+          action={
+            <>
+              <Key onClick={state.retry}>Try again</Key>
+              <KeyLink variant="text" to={paths.evidence}>
+                Go to Evidence
+              </KeyLink>
+            </>
+          }
+        >
+          Vitals may have been updated, or the connection dropped. Your data is safe.
+        </EmptyStage>
+      </EvidenceLayout>
+    );
+  } else if (!found) {
+    body = (
       <EvidenceLayout side={lg ? <span /> : null}>
         <EmptyStage
           title="No mechanism with this address."
-          art={null}
           action={
             <KeyLink variant="solid" to={paths.evidence}>
               Search the library
             </KeyLink>
           }
-        >
-          {`“${state.id ?? ''}” isn’t in the library. It may have been renamed.`}
-        </EmptyStage>
+        />
       </EvidenceLayout>
     );
-  }
-
-  const jump = (id: string) => jumpToSection(id, reduced);
-
-  return (
-    <>
+  } else {
+    body = (
       <EvidenceLayout
-        side={lg ? <TopicNav topic={state.topic} currentId={m.id} /> : null}
+        side={lg ? <TopicNav topic={found.topic} currentId={found.m.id} /> : null}
         aside={xl ? <OnThisPage sections={sections} active={active} onJump={jump} /> : null}
         asideLabel="On this page"
       >
         <MechanismArticle
-          key={m.id}
-          mechanism={m}
-          topic={state.topic}
+          key={found.m.id}
+          mechanism={found.m}
+          topic={found.topic}
           index={state.index ?? 0}
           headingRef={headingRef}
-          returnTo={returnTo}
+          onGradesHelp={grades.show}
         />
         <Disclaimer />
       </EvidenceLayout>
-      {!lg ? (
-        <MiniHeader
-          key={m.id}
-          title={m.title}
-          grade={m.grade}
-          sections={sections}
-          active={active}
-          onJump={jump}
-          watch={headingRef}
-        />
-      ) : null}
+    );
+  }
+
+  return (
+    <>
+      {header}
+      <Page className="ev-page">{body}</Page>
+      {found && !xl ? contents.panel : null}
+      {grades.panel}
     </>
   );
 }

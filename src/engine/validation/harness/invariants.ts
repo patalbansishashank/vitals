@@ -14,6 +14,18 @@
  *   O-8  checkCarbFatSwap      R-NOINS: isocaloric isoprotein carbohydrate↔fat swap, 14 d
  *   O-9  checkSequenceInvariance   R-SEQ: permutations of the same weekly blocks, 12 wk
  *   O-11 measureRunMs          180-d all-module run, record 'daily'
+ * Review release (2026-10-18/19, W3-validation) — contracts C2/C3/C7 as invariants on the real engine:
+ *   D1-08 checkConservationThroughModelLimit   identities hold up to a numerical model-limit termination; nothing after it
+ *                                              is a forecast (recorded values NaN, status modelLimit)
+ *   D2-05 checkNitrogenBoundary  water fast: body-N change = −urinary-N prior (N_absorbed = 0, no second fecal charge);
+ *                                urinary N, lean tissue and scale are different quantities
+ *   D5-03 checkOffsetLedger      a zero correction is the legacy run bit for bit; the intake echo stays the logged intake;
+ *                                applied kcal are booked per day (zero-energy days skipped) and conservation holds
+ *   D6-02 checkIngestionAudit    every submitted kcal is registered and appears or stays in the gut (audit imbalance 0);
+ *   D6-08                        the standard projection applies no generic fibre/nut ME correction
+ *   D8-01 checkRecordingMaskEquivalence / checkSnapshotContinuation   recording masks change no shared output, safety
+ *                                trace or final state; capture/continue under one mask equals the uninterrupted run and
+ *                                a snapshot of another mask is rejected
  * Tolerances that are not in the spec (steady-state drifts) are WP-V proposals, exported as constants and overridable.
  */
 import { compileSchedule } from '../../core/compileSchedule';
@@ -25,6 +37,12 @@ import { wakeRecordHour } from '../../core/math';
 import type { PersonProfile, RunOptions, Schedule, SimulationResult } from '../../types';
 import { SERIES, seriesDef, type SeriesId } from '../../types/metrics';
 import { buildSchedule, constantSchedule, habitualWeekSchedule, neutralMacros, pctMacros, pctProgram, waterOnlyProgram } from '../fixtures/programs';
+import type { AnyEngineModule } from '../../types/module';
+import type { IntakeOffset } from '../../types/result';
+import { intakeModule, type IntakeState } from '../../model/intake';
+import { intakeEnergyAudit } from '../../model/intake/energyBasis';
+import { makeCtx as intakeCtx } from '../../model/intake/__tests__/harness';
+import type { FastingState } from '../../model/fasting';
 import { DEFAULT_ARM_OPTIONS, runArm } from './run';
 import type { ArmSpec } from './types';
 import { ArmView } from './view';
@@ -440,4 +458,213 @@ export function measureRunMs(profile: PersonProfile, days = 180, runs = 7): Perf
   for (let i = 0; i < runs; i++) t.push(runEngine(rp, cs, { record: 'daily', checks: false }).meta.runtimeMs);
   t.sort((x, y) => x - y);
   return { bestMs: t[0]!, medianMs: t[Math.floor(t.length / 2)]!, runs };
+}
+
+// ------------------------------------------------------------------ review release invariants (C2/C3/C7)
+
+/**
+ * D1-08: run with conservation checks; when the run ends at a numerical model limit, the hourly/daily energy and mass
+ * identities must hold for every committed hour, no daily value from the first uncommitted day on may be recorded (NaN:
+ * post-boundary values are not forecasts) and the recorded tissue series carry the model-limit status from that day. Without
+ * a limit it is plain O-4/O-5 conservation; `limitReached` says which case ran.
+ */
+export function checkConservationThroughModelLimit(profile: PersonProfile, schedule: Schedule, tol: typeof CONSERVATION_TOL = CONSERVATION_TOL): InvariantReport & { limitReached: boolean } {
+  const rp = resolveProfile(profile);
+  const r = runEngine(rp, compileSchedule(schedule, rp), { ...DEFAULT_ARM_OPTIONS, record: 'daily', checks: true });
+  const c = r.meta.checks;
+  const checks: InvariantCheck[] = [];
+  if (!c) checks.push({ name: 'checks present', pass: false, value: 0, limit: 1, unit: '' });
+  else {
+    checks.push(le('hourly energy identity through the last committed hour', c.energyMaxAbsKcal, tol.hourlyKcal, 'kcal'));
+    checks.push(le('daily energy identity through the last committed day', c.energyDayMaxAbsKcal, tol.dailyKcal, 'kcal'));
+    checks.push(le('mass identity through the last committed hour', c.massMaxAbsKg, tol.massKg, 'kg'));
+  }
+  const v = r.meta.validity;
+  const limitReached = v?.status === 'modelLimit';
+  if (limitReached) {
+    const through = v!.validThroughHour ?? -1;
+    const firstOpen = Math.floor((through + 1) / 24);
+    let recorded = 0;
+    for (const [id, arr] of Object.entries(r.daily) as [SeriesId, Float32Array][]) for (let d = firstOpen; d < arr.length; d++) if (Number.isFinite(arr[d]!)) {
+      recorded++;
+      if (recorded === 1) checks.push({ name: 'no recorded value after the model limit', pass: false, value: 1, limit: 0, unit: 'values', detail: `${id}[${d}]` });
+    }
+    if (recorded === 0) checks.push({ name: 'no recorded value after the model limit', pass: true, value: 0, limit: 0, unit: 'values' });
+    const st = r.meta.outputStatus?.fatMass;
+    checks.push({ name: 'fat mass carries the model-limit status from the first uncommitted day', pass: st?.status === 'modelLimit' && (st.fromDay ?? 0) <= firstOpen, value: st?.fromDay ?? -1, limit: firstOpen, unit: 'day', detail: `${st?.status ?? 'no status'} (${v!.reasonCode})` });
+  }
+  return { ...report('O-4/D1-08', `conservation ${limitReached ? 'up to the model-limit termination' : '(no model limit reached)'}`, checks), limitReached };
+}
+
+/**
+ * D2-05: a water fast of `fastDays` full days after one normal day. On every full fast day the body-N change composition
+ * books (`nitrogenBalance`) equals minus the fasting model's urinary-N prior within `relTol` (N_absorbed = 0; no second fecal
+ * or other-loss subtraction), and lean tissue, protein and scale weight move by different amounts (lean = protein × (1 +
+ * hydration); the scale also carries glycogen, water and gut contents).
+ */
+export function checkNitrogenBoundary(profile: PersonProfile, fastDays = 4, relTol = 0.02): InvariantReport {
+  const rp = resolveProfile(profile);
+  const n = fastDays + 3;
+  const sched = buildSchedule({
+    days: n,
+    programs: [pctProgram('m', 100, neutralMacros(profile.body.sex)), waterOnlyProgram()],
+    use: (d) => (d >= 1 && d <= fastDays ? 1 : 0),
+    events: [{ kind: 'fast', startDay: 0, startH: 20, durationH: 24 * fastDays }],
+  });
+  const uN: number[] = [];
+  const mods: AnyEngineModule[] = MODULES.map((m) => {
+    if (m.id !== 'fasting') return m;
+    const inner = m.stepHour.bind(m);
+    return {
+      ...m,
+      stepHour: (st: object, k: object, bus: Parameters<AnyEngineModule['stepHour']>[2], hour: Parameters<AnyEngineModule['stepHour']>[3], day: Parameters<AnyEngineModule['stepHour']>[4], clock: Parameters<AnyEngineModule['stepHour']>[5]) => {
+        inner(st, k, bus, hour, day, clock);
+        if (clock.hourOfDay === 23 && clock.day >= 0) uN[clock.day] = (st as FastingState).uNTodayG;
+      },
+    } as AnyEngineModule;
+  });
+  const r = runEngine(rp, compileSchedule(sched, rp), { ...DEFAULT_ARM_OPTIONS, record: 'daily', checks: true }, mods);
+  const checks: InvariantCheck[] = [];
+  const nb = r.daily.nitrogenBalance;
+  let worst = 0;
+  for (let d = 2; d <= fastDays; d++) {
+    const u = uN[d] ?? Number.NaN;
+    const t = nb?.[d] ?? Number.NaN;
+    worst = Math.max(worst, Math.abs(-t - u) / Math.max(1e-9, u));
+  }
+  checks.push(le('full fast days: −body-N change = urinary-N prior (relative)', worst, relTol, '1'));
+  const lt = r.daily.leanTissue!;
+  const sc = r.daily.scaleWeight!;
+  const dLt = Math.abs(lt[fastDays]! - lt[0]!);
+  const proteinKg = (6.25 * uN.slice(1, fastDays + 1).reduce((a, b) => a + (b ?? 0), 0)) / 1000;
+  checks.push({ name: 'lean tissue loss is more than the protein mass (hydration convention), not equal to it', pass: dLt > proteinKg, value: dLt, limit: proteinKg, unit: 'kg' });
+  checks.push({ name: 'scale change is more than the lean tissue change (glycogen, water, gut)', pass: Math.abs(sc[fastDays]! - sc[0]!) > dLt, value: Math.abs(sc[fastDays]! - sc[0]!), limit: dLt, unit: 'kg' });
+  return report('D2-05', `nitrogen boundary over a ${fastDays}-day water fast`, checks);
+}
+
+/**
+ * D5-03: the energy-balance correction is booked as applied kcal per day and never rewrites the logged intake. A zero
+ * correction reproduces the uncorrected run bit for bit; with `offsets` the intake echo (`inEnergy`) equals the uncorrected
+ * one, zero-energy days are skipped with a reason, no day applies more than requested and conservation holds; the absorbed
+ * energy rises by the applied total up to what is still in the gut at the horizon (`tailKcal`).
+ */
+export function checkOffsetLedger(profile: PersonProfile, schedule: Schedule, offsets: readonly IntakeOffset[], tailKcal = 600): InvariantReport {
+  const rp = resolveProfile(profile);
+  const cs = compileSchedule(schedule, rp);
+  const base = runEngine(rp, cs, { ...DEFAULT_ARM_OPTIONS, record: 'daily', checks: true });
+  const zero = runEngine(rp, cs, { ...DEFAULT_ARM_OPTIONS, record: 'daily', checks: true, intakeOffsetKcal: [{ fromDay: 0, kcal: 0 }] });
+  const corr = runEngine(rp, cs, { ...DEFAULT_ARM_OPTIONS, record: 'daily', checks: true, intakeOffsetKcal: offsets });
+  const checks: InvariantCheck[] = [];
+  const d0 = firstDifference(base, zero);
+  checks.push({ name: 'a zero correction is the uncorrected run bit for bit', pass: d0 === null, value: d0 === null ? 0 : 1, limit: 0, unit: 'differences', ...(d0 ? { detail: d0 } : {}) });
+  checks.push({ name: 'the intake echo keeps the logged intake', pass: sameFloat(base.daily.inEnergy, corr.daily.inEnergy), value: sameFloat(base.daily.inEnergy, corr.daily.inEnergy) ? 0 : 1, limit: 0, unit: 'differences' });
+  const applied = corr.meta.offsetsApplied ?? [];
+  let over = 0;
+  let skippedOk = 0;
+  let zeroDays = 0;
+  for (const a of applied) {
+    if (Math.abs(a.appliedKcal) > Math.abs(a.requestedKcal) + 1e-9) over++;
+    const eDay = cs.days[a.day]?.energyKcal ?? 0;
+    if (eDay <= 0) {
+      zeroDays++;
+      if (a.appliedKcal === 0 && a.skippedReason === 'zeroEnergyDay') skippedOk++;
+    }
+  }
+  checks.push({ name: 'no day applies more than it requested', pass: over === 0, value: over, limit: 0, unit: 'days' });
+  checks.push({ name: 'zero-energy days are skipped with their reason (A stays flat there)', pass: skippedOk === zeroDays, value: zeroDays - skippedOk, limit: 0, unit: 'days' });
+  const c = corr.meta.checks;
+  checks.push(le('conservation with the correction (hourly identity)', c?.energyMaxAbsKcal ?? Number.NaN, CONSERVATION_TOL.hourlyKcal, 'kcal'));
+  const total = applied.reduce((a, x) => a + x.appliedKcal, 0);
+  const dEi = (corr.meta.checks?.eiTotalKcal ?? Number.NaN) - (base.meta.checks?.eiTotalKcal ?? Number.NaN);
+  checks.push(le('absorbed energy moves by the applied total (up to the gut contents at the horizon)', Math.abs(dEi - total), tailKcal, 'kcal', `applied ${total.toFixed(1)} kcal, absorbed Δ ${dEi.toFixed(1)} kcal`));
+  return report('D5-03', 'energy-balance correction ledger', checks);
+}
+
+/**
+ * D6-02 / D6-08: every kcal the compiler submits is registered by the intake module and either appears or stays in the gut
+ * (audit imbalance ≈ 0 at both ends of the window), the submitted total equals the compiled meals, and the standard
+ * projection applies no generic fibre/nut ME correction (the correction ledger stays 0). Window: days [0, n − 1).
+ */
+export function checkIngestionAudit(profile: PersonProfile, schedule: Schedule, tolKcal = 1e-6): InvariantReport {
+  const rp = resolveProfile(profile);
+  const cs = compileSchedule(schedule, rp);
+  const last = cs.nDays - 1;
+  const r = runEngine(rp, cs, { record: 'daily', burnInDays: 14, captureSnapshotAt: [0, last] });
+  const k = intakeModule.prepare(intakeCtx(rp));
+  const auditAt = (day: number) => {
+    const snap = r.snapshots![day]!;
+    return intakeEnergyAudit(snap.states[snap.moduleIds.indexOf('intake')] as IntakeState, k);
+  };
+  const a0 = auditAt(0);
+  const a1 = auditAt(last);
+  let compiled = 0;
+  for (let d = 0; d < last; d++) {
+    const day = cs.days[d]!;
+    for (let j = 0; j < day.nMeals; j++) compiled += day.meals[j]!.kcal;
+  }
+  const checks: InvariantCheck[] = [];
+  checks.push(le('audit imbalance at day 0 (registered − appeared − stored − losses)', Math.abs(a0.imbalanceKcal), tolKcal, 'kcal'));
+  checks.push(le(`audit imbalance at day ${last}`, Math.abs(a1.imbalanceKcal), tolKcal, 'kcal'));
+  checks.push(le('submitted kcal = compiled meal kcal over the window', Math.abs(a1.submittedKcal - a0.submittedKcal - compiled), 1e-6 * Math.max(1, compiled), 'kcal', `compiled ${compiled.toFixed(1)}`));
+  checks.push(le('registered kcal = submitted kcal over the window (nothing lost before the gut)', Math.abs(a1.registeredKcal - a0.registeredKcal - (a1.submittedKcal - a0.submittedKcal)), 1e-6 * Math.max(1, compiled), 'kcal'));
+  checks.push(le('no generic ME correction in the standard projection (D6-08)', Math.abs(a1.meCorrectionKcal - a0.meCorrectionKcal), 1e-9, 'kcal'));
+  return report('D6-02', 'ingestion-to-appearance audit', checks);
+}
+
+/**
+ * D8-01: recording only `masks` (each a series subset) changes no recorded value, no safety-trace quantity, no final value
+ * of a recorded series and no event: the full-recording run and every masked run agree bit for bit on what both record.
+ */
+export function checkRecordingMaskEquivalence(profile: PersonProfile, schedule: Schedule, masks: readonly (readonly SeriesId[])[]): InvariantReport {
+  const rp = resolveProfile(profile);
+  const cs = compileSchedule(schedule, rp);
+  const full = runEngine(rp, cs, { record: 'daily', burnInDays: 14, collectEvents: true });
+  const checks: InvariantCheck[] = [];
+  let bad = 0;
+  const details: string[] = [];
+  for (const mask of masks) {
+    const r = runEngine(rp, cs, { record: 'daily', burnInDays: 14, collectEvents: true, series: mask });
+    let diff: string | null = null;
+    for (const id of mask) if (!sameFloat(full.daily[id], r.daily[id])) diff = diff ?? `daily ${id}`;
+    for (const id of Object.keys(full.safety) as (keyof SimulationResult['safety'])[]) if (!sameFloat(full.safety[id], r.safety[id])) diff = diff ?? `safety ${id}`;
+    for (const id of mask) if (!Object.is(full.final[id], r.final[id])) diff = diff ?? `final ${id}`;
+    if (JSON.stringify(full.events) !== JSON.stringify(r.events)) diff = diff ?? 'events';
+    if (JSON.stringify(full.meta.validity) !== JSON.stringify(r.meta.validity)) diff = diff ?? 'validity';
+    if (diff) {
+      bad++;
+      details.push(`[${mask.join(', ')}]: ${diff}`);
+    }
+  }
+  checks.push({ name: `shared outputs, safety trace and final values identical across ${masks.length} recording masks`, pass: bad === 0, value: bad, limit: 0, unit: 'masks', ...(details.length ? { detail: details.slice(0, 4).join('; ') } : {}) });
+  return report('D8-01', 'recording-mask equivalence', checks);
+}
+
+/**
+ * D8-01 / C7: capture at the start of `day` and continue under the SAME recording mask equals the uninterrupted run from
+ * that day on; restoring that snapshot under another mask is rejected (the mask stays in the key until equivalence of every
+ * latent state is proven).
+ */
+export function checkSnapshotContinuation(profile: PersonProfile, schedule: Schedule, series: readonly SeriesId[], day: number, otherMask: readonly SeriesId[]): InvariantReport {
+  const rp = resolveProfile(profile);
+  const cs = compileSchedule(schedule, rp);
+  const opts: RunOptions = { record: 'daily', burnInDays: 14, series };
+  const whole = runEngine(rp, cs, { ...opts, captureSnapshotAt: [day] });
+  const snap = whole.snapshots![day]!;
+  const resumed = runEngine(rp, cs, { ...opts, initialSnapshot: snap });
+  let diff: string | null = null;
+  for (const id of series) {
+    const a = whole.daily[id]!;
+    const b = resumed.daily[id]!;
+    for (let d = day; d < a.length; d++) if (!Object.is(a[d], b[d])) diff = diff ?? `${id}[${d}]`;
+  }
+  let rejected = false;
+  try {
+    runEngine(rp, cs, { record: 'daily', burnInDays: 14, series: otherMask, initialSnapshot: snap });
+  } catch {
+    rejected = true;
+  }
+  return report('D8-01/C7', `snapshot continuation at day ${day}`, [
+    { name: 'capture/continue under the same mask equals the uninterrupted run', pass: diff === null, value: diff === null ? 0 : 1, limit: 0, unit: 'differences', ...(diff ? { detail: diff } : {}) },
+    { name: 'a snapshot captured under another recording mask is rejected', pass: rejected, value: rejected ? 0 : 1, limit: 0, unit: 'accepted' },
+  ]);
 }

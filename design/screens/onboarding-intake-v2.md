@@ -1,18 +1,19 @@
-# Screen — Intake v2: a normal day, training, food, devices (`/onboarding/:section`)
+# Screen — Intake v2: a normal day, training, food (`/onboarding/:section`)
 
-> v0.2 (2026-10-01). Sections: `activity` · `training` · `diet` · `kitchen` · `supplements` ·
-> `devices` (`docs/SUITE_SPEC.md §2.3.1, §6.2`), presented as **four chapters**: *a normal day*
-> (activity), *training and equipment* (training), *food and kitchen* (diet + kitchen +
-> supplements), *devices and data* (devices). Research behind the questions: activity intake (R1),
-> exercise and equipment (R3), food, recipes and supplements (R4), wearables and score streams.
-> Components: `COMPONENTS.md §13.1–13.2, §13.15`. Copy obeys PLAN item 5: no research-file names,
+> v0.2 (2026-10-01). Sections: `activity` · `training` · `diet` · `kitchen` · `supplements`
+> (`docs/SUITE_SPEC.md §2.3.1, §6.2`), presented as chapters: *a normal day* (activity),
+> *training and equipment* (training), *food and kitchen* (diet + kitchen + supplements). The
+> fourth chapter, *devices and data*, was removed in 0.6.0 (Vitals is manual-only); intake v3
+> adds an optional *blood markers* chapter in its place (`onboarding-intake-v3.md`). Research
+> behind the questions: activity intake (R1), exercise and equipment (R3), food, recipes and
+> supplements (R4). Components: `COMPONENTS.md §13.1–13.2`. Copy obeys PLAN item 5: no research-file names,
 > section signs or rule ids ever reach the screen.
 > All numbers, names and dates in this spec are synthetic examples, not real data.
 
 ## 1. Purpose
 
 Learn how this person actually lives — a normal day, what training they will do and with what, what
-they eat and cook, what they wear on their wrist or finger — in about five minutes, mostly with
+they eat and cook — in about five minutes, mostly with
 one tap per question, so that maintenance, plans, recipes and sessions fit their life rather than a
 population average. It must feel like answering a calm, well-informed coach, not filling in a form:
 one question at a time, the previous answers visible as a short record, the instrument's readouts
@@ -22,7 +23,7 @@ reacting as you answer, and every question skippable with its default shown.
 
 | In | Out |
 |---|---|
-| First run, after Your body · shape (`?from=setup`) · Body › Your setup › any chapter (`?from=body`) · a "needs …" chip anywhere (deep link to the question: `/onboarding/activity#steps`) · Coach "Answer by chatting instead" (the Coach runs the same questions) | Next chapter · **What we'll use** summary (`/onboarding/summary`, first run) → *Choose a start* · back to where it was opened (`from=body`) · Settings › Devices and streams (from devices) |
+| First run, after Your body · shape (`?from=setup`) · Body › Your setup › any chapter (`?from=body`) · a "needs …" chip anywhere (deep link to the question: `/onboarding/activity#steps`) · Coach "Answer by chatting instead" (the Coach runs the same questions) | Next chapter · **What we'll use** summary (`/onboarding/summary`, first run) → *Choose a start* · back to where it was opened (`from=body`) |
 
 Chapters can be done in any order from Body › Your setup; the first run walks them in order.
 
@@ -31,7 +32,7 @@ Chapters can be done in any order from Body › Your setup; the first run walks 
 ```
 ┌──────────────────────────────────────────┐
 │ ‹  A normal day      ━━━━─────────────── │ top bar: back · chapter · 4-segment scale
-│                                          │ (4 segments: a normal day · training · food · devices;
+│                                          │ (4 segments: a normal day · training · food · markers;
 │                                          │  only the current chapter is named, never abbreviated)
 ├──────────────────────────────────────────┤
 │ maintenance ≈ 2 740 · likely 2 390–3 090 ▾│ live readout rail (sticky 40 h, chassis-2);
@@ -62,7 +63,7 @@ Chapters can be done in any order from Body › Your setup; the first run walks 
 
 ```
 ┌────┬──────────────────────────────────────────────────────────────────────────────────────────┐
-│ ●  │ A normal day        a normal day ━━━━ · training ──── · food ──── · devices ──── Skip this part│ context bar
+│ ●  │ A normal day        a normal day ━━━━ · training ──── · food ──── · markers ──── Skip this part│ context bar
 ├────┼──────────────────────────────────────────────────────────────────────────────────────────┤
 │    │        ┌─ conversation column, max 640 ─────────────┐  ┌─ Your picture so far · 360 ──────┐ │
 │    │        │ receipts …                                  │  │ maintenance                       │ │
@@ -73,7 +74,7 @@ Chapters can be done in any order from Body › Your setup; the first run walks 
 │    │        │ │ at a desk││ sitting  ││ feet most│        │  │ ───────────────────────────────── │ │
 │    │        │ │ or driving│ and moving│ of the day│       │  │ training   3 × 30 min · home kit  │ │
 │    │        │ └──────────┘└──────────┘└──────────┘        │  │ food       vegetarian · Jain      │ │
-│    │        │ ┌──────────┐┌──────────┐                    │  │ devices    ring · 4 streams       │ │
+│    │        │ ┌──────────┐┌──────────┐                    │  │ markers    7 values · 12 Aug      │ │
 │    │        │ │ physical ││ heavy    │                    │  │ asked later  3 questions          │ │
 │    │        │ │ work     ││ physical │                    │  └───────────────────────────────────┘ │
 │    │        │ └──────────┘└──────────┘                    │   sticky; updates on every commit      │
@@ -98,7 +99,6 @@ Chapters can be done in any order from Body › Your setup; the first run walks 
 | Maintenance result | Faceplate, Readout `md`, DriverBar + table twin, "Correct it" Sheet | end of chapter 1 |
 | Equipment | Kit keys (presets) → grouped Chip checklist, weight chips | chapter 2 |
 | Food | preset keys → Chip checklist, rank chips (cuisines) | chapter 3 |
-| Devices | device keys, route cards, StreamMatrix, Key "Import a file", Key "Connect ring" | chapter 4 |
 | Summary | Faceplate "What we'll use", KeyValueList, deferred list | `/onboarding/summary` |
 
 ## 6. Content & copy
@@ -120,7 +120,7 @@ much energy you use outside training — the number every plan is built on."
 | A3 | How many days a week, and about how long? | days Stepper 1–7 (default 5) + hours chips 4 · 6 · 8 · 10 · 12 | 5 days × 8 h | — |
 | A4 | How do you get there? | ride (car, two-wheeler, auto, bus, train, metro) · walk part of it · cycle · I work from home; walk/cycle → "minutes a day, both ways" chips 10 · 20 · 30 · 45 · 60 | ride, 0 min | with a step-counting device, walking minutes are not added again (the device counts them); cycling minutes always count |
 | A5 | Do you know your daily steps? | yes, from a watch or ring · yes, from my phone · roughly · no | no | yes → A5a; phone → A5b; roughly → steps scale; no → steps come from A2, A4, A6 |
-| A5a | About how many a day, over the last 2–4 weeks? | chips 3 000 · 5 000 · 7 000 · 9 000 · 12 000 · 15 000 + exact Stepper; "work days and days off differ" → two Steppers; "I'll import it" (→ chapter 4 revises it) | — | — |
+| A5a | About how many a day, over the last 2–4 weeks? | chips 3 000 · 5 000 · 7 000 · 9 000 · 12 000 · 15 000 + exact Stepper; "work days and days off differ" → two Steppers | — | — |
 | A5b | Is your phone with you most of the day? | mostly · not really | mostly | "not really" widens the range |
 | A6 | On a day off, you're mostly… | at home, taking it easy · a bit of both · out and about, on my feet | a bit of both | — |
 | A7 | At home, how much are you on your feet — cooking, cleaning, washing, children, caring? | a little (under 1 h) · some (1–2 h) · a lot (3 h or more) | some | — |
@@ -224,27 +224,7 @@ grocery list, first swap, first weekly plan), and the chapter footer says so.
 - Medical diets (kidney, warfarin, diabetes) are never asked here; they come from the safety
   answers and appear read-only: "From your safety answers: low sodium."
 
-### 6.5 Chapter 4 · Devices and data (`devices`) — about 60 s
-
-Intro: "If you wear a ring or watch, or use a smart scale, Vitals can use its data. You choose,
-stream by stream, what comes in and who sees it. Nothing leaves your devices unless you set up
-sync or talk to the Coach."
-
-| # | Prompt | Answers | If you skip |
-|---|---|---|---|
-| D1 | Do you wear or use any of these? | ring · watch · fitness band · smart scale · chest strap · just my phone · none | none (all streams stay off) |
-| D2 | Which one? (per device) | search field with brand list (Oura, Apple Watch, Garmin, Samsung, Fitbit/Google, WHOOP, Polar, Amazfit/Zepp, Colmi, J-Style ring, Ultrahuman, RingConn, Withings, Polar H10, other) + "not sure"; then "your phone" Android · iPhone · computer only | not sure |
-| D3 | How it reaches Vitals | a route card per device (computed, not a question): e.g. **Oura on Android** → "Oura writes to Health Connect. Vitals can't read Health Connect from a web page, so you export a file from it (or, later, a small helper app sends it)." [Import a file] [Later] · **Colmi ring + Chrome on Android/computer** → "Connect directly. Sync happens while Vitals is open; close the ring's own app first." [Connect ring] [Later] · **iPhone** → "Export from Apple Health, or use a Shortcut that saves a file each day." [How to] [Later] | later |
-| D4 | What should Vitals do with each stream? | StreamMatrix (`COMPONENTS §13.15`) with **Use recommended** (bring in + scores + plan on where allowed; Coach hidden) and **Coach can see daily summaries** | recommended is **not** applied on skip — skipped means everything stays off |
-| D5 | (after an import) | Import report: "Imported 182 days · 31 400 records · 112 duplicates skipped · sleep, heart rate, HRV, steps." + revisions: "Your watch says 7 820 steps a day over the last 28 days. Use this instead of 'roughly 6 000'?" [Use 7 820] [Keep mine] | — |
-
-Privacy lines (always visible in this chapter):
-- "Device data stays on your devices. There is no Vitals server for it."
-- "The Coach sees a stream only if you choose 'daily' or 'daily + detail' for it, and only when
-  you talk to it. It never sees vendor scores unless you allow them, and they're labelled as the
-  vendor's opinion."
-- "Ring and watch indexes are estimates, not measurements. Vitals computes its own scores from the
-  raw data and shows how sure each one is."
+### 6.5 Chapter 4 · Devices and data (`devices`) — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
 ### 6.6 What we'll use (`/onboarding/summary`, first run)
 
@@ -255,7 +235,6 @@ One Faceplate, a KeyValueList by chapter, each row with "change":
 > training · home: dumbbells 5–10 kg, pull-up bar · 3 × 30 min · no jumping · shoulder: no overhead
 > food · vegetarian with dairy and eggs · Jain: no root vegetables, no onion/garlic · north Indian,
 > Gujarati · you cook, 10–20 min · food first
-> devices · Colmi R10 ring: sleep, heart rate, steps in · Coach sees nothing yet
 > asked later · 3 questions (Body › Your setup)
 > [Looks right — continue] (solid)
 
@@ -286,9 +265,6 @@ One Faceplate, a KeyValueList by chapter, each row with "change":
 | Question set updated (newer `questionSetVersion`) | answered questions keep their answers; new questions appear in Body › Your setup as "1 new question" (never forced) |
 | Defaulted answers | receipts show "using … · asked later" with a hollow dot; the DriverBar outlines those segments dashed |
 | Food skipped | Food tab recipes are paused: "Tell us what you eat to get recipes" (targets still shown as plain meals) |
-| Devices skipped | every stream off; Progress › Body signals shows "Add a device" |
-| Import fails (wrong file, too new, damaged) | InlineWarning danger in the D5 turn with the reason and "choose another file"; nothing is written |
-| Web Bluetooth unavailable (Safari, Firefox, iOS) | the "Connect directly" route is replaced by the import route with one line: "Direct connection needs Chrome or Edge on Android or a computer." |
 | Gentle mode | maintenance is shown without kcal by default; no weight is asked again; F9 alcohol is skipped |
 | Storage unavailable | caution Notice: answers won't persist after this tab closes |
 
@@ -303,8 +279,6 @@ One Faceplate, a KeyValueList by chapter, each row with "change":
   ("Saved: on a work day, desk or driving").
 - The 4-segment progress is a `role="progressbar"` with `aria-valuetext="A normal day, 3 of 10"`.
 - The DriverBar always has its table twin; segments are never identified by colour alone.
-- The StreamMatrix is a table with row and column headers; switches carry full names ("Use HRV in
-  my plan").
 - Targets 44 px; answer cards ≥ 64 px tall; body text 15 px, inputs 16 px on mobile.
 - Reading level ~12 years; medical words get plain examples.
 
@@ -320,10 +294,6 @@ One Faceplate, a KeyValueList by chapter, each row with "change":
 | Custom items ("a wooden wheel") | `catalogue.addEquipment` / `catalogue.addExercise` (origin user / ai-resolved) |
 | Diet rules → hard filters | `DietProfile` (stored as given; the derived diet level is computed by `intake.answer`) |
 | Supplements list | `catalogue.supplements` |
-| Device routes | static table by device × platform × browser (`bio` capabilities); Web Bluetooth availability check |
-| Stream consent | `bio.setPolicy {stream, policy}` — UI only; the Coach can never set it |
-| Imports | `bio.import` (job) → `IngestReport` |
-| Steps revision after import | `bio.daily` 28-day mean vs `ActivityIntake.steps` |
 
 ### 10.1 Answer → stored value (where the wording and the schema differ)
 
@@ -331,7 +301,7 @@ One Faceplate, a KeyValueList by chapter, each row with "change":
 |---|---|
 | A1 "it varies" | working; A2 class as answered; A3 days "on average" (may be fractional, rounded to 0.5) |
 | A4 "ride (car, two-wheeler, auto, bus, train, metro)" | `commute.mode = 'passive'` (`'mixed'` is not offered) |
-| A5 watch or ring | `steps.source = 'wrist'` (rings count as wrist until the schema gains a ring source) |
+| A5 watch or ring | `steps.source = 'wrist'` |
 | A8 intensity "hard" | `'vigorous'` |
 | T0 never · under 1 year · 1–3 years · 3+ years | experience → skill 1 · 2 · 3 · 4 (beginner limits for the first two) |
 | T1 no · fine · like | enjoy −2 (hard filter) · 0 · +1 |
@@ -341,7 +311,6 @@ One Faceplate, a KeyValueList by chapter, each row with "change":
 | F6 "I mostly eat out" | `whoCooks = 'mixed'` + eating out ≥ 7 meals a week (lazy question skipped) |
 | F8 under 10 · 10–20 · 20–40 · 40+ | weekday time budgets (breakfast/lunch/dinner, min) 5/10/10 · 10/15/20 · 10/20/30 · 15/30/45; weekend = dinner + 15 |
 | S1 "I already take some" | `supplements.stance = 'open'` + `taking[]` (a food-first person can still list what they take) |
-| D1 smart scale · chest strap · just my phone | `scale` · `chestStrap` · `phoneOnly` |
 
 Open with engineering (does not change the screens): the "hip" injury option has no exercise tags
 yet in the catalogue; until it does, the receipt says "hip: noted — tell the Coach what hurts".
@@ -358,5 +327,5 @@ yet in the catalogue; until it does, the receipt says "hip: noted — tell the C
   unanswered food chapter pauses recipes instead of assuming.
 - **A typed maintenance number is refused, kindly.** Self-reported intake is too unreliable; the
   person's own logs correct the estimate within weeks, and the screen says exactly that.
-- **Consent is per stream and per use** (bring in · scores · plan · Coach), with the Coach hidden by
-  default, because "I want my sleep in Vitals" is not "I want an AI to read my sleep".
+- **No device chapter.** Since 0.6.0 Vitals reads no devices: sleep, steps and workouts are what
+  the person logs by hand.

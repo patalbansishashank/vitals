@@ -68,9 +68,9 @@ export const useSimulationStore = createProjection<SimulationState, Persisted>({
     ownsPrefix: { derived: PREFIX },
     toDocs: (p) =>
       Object.entries(p.lastRuns).map(([sid, last]) => ({ col: 'derived' as const, id: `${PREFIX}${sid}`, body: { kind: 'sim', scenarioId: sid, ...last } as Record<string, unknown>, src: last })),
-    fromDocs: (read) => {
+    fromDocs: (read, includeEmpty = false) => {
       const docs = read.list('derived').filter((d) => d.id.startsWith(PREFIX));
-      if (docs.length === 0) return null;
+      if (docs.length === 0 && !includeEmpty) return null;
       const lastRuns: Record<string, LastRunInputs> = {};
       for (const { id, body } of docs) {
         const { kind: _k, scenarioId: _s, ...last } = body;

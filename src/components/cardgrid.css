@@ -1,0 +1,149 @@
+/* ==========================================================================
+   <CardGrid>: full-width cards on phones and in narrow card areas; twelve tracks on wide desktops.
+   The component writes data-cols, so the CSS and packing never disagree. Intrinsic heights are packed after the first natural-grid paint; the gap is
+   the card-gap token (12, 16 from 1024).
+   ========================================================================== */
+@layer components {
+  .lm-cardgrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--lm-card-gap);
+    align-items: start;
+    min-width: 0;
+  }
+  .lm-cardgrid[data-cols='12'] {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+  .lm-cardgrid[data-packed] {
+    grid-auto-rows: 4px;
+    row-gap: 0;
+  }
+  .lm-cardgrid__cell {
+    position: relative;
+    min-width: 0;
+  }
+  .lm-cardgrid__content,
+  .lm-cardgrid__content > * {
+    min-width: 0;
+  }
+  .lm-cardgrid__cell[data-empty],
+  .lm-cardgrid__cell:has(> .lm-cardgrid__content:empty) {
+    display: none;
+  }
+  .lm-cardgrid__cell[data-editable] {
+    cursor: grab;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  .lm-cardgrid__content[inert] {
+    pointer-events: none;
+  }
+  .lm-cardgrid__drag-surface {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    border: 1px dashed var(--lm-line-strong);
+    border-radius: var(--lm-card-radius);
+    cursor: grab;
+    touch-action: pan-y;
+  }
+  .lm-cardgrid__cell[data-dragging] {
+    z-index: 3;
+    cursor: grabbing;
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-card-radius);
+    user-select: none;
+  }
+  .lm-cardgrid__cell[data-dragging] .lm-cardgrid__drag-surface {
+    cursor: grabbing;
+  }
+  .lm-cardgrid__cell[data-resizing] {
+    z-index: 3;
+  }
+  .lm-cardgrid__resize-guide {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 2px dashed var(--lm-focus);
+    border-radius: var(--lm-card-radius);
+    background: color-mix(in oklab, var(--lm-focus) 5%, transparent);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .lm-cardgrid__cell[data-resizing] .lm-cardgrid__resize-guide {
+    opacity: 1;
+  }
+  .lm-cardgrid__cell[data-drop-target]::after {
+    position: absolute;
+    inset: 0;
+    border: 2px dashed var(--lm-focus);
+    border-radius: var(--lm-card-radius);
+    content: '';
+    pointer-events: none;
+  }
+  .lm-cardgrid__cell:focus-visible,
+  .lm-cardgrid__corner:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lm-cardgrid__corner {
+    position: absolute;
+    z-index: 4;
+    right: 0;
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 0 0 var(--lm-card-radius) 0;
+    background: transparent;
+    color: var(--lm-ink-3);
+    cursor: nwse-resize;
+    opacity: 0.12;
+    touch-action: pan-y;
+  }
+  .lm-cardgrid__cell:hover .lm-cardgrid__corner,
+  .lm-cardgrid__cell:focus-within .lm-cardgrid__corner,
+  .lm-cardgrid__cell[data-resizing] .lm-cardgrid__corner {
+    color: var(--lm-ink);
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lm-cardgrid__corner {
+      opacity: 0.55;
+    }
+  }
+  .lm-cardgrid[data-equal] {
+    align-items: stretch;
+  }
+  .lm-cardgrid[data-equal] > .lm-cardgrid__cell {
+    display: flex;
+    flex-direction: column;
+  }
+  .lm-cardgrid[data-equal] > .lm-cardgrid__cell[data-empty],
+  .lm-cardgrid[data-equal] > .lm-cardgrid__cell:has(> .lm-cardgrid__content:empty) {
+    display: none;
+  }
+  .lm-cardgrid[data-equal] .lm-cardgrid__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+  .lm-cardgrid[data-equal] .lm-cardgrid__content > * {
+    flex: 1 1 auto;
+    height: 100%;
+  }
+  /* nothing here is drawn in colour: the cards bring their own forced-colours rules */
+  @media (forced-colors: active) {
+    .lm-cardgrid {
+      forced-color-adjust: auto;
+    }
+  }
+}

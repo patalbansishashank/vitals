@@ -230,7 +230,7 @@ export function judgeLevels(d: LevelDigest): LevelVerdict[] {
   } else out.push(verifyMedium());
   // Ideal
   const I = d.ideal;
-  if (!H) out.push(I && I.card ? card('ideal', 'no Hard; the Ideal shows which limit blocks') : absent('ideal', 'noHard', 'no safe plan'));
+  if (!H) out.push(I && I.card ? card('ideal', 'no Hard; the Ideal shows which limit blocks') : absent('ideal', 'noHard', 'no plan found within the search budget'));
   else if (!I) out.push(fail('ideal', 'missing', 'no Ideal on a result with Hard'));
   else if (I.sameAsHard) out.push(I.nothingBinds ? absent('ideal', 'sameAsHard', `the Ideal equals Hard; ${I.lifted} limits lifted without effect`) : fail('ideal', 'sameAsHard?', 'same-as-Hard without the no-binding check'));
   else if (d.sense1 * (I.change1 - H.change1) < -I.quantum1) out.push(fail('ideal', 'belowHard', `Ideal ${I.change1} below Hard ${H.change1} on goal 1`));

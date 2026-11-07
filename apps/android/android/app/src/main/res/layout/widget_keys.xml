@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Log and Record (a 4x1): the gold key is the action, the glass key the quieter one beside it; each its own tap. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/vw_card_gold_strip"
+    android:padding="10dp">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+        <LinearLayout
+            android:id="@+id/vw_key_log"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/vw_key_gold"
+            android:contentDescription="@string/widget_log_activity"
+            android:gravity="center"
+            android:minHeight="44dp"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="14dp">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:importantForAccessibility="no" android:src="@drawable/vw_icon_plus" android:tint="@color/vw_signal_ink" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:fontFamily="@font/geist_semibold" android:importantForAccessibility="no" android:includeFontPadding="false" android:maxLines="1" android:text="@string/widget_log_short" android:textColor="@color/vw_signal_ink" android:textSize="15sp" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/vw_key_record"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/vw_key_glass"
+            android:contentDescription="@string/widget_record"
+            android:gravity="center"
+            android:minHeight="44dp"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="14dp">
+            <ImageView android:layout_width="18dp" android:layout_height="18dp" android:importantForAccessibility="no" android:src="@drawable/vw_icon_record" android:tint="@color/vw_ink" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp" android:fontFamily="@font/geist_semibold" android:importantForAccessibility="no" android:includeFontPadding="false" android:maxLines="1" android:text="@string/widget_record" android:textColor="@color/vw_ink" android:textSize="15sp" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

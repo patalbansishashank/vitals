@@ -68,7 +68,7 @@ describe('ConnectTools', () => {
     expect(await screen.findByRole('button', { name: 'Add Vitals to Claude Code' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Vitals to Codex' })).toBeInTheDocument();
     expect(screen.getByText('OpenCode')).toBeInTheDocument();
-    expect(screen.getByText(/not found on this computer/)).toBeInTheDocument();
+    expect(screen.getByText('Not found on this computer')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add Vitals to OpenCode' })).not.toBeInTheDocument();
     expect(screen.getByText('Needs your Vitals server')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add Vitals to ChatGPT desktop' })).not.toBeInTheDocument();
@@ -211,7 +211,7 @@ describe('ConnectTools', () => {
     server.state.fail = { status: 500, code: 'server_error' };
     await user.click(screen.getByRole('button', { name: 'Remove Vitals from Codex' }));
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/^Warning: Vitals was removed from Codex, but its key still works on your server \(.+\)\. Revoke it in the keys list above\.$/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/^Warning: Vitals was removed from Codex, but its key still works on your server \(.+\)\. Revoke it in Agent keys above\.$/);
     // the entry and the app's copy are gone; the id stays for the next Add or Remove
     expect(bridge.stored.has('agentToken:codex')).toBe(false);
     expect(keptIds()).toEqual({ codex: ['at-1'] });
@@ -253,7 +253,7 @@ describe('ConnectTools', () => {
     revoke.mockRejectedValueOnce(new ServerError('server_unreachable'));
     render(<ConnectTools />);
     await addCodex();
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Vitals was added to Codex, but an old key for it may still work on your server \(.+\)\. Check the keys list above\./);
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Vitals was added to Codex, but an old key for it may still work on your server \(.+\)\. Check Agent keys above\./);
     expect(revoke).toHaveBeenCalledWith('at-old');
     expect(keptIds()).toEqual({ codex: ['at-1', 'at-old'] });
   });

@@ -1,0 +1,95 @@
+@layer components {
+  /* The foundation's explicit-dot layout starts at two. One planned item still draws one dot. */
+  .lv-food-list-track--single {
+    width: 16px;
+    overflow: hidden;
+  }
+  .lv-food-list-track--single .lmz-track__layer circle:not(:first-child),
+  .lv-food-list-track--single .lmz-track__notch {
+    display: none;
+  }
+  .lv-food-list-track--single .lmz-track__layer circle:first-child {
+    transform: translateX(4px);
+  }
+  .lv-food-list-card .lmz-track__layer[data-layer='b'] {
+    fill: color-mix(in srgb, var(--lm-hue-food-ink) 40%, var(--lm-face));
+  }
+  .lv-food-list-card > .lm-gcard__body {
+    display: grid;
+    gap: var(--lm-space-4);
+  }
+  .lv-food-list-progress {
+    display: grid;
+    gap: var(--lm-space-2);
+  }
+  .lv-food-list-card .lv-food-aisle__name {
+    margin-block: 0 var(--lm-space-1);
+  }
+  .lv-food-list-card .lv-food-grocery {
+    min-height: 56px;
+    gap: var(--lm-space-1);
+  }
+  .lv-food-list-card .lv-food-grocery > .lm-key {
+    min-width: var(--lm-hit-touch);
+    width: var(--lm-hit-touch);
+    color: var(--lm-ink-2);
+  }
+  .lv-food-list-card .lv-food-grocery > .lm-key[aria-pressed='true'] {
+    color: var(--lm-hue-food-ink);
+  }
+  .lv-food-list-card .lv-food-grocery__name,
+  .lv-food-list-card .lv-food-supps__name {
+    font-weight: var(--lm-weight-semibold);
+  }
+  .lv-food-list-card .lv-food-grocery__label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2px var(--lm-space-2);
+  }
+  .lv-food-list-card .lv-food-grocery__amount {
+    color: var(--lm-hue-food-ink);
+  }
+  .lv-food-list-card .lv-food-supps__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas: "what node";
+    gap: var(--lm-space-2);
+    min-height: 64px;
+  }
+  .lv-food-supps__what {
+    grid-area: what;
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lv-food-supps__status {
+    display: flex;
+    align-items: start;
+    gap: 6px;
+  }
+  .lv-food-supps__status > .lm-mono {
+    min-width: 0;
+  }
+  .lv-food-supps__status .lm-overflow,
+  .lv-food-supps__status .lm-overflow__track,
+  .lv-food-supps__status .lm-overflow__item {
+    display: inline;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .lv-food-supps__status .lm-overflow__copy {
+    display: none;
+  }
+  .lv-food-supps__advice {
+    display: grid;
+    gap: var(--lm-space-3);
+  }
+  .lv-food-supps__advice p,
+  .lv-food-supps__advice ul {
+    margin: 0;
+  }
+  .lv-food-supps__advice ul {
+    padding-inline-start: 1.2em;
+  }
+}

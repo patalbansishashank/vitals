@@ -1,6 +1,6 @@
 # Living plan — engineering guide (E5)
 
-**For:** E4 (commands and store), E6 (planner v2), E10 (biometrics), E13 (Today and Living screens), E9b (Coach tools).
+**For:** E4 (commands and store), E6 (planner v2), E13 (Today and Living screens), E9b (Coach tools).
 **Normative sources:** `docs/SUITE_SPEC.md` §3 (lifecycle, logging, estimation, adherence, drift, Today) and §4.5,
 `docs/PLANNER_V2_SPEC.md` §7–§9.3, R11 (`plan/01-after-launch/research/R11-living-plan.md`). This file says where each
 rule lives in code, the signatures to call, the constants chosen, and what each package still has to wire.
@@ -215,7 +215,7 @@ the module is imported, e.g. its test). Implemented: `today.get`, `day.get`, `pl
 `plan.rejectVersion`, `plan.checkIn`, `log.markDay`, `log.confirmDay`, `log.measurement`, `log.steps`, `log.sleep`,
 `log.substance`, `log.supplement`, `log.subjective`, `log.note`, `log.fast`, `log.edit`, `log.retract`, and (E5b,
 `src/commands/living/adapt.ts`, see §9.1) `plan.replan`, `plan.declareEvent`, `plan.shift`, `plan.editDay`,
-`plan.swapExercise`. The food, session, bulk and biometrics logs are implemented by their packages. Reads go through
+`plan.swapExercise`. The food, session and bulk logs are implemented by their packages. Reads go through
 `projectLiving(docs, today)` (`src/living/projection.ts`). The rest of the wiring, by command:
 - `plan.start` → `startFromRung` / `startPlanFromOption` / `startFromScenario` (persist `plan` and `version`; reject when a
   live plan exists; `anchorNotes` to the dialog); day ≥ start → `activateIfDue`; first open after the end → `completeIfDue`.
@@ -231,7 +231,7 @@ the module is imported, e.g. its test). Implemented: `today.get`, `day.get`, `pl
 - `plan.replan` / `plan.declareEvent` / `plan.shift` → `pickReplan` → `buildReplanRequest` → `PlannerPort.replan` →
   `checkReplan` + `adoptionPolicy` → `versionFromReplan` (+ `versionProposal`); the light nudge →
   `energyNudge` + `applyEnergyNudge` (adopted automatically, with Undo).
-- Inject `PlannerPort` (worker client), `sessionCompiler` (E8 `resolveSession` + `toEngineDose`), the observation adapter.
+- Inject `PlannerPort` (worker client), `sessionCompiler` (E8 `resolveSession` + `toEngineDose`).
 
 ### 9.1 Adaptation commands (E5b)
 
@@ -292,10 +292,11 @@ re-exports; implement `replan` (then drop `legacyPlannerPort`, marked TODO(E6)),
 genome for them (full pipeline) — confirm or widen the type. `RungPlan` start (genome, composed sessions,
 `toActivePlan` after anchoring) is a TODO in `startFromRung`.
 
-**E10 (biometrics).** Implement `ObservationAdapter.observations(from, to)` with the person's stream policy applied
-(`engine: true` streams only) and one source per metric per day; `observationsFromBioRecords(records, tz)` maps canonical
-records and can be reused. Vendor VO2max never enters. VO2max observations are carried in `DayObservations.vo2max` but the
-engine has no observation input for the VO2max state yet (engine-owner request, like CR-L2).
+**E10 (biometrics) — removed in 0.6.0.** There is no observation adapter. Every measured input (weight, measurements,
+sleep, steps, workouts, meals) is a log entry; since step 1 (2026-10-27) the ring's daily steps and main sleep arrive as
+log entries too, written by the ring app import (`log.fromGauge`, `src/living/gaugeImport.ts`, `source.app: 'gauge'`), and
+the person's own entry for the same day wins over them (`projectEntries`). Entries a device wrote before 0.6.0 stay as
+ordinary log entries.
 
 **E13 (UI).** Render `TodayView` as is; start dialog from `startDateChoices` + `anchorNotes`; check-in card from the
 check-in output (trend, δ, per-block bars `blockBars`, costliest item); drift from `DriftReport`.

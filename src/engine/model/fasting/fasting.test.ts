@@ -5,10 +5,14 @@
  */
 import { checkWiring } from '../../core/moduleRegistry';
 import { validateParamDefs } from '../../core/paramsRegistry';
+import { SIGNAL_META } from '../../types/signals';
 import {
   aSnsFrac,
   bhbRefMmolL,
   carbFactor,
+  FASTING_DAILY_NATIVE,
+  FASTING_PARAMS,
+  FASTING_ROUTING,
   fastingModule,
   ketFactor,
   nPeakPerKgFfm,
@@ -20,7 +24,7 @@ import {
   sparingTarget,
   urinaryNGd,
 } from './index';
-import { makeRig, mealAt, type FastPerson } from './testkit';
+import { makeRig, mealAt, type FastPerson, type FastingRig } from './testkit';
 
 /** 20 Table A1 lean man: 75 kg, 15 % BF, FM 11.3, FFM 63.8, TEE0 2633; habitual protein ≈ 1.3 g/kg, carbs 50 %E. */
 const LEAN_MAN: FastPerson = {
@@ -165,7 +169,7 @@ describe('fasting — module behaviour (hand-built bus)', () => {
     expect(rig.s.sN).toBe(0);
   });
 
-  it('planned span ≥ 24 h activates from its first hour; tFast counts; fastStart/fastEnd events (§7.1)', () => {
+  it('a planned 48-h span does not activate the overlay (D2-01): observed intake routes it, events stay policy metadata (§7.1)', () => {
     const rig = makeRig(LEAN_MAN, { fastSpans: [{ startHour: 44, endHour: 44 + 48, electrolytes: true }] });
     eatDays(rig, 1); // hours 0-23
     for (let h = 24; h < 44; h++) {
@@ -173,22 +177,28 @@ describe('fasting — module behaviour (hand-built bus)', () => {
       rig.step(kc, p, c);
     }
     expect(rig.bus.fastActive).toBe(0);
-    rig.step(0, 0, 0, 1); // hour 44 (20:00), last meal at 19:00
-    expect(rig.bus.fastActive).toBe(1);
-    expect(rig.bus.fastHoursH).toBe(1);
-    for (let h = 45; h < 92; h++) rig.step(0, 0, 0, 1);
+    rig.step(0, 0, 0, 1); // hour 44 (20:00), last meal at 19:00 (hour 43): planned label, but the 24-h window is full
+    expect(rig.bus.fastActive).toBe(0);
+    expect(rig.bus.fastHoursH).toBe(0);
+    let firstActive = -1;
+    for (let h = 45; h < 92; h++) {
+      rig.step(0, 0, 0, 1);
+      if (firstActive < 0 && rig.bus.fastActive === 1) firstActive = h;
+    }
+    // the 19:00 meal leaves the 24-h window at hour 67; the clock is back-dated to that meal (20 §2)
+    expect(firstActive).toBe(43 + 24);
     expect(rig.bus.fastHoursH).toBe(48);
     rig.step(900, 35, 110, 0); // refeed meal at hour 92
     expect(rig.bus.fastActive).toBe(0);
     expect(rig.bus.fastHoursH).toBe(0);
     expect(rig.s.lastFastDays).toBeCloseTo(2, 12);
     expect(rig.events.list).toEqual([
-      { type: 'fastStart', hour: 44, value: 1 },
+      { type: 'fastStart', hour: 44, value: 0 },
       { type: 'fastEnd', hour: 92, value: 48 },
     ]);
   });
 
-  it('planned span < 24 h does not activate the overlay (review M7) but still emits events', () => {
+  it('a planned 16-h span does not activate the overlay but still emits events', () => {
     const rig = makeRig(LEAN_MAN, { fastSpans: [{ startHour: 20, endHour: 36, electrolytes: true }] });
     for (let h = 0; h < 20; h++) {
       const [kc, p, c] = mealAt(h % 24, 2633, 100, 330);
@@ -203,19 +213,20 @@ describe('fasting — module behaviour (hand-built bus)', () => {
     expect(rig.events.list.map((e) => e.type)).toEqual(['fastStart', 'fastEnd']);
   });
 
-  it('a 24-h dinner-to-dinner fast (23-h zero-intake span, mealToMealH 24) activates the overlay (ruling 18:10, A2)', () => {
+  it('a 24-h dinner-to-dinner fast (23-h span, mealToMealH 24) is routed by observed intake only (D2-01)', () => {
     const rig = makeRig(LEAN_MAN, { fastSpans: [{ startHour: 21, endHour: 44, electrolytes: true, mealToMealH: 24 }] });
     for (let h = 0; h < 21; h++) {
       const [kc, p, c] = mealAt(h % 24, 2633, 100, 330);
       rig.step(kc, p, c);
     }
-    let active = 0;
+    const activeHours: number[] = [];
     for (let h = 21; h < 44; h++) {
       rig.step(0, 0, 0, 1);
-      active += rig.bus.fastActive;
+      if (rig.bus.fastActive === 1) activeHours.push(h);
     }
-    expect(active).toBe(23);
-    expect(rig.bus.fastProtOxGH).toBeGreaterThan(0);
+    // the 19:00 dinner (hour 19) leaves the rolling 24-h window at hour 43: only that hour satisfies the criteria
+    expect(activeHours).toEqual([43]);
+    expect(rig.bus.fastHoursH).toBe(24);
   });
 
   it('no events during burn-in (clock.day < 0)', () => {
@@ -262,11 +273,15 @@ describe('fasting — module behaviour (hand-built bus)', () => {
     expect(carbFactor(mod.k, 45)).toBeCloseTo(0.7975, 12);
   });
 
-  it('protein ≥ 5 g in 24 h leaves the branch (PSMF/VLED are 03/13), unless a planned span ≥ 24 h covers it', () => {
-    const rig = makeRig(LEAN_MAN);
-    eatDays(rig, 1);
-    for (let h = 0; h < 72; h++) rig.step(h % 24 === 12 ? 60 : 0, h % 24 === 12 ? 15 : 0, 0, 0);
-    expect(rig.bus.fastActive).toBe(0);
+  it('protein ≥ 5 g in 24 h leaves the branch (PSMF/VLED are 03/13), also under a planned 72-h fast label (D2-01)', () => {
+    for (const planned of [0, 1]) {
+      const rig = makeRig(LEAN_MAN, planned ? { fastSpans: [{ startHour: 24, endHour: 96, electrolytes: true }] } : {});
+      eatDays(rig, 1);
+      for (let h = 0; h < 72; h++) {
+        rig.step(h % 24 === 12 ? 60 : 0, h % 24 === 12 ? 15 : 0, 0, planned);
+        expect(rig.bus.fastActive).toBe(0);
+      }
+    }
   });
 
   it('s_AT: 0 until t_lag, then exact first-order rise with τ_AT; hour-mean multiplier; off with τ_AT,off', () => {
@@ -400,20 +415,26 @@ describe('fasting — hourly closed forms vs 5-min Euler reference (§0.1, O-10)
       let sAT = 0;
       let cum = 0;
       const dt = 5 / 60 / 24; // d
+      let firstActive = -1;
       for (let h = 0; h < days * 24; h++) {
         const bhb = bhbRefMmolL(k, h + 0.5, 15);
         rig.bus.bhbMmolL = bhbRefMmolL(k, h, 15); // module sees previous-hour BHB
         rig.bus.bhbEndoMmolL = rig.bus.bhbMmolL;
         rig.step(0, 0, 0, 1);
+        // the overlay starts once the habitual day has left the rolling 24-h window (D2-01); N accrues from then on
+        const on = rig.bus.fastActive === 1;
+        if (on && firstActive < 0) firstActive = h;
         for (let q = 0; q < 12; q++) {
           const t = (h + (q + 0.5) / 12) / 24;
           const sStar = sparingTarget(k, bhb);
           sN += (dt * (sStar - sN)) / (sStar >= sN ? 8 : 7);
           sAT += (dt * ((t > 2 ? 1 : 0) - sAT)) / (t > 2 ? 9 : 4);
           const n = urinaryNGd(k, 63.8, 11.3, 15, 2633, sN, t, 0, 0);
-          cum += n * 6.25 * dt;
+          if (on) cum += n * 6.25 * dt;
         }
       }
+      // modified-fast criteria met after 23 zero-intake hours; the clock is back-dated to t = 0 (no intake since)
+      expect(firstActive).toBe(22);
       expect(Math.abs(rig.s.sN - sN) / sN).toBeLessThan(0.02);
       expect(Math.abs(rig.s.sAT - sAT) / sAT).toBeLessThan(0.02);
       expect(Math.abs(rig.s.protOxCumG - cum) / cum).toBeLessThan(0.02);
@@ -481,5 +502,210 @@ describe('fasting — properties', () => {
       return out;
     };
     expect(run()).toEqual(run());
+  });
+});
+
+// ================================================================== D2-01: observed-history routing (causal boundary C2)
+
+/** Every physiological output and state of the overlay after the current hour (the policy events are excluded). */
+function physiology(rig: FastingRig): number[] {
+  const b = rig.bus;
+  const s = rig.s;
+  return [
+    b.fastActive,
+    b.fastHoursH,
+    b.fastRmrMult,
+    b.fastProtOxGH,
+    b.fastRepletionGH,
+    b.fastOedemaL,
+    s.sAT,
+    s.sN,
+    s.dLabG,
+    s.eOedL,
+    s.oedPendingL,
+    s.lastFastDays,
+    s.hoursSinceIntakeH,
+    s.uNGd,
+    s.kcal24,
+    s.protein24,
+    s.carb24,
+    s.carbFast24,
+  ];
+}
+
+type Span = { startHour: number; endHour: number; electrolytes: boolean; mealToMealH?: number };
+/** Realised intake of one hour: kcal, protein g, carbohydrate g, day sodium mg, day carbohydrate g. */
+type Intake = (h: number) => [number, number, number, number, number];
+
+/** Drive a rig with the same realised intake under the given fast metadata; returns per-hour physiology and the rig. */
+function replay(hours: number, intake: Intake, spans: Span[], bhb?: (h: number) => number): { series: number[][]; rig: FastingRig } {
+  const rig = makeRig(LEAN_MAN, { fastSpans: spans });
+  const series: number[][] = [];
+  for (let h = 0; h < hours; h++) {
+    if (bhb) {
+      rig.bus.bhbMmolL = bhb(h);
+      rig.bus.bhbEndoMmolL = rig.bus.bhbMmolL;
+    }
+    const planned = spans.some((sp) => h >= sp.startHour && h < sp.endHour) ? 1 : 0;
+    const [kc, p, c, na, dayC] = intake(h);
+    rig.step(kc, p, c, planned, na, dayC);
+    series.push(physiology(rig));
+  }
+  return { series, rig };
+}
+
+describe('fasting — D2-01 future fast metadata has no physiological effect', () => {
+  // realised history: habitual days, dinner at 19:00 (hour 43), zero intake hours 44-91, refeed meal at hour 92, habitual after
+  const FAST_FROM = 44;
+  const FAST_TO = 92;
+  const intake: Intake = (h) => {
+    if (h >= FAST_FROM && h < FAST_TO) return [0, 0, 0, 3000, 0];
+    if (h === FAST_TO) return [900, 35, 110, 3000, 300];
+    const [kc, p, c] = mealAt(h % 24, 2633, 100, 330);
+    return [kc, p, c, 3000, 330];
+  };
+  // BHB as the ketones module would see it over this history (fasting physiology also reads it): same in every variant
+  const bhb = (h: number): number => (h >= FAST_FROM && h < FAST_TO ? bhbRefMmolL(K, h - FAST_FROM, 15) : 0.1);
+  const HOURS = 8 * 24;
+  const variants: Record<string, Span[]> = {
+    none: [],
+    'dinner-to-dinner 24 h (23-h span)': [{ startHour: FAST_FROM, endHour: FAST_FROM + 23, electrolytes: true, mealToMealH: 24 }],
+    '24 h': [{ startHour: FAST_FROM, endHour: FAST_FROM + 24, electrolytes: true, mealToMealH: 25 }],
+    '48 h': [{ startHour: FAST_FROM, endHour: FAST_TO, electrolytes: true, mealToMealH: 49 }],
+    // a planned 72-h fast the person interrupted with the refeed at hour 92: the label still runs to hour 116
+    'interrupted 72 h': [{ startHour: FAST_FROM, endHour: FAST_FROM + 72, electrolytes: true, mealToMealH: 73 }],
+  };
+  const base = replay(HOURS, intake, variants.none!, bhb);
+
+  it.each(Object.keys(variants).filter((v) => v !== 'none'))(
+    'identical realised intake under a "%s" label gives a bit-identical physiological history',
+    (name) => {
+      const run = replay(HOURS, intake, variants[name]!, bhb);
+      expect(run.series).toEqual(base.series);
+    },
+  );
+
+  it('the overlay starts when the last meal leaves the observed 24-h window, whatever the label', () => {
+    const first = base.series.findIndex((x) => x[0] === 1);
+    expect(first).toBe(43 + 24);
+    expect(base.series[first]![1]).toBe(24); // back-dated to the 19:00 dinner (20 §2)
+    expect(base.series[FAST_TO - 1]![1]).toBe(FAST_TO - 1 - 43);
+  });
+
+  it('planned metadata survives as policy events only (label and duration preserved, no physiology)', () => {
+    expect(base.rig.events.list).toEqual([]);
+    const r48 = replay(HOURS, intake, variants['48 h']!, bhb);
+    expect(r48.rig.events.list).toEqual([
+      { type: 'fastStart', hour: FAST_FROM, value: 0 },
+      { type: 'fastEnd', hour: FAST_TO, value: 48 },
+    ]);
+    const rInt = replay(HOURS, intake, variants['interrupted 72 h']!, bhb);
+    expect(rInt.rig.events.list.at(-1)).toEqual({ type: 'fastEnd', hour: FAST_FROM + 72, value: 72 });
+  });
+
+  it('the activation parameter is gone; the remaining criteria are labelled legacy routing thresholds', () => {
+    expect(FASTING_PARAMS.some((p) => p.id === 'fasting.plannedMinSpanH')).toBe(false);
+    for (const id of ['fastKcalFrac', 'fastProteinMaxG', 'fastCarbMaxG', 'modKcalFrac']) {
+      const p = FASTING_PARAMS.find((x) => x.id === `fasting.${id}`)!;
+      expect(p.low).toBe(p.value);
+      expect(p.high).toBe(p.value);
+      expect(p.distribution?.label).toBe('engineeringDefault');
+      expect(p.distribution?.uncertaintyKind).toBe('heuristic');
+      expect(p.note).toMatch(/D2-01/);
+    }
+    expect(FASTING_ROUTING.status).toBe('approximation');
+    expect(FASTING_ROUTING.policyOnly).toContain('CompiledSchedule.fastSpans');
+    expect(SIGNAL_META.fastActive?.status).toBe('approximation');
+  });
+});
+
+describe('fasting — D2-01 observed prefix, censoring and daily-native inputs', () => {
+  // a 5-day water-only fast from t = 0 (habitual ring before it), refeed day = day 5 (hours 120-143)
+  const REFEED = 120;
+  const NOON = REFEED + 12;
+  /** Same refeed breakfast; the rest of the refeed day differs (low-carb, salt-free vs carbohydrate and salt). */
+  const refeedDay =
+    (rest: 'low' | 'high'): Intake =>
+    (h) => {
+      const na = rest === 'low' ? 1000 : 3500;
+      const dayC = rest === 'low' ? 40 : 250;
+      if (h < REFEED) return [0, 0, 0, 3000, 0];
+      if (h < REFEED + 24) {
+        if (h === REFEED) return [600, 25, 15, na, dayC];
+        if (h < NOON) return [0, 0, 0, na, dayC];
+        if (h === NOON + 1) return rest === 'low' ? [900, 60, 10, na, dayC] : [1100, 40, 120, na, dayC];
+        if (h === NOON + 7) return rest === 'low' ? [900, 60, 15, na, dayC] : [1100, 40, 115, na, dayC];
+        return [0, 0, 0, na, dayC];
+      }
+      const [kc, p, c] = mealAt(h % 24, 2633, 100, 330);
+      return [kc, p, c, 3000, 330];
+    };
+  const low = replay(REFEED + 24, refeedDay('low'), []);
+  const high = replay(REFEED + 24, refeedDay('high'), []);
+  /** Indices into `physiology()` of the observed-event quantities: overlay flag, clocks, N/protein, pools, completed fast. */
+  const OBSERVED_IDX = [0, 1, 2, 3, 4, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17];
+  const pick = (row: number[]): number[] => OBSERVED_IDX.map((i) => row[i]!);
+
+  it('a later meal the same day leaves earlier event values and the intake-event clock unchanged', () => {
+    for (let h = 0; h <= NOON; h++) expect(pick(low.series[h]!), `hour ${h}`).toEqual(pick(high.series[h]!));
+    expect(low.series[REFEED]![11]).toBeCloseTo(5, 12); // the completed 5-day fast, observed at its end
+    expect(low.series[REFEED]![12]).toBe(0); // the breakfast ended the intake-event clock in its own hour
+  });
+
+  it('the daily-native refeed-oedema estimate may change with the completed day and is declared daily', () => {
+    // 20 §4.5.2 gate on the whole refeed day: salt-free/low-carbohydrate day × 0.3 even before those meals happen
+    expect(low.series[NOON]![5]).toBeGreaterThan(0);
+    expect(low.series[NOON]![5]).toBeCloseTo(0.3 * high.series[NOON]![5]!, 9);
+    expect(FASTING_DAILY_NATIVE).toEqual([{ signal: 'fastOedemaL', dayInputs: ['sodiumMg', 'carbG'], resolution: 'daily' }]);
+    for (const d of FASTING_DAILY_NATIVE) expect(fastingModule.writes).toContain(d.signal);
+  });
+
+  // Stronger event-prefix challenge (D2-01 research item, C2): F(state, exposure ≤ t) for every output. The refeed gate
+  // still reads the completed day, so this stays an explicit open item until the causal event-time refactor is fitted.
+  it.fails('UNRESOLVED: refeed oedema before the later meals is invariant to what is eaten after them', () => {
+    for (let h = REFEED; h <= NOON; h++) expect(low.series[h]![5]).toBe(high.series[h]![5]);
+  });
+
+  it('a running fast is censored at now; ingestion ends the intake-event clock in its hour; alternatives never rewrite it', () => {
+    const NOW = 74; // observed through hour 73: dinner at hour 43, zero intake since
+    const observed: Intake = (h) => {
+      if (h < 44) {
+        const [kc, p, c] = mealAt(h % 24, 2633, 100, 330);
+        return [kc, p, c, 3000, 330];
+      }
+      return [0, 0, 0, 3000, 0];
+    };
+    // the day containing NOW (hours 72-95) carries each alternative's own day totals, also in its observed hours 72-73
+    const continuation = (alt: 'continue' | 'imputedMeal' | 'coffee'): Intake => (h) => {
+      const dayC = h >= 72 ? (alt === 'imputedMeal' ? 80 : alt === 'coffee' ? 4 : 0) : 0;
+      if (h < NOW) return [...observed(h).slice(0, 3), 3000, h < 44 ? 330 : dayC] as [number, number, number, number, number];
+      if (alt === 'imputedMeal' && h === NOW + 2) return [700, 30, 80, 3000, dayC];
+      if (alt === 'coffee' && h === NOW) return [60, 3, 4, 3000, dayC];
+      return [0, 0, 0, 3000, dayC];
+    };
+    const censored = replay(NOW, observed, [{ startHour: 44, endHour: 44 + 48, electrolytes: true, mealToMealH: 49 }]);
+    const at = censored.series[NOW - 1]!;
+    expect(at[1]).toBe(NOW - 1 - 43); // elapsed hours since the last intake, not the intended 48 h
+    expect(at[12]).toBe(NOW - 1 - 43);
+    expect(at[11]).toBe(0); // no completed fast is reported for a running one
+    const runs = (['continue', 'imputedMeal', 'coffee'] as const).map((alt) => ({
+      alt,
+      run: replay(NOW + 24, continuation(alt), [{ startHour: 44, endHour: 44 + 48, electrolytes: true, mealToMealH: 49 }]),
+    }));
+    for (const { run } of runs) expect(run.series.slice(0, NOW)).toEqual(censored.series);
+    const coffee = runs.find((r) => r.alt === 'coffee')!.run.series;
+    const meal = runs.find((r) => r.alt === 'imputedMeal')!.run.series;
+    // 60 kcal is an intake event (> 50 kcal tolerance): the intake-event clock ends in that hour, while the legacy
+    // routing (24-h sums still below the criteria) keeps the physiological overlay running: two separate quantities
+    expect(coffee[NOW]![12]).toBe(0);
+    expect(coffee[NOW]![0]).toBe(1);
+    expect(meal[NOW + 2]![12]).toBe(0);
+    expect(meal[NOW + 2]![0]).toBe(0);
+    expect(meal[NOW + 2]![11]).toBeCloseTo((NOW + 2 - 44) / 24, 12); // zero-intake hours 44-75
+  });
+
+  it('an observed-day status closes to daily through the declared daily-native inputs (provider fixture)', async () => {
+    const { weakestResolution } = await import('@/lib/bodyContracts');
+    expect(weakestResolution('eventPrefix', ...FASTING_DAILY_NATIVE.map((d) => d.resolution))).toBe('daily');
   });
 });

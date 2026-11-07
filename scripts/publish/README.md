@@ -24,6 +24,10 @@ The private-names guard needs the owner's own values (`neverPublic`, `ownerPerso
 `qa/local.config.json` of that checkout (or the file named by `VITALS_QA_CONFIG`); the script refuses to run without
 them, and checks the commit message against them too.
 
+The passcode guard resolves the current Android firmware byte holder and checks text, compact hex and spaced hex
+copies across the exact public tree. It runs in Node before publication; the Android JUnit leak guard remains required
+in the tree as well. Diagnostics identify paths only, never matched firmware material.
+
 The one-time setup is `git remote add public https://github.com/patalbansishashank/vitals.git`. The script refuses to
 run when `public` resolves to the same URL as `origin` or contains "private". Never push any branch to `public` by
 hand.

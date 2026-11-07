@@ -1,0 +1,585 @@
+{
+  "route": "/v1/gauge/sleep",
+  "tool": "gauge_sleep",
+  "args": {
+    "from": "2026-10-20",
+    "to": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "1 Ring sleep sessions for waking days 2026-10-20 to 2026-10-20.",
+    "data": {
+      "from": "2026-10-20",
+      "to": "2026-10-20",
+      "units": {
+        "minutes": "min",
+        "noDataMinutes": "min",
+        "recordedWindowMinutes": "min (the ring's recorded window, not time in bed)",
+        "inBedMinutes": "min (deprecated: recordedWindowMinutes)",
+        "efficiencyPercent": "% of the recorded window asleep (legacy; never shown: use metrics.windowContinuityPct)",
+        "metrics": "sleep-metrics/1: min, bpm, ms, °C, %; onset, finalWake and midpoint in the person's time zone"
+      },
+      "sessions": [
+        {
+          "source": "ring",
+          "wakingDate": "2026-10-20",
+          "start": "2026-10-19T23:00:00+05:30",
+          "end": "2026-10-20T04:49:00+05:30",
+          "recordedWindowMinutes": 349,
+          "inBedMinutes": 349,
+          "asleepMinutes": 323,
+          "minutes": {
+            "deep": 65,
+            "light": 188,
+            "rem": 70,
+            "awake": 26,
+            "unknown": 0
+          },
+          "noDataMinutes": 0,
+          "efficiencyPercent": 93,
+          "kind": "primary",
+          "blocks": [
+            {
+              "start": "2026-10-19T23:00:00+05:30",
+              "end": "2026-10-19T23:12:00+05:30",
+              "stage": "awake",
+              "minutes": 12
+            },
+            {
+              "start": "2026-10-19T23:12:00+05:30",
+              "end": "2026-10-20T00:12:00+05:30",
+              "stage": "light",
+              "minutes": 60
+            },
+            {
+              "start": "2026-10-20T00:12:00+05:30",
+              "end": "2026-10-20T00:57:00+05:30",
+              "stage": "deep",
+              "minutes": 45
+            },
+            {
+              "start": "2026-10-20T00:57:00+05:30",
+              "end": "2026-10-20T01:37:00+05:30",
+              "stage": "light",
+              "minutes": 40
+            },
+            {
+              "start": "2026-10-20T01:37:00+05:30",
+              "end": "2026-10-20T01:43:00+05:30",
+              "stage": "awake",
+              "minutes": 6
+            },
+            {
+              "start": "2026-10-20T01:43:00+05:30",
+              "end": "2026-10-20T02:13:00+05:30",
+              "stage": "rem",
+              "minutes": 30
+            },
+            {
+              "start": "2026-10-20T02:13:00+05:30",
+              "end": "2026-10-20T03:03:00+05:30",
+              "stage": "light",
+              "minutes": 50
+            },
+            {
+              "start": "2026-10-20T03:03:00+05:30",
+              "end": "2026-10-20T03:23:00+05:30",
+              "stage": "deep",
+              "minutes": 20
+            },
+            {
+              "start": "2026-10-20T03:23:00+05:30",
+              "end": "2026-10-20T03:26:00+05:30",
+              "stage": "awake",
+              "minutes": 3
+            },
+            {
+              "start": "2026-10-20T03:26:00+05:30",
+              "end": "2026-10-20T04:04:00+05:30",
+              "stage": "light",
+              "minutes": 38
+            },
+            {
+              "start": "2026-10-20T04:04:00+05:30",
+              "end": "2026-10-20T04:44:00+05:30",
+              "stage": "rem",
+              "minutes": 40
+            },
+            {
+              "start": "2026-10-20T04:44:00+05:30",
+              "end": "2026-10-20T04:49:00+05:30",
+              "stage": "awake",
+              "minutes": 5
+            }
+          ],
+          "metrics": {
+            "version": "sleep-metrics/1",
+            "K": 323,
+            "A": 26,
+            "U": 0,
+            "G": 0,
+            "tstLowerMin": 323,
+            "tstUpperMin": 323,
+            "nativeEpochS": null,
+            "coveragePct": 100,
+            "leadingWakeMin": 12,
+            "stageMinutes": {
+              "deep": 65,
+              "light": 188,
+              "rem": 70,
+              "asleepUnspecified": 0,
+              "awake": 9,
+              "unknown": 0,
+              "gap": 0
+            },
+            "restorativeEstimatedMin": 135,
+            "restorativeSharePct": 41.8,
+            "namedCoveragePct": 100,
+            "incomplete": false,
+            "windowContinuityPct": 97.3,
+            "wasoMin": 9,
+            "awakeningRuns": 2,
+            "wakeUps": 1,
+            "avgSleepHr": null,
+            "avgSleepHrSupportedS": 0,
+            "sampledMeanSleepHr": {
+              "bpm": 53.1,
+              "n": 65
+            },
+            "nightlyLowHrP10": {
+              "bpm": 50,
+              "bins": 65
+            },
+            "timeToLowMin": null,
+            "hrTrend": {
+              "word": "rising",
+              "magnitude": "slight",
+              "deltaBpm": 4
+            },
+            "tooFewHrReadings": false,
+            "hrReadings": 67,
+            "hrMedianGapS": 300,
+            "hrvNightlyMs": {
+              "ms": 42.5,
+              "n": 6,
+              "firmware": []
+            },
+            "hrvWithinNightMs": null,
+            "skinTempNightC": {
+              "c": 35.6,
+              "n": 6
+            },
+            "spo2Night": {
+              "meanPct": 96,
+              "minPct": 95,
+              "count": 3
+            },
+            "minutesBelow90": null,
+            "respRate": null,
+            "tossesTurns": null,
+            "sleepLatency": null,
+            "reasons": {
+              "respRate": "unsupported",
+              "tossesTurns": "unsupported",
+              "sleepLatency": "unsupported",
+              "avgSleepHr": "cadenceUnknown",
+              "timeToLowMin": "cadenceUnknown",
+              "hrvWithinNightMs": "tooFewReadings",
+              "minutesBelow90": "cadenceUnknown"
+            },
+            "onset": "2026-10-19T23:12:00+05:30",
+            "finalWake": "2026-10-20T04:44:00+05:30",
+            "midpoint": "2026-10-20T01:58:00+05:30",
+            "trace5min": [
+              {
+                "start": "2026-10-19T23:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-19T23:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:02:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:07:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T00:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:02:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:07:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:12:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:17:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:22:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:27:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:32:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:37:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:42:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:47:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:52:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T01:57:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:02:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:07:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:12:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:17:00+05:30",
+                "bpm": 50,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T02:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:02:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:07:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:47:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:52:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T03:57:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:02:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:07:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:12:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:17:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:22:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:27:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:32:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:37:00+05:30",
+                "bpm": 54,
+                "n": 1
+              },
+              {
+                "start": "2026-10-20T04:42:00+05:30",
+                "bpm": 54,
+                "n": 1
+              }
+            ],
+            "statuses": {
+              "onset": "inferred",
+              "finalWake": "inferred",
+              "midpoint": "inferred",
+              "tstLowerMin": "inferred",
+              "tstUpperMin": "inferred",
+              "stageMinutes": "inferred",
+              "restorativeEstimatedMin": "inferred",
+              "leadingWakeMin": "inferred",
+              "wakeUps": "inferred",
+              "windowContinuityPct": "inferred",
+              "namedCoveragePct": "observed",
+              "nightlyLowHrP10": "observed",
+              "avgSleepHr": "observed",
+              "sampledMeanSleepHr": "observed",
+              "timeToLowMin": "observed",
+              "hrTrend": "inferred",
+              "hrvNightlyMs": "observed",
+              "hrvWithinNightMs": "observed",
+              "spo2Night": "observed",
+              "minutesBelow90": "observed",
+              "skinTempNightC": "observed",
+              "respRate": "unavailable",
+              "tossesTurns": "unavailable",
+              "sleepLatency": "unavailable"
+            }
+          }
+        }
+      ],
+      "metricsVersion": "sleep-metrics/1",
+      "inputsHash": "sha256:eec593c900085a67eaf8b5a6e229f2db",
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T04:49:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 1121
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

@@ -2,10 +2,40 @@
  * Parameters of the intake module (docs/MODEL_SPEC.md §1.3, §0.4). Every number is copied from the cited dossier
  * section; ranges are the dossier's own (`low`/`high`); where the dossier gives no range the parameter is `fixed`
  * (low = high = value) and the note says so. Rejected alternatives of a ruling are named in `note`.
+ *
+ * Scope labels (2026-10-18, D6-07/D6-08):
+ *  - The carbohydrate appearance limits (60/90 g/h) are DESIGN parameters of a phenomenological appearance kernel. They
+ *    are not verified universal intestinal absorption maxima: the cited data are exogenous-carbohydrate OXIDATION in
+ *    trained athletes during exercise, a different observable from intestinal uptake or systemic appearance.
+ *  - The 15 §4.2 fibre slope and the generic nut ME delta are uncalibrated SENSITIVITY SCENARIOS, off by default
+ *    (`fibreMeScenario`, `nutMeScenario` = 0: a design abstention, not a claim of no food-matrix effect). Food- and
+ *    form-specific measured ME enters as the food's own energy (an alternative, never a second discount).
  */
-import type { ParamDef } from '../../types/params';
+import type { ParamDef, ParamDistributionMeta } from '../../types/params';
 
-type Opt = Pick<ParamDef, 'status' | 'label' | 'draw' | 'note'>;
+type Opt = Pick<ParamDef, 'status' | 'label' | 'draw' | 'note' | 'distribution'>;
+
+/** Design-limit semantics of the phenomenological appearance caps (D6-07). */
+const APPEARANCE_DESIGN: ParamDistributionMeta = {
+  uncertaintyKind: 'heuristic',
+  bounds: 'support',
+  nominal: 'designPoint',
+  basis: 'engineering design limit of the appearance kernel, anchored on exogenous-carbohydrate oxidation during exercise (not measured intestinal uptake)',
+  population: 'trained adults during prolonged exercise (oxidation studies); unvalidated for rest, disease, bariatric surgery or GLP-1 medication',
+  version: 1,
+  label: 'designPrior',
+};
+
+/** Sensitivity-scenario semantics of the legacy 15 §4.2 ME-correction coefficients (D6-08). */
+const ME_SCENARIO: ParamDistributionMeta = {
+  uncertaintyKind: 'scenario',
+  bounds: 'support',
+  nominal: 'designPoint',
+  basis: 'legacy whole-diet fibre/nut ME slope (development fit; not an independently validated physiological coefficient)',
+  population: 'controlled-feeding adults of the source studies',
+  version: 1,
+  label: 'designPrior',
+};
 
 function p(
   name: string,
@@ -55,14 +85,16 @@ const REYNOLDS_2016 = 'Reynolds 2016 PMID 27747394 (21 ref 19)';
 export const INTAKE_PARAMS: readonly ParamDef[] = [
   // ------------------------------------------------------------ carbohydrate appearance (04 §4.10 step 1, §4.16)
   p('raGlcMaxGH', 60, 'g/h', 60, 66, 'B', FUCHS_2019, '04 §4.10', {
-    status: 'verified',
-    label: 'Max intestinal glucose absorption',
-    note: '≈1.0–1.1 g/min (peak exogenous glucose oxidation); excess is queued to later hours',
+    status: 'proposed-fit',
+    label: 'Glucose appearance design limit (phenomenological)',
+    note: 'design parameter of the appearance kernel, not a verified universal intestinal maximum: anchored on ≈1.0–1.1 g/min peak exogenous glucose OXIDATION in trained athletes during exercise (a different observable); excess is queued to later hours',
+    distribution: APPEARANCE_DESIGN,
   }),
-  p('raGlcFruMaxGH', 90, 'g/h', 90, 105, 'B', FUCHS_2019, '04 §4.10', {
-    status: 'verified',
-    label: 'Max glucose + fructose absorption',
-    note: '≈1.5–1.75 g/min; the lower end is the nominal value',
+  p('raGlcFruMaxGH', 90, 'g/h', 90, 105, 'B', `${FUCHS_2019}; Podlogar 2022 doi:10.1007/s00421-022-05019-w`, '04 §4.10', {
+    status: 'proposed-fit',
+    label: 'Glucose + fructose appearance design limit (phenomenological)',
+    note: 'design parameter, not a verified maximum: ≈1.5–1.75 g/min oxidation in trained athletes; Podlogar 2022 (n = 11 trained men, 3 h exercise) found 120 vs 90 g/h late oxidation 1.51 vs 1.29 g/min — oxidation, not measured uptake; the lower end is the nominal value',
+    distribution: APPEARANCE_DESIGN,
   }),
 
   // ------------------------------------------------------------ glucose curve (04 §4.16)
@@ -235,24 +267,43 @@ export const INTAKE_PARAMS: readonly ParamDef[] = [
     label: 'Loading dose when the loading flag is set (ISSN 0.3 g/kg/d)',
   }),
 
-  // ------------------------------------------------------------ fibre / nut ME correction (15 §4.2, R-FIBRE)
-  p('fibreKFKcalPerG', 5.0, 'kcal/g', 3.5, 6.5, 'B', KARL_2017, '15 §4.2', { status: 'proposed-fit', label: 'Faecal-energy slope k_F' }),
+  // ------------------------------------------------------------ fibre / nut ME correction (15 §4.2, R-FIBRE; D6-08)
+  // Scenario switches: 0 = off (the standard projection, a design abstention), 1 = the labelled sensitivity scenario.
+  // Fixed (never drawn), so an ensemble member cannot reintroduce a neutralised correction (HA-06).
+  f('fibreMeScenario', 0, '1', 'C', KARL_2017, '15 §4.2', {
+    status: 'proposed-fit',
+    label: 'Generic fibre ME correction scenario (0 off, 1 on)',
+    note: 'off by default: the universal fibre slope is a development fit, not a validated coefficient; when on it only lowers ME above the reference fibre density (no positive low-fibre uplift)',
+    distribution: { ...ME_SCENARIO, uncertaintyKind: 'scenario', basis: 'scenario switch (policy)', label: 'policy' },
+  }),
+  f('nutMeScenario', 0, '1', 'B', NOVOTNY_2012, '15 §4.2', {
+    status: 'proposed-fit',
+    label: 'Generic nut ME delta scenario (0 off, 1 on)',
+    note: 'off by default: a day-level nut amount has no species/form identity, so it gets no almond coefficient; logged almond forms carry their own measured ME',
+    distribution: { ...ME_SCENARIO, uncertaintyKind: 'scenario', basis: 'scenario switch (policy)', label: 'policy' },
+  }),
+  p('fibreKFKcalPerG', 5.0, 'kcal/g', 3.5, 6.5, 'B', KARL_2017, '15 §4.2', { status: 'proposed-fit', label: 'Faecal-energy slope k_F (sensitivity scenario)', distribution: ME_SCENARIO }),
   p('fibreGEKcalPerG', 4.2, 'kcal/g', 4.0, 4.4, 'B', KARL_2017, '15 §4.2', {
     status: 'unverified',
-    label: 'Gross energy of fibre GE_fib',
+    label: 'Gross energy of fibre GE_fib (sensitivity scenario)',
     note: 'k_net = k_F − GE_fib + c_f (c_f = engine credit 2 kcal/g, core/defaults ATWATER.fibre) = 2.8 kcal/g',
+    distribution: ME_SCENARIO,
   }),
-  p('fibreRefGPer1000Kcal', 8, 'g/1000 kcal', 7.6, 8, 'B', KARL_2017, '15 §4.2', { status: 'proposed-fit', label: 'Typical fibre density F_ref' }),
-  f('fibreCapNegFrac', 0.06, '1', 'B', ZOU_2007, '15 §4.2', { status: 'proposed-fit', label: 'Fibre ME correction lower cap (fraction of E)' }),
-  f('fibreCapPosFrac', 0.03, '1', 'C', ZOU_2007, '15 §4.2', { status: 'proposed-fit', label: 'Fibre ME correction upper cap (fraction of E, guess)' }),
+  p('fibreRefGPer1000Kcal', 8, 'g/1000 kcal', 7.6, 8, 'B', KARL_2017, '15 §4.2', { status: 'proposed-fit', label: 'Typical fibre density F_ref (sensitivity scenario)', distribution: ME_SCENARIO }),
+  f('fibreCapNegFrac', 0.06, '1', 'B', ZOU_2007, '15 §4.2', { status: 'proposed-fit', label: 'Fibre ME correction lower cap (fraction of E, scenario)' }),
+  f('fibreCapPosFrac', 0.03, '1', 'C', ZOU_2007, '15 §4.2', {
+    status: 'proposed-fit',
+    label: 'Fibre ME correction upper cap (legacy; not applied)',
+    note: 'the automatic positive low-fibre uplift is disabled (D6-08); kept for the legacy comparator only',
+  }),
   p('fibreTauD', 3, 'd', 2, 4, 'B', 'Cummings 1992 PMID 1333426 (15 ref 9: whole-gut transit 60-70 h)', '15 §4.2', {
     status: 'proposed-fit',
     label: 'Fibre exposure EMA time constant τ_F',
   }),
   p('nutKcalPerG', 6.1, 'kcal/g', 6.0, 6.1, 'B', NOVOTNY_2012, '15 §4.2', {
     status: 'verified',
-    label: 'Label energy of whole nuts',
-    note: 'almonds 6.0-6.1 kcal/g (Atwater); walnuts 6.61 (other food, not a range)',
+    label: 'Label energy of whole nuts (nut scenario)',
+    note: 'almonds 6.0-6.1 kcal/g (Atwater); walnuts 6.61 (other food, not a range); used only by the nut ME scenario',
   }),
   p('nutFibreGPerG', 0.11, 'g/g', 0.1, 0.12, 'C', NOVOTNY_2012, '15 §4.2', {
     status: 'unverified',
@@ -270,7 +321,8 @@ export const INTAKE_PARAMS: readonly ParamDef[] = [
   }),
   f('exCarbTpH', 0.5, 'h', 'B', 'dossier 04 §4.16 t_p class for liquid glucose; review M8 ruling', '04 §4.3', {
     status: 'proposed-fit',
-    label: 'Time-to-peak of carbohydrate taken during exercise (absorbed as glucose)',
+    label: 'Time-to-peak of carbohydrate taken during exercise (appearance kernel)',
+    note: 'carbohydrate of unknown mixture is routed as glucose-equivalent: a declared scenario assumption (INTAKE_ASSUMPTIONS.unknownCarbMixtureAsGlucose), not a measured composition',
   }),
 
   // ------------------------------------------------------------ post-meal walk (21 C2, R-LEVERS)

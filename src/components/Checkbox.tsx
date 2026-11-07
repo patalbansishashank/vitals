@@ -13,7 +13,7 @@ export interface CheckboxProps {
   className?: string;
 }
 
-/** 18 px checkbox for lists (won't-do list, consent). Never the only toggle in a settings row — use Switch. */
+/** 18 px checkbox for lists (won't-do list, consent): ink-3 outline, gold when ticked. Never the only toggle in a settings row — use Switch. */
 export function Checkbox({ checked, onChange, label, help, indeterminate = false, disabled, name, id, className }: CheckboxProps) {
   const auto = useId();
   const ref = useRef<HTMLInputElement>(null);
@@ -63,7 +63,7 @@ export interface RadioGroupProps<V extends string = string> {
   className?: string;
 }
 
-/** Native radios in a fieldset: 18 px discs, ink when chosen. For 2–6 short options prefer KeyBank. */
+/** Native radios in a fieldset: 18 px rings, gold when chosen. For 2–6 short options prefer KeyBank. */
 export function RadioGroup<V extends string = string>({ name, value, onChange, options, label, className }: RadioGroupProps<V>) {
   const auto = useId();
   const groupName = name ?? auto;

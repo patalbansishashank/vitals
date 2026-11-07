@@ -13,14 +13,36 @@
  * Where the dossier is internally inconsistent the STRICTER reading is implemented and marked
  * `REVIEW:` (clinician review), e.g. the T1 policy row excludes EX-H/EX-J/EX-K while the exclusion-
  * code table applies them from T2.
+ *
+ * Contracts 2026-10-18 (C5):
+ * - Tri-state answers (D7-03): `screeningAnswerMap` keeps yes / no / prefer not / unanswered per flag, so the shared
+ *   suggestion policy (src/lib/safetyPolicy.ts) can tell an unknown screen from a negative one. The boolean flags below
+ *   keep their conservative reading for the gate.
+ * - Exercise symptoms (D4-02): a yes / prefer-not answer to Q13 is context-incomplete (review), not a diagnosis — the
+ *   planner's gate holds it from the `exercise-symptoms` flag (`screeningExerciseGate` has the same semantics); with
+ *   unresolved concerning exertional symptoms (structured reports in `SafetyContext.symptoms`) autonomous exercise
+ *   prescription and progression stop (`no-exercise-prescription`) until a valid reviewed envelope covers them. Logged
+ *   exercise, ordinary daily activity and the separate musculoskeletal / blood-pressure pathways are untouched.
+ * - Renal nutrition scope (D4-07): a kidney answer no longer writes an automatic protein cap (the former 1.3 g/kg
+ *   reference-weight HC-M2 lock); it is renal context incomplete (`ScreeningOutcome.renal`, see ./renalScope.ts): no
+ *   renal-targeted numbers (protein, sodium, potassium, fluid) without an applicable clinician-directed envelope, whose
+ *   bounds keep their own weight basis. The supplement, ketogenic and fasting precautions stay; no exercise lock is added.
  */
+import { exerciseSymptomGate, type ExerciseSymptomGate, type MarkerNoSuggestInput, type SuggestionSafetyInput } from '@/lib/safetyPolicy';
+import type { ClinicianExerciseEnvelope, ScreeningAnswer, SymptomReport } from '@/lib/bodyContracts';
+import type { MedicationChange } from '@/engine/types/profile';
+import { NO_RENAL_SCOPE, resolveRenalScope, type RenalFinding, type RenalNutritionEnvelope, type RenalScope } from './renalScope';
 
 /* ============================================================================
    Versions
    ============================================================================ */
 
-/** Bump when a rule changes meaning; stored outcomes are recomputed from answers anyway. */
-export const RULES_VERSION = 1;
+/**
+ * Bump when a rule changes meaning; stored outcomes are recomputed from answers anyway. 2 (2026-10-18, D4-02): a
+ * structured concerning unresolved symptom writes `no-exercise-prescription`; the legacy Q13 review is the planner gate's.
+ * 3 (2026-10-18, D4-07): a kidney answer writes no protein cap; the renal scope (`ScreeningOutcome.renal`) carries it.
+ */
+export const RULES_VERSION = 3;
 /** Bump when questions are added/changed: stored answers then need a review before the gate clears. */
 export const QUESTION_SET_VERSION = 1;
 /** PAR-Q+-style clearance lapses after 12 months (dossier §4.1). */
@@ -132,6 +154,21 @@ export interface SafetyContext {
   /** High training load / EA < 45 (EX-L), from Habits. */
   highTrainingLoad?: boolean;
   optIns?: SafetyOptIns;
+  /** D4-02: structured symptom reports (status, date, context) and reviewed exercise envelopes; absent = none entered. */
+  symptoms?: readonly SymptomReport[];
+  exerciseEnvelopes?: readonly ClinicianExerciseEnvelope[];
+  /** Local date the envelopes are judged on (YYYY-MM-DD); without it no envelope can authorize progression. */
+  today?: string;
+  /** D4-07: clinician-directed nutrition envelopes the person recorded (kept as entered; judged on `today`). */
+  nutritionEnvelopes?: readonly RenalNutritionEnvelope[];
+  /** D4-07: dated medication changes; one after an envelope's assessment makes it need review. */
+  medicationChanges?: readonly Pick<MedicationChange, 'id' | 'date'>[];
+  /** D4-07: kidney findings from the blood markers (`markerRenalFindings`); never a stage. */
+  renalFindings?: readonly RenalFinding[];
+  /** D4-07: actual weight (with its date) and height, for actual-basis g/day and the reference-weight floors' g/day. */
+  weightKg?: number;
+  weightOn?: string;
+  heightCm?: number;
 }
 
 /** Opt-ins that are valid now (see `resolveOptIns`). */
@@ -373,6 +410,12 @@ export interface ScreeningOutcome {
   fasting: FastingEligibility;
   /** Body context (BMI, body fat, age in years) was available and applied. */
   bodyRulesApplied: boolean;
+  /**
+   * D4-07: renal nutrition scope — Incomplete / Review / Entered, the renal domains withheld from autonomous numbers, the
+   * applicable envelopes with their bounds (own weight basis) and any conflict with the locks above. `renalSafetyFlags`
+   * turns it into the profile's `renalContext` / `nutritionEnvelopes`.
+   */
+  renal: RenalScope;
 }
 
 /* ============================================================================
@@ -621,6 +664,95 @@ export function deriveFlags(a: ScreeningAnswers, ctx: SafetyContext = {}): Safet
 }
 
 /* ============================================================================
+   Tri-state answers (D7-03)
+   ============================================================================ */
+
+const tri = (a: YesNoPrefer | undefined): ScreeningAnswer | undefined => (a === 'yes' ? 'yes' : a === 'no' ? 'no' : a === 'prefer-not' ? 'preferNot' : undefined);
+
+/**
+ * Tri-state answer per flag (D7-03): 'yes' / 'no' from the question and its follow-up, 'preferNot' for "prefer not to
+ * say", and no key when the question is unanswered (unknown). A follow-up item not picked under a "yes" is 'no'. Used
+ * by the shared suggestion policy and as `SafetyFlags.answers`; it never turns an unknown into a negative screen.
+ */
+export function screeningAnswerMap(a: ScreeningAnswers): Partial<Record<SafetyFlag, ScreeningAnswer>> {
+  const out: Partial<Record<SafetyFlag, ScreeningAnswer>> = {};
+  const items = <T extends string>(answer: YesNoPrefer | undefined, picked: readonly T[] | undefined, map: Readonly<Record<T, SafetyFlag>>): void => {
+    const t = tri(answer);
+    if (!t) return;
+    // "yes" without any follow-up item picked is not settled for any item (the question still counts as unanswered)
+    if (t === 'yes' && !(picked?.length)) return;
+    for (const [item, flag] of Object.entries(map) as Array<[T, SafetyFlag]>) out[flag] = t === 'yes' ? (picked!.includes(item) ? 'yes' : 'no') : t;
+  };
+  if (a.pregnancy === 'pregnant-or-breastfeeding') Object.assign(out, { pregnant: 'yes', 'planning-pregnancy': 'no' });
+  else if (a.pregnancy === 'planning') Object.assign(out, { pregnant: 'no', 'planning-pregnancy': 'yes' });
+  else if (a.pregnancy === 'no') Object.assign(out, { pregnant: 'no', 'planning-pregnancy': 'no' });
+  else if (a.pregnancy === 'prefer-not') Object.assign(out, { pregnant: 'preferNot', 'planning-pregnancy': 'preferNot' });
+  const ed = tri(a.eatingDisorder);
+  if (ed) out['ed-history'] = ed;
+  items(a.diabetes, a.diabetesItems, DIABETES_FLAG);
+  items(a.conditions, a.conditionItems, CONDITION_FLAG);
+  items(a.metabolic, a.metabolicItems, METABOLIC_FLAG);
+  items(a.medications, a.medicationItems, MEDICATION_FLAG);
+  const simple: Array<[YesNoPrefer | undefined, SafetyFlag]> = [
+    [a.symptoms, 'exercise-symptoms'],
+    [a.supervisedExercise, 'supervised-exercise-only'],
+    [a.musculoskeletal, 'musculoskeletal'],
+    [a.alcohol, 'heavy-alcohol'],
+  ];
+  for (const [ans, flag] of simple) {
+    const t = tri(ans);
+    if (t) out[flag] = t;
+  }
+  return out;
+}
+
+/**
+ * The shared suggestion-policy input (D7-03) for every surface — Food (screens), the Coach and the commands build it the
+ * same way: tri-state screening answers (none, or answers waiting for import review = every screened predicate unknown),
+ * the current marker evaluation's flags and noSuggest decisions, and the food allergies from answered food rules
+ * (unanswered rules leave milk/soy unknown, never "no allergy").
+ */
+export function suggestionSafetyFrom(
+  answers: ScreeningAnswers | null | undefined,
+  opts: {
+    pendingReview?: boolean;
+    markers?: { flags?: readonly string[]; noSuggest?: readonly MarkerNoSuggestInput[] } | null;
+    diet?: { rulesComplete?: boolean; allergies?: readonly string[] } | null;
+    clinicianStops?: readonly string[];
+    refused?: readonly string[];
+  } = {},
+): SuggestionSafetyInput {
+  const out: SuggestionSafetyInput = { screening: answers && !opts.pendingReview ? screeningAnswerMap(answers) : {} };
+  if (opts.markers?.flags?.length) out.markerFlags = [...opts.markers.flags];
+  if (opts.markers?.noSuggest?.length) out.markerNoSuggest = [...opts.markers.noSuggest];
+  const d = opts.diet;
+  if (d?.rulesComplete && Array.isArray(d.allergies)) out.allergies = { milk: d.allergies.includes('milk') ? 'yes' : 'no', soy: d.allergies.includes('soy') ? 'yes' : 'no' };
+  if (opts.clinicianStops?.length) out.clinicianStops = [...opts.clinicianStops];
+  if (opts.refused?.length) out.refused = [...opts.refused];
+  return out;
+}
+
+/**
+ * Legacy Q13 answer as a symptom report (D4-02 migration): yes / prefer-not become `reviewNeeded` / `unknown` with
+ * source `legacyScreening`, category `other` — context to clarify, never a retroactive chest-pain diagnosis.
+ */
+export function legacySymptomReports(a: Pick<ScreeningAnswers, 'symptoms'>, answeredAt: string | null | undefined): SymptomReport[] {
+  if (a.symptoms !== 'yes' && a.symptoms !== 'prefer-not') return [];
+  return [{ id: 'legacy-q13', category: 'other', status: a.symptoms === 'yes' ? 'reviewNeeded' : 'unknown', reportedAt: answeredAt ?? '1970-01-01T00:00:00.000Z', context: 'unknown', source: 'legacyScreening' }];
+}
+
+/** The exercise symptom gate for these answers and context (D4-02; see `exerciseSymptomGate`). */
+export function screeningExerciseGate(a: Pick<ScreeningAnswers, 'symptoms'>, ctx: Pick<SafetyContext, 'symptoms' | 'exerciseEnvelopes' | 'today'> = {}): ExerciseSymptomGate {
+  return exerciseSymptomGate({
+    screening: tri(a.symptoms) ?? null,
+    symptoms: ctx.symptoms ?? [],
+    // no date, no authorization: envelopes are judged only against a known day
+    envelopes: ctx.today ? (ctx.exerciseEnvelopes ?? []) : [],
+    today: ctx.today ?? '0000-01-01',
+  });
+}
+
+/* ============================================================================
    Locks
    ============================================================================ */
 
@@ -790,6 +922,7 @@ export function evaluateScreening(answers: ScreeningAnswers, context: SafetyCont
         shortWindowAvailable: false,
       },
       bodyRulesApplied,
+      renal: NO_RENAL_SCOPE,
     };
   }
 
@@ -845,7 +978,8 @@ export function evaluateScreening(answers: ScreeningAnswers, context: SafetyCont
 
   /* ---- conditions (§4.2, EX-F) ----------------------------------------- */
   if (has('kidney-disease')) {
-    L('protein-cap', 'HC-M2', 'conditions', 1.3);
+    // D4-07: no automatic renal protein bound (never the old 1.3 g/kg reference-weight cap, never KDIGO's 0.8 g/kg as a
+    // default): renal-targeted numbers wait for an applicable clinician envelope (`renal` below). Precautions stay.
     L('no-potassium-supplement', 'HC-M7', 'conditions');
     L('no-creatine', 'HC-M12', 'conditions');
     L('no-ketogenic', 'population rules', 'conditions');
@@ -900,6 +1034,13 @@ export function evaluateScreening(answers: ScreeningAnswers, context: SafetyCont
     L('exercise-light-moderate', 'HC-X4', 'symptoms');
     capFast(TIER_MAX_HOURS.T1, 'Q13', 'symptoms');
   }
+  // D4-02: structured concerning unresolved exertional symptoms in the context stop autonomous exercise prescription and
+  // progression (not ordinary activity, not logging) until a valid reviewed envelope covers them. A Q13 yes / prefer-not
+  // without context is NOT written as a lock: the planner's own gate (`exerciseGateOf`, same semantics as
+  // `screeningExerciseGate`) holds it as review from the profile flag and lifts it when a later report clarifies it or
+  // an envelope covers it. A lock stored in a request could not be lifted by that later state (0C: one gate).
+  const exGate = screeningExerciseGate(answers, context);
+  if (exGate.status === 'suspended') L('no-exercise-prescription', 'HC-X4', 'symptoms');
   if (has('supervised-exercise-only')) L('no-exercise-prescription', 'Q15', 'supervisedExercise');
   if (has('musculoskeletal')) L('exercise-low-impact', 'Q14', 'musculoskeletal');
 
@@ -993,6 +1134,18 @@ export function evaluateScreening(answers: ScreeningAnswers, context: SafetyCont
   const vledOnlyDefault = vledLock !== undefined && vledLock.reasons.every((r) => r.source === 'default');
   const lockList = locks.list().filter((l) => !(l.id === 'no-vled' && vledEligible && vledOnlyDefault));
 
+  /* ---- renal nutrition scope (D4-07) ------------------------------------ */
+  const renal = resolveRenalScope({
+    flags,
+    ...(context.nutritionEnvelopes ? { envelopes: context.nutritionEnvelopes } : {}),
+    ...(context.renalFindings ? { findings: context.renalFindings } : {}),
+    ...(context.medicationChanges ? { medicationChanges: context.medicationChanges } : {}),
+    ...(context.optIns?.recentIllness ? { recentIllness: true } : {}),
+    ...(context.today ? { today: context.today } : {}),
+    body: { weightKg: context.weightKg, weightOn: context.weightOn, heightCm: context.heightCm },
+    locks: lockList,
+  });
+
   /* ---- access ---------------------------------------------------------- */
   const plannerAccess: PlannerAccess = blockPlanner ? 'blocked' : restrictions.length > 0 || RESTRICTING_FLAGS.some(has) ? 'restricted' : 'full';
 
@@ -1027,6 +1180,7 @@ export function evaluateScreening(answers: ScreeningAnswers, context: SafetyCont
       shortWindowAvailable: !blockPlanner && shortWindowAvailable,
     },
     bodyRulesApplied,
+    renal,
   };
 }
 

@@ -1,0 +1,44 @@
+@layer components {
+  .lv-eqm--scale {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lv-eqm__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .lv-eqm__reading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    min-width: 0;
+  }
+  .lv-match {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+  .lv-match[data-size='sm'] {
+    flex-basis: 96px;
+  }
+  .lv-match__knots {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .lv-eqm__verdict {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-eqm__term {
+    display: grid;
+    gap: 4px;
+    padding-block: 4px;
+  }
+}

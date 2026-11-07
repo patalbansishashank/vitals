@@ -1,8 +1,7 @@
 # Vitals for the desktop
 
-The Electron app for Linux, Windows and macOS: the Vitals web app in its own window, with the ring over the PC's
-Bluetooth and the Vitals MCP built in, so AI tools on the same computer can read and log with the person's consent
-(SUITE_SPEC §15.6). Build output goes to `dist/` and `release/` (both git-ignored).
+The Electron app for Linux, Windows and macOS: the Vitals web app in its own window, with the tray and the Vitals MCP
+built in, so AI tools on the same computer can read and log with the person's consent (SUITE_SPEC §15.6). Build output goes to `dist/` and `release/` (both git-ignored).
 
 - `pnpm --filter @vitals/desktop run build`: builds the web app (skip with `VITALS_SKIP_WEB=1`), copies it to
   `dist/web`, and bundles main, preload and the MCP bridge (`dist/{main,preload,mcp}.cjs`). Only `electron` stays

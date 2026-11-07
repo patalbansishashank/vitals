@@ -1,0 +1,28 @@
+/* The Short videos card and page (r071, neutral): a number and a track, no art. Tokens only. */
+@layer components {
+  .rgv-card {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgv-day {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgv-history,
+  .rgv-controls {
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgv-controls {
+    width: 100%;
+    justify-items: start;
+  }
+  /* Two lightness steps of the same domain, matched to the day card's app legend. */
+  .rgv-bars .lmz-bars__seg:nth-child(2),
+  .rgv-bars .lmz-bars__legend li:nth-child(2) i {
+    background: var(--lm-hue-videos-ink);
+  }
+}

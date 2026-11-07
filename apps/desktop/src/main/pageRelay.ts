@@ -16,6 +16,7 @@ export interface RelayCall {
   tool: string;
   args: unknown;
   idempotencyKey?: string;
+  fullControl?: boolean;
 }
 
 export interface PageRelay {
@@ -74,13 +75,13 @@ export function createPageRelay(o: PageRelayOptions): PageRelay {
   };
 
   return {
-    call({ client, tool, args, idempotencyKey }) {
+    call({ client, tool, args, idempotencyKey, fullControl }) {
       const callId = randomUUID();
       return new Promise<ToolResultEnvelope>((resolve) => {
         const timer = setTimeout(() => settle(callId, timeoutEnvelope(timeoutMs)), timeoutMs);
         pending.set(callId, { resolve, timer });
         try {
-          o.send({ callId, client, tool, args, ...(idempotencyKey ? { idempotencyKey } : {}) });
+          o.send({ callId, client, tool, args, ...(idempotencyKey ? { idempotencyKey } : {}), ...(fullControl === true ? { fullControl: true } : {}) });
         } catch {
           settle(callId, rejected('unavailable', NO_WINDOW_MESSAGE));
         }

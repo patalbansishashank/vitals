@@ -1,9 +1,10 @@
 /* ==========================================================================
    /dev/charts — every chart view rendered from deterministic fixtures, with a
-   control strip (horizon, metric count, theme, textures, run state). The data
-   is synthetic and labelled as such.
+   control strip (horizon, metric count, textures, run state). Dark only (the
+   one Ember palette). The data is synthetic and labelled as such.
    ========================================================================== */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { TopBar } from '@/app/shell';
 import { SlidersHorizontal } from 'lucide-react';
 import { Checkbox, Faceplate, Key, KeyBank, Popover, RunKey, Switch, TextInput } from '@/components';
 import './charts.css';
@@ -18,37 +19,14 @@ import type { ChartStatus } from './components/LaneStack';
 import { FIXTURE_METRICS, makeChartData, makeComparison, makeConvergence } from './fixtures';
 import { capacityText, DEFAULT_LANE_IDS, pickerGroups, toggleMetric } from './lib/picker';
 
-type Theme = 'app' | 'light' | 'dark';
-
-function useDemoTheme(theme: Theme) {
-  useEffect(() => {
-    if (theme === 'app') return; // leave the app's own theme alone
-    const html = document.documentElement;
-    const prev = html.getAttribute('data-theme');
-    html.setAttribute('data-theme', theme);
-    return () => {
-      if (prev == null) html.removeAttribute('data-theme');
-      else html.setAttribute('data-theme', prev);
-    };
-  }, [theme]);
-}
-
-function initialTheme(): Theme {
-  if (typeof location === 'undefined') return 'app';
-  const q = new URLSearchParams(location.search).get('theme');
-  return q === 'light' || q === 'dark' ? q : 'app';
-}
-
 export default function ChartsDemoPage() {
   const [days, setDays] = useState(84);
   const [metricCount, setMetricCount] = useState<'default' | 'all'>('default');
-  const [theme, setTheme] = useState<Theme>(initialTheme);
   const [textures, setTextures] = useState(false);
   const [status, setStatus] = useState<ChartStatus>('idle');
   const [sweep, setSweep] = useState(0);
   const [elapsed, setElapsed] = useState<string | undefined>();
   const [day, setDay] = useState(37);
-  useDemoTheme(theme);
 
   const data = useMemo(() => makeChartData({ days }), [days]);
   const comparison = useMemo(() => makeComparison({ days: 119 }), []);
@@ -58,6 +36,11 @@ export default function ChartsDemoPage() {
   const laneIds = metricCount === 'all' ? allIds : lanes;
   const tdee = data.series.find((s) => s.id === 'tdee');
   const fat = data.series.find((s) => s.id === 'fat_mass');
+  // the skin's single-series area only shows where there is no likely range: the same series with their bands removed
+  const noRange = useMemo(
+    () => ({ ...data, series: data.series.map((s) => ({ ...s, daily: { ...s.daily, band: undefined }, hourly: s.hourly ? { ...s.hourly, band: undefined } : s.hourly })) }),
+    [data],
+  );
 
   const run = () => {
     if (status === 'running') return;
@@ -74,17 +57,14 @@ export default function ChartsDemoPage() {
 
   return (
     <div className="lmc-demo">
+      <TopBar title="Charts" subtitle={`${FIXTURE_METRICS.length} metrics · synthetic data`} />
       <header className="lmc-demo__head">
-        <div>
-          <h1>Charts</h1>
-          <p>Every chart view from deterministic fixtures ({FIXTURE_METRICS.length} metrics, hourly data for the fast ones). Synthetic numbers — shapes only.</p>
-        </div>
         <RunKey onRun={run} caption={`${days} days`} state={status === 'running' ? 'running' : status === 'stale' ? 'stale' : 'idle'} elapsed={elapsed ? Number(elapsed.replace(/[^0-9.]/g, '')) : undefined} />
       </header>
 
       <div className="lmc-demo__controls" role="group" aria-label="Demo controls">
         <label className="lmc-demo__ctl">
-          <span>horizon</span>
+          <span>Horizon</span>
           <KeyBank<string>
             size="sm"
             label="Horizon"
@@ -98,47 +78,33 @@ export default function ChartsDemoPage() {
           />
         </label>
         <label className="lmc-demo__ctl">
-          <span>lanes</span>
+          <span>Lanes</span>
           <KeyBank<'default' | 'all'>
             size="sm"
             label="Lanes"
             value={metricCount}
             onChange={setMetricCount}
             options={[
-              { value: 'default', label: `picked · ${lanes.length}` },
-              { value: 'all', label: `all · ${allIds.length}` },
+              { value: 'default', label: `Picked · ${lanes.length}` },
+              { value: 'all', label: `All · ${allIds.length}` },
             ]}
           />
         </label>
         <label className="lmc-demo__ctl">
-          <span>theme</span>
-          <KeyBank<Theme>
-            size="sm"
-            label="Theme"
-            value={theme}
-            onChange={setTheme}
-            options={[
-              { value: 'app', label: 'app' },
-              { value: 'light', label: 'light' },
-              { value: 'dark', label: 'dark' },
-            ]}
-          />
-        </label>
-        <label className="lmc-demo__ctl">
-          <span>state</span>
+          <span>State</span>
           <KeyBank<ChartStatus>
             size="sm"
             label="Result state"
             value={status}
             onChange={setStatus}
             options={[
-              { value: 'idle', label: 'done' },
-              { value: 'running', label: 'running' },
-              { value: 'stale', label: 'stale' },
+              { value: 'idle', label: 'Done' },
+              { value: 'running', label: 'Running' },
+              { value: 'stale', label: 'Stale' },
             ]}
           />
         </label>
-        <Switch checked={textures} onChange={setTextures} label="patterns in charts" />
+        <Switch checked={textures} onChange={setTextures} label="Patterns in charts" />
       </div>
 
       <ChartFrame
@@ -161,33 +127,37 @@ export default function ChartsDemoPage() {
       />
 
       <div className="lmc-demo__grid">
-        <Faceplate variant="flush" title="How the plans compare" caption="planner · A / B / C · synced crosshair">
+        <Faceplate variant="flush" title="One series, no range" caption="area and end dot">
+          <ChartFrame key={`nr-${days}`} data={noRange} defaultLaneIds={['scale_weight', 'insulin_sens', 'sleep_quality']} textures={textures} title="Single series without a range (synthetic)" />
+        </Faceplate>
+
+        <Faceplate variant="flush" title="How the plans compare" caption="A · B · C">
           <CompareView data={comparison} selected="A" />
         </Faceplate>
 
-        <Faceplate variant="flush" title="One day, hour by hour" caption="day view · shown when zoomed to ≤ 2 days">
+        <Faceplate variant="flush" title="One day, hour by hour">
           <DayView data={data} day={Math.min(day, days - 1)} onDayChange={setDay} />
         </Faceplate>
 
         <div className="lmc-demo__two">
           {tdee ? (
-            <Faceplate variant="flush" title="Where the energy goes" caption="TDEE components · kcal/d">
+            <Faceplate variant="flush" title="Where the energy goes" caption="kcal/d">
               <TdeeStack series={tdee} time={data.time} phases={data.phases} textures={textures} />
             </Faceplate>
           ) : null}
           {data.composition ? (
-            <Faceplate variant="flush" title="Why did the scale move?" caption="weekly change, kg">
+            <Faceplate variant="flush" title="Why did the scale move?" caption="kg a week">
               <WeightDecomposition composition={data.composition} time={data.time} />
             </Faceplate>
           ) : null}
         </div>
 
         <div className="lmc-demo__two">
-          <Faceplate variant="flush" title="Optimiser progress" caption="planner · reassurance only">
+          <Faceplate variant="flush" title="Optimiser progress">
             <ConvergenceChart traces={convergence} />
           </Faceplate>
           {fat ? (
-            <Faceplate variant="flush" title="Schedule preview" caption="coarse · updates while painting">
+            <Faceplate variant="flush" title="Schedule preview">
               <div style={{ padding: '10px 12px 12px' }}>
                 <PreviewStrip fat={fat.daily.values} ketosis={data.states?.[0]?.daily} />
               </div>

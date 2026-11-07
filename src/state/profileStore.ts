@@ -12,6 +12,10 @@
  * - Every change goes through the `profile.*` commands (the actions below dispatch them). The boot-cache write is
  *   debounced (300 ms) so a slider drag never writes localStorage per frame; consecutive edits of the same field
  *   coalesce into one ChangeSet.
+ * - 2026-10-18 contracts (D1-03, D3-05, D3-07): the persisted values keep optional measurement provenance on `waist` and
+ *   `knownBodyFat` (observation id, date, landmark/device/protocol, parents, scan masses) and the habit context fields
+ *   `stepsScope` and `trainingGrowthState`; the sanitizers keep them when valid instead of dropping them. Legacy data has
+ *   none of them and reads as "provenance unknown" (no migration step is needed: the shape is additive).
  *
  * Selectors for other features:
  *   useBodyEstimate()  → live estimate with likely ranges + maintenance (same resolveProfile the Simulator uses)
@@ -56,6 +60,9 @@ export {
   BODY_VERSION,
   DEFAULT_BODY,
   FRAME_RANGE,
+  GIRTH_LANDMARKS,
+  GROWTH_STATES,
+  STEPS_SCOPES,
   defaultFigureFrame,
   figureFrameOf,
   isBodyProfileState,

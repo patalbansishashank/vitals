@@ -134,7 +134,7 @@ describe('TDEE stack and adaptation label in kJ', () => {
     const a: DrawArgs = { ctx, theme: readChartTheme(), dpr: 1, box: { left: 44, top: 0, width: 840, height: 240 }, canvasW: 900, canvasH: 240, x0: 0, x1: 84, yMin: 0, yMax: 16000, x: (t) => 44 + t * 10, y: (v) => 240 - v / 70 };
     stackedAreaModel(s, { mode: 'focus', tickColCss: 44, labels: true }).over!(a, view(0, 84));
     const label = texts.find((t) => t.startsWith('adaptation '));
-    expect(label).toMatch(/^adaptation [−+]\d[\d\u2009\u00a0]*0 kJ$/);
+    expect(label).toMatch(/^adaptation [−+]\d[\d,\u2009\u00a0]*0 kJ$/);
     expect(texts.some((t) => /kcal/.test(t))).toBe(false);
   });
 
@@ -184,7 +184,7 @@ describe('components with energyUnit="kJ"', () => {
     expect(ribbon.getAttribute('aria-label')).toMatch(/\d0\u2009kJ/);
     expect(ribbon.getAttribute('aria-label')).not.toMatch(/kcal/);
     const dial = screen.getByRole('img', { name: /^Eat / });
-    expect(dial.getAttribute('aria-label')).toMatch(/\(\d[\d\u2009\u00a0]*0\u2009kJ\)/);
+    expect(dial.getAttribute('aria-label')).toMatch(/\(\d[\d,\u2009\u00a0]*0\u2009kJ\)/);
     expect(dial.getAttribute('aria-label')).not.toMatch(/kcal/);
   });
 });

@@ -22,6 +22,7 @@ export interface TableCell {
   hi: number;
   /** "19.8 (18.6–21.0)" */
   text: string;
+  status?: string;
 }
 
 export interface TableRow {
@@ -72,6 +73,10 @@ export function buildTable(
       cells.push({ v: mt, lo: NaN, hi: NaN, text: formatNumber(mt, 0) });
     }
     for (const s of series) {
+      if (s.display?.wordOnly) {
+        cells.push({ v: NaN, lo: NaN, hi: NaN, text: s.display.wordOnly, status: s.display.wordOnly });
+        continue;
+      }
       const cv = valueAt(s, t, res);
       const d = s.format.decimals;
       const range = Number.isFinite(cv.lo) && Number.isFinite(cv.hi) ? ` (${formatRange(cv.lo, cv.hi, d)})` : '';
@@ -95,14 +100,14 @@ export function tableToCSV(model: TableModel): string {
     const u = unitSuffix(c.unit);
     const name = u ? `${c.header} (${u})` : c.header;
     head.push(name);
-    if (c.id !== 'intake' && c.id !== 'maintenance') head.push(`${c.header} likely low`, `${c.header} likely high`);
+    if (c.id !== 'intake' && c.id !== 'maintenance') head.push(`${c.header} range low`, `${c.header} range high`);
   }
   const lines = [head.map(csvEscape).join(',')];
   for (const r of model.rows) {
     const cells = [r.label];
     model.columns.forEach((c, k) => {
       const cell = r.cells[k]!;
-      cells.push(plain(cell.v, c.decimals));
+      cells.push(cell.status ?? plain(cell.v, c.decimals));
       if (c.id !== 'intake' && c.id !== 'maintenance') cells.push(plain(cell.lo, c.decimals), plain(cell.hi, c.decimals));
     });
     lines.push(cells.map(csvEscape).join(','));

@@ -30,7 +30,7 @@ beforeAll(async () => {
   execFileSync('pnpm', ['exec', 'vite', 'build', '-c', 'vite.person.config.ts', '--outDir', outDir], { cwd: pkg, stdio: 'ignore' });
   const dataDir = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), 'mcp-first-'));
   done.push(() => rm(dataDir, { recursive: true, force: true }));
-  c = await startCompanion({ port: 0, dataDir: join(dataDir, 'relay'), allowedOrigins: [], home: { dataDir, mqtt: { enabled: false }, rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: threadWorkerFactory(bundle) } });
+  c = await startCompanion({ port: 0, dataDir: join(dataDir, 'relay'), allowedOrigins: [], home: { dataDir, rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: threadWorkerFactory(bundle) } });
   done.push(() => c.close());
 }, 300_000);
 afterAll(async () => {

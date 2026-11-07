@@ -32,16 +32,27 @@ export function HelpCard({ headingAs = 'h3', compact = false, className }: HelpC
         </a>
       </p>
       {compact ? null : (
-        <dl className="lm-help-card__regions">
+        <div className="lm-help-card__regions">
           {HELP.regions.map((r) => (
-            <div key={r.region}>
-              <dt>{r.region}</dt>
-              <dd>
-                <b>{r.service}</b> · {r.detail}
-              </dd>
-            </div>
+            <section key={r.region} className="lm-help-region" aria-label={`${r.region}: ${r.service}`}>
+              <p className="lm-help-region__head">
+                <span className="lm-help-region__name">{r.region}</span>
+                <span className="lm-help-region__service">{r.service}</span>
+              </p>
+              <ul className="lm-help-region__numbers">
+                {r.numbers.map((n) => (
+                  <li key={n.number}>
+                    <a className="lm-help-num" href={`tel:${n.number.replace(/\s/g, '')}`}>
+                      <span className="lm-help-num__label">{n.label}</span>
+                      <span className="lm-help-num__number lm-num">{n.number}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="lm-help-region__hours">{r.hours}</p>
+            </section>
           ))}
-        </dl>
+        </div>
       )}
       <p>{HELP.crisis}</p>
     </section>

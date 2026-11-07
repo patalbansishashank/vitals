@@ -1,11 +1,29 @@
+import type { Warrant } from '@/lib/bodyContracts';
 import type { EvidenceTopic } from '../schema';
+
+/*
+ * Outcome-scoped warrants of the hormone outputs (shown in the info sheet). Every endocrine output is an exploratory
+ * direction relative to the person's own baseline: never a predicted lab value, a deficiency diagnosis or a goal. A
+ * measured lab stays a separate observation with its own units, date and assay.
+ */
+const W_HORMONE_DIRECTION: Warrant = {
+  type: 'empiricalFormal',
+  confidence: 'moderate',
+  scope: 'direction and rough time course of the change in controlled group studies',
+};
+const W_HORMONE_PERSONAL: Warrant = {
+  type: 'empiricalFormal',
+  confidence: 'low',
+  scope:
+    'size of the change in one person’s lab result: assay, time of day, medication, illness and baseline all differ',
+};
 
 const topic: EvidenceTopic = {
   dossier: '12',
   slug: 'hormones-appetite',
   title: 'Hormones, appetite and sticking with a plan',
   scope:
-    "How the body's hormone signals respond to eating less, to carbohydrate intake, fasting, sleep and leanness: leptin, ghrelin and the gut fullness hormones, thyroid hormones, cortisol, sex hormones, growth hormone and IGF-1. It also covers how those signals and the properties of food turn into hunger, how hunger affects whether a plan survives, and what diet breaks, weight regain and mood look like. Hormone outputs are population-model projections, not diagnoses.",
+    "How the body's hormone signals respond to eating less, to carbohydrate intake, fasting, sleep and leanness: leptin, ghrelin and the gut fullness hormones, thyroid hormones, cortisol, sex hormones, growth hormone and IGF-1. It also covers how those signals and the properties of food turn into hunger, how hunger affects whether a plan survives, and what diet breaks, weight regain and mood look like. Hormone outputs are exploratory directions relative to your own baseline: not predicted lab values, not diagnoses and never goals.",
   mechanisms: [
     {
       id: '12-leptin-fat-and-energy-status',
@@ -14,7 +32,7 @@ const topic: EvidenceTopic = {
       summary:
         'Leptin is a hormone made by fat cells, roughly in proportion to how much fat you carry. Women make about 2–3 times more per unit of fat than men. It also drops within hours of eating less, much faster and further than fat mass does, and it tracks glucose and insulin more than ketones. After a 3-day fast it fell about 62 % and returned to baseline within 12 h of eating.',
       howModelled:
-        'Three parts multiply. A baseline follows fat mass with sex-specific constants. A within-person part changes more than proportionally with fat mass. An acute energy-status factor falls quickly in a deficit and rises after a surplus, where carbohydrate counts most. A carbohydrate-availability factor lowers leptin when carbohydrate is under about 150 g a day. Leptin is shown relative to your own baseline, because absolute values depend on the assay.',
+        'Three parts multiply. A baseline follows fat mass with sex-specific constants. A within-person part changes more than proportionally with fat mass. An acute energy-status factor falls quickly in a deficit and rises after a surplus, where carbohydrate counts most. A carbohydrate-availability factor lowers leptin when carbohydrate is under about 150 g a day. Leptin is shown only as an exploratory direction relative to your own baseline, not a predicted lab value: absolute values depend on the assay, and the group fits below do not give your result.',
       equation:
         'u = (EI − TEE) / TEE; φ_L(u) = 1 − exp(−max(0, −u) / 0.20)\nL0 = a_sex · FM0^b_sex (ng/mL, FM in kg); men a = 0.21, b = 1.14; women a = 0.22, b = 1.36 (post-menopausal × 0.80)\nL_FM(t) = L0 · (FM(t) / FM0)^β, β = 1.8\nA*(u) = 1 − a_max,sex · φ_L(u) for u ≤ 0, with a_max = 0.35 (men), 0.55 (women)\nA*(u) = min(1.5, 1 + k_ov · u · (f_carb + 0.5 · f_prot + 0.15 · f_fat)) for u > 0, k_ov = 1.0\nC_lep* = 1 − 0.30 · DC_L, with DC_L = max(0, 1 − carb_g / 150)\nL = L_FM · A_lep · C_lep; L_rel = L / L0',
       keyNumbers: [
@@ -169,6 +187,18 @@ const topic: EvidenceTopic = {
         'hall2016',
         'muller2015',
       ],
+      warrants: [W_HORMONE_DIRECTION, W_HORMONE_PERSONAL],
+      outcomeScope: 'Direction of leptin relative to your own baseline; not a lab value',
+      population:
+        'Adults with and without obesity in short fasting, restriction and overfeeding studies; lean men in a 72-h fast',
+      observations: [
+        {
+          tissue: 'serum leptin',
+          type: 'humanBloodMarker',
+          referenceIds: ['weigle1997', 'dubuc1998', 'doucet2004', 'keim1998', 'mars2005', 'chan2003'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['leptin', 'hunger'],
     },
     {
@@ -328,11 +358,11 @@ const topic: EvidenceTopic = {
       title: 'Thyroid hormones when eating less',
       category: 'hormones',
       summary:
-        "Eating much less shifts the body's conversion of thyroxine (T4) away from active T3 towards inactive reverse T3 (rT3). Cutting carbohydrate does the same, independently of energy. In a total fast lasting 7–18 days, T3 fell 53 % and rT3 rose 58 %. Refeeding restored both within about 5 days. Vitals shows T3 as a marker and does not use it to drive resting metabolic rate, because resting metabolic rate fell without matching T3 changes.",
+        "Eating much less shifts the body's conversion of thyroxine (T4) away from active T3 towards inactive reverse T3 (rT3). Cutting carbohydrate does the same, independently of energy. In a total fast lasting 7–18 days, T3 fell 53 % and rT3 rose 58 %. Refeeding restored both within about 5 days. Vitals shows T3 only as an exploratory direction relative to your own baseline, not a predicted lab value, and does not use it to drive resting metabolic rate, because resting metabolic rate fell without matching T3 changes.",
       howModelled:
-        'A fast T3 component falls with the size of the deficit and with missing carbohydrate (below 130 g a day), with time constants of 2 days down and 3 days up. It is multiplied by a slow term based on lagged leptin, which captures the low T3 of people who are weight-reduced or very lean. Overfeeding gives a modest rise. rT3 rises with very deep deficits and with missing carbohydrate.',
+        'A fast T3 component responds to the deficit and to carbohydrate below the selected 50 g/day model knee, with time constants of 2 days down and 3 days up. Both deficit and surplus targets retain the carbohydrate term; surplus adds a modest rise. The displayed direction divides this fast component by its habitual baseline reference, then multiplies it by the slow lagged-leptin ratio to the power 0.30. rT3 uses the same thyroid carbohydrate knee and its own habitual reference normalization. These are exploratory directions, not a predicted lab value. The 50 g/day knee comes from narrow feeding data, not a diagnostic threshold or a universal carbohydrate minimum. Cortisol independently keeps its 130 g/day model knee.',
       equation:
-        'φ_E(u) = 1 − exp(−max(0, −u) / 0.30); DC_T = max(0, 1 − carb_g / 130)\nT3f* = 1 − 0.22 · φ_E(u) − 0.22 · DC_T for u ≤ 0\nT3f* = 1 + 0.10 · min(1, u / 0.3) for u > 0; τ_down = 2 d, τ_up = 3 d\nT3 = T3f · (L_FM_lag / L0)^0.30\nrT3* = 1 + 0.6 · max(0, (|u| − 0.7) / 0.3) + 0.15 · DC_T for u ≤ 0; τ_up 2 d, τ_down 3 d',
+        'φ_E(u) = 1 − exp(−max(0, −u) / 0.30); DC_T3 = clamp(1 − C / 50, 0, 1), C in g/day\nT3f* = 1 − 0.22 · φ_E(u) − 0.22 · DC_T3 for u ≤ 0\nT3f* = 1 + 0.10 · min(1, u / 0.3) − 0.22 · DC_T3 for u > 0; τ_down = 2 d, τ_up = 3 d\nT3_rel = (T3f / T3fRef) · (L_FM_lag / L0)^0.30\nrT3S* = 1 + 0.6 · max(0, (−u − 0.7) / 0.3) + 0.15 · DC_T3 for u ≤ 0; otherwise 1 + 0.15 · DC_T3\nrT3_rel = rT3S / rT3Ref; τ_up = 2 d, τ_down = 3 d\nT3fRef and rT3Ref are habitual equilibrium references at u = 0; each displayed relative state starts at 1',
       keyNumbers: [
         {
           label: 'Total fast 7–18 days',
@@ -409,11 +439,6 @@ const topic: EvidenceTopic = {
           value: 'T3 production ≈ 30 → 50–54 µg/d per 70 kg, whatever the macronutrient',
           referenceIds: ['danforth1979'],
         },
-        {
-          label: 'Fit check, observed → model',
-          value:
-            'Total fast 14 d −53 % → −43 %; 800 kcal with no carbohydrate −47 % → −41 %; very-low-calorie low-carbohydrate −35 % → −38 %, high-carbohydrate −18 % → −26 %; 72-h fast −30 % → −34 %; 3 weeks at −50 % −39 % → −25 %; CALERIE net −13 % → −18 %; contest prep −67 % → −53 %',
-        },
       ],
       timeCourse:
         'T3 drifts down with a time constant of about 2 days when energy or carbohydrate is short and recovers with about 3 days. A slower component follows the weight-reduced, low-leptin state and moves with a 21-day lag.',
@@ -424,7 +449,7 @@ const topic: EvidenceTopic = {
         'Direction and carbohydrate dependence were replicated in controlled feeding studies, though sizes vary and the leanness exponent is a fit to few data.',
       status: 'proposed-fit',
       caveats:
-        "The model does not match one older study that found no T3 change with 50 g or more carbohydrate at 800 kcal (the model gives −31 %). It follows the later low-calorie and restriction studies instead. T3 is exported as a biomarker, not a driver of resting metabolic rate: T3 fell without any change in resting energy expenditure, and resting rate fell equally with different T3 falls. If a T3-linked term were wanted, Vitals' evidence review suggests capping it at 0.25 × the T3 change (grade D).",
+        "One older 800 kcal/day study found no significant T3 change with 50 g or more carbohydrate; later restriction studies found falls. The selected knee does not remove the separate energy-deficit term or establish a personal response. Historical fit examples are omitted because their full scenarios have not been reproduced against this provider. T3 is exported as an exploratory direction, not a driver of resting metabolic rate: T3 fell without any change in resting energy expenditure, and resting rate fell equally with different T3 falls. If a T3-linked term were wanted, Vitals' evidence review suggests capping it at 0.25 × the T3 change (grade D).",
       referenceIds: [
         'spaulding1976',
         'vagenakis1975',
@@ -445,6 +470,19 @@ const topic: EvidenceTopic = {
         'hulmi2016',
         'danforth1979',
       ],
+      warrants: [W_HORMONE_DIRECTION, W_HORMONE_PERSONAL],
+      outcomeScope:
+        'Direction of T3 and reverse T3 relative to your own baseline; not a lab value or a thyroid diagnosis',
+      population:
+        'Adults in total fasts, very-low-calorie and low-carbohydrate diets, long-term restriction and military training',
+      observations: [
+        {
+          tissue: 'serum T3 and reverse T3',
+          type: 'humanBloodMarker',
+          referenceIds: ['spaulding1976', 'mathieson1986', 'chan2003', 'redman2018'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['t3'],
     },
     {
@@ -454,7 +492,7 @@ const topic: EvidenceTopic = {
       summary:
         "Fasting switches on the body's stress-hormone axis. Moderate calorie restriction causes at most a small, short-lived rise in cortisol. Very-low-carbohydrate eating raises resting cortisol for the first ~3 weeks and amplifies its rise during long exercise. A night of lost sleep raises evening cortisol. No controlled human study shows that diet-induced cortisol causes water retention that hides fat loss, or moves fat to the belly.",
       howModelled:
-        'Cortisol relative to baseline is 1 plus an energy-restriction effect that fades as days in deficit accumulate, a low-carbohydrate effect that fades over about 3 weeks, a short-sleep effect, and a leanness term. The rise after a single exercise session depends on intensity and is shown separately. There is deliberately no term linking cortisol to water retention or to belly fat.',
+        'Cortisol is an exploratory direction relative to your own baseline, not a predicted lab value: 1 plus an energy-restriction effect that fades as days in deficit accumulate, a low-carbohydrate effect that fades over about 3 weeks, a short-sleep effect, and a leanness term. The rise after a single exercise session depends on intensity and is shown separately. There is deliberately no term linking cortisol to water retention or to belly fat.',
       equation:
         'ΔER* = [0.5 · max(0, (|u| − 0.6) / 0.4)² + 0.08 · min(1, |u| / 0.25)] · exp(−n_def / 28) for u < −0.05; else 0\nΔLC* = DC_T · (0.05 + 0.15 · exp(−n_LC / 21))\nΔsleep* = 0.04 · max(0, 7 − sleep_h)\nΔlean* = 0.20 · (1 − S_L(L_FM)) − 0.20 · (1 − S_L(L0))\nCort* = 1 + ΔER* + ΔLC* + Δsleep* + Δlean*, τ = 1 d\nCortisol after a bout = 1 + interp(%VO2max: 40 → 0, 60 → 0.40, 80 → 0.83) · (1 + 0.5 · DC_T)',
       keyNumbers: [
@@ -571,6 +609,19 @@ const topic: EvidenceTopic = {
         'incollingo2015',
         'seimon2019',
       ],
+      warrants: [W_HORMONE_DIRECTION, W_HORMONE_PERSONAL],
+      outcomeScope:
+        'Direction of cortisol relative to your own baseline; not a lab value, and no link to water or belly fat',
+      population:
+        'Adults in fasting, restriction, low-carbohydrate and sleep-loss studies; trained men for exercise',
+      observations: [
+        {
+          tissue: 'serum, plasma and urinary cortisol',
+          type: 'humanBloodMarker',
+          referenceIds: ['nakamura2016', 'bergendahl1996', 'whittaker2022', 'leproult1997'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['cortisol'],
     },
     {
@@ -580,7 +631,7 @@ const topic: EvidenceTopic = {
       summary:
         'In men, the axis that makes testosterone is switched down when leptin falls below a threshold. So testosterone barely moves in short or moderate deficits in men of normal weight, yet falls sharply at contest-level leanness or in near-total fasting. In men with obesity, weight loss raises it. SHBG, the carrier protein, rises as insulin falls, which lowers the free fraction further.',
       howModelled:
-        'A leptin-threshold term (threshold 1.0 ng/mL) is multiplied by a near-total-fasting factor, an obesity factor relative to baseline, and small factors for low fat intake, very high protein (above 3 g/kg), short sleep and alcohol. It moves with a 2-day time constant down and 7 days up. SHBG follows relative insulin, and free testosterone is calculated with a standard binding formula.',
+        'A leptin-threshold term (threshold 1.0 ng/mL) is multiplied by a near-total-fasting factor, an obesity factor relative to baseline, and small factors for low fat intake, very high protein (above 3 g/kg), short sleep and alcohol. It moves with a 2-day time constant down and 7 days up. The result is an exploratory direction relative to your own baseline, not a predicted lab value or a diagnosis of deficiency. SHBG follows relative insulin. A free-testosterone state runs inside the model on assumed inputs and is never shown as your value: an absolute free-testosterone number needs your measured total testosterone and SHBG and a stated albumin value, and Vitals calculates none without them. A measured testosterone result stays a separate observation with its own units and date.',
       equation:
         'T* = [(0.25 + 0.75 · S_L(L)) / (0.25 + 0.75 · S_L(L0))] · [1 − 0.4 · clamp((|u| − 0.6) / 0.4, 0, 1)] · F_ob · F_fat · F_prot · F_sleep · F_alc\nF_ob = exp(−0.025 · max(0, BF% − 18)) / exp(−0.025 · max(0, BF0% − 18))\nF_fat = 1 − 0.10 · clamp((30 − fat%E) / 15, 0, 1)\nF_prot = 1 − 0.35 · clamp((protein_g/kg − 3.0) / 0.8, 0, 1)\nF_sleep = 1 − 0.025 · clamp(8 − sleep_h, 0, 5)\nF_alc = 1 − 0.0017 · min(alcohol_g/d, 60)\nSHBG* = Ins_rel^(−0.3)\nFree T (Vermeulen): a = N · K_SHBG; b = N + K_SHBG · (SHBG − TT); FT = (−b + √(b² + 4 · a · TT)) / (2a)',
       keyNumbers: [
@@ -683,7 +734,7 @@ const topic: EvidenceTopic = {
           label: 'Free-testosterone defaults',
           value:
             'Albumin 43 g/L; K_alb 3.6 × 10⁴ L/mol; K_SHBG 1.0 × 10⁹ L/mol; defaults if no labs: total testosterone 17 nmol/L, SHBG 35 nmol/L',
-          note: 'The binding constants were quoted from common usage and are unverified against the original paper. The SHBG default is unverified; the testosterone default is illustrative (sedentary controls 17.6 ± 6.3).',
+          note: 'Assumptions of the internal state only, never a personal value. The binding constants were quoted from common usage and are unverified against the original paper. The SHBG default is unverified; the testosterone default is illustrative (sedentary controls 17.6 ± 6.3).',
           referenceIds: ['vermeulen1999', 'cangemi2010'],
         },
       ],
@@ -720,6 +771,28 @@ const topic: EvidenceTopic = {
         'pasiakos2019',
         'vermeulen1999',
       ],
+      warrants: [
+        W_HORMONE_DIRECTION,
+        W_HORMONE_PERSONAL,
+        {
+          type: 'firstPrinciples',
+          confidence: 'moderate',
+          scope:
+            'free-testosterone binding equation, valid only with measured total testosterone and SHBG and a stated albumin in matching units',
+        },
+      ],
+      outcomeScope:
+        'Direction of total testosterone relative to your own baseline in men; not a lab value or a deficiency diagnosis',
+      population:
+        'Men: lean and obese adults, natural bodybuilders in contest preparation, military trainees',
+      observations: [
+        {
+          tissue: 'serum total and free testosterone, SHBG',
+          type: 'humanBloodMarker',
+          referenceIds: ['chan2003', 'mitchell2018', 'friedl2000', 'corona2013'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['testosterone'],
     },
     {
@@ -729,9 +802,9 @@ const topic: EvidenceTopic = {
       summary:
         'In women, the pulses of luteinising hormone (LH) that drive ovulation depend on energy availability: intake minus exercise energy, per kg of fat-free mass. Five days at 30 kcal/kg FFM/day or more did not disturb LH pulses; below 30, pulses became less frequent. At 10 for 5 days, LH pulse frequency fell 57 %, and a full day of refeeding did not restore it. A re-analysis found no sharp threshold: the risk of menstrual disturbance rose steadily as availability fell.',
       howModelled:
-        "The 7-day average energy availability goes into a logistic curve that gives the chance of a menstrual disturbance per cycle: it is 0.5 at 30 and rises 9 % for each kcal/kg FFM below. The state worsens with a 7-day time constant and recovers with a 30-day one. The index is reported relative to the person's baseline. For men the analogue is 100 times the testosterone suppression.",
+        'Vitals does not run this curve and gives no chance of a menstrual disturbance per cycle. It shows a concern status instead: review when you report missed periods or a new irregularity, which overrides any reassurance from the model; insufficient history while fewer than 84 days of energy history are known, because missing days are not reassurance; concern when the mean energy deficit over those days reaches the model’s reference point; and not applicable with hormonal contraception, after menopause or when you are not menstruating. When the model has no concern, reported symptoms and the hard energy limits still apply. Men get no reproductive index; testosterone is described separately.',
       equation:
-        'EA = (EI − ExEE) / FFM, kcal per kg FFM per day; EA7 = 7-day trailing mean\nP_MD*(EA7) = 1 / (1 + exp(−0.0943 · (30 − EA7))), where 0.0943 = −ln(0.91)\nR_MD: τ_up = 7 d (worsening), τ_down = 30 d (recovery)\nRASI_female (0–100) = 100 · max(0, R_MD − R0) / (1 − R0), with R0 = P_MD*(EA at baseline)\nLHf_rel = 1 for EA ≥ 30; 1 − 0.57 · (30 − EA) / 20 for 10 ≤ EA < 30\nRASI_male = 100 · clamp(1 − Tt, 0, 1)',
+        'EA = (EI − ExEE) / FFM, kcal per kg FFM per day; EA7 = 7-day trailing mean\nResearch alternative, not run: P_MD*(EA7) = 1 / (1 + exp(−0.0943 · (30 − EA7))), where 0.0943 = −ln(0.91)\nR_MD: τ_up = 7 d (worsening), τ_down = 30 d (recovery)\nRASI_female (0–100) = 100 · max(0, R_MD − R0) / (1 − R0), with R0 = P_MD*(EA at baseline)\nLHf_rel = 1 for EA ≥ 30; 1 − 0.57 · (30 − EA) / 20 for 10 ≤ EA < 30\nRASI_male = 100 · clamp(1 − Tt, 0, 1)',
       keyNumbers: [
         {
           label: 'LH pulses over 5 days',
@@ -776,7 +849,7 @@ const topic: EvidenceTopic = {
         },
       ],
       timeCourse:
-        'LH pulses drop within 5 days of low energy availability and do not recover after a single day of refeeding. In the model the index worsens over about a week and recovers over about a month. Fitness competitors needed 3–4 months.',
+        'LH pulses drop within 5 days of low energy availability and do not recover after a single day of refeeding. Fitness competitors needed 3–4 months. The concern status looks back over the last 84 days of known energy history.',
       moderators:
         "Exercise energy expenditure, body fat and fat-free mass, hormonal contraception and menopause. Men's axis is more resilient.",
       grade: 'B',
@@ -784,7 +857,7 @@ const topic: EvidenceTopic = {
         'The LH and energy-availability link and the menstrual-disturbance dose-response are grade B (controlled short studies and one 3-cycle trial with its re-analysis); the recovery time constant is C/D.',
       status: 'proposed-fit',
       caveats:
-        'In the source population (sedentary, 18–24 y) subclinical luteal defects are common, so the index is reported relative to baseline and the absolute probability is shown only with a caveat. Hormonal contraception makes the index uninformative, because the bleeding is withdrawal bleeding. The 30-day recovery constant is proposed: no recovery was seen after 1 day, and recovery took 3–4 months in fitness competitors.',
+        'In the source population (sedentary, 18–24 y) subclinical luteal defects are common, so no personal probability is shown. Hormonal contraception makes the index uninformative, because the bleeding is withdrawal bleeding. The 30-day recovery constant is proposed: no recovery was seen after 1 day, and recovery took 3–4 months in fitness competitors.',
       referenceIds: [
         'loucks2003',
         'loucks1998',
@@ -794,6 +867,33 @@ const topic: EvidenceTopic = {
         'papageorgiou2017',
         'welt2004',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'LH pulses and menstrual disturbances fall with energy availability in short controlled studies of young women',
+        },
+        {
+          type: 'causallyCoherent',
+          confidence: 'high',
+          scope:
+            'sustained low energy availability as a reason for concern; not a per-cycle probability for one person',
+        },
+      ],
+      outcomeScope:
+        'Concern about menstrual disturbance from low energy availability; not a personal probability or a diagnosis',
+      population:
+        'Sedentary and exercising women aged about 18–30 in 5-day to 3-cycle studies; female fitness competitors',
+      observations: [
+        { tissue: 'blood LH pulses', type: 'humanBloodMarker', referenceIds: ['loucks2003', 'loucks1998'] },
+        {
+          tissue: 'menstrual cycles (disturbances)',
+          type: 'humanOutcome',
+          referenceIds: ['williams2015', 'lieberman2018', 'hulmi2016'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['menstrualRisk'],
     },
     {
@@ -803,7 +903,7 @@ const topic: EvidenceTopic = {
       summary:
         'Fasting sharply increases pulses of growth hormone (GH), while the liver makes less IGF-1 because of energy and protein deficiency. After a 2-day fast, 24-h GH production rose about 5-fold while IGF-1 was unchanged at 56 h. After a 5-day fast, IGF-1 (somatomedin C) fell from 1.31 to 0.77 U/mL. Long-term moderate calorie restriction with adequate protein did not lower IGF-1 in people, while restricting protein did.',
       howModelled:
-        'GH rises with the square of the deficit measure, and is halved for people with a BMI of 30 or more. IGF-1 is set by a protein term (exponent 0.43), a deficit term above a 30 % deficit and a leptin-sufficiency term, and it moves with time constants of 3 days down and 10 days up. The autophagy topic holds a separate IGF-1 model.',
+        'Not run as written: growth hormone is not modelled, and the equation below is an alternative. IGF-1 comes from the model in the autophagy topic and is shown only as an exploratory direction relative to your usual level: not a predicted lab value and never a goal, and lower is not better. Its protein response is a scenario that includes no response at all, because no single protein slope fits everyone.',
       equation:
         'GH* = 1 + 3.0 · φ_E(u)² · m_adip, with m_adip = 1 (BMI < 30), 0.5 (BMI ≥ 30); τ = 0.5 d\nP_eff = max(protein_g, 0.2 · P_ref)\nIGF1* = (P_eff / P_ref)^0.43 · [1 − 0.35 · clamp((|u| − 0.3) / 0.7, 0, 1)] · (0.6 + 0.4 · S_L(L)) / (0.6 + 0.4 · S_L(L0))\nτ_down = 3 d, τ_up = 10 d\nProtein elasticity 0.43 = ln(152/194) / ln(0.95/1.67)',
       keyNumbers: [
@@ -882,7 +982,7 @@ const topic: EvidenceTopic = {
         'Fasting, refeeding and protein effects come from controlled studies, while the parametrisation is our own fit.',
       status: 'proposed-fit',
       caveats:
-        'The autophagy topic gives a separate IGF-1 model with different time constants. Both are fits to small studies, and they are not identical.',
+        'The autophagy topic gives the IGF-1 model Vitals runs, with different time constants. Both are fits to small studies, and they are not identical.',
       referenceIds: [
         'hartman1992',
         'ho1988',
@@ -899,6 +999,27 @@ const topic: EvidenceTopic = {
         'welt2004',
         'espelund2005',
       ],
+      warrants: [
+        W_HORMONE_DIRECTION,
+        W_HORMONE_PERSONAL,
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'one protein-to-IGF-1 slope for everyone, or a health benefit from lower IGF-1',
+        },
+      ],
+      outcomeScope:
+        'Direction of GH and IGF-1 in fasting and protein restriction; not a lab value, not a goal',
+      population:
+        'Healthy and obese adults in 2- to 10-day fasts, protein restriction, military training and contest preparation',
+      observations: [
+        {
+          tissue: 'serum GH and IGF-1 (somatomedin C)',
+          type: 'humanBloodMarker',
+          referenceIds: ['hartman1992', 'ho1988', 'clemmons1981', 'isley1983', 'fontana2008'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: [],
     },
     {
@@ -1736,9 +1857,9 @@ const topic: EvidenceTopic = {
       summary:
         'Extreme leanness or semistarvation harms mood, energy, libido and warmth, but moderate restriction in people who are not lean does not. In the classic Minnesota study, 36 young men lost about 25 % of their body weight over 24 weeks and showed fatigue, apathy, irritability and swollen legs. In a contest-preparation case study, a mood disturbance score rose from 6 to 43. In CALERIE, 2 years of restriction improved mood and sexual drive.',
       howModelled:
-        'A display-only “diet strain” score (0–100) that is dominated by leptin sufficiency (leanness times deficit), plus hunger above an index of 50 and short sleep. Libido is tied to testosterone in men and to the reproductive index in women.',
+        'Not modelled as a score: no diet-strain score is computed and libido is not tied to a hormone output. The wellbeing concern flags in the performance topic cover leanness, deficit and sleep instead, and reported fatigue, low mood or a cycle change override any reassuring model result.',
       equation:
-        'DietStrain = 100 · [0.6 · (1 − S_L(L) / S_L(L0)) + 0.25 · max(0, (HPI − 50) / 50) + 0.15 · clamp(7 − sleep_h, 0, 3) / 3]',
+        'Proposed, not run: DietStrain = 100 · [0.6 · (1 − S_L(L) / S_L(L0)) + 0.25 · max(0, (HPI − 50) / 50) + 0.15 · clamp(7 − sleep_h, 0, 3) / 3]',
       keyNumbers: [
         {
           label:
@@ -1808,6 +1929,22 @@ const topic: EvidenceTopic = {
         'heilbronn2006',
         'leproult2011',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'harm from extreme leanness rests on one historical study and case reports',
+        },
+        {
+          type: 'livedExperience',
+          confidence: 'moderate',
+          scope: 'fatigue, low mood, lost libido and feeling cold as reported signals worth acting on',
+        },
+      ],
+      outcomeScope: 'Mood, libido and warmth in extreme leanness versus moderate restriction; not a score',
+      population:
+        'Young men in semistarvation; contest-preparation case studies; non-obese adults in 2 years of restriction',
+      modelStatus: 'notModelled',
       relatedMetricIds: [],
     },
   ],

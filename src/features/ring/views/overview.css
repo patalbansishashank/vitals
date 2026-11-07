@@ -1,0 +1,330 @@
+/* ==========================================================================
+   The Ring overview and Today's ring cards (r071, workstream `overview`, prefix `rgo-`): the page's grid, the Sleep card,
+   the Signals card and the Ring glance, the note. The card material, the head, the foot and every picture are the
+   foundation's; this is the layout around them. Tokens only.
+   ========================================================================== */
+@layer components {
+  /* ---- the page: one column on a phone; the two slim cards 2-up from 40rem; row-aligned pairs from 56rem. By the width the
+     page really has (a docked side panel takes 392 px of a desktop), not the window's: a container query ------------- */
+  .rgo-page {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  .rgo-overview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  /* the card fills its cell, so a row's two cards end together */
+  .rgo-cell {
+    display: grid;
+    min-width: 0;
+  }
+  @container (min-width: 40rem) {
+    .rgo-overview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas:
+        'score score'
+        'sleep sleep'
+        'signals signals'
+        'activity activity'
+        'videos device';
+    }
+    .rgo-cell[data-area='score'] {
+      grid-area: score;
+    }
+    .rgo-cell[data-area='sleep'] {
+      grid-area: sleep;
+    }
+    .rgo-cell[data-area='signals'] {
+      grid-area: signals;
+    }
+    .rgo-cell[data-area='activity'] {
+      grid-area: activity;
+    }
+    .rgo-cell[data-area='videos'] {
+      grid-area: videos;
+    }
+    .rgo-cell[data-area='device'] {
+      grid-area: device;
+    }
+  }
+  @container (min-width: 56rem) {
+    .rgo-overview {
+      grid-template-areas:
+        'score signals'
+        'sleep activity'
+        'videos device';
+    }
+  }
+  /* ---- Sleep: the number, the night, the shares ------------------------------------------------------------------ */
+  .rgo-sleep {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  .rgo-sleep__grid {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .rgo-sleep__night {
+    min-width: 0;
+    /* The SVG follows this allocated grid column, never its previous intrinsic width. */
+    contain: inline-size;
+  }
+  .rgo-sleep__night > .lmv-hyp {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rgo-sleep__night .lmv-hyp__plot {
+    min-width: 0;
+  }
+  /* Today's compact card: the number and the night side by side where there is room */
+  @container (min-width: 28rem) {
+    .rgo-sleep[data-size='compact'] .rgo-sleep__grid {
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      column-gap: var(--lm-space-6);
+    }
+  }
+
+  /* A half-phone Sleep tile keeps the reading/range and goal; open it for the timeline. */
+  @container (max-width: 14rem) {
+    .rgo-sleep[data-size='compact'] .rgo-sleep__night,
+    .rgo-sleep[data-size='compact'] .sl-hero__facts {
+      display: none;
+    }
+    .rgo-sleep[data-size='compact'] .lm-hero[data-size='num'] {
+      --lm-hero-fs: var(--lm-text-time);
+      --lm-hero-lh: var(--lm-text-time--lh);
+    }
+  }
+
+  /* ---- Signals: the hero reading, then one row a signal --------------------------------------------------------------- */
+  .rgo-hero {
+    container-type: inline-size;
+    display: grid;
+    gap: var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgo-hero__top {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) minmax(96px, 1fr);
+    align-items: end;
+    column-gap: var(--lm-space-5);
+    min-width: 0;
+  }
+  .rgo-hero__pic {
+    min-width: 0;
+    /* the end dot's halos reach past the line: keep them inside the card's padding */
+    padding: 0 var(--lm-space-4) var(--lm-space-1) 0;
+  }
+  /* a number whose picture does not fit beside it (a 288 px phone) leaves the picture under it */
+  @container (max-width: 17.5rem) {
+    .rgo-hero__top {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--lm-space-2);
+    }
+  }
+  .rgo-hero__facts {
+    display: grid;
+    gap: var(--lm-space-1);
+  }
+  :is(.rgo-row__meta, .rgo-hero__line) > * {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .rgo-hero__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    min-width: 0;
+  }
+  /* the facts of a line are one line of words: a drawn dot between them, as MonoMeta's own items have */
+  .rgo-hero__line > * + *::before {
+    content: '\00b7';
+    margin-inline: 0.6em;
+    opacity: 0.7;
+    color: var(--lm-ink-2);
+  }
+  /* the age of a reading, with the gold dot when it is stale */
+  .rgo-age {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .rgo-age__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-inline-end: var(--lm-space-1-5);
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+
+  .rgo-rows {
+    container-type: inline-size;
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rgo-rows[data-after-hero] {
+    margin-top: var(--lm-space-1);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .rgo-sig {
+    position: relative;
+    display: grid;
+  }
+  .rgo-sig + .rgo-sig::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    pointer-events: none;
+  }
+  .rgo-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 18px;
+    align-items: center;
+    gap: var(--lm-space-3);
+    min-height: 56px;
+    padding: var(--lm-space-2) 0;
+    color: inherit;
+    text-decoration: none;
+    border-radius: var(--lm-radius-sm);
+  }
+  .rgo-row:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  @media (hover: hover) {
+    .rgo-row:hover {
+      background: color-mix(in oklab, var(--lm-ink) 4%, transparent);
+    }
+  }
+  .rgo-row__main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .rgo-row__label {
+    overflow-wrap: anywhere;
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .rgo-row__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-1) var(--lm-space-3);
+    min-width: 0;
+  }
+  .rgo-row__value {
+    display: grid;
+    justify-items: end;
+    gap: var(--lm-space-1-5);
+    min-width: 0;
+  }
+  .rgo-row__scale {
+    display: block;
+    width: 96px;
+  }
+  .rgo-row__chev {
+    color: var(--lm-ink-3);
+  }
+  /* Inline RangeScale has a 96 px viewBox. Fit that glyph and its optional stale pip into the
+     row's actual 72/96 px allocation instead of letting their intrinsic widths escape it. */
+  :is(.rgo-row__scale, .rgo-hero__pic) .lmz-scale[data-size='inline'] {
+    display: flex;
+    inline-size: 100%;
+    max-inline-size: 96px;
+    min-inline-size: 0;
+  }
+  :is(.rgo-row__scale, .rgo-hero__pic) .lmz-scale[data-size='inline'] .lmz-scale__plot {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+  :is(.rgo-row__scale, .rgo-hero__pic) .lmz-scale__svg {
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+  /* a narrow card (a 288 px phone): the row gives up its chevron (the whole row is the link) and a little of the scale */
+  @container (max-width: 19rem) {
+    .rgo-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .rgo-row__chev {
+      display: none;
+    }
+    .rgo-row__scale {
+      width: 72px;
+    }
+  }
+  /* At a narrow content width (including enlarged text), give labels and readings their own
+     rows. The complete number and unit stay together instead of colliding with the name. */
+  @container (max-width: 14rem) {
+    .rgo-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--lm-space-2);
+    }
+    .rgo-row__value {
+      justify-items: start;
+    }
+    .rgo-row__chev {
+      display: none;
+    }
+  }
+  /* a row's number: light, the unit small and muted beside it */
+  .rgo-num {
+    font-family: var(--lm-font-display);
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .rgo-unit {
+    margin-inline-start: 4px;
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-unit);
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+
+  /* the (i)'s band table: the words and what they stand for */
+  .rgo-bandtable {
+    display: grid;
+    gap: var(--lm-space-4);
+    margin-top: var(--lm-space-2);
+  }
+  .rgo-bandtable section {
+    display: grid;
+    gap: var(--lm-space-1-5);
+  }
+  .rgo-bandtable dl {
+    display: grid;
+    margin: 0;
+  }
+  .rgo-bandtable dl > div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--lm-space-4);
+    padding: var(--lm-space-1-5) 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .rgo-bandtable dt,
+  .rgo-bandtable dd {
+    margin: 0;
+  }
+  .rgo-bandtable dd {
+    color: var(--lm-ink-2);
+    text-align: end;
+  }
+}

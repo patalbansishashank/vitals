@@ -3,7 +3,6 @@ import {
   Suspense,
   lazy,
   useCallback,
-  useEffect,
   useId,
   useRef,
   useState,
@@ -28,7 +27,6 @@ import { isSlowDevice } from './device';
 import type { FitResult } from './fit';
 import type { FigureView } from './renderer';
 import type { FigureViewControl, FigureViewState } from './Figure3DCanvas';
-import { VIEW_HINT, takeViewHint } from './viewHint';
 import './figure3d.css';
 
 const Figure3DCanvas = lazy(() => import('./Figure3DCanvas'));
@@ -56,19 +54,6 @@ const LAYER_LABELS: { key: keyof AnatomyLayers; label: string }[] = [
   { key: 'muscles', label: 'Muscles' },
   { key: 'skeleton', label: 'Bones' },
 ];
-
-/** The one-time mouse hint: fades by itself (CSS) and is removed once it has. */
-function ViewHint({ onDone }: { onDone: () => void }) {
-  useEffect(() => {
-    const t = window.setTimeout(onDone, 5200);
-    return () => window.clearTimeout(t);
-  }, [onDone]);
-  return (
-    <div className="lm-fig3d__hint" aria-hidden="true">
-      {VIEW_HINT}
-    </div>
-  );
-}
 
 class CanvasErrorBoundary extends Component<
   { onError: (reason: string) => void; children: ReactNode },
@@ -154,8 +139,6 @@ export function Figure3D({
   const [rotating, setRotating] = useState(true);
   const [viewState, setViewState] = useState<FigureViewState>(FRESH_VIEW);
   const viewControl = useRef<FigureViewControl>(null);
-  const [hint, setHint] = useState(false);
-  const endHint = useCallback(() => setHint(false), []);
   const f = resolveFrame(params, frame);
   const useSvg = forceSvg || failed !== null || !webgl2Available() || isSlowDevice();
   const name =
@@ -240,8 +223,6 @@ export function Figure3D({
                     onFail={onFail}
                     onReady={() => {
                       setReady(true);
-                      // the first time a desktop pointer meets the figure: one line about the mouse
-                      if (viewTools && takeViewHint()) setHint(true);
                       onReady?.();
                     }}
                   />
@@ -295,7 +276,6 @@ export function Figure3D({
               )}
             </div>
           )}
-          {hint && <ViewHint onDone={endHint} />}
         </div>
         {visceral ? (
           <VisceralView params={params} compareTo={compareTo} className="lm-fig3d__visceral" />
@@ -325,9 +305,7 @@ export function Figure3D({
         </div>
       )}
       {caption !== false && !compact && (
-        <figcaption className="lm-fig3d__caption">
-          {caption} Muscles and bones show reference anatomy.
-        </figcaption>
+        <figcaption className="lm-fig3d__caption">{caption}</figcaption>
       )}
     </figure>
   );

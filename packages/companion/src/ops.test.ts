@@ -51,7 +51,7 @@ function fakeSys(init: Record<string, string | { data: string; mode: number }> =
     env: { PATH: `${HOME}/.local/bin:/usr/bin` },
     home: HOME,
     platform: 'linux',
-    nodeVersion: '24.21.0',
+    nodeVersion: '26.12.1',
     execPath: '/usr/bin/node',
     run: async (cmd, args) => {
       runs.push({ cmd, args });
@@ -327,10 +327,25 @@ describe('doctor', () => {
     const report = await runDoctor(sys, { version: '0.2.0', configDir: '/c', port: 4870 });
     expect(report.checks.find((c) => c.id === 'port')).toMatchObject({ status: 'ok', detail: 'Companion 0.2.0 answers on http://127.0.0.1:4870 (proxy, agent)' });
     expect(report.checks.find((c) => c.id === 'relay')).toMatchObject({ status: 'absent', required: false });
-    expect(nodeSupported('22.18.0')).toBe(true);
-    expect(nodeSupported('22.17.9')).toBe(false);
-    expect(nodeSupported('23.6.0')).toBe(true);
-    expect(nodeSupported('24.21.0')).toBe(true);
+    expect(report.checks.find((c) => c.id === 'node')).toMatchObject({ status: 'ok', detail: 'Node 26.12.1 at /usr/bin/node' });
+  });
+
+  it.each(['22.18.0', '23.6.0', '24.21.0', '25.9.0', '26.9.99'])('rejects unsupported Node %s and gives the actual minimum in human and JSON reports', async (nodeVersion) => {
+    const sys = fakeSys({}, { nodeVersion });
+    const out: string[] = [];
+    expect(await main(['doctor', '--json', '--config-dir', '/c'], line => out.push(line), { sys })).toBe(1);
+    const report = JSON.parse(out.join('\n')) as DoctorReport;
+    expect(report.checks.find(check => check.id === 'node')).toEqual({ id: 'node', required: true, status: 'fail', detail: `Node ${nodeVersion} is too old; 26.10.0 or newer is needed`, fix: 'Install Node.js 26.10.0 or newer' });
+    expect(formatDoctor(report).join('\n')).toContain('Install Node.js 26.10.0 or newer');
+    expect(doctorPassed(report)).toBe(false);
+    expect(nodeSupported(nodeVersion)).toBe(false);
+  });
+
+  it.each(['26.10.0', '26.10.1', '26.12.1', '27.0.0', '30.0.0'])('accepts Node %s without imposing an upper version limit', async (nodeVersion) => {
+    const report = await runDoctor(fakeSys({}, { nodeVersion }), { version: '0.2.0', configDir: '/c', port: 4870 });
+    expect(report.checks.find(check => check.id === 'node')).toMatchObject({ required: true, status: 'ok' });
+    expect(doctorPassed(report)).toBe(true);
+    expect(nodeSupported(nodeVersion)).toBe(true);
   });
 
   it('`doctor --json` prints the report and exits 1 on a failed required check', async () => {

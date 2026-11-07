@@ -93,7 +93,6 @@ interface Dispatched {
   opts: DispatchOptions;
 }
 
-let deviceOwnsSleep = false;
 function fakeBus(): CoachBus & { calls: Dispatched[]; executed: Dispatched[] } {
   const calls: Dispatched[] = [];
   const executed: Dispatched[] = [];
@@ -119,12 +118,6 @@ function fakeBus(): CoachBus & { calls: Dispatched[]; executed: Dispatched[] } {
       const output = def.output?.(input as Record<string, unknown>, opts) ?? {};
       if (opts.dryRun) return { ok: true, output, changeSet: null, notices: [] };
       if (actor.kind === 'ai' && def.impact === 'consequential') return { ok: true, pending: { pendingId: `pend-${++n}`, commandId: id as never, expiresAt: '2026-10-02T09:00:00.000Z' }, notices: [] };
-      // a device-owned stream: the bus stages a correction in place of the log (SUITE_SPEC §14.6)
-      if (actor.kind === 'ai' && id === 'log.sleep' && deviceOwnsSleep) {
-        const i = input as { bedAt: string; wakeAt: string };
-        const asleepS = (Date.parse(i.wakeAt) - Date.parse(i.bedAt)) / 1000;
-        return { ok: true, pending: { pendingId: `pend-${++n}`, commandId: 'biometrics.correct' as never, expiresAt: '2026-10-02T09:00:00.000Z' }, notices: [], redirected: 'biometrics.correct' as never, redirectedInput: { target: { kind: 'sleep', localDate: '2026-10-02' }, value: { asleepS, bedAt: i.bedAt, wakeAt: i.wakeAt } } };
-      }
       if (def.perm !== 'read') executed.push({ id, input, opts });
       return { ok: true, output, changeSet: { id: `cs-${++n}`, commandId: id as never, label: def.title, at: '', actor, docs: [] }, notices: [] };
     },
@@ -310,22 +303,6 @@ describe('Coach conversation', () => {
     expect(cards[0]!.note).toMatch(/It keeps 91 % of the prescribed training stimulus\. A proposal is waiting on Today; nothing changes until it is applied\.$/);
     expect(JSON.stringify({ title: cards[0]!.title, items: cards[0]!.items, note: cards[0]!.note })).not.toMatch(/rt:0|barbell-squat|goblet-squat/);
     expect(executedIds(bus)).toEqual(['plan.swapExercise']);
-  });
-
-  it('"I slept six hours" on a ring-fed night → the card shows the correction the bus staged, not the log (no raw times)', async () => {
-    deviceOwnsSleep = true;
-    try {
-      const { bus, adapter } = setup([toolTurn({ id: 's1', name: 'log_sleep', args: { bedAt: '2026-10-01T19:10:00.000Z', wakeAt: '2026-10-02T01:10:00.000Z' } }), textTurn('Noted, waiting for you to confirm.')]);
-      const { cards } = await send(adapter, 'I slept six hours last night');
-      const card = cards[0]!;
-      expect(card.state).toBe('pending');
-      expect(card.title).toMatch(/^Correct your sleep/);
-      expect(card.title).toContain('Yours 6 h 00 min');
-      expect(JSON.stringify({ title: card.title, items: card.items, note: card.note })).not.toMatch(/2026-10-01T19:10|bed at|wake at/);
-      expect(executedIds(bus)).toEqual([]);
-    } finally {
-      deviceOwnsSleep = false;
-    }
   });
 
   it('"busy for three days" → plan.declareEvent proposal with the goal-date effect; Apply goes through coach.applyPending', async () => {
@@ -518,7 +495,6 @@ describe('standing briefing', () => {
     adherence: { days: Array.from({ length: 28 }, (_, i) => ({ date: i, score: 80, coverage: 1, detail: 'w'.repeat(100) })) },
     pending: Array.from({ length: 30 }, (_, i) => ({ pendingId: `p${i}`, commandId: 'plan.shift' })),
     questions: { questions: Array.from({ length: 20 }, (_, i) => ({ text: `Question ${i} ${'q'.repeat(300)}` })) },
-    scores: { readiness: Array.from({ length: 100 }, () => ({ v: 1.234, band: 'normal' })) },
   };
 
   it('fits a heavy day into ≤ 3k tokens, keeps the rules and the disclaimer, never sends a name', () => {

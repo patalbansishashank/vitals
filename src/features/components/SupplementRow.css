@@ -7,7 +7,7 @@
   .lm-supprow {
     container-type: inline-size;
     padding-block: var(--lm-space-3);
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-supprow:last-child {
     border-bottom: 0;
@@ -39,13 +39,13 @@
   }
   .lm-supprow__name {
     color: var(--lm-ink);
-    font-size: var(--lm-text-md, 15px);
-    font-weight: 500;
+    font-size: var(--lm-text-md);
+    font-weight: 600;
     overflow-wrap: anywhere;
   }
   .lm-supprow__line {
     color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs, 12px);
+    font-size: var(--lm-text-xs);
     line-height: 1.4;
   }
   .lm-supprow__line--quiet,
@@ -54,7 +54,7 @@
   }
   .lm-supprow__caution {
     color: var(--lm-caution-fg);
-    font-size: var(--lm-text-xs, 12px);
+    font-size: var(--lm-text-xs);
     line-height: 1.4;
   }
   .lm-supprow__state {
@@ -76,6 +76,18 @@
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--lm-space-2);
+  }
+  .lm-supprow[data-variant='today']:has(.lm-supprow__tick) .lm-supprow__grid {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-areas: 'tick left state';
+  }
+  .lm-supprow__tick {
+    grid-area: tick;
+  }
+  .lm-supprow[data-variant='today'] .lm-supprow__line {
+    margin: 0;
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
   }
   .lm-supprow__controls {
     grid-area: controls;
@@ -114,7 +126,7 @@
   .lm-supprow__each {
     flex: 0 1 auto;
     color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs, 12px);
+    font-size: var(--lm-text-xs);
     line-height: 1.3;
   }
   .lm-supprow__dose > .lm-error {
@@ -129,16 +141,12 @@
     display: flex;
     width: 100%;
   }
+  /* the four times: equal pills of the shared bank; a picked time takes the bank's gold wash (data-selected) */
   .lm-supprow__bank > .lm-bank__key {
     flex: 1 1 0;
     min-width: 0;
     height: 44px;
     padding-inline: var(--lm-space-2);
-  }
-  .lm-supprow__bank > .lm-bank__key[aria-pressed='true'] {
-    background: var(--lm-raised);
-    color: var(--lm-ink);
-    box-shadow: var(--lm-shadow-key);
   }
 }
 

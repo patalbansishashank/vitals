@@ -99,6 +99,12 @@ export interface BenchSummary {
   notes: string[];
   /** Timed full planner runs (one at a time on a fixed number of evaluation threads). */
   perf: PerfResult[] | null;
+  /**
+   * D4-09: the production comparison policy of the shipped planner (`hybrid`/`v2` runs) and the versioned reference the
+   * runs were judged against (`bench/reference/<selector>.json`; the historical r1/r2/smoke files are read-only).
+   */
+  policy?: { version: number; fingerprint: string; key: string };
+  reference?: { selector: string; key: string; reused: boolean; written: boolean };
 }
 
 const finite = (xs: Array<number | null | undefined>): number[] => xs.filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
@@ -337,6 +343,8 @@ function claims(s: BenchSummary): { shown: string[]; notShown: string[] } {
   notShown.push('That plans are the best possible for full requests: there the reference is the best plan any run of the benchmark returned, not an exhaustive search.');
   notShown.push('That the model of the body is right: every result here is measured inside the model. How the model compares with published studies is in the validation report.');
   notShown.push('Wall times on other devices: they were measured on one machine shared with other work, so they are indicative only; evaluation counts are the stable cost measure.');
+  // D4-08: a finite search that returns nothing is a search result, not a proof
+  notShown.push('That a goal no run reached cannot be reached: a search that finds nothing within its budget is not proof that no plan exists.');
   if (!s.suites['R2']) notShown.push('Results on full requests: that suite was not part of this run.');
   return { shown, notShown };
 }
@@ -348,7 +356,12 @@ export function markdown(s: BenchSummary): string {
   const name = (a: string) => algoLabel(a);
   L.push('# Planner benchmark');
   L.push('');
-  L.push(`*Run ${s.runId} of ${s.date.slice(0, 10)}; engine ${s.engineVersion}, parameter set ${s.registryHash}, plan library ${s.libraryVersion}.*`);
+  L.push(
+    `*Run ${s.runId} of ${s.date.slice(0, 10)}; engine ${s.engineVersion}, parameter set ${s.registryHash}, plan library ${s.libraryVersion}` +
+      (s.policy ? `, planner comparison policy ${s.policy.version} (${s.policy.fingerprint})` : '') +
+      (s.reference ? `, reference set ${s.reference.selector}` : '') +
+      '.*',
+  );
   L.push('');
   L.push(
     'The planner searches for the plan that best serves your goals in priority order within your limits and the safety rules. This report measures how close its plans come to the best plan, how fast it gets there, and how well its easier and harder plans cover the trade-off between effort and result. Each problem is solved many times with different random seeds; the ' +
@@ -495,7 +508,9 @@ export const ALGO_LABELS: Readonly<Record<string, string>> = {
   v1: 'previous planner',
   v2: 'new planner',
   v1b: 'previous planner (second copy)',
-  hybrid: 'combined planner (previous search for the hardest plan, new ladder)',
+  // D4-09: the shipped route; the previous search only proposes the hardest plan, which the new planner keeps only when it
+  // is not worse under the same goal-first comparison every other stage uses
+  hybrid: 'shipped planner (previous search proposes the hardest plan, new ladder)',
 };
 function algoLabel(a: string): string {
   return ALGO_LABELS[a] ?? a;
@@ -541,5 +556,6 @@ export function publish(s: BenchSummary, opts: { coverage: string | null; report
     claims: { shown: [...s.claims.shown], notShown: [...s.claims.notShown] },
     coverage: opts.coverage ? { report: opts.coverage } : null,
     report: opts.report,
+    ...(s.policy ? { policy: { version: s.policy.version, fingerprint: s.policy.fingerprint, reference: s.reference?.selector ?? null } } : {}),
   };
 }

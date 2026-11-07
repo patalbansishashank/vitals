@@ -3,7 +3,6 @@
  * from Node is used here: only `electron` (scripts/build.mjs bundles the rest to one CommonJS file).
  */
 import { contextBridge, ipcRenderer } from 'electron';
-import { bluetoothBridge } from '../ble/preload';
 import {
   AI_TOOL_IDS,
   CHANNELS,
@@ -36,7 +35,7 @@ const isToolId = (id: unknown): id is AiToolId => AI_TOOL_IDS.includes(id as AiT
 const badId = (): Promise<never> => Promise.reject(new Error('unknown AI tool'));
 
 /** The page's one handler for calls from AI tools; a call with no handler is rejected, never left hanging. */
-let callHandler: ((call: { client: string; tool: string; args: unknown; idempotencyKey?: string }) => Promise<unknown>) | null = null;
+let callHandler: ((call: { client: string; tool: string; args: unknown; idempotencyKey?: string; fullControl?: boolean }) => Promise<unknown>) | null = null;
 ipcRenderer.on(CHANNELS.mcpCall, (_e, req: McpCallRequest) => {
   const reply = (envelope: unknown): void => void ipcRenderer.send(CHANNELS.mcpResult, { callId: req.callId, envelope } satisfies McpCallResponse);
   const rejected = (code: string, message: string) => ({ ok: false, status: 'rejected', summary: message, error: { code, message } });
@@ -45,15 +44,14 @@ ipcRenderer.on(CHANNELS.mcpCall, (_e, req: McpCallRequest) => {
     return;
   }
   const idempotencyKey = typeof req.idempotencyKey === 'string' && req.idempotencyKey ? req.idempotencyKey.slice(0, 64) : undefined;
-  callHandler({ client: req.client, tool: req.tool, args: req.args, ...(idempotencyKey ? { idempotencyKey } : {}) }).then(reply, (e: unknown) => reply(rejected('page_error', e instanceof Error ? e.message : String(e))));
+  callHandler({ client: req.client, tool: req.tool, args: req.args, ...(idempotencyKey ? { idempotencyKey } : {}), ...(req.fullControl === true ? { fullControl: true } : {}) }).then(reply, (e: unknown) => reply(rejected('page_error', e instanceof Error ? e.message : String(e))));
 });
 
 const bridge: DesktopBridge = {
   version,
   os,
-  bluetooth: bluetoothBridge(ipcRenderer),
   tray: {
-    setStatus: (s) => ipcRenderer.send(CHANNELS.trayStatus, { ring: s.ring, sync: s.sync }),
+    setStatus: (s) => ipcRenderer.send(CHANNELS.trayStatus, { sync: s.sync }),
   },
   autostart: {
     get: () => ipcRenderer.invoke(CHANNELS.autostartGet) as Promise<boolean>,
@@ -87,7 +85,6 @@ const bridge: DesktopBridge = {
     set: (key: SecretKey, value) => ipcRenderer.invoke(CHANNELS.secretsSet, key, value ?? null) as Promise<void>,
     persistent: secretsPersistent,
   },
-  keepAlive: (keep, text) => ipcRenderer.send(CHANNELS.keepAlive, keep === true, String(text ?? '')),
   onShow: (cb) => on<void>(CHANNELS.show, () => cb()),
   onSyncNow: (cb) => on<void>(CHANNELS.syncNow, () => cb()),
 };

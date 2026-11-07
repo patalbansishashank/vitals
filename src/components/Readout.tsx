@@ -1,38 +1,14 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { cx } from './lib/cx';
 import { EM_DASH, formatNumber, formatRange, formatSigned } from './lib/format';
 import { clamp, niceStep, scaleTicks } from './lib/scale';
 import { Faceplate } from './Faceplate';
+import { HeroNumber } from './HeroNumber';
+import { RollingNumber } from './RollingNumber';
 import { Swatch, type MetricCategory } from './Chip';
 
-/* ---------------------------------------------------------------------------
-   RollingNumber — fixed-place readout: changed digits drop 6 px and fade in
-   --------------------------------------------------------------------------- */
-
-export function RollingNumber({ text, className }: { text: string; className?: string }) {
-  const [state, setState] = useState({ prev: text, current: text, gen: 0 });
-  if (state.current !== text) {
-    // derive "previous" during render (React-sanctioned pattern, no effects)
-    setState({ prev: state.current, current: text, gen: state.gen + 1 });
-  }
-  const prev = state.prev;
-  const chars = Array.from(text);
-  const prevChars = Array.from(prev);
-  const offset = prevChars.length - chars.length; // align from the right (units digit stays put)
-  return (
-    <span className={cx('lm-roll', className)} aria-hidden="true">
-      {chars.map((ch, i) => {
-        const before = prevChars[i + offset];
-        const rolled = state.gen > 0 && before !== ch && /\d/.test(ch);
-        return (
-          <span key={`${chars.length - i}-${ch}-${rolled ? state.gen : 0}`} className="lm-roll__d" data-rolled={rolled || undefined}>
-            {ch}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
+/** Kept here for the callers that import it from this file; it lives in its own module so HeroNumber and Readout can both use it. */
+export { RollingNumber };
 
 /* ---------------------------------------------------------------------------
    RangeBar — likely range on a printed scale (REVIEW_FINDINGS #2)
@@ -55,7 +31,7 @@ export interface RangeBarProps {
   className?: string;
 }
 
-/** 96 × 12 glyph: hairline axis with printed ticks, the likely range as a 4 px bar, the estimate as an ink tick. */
+/** 96 × 12 glyph: hairline axis with printed ticks, the likely range as a 4 px gold bar, the estimate as a gold tick. */
 export function RangeBar({ low, high, value, min, max, ghost, width = 96, children, className }: RangeBarProps) {
   const span = Math.max(high - low, Math.abs(value) * 0.02, 1e-9);
   const lo0 = Math.min(low, ghost ?? low, value);
@@ -92,7 +68,7 @@ export function RangeBar({ low, high, value, min, max, ghost, width = 96, childr
    --------------------------------------------------------------------------- */
 
 export interface ReadoutProps {
-  /** Engraved name ("body fat"). */
+  /** Name (body-s, stone): "Body fat". */
   label: ReactNode;
   /** Current / end value; null renders "—" with `unknownCaption`. */
   value: number | null;
@@ -108,11 +84,11 @@ export interface ReadoutProps {
   domain?: readonly [number, number];
   /** Category swatch before the name. */
   category?: MetricCategory;
-  /** How it was estimated (12 px, ink-2, max 34 ch). */
+  /** A fact about the value (12 px, stone, max 34 ch). */
   caption?: ReactNode;
   /** Shown instead of a range when value is null ("needs waist"). */
   unknownCaption?: ReactNode;
-  /** `lg` 52 (one hero per view) · `md` 32 (default, Your body) · `sm` 22 (readout strip). */
+  /** `lg` 32/38 (one per view) · `md` 28/34 (default) · `sm` 20/27 (readout strip). Unit smaller, stone. */
   size?: 'lg' | 'md' | 'sm';
   /** Roll changed digits (live readouts). */
   animate?: boolean;
@@ -144,25 +120,22 @@ export function Readout({
   const showDelta = !unknown && from !== undefined && (delta ?? true);
   const spoken = unknown
     ? `${typeof label === 'string' ? label : ''} unknown`
-    : `${from !== undefined ? `${fmt(from)} to ` : ''}${text}${unit ? ` ${unit}` : ''}${range ? `, likely ${formatRange(range[0], range[1], decimals)}` : ''}`;
+    : `${from !== undefined ? `${fmt(from)} to ` : ''}${text}${unit ? ` ${unit}` : ''}${range ? `, range ${fmt(range[0])} to ${fmt(range[1])}` : ''}`;
   return (
     <div className={cx('lm-readout', className)} data-size={size} data-unknown={unknown || undefined}>
       <span className="lm-readout__name">
         {category ? <Swatch category={category} /> : null}
         <span className="lm-eng">{label}</span>
       </span>
-      <span className="lm-readout__value lm-num">
-        <span className="lm-sr">{spoken}</span>
-        <span aria-hidden="true">
-          {from !== undefined && !unknown ? (
-            <>
-              <span className="lm-readout__from">{fmt(from)}</span>
-              <span className="lm-readout__arrow">→</span>
-            </>
-          ) : null}
-          {animate && !unknown ? <RollingNumber text={text} /> : text}
-          {unit && !unknown ? <span className="lm-unit">{unit}</span> : null}
-        </span>
+      <span className="lm-readout__value">
+        {from !== undefined && !unknown ? (
+          <span className="lm-readout__trail" aria-hidden="true">
+            <span className="lm-readout__from">{fmt(from)}</span>
+            <span className="lm-readout__arrow">→</span>
+          </span>
+        ) : null}
+        {/* the figure and its unit are a HeroNumber (one number component: spoken value, hidden digits, a rolling readout) at the readout's own sizes */}
+        <HeroNumber className="lm-readout__hero" size="stat" numerals="tabular" value={unknown ? null : value} format={fmt} unit={unit && !unknown ? unit : undefined} label={spoken} countUp={false} animate={false} roll={animate && !unknown} />
       </span>
       {showDelta ? (
         <span className="lm-readout__delta">
@@ -172,7 +145,7 @@ export function Readout({
       ) : null}
       {!unknown && range ? (
         <RangeBar low={range[0]} high={range[1]} value={value} ghost={from} min={domain?.[0]} max={domain?.[1]} width={size === 'sm' ? 72 : 96}>
-          likely {formatRange(range[0], range[1], decimals)}
+          range {formatRange(range[0], range[1], decimals)}
         </RangeBar>
       ) : null}
       {unknown && unknownCaption ? <span className="lm-readout__caption">{unknownCaption}</span> : null}

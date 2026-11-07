@@ -6,9 +6,13 @@
 
    Layout (CSS px, drawn at `scale`×): title + date range; the schedule blocks
    row; one lane per metric with its name, unit and end value in a left gutter,
-   printed y ticks, the likely-range band and the line in the metric's category
-   hue; a shared time axis; the disclaimer. Uses the live theme (light or dark).
+   printed y ticks on dotted gridlines, the likely-range band (or, with none, the
+   area gradient), the line in the metric's category hue and its end dot; a
+   shared time axis; the disclaimer. The lanes are drawn by the same helpers as
+   the on-screen canvas (core/draw.ts) through the live theme, so the figure
+   wears the same skin: PNG parity (r071).
    ========================================================================== */
+import { drawAreaGradient, drawEndDot, drawGrid, lastPointIn, type DrawArgs } from '../core/draw';
 import type { ChartTheme } from '../core/theme';
 import { canvasFont, withAlpha } from '../core/theme';
 import type { ChartSeries, Phase, Resolution, TimeBase } from '../types';
@@ -84,6 +88,8 @@ export function renderChartPng(input: PngExportInput): HTMLCanvasElement {
   ctx.fillStyle = t.face;
   ctx.fillRect(0, 0, W, H);
 
+  // a shadow's blur is in canvas px and ignores the context's scale: the end dot's glow is widened to match
+  const drawTheme: ChartTheme = { ...t, dot: { ...t.dot, glowBlur: t.dot.glowBlur * S } };
   const left = PAD + GUTTER;
   const right = W - PAD;
   const plotW = right - left;
@@ -93,7 +99,7 @@ export function renderChartPng(input: PngExportInput): HTMLCanvasElement {
   let y = PAD;
   ctx.fillStyle = t.ink;
   ctx.textBaseline = 'top';
-  ctx.font = canvasFont(t, 18, { weight: 600 });
+  ctx.font = canvasFont(t, 18, { weight: 500 });
   ctx.fillText(input.title, PAD, y);
   if (input.subtitle) {
     ctx.fillStyle = t.ink2;
@@ -161,29 +167,42 @@ export function renderChartPng(input: PngExportInput): HTMLCanvasElement {
     const top = y;
     const Y = (v: number) => top + 6 + (1 - (v - lo) / (hi - lo)) * (LANE_H - 12);
     const colour = t.cat[s.category];
+    // the helpers of core/draw.ts, over this lane's plot: CSS px (the context is scaled), so dpr 1
+    const a: DrawArgs = {
+      ctx,
+      theme: drawTheme,
+      dpr: 1,
+      box: { left, top: top + 6, width: plotW, height: LANE_H - 12 },
+      canvasW: W,
+      canvasH: H,
+      x0,
+      x1,
+      yMin: lo,
+      yMax: hi,
+      x: X,
+      y: Y,
+    };
 
-    // plot surface + ticks
+    // plot surface + dotted gridlines + ticks
     ctx.strokeStyle = t.line;
+    ctx.lineWidth = 1;
     ctx.strokeRect(left + 0.5, top + 0.5, plotW - 1, LANE_H - 1);
     const ticks = niceTicksInside(lo, hi, { min: 2, max: 3 });
     const td = Math.max(0, Math.min(3, Math.ceil(-Math.log10(ticks.step || 1))));
-    ctx.font = canvasFont(t, 10.5, { stretch: 'condensed' });
+    ctx.font = canvasFont(t, 10.5);
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'right';
-    for (const v of ticks.ticks) {
-      const yy = Math.round(Y(v)) + 0.5;
-      ctx.strokeStyle = t.grid;
-      ctx.beginPath();
-      ctx.moveTo(left, yy);
-      ctx.lineTo(right, yy);
-      ctx.stroke();
+    const printed = s.display?.wordOnly ? [] : ticks.ticks;
+    drawGrid(a, printed);
+    for (const v of printed) {
       ctx.fillStyle = t.ink3;
-      ctx.fillText(formatNumber(v, td), left - 6, yy);
+      ctx.fillText(formatNumber(v, td), left - 6, Math.round(Y(v)) + 0.5);
     }
     ctx.textAlign = 'left';
 
-    // likely range + line
-    if (tr.lo && tr.hi) {
+    // likely range (or, with none, the area) + line
+    if (!s.display?.wordOnly && !(tr.lo && tr.hi) && s.kind !== 'stacked-area') drawAreaGradient(a, tr.x, tr.values, i0, i1, colour);
+    if (!s.display?.wordOnly && tr.lo && tr.hi) {
       ctx.fillStyle = withAlpha(colour, t.bandAlpha * 1.4);
       ctx.beginPath();
       let started = false;
@@ -203,8 +222,9 @@ export function renderChartPng(input: PngExportInput): HTMLCanvasElement {
       if (started) ctx.fill();
     }
     ctx.strokeStyle = colour;
-    ctx.lineWidth = 1.75;
+    ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.beginPath();
     let pen = false;
     for (let i = i0; i <= i1; i++) {
@@ -220,24 +240,27 @@ export function renderChartPng(input: PngExportInput): HTMLCanvasElement {
     }
     ctx.stroke();
     ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
+    const end = s.display?.wordOnly ? null : lastPointIn(tr.x, tr.values, x0, x1);
+    if (end) drawEndDot(a, X(end.t), Y(end.v), colour, { size: 'lane' });
 
     // gutter: swatch, name, unit, end value
     ctx.fillStyle = colour;
     ctx.fillRect(PAD, top + 10, 10, 3);
     ctx.fillStyle = t.ink;
     ctx.textBaseline = 'top';
-    ctx.font = canvasFont(t, 13, { weight: 600 });
+    ctx.font = canvasFont(t, 13, { weight: 500 });
     const nameLines = wrapLines(ctx, s.label, GUTTER - 64).slice(0, 2);
     nameLines.forEach((line, k) => ctx.fillText(line, PAD + 16, top + 4 + k * 16));
     ctx.font = canvasFont(t, 11);
     ctx.fillStyle = t.ink2;
-    ctx.fillText(`${s.unit} · grade ${s.grade}`, PAD + 16, top + 6 + nameLines.length * 16);
+    ctx.fillText(`${s.display?.wordOnly ? '' : s.unit + ' · '}grade ${s.grade}`, PAD + 16, top + 6 + nameLines.length * 16);
     const endI = indexAt(x1 - 1e-6, tr.res, tr.values.length);
     const endV = tr.values[Math.min(i1, endI)]!;
-    if (Number.isFinite(endV)) {
-      ctx.font = canvasFont(t, 15, { weight: 500, stretch: 'wide' });
+    if (s.display?.wordOnly || Number.isFinite(endV)) {
+      ctx.font = canvasFont(t, 15, { weight: 500 });
       ctx.fillStyle = t.ink;
-      ctx.fillText(formatNumber(endV, s.format.decimals), PAD + 16, top + 26 + nameLines.length * 16);
+      ctx.fillText(s.display?.wordOnly ?? formatNumber(endV, s.format.decimals), PAD + 16, top + 26 + nameLines.length * 16);
     }
     y += LANE_H + LANE_GAP;
   }
@@ -248,7 +271,7 @@ export function renderChartPng(input: PngExportInput): HTMLCanvasElement {
   ctx.moveTo(left, y + 0.5);
   ctx.lineTo(right, y + 0.5);
   ctx.stroke();
-  ctx.font = canvasFont(t, 11, { stretch: 'condensed' });
+  ctx.font = canvasFont(t, 11);
   ctx.fillStyle = t.ink2;
   ctx.textBaseline = 'top';
   const span = x1 - x0;

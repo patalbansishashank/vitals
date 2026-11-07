@@ -43,7 +43,7 @@ letting them undo it. The rules that shape every screen here:
 
 1. Safety pause (danger; cannot be dismissed while it holds).
 2. Danger warnings on the forecast (verbatim rule text, risk first).
-3. Proposals waiting (ChangeCard `edit`, from re-plans, scores or the Coach).
+3. Proposals waiting (ChangeCard `edit`, from re-plans or the Coach).
 4. Applied automatic changes from today (ChangeCard `log`-style with Undo: "Tomorrow's food is
    5 % lower to absorb yesterday's dinner · Undo").
 5. Check-in due.
@@ -77,8 +77,8 @@ letting them undo it. The rules that shape every screen here:
 │ │         dand, baithak                 │ │
 │ │ 19:30 ◍ dinner 820 kcal · 55 g   [ ] ›│ │
 │ │ ── untimed ───────────────────────── │ │
-│ │ ⌁ steps 9 000     6 120 · ring   [◐]  │ │
-│ │ ◷ sleep 7 h 10 · ring            [✓]  │ │
+│ │ ⌁ steps 9 000     6 120 · you    [◐]  │ │
+│ │ ◷ sleep 7 h 10 · you             [✓]  │ │
 │ │ ◫ creatine 5 g                    [ ]  │ │
 │ │ how hard was today?  1 2 3 4 5         │ │ shown after 18:00 or once ≥ 3 rows are ticked
 │ └────────────────────────────────────────┘ │
@@ -92,8 +92,6 @@ letting them undo it. The rules that shape every screen here:
 │ │ ▁▂▂▃▂▂▁ trend 83.1 kg                 │ │ 7-day TrendLane (CHART_SPEC §7.8)
 │ │ expected today 82.8–83.6 · on track   │ │
 │ │ goal date likely 21–30 Dec            │ │
-│ └────────────────────────────────────────┘ │
-│ ┌ Body signals ────────────────────────┐ │ ScoreTile strip (3), only if streams are on
 │ └────────────────────────────────────────┘ │
 ├──────────────────────────────────────────┤
 │ Tell the Coach what you did…     ⌷   ➤  │ log bar
@@ -117,8 +115,6 @@ letting them undo it. The rules that shape every screen here:
 │ evidence │ │ CoachComposer + the last 3 change cards        │ ┌ Against the forecast ──────────────┐       │
 │ planning │ │ ("Logged lunch · Undo", …)                     │ │ TrendLane 14 days + drift line      │       │
 │ settings │ └────────────────────────────────────────────────┘ └────────────────────────────────────┘       │
-│          │                                                    ┌ Body signals ───────────────────────┐       │
-│          │                                                    └────────────────────────────────────┘       │
 └──────────┴────────────────────────────────────────────────────────────────────────────────────────────┘
  grid: 12 columns, 7 | 5, gap 16; ≥ 1280 the ClockRing sits left of the rows inside one faceplate;
  rail labels are full words, never abbreviated
@@ -145,9 +141,6 @@ letting them undo it. The rules that shape every screen here:
 - **Against the forecast**: "trend 83.1 kg · expected today 82.8–83.6 · on track" + "goal date
   likely 21–30 Dec". A weigh-in far outside the expected range is flagged, never removed: "This
   weigh-in is unusual (+1.6 kg). Salt, travel, a late meal or illness? It's kept but weighs less."
-- **Body signals**: up to three ScoreTiles (sleep, HRV status, resting HR) with "plan assumed 7.5 h,
-  you slept 6 h 10 — tomorrow's session is lighter · Undo" (load-lowering changes apply with Undo
-  while "Let the plan ease itself" is on — the default; otherwise they wait as proposals).
 - **How hard was today?** 1–5 KeyBank: "1 easy · 3 OK · 5 very hard" (feeds learning; optional).
 - Quiet mode: "eaten: about half of today's food" / "adherence: mostly"; trend shown as "on track"
   without kilograms.
@@ -375,7 +368,6 @@ Footer: "Something else…" (type it) · "Ask the Coach for options". A swap app
 | State | Behaviour |
 |---|---|
 | Rest day | "Rest day. Steps target 9 000." + any mobility item from the plan |
-| Session from a device | a matched workout fills the session ("Matched from your watch: run 32 min, avg HR 148") — accept or change |
 | Injury filter | footnote "Overhead work is left out for your shoulder (your setup)" |
 | No equipment answered | sessions use bodyweight; "Tell us what you have" → intake |
 | Week view | 7 rows: day · session · minutes · status glyph; tap → that day |
@@ -395,9 +387,9 @@ desktop ≥ 1280
 │      │ you    had dal, rice and two eggs for lunch                 │ about you                 │
 │      │ coach  Logged. That puts you at about 1 240 kcal so far…    │ your plan                 │
 │      │        ⌕ looked at · today's log · plan v3               ▸  │ last 7 days               │
-│      │        ┌ ✓ Logged lunch · 13:10 ── Coach · text ── 23 h ┐   │ body signals it can see   │
-│      │        │ dal 1 katori ≈ 150 g (110–200) …                │   │ still to ask              │
-│      │        │ total ≈ 640 kcal (450–830) · protein 33 g       │   │ sent to                   │
+│      │        ┌ ✓ Logged lunch · 13:10 ── Coach · text ── 23 h ┐   │ still to ask              │
+│      │        │ dal 1 katori ≈ 150 g (110–200) …                │   │ sent to                   │
+│      │        │ total ≈ 640 kcal (450–830) · protein 33 g       │   │                           │
 │      │        │ [Edit] [Undo]                                    │   │                           │
 │      │        └──────────────────────────────────────────────────┘ │                           │
 │      │ ─── Wed 15 Oct ───────────────────────────────────────────  │                           │
@@ -426,7 +418,7 @@ mobile: single column; "What it knows" is a key in the context row opening a ful
 | **edit** | a proposal card: diff, goal-date range before → after, metric impacts; **Apply** (solid, never pre-focused) · **Adjust** (asks the Coach to change it, or opens the editor) · **Discard**; expires in 24 h; turns **stale** with a refreshed preview if something changed underneath | only on Apply (the "Let the Coach make small plan edits without asking" setting — off by default, provisional — applies moves of up to 3 days that add no load and change no safety setting, with Undo) |
 | **destructive** | a confirm card "Needs your confirmation · end Spring cut" with the consequence and **Review and confirm…**, which opens the typed-confirmation Dialog | only when the person completes the dialog; the Coach can never complete it, batch it, or ask twice in one turn |
 | **safety-blocked** | a blocked card naming the rule in plain words and offering the allowed alternatives as keys | never; the Coach relays, it doesn't argue |
-| **UI-only** (screening, opt-ins, device sharing, sync, keys, agents) | the Coach says "Only you can change that" + a link to the setting | never through the Coach |
+| **UI-only** (screening, opt-ins, sync, keys, agents) | the Coach says "Only you can change that" + a link to the setting | never through the Coach |
 
 Every card also appears in Settings › Agents › Activity. Undoing a log-class card retracts the
 entry; the card shows "undone" with Redo.
@@ -466,12 +458,11 @@ entry; the card shows "undone" with Redo.
 ### 7.4 What the Coach knows (standing briefing, visible)
 Panel sections (plain language, generated from the same data the Coach receives):
 - **Always**: "How Vitals works, its safety rules and how it asks before changing your plan. It
-  can't change your safety answers, fasting opt-ins, device sharing, sync or keys."
+  can't change your safety answers, fasting opt-ins, sync or keys."
 - **About you**: age band, height, trend weight, safety mode name, food rules, equipment,
   supplements.
 - **Your plan**: name, rung, day 15 of 84, today's plan, goal-date ranges, drift, adherence.
 - **Last 7 days**: one line each.
-- **Body signals it can see**: per stream ("sleep: daily summaries · HRV: hidden · change ›").
 - **Still to ask**: deferred intake questions.
 - **Sent to**: "Anthropic (Claude Sonnet 5.5): this conversation and the results of what the Coach
   looks up. Not your name or email. Photos only in the message you attach them to."
@@ -500,8 +491,7 @@ Panel sections (plain language, generated from the same data the Coach receives)
 
 ### 8.1 Layout
 Single scrolling page of Faceplates with an anchor-chip rail (mobile) / sticky section index
-(desktop, like Settings): **trend · goals · adherence · body · body signals · log · check-ins ·
-plan**. Both rails use `scroll-padding-inline` equal to the gutter.
+(desktop, like Settings): **trend · goals · adherence · body · log · check-ins · plan**. Both rails use `scroll-padding-inline` equal to the gutter.
 Context row: "Progress · Spring cut" + range KeyBank `2 wk · 4 wk · 12 wk · all`.
 
 ### 8.2 Sections
@@ -527,7 +517,7 @@ Context row: "Progress · Spring cut" + range KeyBank `2 wk · 4 wk · 12 wk · 
    ketones, glucose, labs) with "repeat 2–3 times; we use the average" for girths and method
    (tape, scale, DXA, BIA…). Consumer body-fat readings carry "kept as a rough reading (±2
    points)"; a DXA reading says "This resets your composition estimate."
-5. **Body signals** — the ScoreTile strip for the person's streams → `scores.md`.
+5. **Body signals** — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge)).
 6. **Log** — calendar (dot per logged day, dial glyph when scored) + day list; tap a day →
    `/today/:date` (backfill); each entry with SourceChip; "edited on two devices" resolve.
 7. **Check-ins** — weekly reports, newest first: verdict, trend, what changed (adopted versions).
@@ -543,15 +533,14 @@ Context row: "Progress · Spring cut" + range KeyBank `2 wk · 4 wk · 12 wk · 
 | Under a week of weigh-ins | trend replaced by "Your trend starts after about a week of weigh-ins (3 so far)." raw dots still drawn |
 | No weigh-ins for 14 days | "No weigh-ins for 2 weeks — the trend restarts from your next one." |
 | Estimate reset (illness, travel, a long fast, DXA, a model update) | engraved marker on the trend at the date with a tooltip "estimate reset: illness over 2 days" |
-| Rescoring after an update | chip "updating scores to v1.3…" (background, interruptible) |
 | Quiet mode | weight axis hidden; trend direction words only; composition behind "show numbers" |
 
 ---
 
 ## 9. Plan details (`/plan/active`, `/plan/active/versions/:n`)
 Faceplate list: plan name, rung, start and planned end, status, check-in day, intentions (edit),
-Switch **Let the plan ease itself** (on by default): "When your data says to go easier — poor
-sleep, signs of strain, a missed day — the plan makes the lighter change at once and shows it on
+Switch **Let the plan ease itself** (on by default): "When your logs say to go easier — poor
+sleep, a very hard day, a missed day — the plan makes the lighter change at once and shows it on
 Today with Undo. Off: every change waits for you." (Not the Coach's "small edits" switch in
 Settings › AI provider, which is about the Coach.) ·
 versions with reason and date · selecting a version shows its diff table ("Thu lift → Fri lift ·
@@ -583,14 +572,14 @@ Resume · End plan… (typed confirmation) · Re-plan.
 
 | Screen | Source |
 |---|---|
-| Today | `today.get` → `TodayView` (prescription snapshot, logged entries and totals with `Est`, item statuses and credits, fast state, remaining (null in quiet mode), checklist with one-tap commands, adherence {today, a7, a28, daysLogged7}, drift, trendWeight {kg, sd, todayExpected p10/p50/p90, measured}, checkIn, biometrics {lastNight, restingHr, hrv, flags}, notices, coachPrompts) |
+| Today | `today.get` → `TodayView` (prescription snapshot, logged entries and totals with `Est`, item statuses and credits, fast state, remaining (null in quiet mode), checklist with one-tap commands, adherence {today, a7, a28, daysLogged7}, drift, trendWeight {kg, sd, todayExpected p10/p50/p90, measured}, checkIn, notices, coachPrompts) |
 | Logging | `log.markDay`, `log.confirmDay`, `log.meal`, `log.mealFromPhoto`, `log.session`, `log.fast`, `log.measurement`, `log.steps/sleep/supplement/subjective/note`, `log.edit`, `log.retract`, `log.bulk` (backfill) |
 | Check-in, drift | `plan.checkIn` → `CheckInReport`; `plan.drift` → `DriftReport` (state, goalDate range and shift, causes with shares, one action) |
 | Plan changes | `plan.replan`, `plan.shift`, `plan.declareEvent`, `plan.pause/resume`, `plan.end`, `plan.replace`, `plan.adoptVersion/rejectVersion`, `plan.versions` → `VersionProposal {goalDates, impact, notes}` |
 | Food | `food.dayTargets`, `food.candidates`, `food.planDay` → `PortionFitResult {withinTolerance, deltas, binding[]}`, `food.recipes`, `food.groceryList`, `food.parse`, `catalogue.supplements` |
 | Train | `train.session`, `train.alternatives`, `train.shoppingList`, `plan.swapExercise` → `EquivalenceResult {credit, parity, perTerm, shortfall}`, `catalogue.equivalence`, `catalogue.addExercise` |
 | Coach | `coach.conversations`, `coach.history`, `coach.pending`, `coach.applyPending` (UI only), `coach.discardPending`; `ChangeCard` view model; photo extraction → app-computed nutrients with bands |
-| Progress | `plan.adherence` → `AdherenceSeries`, `log.get`, `bio.scores`, measurement filter updates, `ProjectionDigest {asPrescribed, realistic, goals[dateRange]}` |
+| Progress | `plan.adherence` → `AdherenceSeries`, `log.get`, measurement filter updates, `ProjectionDigest {asPrescribed, realistic, goals[dateRange]}` |
 | Never computed in the UI | scores, credits, bands, drift states, goal dates, nutrient totals — the UI renders them |
 
 ## 13. Decisions & rationale

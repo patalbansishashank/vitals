@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { EMPTY_RUN, pickPlannerValues, usePlannerStore } from '@/state/plannerStore';
 import { GoalRankList } from '../components/GoalRankList';
 import { GOALS } from './fixtures';
+import { resolveSavedGoal } from '../catalogue';
 import { withSystemWrite } from '@/state/scope';
 
 function Harness() {
@@ -77,10 +78,21 @@ describe('GoalRankList', () => {
     expect(usePlannerStore.getState().goals[0]).toMatchObject({ mode: 'gain', amount: 5 });
   });
 
-  it('shows the grade-D helper and the mandatory autophagy caveat on the row', () => {
+  it('offers open-ended fat minimization without an arbitrary kilogram target', async () => {
+    const user = userEvent.setup();
     render(<Harness />);
-    expect(screen.getByText('exploratory')).toBeInTheDocument();
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Fat mass: goal type' })).getByRole('radio', { name: 'minimize' }));
+    const goal = usePlannerStore.getState().goals[0]!;
+    expect(goal.mode).toBe('lower');
+    expect(resolveSavedGoal(goal).goal).toMatchObject({ metric: 'fatMass', direction: 'minimise' });
+    expect(resolveSavedGoal(goal).goal).not.toHaveProperty('target');
+  });
+
+  it('a saved autophagy goal reads "not a goal" with its reason and the mandatory caveat, and offers no goal controls (D2-02)', () => {
+    render(<Harness />);
+    expect(screen.getByText('not a goal')).toBeInTheDocument();
+    expect(screen.queryByText('exploratory')).toBeNull();
     expect(screen.getByText(/Autophagy cannot be measured in your organs by any routine test/)).toBeInTheDocument();
-    expect(screen.getByText(/weights it lightly/)).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Autophagy signal: priority strength' })).toBeNull();
   });
 });

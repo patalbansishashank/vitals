@@ -280,3 +280,66 @@ describe('hour expansion: group-wise reuse is exact (performance change, integra
     }
   });
 });
+
+// ---------------------------------------------------------------- W1-core: C1–C7 fields survive compilation (2026-10-18)
+
+describe('contract fields survive serialisation and compilation; legacy inputs are unchanged and idempotent', () => {
+  const rich: DayTemplate = {
+    ...EAT,
+    steps: 8000,
+    stepsScope: 'totalDay',
+    meals: {
+      meals: [
+        { clockH: 8, macros: { carbG: 50 }, carbComposition: { glucoseEqG: 30, fructoseG: 15 }, form: 'mixed', intakeDurationH: 0.25, eventId: 'meal:1' },
+        { clockH: 13, energyKcal: 700, macros: { proteinG: 35 }, eventId: 'meal:2' },
+        { clockH: 19 },
+      ],
+    },
+    exercise: [
+      { kind: 'cardio', modality: 'run', startH: 7, durationMin: 30, sessionId: 'run:1', healthIntensityClass: 'moderate', stepsIncluded: 4000, carbDuringGPerH: 30, carbDuringComposition: { glucoseEqG: 20, fructoseG: 10 }, phases: [{ kind: 'warmup', durationMin: 10, pctVo2max: 0.5 }, { kind: 'work', durationMin: 20, pctVo2max: 0.75 }] },
+    ],
+    substances: { actives: [{ ingredient: 'magnesium', amount: 200, unit: 'mg', clockH: 21, eventId: 'supp:1', origin: 'observed' }] },
+    sleep: { observed: { bedAt: '2026-10-05T23:15:00+02:00', wakeAt: '2026-10-06T06:45:00+02:00', tz: 'Europe/Berlin', quality: 'fair', eventId: 'sleep:1' } },
+  };
+  const s = sched(3, {}, [rich]);
+
+  it('a JSON round trip (worker / storage boundary) compiles to the same days', () => {
+    const a = compileSchedule(s, p, { exposure: true });
+    const b = compileSchedule(JSON.parse(JSON.stringify(s)) as Schedule, p, { exposure: true });
+    expect(b.days.map(strip)).toEqual(a.days.map(strip));
+    expect(b.initialSleep).toEqual(a.initialSleep);
+    const d = a.days[1]!;
+    expect(d.stepsScope).toBe('totalDay');
+    expect(d.sessionIncludedSteps).toBe(4000);
+    expect(d.sessions[0]!.phases).toHaveLength(2);
+    expect(d.sessions[0]!.healthIntensityClass).toBe('moderate');
+    expect(d.sessions[0]!.carbDuringFructoseShare).toBeCloseTo(1 / 3, 9);
+    expect(d.meals[0]!.eventId).toBe('meal:1');
+    expect(d.meals[0]!.form).toBe('mixed');
+    expect(d.meals[1]!.energyStatus).toBe('energyOnly');
+    expect(d.exposure!['active:magnesium']).toMatchObject({ knownSum: 200, unit: 'mg' });
+    // A1-053: main timing, the known total, the entered quality (code 1 = fair) and the episode identity travel together
+    expect(d.sleepEndingToday).toEqual({ bedClockH: -0.75, wakeClockH: 6.75, hours: 7.5, totalAsleepHours: 7.5, quality: 1, qualityStatus: 'rated', eventIds: ['sleep:1'], coverage: 'complete' });
+  });
+
+  it('a legacy schedule without the new fields compiles exactly as before and twice to the same result', () => {
+    const legacy = sched(4);
+    const a = compileSchedule(legacy, p, { exposure: true });
+    const b = compileSchedule(legacy, p, { exposure: true });
+    expect(b.days.map(strip)).toEqual(a.days.map(strip));
+    for (const d of a.days) {
+      expect(d.stepsScope).toBeUndefined();
+      expect(d.sessionIncludedSteps).toBeUndefined();
+      expect(d.sleepSource).toBe('habitual');
+      expect(d.sleepEndingToday!.hours).toBe(8);
+      for (let i = 0; i < d.nMeals; i++) expect(d.meals[i]!.carbUnknownMixG).toBeUndefined();
+    }
+    expect(a.initialSleep).toBeUndefined();
+  });
+});
+
+/** A compiled day without its template reference (compared by value). */
+function strip(d: DayInput): Omit<DayInput, 'template'> {
+  const { template: _t, ...rest } = d;
+  return rest;
+}

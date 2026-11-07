@@ -7,15 +7,19 @@
  * overlays (low / zero / refeed / 24-h fast days), (4) events with locked recovery spans. User hard constraints and
  * input-space safety (layers 5-6) are enforced by `repair`. Gene values are mapped into ranges that already respect
  * the person's caps (decoder clamp, 18 §4.4.6 layer 2), so repair rarely has to act.
+ *
+ * D7-04: an active ingredient the person already takes (`PlanningContext.habitualActives`, daily dose from a known label)
+ * is part of the baseline and continues in every plan while allowed (never added again, no loading phase); a plan's lever
+ * adds only the increment above it; unknown potency or a non-daily regimen is recorded as `unchecked`, never as a dose.
  */
-import { habitualTemplate } from '../../core/compileSchedule';
+import { habitualTemplate, habitualWeekPrograms } from '../../core/compileSchedule';
 import type { RepairEntry } from '../optim/types';
 import type { CardioModality, DayTemplate, ExerciseSession, FastEvent, MacroSpec, Schedule, ScheduleBlock, ScheduleDay, TrainingRegion } from '../../types/schedule';
 import { IDEAL_SLEEP, mod24, sleepFromMidpoint, sleepMidpointRange } from './ideal';
 import { BLOCKS, type BlockId } from './registry/blocks';
 import { LATE_EATING_GAP_H, MIN_MEAL_SPACING_H, type PlanningContext } from './context';
 import { estimateDay, mealClocks, mergeDay } from './dayMath';
-import { HC } from './safety';
+import { retainRenalRoutine, HC } from './safety';
 import { eatingGapNeedH, fastEndDay, recoveryDayCount, refeedDayFactors, type WaterFastH } from './fastMath';
 import { CARDIO_BANDS, OVERLAY_HOSTS, RT_SETS_RANGE, energyRange, proteinRange, rtPrescription, type SkeletonStructure, type SegmentSkeleton } from './skeleton';
 import { equipmentRegionCap, equipmentSetsCap } from './equipment';
@@ -77,7 +81,7 @@ export interface Lifestyle {
   rtSetsPerRegionWeek: number;
   cardioSessions: number;
   cardioMinutes: number;
-  /** Clock hour sessions start (resistance training first, cardio right after), on the 15-minute grid. */
+  /** Clock hour sessions start (resistance first, cardio at the next quarter-hour), on the 15-minute grid. */
   trainingStartH: number;
   cardioPctVo2max: number;
   steps: number;
@@ -85,7 +89,10 @@ export interface Lifestyle {
   sleepExtraH: number;
   bedH: number;
   wakeH: number;
+  /** Creatine the plan's days carry, g/day: the habitual daily dose continued (D7-04) or the plan's lever, whichever is higher. */
   creatineG: number;
+  /** D7-04: the part of `creatineG` the plan adds on top of the habitual dose (absent = no habitual dose known: all added). */
+  creatineIncrementG?: number;
   omega3G: number;
   viscousG: number;
   refeedPct: number;
@@ -122,6 +129,66 @@ export interface DecodedPlan {
   /** Gene values (value units) and their run-time ranges, in layout order. */
   values: Float64Array;
   ranges: Float64Array;
+  /**
+   * D7-04: habitual active exposure the engine cannot represent (unknown potency or a non-daily regimen): a valid record
+   * with no numeric contribution, its safety check `unchecked` (never a pass).
+   */
+  exposureChecks?: ReadonlyArray<{ active: 'creatine'; status: 'unchecked'; reasonCode: 'unknownPotencyOrSchedule' }>;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// habitual active exposure (D7-04)
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * An active ingredient the person already takes, with its observed chronology (C3/D7-04). Only a known daily dose maps
+ * onto the engine's daily substance input; the label, product and event history stay in the supplement log.
+ */
+export interface HabitualActiveExposure {
+  active: 'creatine';
+  /** Active dose per day from a known label, g/day; null = potency unknown (a valid record, no numeric contribution). */
+  gPerDay: number | null;
+  /** Actual regimen: a weekly, alternate-day or as-needed regimen is never averaged into a daily dose here. */
+  schedule: 'daily' | 'weekly' | 'alternateDay' | 'asNeeded' | 'unknown';
+  /** `taking` = observed current use; `onHand` = stock (purchase cost only, no physiological baseline); `stopped` = history. */
+  state: 'taking' | 'onHand' | 'stopped';
+  /** Clinician stop or contraindication: the history stays, a plan never continues it. */
+  clinicianStop?: boolean;
+}
+
+export interface HabitualCreatine {
+  /** Known daily dose the baseline carries and a plan may continue, g/day (identical actives of several products sum). */
+  continuedGPerDay: number;
+  /** A current-use record whose dose the engine cannot represent (unknown potency, non-daily regimen): safety unchecked. */
+  unchecked: boolean;
+}
+
+/** Habitual creatine from the person's active exposure: current daily use with a known dose only (D7-04). */
+export function habitualCreatine(exposures: readonly HabitualActiveExposure[] | undefined): HabitualCreatine {
+  let g = 0;
+  let unchecked = false;
+  for (const e of exposures ?? []) {
+    if (e.active !== 'creatine' || e.state !== 'taking' || e.clinicianStop === true) continue;
+    if (e.schedule !== 'daily' || e.gPerDay === null || !Number.isFinite(e.gPerDay) || e.gPerDay < 0) {
+      unchecked = true;
+      continue;
+    }
+    g += e.gPerDay;
+  }
+  return { continuedGPerDay: g, unchecked };
+}
+
+/**
+ * Creatine a plan carries (D7-04): the habitual daily dose continues in every plan while creatine stays allowed (no new
+ * loading phase and no new water effect: it is already in the baseline), a creatine lever only raises the total above it
+ * (`incrementG` = what the plan adds), and a lock or refusal that forbids creatine ends the planned continuation (the
+ * observed history stays in the baseline). A creatine cap bounds the continued dose as well.
+ */
+export function plannedCreatineG(habitual: HabitualCreatine, leverG: number, allowed: boolean, capG: number): { totalG: number; incrementG: number } {
+  if (!allowed) return { totalG: 0, incrementG: 0 };
+  const base = Math.max(0, Math.min(habitual.continuedGPerDay, capG));
+  const total = Math.max(base, Math.min(capG, Math.max(0, leverG)));
+  return { totalG: total, incrementG: Math.max(0, total - base) };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -159,11 +226,12 @@ export function rtSessionMinutes(setsPerRegion: number): number {
   return Math.max(10, 5 * Math.round((setsPerRegion * REGIONS.length * MIN_PER_SET) / 5));
 }
 
-/** Hours of one training day's sessions (resistance training, then cardio on the 5-minute grid, ≥ 20 min). */
+/** Occupied hours, including the transition to a quarter-hour start when cardio follows resistance training. */
 export function sessionHoursOf(rtSessions: number, rtSetsPerRegionWeek: number, cardioSessions: number, cardioMinutes: number): number {
   const rtMin = rtSessions > 0 ? rtSessionMinutes(rtSetsPerRegionWeek / rtSessions) : 0;
-  const cardioMin5 = cardioSessions > 0 ? Math.max(20, 5 * Math.round(cardioMinutes / 5)) : 0;
-  return (rtMin + cardioMin5) / 60;
+  const cardioMin5 = cardioSessions > 0 ? Math.max(5, 5 * Math.round(cardioMinutes / 5)) : 0;
+  const rtSlotMin = cardioSessions > 0 ? Math.ceil(rtMin / 15) * 15 : rtMin;
+  return (rtSlotMin + cardioMin5) / 60;
 }
 
 /** Range the Ideal's `train.clockH` gene decodes over: 1 h after waking to 1.5 h + the session before bed (clock h). */
@@ -422,16 +490,23 @@ function decodeCore(ctx: PlanningContext, st: SkeletonStructure, x: ArrayLike<nu
     ig?.modality && p.cardioDays.max > 0 && mods.length > 1 ? mods[r.int('cardio.modality', 0, mods.length - 1, Math.max(0, mods.indexOf(p.cardioModality)))]! : p.cardioModality;
   const band = CARDIO_BANDS[modality] ?? CARDIO_BANDS.other!;
   const cardioSessions = p.cardioDays.max > 0 ? r.int('cardio.sessions', p.cardioDays.min, p.cardioDays.max, p.cardioDays.min) : 0;
-  const cardioMinutes = p.cardioDays.max > 0 ? r.real('cardio.minutes', 20, Math.max(20, Math.min(90, p.maxSessionMin)), 40) : 0;
+  const cardioMinutes = p.cardioDays.max > 0 ? r.real('cardio.minutes', Math.min(20, p.maxCardioSessionMin), p.maxCardioSessionMin, Math.min(40, p.maxCardioSessionMin)) : 0;
   const cardioPct = p.cardioDays.max > 0 ? r.real('cardio.intensity', band.min, band.max, (band.min + band.max) / 2) : 0;
   const steps = r.real('steps', p.steps.min, p.steps.max, p.steps.min);
   const fibreG = r.real('fibre', 15, 45, 25);
-  const creatineG = sk.creatine ? r.real('creatine.g', 3, HC.creatineMaxG, 4) : 0;
+  const leverCreatineG = sk.creatine ? r.real('creatine.g', 3, HC.creatineMaxG, 4) : 0;
+  // D7-04: a habitual daily dose continues (never added again); without one the lever's dose is the plan's, as before
+  const habCr = habitualCreatine(ctx.habitualActives);
+  const crPlan =
+    habCr.continuedGPerDay > 0
+      ? plannedCreatineG(habCr, leverCreatineG, ctx.caps.creatineAllowed && !p.excluded.has('L7') && !p.excluded.has('creatine'), ctx.caps.creatineMaxG)
+      : null;
+  const creatineG = crPlan ? crPlan.totalG : leverCreatineG;
   const omega3G = sk.omega3 ? r.real('omega3.g', 2, 3, 2.5) : 0;
   const viscousG = sk.viscousFibre ? r.real('viscous.g', 5, 15, 10) : 0;
 
   // ---- session clock: never over a meal, with a meal before and after where possible (QA item 9)
-  const cardioMin5 = cardioSessions > 0 ? Math.max(20, 5 * Math.round(cardioMinutes / 5)) : 0;
+  const cardioMin5 = cardioSessions > 0 ? Math.max(5, Math.min(p.maxCardioSessionMin, 5 * Math.round(cardioMinutes / 5))) : 0;
   const sessionH = sessionHoursOf(rtSessions, rtSets, cardioSessions, cardioMinutes);
   // Ideal: the preferred clock is a gene inside the waking day (sessions end ≥ 1 h before bed; placement keeps 1.5 h)
   const clockGene = !!ig?.clock && (p.rtDays.max > 0 || p.cardioDays.max > 0);
@@ -541,8 +616,12 @@ function decodeCore(ctx: PlanningContext, st: SkeletonStructure, x: ArrayLike<nu
     if (ov && OVERLAY_HOSTS[ov.lever].includes(d.blockId) && !isOff) {
       if (ov.lever === 'refeedDay') refW = ov.days === 1 ? [5] : [5, 6];
       else {
-        // fast from the last meal on w to the same clock on w+1; neither w+1 a training day (17 HC-F4 T1)
-        const cands = [0, 1, 2, 3, 4, 5, 6].filter((w) => !rtWeek.includes((w + 1) % 7));
+        // fast from the last meal on w to the same clock on w+1; neither w+1 a training day (17 HC-F4 T1), nor — when the
+        // person set a minimum of training days this week would then miss — w when its session would still run at the
+        // fast's start (no training inside the span drops that session)
+        const fastStart = windowStartH + windowLengthH;
+        const rtRunsIntoFast = rtWeek.length > 0 && rtWeek.length <= p.rtDays.min && trainingStartH + sessionH > fastStart + 1e-9;
+        const cands = [0, 1, 2, 3, 4, 5, 6].filter((w) => !rtWeek.includes((w + 1) % 7) && !(rtRunsIntoFast && rtWeek.includes(w)));
         f24W = pickSpaced(cands, ov.perWeek, 2);
         if (f24W.length < ov.perWeek) notes.push({ rule: 'decode.fast24Placement', amount: ov.perWeek - f24W.length });
       }
@@ -674,6 +753,7 @@ function decodeCore(ctx: PlanningContext, st: SkeletonStructure, x: ArrayLike<nu
     bedH,
     wakeH,
     creatineG,
+    ...(crPlan ? { creatineIncrementG: crPlan.incrementG } : {}),
     omega3G,
     viscousG,
     refeedPct,
@@ -681,7 +761,11 @@ function decodeCore(ctx: PlanningContext, st: SkeletonStructure, x: ArrayLike<nu
     cardioModality: modality,
     sleepGenes: !!ig?.sleep,
   };
-  return { plan: { structureId: st.id, horizonDays: T, lifestyle, phases, dayPhase, dayKind, events, notes } };
+  return { plan: { structureId: st.id, horizonDays: T, lifestyle, phases, dayPhase, dayKind, events, notes, ...exposureChecksOf(habCr) } };
+}
+
+function exposureChecksOf(h: HabitualCreatine): Pick<DecodedPlan, 'exposureChecks'> {
+  return h.unchecked ? { exposureChecks: [{ active: 'creatine', status: 'unchecked', reasonCode: 'unknownPotencyOrSchedule' }] } : {};
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -737,7 +821,8 @@ function sessionsFor(ctx: PlanningContext, ls: Lifestyle, rt: boolean, cardio: b
     for (const reg of REGIONS) setsByRegion[reg] = +Math.min(perRegion, equipmentRegionCap(ctx, reg, rx.loadPct)).toFixed(3);
     const durationMin = rtSessionMinutes(perRegion);
     out.push({ kind: 'resistance', startH: t, durationMin, setsByRegion, rir: 2, loadPct1RM: rx.loadPct, style: rx.style });
-    t = Math.min(22, t + durationMin / 60);
+    // Keep the exercise dose; only the following start waits for the next quarter-hour.
+    t = Math.min(22, Math.ceil((t + durationMin / 60) * 4 - 1e-9) / 4);
   }
   if (cardio && ls.cardioSessions > 0) out.push({ kind: 'cardio', modality: ls.cardioModality, startH: +t.toFixed(2), durationMin: Math.round(ls.cardioMinutes), pctVo2max: +ls.cardioPctVo2max.toFixed(3) });
   return out;
@@ -758,10 +843,13 @@ function templateFor(ctx: PlanningContext, ph: DecodedPhase, kind: DayKind, rt: 
     // full precision: fast events start exactly at the last meal clock (start + length)
     meals: { count: ls.meals, window: { startH: ls.windowStartH, lengthH: ls.windowLengthH }, split: 'even' },
     steps: Math.round(ls.steps),
+    // This is a proposed movement target IN ADDITION TO the separately prescribed cardio. It is not a watch's
+    // observed total-day count. Declaring its scope avoids treating unknown overlap as resolved or counting a walk twice.
+    stepsScope: 'excludesTraining',
   };
   const ex = kind === 'zero' ? [] : sessionsFor(ctx, ls, rt && kind !== 'low', cardio);
   if (ex.length) t.exercise = ex;
-  if (ls.sleepExtraH > 0) t.sleep = { bedH: +ls.bedH.toFixed(2), wakeH: ls.wakeH };
+  if (ls.sleepExtraH > 0) t.sleep = { bedH: +ls.bedH.toFixed(2), wakeH: ls.wakeH, ...(ctx.rp.habits.habitualSleepDurationH !== undefined ? { hours: +(ctx.practical.habitualSleepH + ls.sleepExtraH).toFixed(2) } : {}) };
   else if (ls.sleepGenes) t.sleep = { bedH: +ls.bedH.toFixed(2), wakeH: +ls.wakeH.toFixed(2) };
   if (ls.creatineG > 0) t.substances = { creatineG: ls.creatineG };
   if (kind === 'zero') t.hydration = { electrolytes: true, fluidL: (HC.fastingFluidL.min + HC.fastingFluidL.max) / 2, sodiumG: FAST_SODIUM_G };
@@ -889,6 +977,18 @@ function buildSchedule(ctx: PlanningContext, plan: Built['plan']): Schedule {
 export function baselineSchedule(ctx: PlanningContext): Schedule {
   const rp = ctx.rp;
   const T = ctx.horizonDays;
+  if (rp.habits.habitualCardio) {
+    const habCrG = habitualCreatine(ctx.habitualActives).continuedGPerDay;
+    const programs = habitualWeekPrograms(rp).map((p, wd) => ({
+      ...p,
+      id: `H${wd}`,
+      label: `Habitual day ${wd + 1}`,
+      ...(habCrG > 0 ? { substances: { ...(p.substances ?? {}), creatineG: habCrG } } : {}),
+    }));
+    const days = Array.from({ length: T }, (_, d) => ({ program: (ctx.startWeekday + d) % 7 }));
+    return { schemaVersion: 1, startDate: ctx.startDate, horizonDays: T, programs, days,
+      blocks: [{ name: 'Current habits', startDay: 0, endDay: T, buildingBlockId: 'B0' }], defaults: { energyReference: 'baseline' } };
+  }
   const hab = habitualTemplate(rp);
   const spw = Math.round(rp.habits.sessionsPerWeek);
   const nRt = Math.round(spw * (1 - rp.habits.lifingCardioMix));
@@ -899,6 +999,7 @@ export function baselineSchedule(ctx: PlanningContext): Schedule {
   const idx = new Map<string, number>();
   const days: ScheduleDay[] = [];
   const perSession = 60 / MIN_PER_SET / REGIONS.length; // 1-h sessions (resolveProfile EAT0 convention)
+  const habCrG = habitualCreatine(ctx.habitualActives).continuedGPerDay;
   for (let d = 0; d < T; d++) {
     const w = (ctx.startWeekday + d) % 7;
     const rt = rtW.includes(w);
@@ -912,10 +1013,17 @@ export function baselineSchedule(ctx: PlanningContext): Schedule {
         for (const reg of REGIONS) setsByRegion[reg] = +perSession.toFixed(3);
         ex.push({ kind: 'resistance', startH: 18, durationMin: 60, setsByRegion, style: 'general' });
       }
-      if (c) ex.push({ kind: 'cardio', modality: ctx.practical.cardioModality, startH: 18, durationMin: 60 });
+      if (c) ex.push({ kind: 'cardio', modality: ctx.practical.cardioModality, startH: 18, durationMin: Math.min(60, ctx.practical.maxCardioSessionMin) });
       i = programs.length;
       idx.set(key, i);
-      programs.push({ ...hab, id: `H${i}`, label: `Habitual day${rt ? ' · resistance training' : ''}${c ? ' · cardio' : ''}`, ...(ex.length ? { exercise: ex } : {}) });
+      programs.push({
+        ...hab,
+        id: `H${i}`,
+        label: `Habitual day${rt ? ' · resistance training' : ''}${c ? ' · cardio' : ''}`,
+        ...(ex.length ? { exercise: ex } : {}),
+        // D7-04: observed daily use is part of the status quo (no loading phase); on-hand stock is not
+        ...(habCrG > 0 ? { substances: { ...(hab.substances ?? {}), creatineG: habCrG } } : {}),
+      });
     }
     days.push({ program: i });
   }
@@ -931,7 +1039,7 @@ export function decodePlan(ctx: PlanningContext, st: SkeletonStructure, x: Array
   const values = new Float64Array(st.dim);
   const ranges = new Float64Array(2 * st.dim);
   if (st.skeleton.baseline) {
-    const schedule = baselineSchedule(ctx);
+    const schedule = retainRenalRoutine(baselineSchedule(ctx), ctx.caps);
     const T = ctx.horizonDays;
     const ph: DecodedPhase = {
       index: 0, segment: 0, blockId: 'B0', role: 'phase', startDay: 0, endDay: T, energyPct: 100,
@@ -939,15 +1047,17 @@ export function decodePlan(ctx: PlanningContext, st: SkeletonStructure, x: Array
       zeroPerWeek: 0, lowWeekdays: [], zeroWeekdays: [], refeedWeekdays: [], fast24Weekdays: [], rtWeekdays: [], cardioWeekdays: [],
     };
     const h = ctx.rp.habits;
+    const habCr = habitualCreatine(ctx.habitualActives);
     const ls: Lifestyle = {
       windowStartH: h.habitualWindowStartH, windowLengthH: h.habitualWindowLengthH, meals: h.habitualMealsPerDay, rtSessions: 0, rtSetsPerRegionWeek: 0,
       cardioSessions: 0, cardioMinutes: 0, trainingStartH: 18, cardioPctVo2max: 0, steps: h.typicalSteps, fibreG: ctx.rp.habitualFibreG, sleepExtraH: 0, bedH: h.bedTimeH,
-      wakeH: h.wakeTimeH, creatineG: 0, omega3G: 0, viscousG: 0, refeedPct: 0, refeedCarbGPerKg: 0, cardioModality: ctx.practical.cardioModality, sleepGenes: false,
+      wakeH: h.wakeTimeH, creatineG: habCr.continuedGPerDay, omega3G: 0, viscousG: 0, refeedPct: 0, refeedCarbGPerKg: 0, cardioModality: ctx.practical.cardioModality, sleepGenes: false,
+      ...(habCr.continuedGPerDay > 0 ? { creatineIncrementG: 0 } : {}),
     };
-    return { structureId: st.id, horizonDays: T, lifestyle: ls, phases: [ph], dayPhase: new Int16Array(T), dayKind: new Array<DayKind>(T).fill('normal'), events: [], notes: [], schedule, values, ranges };
+    return { structureId: st.id, horizonDays: T, lifestyle: ls, phases: [ph], dayPhase: new Int16Array(T), dayKind: new Array<DayKind>(T).fill('normal'), events: [], notes: [], schedule, values, ranges, ...exposureChecksOf(habCr) };
   }
   const { plan } = decodeCore(ctx, st, x, round, values, ranges);
-  const schedule = buildSchedule(ctx, plan);
+  const schedule = retainRenalRoutine(buildSchedule(ctx, plan), ctx.caps);
   return { ...plan, schedule, values, ranges };
 }
 

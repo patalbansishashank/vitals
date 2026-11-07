@@ -94,7 +94,9 @@ describe('ExplainDrawer', () => {
     render(<Harness repo={await loadedRepository()} mechanismIds={['90-full', '91-ldl', '99-unknown']} />);
     await user.click(screen.getByRole('button', { name: 'Explain this curve' }));
     const dialog = await screen.findByRole('dialog', { name: 'Explain' });
-    await within(dialog).findByText(/not in the library yet \(99-unknown\)/);
+    // says how many are missing, never their internal ids
+    await within(dialog).findByText(/1 mechanism isn’t in the library yet/);
+    expect(within(dialog).queryByText(/99-unknown/)).toBeNull();
     expect(within(dialog).getByText('2 mechanisms behind this')).toBeInTheDocument();
     expect(within(dialog).getAllByRole('link', { name: /^Open in Evidence/ })).toHaveLength(2);
   });

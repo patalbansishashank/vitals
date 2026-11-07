@@ -1,7 +1,7 @@
 /* ==========================================================================
    <PreviewStrip> — coarse schedule preview (CHART_SPEC §7.7): 48 px, daily
    fat-mass line (body hue, 1.5 px) + 6 px ketosis ribbon (keto ramp). No axes;
-   start and end values as text at the ends. Labelled "preview".
+   start and end values as text at the ends (its accessible name says "Preview").
    ========================================================================== */
 import { memo, useRef } from 'react';
 import { useElementWidth } from '../core/hooks';
@@ -42,15 +42,11 @@ export const PreviewStrip = memo(function PreviewStrip({ fat, ketosis, unit = 'k
   return (
     <div ref={rootRef} className="lmc-mini">
       <svg className="lmc-svg" width={width} height={height} role="img" aria-label={`Preview: fat mass ${formatNumber(fat[0]!, 1)} to ${formatNumber(fat[n - 1]!, 1)} ${unit}${ketosis ? '; ketosis shown as a band' : ''}.`}>
-        {/* the start value sits in the same 44 px margin: put the label at the opposite edge so they never overprint */}
-        <text className="lmc-tick-t" x={2} y={Y(fat[0]!) < height / 2 ? height - 2 : 10}>
-          preview
-        </text>
         <text x={m.l - 6} y={Y(fat[0]!)} textAnchor="end" dominantBaseline="central" style={{ fontSize: 11, fill: 'var(--lm-ink-2)', fontVariantNumeric: 'tabular-nums' }}>
           {formatNumber(fat[0]!, 1)}
         </text>
-        <path d={d} fill="none" stroke="var(--lm-cat-body)" strokeWidth={1.5} strokeLinejoin="round" />
-        <text x={m.l + pw + 6} y={Y(fat[n - 1]!)} dominantBaseline="central" style={{ fontSize: 11, fontWeight: 600, fill: 'var(--lm-ink)', fontVariantNumeric: 'tabular-nums' }}>
+        <path d={d} fill="none" stroke="var(--lm-cat-body)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <text x={m.l + pw + 6} y={Y(fat[n - 1]!)} dominantBaseline="central" style={{ fontSize: 11, fontWeight: 500, fill: 'var(--lm-ink)', fontVariantNumeric: 'tabular-nums' }}>
           {formatNumber(fat[n - 1]!, 1)}
           {THIN}
           <tspan style={{ fontWeight: 400, fill: 'var(--lm-ink-2)' }}>{unit}</tspan>

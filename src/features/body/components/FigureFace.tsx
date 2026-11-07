@@ -1,23 +1,19 @@
 import { useMemo, useState, type Ref } from 'react';
 import { Link, useLocation } from 'react-router';
-import { Faceplate, Key, KeyBank, KeyLink, formatNumber, toast } from '@/components';
+import { PersonStanding } from 'lucide-react';
+import { CardFoot, CardHead, GradientCard, Key, KeyBank, formatNumber, toast, type InfoSpec } from '@/components';
 import { paths } from '@/app/paths';
 import { stateToAvatarParams } from '@/engine/body';
-import {
-  DEFAULT_CAPTION,
-  type AvatarInteraction,
-  type DragChannel,
-  type DragRegion,
-  type RegionDragDelta,
-} from '@/features/body/avatar';
-import { Figure3D, VisceralView, askDetailedFigure, isSlowDevice, saveDataPreferred, webgl2Available } from '@/features/body/figure3d';
+import { type AvatarInteraction, type DragChannel, type DragRegion, type RegionDragDelta } from '@/features/body/avatar';
+import { Figure3D, VisceralView, askDetailedFigure, saveDataPreferred } from '@/features/body/figure3d';
 import { BODY_RANGES, useProfileStore, type BodyProfileValues, type ShapeKey } from '@/state/profileStore';
 import type { UnitSystem } from '@/state/settingsStore';
-import { FIGURE, SHAPE } from '../copy';
+import { FIGURE, INFO, SHAPE } from '../copy';
 import type { FigureView } from '../figure';
 import type { BodySummary } from '../model';
 import { patchProfile } from '../commands';
 import { useDraftView, useShapeDragging } from '../shapeDraft';
+import { DrawingPanel, type DrawingControls } from './DrawingPanel';
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 
@@ -27,11 +23,6 @@ const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x
  * paid for a full redraw. A constant keeps it for real changes only.
  */
 const FRONT_VIEW = ['front'] as const;
-
-/** How to use the figure, said once in the caption under it (not in the card header). */
-const DRAG_HINT = 'Drag the figure to turn it. Use the sliders to change its shape.';
-/** The flat drawing (data saver, no WebGL, slow device) cannot be turned; dragging reshapes it. */
-const DRAG_HINT_FLAT = 'Drag the figure to change its shape, or use the sliders.';
 
 function heightText(cm: number, units: UnitSystem): string {
   if (units === 'metric') return `${Math.round(cm)} cm`;
@@ -61,11 +52,20 @@ export interface FigureFaceProps {
   id?: string;
   /** Display only (setup · basics). */
   readOnly?: boolean;
-  /** Two-layer drawing: lean tissue inside a see-through fat layer (Shape › Adjust the drawing). Default true. */
+  /** Two-layer drawing: lean tissue inside a see-through fat layer (Adjust the drawing). Default true. */
   twoLayer?: boolean;
-  /** Caption-row link: open Shape › Adjust the drawing (nothing about the drawing sits near Basics). */
-  onAdjustDrawing?: () => void;
+  /** The "Adjust the drawing" disclosure under the layer switches; omitted = not shown. */
+  drawing?: DrawingControls;
+  drawingId?: string;
+  /**
+   * Quiet mode: no digit from a reading. The figure keeps its picture but loses the visceral view (its words are all
+   * areas and masses) and the stage switch with it.
+   */
+  quiet?: boolean;
 }
+
+/** The card's (i): the whole panel, plus the one thing the figure costs that the person may want to know. */
+const FIGURE_INFO: InfoSpec = INFO.figure;
 
 /** Nudge a shape slider from its current value (touched, or the figure's own when untouched). */
 function nudge(key: ShapeKey, delta: number, shownValue: number) {
@@ -82,9 +82,11 @@ function nudge(key: ShapeKey, delta: number, shownValue: number) {
 let slowToastShown = false;
 
 /**
- * Figure faceplate (your-body.md §5, body-figure-v2.md §3-§6): perforated stage with the 3D figure (SVG while it loads
- * and whenever WebGL is unavailable), front + side, handles; the stage bar switches to the visceral view (waist slice
- * + side cutaway, drawn to scale from the estimate) in the same box.
+ * Figure card (r071; your-body.md §5, body-figure-v2.md §3-§6): a flush tide card whose glow sits behind the torso. The
+ * 3D figure stands on the card (SVG whenever WebGL is unavailable), with its layer switches and "Adjust the drawing"
+ * under it; a mono-caps switch at the stage's top left shows the visceral view (waist slice + side cutaway, drawn to
+ * scale from the estimate) in the same box. The head holds the (i) and nothing else; "Load detailed figure" and
+ * "Hide figure" are the foot's links. Nothing here touches the figure itself.
  */
 export function FigureFace({
   v,
@@ -102,12 +104,13 @@ export function FigureFace({
   id,
   readOnly,
   twoLayer = true,
-  onAdjustDrawing,
+  drawing,
+  drawingId,
+  quiet = false,
 }: FigureFaceProps) {
   const { hash } = useLocation();
   const [stage, setStage] = useState<StageView>(() => (hash === '#visceral' ? 'visceral' : 'figure'));
   const [saveData, setSaveData] = useState(saveDataPreferred);
-  const [fallback, setFallback] = useState(() => !webgl2Available() || isSlowDevice());
   // the slice is drawn from the estimate (not the figure as set), at the drawing's frame
   const visceralParams = useMemo(
     () => stateToAvatarParams(summary.estimate, { frame: view.frame }),
@@ -119,24 +122,24 @@ export function FigureFace({
   // while a slider's draft is on show: no tween, one draw per update (a tween is a draw per animation frame)
   const dragging = useShapeDragging();
 
+  const head = <CardHead icon={PersonStanding} title={FIGURE.title} info={FIGURE_INFO} />;
+
   if (hidden) {
     return (
-      <Faceplate id={id} className="lm-body-figure" data-hidden="true" title={FIGURE.title}>
-        <p className="lm-body-note">
-          <b>{FIGURE.hiddenTitle}</b> {hidden === 'gentle' ? FIGURE.gentleHidden : FIGURE.hiddenBody}
-        </p>
-        <div className="lm-body-row">
-          {hidden === 'gentle' ? (
-            <Key size="sm" onClick={onShowGentle}>
-              {FIGURE.gentleShow}
-            </Key>
-          ) : (
-            <KeyLink size="sm" variant="quiet" to={paths.settings('appearance')}>
-              {FIGURE.settingsLink}
-            </KeyLink>
-          )}
-        </div>
-      </Faceplate>
+      <GradientCard
+        id={id}
+        className="lm-body-figure"
+        data-hidden="true"
+        domain="body"
+        head={head}
+        foot={
+          <CardFoot
+            link={hidden === 'gentle' ? { onClick: onShowGentle, label: FIGURE.gentleShow } : { to: paths.settings('appearance'), label: FIGURE.settingsLink }}
+          />
+        }
+      >
+        <p className="lm-body-note">{hidden === 'gentle' ? FIGURE.gentleHidden : `${FIGURE.hiddenTitle} ${FIGURE.hiddenBody}`}</p>
+      </GradientCard>
     );
   }
 
@@ -203,20 +206,8 @@ export function FigureFace({
     },
   };
   const interactive = readOnly ? undefined : interaction;
-  const visceral = stage === 'visceral';
-  const caption = (
-    <>
-      {saveData || fallback ? DRAG_HINT_FLAT : DRAG_HINT} {DEFAULT_CAPTION}
-      {onAdjustDrawing && !readOnly ? (
-        <>
-          {' '}
-          <button type="button" className="lm-link lm-body-linkbtn" onClick={onAdjustDrawing}>
-            {FIGURE.adjustDrawing}
-          </button>
-        </>
-      ) : null}
-    </>
-  );
+  // quiet mode keeps the figure and drops the visceral view: every number on it is an area or a mass
+  const visceral = stage === 'visceral' && !quiet;
   // the readout says once what narrows the range (no waist yet); with a waist, the note says what it sets
   const how = (
     <>
@@ -227,41 +218,49 @@ export function FigureFace({
     </>
   );
 
+  const bank = quiet ? null : (
+    <div className="lm-body-viewbank">
+      <KeyBank<StageView> size="sm" fit label={FIGURE.viewLabel} value={stage} onChange={setStage} options={FIGURE.views} />
+    </div>
+  );
+  const loadDetailed = !visceral && saveData;
+  const foot =
+    loadDetailed || (hidden === false && onHideGentle) ? (
+      <CardFoot state={{ word: FIGURE.foot }}>
+        {loadDetailed ? (
+          <Key
+            size="sm"
+            variant="text"
+            onClick={() => {
+              askDetailedFigure();
+              setSaveData(false);
+            }}
+          >
+            {FIGURE.loadDetailed}
+          </Key>
+        ) : null}
+        {hidden === false && onHideGentle ? (
+          <Key size="sm" variant="text" onClick={onHideGentle}>
+            {FIGURE.gentleHide}
+          </Key>
+        ) : null}
+      </CardFoot>
+    ) : (
+      <CardFoot state={{ word: FIGURE.foot }} />
+    );
+
   return (
-    <Faceplate
+    <GradientCard
       id={id}
       variant="flush"
       className="lm-body-figure"
-      title={FIGURE.title}
-      actions={
-        <div className="lm-body-row">
-          <KeyBank<StageView>
-            size="sm"
-            label={FIGURE.viewLabel}
-            value={stage}
-            onChange={setStage}
-            options={FIGURE.views}
-          />
-          {!visceral && saveData ? (
-            <Key
-              size="sm"
-              variant="quiet"
-              onClick={() => {
-                askDetailedFigure();
-                setSaveData(false);
-              }}
-            >
-              {FIGURE.loadDetailed}
-            </Key>
-          ) : null}
-          {hidden === false && onHideGentle ? (
-            <Key size="sm" variant="quiet" onClick={onHideGentle}>
-              {FIGURE.gentleHide}
-            </Key>
-          ) : null}
-        </div>
-      }
+      domain="body"
+      // one low glow behind the torso, never behind the figure's own colours (RESEARCH §3.3: at most a quarter alpha)
+      glow={{ pos: '50% 46%', size: '92% 64%', a: 0.25 }}
+      head={head}
+      foot={foot}
     >
+      {bank}
       {visceral ? (
         <div ref={stageRef} id="body-visceral" className="lm-body-stage lm-body-stage--visceral">
           <VisceralView
@@ -284,10 +283,9 @@ export function FigureFace({
             heightText={heightText(summary.heightCm, units)}
             interactive={interactive}
             label={label}
-            caption={caption}
+            caption={false}
             forceSvg={saveData}
             onFallback={(reason) => {
-              setFallback(true);
               if (reason === 'slow device' && !slowToastShown) {
                 slowToastShown = true;
                 toast(FIGURE.slowSwitch);
@@ -296,6 +294,7 @@ export function FigureFace({
           />
         </div>
       )}
-    </Faceplate>
+      {drawing && !visceral && !readOnly ? <DrawingPanel id={drawingId} drawing={drawing} v={v} view={view} onLive={onLive} onCommit={onCommit} /> : null}
+    </GradientCard>
   );
 }

@@ -57,6 +57,13 @@ export interface SafetyK extends SafetyConstants {
   readonly medFlag: boolean;
   readonly contraindKeto: boolean;
   readonly exerciseFlag: boolean;
+  /**
+   * D2-07: the period-change sign of W-E18 applies (false only when the person said they do not menstruate; unknown is
+   * relevant — an absent log never reassures).
+   */
+  readonly cycleSignRelevant: boolean;
+  /** D2-07/D8-04: the person logged missed periods or a new irregularity (observed concern, independent of the model's EA). */
+  readonly cycleConcern: boolean;
   readonly hotFlag: boolean;
   readonly kidneyStones: boolean;
   readonly novice: boolean;
@@ -159,6 +166,18 @@ export interface DayQ {
   def28: number;
   /** Today's own planned intake is a deficit (EI < (1 − deficitAnyPct)·TDEE_est): the 7-day deficit rules attach to it. */
   dayDeficit: boolean;
+  /**
+   * D4-04 calendar exposure (`SAFETY_EA_EXPOSURE_POLICY`): EA_n = Σ(EI − EEE_net)/Σ FFM_act over the known days of the
+   * trailing 7 / 28 calendar days (fast, refeed and rest days included; unclipped; NaN with no known day), the number of
+   * known days behind each, and today's raw daily EA (NaN when intake, net exercise or compatible FFM is unknown).
+   */
+  calEa7: number;
+  calEa28: number;
+  calCov7: number;
+  calCov28: number;
+  eaRaw: number;
+  /** Today's intake is known (coverage), whatever the FFM: the ledger's EI is written only then. */
+  eiKnown: boolean;
 }
 
 export function newDayQ(): DayQ {
@@ -208,8 +227,17 @@ export function newDayQ(): DayQ {
     fastH7Cap: 0,
     def28: Number.NaN,
     dayDeficit: false,
+    calEa7: Number.NaN,
+    calEa28: Number.NaN,
+    calCov7: 0,
+    calCov28: 0,
+    eaRaw: Number.NaN,
+    eiKnown: false,
   };
 }
+
+/** Version of the D4-04 calendar-exposure rings in `SafetyState` (a state without them comes from an older snapshot). */
+export const EXPOSURE_RING_VERSION = 2;
 
 export interface SafetyState {
   /** Horizon length and whether the warning matrix is evaluated. */
@@ -242,6 +270,18 @@ export interface SafetyState {
    * last seven non-fast days when a planned fast lies in the trailing 7 d (ruling R-FAST-GATE).
    */
   ea28Ring: Float64Array;
+  /**
+   * D4-04 calendar exposure ledger aligned with the 28-day rings: net session exercise energy EEE_net (kcal, exercise only,
+   * above the resting baseline — not TDEE), fat-free mass FFM_act at the end of the day (kg, the documented sample) and the
+   * day's flags: 1 = intake known (complete / confirmed zero / named prescribed scenario), 2 = valid
+   * FFM, 4 = independently covered net exercise (actual day, covered sessions or named prescribed scenario); 7 enters
+   * calendar EA. Unknown days and burn-in days (assumed habitual history) are excluded from calendar EA, never counted as zero intake.
+   */
+  eee28Ring: Float64Array;
+  ffm28Ring: Float64Array;
+  eaKnown28Ring: Float64Array;
+  /** `EXPOSURE_RING_VERSION` of the rings above (absent/0 in a state restored from an older snapshot: history unknown). */
+  exposureVersion: number;
   idx28: number;
   seen28: number;
   /** Index of the next entry of `k.longFastStartH` not yet in the past (W-M19 pre-fast leg). */
@@ -357,6 +397,10 @@ export function newSafetyState(nDays: number, warn: boolean, startWeightKg: numb
     tm28Ring: new Float64Array(RING28),
     fast28Ring: new Float64Array(RING28),
     ea28Ring: new Float64Array(RING28),
+    eee28Ring: new Float64Array(RING28),
+    ffm28Ring: new Float64Array(RING28),
+    eaKnown28Ring: new Float64Array(RING28),
+    exposureVersion: EXPOSURE_RING_VERSION,
     idx28: 0,
     seen28: 0,
     nextLongIdx: 0,

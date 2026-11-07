@@ -4,7 +4,8 @@
  * insulin, protein/MCT/exogenous-ketone appearance, exercise, 24-h intake, TDEE, body scale) are captured with a spy and
  * replayed twice: (a) through `stepKetones` (must reproduce the engine's BHB exactly) and (b) through a 5-min explicit
  * Euler integration of the same 05 §4.17 equations with the inputs held over the hour (liver glycogen linear within the
- * hour, as the module's hour-mid value assumes). MODEL_SPEC §9.1 O-10 tolerance: 0.05 mM or 5 % (2 % of state).
+ * hour, as the module's hour-mid value assumes). MODEL_SPEC §9.1 O-10 tolerance: 0.05 mM or 5 % (2 % of state). The hour
+ * mean is the mean of BHB(TKB) over the hour on both sides (D2-08: transform before averaging).
  * Scenario: lean man, 3-day water-only fast, broken by a 110-g carbohydrate meal, with a 60-min run on day 1 of the fast
  * and a 25-g ketone ester 2 days after refeeding (fasted, 06:00).
  */
@@ -127,7 +128,8 @@ function eulerKetones(k: KetonesConst, cap: Capture, steps = 12): { bhbMean: num
       postLeft -= 1;
     }
     const pExoH = r.exoKetoneMmolH / 60; // mmol/min, hour mean
-    let meanT = 0;
+    // D2-08: the hour-mean BHB is the mean of BHB(TKB) over the hour (transform before averaging), as the module's
+    let meanB = 0;
     for (let i = 0; i < steps; i++) {
       const frac = (i + 0.5) / steps;
       pEw += ((24 * r.raProtGH - pEw) * dt) / 8;
@@ -149,11 +151,11 @@ function eulerKetones(k: KetonesConst, cap: Capture, steps = 12): { bhbMean: num
       const U = ((k.clFFM * ffm * k.km * T) / (k.km + T)) * mEx * (1 - k.aM * aS);
       const Ren = k.renal * bw * Math.max(0, T - k.tThr);
       const Tn = Math.max(k.tkbFloor, T + ((P + pExo - U - Ren) * dt * 60) / vd);
-      meanT += 0.5 * (T + Tn) / steps;
+      meanB += bhbFromTkb(k, 0.5 * (T + Tn)) / steps;
       T = Tn;
     }
     gPrev = r.liverGlycogenG;
-    out.push(bhbFromTkb(k, meanT));
+    out.push(meanB);
   }
   return { bhbMean: out };
 }

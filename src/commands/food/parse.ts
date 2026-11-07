@@ -3,10 +3,15 @@
  * ("2 eggs", "150 g rice", "1 katori dal", "half cup milk", "2 rotis") and matches names (local names included) against
  * the food table. Grams carry a range whose width says how the amount was known (weighed > household > count > none).
  */
+import { fortificationCompatible, fortificationOfText, stateCompatible, stateOfText } from '@/catalogues/foods';
 import type { FoodRecord, FoodTable } from '@/catalogues/types';
 import { matchScore, normName } from '@/catalogues/text';
 
-/** How an amount was known; drives the gram range here and the nutrient bands in `./estimate.ts`. */
+/**
+ * How an amount was STATED; drives the gram range here and the nutrient bands in `./estimate.ts`. `weighed` is the legacy
+ * name of "a mass was stated" ("150 g"): it never sets the entry's amount method to weighed (D6-06 — numbers alone do not
+ * mean a scale was used; only an explicit `amountMethod` does).
+ */
 export type AmountKind = 'weighed' | 'household' | 'count' | 'default';
 
 export interface ParsedComponent {
@@ -63,19 +68,30 @@ export function splitMeal(text: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-/** Best table match of a name: the record, its score and the alias that matched (a local name). */
-export function matchFood(name: string, table: FoodTable): { food: FoodRecord; score: number; alias?: string } | null {
+/**
+ * Best table match of a name: the record, its score and the alias that matched (a local name). Preparation state and
+ * fortification first (D6-05): when the words (or `state` / `fortified`) name raw or cooked, enriched or unfortified, a
+ * record of the other variant is used only if no compatible record matches, and then at a lower score (so a cooked request
+ * never silently selects the raw row; the caller may ask).
+ */
+export function matchFood(name: string, table: FoodTable, state?: FoodRecord['state'], fortified?: boolean): { food: FoodRecord; score: number; alias?: string } | null {
   const q = name.trim();
   if (!q) return null;
+  const wanted = state ?? stateOfText(q);
+  const wantedFort = fortified ?? fortificationOfText(q);
   let best: { food: FoodRecord; score: number; alias?: string } | null = null;
+  let bestOther: { food: FoodRecord; score: number; alias?: string } | null = null;
   for (const f of table.search(q, 10)) {
     const s = matchScore(q, [f.name, ...f.aliases]);
-    if (!best || s > best.score) {
-      const alias = f.aliases.find((a) => matchScore(q, [a]) >= s);
-      best = { food: f, score: s, ...(alias ? { alias } : {}) };
-    }
+    const alias = f.aliases.find((a) => matchScore(q, [a]) >= s);
+    const cand = { food: f, score: s, ...(alias ? { alias } : {}) };
+    if (stateCompatible(f, wanted) && fortificationCompatible(f, wantedFort)) {
+      if (!best || s > best.score) best = cand;
+    } else if (!bestOther || s > bestOther.score) bestOther = cand;
   }
-  return best && best.score > 0.2 ? best : null;
+  if (best && best.score > 0.2) return best;
+  // only a record of the other preparation state or fortification matched: a transparent, weaker match (never full confidence)
+  return bestOther && bestOther.score > 0.2 ? { ...bestOther, score: Math.min(bestOther.score, 0.6) } : null;
 }
 
 function portionGrams(food: FoodRecord | undefined, match: string | undefined): number | null {
@@ -133,8 +149,9 @@ export function parsePhrase(phrase: string, table: FoodTable): ParsedComponent {
     rest.push(t);
   }
   const name = rest.join(' ').trim() || norm;
+  const state = stateOfText(norm);
   const countFood = COUNT_FOODS.find((c) => rest.some((w) => c.words.includes(w)));
-  let m = matchFood(name, table);
+  let m = matchFood(name, table, state);
   if ((!m || m.score < 0.9) && countFood) {
     for (const q of countFood.query) {
       const alt = matchFood(q, table);

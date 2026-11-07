@@ -1,0 +1,81 @@
+// (0.7.0) Gauge's engine inside Vitals: the ring drivers and sync, the foreground service, the phone's step counter, the
+// Health Connect reader, the short-video counter, the home-server upload and command channel. Ported from Gauge 2.8.7
+// (LumenHealth, feat/gauge-281, app/src/main/java/com/pulseloop) with its Kotlin packages kept; Gauge's Compose screens
+// and its own updater stayed behind (Vitals draws the screens and updates the one APK).
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
+apply plugin: 'com.google.devtools.ksp'
+
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
+android {
+    namespace = "com.pulseloop"
+    compileSdk = rootProject.ext.compileSdkVersion
+
+    defaultConfig {
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        consumerProguardFiles 'consumer-rules.pro'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            // Gauge's rule: JVM tests exercise code that logs (android.util.Log returns defaults instead of throwing).
+            returnDefaultValues = true
+            all {
+                maxHeapSize = '2g'
+            }
+        }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_21
+    }
+}
+
+dependencies {
+    def roomVersion = '2.7.2'
+
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0'
+    // api: the Vitals plugin in app/ reads the engine's flows, its Room database and the Health Connect contract
+    api 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation "androidx.core:core-ktx:$androidxCoreVersion"
+    implementation "androidx.activity:activity-ktx:$androidxActivityVersion"
+    api "androidx.room:room-runtime:$roomVersion"
+    api "androidx.room:room-ktx:$roomVersion"
+    ksp "androidx.room:room-compiler:$roomVersion"
+    kspTest "androidx.room:room-compiler:$roomVersion"
+    // Process foreground/background edges drive the ring link's grace period.
+    implementation 'androidx.lifecycle:lifecycle-process:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.9.4'
+    // The home-server upload.
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    // Gauge's MQTT publisher (off unless set up; kept with the outbox it drains).
+    implementation 'org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5'
+    // GPS for a recording's route; Activity Recognition transitions.
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+    implementation 'androidx.work:work-runtime-ktx:2.10.5'
+    implementation 'androidx.security:security-crypto:1.1.0'
+    api 'androidx.health.connect:connect-client:1.1.0'
+
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'androidx.test:core:1.7.0'
+    testImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
+    testImplementation "androidx.room:room-testing:$roomVersion"
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}

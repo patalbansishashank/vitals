@@ -35,7 +35,8 @@ export const K_LOSS: Readonly<Record<FatDepot, number>> = {
 
 /**
  * Gain susceptibilities (dossier 14 M7; PROPOSED FIT to Tchoukalova 2010: 8-wk overfeeding, upper +1.9 kg vs lower
- * +1.6 kg, n = 28 [52]); VAT 1.3 for gain assumed symmetric (UNVERIFIED).
+ * +1.6 kg, n = 28 [52]); VAT 1.3 for gain assumed symmetric (UNVERIFIED): a labelled hypothesis (`VAT_ALLOMETRY`), not
+ * verified loss evidence.
  */
 export const K_GAIN: Readonly<Record<FatDepot, number>> = {
   headKg: 1.0, // PROPOSED
@@ -44,6 +45,33 @@ export const K_GAIN: Readonly<Record<FatDepot, number>> = {
   trunkSatKg: 0.95, // PROPOSED FIT
   vatKg: 1.3, // UNVERIFIED (assumed symmetric with loss)
 };
+
+/**
+ * VAT allometry (D1-02): dVAT/dFM = k·VAT/FM, integrated exactly as VAT_next = clamp(VAT·(FM_next/FM)^k, 0, FM_next).
+ * k is dimensionless, masses kg. Loss k = 1.3 is an empirical population prior (Hallgreen & Hall 2008: 37 pooled loss
+ * studies, 1 407 people; not individual daily MRI accuracy). Gain reuses 1.3 only as a separately versioned symmetric
+ * continuity hypothesis (no gain evidence). Waist stays the practical manual observation; VAT is inferred.
+ */
+export const VAT_ALLOMETRY = {
+  version: 1,
+  kLoss: K_LOSS.vatKg,
+  kGain: K_GAIN.vatKg,
+  lossWarrant: 'empiricalPopulationPrior',
+  gainWarrant: 'assumedSymmetricHypothesis',
+  source: 'Hallgreen & Hall 2008 doi 10.1038/sj.ijo.0803783 (loss only)',
+} as const;
+
+/**
+ * One VAT transition (D1-02), the same for every output mask: VAT·(FM_next/FM_prev)^k with k = kLoss on loss, kGain on
+ * gain, bounded to [0, FM_next]. FM_prev ≤ 0 or FM_next ≤ 0 is the model limit: VAT = 0 (never a division by zero).
+ * Step-split invariant while the change keeps one sign (the power law telescopes). Allocation-free.
+ */
+export function vatTransition(vatKg: number, fmPrevKg: number, fmNextKg: number, kLoss: number = VAT_ALLOMETRY.kLoss, kGain: number = VAT_ALLOMETRY.kGain): number {
+  if (!(fmPrevKg > 0) || !(fmNextKg > 0) || !(vatKg > 0)) return 0;
+  const k = fmNextKg < fmPrevKg ? kLoss : kGain;
+  const v = fmNextKg === fmPrevKg ? vatKg : vatKg * Math.pow(fmNextKg / fmPrevKg, k);
+  return v > fmNextKg ? fmNextKg : v;
+}
 
 /** Spot-reduction bias: default 0, capped at 0.10 (dossier 14 M7; grade C-D, "no meaningful spot reduction" grade B). */
 export const LAMBDA_MAX = 0.1;

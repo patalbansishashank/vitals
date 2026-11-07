@@ -7,10 +7,12 @@
  *   the value at the crosshair with its likely range and what drives it there (when the caller passes them),
  *   then the mechanisms, most defining first (`orderForMetric`), each with a compact summary, how it is modelled,
  *   grade + reason, top key numbers, caveats and "Open in Evidence" (bottom sheet < 1024 px, side panel above).
+ *   No category marks or eyebrows: the sheet title names the metric; one fact line gives its family and unit.
  * - `useMechanism(id)` → `{ status, mechanism, topic, retry }`; `useMechanisms(ids)` for several.
  * - `useEvidenceSearch(query, filters, { debounceMs })` → progressive results over mechanisms,
  *   common claims and metrics, with facet counts.
- * - `<GradeLegend />` — what grades A–D (and mechanism status) mean.
+ * - `<GradeLegend />` — what grades A–D mean (`<GradeList />` without the card and heading; `useGradesHelp()` gives the
+ *   "How grades work" panel, its header-⋯ item and an opener).
  * - `metricLabel(id)` / `metricInfo(id)` — the metric adapter (engine catalogue, id fallback).
  * - `mechanismHref(id, section?)`, `topicHref(slug)` — links into the library.
  * - `<SourceRefLinks refs={[{ topic: 'safety-limits', refs: [6, 7] }]} />` — evidence cited by topic and source number,
@@ -20,7 +22,7 @@
 export { ExplainDrawer } from './ExplainDrawer';
 export type { ExplainDrawerProps, ExplainDriver, ExplainReading } from './ExplainDrawer';
 export { LEADING_MECHANISMS, orderForMetric } from './explainOrder';
-export { GradeLegend } from './GradeLegend';
+export { GradeLegend, GradeList, useGradesHelp } from './GradeLegend';
 export type { GradeLegendProps } from './GradeLegend';
 export {
   EvidenceRepositoryContext,

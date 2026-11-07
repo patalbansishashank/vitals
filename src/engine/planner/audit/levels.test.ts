@@ -2,6 +2,7 @@
 /** Level verdicts of the matrix (PLANNER_V2_SPEC §12.6) on hand-made digests: cards, verified absences, failures. */
 import { describe, expect, it } from 'vitest';
 import { judgeLevels, monotoneViolations, type LevelDigest, type RungDigest } from './levels';
+import { levelsMarkdown, levelsSummary } from './levelsReport';
 
 const rung = (D: number, d1: number, extra: Partial<RungDigest> = {}): RungDigest => ({ D, d1, change1: -d1 * 4, safe: true, provenance: 'own', fromTier: null, structureId: 's', ...extra });
 const digest = (over: Partial<LevelDigest> = {}): LevelDigest => ({
@@ -82,5 +83,17 @@ describe('monotoneViolations', () => {
     expect(monotoneViolations({ M: digest(), X: none })).toEqual(['hard shown at M but not at X (noSafePlan)']);
     expect(monotoneViolations({ M: digest(), X: { ...none, complete: false } })).toEqual([]);
     expect(monotoneViolations({ M: { ...none, tier: 'M' }, X: digest({ tier: 'X' }) })).toEqual([]);
+  });
+});
+
+describe('finite-search wording (D4-08)', () => {
+  it('a request without a plan reads as not found within the search budget, never as proof that no safe plan exists', () => {
+    const none = digest({ tier: 'M', status: 'noSafePlan', rungs: {}, collapsed: [], ideal: null });
+    const md = levelsMarkdown(levelsSummary([{ M: none }]), () => 'Reference');
+    expect(md).toContain('no plan found within the search budget');
+    expect(md).not.toMatch(/no safe plan(?! found)/i);
+    const ideal = judgeLevels(none).find((v) => v.level === 'ideal')!;
+    expect(ideal.state).toBe('absent');
+    expect(ideal.why).toBe('no plan found within the search budget');
   });
 });

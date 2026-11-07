@@ -23,6 +23,7 @@ import {
   type Sex,
 } from '@/engine/body';
 import { figureFrameOf, type BodyProfileValues, type ShapeInputs } from '@/state/profileStore';
+import { fatPatternWords, frameWords } from './avatar/describe';
 import { bodyInputsFor, displaySexes, effectiveBasics, equationSex, touchedMuscularity, type BodySummary } from './model';
 
 export type ShownShape = Required<ShapeInputs>;
@@ -52,6 +53,20 @@ export interface FigureView {
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+/**
+ * The figure's accessible name in quiet mode (r071, SPEC Q7): its frame, where its fat sits, its muscle and its layers, in
+ * words. `describeAvatar` also says the height and the estimated body fat as numbers, which a quiet page does not.
+ */
+export function describeFigureQuiet(view: Pick<FigureView, 'params' | 'frame' | 'muscle'>, layers: 'two-layer' | 'envelope'): string {
+  const parts = [
+    `Figure, ${frameWords(view.params, view.frame)}.`,
+    `Fat ${fatPatternWords(view.params)}.`,
+    `Muscle ${view.muscle.figureWords} for this size.`,
+  ];
+  if (layers === 'two-layer') parts.push('Drawn in two layers: lean tissue inside, fat as a see-through outer layer.');
+  return parts.join(' ');
+}
 
 /** The same params drawn at another frame (frame changes nothing else; engine figure contract). */
 export function withFrame(params: AvatarParams, frame: number): AvatarParams {

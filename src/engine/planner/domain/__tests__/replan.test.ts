@@ -48,8 +48,11 @@ describe('re-plan (living plan)', () => {
   let sGentle: ConfirmedState;
   let sMid: ConfirmedState;
   beforeAll(() => {
-    gentle = b1(0.6);
-    mid = b1(0.8);
+    // energy genes sit just above the EA floor margin: D3-08 (no post-RT REE rectangle in production) lowered maintenance,
+    // and so the %-of-maintenance intake and EA7, by ≈ 0.6 kcal/kg FFM; the fixtures moved up (were 0.6 / 0.8) to keep
+    // "gentle" safe as kept and "mid" a plan a light re-plan improves
+    gentle = b1(0.7);
+    mid = b1(0.95);
     sGentle = confirmedState(gentle.plan, ANCHOR, { deltaSd: 60 });
     sMid = confirmedState(mid.plan, ANCHOR, { deltaSd: 60 });
   }, 60_000);
@@ -112,7 +115,8 @@ describe('re-plan (living plan)', () => {
   }, 60_000);
 
   it('absolute targets: toActivePlan freezes change targets (and the anchoring offset); re-plans keep them; new change targets count from today', async () => {
-    const request = { ...baseRequest(), goals: [{ metric: 'fatMass' as const, direction: 'target' as const, target: -4, targetKind: 'change' as const }, { metric: 'leanTissue' as const, direction: 'maximise' as const }] };
+    const base = baseRequest();
+    const request = { ...base, constraints: { ...base.constraints, muscleRetention: { maxLossPct: 5 } }, goals: [{ metric: 'fatMass' as const, direction: 'target' as const, target: -4, targetKind: 'change' as const }, { metric: 'leanTissue' as const, direction: 'maximise' as const }] };
     const rung = { kind: 'medium', schedule: gentle.plan.schedule, genome: { structureId: gentle.structure.id, x: Array.from(gentle.x) }, scorecard: [{ goal: 0, start: 26.8 }, { goal: 1, start: 65 }] } as unknown as RungPlan;
     const wed = dateAt(gentle.plan.startDate, 2);
     const p: ActivePlanRecord = toActivePlan(rung, request, { planId: 'p-rung', startDate: wed });
@@ -121,10 +125,14 @@ describe('re-plan (living plan)', () => {
     expect(p.provenance.replanFrame!.offset).toBe(-2);
     expect(JSON.stringify(p.schedule.days[0])).toBe(JSON.stringify(gentle.plan.schedule.days[2]));
     expect(p.startDate).toBe(wed);
+    const muscleBudget = p.request.constraints?.muscleRetention;
+    expect(muscleBudget?.baseline?.date).toBe(wed);
+    expect(muscleBudget?.maxLossPct).toBe(5);
     const st = confirmedState(p, ANCHOR, { deltaSd: 60 });
     const { r } = await run(replanRequest(p, { ...st, trendWeight: { kg: st.trendWeight.kg - 1.5, sd: 0.3 } }, TODAY, 'weekly'));
     expect(r.status).not.toBe('noSafePlan');
     expect(r.plan.request.goals[0]).toMatchObject({ target: 22.8, targetKind: 'absolute' });
+    expect(r.plan.request.constraints?.muscleRetention).toEqual(muscleBudget);
     expect(r.forecast.asPrescribed[0]!.target).toBeCloseTo(22.8, 9);
     // a target the user sets now is measured from today (the trend weight), and stored absolute
     const u = await run(replanRequest(gentle.plan, { ...sGentle, trendWeight: { kg: 93.5, sd: 0.3 } }, TODAY, 'user', { trigger: 'user', changes: { goals: [{ metric: 'scaleWeight', direction: 'target', target: -2, targetKind: 'change' }] } }));

@@ -4,6 +4,7 @@
  * first title, the engine's message, the affected days, `Show` (moves the crosshair to the first affected day and
  * brings the chart into view) and a specific remedy that opens the schedule with those days selected. Any caution or
  * danger ends the panel with the persistent "stop and get help" line. Always-on notes sit in a closed disclosure.
+ * Shown with a projection only (the results screen renders nothing here before the first result).
  */
 import { ChevronDown } from 'lucide-react';
 import { Faceplate, Key, KeyLink, StatusMark, energyInText } from '@/components';
@@ -19,8 +20,6 @@ export interface WarningsPanelProps {
   onShow: (day: number) => void;
   remedyHref: (r: WarningRemedy) => string;
   titleAs?: 'h2' | 'h3';
-  /** Results not shown yet (never run / first run): the panel says so. */
-  pending?: boolean;
   /** Where the Evidence library's "back" link returns to from a source link. */
   returnTo?: { to: string; label: string };
 }
@@ -57,11 +56,11 @@ function Row({ w, startDate, onShow, remedyHref, returnTo }: { w: WarningItem; s
         </p>
       ) : null}
       <div className="rs-warn__acts">
-        <Key size="sm" onClick={() => onShow(w.startDay)}>
+        <Key size="sm" variant="outlined" onClick={() => onShow(w.startDay)}>
           Show
         </Key>
         {w.remedy ? (
-          <KeyLink size="sm" variant="quiet" to={remedyHref(w.remedy)}>
+          <KeyLink size="sm" variant="outlined" to={remedyHref(w.remedy)}>
             {w.remedy.label}
           </KeyLink>
         ) : null}
@@ -70,27 +69,25 @@ function Row({ w, startDate, onShow, remedyHref, returnTo }: { w: WarningItem; s
   );
 }
 
-export function WarningsPanel({ groups, startDate, onShow, remedyHref, titleAs = 'h2', pending, returnTo }: WarningsPanelProps) {
+export function WarningsPanel({ groups, startDate, onShow, remedyHref, titleAs = 'h2', returnTo }: WarningsPanelProps) {
   const rows = [...groups.danger, ...groups.caution, ...groups.info];
   const serious = groups.counts.danger + groups.counts.caution;
   const H = titleAs;
   const unit = useEnergyUnit();
+  const counts = [
+    groups.counts.danger ? `${groups.counts.danger} danger` : '',
+    groups.counts.caution ? `${groups.counts.caution} caution${groups.counts.caution === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
   return (
     <Faceplate variant="flush" className="rs-warnings" aria-labelledby="rs-warnings-title">
       <div className="rs-warnings__bar">
         <H id="rs-warnings-title" className="lm-h3 rs-warnings__title">
           Warnings
         </H>
-        <span className="rs-warnings__count lm-eng lm-num">
-          {groups.counts.danger ? `${groups.counts.danger} danger · ` : ''}
-          {groups.counts.caution ? `${groups.counts.caution} caution${groups.counts.caution === 1 ? '' : 's'} · ` : ''}
-          {rows.length} total
-        </span>
+        {counts.length ? <span className="rs-warnings__count lm-eng lm-num">{counts.join(' · ')}</span> : null}
       </div>
       <div className="rs-warnings__body">
-        {pending ? (
-          <p className="rs-warnings__empty">Warnings appear with the projection.</p>
-        ) : rows.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="rs-warnings__empty rs-warnings__empty--ok">
             <StatusMark severity="ok" label="OK" />
             <span>No cautions for this schedule.</span>

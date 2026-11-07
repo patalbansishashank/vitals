@@ -58,7 +58,7 @@ export interface PermissionDetails {
   isMainFrame?: boolean;
 }
 
-/** The permission decision. Bluetooth is not a permission here: Chromium asks main for the device instead. */
+/** The permission decision. */
 export function permissionAllowed(permission: string, details: PermissionDetails = {}): boolean {
   if (details.requestingUrl !== undefined && !isAppUrl(details.requestingUrl)) return false;
   if (details.isMainFrame === false) return false;
@@ -81,9 +81,6 @@ export interface SecurityElectron {
         handler: (wc: unknown, permission: string, callback: (granted: boolean) => void, details: PermissionDetails) => void,
       ): void;
       setPermissionCheckHandler(handler: (wc: unknown, permission: string, origin: string, details: PermissionDetails) => boolean): void;
-      setBluetoothPairingHandler?(
-        handler: (details: { pairingKind: string; deviceId: string; pin?: string }, callback: (r: { confirmed: boolean; pin?: string | null }) => void) => void,
-      ): void;
     };
   };
   shell: { openExternal(url: string): Promise<void> };
@@ -117,9 +114,4 @@ export function applySecurity(e: SecurityElectron): void {
   const session = e.session.defaultSession;
   session.setPermissionRequestHandler((_wc, permission, callback, details) => callback(permissionAllowed(permission, details)));
   session.setPermissionCheckHandler((_wc, permission, origin, details) => permissionAllowed(permission, { ...details, requestingUrl: details.requestingUrl ?? origin }));
-  // Linux and Windows ask main when a device wants to pair. A "confirm" prompt (Just Works) is accepted: the person asked
-  // for this device a moment ago. A PIN cannot be shown to them from here, so that pairing is declined.
-  session.setBluetoothPairingHandler?.((details, callback) => {
-    callback(details.pairingKind === 'confirm' ? { confirmed: true } : { confirmed: false });
-  });
 }

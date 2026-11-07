@@ -1,38 +1,59 @@
 import type { ComponentPropsWithRef, ReactNode } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Link, type LinkProps } from 'react-router';
 import { cx } from './lib/cx';
 import { Icon, type IconComponent } from './icons/Icon';
 import { Spinner } from './Progress';
 import { Tooltip } from './Tooltip';
 
-export type KeyVariant = 'default' | 'solid' | 'quiet' | 'danger' | 'signal';
+/**
+ * Ember variants (SPEC §5, r071). The original five keep working and map onto the new looks:
+ * `solid` / `signal` / `primary` → the gold PILL (label 15/600, an optional arrow) · `default` / `outlined` → the
+ * neutral tile (6 % ink fill, 1 px strong hairline, ivory label) · `quiet` / `text` → gold text button (icon-only: a
+ * stone icon) · `action` → gold text on a 16 % gold tile · `danger` → outlined in rose.
+ */
+export type KeyVariant = 'default' | 'solid' | 'quiet' | 'danger' | 'signal' | 'primary' | 'action' | 'text' | 'outlined';
 export type KeySize = 'sm' | 'md' | 'lg';
 
 interface KeyOwnProps {
   /**
-   * `default` raised cap · `solid` the single strongest non-run action in a view ·
-   * `quiet` tertiary/inline · `danger` destructive · `signal` ONLY Run / Find plans.
+   * `primary` (alias `solid`, `signal`): the one gold PILL per view (48 px `lg`, 40 `md`, 32 `sm`) ·
+   * `outlined` (alias `default`, the default): the neutral tile, 1 px strong hairline, ivory label ·
+   * `action`: an inline verb on a row (gold text on a soft gold tile, 32 px; 28 on `sm`) ·
+   * `text` (alias `quiet`): gold text button; icon-only it is a stone icon ·
+   * `danger`: destructive, outlined in rose.
    */
   variant?: KeyVariant;
-  /** `sm` 32 · `md` 40 (default) · `lg` 48. Touch layouts get a 44 px hit area automatically. */
+  /** `sm` 32 · `md` 40 (default) · `lg` 48 (full-width primaries in sheets). Touch layouts get a 44 px hit area (48 on icon keys). */
   size?: KeySize;
   /** Leading 20 px icon (16 px on `sm`). */
   icon?: IconComponent;
-  /** Trailing icon (chevron for menus). */
+  /** Trailing icon (chevron for menus). On a primary key it is 18 px at stroke 2.25. */
   trailingIcon?: IconComponent;
-  /** Trailing indicator light: `true` = lit (yellow), `false` = hollow. Omit for none. */
+  /**
+   * The primary pill's arrow (r071: "Add task →"): shorthand for `trailingIcon={ArrowRight}`, an icon, never the glyph
+   * (the arrow U+2192 is in neither Geist file). Use it where the key goes on or adds ("Log snack", "Start"), not on
+   * every key.
+   */
+  arrow?: boolean;
+  /**
+   * @deprecated The indicator light is gone (Ember has no indicator dots); this renders nothing. Show an on/off state
+   * with `pressed` instead.
+   */
   indicator?: boolean;
   /** Shortcut hint, e.g. "⌘↵". */
   shortcut?: string;
-  /** Toggle keys: renders the pressed cap and sets aria-pressed. */
+  /** Toggle keys: the selected treatment (gold wash, gold edge, ink text) and aria-pressed. */
   pressed?: boolean;
   /** Busy: a 12 px ring replaces the leading icon; the key keeps its width. */
   loading?: boolean;
-  /** Pill shape (planner "Find plans" signal key). */
+  /** @deprecated Every key is a pill now; kept so existing callers compile. */
   shape?: 'default' | 'pill';
   /** Full-width. */
   block?: boolean;
 }
+
+const isPrimary = (v: KeyVariant | undefined): boolean => v === 'primary' || v === 'solid' || v === 'signal';
 
 function keyData(p: KeyOwnProps & { iconOnly?: boolean }) {
   return {
@@ -41,21 +62,23 @@ function keyData(p: KeyOwnProps & { iconOnly?: boolean }) {
     'data-pressed': p.pressed ? 'true' : undefined,
     'data-loading': p.loading ? 'true' : undefined,
     'data-has-icon': p.icon ? 'true' : 'false',
+    'data-trailing': p.trailingIcon || p.arrow ? 'true' : undefined,
     'data-icon-only': p.iconOnly ? 'true' : undefined,
     'data-shape': p.shape === 'pill' ? 'pill' : undefined,
     'data-block': p.block ? 'true' : undefined,
   } as const;
 }
 
-function KeyContent({ icon, trailingIcon, indicator, shortcut, loading, size, children }: KeyOwnProps & { children?: ReactNode }) {
+function KeyContent({ icon, trailingIcon, arrow, shortcut, loading, size, variant, children }: Omit<KeyOwnProps, 'indicator'> & { children?: ReactNode }) {
   const iconSize = size === 'sm' ? 16 : 20;
+  const trailing = trailingIcon ?? (arrow ? ArrowRight : undefined);
+  const primary = isPrimary(variant);
   return (
     <>
       {icon ? loading ? <Spinner size={12} /> : <Icon icon={icon} size={iconSize} /> : null}
       <span className="lm-key__label">{children}</span>
-      {trailingIcon ? <Icon icon={trailingIcon} size={16} /> : null}
+      {trailing ? <Icon icon={trailing} size={primary ? 18 : 16} {...(primary ? { strokeWidth: 2.25 } : {})} /> : null}
       {shortcut ? <span className="lm-key__hint">{shortcut}</span> : null}
-      {indicator !== undefined ? <span className="lm-key__dot" data-on={indicator} aria-hidden="true" /> : null}
       {loading && !icon ? (
         <span className="lm-key__spinner-overlay" aria-hidden="true">
           <Spinner size={12} />
@@ -76,13 +99,14 @@ export type KeyProps = KeyOwnProps &
     disabledReason?: string;
   };
 
-/** The button. Braun key: raised cap, 1 px edge, presses in 80 ms. */
+/** The button. Primary is the gold pill, the rest are rounded rectangles; no bevel, no shadow; press scales .98. */
 export function Key({
   variant,
   size,
   icon,
   trailingIcon,
-  indicator,
+  arrow,
+  indicator: _indicator,
   shortcut,
   pressed,
   loading,
@@ -102,7 +126,7 @@ export function Key({
     <button
       type={type}
       className={cx('lm-key', className)}
-      {...keyData({ variant, size, pressed, loading, icon, shape, block })}
+      {...keyData({ variant, size, pressed, loading, icon, trailingIcon, arrow, shape, block })}
       aria-pressed={pressed === undefined ? undefined : pressed}
       aria-busy={loading || undefined}
       disabled={disabled && !disabledReason ? true : undefined}
@@ -117,7 +141,7 @@ export function Key({
       }}
       {...rest}
     >
-      <KeyContent icon={icon} trailingIcon={trailingIcon} indicator={indicator} shortcut={shortcut} loading={loading} size={size}>
+      <KeyContent icon={icon} trailingIcon={trailingIcon} arrow={arrow} shortcut={shortcut} loading={loading} size={size} variant={variant}>
         {children}
       </KeyContent>
     </button>
@@ -128,26 +152,27 @@ export function Key({
 export type KeyLinkProps = KeyOwnProps & LinkProps;
 
 /** A router link that looks like a Key ("Open in Simulator", "Back to results"). */
-export function KeyLink({ variant, size, icon, trailingIcon, indicator, shortcut, shape, block, className, children, ...rest }: KeyLinkProps) {
+export function KeyLink({ variant, size, icon, trailingIcon, arrow, indicator: _indicator, shortcut, shape, block, className, children, ...rest }: KeyLinkProps) {
   return (
-    <Link className={cx('lm-key', className)} {...keyData({ variant, size, icon, shape, block })} {...rest}>
-      <KeyContent icon={icon} trailingIcon={trailingIcon} indicator={indicator} shortcut={shortcut} size={size}>
+    <Link className={cx('lm-key', className)} {...keyData({ variant, size, icon, trailingIcon, arrow, shape, block })} {...rest}>
+      <KeyContent icon={icon} trailingIcon={trailingIcon} arrow={arrow} shortcut={shortcut} size={size} variant={variant}>
         {children}
       </KeyContent>
     </Link>
   );
 }
 
-export type IconKeyProps = Omit<KeyProps, 'icon' | 'children' | 'trailingIcon' | 'shortcut' | 'indicator' | 'block' | 'shape' | 'variant'> & {
+export type IconKeyProps = Omit<KeyProps, 'icon' | 'children' | 'trailingIcon' | 'arrow' | 'shortcut' | 'indicator' | 'block' | 'shape' | 'variant'> & {
   icon: IconComponent;
-  /** Required accessible name; also shown as the ink tooltip on hover/focus. */
+  /** Required accessible name; also shown as the tooltip on hover/focus. */
   label: string;
+  /** `quiet` (default): a stone icon with a 48 px target · `action`: gold icon on a soft gold disc · `primary`: gold disc. */
   variant?: Exclude<KeyVariant, 'signal'>;
   /** Set false to suppress the label tooltip (e.g. when a visible caption sits beside the key). */
   tooltip?: boolean;
 };
 
-/** Square key with a single 20 px icon (16 px on `sm`). `label` is required. */
+/** Round key with a single 20 px icon (16 px on `sm`). `label` is required. */
 export function IconKey({ icon, label, size, variant = 'quiet', loading, pressed, disabled, disabledReason, tooltip, type = 'button', className, onClick, title, ...rest }: IconKeyProps) {
   const soft = Boolean(disabledReason) || Boolean(loading);
   const button = (

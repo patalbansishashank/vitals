@@ -71,16 +71,34 @@ function compare(r: KitRun, table: Row[], only?: ReadonlySet<string>): string[] 
 describe('21-day water-only fast vs dossier 20 Table A1 / A3 (full engine)', () => {
   const lean = runFast(PEOPLE.leanMan, 21, 3);
   const obese = runFast(PEOPLE.obeseWoman, 21, 3);
-  it('lean man (Table A1): fat, protein tissue, N, glucose, RMR, muscle glycogen on days 1-21; weight and DXA-lean on days 2-21', () => {
-    expect(compare(lean, A1, new Set(['Δfat', 'Δprotein tissue', 'urinary N', 'glucose', 'RMR Δ%', 'muscle glycogen %']))).toEqual([]);
-    expect(compare(lean, A1.slice(1), new Set(['ΔBW', 'ΔDXA-lean']))).toEqual([]);
+  // D2-01 (2026-10-18, C2): the fasting overlay (and the fast branch of water's natriuresis that reads it) switches on from
+  // observed rolling-24-h intake only; the planned-span ≥ 24-h switch read the fast's future length and was removed. The
+  // first ≈ 24 h therefore run on fed-state routing and day 1's N, protein tissue and early water fall short (KNOWN MISS
+  // rows below, tolerances unchanged; a fitted continuous transition is deferred research). Days 2-21 still pass.
+  const DAY1_OK = new Set(['Δfat', 'glucose', 'RMR Δ%', 'muscle glycogen %']);
+  const DAY1_MISS = new Set(['Δprotein tissue', 'urinary N']);
+  it('lean man (Table A1): fat, protein tissue, N, glucose, RMR, muscle glycogen on days 2-21 (fat, glucose, RMR, muscle glycogen from day 1); weight and DXA-lean on days 3-21', () => {
+    expect(compare(lean, A1.slice(1), new Set(['Δfat', 'Δprotein tissue', 'urinary N', 'glucose', 'RMR Δ%', 'muscle glycogen %']))).toEqual([]);
+    expect(compare(lean, A1.slice(0, 1), DAY1_OK)).toEqual([]);
+    expect(compare(lean, A1.slice(2), new Set(['ΔBW', 'ΔDXA-lean']))).toEqual([]);
   });
-  // formerly a known miss (water, day-1 ECF): passes since R-EFAST (fasting natriuresis scaled by ECF, finisher 2026-09-30)
-  it('lean man (Table A1): scale weight and DXA-lean on day 1', () => {
-    expect(compare(lean, A1.slice(0, 1), new Set(['ΔBW', 'ΔDXA-lean']))).toEqual([]);
+  // KNOWN MISS (D2-01): day 1 Δprotein tissue −0.13 vs −0.22 ± 0.06 kg, urinary N 8.2 vs 13.8 ± 3.5 g/d.
+  it.fails('lean man (Table A1): protein tissue and urinary N on day 1 (KNOWN MISS, D2-01)', () => {
+    expect(compare(lean, A1.slice(0, 1), DAY1_MISS)).toEqual([]);
   });
-  it('obese woman (Table A3): fat, protein tissue, N, glucose, RMR, muscle glycogen', () => {
-    expect(compare(obese, A3, new Set(['Δfat', 'Δprotein tissue', 'urinary N', 'glucose', 'RMR Δ%', 'muscle glycogen %']))).toEqual([]);
+  // KNOWN MISS again (D2-01; day 1 passed from R-EFAST 2026-09-30 until the planned-span switch was removed): day 1 ΔBW
+  // −0.42 vs −1.6 ± 0.24 kg, ΔDXA-lean −0.31 vs −1.5 ± 0.3; day 2 ΔBW −1.98 vs −2.7 ± 0.41, ΔDXA-lean −1.70 vs −2.3 ± 0.34
+  // — the fast branch of the natriuresis now starts with the overlay.
+  it.fails('lean man (Table A1): scale weight and DXA-lean on days 1-2 (KNOWN MISS, D2-01)', () => {
+    expect(compare(lean, A1.slice(0, 2), new Set(['ΔBW', 'ΔDXA-lean']))).toEqual([]);
+  });
+  it('obese woman (Table A3): fat, protein tissue, N, glucose, RMR, muscle glycogen (protein tissue and N from day 3)', () => {
+    expect(compare(obese, A3.slice(1), new Set(['Δfat', 'Δprotein tissue', 'urinary N', 'glucose', 'RMR Δ%', 'muscle glycogen %']))).toEqual([]);
+    expect(compare(obese, A3.slice(0, 1), DAY1_OK)).toEqual([]);
+  });
+  // KNOWN MISS (D2-01): day 1 Δprotein tissue −0.06 vs −0.15 ± 0.05 kg, urinary N 3.5 vs 9.5 ± 2.4 g/d.
+  it.fails('obese woman (Table A3): protein tissue and urinary N on day 1 (KNOWN MISS, D2-01)', () => {
+    expect(compare(obese, A3.slice(0, 1), DAY1_MISS)).toEqual([]);
   });
   // KNOWN MISS (water; re-measured final round 2026-09-30): since R-EFAST only day 1's scale change misses, by 15 g —
   // −1.430 vs −1.7 ± 0.255 kg (limit −1.445); DXA-lean −1.34 vs −1.5 ± 0.3 and days 3-21 (ΔBW −3.27/−5.17/−7.52/−9.48,
@@ -141,17 +159,28 @@ describe('7-day fast and 3-day refeed (20 Table A1 7-d row, V2 Pietzner toleranc
 describe('repeated fasts (20 §4B.3)', () => {
   const p = PEOPLE.leanMan;
   const maint = program('m', 100, neutral('male'));
-  it('weekly 24-h dinner-to-dinner fast × 12: each fast re-enters peak N (BHB < 0.6 so sparing stays ≈ 0), states recover within the week, net protein 420-540 g (±25 %)', () => {
+  let weeklyRuns: { w: KitRun; ctl: KitRun } | null = null;
+  const weekly = (): { w: KitRun; ctl: KitRun } => {
+    if (weeklyRuns) return weeklyRuns;
     const dinnerOnly: DayTemplate = { ...program('dinner', 33, neutral('male')), meals: { meals: [{ clockH: 20, share: 1 }] } };
     const ev: FastEvent[] = Array.from({ length: 12 }, (_, k) => ({ kind: 'fast', startDay: 7 * k, startH: 20, durationH: 24 }));
-    const w = runKit(p, kitSchedule(84, [maint, dinnerOnly], (d) => (d % 7 === 1 ? 1 : 0), ev));
-    const ctl = runKit(p, kitSchedule(84, [maint], () => 0));
+    weeklyRuns = { w: runKit(p, kitSchedule(84, [maint, dinnerOnly], (d) => (d % 7 === 1 ? 1 : 0), ev)), ctl: runKit(p, kitSchedule(84, [maint], () => 0)) };
+    return weeklyRuns;
+  };
+  it('weekly 24-h dinner-to-dinner fast × 12: BHB < 0.6 so sparing stays ≈ 0 and states recover within the week', () => {
+    const { w } = weekly();
     for (let k = 0; k < 12; k++) {
       const d = 7 * k + 1;
-      expect(-w.day('nitrogenBalance', d)).toBeGreaterThan(9); // the fast day's N (13-14 g/d at 24 h of zero intake)
       expect(w.probe.bhb[24 * d + 19]!).toBeLessThan(0.6);
       expect(Math.abs(w.probe.fastRmrMult[Math.min(24 * (d + 5), 24 * 84 - 1)]! - 1)).toBeLessThan(0.01);
     }
+  });
+  // KNOWN MISS (D2-01): a dinner-to-dinner 24-h fast never meets the rolling-24-h criteria, so the overlay stays off: the
+  // fast day's N is ≈ 5.5 g/d (target > 9) and the net protein cost stays below the 420-540 g (±25 %) band — no 24-h
+  // muscle-loss switch without a fitted transition.
+  it.fails('weekly 24-h dinner-to-dinner fast × 12: each fast re-enters peak N; net protein 420-540 g (±25 %) (KNOWN MISS, D2-01)', () => {
+    const { w, ctl } = weekly();
+    for (let k = 0; k < 12; k++) expect(-w.day('nitrogenBalance', 7 * k + 1)).toBeGreaterThan(9); // 13-14 g/d at 24 h of zero intake
     const dProt = ((w.day('leanTissue', 83) - w.initial('leanTissue')) - (ctl.day('leanTissue', 83) - ctl.initial('leanTissue'))) * 385;
     expect(-dProt).toBeGreaterThan(315);
     expect(-dProt).toBeLessThan(675);

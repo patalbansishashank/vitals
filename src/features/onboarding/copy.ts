@@ -43,19 +43,16 @@ export const LAST_REVIEWED = '30 September 2026';
 
 export const WELCOME = {
   documentTitle: 'Welcome',
-  headline: 'See what a plan does before you live it.',
-  body: 'Vitals projects your body forward day by day from what you eat, how you train, move and sleep. It shows trends for an average person like you — with ranges, not promises — and the evidence behind every curve. Your data starts on this device. You can connect your own server to use it on other devices.',
+  headline: 'Plan your food, fasting and training, then live it day by day.',
+  /** The one line under the headline (privacy: the data starts here; a server of your own is optional). */
+  body: 'Your data starts on this device. You can connect your own server to use it on others.',
   start: 'Get started',
-  time: 'About a minute. A few questions first, then your body and a normal week (about five minutes, every question skippable).',
-  importLead: 'Already have data?',
-  importAction: 'Import a file',
-  /** Text alternative for the aria-hidden example recording (design spec §9). */
-  illustrationAlt: 'Example: a twelve-week projection in three channels — fat mass falling slowly, glycogen dipping during a three-day fast, and blood ketones rising while it lasts — beside a body figure that slims slightly.',
-  exampleLabel: 'example',
-  lanes: { fat: 'fat mass', glycogen: 'glycogen', ketones: 'blood ketones' },
-  ketosisThreshold: 'ketosis',
+  importAction: 'Import data from a file',
+  /** The same key, docked beside Get started on a phone (its full name stays the accessible name). */
+  importShort: 'Import',
 } as const;
 
+/** Each first-run step's name: the header title (the h1 on screening and consent) and the browser tab title. */
 export const STEP_NAMES = { intro: 'Welcome', screening: 'About you', consent: 'Before you start' } as const;
 export const PROGRESS = {
   label: 'Setup progress',
@@ -69,14 +66,12 @@ export const PROGRESS = {
    ============================================================================ */
 
 export const SCREENING = {
-  title: 'About you',
-  lead: "A few questions that change what's safe to suggest.",
-  sub: 'Answers stay on this device. You can change them any time in Settings.',
   whyTitle: 'Why we ask',
-  why: "These answers change what the Planner may suggest and which warnings the Simulator shows. They aren't a diagnosis, and they are never sent anywhere.",
+  why: "They change what Vitals may suggest. They aren't a diagnosis and stay on this device.",
   continue: 'Continue',
   save: 'Save answers',
   remaining: (n: number) => (n === 1 ? '1 question left' : `${n} questions left`),
+  remainingShort: (n: number) => `${n} left`,
   continueBlocked: 'Answer every question above to continue. “Prefer not to say” counts.',
   tickOne: 'Tick at least one.',
   jumpTo: 'Go to the next unanswered question',
@@ -92,7 +87,7 @@ export const SCREENING = {
       risk ? 'Your earlier answers pointed to a gentler approach, and that still applies.' : 'Your earlier answers did not change your safety settings, and that still applies.'
     } Answer them again only if something has changed.`,
   storageBlocked: "This browser isn't saving data, so your answers reset when you close the tab.",
-  groups: { you: 'you', eating: 'eating', health: 'health and medicines', activity: 'activity', alcohol: 'alcohol' },
+  groups: { you: 'You', eating: 'Eating', health: 'Health and medicines', activity: 'Activity', alcohol: 'Alcohol' },
 } as const;
 
 type Options<V extends string> = Readonly<Record<V, string>>;
@@ -358,10 +353,10 @@ export const MODE_SHORT: Readonly<Record<ModeName, string>> = {
 };
 
 export const MODE_SUMMARY: Readonly<Record<ModeName, string>> = {
-  standard: `The Planner can suggest deficits up to 25${T}% of maintenance and fasts up to 24 hours; longer fasts need your opt-in in Settings.`,
-  gentle: 'Plans stay at maintenance or above, with no fasting over 12 hours and no weight-loss goals. The Simulator still works and flags restrictive days.',
+  standard: `Deficits up to 25${T}% of maintenance, fasts up to 24 hours.`,
+  gentle: 'Plans stay at maintenance or above, with no fasting over 12 hours and no weight-loss goals. Simulate still flags restrictive days.',
   'clinician-first': `Plans use smaller deficits (up to 15${T}% of maintenance) and no fasts over 24 hours, with a reminder to check changes with your clinician.`,
-  'simulator-only': "The Planner is off. You can explore the Simulator; it flags anything that isn't advised for you.",
+  'simulator-only': "Vitals won't suggest plans. You can explore scenarios in Simulate; it flags anything that isn't advised for you.",
   'adults-only': 'Vitals is for adults. The Evidence library stays open.',
 };
 
@@ -372,11 +367,11 @@ export const MODE_SUMMARY: Readonly<Record<ModeName, string>> = {
  */
 export function modeSummary(modeName: ModeName, fasting?: { maxFastHours: number; optInTiers: readonly string[] }): string {
   if (modeName !== 'standard' || !fasting) return MODE_SUMMARY[modeName];
-  const deficit = `The Planner can suggest deficits up to 25${T}% of maintenance`;
+  const deficit = `Deficits up to 25${T}% of maintenance`;
   const h = fasting.maxFastHours;
-  if (h > 72) return `${deficit}, fasts up to 72 hours, and in expert mode one fast of 3 to 7 days at most every 12 weeks, as you chose in Settings › Safety.`;
-  if (h > 24) return `${deficit} and fasts up to ${Math.round(h)} hours, as you chose in Settings › Safety.`;
-  if (fasting.optInTiers.length === 0) return `${deficit} and fasts up to ${Math.max(12, Math.round(h))} hours; your answers keep longer fasts out of plans.`;
+  if (h > 72) return `${deficit}, fasts up to 72 hours, and in expert mode one fast of 3 to 7 days at most every 12 weeks.`;
+  if (h > 24) return `${deficit}, fasts up to ${Math.round(h)} hours.`;
+  if (fasting.optInTiers.length === 0) return `${deficit}, fasts up to ${Math.max(12, Math.round(h))} hours; your answers keep longer fasts out of plans.`;
   return MODE_SUMMARY.standard;
 }
 
@@ -385,8 +380,8 @@ export const MODE_ALSO_CLINICIAN_FIRST = 'Clinician-first rules apply too: pleas
 
 export const SUMMARY = {
   title: 'Your safety settings',
-  changesLabel: 'what this changes in plans',
-  standardLabel: 'limits for plans',
+  changesLabel: 'What this changes in plans',
+  standardLabel: 'Limits for plans',
   review: 'Review my answers',
   bodyPending: 'Your height, weight and body fat from Your body also set limits once you add them.',
   chip: (mode: string) => mode,
@@ -420,13 +415,13 @@ export const LOCK_TEXT: Readonly<Record<PlannerLockId, (value?: number) => strin
    ============================================================================ */
 
 export const CONSENT = {
-  title: 'Before you start',
-  heading: 'Vitals is a simulator.',
-  // REVIEW: counsel — intended-use statements (FDA General Wellness / MDR wellness carve-out, dossier §4.6).
+  heading: 'What Vitals is',
+  // REVIEW: counsel — intended-use statements (FDA General Wellness / MDR wellness carve-out, dossier §4.6). Shortened
+  // for the Ember pass with the same three claims; the full disclaimer below the box is unchanged.
   points: [
-    'It projects trends for an average person with your inputs — with ranges, not promises.',
-    "It is not medical advice. It can't diagnose, treat or prevent anything, and it doesn't know your health history.",
-    "It will show you risky plans if you build them, and say why they're risky. The Planner never suggests plans outside its safety limits.",
+    'Estimates for an average person with your inputs, with ranges.',
+    "Not medical advice. It can't diagnose, treat or prevent anything, and it doesn't know your health history.",
+    "It never suggests plans outside its safety limits, and says why a plan you build is risky.",
   ],
   check: 'I understand',
   continue: 'Continue',
@@ -461,9 +456,30 @@ export const HELP = {
   directoryLead: 'Free, confidential helplines by country:',
   directory: { label: 'findahelpline.com', href: 'https://findahelpline.com' },
   // REVIEW: verify every number and opening time before release and re-verify periodically (dossier DS-8).
+  /** One block per country: the service, each number a tappable row (r068 SA-2), then when it answers. */
   regions: [
-    { region: 'UK', service: 'Beat', detail: 'England 0808 801 0677 · Scotland 0808 801 0432 · Wales 0808 801 0433 · Northern Ireland 0808 801 0434 (3–8 pm, Monday to Friday)' },
-    { region: 'Australia', service: 'Butterfly', detail: '1800 33 4673 (8 am to midnight AEST, every day)' },
+    {
+      region: 'UK',
+      service: 'Beat',
+      numbers: [
+        { label: 'England', number: '0808 801 0677' },
+        { label: 'Scotland', number: '0808 801 0432' },
+        { label: 'Wales', number: '0808 801 0433' },
+        { label: 'Northern Ireland', number: '0808 801 0434' },
+      ],
+      hours: '3–8 pm, Monday to Friday',
+    },
+    { region: 'Australia', service: 'Butterfly', numbers: [{ label: 'Helpline', number: '1800 33 4673' }], hours: '8 am to midnight AEST, every day' },
+    // REVIEW: India has no national eating-disorder line; Tele-MANAS is the national mental-health helpline. Verify.
+    {
+      region: 'India',
+      service: 'Tele-MANAS',
+      numbers: [
+        { label: 'Short number', number: '14416' },
+        { label: 'Toll-free', number: '1800 891 4416' },
+      ],
+      hours: 'free, 24 hours, every day',
+    },
   ],
   crisis: "Vitals is not a crisis service. If you might be in danger, call your local emergency number.",
   link: 'Support, any time',
@@ -532,7 +548,7 @@ export const GATE = {
 export const TIER_LABEL: Readonly<Record<OptInTier, string>> = { T2: 'up to 48 hours', T3: 'up to 72 hours', T4: '3 to 7 days' };
 
 export const FASTING = {
-  switchLabel: 'allow fasts over 24 hours in plans',
+  switchLabel: 'Allow fasts over 24 hours',
   switchHelp: 'Plans with longer fasts include salt, fluid and a gentle return to eating.',
   onHelp: (tier: OptInTier) => `On: fasts ${TIER_LABEL[tier]}.`,
   notStandard: 'Only available in Standard mode.',
@@ -541,7 +557,7 @@ export const FASTING = {
   legacyAction: 'Review and confirm',
   reconfirm: 'The fasting safety steps changed. Confirm them again to keep longer fasts on.',
   illness: (days: number) => `Longer fasts are paused after recent illness${days > 0 ? ` for ${days} more ${days === 1 ? 'day' : 'days'}` : ''}.`,
-  expertLabel: 'expert mode: fasts of 3 to 7 days',
+  expertLabel: 'Expert mode: fasts of 3 to 7 days',
   expertHelp: 'Only with a clinician supervising.',
   // dialog
   dialogTitle: 'Allow fasts over 24 hours?',
@@ -551,9 +567,9 @@ export const FASTING = {
   illnessBlocked: 'Longer fasts stay off for 4 weeks while you recover. Plans keep daily fasts short until then.',
   priorQuestion: 'Have you fasted for 24 hours before without feeling unwell?',
   priorBlocked: 'Plans stay at 24 hours for now. Longer fasts need a 24-hour fast you already know you tolerate.',
-  tierLabel: 'longest fast in plans',
+  tierLabel: 'Longest fast in plans',
   t3Unavailable: 'Your answers keep fasts to 48 hours or less.',
-  acknowledgementsLabel: 'please confirm',
+  acknowledgementsLabel: 'Please confirm',
   allow: 'Allow longer fasts',
   allowBlocked: 'Answer both questions and tick every box first.',
   cancel: 'Cancel',
@@ -567,14 +583,14 @@ export const FASTING = {
   expertConfirmBody: 'At most one every 12 weeks, with at least 28 days between, always followed by the refeeding plan. You can turn this off any time in Settings.',
   expertContinue: 'Continue',
   expertConfirm: 'Turn on expert mode',
-  shortWindowLabel: 'allow eating windows of 4–6 hours in plans',
+  shortWindowLabel: 'Allow 4–6 h eating windows',
   shortWindowHelp: 'Plans still fit your protein and energy floors inside the window.',
   shortWindowTitle: 'Allow eating windows of 4–6 hours?',
   shortWindowBody: 'A short daily eating window makes it harder to fit enough protein, fibre and micronutrients, and can bring dizziness or urges to binge. Plans still meet your protein and energy floors inside the window.',
   shortWindowCheck: 'I understand',
   shortWindowAllow: 'Allow',
   shortWindowBlocked: 'Tick “I understand” first.',
-  stopRulesLabel: 'stop rules',
+  stopRulesLabel: 'Stop rules',
 } as const;
 
 /** Tier acknowledgements (dossier §4.3.3). REVIEW: clinician. */
@@ -607,6 +623,8 @@ export const SETTINGS_SAFETY = {
   answer: 'Answer the questions',
   review: 'Review my answers',
   support: 'Support, any time',
+  /** The Support row's group label (every group on a page of several has one, r068 V12). */
+  supportGroup: 'Help',
   limitsLink: 'Safety & limits',
   turnOffTitle: (what: string) => `Turn off ${what}?`,
   turnOffBody: 'Your new answers make Vitals less restrictive. Plans may then include more restriction than before.',
@@ -629,8 +647,6 @@ export const LIFTED_NAME = {
 export const LIMITS_PAGE = {
   title: 'Safety & limits',
   documentTitle: 'Safety & limits',
-  intro: 'What Vitals is, what it is not, and the limits it plans within.',
-  fullTitle: 'Important information and limits',
   // REVIEW: counsel — the whole page (intended use, exclusions, regulatory positioning; dossier §4.6, §10 item 9).
   sections: [
     {
@@ -638,7 +654,7 @@ export const LIMITS_PAGE = {
       title: 'What Vitals is',
       paragraphs: [
         'Vitals is an educational tool. It uses published research to estimate how body weight, body composition and related measures may change for an average person with the inputs you give, under a plan of eating, fasting and exercise.',
-        'The Planner suggests plans that stay inside safety limits drawn from clinical guidelines and studies.',
+        'Vitals suggests plans that stay inside safety limits drawn from clinical guidelines and studies.',
       ],
     },
     {
@@ -653,7 +669,7 @@ export const LIMITS_PAGE = {
       title: 'Who it is for',
       paragraphs: [
         "Adults 18 and over without conditions that need medical supervision. Vitals isn't designed for anyone who is pregnant or breastfeeding, has had an eating disorder, takes medicine that lowers blood sugar, or has heart, kidney or liver disease. For many other conditions and medicines, check with a clinician first.",
-        'When your answers to the safety questions suggest extra care, the Planner suggests less, or nothing, and the Simulator flags more.',
+        'When your answers to the safety questions suggest extra care, Vitals suggests less, or nothing, and Planning tools flag more.',
       ],
     },
     {
@@ -666,21 +682,20 @@ export const LIMITS_PAGE = {
     },
   ],
   limitsTitle: 'Safety limits for plans',
-  limitsLead: 'The Planner never suggests a plan outside these limits. The Simulator can show riskier scenarios, and labels them clearly. The limits are conservative guides, not guarantees of safety.',
+  limitsLead: 'Vitals never suggests a plan outside these limits. Planning tools can show riskier scenarios, and label them clearly. The limits are conservative guides, not guarantees of safety.',
   // REVIEW: clinician — every number below (dossier §2.2, §2.5; several are PROPOSED engineering judgement).
   limits: [
-    { key: 'average energy', value: `at least 1${T}200${T}kcal a day (female model) or 1${T}500${T}kcal (male model), as a 7-day average` },
-    { key: 'deficit', value: `up to 25${T}% of maintenance (30${T}% from a BMI of 30; less when leaner, older, or in clinician-first mode)` },
-    { key: 'pace', value: `about 0.5–1${T}% of body weight a week, never more than 1.5${T}kg` },
-    { key: 'energy after exercise', value: `at least 30${T}kcal per kg of lean mass a day` },
-    { key: 'body size', value: 'a deficit starts only at a BMI of 20 or above, and never projects below 19' },
-    { key: 'fasting', value: 'up to 24 hours by default; 24–72 hours only if you turn it on; never longer than 72 hours' },
-    { key: 'very-low-energy days', value: `none under 800${T}kcal` },
-    { key: 'protein', value: `at least 0.8${T}g per kg a day, 1.2${T}g in a deficit or from 65` },
+    { key: 'Average energy', value: `at least 1${T}200${T}kcal a day (female model) or 1${T}500${T}kcal (male model), as a 7-day average` },
+    { key: 'Deficit', value: `up to 25${T}% of maintenance (30${T}% from a BMI of 30; less when leaner, older, or in clinician-first mode)` },
+    { key: 'Pace', value: `about 0.5–1${T}% of body weight a week, never more than 1.5${T}kg` },
+    { key: 'Energy after exercise', value: `at least 30${T}kcal per kg of lean mass a day` },
+    { key: 'Body size', value: 'a deficit starts only at a BMI of 20 or above, and never projects below 19' },
+    { key: 'Fasting', value: 'up to 24 hours by default; 24–72 hours only if you turn it on; never longer than 72 hours' },
+    { key: 'Very-low-energy days', value: `none under 800${T}kcal` },
+    { key: 'Protein', value: `at least 0.8${T}g per kg a day, 1.2${T}g in a deficit or from 65` },
   ],
   sexNote: 'Female and male here mean the setting of the physiological model, not an identity.',
   stopTitle: 'Stop and get help',
-  stopBody: 'If eating, weight or exercise feels out of control or distressing, please contact a health professional or a helpline. You deserve care at any weight.',
   dataTitle: 'Your data',
   // REVIEW: counsel — privacy statements (dossier §4.7; hosting logs are a separate processing to disclose).
   data: [
@@ -689,6 +704,8 @@ export const LIMITS_PAGE = {
     'The website host may keep standard connection logs when the page loads. Your own server is a separate destination if you connect it.',
   ],
   modeTitle: 'Your safety mode',
+  /** Header ⋯ item on /safety (the review of the screening answers). */
+  review: 'Review my answers',
   changesTitle: 'Evidence and changes',
   changes: 'Every curve links to its sources and evidence grade in the Evidence library. Guidance changes; this page was last reviewed on',
   evidenceLink: 'Evidence library',

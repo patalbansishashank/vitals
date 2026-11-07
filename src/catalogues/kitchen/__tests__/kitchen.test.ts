@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createFoodTable } from '@/catalogues/foods';
 import { FOOD_FIXTURE } from '@/content/catalogues/foods.fixture';
+import { FOOD_REFERENCE } from '@/content/catalogues/foods.reference';
+import { fdcIndexOf } from '../food';
 import { KITCHEN_SEED } from '@/content/catalogues/kitchen';
 import {
   addEquipment,
@@ -233,6 +235,20 @@ describe('food reference resolution', () => {
     const t = createFoodTable([...FOOD_FIXTURE, { ...FOOD_FIXTURE[10]!, id: 'taro_raw', name: 'Taro, raw', verified: true }], 'x');
     const r = resolveFood(cat, 'pa.colocasia', t, new Map([[169308, 'taro_raw']]));
     expect(r).toMatchObject({ status: 'resolved', foodId: 'taro_raw', estimated: true });
+  });
+
+  it('matches preparation state before the fixture alias: a raw staple never silently takes the cooked row (D6-05)', () => {
+    // the fixture links white rice (an FDC raw row) to cooked rice: a transparent state proxy, always estimated
+    const viaFixture = resolveFood(cat, 'st.rice_white_generic', table);
+    expect(viaFixture).toMatchObject({ status: 'resolved', foodId: 'rice_white_cooked', via: 'fixture', proxy: 'stateMismatch', estimated: true });
+    // the shipped reference carries exact FDC identities: the raw staple resolves to the raw row by its FDC id
+    const ref = createFoodTable(FOOD_REFERENCE, 'ref');
+    expect(fdcIndexOf(ref).get(168877)).toBe('rice_white_raw');
+    const exact = resolveFood(cat, 'st.rice_white_generic', ref);
+    expect(exact).toMatchObject({ status: 'resolved', foodId: 'rice_white_raw', via: 'fdc', estimated: false });
+    expect(exact.status === 'resolved' && exact.proxy).toBeUndefined();
+    // paneer is not shipped: the IFCT-pending item stays pending instead of borrowing an unverified estimate
+    expect(resolveFood(cat, 'st.paneer', ref)).toEqual({ status: 'pending', reason: 'ifct' });
   });
 
   it('every staple and pantry food link is well formed; staple/pantry twins share a key', () => {

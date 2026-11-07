@@ -4,7 +4,10 @@
  */
 export interface WellbeingState {
   // ------------------------------------------------------------ running-day accumulators (reset in endOfDay)
-  /** Energy ingested today so far, kcal (Σ HourInput.kcal, engine energy convention). */
+  /**
+   * Energy ingested today so far, kcal: Σ (HourInput.kcal + 4·exCarbG), signed (D6-02 reconciliation corrections may be
+   * negative; carbohydrate eaten during exercise is ingested energy, M8). Reported ME convention (C3).
+   */
   eiDayKcal: number;
   /** Session exercise energy net of resting expenditure today so far, kcal (Σ exSessionNetKcalH; the EEE of ruling R-EA). */
   eeeDayKcal: number;
@@ -24,8 +27,27 @@ export interface WellbeingState {
   /** 1 when the fasting overlay was active in any hour today (fast days are not carbohydrate-restriction days). */
   fastSeenDay: number;
 
-  // ------------------------------------------------------------ energy availability (19 §4.1, 17 §2.1)
-  /** Smoothed EA_s (EWMA τ 3 d), kcal/kg FFM/d. */
+  // ------------------------------------------------------------ energy availability exposure (D8-04, C3/C6)
+  /**
+   * Raw daily EA of the last completed day, kcal/kg FFM/d: (EI − net session EEE)/FFM_act, UNCLIPPED. Finite compatibility
+   * value when `eaRawStatus` is unavailable (the previous valid value; never read it then).
+   */
+  eaRawDay: number;
+  /** Status code of `eaRawDay` (`EA_STATUS`): unavailable / planned / logged complete / partial / as-planned / unknown. */
+  eaRawStatus: number;
+  /**
+   * EA implied by the KNOWN intake only, kcal/kg FFM/d ((known EI − EEE)/FFM_act); a lower bound of the day's EA when
+   * `eaRawKnownIsLowerBound` = 1 (intake partially logged, exercise covered). Equals `eaRawDay` on fully covered days.
+   */
+  eaRawKnownDay: number;
+  eaRawKnownIsLowerBound: number;
+  /** The last completed day's ledger: EI (ME) kcal, net session EEE kcal and the FFM_act denominator kg. */
+  eaEiKcal: number;
+  eaEeeKcal: number;
+  eaFfmKg: number;
+
+  // ------------------------------------------------------------ internal EA drive (19 §4.1, 17 §2.1): design operators
+  /** Smoothed EA_s (EWMA τ 3 d) of the CLIPPED daily samples, kcal/kg FFM/d: the bounded internal drive, not exposure. */
   eaS: number;
   /** EWMA (same τ) of the exercise part EEE/FFM, kcal/kg FFM/d. */
   eeeS: number;
@@ -38,16 +60,21 @@ export interface WellbeingState {
   eaC: number;
 
   // ------------------------------------------------------------ weight, RT presence, training load
-  /** Daily scale-weight samples (fatMassKg + ffmActKg + labileWaterKg), kg; head index = newest. */
+  /** Daily scale-weight samples (fatMassKg + ffmActKg + labileWaterKg), kg; head index = newest (loss-rate concern flag). */
   wRing: Float64Array;
   wIdx: number;
   /** Baseline scale weight latched at the end of burn-in, kg. */
   wBase: number;
-  /** Cumulative loss of the 14-d smoothed scale weight vs baseline, % (≥ 0). */
+  /** Baseline TISSUE mass FM + FFM_act latched with `wBase`, kg (no glycogen, water or gut content). */
+  tBase: number;
+  /**
+   * Persistent tissue loss vs baseline as % of the baseline body weight, ≥ 0 (D8-05: reversible water/glycogen/gut changes
+   * are not bone-relevant loss).
+   */
   wlPct: number;
   /** 14-d OLS weight-loss rate, %BW/wk (positive = losing). */
   lossRatePctWk: number;
-  /** Daily resistance-training presence (0/1 ring) and index of the newest entry. */
+  /** Daily resistance-training presence (0/1 ring) and index of the newest entry (informational: no bone protection credit, D8-05). */
   rtRing: Uint8Array;
   rtIdx: number;
   /** EMA (τ 7 d) of daily training hours (all sessions) and of endurance hours, h/day. */
@@ -67,20 +94,28 @@ export interface WellbeingState {
   lowChoW1: number;
   lowChoW2: number;
   lowCarbRun: number;
-  /** BMD change vs baseline, %. */
+  /**
+   * Legacy research scenario of BMD change vs baseline, % (D8-05): NOT a personal forecast (status exploratory/unavailable),
+   * driven by persistent tissue loss only, no any-set protection, no calcium multiplier, no automatic recovery.
+   */
   bmdHipPct: number;
   bmdSpinePct: number;
 
-  // ------------------------------------------------------------ strength multiplier (19 §4.3)
-  /** M_EA (τ_on 28 d falling / τ_off 75 d recovering). */
+  // ------------------------------------------------------------ strength multiplier (19 §4.3; exploratory, D8-04)
+  /** M_EA (τ_on 28 d falling / τ_off 75 d recovering); 1 = the person's HABITUAL reference, not healthy adequacy. */
   mEa: number;
   /** Penalty at the end of burn-in (baseline-relative normalisation), fraction. */
   penBase: number;
+  /** 1 when the habitual (burn-in) EA lies below the T1 policy reference: M_EA = 1 then means an impaired baseline. */
+  eaHabBelowPolicy: number;
 
-  // ------------------------------------------------------------ endurance capacity (19 §4.4)
+  // ------------------------------------------------------------ endurance capacity (19 §4.4; exploratory, task-scoped, D8-09)
   /** Economy-penalty state A_econ = A_fat·gI (0..1). */
   aEcon: number;
-  /** Endurance capacity index, % of baseline. */
+  /**
+   * Glycogen-limited cycling time-to-exhaustion near 75 % VO2max, % of own baseline (task-scoped research index; never a
+   * race-time or generic endurance prediction, `ENDURANCE_INDEX_SCOPE`).
+   */
   enduranceIdx: number;
   /** Baselines latched during burn-in: muscle glycogen concentration g/100 g ww, VO2max mL/kg/min, A_econ, FM kg, tissue mass kg. */
   gConc0: number;
@@ -119,13 +154,37 @@ export interface WellbeingState {
   /** Φ_ind (0..1). */
   ketoInduction: number;
 
-  // ------------------------------------------------------------ mood tier (19 §4.5)
-  /** 0 green / 1 amber / 2 red, and the rubric points behind it. */
+  // ------------------------------------------------------------ wellbeing concern flags (19 §4.5 rubric; D8-09)
+  /** Model concern tier 0 / 1 / 2 (legacy rubric points behind it); a guard, never a mood or cognition measurement. */
   moodTier: number;
   moodPoints: number;
+  /** Transparent model concern flags (`CONCERN_FLAG` bits); observed concerns are combined outside (`combineWellbeingConcern`). */
+  concernFlags: number;
 
-  // ------------------------------------------------------------ micronutrients (15 §4.9)
-  /** Completeness score, 0..100. */
+  // ------------------------------------------------------------ known nutrient exposure (D8-08, C3): from the shared ledger
+  /**
+   * Daily known amounts of the tracked exposures (`TRACKED_NUTRIENTS` order × RING_CAP days, nutrient-major), canonical
+   * units; a partial day holds its known lower bound. Coverage codes per slot in `nutCovRing` (`NUT_COV`).
+   */
+  nutKnownRing: Float64Array;
+  nutCovRing: Int8Array;
+  /** Head index of the nutrient rings and the number of days pushed (≤ RING_CAP). */
+  nutIdx: number;
+  nutDays: number;
+  /**
+   * Running window totals per tracked nutrient (incremental, O(1) per day): sum of known amounts over completely covered
+   * logged days, the number of such days and the number of partial days inside the observation window.
+   */
+  nutCompleteSum: Float64Array;
+  nutCompleteDays: Float64Array;
+  nutPartialDays: Float64Array;
+  /** Known calcium: mean over completely covered days of the observation window, mg/d (valid only when caCompleteDays > 0), and the day counts behind it. */
+  caKnownMeanMg: number;
+  caCompleteDays: number;
+  caPartialDays: number;
+
+  // ------------------------------------------------------------ micronutrient pattern heuristic (15 §4.9; archived, D8-08)
+  /** Legacy rule-based score 0..100 from typical food density (heuristic; no optimisation, no deficiency meaning). */
   microScore: number;
   /** EMAs (τ 7 d) of energy kcal/d, carbohydrate g/d, fat g/d, fibre g/d, low-fat-meal share, and the day's food quality. */
   energyEma7: number;
@@ -140,6 +199,6 @@ export interface WellbeingState {
   flags: Int8Array;
   nRed: number;
   nAmber: number;
-  /** Projected calcium intake, mg/d (feeds mCa). */
-  caIntakeMg: number;
+  /** Calcium of the typical-density PATTERN prior, mg/d (a scenario estimate, never actual intake; feeds nothing). */
+  caPatternMg: number;
 }

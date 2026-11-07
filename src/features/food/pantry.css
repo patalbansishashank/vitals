@@ -1,0 +1,119 @@
+/* r071 Pantry: an inventory count and named shelves, with the picker sized to the work. */
+@layer components {
+  .lv-pantry-card {
+    align-self: start;
+  }
+  @media (max-width: 599px) {
+    .lv-pantry-card[data-size='slim'] {
+      flex-wrap: wrap;
+      gap: 10px 14px;
+    }
+    .lv-pantry-card[data-size='slim'] > .lm-cardhead {
+      flex: 1 0 100%;
+    }
+    .lv-pantry-card[data-size='slim'] > .lm-cardfoot {
+      margin-top: 0;
+    }
+  }
+  .lv-pantry-summary {
+    display: grid;
+    gap: 12px;
+  }
+  .lv-pantry-summary__count {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .lv-pantry-summary__names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .lv-pantry-summary__names li {
+    color: var(--lm-ink);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lv-pantry-summary__names li:not(:last-child)::after {
+    content: '·';
+    margin-left: 12px;
+    color: var(--lm-ink-2);
+  }
+  .lv-pantry-staples {
+    display: grid;
+    gap: 8px;
+  }
+  .lv-pantry-staples ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .lv-pantry-page {
+    display: grid;
+    gap: var(--lm-card-gap);
+  }
+  .lv-pantry-stale .lm-gcard__body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+  .lv-pantry-stale__names {
+    flex: 1 1 240px;
+    display: grid;
+    gap: 6px;
+  }
+  .lv-pantry-stale__names p {
+    margin: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-body);
+  }
+  .lv-pantry-inventory {
+    display: grid;
+    gap: 24px;
+    min-width: 0;
+  }
+  .lv-pantry-inventory__hero {
+    display: grid;
+    align-content: start;
+    gap: 12px;
+  }
+  .lv-pantry-shelves {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-pantry-shelves li {
+    width: 8px;
+    height: 8px;
+    border: var(--lm-hairline) solid var(--lm-ink-2);
+    border-radius: var(--lm-radius-full);
+  }
+  .lv-pantry-shelves li[data-stocked='true'] {
+    border-color: var(--lm-hue-food);
+    background: var(--lm-hue-food);
+  }
+  @media (min-width: 1024px) {
+    .lv-pantry-inventory {
+      grid-template-columns: minmax(180px, 1fr) minmax(0, 3fr);
+      gap: 32px;
+    }
+    .lv-pantry-inventory .lm-pk__groups {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+      column-gap: 24px;
+    }
+    .lv-pantry-inventory .lm-pk__group:first-child {
+      border-top: var(--lm-hairline) solid var(--lm-line);
+    }
+  }
+}

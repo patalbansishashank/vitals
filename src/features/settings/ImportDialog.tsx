@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Dialog, InlineWarning, Key, RadioGroup, toast } from '@/components';
 import type { ImportFailure, ImportMode, ImportPreview } from '@/state/persistence';
+import { syncPairedHint } from '@/state/runtime';
+import { useSyncView } from '@/state/sync';
 import { dispatch, mintConfirmation } from '@/commands';
+import { platformCaps } from '@/platform';
+import { NATIVE_HISTORY_SCOPE } from './copy';
 
 export interface ImportDialogProps {
   state: { fileName: string; result: ImportPreview | ImportFailure } | null;
@@ -9,7 +13,7 @@ export interface ImportDialogProps {
   onChooseAnother: () => void;
 }
 
-/** What a device holds right after "Reset everything" or on first run: nothing the person made. */
+/** What the planning store holds right after reset or on first run: nothing the person made. */
 const STARTER_KEYS: ReadonlySet<string> = new Set([
   'vitals.settings',
   'vitals.scenarios',
@@ -36,12 +40,13 @@ function formatDate(d: Date): string {
  */
 export function ImportDialog({ state, onClose, onChooseAnother }: ImportDialogProps) {
   // until the person chooses, a device with no data of its own replaces (nothing to keep, and Merge would duplicate the starter scenario)
+  const paired = useSyncView().paired || syncPairedHint();
   const [chosen, setMode] = useState<ImportMode | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const open = state !== null;
   const result = state?.result;
-  const mode: ImportMode = chosen ?? (result?.ok && holdsNoUserData(result.entries) ? 'replace' : 'merge');
+  const mode: ImportMode = chosen ?? (!paired && result?.ok && holdsNoUserData(result.entries) ? 'replace' : 'merge');
 
   const close = () => {
     setError(null);
@@ -121,7 +126,7 @@ export function ImportDialog({ state, onClose, onChooseAnother }: ImportDialogPr
       footer={
         <>
           <Key onClick={close}>Cancel</Key>
-          <Key variant="solid" loading={busy} onClick={() => void run()}>
+          <Key variant="solid" loading={busy} disabled={paired && mode === 'replace'} onClick={() => void run()}>
             {damaged.length > 0 ? 'Import the rest' : 'Import'}
           </Key>
         </>
@@ -146,14 +151,15 @@ export function ImportDialog({ state, onClose, onChooseAnother }: ImportDialogPr
         </InlineWarning>
       ) : null}
       <RadioGroup<ImportMode>
-        label="how to import"
+        label="How to import"
         value={mode}
         onChange={setMode}
         options={[
           { value: 'merge', label: 'Merge', help: 'Keep everything. Imported items get “(imported)” if names clash; this device keeps its settings.' },
-          { value: 'replace', label: 'Replace everything', help: 'Your current data is removed first.' },
+          { value: 'replace', label: 'Replace planning data', help: `Replace planning data on this device. Disconnect document sync first; server and other-device copies stay unchanged.${platformCaps().platform === 'android' ? ` ${NATIVE_HISTORY_SCOPE}` : ''}` },
         ]}
       />
+      {paired && mode === 'replace' ? <InlineWarning severity="caution">Disconnect document sync in Settings before replacing data, or choose Merge.</InlineWarning> : null}
       {error ? (
         <InlineWarning severity="danger" alert>
           {error}

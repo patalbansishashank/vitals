@@ -1,8 +1,11 @@
 /**
- * Fastest-safe-rate search (ruling R-TTT, release check 2026-10-01; dossier 18 §4.14.3, dossier 17 §2): how far a goal
- * can move in a given time, and how long a target takes, at the fastest rate every safety limit allows. ONE function
- * serves both call sites — the pre-run "reachable in this horizon" hint on the Goals screen and the planner's
- * time-to-target (`GoalFeasibility.requiredWeeks` and its sentence) — so the two can never contradict each other.
+ * Reference-route search (ruling R-TTT, release check 2026-10-01; dossier 18 §4.14.3, dossier 17 §2): how far a goal
+ * moves in a given time, and how long a target takes, on a canonical route steered to the edge of every safety limit.
+ * ONE function serves both call sites — the pre-run "reachable in this horizon" hint on the Goals screen and the
+ * planner's time-to-target (`GoalFeasibility.requiredWeeks` and its sentence) — so the two can never contradict each
+ * other. D4-08: the route is a feasible model witness and a planning estimate (`outcome: 'foundUnderModel'`), not a
+ * proven fastest-safe personal deadline; only a target past an analytic policy floor (body-fat floor, BMI 19, 20 % total
+ * loss) is a proven policy conflict (`safetyLimitProof`, with the exact bound).
  *
  * The route is a canonical plan simulated on the real engine (planner mode, the person's own profile and limits):
  *  - loss goals (fat mass, body fat %, waist, visceral / liver fat, trend weight going down): continuous deficit blocks
@@ -29,7 +32,15 @@ import { difficultyD } from './difficulty';
 import { goalSeries, type GoalBinding } from './goalSpecs';
 import { CHANCE_CUSHION, EA_FLOOR, GAIN_RATE_TARGET_PCT, EnginePlanModel } from './model';
 import { HC } from './safety';
-import { energyRange, makeStructure, phaseFeasible, toUnit, type SkeletonStructure, type PlanSkeleton, type SegmentSkeleton } from './skeleton';
+import {
+  energyRange,
+  makeStructure,
+  phaseFeasible,
+  toUnit,
+  type SkeletonStructure,
+  type PlanSkeleton,
+  type SegmentSkeleton,
+} from './skeleton';
 import { mergeDay } from './dayMath';
 import type { PlannerRequest, RouteKind, TargetReach } from './types';
 
@@ -88,7 +99,8 @@ export function routeKind(g: Pick<ResolvedGoal, 'metric' | 'classes'>): RouteKin
   const loss = ['fatMass', 'bodyFatPct', 'waist', 'visceralFat', 'liverFat', 'scaleWeight'];
   const gain = ['skeletalMuscle', 'leanTissue', 'rtMuscleGain', 'scaleWeight', 'fatMass'];
   if (g.classes.includes('fatLoss') && loss.includes(g.metric)) return 'loss';
-  if ((g.classes.includes('muscle') || g.classes.includes('weightGain')) && gain.includes(g.metric)) return 'gain';
+  if ((g.classes.includes('muscle') || g.classes.includes('weightGain')) && gain.includes(g.metric))
+    return 'gain';
   return null;
 }
 
@@ -109,11 +121,22 @@ const skeletonOf = (segments: SegmentSkeleton[], creatine = false): PlanSkeleton
 });
 
 /** Canonical structure and genome of a route (null when the person's limits allow no such plan). */
-function canonicalPlan(ctx: PlanningContext, kind: RouteKind): { st: SkeletonStructure; x: Float64Array; lo: number; hi: number } | null {
+function canonicalPlan(
+  ctx: PlanningContext,
+  kind: RouteKind,
+): { st: SkeletonStructure; x: Float64Array; lo: number; hi: number } | null {
   const candidates: SegmentSkeleton[][] =
     kind === 'loss'
-      ? [[{ kind: 'cycle', on: 'B1', off: 'B8' }], [{ kind: 'phase', block: 'B1' }], [{ kind: 'phase', block: 'B24' }]]
-      : [[{ kind: 'phase', block: 'B21' }], [{ kind: 'phase', block: 'B23' }], [{ kind: 'phase', block: 'B0' }]];
+      ? [
+          [{ kind: 'cycle', on: 'B1', off: 'B8' }],
+          [{ kind: 'phase', block: 'B1' }],
+          [{ kind: 'phase', block: 'B24' }],
+        ]
+      : [
+          [{ kind: 'phase', block: 'B21' }],
+          [{ kind: 'phase', block: 'B23' }],
+          [{ kind: 'phase', block: 'B0' }],
+        ];
   for (const segs of candidates) {
     if (!segs.every((s) => phaseFeasible(ctx, s))) continue;
     const st = makeStructure(ctx, skeletonOf(segs));
@@ -145,7 +168,10 @@ function canonicalPlan(ctx: PlanningContext, kind: RouteKind): { st: SkeletonStr
 }
 
 /** Steerable days per check-in block (days of the canonical plan whose energy is a % of maintenance off 100). */
-function steerableBlocks(s: Schedule, kind: RouteKind): Array<{ start: number; end: number; days: number[] }> {
+function steerableBlocks(
+  s: Schedule,
+  kind: RouteKind,
+): Array<{ start: number; end: number; days: number[] }> {
   const out: Array<{ start: number; end: number; days: number[] }> = [];
   for (const b of s.blocks ?? []) {
     const days: number[] = [];
@@ -159,14 +185,21 @@ function steerableBlocks(s: Schedule, kind: RouteKind): Array<{ start: number; e
   return out;
 }
 
-function withBlockEnergy(s: Schedule, blocks: ReadonlyArray<{ days: number[] }>, pct: readonly number[]): Schedule {
+function withBlockEnergy(
+  s: Schedule,
+  blocks: ReadonlyArray<{ days: number[] }>,
+  pct: readonly number[],
+): Schedule {
   const days: ScheduleDay[] = s.days.slice();
   blocks.forEach((b, k) => {
     for (const d of b.days) {
       const sd = days[d]!;
       const t = mergeDay(s.programs[sd.program]!, sd.override);
       if (t.energy.kind !== 'pctMaintenance') continue;
-      days[d] = { ...sd, override: { ...(sd.override ?? {}), energy: { ...t.energy, pct: +pct[k]!.toFixed(3) } } };
+      days[d] = {
+        ...sd,
+        override: { ...(sd.override ?? {}), energy: { ...t.energy, pct: +pct[k]!.toFixed(3) } },
+      };
     }
   });
   return { ...s, days };
@@ -185,7 +218,11 @@ function marginSeries(sim: SimulationResult): Map<string, Float32Array> {
  * (sign: + means more energy raises the margin). Mirrors the planner's `stateMargins` (engine margins, the user's
  * tighter caps, the R-EA-PLANNER floor on the days the Simulator's EA rules apply).
  */
-function energyMargins(ctx: PlanningContext, sim: SimulationResult, kind: RouteKind): Array<{ m: Float64Array; sens: number; lag: number }> {
+function energyMargins(
+  ctx: PlanningContext,
+  sim: SimulationResult,
+  kind: RouteKind,
+): Array<{ m: Float64Array; sens: number; lag: number }> {
   const n = sim.safety.ei7.length;
   const ms = marginSeries(sim);
   const maint = ctx.rp.tdee0Kcal;
@@ -207,17 +244,29 @@ function energyMargins(ctx: PlanningContext, sim: SimulationResult, kind: RouteK
   if (kind === 'loss') {
     const caps = ctx.caps;
     series(['HC-E1', 'W-E01'], 100 * perKcal);
-    series(['HC-E3', 'W-E03'], 5, 0, (d) => (s.deficitPct7[d]! > 5 ? (caps.deficitCapPct - s.deficitPct7[d]!) / 5 : Infinity));
-    series(['HC-E5', 'W-E05'], rateSens, 7, (d) => (d >= 13 && Number.isFinite(s.rate14PctPerWk[d]!) ? (caps.rateCapPct - s.rate14PctPerWk[d]!) / 0.25 : Infinity));
+    series(['HC-E3', 'W-E03'], 5, 0, (d) =>
+      s.deficitPct7[d]! > 5 ? (caps.deficitCapPct - s.deficitPct7[d]!) / 5 : Infinity,
+    );
+    series(['HC-E5', 'W-E05'], rateSens, 7, (d) =>
+      d >= 13 && Number.isFinite(s.rate14PctPerWk[d]!)
+        ? (caps.rateCapPct - s.rate14PctPerWk[d]!) / 0.25
+        : Infinity,
+    );
     series(['W-13-ALPERT'], 100 * perKcal);
     // R-EA-PLANNER: (EA7 − 30)/5 on the days the W-E07 series is defined (training in the trailing week and a deficit)
     const e07 = ms.get('W-E07');
     const shift = (EA_FLOOR.cautionUpper - EA_FLOOR.floor) / EA_FLOOR.scale;
-    series([], (EA_FLOOR.scale * ctx.rp.ffm0Kg * perKcal), 0, (d) => (e07 && Number.isFinite(e07[d]!) ? e07[d]! + shift : Infinity));
+    series([], EA_FLOOR.scale * ctx.rp.ffm0Kg * perKcal, 0, (d) =>
+      e07 && Number.isFinite(e07[d]!) ? e07[d]! + shift : Infinity,
+    );
   } else {
     const gt = GAIN_RATE_TARGET_PCT[ctx.rp.habits.trainingHistory] ?? 0.5;
     // gain rates fall as energy falls: sensitivity negative (less energy raises the margin)
-    series(['W-S01'], -rateSens, 7, (d) => (d >= 13 && s.deficitPct7[d]! < -5 && Number.isFinite(s.rate14PctPerWk[d]!) ? (gt + s.rate14PctPerWk[d]!) / 0.25 : Infinity));
+    series(['W-S01'], -rateSens, 7, (d) =>
+      d >= 13 && s.deficitPct7[d]! < -5 && Number.isFinite(s.rate14PctPerWk[d]!)
+        ? (gt + s.rate14PctPerWk[d]!) / 0.25
+        : Infinity,
+    );
     series(['W-S03', 'HC-E8'], -5);
   }
   return out;
@@ -263,7 +312,11 @@ export function fastestSafeRoute(ctx: PlanningContext, i: number): SafeRoute | n
   return out?.route ?? null;
 }
 
-function computeRoute(ctx: PlanningContext, g: ResolvedGoal, kind: RouteKind): { route: SafeRoute; rig: RouteRig } | null {
+function computeRoute(
+  ctx: PlanningContext,
+  g: ResolvedGoal,
+  kind: RouteKind,
+): { route: SafeRoute; rig: RouteRig } | null {
   const plan = canonicalPlan(ctx, kind);
   if (!plan) return null;
   const binding: GoalBinding = { metric: g.metric, functional: 'end', useTissueMass: g.useTissueMass };
@@ -283,14 +336,18 @@ function computeRoute(ctx: PlanningContext, g: ResolvedGoal, kind: RouteKind): {
       let need = -Infinity;
       for (const { m, sens, lag } of ms) {
         let lo = Infinity;
-        for (let d = b.start + lag; d < Math.min(b.end + lag, floorDay, m.length); d++) if (m[d]! < lo) lo = m[d]!;
+        for (let d = b.start + lag; d < Math.min(b.end + lag, floorDay, m.length); d++)
+          if (m[d]! < lo) lo = m[d]!;
         if (!Number.isFinite(lo)) continue;
         need = Math.max(need, (cushion - lo) * Math.abs(sens));
       }
       if (!Number.isFinite(need)) need = kind === 'loss' ? -(pct[k]! - plan.lo) : -(plan.hi - pct[k]!);
       if (raiseOnly && need <= 1e-6) return;
       const step = need > 0 ? need : 0.85 * need;
-      const next = kind === 'loss' ? Math.min(plan.hi, Math.max(plan.lo, pct[k]! + step)) : Math.min(plan.hi, Math.max(plan.lo, pct[k]! - step));
+      const next =
+        kind === 'loss'
+          ? Math.min(plan.hi, Math.max(plan.lo, pct[k]! + step))
+          : Math.min(plan.hi, Math.max(plan.lo, pct[k]! - step));
       moved = Math.max(moved, Math.abs(next - pct[k]!));
       pct[k] = next;
     });
@@ -308,12 +365,38 @@ function computeRoute(ctx: PlanningContext, g: ResolvedGoal, kind: RouteKind): {
     if (adjust(sim, true) === 0) break;
     sim = run();
   }
-  const y = goalSeries(sim, binding, ctx);
-  if (!y) return null;
+  if (sim.meta.validity?.status === 'outsideDomain') return null;
   const floorDay = firstFloorDay(sim);
-  const safeDays = Math.min(floorDay, y.length - 1);
-  const route: SafeRoute = { kind, metric: g.metric, y: y.subarray(0, safeDays + 1), safeDays, endedAtFloor: floorDay < y.length - 1, blockPct: pct.map((p) => +p.toFixed(1)) };
-  const rig: RouteRig = { ctx, kind, model, binding, st: plan.st, xFast: plan.x, xHab: habitGenome(ctx, plan.st, plan.x), pctFast: pct.slice(), schedule: withBlockEnergy(base, blocks, pct), sim };
+  // A long reference run may terminate after a useful supported prefix. Never discard that prefix or score its suffix.
+  const validHours = sim.meta.validity?.validThroughHour;
+  const validDays = validHours === undefined ? sim.meta.nDays : Math.max(0, Math.floor((validHours + 1) / 24));
+  const prefixDays = Math.min(floorDay, validDays, sim.meta.aborted ? sim.meta.aborted.day + 1 : sim.meta.nDays);
+  if (prefixDays < 1) return null;
+  const daily = Object.fromEntries(Object.entries(sim.daily).map(([id, v]) => [id, v?.subarray(0, prefixDays)])) as SimulationResult['daily'];
+  const prefix = { ...sim, meta: { ...sim.meta, nDays: prefixDays }, daily, safety: { ...sim.safety, tissueMassKg: sim.safety.tissueMassKg.subarray(0, prefixDays) } };
+  const y = goalSeries(prefix, binding, ctx);
+  if (!y) return null;
+  const safeDays = Math.min(prefixDays, y.length - 1);
+  const route: SafeRoute = {
+    kind,
+    metric: g.metric,
+    y: y.subarray(0, safeDays + 1),
+    safeDays,
+    endedAtFloor: safeDays < sim.meta.nDays,
+    blockPct: pct.map((p) => +p.toFixed(1)),
+  };
+  const rig: RouteRig = {
+    ctx,
+    kind,
+    model,
+    binding,
+    st: plan.st,
+    xFast: plan.x,
+    xHab: habitGenome(ctx, plan.st, plan.x),
+    pctFast: pct.slice(),
+    schedule: withBlockEnergy(base, blocks, pct),
+    sim,
+  };
   return { route, rig };
 }
 
@@ -323,7 +406,10 @@ function computeRoute(ctx: PlanningContext, g: ResolvedGoal, kind: RouteKind): {
  * edge of the safety limits and "reachable in this horizon" (the route) and "attainable" (the search) agree. Each is
  * mapped onto the main structure with the same skeleton (gene values copied by path).
  */
-export function canonicalSeeds(ctx: PlanningContext, structures: readonly SkeletonStructure[]): Array<{ structure: number; x: Float64Array }> {
+export function canonicalSeeds(
+  ctx: PlanningContext,
+  structures: readonly SkeletonStructure[],
+): Array<{ structure: number; x: Float64Array }> {
   const out: Array<{ structure: number; x: Float64Array }> = [];
   const kinds = new Set<RouteKind>();
   ctx.goals.forEach((g, i) => {
@@ -356,26 +442,76 @@ export function canonicalSeeds(ctx: PlanningContext, structures: readonly Skelet
  * Targets no plan of any length may reach, because they lie past a safety floor of one plan (17 HC-P5 body-fat floor with
  * lean tissue kept, HC-P4 projected BMI 19, HC-E6 20 % total weight-loss cap): the explanation, or null.
  */
-export function beyondSafetyLimits(ctx: PlanningContext, i: number, theta: number): string | null {
-  const g = ctx.goals[i]!;
+/**
+ * D4-08: an analytic policy proof that a target lies past a state floor of one plan — the witness id, the exact bound in
+ * the goal's unit and the sentence. Null when no floor is crossed (then a miss is a finite-search result, never proof).
+ */
+export interface SafetyLimitProof {
+  /** 'HC-P5.bfFloor' (body-fat floor) or 'HC-E6.cumLoss' (20 % total loss / BMI 19 floor of one plan). */
+  id: string;
+  bound: number;
+  unit: string;
+  text: string;
+  witness?: {
+    operator: 'tissueFatFraction' | 'modelTissueMass';
+    constraint: string;
+    bound: number;
+    unit: '%' | 'kg';
+    source: 'applicablePolicy';
+  };
+}
+
+export function safetyLimitProof(ctx: PlanningContext, i: number, theta: number): SafetyLimitProof | null {
+  const g = ctx.goals[i];
+  if (!g || !Number.isFinite(theta)) return null;
   const caps = ctx.caps;
-  const ffm = ctx.rp.ffm0Kg;
-  const w0 = ctx.rp.weightKg;
-  const h2 = ctx.rp.heightM * ctx.rp.heightM;
-  const floorFm = (caps.bfFloorPct / (100 - caps.bfFloorPct)) * ffm;
-  const minW = Math.max(HC.bmi.projectedMin * h2, (1 - HC.cumLossMaxPct / 100) * w0);
   switch (g.metric) {
     case 'fatMass':
-      if (theta < floorFm) return `That is below the ${caps.bfFloorPct} % body-fat safety floor (about ${Math.round(floorFm * 10) / 10} kg of fat at your lean mass), so no plan reaches it.`;
-      if (ctx.rp.fm0Kg - theta > w0 - minW) return `That needs more than the ${HC.cumLossMaxPct} % total weight loss one plan may contain (or a BMI below ${HC.bmi.projectedMin}); reach it in stages with maintenance in between.`;
+      // Initial FFM is neither a lower nor upper bound on final FFM. A fixed-lean route estimate is not a proof.
       return null;
     case 'bodyFatPct':
-      return theta < caps.bfFloorPct ? `That is below the ${caps.bfFloorPct} % body-fat safety floor, so no plan reaches it.` : null;
-    case 'scaleWeight':
-      return theta < minW ? `That is below the lowest weight one plan may reach (BMI ${HC.bmi.projectedMin} or ${HC.cumLossMaxPct} % total loss: about ${Math.round(minW)} kg).` : null;
+      return theta < caps.bfFloorPct
+        ? {
+            id: 'HC-P5.bfFloor',
+            bound: caps.bfFloorPct,
+            unit: '%',
+            witness: {
+              operator: 'tissueFatFraction',
+              constraint: 'HC-P5',
+              bound: caps.bfFloorPct,
+              unit: '%',
+              source: 'applicablePolicy',
+            },
+            text: `That is below the ${caps.bfFloorPct} % tissue body-fat safety floor, so no plan reaches it.`,
+          }
+        : null;
+    case 'scaleWeight': {
+      // This goal reads tissue mass. HC-E6 reads scale weight, with water/glycogen/gut contributions: not interchangeable.
+      const minTissue = HC.bmi.projectedMin * ctx.rp.heightM * ctx.rp.heightM;
+      return theta < minTissue
+        ? {
+            id: 'HC-P4.bmi',
+            bound: minTissue,
+            unit: 'kg',
+            witness: {
+              operator: 'modelTissueMass',
+              constraint: 'HC-P4',
+              bound: minTissue,
+              unit: 'kg',
+              source: 'applicablePolicy',
+            },
+            text: `That is below the tissue-mass BMI ${HC.bmi.projectedMin} policy floor (${Math.round(minTissue * 10) / 10} kg).`,
+          }
+        : null;
+    }
     default:
       return null;
   }
+}
+
+/** The sentence of `safetyLimitProof` (null when no state floor is crossed). */
+export function beyondSafetyLimits(ctx: PlanningContext, i: number, theta: number): string | null {
+  return safetyLimitProof(ctx, i, theta)?.text ?? null;
 }
 
 /** Trailing 7-day means m(t) = mean(y[max(1, t − 6)..t]) for t ≥ 1 (m(0) = y(0)): the planner's end functional at every t. */
@@ -399,10 +535,12 @@ export function reachText(r: Omit<TargetReach, 'text'>, unit: string, horizonWee
   if (!r.supported || r.target === null) return '';
   if (r.beyondSafetyLimits) return '';
   const pace = r.ratePerWeek > 0 ? ` (about ${rate(r.ratePerWeek)} ${unit} a week at first)` : '';
-  if (r.weeks !== null && r.weeks <= horizonWeeks) return `At the fastest safe rate it is reachable in about ${r.weeks} weeks${pace}.`;
-  if (r.weeks !== null) return `At the fastest safe rate it takes about ${r.weeks} weeks${pace}.`;
-  if (r.beyondTwoYears) return `At the fastest safe rate it takes more than two years${pace}.`;
-  return 'No safe plan reaches it: the safety floors (body fat, BMI 19, 20 % total loss) stop the route first.';
+  // D4-08: an estimate on the reference route under the model, not a fastest-safe personal deadline
+  if (r.weeks !== null && r.weeks <= horizonWeeks)
+    return `Estimated: the reference route reaches it in about ${r.weeks} weeks${pace}.`;
+  if (r.weeks !== null) return `Estimated: on the reference route it takes about ${r.weeks} weeks${pace}.`;
+  if (r.beyondTwoYears) return `Estimated: on the reference route it takes more than two years${pace}.`;
+  return 'Not found: the reference route stops at the safety floors (body fat, BMI 19, 20 % total loss) before reaching it.';
 }
 
 /**
@@ -420,10 +558,14 @@ export function targetReach(request: PlannerRequest | PlanningContext, i: number
   const y0 = route && Number.isFinite(route.y[0]!) ? route.y[0]! : g.startEstimate;
   const raw = g.spec.target;
   const target = raw === undefined ? null : g.spec.targetKind === 'change' ? y0 + raw : raw;
-  const beyond = target !== null && kind ? beyondSafetyLimits(ctx, i, target) : null;
+  const proof = target !== null && kind ? safetyLimitProof(ctx, i, target) : null;
+  const beyond = proof?.text ?? null;
   const base: Omit<TargetReach, 'text'> = {
     goal: i,
     metric: g.metric,
+    requestedHorizonDays: horizon,
+    coveredDays: 0,
+    completeHorizon: false,
     supported: !!route,
     kind: route ? kind : null,
     start: y0,
@@ -436,7 +578,7 @@ export function targetReach(request: PlannerRequest | PlanningContext, i: number
     beyondSafetyLimits: !!beyond,
     ratePerWeek: 0,
   };
-  if (!route) return { ...base, text: '' };
+  if (!route) return { ...base, ...(proof ? { outcome: 'provenPolicyConflict' as const } : {}), text: '' };
   // the planner judges end-value goals on the mean of the last 7 days (`endMean`): the route is read the same way, so
   // "reachable in the horizon" here and "attainable" in the planner mean the same thing
   const y = endMeans(route.y);
@@ -449,6 +591,8 @@ export function targetReach(request: PlannerRequest | PlanningContext, i: number
   const beyondTwoYears = target !== null && !beyond && weeks === null && !route.endedAtFloor;
   const out: Omit<TargetReach, 'text'> = {
     ...base,
+    coveredDays: tH,
+    completeHorizon: tH >= horizon,
     valueAtHorizon: vH,
     changeAtHorizon: vH - y0,
     reachableInHorizon: target === null ? null : weeks !== null && weeks <= hw,
@@ -456,13 +600,21 @@ export function targetReach(request: PlannerRequest | PlanningContext, i: number
     beyondTwoYears,
     ratePerWeek,
   };
-  return { ...out, text: beyond ?? reachText(out, g.def.unit, hw) };
+  // D4-08: a target past a state floor is a proven policy conflict; a route that never reaches it within the floors or
+  // two years is a finite result; otherwise the route is a feasible model witness
+  const outcome = proof
+    ? 'provenPolicyConflict'
+    : target !== null && weeks === null && route.endedAtFloor
+      ? 'notFoundWithinBudget'
+      : 'foundUnderModel';
+  return { ...out, outcome, text: beyond ?? reachText(out, g.def.unit, hw) };
 }
 
 /** First week the end-functional series `y` (trailing 7-day means) reaches `target` in direction `dir`; null if never. */
 function crossingWeeks(y: Float64Array, target: number, dir: 1 | -1): number | null {
   if (dir * (y[0]! - target) >= 0) return 0;
-  for (let t = 1; t < y.length; t++) if (dir * (y[t]! - target) >= -1e-9) return Math.max(1, Math.ceil(t / 7));
+  for (let t = 1; t < y.length; t++)
+    if (dir * (y[t]! - target) >= -1e-9) return Math.max(1, Math.ceil(t / 7));
   return null;
 }
 
@@ -520,8 +672,16 @@ function habitGenome(ctx: PlanningContext, st: SkeletonStructure, x: Float64Arra
 /** First `n` days of a schedule (blocks clipped; the canonical routes carry no events). */
 function headSchedule(s: Schedule, n: number): Schedule {
   if (s.horizonDays <= n) return s;
-  const blocks = s.blocks?.map((b) => ({ ...b, endDay: Math.min(n, b.endDay) })).filter((b) => b.endDay > b.startDay);
-  return { ...s, horizonDays: n, days: s.days.slice(0, n), events: (s.events ?? []).filter((e) => e.startDay < n), ...(blocks ? { blocks } : {}) };
+  const blocks = s.blocks
+    ?.map((b) => ({ ...b, endDay: Math.min(n, b.endDay) }))
+    .filter((b) => b.endDay > b.startDay);
+  return {
+    ...s,
+    horizonDays: n,
+    days: s.days.slice(0, n),
+    events: (s.events ?? []).filter((e) => e.startDay < n),
+    ...(blocks ? { blocks } : {}),
+  };
 }
 
 /** D of a route over its first 12 weeks: the planned days and the run's hunger and intake series of those days. */
@@ -551,11 +711,14 @@ function routeAt(rig: RouteRig, alpha: number): { schedule: Schedule; sim: Simul
 }
 
 /** Plain-language sentence of a route at a plan's effort (the R-TTT sentence, "at this plan's effort"). */
-export function rungReachText(r: Pick<RungReach, 'weeks' | 'beyondTwoYears' | 'ratePerWeek'>, unit: string): string {
+export function rungReachText(
+  r: Pick<RungReach, 'weeks' | 'beyondTwoYears' | 'ratePerWeek'>,
+  unit: string,
+): string {
   const pace = r.ratePerWeek > 0 ? ` (about ${rate(r.ratePerWeek)} ${unit} a week at first)` : '';
-  if (r.weeks !== null) return `At this plan's effort it takes about ${r.weeks} weeks${pace}.`;
-  if (r.beyondTwoYears) return `At this plan's effort it takes more than two years${pace}.`;
-  return 'No plan at this effort reaches it safely: the safety floors (body fat, BMI 19, 20 % total loss) stop the route first.';
+  if (r.weeks !== null) return `Estimated: at this plan's effort it takes about ${r.weeks} weeks${pace}.`;
+  if (r.beyondTwoYears) return `Estimated: at this plan's effort it takes more than two years${pace}.`;
+  return 'Not found at this effort: the reference route stops at the safety floors (body fat, BMI 19, 20 % total loss) first.';
 }
 
 /**
@@ -577,7 +740,17 @@ export function rungReach(ctx: PlanningContext, i: number, dRung: number): RungR
   rig.d1 ??= routeD(rig, rig.schedule, rig.sim);
   const d1 = rig.d1;
   if (fast.beyondSafetyLimits || !(dRung < d1 - RUNG_REACH_D_TOL))
-    return { goal: i, alpha: 1, routeD: d1, weeks: fast.weeks, beyondTwoYears: fast.beyondTwoYears, endedAtFloor: route.endedAtFloor, ratePerWeek: fast.ratePerWeek, simulations: 0, text: fast.text };
+    return {
+      goal: i,
+      alpha: 1,
+      routeD: d1,
+      weeks: fast.weeks,
+      beyondTwoYears: fast.beyondTwoYears,
+      endedAtFloor: route.endedAtFloor,
+      ratePerWeek: fast.ratePerWeek,
+      simulations: 0,
+      text: fast.text,
+    };
   const target = fast.target;
   const dir: 1 | -1 = fast.kind === 'loss' ? -1 : 1;
   let lo = 0;
@@ -598,11 +771,13 @@ export function rungReach(ctx: PlanningContext, i: number, dRung: number): RungR
   let endedAtFloor = false;
   let ratePerWeek = 0;
   if (best) {
-    const raw = goalSeries(best.sim, rig.binding, rig.ctx);
+    const validHour = best.sim.meta.validity?.validThroughHour;
+    const covered = Math.min(firstFloorDay(best.sim), validHour === undefined ? best.sim.meta.nDays : Math.max(0, Math.floor((validHour + 1) / 24)));
+    const daily = Object.fromEntries(Object.entries(best.sim.daily).map(([id, v]) => [id, v?.subarray(0, covered)])) as SimulationResult['daily'];
+    const raw = goalSeries({ ...best.sim, daily, safety: { ...best.sim.safety, tissueMassKg: best.sim.safety.tissueMassKg.subarray(0, covered) } }, rig.binding, rig.ctx);
     if (raw) {
-      const floorDay = firstFloorDay(best.sim);
-      const safeDays = Math.min(floorDay, raw.length - 1);
-      endedAtFloor = floorDay < raw.length - 1;
+      const safeDays = Math.min(covered, raw.length - 1);
+      endedAtFloor = safeDays < best.sim.meta.nDays;
       const y = endMeans(raw.subarray(0, safeDays + 1));
       const tR = Math.min(RUNG_REACH_D_DAYS, y.length - 1);
       ratePerWeek = tR > 0 ? Math.max(0, (dir * (y[tR]! - y[0]!)) / (tR / 7)) : 0;
@@ -612,7 +787,16 @@ export function rungReach(ctx: PlanningContext, i: number, dRung: number): RungR
   // never faster than the fastest safe rate (members with α < 1 are slower by construction; this guards engine noise)
   if (weeks !== null && fast.weeks !== null) weeks = Math.max(weeks, fast.weeks);
   const beyondTwoYears = weeks === null && !endedAtFloor;
-  const out = { goal: i, alpha: best?.alpha ?? 0, routeD: best?.D ?? Number.NaN, weeks, beyondTwoYears, endedAtFloor, ratePerWeek, simulations: sims };
+  const out = {
+    goal: i,
+    alpha: best?.alpha ?? 0,
+    routeD: best?.D ?? Number.NaN,
+    weeks,
+    beyondTwoYears,
+    endedAtFloor,
+    ratePerWeek,
+    simulations: sims,
+  };
   return { ...out, text: rungReachText(out, g.def.unit) };
 }
 

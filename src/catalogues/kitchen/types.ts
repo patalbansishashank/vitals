@@ -19,6 +19,18 @@ export interface SeedFoodRef {
   usdaDescription?: string;
   /** The best source is IFCT 2017 (not licensed yet); a USDA id, when present, is only a proxy. */
   ifctPending?: boolean;
+  // ---- contract additions 2026-10-18 (D6-04, D6-05; optional)
+  /** Exact FDC release/data type and retrieval date of `usdaFdcId`, and the frozen dataset version. */
+  fdcRelease?: string;
+  fdcDataType?: string;
+  retrievedAt?: string;
+  datasetVersion?: string;
+  /** The link is a transparent proxy (not the item itself). */
+  proxy?: boolean;
+  /** State/preparation/fortification of the referenced record (matched before aliases). */
+  state?: 'raw' | 'cooked' | 'asEaten';
+  preparation?: string;
+  fortified?: boolean;
 }
 
 interface SeedBase {

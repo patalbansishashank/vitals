@@ -1,7 +1,5 @@
 import { createContext, useContext, useId, type ComponentPropsWithRef, type ComponentPropsWithoutRef, type ReactNode } from 'react';
 import { cx } from './lib/cx';
-import { Icon } from './icons/Icon';
-import { DangerMark } from './icons/glyphs';
 
 export interface FieldContextValue {
   /** id for the control element (input / select button). */
@@ -22,11 +20,11 @@ export function useField(): FieldContextValue | null {
 }
 
 export interface FieldProps {
-  /** Engraved caption above the control ("age", "weight"). Lowercase. */
+  /** Label above the control (body-s, stone): "Age", "Weight". */
   label: ReactNode;
-  /** Help text under the control (12 px, ink-2). */
+  /** Help text under the control (12 px, stone). Only when the label cannot carry it. */
   help?: ReactNode;
-  /** Error message; marks the control invalid and is announced. */
+  /** Error message naming the fix ("Weight must be 30–300 kg."); rose text under the field, announced. */
   error?: ReactNode;
   /** Visually hide the label (keeps it for assistive tech). */
   hideLabel?: boolean;
@@ -66,7 +64,7 @@ export function Field({ label, help, error, hideLabel, disabled = false, require
   );
 }
 
-/** Engraved control label. */
+/** Control label: body-s, stone. */
 export function Label({ className, ...rest }: ComponentPropsWithoutRef<'label'> & { 'data-disabled'?: boolean }) {
   return <label className={cx('lm-field__label', className)} {...rest} />;
 }
@@ -76,11 +74,10 @@ export function HelpText({ className, ...rest }: ComponentPropsWithoutRef<'p'>) 
   return <p className={cx('lm-help', className)} {...rest} />;
 }
 
-/** Validation message: danger mark + text, announced politely. */
+/** Validation message: rose text under the field that names the fix, announced. */
 export function ErrorText({ className, children, ...rest }: ComponentPropsWithoutRef<'p'>) {
   return (
     <p className={cx('lm-error', className)} role="alert" {...rest}>
-      <Icon icon={DangerMark} size={16} />
       <span>{children}</span>
     </p>
   );
@@ -90,7 +87,7 @@ export interface TextInputProps extends ComponentPropsWithRef<'input'> {
   invalid?: boolean;
 }
 
-/** Single-line text in a recessed well. 16 px on mobile (no iOS zoom). */
+/** Single-line text field: 1 px strong outline, 10 px corners, gold focus line. 16 px on mobile (no iOS zoom). */
 export function TextInput({ className, invalid, id, disabled, required, 'aria-describedby': describedBy, ...rest }: TextInputProps) {
   const field = useField();
   return (

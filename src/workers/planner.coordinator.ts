@@ -2,13 +2,18 @@
  * Planner coordinator (runs inside the engine worker; dossier 18 §4.19): binds evaluator ports into a pooled
  * evaluator, calibrates the device (ms per evaluation) to choose the budget tier, runs `runDomainPlanner`, throttles
  * pure progress ticks to ≤ 4 Hz (events carrying new or changed options always pass), supports cooperative cancellation (anytime result) and pause/resume (e.g. page hidden).
+ *
+ * C7/D4-03 (2026-10-18): results leaving the worker carry the contract fingerprint they were computed under
+ * (`provenance.contracts`); tier X checkpoints resume only under the same contract semantics. A worker result or stored
+ * proposal never authorizes a prescription by itself: certificates are revalidated at start/adopt/resume/replan.
  */
+import { CONTRACT_FINGERPRINT } from '@/lib/bodyContracts';
 import { runDomainPlanner, type PlannerOptions } from '@/engine/planner/domain/planner';
 import { checkpointKeyOf, runLadderPlanner } from '@/engine/planner/domain/ladderPlanner';
 import { replan as replanDomain } from '@/engine/planner/domain/replan';
 import type { PlannerCheckpointData } from '@/engine/planner/optim/pipeline';
 import type { PlannerProgressV2, PlannerRequestV2, PlannerResultV2, PlannerTier, ReplanRequest, ReplanResult } from '@/engine/planner/domain';
-import { deleteCheckpoint, listCheckpoints, loadCheckpoint, saveCheckpoint } from './planner.checkpoints';
+import { checkpointCurrent, deleteCheckpoint, listCheckpoints, loadCheckpoint, saveCheckpoint } from './planner.checkpoints';
 import type { EvalVariant } from '@/engine/planner/domain/evaluatorHost';
 import type { PlannerProgressInfo, PlannerRequest, PlannerResult } from '@/engine/planner/domain/types';
 import { createPooledEvaluator, type Tier } from '@/engine/planner/optim/pipeline';
@@ -38,6 +43,13 @@ export interface LadderCoordinatorOptions {
   /** Continue the tier X checkpoint stored under this key (discarded when it belongs to another request). */
   resumeKey?: string;
   now?: () => number;
+}
+
+/** C7: stamp the contract fingerprint on a result's provenance unless the planner already set it (results leave the worker). */
+function stampContracts<T>(res: T): T {
+  const p = (res as { provenance?: Record<string, unknown> } | null)?.provenance;
+  if (p && typeof p === 'object' && p.contracts === undefined) p.contracts = CONTRACT_FINGERPRINT;
+  return res;
 }
 
 export class PlannerCoordinator {
@@ -73,7 +85,7 @@ export class PlannerCoordinator {
       },
     };
     let calls: ((v: EvalVariant) => ReturnType<EvaluatorPort['call']>[]) | null = null;
-    return runDomainPlanner(request, {
+    const v1 = await runDomainPlanner(request, {
       tier,
       ...(totalEU !== undefined ? { totalEU } : {}),
       signal,
@@ -102,6 +114,7 @@ export class PlannerCoordinator {
           }
         : {}),
     });
+    return stampContracts(v1);
   }
 
   /**
@@ -174,7 +187,7 @@ export class PlannerCoordinator {
         : {}),
     });
     if (tier === 'X' && res.complete) await deleteCheckpoint(key);
-    return res;
+    return stampContracts(res);
   }
 
   /** Resume a stored tier X search (§4.9) by its checkpoint key: the stored request is re-planned from the checkpoint. */
@@ -188,7 +201,8 @@ export class PlannerCoordinator {
   async checkpointFor(request: PlannerRequestV2): Promise<{ key: string; euUsed: number; stage: string; createdAt: string } | { stale: true; key: string } | null> {
     const key = checkpointKeyOf(request);
     const all = await listCheckpoints();
-    const mine = all.find((c) => c.key === key);
+    // C7: a checkpoint saved under other contract semantics is stale (offered for discarding, never resumed)
+    const mine = all.find((c) => c.key === key && checkpointCurrent(c));
     if (mine) return { key: mine.key, euUsed: mine.euUsed, stage: mine.stage, createdAt: mine.createdAt };
     return all[0] ? { stale: true, key: all[0].key } : null;
   }

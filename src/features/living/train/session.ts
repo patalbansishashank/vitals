@@ -47,6 +47,11 @@ export interface TrainSetup {
   profile: TrainingProfile;
   ctx: StimulusContext;
   catalogue: Catalogue;
+  /**
+   * (0.6.3 INT, S2) The context's body mass is the typical placeholder (no weight entered): sessions may be composed on it,
+   * but no energy figure from it is shown as the person's (Train hides it and says it needs the weight).
+   */
+  typicalBody?: boolean;
 }
 
 /* ------------------------------------------------------------------ words */
@@ -152,6 +157,8 @@ export interface SessionModel {
   startH: number;
   /** "lift", "walk", "run", … */
   noun: string;
+  /** What the copy calls the session: the noun, or the one exercise's short name ("stationary bike", "folk dance"). */
+  what: string;
   /** Minutes of the concrete session (warm-up included), else the plan slot's. */
   minutes: number;
   session: ConcreteSession;
@@ -181,11 +188,13 @@ export function sessionModels(rx: PrescribedDaySnapshot | null, date: LocalDate,
   if (!rx) return [];
   return rx.sessions.map((s) => {
     const session = s.concrete ?? composeSession(prescriptionOf(s, date), { profile: setup.profile, catalogue: setup.catalogue, ctx: setup.ctx });
+    const noun = sessionNoun(s.kind, modalityOf(s, session));
     return {
       slotKey: s.slotKey,
       kind: s.kind,
       startH: s.startH,
-      noun: sessionNoun(s.kind, modalityOf(s, session)),
+      noun,
+      what: session.items.length === 1 ? shortName(session.items[0]!.name) : noun,
       minutes: session.items.length > 0 ? Math.max(1, Math.round(session.minutes)) : s.durationMin,
       session,
       composedHere: !s.concrete,
@@ -213,7 +222,7 @@ export function isCardioLike(item: Pick<ConcreteItem, 'sets'>, ex: ExerciseRecor
 }
 
 /** "6 × 20 · rest 60 s · leave 2 reps in the tank" (+ "≈ 95 kcal" for cardio-like items when energy is shown). */
-export function rxWords(item: ConcreteItem, ex: ExerciseRecord | undefined, o: { energy: boolean }): string {
+export function rxWords(item: ConcreteItem, ex: ExerciseRecord | undefined, o: { energy: boolean; tank?: boolean | 'short' }): string {
   const C = TRAIN_COPY.rx;
   const parts: string[] = [];
   if (isMinutesItem(item)) {
@@ -225,8 +234,9 @@ export function rxWords(item: ConcreteItem, ex: ExerciseRecord | undefined, o: {
     if (item.loadKg !== undefined) head = `${head} ${C.load(item.loadKg)}`;
     parts.push(head);
     if (item.restSec) parts.push(C.rest(Math.round(item.restSec)));
-    const rir = item.rir !== undefined ? Math.round(item.rir) : 0;
-    if (rir >= 1) parts.push(C.tank(rir));
+    // the effort cue is about reps: a timed hold or interval has none; a session that says it once leaves it off (r068 T14)
+    const rir = item.rir !== undefined && item.reps !== undefined ? Math.round(item.rir) : 0;
+    if (rir >= 1 && o.tank !== false) parts.push(o.tank === 'short' ? C.tankShort(rir) : C.tank(rir));
   }
   if (o.energy && isCardioLike(item, ex)) parts.push(C.kcal(fmtKcal(item.kcal)));
   return parts.join(' · ');
@@ -308,13 +318,6 @@ export function placeLines(profile: TrainingProfile): string[] {
   });
 }
 
-/** Footnote when injuries filter the catalogue (cleared ones excluded). */
-export function injuryNote(profile: TrainingProfile): string | null {
-  const cleared = new Set(profile.cleared ?? []);
-  const words = [...new Set(profile.injuries.filter((i) => !cleared.has(i)).map((i) => TRAIN_COPY.injuryWords[i] ?? i.replace(/_/g, ' ')))];
-  return words.length > 0 ? TRAIN_COPY.injury(listWords(words)) : null;
-}
-
 /** True when the person has said nothing about equipment or places (sessions are bodyweight). */
 export function noEquipmentAnswered(profile: TrainingProfile): boolean {
   return profile.owned.length === 0 && profile.access.every((a) => a.equipment.length === 0);
@@ -376,6 +379,29 @@ export function plannedSets(item: Pick<ConcreteItem, 'sets'>): number {
   return item.sets ?? 0;
 }
 
+function omitIndex<T>(o: Readonly<Record<number, T>>, i: number): Record<number, T> {
+  const n = { ...o };
+  delete n[i];
+  return n;
+}
+
+/** Skip the item at `i` (its tick and log go), or take the skip back when it is already skipped. */
+export function toggleSkip(d: SessionDraft, i: number): SessionDraft {
+  return d.skips[i] ? { ...d, skips: omitIndex(d.skips, i) } : { ...d, skips: { ...d.skips, [i]: true }, ticks: omitIndex(d.ticks, i), logs: omitIndex(d.logs, i) };
+}
+
+/** A session can be changed: not logged yet, or reopened with "Change what you did", and not in the partial summary. */
+export function sessionOpen(view: TodayView | null, model: Pick<SessionModel, 'itemId'>, draft: SessionDraft): boolean {
+  return (loggedStatus(view, model.itemId).status === 'unknown' || draft.editing) && !draft.review;
+}
+
+/** Minutes and start hour to log: the timer's when it ran, else the plan's. */
+export function sessionTiming(model: Pick<SessionModel, 'minutes' | 'startH'>, startedAt: number | null, nowMs: number): { durationMin: number; startH: number } {
+  if (startedAt === null) return { durationMin: model.minutes, startH: model.startH };
+  const s = new Date(startedAt);
+  return { durationMin: Math.max(1, Math.round((nowMs - startedAt) / 60000)), startH: s.getHours() + s.getMinutes() / 60 };
+}
+
 export function itemState(draft: SessionDraft, i: number, item: ConcreteItem): ItemState {
   if (draft.skips[i]) return 'skipped';
   if (draft.ticks[i]) return 'done';
@@ -387,6 +413,32 @@ export function itemState(draft: SessionDraft, i: number, item: ConcreteItem): I
   }
   if (log.kind === 'sets') return log.sets.length === 0 ? 'open' : log.sets.length >= plannedSets(item) ? 'done' : 'partial';
   return log.minutes >= 0.9 * item.minutes ? 'done' : 'partial';
+}
+
+/** Count only sets with performed work. An omitted rep count inherits the prescribed reps or hold. */
+export function loggedSets(item: ConcreteItem, log: ItemLog | undefined): number {
+  if (log?.kind === 'chips') return log.done.filter(Boolean).length;
+  if (log?.kind === 'sets') return log.sets.filter((set) => {
+    const amount = set.reps ?? item.reps ?? item.holdSec ?? item.workSec ?? 0;
+    return Number.isFinite(amount) && amount > 0;
+  }).length;
+  return 0;
+}
+
+/** Explicit progress before saving. Untouched work stays open here; Session done may later count it as planned. */
+export function sessionProgress(items: readonly ConcreteItem[], draft: SessionDraft) {
+  let setsDone = 0, setsTotal = 0, itemsDone = 0, skipped = 0;
+  items.forEach((item, i) => {
+    const total = Math.max(1, plannedSets(item));
+    setsTotal += total;
+    if (draft.skips[i]) { skipped += total; return; }
+    const log = draft.logs[i];
+    let done = draft.ticks[i] ? total : Math.min(total, loggedSets(item, log));
+    if (log?.kind === 'minutes') done = Number.isFinite(log.minutes) ? log.minutes >= 0.9 * item.minutes ? total : Math.min(total, Math.max(0, log.minutes / Math.max(1, item.minutes) * total)) : 0;
+    setsDone += done;
+    if (done >= total) itemsDone++;
+  });
+  return { setsDone, setsTotal, itemsDone, itemsTotal: items.length, skipped };
 }
 
 /** What an item log means as a catalogue instance (null = nothing done). */
@@ -644,6 +696,7 @@ export interface WeekRow {
   day: string;
   rest: boolean;
   outside: boolean;
+  /** `noun` is what the copy calls the session (SessionModel.what when composed here). */
   sessions: Array<{ slotKey: string; noun: string; minutes: number; status: WeekStatus }>;
 }
 
@@ -662,7 +715,7 @@ export function weekRows(dates: readonly LocalDate[], views: ReadonlyArray<Today
       const m = models?.[j];
       return {
         slotKey: s.slotKey,
-        noun: m?.noun ?? sessionNoun(s.kind, modalityOf(s, s.concrete)),
+        noun: m?.what ?? sessionNoun(s.kind, modalityOf(s, s.concrete)),
         minutes: m?.minutes ?? (s.concrete && s.concrete.items.length > 0 ? Math.max(1, Math.round(s.concrete.minutes)) : s.durationMin),
         status: (future && st === 'unknown' ? 'planned' : st) as WeekStatus,
       };
@@ -687,8 +740,8 @@ export interface ShopRow {
   ids: string[];
   name: string;
   tier: number;
-  /** "adds pulling work" */
-  unlocks: string;
+  /** "adds pulling work"; null when the item only makes sessions easier to fit. */
+  unlocks: string | null;
   required: boolean;
   /** "+0.4 kg muscle", when the planner filled it. */
   benefit: string | null;
@@ -711,9 +764,28 @@ export function shopRows(prescriptions: readonly SessionPrescription[], setup: T
       ids: s.equipmentIds,
       name,
       tier: s.priceTier,
-      unlocks: words.length > 0 ? TRAIN_COPY.equipment.adds(listWords(words)) : TRAIN_COPY.equipment.shorter,
+      unlocks: words.length > 0 ? TRAIN_COPY.equipment.adds(listWords(words)) : null,
       required: s.required,
       benefit: s.benefit.length > 0 ? s.benefit.map((b) => `${b.delta > 0 ? '+' : ''}${b.delta} ${b.unit}`).join(' · ') : null,
     };
   });
+}
+
+/**
+ * The effort cue the session's rep work shares (r068 T14, L21): the reps in the tank most of its rep exercises leave
+ * (two or more of them), which the card says once under its title; only a row that differs says its own. Null when no
+ * value is shared.
+ */
+export function sharedTank(items: readonly ConcreteItem[]): number | null {
+  const rirs = items.filter((i) => !isMinutesItem(i) && i.reps !== undefined && i.rir !== undefined).map((i) => Math.round(i.rir!));
+  const counts = new Map<number, number>();
+  for (const r of rirs) if (r >= 1) counts.set(r, (counts.get(r) ?? 0) + 1);
+  let best: number | null = null;
+  for (const [r, n] of counts) if (n >= 2 && (best === null || n > counts.get(best)!)) best = r;
+  return best;
+}
+
+/** True when the row's own reps in the tank are the session's shared cue (so the row leaves it off). */
+export function tankShared(item: ConcreteItem, shared: number | null): boolean {
+  return shared !== null && item.rir !== undefined && Math.round(item.rir) === shared;
 }

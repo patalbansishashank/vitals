@@ -1,33 +1,32 @@
-# Screen — Settings v0.2: Sync, AI provider, Agents, Install, Devices and streams (`/settings/:section`)
+# Screen — Settings v0.2: Sync, AI provider, Agents, Install (`/settings/:section`)
 
 > v0.2 (2026-10-01). Extends `settings-data.md` (Units, Appearance, Your data, Safety, About stay as
 > specified there, with the copy changes in §9). Contracts: `docs/SUITE_SPEC.md` §2.6 (sync),
-> §4.3–§4.6 (biometrics ingest, streams, Bluetooth), §5.1 (providers, keys, usage), §7 (Companion,
-> agents). Research: sync (R7), AI providers (R8), sign-in and MCP, wearables. Components:
-> `COMPONENTS.md §13.15–13.16`. Every control here is **UI-only**: neither the Coach nor any agent
-> can change sync, keys, providers, stream consent or agent permissions.
+> §5.1 (providers, keys, usage), §7 (Companion, agents). Research: sync (R7), AI providers (R8),
+> sign-in and MCP. Components: `COMPONENTS.md §13.16`. Every control here is **UI-only**: neither
+> the Coach nor any agent can change sync, keys, providers or agent permissions.
 > All numbers, names and dates in this spec are synthetic examples, not real data.
 
 ## 1. Purpose
 
 Let the person decide, in plain words and with honest consequences, (a) where their data lives —
 this device only, or synced through a server they control, with no account anywhere; (b) which AI
-answers as their Coach, with their own key, and what it is sent; (c) which devices feed Vitals and
-what each stream may be used for; (d) whether local AI agents may drive Vitals. Because there is no
+answers as their Coach, with their own key, and what it is sent; (c) whether local AI agents may
+drive Vitals. Because there is no
 Vitals server, this page is also where loss of data is explained without euphemism.
 
 ## 2. Entry points & exits
 
 | In | Out |
 |---|---|
-| Rail/overflow "Settings" · sync pill → "Sync settings" · Coach "Set up a provider" · intake chapter 4 · Progress "Add a device" · agent indicator "Manage" · any `/settings/:section` deep link (`nav.open`) | the same screen it came from (back) · Coach (after a provider is ready: "Open Coach") · intake chapter 4 (add a device) |
+| Rail/overflow "Settings" · sync pill → "Sync settings" · Coach "Set up a provider" · agent indicator "Manage" · any `/settings/:section` deep link (`nav.open`) | the same screen it came from (back) · Coach (after a provider is ready: "Open Coach") |
 
 ## 3. Layout
 
-Section index (v0.2 order): **units · appearance · your data · sync · devices and streams · AI
-provider · agents · install · safety · about**. Desktop: sticky vertical KeyBank (240) + content
+Section index (v0.2 order): **units · appearance · your data · sync · AI provider · agents ·
+install · safety · about**. Desktop: sticky vertical KeyBank (240) + content
 column (max 720). Mobile: sticky anchor chips. `/settings/:section` scrolls to that section
-(aliases: `coach` → AI provider, `data-sources` and `devices` → Devices and streams). Each section is
+(alias: `coach` → AI provider). Each section is
 one or more Faceplates; no nested faceplates. The mobile anchor chips use `scroll-padding-inline`
 equal to the 16 px gutter so the active chip never sits under the edge (REVIEW_FINDINGS #7).
 
@@ -35,7 +34,7 @@ equal to the 16 px gutter so the active chip never sits under the edge (REVIEW_F
 mobile — Sync section, sync on
 ┌──────────────────────────────────────────┐
 │ ‹  Settings                              │
-│ [units][appear…][data][●sync][devices]…  │ anchor chips
+│ [units][appear…][data][●sync][ai prov…]… │ anchor chips
 ├──────────────────────────────────────────┤
 │ ┌ Sync ─────────────────── synced 14:02 ┐│
 │ │ ● On · vitals.tail1234.ts.net          ││ status line (state glyph + host)
@@ -229,8 +228,7 @@ Re-checked after 30 days or after an unsupported-feature error.
 ### 5.7 What is sent
 > The Coach sends {provider} this conversation, the results of what it looks up in Vitals, and a
 > short summary of your plan and recent days. Not your name or email. Photos only in the message
-> you attach them to. Body signals only as you chose in Devices and streams. [See what the Coach
-> knows ›]
+> you attach them to. [See what the Coach knows ›]
 
 ### 5.8 States
 | State | Behaviour |
@@ -261,48 +259,7 @@ Keep the built section; v0.2 changes:
 - Offline line adds, when sync is on: "Changes made offline sync when you're back online."
 - The update notice also shows on `/welcome` (currently missing).
 
-## 8. Devices and streams (`/settings/devices`, `/settings/data-sources`)
-
-### 8.1 Devices
-One Faceplate per source:
-```
- ┌ Colmi R10 ring ─────────────────────────────── tier C ┐
- │ connects directly · last data today 07:12              │
- │ sleep · heart rate · steps · SpO2                      │
- │ [Sync now]  (Chrome, while Vitals is open)             │
- │ StreamMatrix for this device's streams                 │
- │ Remove this device…                                    │
- └────────────────────────────────────────────────────────┘
-```
-- Tier words: "tier A · checked against medical devices" · "tier B · partly checked" · "tier C ·
-  not independently checked — heart-rate variability, autonomic load, SpO2 and temperature are
-  shown only as change from your own normal".
-- **Add a device** → the intake chapter 4 flow in a panel.
-- **Remove this device…** (destructive, typed "remove"): "Deletes this device's data from Vitals
-  (and from your synced devices). Your logs and plan stay." Scores rebuild without it.
-- A new device starts a new normal range: "Your normal range restarts with this ring; the old one
-  stays visible, joined by a dashed line."
-
-### 8.2 Streams
-- The StreamMatrix (`COMPONENTS §13.15`), one per device plus **vendor scores** (off by default;
-  shown as "{vendor} says …", never used by scores, plan or adherence).
-- **Which source wins** (per metric, when two devices report it): ordered list with drag handles
-  ("sleep: Oura ring ▸ Apple Watch"); copy "Vitals never averages devices; it uses the first one
-  that has data that day."
-
-### 8.3 Data sources (imports and helpers)
-- **Import a file**: Apple Health export (.zip), Health Connect export, Health Auto Export (JSON),
-  Gadgetbridge database, Vitals biometrics file (JSON/CSV), Lumen Health events — with "how to get
-  this file" per format. Import runs in the background with progress and ends with the report
-  ("182 days · 31 400 records · 112 duplicates skipped · sleep, heart rate, HRV, steps").
-- **Import history**: date · source · days covered · [undo import] (removes that batch).
-- **Phone helper** (when available): the Vitals Bridge app (Android) or the iPhone Shortcut — a QR
-  code to pair, explained as "sends your phone's health data to this Vitals, nowhere else".
-- **Companion receiver**: shows when a Companion is paired: "Your Companion can receive data from
-  your phone and pull from services that need a server." (no vendor accounts are connected from the
-  web page itself).
-- Limits stated once: "A web page can't read Apple Health or Health Connect directly or sync in the
-  background. Import files, use a helper app, or connect an open ring with Chrome."
+## 8. Devices and streams (`/settings/devices`, `/settings/data-sources`) — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
 ## 9. Copy changes elsewhere in Settings (and the app) when sync is on
 | Where | v0.1 | v0.2 with sync on |
@@ -325,7 +282,6 @@ One Faceplate per source:
 - Key fields: `autocomplete="off"`, a show/hide toggle with `aria-pressed`, errors linked with
   `aria-describedby`.
 - Capability results are a table; badges are text.
-- StreamMatrix: a table with headers; disabled cells explain why.
 - Typed confirmations explain the word in `aria-describedby`.
 
 ## 11. What the engine supplies
@@ -334,7 +290,6 @@ One Faceplate per source:
 | Sync | `sync.status` → `SyncStatus {state, lastSyncedAt, pendingChanges, pendingBlobs, lastError, endpoint}`; `sync.now`; `sync.configure`, `sync.pair` → `PairingCode {uri, words[24]}`, `sync.join (onExisting → merge \| replace)`, `sync.rotate`, `sync.unpair`; `devices` collection; re-key flow (adapter `rekey`) |
 | Providers | `ai.configure` (UI only) with presets `{id, label, adapter, baseUrl, authHeader, browserDirect, keyHelpUrl, defaultModel, recommendedModels, corsFixText, price}`; `listModels()`, `probe(model)` → `Capabilities {tools, parallelTools, strictTools, vision, maxImages, jsonSchema, jsonObject, reasoning, streaming, streamUsage, contextTokens, maxOutput, browserDirect, verifiedAt, source}`; errors by kind (`auth`, `quota`, `rate_limited`, `context_length`, `unsupported_param`, `cors`, `network`, `server`, `refusal`, `usage_limit`); `ai.usage` |
 | Agents | `agents.configure`; activity = ChangeCards from `changeLog`; tool-list hash |
-| Devices | `bio.sources` → sources with tier, channel, last data, `StreamPolicy[]`; `bio.setPolicy`, `bio.setSourcePriority`, `bio.import` (job) → `IngestReport`, `bio.deviceConnect` / `bio.deviceSync` (user gesture), `bio.deleteSource` (typed confirmation) |
 | Storage | `data.usage` (per collection, quota) |
 
 ## 12. Decisions & rationale
@@ -416,7 +371,7 @@ inside the ChatGPT row's block (no new page):
  step 2  Open this page and sign in to ChatGPT:
          https://auth.openai.com/…      [Open] [Copy]
          Then enter this code there:  ABCD-1234   [Copy]       ← only if the flow uses a code
-         Waiting for ChatGPT… (this page updates by itself)      ← loading ring, live region
+         Waiting for ChatGPT… (this page updates by itself)      ← loading spinner, live region
          [Cancel]
  step 3  ✓ Signed in as a…@example.com · Plus plan              ← account and plan when the server knows them
          [Test connection]   Manage usage ›   [Sign out]
@@ -480,9 +435,8 @@ The Install section has two blocks separated by a hairline:
    and your server either way.").
 2. **Your server** — one status line and one key, never install steps:
    - paired: "● reachable · home server · 0.4.0" + **Server settings**
-   - not paired: "Vitals can work with a server on a computer you own: it syncs your devices,
-     runs the Coach for every device and receives your ring's data." + **Pair a server** + "How to
-     set one up ›" (help page).
+   - not paired: "Vitals can work with a server on a computer you own: it syncs your devices
+     and runs the Coach for every device." + **Pair a server** + "How to set one up ›" (help page).
    - server older than this page: "Your server runs 0.3.2; this page needs 0.4.0. Update the
      server." (no key; the server is updated on the server).
 

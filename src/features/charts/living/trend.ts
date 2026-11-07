@@ -5,6 +5,8 @@
    No React, no DOM. Y-scales hug the data and print 2–3 nice ticks inside
    the domain (§4.3); x labels are dates ("1 Oct"), never smaller than 11 px.
    ========================================================================== */
+import { bandPath as smoothBand, monotonePath } from '@/components/viz/smooth';
+import type { TwinData } from '@/components/viz/twin';
 import type { ChartData, ChartEvent, ChartSeries } from '../types';
 import { formatNumber, formatRange, THIN } from '../lib/format';
 import { niceTicksInside, type TickSet } from '../lib/ticks';
@@ -223,6 +225,93 @@ export function bandPath(lo: ArrayLike<number>, hi: ArrayLike<number>, X: (i: nu
   return d;
 }
 
+/** The runs of consecutive finite values as [x, y] points (NaN, or a `cut` index, breaks a run: a gap stays a gap). */
+function runsOf(values: ArrayLike<number>, X: (i: number) => number, Y: (v: number) => number, cut?: ReadonlySet<number>): Array<Array<[number, number]>> {
+  const out: Array<Array<[number, number]>> = [];
+  let cur: Array<[number, number]> = [];
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i]!;
+    if (cut?.has(i) && cur.length) {
+      out.push(cur);
+      cur = [];
+    }
+    if (Number.isFinite(v)) cur.push([X(i), Y(v)]);
+    else if (cur.length) {
+      out.push(cur);
+      cur = [];
+    }
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+
+/**
+ * The smooth twin of `linePath` (r071 skin): a monotone cubic through each run of finite values, so a point is never
+ * overshot and the line never invents a lower or higher day than the data has. NaN still breaks the line; a run of one
+ * value is a round dot (a zero-length segment under a round cap).
+ */
+export function smoothLinePath(values: ArrayLike<number>, X: (i: number) => number, Y: (v: number) => number): string {
+  let d = '';
+  for (const run of runsOf(values, X, Y)) d += run.length === 1 ? `M${run[0]![0].toFixed(1)},${run[0]![1].toFixed(1)}h0.01` : monotonePath(run);
+  return d;
+}
+
+/**
+ * `linePathWithBreaks` made smooth: the solid path is a monotone cubic through each run, which breaks before every
+ * `breaks` day (a new device) as well as at every gap; `joins` still lists the dashed segments that bridge the last value
+ * before a break and the first from it.
+ */
+export function smoothLinePathWithBreaks(
+  values: ArrayLike<number>,
+  breaks: readonly number[],
+  X: (i: number) => number,
+  Y: (v: number) => number,
+): { solid: string; joins: Array<{ x1: number; y1: number; x2: number; y2: number }> } {
+  const cut = new Set(breaks);
+  let solid = '';
+  for (const run of runsOf(values, X, Y, cut)) solid += run.length === 1 ? `M${run[0]![0].toFixed(1)},${run[0]![1].toFixed(1)}h0.01` : monotonePath(run);
+  const joins = linePathWithBreaks(values, breaks, X, Y).joins;
+  return { solid, joins };
+}
+
+/** The soft area under `smoothLinePath`, each run closed down to the baseline `base` (a single series with no band). */
+export function smoothAreaPath(values: ArrayLike<number>, X: (i: number) => number, Y: (v: number) => number, base: number): string {
+  let d = '';
+  for (const run of runsOf(values, X, Y)) {
+    if (run.length < 2) continue;
+    const first = run[0]!;
+    const last = run[run.length - 1]!;
+    d += `${monotonePath(run)}L${last[0].toFixed(1)},${base.toFixed(1)}L${first[0].toFixed(1)},${base.toFixed(1)}Z`;
+  }
+  return d;
+}
+
+/** The smooth twin of `bandPath`: both edges are monotone cubics, over every run where both bounds are finite. */
+export function smoothBandPath(lo: ArrayLike<number>, hi: ArrayLike<number>, X: (i: number) => number, Y: (v: number) => number): string {
+  const n = Math.min(lo.length, hi.length);
+  let d = '';
+  let i = 0;
+  while (i < n) {
+    if (!Number.isFinite(lo[i]!) || !Number.isFinite(hi[i]!)) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < n && Number.isFinite(lo[j + 1]!) && Number.isFinite(hi[j + 1]!)) j++;
+    if (j > i) {
+      const top: Array<[number, number]> = [];
+      const bottom: Array<[number, number]> = [];
+      for (let k = i; k <= j; k++) {
+        top.push([X(k), Y(hi[k]!)]);
+        bottom.push([X(k), Y(lo[k]!)]);
+      }
+      d += smoothBand(top, bottom);
+    }
+    i = j + 1;
+  }
+  return d;
+}
+
 /* ----------------------------------------------------------- plot frames */
 
 export interface PlotFrame {
@@ -325,13 +414,15 @@ export function placeLabels(items: ReadonlyArray<{ x: number; text: string }>, m
  * (today) so today is always labelled; longer windows → Mondays, every 1, 2, 4 or 8 weeks by width.
  */
 export function dayTicks(startDate: string, f: PlotFrame, anchorDay: number | null): DayTick[] {
-  const need = labelPx('30 Sep') + 12;
+  // (r068 V11) a clear gap between date labels (they nearly touched in a 360 px panel), and a label never runs past the
+  // plot's right edge (the last one ends there)
+  const need = labelPx('30 Sep') + 20;
   const out: DayTick[] = [];
   const push = (d: number) => {
     const label = dateLabel(isoAddDays(startDate, d), 'short');
     const x = f.X(d);
     const half = labelPx(label) / 2;
-    const anchor = x - half < 0 ? 'start' : x + half > f.width ? 'end' : 'middle';
+    const anchor = x - half < 0 ? 'start' : x + half > Math.min(f.width, f.px1) ? 'end' : 'middle';
     out.push({ day: d, x, label, anchor });
   };
   if (f.days <= 14) {
@@ -357,21 +448,23 @@ export interface TrendDomain {
 }
 
 /**
- * Y-domain of the trend lane: hugs the realistic and as-prescribed bands, the weigh-ins and the trend (+10 %). The goal
- * stretches the domain only on `progress`; elsewhere a far goal becomes an edge label instead.
+ * Y-domain of the trend lane: hugs the realistic and as-prescribed bands, the weigh-ins and the trend (+10 %) on every
+ * size (r071: the goal no longer stretches the scale on Progress, which squeezed the data into the top of the plot and
+ * made the chart of record show no movement). A goal beyond the hugged scale takes an edge label, "goal 79.5 kg ↓".
  */
-export function trendDomain(data: TrendLaneData, size: TrendSize): TrendDomain {
+export function trendDomain(data: TrendLaneData, size?: TrendSize): TrendDomain {
+  void size;
   const goal = data.goal?.value;
-  const ext = finiteExtent(
-    data.trend,
-    data.weighIns.map((w) => w.value),
-    data.realistic?.p10,
-    data.realistic?.p90,
-    data.realistic?.p50,
-    data.asPrescribed?.p10,
-    data.asPrescribed?.p90,
-    size === 'progress' && goal !== undefined ? [goal] : undefined,
-  ) ?? (goal !== undefined && Number.isFinite(goal) ? [goal, goal] : [0, 1]);
+  const ext =
+    finiteExtent(
+      data.trend,
+      data.weighIns.map((w) => w.value),
+      data.realistic?.p10,
+      data.realistic?.p90,
+      data.realistic?.p50,
+      data.asPrescribed?.p10,
+      data.asPrescribed?.p90,
+    ) ?? (goal !== undefined && Number.isFinite(goal) ? [goal, goal] : [0, 1]);
   const [lo, hi] = hugDomain(ext[0], ext[1], data.decimals);
   const pos = goal === undefined || !Number.isFinite(goal) ? 'none' : goal > hi ? 'above' : goal < lo ? 'below' : 'inside';
   return { lo, hi, goal: pos };
@@ -496,6 +589,8 @@ export function trendDirection(data: TrendLaneData): 'down' | 'up' | 'level' | n
 const DIRECTION_WORD = { down: 'going down', up: 'going up', level: 'level' } as const;
 
 const val = (v: number, data: { decimals: number; unit: string }) => `${formatNumber(v, data.decimals)}${THIN}${data.unit}`;
+const upperFirst = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : t);
+const NO_TREND = 'No trend yet';
 
 function expectedAt(data: TrendLaneData, day: number): [number, number] | null {
   const lo = data.realistic?.p10[day] ?? NaN;
@@ -503,25 +598,19 @@ function expectedAt(data: TrendLaneData, day: number): [number, number] | null {
   return Number.isFinite(lo) && Number.isFinite(hi) ? [lo, hi] : null;
 }
 
-/** The line above the plot: "trend 83.1 kg (±0.3) · expected today 82.8–83.6"; quiet: "trend going down". */
+/** The line above the plot: the trend now, "83.1 kg"; quiet: "Going down". Nothing to read yet: "No trend yet". */
 export function trendReadoutText(data: TrendLaneData, quiet = false): string {
   if (quiet) {
     const dir = trendDirection(data);
-    return dir ? `trend ${DIRECTION_WORD[dir]}` : 'trend starts after about a week of weigh-ins';
+    return dir ? upperFirst(DIRECTION_WORD[dir]) : NO_TREND;
   }
-  const i = lastTrendDay(data);
-  const v = data.trend[i] ?? NaN;
-  if (!Number.isFinite(v)) return 'trend starts after about a week of weigh-ins';
-  const sd = data.trendSd?.[i];
-  const parts = [`trend ${val(v, data)}${sd !== undefined && Number.isFinite(sd) ? ` (±${formatNumber(sd, data.decimals)})` : ''}`];
-  const ex = data.todayIndex !== null ? expectedAt(data, data.todayIndex) : null;
-  if (ex) parts.push(`expected today ${formatRange(ex[0], ex[1], data.decimals)}`);
-  return parts.join(' · ');
+  const v = data.trend[lastTrendDay(data)] ?? NaN;
+  return Number.isFinite(v) ? val(v, data) : NO_TREND;
 }
 
 /**
  * The chart's accessible summary: "Weight trend 83.1 kilograms, expected today 82.8 to 83.6; 9 weigh-ins in the last
- * 14 days; goal date likely 21 to 30 December." Quiet mode keeps the shape and counts, drops the weights.
+ * 14 days; goal date 21 to 30 December." Quiet mode keeps the shape and counts, drops the weights.
  */
 export function trendSummary(data: TrendLaneData, opts: { quiet?: boolean } = {}): string {
   const parts: string[] = [];
@@ -542,7 +631,7 @@ export function trendSummary(data: TrendLaneData, opts: { quiet?: boolean } = {}
   let wi = `${seen.length} ${seen.length === 1 ? 'weigh-in' : 'weigh-ins'} in the last ${end + 1} ${end === 0 ? 'day' : 'days'}`;
   if (flagged) wi += `, ${flagged} marked unusual and kept`;
   parts.push(wi);
-  if (data.goalDateRange) parts.push(`goal date likely ${spokenDateRange(data.goalDateRange.from, data.goalDateRange.to)}`);
+  if (data.goalDateRange) parts.push(`goal date ${spokenDateRange(data.goalDateRange.from, data.goalDateRange.to)}`);
   return `${parts.join('; ')}.`;
 }
 
@@ -634,6 +723,33 @@ export function trendTableCSV(rows: readonly TrendTableRow[], unit: string, deci
 }
 
 /**
+ * The Table twin of the weight trend for a card's (i) panel (`InfoSpec.twin`, which the `T` key opens): the rows of
+ * `trendTableRows` as the foundation's `TwinData`, so the panel draws the same table and CSV as every picture. Date ·
+ * scale · trend · forecast range, and the Event column only when a day has one. Quiet mode has no table (numbers hidden):
+ * the caller passes no twin then.
+ */
+export function trendTwin(data: TrendLaneData): TwinData {
+  const rows = trendTableRows(data);
+  const hasEvents = rows.some((r) => r.event);
+  const unit = data.unit;
+  const head = ['Date', `Scale (${unit})`, `Trend (${unit})`, `Forecast (${unit})`, ...(hasEvents ? ['Event'] : [])];
+  return {
+    title: 'Weight trend table',
+    caption: 'Weight by day: your weigh-in, the filtered trend, the range the forecast expected at your adherence, and events.',
+    head,
+    rows: rows.map((r, i) => [
+      (i === 0 || r.date.endsWith('-01') ? r.label : r.label.replace(/ [A-Z][a-z]{2}$/, '')) + (r.isToday ? ' · today' : ''),
+      cellText(r.weighIn, data.decimals) + (r.flagged ? ' (unusual, kept)' : ''),
+      cellText(r.trend, data.decimals),
+      rangeText(r.expectedLo, r.expectedHi, data.decimals),
+      ...(hasEvents ? [r.event || '—'] : []),
+    ]),
+    fileName: 'vitals-weight-trend.csv',
+    rowNoun: ['day', 'days'],
+  };
+}
+
+/**
  * The trend as the module's ChartData, so `DataTable` / `buildTable` / CSV and the Simulator lanes can show it:
  * weigh-ins (NaN on days without one), the filtered trend, and the two forecasts as likely-range bands (the realistic
  * one with its median when given). Events become notes; pauses also become a phase.
@@ -714,14 +830,17 @@ export function scoreSummary(data: ScoreHistoryData, label = 'Score'): string {
   const parts: string[] = [];
   const i = lastMeanDay(data);
   if (i >= 0) {
-    let head = `${label}, 7-day mean ${formatNumber(data.mean7[i]!, data.decimals)} ${spokenUnit(data.unit)} on ${spokenDate(isoAddDays(data.startDate, i))}`;
+    const said = data.format ? (data.format.spoken ?? data.format.text) : null;
+    const meanText = said ? said(data.mean7[i]!) : `${formatNumber(data.mean7[i]!, data.decimals)} ${spokenUnit(data.unit)}`;
+    let head = `${label}, 7-day mean ${meanText} on ${spokenDate(isoAddDays(data.startDate, i))}`;
     const lo = data.normal?.lo[i] ?? NaN;
     const hi = data.normal?.hi[i] ?? NaN;
-    head += Number.isFinite(lo) && Number.isFinite(hi) ? `, your normal range ${formatNumber(lo, data.decimals)} to ${formatNumber(hi, data.decimals)}` : ', your normal range is still forming';
+    const n = (x: number) => (said ? said(x) : formatNumber(x, data.decimals));
+    head += Number.isFinite(lo) && Number.isFinite(hi) ? `, your normal range ${n(lo)} to ${n(hi)}` : ', your normal range is still forming';
     parts.push(head);
   } else parts.push(`${label}, no 7-day mean yet`);
   const nights = data.nightly.filter((v) => Number.isFinite(v)).length;
-  parts.push(`${nights} of ${data.days} nights recorded`);
+  parts.push(`${nights} of ${data.days} ${data.point?.many ?? 'nights'} recorded`);
   for (const v of data.versions ?? []) parts.push(v.label);
   for (const d of data.deviceChanges ?? []) parts.push(`${d.label} on ${spokenDate(isoAddDays(data.startDate, d.day))}`);
   if (data.compare) parts.push(`dashed line: ${data.compare.label}`);
@@ -730,15 +849,17 @@ export function scoreSummary(data: ScoreHistoryData, label = 'Score'): string {
 
 /** Crosshair readout for one night: date + "night 44 ms" · "7-day mean 42 ms" · "normal 38–47" · notes. */
 export function scorePointParts(data: ScoreHistoryData, day: number): { date: string; parts: string[] } {
-  const v = (x: number | undefined) => `${formatNumber(x ?? NaN, data.decimals)}${THIN}${data.unit}`;
+  const f = data.format?.text;
+  const v = (x: number | undefined) => (f ? f(x ?? NaN) : `${formatNumber(x ?? NaN, data.decimals)}${THIN}${data.unit}`);
   const parts: string[] = [];
   const night = data.nightly[day] ?? NaN;
-  parts.push(Number.isFinite(night) ? `night ${v(night)}` : 'no reading that night');
+  const one = data.point?.one ?? 'night';
+  parts.push(Number.isFinite(night) ? `${one} ${v(night)}` : `no reading that ${one}`);
   const mean = data.mean7[day] ?? NaN;
   if (Number.isFinite(mean)) parts.push(`7-day mean ${v(mean)}`);
   const lo = data.normal?.lo[day] ?? NaN;
   const hi = data.normal?.hi[day] ?? NaN;
-  if (Number.isFinite(lo) && Number.isFinite(hi)) parts.push(`normal ${formatRange(lo, hi, data.decimals)}`);
+  if (Number.isFinite(lo) && Number.isFinite(hi)) parts.push(`normal ${f ? `${f(lo)}–${f(hi)}` : formatRange(lo, hi, data.decimals)}`);
   const c = data.compare?.values[day] ?? NaN;
   if (data.compare && Number.isFinite(c)) parts.push(`${data.compare.label} ${v(c)}`);
   for (const x of data.versions ?? []) if (x.day === day) parts.push(x.label);
@@ -782,8 +903,8 @@ export function scoreTableRows(data: ScoreHistoryData): ScoreTableRow[] {
 }
 
 /** CSV of the score table twin. */
-export function scoreTableCSV(rows: readonly ScoreTableRow[], data: Pick<ScoreHistoryData, 'unit' | 'decimals' | 'compare'>): string {
-  const head = ['date', `night (${data.unit})`, `7-day mean (${data.unit})`, 'normal low', 'normal high', ...(data.compare ? [data.compare.label] : []), 'note'];
+export function scoreTableCSV(rows: readonly ScoreTableRow[], data: Pick<ScoreHistoryData, 'unit' | 'decimals' | 'compare' | 'point'>): string {
+  const head = ['date', `${data.point?.one ?? 'night'} (${data.unit})`, `7-day mean (${data.unit})`, 'normal low', 'normal high', ...(data.compare ? [data.compare.label] : []), 'note'];
   const lines = [head.map(csvCell).join(',')];
   for (const r of rows)
     lines.push(
@@ -794,12 +915,40 @@ export function scoreTableCSV(rows: readonly ScoreTableRow[], data: Pick<ScoreHi
   return `${lines.join('\n')}\n`;
 }
 
-/** "38–47" for a table cell, "—" when either bound is missing. */
-export function rangeText(lo: number | null, hi: number | null, decimals: number): string {
-  return lo === null || hi === null ? '—' : formatRange(lo, hi, decimals);
+/**
+ * The Table twin of a score history for a card's (i) panel: date · the night's (or day's) value · 7-day mean · normal
+ * range, and the compare and note columns only when the chart has them.
+ */
+export function scoreTwin(data: ScoreHistoryData, label = 'Score'): TwinData {
+  const rows = scoreTableRows(data);
+  const one = (data.point?.one ?? 'night').replace(/^./, (c) => c.toUpperCase());
+  const unit = data.unit ? ` (${data.unit})` : '';
+  const hasNotes = rows.some((r) => r.note);
+  const head = ['Date', `${one}${unit}`, `7-day mean${unit}`, `Normal range${unit}`, ...(data.compare ? [data.compare.label] : []), ...(hasNotes ? ['Note'] : [])];
+  return {
+    title: `${label} table`,
+    caption: `${label} by ${data.point?.one ?? 'night'}: the ${data.point?.one ?? 'night'}'s value, the 7-day mean, your normal range, and notes.`,
+    head,
+    rows: rows.map((r) => [
+      r.label,
+      cellText(r.night, data.decimals, data.format?.text),
+      cellText(r.mean, data.decimals, data.format?.text),
+      rangeText(r.normalLo, r.normalHi, data.decimals, data.format?.text),
+      ...(data.compare ? [cellText(r.compare, data.decimals, data.format?.text)] : []),
+      ...(hasNotes ? [r.note || '—'] : []),
+    ]),
+    fileName: `vitals-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'score'}.csv`,
+    rowNoun: ['day', 'days'],
+  };
 }
 
-/** A value for a table cell: "83.4", "—" when missing. */
-export function cellText(v: number | null, decimals: number): string {
-  return v === null ? '—' : formatNumber(v, decimals);
+/** "38–47" for a table cell, "—" when either bound is missing. */
+export function rangeText(lo: number | null, hi: number | null, decimals: number, text?: (v: number) => string): string {
+  if (lo === null || hi === null) return '—';
+  return text ? `${text(lo)}–${text(hi)}` : formatRange(lo, hi, decimals);
+}
+
+/** A value for a table cell: "83.4" (or the chart's own `text`, "7:56"), "—" when missing. */
+export function cellText(v: number | null, decimals: number, text?: (v: number) => string): string {
+  return v === null ? '—' : text ? text(v) : formatNumber(v, decimals);
 }

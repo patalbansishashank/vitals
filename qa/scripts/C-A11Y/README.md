@@ -21,10 +21,7 @@ Run scripts with `TMPDIR=$PWD/.e6-tmp`. Screenshots and browser profiles stay in
 
 The recorded audit used axe 4.13.0, Lighthouse 13.5.0, Playwright Core 1.63.0 and Chromium 153. Full details and limitations are in `qa/results/C-A11Y/findings.md`.
 
-`production-year.mjs` seeds the fixture's aggregate records into an isolated development store, copies only that synthetic IndexedDB state into a fresh production context, and measures Ring plus all three Signals year tabs. It reports the exact record/day counts and asserts visible imported data; the baseline deliberately excludes raw-series chunks.
-
-`pairing-focus.mjs` uses the development-only synthetic ring service to verify keyboard entry, completion, cancellation and ordinary-update focus retention; it never scans real hardware.
-
-Set `RAW=1` for `production-year.mjs` to include the fixture's five-minute HR samples and the age-based Heart day assertion; it writes `production-year-raw.json`. The synthetic seed forces the app's IndexedDB blob fallback so browser state can transfer between isolated origins. This is not an OPFS transfer test.
+`production-year.mjs` (Ring and Signals year tabs) and `pairing-focus.mjs` (ring pairing focus) were removed in 0.6.0 with
+the ring pages; their results stay in `qa/results/C-A11Y` as history.
 
 For a repeat after an integration update, `STATE_FILE` may reuse the synthetic cache produced by this harness under `.e6-tmp`; never point it at an owner's browser data. `RUNS=1` narrows the repeat. Preserve prior results with `OUTPUT` and record the measured commit.

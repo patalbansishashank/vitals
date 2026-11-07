@@ -13,7 +13,7 @@ describe('CoachComposer', () => {
   it('Enter sends, Shift+Enter starts a new line, and the field clears after sending', async () => {
     const user = userEvent.setup();
     const { onSend, field } = show();
-    expect(field).toHaveAttribute('placeholder', 'Tell the Coach what you did…');
+    expect(field).toHaveAttribute('placeholder', 'Tell the Coach or ask…');
     await user.type(field, 'had dal{Shift>}{Enter}{/Shift}and rice');
     expect(onSend).not.toHaveBeenCalled();
     expect(field).toHaveValue('had dal\nand rice');
@@ -33,11 +33,15 @@ describe('CoachComposer', () => {
   it('shows at most three prompt chips; a chip sends its text unless onChip is given', async () => {
     const user = userEvent.setup();
     const onChip = vi.fn();
-    const { onSend } = show({ chips: ['log lunch as planned', 'why is my weight up?', 'I’m busy Thursday to Saturday', 'a fourth'] });
+    const { onSend } = show({
+      chips: ['log lunch as planned', 'why is my weight up?', 'I’m busy Thursday to Saturday', 'a fourth'],
+    });
     expect(screen.getAllByRole('button', { name: /lunch|weight|busy|fourth/ })).toHaveLength(3);
     await user.click(screen.getByRole('button', { name: 'why is my weight up?' }));
     expect(onSend).toHaveBeenCalledWith({ text: 'why is my weight up?' });
-    renderLiving(<CoachComposer variant="full" onSend={vi.fn()} chips={['help me choose a plan']} onChip={onChip} />);
+    renderLiving(
+      <CoachComposer variant="full" onSend={vi.fn()} chips={['help me choose a plan']} onChip={onChip} />,
+    );
     await user.click(screen.getByRole('button', { name: 'help me choose a plan' }));
     expect(onChip).toHaveBeenCalledWith('help me choose a plan');
   });
@@ -64,7 +68,7 @@ describe('CoachComposer', () => {
     expect(input).toHaveAttribute('accept', 'image/*,application/pdf');
     const photo = new File(['x'], 'meal.jpg', { type: 'image/jpeg' });
     fireEvent.change(input, { target: { files: [photo] } });
-    expect(screen.getByText('photo attached')).toBeInTheDocument();
+    expect(screen.getByText('Photo attached')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Send' }));
     expect(onSend).toHaveBeenCalledWith({ text: '', photo });
   });
@@ -74,7 +78,9 @@ describe('CoachComposer', () => {
     expect(screen.queryByRole('button', { name: 'Add a photo or PDF' })).not.toBeInTheDocument();
     const photo = new File(['x'], 'meal.png', { type: 'image/png' });
     fireEvent.paste(field, { clipboardData: { files: [photo] } });
-    expect(screen.getByRole('status')).toHaveTextContent('This model can’t see photos. Describe the meal in words, or choose a model with vision in Settings.');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This model can’t see photos. Describe the meal in words, or choose a model with vision in Settings.',
+    );
   });
 
   it('without vision a PDF report can still be picked and sent (it is read on this device) (Q4-14)', async () => {
@@ -95,17 +101,37 @@ describe('CoachComposer', () => {
     expect(onSend).toHaveBeenCalledWith({ text: '', photo: pdf });
   });
 
-  it('with a disabled reason the field stays; sending shows the reason and a link to Settings', async () => {
+  it('disabled is honest: the field and the send key are disabled, with no chips and no attach key', async () => {
     const user = userEvent.setup();
-    const reason = 'Connect an AI provider in Settings to chat. You can still log everything by hand.';
-    const { onSend, field } = show({ disabledReason: reason });
-    expect(field).toBeEnabled();
-    expect(screen.getByRole('status')).toBeEmptyDOMElement();
-    await user.type(field, 'had oats{Enter}');
-    expect(onSend).not.toHaveBeenCalled();
-    expect(screen.getByRole('status')).toHaveTextContent(reason);
-    expect(screen.getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings/coach');
+    const { onSend, field } = show({
+      disabled: true,
+      chips: ['why is my weight up?'],
+      defaultText: 'had oats',
+    });
+    expect(field).toBeDisabled();
+    // a handed-over draft stays visible
     expect(field).toHaveValue('had oats');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Add a photo or PDF' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Suggestions' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('the send key is the gold primary; prompt chips are neutral pills', () => {
+    show({ chips: ['why is my weight up?'] });
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('data-variant', 'primary');
+    expect(screen.getByRole('button', { name: 'why is my weight up?' })).toHaveClass('lm-chip');
+  });
+
+  it('hides suggestions while the person has a draft and restores them when it is cleared', async () => {
+    const user = userEvent.setup();
+    const { field } = show({ chips: ['why is my weight up?'] });
+    expect(screen.getByRole('group', { name: 'Suggestions' })).toBeInTheDocument();
+    await user.type(field, 'my question');
+    expect(screen.queryByRole('group', { name: 'Suggestions' })).not.toBeInTheDocument();
+    await user.clear(field);
+    expect(screen.getByRole('group', { name: 'Suggestions' })).toBeInTheDocument();
   });
 
   it('bar: one line with photo and send', async () => {

@@ -1,98 +1,115 @@
 /* ==========================================================================
-   Today (design/screens/living-mode.md §4; COMPONENTS §13.8–§13.10, §4).
-   Mobile: one column (notices, next up, the plan). ≥ 1024: two equal
-   columns (the plan's timeline | next up, so far, the forecast, body
-   signals). Tokens only; chrome achromatic.
+   Today (design/screens/living-mode.md §4; COMPONENTS §13.8–§13.10), Ember.
+   Mobile: one column (the week, next up, the plan). ≥ 1024: two equal
+   columns (the plan | next up, so far, weight). Cards are the shared card
+   material (Faceplate); no inner rules, no shadows; tokens only.
    ========================================================================== */
 @layer components {
+  /* r068: the page is a Stack (the week, then the columns); from 1024 px Today keeps two equal Columns (the plan and
+     the night | what the day did so far), each a Stack, so both run the full width beside the sidebar */
   .lv-today {
     display: grid;
-    gap: 16px;
+    gap: var(--lm-stack);
   }
-  .lv-today__context {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 10px;
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink);
-  }
-  @media (min-width: 64rem) {
-    .lv-today__context {
-      display: none;
-    }
-  }
-  .lv-today__quiet {
-    display: flex;
-    justify-content: flex-end;
-  }
-  .lv-today__grid {
-    display: grid;
-    gap: 16px;
-    min-width: 0;
-  }
-  /* before day 1 the phone shows the plan card first, then the preview */
+  /* before day 1 the phone shows the plan's numbers first, then the preview */
   @media (max-width: 63.99rem) {
     .lv-today__grid--scheduled > .lv-today__side {
       order: -1;
     }
   }
-  .lv-today__main,
-  .lv-today__side {
-    display: grid;
-    gap: 16px;
-    align-content: start;
-    min-width: 0;
-  }
-  @media (min-width: 64rem) {
-    .lv-today__grid {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
-    }
-    .lv-today__main,
-    .lv-today__side {
-      grid-column: span 6;
-    }
-    /* every card is only as tall as what it holds (the plan used to fill the viewport: empty space below) */
-    .lv-today__main > *,
-    .lv-today__side > * {
-      align-self: start;
-    }
-  }
 
-  /* ---- notices zone -------------------------------------------------------- */
-  .lv-notices {
+  /* ---- the plan ------------------------------------------------------------- */
+  /* the header's one action or state ("Mark all as planned", "All done") sits on the title's row, the day's facts
+     under both, so the long fact line never pushes it onto a row of its own */
+  .lv-today-plan > .lm-face-head:has(> .lm-face-head__actions) {
     display: grid;
-    gap: 8px;
-    justify-items: stretch;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 2px 12px;
   }
-  .lv-notices > .lm-key {
-    justify-self: start;
+  .lv-today-plan > .lm-face-head:has(> .lm-face-head__actions) > .lm-face-head__label {
+    display: contents;
   }
-
-  /* ---- Today's plan -------------------------------------------------------- */
-  .lv-plan__intent {
-    margin: 0 0 12px;
-    font-size: var(--lm-text-sm);
+  .lv-today-plan > .lm-face-head:has(> .lm-face-head__actions) .lm-eng {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .lv-today-plan > .lm-face-head > .lm-face-head__actions {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+  }
+  .lv-today-plan__empty {
+    margin: 0;
     color: var(--lm-ink-2);
   }
-  .lv-plan__body {
+  /* 0.6.3: Today without a plan — one line of what a plan gives, the primary key and the simulator beside it */
+  .lv-noplan__body {
+    margin: 0;
+    max-width: 52ch;
+    color: var(--lm-ink-2);
+  }
+  .lv-noplan__keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-row-gap) var(--lm-inline);
+    margin-top: var(--lm-card-gap);
+  }
+
+  /* ---- next up: the time is the first viewport's one focal value (headline role, Lumen's big value), what
+     follows on its baseline in title-m; with no set time the item itself takes the headline role ------------- */
+  .lv-now__next {
     display: grid;
-    gap: 16px;
-    justify-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: center;
+    gap: 2px var(--lm-stack);
   }
-  .lv-plan__body[data-ring='left'] {
-    grid-template-columns: 280px minmax(0, 1fr);
-    gap: 32px;
-    align-items: start;
-    justify-items: stretch;
+  .lv-now__next[data-timed] {
+    grid-template-columns: auto minmax(0, 1fr);
   }
-  .lv-plan__rows {
-    width: 100%;
+  .lv-now__time {
+    font: var(--lm-text-headline--wt) var(--lm-text-headline) / var(--lm-text-headline--lh)
+      var(--lm-text-headline--font);
+    letter-spacing: var(--lm-text-headline--ls);
+    color: var(--lm-ink);
+  }
+  .lv-now__what {
+    display: grid;
+    gap: 2px;
     min-width: 0;
   }
-  /* how hard was today: its own card — one bank of five keys across the full width, each key a figure over its
-     word; once answered, one line "Felt hard · 4 of 5" with Undo and Change */
+  .lv-now__label {
+    font: var(--lm-text-title-m--wt) var(--lm-text-title-m) / var(--lm-text-title-m--lh)
+      var(--lm-text-title-m--font);
+    color: var(--lm-ink);
+  }
+  .lv-now__next:not([data-timed]) .lv-now__label {
+    font: var(--lm-text-title-l--wt) var(--lm-text-title-l) / var(--lm-text-title-l--lh)
+      var(--lm-text-title-l--font);
+  }
+  .lv-now__label::first-letter {
+    text-transform: uppercase;
+  }
+  .lv-now__target {
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- how hard was it: the plan card's last section, under a hairline; one bank of five keys, each a figure
+     over its word ---- */
+  .lv-hard {
+    flex: 1 1 100%;
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding-top: 16px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-hard__title.lm-section-label {
+    margin: 0;
+  }
   .lv-hard__bank.lm-bank > .lm-bank__key {
     height: auto;
     min-height: 52px;
@@ -105,13 +122,12 @@
     line-height: 1.1;
   }
   .lv-hard__opt > .lm-num {
-    font-size: var(--lm-text-base);
-    font-weight: 600;
+    font-size: var(--lm-text-md);
+    font-weight: 500;
   }
   .lv-hard__word {
     font-size: var(--lm-text-xs);
-    font-weight: 500;
-    color: var(--lm-ink-2);
+    font-weight: 400;
     white-space: nowrap;
   }
   .lv-hard__saved {
@@ -120,177 +136,164 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px 16px;
-    min-height: 36px;
+    min-height: 40px;
   }
   .lv-hard__value {
-    font-size: var(--lm-text-base);
+    font-size: var(--lm-text-md);
   }
-  .lv-hard__felt {
+  .lv-hard__felt,
+  .lv-hard__of {
     color: var(--lm-ink-2);
   }
   .lv-hard__keys {
     display: flex;
-    gap: 4px;
-  }
-  .lv-plan__empty {
-    margin: 0;
-    color: var(--lm-ink-2);
+    gap: var(--lm-inline);
   }
 
-  /* ---- 24 h dial (display) -------------------------------------------------- */
-  .lv-dial {
-    position: relative;
-    margin: 0;
-    display: grid;
-    justify-items: center;
-  }
-  .lv-dial__svg {
-    display: block;
-    overflow: visible;
-  }
-  .lv-dial__bezel {
-    fill: var(--lm-face);
-    stroke: var(--lm-line-strong);
-    stroke-width: 1;
-  }
-  .lv-dial__tick {
-    stroke: var(--lm-ink-3);
-    stroke-width: 1;
-  }
-  .lv-dial__tick--major {
-    stroke: var(--lm-ink-2);
-    stroke-width: 1.5;
-  }
-  .lv-dial__num {
-    font-size: 11px;
-    font-stretch: 75%;
-    font-variant-numeric: tabular-nums;
-    fill: var(--lm-ink-3);
-  }
-  .lv-dial__track {
-    fill: none;
-    stroke: var(--lm-line);
-    stroke-width: 1;
-  }
-  .lv-dial__window {
-    fill: none;
-    stroke: color-mix(in oklab, var(--lm-ink) 22%, transparent);
-    stroke-width: 5;
-  }
-  .lv-dial__fast {
-    fill: none;
-    stroke: var(--lm-ink-3);
-    stroke-width: 2;
-    stroke-dasharray: 2 2;
-  }
-  .lv-dial__sleep {
-    fill: none;
-    stroke: color-mix(in oklab, var(--lm-cat-recovery) 45%, transparent);
-    stroke-width: 3;
-  }
-  .lv-dial__session {
-    fill: none;
-    stroke: var(--lm-cat-performance);
-    stroke-width: 3;
-  }
-  .lv-dial__meal {
-    fill: var(--lm-ink);
-    stroke: var(--lm-face);
-    stroke-width: 1.5;
-  }
-  .lv-dial__now line {
-    stroke: var(--lm-chart-now, var(--lm-signal));
-    stroke-width: 1.5;
-  }
-  .lv-dial__now circle {
-    fill: var(--lm-signal);
-    stroke: var(--lm-signal-edge);
-    stroke-width: 1;
-  }
-  .lv-dial__centre {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-    gap: 2px;
-    padding: 0 30%;
-    text-align: center;
-    pointer-events: none;
-  }
-  .lv-dial__primary {
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1.15;
-    color: var(--lm-ink);
-  }
-  .lv-dial__secondary {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--lm-ink-2);
-  }
-
-  /* ---- So far ---------------------------------------------------------------- */
+  /* ---- so far: the dial beside two thin gold bars ---------------------------- */
   .lv-sofar__grid {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+    display: grid;
+    gap: var(--lm-card-gap);
   }
+  /* (r068 V15) the plan score as a named row: the dial, its name and what it measures, the chevron that opens the rest */
   .lv-sofar__dial {
-    flex: none;
-    padding: 4px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--lm-card-gap);
+    width: 100%;
+    padding: 0 0 var(--lm-card-gap);
     border: 0;
-    border-radius: var(--lm-radius-sm);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    border-radius: 0;
     background: none;
+    color: inherit;
+    text-align: start;
     cursor: pointer;
   }
-  .lv-sofar__lines {
+  .lv-sofar__name {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lv-sofar__title {
+    font: var(--lm-text-label--wt) var(--lm-text-label) / var(--lm-text-label--lh) var(--lm-text-label--font);
+    color: var(--lm-ink);
+  }
+  .lv-sofar__sub {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-sofar__chev {
+    color: var(--lm-ink-3);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lv-sofar__dial[aria-expanded='true'] .lv-sofar__chev {
+    transform: rotate(180deg);
+  }
+  .lv-sofar__dial:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lv-sofar__bars {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+  /* each "so far" figure: its label over a tick strip with the target tick (A.3.3) */
+  .lv-bar {
     display: grid;
     gap: 4px;
     min-width: 0;
   }
-  .lv-sofar__head,
+  .lv-bar__label {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
   .lv-sofar__line {
     margin: 0;
     font-size: var(--lm-text-sm);
     color: var(--lm-ink);
   }
-  .lv-sofar__head {
-    color: var(--lm-ink-2);
-  }
-  .lv-sofar__logged {
-    color: var(--lm-ink-2);
-  }
   .lv-sofar__open {
-    margin: 12px 0 0;
-    padding: 12px 0 0 18px;
-    border-top: 1px solid var(--lm-line);
+    display: grid;
+    gap: 4px;
+    margin: 16px 0 0;
+    padding: 0 0 0 18px;
     font-size: var(--lm-text-sm);
-    color: var(--lm-ink);
+    color: var(--lm-ink-2);
   }
 
-  /* ---- forecast ------------------------------------------------------------- */
-  .lv-forecast__line {
+  /* ---- weight: the trend weight in the readout role, its state as a chip ------- */
+  .lv-weight__readout {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: 2px 6px;
-    margin: 8px 0 0;
-    font-size: var(--lm-text-sm);
+    align-items: baseline;
+    gap: 4px;
+    margin: 0 0 8px;
+  }
+  .lv-weight__value {
+    font-size: var(--lm-readout-sm);
+    line-height: var(--lm-readout-sm--lh);
+    font-weight: 500;
     color: var(--lm-ink);
   }
-  .lv-forecast__empty,
-  .lv-forecast__shift {
+  .lv-weight__readout > .lm-unit {
+    margin-left: 0;
+  }
+  .lv-weight__word {
+    margin-left: 4px;
+    font-size: var(--lm-text-sm);
     color: var(--lm-ink-2);
   }
-  .lv-forecast__state {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-weight: 600;
+  /* (r068 G4) the state is one word on the readout's line, coloured by what it means (behind: caution gold) */
+  .lv-weight__state {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-weight__state[data-state='behind'] {
+    color: var(--lm-caution-fg);
+  }
+  /* (r068 V11) the check-in's trend line ends on where it stands */
+  .lv-checkin__state {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-checkin__state[data-state='behind'] {
+    color: var(--lm-caution-fg);
+  }
+  /* (r068 T1) the goal date and how it moved: two deliberate lines */
+  .lv-weight__line {
+    display: grid;
+    gap: 2px;
+    margin: var(--lm-card-gap) 0 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  .lv-weight__shift {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+  }
+  .lv-weight__empty,
+  .lv-weight__shift {
+    color: var(--lm-ink-2);
+  }
+  .lv-weight .lm-inline-warn {
+    margin-top: 8px;
   }
 
-  /* ---- scheduled / complete ---------------------------------------------------- */
+  /* ---- the row sheet (r068 S8): its one field takes the sheet's width, like the weigh-in; its link is a real key */
+  .lv-rowsheet__editor > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .lv-rowsheet__open.lm-key {
+    justify-self: start;
+  }
+
+  /* ---- scheduled / complete -------------------------------------------------- */
   .lv-facts {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -300,11 +303,21 @@
   .lv-facts__item {
     display: grid;
     gap: 2px;
+    min-width: 0;
+  }
+  .lv-facts__item dt,
+  .lv-facts__item dd {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lv-facts__item dt {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
   }
   .lv-facts__item dd {
     margin: 0;
-    font-size: 17px;
-    font-weight: 600;
+    font-size: var(--lm-text-md);
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lv-todo {
@@ -318,107 +331,429 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 0;
-    border-top: 1px solid var(--lm-line);
-  }
-  .lv-todo__item:first-child {
-    border-top: 0;
-    padding-top: 0;
+    min-height: 56px;
   }
   .lv-todo__item > span {
-    display: grid;
-    gap: 2px;
     min-width: 0;
-  }
-  .lv-todo__note {
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
+    font-size: var(--lm-text-md);
   }
   .lv-todo__item > .lm-key {
     flex: none;
-    margin-left: auto;
   }
-  /* phones: the key goes full width under its text */
-  @media (max-width: 39.99rem) {
-    .lv-todo__item {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .lv-todo__item > .lm-key {
-      margin-left: 0;
-      width: 100%;
-    }
+  .lv-scheduled__discard.lm-key {
+    margin-top: var(--lm-card-gap);
   }
 
-  /* ---- next up (side column on desktop, above the plan on phones) ----------- */
-  .lv-now__next {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: baseline;
-    gap: 4px 16px;
-    padding-bottom: 16px;
-    margin-bottom: 16px;
-    border-bottom: 1px solid var(--lm-line);
-  }
-  .lv-now__time {
-    font-size: 22px;
-    font-weight: 600;
-    font-stretch: 75%;
-    color: var(--lm-ink);
-  }
-  .lv-now__what {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-  }
-  .lv-now__label {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--lm-ink);
-  }
-  .lv-now__label::first-letter {
-    text-transform: uppercase;
-  }
-  .lv-now__target {
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
-  }
-  .lv-now__facts {
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  }
-  .lv-weigh {
-    display: grid;
-    gap: 12px;
-  }
-  .lv-weigh__hint {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
-  }
-  .lv-scheduled__keys {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  /* ---- check-in sheet --------------------------------------------------------- */
+  /* ---- check-in sheet: three parts, sentence-case headings ------------------- */
   .lv-checkin {
     /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
     padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
     display: grid;
-    gap: 16px;
+    gap: 24px;
+  }
+  .lv-checkin__part {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lv-checkin__readout {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 4px;
+    margin: 0;
+  }
+  .lv-checkin__value {
+    font-size: var(--lm-readout-sm);
+    line-height: var(--lm-readout-sm--lh);
+    font-weight: 500;
+  }
+  .lv-checkin__sep,
+  .lv-checkin__delta,
+  .lv-checkin__muted {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
   }
   .lv-checkin__text,
-  .lv-checkin__verdict,
   .lv-checkin__next {
-    margin: 8px 0 0;
+    margin: 0;
     font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-checkin__goal {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
   }
   .lv-checkin__verdict {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px;
+    gap: 6px 10px;
+    margin: 0;
+    font-size: var(--lm-text-sm);
   }
 
+  /* ---- the plan rail by part of the day (D18): a 24 h strip, then Morning, Afternoon, Evening as disclosure rows ---- */
+  /* (r068 G11/T12) the strip's Table key sits at the end of its one-line legend, never in an empty band of its own */
+  .lv-daystrip.lmv-strip {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--lm-card-gap);
+    margin-bottom: var(--lm-row-gap);
+  }
+  .lv-daystrip.lmv-strip > * {
+    grid-column: 1 / -1;
+  }
+  .lv-daystrip.lmv-strip > .lmv-strip__plot {
+    grid-row: 1;
+  }
+  .lv-daystrip.lmv-strip > .lmv-legend {
+    grid-column: 1;
+    grid-row: 2;
+    margin: 0;
+  }
+  .lv-daystrip.lmv-strip > .lmv-strip__head {
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
+  }
+  /* (r068 V19) phones: the legend stays one line (Eating · Fast · Training · Sleep), the Table key beside it an icon-only
+     key (its name is still "Table" to assistive technology) */
+  @media (max-width: 47.99rem) {
+    .lv-daystrip.lmv-strip > .lmv-legend {
+      flex-wrap: nowrap;
+      column-gap: 10px;
+      white-space: nowrap;
+    }
+    .lv-daystrip .lmv-twinkey {
+      gap: 0;
+      width: 32px;
+      padding-inline: 0;
+      justify-content: center;
+    }
+    .lv-daystrip .lmv-twinkey .lm-key__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+  }
+  /* the untimed stops: the same head and rule as a part of the day; their rows start at the node (no time column) */
+  .lv-groups + .lv-group--any {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-group--any .lv-day {
+    --t: 0px;
+    --gx: 6px;
+  }
+  .lv-group--any .lv-item__time {
+    display: none;
+  }
+  .lv-groups {
+    display: grid;
+  }
+  .lv-group + .lv-group {
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-bar__note {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-group__h {
+    margin: 0;
+    font: inherit;
+  }
+  .lv-group__head--static {
+    cursor: default;
+  }
+  .lv-group__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: calc(100% + 16px);
+    min-height: 44px;
+    margin: 0 -8px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--lm-radius-md);
+    background: none;
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lv-group__head:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) {
+    .lv-group__head:hover {
+      background: var(--lm-face-hover);
+    }
+    .lv-group__head--static:hover {
+      background: none;
+    }
+  }
+  .lv-group__name {
+    font-size: var(--lm-text-sm);
+    font-weight: 500;
+  }
+  .lv-group__now {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink);
+  }
+  .lv-group__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  .lv-group__count {
+    margin-inline-start: auto;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-group__chev {
+    flex: none;
+    color: var(--lm-ink-2);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lv-group__head[aria-expanded='false'] .lv-group__chev {
+    transform: rotate(-90deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lv-group__chev {
+      transition: none;
+    }
+  }
+  /* a stop's measure under its text: the sleep and fast strips, the steps dots, the night's diary times */
+  .lv-item__viz {
+    gap: 4px;
+    padding-block: 2px 4px;
+  }
+  .lv-item__diary {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+}
+
+/* (r068 V1) the desktop's two balanced columns: one grid of 1 px rows, each card spanning its own height in the column
+   BalancedColumns measured it into, so both columns end together on every kind of day; one card uses the full width */
+@layer components {
+  .lv-balance {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: 1px;
+    column-gap: var(--lm-stack);
+    align-items: start;
+    min-width: 0;
+  }
+  .lv-balance__cell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .lv-balance__cell:empty {
+    display: none;
+  }
+  /* (r068 V4) the Ring card's Measure key starts at the card's content edge, under the facts */
+  .rg-today .rg-measure {
+    padding: 0;
+    margin-top: var(--lm-card-gap);
+  }
+  /* (r068 V25) the ring's note where its cards would be: a small Ring card, its one line in stone */
+  .rg-today-notecard__line {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-balance[data-single] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    row-gap: var(--lm-stack);
+  }
+}
+
+@layer components {
+  .lv-today {
+    gap: var(--lm-card-gap);
+  }
+  .lv-day-hero__layout {
+    display: grid;
+    gap: 24px;
+  }
+  .lv-day-hero__lead {
+    display: grid;
+    align-content: start;
+    gap: 16px;
+    min-width: 0;
+  }
+  .lv-day-hero__next {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .lv-day-hero__open {
+    display: grid;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lv-day-hero__word {
+    margin: 0;
+    font: 500 28px/1.15 var(--lm-font-sans);
+    letter-spacing: -0.025em;
+    overflow-wrap: anywhere;
+  }
+  .lv-day-hero__tick {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    color: var(--lm-on-signal, #201b12);
+    font: 600 14px var(--lm-font-sans);
+    cursor: pointer;
+  }
+  .lv-day-hero__tick:hover {
+    filter: brightness(1.08);
+  }
+  .lv-day-hero__tick:active {
+    transform: scale(0.96);
+  }
+  .lv-day-hero__open:focus-visible,
+  .lv-day-hero__tick:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 4px;
+  }
+  .lv-day-hero__rail {
+    min-width: 0;
+  }
+  .lv-day-hero .lm-cardfoot {
+    flex-wrap: wrap;
+  }
+  .lv-day-hero .lv-hard {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-hard__bank .lm-keybank__label {
+    white-space: normal;
+  }
+  .lv-hard__tick {
+    display: block;
+    width: 2px;
+    height: 10px;
+    margin: 0 auto 6px;
+    background: currentColor;
+  }
+  .lv-hard__word {
+    font-size: 11px;
+  }
+  .lv-add-card {
+    display: grid;
+    margin-top: var(--lm-card-gap);
+  }
+  .lv-card-editing {
+    margin: 0 0 var(--lm-space-3);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lv-add-card > .lm-key {
+    width: 100%;
+    min-height: 48px;
+    justify-content: center;
+    border: var(--lm-hairline) dashed var(--lm-line-strong);
+    border-radius: var(--lm-radius-md);
+  }
+  .lv-day1 > summary {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .lv-day1[open] > summary {
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    margin-bottom: 12px;
+  }
+  .lv-complete .lm-gcard__body,
+  .lv-scheduled .lm-gcard__body {
+    display: grid;
+    gap: 20px;
+  }
+  .lv-hero-table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .lv-hero-table td,
+  .lv-hero-table th {
+    padding: 10px 4px;
+    text-align: start;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  @media (min-width: 1024px) {
+    .lv-day-hero__layout {
+      grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+      gap: 32px;
+    }
+    .lv-day-hero__lead {
+      padding-top: 12px;
+      position: sticky;
+      top: 100px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lv-day-hero__tick:active {
+      transform: none;
+    }
+  }
+}
+
+@layer components {
+  .lv-cards-layout,
+  .lv-cards-layout__main {
+    min-width: 0;
+  }
+  .lv-cards-layout__main {
+    container: today-main / inline-size;
+  }
+  /* A narrow card area uses one column and keeps the hero lead in document flow. The edit panel overlays Today and
+     does not change this container's width. */
+  @container today-main (max-width: 959px) {
+    .lv-day-hero__layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .lv-day-hero__lead {
+      position: static;
+      padding-top: 0;
+    }
+  }
 }

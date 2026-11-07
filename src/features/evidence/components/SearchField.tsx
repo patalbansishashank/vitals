@@ -7,7 +7,7 @@ export interface SearchFieldProps {
   value: string;
   /** Called 150 ms after typing stops, and at once on Enter / Escape / clear. */
   onCommit: (query: string) => void;
-  /** `bar` = desktop context bar, `page` = in the mobile index. */
+  /** Both live in the index header: `bar` (desktop) shows the "/" hint, `page` (phones) does not. */
   where: 'bar' | 'page';
   inputRef?: RefObject<HTMLInputElement | null>;
   /** ↓ from the field: move into the results. */
@@ -61,7 +61,7 @@ export function SearchField({
         type="search"
         className="ev-search__input"
         value={text}
-        placeholder="search mechanisms or metrics"
+        placeholder="Search the library"
         autoComplete="off"
         autoCorrect="off"
         spellCheck={false}

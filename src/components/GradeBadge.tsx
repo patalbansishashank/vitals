@@ -24,8 +24,9 @@ export interface GradeBadgeProps {
 }
 
 /**
- * Evidence grade A–D: letter + four pips. Achromatic on purpose — A solid ink,
- * B grey, C outlined, D dashed — so a grade never reads as severity or a series.
+ * Evidence grade A–D: a quiet stone text pill with the letter and four pips (the
+ * pips and the letter carry the grade). Achromatic on purpose, so a grade never
+ * reads as severity or a series.
  */
 export function GradeBadge({ grade, size = 'md', onClick, tooltip = true, className }: GradeBadgeProps) {
   const n = PIPS[grade];

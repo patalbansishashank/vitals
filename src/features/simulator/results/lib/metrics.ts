@@ -5,7 +5,8 @@
  * channel set. Pure data + pure functions; no React.
  */
 import { KJ_PER_KCAL } from '@/components';
-import { SERIES, type Presentation, type SeriesDef } from '@/engine/types/metrics';
+import { EXPLORATORY_SERIES, SERIES, isProductionGoalEligible, type Presentation, type SeriesDef, type SeriesId } from '@/engine/types/metrics';
+import type { OutputStatus } from '@/lib/bodyContracts';
 import type { DirectionOfGood, EvidenceGrade, LaneKind, MetricCategory, OverlayTransform, Threshold } from '@/features/charts';
 
 export interface UnitPrefs {
@@ -58,14 +59,62 @@ export interface DisplayMetric {
   bandNone: boolean;
   /** Daily aggregation in the engine (baseline selection: `initial` is an instantaneous value). */
   agg: SeriesDef['agg'];
+  /** Can be a Planner goal under its capability (C6), not merely goal-shaped in the catalogue. */
   goalEligible: boolean;
+  /** A latent/legacy research index (C6 `EXPLORATORY_SERIES`): shown with the status Exploratory and no range. */
+  exploratory: boolean;
+  /**
+   * The run's status for this series when it is not a plain model estimate (C6, `SimulationMeta.outputStatus`, filled by
+   * the adapter): a status outside `INTERPRETABLE_STATUSES` hides the values from `statusFromDay` on and the readout
+   * shows the status word instead of a number (never a zero, a NaN or the last value carried forward).
+   */
+  status?: OutputStatus;
+  statusFromDay?: number;
+  /**
+   * D7-02: the accepted measurement the run anchored at t = 0 (`meta.observedAnchors`), in the display unit system and its
+   * absolute unit (a change-from-start series still shows its measured start as a value, "8.0 mmol/L").
+   */
+  observed?: { value: number; unit: string };
+  /**
+   * The readout shows only this status word, never the number (C6 inline grammar): a research index whose number would
+   * read as a cellular amount, a percent adaptation, an expected lab change, a per-cycle probability, a personal bone or
+   * performance forecast or a subjective score made from physiology (D2-02, D2-06, D2-07, D2-08, D3-04, D8-05, D8-06,
+   * D8-08, D8-09). The lanes still draw the curve; its warrant and limits open in Explain.
+   */
+  wordOnly?: OutputStatus;
   sexes?: readonly ('male' | 'female')[];
 }
 
 /**
+ * Series whose readout is a status word only (see `DisplayMetric.wordOnly`): legacy signalling indices and simulated
+ * response indices read "Exploratory", the BMD research scenario "Unsupported" (no personal forecast), the task-scoped
+ * endurance index "Scenario", projected sleep quality "Estimated" (a quality word belongs to what the person enters).
+ */
+export const WORD_ONLY: ReadonlyMap<string, OutputStatus> = new Map<string, OutputStatus>([
+  ['autophagyIdx', 'exploratory'],
+  ['mtorIdx', 'exploratory'],
+  ['ampkIdx', 'exploratory'],
+  ['mps', 'exploratory'],
+  ['ketoAdaptation', 'exploratory'],
+  ['ketoAdaptFast', 'exploratory'],
+  ['ketoAdaptSlow', 'exploratory'],
+  ['igf1', 'exploratory'],
+  ['leptin', 'exploratory'],
+  ['t3', 'exploratory'],
+  ['cortisol', 'exploratory'],
+  ['testosterone', 'exploratory'],
+  ['menstrualRisk', 'exploratory'],
+  ['adherence', 'exploratory'],
+  ['micronutrientScore', 'exploratory'],
+  ['hipBmdChange', 'unavailable'],
+  ['enduranceCapacity', 'scenario'],
+  ['sleepQuality', 'estimated'],
+]);
+
+/**
  * The recommended core set shown on first run (design/COMPONENTS.md §7 MetricPicker "Default set"): fat mass, lean
  * mass, scale weight, glycogen, blood ketones, hunger pressure, metabolic adaptation, energy expenditure. Lean mass is
- * the engine's protein-based lean tissue (the DXA-equivalent lean mass swings with glycogen and water; MODEL_SPEC §6).
+ * the engine's protein-based lean tissue (the inferred non-fat scale mass swings with glycogen and water; MODEL_SPEC §6).
  */
 export const CORE_METRIC_IDS = [
   'fatMass',
@@ -87,10 +136,12 @@ export const MAX_PINNED = 3;
 /** Display names where the catalogue's label is too long for a 168 px lane gutter; the full name stays in Explain. */
 const LABEL: Record<string, string> = {
   leanTissue: 'Lean tissue',
-  leanMass: 'Lean mass (DXA)',
+  // C4: wake scale weight minus model fat mass — glycogen, water and gut included; not DXA lean or muscle
+  leanMass: 'Non-fat scale mass',
   tdee: 'Energy expenditure',
-  adherence: 'Plan adherence',
-  menstrualRisk: 'Cycle disturbance risk',
+  // D2-06: a model index, never "adherence" as a chance of keeping to the plan
+  adherence: 'Adherence index',
+  menstrualRisk: 'Cycle disturbance index',
   rtMuscleGain: 'Lean from training',
   micronutrientScore: 'Micronutrients',
   hipBmdChange: 'Hip bone density',
@@ -100,7 +151,7 @@ const LABEL: Record<string, string> = {
 const SHORT: Record<string, string> = {
   scaleWeight: 'scale weight',
   fatMass: 'fat mass',
-  leanMass: 'lean mass (DXA)',
+  leanMass: 'non-fat scale mass',
   leanTissue: 'lean tissue',
   skeletalMuscle: 'muscle',
   bodyFatPct: 'body fat',
@@ -131,8 +182,8 @@ const SHORT: Record<string, string> = {
   t3: 'T3',
   cortisol: 'cortisol',
   testosterone: 'testosterone',
-  menstrualRisk: 'cycle risk',
-  adherence: 'adherence',
+  menstrualRisk: 'cycle index',
+  adherence: 'adherence index',
   insulinSensitivity: 'insulin sensitivity',
   ldl: 'LDL',
   apoB: 'ApoB',
@@ -173,7 +224,7 @@ const MECHANISM: Record<string, string> = {
   metabolicAdaptation: 'Expenditure drifts below what body size predicts during a deficit and recovers slowly afterwards.',
   tdee: 'Resting rate, digestion, everyday movement and exercise; falls with body mass and adaptation.',
   maintenance: 'The intake that would hold weight today; it moves as body mass and adaptation change.',
-  autophagyIdx: 'A relative model signal that rises with long gaps without food; not a measurement.',
+  autophagyIdx: 'A legacy research index that rises with long gaps without food; not a measurement of autophagy.',
   insulinSensitivity: 'Improves with fat loss, training and lower liver fat.',
   ldl: 'Follows saturated fat, weight change and very-low-carbohydrate eating; shown as change from your baseline.',
 };
@@ -342,7 +393,9 @@ export function toDisplayMetric(d: SeriesDef, prefs: UnitPrefs = METRIC_UNITS): 
     bandFallback: parseBand(d.bandFallback ?? (d.band !== 'draws' ? d.band : undefined)),
     bandNone: d.band === 'none',
     agg: d.agg,
-    goalEligible: d.goal !== 'none',
+    goalEligible: isProductionGoalEligible(d.id),
+    exploratory: EXPLORATORY_SERIES.has(d.id as SeriesId),
+    ...(WORD_ONLY.has(d.id) ? { wordOnly: WORD_ONLY.get(d.id)! } : {}),
     sexes: d.sexes,
   };
 }

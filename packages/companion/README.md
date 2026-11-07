@@ -1,6 +1,6 @@
 # vitals-companion
 
-A small Node (≥ 22.18) program that runs on a machine you own and gives Vitals what a static web app cannot do alone:
+A small Node (≥ 26.10.0) program that runs on a machine you own and gives Vitals what a static web app cannot do alone:
 a sync relay for your devices, a proxy for AI providers that need a server-held key or sign-in (NVIDIA NIM, OpenCode Zen,
 Sign in with ChatGPT), and an MCP server so local agents (Claude, Codex, Hermes, OpenClaw) can use Vitals. Everything
 runs on one port, default `127.0.0.1:4870`.
@@ -12,7 +12,7 @@ npx vitals-companion serve            # once published to npm
 node packages/companion/bin/vitals-companion.mjs serve   # from this repository
 ```
 
-No build step: Node runs the TypeScript sources directly (type stripping, Node 22.18+ / 23.6+).
+No build step: Node runs the TypeScript sources directly. Node 26.10.0 or newer is required for the sync runtime APIs as well as type stripping; the tested development/CI pin is in [`.nvmrc`](../../.nvmrc).
 
 On your PATH: `node packages/companion/bin/vitals-companion.mjs install` writes a wrapper to `~/.local/bin`. Then
 `vitals-companion doctor` checks the computer, `vitals-companion agents register <codex|opencode|claude|chatgpt>` adds

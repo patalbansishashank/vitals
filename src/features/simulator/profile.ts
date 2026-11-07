@@ -1,3 +1,4 @@
+import { renalSafetyFlags } from '@/lib/renalScope';
 /**
  * The engine profile a Simulator run uses: the Your-body `PersonProfile` (`usePersonProfile()` from the profile
  * store) with the screening outcome merged in as engine safety `{mode, flags}` — the profile store leaves that to the
@@ -9,6 +10,7 @@ import { useSafetyAccess, type SafetyAccess } from '@/features/onboarding';
 import { useBodyContext, usePersonProfile } from '@/state/profileStore';
 import { withMarkerLabs } from '@/markers/baselines'; // E20: markers
 import { markersToday, useMarkersDoc } from '@/markers/ui/markersDoc'; // E20: markers
+import { useMarkerRuleContext } from '@/markers/ui/useMarkers';
 
 type Flag = SafetyAccess['outcome']['flags'][number];
 
@@ -30,12 +32,17 @@ const INTERACTING: readonly Flag[] = [
   'corticosteroid',
   'qt-prolonging',
   'chemotherapy',
+  'antacid',
   'anticoagulant',
   'thyroid-hormone',
   'other-medication',
 ];
 
-/** Screening outcome → engine SafetyFlags (only flags the engine reads; absent = false). */
+/**
+ * Screening outcome → engine SafetyFlags (only flags the engine reads; absent = false). C5: the SAME encoding as the
+ * planner request's `profileSafetyFrom` (src/features/planner/request.ts; parity test `safetyEncoder.parity.test.ts`), so a
+ * planner certificate made under the current screening verifies at lifecycle boundaries that read this profile.
+ */
 export function engineSafety(access: Pick<SafetyAccess, 'outcome' | 'fasting'>): {
   mode: SafetyMode;
   flags: SafetyFlags;
@@ -59,11 +66,11 @@ export function engineSafety(access: Pick<SafetyAccess, 'outcome' | 'fasting'>):
   if (has('rare-metabolic')) flags.fatOxidationDisorderOrPorphyria = true;
   if (INTERACTING.some(has)) flags.medicationInteraction = true;
   if (has('exercise-symptoms')) flags.faintingOrChestPain = true;
-  if (has('supervised-exercise-only')) flags.exerciseRestriction = true;
+  if (has('supervised-exercise-only') || has('musculoskeletal')) flags.exerciseRestriction = true;
   if (has('heavy-alcohol')) flags.heavyAlcoholUse = true;
   if (has('recent-illness')) flags.acuteIllnessLast4Weeks = true;
-  const tier = access.fasting.optedTier;
-  if (tier) flags.fastingOptIn = tier;
+  flags.fastingOptIn = access.fasting.optedTier ?? 'none';
+  if (access.outcome.renal) Object.assign(flags, renalSafetyFlags(access.outcome.renal));
   return { mode: access.outcome.mode, flags };
 }
 
@@ -72,8 +79,9 @@ export function useSimulatorProfile(): PersonProfile {
   const bodyProfile = usePersonProfile();
   // E20: markers — entered blood results replace the population starting values (Body page labs stay the fallback)
   const markersDoc = useMarkersDoc();
-  const today = markersToday();
-  const profile = useMemo(() => withMarkerLabs(bodyProfile, markersDoc, today), [bodyProfile, markersDoc, today]);
+  // D7-05: the marker rule context (diet and medication change dates), the same freshness the rules use
+  const ruleCtx = useMarkerRuleContext(markersToday());
+  const profile = useMemo(() => withMarkerLabs(bodyProfile, markersDoc, ruleCtx), [bodyProfile, markersDoc, ruleCtx]);
   const access = useSafetyAccess(useBodyContext());
   // keyed by value: an equal screening outcome keeps the same profile object (stable hashes, no re-runs)
   const safetyKey = JSON.stringify(engineSafety(access));

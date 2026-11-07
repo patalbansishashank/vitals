@@ -77,6 +77,8 @@ describe('evidence content', () => {
       for (const m of topic.mechanisms) {
         check(`mechanism ${m.id}`, m.referenceIds);
         for (const k of m.keyNumbers) check(`mechanism ${m.id} key number "${k.label}"`, k.referenceIds);
+        for (const o of m.observations ?? [])
+          check(`mechanism ${m.id} observation "${o.tissue}"`, o.referenceIds);
       }
       for (const myth of topic.myths) check(`myth ${myth.id}`, myth.referenceIds);
       expect(unresolved, `unresolved references in topic ${topic.dossier}`).toEqual([]);

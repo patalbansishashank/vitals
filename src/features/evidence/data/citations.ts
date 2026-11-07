@@ -95,24 +95,6 @@ export function studyTags(ref: Reference): string[] {
   return tags;
 }
 
-export type VerificationFlag = 'abstract' | 'unverified';
-
-/** Only sources the dossier could not fully check carry a flag. */
-export function verificationFlag(ref: Reference): VerificationFlag | null {
-  return ref.verification === 'abstract' || ref.verification === 'unverified' ? ref.verification : null;
-}
-
-export const VERIFICATION_TEXT: Record<VerificationFlag, { short: string; long: string }> = {
-  abstract: {
-    short: 'checked at abstract level only',
-    long: 'The research team could confirm this source from its abstract, not the full paper.',
-  },
-  unverified: {
-    short: 'unverified',
-    long: 'The research team could not confirm this citation. Treat numbers that rest on it with care.',
-  },
-};
-
 /** APA-like plain-text citation for the copy key. */
 export function formatCitation(ref: Reference): string {
   const authors = ref.authors.trim().replace(/[.;,]+$/, '');
@@ -126,16 +108,6 @@ export function formatCitation(ref: Reference): string {
         ? ` ${ref.url}`
         : '';
   return `${authors} (${ref.year}). ${title}. ${journal}.${link}`;
-}
-
-/** Count sources by verification state. */
-export function verificationSummary(refs: readonly NumberedReference[]): Record<VerificationFlag, number> {
-  const out: Record<VerificationFlag, number> = { abstract: 0, unverified: 0 };
-  for (const { ref } of refs) {
-    const f = verificationFlag(ref);
-    if (f) out[f] += 1;
-  }
-  return out;
 }
 
 /**

@@ -3,13 +3,12 @@
  * For other screens: the document reader, the Body pieces and the paths. Import from '@/features/intake'.
  */
 export { useIntakeDoc, readIntake, turnsOf } from './doc';
-export { IntakeReminderChip, MaintenanceFace, NormalDaySummary, SetupFace, useBodyFlowContext } from './BodyIntake';
+export { IntakeReminderChip, MaintenanceFace, useBodyFlowContext } from './BodyIntake';
 export { intakePath, type IntakeFrom } from './paths';
 export type {
   ActivitySection,
   ChapterAnswers,
   ChapterId,
-  DevicesSection,
   DietProfile,
   DietSection,
   EquipmentProfile,
@@ -17,8 +16,6 @@ export type {
   IntakeDoc,
   IntakeSectionId,
   KitchenProfile,
-  StreamOptIns,
-  StreamPolicy,
   SupplementsAnswer,
   TrainingPreferences,
   TrainingSection,

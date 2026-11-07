@@ -1,0 +1,209 @@
+{
+  "route": "/v1/gauge/series",
+  "tool": "gauge_metric_series",
+  "args": {
+    "kind": "stress",
+    "from": "2026-10-20",
+    "to": "2026-10-20",
+    "limit": 20
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "20 ring app stress readings (index (device scale)) from 2026-10-20T00:00:00+05:30 to 2026-10-20T23:59:59+05:30 (more on the next page).",
+    "data": {
+      "kind": "stress",
+      "bucket": "raw",
+      "unit": "index (device scale)",
+      "from": "2026-10-20T00:00:00+05:30",
+      "to": "2026-10-20T23:59:59+05:30",
+      "count": 20,
+      "truncated": true,
+      "next": "WyJtIiwxNzkyNDkwNDAwMDAwLCJwbC0xMmY2ZjM5ZWU1NmI4MmMzMWY0NzhlNjEzOWNiNDZhZGQ5NmNlMjZkIl0",
+      "note": "More readings: pass next as cursor for the next 20 (oldest first).",
+      "points": [
+        {
+          "at": "2026-10-20T06:00:00+05:30",
+          "value": 20,
+          "provenance": "device_live",
+          "id": "pl-3c71994685df6025d9b5fa2abea58189bd06da97",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T06:30:00+05:30",
+          "value": 27,
+          "provenance": "device_live",
+          "id": "pl-a79b0ea1dc8819197037e275af0f649b574415d9",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T07:00:00+05:30",
+          "value": 34,
+          "provenance": "device_live",
+          "id": "pl-9ce2ec0724f971307ffbe8cad9d9227daf1455c6",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T07:30:00+05:30",
+          "value": 41,
+          "provenance": "device_live",
+          "id": "pl-5c5200d08f6a407e5c61df9b01e34ce32b5dd736",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T08:00:00+05:30",
+          "value": 48,
+          "provenance": "device_live",
+          "id": "pl-9e4d50dfd299d2cdd0b5ea69b5f7cf425892583d",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T08:30:00+05:30",
+          "value": 55,
+          "provenance": "device_live",
+          "id": "pl-0a19a711ab21dbc060cdac80d3f3bb02d4f505d9",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T09:00:00+05:30",
+          "value": 62,
+          "provenance": "device_live",
+          "id": "pl-942ba935e13aabd5d2f64b314a11f4d450d5f078",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T09:30:00+05:30",
+          "value": 69,
+          "provenance": "device_live",
+          "id": "pl-b4acf95f2f29b3eefd925187913756017f106718",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T10:00:00+05:30",
+          "value": 76,
+          "provenance": "device_live",
+          "id": "pl-002bcc84792d4d1b4c8e504857d066c5b6dc7c65",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T10:30:00+05:30",
+          "value": 83,
+          "provenance": "device_live",
+          "id": "pl-1c9f2d639cad364c3dd92346ea3d7d4223d9afd0",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T11:00:00+05:30",
+          "value": 20,
+          "provenance": "device_live",
+          "id": "pl-d2b7b5272fc5f34dba0526736b1e07ab7ec075b8",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T11:30:00+05:30",
+          "value": 27,
+          "provenance": "device_live",
+          "id": "pl-640ac535a1f8524c9abe244c0575fb925bc7a198",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T12:00:00+05:30",
+          "value": 34,
+          "provenance": "device_live",
+          "id": "pl-66df8bc67d27e13ef4f24f09c859baf742b1d2d3",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T12:30:00+05:30",
+          "value": 41,
+          "provenance": "device_live",
+          "id": "pl-41736fd5a5f4f87961ac36b313f7902c964bfe83",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T13:00:00+05:30",
+          "value": 48,
+          "provenance": "device_live",
+          "id": "pl-d048821b050aa1185ada3706d4fff169e1a341e7",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T13:30:00+05:30",
+          "value": 55,
+          "provenance": "device_live",
+          "id": "pl-fb8ab72d92f658b6b01aa1cb42e29ec24615ca86",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T14:00:00+05:30",
+          "value": 62,
+          "provenance": "device_live",
+          "id": "pl-fe42ff0806834ed109ddf198d73cc4ed8b1bcbd1",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T14:30:00+05:30",
+          "value": 69,
+          "provenance": "device_live",
+          "id": "pl-3865f47f710fb85c40105e471231d25aab813b25",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T15:00:00+05:30",
+          "value": 76,
+          "provenance": "device_live",
+          "id": "pl-fc458dcfc3aacd4f349ec77df50dcd1f34c9e969",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        },
+        {
+          "at": "2026-10-20T15:30:00+05:30",
+          "value": 83,
+          "provenance": "device_live",
+          "id": "pl-12f6f39ee56b82c31f478e6139cb46add96ce26d",
+          "quality": "unverified",
+          "source": "ring:installation:6f1d2c3b4a594e8f9d0123456789abcd"
+        }
+      ],
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T15:30:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 480
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

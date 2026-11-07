@@ -1,0 +1,95 @@
+/* ==========================================================================
+   The r071 pictures (RadialTicks, DottedTrack, GlowLine, HighlightBars, RangeScale, StackBar, WindowBar), shared
+   base. Each picture keeps its own stylesheet beside it; this file holds only what they share. It is NOT viz.css:
+   that file belongs to the retiring pictures and its contract test bans glows, gradients and uppercase.
+
+   Colour rules (RESEARCH §3.2): tokens only, no hex. Focal marks (the line, its end dot, lit ticks, the thumb) are
+   ivory; the hue lives in the card's glow and in secondary marks (today's bar, in-range ticks). Text wears text
+   tokens, never the series colour. The unlit remainder is decorative (the value is always in text and in the
+   aria-label), so it is not held to 3:1; every lit mark and data mark is.
+
+   Motion (AUDIT §4.2): `data-reveal="pending"` is on a picture's root until it is first 20 % in view (`useInView` of src/app/motion.ts)
+   and absent afterwards and whenever motion cannot run. The pending rules hold the hidden values; the base rules hold
+   the transitions; removing the attribute is the animation. Only transform, opacity, clip-path, stroke-dashoffset and
+   stroke colour animate. Reduced motion needs no rule here: nothing is ever pending then, and base.css zeroes the
+   transition durations as the backstop.
+   ========================================================================== */
+@layer components {
+  .lmz {
+    position: relative;
+    min-width: 0;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+    --lmz-lit: var(--lm-ink);
+    --lmz-unlit: var(--lm-unlit);
+    --lmz-hue: var(--lm-hue, var(--lm-ink-2));
+    --lmz-ink-h: var(--lm-ink-h, var(--lm-ink));
+    --lmz-dim: var(--lm-dim, var(--lm-unlit));
+    --lmz-gap: var(--lm-face);
+  }
+  .lmz svg {
+    display: block;
+    overflow: visible;
+  }
+  .lmz-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* hover and focus read-out, shared by every picture that has one: values lead, the name follows (dataviz) */
+  .lmz-tip {
+    position: absolute;
+    z-index: 2;
+    max-width: 240px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    border: var(--lm-hairline) solid var(--lm-line-strong);
+    background: var(--lm-elevated);
+    color: var(--lm-ink-2);
+    font-family: var(--lm-font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 400;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translate(-50%, calc(-100% - 8px));
+  }
+  .lmz-tip__v {
+    color: var(--lm-ink);
+    font-weight: 500;
+  }
+
+  /* the inline Table twin and its key */
+  .lmz-twin {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+    justify-items: start;
+  }
+  .lmz-twin > .lmc-twin {
+    justify-self: stretch;
+  }
+
+  /* a loading picture holds its frame at rest */
+  .lmz[data-state='loading'] {
+    opacity: 0.6;
+  }
+
+  @media (forced-colors: active) {
+    .lmz {
+      --lmz-lit: CanvasText;
+      --lmz-unlit: GrayText;
+      --lmz-hue: Highlight;
+      --lmz-ink-h: CanvasText;
+      --lmz-dim: GrayText;
+      --lmz-gap: Canvas;
+    }
+  }
+}

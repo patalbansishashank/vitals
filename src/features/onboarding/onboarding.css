@@ -1,45 +1,32 @@
 /* ==========================================================================
-   Vitals onboarding + safety surfaces (design/screens/onboarding-safety.md).
-   Tokens only; dark mode is automatic. Notices stay achromatic: colour lives on
-   the drawn status mark (REVIEW_FINDINGS #5). Text inside the example recording
-   is HTML, never scaled SVG text (REVIEW_FINDINGS #8).
+   Vitals onboarding + safety surfaces (design/screens/onboarding-safety.md), Ember (SPEC §1–§5).
+   Tokens only, dark only. The page backdrop (grain + wash) is the shell's body::before: no wrapper here paints a
+   background. Cards use the card material (`lm-material` / Faceplate); notices stay achromatic, the colour lives on
+   the drawn status mark. Geist type with shared reading and card roles.
    ========================================================================== */
 
 @layer components {
-  /* The sticky footer can wrap its help text. Keep focused questions and links above it. */
+  /* Focused questions and links scroll clear of the sticky foot (its measured height, safe area included, + 24 px). */
   html:has(.lm-onb-foot) {
-    scroll-padding-bottom: calc(160px + var(--lm-safe-bottom));
+    scroll-padding-bottom: calc(var(--lm-onb-foot-h, 96px) + 24px);
   }
+
   /* ---- setup frame: no tab bar, no rail (spec §3) ------------------------ */
+  /* focus and anchor scrolling keep clear of the sticky header (title row + segments row, safe area included) */
+  html:has(.lm-onb) {
+    scroll-padding-top: calc(104px + var(--lm-safe-top));
+  }
   .lm-onb {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
     min-height: 100dvh;
-    background: var(--lm-chassis);
   }
-  .lm-onb__bar {
-    position: sticky;
-    top: 0;
-    z-index: var(--lm-z-sticky);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: calc(var(--lm-topbar-h) + var(--lm-safe-top));
-    padding: var(--lm-safe-top) calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
-    background: var(--lm-chassis-2);
-    border-bottom: 1px solid var(--lm-line-strong);
-  }
-  .lm-onb__bar[data-back='true'] {
-    padding-left: calc(8px + var(--lm-safe-left));
-  }
-  .lm-onb__barspacer {
-    flex: 1;
-  }
-  @media (min-width: 64rem) {
-    .lm-onb__bar {
-      padding-inline: var(--lm-gutter-lg);
-    }
+  /* the header: the setup flow's one intake header, drawn with the shell's pushed-header classes (.lm-ctx-slot,
+     .lm-ctx[data-phone='pushed'] in src/styles/shell.css) so it matches the intake chapters exactly: Back, the centred
+     step name, the segments row; the shell's tintless scroll frost (`--lm-frost` written by WelcomePage) */
+  .lm-onb__bar .lm-title:focus {
+    outline: none;
   }
   .lm-onb__main {
     flex: 1;
@@ -49,137 +36,194 @@
     outline: none;
   }
 
-  /* ---- 3-segment progress scale (not numbers) ---------------------------- */
-  .lm-onb-progress {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  /* ---- the setup flow's segments (FlowSteps.tsx): the welcome steps and the intake chapters, one look ----
+     One 4 px pill per step, in whole states: finished = bronze (the gold step the maintenance bar uses on /body),
+     the step you are on = gold, later or unfinished = the card-soft track. No partial fill, so no square stub. Full
+     width on phones, a centred 420 px row under the centred title from 768 px. No count, no names. */
+  .lm-steps {
+    --lm-steps-done: color-mix(in oklab, var(--lm-signal) 52%, var(--lm-face));
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  .lm-onb-progress li {
-    position: relative;
-    width: 28px;
+  @media (min-width: 48rem) {
+    .lm-steps {
+      width: min(100%, 420px);
+      justify-self: center;
+    }
+  }
+  .lm-steps__seg {
+    display: block;
+    min-width: 0;
+  }
+  .lm-steps__bar {
+    display: block;
     height: 4px;
-    border-radius: 2px;
-    background: var(--lm-well);
-    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-raised);
+    transition: background-color var(--lm-dur-base) var(--lm-ease-out);
   }
-  .lm-onb-progress li[data-state='done'],
-  .lm-onb-progress li[data-state='current'] {
-    background: var(--lm-ink);
-    box-shadow: none;
+  .lm-steps__seg[data-state='done'] > .lm-steps__bar {
+    background: var(--lm-steps-done);
   }
-  /* the yellow indicator light sits above the current segment */
-  .lm-onb-progress li[data-state='current']::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: -9px;
-    width: 6px;
-    height: 6px;
-    margin-left: -3px;
-    border-radius: 50%;
+  .lm-steps__seg[data-state='current'] > .lm-steps__bar {
     background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
   }
 
   /* ---- columns ----------------------------------------------------------- */
+  /* (r068 final U5) no max-width: the welcome steps fill the page between the gutters like every other page; only
+     prose is held to a measure (in ch) */
   .lm-onb-col {
     width: 100%;
-    max-width: calc(640px + 2 * var(--lm-gutter));
-    margin: 0 auto;
-    padding: 20px calc(var(--lm-gutter) + var(--lm-safe-right)) 24px calc(var(--lm-gutter) + var(--lm-safe-left));
+    margin: 0;
+    padding: 12px calc(var(--lm-gutter) + var(--lm-safe-right)) 24px calc(var(--lm-gutter) + var(--lm-safe-left));
     display: grid;
     gap: 16px;
     align-content: start;
   }
   @media (min-width: 64rem) {
     .lm-onb-col {
-      padding-top: 40px;
+      padding: 32px var(--lm-gutter-lg) 24px;
       gap: 20px;
     }
   }
-  .lm-onb-head {
-    display: grid;
-    gap: 6px;
-    margin-bottom: 4px;
-  }
-  .lm-onb-head .lm-title {
-    outline: none;
-  }
-  @media (min-width: 64rem) {
-    .lm-onb-head .lm-title {
-      font-size: var(--lm-text-2xl);
-      line-height: var(--lm-text-2xl--lh);
-    }
-  }
+  /* the hard stop's one paragraph under the header */
   .lm-onb-lead {
     margin: 0;
-    font-size: var(--lm-text-md);
-    line-height: var(--lm-text-md--lh);
-    color: var(--lm-ink);
+    font-size: var(--lm-text-body-l);
+    line-height: var(--lm-text-body-l--lh);
+    font-weight: 400;
+    color: var(--lm-ink-2);
     text-wrap: pretty;
   }
-  .lm-onb-sub {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
-  }
 
-  /* ---- "why we ask" disclosure ------------------------------------------ */
+  /* ---- disclosures ("Why we ask", "Full disclaimer"): gold text with a chevron that turns down ---- */
+  /* "Why we ask": a full-width disclosure row in the card's language, the chevron at the trailing edge (r068 WE-1) */
   .lm-onb-why {
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
+    padding: 0 var(--lm-card-pad);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
   }
   .lm-onb-why > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    min-height: 48px;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+    cursor: pointer;
+    list-style: none;
+  }
+  .lm-onb-disclosure {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    min-height: 32px;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 400;
+    color: var(--lm-signal);
     cursor: pointer;
-    list-style: none;
-    color: var(--lm-ink);
-    font-weight: 500;
-    text-decoration: underline;
-    text-decoration-color: var(--lm-edge);
-    text-underline-offset: 3px;
-    border-radius: 2px;
+    border-radius: var(--lm-radius-xs);
   }
   .lm-onb-why > summary::-webkit-details-marker {
     display: none;
   }
   .lm-onb-why > summary .lm-icon {
+    color: var(--lm-ink-2);
+    transform: rotate(90deg);
     transition: transform var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-onb-why[open] > summary .lm-icon {
-    transform: rotate(90deg);
+    transform: rotate(-90deg);
   }
   .lm-onb-why > p {
-    margin: 4px 0 0;
-    max-width: 60ch;
+    margin: 0;
+    padding-bottom: var(--lm-card-pad);
+    max-width: 68ch;
+  }
+  .lm-onb-why > summary:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+  @media (hover: hover) {
+    .lm-onb-why > summary:hover {
+      color: var(--lm-signal);
+    }
+    .lm-onb-disclosure:hover {
+      color: var(--lm-signal-hover);
+    }
   }
 
-  /* ---- question cards ---------------------------------------------------- */
-  .lm-onb-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 8px 0 -4px;
+  /* the screening form fills the page: from 1280 px its question groups run in two columns (r068 G-4) */
+  @media (min-width: 80rem) {
+    /* two stacks chosen by height (ScreeningForm SPLIT_START), each a column of groups (r068 V-WE-2) */
+    .lm-onb-groups[data-split='true'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+    .lm-onb-groups__col {
+      display: grid;
+      gap: 24px;
+      min-width: 0;
+    }
   }
-  .lm-onb-group::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--lm-line-strong);
+
+  /* ---- question groups: one card per group, its title above; questions split by inset hairlines ---- */
+  .lm-onb-groups {
+    display: grid;
+    gap: 24px;
+  }
+  .lm-onb-group {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lm-onb-group__title {
+    margin: 0;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-onb-group__card {
+    display: grid;
+    min-width: 0;
+    padding: 0 var(--lm-card-pad);
+  }
+  @media (min-width: 64rem) {
+    .lm-onb-group__card {
+      padding-inline: var(--lm-card-pad-lg);
+    }
+  }
+  .lm-onb-groups__item {
+    min-width: 0;
+    padding-block: var(--lm-card-pad);
+  }
+  .lm-onb-groups__item + .lm-onb-groups__item {
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-onb-q {
     display: grid;
     gap: 12px;
-    scroll-margin-top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 16px);
+    min-width: 0;
+    scroll-margin-top: calc(104px + var(--lm-safe-top));
     scroll-margin-bottom: 96px;
   }
   .lm-onb-fs {
@@ -193,16 +237,16 @@
   .lm-onb-q__legend {
     padding: 0;
     margin: 0 0 2px;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 600;
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 500;
     color: var(--lm-ink);
     text-wrap: pretty;
   }
   .lm-onb-q__help {
     margin: -6px 0 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
   }
   .lm-onb-q .lm-bank {
@@ -212,29 +256,85 @@
   .lm-onb-fs > .lm-bank:not([data-block='true']) {
     justify-self: start;
   }
-  .lm-onb-q .lm-bank[data-orientation='vertical'] {
-    width: 100%;
+  /* age, pregnancy: radio rows on the group's surface, split by inset hairlines (never a bordered box in the card) */
+  .lm-onb-choices {
+    display: grid;
+    min-width: 0;
   }
-  @media (min-width: 48rem) {
-    .lm-onb-q .lm-bank[data-orientation='vertical'] {
-      width: auto;
-      min-width: 280px;
-      justify-self: start;
+  .lm-onb-choice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
+    color: var(--lm-ink);
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lm-onb-choice + .lm-onb-choice {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-onb-choice__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lm-onb-choice__mark {
+    flex: none;
+    position: relative;
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 1.5px solid var(--lm-ink-3);
+    transition: border-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-onb-choice[aria-checked='true'] .lm-onb-choice__mark {
+    border-color: var(--lm-signal);
+  }
+  .lm-onb-choice[aria-checked='true'] .lm-onb-choice__mark::after {
+    content: '';
+    position: absolute;
+    inset: 3.5px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  .lm-onb-choice:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+  @media (hover: hover) {
+    .lm-onb-choice:hover .lm-onb-choice__mark {
+      border-color: var(--lm-ink-2);
+    }
+    .lm-onb-choice[aria-checked='true']:hover .lm-onb-choice__mark {
+      border-color: var(--lm-signal-hover);
     }
   }
   .lm-onb-follow {
     display: grid;
     gap: 10px;
     padding-top: 12px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
     animation: lm-onb-reveal var(--lm-dur-base) var(--lm-ease-out) both;
   }
   .lm-onb-follow__legend {
     padding: 0;
     margin: 0 0 2px;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    font-weight: 600;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lm-onb-checks {
@@ -249,7 +349,7 @@
   .lm-onb-checks .lm-check {
     min-height: 32px;
   }
-  /* SCOFF / SARC-F rows: sentence left, bank right on wide screens */
+  /* SCOFF / SARC-F rows: the sentence over its bank */
   .lm-onb-rows {
     display: grid;
   }
@@ -257,7 +357,7 @@
     display: grid;
     gap: 8px;
     padding: 12px 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-onb-row:first-child {
     border-top: 0;
@@ -268,8 +368,8 @@
     width: 100%;
     padding: 0;
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
     text-wrap: pretty;
   }
@@ -280,7 +380,7 @@
     justify-self: start;
   }
 
-  /* consequences (spec §7: inline, 200 ms expand) */
+  /* consequences (spec §7: inline under the question, 200 ms expand) */
   .lm-onb-consequence:empty {
     display: none;
   }
@@ -302,125 +402,150 @@
     }
   }
 
-  /* ---- sticky action bar (Continue) -------------------------------------- */
+  /* ---- the step's foot (Continue): sticky at the bottom edge, the keys on a control pill ----
+     Built like the intake's docked toolbar (shell.css `.lm-actionbar-slot[data-docked]`), so the welcome steps and the
+     chapters end the same way: the dock's insets (4 px around the pill, 10 px at the sides, the safe areas added) and
+     the nav pill's material (64 px, round ends, the card at 95 %, a hairline), so the page scrolling under the foot
+     never shows through the key or its note. Around it, the header's tintless frost mirrored: three blur layers
+     (4 / 9 / 14 px) that hold through the foot and fade out over the 24 px above it, no fill, no line. The foot keeps
+     its room in the flow, and focus scrolling keeps clear of its measured height (`--lm-onb-foot-h`). */
   .lm-onb-foot {
     position: sticky;
     bottom: 0;
     margin-top: auto;
     z-index: var(--lm-z-sticky);
-    background: var(--lm-chassis-2);
-    border-top: 1px solid var(--lm-line-strong);
-    padding: 10px calc(var(--lm-gutter) + var(--lm-safe-right)) calc(10px + var(--lm-safe-bottom)) calc(var(--lm-gutter) + var(--lm-safe-left));
+    padding: 4px calc(10px + var(--lm-safe-right)) calc(4px + var(--lm-safe-bottom)) calc(10px + var(--lm-safe-left));
+    background: transparent;
+  }
+  .lm-onb-foot__frost {
+    position: absolute;
+    inset: -24px 0 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .lm-onb-foot__frost > i {
+    position: absolute;
+    inset: 0;
+  }
+  .lm-onb-foot__frost > i:nth-child(1) {
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to top, #000 calc(100% - 24px), transparent);
+  }
+  .lm-onb-foot__frost > i:nth-child(2) {
+    -webkit-backdrop-filter: blur(9px);
+    backdrop-filter: blur(9px);
+    -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 24px), transparent calc(100% - 4px));
+    mask-image: linear-gradient(to top, #000 calc(100% - 24px), transparent calc(100% - 4px));
+  }
+  .lm-onb-foot__frost > i:nth-child(3) {
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 24px), transparent calc(100% - 8px));
+    mask-image: linear-gradient(to top, #000 calc(100% - 24px), transparent calc(100% - 8px));
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .lm-onb-foot__frost > i:nth-child(1) {
+      background: var(--lm-chassis);
+    }
   }
   .lm-onb-foot__inner {
-    max-width: 640px;
+    box-sizing: border-box;
+    max-width: 34rem;
+    min-height: var(--lm-pill-h, 64px);
     margin: 0 auto;
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 16px;
+    gap: 8px 12px;
+    padding: 8px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: 36px;
+    background: color-mix(in srgb, var(--lm-face) 95%, transparent);
   }
-  .lm-onb-foot__inner > .lm-key[data-variant='solid'],
-  .lm-onb-foot__inner > span > .lm-key[data-variant='solid'] {
-    min-width: 160px;
-  }
-  @media (max-width: 47.99rem) {
-    .lm-onb-foot__inner {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    .lm-onb-foot__inner > span {
-      display: flex;
-    }
-    .lm-onb-foot__inner > .lm-key,
-    .lm-onb-foot__inner > span > .lm-key {
-      width: 100%;
-    }
+  /* the one primary key fills the pill; a note (questions left, the shortcut) keeps its words beside it */
+  .lm-onb-foot__inner > .lm-key[data-variant='primary'] {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .lm-onb-foot__note {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
+    flex: none;
+    display: flex;
   }
-  .lm-onb-foot__note .lm-link {
-    font-size: inherit;
-  }
-  @media (max-width: 47.99rem) {
-    .lm-onb-foot__note {
-      text-align: center;
-      order: 2;
-    }
+  .lm-onb-foot__note:empty {
+    display: none;
   }
 
-  /* ---- intro ------------------------------------------------------------- */
+  /* ---- intro: one headline, one line, one action (the import link is a quiet text key) ---- */
   .lm-onb-intro {
+    position: relative;
+    isolation: isolate;
+    flex: 1;
     display: grid;
-    gap: 24px;
+    grid-template-rows: 1fr auto;
+    gap: 32px;
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right)) 32px calc(var(--lm-gutter) + var(--lm-safe-left));
+    margin: 0;
+    padding: 24px calc(var(--lm-gutter) + var(--lm-safe-right)) 24px calc(var(--lm-gutter) + var(--lm-safe-left));
+  }
+  @media (min-width: 64rem) {
+    .lm-onb-intro {
+      padding: 64px var(--lm-gutter-lg) 40px;
+    }
+    /* the headline keeps a display measure; the page itself has none (final U5) */
+    .lm-onb-display {
+      max-width: 22ch;
+    }
   }
   .lm-onb-intro__text {
     display: grid;
     gap: 16px;
     align-content: center;
   }
-  .lm-onb-intro__stage {
-    order: -1;
-  }
-  @media (min-width: 64rem) {
-    .lm-onb-intro {
-      grid-template-columns: minmax(0, 560px) minmax(0, 520px);
-      justify-content: center;
-      align-items: center;
-      gap: 64px;
-      min-height: calc(100dvh - var(--lm-topbar-h) - 40px);
-      padding: 48px var(--lm-gutter-lg) 64px;
-    }
-    .lm-onb-intro__stage {
-      order: 0;
-    }
+  /* the brand mark leads the welcome screen's own text (the header carries the step name, as on every step) */
+  .lm-onb-intro__brand {
+    justify-self: start;
+    margin-bottom: 8px;
   }
   .lm-onb-display {
     margin: 0;
-    font-stretch: 120%;
+    font-family: var(--lm-font-sans);
+    font-size: 2.5rem;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
     font-weight: 600;
-    font-size: 30px;
-    line-height: 34px;
-    letter-spacing: -0.02em;
     color: var(--lm-ink);
     text-wrap: balance;
     outline: none;
   }
   @media (min-width: 64rem) {
     .lm-onb-display {
-      font-size: 44px;
-      line-height: 48px;
-      letter-spacing: -0.025em;
+      font-size: 3.5rem;
+      line-height: 1.0715;
+      letter-spacing: -0.03em;
     }
   }
   .lm-onb-intro__body {
     margin: 0;
-    max-width: 52ch;
-    font-size: var(--lm-text-md);
-    line-height: var(--lm-text-md--lh);
+    max-width: 48ch;
+    font-size: var(--lm-text-body-l);
+    line-height: var(--lm-text-body-l--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
     text-wrap: pretty;
   }
   .lm-onb-intro__actions {
-    display: grid;
-    gap: 12px;
-    justify-items: start;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
     margin-top: 8px;
   }
-  .lm-onb-intro__meta {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
+  /* a phone's docked foot: the import key at its own width beside the primary (r068 V-WE-1) */
+  .lm-onb-foot__second {
+    flex: none;
   }
-  /* phones: the primary key lives in the bottom action bar (spec §3); desktop keeps it inline */
+  /* phones: the primary key lives in the frosted foot (thumb zone); desktop keeps it inline */
   .lm-onb-intro__start {
     display: none;
   }
@@ -433,254 +558,58 @@
     }
   }
   .lm-onb-intro__footer {
-    grid-column: 1 / -1;
     margin: 0;
     padding-top: 16px;
-    border-top: 1px solid var(--lm-line-strong);
-  }
-
-  /* ---- hero stage: example recording + figure --------------------------- */
-  .lm-onb-stage {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 8px;
-    padding: 14px 14px 10px;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-well);
-    overflow: hidden;
-  }
-  @media (min-width: 64rem) {
-    .lm-onb-stage {
-      padding: 20px 20px 14px;
-      gap: 16px;
-    }
-  }
-  .lm-onb-stage__figure {
-    align-self: stretch;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    width: 84px;
-  }
-  @media (min-width: 64rem) {
-    .lm-onb-stage__figure {
-      width: 128px;
-    }
-  }
-  .lm-onb-stage__figure .lm-avatar {
-    width: 100%;
-  }
-
-  .lm-onb-rec {
-    --rec-label-w: 92px;
-    min-width: 0;
-    display: grid;
-    gap: 0;
-    background: var(--lm-face);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-sm);
-    box-shadow: var(--lm-shadow-face);
-    overflow: hidden;
-  }
-  @media (min-width: 64rem) {
-    .lm-onb-rec {
-      --rec-label-w: 112px;
-    }
-  }
-  .lm-onb-rec__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 10px;
-    border-bottom: 1px solid var(--lm-line);
-  }
-  .lm-onb-rec__body {
-    position: relative;
-  }
-  .lm-onb-rec__lane {
-    display: grid;
-    grid-template-columns: var(--rec-label-w) minmax(0, 1fr);
-    height: 56px;
-    border-bottom: 1px solid var(--lm-line);
-  }
-  @media (min-width: 64rem) {
-    .lm-onb-rec__lane {
-      height: 72px;
-    }
-  }
-  .lm-onb-rec__label {
-    display: grid;
-    align-content: center;
-    gap: 2px;
-    padding: 0 8px 0 10px;
-    border-right: 1px solid var(--lm-line);
-    min-width: 0;
-  }
-  .lm-onb-rec__name {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: var(--lm-text-2xs);
-    line-height: var(--lm-text-2xs--lh);
-    font-weight: 500;
-    color: var(--lm-ink-2);
-    font-stretch: 84%;
-    white-space: nowrap;
-  }
-  /* grade badges need the wider gutter; the phone illustration keeps name + value only */
-  @media (max-width: 47.99rem) {
-    .lm-onb-rec__grade {
-      display: none;
-    }
-  }
-  .lm-onb-rec__value {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    font-weight: 600;
-    font-stretch: 112%;
-    font-variant-numeric: tabular-nums slashed-zero;
-    color: var(--lm-ink);
-    white-space: nowrap;
-  }
-  .lm-onb-rec__plot {
-    position: relative;
-    min-width: 0;
-  }
-  .lm-onb-rec__inner {
-    position: absolute;
-    inset: 8px;
-  }
-  .lm-onb-rec__inner svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
-  }
-  .lm-onb-rec__draw {
-    clip-path: inset(0 100% 0 0);
-    animation: lm-onb-draw 1200ms var(--lm-ease-out) 150ms both;
-  }
-  @keyframes lm-onb-draw {
-    to {
-      clip-path: inset(0 0 0 0);
-    }
-  }
-  .lm-onb-rec__threshold {
-    position: absolute;
-    right: 0;
-    transform: translateY(calc(-100% - 2px));
-    font-size: var(--lm-text-2xs);
-    line-height: 1;
-    color: var(--lm-ink-3);
-    font-stretch: 84%;
-  }
-  .lm-onb-rec__sweep {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: calc(var(--rec-label-w) + 8px);
-    right: 8px;
-    pointer-events: none;
-  }
-  .lm-onb-rec__sweep::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 1px;
-    background: var(--lm-chart-crosshair);
-    opacity: 0;
-    animation: lm-onb-sweep 1200ms var(--lm-ease-out) 150ms both;
-  }
-  @keyframes lm-onb-sweep {
-    0% {
-      left: 0;
-      opacity: 1;
-    }
-    85% {
-      opacity: 1;
-    }
-    100% {
-      left: 100%;
-      opacity: 0;
-    }
-  }
-  .lm-onb-rec__axis {
-    display: grid;
-    grid-template-columns: var(--rec-label-w) minmax(0, 1fr);
-    height: 24px;
-  }
-  .lm-onb-rec__ticks {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0 8px;
-    font-size: var(--lm-text-2xs);
-    color: var(--lm-ink-2);
-    font-stretch: 84%;
-    font-variant-numeric: tabular-nums;
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
 
   /* ---- consent ----------------------------------------------------------- */
-  .lm-onb-ol {
-    counter-reset: lm-onb;
+  .lm-onb-points {
     display: grid;
-    gap: 12px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  .lm-onb-ol > li {
-    counter-increment: lm-onb;
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1fr);
-    gap: 8px;
-    font-size: var(--lm-text-base);
-    line-height: 1.5;
+  .lm-onb-points > li {
+    padding: 10px 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
+    text-wrap: pretty;
   }
-  .lm-onb-ol > li::before {
-    content: counter(lm-onb);
-    display: inline-grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    margin-top: 1px;
-    border: 1px solid var(--lm-edge);
-    border-radius: 50%;
-    font-size: var(--lm-text-xs);
-    font-weight: 600;
-    font-stretch: 112%;
-    font-variant-numeric: tabular-nums;
-    color: var(--lm-ink);
+  .lm-onb-points > li:first-child {
+    padding-top: 0;
+  }
+  .lm-onb-points > li + li {
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-onb-consent-check {
-    padding-top: 14px;
-    margin-top: 2px;
-    border-top: 1px solid var(--lm-line);
+    margin-top: 4px;
+    padding-top: 12px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 8px 12px;
   }
   .lm-onb-consent-check .lm-check {
-    font-weight: 600;
+    font-weight: 500;
   }
 
   /* ---- hard stop --------------------------------------------------------- */
   .lm-onb-stop {
     display: grid;
-    gap: 14px;
+    gap: 16px;
   }
-  .lm-onb-stop .lm-title {
-    outline: none;
+  .lm-onb-stop__more {
+    display: grid;
+    gap: 8px;
+    padding-top: 16px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
 
-  /* ---- summary lists (locks, stop rules) --------------------------------- */
+  /* ---- summary lists (locks, stop rules): plain rows split by hairlines ---- */
   .lm-safety-list {
     display: grid;
     margin: 0;
@@ -688,47 +617,37 @@
     list-style: none;
   }
   .lm-safety-list > li {
-    position: relative;
-    padding: 8px 0 8px 18px;
-    border-top: 1px solid var(--lm-line);
-    font-size: var(--lm-text-sm);
-    line-height: 1.45;
+    padding: 8px 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
   }
-  .lm-safety-list > li:first-child {
-    border-top: 0;
-  }
-  .lm-safety-list > li::before {
-    content: '';
-    position: absolute;
-    left: 2px;
-    top: 15px;
-    width: 8px;
-    height: 1px;
-    background: var(--lm-ink-2);
+  .lm-safety-list > li + li {
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-safety-mode {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: 1.5;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
   }
   .lm-safety-mode strong {
-    font-weight: 600;
+    font-weight: 500;
   }
 
   /* ---- help card --------------------------------------------------------- */
   .lm-help-card {
     display: grid;
     gap: 8px;
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
   }
   .lm-help-card__title {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     font-weight: 600;
     color: var(--lm-ink);
   }
@@ -738,50 +657,98 @@
   .lm-help-card__body {
     color: var(--lm-ink);
   }
+  /* one block per country: its name and service, then each number a tappable row, then its hours (r068 SA-2) */
   .lm-help-card__regions {
     display: grid;
-    gap: 6px;
-    margin: 2px 0 0;
+    gap: var(--lm-card-gap);
+    margin: 4px 0 0;
   }
-  .lm-help-card__regions > div {
+  .lm-help-region {
     display: grid;
-    grid-template-columns: 5.5rem minmax(0, 1fr);
-    gap: 8px;
+    gap: 4px;
+    min-width: 0;
   }
-  .lm-help-card__regions dt {
+  .lm-help-region__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px var(--lm-inline);
+  }
+  .lm-help-region__name {
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lm-help-region__service {
     color: var(--lm-ink-2);
   }
-  .lm-help-card__regions dd {
+  .lm-help-region__numbers {
+    display: grid;
     margin: 0;
-    color: var(--lm-ink);
-    font-variant-numeric: tabular-nums;
+    padding: 0;
+    list-style: none;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+    overflow: hidden;
   }
-  .lm-help-card__regions dd b {
-    font-weight: 600;
+  .lm-help-region__numbers > li + li {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-help-num {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    min-height: 44px;
+    padding: 8px 12px;
+    color: var(--lm-ink);
+    text-decoration: none;
+    background: var(--lm-well);
+  }
+  @media (hover: hover) {
+    .lm-help-num:hover {
+      background: var(--lm-raised);
+    }
+  }
+  .lm-help-num:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lm-help-num__label {
+    color: var(--lm-ink-2);
+  }
+  .lm-help-num__number {
+    color: var(--lm-signal);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .lm-help-region__hours {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
   }
 
   /* ---- disclaimers next to the numbers ----------------------------------- */
   .lm-disclaimer-line {
     margin: 0;
     padding: 8px 12px 10px;
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-disclaimer-line[data-bare='true'] {
     padding: 0;
     border-top: 0;
   }
   .lm-disclaimer-line .lm-link {
-    font-weight: 500;
+    font-weight: 400;
     white-space: nowrap;
   }
   .lm-disclaimer-footer {
     margin: 0;
     max-width: 80ch;
-    font-size: var(--lm-text-xs);
-    line-height: 1.5;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
 
@@ -792,13 +759,11 @@
     gap: 8px;
     min-height: 28px;
     padding: 4px 12px;
-    border-bottom: 1px solid var(--lm-line-strong);
-    background: var(--lm-face);
-    font-size: var(--lm-text-xs);
-    font-weight: 600;
-    line-height: 1.3;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 500;
     color: var(--lm-ink);
-    letter-spacing: 0.005em;
   }
   .lm-sim-strip .lm-status-mark {
     color: var(--lm-danger-mark);
@@ -814,14 +779,14 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-ack__rules > li {
     display: grid;
     grid-template-columns: 20px minmax(0, 1fr);
     gap: 2px 12px;
     padding: 12px 0;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-ack__rules .lm-status-mark {
     grid-row: span 2;
@@ -830,21 +795,21 @@
   }
   .lm-ack__rule-title {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 600;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lm-ack__rule-body {
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink-2);
   }
   .lm-ack__lead {
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
     max-width: 64ch;
   }
@@ -856,16 +821,16 @@
     gap: 12px;
   }
 
-  /* ---- settings-style rows used by the tier controls --------------------- */
+  /* ---- settings-style rows used by the tier controls (Lumen rows: title ink, help body-s stone) ---- */
   .lm-safety-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 8px 16px;
-    min-height: 52px;
+    min-height: 56px;
     padding: 10px 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-safety-row__text {
     display: grid;
@@ -874,21 +839,96 @@
     flex: 1 1 12rem;
   }
   .lm-safety-row__label {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    font-weight: 500;
-    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
+    color: var(--lm-ink);
   }
   .lm-safety-row__help {
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
   .lm-safety-row__note {
     flex-basis: 100%;
   }
 
-  /* ---- Safety & limits page ---------------------------------------------- */
+  /* ---- Safety & limits page: title-m section titles over body prose, hairlines between sections ---- */
+  .lm-safety-page {
+    display: grid;
+    gap: 16px;
+    padding-bottom: 40px;
+  }
+  .lm-disclaimer {
+    display: grid;
+    min-width: 0;
+  }
+  .lm-disclaimer__sec {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+    padding-block: 20px;
+  }
+  .lm-disclaimer__sec:first-child {
+    padding-top: 4px;
+  }
+  .lm-disclaimer__sec + .lm-disclaimer__sec {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-disclaimer__title {
+    margin: 0;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  /* wide /safety: prose left, the limits and the help beside it as two cards */
+  /* the prose column is exactly the prose measure, so its section rules end with its text; the limits and the help
+     take the rest of the width and so stay about as tall as the prose (r068 V-SA-1) */
+  .lm-disclaimer[data-split='true'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--lm-stack) 48px;
+    align-items: start;
+  }
+  .lm-disclaimer__main {
+    display: grid;
+    min-width: 0;
+  }
+  .lm-disclaimer__main > .lm-disclaimer__sec + .lm-disclaimer__sec {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-disclaimer__side {
+    display: grid;
+    gap: var(--lm-stack);
+    min-width: 0;
+    position: sticky;
+    top: calc(var(--lm-header-h, 0px) + var(--lm-stack));
+  }
+  .lm-disclaimer[data-split='true'] > .lm-disclaimer__wide {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 64rem) {
+    .lm-disclaimer[data-split='true'] .lm-help-card__regions {
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+      align-items: start;
+    }
+  }
+  .lm-disclaimer__card {
+    padding: 0 var(--lm-card-pad-lg);
+  }
+  .lm-disclaimer__card > .lm-disclaimer__sec {
+    padding-block: var(--lm-card-pad-lg);
+  }
+  .lm-disclaimer__note {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lm-disclaimer .lm-help-card {
+    margin-top: 8px;
+  }
   .lm-prose {
     display: grid;
     gap: 12px;
@@ -896,25 +936,25 @@
   }
   .lm-prose p {
     margin: 0;
-    font-size: var(--lm-text-md);
-    line-height: var(--lm-text-md--lh);
+    font-size: var(--lm-text-read);
+    line-height: 1.6;
+    font-weight: 400;
     color: var(--lm-ink);
     text-wrap: pretty;
   }
   .lm-prose[data-size='sm'] p {
-    font-size: var(--lm-text-sm);
-    line-height: 1.55;
-    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
   .lm-limits {
     display: grid;
-    margin: 0;
+    margin: 4px 0 0;
   }
   .lm-limits > div {
     display: grid;
     gap: 2px 16px;
     padding: 10px 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lm-limits > div:first-child {
     border-top: 0;
@@ -927,16 +967,70 @@
     }
   }
   .lm-limits dt {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    font-weight: 500;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-limits dd {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: 1.5;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .lm-onb-intro::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: radial-gradient(
+      ellipse at 85% 22%,
+      color-mix(in oklab, var(--lm-signal) 10%, transparent),
+      transparent 68%
+    );
+  }
+  .lm-onb-intro__text > :is(h1, p, .lm-onb-intro__actions) {
+    animation: lm-onb-intro-enter var(--lm-dur-draw) var(--lm-ease-out) both;
+  }
+  .lm-onb-intro__text > p {
+    animation-delay: 40ms;
+  }
+  .lm-onb-intro__text > .lm-onb-intro__actions {
+    animation-delay: 80ms;
+  }
+  .lm-disclaimer__title {
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-title-m);
+  }
+  .lm-disclaimer .lm-prose p {
+    font-size: var(--lm-text-read);
+    line-height: 1.6;
+  }
+  .lm-limits dd,
+  .lm-help-num__number {
+    font-variant-numeric: tabular-nums;
+  }
+  @keyframes lm-onb-intro-enter {
+    from {
+      opacity: 0.4;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lm-onb-intro__text > :is(h1, p, .lm-onb-intro__actions) {
+      animation: none;
+    }
+  }
+  :root[data-motion='reduce'] .lm-onb-intro__text > :is(h1, p, .lm-onb-intro__actions) {
+    animation: none;
   }
 }

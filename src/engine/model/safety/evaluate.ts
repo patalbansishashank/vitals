@@ -18,6 +18,7 @@
  * planned refeed; W-M19 covers the 24 h before a planned T3+ fast.
  */
 import type { DayInput } from '../../types/inputs';
+import type { DayTemplate } from '../../types/schedule';
 import { RULE_INDEX } from './rules';
 import {
   RING as RING_IMPORT,
@@ -149,6 +150,47 @@ export function exclusiveBands(s: SafetyState): void {
   }
 }
 
+// ------------------------------------------------------------------ nutrient coverage (A1-014)
+/** Unknown-nutrient bits (the engine's `NUTRIENT_UNKNOWN_BIT` values): protein, carbohydrate, fat, fibre, ethanol. */
+export const NUTRIENT_BITS = { protein: 1, carbohydrate: 2, fat: 4, fibre: 8, ethanol: 16 } as const;
+type NutrientName = keyof typeof NUTRIENT_BITS;
+const MACRO_FIELD: Readonly<Record<NutrientName, 'proteinG' | 'carbG' | 'fatG' | 'fibreG' | 'alcoholG'>> = { protein: 'proteinG', carbohydrate: 'carbG', fat: 'fatG', fibre: 'fibreG', ethanol: 'alcoholG' };
+
+/**
+ * Unknown-nutrient bits a day's explicit meals imply (A1-014), read from the meal specs themselves: a reported-energy
+ * meal states only the grams it lists (an absent macro is unknown, an explicit 0 a known zero); a meal's
+ * `nutrientKnowledge` other than 'known' is not a known amount; on a day with reported meals a share-filled gram of
+ * another meal is a scenario fill. 0 = every included contribution is known (or the prescription's own construction).
+ */
+export function mealNutrientUnknownBits(t: DayTemplate | undefined): number {
+  const ms = t?.meals?.meals;
+  if (!ms || ms.length === 0) return 0;
+  let reportedDay = false;
+  for (const m of ms) if (m.energyKcal !== undefined) reportedDay = true;
+  let bits = 0;
+  for (const m of ms) {
+    const kn = (m as { nutrientKnowledge?: Partial<Record<NutrientName, string>> }).nutrientKnowledge;
+    for (const key of Object.keys(NUTRIENT_BITS) as NutrientName[]) {
+      const stated = kn?.[key];
+      const g = m.macros?.[MACRO_FIELD[key]];
+      const known = typeof g === 'number' && Number.isFinite(g) && g >= 0;
+      if (stated !== undefined ? stated !== 'known' : !known && (m.energyKcal !== undefined || (reportedDay && key !== 'ethanol'))) bits |= NUTRIENT_BITS[key];
+    }
+  }
+  return bits;
+}
+
+/** K with the per-day unknown-nutrient bits (built in index.ts from the compiled days, A1-014). */
+type SafetyKCoverage = SafetyK & { readonly nutrientUnknownDay?: Uint8Array };
+
+/** Whether any of days [d − n + 1, d] (≥ 0) has unknown analysis of `bit` (habitual burn-in days are known). */
+function unknownIn(k: SafetyK, bit: number, d: number, n: number): boolean {
+  const a = (k as SafetyKCoverage).nutrientUnknownDay;
+  if (!a) return false;
+  for (let j = d - n + 1 < 0 ? 0 : d - n + 1; j <= d && j < a.length; j++) if ((a[j]! & bit) !== 0) return true;
+  return false;
+}
+
 /** Evaluate every warning rule for day `d` (>= 0). */
 export function evaluateDay(s: SafetyState, k: SafetyK, day: DayInput, d: number): void {
   const q = s.q;
@@ -185,7 +227,9 @@ export function evaluateDay(s: SafetyState, k: SafetyK, day: DayInput, d: number
   else if (q.rate14Pct > q.capPct) hitWindow(s, X['W-E05'], d, rateN, q.rate14Pct, OWN_LOSS_PCT, 0);
 
   // EA rules use EA_7 over non-fast days (ruling R-FAST-GATE); on a fast-event day EA_7 is not evaluated and the
-  // persistence counters pause (they used to reset, so weekly fasts kept "for more than 14 days" from ever counting)
+  // persistence counters pause (they used to reset, so weekly fasts kept "for more than 14 days" from ever counting).
+  // D4-04: this is the eating-day tier policy only; the calendar exposure ledger keeps every fast, refeed and rest day
+  // (`calendarEa7`/`calendarEa28` in the trace, `calendarEaSummary`/`eaExposureReview` in constraints.ts)
   if (eaOk) {
     runs[RUN.ea3035] = ea7 >= k.eaHardMin && ea7 < k.eaReducedUpper ? runs[RUN.ea3035]! + 1 : 0;
     runs[RUN.eaLow] = ea7 < k.eaHardMin ? runs[RUN.eaLow]! + 1 : 0;
@@ -194,7 +238,9 @@ export function evaluateDay(s: SafetyState, k: SafetyK, day: DayInput, d: number
     if (ea7 < k.eaHardMin) setHit(s, X['W-E08'], d, ea7);
     if (ea7 >= k.eaReducedUpper && ea7 < k.eaAdequate) setHit(s, X['W-E09'], d, ea7);
     if (runs[RUN.eaLow]! > k.eaCautionDays) setHit(s, X['W-E20'], d, ea7);
-  } else if (!q.fastDay) {
+  } else if (!q.fastDay && !(q.eaApplies && !q.eaFinite)) {
+    // EA not applicable (no exercise or no deficit): the persistence counters reset. An unknown EA where the rules apply
+    // (no sample: unknown intake or an invalid fat-free mass, D8-04) pauses them like a fast day: unknown is not adequate
     runs[RUN.ea3035] = 0;
     runs[RUN.eaLow] = 0;
     runs[RUN.ea45] = 0;
@@ -216,13 +262,24 @@ export function evaluateDay(s: SafetyState, k: SafetyK, day: DayInput, d: number
   else if (q.bf < bfCaution) setHit(s, X['W-E15'], d, q.bf);
   runs[RUN.hair] = q.rate14Pct >= k.rateHairPct ? runs[RUN.hair]! + 1 : 0;
   if (runs[RUN.hair]! >= k.rateHairDays) setHit(s, X['W-E17'], d, q.rate14Pct);
-  if (female && ((eaOk && runs[RUN.ea45]! >= k.eaFemaleDays) || q.bf < k.bfCautionFemale)) {
+  // W-E18 (cycle concern): exposure (EA below 45 for long enough, or low body fat) while the period sign is relevant, or a
+  // logged missed period / new irregularity on any day whatever the model's EA (D2-07/D8-04: an observed concern is never
+  // overridden by a reassuring model tier; no per-cycle probability)
+  if (female && ((k.cycleSignRelevant && ((eaOk && runs[RUN.ea45]! >= k.eaFemaleDays) || q.bf < k.bfCautionFemale)) || k.cycleConcern)) {
     setHit(s, X['W-E18'], d, eaOk ? ea7 : q.bf);
   }
 
   // ------------------------------------------------------------------ macronutrients, fluids, substances
-  if (q.protRw7 < k.proteinFloor) hitWindow(s, X['W-M01'], d, 7, q.protRw7, OWN_PROT_RW_BELOW, k.proteinFloor);
+  // (A1-014) a nutrient whose analysis is incomplete has only a known LOWER bound: it still proves a cap exceeded
+  // (W-M03/M04/M05), never a deficiency — the floor rules and low-intake counters pause (unknown is not adequate either)
+  const protUnk7 = unknownIn(k, NUTRIENT_BITS.protein, d, 7);
+  const fatUnk7 = unknownIn(k, NUTRIENT_BITS.fat, d, 7);
+  const fatUnk = unknownIn(k, NUTRIENT_BITS.fat, d, 1);
+  const carbUnk = unknownIn(k, NUTRIENT_BITS.carbohydrate, d, 1);
+  const fibreUnk = unknownIn(k, NUTRIENT_BITS.fibre, d, 1);
+  if (!protUnk7 && q.protRw7 < k.proteinFloor) hitWindow(s, X['W-M01'], d, 7, q.protRw7, OWN_PROT_RW_BELOW, k.proteinFloor);
   if (
+    !protUnk7 &&
     q.protRw7 < k.proteinDeficitFloor &&
     (def7 > k.proteinDeficitTriggerPct || (q.rtDays7 >= k.rtDaysProtein && def7 > k.deficitAnyPct))
   ) {
@@ -232,14 +289,16 @@ export function evaluateDay(s: SafetyState, k: SafetyK, day: DayInput, d: number
   if (q.protFfm7 > k.proteinCapGPerKgFfm) hitWindow(s, X['W-M04'], d, 7, q.protFfm7, OWN_PROT_FFM_ABOVE, k.proteinCapGPerKgFfm);
   if (k.kidneyFlag && q.protRw7 > k.proteinCkdCapGPerKgRw)
     hitWindow(s, X['W-M05'], d, 7, q.protRw7, OWN_PROT_RW_ABOVE, k.proteinCkdCapGPerKgRw);
-  if (ei7 >= k.vledKcal && (q.fat7 < k.fatMinG || q.fatPct7 < k.fatMinPctEnergy))
+  if (!fatUnk7 && ei7 >= k.vledKcal && (q.fat7 < k.fatMinG || q.fatPct7 < k.fatMinPctEnergy))
     hitWindow(s, X['W-M06'], d, 7, q.fat7, OWN_FAT_LOW, k.fatMinG, k.fatMinPctEnergy);
-  runs[RUN.fatLow] = q.fat < k.fatVeryLowG ? runs[RUN.fatLow]! + 1 : 0;
-  if (runs[RUN.fatLow]! >= k.fatVeryLowDays) setHit(s, X['W-M07'], d, q.fat);
+  if (!fatUnk) {
+    runs[RUN.fatLow] = q.fat < k.fatVeryLowG ? runs[RUN.fatLow]! + 1 : 0;
+    if (runs[RUN.fatLow]! >= k.fatVeryLowDays) setHit(s, X['W-M07'], d, q.fat);
+  }
 
   const carb = q.carb;
-  const keto = carb < k.carbKetoG;
-  runs[RUN.carbKeto] = keto ? runs[RUN.carbKeto]! + 1 : 0;
+  const keto = !carbUnk && carb < k.carbKetoG;
+  if (!carbUnk) runs[RUN.carbKeto] = keto ? runs[RUN.carbKeto]! + 1 : 0;
   if (keto) {
     setHit(s, X['W-M08'], d, carb);
     if (runs[RUN.carbKeto]! >= k.carbKetoDays) setHit(s, X['W-M09'], d, carb);
@@ -250,8 +309,8 @@ export function evaluateDay(s: SafetyState, k: SafetyK, day: DayInput, d: number
   // W-M11 "low fibre with low intake": counts while in a deficit, or when the user entered a low habitual fibre intake
   // (the population default of 8 g/1000 kcal at maintenance is not a plan-induced problem; integration 2026-09-30)
   const fibreInformative = def7 > k.deficitAnyPct || k.habFibreEntered;
-  if (!q.fastDay) runs[RUN.fibreLow] = q.fibreDens < k.fibreMinPer1000Kcal && fibreInformative ? runs[RUN.fibreLow]! + 1 : 0;
-  if (runs[RUN.fibreLow]! > k.fibreDays) setHit(s, X['W-M11'], d, q.fibreDens);
+  if (!q.fastDay && !fibreUnk) runs[RUN.fibreLow] = q.fibreDens < k.fibreMinPer1000Kcal && fibreInformative ? runs[RUN.fibreLow]! + 1 : 0;
+  if (!fibreUnk && runs[RUN.fibreLow]! > k.fibreDays) setHit(s, X['W-M11'], d, q.fibreDens);
 
   const fasting = q.fastHMax > k.tierT0MaxH;
   const sodiumG = day.sodiumMg / 1000;

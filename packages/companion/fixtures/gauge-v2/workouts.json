@@ -1,0 +1,153 @@
+{
+  "route": "/v1/gauge/workouts",
+  "tool": "gauge_workouts",
+  "args": {
+    "from": "2026-10-20",
+    "to": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "3 phone-recorded workouts from 2026-10-20T00:00:00+05:30 to 2026-10-20T23:59:59+05:30.",
+    "data": {
+      "from": "2026-10-20T00:00:00+05:30",
+      "to": "2026-10-20T23:59:59+05:30",
+      "units": {
+        "durationS": "s (moving time)",
+        "distanceM": "m",
+        "kcal": "kcal, Phone estimate (method: each session's kcalMethod; energy basis: energyBasis)",
+        "avgHr": "bpm",
+        "maxHr": "bpm",
+        "zones": "s per heart-rate zone (the old on-device 220 − age zones, zonesVersion)",
+        "steps": "steps",
+        "movingS": "s"
+      },
+      "sessions": [
+        {
+          "id": "w-treadmill",
+          "date": "2026-10-20",
+          "start": "2026-10-20T07:00:00+05:30",
+          "end": "2026-10-20T07:30:00+05:30",
+          "type": "treadmill",
+          "source": "gauge",
+          "durationS": 1800,
+          "distanceM": 2100,
+          "kcal": 160,
+          "avgHr": 112,
+          "maxHr": 124,
+          "zones": null,
+          "steps": 3000,
+          "route": null,
+          "updatedAt": "2026-10-20T07:30:00+05:30",
+          "pauses": [],
+          "movingS": 1800,
+          "kcalMethod": "met",
+          "kcalVersion": "gauge-met/1",
+          "energyBasis": "gross",
+          "zonesVersion": null,
+          "kcalLabel": "Phone estimate (method met)"
+        },
+        {
+          "id": "w-airbike",
+          "date": "2026-10-20",
+          "start": "2026-10-20T08:00:00+05:30",
+          "end": "2026-10-20T08:20:00+05:30",
+          "type": "air_bike",
+          "source": "gauge",
+          "durationS": 1140,
+          "distanceM": null,
+          "kcal": 210,
+          "avgHr": 151,
+          "maxHr": 176,
+          "zones": {
+            "fat_burn": 200,
+            "cardio": 700,
+            "peak": 240
+          },
+          "steps": null,
+          "route": null,
+          "updatedAt": "2026-10-20T08:20:00+05:30",
+          "pauses": [
+            {
+              "start": "2026-10-20T08:10:00+05:30",
+              "end": "2026-10-20T08:11:00+05:30"
+            }
+          ],
+          "movingS": 1140,
+          "kcalMethod": "hr",
+          "kcalVersion": "gauge-hr/1",
+          "energyBasis": "gross",
+          "zonesVersion": "gauge-220-age-5min",
+          "kcalLabel": "Phone estimate (method hr)"
+        },
+        {
+          "id": "w-walk",
+          "date": "2026-10-20",
+          "start": "2026-10-20T17:00:00+05:30",
+          "end": "2026-10-20T17:40:00+05:30",
+          "type": "walk",
+          "source": "gauge_gps",
+          "durationS": 2400,
+          "distanceM": 3300,
+          "kcal": 180,
+          "avgHr": 104,
+          "maxHr": 118,
+          "zones": null,
+          "steps": 4400,
+          "route": {
+            "polyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@",
+            "points": 3
+          },
+          "updatedAt": "2026-10-20T17:40:00+05:30",
+          "pauses": [],
+          "movingS": 2400,
+          "kcalMethod": "met",
+          "kcalVersion": "gauge-met/1",
+          "energyBasis": "gross",
+          "zonesVersion": null,
+          "kcalLabel": "Phone estimate (method met)"
+        }
+      ],
+      "totals": {
+        "count": 3,
+        "durationS": 5340,
+        "distanceM": 5400,
+        "kcal": 550,
+        "sessions": 3,
+        "overlapping": 0
+      },
+      "sportWindows": [
+        {
+          "id": "sport:1792463400000",
+          "revision": "1792464590000|120",
+          "start": "2026-10-20T08:00:00+05:30",
+          "end": "2026-10-20T08:20:00+05:30",
+          "points": 120,
+          "workoutId": "w-airbike",
+          "source": "ring"
+        }
+      ],
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T17:40:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 350
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

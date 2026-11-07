@@ -19,6 +19,7 @@ export const NOT_RUNNING_MESSAGE = 'Vitals is not running and could not be start
 export interface BridgeOptions {
   socketPath: string;
   client: string | null;
+  fullControl?: boolean;
   stdin: NodeJS.ReadableStream;
   stdout: NodeJS.WritableStream;
   stderr: { write(text: string): unknown };
@@ -104,7 +105,7 @@ export async function runBridge(o: BridgeOptions): Promise<number> {
 
   const sock = socket;
   return new Promise<number>((resolve) => {
-    sock.write(helloLine(o.client));
+    sock.write(helloLine(o.client, o.fullControl === true));
     sock.pipe(o.stdout, { end: false });
     o.stdin.pipe(sock);
     o.stdin.once('end', () => sock.end());
@@ -151,6 +152,7 @@ export async function main(): Promise<number> {
   return runBridge({
     socketPath,
     client: clientFromArgv(process.argv),
+    fullControl: process.argv.includes(FLAGS.fullControl),
     stdin: process.stdin,
     stdout: process.stdout,
     stderr: process.stderr,

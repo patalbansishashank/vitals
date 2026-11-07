@@ -1,0 +1,198 @@
+/* ==========================================================================
+   RadialTicks (r071 0B). Geometry is drawn in a 132 box (RESEARCH §4.6, proto .gauge) and scaled to the size; strokes
+   are non-scaling, so a tick is 2 px at 120 px and 1.25 px at icon size whatever the box. Tokens only. Lit ticks are
+   ivory, the unlit remainder is --lm-unlit, the second lap is the ink tint. Motion: ticks light in sequence by their
+   index (--d, the distance from where the sweep starts, so a change sweeps only the ticks between old and new); the
+   pending rules hold the unlit values until first view. Stroke colour is the only thing that animates.
+   ========================================================================== */
+@layer components {
+  .lmz-radial {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 10px;
+    width: 100%;
+    --lmz-tick-w: 2px;
+  }
+  .lmz-radial[data-size='xs'] {
+    --lmz-tick-w: 1.25px;
+  }
+  .lmz-radial[data-size='sm'] {
+    --lmz-tick-w: 1.5px;
+  }
+  .lmz-radial__ring {
+    position: relative;
+    width: min(100%, var(--lmz-size, 120px));
+    aspect-ratio: 1;
+  }
+  .lmz-radial__plot {
+    position: absolute;
+    inset: 0;
+  }
+  .lmz-radial__plot svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  /* ---- ticks ---- */
+  .lmz-radial__t,
+  .lmz-radial__lap {
+    fill: none;
+    stroke: var(--lmz-unlit);
+    stroke-width: var(--lmz-tick-w);
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    transition: stroke var(--lm-dur-base) var(--lm-ease-out);
+    transition-delay: calc(var(--d, 0) * var(--lm-stagger-tick));
+  }
+  .lmz-radial__t[data-lit] {
+    stroke: var(--lmz-lit);
+  }
+  /* the part of a ring (the Day score) wears its own hue: the legend names it, so the hue is never alone */
+  .lmz-radial g[data-hue] .lmz-radial__t[data-lit] {
+    stroke: var(--lm-hue);
+  }
+  .lmz-radial__t[data-partial] {
+    stroke: color-mix(in oklab, var(--lmz-lit) calc(var(--p, 0) * 100%), var(--lmz-unlit));
+  }
+  /* an observed zero: the first tick is hollow, between the unlit and the lit */
+  .lmz-radial__t[data-zero] {
+    stroke: color-mix(in oklab, var(--lmz-lit) 55%, var(--lmz-unlit));
+  }
+  /* a goal or 100 % mark is longer (geometry) and always ivory */
+  .lmz-radial__t[data-mark] {
+    stroke: var(--lmz-lit);
+  }
+  /* the second lap: an inner ring of short dashes in the ink tint, told apart by position, not by colour alone */
+  .lmz-radial__lap[data-lit] {
+    stroke: var(--lmz-ink-h);
+  }
+
+  /* a pattern, never colour alone: provisional, still-learning and low-confidence ticks are dashed (butt caps keep the gaps) */
+  .lmz-radial[data-state='provisional'] .lmz-radial__t[data-lit],
+  .lmz-radial[data-state='learning'] .lmz-radial__t[data-lit],
+  .lmz-radial g[data-low] .lmz-radial__t[data-lit] {
+    stroke-dasharray: 2.4 2;
+    stroke-linecap: butt;
+  }
+  .lmz-radial[data-state='stale'] .lmz-radial__t[data-lit] {
+    opacity: 0.6;
+  }
+
+  /* ---- arcs under the ticks ---- */
+  .lmz-radial__band,
+  .lmz-radial__pending,
+  .lmz-radial__missing {
+    fill: none;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out);
+    transition-delay: 600ms;
+  }
+  .lmz-radial__band {
+    stroke: var(--lmz-ink-h);
+    stroke-opacity: 0.3;
+    stroke-width: 3px;
+  }
+  .lmz-radial__pending {
+    stroke: var(--lmz-lit);
+    stroke-opacity: 0.55;
+    stroke-width: 2px;
+    stroke-dasharray: 2 5;
+  }
+  .lmz-radial__missing {
+    stroke: var(--lmz-unlit);
+    stroke-width: 1.5px;
+    stroke-dasharray: 3 5;
+  }
+
+  /* ---- pending: the first view has not happened, the ring is bare ---- */
+  .lmz-radial[data-reveal='pending'] .lmz-radial__t[data-lit]:not([data-mark]),
+  .lmz-radial[data-reveal='pending'] .lmz-radial__t[data-partial],
+  .lmz-radial[data-reveal='pending'] .lmz-radial__lap[data-lit] {
+    stroke: var(--lmz-unlit);
+  }
+  .lmz-radial[data-reveal='pending'] .lmz-radial__band,
+  .lmz-radial[data-reveal='pending'] .lmz-radial__pending {
+    opacity: 0;
+  }
+
+  /* ---- the number in the middle (proto .gauge-val) ---- */
+  .lmz-radial__centre {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 6px;
+    padding: 16%;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* ---- the names of a ring's parts ---- */
+  .lmz-radial__legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lmz-radial__legend li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px 6px;
+  }
+  /* a name never breaks inside a word; a part's need wraps at its spaces */
+  .lmz-radial__legend .lm-mono {
+    white-space: nowrap;
+  }
+  .lmz-radial__legend li[data-missing] .lm-mono:last-child {
+    white-space: normal;
+    overflow-wrap: normal;
+    text-align: center;
+  }
+  .lmz-radial__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-hue, var(--lmz-ink-h));
+  }
+  .lmz-radial__legend li[data-missing] .lmz-radial__dot {
+    background: transparent;
+    border: 1px dashed var(--lm-ink-3);
+  }
+  .lmz-radial__legendv {
+    font-family: var(--lm-font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (forced-colors: active) {
+    .lmz-radial__t,
+    .lmz-radial__lap {
+      stroke: GrayText;
+    }
+    .lmz-radial__t[data-lit],
+    .lmz-radial__t[data-mark] {
+      stroke: Highlight;
+    }
+    .lmz-radial__lap[data-lit] {
+      stroke: CanvasText;
+    }
+    .lmz-radial__band,
+    .lmz-radial__pending {
+      stroke: CanvasText;
+    }
+  }
+}

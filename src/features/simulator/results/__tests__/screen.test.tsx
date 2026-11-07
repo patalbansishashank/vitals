@@ -51,14 +51,12 @@ function Loc() {
 }
 
 function mount(props: Partial<ResultsScreenProps> = {}, url = '/simulate/s1/results') {
-  const onRun = vi.fn();
   const p: ResultsScreenProps = {
     scenarioId: 's1',
     scenarioName: 'Spring cut',
     sim: sim(),
     inputs: { profile: PROFILE, schedule: SCHEDULE },
     horizonDays: DAYS,
-    onRun,
     prefs: { units: 'metric', energyUnit: 'kcal', glucoseUnit: 'mmol', showFigure: true, textures: false },
     scheduleHref: (o) => `/simulate/s1/schedule${o?.startDay != null ? `?days=${o.startDay}-${o.endDay}&fix=${o.fix}` : ''}`,
     ...props,
@@ -79,7 +77,7 @@ function mount(props: Partial<ResultsScreenProps> = {}, url = '/simulate/s1/resu
       </Routes>
     </MemoryRouter>,
   );
-  return { ...view, onRun };
+  return view;
 }
 
 beforeEach(() => {
@@ -94,7 +92,7 @@ describe('ResultsScreen with a real engine result', () => {
     await flush();
     const strip = screen.getByRole('region', { name: 'Start to end' });
     for (const name of ['fat mass', 'lean tissue', 'scale weight', 'waist', 'maintenance']) expect(within(strip).getByRole('button', { name: new RegExp(`^${name}`, 'i') })).toBeInTheDocument();
-    expect(within(strip).getAllByText(/^likely /).length).toBeGreaterThanOrEqual(4);
+    expect(within(strip).getAllByRole('img', { name: /, range / }).length).toBeGreaterThanOrEqual(4);
     expect(screen.getByRole('region', { name: /Spring cut: projection channels/ })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^Fat mass, kilograms, grade A\./ })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^Hunger pressure/ })).toBeInTheDocument();
@@ -106,22 +104,37 @@ describe('ResultsScreen with a real engine result', () => {
     expect(screen.getAllByText(/Projections for an average person with your inputs/).length).toBeGreaterThan(0);
   });
 
-  it('shows the never-run stage with the Run key', async () => {
-    const { onRun } = mount({ sim: sim({ status: 'idle', result: null, hasResult: false, resultHash: null }) });
+  it('before the first run shows one card: the fact, the horizon and the page Run key, nothing else', async () => {
+    const onRun = vi.fn();
+    mount({
+      sim: sim({ status: 'idle', result: null, hasResult: false, resultHash: null }),
+      startDate: '2026-10-05',
+      runAction: (
+        <button type="button" onClick={onRun}>
+          Run
+        </button>
+      ),
+    });
     await flush();
-    expect(screen.getByRole('heading', { name: 'Run your first projection.' })).toBeInTheDocument();
-    expect(screen.getByText(/Vitals will simulate 21 days across \d+ channels/)).toBeInTheDocument();
-    const strip = screen.getByRole('region', { name: 'Start to end' });
-    expect(within(strip).getAllByText('run to see the projection').length).toBe(5);
-    fireEvent.click(screen.getByRole('button', { name: /run/i, pressed: undefined, description: undefined }).closest('button')!);
-    expect(onRun).toHaveBeenCalled();
+    const card = screen.getByRole('region', { name: 'Projection' });
+    expect(within(card).getByRole('heading', { name: 'No projection yet' })).toBeInTheDocument();
+    expect(within(card).getByText('21 days · 5 Oct → 25 Oct')).toBeInTheDocument(); // DAYS = 21 from 5 Oct
+    // the one Run key is the card's action
+    fireEvent.click(within(card).getByRole('button', { name: 'Run' }));
+    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('button', { name: /^run/i })).toHaveLength(1);
+    // no placeholder readouts, no disclaimer about curves, no empty warnings panel
+    expect(screen.queryByRole('region', { name: 'Start to end' })).toBeNull();
+    expect(screen.queryByText(/Projections for an average person/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Warnings' })).toBeNull();
     expect(screen.queryByRole('region', { name: /projection channels/ })).toBeNull();
   });
 
   it('shows the first run as a stage with progress, and a running re-run over the previous render', async () => {
     mount({ sim: sim({ status: 'running', phase: 'nominal', result: null, hasResult: false, resultHash: null, startedAt: Date.now() }) });
     await flush();
-    expect(screen.getByRole('heading', { name: /Running 21 days/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Projecting 21 days' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Start to end' })).toBeNull();
     cleanup();
     mount({ sim: sim({ status: 'running', phase: 'nominal', stale: true, startedAt: Date.now() }) });
     await flush();
@@ -129,20 +142,46 @@ describe('ResultsScreen with a real engine result', () => {
     expect(screen.getAllByText(/^Running · \d/).length).toBeGreaterThan(0);
   });
 
-  it('marks a stale projection and offers Run again', async () => {
-    const { onRun } = mount({ sim: sim({ stale: true }) });
+  it('marks a stale projection in the chart toolbar, with no notice and no second Run key', async () => {
+    mount({ sim: sim({ stale: true }) });
     await flush();
-    expect(screen.getByText('Schedule changed since this run.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(screen.getByRole('region', { name: /projection channels/ })).toBeInTheDocument();
+    expect(screen.getAllByText('Out of date').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/changed since this run/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Run again' })).toBeNull();
+  });
+
+  it('after a run the page Run key heads the stage, beside the horizon it projects (once, never in the card)', async () => {
+    const onRun = vi.fn();
+    const { container } = mount({
+      sim: sim({ stale: true }),
+      startDate: '2026-10-05',
+      runAction: (
+        <button type="button" onClick={onRun}>
+          Run
+        </button>
+      ),
+    });
+    await flush();
+    const runs = screen.getAllByRole('button', { name: /^run/i });
+    expect(runs).toHaveLength(1);
+    const head = runs[0]!.closest('.rs-runbar') as HTMLElement;
+    expect(head).not.toBeNull();
+    // first in the stage, before the readouts
+    expect(container.querySelector('.rs')!.firstElementChild).toBe(head);
+    expect(within(head).getByText('21 days · 5 Oct → 25 Oct')).toBeInTheDocument();
+    fireEvent.click(runs[0]!);
     expect(onRun).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('heading', { name: 'No projection yet' })).toBeNull();
   });
 
   it('reports a worker error humanely and keeps the last render dimmed', async () => {
     mount({ sim: sim({ status: 'error', error: 'Glycogen went out of range' }) });
     await flush();
     expect(screen.getByText('The simulation stopped.')).toBeInTheDocument();
-    expect(screen.getByText(/This is our bug, not your plan/)).toBeInTheDocument();
+    expect(screen.getByText(/Glycogen went out of range\. The last projection is dimmed below\./)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy details' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /projection channels/ })).toBeInTheDocument();
   });
 
   it('honours ?view=focus&m=<metricId> (loose ids) and writes view changes back', async () => {
@@ -155,7 +194,7 @@ describe('ResultsScreen with a real engine result', () => {
     const focus = document.querySelector('[data-mode="focus"]');
     expect(focus).not.toBeNull();
     expect(within(focus as HTMLElement).getAllByText(/LDL cholesterol/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('radio', { name: 'lanes' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Lanes' }));
     await flush();
     expect(lastSearch).toBe('');
   });
@@ -209,11 +248,11 @@ describe('ResultsScreen with a real engine result', () => {
     useResultsUiStore.getState().setLanes('s1', []);
     mount();
     await flush();
-    expect(screen.getByText('No channels selected.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No channels selected' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Reset to default set' }));
     await flush();
     expect(useResultsUiStore.getState().byScenario.s1?.laneIds).toBeNull();
-    expect(screen.queryByText('No channels selected.')).toBeNull();
+    expect(screen.queryByText('No channels selected')).toBeNull();
   });
 });
 
@@ -283,6 +322,7 @@ describe('ResultsScreen with the unfiltered engine result', () => {
     mount({ sim: sim({ status: 'running', phase: 'ensemble', bands: { p10, p90, drawsDone: 12, drawsTotal: 32 } }) });
     await flush();
     expect(screen.getByText('Refining ranges · 12/32')).toBeInTheDocument();
-    expect(screen.getByText(/ranges from 12 of 32 draws/)).toBeInTheDocument();
+    // no engine-internals meta line ("last run 0.9 s · 84 days · 53 channels · ranges from 12 of 32 draws")
+    expect(screen.queryByText(/ranges from|channels ·|last run/)).toBeNull();
   });
 });

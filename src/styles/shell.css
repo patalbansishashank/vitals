@@ -1,58 +1,111 @@
 /* ==========================================================================
-   Vitals — app shell (src/app/shell/*). INFORMATION_ARCHITECTURE.md §3:
-   < 1024 px: sticky top bar + per-screen context bar + bottom tab bar
-              (+ the contextual action bar above it where a screen has one);
-   ≥ 1024 px: 76 px navigation rail + sticky per-screen context bar
-              (+ the action bar along the bottom of the content column).
+   Vitals — app shell (src/app/shell/*), SPEC §4 + §8 "one bar, one ⋯" (Ember):
+   every width  ONE top bar at the top of the content column (the screen's TopBar: sticky, ~56 px, tintless frost
+                and a 0.5 px bottom hairline once scrolled), ONE banner slot under it, the screen, then the screen's
+                <ActionBar> row after it in the flow (a plain row, no bar);
+   < 1024 px    a frosted dock across the bottom edge holding the floating icon pill (none on chromeless screens,
+                where the <ActionBar> docks at the bottom as that flow's toolbar);
+   ≥ 1024 px    a full-height collapsible sidebar at the left (~240 px expanded, a 64 px icon rail collapsed; the
+                sidebar's own key at the top of the sidebar and ⌘/Ctrl + B toggle it); the content column takes all
+                the width beside it (r068 U5: no max-width); the bar's hairline always shows.
+   No bar at the foot, no bar above the tab bar, no fixed action bar on desktop.
    ========================================================================== */
 
 @layer components {
-  /* desktop action bar height (IA §3.1: the action bar is 56 px; the phone keeps 64 for its 56 px Run key) */
   :root {
-    --lm-deskbar-h: calc(var(--lm-bar-control-h) + 16px);
-    /* the phone action bar (sticky above the tab bar): control + 10 px above and below + the hairline */
-    --lm-footbar-h: calc(var(--lm-bar-control-h) + 21px);
+    /* the floating navigation pill and the dock around it (4 px above and below + the home-indicator inset) */
+    --lm-pill-h: 64px;
+    /* the dock's total height, safe area included: the room content keeps clear at the foot (0 when there is no dock) */
+    --lm-dock-h: calc(var(--lm-pill-h) + 8px + var(--lm-safe-bottom));
+    /* the bar's own keys (sidebar, Back, ⋯): 48 px targets with a 24 px icon; the bar is one key plus 4 px above and
+       below (56 px, the safe area added) */
+    --lm-header-key: 48px;
+    --lm-header-icon: 24px;
+    --lm-bar-pad-y: 4px;
+    /* the content's distance from the bar's bottom edge (its hairline) */
+    --lm-bar-gap: 12px;
+    /* the frost (Frost.tsx): the band at its open edge over which the layers fade, and how far each layer's box reaches
+       past that edge so the blur samples real content there */
+    --lm-frost-band: 24px;
+    --lm-frost-reach: 32px;
+    /* the desktop sidebar: expanded and collapsed widths; --lm-sidebar-w is its width right now (0 without one), for
+       anything fixed that must keep clear of it */
+    --lm-sidebar-expanded: 240px;
+    --lm-sidebar-collapsed: 64px;
+    --lm-sidebar-w: 0px;
+    /* its material: bg-2 with the grain (the card material's recipe at the bg-2 tone, no wash): 83 % bg-2 baked over
+       the grain in its own tile, so no tint gradient (and none of its ordered dither) */
+    --lm-sidebar-bg:
+      var(--lm-grain-sidebar) 0 0 / var(--lm-grain-size) repeat,
+      var(--lm-chassis-2);
   }
-  /* Keyboard focus must scroll into the space above the fixed navigation (phones: the tab bar only; the
-     action bar is in the page flow there). */
-  html:has(.lm-app) {
-    scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + 24px);
-  }
-  html:has(.lm-actionbar-slot > .lm-actionbar) {
-    scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-footbar-h) + 24px);
+  :root:has(.lm-app[data-chromeless='true']),
+  :root:has(.lm-app[data-keyboard='true']) {
+    --lm-dock-h: 0px;
   }
   @media (min-width: 64rem) {
-    html:has(.lm-app) {
-      scroll-padding-bottom: 24px;
+    :root {
+      --lm-dock-h: 0px;
+      --lm-bar-gap: 16px;
+      --lm-bar-pad-y: 12px;
     }
-    html:has(.lm-actionbar-slot > .lm-actionbar) {
-      scroll-padding-bottom: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom) + 24px);
+    .lm-app[data-sidebar='expanded'],
+    :root:has(.lm-app[data-sidebar='expanded']) {
+      --lm-sidebar-w: var(--lm-sidebar-expanded);
+    }
+    .lm-app[data-sidebar='collapsed'],
+    :root:has(.lm-app[data-sidebar='collapsed']) {
+      --lm-sidebar-w: var(--lm-sidebar-collapsed);
     }
   }
-  /* Phone widths in a desktop window: no reserved scrollbar strip, so the fixed bars reach both window
-     edges like on a phone (their transparent-track gutter otherwise cuts 10 px off the right). */
+
+  /* Focus and anchor scrolling keep clear of the sticky header (its measured height, AppShell.tsx) and the dock. */
+  html:has(.lm-app) {
+    scroll-padding-top: calc(var(--lm-header-h, 0px) + var(--lm-update-notice-h, 0px) + 12px);
+    scroll-padding-bottom: calc(var(--lm-dock-h) + 24px);
+  }
+  /* Phone widths in a desktop window: no reserved scrollbar strip, so the dock reaches both window edges like on a
+     phone (the transparent-track gutter otherwise cuts 10 px off the right). */
   @media (max-width: 47.99rem) {
     html:has(.lm-app) {
       scrollbar-width: none;
     }
   }
-  /* --lm-actionbar-h: the space the action bar takes at the foot of the viewport (the toast clears it). Desktop: the
-     fixed bar; phones: the sticky bar (set in the phone block below). */
+
+  /* --lm-tabbar-h (legacy name, read by feature CSS as "+ var(--lm-safe-bottom)"): the dock without the safe area.
+     --lm-actionbar-h: the docked toolbar's room on chromeless phone screens (0 everywhere else; the toasts clear it). */
   .lm-app {
+    --lm-tabbar-h: calc(var(--lm-pill-h) + 8px);
     --lm-actionbar-h: 0px;
     min-height: 100vh;
     min-height: 100dvh;
-    padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
   }
+  .lm-app[data-keyboard='true'] {
+    --lm-tabbar-h: 0px;
+  }
+  /* desktop: the sidebar's column (as wide as the sidebar, so it follows its width transition) and the content column */
   @media (min-width: 64rem) {
     .lm-app {
+      --lm-tabbar-h: 0px;
       display: grid;
-      grid-template-columns: var(--lm-rail-w) minmax(0, 1fr);
-      padding-bottom: 0;
+      grid-template-columns: auto minmax(0, 1fr);
     }
-    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) {
-      --lm-actionbar-h: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom));
+    /* toasts sit at the bottom right of the content column (r068 S14) */
+    .lm-app .lm-toaster {
+      left: auto;
+      right: var(--lm-gutter-lg);
+      transform: none;
     }
+  }
+
+  /* the strip at the top of the document the header frost watches (80 px tall, set inline: AppShell.tsx `useHeaderFrost`) */
+  .lm-frost-sentinel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    pointer-events: none;
+    visibility: hidden;
   }
 
   /* skip link: visible only on keyboard focus */
@@ -61,25 +114,27 @@
     left: 12px;
     top: calc(var(--lm-safe-top) + 8px);
     z-index: var(--lm-z-tooltip);
-    padding: 10px 14px;
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-signal);
+    color: var(--lm-signal-ink, var(--lm-chassis));
+    font-weight: 500;
     text-decoration: none;
-    transform: translateY(-200%);
+    /* parked fully above the viewport whatever the safe-area inset (on Android edge-to-edge --lm-safe-top is ~40 px,
+       so a fixed -200% left a strip peeking out above the clock) */
+    transform: translateY(calc(-100% - var(--lm-safe-top) - 12px));
   }
-  .lm-skip:focus {
+  .lm-skip:focus,
+  .lm-skip:focus-visible {
     transform: none;
   }
 
-  /* ---- wordmark: the ring mark + lowercase vitals ------------------------ */
+  /* ---- wordmark: the ring mark + lowercase vitals (welcome screens) ------- */
   .lm-wordmark {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    font-stretch: 120%;
-    font-weight: 650;
+    font-weight: 500;
     font-size: 19px;
     line-height: 1;
     letter-spacing: -0.02em;
@@ -88,288 +143,750 @@
     border-radius: var(--lm-radius-xs);
   }
 
-  /* ---- mobile top bar ---------------------------------------------------- */
-  .lm-topbar {
-    position: sticky;
-    top: 0;
-    z-index: var(--lm-z-sticky);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    height: calc(var(--lm-topbar-h) + var(--lm-safe-top));
-    padding: var(--lm-safe-top) calc(8px + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
-    background: var(--lm-chassis-2);
-    border-bottom: 1px solid var(--lm-line-strong);
-  }
-  .lm-topbar[data-back='true'] {
-    padding-left: calc(6px + var(--lm-safe-left));
-  }
-  .lm-topbar__spacer {
-    flex: 1;
-  }
-  .lm-topbar__back {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    height: var(--lm-bar-control-h);
-    padding: 0 10px 0 4px;
-    border: 0;
-    border-radius: var(--lm-radius-sm);
-    background: transparent;
-    color: var(--lm-ink);
-    font-size: var(--lm-text-base);
-    font-weight: 500;
-    text-decoration: none;
-  }
-  .lm-topbar__title {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-stretch: 120%;
-    font-weight: 600;
-    font-size: var(--lm-text-lg);
-    line-height: 1.2;
-    letter-spacing: -0.01em;
-    color: var(--lm-ink);
-  }
-  .lm-topbar__back:hover {
-    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
-  }
-  @media (min-width: 64rem) {
-    .lm-topbar {
-      display: none;
-    }
-  }
-
-  /* ---- desktop rail ------------------------------------------------------ */
-  .lm-rail {
-    display: none;
-  }
-  @media (min-width: 64rem) {
-    .lm-rail {
-      position: sticky;
-      top: 0;
-      z-index: var(--lm-z-rail);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      height: 100vh;
-      height: 100dvh;
-      padding: 14px 0 12px;
-      background: var(--lm-chassis-2);
-      border-right: 1px solid var(--lm-line-strong);
-    }
-  }
-  .lm-rail__brand {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 14px;
-    padding: 4px 6px;
-    border-radius: var(--lm-radius-sm);
-    text-decoration: none;
-    color: var(--lm-ink);
-  }
-  .lm-rail__brand span:last-child {
-    font-stretch: 120%;
-    font-weight: 650;
-    font-size: var(--lm-text-sm);
-    letter-spacing: -0.01em;
-  }
-  .lm-rail__grow {
-    flex: 1;
-  }
+  /* ---- the phone dock's keys (r068 U14, r071): the icon over its label, one per destination plus More. The current
+     key is an IVORY capsule (ivory = where you are; gold = what you can do or chose) drawn by ONE thumb that glides to
+     the pressed key (`.lm-tabbar__thumb`, below); the key itself only turns its icon and label dark. ---- */
   .lm-navkey {
     position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    color: var(--lm-ink-2);
+    gap: var(--lm-space-0-5);
+    min-width: 0;
+    color: var(--lm-ink-3);
     text-decoration: none;
-    font-size: var(--lm-text-2xs);
-    line-height: 1;
-    font-weight: 500;
-    letter-spacing: 0.01em;
+    -webkit-tap-highlight-color: transparent;
     transition:
-      color var(--lm-dur-fast) var(--lm-ease-out),
+      color var(--lm-dur-glide) var(--lm-ease-standard),
       background-color var(--lm-dur-fast) var(--lm-ease-out);
   }
+  .lm-navkey__icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+  }
+  .lm-navkey__label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
+    font-weight: 500;
+    letter-spacing: 0;
+  }
   .lm-navkey[aria-current='page'] {
-    color: var(--lm-ink);
+    color: var(--lm-nav-on-fg);
   }
-  .lm-rail .lm-navkey {
-    width: 60px;
-    height: 58px;
-    border-radius: var(--lm-radius-sm);
+  .lm-navkey[aria-current='page'] .lm-navkey__label {
+    font-weight: 600;
   }
-  .lm-rail .lm-navkey:hover {
-    background: color-mix(in oklab, var(--lm-chassis-2), var(--lm-ink) 5%);
-    color: var(--lm-ink);
+  /* pressed: the icon and label shrink to .96 for 80 ms, the thumb takes the key */
+  .lm-navkey > * {
+    transition: transform var(--lm-dur-instant) var(--lm-ease-press);
   }
-  .lm-rail .lm-navkey[aria-current='page'] {
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-key-pressed);
+  .lm-navkey:active > * {
+    transform: scale(0.96);
   }
-  /* REVIEW_FINDINGS #8: the indicator dot sits inside the viewport edge —
-     inside the pressed key, at its left edge. */
-  .lm-rail .lm-navkey[aria-current='page']::before {
-    content: '';
+  /* a destination's badge (stale results, a proposal waiting): a 6 px gold dot at the icon's top right; on the ivory
+     capsule gold would be 1.5:1, so the current key's dot is near-black with a capsule-coloured ring */
+  .lm-navkey__stale {
     position: absolute;
-    left: 5px;
-    top: 50%;
-    margin-top: -3px;
+    top: -2px;
+    right: -4px;
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+    box-shadow: 0 0 0 2px var(--lm-nav-pill-bg);
   }
-  .lm-navkey__stale {
-    position: absolute;
-    top: 9px;
-    right: 13px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--lm-ink);
+  .lm-navkey[aria-current='page'] .lm-navkey__stale {
+    background: var(--lm-nav-on-fg);
+    box-shadow: 0 0 0 2px var(--lm-nav-on-bg);
   }
 
-  /* ---- mobile tab bar ------------------------------------------------------ */
-  .lm-tabbar {
+  /* ---- phones: the frosted dock and the floating pill ----------------------
+     The dock's frost is the shell's layered one (<Frost side="bottom" />, see "the frost" below): it fills the dock and
+     fades in over its top 24 px, so nothing above the dock is blurred (the Coach composer floats 12 px above it). */
+  .lm-dock {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: var(--lm-z-tabbar);
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    height: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
-    padding: 0 var(--lm-safe-right) var(--lm-safe-bottom) var(--lm-safe-left);
-    background: var(--lm-chassis-2);
-    border-top: 1px solid var(--lm-line-strong);
+    padding: 4px calc(10px + var(--lm-safe-right)) calc(4px + var(--lm-safe-bottom)) calc(10px + var(--lm-safe-left));
   }
-  .lm-tabbar .lm-navkey svg {
-    margin-top: 6px;
+  .lm-tabbar {
+    --lm-tabbar-n: 5;
+    --lm-tabbar-i: 0;
+    --lm-tabbar-pad-x: var(--lm-space-1-5);
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    height: var(--lm-nav-pill-h);
+    max-width: 34rem;
+    margin-inline: auto;
+    padding: var(--lm-space-1) var(--lm-tabbar-pad-x);
+    border: 0.5px solid var(--lm-line);
+    border-radius: 36px;
+    background: var(--lm-nav-pill-bg);
   }
-  .lm-tabbar .lm-navkey[aria-current='page']::before {
-    content: '';
+  .lm-tabbar .lm-navkey {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: var(--lm-nav-key-h);
+    border-radius: 28px;
+    padding-inline: var(--lm-space-0-5);
+  }
+  /* the ONE thumb (Chrome.tsx writes --lm-tabbar-i, the index of the current key): an ivory capsule as wide as a key,
+     translated by key index (a transform, never a layout property), gliding in 280 ms with the one damped overshoot.
+     No current key (a page the dock does not list): the thumb is hidden. Reduced motion: it jumps (the duration
+     tokens drop to ~0). */
+  .lm-tabbar__thumb {
     position: absolute;
-    top: 7px;
-    left: 50%;
-    margin-left: -3px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
+    z-index: 0;
+    top: var(--lm-space-1);
+    bottom: var(--lm-space-1);
+    left: var(--lm-tabbar-pad-x);
+    width: calc((100% - 2 * var(--lm-tabbar-pad-x)) / var(--lm-tabbar-n));
+    border-radius: 28px;
+    background: var(--lm-nav-on-bg);
+    pointer-events: none;
+    transform: translateX(calc(var(--lm-tabbar-i) * 100%));
+    transition:
+      transform var(--lm-dur-glide) var(--lm-ease-needle),
+      opacity var(--lm-dur-fast) var(--lm-ease-out);
   }
-  .lm-tabbar .lm-navkey__stale {
-    top: 14px;
-    right: auto;
-    left: calc(50% + 12px);
+  .lm-tabbar[data-thumb='none'] .lm-tabbar__thumb {
+    opacity: 0;
   }
-  .lm-tabbar .lm-navkey:active {
-    background: color-mix(in oklab, var(--lm-chassis-2), var(--lm-ink) 5%);
+  /* forced colours (Windows high contrast): the current destination is still a filled shape, in the system's own
+     highlight pair, so "where you are" never depends on an ivory the system would replace */
+  @media (forced-colors: active) {
+    .lm-tabbar__thumb {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+    .lm-navkey[aria-current='page'] {
+      forced-color-adjust: none;
+      color: HighlightText;
+    }
   }
   @media (min-width: 64rem) {
-    .lm-tabbar {
+    .lm-dock {
       display: none;
     }
   }
   /* hidden while the on-screen keyboard is up (IA §3.1) */
-  .lm-app[data-keyboard='true'] .lm-tabbar {
+  .lm-app[data-keyboard='true'] .lm-dock {
     display: none;
+  }
+
+  /* ---- desktop: the collapsible sidebar (Chrome.tsx `Sidebar`; SPEC §8.2) ---------------------------------------
+     Full height at the left, sticky, in the Ember material (bg-2 with the grain) with a 0.5 px hairline on its right
+     edge. Expanded (~240 px): the brand mark and "Vitals", the mode's destinations as 40 px rows (icon + label), and at
+     the foot the mode switch, the mode's global places and Settings. Collapsed (64 px): the same rows as icons only (the
+     labels fade and clip; each row's name is its tooltip). Every icon keeps one x in both states (12 px inset + 10 px
+     row padding centres a 20 px icon in the 64 px rail), so only the width moves: 200 ms, none under reduced motion
+     (the duration token drops to ~0). Not shown below 1024 px (the phone dock holds the pill). */
+  .lm-sidebar {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .lm-sidebar {
+      grid-column: 1;
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      z-index: var(--lm-z-rail);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-sizing: border-box;
+      width: var(--lm-sidebar-w);
+      height: 100vh;
+      height: 100dvh;
+      padding: var(--lm-safe-top) 12px 16px calc(12px + var(--lm-safe-left));
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: none;
+      border-right: var(--lm-hairline) solid var(--lm-line);
+      background: var(--lm-sidebar-bg);
+      transition: width var(--lm-dur-base) var(--lm-ease-standard);
+    }
+  }
+  /* the brand: the ring mark and "Vitals" (title-m), as tall as the top bar so the mark sits level with its keys */
+  /* The sidebar's head: the brand (the ring mark and "Vitals", title-m in the display face) and, at its right end, the
+     sidebar key (r068 U13: the collapse control belongs to the sidebar it collapses, as in polished desktop apps; it
+     no longer sits in every page's top bar). As tall as the top bar, so the mark sits level with the bar's keys.
+     Collapsed (the 64 px rail), the head is one 40 px key in the icon column: it shows the mark, and on hover or
+     keyboard focus the expand icon in its place (the tooltip names it and the shortcut). */
+  .lm-side__head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    height: calc(var(--lm-header-key) + 2 * var(--lm-bar-pad-y));
+  }
+  .lm-side__brand {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    height: 40px;
+    padding-inline: 9px;
+    border-radius: var(--lm-control-radius);
+    color: var(--lm-ink);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .lm-side__name {
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: 600;
+  }
+  /* the sidebar key: a real 32 px control with its own tile on hover, stone icon brightening to ivory */
+  .lm-side__toggle {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: var(--lm-hairline) solid transparent;
+    border-radius: var(--lm-radius-sm);
+    background: transparent;
+    color: var(--lm-ink-3);
+    cursor: pointer;
+    transition:
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-side__toggle:hover,
+  .lm-side__toggle:focus-visible {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 7%);
+    border-color: var(--lm-line);
+  }
+  .lm-side__toggle > .lm-side__toggle-mark {
+    display: none;
+  }
+  /* collapsed: the brand link gives way; the key spans the icon column and shows the mark until hovered */
+  .lm-sidebar[data-collapsed] .lm-side__brand {
+    display: none;
+  }
+  .lm-sidebar[data-collapsed] .lm-side__toggle {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--lm-control-radius);
+  }
+  .lm-sidebar[data-collapsed] .lm-side__toggle > .lm-side__toggle-mark {
+    display: grid;
+    place-items: center;
+    color: var(--lm-ink);
+  }
+  .lm-sidebar[data-collapsed] .lm-side__toggle > .lm-side__toggle-icon,
+  .lm-sidebar[data-collapsed] .lm-side__toggle:is(:hover, :focus-visible) > .lm-side__toggle-mark {
+    display: none;
+  }
+  .lm-sidebar[data-collapsed] .lm-side__toggle:is(:hover, :focus-visible) > .lm-side__toggle-icon {
+    display: block;
+  }
+  /* the labelled groups (r068 U14): Today … Ring, then Planning, then Library; 16 px apart, each label a quiet
+     sentence-case caption over its rows; collapsed, the label gives way to a hairline in the rail */
+  .lm-side__groups {
+    display: grid;
+    gap: var(--lm-space-4);
+    min-width: 0;
+  }
+  .lm-side__group {
+    display: grid;
+    gap: var(--lm-space-1);
+    min-width: 0;
+  }
+  .lm-side__group-label {
+    display: block;
+    height: var(--lm-text-label-s--lh);
+    padding-inline: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
+    font-weight: 600;
+    color: var(--lm-ink-3);
+  }
+  .lm-sidebar[data-collapsed] .lm-side__group-label {
+    position: relative;
+    color: transparent;
+  }
+  .lm-sidebar[data-collapsed] .lm-side__group-label::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 50%;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  /* one column as wide as the sidebar (never its rows' words: collapsed, they clip inside the rail) */
+  .lm-side__list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  /* Settings sits alone at the foot, as desktop apps keep it */
+  .lm-side__foot {
+    margin-top: auto;
+  }
+  /* a row: 40 px rounded row, a 20 px icon (ink-3) and the label (label 14/20, ink-2); hover tints it; the current
+     destination (r071) takes an ivory tint, an ivory icon and a 600 ivory label: ivory is where you are, never gold,
+     and no side stripe */
+  .lm-side__row {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    height: 40px;
+    margin: 0;
+    padding: 0 10px;
+    overflow: hidden;
+    border: 0;
+    border-radius: var(--lm-radius-field);
+    background: transparent;
+    color: var(--lm-ink-2);
+    font: inherit;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    text-align: start;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-side__row:hover {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+  }
+  .lm-side__row[aria-current='page'] {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, var(--lm-ink) 9%, transparent);
+    font-weight: 600;
+  }
+  .lm-side__icon {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    color: var(--lm-ink-3);
+    transition: color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-side__row:hover .lm-side__icon {
+    color: var(--lm-ink-2);
+  }
+  .lm-side__row[aria-current='page'] .lm-side__icon {
+    color: var(--lm-ink);
+  }
+  @media (forced-colors: active) {
+    .lm-side__row[aria-current='page'] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+  /* a destination's badge (stale results, a proposal waiting): the pill's 6 px gold dot at the icon's top right */
+  .lm-side__dot {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  .lm-side__label,
+  .lm-side__name {
+    min-width: 0;
+    overflow: hidden;
+    transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  /* collapsed: the words fade (they stay in the accessibility tree; the row's tooltip shows the name) */
+  .lm-sidebar[data-collapsed] :is(.lm-side__label, .lm-side__name) {
+    opacity: 0;
+  }
+
+  /* ---- the page's overlay scrollbar (OverlayScrollbar.tsx; r068 U7) ----------------------------------------------
+     Desktop fine pointers only (base.css hides the root's native bar, whose track Chromium paints as a flat black
+     strip). A thin thumb in the theme's ink floats over the backdrop at the window's right edge, under the bar's
+     height, with no track at all; it shows while the page scrolls or the pointer is near it, widens under the
+     pointer, and can be dragged. Decorative for assistive tech (the page scrolls as ever with keys and wheel). */
+  .lm-oscroll {
+    position: fixed;
+    top: calc(var(--lm-safe-top) + 4px);
+    right: 2px;
+    bottom: 4px;
+    z-index: var(--lm-z-rail);
+    width: 12px;
+    pointer-events: none;
+  }
+  .lm-oscroll[hidden] {
+    display: none;
+  }
+  .lm-oscroll__thumb {
+    position: absolute;
+    top: 0;
+    right: 2px;
+    width: var(--lm-scrollbar-size);
+    min-height: 32px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-scrollbar-thumb);
+    opacity: 0;
+    pointer-events: auto;
+    cursor: default;
+    transition:
+      opacity var(--lm-dur-slow) var(--lm-ease-out),
+      width var(--lm-dur-fast) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out);
+    will-change: transform;
+  }
+  .lm-oscroll[data-active] .lm-oscroll__thumb {
+    opacity: 1;
+  }
+  .lm-oscroll__thumb:hover,
+  .lm-oscroll[data-dragging] .lm-oscroll__thumb {
+    width: 8px;
+    background: var(--lm-scrollbar-thumb-hover);
+    opacity: 1;
   }
 
   /* ---- main column ---------------------------------------------------------- */
   .lm-main {
     min-width: 0;
-    padding-bottom: 24px;
+    padding-bottom: calc(var(--lm-dock-h) + 24px);
   }
   .lm-main:focus {
     outline: none;
   }
   @media (min-width: 64rem) {
     .lm-main {
-      padding-bottom: calc(var(--lm-actionbar-h) + 32px);
+      grid-column: 2;
+      width: 100%;
+      padding-bottom: 40px;
     }
   }
 
-  /* ---- per-screen context bar (TopBar slot) --------------------------------- */
-  .lm-ctx-slot:empty {
+  /* ---- the frost (Frost.tsx; SPEC §3, lumen.md §6) ------------------------------------------------------------------
+     Chrome only: the top bar, the phone dock and a focused flow's docked toolbar. Three stacked tintless backdrop
+     blurs, 4, 9 and 14 px (--lm-frost-1…3), each with its own mask, so the material is densest under the chrome's keys
+     and thins out toward the edge where content passes under it, never one blur stopping at a hard line. No tint, no
+     fill.
+     - The container fills its host, behind the host's content, and carries nothing that would cut the blur off from
+       the page behind (no opacity, filter, mask or transform). The layers carry the opacity: --lm-frost, default 1;
+       the top bar starts at 0 and AppShell writes its scroll share there.
+     - Each layer's box reaches --lm-frost-reach past the visible edge, where its mask hides it. A backdrop blur only
+       samples inside its own box (the edge pixels are mirrored), so a box that ended at the edge would leave whatever
+       crosses it nearly sharp under the last few px. --lm-frost-edge is that edge inside the layer's box.
+     - Top bar (side="top", Lumen's header): the frost reaches 24 px (--lm-frost-band) below the bar without taking
+       room, and the blur thins out in steps across the bar's bottom edge instead of stopping at a line: the 14 px
+       layer fades over the bar's last 24 px, the 9 px layer from 12 px above the edge to 12 px below it, and the 4 px
+       layer from the edge to the end of the band, so content dissolves into the bar as it passes under.
+     - Bottom docks (side="bottom"), mirrored: nothing rules a dock's top edge, so all three fade in over its top
+       24 px, the 4 px layer first (full 16 px in), then the 9 px (6 to 20 px in), the 14 px last (12 to 24 px in).
+     - Without backdrop-filter, the 4 px layer takes a 92 % Ember Black fill under the same mask, so the chrome stays
+       readable. */
+  .lm-frost {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+  .lm-frost > i {
+    --lm-frost-edge: calc(100% - var(--lm-frost-reach));
+    position: absolute;
+    inset: 0 0 calc(-1 * var(--lm-frost-reach));
+    opacity: var(--lm-frost, 1);
+    -webkit-backdrop-filter: blur(var(--lm-frost-blur));
+    backdrop-filter: blur(var(--lm-frost-blur));
+    -webkit-mask-image: var(--lm-frost-mask);
+    mask-image: var(--lm-frost-mask);
+    transition: opacity var(--lm-dur-frost) var(--lm-ease-standard);
+  }
+  .lm-frost[data-side='top'] {
+    inset: 0 0 calc(-1 * var(--lm-frost-band));
+  }
+  .lm-frost[data-side='bottom'] > i {
+    inset: calc(-1 * var(--lm-frost-reach)) 0 0;
+  }
+  .lm-frost > i:nth-child(1) {
+    --lm-frost-blur: var(--lm-frost-1);
+  }
+  .lm-frost > i:nth-child(2) {
+    --lm-frost-blur: var(--lm-frost-2);
+  }
+  .lm-frost > i:nth-child(3) {
+    --lm-frost-blur: var(--lm-frost-3);
+  }
+  /* A single masked blur preserves the native chrome treatment without stacking three full backdrop passes per bar. */
+  :root[data-platform='android'] .lm-frost > i:first-child {
+    --lm-frost-blur: var(--lm-frost-2);
+  }
+  :root[data-platform='android'] .lm-frost > i:nth-child(n + 2) {
     display: none;
   }
-  .lm-ctx-slot {
-    position: sticky;
-    top: calc(var(--lm-topbar-h) + var(--lm-safe-top));
-    z-index: calc(var(--lm-z-sticky) - 1);
+  /* --lm-frost-edge is the end of the band here; the bar's own bottom edge is one band above it */
+  .lm-frost[data-side='top'] > i:nth-child(1) {
+    --lm-frost-mask: linear-gradient(
+      to bottom,
+      #000 calc(var(--lm-frost-edge) - var(--lm-frost-band)),
+      transparent var(--lm-frost-edge)
+    );
+    /* r068 S13: a chassis tint under the blur, so scrolled charts and rows read as calm tone behind the title rather
+       than muddy shapes; it rides the same mask (no edge) and the same scroll share (none at the top of a page) */
+    background: color-mix(in srgb, var(--lm-chassis) 58%, transparent);
   }
-  .lm-ctx {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px 12px;
-    min-height: calc(var(--lm-bar-control-h) + 20px);
-    padding: 10px calc(var(--lm-gutter) + var(--lm-safe-right)) 10px calc(var(--lm-gutter) + var(--lm-safe-left));
-    background: var(--lm-chassis);
-    border-bottom: 1px solid var(--lm-line);
+  .lm-frost[data-side='top'] > i:nth-child(2) {
+    --lm-frost-mask: linear-gradient(
+      to bottom,
+      #000 calc(var(--lm-frost-edge) - var(--lm-frost-band) * 3 / 2),
+      transparent calc(var(--lm-frost-edge) - var(--lm-frost-band) / 2)
+    );
+  }
+  .lm-frost[data-side='top'] > i:nth-child(3) {
+    --lm-frost-mask: linear-gradient(
+      to bottom,
+      #000 calc(var(--lm-frost-edge) - var(--lm-frost-band) * 2),
+      transparent calc(var(--lm-frost-edge) - var(--lm-frost-band))
+    );
+  }
+  .lm-frost[data-side='bottom'] > i:nth-child(1) {
+    --lm-frost-mask: linear-gradient(
+      to top,
+      #000 calc(var(--lm-frost-edge) - var(--lm-frost-band) * 2 / 3),
+      transparent var(--lm-frost-edge)
+    );
+  }
+  .lm-frost[data-side='bottom'] > i:nth-child(2) {
+    --lm-frost-mask: linear-gradient(
+      to top,
+      #000 calc(var(--lm-frost-edge) - var(--lm-frost-band) * 5 / 6),
+      transparent calc(var(--lm-frost-edge) - var(--lm-frost-band) / 4)
+    );
+  }
+  .lm-frost[data-side='bottom'] > i:nth-child(3) {
+    --lm-frost-mask: linear-gradient(
+      to top,
+      #000 calc(var(--lm-frost-edge) - var(--lm-frost-band)),
+      transparent calc(var(--lm-frost-edge) - var(--lm-frost-band) / 2)
+    );
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    /* a fill needs no sampling room: the boxes end at the edge */
+    .lm-frost {
+      --lm-frost-reach: 0px;
+    }
+    .lm-frost > i:nth-child(1) {
+      background: color-mix(in srgb, var(--lm-chassis) 92%, transparent);
+    }
+  }
+
+  /* ---- the top bar (TopBar.tsx; SPEC §4, §8.3) ---------------------------------------------------------------------
+     A real bar at the top of the content column, sticky, safe area included: one 48 px key tall plus 4 px above and
+     below (56 px), and a tabs or progress row under that when the page has one (inside the bar, above its hairline).
+     At rest the bar sits on the backdrop; the tintless layered frost (<Frost side="top" />, below: no tint, no fill)
+     comes in over the first 80 px of scroll (--lm-frost 0…1, written by AppShell, eased over 300 ms; instant under
+     reduced motion) and fades out 24 px below the bar, as Lumen's header does. No line cuts that fade: on desktop the
+     0.5 px bottom hairline marks the bar at rest only and goes as the frost comes in; phones have none. */
+  .lm-ctx-slot {
+    --lm-frost: 0;
+    position: sticky;
+    top: 0;
+    z-index: var(--lm-z-sticky);
+    padding-top: var(--lm-safe-top);
+  }
+  .lm-ctx-slot::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--lm-dur-frost) var(--lm-ease-standard);
   }
   @media (min-width: 64rem) {
-    .lm-ctx-slot {
-      top: 0;
-    }
-    .lm-ctx {
-      min-height: calc(var(--lm-bar-control-h) + 16px);
-      padding: 8px var(--lm-gutter-lg);
-      background: var(--lm-chassis-2);
-      border-bottom: 1px solid var(--lm-line-strong);
+    .lm-ctx-slot::after {
+      opacity: calc(1 - var(--lm-frost, 0));
     }
   }
-  /* compact screens: the title lives in the mobile top bar; the bar stays for assistive tech */
-  @media (max-width: 63.99rem) {
-    .lm-ctx[data-compact='true'] {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      min-height: 0;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      border: 0;
-      white-space: nowrap;
-    }
+
+  /* The bar's row: ONE line that never wraps. Phones: the title at the gutter, the trail (status icons · primary pill ·
+     ⋯) at the right, 8 px in from the screen's edge so a pressed key's circle never touches it (r068 V8); a tab page's fact line is its own
+     full-width row under it (below). Desktop: the sidebar key first (its icon on the gutter), then Back on pushed pages,
+     the title with the fact line on the same line, the trail. Who gives way when the line is short, in order:
+     1. the status icons past the limit: at most two show (one beside a primary key on a phone), the rest move into the
+        ⋯ (TopBar.tsx); the icons themselves never shrink and carry no words to truncate;
+     2. then the fact line (desktop: it truncates first, flex-shrink 1000), then the title, down to its floor (4rem,
+        or 30 % of a very narrow row);
+     3. never the keys: the trail's minimum is its icons and keys, so the ⋯ always stays on the row. */
+  .lm-ctx {
+    position: relative;
+    display: grid;
+    row-gap: 4px;
+    padding: var(--lm-bar-pad-y) calc(var(--lm-gutter) - 8px + var(--lm-safe-right)) var(--lm-bar-pad-y) calc(var(--lm-gutter) + var(--lm-safe-left));
   }
-  .lm-ctx__title {
+  /* a tabs or progress row: 8 px under it, then the hairline */
+  .lm-ctx:has(> .lm-ctx__tabs, > .lm-ctx__progress) {
+    padding-bottom: 8px;
+  }
+  .lm-ctx__row {
     display: flex;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
-    min-width: 0;
+    min-height: var(--lm-header-key);
   }
-  .lm-ctx__title .lm-title {
+  .lm-ctx__heading {
+    display: grid;
+    flex: 0 1 auto;
+    min-width: min(4rem, 30%);
+  }
+  /* the page title (r071, SPEC Q2): `--lm-text-page`, 24/28 600, one line, truncated with an ellipsis (a switcher title
+     truncates its own name). The 4 px of padding, cancelled by the margin, keeps a focus ring inside the title from
+     being clipped. */
+  .lm-ctx .lm-title {
+    min-width: 0;
+    margin: -4px;
+    padding: 4px;
     overflow: hidden;
+    font-size: var(--lm-text-page);
+    line-height: var(--lm-text-page--lh);
+    font-weight: var(--lm-text-page--wt);
+    letter-spacing: var(--lm-text-page--ls);
+    color: var(--lm-ink);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .lm-ctx__grow {
-    flex: 1;
+  /* the fact line (r071, SPEC Q4): ONE fact in mono caps (`--lm-text-meta`, ink-2), always one line, ABOVE the title
+     like the references (the date over "Morning run"). It stays after the title in the DOM (the h1 leads the reading
+     order) and is drawn first: on a phone tab page as its own full-width row above the title row, so the status icons
+     never squeeze the date; on a pushed page and on desktop inside the heading, above the title. */
+  .lm-ctx__sub {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    font-family: var(--lm-text-meta--font);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    font-weight: var(--lm-text-meta--wt);
+    text-transform: uppercase;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
+    color: var(--lm-ink-2);
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  /* Below 1024 px: the title on the first row, the step scale on a second row across the full width, on the
-     title's left edge. Desktop: one line, the scale at the right end. */
-  .lm-ctx:has(> .lm-ctx__progress) {
-    row-gap: 10px;
+  .lm-ctx__heading > :is(.lm-ctx__sub, .lm-ctx__params) {
+    order: -1;
+  }
+  /* a phone tab page: the fact line is its own full-width row ABOVE the title row (TopBar renders it after the row in
+     the DOM; `order` draws it first), pulled down toward the title so the two read as one heading (the 48 px row
+     leaves ~10 px above the 28 px title), ending on the gutter */
+  .lm-ctx > .lm-ctx__sub {
+    order: -1;
+    margin: 0 8px -8px 0;
+  }
+  /* legacy `params`: the fact line on desktop only (hidden on phones, as before the redesign) */
+  .lm-ctx__params {
+    display: none;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 4px 10px;
+  }
+  .lm-ctx__trail {
+    display: flex;
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  /* the status icons (the page's own · the plan's · sync): 48 px targets side by side, no gap (their 22 px icons stand
+     26 px apart), never shrinking; the ones past the limit are [hidden] (StatusCapsule.tsx) */
+  .lm-ctx__caps,
+  .lm-ctx__status {
+    display: flex;
+    flex: none;
+    align-items: center;
+  }
+  /* beside the ⋯ the 48 px targets touch too, so the bar's icons keep one 48 px rhythm */
+  .lm-ctx__caps:has(+ .lm-ctx__more) {
+    margin-inline-end: -8px;
+  }
+  /* nothing to show (sync off, no status, every icon moved into the ⋯): no empty item and gap in the trail. The group
+     leaves the flow unseen but stays in the accessibility tree (never display: none), so sync's polite status line
+     (SyncPill.tsx) is still announced when sync turns on or changes while no icon shows. Anything else a page puts in
+     its status slot (a transient "Saved") keeps the group. Pinned to the bar's top-left corner with no margin: left at
+     its static place it would sit at the trail's end, past the ⋯'s inset, and widen the page on pushed phone bars. */
+  .lm-ctx__caps:not(:has(.lm-status-icon:not([hidden]), .lm-ctx__status > :not(.lm-status-icon))) {
+    position: absolute;
+    inset: 0 auto auto 0;
+    margin: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .lm-ctx__status:empty {
+    display: none;
+  }
+  .lm-ctx__actions,
+  .lm-ctx__primary {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+  }
+  .lm-ctx__row > .lm-ctx__back,
+  .lm-ctx__trail > .lm-ctx__more {
+    flex: none;
+  }
+  .lm-ctx__tabs,
+  .lm-ctx__progress {
+    min-width: 0;
+    max-width: 100%;
+    margin-inline-end: 8px;
+  }
+  .lm-ctx__tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  /* a selector in the bar's tabs row fills it (r068 U2) */
+  .lm-ctx__tabs > :is(.lm-bank, :has(> .lm-bank)) {
+    flex: 1 1 auto;
+    width: 100%;
   }
   .lm-ctx__progress {
     display: grid;
     justify-items: stretch;
-    flex: 1 0 100%;
-    min-width: 0;
-    max-width: 100%;
   }
   .lm-ctx__progress > * {
     max-width: 100%;
@@ -384,315 +901,644 @@
       width: 100%;
     }
   }
+
+  /* Desktop: the title starts on the 24 px gutter (Back before it on a pushed page, its chevron on the gutter), the
+     fact line on the same line after it, baseline to baseline. */
   @media (min-width: 64rem) {
-    .lm-ctx__progress {
-      flex: 0 1 auto;
-      margin-inline-start: auto;
-      justify-items: end;
+    .lm-ctx {
+      padding-inline: calc(var(--lm-gutter-lg) - 12px);
     }
-  }
-  .lm-ctx__params {
-    display: none;
-    align-items: center;
-    gap: 10px;
-  }
-  @media (min-width: 64rem) {
+    .lm-ctx:has(> .lm-ctx__tabs, > .lm-ctx__progress) {
+      padding-bottom: var(--lm-bar-pad-y);
+    }
+    /* the date line stacks ABOVE the title: 16 + 28 px fits the 48 px key row, so the bar keeps its height */
+    .lm-ctx__heading {
+      display: grid;
+      align-content: center;
+      justify-items: start;
+    }
+    .lm-ctx__row > .lm-ctx__heading:first-child {
+      margin-inline-start: 12px;
+    }
+    .lm-ctx .lm-title {
+      flex: 0 1 auto;
+    }
+    .lm-ctx__heading > :is(.lm-ctx__sub, .lm-ctx__params) {
+      max-width: 100%;
+    }
     .lm-ctx__params {
       display: flex;
     }
-  }
-  .lm-ctx__actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .lm-ctx__back {
-    display: none;
-  }
-  @media (min-width: 64rem) {
-    .lm-ctx__back {
-      display: inline-flex;
+    .lm-ctx > :is(.lm-ctx__tabs, .lm-ctx__progress) {
+      margin-inline: 12px;
+    }
+    .lm-ctx__progress {
+      justify-items: start;
+    }
+    /* `back.mobileOnly` (Settings): a tab-page bar on desktop */
+    .lm-ctx[data-desk='tab'] .lm-ctx__back {
+      display: none;
+    }
+    /* inside the app a pushed page's Back sits on the gutter, the title right after it, left-aligned like a tab page's */
+    .lm-ctx-slot .lm-ctx[data-desk='pushed'] .lm-ctx__back {
+      margin-inline-start: 0;
+    }
+    /* a pushed bar outside the app shell (no sidebar: the welcome flow, whose content is a centred column) keeps Back at
+       the left and centres its title, the sides sharing the spare room evenly */
+    .lm-ctx[data-desk='pushed']:not(.lm-ctx-slot *) > .lm-ctx__row {
+      display: grid;
+      grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+      column-gap: 4px;
+    }
+    .lm-ctx[data-desk='pushed']:not(.lm-ctx-slot *) > .lm-ctx__row > .lm-ctx__heading {
+      grid-column: 2;
+      grid-row: 1;
+      justify-content: center;
+      min-width: 0;
+      margin-inline-start: 0;
+      text-align: center;
+    }
+    .lm-ctx[data-desk='pushed']:not(.lm-ctx-slot *) > .lm-ctx__row > .lm-ctx__trail {
+      grid-column: 3;
+      grid-row: 1;
     }
   }
 
-  /* ---- global notices region ---------------------------------------------- */
-  .lm-notices:empty {
-    display: none;
+  /* Phone pushed page (`back`; `compactOnMobile`): a 48 px Back at the left edge, the title centred in title-m (16/23
+     500), and at the right only what the page brings (its ⋯, a transient "Saved"). Each side column is at least its
+     content, and the spare room is shared evenly, so the title stays centred while the sides match and truncates
+     before either side is pushed off the row; the trail keeps the Back key's width so an empty right side still
+     balances it. (Desktop pushed pages use the bar above: sidebar key · Back · title.) */
+  @media (max-width: 63.99rem) {
+    .lm-ctx[data-phone='pushed'] {
+      padding-inline: calc(8px + var(--lm-safe-left)) calc(8px + var(--lm-safe-right));
+    }
+    /* r068 L19: the title sits left, straight after Back, like every other title in the app (no centred titles) */
+    .lm-ctx[data-phone='pushed'] > .lm-ctx__row {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr) max-content;
+      column-gap: 4px;
+    }
+    .lm-ctx[data-phone='pushed'] .lm-ctx__back {
+      grid-column: 1;
+      justify-self: start;
+    }
+    .lm-ctx[data-phone='pushed'] .lm-ctx__heading {
+      grid-column: 2;
+      grid-row: 1;
+      justify-items: start;
+      min-width: 0;
+      text-align: start;
+    }
+    .lm-ctx[data-phone='pushed'] .lm-ctx__trail {
+      grid-column: 3;
+      grid-row: 1;
+      min-width: var(--lm-header-key);
+    }
+    .lm-ctx[data-phone='pushed'] .lm-title {
+      /* the full column: the title's 4 px focus room sits outside it on each side (margin −4 px) */
+      max-width: calc(100% + 8px);
+      font-size: var(--lm-text-title-m);
+      line-height: var(--lm-text-title-m--lh);
+    }
+    .lm-ctx[data-phone='pushed'] .lm-ctx__sub {
+      max-width: 100%;
+    }
+    .lm-ctx[data-phone='pushed'] > :is(.lm-ctx__tabs, .lm-ctx__progress) {
+      margin-inline: 8px;
+    }
   }
+
+  /* ---- the banner slot (notices.tsx): at most one banner, directly under the bar ---------------------------- */
   .lm-notices {
-    display: grid;
+    padding: 8px calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
+  }
+  /* Only an actionable Android update follows the sticky header while the person scrolls down a page. */
+  .lm-notices[data-android-update] {
+    position: sticky;
+    top: var(--lm-header-h, 0px);
+    z-index: calc(var(--lm-z-sticky) - 1);
+    padding-bottom: 8px;
+    background: transparent;
+  }
+  .lm-notices[data-android-update] > .lm-banner {
+    min-width: 0;
+    padding: 8px 12px;
+    background: var(--lm-card-bg);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-field);
+    box-shadow: none;
+  }
+  .lm-notices[data-android-update] .lm-notice {
+    align-items: center;
+    gap: 4px 12px;
+  }
+  .lm-notices[data-android-update] :is(.lm-notice__title, .lm-notice__body) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .lm-notices[data-android-update] .lm-notice__title {
+    grid-row: 1;
+  }
+  .lm-notices[data-android-update] .lm-notice__body {
+    grid-column: 2 / -1;
+    grid-row: 2;
+  }
+  .lm-notices[data-android-update] .lm-notice__mark {
+    grid-row: 1;
+    align-self: center;
+    margin-top: 0;
+  }
+  .lm-notices[data-android-update] .lm-notice__acts {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+    margin: 0;
+  }
+  .lm-notices[data-android-update] :is(.lm-notice__acts, .lm-agent-indicator__keys) .lm-key {
+    min-height: 44px;
+    max-width: 100%;
+    white-space: normal;
+  }
+  .lm-notices[data-android-update] .lm-agent-indicator__copy {
+    flex-basis: 10rem;
+  }
+  .lm-notices[data-android-update] .lm-update-progress {
+    display: flex;
+    align-items: center;
     gap: 8px;
-    padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
+    min-width: 0;
+    width: 100%;
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    height: 4px;
+    overflow: hidden;
+    appearance: none;
+    border: 0;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-ink-tile);
+    color: var(--lm-signal);
+    accent-color: var(--lm-signal);
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track::-webkit-progress-bar {
+    background: var(--lm-ink-tile);
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track::-webkit-progress-value {
+    background: var(--lm-signal);
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track::-moz-progress-bar {
+    background: var(--lm-signal);
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track:not([value]) {
+    background-image: linear-gradient(to right, transparent 35%, var(--lm-signal) 35% 65%, transparent 65%);
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track:not([value])::-webkit-progress-bar {
+    background: transparent;
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track:not([value])::-webkit-progress-value {
+    background: transparent;
+  }
+  .lm-notices[data-android-update] .lm-update-progress__track:not([value])::-moz-progress-bar {
+    background: transparent;
+  }
+  .lm-notices[data-android-update] .lm-update-progress__value {
+    flex: 0 0 auto;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .lm-notices[data-android-update] .lm-update-progress__value:empty {
+    display: none;
   }
   @media (min-width: 64rem) {
     .lm-notices {
-      padding: 20px var(--lm-gutter-lg) 0;
+      padding: 12px var(--lm-gutter-lg) 0;
     }
+  }
+  .lm-banner--agent {
+    justify-content: space-between;
+    min-height: 52px;
+    padding: 8px 8px 8px 16px;
+    border: 0.5px solid var(--lm-line);
+    border-radius: var(--lm-radius-lg);
+    background: var(--lm-face);
+  }
+  .lm-agent-indicator {
+    flex-wrap: wrap;
+  }
+  .lm-agent-indicator__copy {
+    display: grid;
+    gap: 2px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lm-agent-indicator__update-title {
+    font-weight: 500;
+  }
+  .lm-agent-indicator__update-body,
+  .lm-agent-indicator__status {
+    color: var(--lm-ink-2);
+  }
+  .lm-agent-indicator__keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-inline-start: auto;
+  }
+  .lm-agent-indicator__keys .lm-key {
+    min-height: 44px;
   }
 
   /* ---- page content column ---------------------------------------------------
-     The full width of the main column at every viewport, inside the token gutters (16 px phone, 24 px ≥ 1024),
-     the same edges as the context bar and the action bar. Reading pages opt into a narrow column
-     (`<Page width="narrow">`); elsewhere the line length is capped on paragraphs, not on the page. */
+     The full width of the main column inside the token gutters (20 px phone, 24 px ≥ 1024), the gutter the bar's
+     title and keys line up with. The content starts --lm-bar-gap under the bar's bottom edge (its hairline): 12 px on
+     phones, 16 px on desktop. Reading pages opt into a narrow column (`<Page width="narrow">`); elsewhere the line
+     length is capped on paragraphs, not on the page. */
   .lm-page {
-    padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
+    padding: var(--lm-bar-gap) calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
   }
   @media (min-width: 64rem) {
     .lm-page {
-      padding: 20px var(--lm-gutter-lg) 0;
+      padding: var(--lm-bar-gap) var(--lm-gutter-lg) 0;
     }
   }
-  .lm-page[data-width='narrow'] {
-    max-width: calc(760px + 2 * var(--lm-gutter-lg));
-    margin: 0 auto;
-  }
-  /* Line length: everything takes the full width (owner, 5 Oct). Text in a card fills the card (a faceplate already
-     bounds it), so per-screen ch caps on card paragraphs give way; centred empty-state copy keeps its measure. Only
-     the long-form reading pages keep a measure (their narrow column, above, and the evidence articles' own). */
-  :where(.lm-page:not([data-width='narrow'])) .lm-face p:not(.lm-empty p) {
+  /* Line length: everything takes the full width (owner, 5 Oct; r068 U5: no page max-width at all, `narrow` included).
+     Text in a card fills the card (a faceplate already bounds it), so per-screen ch caps on card paragraphs give way;
+     centred empty-state copy keeps its measure; long-form prose caps its own paragraphs (--lm-measure-prose). */
+  :where(.lm-page) .lm-face p:not(.lm-empty p) {
     max-width: none;
   }
 
-  /* ---- contextual action bar (TopBar.tsx `ActionBarFrame`) -------------------
-     - < 1024 px: full width at the end of the page, sticky to the bottom of the screen above the fixed tab bar; filled by the screen's <ActionBar> (`data-place='foot'`);
-     - ≥ 1024 px: fixed along the bottom of the content column (right of the rail, inner edges on the page
-       grid), filled by the TopBar's key parameters (left) and actions (right) (`data-place='desk'`), so the
-       context bar keeps only identity and status. A screen with an <ActionBar> but no TopBar parameters or
-       actions shows that bar there instead. The page (`.lm-main`), focus scrolling, toasts and the
-       viewport-high docked panels keep clear of it. */
+  /* ---- layout primitives (src/components/Layout.tsx) ------------------------------------------------------------
+     <Stack>: one column of cards or sections, --lm-stack (16 px) apart. The default page layout.
+     <Columns>: an explicit two-column grid, --lm-stack apart, that collapses to one column below its breakpoint
+     (lg = 1024 px by default; md = 768; xl = 1280). `ratio` sets the split (equal · wide-start · wide-end). Children
+     are grid items with min-width 0, so a chart never forces overflow. Use it only where two columns read better
+     (a chart beside its table, a long list beside its detail); everything else is one column. */
+  .lm-stack {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: var(--lm-stack);
+    min-width: 0;
+  }
+  .lm-stack[data-gap='card'] {
+    gap: var(--lm-card-gap);
+  }
+  .lm-stack[data-gap='row'] {
+    gap: var(--lm-row-gap);
+  }
+  .lm-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: var(--lm-stack);
+    min-width: 0;
+  }
+  .lm-cols > * {
+    min-width: 0;
+  }
+  @media (min-width: 48rem) {
+    .lm-cols[data-from='md'] {
+      grid-template-columns: var(--lm-cols-template, repeat(2, minmax(0, 1fr)));
+    }
+  }
+  @media (min-width: 64rem) {
+    .lm-cols[data-from='lg'] {
+      grid-template-columns: var(--lm-cols-template, repeat(2, minmax(0, 1fr)));
+    }
+  }
+  @media (min-width: 80rem) {
+    .lm-cols[data-from='xl'] {
+      grid-template-columns: var(--lm-cols-template, repeat(2, minmax(0, 1fr)));
+    }
+  }
+  .lm-cols[data-ratio='wide-start'] {
+    --lm-cols-template: minmax(0, 3fr) minmax(0, 2fr);
+  }
+  .lm-cols[data-ratio='wide-end'] {
+    --lm-cols-template: minmax(0, 2fr) minmax(0, 3fr);
+  }
+  .lm-cols[data-align='stretch'] {
+    align-items: stretch;
+  }
+  /* a page's stack of content: the page column itself can be the stack (<Page stack>) */
+  .lm-page[data-stack] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: var(--lm-stack);
+  }
+
+  /* ---- the screen's <ActionBar> row (TopBar.tsx) -------------------------------
+     After the screen's content, in the flow: a plain row of keys on the page gutters — no bar, not fixed, not sticky,
+     at every width. Only on phones, on a screen without the tab bar (`data-docked`: the first-run intake, a focused
+     child flow), it docks at the bottom of the screen as that flow's toolbar, in the navigation's place and built like
+     it: a frosted dock on the safe-area edge holding a control pill (the nav pill's material: card at 95 %, 0.5 px
+     hairline, 64 px, round ends) with the keys on it. The keys always sit on that solid pill, so no content reads
+     through behind them; the tintless frost around the pill only softens what scrolls past. No ancestor may set
+     overflow or a transform, or sticky stops working (guarded in actionBarSticky.test.ts).
+     The slot shows only while it holds a row: on a docked screen it also holds the shell's frost (AppShell.tsx). */
   .lm-actionbar-slot:empty {
     display: none;
   }
+  .lm-actionbar-slot:not(:has(> .lm-actionbar)) {
+    display: none;
+  }
+  .lm-actionbar-slot > .lm-frost {
+    display: none;
+  }
+  .lm-actionbar-slot {
+    display: grid;
+    gap: 12px;
+    padding: 24px calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
+  }
+  @media (min-width: 64rem) {
+    .lm-actionbar-slot {
+      padding: 32px var(--lm-gutter-lg) 0;
+    }
+  }
   .lm-actionbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
-    min-height: calc(var(--lm-bar-control-h) + 20px);
-    padding: 10px calc(var(--lm-gutter) + var(--lm-safe-right)) 10px calc(var(--lm-gutter) + var(--lm-safe-left));
-    background: var(--lm-chassis);
-    border-top: 1px solid var(--lm-line-strong);
+    gap: 8px 10px;
   }
-  /* a lone item (the Coach composer, the setup keys) spans the bar, so its right edge keeps the gutter too */
+  /* a lone item (the setup keys) spans the row */
   .lm-actionbar > :only-child {
     flex: 1 1 auto;
     min-width: 0;
   }
-  /* Every word key in the bar is a real key at the one bar height (--lm-bar-control-h, see the block at the end of
-     this file): the screen's quiet keys ("Back", "Skip for now") take the default raised cap, so the solid or
-     yellow key stays the primary and the bar's painted edges sit on the 16 / 24 px gutters. */
-  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']) {
-    background: var(--lm-raised);
-    border-color: var(--lm-edge);
-    box-shadow: var(--lm-shadow-key);
-  }
-  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']):hover {
-    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
-  }
-  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']):active:not([aria-disabled='true']):not(:disabled) {
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-key-pressed);
-  }
-  .lm-actionbar .lm-key[data-variant='quiet'][data-pressed='true']:not([data-icon-only='true']) {
-    background: var(--lm-well);
-    border-color: var(--lm-ink);
-    box-shadow: var(--lm-shadow-key-pressed);
-  }
-  .lm-actionbar .lm-key[data-variant='quiet']:not([data-icon-only='true']):is(:disabled, [aria-disabled='true']:not([data-loading='true'])) {
-    background: var(--lm-well);
-    border-color: var(--lm-line-strong);
-    box-shadow: none;
-  }
-  /* Your body's setup keys (Back · Skip for now · Next) fill the phone bar edge to edge, Next the widest */
-  .lm-actionbar[data-place='foot'] .lm-body-setup-actions > .lm-key {
-    flex: 1 1 auto;
-  }
   @media (max-width: 63.99rem) {
-    /* Phones and tablets: the bar is in the flow at the end of the page and sticks to the bottom of the screen, just
-       above the tab bar, while the page is longer than the window (it needs no padding: it takes its own room).
-       No ancestor may set overflow or a transform, or sticky stops working (guarded in actionBar.test.tsx). */
-    .lm-app {
-      --lm-foot-offset: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom));
-    }
-    .lm-app[data-chromeless='true'] {
-      --lm-foot-offset: 0px;
-    }
-    .lm-app[data-keyboard='true'] {
-      --lm-foot-offset: 0px;
-    }
-    .lm-actionbar-slot {
+    .lm-actionbar-slot[data-docked] {
       position: sticky;
-      bottom: var(--lm-foot-offset);
-      z-index: var(--lm-z-tabbar);
-    }
-    /* toasts sit above the bar and the tab bar; sheets and dialogs (z 500, 600) cover both */
-    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) {
-      --lm-actionbar-h: var(--lm-foot-h, var(--lm-footbar-h));
-    }
-    .lm-app:has(.lm-ctx[data-bottom]) {
-      --lm-actionbar-h: calc(var(--lm-foot-h, 0px) + var(--lm-ctx-h, 0px));
-    }
-    /* The screen's title bar (title left, "…" and actions right) sits at the foot of the screen, in the slot where the
-       Coach's message bar used to be: fixed just above the action bar (or the tab bar), the same solid ground and
-       hairline as the action bar. It stays in the top slot in the DOM, so the h1 keeps its place in the reading
-       order. The shell measures both bars (`--lm-foot-h`, `--lm-ctx-h`, AppShell.tsx) so nothing overlaps whatever
-       height they take; the page keeps the room under its last line. Compact screens (Settings) keep their title in
-       the top bar and are not touched. */
-    .lm-ctx-slot:has(> .lm-ctx[data-bottom]) {
-      position: fixed;
-      top: auto;
-      left: 0;
-      right: 0;
-      bottom: calc(var(--lm-foot-offset) + var(--lm-foot-h, 0px));
-      z-index: var(--lm-z-tabbar);
-    }
-    .lm-ctx[data-bottom] {
-      row-gap: 6px;
-      border-bottom: 0;
-      border-top: 1px solid var(--lm-line-strong);
-    }
-    .lm-main:has(.lm-ctx[data-bottom]) {
-      padding-bottom: calc(var(--lm-ctx-h, 0px) + 24px);
-    }
-    /* chromeless screens (first-run intake) have no tab bar: the lowest bar clears the home indicator itself */
-    .lm-app[data-chromeless='true'] .lm-actionbar-slot,
-    .lm-app[data-chromeless='true']:not(:has(.lm-actionbar-slot > .lm-actionbar)) .lm-ctx-slot:has(> .lm-ctx[data-bottom]) {
-      padding-bottom: var(--lm-safe-bottom);
-      background: var(--lm-chassis);
-    }
-    html:has(.lm-ctx[data-bottom]) {
-      scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-ctx-h, var(--lm-footbar-h)) + 24px);
-    }
-    html:has(.lm-ctx[data-bottom]):has(.lm-actionbar-slot > .lm-actionbar) {
-      scroll-padding-bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-foot-h, var(--lm-footbar-h)) + var(--lm-ctx-h, var(--lm-footbar-h)) + 24px);
-    }
-    :root .lm-toaster {
-      bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-actionbar-h, 0px) + 12px);
-    }
-  }
-  @media (min-width: 64rem) {
-    .lm-actionbar-slot {
-      grid-column: 2;
-    }
-    .lm-actionbar-slot:has(> [data-place='desk']) > [data-place='foot'] {
-      display: none;
-    }
-    /* status on the left, keys on the right: the actions span the bar after the parameters, and their first group
-       that holds something to press starts the right-hand cluster ("saved on this device" … Back · Skip · Next) */
-    .lm-actionbar[data-place='desk'] > .lm-ctx__grow {
-      display: none;
-    }
-    .lm-actionbar[data-place='desk'] > .lm-ctx__actions {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-    .lm-actionbar[data-place='desk'] > .lm-ctx__actions > :is(button, a[href], input, select, :has(button, a[href], input, select)):not(:is(button, a[href], input, select, :has(button, a[href], input, select)) ~ *) {
-      margin-inline-start: auto;
-    }
-    .lm-actionbar {
-      position: fixed;
-      left: var(--lm-rail-w);
-      right: 0;
       bottom: 0;
       z-index: var(--lm-z-tabbar);
-      min-height: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom));
-      /* the page column's edges: the full content column inside the 24 px gutters (`.lm-page`) */
-      padding: 8px var(--lm-gutter-lg) calc(8px + var(--lm-safe-bottom));
+      gap: 8px;
+      margin-top: auto;
+      /* the dock's own insets (.lm-dock): 4 px around the pill, the side and home-indicator insets added */
+      padding: 4px calc(10px + var(--lm-safe-right)) calc(4px + var(--lm-safe-bottom)) calc(10px + var(--lm-safe-left));
+      background: transparent;
     }
-    /* toasts sit above the bar (bottom-left on desktop, IA §3.3) */
-    :root:has(.lm-actionbar-slot > .lm-actionbar) .lm-toaster {
-      bottom: calc(var(--lm-deskbar-h) + var(--lm-safe-bottom) + 16px);
+    /* the control pill: the nav pill's material and shape (.lm-tabbar). Its padding centres the bar's keys
+       (--lm-bar-control-h: 36 px, 44 px under a coarse pointer) on the 64 px body, so a gold pill key inside sits
+       concentric with the pill's round end; a row that has to wrap grows the pill and keeps the same insets. */
+    .lm-actionbar-slot[data-docked] > .lm-actionbar {
+      --lm-actionbar-pad: calc((var(--lm-pill-h) - var(--lm-bar-control-h)) / 2);
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 34rem;
+      min-height: var(--lm-pill-h);
+      margin-inline: auto;
+      padding: var(--lm-actionbar-pad);
+      border: 0.5px solid var(--lm-line);
+      border-radius: 36px;
+      background: var(--lm-nav-pill-bg);
     }
-    /* docked panels sized to the viewport stop above the bar (same gap above it as under the context bar) */
-    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .lm-sidepanel[data-mode='docked'],
-    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .lv-coach-brief {
-      max-height: calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 24px);
+    /* a lone row of step keys fills the pill (a feature's own desktop column width for it does not apply here) */
+    .lm-app .lm-actionbar-slot[data-docked] > .lm-actionbar > :only-child {
+      flex: 1 1 auto;
     }
-    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .sim-sched__editor[data-mode='docked'] {
-      max-height: calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 32px);
+    /* the dock's layered frost (<Frost side="bottom" />, as in .lm-dock) under the whole toolbar, its fade band 24 px
+       above it without taking room: the page's last 24 px (kept clear below) is where what scrolls past softens */
+    .lm-actionbar-slot[data-docked] > .lm-frost {
+      display: block;
+      top: calc(-1 * var(--lm-frost-band));
     }
-    .lm-app:has(.lm-actionbar-slot > .lm-actionbar) .ev-sticky {
-      max-height: calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 40px);
+    /* the docked toolbar takes its own room: no gap under it at the end of the page. On a short page (a finished
+       intake chapter, a setup step) the column fills the screen so the toolbar sits on the bottom edge instead of
+       right after the content; the content keeps 24 px above it. */
+    .lm-main:has(> .lm-actionbar-slot[data-docked] > .lm-actionbar) {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding-bottom: 0;
+    }
+    .lm-main:has(> .lm-actionbar-slot[data-docked] > .lm-actionbar) > * {
+      flex-shrink: 0;
+    }
+    .lm-main:has(> .lm-actionbar-slot[data-docked] > .lm-actionbar) > .lm-page {
+      width: 100%;
+    }
+    .lm-main:has(> .lm-actionbar-slot[data-docked] > .lm-actionbar) > :nth-last-child(2) {
+      margin-bottom: 24px;
+    }
+    .lm-app:has(.lm-actionbar-slot[data-docked] > .lm-actionbar) {
+      --lm-actionbar-h: var(--lm-foot-h, 64px);
+    }
+    html:has(.lm-actionbar-slot[data-docked] > .lm-actionbar) {
+      scroll-padding-bottom: calc(var(--lm-foot-h, 64px) + 24px);
+    }
+    /* toasts: bottom centre, 12 px above the dock (or the home indicator) — or above the docked toolbar, whose
+       measured height (--lm-foot-h) already holds the home-indicator inset */
+    .lm-app .lm-toaster {
+      bottom: calc(max(var(--lm-dock-h), var(--lm-safe-bottom)) + 12px);
+    }
+    .lm-app:has(.lm-actionbar-slot[data-docked] > .lm-actionbar) .lm-toaster {
+      bottom: calc(var(--lm-actionbar-h) + 12px);
     }
   }
 
-  /* ---- route-level states (loading, not found, error) --------------------- */
-  .lm-route-progress {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    z-index: var(--lm-z-toast);
+  /* ---- route-level states (RouteStates.tsx: loading, not found, error) ------- */
+  .lm-route-skel {
+    display: grid;
+    gap: 16px;
+    padding: var(--lm-bar-gap) calc(var(--lm-gutter) + var(--lm-safe-right)) 0 calc(var(--lm-gutter) + var(--lm-safe-left));
+  }
+  @media (min-width: 64rem) {
+    .lm-route-skel {
+      padding: var(--lm-bar-gap) var(--lm-gutter-lg) 0;
+    }
+  }
+  .lm-route-skel__block {
+    display: block;
+    height: 144px;
+    border: 0.5px solid var(--lm-line);
+    border-radius: var(--lm-radius-lg);
+    background: color-mix(in srgb, var(--lm-face) 70%, transparent);
+  }
+  .lm-route-skel__block[data-size='s'] {
+    height: 64px;
+  }
+  .lm-route-state {
+    display: grid;
+    justify-items: start;
+    gap: 16px;
+    padding-top: 10px;
+  }
+  /* the 404 (r068 S32): a small empty state centred in the content area — icon, title, the path, the way home */
+  .lm-route-state[data-center] {
+    justify-items: center;
+    align-content: center;
+    gap: var(--lm-space-3);
+    min-height: calc(100dvh - var(--lm-header-h, 64px) - var(--lm-dock-h) - 96px);
+    padding-top: 0;
+    text-align: center;
+  }
+  .lm-route-state__icon {
+    color: var(--lm-ink-3);
+  }
+  .lm-route-state__h {
+    margin: 0;
+    font-family: var(--lm-text-title-l--font);
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+    font-weight: var(--lm-text-title-l--wt);
+    color: var(--lm-ink);
+  }
+  .lm-route-state__path {
+    max-width: 100%;
+    margin: 0 0 var(--lm-space-2);
+    overflow-wrap: anywhere;
+    font-family: var(--lm-font-mono, ui-monospace, monospace);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-3);
+  }
+  .lm-route-state__title {
+    margin: 0;
+    font-size: 28px;
+    line-height: 34px;
+    font-weight: 500;
+    letter-spacing: -0.5px;
+    color: var(--lm-ink);
+  }
+  .lm-route-state__line {
+    margin: 0;
+    max-width: 40rem;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lm-route-state__keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lm-route-state__details {
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--lm-ink-3);
+  }
+  .lm-route-state__details summary {
+    cursor: pointer;
+    user-select: none;
+  }
+  .lm-route-state__details pre {
+    margin: 8px 0 0;
+    padding: 12px;
+    overflow: auto;
+    white-space: pre-wrap;
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-well);
+    color: var(--lm-ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+  }
+  .lm-route-root {
+    padding-top: calc(48px + var(--lm-safe-top));
   }
 
   /* ---- one control height in the bars -------------------------------------------------------------------------
      --lm-bar-control-h (tokens.css): 36 px for a fine pointer, 44 px under (pointer: coarse) so touch screens keep
-     the touch target. EVERY control in the top bars (.lm-topbar, the screen's .lm-ctx bar) and in the action bar
-     (.lm-actionbar) is exactly that high: keys, icon keys, key banks (segmented switches), steppers and number
-     fields, inputs, selects, switches, chips (sync and ring status included) and the round run key. Bars centre their items. Guarded by
-     src/app/__tests__/barControlHeight.test.ts and measured per route by scripts/qa/bar-heights.mjs. */
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) {
+     the touch target. EVERY control a screen puts in its header's title row (.lm-ctx__row: legacy actions, the primary
+     pill) and in its ActionBar row (.lm-actionbar) is exactly that high: keys, icon keys, key banks (segmented
+     switches), steppers and number fields, inputs, selects, switches, chips (the sync chip included) and the round run
+     key. Rows centre their items. The header's tabs and progress rows (.lm-ctx__tabs, .lm-ctx__progress) keep the
+     components' own sizes (segments 40 px, 48 px under a coarse pointer: SPEC §5). The bar's own keys (sidebar, Back,
+     ⋯) and the status icons (.lm-status-icon, components.css) are 48 px targets.
+     Guarded by src/app/__tests__/barControlHeight.test.ts and measured per route by scripts/qa/bar-heights.mjs. */
+  :is(.lm-ctx__row, .lm-actionbar) {
     --bar-h: var(--lm-bar-control-h);
     align-items: center;
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-key:not([data-icon-only='true']) {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-key:not([data-icon-only='true']) {
     height: var(--bar-h);
     min-height: var(--bar-h);
     padding-inline: 14px;
     font-size: var(--lm-text-base);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-key[data-icon-only='true'] {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-key[data-icon-only='true'] {
     width: var(--bar-h);
     height: var(--bar-h);
     min-height: var(--bar-h);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-bank {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-bank {
     height: var(--bar-h);
     box-sizing: border-box;
     align-items: stretch;
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-bank > .lm-bank__key {
+  /* a bank in the bar keeps the mono-caps size of every bank (11 px, 12 from 1024: --lm-text-meta) */
+  :is(.lm-ctx__row, .lm-actionbar) .lm-bank > .lm-bank__key {
     height: auto;
     min-height: 0;
     padding-inline: 12px;
-    font-size: var(--lm-text-sm);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-stepper {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-stepper {
     height: var(--bar-h);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-stepper__btn {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-stepper__btn {
     width: var(--bar-h);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-numfield:not(.lm-stepper > .lm-numfield) {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-numfield:not(.lm-stepper > .lm-numfield) {
     height: var(--bar-h);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) :is(.lm-input, .lm-select, .lm-select[data-size='sm']) {
+  :is(.lm-ctx__row, .lm-actionbar) :is(.lm-input, .lm-select, .lm-select[data-size='sm']) {
     height: var(--bar-h);
     min-height: 0;
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-switch {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-switch {
     min-height: var(--bar-h);
     height: var(--bar-h);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-chip {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-chip {
     height: var(--bar-h);
     padding-inline: 12px;
   }
   /* bare text triggers a screen puts in a bar (a name that opens a menu, an evidence link, a date button with a
      native input over it) get the same height, so the row has one rhythm */
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar)
-    :is(button, a[href], summary, [role='button']):not(.lm-key, .lm-bank__key, .lm-stepper__btn, .lm-select, .lm-chip, .lm-topbar__back, .lm-runkey, [role='radio'], [role='tab'], [role='switch']):not(.lm-bank *, .lm-stepper *, .lm-runkey *, .lm-switch *, .lm-ik-progress *) {
+  :is(.lm-ctx__row, .lm-actionbar)
+    :is(button, a[href], summary, [role='button']):not(.lm-key, .lm-bank__key, .lm-stepper__btn, .lm-select, .lm-chip, .lm-runkey, .lm-status-icon, [role='radio'], [role='tab'], [role='switch']):not(.lm-bank *, .lm-stepper *, .lm-runkey *, .lm-switch *, .lm-ik-progress *) {
     box-sizing: border-box;
     height: var(--bar-h);
     min-height: var(--bar-h);
     align-content: center;
     line-height: 1.15;
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) :has(> input[type='date']) {
+  :is(.lm-ctx__row, .lm-actionbar) :has(> input[type='date']) {
     height: var(--bar-h);
   }
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-runkey__cap,
-  :is(.lm-topbar, .lm-ctx, .lm-actionbar) .lm-runkey[data-size='lg'] .lm-runkey__cap {
+  :is(.lm-ctx__row, .lm-actionbar) .lm-runkey__cap,
+  :is(.lm-ctx__row, .lm-actionbar) .lm-runkey[data-size='lg'] .lm-runkey__cap {
     --cap: var(--bar-h);
+  }
+  /* the bar's own keys: the sidebar key (desktop), Back and the one ⋯, 48 px round targets with a 24 px ink-2 icon */
+  .lm-ctx .lm-key:is(.lm-ctx__back, .lm-ctx__more) {
+    width: var(--lm-header-key);
+    height: var(--lm-header-key);
+    min-height: var(--lm-header-key);
+    border-color: transparent;
+    border-radius: var(--lm-radius-full);
+    background: transparent;
+    box-shadow: none;
+    color: var(--lm-ink-2);
+  }
+  .lm-ctx .lm-key:is(.lm-ctx__back, .lm-ctx__more) svg {
+    width: var(--lm-header-icon);
+    height: var(--lm-header-icon);
+  }
+  .lm-ctx .lm-key:is(.lm-ctx__back, .lm-ctx__more):hover {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+  }
+  .lm-ctx .lm-key.lm-ctx__more[aria-expanded='true'] {
+    color: var(--lm-ink);
+    background: var(--lm-elevated, var(--lm-raised));
   }
 }

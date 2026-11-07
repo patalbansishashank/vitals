@@ -3,16 +3,17 @@
    intake lane (§4.4) and the energy-vs-maintenance lane. The gutter value,
    % change and crosshair dot update imperatively on cursor moves.
    ========================================================================== */
-import { memo, useCallback, useEffect, useMemo, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { GripVertical, MoreHorizontal } from 'lucide-react';
+import { usePulse } from '@/app/motion';
 import { energyPerDayUnit, formatEnergy, GradeBadge, Icon, Menu, Swatch, type EnergyUnitChoice, type MenuItem } from '@/components';
 import { laneKindOf, MACRO_LABEL, MACRO_LETTER } from '../catalogue';
 import type { ChartController, ViewState } from '../core/controller';
-import { useInView } from '../core/hooks';
+import { type AxisRegister, useAxisModel, useInView } from '../core/hooks';
 import { stackKeys, energyModel, inputsModel, INPUTS_TICK_ROW, type InputsMode } from '../core/inputModels';
 import type { StackLayout } from '../core/layout';
 import { type LaneMode, lineLaneModel, stackedAreaModel } from '../core/models';
-import { PlotCanvas, type PlotApi } from '../core/PlotCanvas';
+import { PlotCanvas, type PlotApi, type PlotModel } from '../core/PlotCanvas';
 import { formatNumber, formatSigned, percentChange, THIN, unitSuffix } from '../lib/format';
 import { energyBalance, intakeKcal } from '../lib/intake';
 import { baselineOf, isWideRange, trackAt, valueAt } from '../lib/series';
@@ -23,6 +24,7 @@ import { setData } from '../core/dom';
 
 /** "−17.8 %" for ratio metrics, "−12 pts" for indices, absolute change when the start is ~0. */
 export function changeText(s: ChartSeries, v: number): string {
+  if (s.display?.wordOnly) return '';
   const b = baselineOf(s);
   if (!Number.isFinite(v) || !Number.isFinite(b)) return '';
   // a series that starts at zero ("% vs start", adaptation, hours in ketosis) already reads as the change: repeating
@@ -70,6 +72,39 @@ function useCursorEffect(controller: ChartController, update: () => void) {
   }, [controller, update]);
 }
 
+/**
+ * The focused lane's end dot pulses (AUDIT §1.4): a ring leaves the dot and fades, twice, then this unmounts. The canvas
+ * draws the dot itself; this is the ring, placed on the model's end point after every draw of the plot (so it follows
+ * a zoom, a pan and the y-scale tween), animated on the compositor by `.lmc-pulse`. Not mounted at all under reduced
+ * motion, forced colours or more contrast (`usePulse` is false), and the stylesheet hides it there too.
+ */
+function EndPulse({ api, model, controller, hue }: { api: PlotApi | null; model: PlotModel; controller: ChartController; hue: string }) {
+  const pulsing = usePulse();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !api) return;
+    const place = () => {
+      const end = model.endPoint?.(controller.view.get());
+      const [lo, hi] = api.domain();
+      if (!end || end.v < lo || end.v > hi) {
+        setData(el, 'on', 'false');
+        return;
+      }
+      el.style.transform = `translate(${api.cssX(end.t).toFixed(1)}px, ${api.cssY(end.v).toFixed(1)}px)`;
+      setData(el, 'on', 'true');
+    };
+    place();
+    return api.onDraw(place);
+  }, [api, model, controller, pulsing]);
+  if (!pulsing) return null;
+  return (
+    <div ref={ref} className="lmc-pulse" data-on="false" style={{ '--lmc-dot': hue } as CSSProperties} aria-hidden="true">
+      <i />
+    </div>
+  );
+}
+
 export interface LaneActions {
   onExplain?: (id: string) => void;
   onFocus?: (id: string) => void;
@@ -93,6 +128,8 @@ export interface LaneRowProps extends LaneActions {
   dragging?: boolean;
   /** Visibility registry for the readout (only lanes in view are listed when there are many). */
   onVisible?: (id: string, visible: boolean) => void;
+  /** The stack's shared tick column: the lane's model joins the widest-label measurement. */
+  onAxisModel?: AxisRegister;
 }
 
 export const LaneRow = memo(function LaneRow(p: LaneRowProps) {
@@ -115,29 +152,37 @@ export const LaneRow = memo(function LaneRow(p: LaneRowProps) {
   const model = useMemo(
     () =>
       kind === 'stacked-area'
-        ? stackedAreaModel(s, { mode, tickColCss: layout.tickCol, phases: p.phases, events: p.events, textures: p.textures, labels: mode === 'focus' })
+        ? stackedAreaModel(s, { mode: s.display?.wordOnly ? 'strip' : mode, tickColCss: layout.tickBase, phases: p.phases, events: p.events, textures: p.textures, labels: mode === 'focus' })
         : lineLaneModel(s, {
-            mode,
-            tickColCss: layout.tickCol,
+            mode: s.display?.wordOnly ? 'strip' : mode,
+            tickColCss: layout.tickBase,
             fromZero: p.fromZero,
             phases: p.phases,
             events: p.events,
             textures: p.textures,
             thresholdLabels: mode !== 'strip',
           }),
-    [kind, s, mode, layout.tickCol, p.fromZero, p.phases, p.events, p.textures],
+    [kind, s, mode, layout.tickBase, p.fromZero, p.phases, p.events, p.textures],
   );
+  useAxisModel(p.onAxisModel, `lane:${s.id}`, model);
   const height = mode === 'focus' ? layout.focusH : mode === 'strip' ? layout.stripH : layout.laneH;
   const padV = mode === 'strip' ? 3 : 8;
   const padding = useMemo(() => ({ top: padV, bottom: padV, left: layout.tickCol, right: layout.rightPad }), [padV, layout.tickCol, layout.rightPad]);
-  const onApi = useCallback((api: PlotApi | null) => {
-    apiRef.current = api;
-  }, []);
+  // only the focused lane needs the engine in state (its pulse follows the end point); the others keep a ref
+  const focused = mode === 'focus' && !s.display?.wordOnly;
+  const [pulseApi, setPulseApi] = useState<PlotApi | null>(null);
+  const onApi = useCallback(
+    (api: PlotApi | null) => {
+      apiRef.current = api;
+      if (focused) setPulseApi(api);
+    },
+    [focused],
+  );
 
   const update = useCallback(() => {
     const { t, live, view } = cursorOrEnd(controller);
     const cv = valueAt(s, t, live ? view.res : 'daily');
-    setText(valRef.current, formatNumber(cv.v, s.format.decimals));
+    setText(valRef.current, s.display?.wordOnly ?? `${formatNumber(cv.v, s.format.decimals)}${s.display?.qualifier ? ` · ${s.display.qualifier}` : ''}`);
     setText(deltaRef.current, changeText(s, cv.v));
     const dot = dotRef.current;
     const api = apiRef.current;
@@ -181,7 +226,7 @@ export const LaneRow = memo(function LaneRow(p: LaneRowProps) {
     }
   };
 
-  const unit = unitSuffix(s.unit);
+  const unit = s.display?.wordOnly ? '' : unitSuffix(s.unit);
   const wide = isWideRange(s);
   const notes = [s.grade === 'D' ? 'exploratory' : '', wide ? 'wide range' : ''].filter(Boolean).join(' · ');
   const summary = useMemo(() => laneSummary(s), [s]);
@@ -195,7 +240,7 @@ export const LaneRow = memo(function LaneRow(p: LaneRowProps) {
         {mode !== 'strip' ? (
           <span className="lmc-gut__meta">
             <GradeBadge grade={s.grade} size="sm" />
-            <span className="lmc-note">{s.unit}</span>
+            <span className="lmc-note">{s.display?.wordOnly ? '' : s.unit}</span>
           </span>
         ) : null}
         {notes && mode !== 'strip' ? <span className="lmc-gut__note">{notes}</span> : null}
@@ -234,15 +279,11 @@ export const LaneRow = memo(function LaneRow(p: LaneRowProps) {
       </div>
       <div className="lmc-cell" role="img" aria-label={summary}>
         <PlotCanvas model={model} controller={controller} width={layout.cellW} height={height} padding={padding} active={inView} onApi={onApi}>
-          <div ref={dotRef} className="lmc-dot" data-on="false" style={{ background: `var(--lm-cat-${s.category})` }} />
+          <div ref={dotRef} className="lmc-dot" data-on="false" style={{ '--lmc-dot': `var(--lm-cat-${s.category})` } as CSSProperties} />
+          {focused ? <EndPulse api={pulseApi} model={model} controller={controller} hue={kind === 'stacked-area' ? 'var(--lm-ink)' : `var(--lm-cat-${s.category})`} /> : null}
         </PlotCanvas>
       </div>
-      {mode === 'focus' && s.mechanism ? (
-        <p className="lmc-mech">
-          {s.mechanism}
-          {s.grade === 'D' ? ' Grade D: shown for exploration.' : ''}
-        </p>
-      ) : null}
+      {/* C6/D6-07: no mechanism line under a focused lane; the mechanism, warrant and limits open in Explain */}
     </div>
   );
 });
@@ -262,6 +303,8 @@ export interface InputsRowProps {
   energyUnit?: EnergyUnitChoice;
   onModeChange?: (m: InputsMode) => void;
   onDetailChange?: (d: boolean) => void;
+  /** The stack's shared tick column (see LaneRowProps). */
+  onAxisModel?: AxisRegister;
 }
 
 export const InputsRow = memo(function InputsRow(p: InputsRowProps) {
@@ -272,9 +315,10 @@ export const InputsRow = memo(function InputsRow(p: InputsRowProps) {
   const deltaRef = useRef<HTMLSpanElement>(null);
   const inView = useInView(rowRef);
   const model = useMemo(
-    () => inputsModel(intake, { mode: p.mode, detail: p.detail, energyUnit: eu, tickColCss: layout.tickCol, phases: p.phases, events: p.events, textures: p.textures }),
-    [intake, p.mode, p.detail, eu, layout.tickCol, p.phases, p.events, p.textures],
+    () => inputsModel(intake, { mode: p.mode, detail: p.detail, energyUnit: eu, tickColCss: layout.tickBase, phases: p.phases, events: p.events, textures: p.textures }),
+    [intake, p.mode, p.detail, eu, layout.tickBase, p.phases, p.events, p.textures],
   );
+  useAxisModel(p.onAxisModel, 'row:intake', model);
   const padding = useMemo(() => ({ top: 8, bottom: INPUTS_TICK_ROW, left: layout.tickCol, right: layout.rightPad }), [layout.tickCol, layout.rightPad]);
   const update = useCallback(() => {
     const { t } = cursorOrEnd(controller);
@@ -354,6 +398,8 @@ export interface EnergyRowProps {
   textures?: boolean;
   /** Display energy unit (Settings › energy; default kcal). */
   energyUnit?: EnergyUnitChoice;
+  /** The stack's shared tick column (see LaneRowProps). */
+  onAxisModel?: AxisRegister;
 }
 
 export const EnergyRow = memo(function EnergyRow(p: EnergyRowProps) {
@@ -364,9 +410,10 @@ export const EnergyRow = memo(function EnergyRow(p: EnergyRowProps) {
   const deltaRef = useRef<HTMLSpanElement>(null);
   const inView = useInView(rowRef);
   const model = useMemo(
-    () => energyModel(intake, { energyUnit: eu, tickColCss: layout.tickCol, phases: p.phases, events: p.events, textures: p.textures }),
-    [intake, eu, layout.tickCol, p.phases, p.events, p.textures],
+    () => energyModel(intake, { energyUnit: eu, tickColCss: layout.tickBase, phases: p.phases, events: p.events, textures: p.textures }),
+    [intake, eu, layout.tickBase, p.phases, p.events, p.textures],
   );
+  useAxisModel(p.onAxisModel, 'row:energy', model);
   const padding = useMemo(() => ({ top: 6, bottom: 6, left: layout.tickCol, right: layout.rightPad }), [layout.tickCol, layout.rightPad]);
   const update = useCallback(() => {
     const { t } = cursorOrEnd(controller);

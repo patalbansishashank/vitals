@@ -11,7 +11,7 @@ import { bodyOf } from '@/store';
 import { getBlobStore } from '@/state/blobStore';
 import { getDocumentStore } from '@/state/runtime';
 import { readingFromInput, removeReading, upsertReadings } from '@/markers/doc';
-import { MARKER_IDS, type MarkerContext, type MarkerExtraction, type MarkerId, type MarkerProvenance, type MarkerReading, type MarkersChapter, type MarkersDoc, type MarkersView } from '@/markers/types';
+import { MARKER_IDS, sampleFactsFrom, type MarkerContext, type MarkerExtraction, type MarkerId, type MarkerProvenance, type MarkerReading, type MarkerReadingInput, type MarkersChapter, type MarkersDoc, type MarkersView } from '@/markers/types';
 import { aiPorts } from '../aiPorts';
 import { defineCommand, fail } from '../registry';
 import { T } from '../schema';
@@ -37,6 +37,51 @@ const ContextS = T.Object(
   { description: 'Sample context; given fields replace the stored ones.' },
 );
 
+/**
+ * Optional clinical facts of one sample (A1-009, `MarkerSampleFacts`): the same fields on every producer (typed entry,
+ * report confirmation, the typed UI API), copied exactly by the shared transport rule (`sampleFactsFrom`); absent = unknown.
+ */
+const SAMPLE_FACT_PROPS = {
+  // sample facts (D7-01/D7-02/D7-05/D7-06/D7-09): stored only when given, never inferred
+  fastingStatus: T.Optional(T.Enum(['fasting', 'nonFasting', 'unknown'], { description: 'Fasting state of the sample as reported.' })),
+  fastingHours: T.Optional(T.Number({ minimum: 0, maximum: 72, description: 'Hours since the last food at the draw, when known.' })),
+  sampleId: T.Optional(T.String({ maxLength: 60, description: 'Lab sample or accession id; readings from one draw share it.' })),
+  sampledAt: T.Optional(T.Instant({ description: 'Sampling instant with its UTC offset, as printed (e.g. 2026-09-12T08:00+05:30); never the entry time.' })),
+  sampleLocalClockH: T.Optional(T.Number({ minimum: 0, exclusiveMaximum: 24, description: 'Local clock hour of the draw (8.5 = 08:30) when only the time is known.' })),
+  confirmedPairWith: T.Optional(T.String({ maxLength: 60, description: 'Sample id of another reading the person confirmed was drawn together with this one.' })),
+  quantityKind: T.Optional(
+    T.Enum(['egfrIndexed', 'gfrAbsolute', 'creatinineClearance', 'indexingUnconfirmed'], { description: 'eGFR only: what the number is (indexed eGFR, absolute GFR, creatinine clearance, or not confirmed). The unit stays as printed.' }),
+  ),
+  indexed: T.Optional(
+    T.Object(
+      {
+        valueMlMin173: T.Number({ minimum: 0 }),
+        bsaM2: T.Number({ exclusiveMinimum: 0 }),
+        bsaMethod: T.Enum(['mosteller']),
+        heightCm: T.Number({ exclusiveMinimum: 0 }),
+        weightKg: T.Number({ exclusiveMinimum: 0 }),
+        anthropometryDate: T.Date(),
+      },
+      { description: 'eGFR only: the explicit absolute→indexed conversion of a confirmed absolute GFR (Mosteller BSA from height and weight on the sample date), kept beside the raw value.' },
+    ),
+  ),
+  assay: T.Optional(T.String({ maxLength: 60, description: "The lab's assay or method name, as printed." })),
+  lab: T.Optional(T.String({ maxLength: 60, description: 'The laboratory, as printed.' })),
+  hormoneTherapy: T.Optional(T.Enum(['yes', 'no', 'unknown'], { description: 'Hormone treatment at the time of the sample, when the person says so.' })),
+  sampleContext: T.Optional(
+    T.Object(
+      {
+        illness: T.Optional(T.Boolean({ description: 'Ill when the sample was drawn.' })),
+        hardTraining48h: T.Optional(T.Boolean({ description: 'Trained hard in the 48 h before the sample.' })),
+        afterFastHours: T.Optional(T.Number({ minimum: 0, description: 'Hours since the last fast ended.' })),
+        prolongedFastProtocol: T.Optional(T.Boolean({ description: 'Drawn as part of an explicit prolonged-fast protocol (e.g. a supervised multi-day fast), not a routine overnight panel.' })),
+        loggedFastHoursAtSample: T.Optional(T.Number({ minimum: 0, description: 'Hours into a logged fast at the draw, when the draw falls inside one.' })),
+      },
+      { description: 'What was going on around this sample, when known.' },
+    ),
+  ),
+};
+
 const ReadingInputS = T.Object({
   id: MarkerIdS,
   value: T.Number({ description: 'As printed or typed, in `unit`.' }),
@@ -52,7 +97,19 @@ const ReadingInputS = T.Object({
   ),
   method: T.Optional(T.String({ maxLength: 40, description: "'direct' or 'calculated' (LDL), or the lab's wording." })),
   fasting: T.Optional(T.Boolean()),
+  ...SAMPLE_FACT_PROPS,
 });
+
+/**
+ * The supplied sample facts of one row, checked with the shared transport rule (A1-009): an invalid fact, or a GFR quantity
+ * kind / conversion on another marker, is refused with its path (never coerced or dropped silently).
+ */
+function checkFacts(input: Partial<MarkerReadingInput> & { id: MarkerId; date: string; value: number }, path: string): void {
+  const { rejected } = sampleFactsFrom(input);
+  if (rejected.length) fail('invalid_input', rejected[0] === 'indexed' ? 'The indexed eGFR must be the Mosteller conversion of a confirmed absolute GFR, with height and weight from the sample date.' : 'Check this sample detail.', { path: `${path}/${rejected[0]!.replace('.', '/')}` });
+  if (input.id !== 'egfr' && input.quantityKind !== undefined) fail('invalid_input', 'A GFR quantity kind belongs to an eGFR reading only.', { path: `${path}/quantityKind` });
+  if (input.id !== 'egfr' && input.indexed !== undefined) fail('invalid_input', 'An indexed conversion belongs to an eGFR reading only.', { path: `${path}/indexed` });
+}
 
 export const MarkersViewS = T.As<MarkersView>(
   T.Object({
@@ -124,14 +181,18 @@ export const markersSet = defineCommand({
   idempotency: 'natural',
   sideEffects: ['docs', 'planner'],
   execute: async (ctx, input) => {
-    input.readings.forEach((r, i) => checkRow(ctx, r, `/readings/${i}`));
+    input.readings.forEach((r, i) => {
+      checkRow(ctx, r, `/readings/${i}`);
+      checkFacts(r, `/readings/${i}`);
+    });
     const doc = await readMarkers(ctx);
+    // A1-009: every supplied fact travels through the one transport rule (`readingFromInput` → `sampleFactsFrom`)
     const readings = input.readings.map((r) => readingFromInput(r, 'manual', ctx.now, { confirmed: true }));
     let next = upsertReadings(doc, readings);
     next = mergeContext(next, input.context);
     const chapter: MarkersChapter = input.chapter ?? (readings.length && doc.chapter === null ? 'manual' : doc.chapter);
     next = { ...next, chapter };
-    await writeMarkers(ctx, next);
+    next = await writeMarkers(ctx, next);
     await appendHistory(ctx, readings);
     return view(ctx, next);
   },
@@ -224,6 +285,8 @@ export const markersConfirm = defineCommand({
         unit: T.Optional(T.String({ minLength: 1, maxLength: 24 })),
         date: DateS,
         fasting: T.Optional(T.Boolean()),
+        // A1-009: the same optional sample facts as typed entry (the person adds what the report or they know)
+        ...SAMPLE_FACT_PROPS,
       }),
       { maxItems: 60 },
     ),
@@ -257,7 +320,10 @@ export const markersConfirm = defineCommand({
       checkRow(ctx, { id, value, unit, date: a.date }, path);
       const labRange = labRangeOf(row.labRange, unit);
       const method = row.method ?? (row.calculated ? 'calculated' : undefined);
-      return readingFromInput({ id, value, unit, date: a.date, ...(labRange ? { labRange } : {}), ...(method ? { method } : {}), ...(a.fasting !== undefined ? { fasting: a.fasting } : {}) }, provenance, ctx.now, {
+      const { row: _row, markerId: _m, value: _v, unit: _u, date: _d, fasting, ...facts } = a;
+      const reading: MarkerReadingInput = { ...facts, id, value, unit, date: a.date, ...(labRange ? { labRange } : {}), ...(method ? { method } : {}), ...(fasting !== undefined ? { fasting } : {}) };
+      checkFacts(reading, path);
+      return readingFromInput(reading, provenance, ctx.now, {
         confirmed: true,
         confidence: row.confidence,
         attachmentId: p.attachmentId,
@@ -271,7 +337,7 @@ export const markersConfirm = defineCommand({
     }
     next = mergeContext(next, input.context);
     if (next.chapter === null) next = { ...next, chapter: 'report' };
-    await writeMarkers(ctx, next);
+    next = await writeMarkers(ctx, next);
     await appendHistory(ctx, readings);
     if (!ctx.dryRun) p.confirmedAt = ctx.now;
     return view(ctx, next);
@@ -297,8 +363,7 @@ export const markersRemove = defineCommand({
   execute: async (ctx, input) => {
     const doc = await readMarkers(ctx);
     const gone = doc.readings.find((r) => r.id === input.markerId && r.date === input.date) ?? fail('not_found', 'There is no such reading.', { path: '/markerId' });
-    const next = removeReading(doc, input.markerId, input.date);
-    await writeMarkers(ctx, next);
+    const next = await writeMarkers(ctx, removeReading(doc, input.markerId, input.date));
     await retractHistory(ctx, input.markerId, input.date, gone.valueCanonical);
     return view(ctx, next);
   },

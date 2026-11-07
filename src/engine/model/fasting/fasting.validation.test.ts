@@ -8,6 +8,13 @@
  *  2. whole-body outcomes (ΔBW, fat, DXA-lean) against the studies with 20 §7's tolerances — these also exercise the
  *     stand-ins, so the integration pass (WP-V) must re-run them with the real modules.
  * Targets missed here stay as `it.fails` with the reason (never loosened silently).
+ *
+ * D2-01 (2026-10-18, contract C2): the overlay is routed by observed intake history only. The planned-span ≥ 24-h switch
+ * (review M7) read the fast's FUTURE length and was removed, so the first ≈ 24 h of every fast now run on the rolling-24-h
+ * criteria alone (the named legacy approximation `FASTING_ROUTING`). Targets that depended on the early switch are kept
+ * as `it.fails` "KNOWN MISS (D2-01)" with the measured value; the tolerances are unchanged and no transition time constant
+ * was invented to recover them (a continuous fed/postabsorptive transition fitted to tracer, N and refeed data is deferred
+ * research). The passing parts of the same targets stay ordinary tests.
  */
 import {
   runHarness,
@@ -149,23 +156,27 @@ describe('20 Table 4.4.3 and Tables A1-A4 — fasting-module quantities', () => 
     const ref = [4, 5, 3, 0, -3, -6, -8, -10];
     d.forEach((day, i) => within(100 * ow.hourlyRmrRel[day * 24 - 1]!, ref[i]!, 2.5));
   });
-  it('hydrated protein tissue by day within ±10 % of Table A1 (lean man) and A3 (obese woman)', () => {
+  it('hydrated protein tissue by day within ±10 % of Table A1 (lean man, days 3-21) and A3 (obese woman, days 7-21)', () => {
     const a1 = new Map([
-      [1, -0.22],
       [3, -0.7],
       [7, -1.63],
       [14, -2.95],
       [21, -4.09],
     ]);
     const a3 = new Map([
-      [1, -0.15],
-      [3, -0.48],
       [7, -1.13],
       [14, -2.01],
       [21, -2.62],
     ]);
     for (const [d, v] of a1) expect(Math.abs(lm.days[d - 1]!.dLt / v - 1)).toBeLessThan(0.1);
     for (const [d, v] of a3) expect(Math.abs(ow.days[d - 1]!.dLt / v - 1)).toBeLessThan(0.1);
+  });
+  // KNOWN MISS (D2-01): without the planned-span switch the overlay starts ≈ 24 h into the fast, so the earliest protein
+  // tissue falls short — measured −10.4 % (lean man day 1), −51.6 % (obese woman day 1) and −14.5 % (obese woman day 3).
+  it.fails('hydrated protein tissue on day 1 (lean man, obese woman) and day 3 (obese woman) within ±10 % (KNOWN MISS, D2-01)', () => {
+    expect(Math.abs(lm.days[0]!.dLt / -0.22 - 1)).toBeLessThan(0.1);
+    expect(Math.abs(ow.days[0]!.dLt / -0.15 - 1)).toBeLessThan(0.1);
+    expect(Math.abs(ow.days[2]!.dLt / -0.48 - 1)).toBeLessThan(0.1);
   });
 });
 
@@ -176,12 +187,15 @@ describe('20 §7 V1-V10 (tolerances of 20 §7)', () => {
     [dinnerRun({ sex: 'M', ageY: 29.7, heightCm: 178.4, bwKg: 79.6, bfPct: 23.4 }, 7), 7],
     [dinnerRun({ sex: 'F', ageY: 29.7, heightCm: 178.4, bwKg: 79.6, bfPct: 23.4 }, 7), 6],
   ];
-  it('V1 Kolnes 7 d: ΔBW −5.8 ± 0.8 kg, fat −1.4 ± 0.5, DXA-lean −4.6 ± 1.0, urinary N 84 ± 15 g, RMR day 5 0 ± 6 %', () => {
+  // KNOWN MISS (D2-01): the overlay's later start leaves ΔBW at −4.98 kg, 0.02 kg short of the −5.0 edge.
+  it.fails('V1 Kolnes 7 d: ΔBW −5.8 ± 0.8 kg (KNOWN MISS, D2-01)', () => {
     within(
       mix(k1, 168, (x) => x.bw),
       -5.8,
       0.8,
     );
+  });
+  it('V1 Kolnes 7 d: fat −1.4 ± 0.5, DXA-lean −4.6 ± 1.0, urinary N 84 ± 15 g, RMR day 5 0 ± 6 %', () => {
     within(
       mix(k1, 168, (x) => x.fm),
       -1.4,
@@ -195,7 +209,8 @@ describe('20 §7 V1-V10 (tolerances of 20 §7)', () => {
     within((7 * nSum(k1[0]![0], 0, 168) + 6 * nSum(k1[1]![0], 0, 168)) / 13, 84, 15);
     within(100 * mix(k1, 120, (x) => x.rmr), 0, 6);
   });
-  it('V1 Kolnes: muscle glycogen −53 ± 15 points at day 7 (k_Mf)', () => {
+  // KNOWN MISS (D2-01): measured −36 points (the overlay's muscle-glycogen drain starts ≈ 24 h later).
+  it.fails('V1 Kolnes: muscle glycogen −53 ± 15 points at day 7 (k_Mf) (KNOWN MISS, D2-01)', () => {
     const r = k1[0]![0];
     within(100 * (r.days[7]!.muscleGlyRel - 1), -53, 15);
   });
@@ -244,12 +259,15 @@ describe('20 §7 V1-V10 (tolerances of 20 §7)', () => {
     [dinnerRun({ sex: 'M', ageY: 40.5, heightCm: 164.5, bwKg: 66.3, bfPct: 20 }, 21), 8],
     [dinnerRun({ sex: 'F', ageY: 40.5, heightCm: 164.5, bwKg: 66.3, bfPct: 30 }, 21), 5],
   ];
-  it('V3 Dai 2024 21 d: ΔBW −10.0 ± 1.5 kg; REE d3/d9/d15/d20 NS/−7.5/−13.7/−20.3 % ± 6 points; days 11-21 −0.31 ± 0.07 kg/d', () => {
+  // KNOWN MISS (D2-01): measured ΔBW −8.48 kg, 0.02 kg short of the −8.5 edge.
+  it.fails('V3 Dai 2024 21 d: ΔBW −10.0 ± 1.5 kg (KNOWN MISS, D2-01)', () => {
     within(
       mix(d3, 504, (x) => x.bw),
       -10.0,
       1.5,
     );
+  });
+  it('V3 Dai 2024 21 d: REE d3/d9/d15/d20 NS/−7.5/−13.7/−20.3 % ± 6 points; days 11-21 −0.31 ± 0.07 kg/d', () => {
     [
       [3, 0],
       [9, -7.5],
@@ -288,8 +306,11 @@ describe('20 §7 V1-V10 (tolerances of 20 §7)', () => {
 
   // V5 Benedict 1915 (Levanzin): 60.6 kg lean man (FFM ≈ 52 kg → BF 14 %), 31-d water-only, laboratory life (activity 0.3)
   const lev = dinnerRun({ sex: 'M', ageY: 40, heightCm: 171, bwKg: 60.6, bfPct: 14, activityFrac: 0.3 }, 31);
-  it('V5 Levanzin 31 d: ΔBW −13.25 ± 2 kg; cumulative N 277 g ± 15 %; late N 7.7 ± 1.5 g/d; resting heat d30 −31 ± 8 %', () => {
+  // KNOWN MISS (D2-01): measured ΔBW −11.22 kg, 0.03 kg short of the −11.25 edge.
+  it.fails('V5 Levanzin 31 d: ΔBW −13.25 ± 2 kg (KNOWN MISS, D2-01)', () => {
     within(at(lev, 744).bw, -13.25, 2);
+  });
+  it('V5 Levanzin 31 d: cumulative N 277 g ± 15 %; late N 7.7 ± 1.5 g/d; resting heat d30 −31 ± 8 %', () => {
     within(nSum(lev, 0, 744), 277, 0.15 * 277);
     within(nSum(lev, 480, 744) / 11, 7.7, 1.5);
     within(100 * at(lev, 720).rmr, -31, 8);
@@ -377,11 +398,14 @@ describe('20 §4B.3 schedule behaviours (lean man of Table A1)', () => {
   const r = new Map([1, 2, 3, 7, 21].map((d) => [d, dinnerRun(LEAN_MAN, d, 4)]));
   const protG = (d: number): number => (-at(r.get(d)!, d * 24).lt / 2.6) * 1000;
 
-  it('24 h: N 13-14 g/d at 24 h; protein ≈ 83 g; +3 d after within 0.3 kg of −0.2 kg', () => {
+  it('24 h: N 13-14 g/d at 24 h; +3 d after within 0.3 kg of −0.2 kg', () => {
     const e = at(r.get(1)!, 24);
     within(e.n, 13.5, 0.5);
-    within(protG(1), 83, 8.3);
     within(at(r.get(1)!, 96).bw, -0.2, 0.3);
+  });
+  // KNOWN MISS (D2-01): measured 52 g protein over a 24-h fast (the overlay is active only for its last hours).
+  it.fails('24 h: protein ≈ 83 g ± 10 % (KNOWN MISS, D2-01)', () => {
+    within(protG(1), 83, 8.3);
   });
   // Early water and the last meal: 13's E_cna (−0.9 L max, τ 1.5 d, lagged by the 24-h carbohydrate window) replaces 20's
   // E_fast + gut (−1.3·ECF0/17 L and −0.45 kg, τ 1-1.5 d) by ruling R-WATER, and the pre-fast dinner is still being absorbed
@@ -399,16 +423,24 @@ describe('20 §4B.3 schedule behaviours (lean man of Table A1)', () => {
       within(e.fm, -0.35, 0.0875);
     },
   );
-  it('48 h: RMR +4 % ± 2.5 points; protein ≈ 173 g', () => {
+  it('48 h: RMR +4 % ± 2.5 points', () => {
     within(100 * at(r.get(2)!, 48).rmr, 4, 2.5);
+  });
+  // KNOWN MISS (D2-01): measured 143 g protein over a 48-h fast.
+  it.fails('48 h: protein ≈ 173 g ± 10 % (KNOWN MISS, D2-01)', () => {
     within(protG(2), 173, 17.3);
   });
-  it('72 h: ΔBW −3.5 kg ± 15 %; fat −0.55 ± 25 %; protein ≈ 270 g; +3 d after −1.1 ± 0.3 kg', () => {
+  it('72 h: fat −0.55 ± 25 %; +3 d after −1.1 ± 0.3 kg', () => {
     const e = at(r.get(3)!, 72);
-    within(e.bw, -3.5, 0.525);
     within(e.fm, -0.55, 0.1375);
-    within(protG(3), 270, 27);
     within(at(r.get(3)!, 144).bw, -1.1, 0.3);
+  });
+  // KNOWN MISS (D2-01): measured ΔBW −2.80 kg (edge −2.975) and 239 g protein (edge 243) over a 72-h fast.
+  it.fails('72 h: ΔBW −3.5 kg ± 15 % (KNOWN MISS, D2-01)', () => {
+    within(at(r.get(3)!, 72).bw, -3.5, 0.525);
+  });
+  it.fails('72 h: protein ≈ 270 g ± 10 % (KNOWN MISS, D2-01)', () => {
+    within(protG(3), 270, 27);
   });
   it('7 d: ΔBW −5.7 ± 15 %; fat −1.3 ± 25 %; DXA-lean −4.4 ± 15 %; N 13 g/d on day 7; RMR −9 %; +3 d −2.6 kg, DXA-lean −1.2', () => {
     const e = at(r.get(7)!, 168);
@@ -429,7 +461,9 @@ describe('20 §4B.3 schedule behaviours (lean man of Table A1)', () => {
     within(100 * e.rmr, -21, 2.5);
   });
 
-  it('weekly dinner→dinner 24-h fast × 12 wk: S_N stays ≈ 0 and the net protein cost is 35-45 g per fast', () => {
+  let weeklyRun: { wk: HarnessRun } | null = null;
+  const weekly = (): HarnessRun => (weeklyRun ??= { wk: runWeekly() }).wk;
+  function runWeekly(): HarnessRun {
     const spans = Array.from({ length: 12 }, (_, w) => ({
       startHour: w * 168 + 19,
       endHour: w * 168 + 43,
@@ -453,17 +487,28 @@ describe('20 §4B.3 schedule behaviours (lean man of Table A1)', () => {
       },
       { fastSpans: spans },
     );
+    return wk;
+  }
+  it('weekly dinner→dinner 24-h fast × 12 wk: 12 fast events, S_N stays ≈ 0 and every fast re-enters the same state', () => {
+    const wk = weekly();
     const s = wk.rig.s;
     expect(s.fastCount).toBe(12);
     expect(Math.max(...wk.hourlySN)).toBeLessThan(0.02);
-    within((s.protOxCumG - s.repletedCumG) / 12, 40, 5);
     // every fast re-enters the early peak: day-1 N of the last fast equals the first within 3 %
     const n1 = wk.hourlyN[19 + 23]!;
     const n12 = wk.hourlyN[11 * 168 + 19 + 23]!;
     expect(Math.abs(n12 / n1 - 1)).toBeLessThan(0.03);
   });
+  // KNOWN MISS (D2-01): a 23-h zero-intake span after dinner never meets the rolling-24-h criteria, so the overlay stays
+  // off and the net protein cost per fast is ≈ 0 g (measured 0.03 g) instead of 35-45 g: no 24-h muscle-loss switch.
+  it.fails('weekly dinner→dinner 24-h fast × 12 wk: net protein cost 35-45 g per fast (KNOWN MISS, D2-01)', () => {
+    const s = weekly().rig.s;
+    within((s.protOxCumG - s.repletedCumG) / 12, 40, 5);
+  });
 
-  it('monthly 72-h fast × 6: s_AT < 0.05 before every next fast; each fast costs ≈ 270 g protein, ≈ 48 g repleted', () => {
+  let monthlyRun: { mo: HarnessRun; spans: Array<{ startHour: number; endHour: number }> } | null = null;
+  const monthly = () => (monthlyRun ??= runMonthly());
+  function runMonthly(): { mo: HarnessRun; spans: Array<{ startHour: number; endHour: number }> } {
     const spans = Array.from({ length: 6 }, (_, m) => ({
       startHour: m * 720 + 19,
       endHour: m * 720 + 19 + 72,
@@ -486,10 +531,16 @@ describe('20 §4B.3 schedule behaviours (lean man of Table A1)', () => {
       },
       { fastSpans: spans },
     );
+    return { mo, spans };
+  }
+  it('monthly 72-h fast × 6: s_AT < 0.05 before every next fast; ≈ 48 g repleted per fast', () => {
+    const { mo, spans } = monthly();
     for (const sp of spans.slice(1)) expect(mo.hourlySAT[sp.startHour - 1]!).toBeLessThan(0.05);
-    const s = mo.rig.s;
-    within(s.protOxCumG / 6, 270, 27);
-    within(s.repletedCumG / 6, 0.75 * mo.base.ffm0, 3);
+    within(mo.rig.s.repletedCumG / 6, 0.75 * mo.base.ffm0, 3);
+  });
+  // KNOWN MISS (D2-01): measured ≈ 188 g protein oxidised per 72-h fast (the first ≈ 24 h run without the overlay).
+  it.fails('monthly 72-h fast × 6: each fast costs ≈ 270 g protein ± 10 % (KNOWN MISS, D2-01)', () => {
+    within(monthly().mo.rig.s.protOxCumG / 6, 270, 27);
   });
 
   it('fast broken by a 110-g carbohydrate meal on day 3: overlay ends; S_N decays with τ 3 d', () => {

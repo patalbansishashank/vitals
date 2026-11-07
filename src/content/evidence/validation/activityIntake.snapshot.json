@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-01",
+  "generated": "2026-10-18",
   "rows": [
     {
       "key": "R1-V1-fao-lifestyle-pal/m-deskLittle",
@@ -133,7 +133,7 @@
     },
     {
       "key": "R1-V2-nasem-categories/m-very",
-      "measured": -27.1061,
+      "measured": 62.6285,
       "unit": "kcal/d",
       "expected": "0 ± 342",
       "status": "pass"
@@ -161,7 +161,7 @@
     },
     {
       "key": "R1-V2-nasem-categories/f-very",
-      "measured": 32.9127,
+      "measured": 97.206,
       "unit": "kcal/d",
       "expected": "0 ± 250",
       "status": "pass"
@@ -280,21 +280,21 @@
     },
     {
       "key": "R1-V11-rmaint-invariance/heavyAdj",
-      "measured": 2.65288e-13,
+      "measured": 0,
       "unit": "kcal/d",
       "expected": "0 ± 0.000001",
       "status": "pass"
     },
     {
       "key": "R1-V11-rmaint-invariance/heavyFm",
-      "measured": -0.000986678,
+      "measured": -0.00204183,
       "unit": "kg",
       "expected": "0 ± 0.15",
       "status": "pass"
     },
     {
       "key": "R1-V11-rmaint-invariance/heavyScale",
-      "measured": -0.000471805,
+      "measured": -0.00219134,
       "unit": "kg",
       "expected": "0 ± 0.3",
       "status": "pass"
@@ -308,14 +308,14 @@
     },
     {
       "key": "R1-V11-rmaint-invariance/skipFm",
-      "measured": -0.000826806,
+      "measured": -0.000827386,
       "unit": "kg",
       "expected": "0 ± 0.15",
       "status": "pass"
     },
     {
       "key": "R1-V11-rmaint-invariance/skipScale",
-      "measured": -0.000730575,
+      "measured": -0.000728507,
       "unit": "kg",
       "expected": "0 ± 0.3",
       "status": "pass"
@@ -364,35 +364,35 @@
     },
     {
       "key": "R1-steady-desk-vs-manual/deskStable",
-      "measured": -0.000497235,
+      "measured": -0.000492531,
       "unit": "kg",
       "expected": "0 ± 0.3",
       "status": "pass"
     },
     {
       "key": "R1-steady-desk-vs-manual/tradesStable",
-      "measured": -0.000207995,
+      "measured": -0.000205016,
       "unit": "kg",
       "expected": "0 ± 0.3",
       "status": "pass"
     },
     {
       "key": "R1-steady-desk-vs-manual/heavyStable",
-      "measured": 0.000889317,
+      "measured": 0.000888418,
       "unit": "kg",
       "expected": "0 ± 0.3",
       "status": "pass"
     },
     {
       "key": "R1-steady-desk-vs-manual/deskTee",
-      "measured": 0.00892371,
+      "measured": 0.00892045,
       "unit": "%",
       "expected": "0 ± 2",
       "status": "pass"
     },
     {
       "key": "R1-steady-desk-vs-manual/heavyTee",
-      "measured": -0.0059019,
+      "measured": -0.00590135,
       "unit": "%",
       "expected": "0 ± 2",
       "status": "pass"

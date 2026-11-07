@@ -4,12 +4,15 @@ Vitals is deployed to production (https://vitals.creative.desi, Netlify site `cr
 
 | Event | What happens on GitHub |
 |---|---|
-| Push to `main` (or any branch), pull request | **Nothing.** No workflow runs, nothing is deployed. |
-| Push of a tag `vX.Y.Z` | `.github/workflows/deploy.yml`: install, build, production deploy of `dist/` to Netlify. `.github/workflows/release.yml`: the desktop and Android apps and a GitHub Release (see "The apps" below) |
+| Push to `main` or `wp/r063-int`, pull request | Credential-free `.github/workflows/ci.yml`: software gates, production web build and unsigned Android unit tests. Nothing deploys. Other branch pushes alone run nothing. |
+| Push of a tag `vX.Y.Z` | `release.yml` resolves the tag to one immutable commit, runs the shared validation workflow once, then packages apps and calls the reusable production deployment. |
 | Push of a tag `vX.Y.Z-rc.N` | Builds all app platforms as run artifacts only. No GitHub Release and no website deploy. |
 | Manual run ("Run workflow") | `.github/workflows/deploy.yml` for the branch or tag picked in "Use workflow from"; `release.yml` for the tag typed in its `tag` field |
 
-The quality gate (typecheck, lint, the full test suite) runs **locally**, inside `pnpm release`, before the version tag exists. The GitHub workflows do not run tests: they only build, deploy and publish. Production deploys come only from that workflow; nobody runs `netlify deploy --prod` from a laptop, and Netlify does not build from Git on its own (the site is not connected to the repository).
+The quality gate runs locally in `pnpm release` and on GitHub before a tag can package or deploy. Release validation,
+packaging and deployment use the same resolved commit SHA. A manually dispatched deployment runs the shared gate for
+its selected commit. Pull requests never receive deployment or signing secrets. Only the existing public-repository
+release/deployment paths publish; private copies can run validation without publishing.
 
 ## Cutting a release
 
@@ -23,14 +26,13 @@ git push --follow-tags origin main
 
 `pnpm release <patch|minor|major>` runs, in order, and stops at the first failure:
 
-1. `pnpm typecheck`
-2. `pnpm lint`
-3. `pnpm test:release`: the full test suite in two passes (see below)
-4. `pnpm version <patch|minor|major>`: refuses to run on a dirty working tree, sets `version` in `package.json`, commits it with the message `X.Y.Z`, and creates the annotated tag `vX.Y.Z` (the `v` prefix is the default)
+1. `pnpm check`: typecheck, lint, release-tool/accounting tests, then the full partitioned test gate.
+2. `pnpm audit:planner`: fresh staged planner evidence audit; only successful reports replace published artifacts.
+3. `pnpm version <patch|minor|major>`: refuses a dirty working tree, updates the version, commits it and creates the tag.
 
 The bump argument is appended to the end of the script, so it reaches `pnpm version` (checked with pnpm 11.17). If anything fails, no commit and no tag are made; fix it and run `pnpm release` again.
 
-`git push --follow-tags` pushes the version commit and the tag together. The commit itself triggers nothing; the tag triggers the deploy.
+`git push --follow-tags` pushes the version commit and the tag together. The main/integration-branch commit triggers credential-free CI; the tag triggers gated packaging and deployment.
 
 Which part to bump:
 
@@ -52,19 +54,41 @@ The run's summary page shows the production URL, the unique deploy URL, the Netl
 
 ## The test gate: `pnpm test:release`
 
-About a dozen test files measure time (module micro-benchmarks, the engine's run-time budget, the safety module's cost) or wait on the UI with timeouts. They pass on an idle machine but can fail when all ~180 test files run in parallel and saturate the CPU (Vitest's default is one worker per core but one). Their assertions are not loosened; instead `test:release` runs the suite in two passes:
+The gate discovers the complete current test-file inventory, then runs two disjoint partitions from a shared selector
+in `vite.config.ts`: ordinary tests with at most two workers, followed by resource-sensitive tests one file at a time.
+The serial set includes module benchmarks, safety property tests, bundled engine invariants, the large Evidence page
+and the Progress card accessibility suite that previously timed out under 16-worker load. Thresholds and timeouts are
+unchanged. New files are automatically included and the final accounting rejects omissions or duplicate execution.
 
-1. Everything except the timing files, in parallel on half the cores: `vitest run --maxWorkers=50% --exclude "**/*bench*.test.ts" --exclude "**/safety.props.test.ts" --exclude "**/validation/invariants.test.ts" --exclude "**/evidence/__tests__/page.test.tsx"` (170 files)
-2. The timing files, one at a time: `vitest run --no-file-parallelism bench safety.props.test validation/invariants.test evidence/__tests__/page.test` (13 files)
+`pnpm test` also defaults to two workers. Use explicit targeted tests during parallel development; reserve a quiet CPU
+window for `pnpm test:release`. A saturated bundled-engine benchmark may still report a skip, but release accounting
+rejects it: wait for idle resources and rerun the gate, never count the skipped budget as a pass.
 
-Together the two passes cover every test file exactly once. The 181 known model misses are written as expected failures and do not fail the run. Measured on the 32-thread dev PC (2026-10-01): pass 1 about 175 s (the same wall time as with every core, because one long file sets the pace), pass 2 about 10 s, all green. With every core, a parallel run failed the timing files and once timed out an unrelated UI test (`src/features/body/__tests__/energyUnit.test.tsx`, 5 s test timeout); half the workers removed that.
+The gate writes `.vitest/release/{inventory,core,serial,summary}.json` (override the directory with `VITALS_GATE_DIR`).
+The summary also records the source commit, dirty status and bounded SHA-256 fingerprints at start/end; any source
+or Git-state mutation during the run fails the gate. `pnpm check` starts this boundary before typecheck/lint/tooling.
+Its exact expected-failure/skip/todo registry is `docs/validation/test-dispositions.json`. On the reviewed source there
+are 212 scientific/reference expected failures, three deliberate external-agent skips and one held-out-data todo.
+These are separately counted limitations, not ordinary software passes or proof of empirical accuracy. Unexpected
+passes, new or removed exceptions, unfinished tests and unhandled errors fail the gate. Changes to the registry require
+an explained scientific or integration disposition, never a smaller assertion or a convenience skip.
 
-`pnpm test` (one parallel pass over everything, every core) still works for day-to-day use; if it reports failures only in timing-sensitive files or as UI test timeouts, re-run those files in isolation (e.g. `pnpm vitest run src/engine/model/fasting/fasting.bench.test.ts`) before treating them as real. If `pnpm release` itself stops on such a flake, run it again: nothing was committed or tagged.
+`pnpm test:tooling` includes Node's release policy, source-path, bundle-signature and release-note tests, which Vitest's
+normal globs do not discover. `pnpm check` is the complete software command. The slow planner audit remains a separate
+release step because it explores a much larger search matrix; it starts with fresh part/level directories to prevent
+mixed old/new results. Its outputs are not independent empirical validation. See `docs/VALIDATION_ACCOUNTING.md` for
+scientific evidence gaps and current artifact provenance.
+
+Hosted CI uses four bounded core jobs plus an independent serial job, and aggregates every file/exception/source
+receipt before the browser/build gate. The native job builds its own web assets; source/count receipts travel through
+job outputs and structured logs, so storage quota cannot suppress native validation. Optional diagnostic archival is
+off unless the repository variable `VITALS_ARCHIVE_VALIDATION=true` is set. Enabled upload failures warn explicitly;
+they never make a failing software check pass. See `docs/VALIDATION_ACCOUNTING.md` for the receipt contract.
 
 ## The apps (`release.yml`)
 
 The same tag builds the apps in the public repository (`patalbansishashank/vitals`; a tag pushed to any other copy runs
-nothing) and publishes them as a GitHub Release named `Vitals X.Y.Z`. Four jobs (the desktop one runs three times):
+nothing) and publishes them as a GitHub Release named `Vitals X.Y.Z`. The shared validation workflow runs before packaging and website deployment (the desktop job runs three times):
 
 | Job | Runner | Produces |
 |---|---|---|
@@ -180,4 +204,4 @@ To rotate the token: create a new one in Netlify (User settings → Applications
 
 ## History
 
-- 2026-10-01: a first version also ran typecheck, lint, build and the full test suite on GitHub for every push to `main` (`ci.yml`). On the 2-core runner the test step was still running after 23 minutes, so the run was cancelled and the owner moved the gate to the local `pnpm release` script. `ci.yml` was removed; GitHub now only builds and deploys tags.
+- Historical policy (superseded by the credential-free gate above): on 2026-10-01 a first version also ran typecheck, lint, build and the full test suite on GitHub for every push to `main` (`ci.yml`). On the 2-core runner the test step was still running after 23 minutes, so the run was cancelled and the owner moved the gate to the local `pnpm release` script. `ci.yml` was removed; GitHub now only builds and deploys tags.

@@ -1,8 +1,10 @@
-import { Faceplate, KeyBank, Stepper, TextInput } from '@/components';
-import { PLANNER_HORIZON_MAX, PLANNER_HORIZON_MIN } from '@/state/plannerStore';
-import { fmtDateWd } from '../format';
+import { Faceplate } from '@/components';
+import { HorizonField } from '@/features/components/HorizonField';
+import { PLANNER_HORIZON_MAX } from '@/state/plannerStore';
+import { fmtDate, fmtWeeks } from '../format';
 import { addDaysISO } from '../request';
 
+/** Months → weeks (the Simulator's presets: 6 months is 26 weeks). */
 const PRESETS = [
   { months: 1, weeks: 4 },
   { months: 2, weeks: 8 },
@@ -20,46 +22,26 @@ export interface HorizonPickerProps {
 }
 
 /**
- * HorizonPicker (COMPONENTS §4): months bank (28–183 days) + exact weeks + start date, with the computed end date.
- * Unreachable targets are answered after the run with the horizon they would need (time-to-target), so there is no
- * open-ended "as long as it takes" option here.
+ * HorizonPicker (COMPONENTS §4): the Simulator's control (HorizonField: a months bank and one date chip "19 Oct →
+ * 7 Feb" that opens the platform date picker for the start) on a card whose caption is the length. Other lengths (a
+ * "Before you run" extension) leave the bank unset and show in the caption. Unreachable targets are answered after the
+ * run with the horizon they would need.
  */
 export function HorizonPicker({ horizonDays, startDate, onHorizon, onStartDate, disabled }: HorizonPickerProps) {
-  const weeks = Math.round(horizonDays / 7);
   const preset = PRESETS.find((p) => p.weeks * 7 === horizonDays || (p.weeks === 26 && horizonDays >= 182));
-  const end = addDaysISO(startDate, horizonDays - 1);
   return (
-    <Faceplate title="Horizon" caption={`${fmtDateWd(startDate)} → ${fmtDateWd(end)}`} className="lp-horizon">
-      <div className="lp-horizon__row">
-        <KeyBank
-          label="Plan length"
-          value={preset ? String(preset.weeks) : undefined}
-          onChange={(w) => onHorizon(Math.min(PLANNER_HORIZON_MAX, Number(w) * 7))}
-          options={PRESETS.map((p) => ({ value: String(p.weeks), label: `${p.months} mo`, disabled }))}
-        />
-        <div className="lp-horizon__weeks">
-          <Stepper
-            name="plan length"
-            value={weeks}
-            onChange={(w) => onHorizon(Math.min(PLANNER_HORIZON_MAX, Math.max(PLANNER_HORIZON_MIN, w * 7)))}
-            min={4}
-            max={26}
-            step={1}
-            unit="weeks"
-            unitText="weeks"
-            disabled={disabled}
-          />
-        </div>
-        <label className="lp-horizon__start">
-          <span className="lm-eng">starts</span>
-          <TextInput
-            type="date"
-            value={startDate}
-            onChange={(e) => onStartDate(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) ? e.target.value : null)}
-            disabled={disabled}
-          />
-        </label>
-      </div>
+    <Faceplate title="Horizon" caption={fmtWeeks(horizonDays)} className="lp-horizon">
+      <HorizonField
+        label="Plan length"
+        months={PRESETS.map((p) => p.months)}
+        value={preset?.months}
+        onMonths={(m) => onHorizon(Math.min(PLANNER_HORIZON_MAX, (PRESETS.find((p) => p.months === m)?.weeks ?? 12) * 7))}
+        startDate={startDate}
+        endDate={addDaysISO(startDate, horizonDays - 1)}
+        formatDate={fmtDate}
+        onStartDate={onStartDate}
+        disabled={disabled}
+      />
     </Faceplate>
   );
 }

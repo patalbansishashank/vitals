@@ -6,9 +6,12 @@
  * the 7-day intake and deficit checks. Before, one zero day in a training week dragged the eating days' EA below 30 and
  * raised W-E08 (danger), and the planner's EA floor then removed every fast for people who train.
  * Weeks without a fast keep the old semantics exactly (the bus EA_7), and a fast never hides low EA on the eating days.
+ * D8-04 (`SAFETY_EA_POLICY` v2): an invalid fat-free mass gives no daily sample, so the EA rules are unchecked there.
  */
 import { describe, expect, it } from 'vitest';
 import type { DayTemplate } from '../../types/schedule';
+import { eaUnevaluatedDays } from './constraints';
+import { SAFETY_EA_POLICY } from './params';
 import { person, prog, runScenario, sched } from './testkit';
 
 const MAN = person({ sex: 'male', ageYears: 35, heightCm: 178, weightKg: 82 });
@@ -94,5 +97,31 @@ describe('EA_7 over non-fast days when a planned fast lies in the trailing week 
     expect(firstAfter).toBeGreaterThan(12);
     // seven non-fast days exist although the trailing calendar week holds only one or two of them
     expect(t.ea7[firstAfter]!).toBeGreaterThan(30);
+  });
+});
+
+describe('D8-04: an invalid fat-free mass gives no EA sample (unchecked), never a 1 kg substitute', () => {
+  it('with FFM ≤ 1 kg the non-fast EA_7 is unknown on rule days: no false "adequate" value, the floor is unchecked', () => {
+    // a fasting week (EA_7 from the daily samples) with a broken fat-free mass: version 1 divided by 1 kg and clipped the
+    // sample to 70 kcal/kg FFM/day ("adequate"), a false pass of the EA floor
+    const s = runScenario({
+      person: MAN,
+      schedule: sched(30, [prog('A', 1950, { proteinG: 140, carbsG: 220 }), zero], (d) => (ZERO_DAYS.has(d) ? 1 : 0)),
+      plant: { tdee: 2600, scaleKg: () => 82, ffmKg: () => 0.5, exNet: (d, h) => (h === 17 && !ZERO_DAYS.has(d) ? 300 : 0) },
+      options: { constraints: true },
+    });
+    const t = s.res.safety;
+    for (let d = 11; d <= 16; d++) expect(Number.isNaN(t.ea7[d]!), `day ${d}`).toBe(true);
+    const unchecked = eaUnevaluatedDays(t);
+    expect(unchecked).toContain(11);
+    expect(unchecked.every((d) => !ZERO_DAYS.has(d))).toBe(true);
+    expect(SAFETY_EA_POLICY.version).toBe(2);
+    expect(SAFETY_EA_POLICY.invalidFfm).toBe('unavailable');
+  });
+
+  it('a valid fat-free mass keeps the exact EA_7 values of the fasting-week policy (unchanged numbers)', () => {
+    const s = week(2400);
+    expect(eaUnevaluatedDays(s.res.safety)).toEqual([]);
+    expect(s.res.safety.ea7[11]!).toBeCloseTo((2400 - 300) / 64, 3);
   });
 });

@@ -4,7 +4,7 @@
    ========================================================================== */
 import { KJ_PER_KCAL } from '@/components';
 import { encodingsFor, laneKindOf } from '../catalogue';
-import { m4 } from '../lib/downsample';
+import { centredMean, m4 } from '../lib/downsample';
 import { energyUnitOf } from '../lib/intake';
 import { decimalsForStep, formatNumber, formatSigned } from '../lib/format';
 import { baselineOf, laneDomain, type ResTrack, trackAt } from '../lib/series';
@@ -13,7 +13,9 @@ import { visibleIndexRange } from '../lib/time';
 import type { ChartEvent, ChartSeries, Phase, Resolution } from '../types';
 import type { ViewState } from './controller';
 import {
+  drawAreaGradient,
   drawBand,
+  drawEndDot,
   drawGrid,
   drawHLine,
   drawMarker,
@@ -25,6 +27,8 @@ import {
   type DrawArgs,
   haloText,
   hatch,
+  lastPointIn,
+  yAxisLabelsIn,
 } from './draw';
 import type { PlotData, PlotModel } from './plotEngine';
 import { canvasFont, type ChartTheme, inkOn, withAlpha } from './theme';
@@ -78,6 +82,7 @@ export function makeResolver(s: ChartSeries) {
 
 export interface LineLaneOptions {
   mode: LaneMode;
+  /** Tick column width class for the label format (`YAxisOptions.colCss`); the column itself is the plot padding. */
   tickColCss: number;
   fromZero?: boolean;
   phases?: readonly Phase[];
@@ -97,43 +102,80 @@ function yTicks(kind: string, mode: LaneMode, lo: number, hi: number) {
   return niceTicksInside(lo, hi, mode === 'focus' ? { min: 4, max: 6 } : { min: 2, max: 3 });
 }
 
+/**
+ * Channels with a day-to-day rhythm (training and fast days, meals): over more than three weeks of daily samples their
+ * lane draws the 7-day mean as the line and the daily values as a faint trace behind it (r068 W2-9: no saw-tooth).
+ */
+const DAY_RHYTHM: ReadonlySet<string> = new Set(['glycogenTotal', 'liverGlycogen', 'muscleGlycogen', 'bhb', 'glucose', 'fatOxidation']);
+const meanCache = new WeakMap<object, Float32Array>();
+
 export function lineLaneModel(s: ChartSeries, o: LineLaneOptions): PlotModel {
   const kind = laneKindOf(s);
   const resolve = makeResolver(s);
   const strip = o.mode === 'strip';
+  const focus = o.mode === 'focus';
   const rangeOnly = kind === 'range-only';
   const color = (t: ChartTheme) => t.cat[s.category];
+  const rhythm = DAY_RHYTHM.has(s.id) && !strip && !rangeOnly;
+  const smoothed = (view: ViewState) => rhythm && view.res === 'daily' && view.x1 - view.x0 > 21;
   let cached: { view: ViewState; plotW: number; r: Resolved } | null = null;
   const current = (view: ViewState, plotW: number) => {
     if (!cached || cached.view !== view || cached.plotW !== plotW) cached = { view, plotW, r: resolve(view, plotW).r };
     return cached.r;
   };
   let lastPlotW = 600;
+  const domainOf = (view: ViewState): [number, number] => laneDomain(s, trackAt(s, view.res), view.x0, view.x1, { fromZero: o.fromZero });
+  const dataOf = (view: ViewState, plotW: number): PlotData => {
+    const d = resolve(view, plotW);
+    if (!smoothed(view) || d.r.decimated) return d.data;
+    const raw = d.data.ys[0]!;
+    let mean = meanCache.get(raw);
+    if (!mean) {
+      mean = centredMean(raw as ArrayLike<number>, 7);
+      meanCache.set(raw, mean);
+    }
+    return { x: d.data.x, ys: [mean, raw] };
+  };
+  /** Where the drawn line ends in this view (its last finite sample at or before the window's end). */
+  const endOf = (view: ViewState): { t: number; v: number } | null => {
+    if (strip || rangeOnly) return null;
+    const d = dataOf(view, lastPlotW);
+    const p = lastPointIn(d.x, d.ys[0]!, view.x0, view.x1);
+    return p ? { t: p.t, v: p.v } : null;
+  };
+  // the area (r071 skin): one series with no band; a strip, a direction-only lane and the two-line rhythm lanes have none
+  const areaOk = !strip && !rangeOnly && !rhythm;
   return {
     lines: [
       {
         color,
-        width: strip ? 1.5 : rangeOnly ? 1 : 2,
+        // 2 px, the focused lane's 2.5 (AUDIT §1.4: the focused series is a half pixel heavier)
+        width: strip ? 1.5 : rangeOnly ? 1 : focus ? 2.5 : 2,
         alpha: (t) => (strip ? t.dimAlpha * 1.6 : rangeOnly ? 0.5 : 1),
       },
+      ...(rhythm ? [{ color, width: 1, alpha: (t: ChartTheme) => t.dimAlpha }] : []),
     ],
     data(view, plotW) {
       lastPlotW = plotW;
-      return resolve(view, plotW).data;
+      return dataOf(view, plotW);
     },
-    domain(view) {
-      const tr = trackAt(s, view.res);
-      return laneDomain(s, tr, view.x0, view.x1, { fromZero: o.fromZero });
+    endPoint: endOf,
+    domain: domainOf,
+    yLabels(view) {
+      if (strip) return [];
+      const [lo, hi] = domainOf(view);
+      return yAxisLabelsIn(yTicks(kind, o.mode, lo, hi), lo, hi, { colCss: o.tickColCss });
     },
     under(a, view) {
       drawPhaseBands(a, o.phases);
       if (strip) return;
       const t = yTicks(kind, o.mode, a.yMin, a.yMax);
+      // (an index lane's ticks are 0 · 50 · 100, so its midline is one of these dotted gridlines)
       drawGrid(a, t.ticks);
-      if (kind === 'index' && o.mode !== 'focus') drawHLine(a, 50, a.theme.grid);
       drawReference(a, s.reference, o.mode !== 'strip');
       const r = current(view, lastPlotW);
       if (r.lo && r.hi) drawBand(a, r.x, r.lo, r.hi, r.i0, r.i1, bandFill(a, a.theme.cat[s.category], o.textures));
+      else if (areaOk) drawAreaGradient(a, r.x, r.v, r.i0, r.i1, a.theme.cat[s.category]);
       if (a.yMin < 0 && a.yMax > 0) drawHLine(a, 0, a.theme.axis);
       drawThresholds(a, s.thresholds, { labels: o.thresholdLabels !== false });
       drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step });
@@ -143,10 +185,13 @@ export function lineLaneModel(s: ChartSeries, o: LineLaneOptions): PlotModel {
       if (strip) return;
       const col = a.theme.cat[s.category];
       const b0 = baselineOf(s);
-      if (view.x0 <= 0.5 && Number.isFinite(b0)) drawMarker(a, 'circle', a.x(0), a.y(b0), 8, col);
-      if (o.mode === 'focus') focusPointLabels(a, current(view, lastPlotW), s);
+      // the start is a plain dot (a focused lane's start is its labelled first point); the end carries the glow
+      if (!focus && view.x0 <= 0.5 && Number.isFinite(b0)) drawEndDot(a, a.x(0), a.y(b0), col, { size: 'lane', glow: false });
+      if (focus) focusPointLabels(a, current(view, lastPlotW), s);
+      const end = endOf(view);
+      if (end) drawEndDot(a, a.x(end.t), a.y(end.v), col, { size: focus ? 'focus' : 'lane' });
       if (rangeOnly) {
-        a.ctx.font = canvasFont(a.theme, 11 * a.dpr, { stretch: 'condensed' });
+        a.ctx.font = canvasFont(a.theme, 11 * a.dpr);
         a.ctx.textBaseline = 'top';
         haloText(a, 'direction only', a.box.left + a.box.width - 4 * a.dpr, a.box.top + 2 * a.dpr, a.theme.ink3);
       }
@@ -174,7 +219,7 @@ function focusPointLabels(a: DrawArgs, r: Resolved, s: ChartSeries): void {
   if (iFirst < 0) return;
   const col = a.theme.cat[s.category];
   const { ctx, dpr } = a;
-  ctx.font = canvasFont(a.theme, 11 * dpr, { weight: 600 });
+  ctx.font = canvasFont(a.theme, 11 * dpr, { weight: 500 });
   const placed: Array<[number, number]> = [];
   const put = (i: number, where: 'above' | 'below', align: CanvasTextAlign) => {
     const px = a.x(r.x[i]!);
@@ -182,6 +227,12 @@ function focusPointLabels(a: DrawArgs, r: Resolved, s: ChartSeries): void {
     if (placed.some(([x, y]) => Math.abs(x - px) < 40 * dpr && Math.abs(y - py) < 14 * dpr)) return;
     placed.push([px, py]);
     drawMarker(a, 'circle', px, py, 7, col);
+    // r068 W2-9: a label never runs into the y ticks or off the plot: near the left edge it reads rightwards, near the
+    // right edge leftwards, and where there is no room above (or below) the dot it takes the other side
+    if (px - a.box.left < 32 * dpr) align = 'left';
+    else if (a.box.left + a.box.width - px < 32 * dpr) align = 'right';
+    if (where === 'above' && py - 18 * dpr < a.box.top) where = 'below';
+    else if (where === 'below' && py + 18 * dpr > a.box.top + a.box.height) where = 'above';
     ctx.textBaseline = where === 'above' ? 'bottom' : 'top';
     const ty = where === 'above' ? py - 6 * dpr : py + 6 * dpr;
     const tx = align === 'left' ? px + 6 * dpr : align === 'right' ? px - 6 * dpr : px;
@@ -230,19 +281,30 @@ export function stackedAreaModel(s: ChartSeries, o: StackedOptions): PlotModel {
   const cf = s.stack?.counterfactual?.daily;
   const daily = trackAt(s, 'daily');
   const data: PlotData = { x: daily.x, ys: cf && !strip ? [total, cf] : [total] };
+  const ticksIn = (lo: number, hi: number) => niceTicksInside(lo, hi, o.mode === 'focus' ? { min: 4, max: 6 } : { min: 2, max: 3 });
   return {
     lines: [
-      { color: (t) => (strip ? t.cat.energy : t.ink), width: strip ? 1.5 : 1.5, alpha: (t) => (strip ? t.dimAlpha * 1.6 : 1) },
+      { color: (t) => (strip ? t.cat.energy : t.ink), width: strip ? 1.5 : o.mode === 'focus' ? 2.5 : 2, alpha: (t) => (strip ? t.dimAlpha * 1.6 : 1) },
       ...(cf && !strip ? [{ color: (t: ChartTheme) => t.ink3, width: 1 }] : []),
     ],
     data: () => data,
+    endPoint(view) {
+      if (strip) return null;
+      const p = lastPointIn(daily.x, total, view.x0, view.x1);
+      return p ? { t: p.t, v: p.v } : null;
+    },
     domain(view) {
       return laneDomain(s, daily, view.x0, view.x1);
+    },
+    yLabels(view) {
+      if (strip) return [];
+      const [lo, hi] = laneDomain(s, daily, view.x0, view.x1);
+      return yAxisLabelsIn(ticksIn(lo, hi), lo, hi, { colCss: o.tickColCss });
     },
     under(a, view) {
       drawPhaseBands(a, o.phases);
       if (strip) return;
-      const t = niceTicksInside(a.yMin, a.yMax, o.mode === 'focus' ? { min: 4, max: 6 } : { min: 2, max: 3 });
+      const t = ticksIn(a.yMin, a.yMax);
       drawGrid(a, t.ticks);
       const [i0, i1] = visibleIndexRange(view.x0, view.x1, 'daily', daily.x.length, 1);
       const { ctx, dpr } = a;
@@ -277,6 +339,11 @@ export function stackedAreaModel(s: ChartSeries, o: StackedOptions): PlotModel {
     },
     over(a, view) {
       drawSeverityLines(a, o.events);
+      if (!strip) {
+        // the total line ends in an ivory dot (the stack carries the energy hue; the line is the sum)
+        const p = lastPointIn(daily.x, total, view.x0, view.x1);
+        if (p) drawEndDot(a, a.x(p.t), a.y(p.v), a.theme.ink, { size: o.mode === 'focus' ? 'focus' : 'lane' });
+      }
       if (strip || !o.labels) return;
       const [, i1] = visibleIndexRange(view.x0, view.x1, 'daily', daily.x.length, 0);
       const { ctx, dpr } = a;
@@ -391,14 +458,21 @@ export function overlayModel(
     }
     return { g, d };
   };
-  return {
+  const axisFormat = (v: number, st: number) => (v === 0 ? '0' : formatSigned(v, decimalsForStep(st)));
+  const ticksIn = (lo: number, hi: number) => niceTicksInside(lo, hi, { min: 4, max: 8 });
+  const model: PlotModel = {
     lines: shown.map((s) => ({
       color: (t: ChartTheme) => t.cat[s.category],
-      width: 2,
+      // the isolated series is the focused one: a half pixel heavier, the rest at the dim alpha
+      width: o.state.isolate === s.id ? 2.5 : 2,
       dash: enc.get(s.id)?.dash,
       alpha: (t: ChartTheme) => (o.state.isolate && o.state.isolate !== s.id ? t.dimAlpha : 1),
     })),
     data: (view) => dataFor(view).d,
+    yLabels(view) {
+      const [lo, hi] = model.domain(view);
+      return yAxisLabelsIn(ticksIn(lo, hi), lo, hi, { colCss: o.tickColCss, format: axisFormat });
+    },
     domain(view) {
       const { g } = dataFor(view);
       let lo = 0;
@@ -418,14 +492,10 @@ export function overlayModel(
     },
     under(a) {
       drawPhaseBands(a, o.phases);
-      const t = niceTicksInside(a.yMin, a.yMax, { min: 4, max: 8 });
+      const t = ticksIn(a.yMin, a.yMax);
       drawGrid(a, t.ticks.filter((v) => v !== 0));
       drawHLine(a, 0, a.theme.dark ? a.theme.ink3 : a.theme.axis, 1);
-      drawYAxis(a, t.ticks, {
-        colCss: o.tickColCss,
-        step: t.step,
-        format: (v, st) => (v === 0 ? '0' : formatSigned(v, decimalsForStep(st))),
-      });
+      drawYAxis(a, t.ticks, { colCss: o.tickColCss, step: t.step, format: axisFormat });
     },
     over(a, view) {
       drawSeverityLines(a, o.events);
@@ -438,9 +508,11 @@ export function overlayModel(
         const dim = o.state.isolate && o.state.isolate !== s.id;
         a.ctx.save();
         a.ctx.globalAlpha = dim ? a.theme.dimAlpha : 1;
-        drawMarker(a, e.marker, a.x(g.x[i1]!), a.y(v), 8, a.theme.cat[s.category]);
+        // the marker keeps the series' shape (identity is never colour alone); the glow is the same for every shape
+        drawEndDot(a, a.x(g.x[i1]!), a.y(v), a.theme.cat[s.category], { size: 4, shape: e.marker });
         a.ctx.restore();
       }
     },
   };
+  return model;
 }

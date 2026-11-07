@@ -11,6 +11,13 @@ export type DocId = typeof DocId.Output;
 export const UnsentId = id('Unsent');
 export type UnsentId = typeof UnsentId.Output;
 
+/*
+ * 2026-10-18 body-model contracts (C1/C7, D5-05): no schema change. Log, measurement and day documents gain only optional
+ * fields (occurrence, recordedAt, provenance, links, coverage attestation); they travel inside `json` through the per-field
+ * envelope like any other field, so older devices keep them on merge. The realised history, forecasts and estimator states
+ * are derived artifacts stamped with contract versions: they are recomputed from the synced observations, never synced as
+ * authoritative rows.
+ */
 export const vitalsEvoluSchema = {
   doc: {
     id: DocId,

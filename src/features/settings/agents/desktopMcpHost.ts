@@ -11,6 +11,7 @@ import { getAgentDispatcher, guardedCall, subscribeAgentDispatcher } from '@/age
 import { rejected, type ToolManifest } from '@/agents/manifest';
 import { getServerClient, type ServerClient } from '@/net/server';
 import { desktopBridge, type DesktopMcpBridge } from './desktop';
+import { recordAgentActivity } from '@/agents/activity';
 
 /** Starts the host when running in the desktop app; returns the stop function (a no-op elsewhere). */
 export function startDesktopMcpHost(bridge: DesktopMcpBridge | undefined = desktopBridge(), serverClient?: ServerClient): () => void {
@@ -41,7 +42,13 @@ export function startDesktopMcpHost(bridge: DesktopMcpBridge | undefined = deskt
   refreshManifest();
   const offDispatcher = subscribeAgentDispatcher(refreshManifest);
 
-  const offCall = bridge.mcp.onCall(async ({ client: name, tool, args, idempotencyKey }) => {
+  const offCall = bridge.mcp.onCall(async ({ client: name, tool, args, idempotencyKey, fullControl }) => {
+    if (fullControl === true) {
+      const { runOwnerControl } = await import('@/commands/ownerControl');
+      const result = await runOwnerControl({ client: name, tool, args, ...(idempotencyKey ? { idempotencyKey } : {}) });
+      recordAgentActivity({ surface: 'mcp', actor: name, tool, status: result.status });
+      return result;
+    }
     const dispatcher = getAgentDispatcher();
     if (!dispatcher) return rejected('internal', 'Vitals is not ready for agents yet.');
     let manifest: ToolManifest;

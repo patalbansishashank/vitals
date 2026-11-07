@@ -53,7 +53,7 @@ export default function SafetyDemoPage() {
   const outcome = useMemo(() => evaluateScreening(PROFILES[profile], { bmi: 26, sex: 'female', bodyFatPct: 31, ageYears: 40 }), [profile]);
   return (
     <>
-      <TopBar title="Safety surfaces" actions={<SafetyModeChip />} />
+      <TopBar title="Safety surfaces" status={<SafetyModeChip />} />
       <Page>
         <div className="grid gap-6 pb-10 lg:grid-cols-2">
           <div className="grid min-w-0 content-start gap-4">

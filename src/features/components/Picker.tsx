@@ -1,11 +1,13 @@
 /**
  * `<CataloguePicker>` (design/COMPONENTS.md §14.5): grouped multi-select with search for the four kitchen lists
  * (equipment, cuisines, staples, pantry). Controlled: every change goes through `onChange` with a new `PickerValue`.
+ * Labels only: the search says "Search", the count shows once something is picked, and "Add something else" takes one
+ * item or a pasted list (lines or commas) in the same field.
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, Pencil, X } from 'lucide-react';
-import { Icon, IconKey, Key, Popover, Select, Skeleton, Switch, TextInput, VisuallyHidden, cx, toast } from '@/components';
-import { cleanLine, customId, filterIds, splitList, isCustomId, orderForRegion, parseKitchenList, regionDefaults, NOTE_MAX, type KitchenCatalogue, type KitchenGroup, type KitchenItem, type KitchenKind, type ParsedItem } from '@/catalogues/kitchen';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from 'react';
+import { ChevronDown, ChevronRight, Pencil, Plus, X } from 'lucide-react';
+import { Icon, IconKey, Key, ResponsivePanel, Select, Skeleton, Switch, TextInput, VisuallyHidden, cx, toast } from '@/components';
+import { customId, filterIds, isCustomId, orderForRegion, parseKitchenList, regionDefaults, NOTE_MAX, type KitchenCatalogue, type KitchenGroup, type KitchenItem, type ParsedItem } from '@/catalogues/kitchen';
 import { kitchenNow, loadKitchen, type LoadedKitchen } from '@/content/catalogues/kitchenCatalogue';
 import type { CataloguePickerProps, PickerEntry, PickerValue } from './PickerTypes';
 import { PICKER_COPY as C } from './PickerCopy';
@@ -37,7 +39,6 @@ export function CataloguePicker(props: CataloguePickerProps) {
 
   return (
     <section className={cx('lm-pk', props.className)} aria-label={props.label}>
-      {props.optional ? <p className="lm-pk__optional">{C.optional}</p> : null}
       {kit ? (
         <PickerBody {...props} kit={kit} />
       ) : failed ? (
@@ -66,12 +67,11 @@ interface BodyProps extends CataloguePickerProps {
   kit: LoadedKitchen;
 }
 
-function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, notes, paste, resolve, label, kit }: BodyProps) {
+function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, notes, resolve, hiddenGroups, openFirstTicked = true, label, kit }: BodyProps) {
   const { cat, index } = kit;
   const uid = useId();
   const isRanked = ranked ?? kind === 'cuisines';
   const hasNotes = notes ?? (kind === 'equipment' || kind === 'pantry');
-  const hasPaste = paste ?? (kind === 'pantry' || kind === 'staples');
 
   // latest value for Undo closures
   const valueRef = useRef(value);
@@ -79,14 +79,16 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
     valueRef.current = value;
   }, [value]);
 
-  const groups = cat.groups(kind);
   const ids = useMemo(() => kindIds(cat, kind), [cat, kind]);
-  const total = ids.size;
   const defaults = useMemo(() => regionDefaults(cat, regions ?? [], kind), [cat, regions, kind]);
   const mainRegion = regions?.length ? cat.region(regions[0]!) : undefined;
   const regionName = mainRegion ? shortRegion(mainRegion.label) : '';
 
   const byId = useMemo(() => new Map(value.map((e, i) => [e.id, { entry: e, pos: i }])), [value]);
+  // groups the owner hides (the pantry hides meat and fish for a vegetarian) stay when something in them is picked
+  const hidden = useMemo(() => new Set(hiddenGroups ?? []), [hiddenGroups]);
+  const groups = useMemo(() => cat.groups(kind).filter((g) => !hidden.has(g.id) || g.items.some((i) => byId.has(i.id))), [cat, kind, hidden, byId]);
+  const shownIds = useMemo(() => new Set(groups.flatMap((g) => g.items.map((i) => i.id))), [groups]);
   const rankOf = (id: string): number | undefined => {
     if (!isRanked) return undefined;
     const hit = byId.get(id);
@@ -102,7 +104,11 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
     return () => window.clearTimeout(t);
   }, [typed, query]);
   const searching = query.trim().length > 0;
-  const matches = useMemo(() => (searching ? filterIds(index, kind, query) : null), [searching, index, kind, query]);
+  const matches = useMemo(() => {
+    if (!searching) return null;
+    const all = filterIds(index, kind, query);
+    return hidden.size ? new Set([...all].filter((id) => shownIds.has(id))) : all;
+  }, [searching, index, kind, query, hidden, shownIds]);
 
   /* ---------------------------------------------------------------- edits */
   const doResolve = useCallback(
@@ -142,6 +148,7 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
   const added = value.filter((e) => isAdded(e, ids));
   const [pending, setPending] = useState<Array<{ key: number; text: string }>>([]);
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
+    if (!openFirstTicked) return {};
     const first = groups.find((g) => g.items.some((i) => byId.has(i.id)));
     return first ? { [first.id]: true } : {};
   });
@@ -152,6 +159,10 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const noteAnchor = useRef<HTMLElement | null>(null);
   const assumedDescId = `${uid}-assumed`;
+  const openNote = (id: string, el: HTMLElement) => {
+    noteAnchor.current = el;
+    setNoteFor(id);
+  };
 
   const chipProps = (item: { id: string; label: string }) => {
     const hit = byId.get(item.id);
@@ -164,10 +175,7 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
       notes: hasNotes,
       describedBy: hit?.entry.assumed && regionName ? assumedDescId : undefined,
       onToggle: () => toggle(item.id),
-      onNote: (el: HTMLElement) => {
-        noteAnchor.current = el;
-        setNoteFor(item.id);
-      },
+      onNote: (el: HTMLElement) => openNote(item.id, el),
     };
   };
 
@@ -189,7 +197,7 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
             className="lm-input lm-pk__search-input"
             aria-label={C.searchLabel(label)}
             aria-describedby={`${uid}-count`}
-            placeholder={C.searchPlaceholder(total)}
+            placeholder={C.searchPlaceholder}
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             onKeyDown={(e) => {
@@ -213,8 +221,34 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
             />
           ) : null}
         </div>
-        <span className="lm-pk__total">{C.selected(value.length)}</span>
+        {value.length > 0 && kind !== 'pantry' ? <span className="lm-pk__total">{C.selected(value.length)}</span> : null}
       </div>
+      {/* r068 L26 (pantry): what you have comes first, as rows under its count ("In your pantry · 8"); the catalogue's
+          groups are for adding more */}
+      {kind === 'pantry' && value.length > 0 && !searching ? (
+        <section className="lm-pk__have" aria-labelledby={`${uid}-have`}>
+          <h3 id={`${uid}-have`} className="lm-pk__have-head">
+            {C.inPantry}
+            <span className="lm-pk__have-n">{value.length}</span>
+          </h3>
+          <ul className="lm-pk__have-list">
+            {value.map((e) => {
+              const name = entryLabel(cat, e);
+              return (
+                <li key={e.id} className="lm-pk__have-row">
+                  <span className="lm-pk__have-name">
+                    {name}
+                    {e.note?.trim() ? <span className="lm-pk__have-note"> · {e.note.trim()}</span> : null}
+                    {e.ownNotUsed ? <span className="lm-pk__have-note"> · {C.notUsed}</span> : null}
+                  </span>
+                  {hasNotes ? <IconKey icon={Pencil} size="sm" label={C.editNote(name)} aria-haspopup="dialog" onClick={(ev) => openNote(e.id, ev.currentTarget)} /> : null}
+                  <IconKey icon={X} size="sm" label={C.remove(name)} onClick={() => toggle(e.id)} />
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
       <p id={`${uid}-count`} className="lm-pk__count" aria-live="polite">
         {searching ? C.matches(matchCount) : ''}
       </p>
@@ -222,7 +256,7 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
         <div className="lm-pk__nomatch">
           <span>{C.noMatch(query.trim())}</span>
           <Key
-            variant="quiet"
+            variant="text"
             size="sm"
             onClick={() => {
               const words = query.trim().slice(0, NOTE_MAX);
@@ -234,41 +268,6 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
           >
             {C.addOwn}
           </Key>
-        </div>
-      ) : null}
-
-      {regions !== undefined || onRegionsChange ? (
-        <div className="lm-pk__region">
-          {/* the note says "pre-ticked" only while region defaults are ticked; otherwise the key ticks them (Q3-J5-03) */}
-          <p className="lm-pk__region-note">{!mainRegion || !defaults.preTick.length ? C.noDefaults : value.some((e) => e.assumed) ? C.regionNote(regionName) : C.regionOffer(regionName)}</p>
-          <div className="lm-pk__region-keys">
-            {mainRegion && defaults.preTick.length && !value.some((e) => e.assumed) && defaults.preTick.some((id) => !value.some((e) => e.id === id)) ? (
-              <Key variant="quiet" size="sm" onClick={() => onChange(withRegionDefaults(cat, kind, regions ?? [], valueRef.current))}>
-                {C.tickDefaults(regionName)}
-              </Key>
-            ) : null}
-            {onRegionsChange ? (
-              <Select
-                size="sm"
-                label={C.otherRegion}
-                placeholder={C.otherRegion}
-                value={undefined}
-                options={cat.regions().map((r) => ({ value: r.id, label: shortRegion(r.label) }))}
-                onChange={changeRegion}
-                className="lm-pk__region-select"
-              />
-            ) : null}
-            {value.some((e) => e.assumed) ? (
-              <Key variant="quiet" size="sm" onClick={clearDefaults}>
-                {C.clearDefaults}
-              </Key>
-            ) : null}
-          </div>
-          {regionName ? (
-            <span id={assumedDescId} hidden>
-              {C.defaultFor(regionName)}
-            </span>
-          ) : null}
         </div>
       ) : null}
 
@@ -298,8 +297,45 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
         ) : null}
       </div>
 
-      <AlsoHave kind={kind}
-        onSubmit={(text) => {
+      {/* r068 L26: the region's usual items as a quiet full-width row after the groups it fills */}
+      {regions !== undefined || onRegionsChange ? (
+        <div className="lm-pk__region">
+          {/* a fact only while region defaults are ticked ("Pre-ticked for a Kerala kitchen"); otherwise the key alone
+              offers them (Q3-J5-03) — no note that explains it */}
+          {mainRegion && defaults.preTick.length && value.some((e) => e.assumed) ? <p className="lm-pk__region-note">{C.regionNote(regionName)}</p> : null}
+          <div className="lm-pk__region-keys">
+            {mainRegion && defaults.preTick.length && !value.some((e) => e.assumed) && defaults.preTick.some((id) => !value.some((e) => e.id === id)) ? (
+              <Key variant="outlined" icon={Plus} block onClick={() => onChange(withRegionDefaults(cat, kind, regions ?? [], valueRef.current))}>
+                {C.tickDefaults(regionName, kind)}
+              </Key>
+            ) : null}
+            {onRegionsChange ? (
+              <Select
+                size="sm"
+                label={C.otherRegion}
+                placeholder={C.otherRegion}
+                value={undefined}
+                options={cat.regions().map((r) => ({ value: r.id, label: shortRegion(r.label) }))}
+                onChange={changeRegion}
+                className="lm-pk__region-select"
+              />
+            ) : null}
+            {value.some((e) => e.assumed) ? (
+              <Key variant="text" size="sm" onClick={clearDefaults}>
+                {C.clearDefaults}
+              </Key>
+            ) : null}
+          </div>
+          {regionName ? (
+            <span id={assumedDescId} hidden>
+              {C.defaultFor(regionName)}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      <AlsoHave
+        onSubmit={(text, how) => {
           const key = Date.now() + Math.random();
           setPending((p) => [...p, { key, text }]);
           setGroupOpen(ADDED, true);
@@ -307,19 +343,33 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
             .catch((): ParsedItem[] => [{ label: text, id: null, confidence: 0 }])
             .then((items) => {
               setPending((p) => p.filter((x) => x.key !== key));
-              add(entriesFromParsed(items, kind, 'picker'));
+              add(entriesFromParsed(items, kind, how));
             });
         }}
       />
 
-      {hasPaste ? <PasteList cat={cat} resolve={doResolve} onAdd={(items) => add(entriesFromParsed(items, kind, 'paste'))} /> : null}
-
-      <Popover open={noteFor !== null && noteEntry !== undefined} onOpenChange={(o) => !o && setNoteFor(null)} anchorRef={noteAnchor} label={C.editNote(noteLabel)} className="lm-pk__note-pop">
+      {/* r068 L16: the note opens as a small panel named for the food ("Note for Okra"): a sheet on phones, the side
+          panel on desktop, never a popover over the chips around it */}
+      <ResponsivePanel
+        open={noteFor !== null && noteEntry !== undefined}
+        onClose={() => {
+          setNoteFor(null);
+          noteAnchor.current?.focus();
+        }}
+        title={C.editNote(noteLabel)}
+        onDone={() => {
+          setNoteFor(null);
+          noteAnchor.current?.focus();
+        }}
+        doneLabel={C.done}
+        className="lm-pk__note-panel"
+      >
         {noteFor && noteEntry ? (
           <div className="lm-pk__note">
             <label className="lm-pk__note-field">
               <span className="lm-eng">{C.noteLabel}</span>
               <TextInput
+                autoFocus
                 aria-label={C.editNote(noteLabel)}
                 maxLength={NOTE_MAX}
                 placeholder={notePlaceholder}
@@ -335,18 +385,9 @@ function PickerBody({ kind, value, onChange, regions, onRegionsChange, ranked, n
               />
             </label>
             {kind === 'equipment' ? <Switch checked={Boolean(noteEntry.ownNotUsed)} onChange={(c) => update(noteFor, { ownNotUsed: c })} label={C.ownNotUsed} labelStyle="sentence" /> : null}
-            <Key
-              size="sm"
-              onClick={() => {
-                setNoteFor(null);
-                noteAnchor.current?.focus();
-              }}
-            >
-              {C.done}
-            </Key>
           </div>
         ) : null}
-      </Popover>
+      </ResponsivePanel>
     </div>
   );
 }
@@ -451,20 +492,25 @@ function GroupView({ group, common, matches, ticked, open, onOpen, onClear, chip
         <button type="button" id={headId} className="lm-pk__group-key" aria-expanded={isOpen} onClick={() => onOpen(!isOpen)}>
           <Icon icon={isOpen ? ChevronDown : ChevronRight} size={16} />
           <span className="lm-pk__group-name">{group.label}</span>
-          <span className="lm-pk__group-count">{C.groupCount(n, items.length)}</span>
+          {n > 0 ? <span className="lm-pk__group-count">{C.groupCount(n)}</span> : null}
         </button>
-        {n > 0 ? (
-          <Key variant="quiet" size="sm" aria-label={C.clearGroup(group.label)} className="lm-pk__group-clear" onClick={() => onClear(new Set(items.map((i) => i.id)))}>
-            {C.clear}
-          </Key>
-        ) : null}
       </div>
       {isOpen ? (
-        <div role="group" aria-labelledby={headId} className="lm-pk__chips">
-          {shown.map((i) => (
-            <PickerChip key={i.id} {...chip({ id: i.id, label: i.label })} />
-          ))}
-        </div>
+        <>
+          <div role="group" aria-labelledby={headId} className="lm-pk__chips">
+            {shown.map((i) => (
+              <PickerChip key={i.id} {...chip({ id: i.id, label: i.label })} />
+            ))}
+          </div>
+          {/* r068 P2: "Clear" belongs to the open group, under its items; the head keeps its count in one place */}
+          {n > 0 ? (
+            <div className="lm-pk__group-foot">
+              <Key variant="outlined" size="sm" aria-label={C.clearGroup(group.label)} className="lm-pk__group-clear" onClick={() => onClear(new Set(items.map((i) => i.id)))}>
+                {C.clear}
+              </Key>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -499,7 +545,9 @@ function AddedGroup({ entries, pending, open, onOpen, cat, chip }: AddedGroupPro
             return (
               <li key={e.id} className="lm-pk__added-row">
                 <PickerChip {...chip(e)} />
-                <span className="lm-pk__status">{item ? C.matched(item.label) : C.keptAsWritten}</span>
+                {item && item.label.trim().toLowerCase() === (e.label ?? '').trim().toLowerCase() ? null : (
+                  <span className="lm-pk__status">{item ? C.matched(item.label) : C.keptAsWritten}</span>
+                )}
               </li>
             );
           })}
@@ -519,115 +567,31 @@ function AddedGroup({ entries, pending, open, onOpen, cat, chip }: AddedGroupPro
 
 /* -------------------------------------------------------------------------------------------- free text */
 
-function AlsoHave({ kind, onSubmit }: { kind: KitchenKind; onSubmit: (text: string) => void }) {
-  const id = useId();
+/**
+ * "Add something else": one field with a + inside it. Enter or + adds what was typed (commas split it); a pasted list
+ * with line breaks goes in at once, each line an item (source "paste"), and lands in "added by you" to review.
+ */
+function AlsoHave({ onSubmit }: { onSubmit: (text: string, how: 'picker' | 'paste') => void }) {
   const [text, setText] = useState('');
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
-    onSubmit(t);
+    onSubmit(t, 'picker');
+    setText('');
+  };
+  const paste = (e: ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (!/[\r\n]/.test(pasted.trim())) return;
+    e.preventDefault();
+    onSubmit([text.trim(), pasted.trim()].filter(Boolean).join('\n'), 'paste');
     setText('');
   };
   return (
     <form className="lm-pk__also" onSubmit={submit}>
-      <label htmlFor={id} className="lm-pk__also-label">
-        {C.alsoHave}
-      </label>
-      <TextInput id={id} value={text} placeholder={C.alsoHavePlaceholder[kind]} onChange={(e) => setText(e.target.value)} className="lm-pk__also-input" />
-      <Key type="submit" size="sm">
-        {C.add}
-      </Key>
+      <TextInput aria-label={C.alsoHave} value={text} placeholder={C.alsoHave} onChange={(e) => setText(e.target.value)} onPaste={paste} className="lm-pk__also-input" autoComplete="off" />
+      <IconKey type="submit" icon={Plus} size="sm" label={C.add} className="lm-pk__also-add" />
     </form>
-  );
-}
-
-interface PasteListProps {
-  cat: KitchenCatalogue;
-  resolve: (text: string) => Promise<ParsedItem[]>;
-  onAdd: (items: ParsedItem[]) => void;
-}
-
-function PasteList({ cat, resolve, onAdd }: PasteListProps) {
-  const regionId = useId();
-  const areaId = useId();
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [rows, setRows] = useState<Array<{ item: ParsedItem; on: boolean }> | null>(null);
-  const read = () => {
-    if (!text.trim()) return;
-    setBusy(true);
-    resolve(text)
-      .catch((): ParsedItem[] => splitList(text).map((l) => ({ ...cleanLine(l), id: null, confidence: 0 })))
-      .then((items) => {
-        setRows(items.map((item) => ({ item, on: true })));
-        setBusy(false);
-      });
-  };
-  const matched = rows?.filter((r) => r.item.id).length ?? 0;
-  const kept = (rows?.length ?? 0) - matched;
-  const ticked = rows?.filter((r) => r.on) ?? [];
-  return (
-    <div className="lm-pk__paste">
-      <button type="button" className="lm-pk__group-key" aria-expanded={open} aria-controls={regionId} onClick={() => setOpen(!open)}>
-        <Icon icon={open ? ChevronDown : ChevronRight} size={16} />
-        <span className="lm-pk__group-name">{C.paste}</span>
-      </button>
-      {open ? (
-        <div id={regionId} className="lm-pk__paste-body">
-          <label htmlFor={areaId} className="lm-eng">
-            {C.pasteLabel}
-          </label>
-          <textarea id={areaId} rows={4} className="lm-input lm-pk__textarea" placeholder={C.pastePlaceholder} value={text} onChange={(e) => setText(e.target.value)} />
-          <div>
-            <Key size="sm" loading={busy} onClick={read}>
-              {C.readList}
-            </Key>
-          </div>
-          {rows ? (
-            <div className="lm-pk__preview">
-              <p className="lm-pk__preview-sum">{C.pasteSummary(matched, kept)}</p>
-              <ul className="lm-pk__preview-list">
-                {rows.map((r, i) => (
-                  <PreviewRow
-                    key={`${i}-${r.item.label}`}
-                    text={r.item.id ? (cat.get(r.item.id)?.label ?? r.item.label) : r.item.label}
-                    kept={!r.item.id}
-                    checked={r.on}
-                    onChange={(on) => setRows((rs) => rs!.map((x, j) => (j === i ? { ...x, on } : x)))}
-                  />
-                ))}
-              </ul>
-              <Key
-                variant="solid"
-                size="sm"
-                disabled={ticked.length === 0}
-                onClick={() => {
-                  onAdd(ticked.map((r) => r.item));
-                  setRows(null);
-                  setText('');
-                }}
-              >
-                {C.addItems(ticked.length)}
-              </Key>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function PreviewRow({ text, kept, checked, onChange }: { text: string; kept: boolean; checked: boolean; onChange: (on: boolean) => void }): ReactNode {
-  return (
-    <li>
-      <label className="lm-pk__preview-row">
-        <input type="checkbox" className="lm-check__box" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-        <span>{text}</span>
-        {kept ? <span className="lm-pk__status">{C.keptTag}</span> : null}
-      </label>
-    </li>
   );
 }
 

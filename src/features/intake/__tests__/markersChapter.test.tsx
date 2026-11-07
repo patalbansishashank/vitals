@@ -27,19 +27,20 @@ beforeEach(() => {
 const FORBIDDEN = /§|R13|dossier|W-L|MODEL_SPEC/;
 
 describe('B0 entry', () => {
-  it('shows both statements verbatim before any choice, and records the choice', () => {
+  it('shows the medical-advice statement verbatim before any choice, as plain text, and records the choice', () => {
     const onChoose = vi.fn();
     const { container } = render(<MarkersEntry onChoose={onChoose} />);
-    expect(screen.getByText(M.statement1)).toBeInTheDocument();
     expect(screen.getByText(M.statement2)).toBeInTheDocument();
-    expect(M.statement1).toBe('This is the most detailed option; many values are involved.');
+    expect(screen.getByText(M.statement3)).toBeInTheDocument();
     expect(M.statement2).toBe('Vitals is not medical advice; it does not diagnose or treat.');
+    // one quiet line: no notice box and no info mark
+    expect(container.querySelector('.lm-notice, .lm-status-mark')).toBeNull();
     // the statements come before the answer keys in reading order
     const text = container.textContent ?? '';
     expect(text.indexOf(M.statement2)).toBeLessThan(text.indexOf(M.has.options.skip));
     const group = screen.getByRole('group', { name: M.has.prompt });
     expect(within(group).getAllByRole('button').filter((b) => b.hasAttribute('aria-pressed')).map((b) => b.textContent)).toEqual([M.has.options.skip, M.has.options.manual, expect.stringContaining(M.has.options.report)]);
-    expect(screen.getByText(`if you skip: ${M.has.skipText}`)).toBeInTheDocument();
+    expect(screen.queryByText(/if you skip/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: M.has.options.skip }));
     expect(onChoose).toHaveBeenCalledWith('skip');
     expect(text).not.toMatch(FORBIDDEN);
@@ -92,6 +93,8 @@ describe('B1 typed table', () => {
 
     const hdl = valueBox('HDL cholesterol');
     fireEvent.change(hdl, { target: { value: '41' } });
+    // on a phone the lab's range waits behind its key
+    fireEvent.click(screen.getByRole('button', { name: M.table.addRangeLabel('HDL cholesterol') }));
     fireEvent.change(screen.getByLabelText(M.table.low('HDL cholesterol')), { target: { value: '45' } });
     expect(screen.getAllByText('below range').length).toBeGreaterThan(0);
 

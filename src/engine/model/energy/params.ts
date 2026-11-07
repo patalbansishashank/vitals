@@ -16,7 +16,7 @@ const P = (
   source: string,
   dossier: string,
   status: NonNullable<ParamDef['status']>,
-  extra: Pick<ParamDef, 'draw' | 'note' | 'label'> = {},
+  extra: Pick<ParamDef, 'draw' | 'note' | 'label' | 'distribution'> = {},
 ): ParamDef => ({ id: `energy.${name}`, value, unit, low, high, grade, source, dossier, status, ...extra });
 
 /** Structural / definitional constant: never varied in draws. */
@@ -125,17 +125,32 @@ export const ENERGY_PARAMS: readonly ParamDef[] = [
   FIX('cafTolMg', 200, 'mg/d', 'D', 'Tolerance builds with daily use ≥ 200 mg (Beaumont 2017 PMID 27762662)', '15 §4.11', 'proposed-fit'),
   FIX('cafTolEffect', 0.5, '1', 'D', 'Full tolerance halves the thermogenic effect (1 − 0.5·Tol)', '15 §4.11', 'proposed-fit'),
 
-  // ---- exercise compensation, metabolic part (10 §4.3; ruling R-COMP)
-  P('cMet', 0.15, 'frac of net exercise energy', 0, 0.28, 'C', 'Careau 2021 PMID 34453886 (27.7 % TEE compensation = high); E-MECHANIC Martin 2019 (0 %)', '10 §4.3; MODEL_SPEC R-COMP', 'proposed-fit', {
-    label: 'Metabolic exercise compensation c_met at BMI 25',
-    note: "02's constrained-TEE term (27.7 %, τ ≈ 60 d) is not implemented (R-COMP).",
+  // ---- exercise compensation, metabolic part (10 §4.3; ruling R-COMP; D1-07 structural scenarios)
+  // D1-07: the RMR response to added activity is a structural choice, not a drawn band. Nominal = zero-RMR-response
+  // reference (c_met 0, never drawn); the legacy response (c_met 0.15, τ 14 d, cap 5 % RMR) is the named alternative
+  // scenario `ENERGY_STRUCTURAL_SCENARIOS.exerciseCompensation.legacyRmrResponse`. Neither is a claim that compensation is
+  // absent or certain: intake, NEAT and adaptive thermogenesis stay separate pathways, each applied once.
+  P('cMet', 0, 'frac of net exercise energy', 0, 0.15, 'C', 'Structural reference: zero RMR response (E-MECHANIC Martin 2019 PMID 31172175: compensation intake-mediated; Yegian 2026: no REE fall at 10 d). Legacy scenario 0.15; Careau 2021 PMID 34453886 27.7 % is total-TEE compensation (high end, not an RMR coefficient)', '10 §4.3; MODEL_SPEC R-COMP; review D1-07', 'proposed-fit', {
+    label: 'Metabolic (RMR) exercise compensation c_met',
+    draw: 'fixed',
+    note: "D1-07: structural scenario value, never drawn (no mixture probability, no confidence band). [low, high] = the two named scenarios: 0 = zero-RMR-response reference; 0.15 = legacy scenario (with τ 14 d, cap 5 % RMR). 02's constrained-TEE term (27.7 %, τ ≈ 60 d) is not implemented (R-COMP).",
+    distribution: {
+      uncertaintyKind: 'scenario',
+      bounds: 'support',
+      nominal: 'designPoint',
+      basis: 'two named structural scenarios (zero RMR response; legacy 0.15/14 d/5 % RMR heuristic); not a probability mixture or coverage band',
+      population: 'adults adding planned activity; trials conflict by duration (10 d to 12 wk)',
+      version: 1,
+      label: 'designPrior',
+    },
   }),
-  P('cMetPerBmi', 0.01, 'per kg/m²', 0, 0.02, 'C', 'PROPOSED adiposity modifier from Careau 2021 PMID 34453886 (29.7 % vs 45.7 % at BMI p10/p90; percentile BMIs UNVERIFIED)', '10 §4.3', 'proposed-fit'),
-  FIX('cMetBmiRef', 25, 'kg/m²', 'C', 'Reference BMI of the c_met modifier', '10 §4.3', 'proposed-fit'),
-  FIX('cMetBmiLo', -5, 'kg/m²', 'C', 'Lower clamp of (BMI − 25) in the c_met modifier', '10 §4.3', 'proposed-fit'),
-  FIX('cMetBmiHi', 8, 'kg/m²', 'C', 'Upper clamp of (BMI − 25) in the c_met modifier', '10 §4.3', 'proposed-fit'),
-  FIX('tauComp', 14, 'd', 'D', 'PROPOSED lag of the metabolic compensation', '10 §4.3', 'proposed-fit'),
-  FIX('compCapFrac', 0.05, 'frac RMR', 'C', 'Cap −5 % RMR (Thomas 2012: −7 % in one confined study; MET/E-MECHANIC 0 %)', '10 §4.3', 'proposed-fit'),
+  FIX('cMetPerBmi', 0, 'per kg/m²', 'C', 'Removed (D1-07): cross-sectional adiposity association (Careau 2021 PMID 34453886) does not identify a within-person BMI-caused RMR response', '10 §4.3; review D1-07', 'proposed-fit',
+    'D1-07: production BMI slope 0 for nominal and draws; the removed exploratory value was 0.01 per kg/m² (29.7 % vs 45.7 % at BMI p10/p90, percentile BMIs unverified).'),
+  FIX('cMetBmiRef', 25, 'kg/m²', 'C', 'Reference BMI of the (removed) c_met BMI modifier', '10 §4.3', 'proposed-fit'),
+  FIX('cMetBmiLo', -5, 'kg/m²', 'C', 'Lower clamp of (BMI − 25) in the (removed) c_met BMI modifier', '10 §4.3', 'proposed-fit'),
+  FIX('cMetBmiHi', 8, 'kg/m²', 'C', 'Upper clamp of (BMI − 25) in the (removed) c_met BMI modifier', '10 §4.3', 'proposed-fit'),
+  FIX('tauComp', 14, 'd', 'D', 'PROPOSED lag of the metabolic compensation (legacy-scenario structure; inert at c_met 0)', '10 §4.3; review D1-07', 'proposed-fit'),
+  FIX('compCapFrac', 0.05, 'frac RMR', 'C', 'Cap −5 % RMR (Thomas 2012: −7 % in one confined study; MET/E-MECHANIC 0 %); legacy-scenario structure, inert at c_met 0', '10 §4.3; review D1-07', 'proposed-fit'),
   FIX('enetWindowD', 7, 'd', 'C', 'E_net = 7-day mean of net exercise + step energy above baseline', '10 §4.3', 'verified'),
 
   // ---- facultative CHO thermogenesis in surplus (11 §4.5)

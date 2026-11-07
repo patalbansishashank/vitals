@@ -1,0 +1,127 @@
+/* ==========================================================================
+   HeroNumber (r071 0B): Geist 300 at 44-88 px, proportional figures, -0.035em; the unit small and muted. Tabular for
+   clocks and secondary figures. Weight floor (RESEARCH §2.3): 300 only from 36 px up; the quiet word is 400.
+   ========================================================================== */
+@layer components {
+  .lm-hero {
+    /* the role of the size (size, weight, line, tracking, family): the numeral roles are the only place a 300 is declared */
+    --lm-hero-fs: var(--lm-text-num);
+    --lm-hero-wt: var(--lm-text-num--wt);
+    --lm-hero-lh: var(--lm-text-num--lh);
+    --lm-hero-ls: var(--lm-text-num--ls);
+    --lm-hero-font: var(--lm-text-num--font);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    max-width: 100%;
+    color: var(--lm-ink);
+  }
+  .lm-hero[data-size='hero'] {
+    --lm-hero-fs: var(--lm-text-hero);
+    --lm-hero-wt: var(--lm-text-hero--wt);
+    --lm-hero-lh: var(--lm-text-hero--lh);
+    --lm-hero-ls: var(--lm-text-hero--ls);
+    --lm-hero-font: var(--lm-text-hero--font);
+  }
+  .lm-hero[data-size='num-l'] {
+    --lm-hero-fs: var(--lm-text-num-l);
+    --lm-hero-wt: var(--lm-text-num-l--wt);
+    --lm-hero-lh: var(--lm-text-num-l--lh);
+    --lm-hero-ls: var(--lm-text-num-l--ls);
+    --lm-hero-font: var(--lm-text-num-l--font);
+  }
+  .lm-hero[data-size='time'] {
+    --lm-hero-fs: var(--lm-text-time);
+    --lm-hero-wt: var(--lm-text-time--wt);
+    --lm-hero-lh: var(--lm-text-time--lh);
+    --lm-hero-ls: var(--lm-text-time--ls);
+    --lm-hero-font: var(--lm-text-time--font);
+  }
+  .lm-hero[data-size='stat'] {
+    --lm-hero-fs: var(--lm-text-stat);
+    --lm-hero-wt: var(--lm-text-stat--wt);
+    --lm-hero-lh: var(--lm-text-stat--lh);
+    --lm-hero-ls: var(--lm-text-stat--ls);
+    --lm-hero-font: var(--lm-text-stat--font);
+  }
+  .lm-hero__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 8px;
+    max-width: 100%;
+    font-family: var(--lm-hero-font);
+    font-size: var(--lm-hero-fs);
+    font-weight: var(--lm-hero-wt);
+    line-height: var(--lm-hero-lh);
+    letter-spacing: var(--lm-hero-ls);
+    font-variant-numeric: proportional-nums;
+    font-feature-settings: 'tnum' 0, 'pnum' 1;
+  }
+  .lm-hero[data-numerals='tabular'] .lm-hero__line {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  .lm-hero__part {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .lm-hero__part + .lm-hero__part {
+    margin-inline-start: 0;
+  }
+  .lm-hero__unit {
+    margin-inline-start: 4px;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-unit);
+    font-weight: 400;
+    line-height: 1;
+    letter-spacing: 0;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
+    transition: opacity 400ms var(--lm-ease-out) 500ms;
+  }
+  .lm-hero__line > .lm-hero__part:only-child > .lm-hero__unit {
+    margin-inline-start: 6px;
+  }
+  .lm-hero[data-unit='below'] .lm-hero__part {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .lm-hero[data-unit='below'] .lm-hero__line > .lm-hero__part > .lm-hero__unit {
+    margin: 6px 0 0;
+  }
+  /* during a count-up the final text holds the width in an invisible twin, so the unit never moves */
+  .lm-hero__digits {
+    display: inline-grid;
+    white-space: nowrap;
+  }
+  .lm-hero__digits[data-counting] > * {
+    grid-area: 1 / 1;
+  }
+  .lm-hero__ghost {
+    visibility: hidden;
+  }
+  .lm-hero__range {
+    transition: opacity 400ms var(--lm-ease-out) 700ms;
+  }
+  .lm-hero[data-reveal='pending'] .lm-hero__unit,
+  .lm-hero[data-reveal='pending'] .lm-hero__range {
+    opacity: 0;
+  }
+  /* quiet: a word, never a digit */
+  .lm-hero__word {
+    max-width: 100%;
+    font-family: var(--lm-font-display);
+    font-size: max(1.5rem, calc(var(--lm-hero-fs) * 0.5));
+    font-weight: 400;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    white-space: normal;
+  }
+}

@@ -13,6 +13,28 @@ beforeEach(() => {
 const desk = { work: 'desk', turns: { values: { work: 'desk' }, status: { work: 'answered' } } };
 
 describe('intake.answer', () => {
+  it('rejects edits that break a linked habitual cardio source before either document commits', async () => {
+    const row = { id: 'air-bike-report', label: 'air bike', intensity: 'moderate' as const, minPerWeek: 90 };
+    const cardio = { modality: 'cycle' as const, sessionsPerWeek: 6, minutesPerSession: 15, weekdays: [0, 1, 2, 3, 4, 5], source: 'userReport' as const, recreationSourceId: row.id };
+    expect((await dispatch('intake.answer', { section: 'activity', answers: { recreation: [row] } })).ok).toBe(true);
+    expect((await dispatch('profile.patch', { habits: { habitualCardio: cardio } })).ok).toBe(true);
+    await settleCommits();
+    const revision = useProfileStore.getState().revision;
+
+    const badProfile = await dispatch('profile.patch', { habits: { habitualCardio: { ...cardio, minutesPerSession: 16 } } });
+    expect(badProfile.ok ? null : badProfile.error).toMatchObject({ code: 'invalid_input', detail: { path: '/habits/habitualCardio/recreationSourceId' } });
+    expect(useProfileStore.getState().revision).toBe(revision);
+    expect(simulatorProfileNow().habits?.habitualCardio?.minutesPerSession).toBe(15);
+
+    const badIntake = await dispatch('intake.answer', { section: 'activity', answers: { recreation: [{ ...row, minPerWeek: 95 }] } });
+    expect(badIntake.ok ? null : badIntake.error).toMatchObject({ code: 'invalid_input', detail: { path: '/answers/recreation' } });
+    expect(outputOf(await dispatch('intake.get', { section: 'activity' }))?.sections.activity).toMatchObject({ recreation: [row] });
+    expect(useProfileStore.getState().habits.activity?.recreation).toEqual([row]);
+
+    expect((await dispatch('profile.patch', { habits: { habitualCardio: null } })).ok).toBe(true);
+    expect((await dispatch('intake.answer', { section: 'activity', answers: { recreation: [{ ...row, minPerWeek: 95 }] } })).ok).toBe(true);
+  });
+
   it('writes the activity intake into the profile habits in the same change, so every screen resolves the same maintenance', async () => {
     const r = await dispatch('intake.answer', { section: 'activity', answers: desk });
     expect(r.ok).toBe(true);
@@ -28,8 +50,11 @@ describe('intake.answer', () => {
   });
 
   it('validates the merged section against its schema', async () => {
-    const bad = await dispatch('intake.answer', { section: 'devices', answers: { has: ['spaceship'] } });
-    expect(bad.ok ? null : bad.error).toMatchObject({ code: 'invalid_input', detail: { path: '/answers/has/0' } });
+    const bad = await dispatch('intake.answer', { section: 'activity', answers: { work: 'spaceship' } });
+    expect(bad.ok ? null : bad.error).toMatchObject({ code: 'invalid_input', detail: { path: '/answers/work' } });
+    // the devices section went with the devices chapter
+    const devices = await dispatch('intake.answer', { section: 'devices' as never, answers: { has: ['ring'] } });
+    expect(devices.ok ? null : devices.error.code).toBe('invalid_input');
     const diet = await dispatch('intake.answer', { section: 'diet', answers: { rulesComplete: true } });
     expect(diet.ok ? null : diet.error.code).toBe('invalid_input');
     expect((await dispatch('intake.answer', { section: 'diet', answers: { rulesComplete: false } })).ok).toBe(true);

@@ -2,6 +2,7 @@ import {
   CHANGE_WINDOW_MS,
   availableActions,
   changeCardReducer,
+  changeWindowRatio,
   timeLeft,
   timeLeftText,
   withClock,
@@ -23,7 +24,12 @@ function card(over: Partial<ChangeCardModel> = {}): ChangeCardModel {
     title: 'Proposal · no training Thu–Sat',
     createdAt: ago(HOUR),
     items: [{ label: 'Thu 1 Oct', before: 'strength session 17:30', after: 'rest' }],
-    impact: { goalDates: [{ label: 'goal date', before: ['2026-12-21', '2026-12-30'], after: ['2026-12-23', '2027-01-01'] }], metrics: [{ label: 'weight by the end', delta: 0.2, unit: 'kg', decimals: 1 }] },
+    impact: {
+      goalDates: [
+        { label: 'goal date', before: ['2026-12-21', '2026-12-30'], after: ['2026-12-23', '2027-01-01'] },
+      ],
+      metrics: [{ label: 'weight by the end', delta: 0.2, unit: 'kg', decimals: 1 }],
+    },
     state: 'pending',
     ...over,
   };
@@ -31,7 +37,12 @@ function card(over: Partial<ChangeCardModel> = {}): ChangeCardModel {
 
 const REFRESHED: NonNullable<ChangeCardModel['refreshed']> = {
   items: [{ label: 'Fri 2 Oct', before: 'cardio session 07:30', after: 'rest' }],
-  impact: { goalDates: [{ label: 'goal date', before: ['2026-12-21', '2026-12-30'], after: ['2026-12-22', '2026-12-31'] }], metrics: [] },
+  impact: {
+    goalDates: [
+      { label: 'goal date', before: ['2026-12-21', '2026-12-30'], after: ['2026-12-22', '2026-12-31'] },
+    ],
+    metrics: [],
+  },
 };
 
 const ALL_EVENTS: ChangeEvent[] = [
@@ -95,7 +106,9 @@ describe('changeCard — time left', () => {
   it('counts the 24 h window from createdAt, or until when given', () => {
     expect(timeLeft(card({ createdAt: ago(HOUR) }), NOW)).toBe(CHANGE_WINDOW_MS - HOUR);
     expect(timeLeft(card({ createdAt: ago(30 * HOUR) }), NOW)).toBe(0);
-    expect(timeLeft(card({ createdAt: ago(30 * HOUR), until: later(2 * HOUR).toISOString() }), NOW)).toBe(2 * HOUR);
+    expect(timeLeft(card({ createdAt: ago(30 * HOUR), until: later(2 * HOUR).toISOString() }), NOW)).toBe(
+      2 * HOUR,
+    );
   });
 
   it('words the undo window and the expiry', () => {
@@ -106,8 +119,12 @@ describe('changeCard — time left', () => {
   });
 
   it('switches to minutes in the last hour and rounds up', () => {
-    expect(timeLeftText(card({ class: 'log', state: 'applied', createdAt: ago(23.5 * HOUR) }), NOW)).toBe('30 min to undo');
-    expect(timeLeftText(card({ class: 'edit', state: 'pending', createdAt: ago(CHANGE_WINDOW_MS - 20_000) }), NOW)).toBe('expires in 1 min');
+    expect(timeLeftText(card({ class: 'log', state: 'applied', createdAt: ago(23.5 * HOUR) }), NOW)).toBe(
+      '30 min to undo',
+    );
+    expect(
+      timeLeftText(card({ class: 'edit', state: 'pending', createdAt: ago(CHANGE_WINDOW_MS - 20_000) }), NOW),
+    ).toBe('expires in 1 min');
   });
 
   it('says nothing when the window is over or the state has no window', () => {
@@ -214,7 +231,11 @@ describe('changeCard — reducer', () => {
   });
 
   it('destructive: only the typed confirmation completes it; apply and undo never do', () => {
-    const confirm = card({ class: 'destructive', title: 'end Spring cut', confirm: { consequence: 'Ends the plan today.', word: 'end', actionLabel: 'End plan' } });
+    const confirm = card({
+      class: 'destructive',
+      title: 'end Spring cut',
+      confirm: { consequence: 'Ends the plan today.', word: 'end', actionLabel: 'End plan' },
+    });
     expect(changeCardReducer(confirm, { type: 'apply' }, NOW)).toBe(confirm);
     expect(changeCardReducer(confirm, { type: 'undo' }, NOW)).toBe(confirm);
     expect(changeCardReducer(confirm, { type: 'confirmed' }, NOW).state).toBe('applied');
@@ -227,8 +248,12 @@ describe('changeCard — reducer', () => {
   });
 
   it('blocked and UI-only cards can be dismissed; read cards cannot change', () => {
-    expect(changeCardReducer(card({ class: 'blocked', state: 'applied' }), { type: 'discard' }, NOW).state).toBe('discarded');
-    expect(changeCardReducer(card({ class: 'uiOnly', state: 'applied' }), { type: 'discard' }, NOW).state).toBe('discarded');
+    expect(
+      changeCardReducer(card({ class: 'blocked', state: 'applied' }), { type: 'discard' }, NOW).state,
+    ).toBe('discarded');
+    expect(
+      changeCardReducer(card({ class: 'uiOnly', state: 'applied' }), { type: 'discard' }, NOW).state,
+    ).toBe('discarded');
     const read = card({ class: 'read', state: 'applied' });
     for (const ev of ALL_EVENTS) expect(changeCardReducer(read, ev, NOW)).toBe(read);
   });
@@ -294,5 +319,17 @@ describe('changeCard — withClock', () => {
     ]) {
       expect(withClock(c, NOW)).toBe(c);
     }
+  });
+});
+
+describe('changeWindowRatio', () => {
+  it('drains against the card’s actual window and clamps clock differences', () => {
+    expect(changeWindowRatio(card({ createdAt: ago(12 * HOUR) }), NOW)).toBe(0.5);
+    expect(changeWindowRatio(card({ createdAt: ago(HOUR), until: later(HOUR).toISOString() }), NOW)).toBe(
+      0.5,
+    );
+    expect(changeWindowRatio(card({ createdAt: later(HOUR).toISOString() }), NOW)).toBe(1);
+    expect(changeWindowRatio(card({ createdAt: ago(25 * HOUR) }), NOW)).toBe(0);
+    expect(changeWindowRatio(card({ until: ago(2 * HOUR) }), NOW)).toBe(0);
   });
 });

@@ -1,5 +1,13 @@
 import { EMPTY_FILTERS } from '../data/filters';
-import { highlight, makeSnippet, normalize, parseQuery, SearchIndex, tokenize } from '../data/search';
+import {
+  highlight,
+  makeSnippet,
+  normalize,
+  parseQuery,
+  SearchIndex,
+  tokenize,
+  type MechanismDoc,
+} from '../data/search';
 import { outcomeMetrics } from '../metricLabels';
 import { topicFuel, topicHeart } from './fixtures';
 
@@ -119,12 +127,42 @@ describe('highlight and snippets', () => {
     expect(segs.map((s) => s.text).join('')).toBe('Ketones rise; ketosis follows.');
   });
 
-  it('quotes the passage that matched when the title did not', () => {
+  it('quotes the clause that matched when the title did not', () => {
     const ix = index();
     const hit = ix.search('biopsies', EMPTY_FILTERS).mechanisms[0]!;
     const snip = makeSnippet(hit.doc, parseQuery('biopsies').tokens);
     expect(snip?.field).toBe('key numbers');
     expect(snip?.segments.filter((s) => s.hit).map((s) => s.text)).toEqual(['biopsies']);
-    expect(snip?.segments.map((s) => s.text).join('')).toMatch(/^…per gram of glycogen/);
+    // the one key number that matched, whole: not its neighbours, no ellipsis
+    expect(snip?.segments.map((s) => s.text).join('')).toBe(
+      'Water per gram of glycogen: ≈ 3 g/g (range 2.7–4) (Measured with biopsies.)',
+    );
+  });
+
+  it('quotes the matching sentence, not the one before it', () => {
+    const base = topicFuel.mechanisms[1]!;
+    const doc: MechanismDoc = {
+      kind: 'mechanism',
+      id: base.id,
+      topic: { dossier: topicFuel.dossier, slug: topicFuel.slug, title: topicFuel.title },
+      order: 0,
+      mechanism: { ...base, summary: 'Glycogen falls first, e.g. overnight. Then ketones rise over 2–3 days.' },
+    };
+    const text = (q: string) =>
+      makeSnippet(doc, parseQuery(q).tokens)
+        ?.segments.map((s) => s.text)
+        .join('');
+    expect(text('ketones')).toBe('Then ketones rise over 2–3 days.');
+    // "e.g. overnight" is not a sentence break
+    expect(text('overnight')).toBe('Glycogen falls first, e.g. overnight.');
+  });
+
+  it('cuts a long sentence at whole words around the match', () => {
+    const ix = index();
+    const hit = ix.search('scale', EMPTY_FILTERS).mechanisms.find((h) => h.doc.id === '90-full')!;
+    const snip = makeSnippet(hit.doc, parseQuery('scale').tokens, 40);
+    expect(snip?.field).toBe('summary');
+    // the 126-character sentence is cut at whole words around the match, and says so at both ends
+    expect(snip?.segments.map((s) => s.text).join('')).toBe('…up on the scale as roughly 4 times its…');
   });
 });

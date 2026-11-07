@@ -46,9 +46,28 @@ describe('<ScoreHistory>', () => {
     render(<ScoreHistory data={scoreFixture()} label="Heart-rate variability" />);
     await flush();
     expect(screen.getByRole('img', { name: /^Heart-rate variability, 7-day mean .*v1\.3 from 20 Oct; new ring on 3 October/ })).toHaveAttribute('tabindex', '0');
-    fireEvent.click(screen.getByRole('button', { name: 'table' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
     const table = screen.getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(29);
     expect(within(table).getByText('new ring')).toBeInTheDocument();
+  });
+
+  it('a `format` writes the y ticks, the summary and the table its own way (time asleep as h:mm)', async () => {
+    const hm = (h: number) => `${Math.floor(Math.round(h * 60) / 60)}:${String(Math.round(h * 60) % 60).padStart(2, '0')}`;
+    const said = (h: number) => `${hm(h)} spoken`;
+    const nightly = Array.from({ length: 28 }, (_, i) => (i === 4 ? NaN : 7 + (i % 4) / 4));
+    const mean7 = Array.from({ length: 28 }, (_, i) => (i < 6 ? NaN : 7.5));
+    const { container } = render(
+      <ScoreHistory data={scoreFixture({ unit: 'h', decimals: 1, nightly, mean7, compare: undefined, versions: [], deviceChanges: [], normal: undefined, format: { text: hm, spoken: said } })} label="Time asleep" />,
+    );
+    await flush();
+    const ticks = [...container.querySelectorAll('[data-mark="y-tick"]')].map((t) => t.textContent);
+    expect(ticks.length).toBeGreaterThanOrEqual(2);
+    for (const t of ticks) expect(t).toMatch(/^\d+:\d\d$/);
+    expect(screen.getByRole('img', { name: /^Time asleep, 7-day mean 7:30 spoken on / })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByText('7:30').length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/^\d+\.\d$/)).toBeNull();
   });
 });

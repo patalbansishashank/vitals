@@ -63,7 +63,7 @@ const DYNAMIC = {
       return { text: `The Ideal cannot be started as a plan (${tried.result?.summary ?? 'refused'}). I can start the Hard, Medium or Easy plan instead.` };
     }
     const rung = want === 'recommended' ? (opts[0] ? { A: 'hard', B: 'medium', C: 'easy' }[opts[0].id] ?? 'medium' : 'medium') : want;
-    return { tools: [{ name: 'plan_start', args: { source: { rung }, startDate: env.date, name: `Coach: ${rung}` } }] };
+    return { tools: [{ name: 'plan_start', args: { source: { rung }, startDate: env.date, name: `${rung[0].toUpperCase()}${rung.slice(1)} plan` } }] };
   },
 };
 

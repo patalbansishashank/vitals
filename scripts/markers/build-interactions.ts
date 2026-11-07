@@ -236,6 +236,12 @@ function alsoFrom(raw: Json, ruleId: string): Also {
     return { kind: 'marker', markerId, cmp, value: Number(raw.value), unit: cleanUnit(markerId, raw.unit, ruleId) };
   }
   if (raw.field === 'fasting') return { kind: 'field', field: 'reading.fasting', cmp, value: raw.value };
+  // D7-09: the sample's fasting eligibility ('eligible' | 'notFasting' | 'unknown', from its own metadata; never undefined)
+  if (raw.field === 'fastingEligibility') {
+    const allowed = new Set(['eligible', 'notFasting', 'unknown']);
+    if (raw.op !== 'in' || !Array.isArray(raw.value) || !raw.value.every((v: unknown) => allowed.has(String(v)))) throw new Error(`${ruleId}: fastingEligibility ${JSON.stringify(raw)}`);
+    return { kind: 'field', field: 'reading.fastingEligibility', cmp: 'in', value: raw.value };
+  }
   if (typeof raw.field === 'string') return { kind: 'field', field: raw.field, cmp, value: raw.value };
   throw new Error(`${ruleId}: also ${JSON.stringify(raw)}`);
 }
@@ -268,6 +274,14 @@ function conditionFrom(markerId: string, w: Json, ruleId: string): { when: Condi
       const [lo, hi] = w.value as [number, number];
       return { when: { op: 'between', low: lo, high: hi, unit: cleanUnit(markerId, unitText, ruleId) }, also };
     }
+    case 'range': {
+      // D7-09: a half-open band low ≤ value < high (the prediabetes ranges stop below the diabetes-range threshold): the
+      // lower bound is the condition, the strict upper bound an extra condition on the same reading
+      const [lo, hi] = Array.isArray(w.value) ? (w.value as [number, number]) : [Number.NaN, Number.NaN];
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(lo < hi)) throw new Error(`${ruleId}: range ${JSON.stringify(w.value)}`);
+      const unit = cleanUnit(markerId, unitText, ruleId);
+      return { when: { op: 'cmp', cmp: 'gte', value: lo, unit }, also: [...also, { kind: 'marker', markerId, cmp: 'lt', value: hi, unit }] };
+    }
     case 'outside': {
       if (w.value === 'labRange') return { when: { op: 'outside', range: 'lab', unit: cleanUnit(markerId, unitText, ruleId) }, also };
       if (Array.isArray(w.value)) return { when: { op: 'outside', range: [Number(w.value[0]), Number(w.value[1])], unit: cleanUnit(markerId, unitText, ruleId) }, also };
@@ -290,6 +304,52 @@ function conditionFrom(markerId: string, w: Json, ruleId: string): { when: Condi
   }
   if (typeof w.value !== 'number') throw new Error(`${ruleId}: value ${JSON.stringify(w.value)}`);
   return { when: { op: 'cmp', cmp, value: w.value, unit: cleanUnit(markerId, unitText, ruleId) }, also };
+}
+
+/* ------------------------------------------------------------------------------------------- applicability (D7-01) */
+
+interface Applicability {
+  referencePhysiology?: 'adultMale' | 'adultFemale';
+  adultOnly?: boolean;
+  sample?: { morning?: boolean; fasting?: boolean };
+}
+
+const APPLICABILITY_KEYS = new Set(['referencePhysiology', 'adultOnly', 'sample']);
+const SAMPLE_KEYS = new Set(['morning', 'fasting']);
+
+/**
+ * `applicability` of a research rule (D7-01): the population its threshold is defined for and the sample facts its
+ * message claims. Validated strictly (an unknown key or value stops the build): a male reference threshold must never
+ * be applied by accident to another population because a field was misspelt.
+ */
+export function applicabilityFrom(raw: Json, ruleId: string): Applicability | undefined {
+  if (raw === undefined) return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`${ruleId}: applicability ${JSON.stringify(raw)}`);
+  for (const k of Object.keys(raw)) if (!APPLICABILITY_KEYS.has(k)) throw new Error(`${ruleId}: applicability key "${k}"`);
+  const out: Applicability = {};
+  if (raw.referencePhysiology !== undefined) {
+    if (raw.referencePhysiology !== 'adultMale' && raw.referencePhysiology !== 'adultFemale') throw new Error(`${ruleId}: referencePhysiology "${raw.referencePhysiology}"`);
+    out.referencePhysiology = raw.referencePhysiology;
+  }
+  if (raw.adultOnly !== undefined) {
+    if (typeof raw.adultOnly !== 'boolean') throw new Error(`${ruleId}: adultOnly ${JSON.stringify(raw.adultOnly)}`);
+    out.adultOnly = raw.adultOnly;
+  }
+  if (raw.sample !== undefined) {
+    const s = raw.sample;
+    if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error(`${ruleId}: sample ${JSON.stringify(s)}`);
+    for (const k of Object.keys(s)) if (!SAMPLE_KEYS.has(k) || typeof s[k] !== 'boolean') throw new Error(`${ruleId}: sample.${k}`);
+    out.sample = { ...(s.morning !== undefined ? { morning: s.morning } : {}), ...(s.fasting !== undefined ? { fasting: s.fasting } : {}) };
+  }
+  return out;
+}
+
+/** A message that claims sample facts (`{sampleClaim}`) needs the rule to declare which facts (and the reverse). */
+function checkSampleClaim(message: string, app: Applicability | undefined, ruleId: string): void {
+  const claims = /\{sampleClaim\}/.test(message);
+  const declares = !!app?.sample && (app.sample.morning === true || app.sample.fasting === true);
+  if (claims !== declares) throw new Error(`${ruleId}: {sampleClaim} in the message and applicability.sample must go together`);
+  if (/\bmorning tests?\b/i.test(message) && !claims) throw new Error(`${ruleId}: claims morning tests without sample facts`);
 }
 
 /* ------------------------------------------------------------------------------------------- effects */
@@ -426,6 +486,8 @@ function effectFrom(r: Json, markerId: string, kind: string, metaRetest: number 
       else if (!e.levers.length) e.displayValue = { name: target, value: String(v ?? '') };
       break;
     case 'warn':
+      // an evidence-qualified intake flag (D7-01: 3.4 g/kg/d protein is a concern, never a hard cap or toxicity boundary)
+      if (obj?.flagProteinGPerKg !== undefined) e.displayValue = { name: 'proteinGPerKg', value: Number(obj.flagProteinGPerKg) };
       if (obj?.minFluidL !== undefined) e.displayValue = { name: 'minFluidL', value: Number(obj.minFluidL) };
       if (obj?.maxFastHours !== undefined) e.displayValue = { name: 'maxFastHours', value: Number(obj.maxFastHours) };
       if (target === 'hba1c') e.displayValue = { name: 'hba1c', value: 'may read wrong' };
@@ -522,6 +584,8 @@ export function buildTable(inputs: readonly ResearchInput[]): Json {
       if (!['cap', 'warn', 'reask', 'clinician', 'retest', 'prefer'].includes(kind)) throw new Error(`${r.id}: kind "${kind}"`);
       const severity = r.severity ? SEVERITY[r.severity] : DEFAULT_SEVERITY[kind];
       if (!severity) throw new Error(`${r.id}: severity "${r.severity}"`);
+      const applicability = applicabilityFrom(r.applicability, r.id);
+      checkSampleClaim(String(r.message), applicability, r.id);
       rules.push({
         id: r.id,
         markerId,
@@ -536,6 +600,7 @@ export function buildTable(inputs: readonly ResearchInput[]): Json {
         sources: src(r.sources, r.id),
         ...(r.mapsTo ? { mapsTo: String(r.mapsTo) } : {}),
         target: String(r.target ?? ''),
+        ...(applicability ? { applicability } : {}),
       });
     }
 
@@ -551,7 +616,10 @@ export function buildTable(inputs: readonly ResearchInput[]): Json {
         const w = /after\s*>=\s*4\s*weeks/.test(unitText) ? { ...c, unit: 'x lab ULN' } : c;
         const { when, also } = conditionFrom(markerId, w, id);
         if (/after\s*>=\s*4\s*weeks/.test(unitText)) also.push({ kind: 'field', field: 'alcohol.lowForWeeks', cmp: 'gte', value: 4 });
-        const dup = rules.some((x) => x.markerId === markerId && x.kind === 'clinician' && sameWhen(x.when, when));
+        const applicability = applicabilityFrom(c.applicability, id);
+        checkSampleClaim(String(c.message), applicability, id);
+        // a clinician rule with the same condition and population already covers it
+        const dup = rules.some((x) => x.markerId === markerId && x.kind === 'clinician' && sameWhen(x.when, when) && JSON.stringify(x.applicability ?? null) === JSON.stringify(applicability ?? null));
         if (dup) continue;
         // the same threshold drives an ordinary rule (fasting glucose 126, HbA1c 6.5, uric acid 6.8): a caution, not a danger
         const common = rules.some((x) => x.markerId === markerId && x.kind !== 'clinician' && sameWhen(x.when, when));
@@ -569,6 +637,7 @@ export function buildTable(inputs: readonly ResearchInput[]): Json {
           grade: 'C',
           sources: src(c.source, id),
           target: 'clinicianOnly',
+          ...(applicability ? { applicability } : {}),
         });
       }
     }

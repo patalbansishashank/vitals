@@ -19,6 +19,9 @@ export function ScenarioSwitcher({ current }: { current: Scenario }) {
   const [sheet, setSheet] = useState(false);
   const open = lg ? popOpen : sheet;
   const setOpen = lg ? setPopOpen : setSheet;
+  // the chevron rides on the name's last word, so a name that wraps onto a second line keeps it right after its end
+  const words = current.name.trim().split(/\s+/);
+  const last = words.pop() ?? '';
   return (
     <>
       <button
@@ -29,8 +32,13 @@ export function ScenarioSwitcher({ current }: { current: Scenario }) {
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
-        <span className="sim-switcher__name">{current.name}</span>
-        <Icon icon={ChevronDown} size={16} />
+        <span className="sim-switcher__name">
+          {words.length ? `${words.join(' ')} ` : ''}
+          <span className="sim-switcher__tail">
+            {last}
+            <Icon icon={ChevronDown} size={16} />
+          </span>
+        </span>
       </button>
       {lg ? (
         <Popover
@@ -47,8 +55,9 @@ export function ScenarioSwitcher({ current }: { current: Scenario }) {
           open={sheet}
           onClose={() => setSheet(false)}
           title="Scenarios"
-          detents={['half', 'full']}
-          defaultDetent="half"
+          // r068 W2-18: the sheet is as tall as its list (it was half empty at the half detent)
+          detents={['fit', 'full']}
+          defaultDetent="fit"
         >
           <ScenarioList current={current} onDone={() => setSheet(false)} />
         </Sheet>
@@ -85,7 +94,7 @@ function ScenarioList({ current, onDone }: { current: Scenario; onDone: () => vo
               <span className="sim-scenarios__name">{s.name}</span>
               <span className="sim-scenarios__meta">
                 {formatHorizon(s.schedule.horizonDays)} · {formatDateShort(s.schedule.startDate)}
-                {lastRuns[s.id] ? ' · run' : ''}
+                {lastRuns[s.id] ? ' · projected' : ''}
               </span>
             </button>
           </li>
@@ -116,8 +125,7 @@ function ScenarioList({ current, onDone }: { current: Scenario; onDone: () => vo
       ) : null}
       <div className="sim-scenarios__actions">
         <Key
-          size="sm"
-          variant="quiet"
+          variant="outlined"
           icon={Plus}
           onClick={() => {
             const id = outputOf(dispatchSync('scenario.create', { started: false }))?.scenarioId ?? '';
@@ -128,8 +136,7 @@ function ScenarioList({ current, onDone }: { current: Scenario; onDone: () => vo
           New scenario
         </Key>
         <Key
-          size="sm"
-          variant="quiet"
+          variant="outlined"
           icon={Copy}
           onClick={() => {
             const id = outputOf(dispatchSync('scenario.duplicate', { id: current.id }))?.scenarioId ?? null;
@@ -139,11 +146,10 @@ function ScenarioList({ current, onDone }: { current: Scenario; onDone: () => vo
         >
           Duplicate
         </Key>
-        <Key size="sm" variant="quiet" icon={Pencil} onClick={() => setRenaming(true)}>
+        <Key variant="outlined" icon={Pencil} onClick={() => setRenaming(true)}>
           Rename
         </Key>
         <Key
-          size="sm"
           variant="danger"
           icon={Trash2}
           onClick={() => setConfirm(true)}

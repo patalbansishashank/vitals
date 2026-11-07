@@ -4,7 +4,7 @@
  */
 import { addDays, weekdayOf } from '@/living/dates';
 import type { LocalDate } from '@/living';
-import { EN_DASH, formatNumber } from '@/components/lib/format';
+import { EN_DASH, formatNumber, formatRange } from '@/components/lib/format';
 
 const WD_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const WD_LOWER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -20,6 +20,17 @@ function parts(date: LocalDate): { y: number; m: number; d: number } {
 export function fmtDay(date: LocalDate): string {
   const { m, d } = parts(date);
   return `${WD_SHORT[weekdayOf(date)]} ${d} ${MONTHS[m - 1]}`;
+}
+
+/** "Saturday, 17 October" (the header's date line, Lumen's "EEEE, d MMMM"). */
+export function fmtLongDay(date: LocalDate): string {
+  const { d } = parts(date);
+  return `${WD_LONG[weekdayOf(date)]}, ${d} ${fmtMonth(date)}`;
+}
+
+/** "Sat" (date strip segments). */
+export function weekdayShort(date: LocalDate): string {
+  return WD_SHORT[weekdayOf(date)]!;
 }
 
 /** "15 Oct". */
@@ -120,7 +131,7 @@ export function likely(value: number, sd: number): { lo: number; hi: number } {
 /** "1 090–1 390". */
 export function fmtLikely(value: number, sd: number, decimals = 0): string {
   const { lo, hi } = likely(value, sd);
-  return `${formatNumber(lo, decimals)}${EN_DASH}${formatNumber(hi, decimals)}`;
+  return formatRange(lo, hi, decimals);
 }
 
 /** Slot name for a meal: named slots as they are ("lunch"); generic `mealN` slots by clock time. */

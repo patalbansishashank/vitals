@@ -1,151 +1,177 @@
-import { useId } from 'react';
-import { RotateCcw } from 'lucide-react';
-import { CATEGORY_LABEL, Chip, GradeBadge, Key, ScrollRail, Swatch, formatNumber } from '@/components';
+import { useId, type ReactNode } from 'react';
+import { Check, RotateCcw } from 'lucide-react';
+import { CATEGORY_LABEL, Icon, InfoKey, Key, Sheet, VisuallyHidden, formatNumber } from '@/components';
+import { useReveal } from '@/components/lib/reveal';
 import type { EvidenceCategory, EvidenceGrade } from '@/content/evidence/schema';
-import { GRADE_MEANING } from '../copy';
+import { GRADE_MEANING, GRADES_HELP_TITLE, sentence } from '../copy';
 import { CATEGORY_ORDER, GRADE_ORDER, hasFilters, type EvidenceFilters } from '../data/filters';
 import type { Facets } from '../data/search';
 
 export interface FiltersProps {
   filters: EvidenceFilters;
   facets: Facets;
-  /** Counts are final (every topic loaded). */
+  /** Counts are not final yet (topics still loading): hide them. */
   counting: boolean;
   onToggleCategory: (c: EvidenceCategory) => void;
   onToggleGrade: (g: EvidenceGrade) => void;
   onClear: () => void;
-  /** `panel` = desktop left column (vertical); `bar` = mobile (chip rail + key row). */
-  layout: 'panel' | 'bar';
+  /** Opens "How grades work" (the desktop column offers it; the phone sheet relies on the grade words). */
+  onGradesHelp?: () => void;
 }
 
-function CategoryChip({
-  c,
-  pressed,
-  count,
-  onToggle,
-  hit,
-}: {
-  c: EvidenceCategory;
-  pressed: boolean;
-  count: number | null;
-  onToggle: () => void;
-  hit?: boolean;
-}) {
+/** A chip's count. Spaces are bare text nodes (they survive accessible-name computation; flex layout drops them). */
+function Count({ n, unit }: { n: number | null; unit?: [one: string, many: string] }) {
+  if (n === null) return null;
   return (
-    <Chip kind="filter" pressed={pressed} onPressedChange={onToggle} className={hit ? 'lm-hit' : undefined}>
-      <span className="ev-chipline">
-        <Swatch category={c} shape="square" />
-        {CATEGORY_LABEL[c]}
-        {count !== null ? <span className="ev-count">{formatNumber(count)}</span> : null}
+    <>
+      {' '}
+      <span className="ev-count">
+        {formatNumber(n)}
+        {unit ? (
+          <>
+            {' '}
+            <VisuallyHidden>{n === 1 ? unit[0] : unit[1]}</VisuallyHidden>
+          </>
+        ) : null}
       </span>
-    </Chip>
+    </>
   );
 }
 
-/** Category chips (OR within), grade keys (OR within), clear. Groups combine with AND. */
-export function Filters({
+/** One selectable filter row: its words, its count and a check at the trailing edge (r068 EV-2). */
+function FilterRow({
+  pressed,
+  onToggle,
+  children,
+  count,
+  grade,
+  share,
+}: {
+  pressed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+  count: ReactNode;
+  grade?: EvidenceGrade;
+  share?: number;
+}) {
+  const [ref, pending] = useReveal<HTMLButtonElement>({ animate: share !== undefined });
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="ev-frow"
+      data-grade={grade}
+      aria-pressed={pressed}
+      onClick={onToggle}
+    >
+      <span className="ev-frow__label">{children}</span>
+      {count}
+      <span className="ev-frow__check" aria-hidden="true">
+        {pressed ? <Icon icon={Check} size={16} /> : null}
+      </span>
+      {share !== undefined ? (
+        <span className="ev-frow__share" aria-hidden="true">
+          <span style={{ transform: `scaleX(${pending ? 0 : share})` }} />
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+/**
+ * The library's one filter layer: category rows and grade rows (OR within a group, AND across groups) and Clear.
+ * Grade chips read "A Strong", so the letter never needs a legend to be understood.
+ */
+export function FilterGroups({
   filters,
   facets,
   counting,
   onToggleCategory,
   onToggleGrade,
   onClear,
-  layout,
+  onGradesHelp,
 }: FiltersProps) {
   const catId = useId();
   const gradeId = useId();
-  const active = hasFilters(filters);
   const count = (n: number) => (counting ? null : n);
-
-  const categories = CATEGORY_ORDER.map((c) => (
-    <CategoryChip
-      key={c}
-      c={c}
-      pressed={filters.categories.includes(c)}
-      count={count(facets.category[c])}
-      onToggle={() => onToggleCategory(c)}
-      hit={layout === 'bar'}
-    />
-  ));
-
-  const grades = GRADE_ORDER.map((g) => {
-    const on = filters.grades.includes(g);
-    const n = facets.grade[g];
-    return (
-      <Key
-        key={g}
-        size="sm"
-        pressed={on}
-        indicator={on}
-        onClick={() => onToggleGrade(g)}
-        aria-label={`Grade ${g}: ${GRADE_MEANING[g].word.toLowerCase()}${counting ? '' : `, ${n} mechanisms`}`}
-        title={`${GRADE_MEANING[g].word}: ${GRADE_MEANING[g].text}`}
-        className="ev-gradekey"
-      >
-        <GradeBadge grade={g} size="sm" tooltip={false} />
-        {counting || layout === 'bar' ? null : (
-          <span className="ev-count" aria-hidden="true">
-            {formatNumber(n)}
-          </span>
-        )}
-      </Key>
-    );
-  });
-
-  const clear = (
-    <Key
-      size="sm"
-      variant="quiet"
-      icon={RotateCcw}
-      onClick={onClear}
-      disabledReason={active ? undefined : 'No filters are on'}
-    >
-      Clear
-    </Key>
-  );
-
-  if (layout === 'bar') {
-    return (
-      <div className="ev-filterbar">
-        <div role="group" aria-labelledby={catId}>
-          <span id={catId} className="lm-sr">
-            Categories
-          </span>
-          <ScrollRail gap={6} className="ev-chiprail">
-            {categories}
-          </ScrollRail>
-        </div>
-        <div className="ev-filterbar__row">
-          <div role="group" aria-labelledby={gradeId} className="ev-grades">
-            <span id={gradeId} className="lm-sr">
-              Grade
-            </span>
-            {grades}
-          </div>
-          {active ? clear : null}
-        </div>
-      </div>
-    );
-  }
+  const gradeTotal = GRADE_ORDER.reduce((n, grade) => n + facets.grade[grade], 0);
 
   return (
     <div className="ev-filters">
       <div className="ev-filters__group" role="group" aria-labelledby={catId}>
-        <span id={catId} className="lm-eng">
-          categories
-        </span>
-        <div className="ev-catlist">{categories}</div>
+        <p id={catId} className="ev-filters__label">
+          Category
+        </p>
+        <div className="ev-frows">
+          {CATEGORY_ORDER.map((c) => (
+            <FilterRow
+              key={c}
+              pressed={filters.categories.includes(c)}
+              onToggle={() => onToggleCategory(c)}
+              count={<Count n={count(facets.category[c])} />}
+            >
+              {sentence(CATEGORY_LABEL[c])}
+            </FilterRow>
+          ))}
+        </div>
       </div>
       <div className="ev-filters__group" role="group" aria-labelledby={gradeId}>
-        <span id={gradeId} className="lm-eng">
-          grade
-        </span>
-        <div className="ev-grades">{grades}</div>
-        <a href="#grades" className="ev-link ev-small">
-          How grades work
-        </a>
+        <div className="ev-filters__head">
+          <p id={gradeId} className="ev-filters__label">
+            Grade
+          </p>
+          {onGradesHelp ? <InfoKey label={GRADES_HELP_TITLE} onClick={onGradesHelp} /> : null}
+        </div>
+        <div className="ev-frows">
+          {GRADE_ORDER.map((g) => (
+            <FilterRow
+              key={g}
+              grade={g}
+              share={counting ? undefined : gradeTotal > 0 ? facets.grade[g] / gradeTotal : 0}
+              pressed={filters.grades.includes(g)}
+              onToggle={() => onToggleGrade(g)}
+              count={<Count n={count(facets.grade[g])} unit={['mechanism', 'mechanisms']} />}
+            >
+              <VisuallyHidden>Grade</VisuallyHidden> <span className="ev-gradechip__g">{g}</span>
+              <VisuallyHidden>:</VisuallyHidden> {GRADE_MEANING[g].word}
+            </FilterRow>
+          ))}
+        </div>
       </div>
-      <div>{clear}</div>
+      {hasFilters(filters) ? (
+        <div className="ev-filters__act">
+          <Key variant="text" size="sm" icon={RotateCcw} onClick={onClear}>
+            Clear filters
+          </Key>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+/** Phones: the same filters in a bottom sheet, opened from the key beside the search field. */
+export function FilterSheet({
+  open,
+  onClose,
+  ...props
+}: FiltersProps & { open: boolean; onClose: () => void }) {
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="Filter"
+      detents={['half', 'full']}
+      footer={
+        <div className="ev-sheetfoot">
+          <Key variant="primary" block onClick={onClose}>
+            Show results
+          </Key>
+        </div>
+      }
+    >
+      <div className="ev-panelbody">
+        <FilterGroups {...props} onGradesHelp={undefined} />
+      </div>
+    </Sheet>
   );
 }

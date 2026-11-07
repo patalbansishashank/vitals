@@ -1,13 +1,13 @@
 /**
  * Number formatting in the Vitals voice (DESIGN_DIRECTION §3.1):
- * true minus sign (U+2212), no-break-space thousands (U+00A0, as narrow as a thin space in Archivo) in metric locales,
- * en dash for ranges, units after a thin space.
+ * true minus sign (U+2212), comma-grouped thousands by default, en dash for positive ranges, “to” for signed ranges, units after a
+ * thin space.
  */
 export const MINUS = '\u2212';
 export const THIN_SPACE = '\u2009';
 /**
- * Thousands separator: a no-break space, so a number never breaks across lines ("2 / 890", Q6). In Archivo it is as
- * narrow as the thin space it replaces (3.3 vs 3.2 px at 16 px); U+202F was tried first but Archivo draws it 1.6 px wide.
+ * Thousands separator: a no-break space, so a number never breaks across lines ("2 / 890", Q6). It is the width of a
+ * normal space in Inter.
  */
 export const GROUP_SPACE = '\u00a0';
 export const EN_DASH = '\u2013';
@@ -16,14 +16,14 @@ export const EM_DASH = '\u2014';
 export type Grouping = 'thin' | 'comma' | 'none';
 
 export interface FormatOptions {
-  /** Thousands separator. `thin` (default) for metric locales, `comma` for en-US. */
+  /** Thousands separator. `comma` (default) for UI; `thin` preserves the older no-break-space grouping when requested. */
   grouping?: Grouping;
 }
 
 /** Format a number with fixed decimals, U+2212 minus and grouped thousands. */
 export function formatNumber(value: number, decimals = 0, options: FormatOptions = {}): string {
   if (!Number.isFinite(value)) return EM_DASH;
-  const grouping = options.grouping ?? 'thin';
+  const grouping = options.grouping ?? 'comma';
   const fixed = Math.abs(value).toFixed(Math.max(0, decimals));
   const negative = value < 0 && Number(fixed) !== 0;
   const [int = '0', frac] = fixed.split('.');
@@ -43,9 +43,9 @@ export function formatSigned(value: number, decimals = 1, options: FormatOptions
   return `${value > 0 ? '+' : MINUS}${body}`;
 }
 
-/** "18.6–21.0" (en dash, no spaces). */
+/** "18.6–21.0", or "−7 to −6" when either endpoint is negative. */
 export function formatRange(lo: number, hi: number, decimals = 0, options: FormatOptions = {}): string {
-  return `${formatNumber(lo, decimals, options)}${EN_DASH}${formatNumber(hi, decimals, options)}`;
+  return `${formatNumber(lo, decimals, options)}${lo < 0 || hi < 0 ? ' to ' : EN_DASH}${formatNumber(hi, decimals, options)}`;
 }
 
 /** Parse user-typed numbers: accepts U+2212, thin/normal spaces, comma decimals. */

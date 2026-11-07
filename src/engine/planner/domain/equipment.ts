@@ -15,6 +15,7 @@
  */
 import { DEFAULTS, RT_PRESETS } from '../../core/defaults';
 import { selectorIndexFor } from '../../core/resolveProfile';
+import { HC } from './safety';
 import { ACTIVITY_PARAMS } from '../../model/activity/params';
 import type { CardioModality, CardioSession, DayTemplate, ExerciseSession, ResistanceSession, Schedule, ScheduleDay, TrainingRegion } from '../../types/schedule';
 import {
@@ -321,6 +322,18 @@ function collectSlots(ctx: PlanningContext, schedule: Schedule, bounds: Equipmen
     }
     slot.days.push(d);
   }
+  if (ctx.caps.rtNovice) {
+    const perWeek = new Array<number>(Math.ceil(schedule.horizonDays / 7)).fill(0);
+    for (const slot of order) for (const day of slot.days) perWeek[Math.floor(day / 7)]! += slot.rxs.filter(rx => rx.kind === 'resistance').length;
+    for (const slot of order) {
+      const cap = Math.min(...slot.days.map(day => {
+        const week = Math.floor(day / 7);
+        return (HC.rtNovice.startSetsMax + HC.rtNovice.setsIncreasePerWeek * week) / Math.max(1, perWeek[week]!);
+      }));
+      // Distribute each week's existing ramp budget across its sessions; compounds must respect the same budget.
+      for (const rx of [...slot.rxs, ...slot.rxsFull]) if (rx.kind === 'resistance') rx.maxCountedSetsByRegion = Object.fromEntries(REGIONS.map(r => [r, cap]));
+    }
+  }
   return order;
 }
 
@@ -377,7 +390,7 @@ function feasibility(slots: readonly Slot[], composed: readonly ConcreteSession[
           return;
         }
         for (const r of REGIONS) {
-          const t = rx.setsByRegion[r] ?? 0;
+          const t = (s.prescription.kind === 'resistance' ? s.prescription.setsByRegion[r] : rx.setsByRegion[r]) ?? 0;
           if (!(t > 0)) continue;
           tgt[r] = (tgt[r] ?? 0) + k * t;
           del[r] = (del[r] ?? 0) + k * (s.delivered.effectiveSetsByRegion[r] ?? 0);
@@ -414,6 +427,7 @@ function engineSessions(slot: Slot, sessions: readonly ConcreteSession[]): Exerc
         if (v > 0) setsByRegion[reg] = r3(v);
       }
       const rs: ResistanceSession = {
+        ...r,
         kind: 'resistance',
         startH: at(),
         durationMin: round(r.durationMin ?? 0, 10),
@@ -719,6 +733,7 @@ export async function equipmentFor(ctx: PlanningContext, schedule: Schedule, opt
   const reduced = REGIONS.filter((r) => !cut.includes(r) && slots.some((s) => s.reduced.includes(r)));
   if (cut.length) parts.push(`Nothing you have trains the ${joinAnd(cut.map((r) => REGION_LABEL[r]))} directly, so the plan has less work for them.`);
   if (reduced.length) parts.push(`What you have limits ${joinAnd(reduced.map((r) => REGION_LABEL[r]))} work, so the plan does less of it.`);
+  if (composed.some(slot => slot.some(s => s.doseAdjustment))) parts.push('Working sets were adjusted to the beginner progression limit. The exercises and forecasts use that adjusted dose.');
 
   const sessions: ConcreteSession[] = [];
   const slotOfDay = new Map<number, number>();

@@ -5,6 +5,8 @@
  * Never prints a secret: credentials are reported as present or absent, file contents are never echoed. Every network
  * probe has a 3 s limit and every program probe a few seconds, so the whole report stays quick.
  */
+import { MIN_NODE_VERSION, nodeSupported } from '../bin/node-runtime.mjs';
+export { nodeSupported } from '../bin/node-runtime.mjs';
 import { platform as osPlatform, release } from 'node:os';
 import { join } from 'node:path';
 import { detectAgents, type AgentId, type AgentState } from './agents.ts';
@@ -57,13 +59,6 @@ export interface DoctorOptions {
 }
 
 const NET_MS = 3_000;
-const MIN_NODE: [number, number] = [22, 18];
-
-export function nodeSupported(v: string): boolean {
-  const [maj = 0, min = 0] = v.split('.').map(Number);
-  return maj > 23 || (maj === 23 && min >= 6) || (maj === 22 && min >= MIN_NODE[1]);
-}
-
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** `{version, roles}` from a Companion `/health` body, or null. */
@@ -155,7 +150,7 @@ export async function runDoctor(sys: Sys, o: DoctorOptions): Promise<DoctorRepor
   checks.push(
     nodeSupported(sys.nodeVersion)
       ? { id: 'node', required: true, status: 'ok', detail: `Node ${sys.nodeVersion} at ${sys.execPath}` }
-      : { id: 'node', required: true, status: 'fail', detail: `Node ${sys.nodeVersion} is too old; 22.18 or newer is needed`, fix: 'Install Node.js 22.18+ (or 24 LTS)' },
+      : { id: 'node', required: true, status: 'fail', detail: `Node ${sys.nodeVersion} is too old; ${MIN_NODE_VERSION} or newer is needed`, fix: `Install Node.js ${MIN_NODE_VERSION} or newer` },
   );
 
   const bin = await sys.which('vitals-companion');

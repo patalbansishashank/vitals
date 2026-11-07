@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { listAllowed, resetNetAllowlist } from '@/net/net';
 import { platformCaps, type PlatformCaps } from '@/platform';
+import { APP_VERSION } from '@/app/version';
 import { DownloadsBlock } from '../DownloadsBlock';
 import { ASSET_NAMES, PUBLIC_REPO, formatSize, loadRelease, mainKey, parseRelease } from '../release';
 
@@ -188,10 +189,12 @@ describe('DownloadsBlock', () => {
     expect(screen.getByRole('list', { name: 'Other systems' }).querySelectorAll('a')).toHaveLength(4);
   });
 
-  it('warns once about the unsigned build of the main key', async () => {
+  it('explains the install warning from the main download info key', async () => {
     vi.stubGlobal('fetch', vi.fn(reply(200, RELEASE)));
     render(<DownloadsBlock caps={caps('windows')} />);
-    expect(await screen.findByText(/unknown publisher/)).toBeInTheDocument();
+    expect(screen.queryByText(/unknown publisher/)).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'About installing on Windows' }));
+    expect(screen.getByRole('dialog', { name: 'Install on Windows' })).toHaveTextContent(/unknown publisher/);
   });
 
   it('is not shown in the apps or the PWA', () => {
@@ -222,4 +225,18 @@ describe('DownloadsBlock', () => {
     expect(main).toHaveFocus();
     expect(localStorage.getItem('vitals.downloads.v1')).toBeNull();
   });
+});
+
+it('labels a downloaded release separately from the running app in Settings', async () => {
+  vi.stubGlobal('fetch', vi.fn(reply(200, RELEASE)));
+  render(<DownloadsBlock caps={caps('windows')} embedded />);
+  expect(await screen.findByText(`Release 0.5.0 · You run ${APP_VERSION} · 92.0 MB`)).toBeInTheDocument();
+  expect(screen.getAllByRole('button', { name: /^About installing on/ })).toHaveLength(5);
+});
+
+it('does not repeat the running version when the download matches it', async () => {
+  vi.stubGlobal('fetch', vi.fn(reply(200, { ...RELEASE, tag_name: `v${APP_VERSION}` })));
+  render(<DownloadsBlock caps={caps('windows')} embedded />);
+  expect(await screen.findByText(`Release ${APP_VERSION} · 92.0 MB`)).toBeInTheDocument();
+  expect(screen.queryByText(/You run/)).toBeNull();
 });

@@ -1,9 +1,11 @@
-import { memo } from 'react';
-import { Faceplate, Field, Key, KeyValueList, ResponsivePanel, Section, formatNumber } from '@/components';
+import { memo, useState } from 'react';
+import { FlaskConical } from 'lucide-react';
+import { CardFoot, CardHead, Field, GradientCard, Key, KeyLink, KeyValueList, MonoMeta, ResponsivePanel, Section, formatNumber } from '@/components';
 import type { LabBaselines } from '@/engine/types/profile';
 import { useProfileStore } from '@/state/profileStore';
 import { useSettingsStore, type EnergyUnit, type GlucoseUnit } from '@/state/settingsStore';
-import { LABS } from '../copy';
+import { INFO, LABS } from '../copy';
+import { LOW_BODY_GLOW } from './glow';
 import { labFromDisplay, labToDisplay, labUnit, type LabConversion } from '../units';
 import { OptionalNumber } from './fields';
 import { patchProfile } from '../commands';
@@ -29,8 +31,8 @@ interface LabField {
 
 /** Optional measured baselines (src/engine/types/profile.ts `LabBaselines`), engine units. */
 export const LAB_FIELDS: readonly LabField[] = [
-  { key: 'measuredRmrKcal', label: 'resting energy, measured', group: 'metabolism', unit: 'kcal/day', conv: 'energy', min: 800, max: 4000, decimals: 0, altDecimals: 0, help: 'From indirect calorimetry. Replaces the equation and narrows the maintenance range.' },
-  { key: 'vo2maxMlKgMin', label: 'VO₂max', group: 'metabolism', unit: 'mL/kg/min', conv: 'none', min: 10, max: 90, decimals: 1, help: 'From a lab or field test, not a watch estimate.' },
+  { key: 'measuredRmrKcal', label: 'resting energy, measured', group: 'metabolism', unit: 'kcal/day', conv: 'energy', min: 800, max: 4000, decimals: 0, altDecimals: 0, help: 'From indirect calorimetry.' },
+  { key: 'vo2maxMlKgMin', label: 'VO₂max', group: 'metabolism', unit: 'mL/kg/min', conv: 'none', min: 10, max: 90, decimals: 1, help: 'From a lab or field test, not a watch.' },
   { key: 'ldlMmolL', label: 'LDL cholesterol', group: 'lipids', unit: 'mmol/L', conv: 'cholesterol', min: 0.5, max: 10, decimals: 2, altDecimals: 0 },
   { key: 'hdlMmolL', label: 'HDL cholesterol', group: 'lipids', unit: 'mmol/L', conv: 'cholesterol', min: 0.3, max: 4, decimals: 2, altDecimals: 0 },
   { key: 'tgMmolL', label: 'triglycerides', group: 'lipids', unit: 'mmol/L', conv: 'triglyceride', min: 0.2, max: 15, decimals: 2, altDecimals: 0 },
@@ -86,7 +88,6 @@ export function LabsForm() {
           </div>
         </Section>
       ))}
-      <p className="lm-body-hint">{LABS.unitsNote}</p>
     </div>
   );
 }
@@ -96,59 +97,92 @@ export interface LabsFaceProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   id?: string;
+  /** Quiet or gentle mode: the rows keep their names and their values wait behind "Show numbers". */
+  calm?: boolean;
 }
 
-/** Optional lab values: a clearly skippable summary; the editor opens in a sheet / side panel. */
-export const LabsFace = memo(function LabsFace({ labs, open, onOpenChange, id }: LabsFaceProps) {
+/** Where blood tests also live: Progress › Blood markers (the one other place; this card is for the optional baselines). */
+const MARKERS_HREF = '/progress#markers';
+
+/**
+ * Lab values (r071): optional measured baselines. Empty, the card is one mono line and a pill; with values it is hairline
+ * rows with the card as the tap target and "Edit" in the foot, next to a link to Blood markers in Progress. The editor
+ * opens in a sheet / side panel and saves as you type (its × closes it). Quiet: the values wait behind "Show numbers".
+ */
+export const LabsFace = memo(function LabsFace({ labs, open, onOpenChange, id, calm = false }: LabsFaceProps) {
   const glucose = useSettingsStore((s) => s.glucoseUnit);
   const energy = useSettingsStore((s) => s.energyUnit);
+  const [showValues, setShowValues] = useState(false);
   const entered = LAB_FIELDS.filter((f) => labs[f.key] !== undefined);
+  const hidden = calm && !showValues;
+  const filled = entered.length > 0;
+  const markers = (
+    <KeyLink to={MARKERS_HREF} variant="text" size="sm">
+      {LABS.markers}
+    </KeyLink>
+  );
   return (
-    <Faceplate
+    <GradientCard
       id={id}
       className="lm-body-labs-face"
-      title={LABS.title}
-      caption={LABS.caption}
-      actions={
-        <Key variant="quiet" size="sm" aria-haspopup="dialog" aria-expanded={open} onClick={() => onOpenChange(true)}>
-          {entered.length ? LABS.edit : LABS.add}
-        </Key>
+      data-empty={filled ? undefined : 'true'}
+      domain="body"
+      glow={LOW_BODY_GLOW}
+      {...(filled ? { onOpen: () => onOpenChange(true), openLabel: LABS.editLabel } : {})}
+      head={<CardHead icon={FlaskConical} title={LABS.title} info={INFO.labs} />}
+      foot={
+        filled ? (
+          <CardFoot link={{ onClick: () => onOpenChange(true), label: LABS.edit }}>
+            {calm ? (
+              <Key variant="text" size="sm" aria-pressed={showValues} onClick={() => setShowValues((x) => !x)}>
+                {showValues ? LABS.hideValues : LABS.showValues}
+              </Key>
+            ) : null}
+            {markers}
+          </CardFoot>
+        ) : (
+          <CardFoot>{markers}</CardFoot>
+        )
       }
     >
-      {entered.length ? (
+      {filled ? (
         <KeyValueList
+          className="lm-body-kv"
           items={entered.map((f) => {
             const d = decimalsFor(f, glucose, energy);
-            return { id: f.key, key: f.label, value: `${formatNumber(labToDisplay(f.conv, labs[f.key] as number, glucose, energy), d)} ${labUnit(f.conv, f.unit, glucose, energy)}` };
+            return {
+              id: f.key,
+              key: f.label,
+              value: hidden ? <span className="lm-body-typical">{LABS.hiddenValue}</span> : `${formatNumber(labToDisplay(f.conv, labs[f.key] as number, glucose, energy), d)} ${labUnit(f.conv, f.unit, glucose, energy)}`,
+            };
           })}
         />
       ) : (
-        <p className="lm-body-hint">
-          {LABS.lead} {LABS.empty}
-        </p>
+        <div className="lm-body-empty">
+          <MonoMeta>{LABS.empty}</MonoMeta>
+          <Key variant="primary" size="sm" arrow aria-haspopup="dialog" aria-expanded={open} aria-label={LABS.addLabel} onClick={() => onOpenChange(true)}>
+            {LABS.addPill}
+          </Key>
+        </div>
       )}
       <ResponsivePanel
+        scrim
         open={open}
         onClose={() => onOpenChange(false)}
         title={LABS.editorTitle}
         defaultDetent="full"
         footer={
-          <>
-            {entered.length ? (
-              <Key variant="quiet" onClick={() => patchProfile({ labs: null })}>
-                {LABS.clearAll}
-              </Key>
-            ) : null}
-            <Key variant="solid" onClick={() => onOpenChange(false)}>
-              Done
+          filled ? (
+            <Key variant="danger" onClick={() => patchProfile({ labs: null })}>
+              {LABS.clearAll}
             </Key>
-          </>
+          ) : undefined
         }
       >
         <div className="lm-body-panel">
           <LabsForm />
         </div>
       </ResponsivePanel>
-    </Faceplate>
+    </GradientCard>
   );
 });

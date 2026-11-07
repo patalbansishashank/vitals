@@ -71,7 +71,7 @@ warnings, and an Explain drawer that links any curve to its mechanism and citati
 │ ●  │ Spring cut ▾ [schedule|●results]                     last run 1.2 s · 84 days · 41 ch   Run (●) │
 ├────┼───────────────────────────────────────────────────────────────────────────────────────────────┤
 │    │ ┌ fat mass ───┬ lean mass ──┬ scale weight ┬ waist ──────┬ maintenance ┬ (pinned metric) ──┐ │ strip
-│    │ │24.1 → 19.7kg│60.8 → 59.8  │84.9 → 79.6   │90.7 → 85.1  │2 540 → 2 378│                   │ │
+│    │ │24.1 → 19.7kg│60.8 → 59.8  │84.9 → 79.6   │90.7 → 85.1  │2,540 → 2,378│                   │ │
 │    │ └─────────────┴─────────────┴──────────────┴─────────────┴─────────────┴───────────────────┘ │
 │    │ ┌ chart ───────────────────────────────────────────────────────────┐ ┌ Figure over time ─316┐│
 │    │ │[●lanes|overlay|focus][●12wk|4wk|1wk] ‹ ›   ▲1 caution  ≡Metrics 9 ▦ ⤓│ │  front   side       ││

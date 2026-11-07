@@ -44,6 +44,13 @@ export function formatLength(cm: number, sys: UnitSystem, decimals = 1): string 
   return sys === 'metric' ? `${cm.toFixed(decimals)}\u202Fcm` : `${(cm / CM_PER_IN).toFixed(decimals)}\u202Fin`;
 }
 
+/** Height as people say it: "178 cm", "5 ft 10 in". */
+export function formatHeight(cm: number, sys: UnitSystem): string {
+  if (sys === 'metric') return `${Math.round(cm)}\u202Fcm`;
+  const inches = Math.round(cm / CM_PER_IN);
+  return `${Math.floor(inches / 12)}\u202Fft ${inches % 12}\u202Fin`;
+}
+
 export function formatMass(kg: number, sys: UnitSystem, decimals = 1): { value: number; unit: 'kg' | 'lb' } {
   return sys === 'metric' ? { value: roundTo(kg, 10 ** -decimals), unit: 'kg' } : { value: roundTo(kgToLb(kg), 10 ** -decimals), unit: 'lb' };
 }

@@ -50,7 +50,10 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSignal): Promise<ToolResultEnvelope> {
+export async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSignal, options: { capResults?: boolean } = {}): Promise<ToolResultEnvelope> {
+  // Interactive Coach tools have a context budget. An explicit local-owner connection also serves file/headless
+  // clients that need exact prescriptions; its trusted adapter can request the complete result instead.
+  const dataOf = options.capResults === false ? async (data: unknown) => data : capped;
   if (!r.ok) return fromError(r.error);
   if ('pending' in r && r.redirected) {
     // SUITE_SPEC §14.6: a device records this stream, so the entry was staged as a correction instead of a log entry
@@ -75,9 +78,7 @@ async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSigna
     const wait = Math.min(def.longRunning?.softTimeoutMs ?? MAX_JOB_WAIT_MS, MAX_JOB_WAIT_MS);
     const settled = await Promise.race([jobs.wait(r.job.jobId), sleep(wait, signal).then(() => null)]);
     if (settled?.state === 'done') {
-      // as `job.result` gives it to an agent: a ring key as its alias (L-REV2 R3-10)
-      const { ringKeysForAgent } = await import('../bio/agentView');
-      return { ok: true, status: 'applied', jobId: r.job.jobId, summary: `${def.title}: done.`, data: await capped(await ringKeysForAgent(jobs.result(r.job.jobId))) };
+      return { ok: true, status: 'applied', jobId: r.job.jobId, summary: `${def.title}: done.`, data: await dataOf(jobs.result(r.job.jobId)) };
     }
     if (settled && settled.error) return { ...fromError(settled.error), jobId: r.job.jobId };
     if (settled) return { ok: false, status: 'rejected', jobId: r.job.jobId, summary: `${def.title} stopped (${settled.state}).`, error: { code: 'cancelled', message: `${def.title} stopped.` } };
@@ -86,7 +87,7 @@ async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSigna
   const output = def.toModel ? def.toModel(r.output as never) : r.output;
   // the command asked a question instead of writing (an unknown food, a low-confidence meal): nothing is saved
   const choice = def.perm === 'write' ? needsChoice(toolName(def.id), r.output) : null;
-  if (choice) return { ok: true, ...choice, ...(output !== undefined ? { data: await capped(output) } : {}) };
+  if (choice) return { ok: true, ...choice, ...(output !== undefined ? { data: await dataOf(output) } : {}) };
   // a bulk write that logged some entries but not all says how many, never "done"
   const partly = def.perm === 'write' ? partlyLogged(toolName(def.id), r.output) : null;
   const notes = r.notices.filter((n) => n.level !== 'info').map((n) => n.text);
@@ -97,7 +98,7 @@ async function envelopeOf(def: CommandDef, r: CommandResult, signal?: AbortSigna
     ...(partly?.candidates ? { candidates: partly.candidates } : {}),
     ...(r.changeSet ? { changeId: r.changeSet.id } : {}),
     summary: notes.length ? `${base} ${notes.join(' ')}`.slice(0, 280) : base,
-    ...(output !== undefined ? { data: await capped(output) } : {}),
+    ...(output !== undefined ? { data: await dataOf(output) } : {}),
   };
 }
 

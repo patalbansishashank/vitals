@@ -36,8 +36,10 @@ export const sourceAnchor = (refId: string): string => `src-${refId}`;
 export interface EvidenceNavState {
   /** Set by links inside the library: "back" can use history. */
   from?: 'evidence';
-  /** Set by Explain: the article shows "‹ Back to …" and returns to the exact chart state. */
+  /** Set by Explain: the header's Back reads "Back to …" and returns to the exact chart state. */
   returnTo?: { to: string; label: string };
+  /** "/" on an article or topic page: the index opens with its search field focused. */
+  focusSearch?: boolean;
 }
 
 // E20: markers — the "Why" link from a blood-marker card into the Evidence library.

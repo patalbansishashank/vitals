@@ -1,7 +1,7 @@
 /** The BodyParts3D atlas is CC BY 4.0: its credit is kept in Settings › About (not on the figure card) and the notice it links to ships. */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { freshState } from '@/commands/__tests__/harness';
 import { AboutSection } from '../sections';
@@ -17,6 +17,9 @@ describe('Settings › About › licences: 3D anatomy credit', () => {
         <AboutSection />
       </MemoryRouter>,
     );
+    fireEvent.click(screen.getByRole('button', { name: 'Licences' }));
+    expect(screen.getByText('Geist')).toBeInTheDocument();
+    expect(screen.getByText('Geist Mono')).toBeInTheDocument();
     expect(
       screen.getByText(/3D anatomy: BodyParts3D, © The Database Center for Life Science, CC BY 4\.0\./),
     ).toBeInTheDocument();

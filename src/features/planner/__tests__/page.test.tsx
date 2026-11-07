@@ -11,6 +11,7 @@ import { useScheduleStore } from '@/state/scheduleStore';
 import { useSettingsStore } from '@/state/settingsStore';
 import PlannerPage from '../PlannerPage';
 import { GOALS, fixtureLadder, fixtureLadderCase } from './fixtures';
+import { goalMetric, newGoal } from '../catalogue';
 import { withSystemWrite } from '@/state/scope';
 import { ladderSummary } from '@/commands/defs/planner';
 import { startPlannerRun, stopPlannerRun } from '../run';
@@ -111,14 +112,52 @@ describe('Goals screen', () => {
     expect(usePlannerStore.getState().goals).toHaveLength(0);
   });
 
-  it('folds the Standard-mode safety summary to one line so the goals come first', async () => {
+  it('puts the Standard-mode safety summary in a folded row at the end, and the fasting opt-in under the longest fast', async () => {
     renderAt('/plan/goals');
-    const summary = await screen.findByText('Safety settings');
+    const summary = await screen.findByText('Safety');
     const details = summary.closest('details')!;
     expect(details.open).toBe(false);
-    expect(details.querySelector('.lp-safety__line')!.textContent).toMatch(/^Standard mode · deficits up to 25\s%\s· fasts up to 24\sh$/);
-    // the opt-ins stay reachable inside it
-    expect(within(details).getByText(/allow fasts over 24 hours in plans/i)).toBeInTheDocument();
+    expect(details.querySelector('.lp-safety__line')!.textContent).toMatch(/^Standard mode · deficit ≤\s25\s%\s· fasts ≤\s24\sh$/);
+    // the safety row comes after the goals and the limits, never above them
+    const goals = screen.getByRole('heading', { name: 'Goals' });
+    expect(goals.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // the opt-in sits in Practical limits, next to the bank it unlocks
+    const limits = document.querySelector<HTMLElement>('.lp-limits')!;
+    expect(within(limits).getByText(/^allow fasts over 24 hours$/i)).toBeInTheDocument();
+    expect(within(details).queryByText(/^allow fasts over 24 hours$/i)).toBeNull();
+  });
+
+  it('one way to add a goal: the Add key with the suggested rows while empty; Suggest is the picker’s first row', async () => {
+    const user = userEvent.setup();
+    withSystemWrite(() => usePlannerStore.setState({ goals: [] }));
+    renderAt('/plan/goals');
+    expect(screen.getAllByRole('button', { name: /Add a goal/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Suggest from my answers' })).toBeNull();
+    const chips = screen.getByRole('group', { name: 'Suggested goals' });
+    // first use is four choices at most: the Add key plus three suggested rows, each with its own Add
+    expect(within(chips).getAllByRole('button').map((b) => b.querySelector('.lp-suggest__name')?.textContent)).toEqual(['Fat mass ↓', 'Lean tissue (protein-based): keep', 'Hunger pressure ↓']);
+    // Find plans is always in the header; until there is a goal it is unavailable and says why (r068 PG1)
+    expect(screen.getByRole('button', { name: /Find plans/ })).toHaveAttribute('aria-disabled', 'true');
+    await user.click(within(chips).getAllByRole('button')[0]!);
+    await waitFor(() => expect(usePlannerStore.getState().goals).toHaveLength(1));
+    expect(screen.queryByRole('group', { name: 'Suggested goals' })).toBeNull();
+    expect(screen.getByRole('button', { name: /Find plans/ })).not.toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('button', { name: /Add a goal/ }));
+    expect(await screen.findByRole('button', { name: 'Suggest from my answers' })).toBeInTheDocument();
+    // the starters left off the card are still one pick away in the picker
+    for (const name of [/^VO₂max/, /^Strength index/, /^LDL cholesterol/]) expect(screen.getByRole('button', { name })).toBeInTheDocument();
+  });
+
+  it('merges “won’t do” into Practical limits as a Leave out checklist: checked means left out', async () => {
+    const user = userEvent.setup();
+    renderAt('/plan/goals');
+    expect(screen.queryByText('Won’t do')).toBeNull();
+    const group = screen.getByRole('group', { name: 'Leave out of plans' });
+    const creatine = within(group).getByRole('checkbox', { name: 'Creatine' });
+    expect(creatine).not.toBeChecked();
+    await user.click(creatine);
+    await waitFor(() => expect(usePlannerStore.getState().constraints.excluded).toContain('L7'));
+    expect(within(group).getByRole('checkbox', { name: 'Creatine' })).toBeChecked();
   });
 
   it('edits a mass target in the user units and stores kilograms', async () => {
@@ -132,6 +171,8 @@ describe('Goals screen', () => {
   });
 
   it('shows pre-flight conflicts from the catalogue before running', () => {
+    // muscle gain ranked above a goal fasting serves pull apart (the fixture's autophagy index is no goal since D2-02)
+    withSystemWrite(() => usePlannerStore.setState({ goals: [newGoal(goalMetric('leanTissue')!, 'gain'), newGoal(goalMetric('bhb')!, 'raise')] }));
     renderAt('/plan/goals');
     expect(screen.getAllByText('Before you run').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/pull apart/).length).toBeGreaterThan(0);
@@ -143,7 +184,8 @@ describe('Run → results state machine (mocked planner client)', () => {
     const user = userEvent.setup();
     renderAt('/plan/goals');
     const call = await startRun(user);
-    expect(call.request.goals.map((g) => g.metric)).toEqual(['fatMass', 'leanTissue', 'autophagyIdx']);
+    // the fixture's saved autophagy goal is no goal since D2-02: the request carries the production goals only
+    expect(call.request.goals.map((g) => g.metric)).toEqual(['fatMass', 'leanTissue']);
     expect(screen.getByText('Finding plans…')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     // four slots in ladder order, never letters
@@ -164,12 +206,20 @@ describe('Run → results state machine (mocked planner client)', () => {
     expect(screen.getByText(/Some limit costs weren’t checked/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Select Hard plan: fat mass minus 5\.2 kilograms, effort 64 of 100$/ })).toHaveAttribute('aria-pressed', 'true');
 
+    // the stopped run is a fact on the ladder card, not a notice between sections
+    expect(screen.getByText(/Stopped at 32 %/).closest('.lp-ladder-face')).not.toBeNull();
+    expect(document.querySelector('.lm-notice')).toBeNull();
+
     act(() => usePlannerStore.getState().updateGoal('g1', { amount: 7 }));
-    expect(await screen.findByText(/Your goals or limits changed since these plans were found/)).toBeInTheDocument();
-    // the notice names the body when the body is what changed
+    // stale: a header status icon says what changed (its name and tooltip, a gold dot) and the header's one key finds
+    // plans again
+    const stale = await screen.findByRole('button', { name: 'Plans out of date: goals or limits changed' });
+    expect(stale.querySelector('.lm-status-icon__dot')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Find plans again' })).toBeInTheDocument();
+    // the icon names the body when the body is what changed
     act(() => usePlannerStore.getState().updateGoal('g1', { amount: 5 }));
     act(() => withSystemWrite(() => useProfileStore.setState({ weightKg: 95 })));
-    expect(await screen.findByText(/Your body changed since these plans were found/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Plans out of date: your body changed' })).toBeInTheDocument();
   });
 
   it('cancels before any plan exists (hard stop) and offers to try again', async () => {
@@ -240,12 +290,13 @@ describe('Results: the plan ladder', () => {
     expect(within(hard).getByText('Deficit 22 % · 4 sessions')).toBeInTheDocument();
     expect(within(hard).getByText('effort 64')).toBeInTheDocument();
     const goals = Array.from(hard.querySelectorAll<HTMLElement>('.lp-lgoal'));
-    expect(goals.map((g) => g.querySelector('.lp-lgoal__name')!.textContent)).toEqual(['fat mass', 'lean tissue (protein-based)', 'autophagy signal']);
-    expect(within(goals[0]!).getByText(/^−5\.2\s?kg$/)).toBeInTheDocument();
-    expect(within(goals[0]!).getByText(/likely 4\.6–5\.8\s?kg/)).toBeInTheDocument();
-    expect(within(goals[0]!).getByText(/reached in about 3 weeks · 80 % chance/)).toBeInTheDocument();
+    // a result's legacy autophagy outcome is not shown as a goal (D2-02); ranges read with their unit, no inline chance (C6)
+    expect(goals.map((g) => g.querySelector('.lp-lgoal__name')!.textContent)).toEqual(['fat mass', 'lean tissue (protein-based)']);
+    expect(within(goals[0]!).getByRole('img', { name: /^fat mass: minus 5\.2 kilograms, 4\.6–5\.8\s?kg$/ })).toBeInTheDocument();
+    expect(within(goals[0]!).getByText(/^4\.6–5\.8\s?kg$/)).toBeInTheDocument();
+    expect(within(goals[0]!).getByText(/^reached in about 3 weeks$/)).toBeInTheDocument();
+    expect(within(goals[0]!).queryByText(/chance|likely/)).toBeNull();
     expect(within(goals[1]!).getByText('kept')).toBeInTheDocument();
-    expect(within(goals[2]!).getByText('↑ 62 % of what’s possible')).toBeInTheDocument();
     const medium = card('medium').querySelector<HTMLElement>('.lp-lgoal')!;
     expect(within(medium).getByText(/about 6 weeks at this plan’s effort/)).toBeInTheDocument();
     expect(within(medium).getByText(/^1\.1\s?kg less lost than Hard$/)).toBeInTheDocument();
@@ -257,7 +308,9 @@ describe('Results: the plan ladder', () => {
     expect(within(hard).getByRole('button', { name: /no fast · a plan with 24-hour fasts was considered: why/ })).toBeInTheDocument();
     expect(within(card('medium')).getByText('24-hour fasts')).toBeInTheDocument();
     expect(within(hard).getByText('3 training days (on 71 % of days)')).toBeInTheDocument();
-    expect(within(hard).getByText('within safety limits')).toBeInTheDocument();
+    // the fixture plan carries no safety check: its status word is Unchecked, never an automatic "within safety limits" (C5)
+    expect(within(hard).getByText('Unchecked')).toBeInTheDocument();
+    expect(within(hard).queryByText('within safety limits')).toBeNull();
     // Start this plan only on the selected rung; never on the Ideal
     expect(within(card('medium')).getByRole('button', { name: 'Start this plan' })).toBeInTheDocument();
     expect(within(hard).queryByRole('button', { name: 'Start this plan' })).toBeNull();
@@ -269,7 +322,7 @@ describe('Results: the plan ladder', () => {
   it('the Ideal is never startable: its card and the action adopt limits instead, and adopting runs the Planner again with them', async () => {
     const user = await showResults(fixtureLadder());
     const ideal = card('ideal');
-    expect(within(ideal).getByText(/scientific ceiling/)).toBeInTheDocument();
+    expect(within(ideal).getByText(/best found without your practical limits/)).toBeInTheDocument();
     expect(within(ideal).getByText('what your limits cost')).toBeInTheDocument();
     expect(within(ideal).getByText(/together, through interactions: \+0\.3\s?kg fat mass loss/)).toBeInTheDocument();
     expect(within(ideal).getByText(/sleep midpoint around 03:00/)).toBeInTheDocument();
@@ -279,11 +332,14 @@ describe('Results: the plan ladder', () => {
     expect(screen.queryByRole('button', { name: 'Start this plan' })).toBeNull();
 
     await user.click(within(ideal).getByRole('button', { name: 'Adopt some of these limits' }));
-    const panel = await screen.findByRole('dialog', { name: 'Which limits could you change?' });
+    const panel = await screen.findByRole('dialog', { name: 'Limits to change' });
     // equipment is set elsewhere: shown, not adoptable here
     expect(within(panel).getByRole('checkbox', { name: /equipment/ })).toBeDisabled();
     await user.click(within(panel).getByRole('checkbox', { name: /training days: 3 training days → 5 training days/ }));
-    await user.click(within(panel).getByRole('button', { name: 'Find plans with these limits' }));
+    // one header row: Cancel · title · the commit verb, no ✕ beside it
+    expect(within(panel).queryByRole('button', { name: 'Close' })).toBeNull();
+    expect(within(panel).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Find plans' }));
     await waitFor(() => expect(client.calls).toHaveLength(2));
     expect(usePlannerStore.getState().constraints.trainingDays).toEqual([2, 5]);
     expect(client.calls[1]!.request.constraints?.trainingDaysPerWeek).toEqual({ min: 2, max: 5 });
@@ -303,7 +359,7 @@ describe('Results: the plan ladder', () => {
   it('switches to the comparison table in the contract’s order', async () => {
     const user = await showResults(fixtureLadder());
     const bank = screen.getByRole('radiogroup', { name: 'Show the plans as' });
-    await user.click(within(bank).getByRole('radio', { name: 'table' }));
+    await user.click(within(bank).getByRole('radio', { name: 'Table' }));
     await waitFor(() => expect(where()).toContain('view=table'));
     const table = screen.getByRole('table', { name: /The plans side by side/ });
     const rowLabels = within(table)
@@ -320,9 +376,8 @@ describe('Results: the plan ladder', () => {
       'change from now',
       '1 · fat mass',
       '2 · lean tissue (protein-based)',
-      '3 · autophagy signal',
       'time to target',
-      'hunger',
+      'hunger level',
       'weekly training time',
       'eating window',
       'fasting',
@@ -343,14 +398,15 @@ describe('Results: the plan ladder', () => {
     await user.keyboard('{ArrowLeft}{ArrowLeft}');
     await waitFor(() => expect(where()).toContain('rung=hard'));
 
-    await user.click(screen.getByRole('tab', { name: 'days' }));
+    await user.click(screen.getByRole('tab', { name: 'Days' }));
     await waitFor(() => expect(where()).toContain('tab=days'));
     const table = screen.getByRole('table', { name: /Hard plan, week 1/ });
     const dayButtons = within(table).getAllByRole('button');
     expect(dayButtons).toHaveLength(7);
     await user.click(dayButtons[0]!);
     const mon = screen.getByRole('region', { name: /Prescription for Mon 5 Oct/ });
-    expect(within(mon).getByText(/resistance · \d+ hard sets · 18:00 · 60 min/)).toBeInTheDocument();
+    // each part of the session line keeps its words together (r068 W2-2), so the line is read from its row
+    expect(within(mon).getAllByRole('listitem').some((li) => /resistance · \d+ hard sets · 18:00 · 60 min/.test(li.textContent ?? ''))).toBe(true);
     expect(within(mon).getByText('protein').nextElementSibling!.textContent).toMatch(/^180/);
     await user.click(dayButtons[3]!);
     const thu = screen.getByRole('region', { name: /Prescription for Thu 8 Oct/ });
@@ -399,9 +455,10 @@ describe('Results: the plan ladder', () => {
       feasibility: [{ ...base.feasibility[0]!, status: 'unattainable', bestAchievable: 21.4, requiredWeeks: 9, text: 'The fastest safe plan reaches 3.6 kg.' }],
       noSafePlanReasons: ['no fasts over 16 h'],
     });
-    expect(screen.getByText(/No safe plan reaches fat mass lose 5\.0\s?kg in 4 weeks within your limits\./)).toBeInTheDocument();
+    // a finite search that found nothing is not proof of impossibility (C6): "No plan found", never "No safe plan"
+    expect(screen.getByText(/No plan found that reaches fat mass lose 5\.0\s?kg in 4 weeks within your limits\./)).toBeInTheDocument();
     expect(screen.getByText('no fasts over 16 h')).toBeInTheDocument();
-    expect(screen.getByText(/Without your practical limits it’s reachable/)).toBeInTheDocument();
+    expect(screen.getByText(/Without your practical limits a plan was found/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Extend to 9 weeks' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Adopt some of these limits' }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Start this plan' })).toBeNull();
@@ -411,12 +468,12 @@ describe('Results: the plan ladder', () => {
     withSystemWrite(() => useSettingsStore.setState({ energyUnit: 'kJ' }));
     try {
       const user = await showResults(fixtureLadder());
-      await user.click(screen.getByRole('tab', { name: 'days' }));
+      await user.click(screen.getByRole('tab', { name: 'Days' }));
       const table = screen.getByRole('table', { name: /Medium plan, week 1/ });
       expect(within(table).getByRole('columnheader', { name: /energy kJ/ })).toBeInTheDocument();
       expect(document.querySelector('.lp-days-tab')!.textContent).not.toMatch(/kcal/);
-      await user.click(screen.getByRole('tab', { name: 'safety' }));
-      expect(screen.getByText(/A weekly average under 5\s020\skJ \(women\) or 6\s280\skJ \(men\)/)).toBeInTheDocument();
+      await user.click(screen.getByRole('tab', { name: 'Safety' }));
+      expect(screen.getByText(/A weekly average under 5,020\skJ \(women\) or 6,280\skJ \(men\)/)).toBeInTheDocument();
     } finally {
       withSystemWrite(() => useSettingsStore.setState({ energyUnit: 'kcal' }));
     }
@@ -432,17 +489,17 @@ describe('Results: the plan ladder', () => {
       expect(where()).not.toMatch(/[?&]plan=/);
     };
     check();
-    for (const t of ['overview', 'days', 'curves', 'limits', 'safety']) {
+    for (const t of ['Overview', 'Days', 'Curves', 'Limits', 'Safety']) {
       await user.click(screen.getByRole('tab', { name: t }));
       check();
     }
     await user.click(toggle(/^Select Ideal/));
-    for (const t of ['overview', 'curves', 'limits']) {
+    for (const t of ['Overview', 'Curves', 'Limits']) {
       await user.click(screen.getByRole('tab', { name: t }));
       check();
     }
-    // curves: direct end labels by rung name, the Ideal dashed
-    await user.click(screen.getByRole('tab', { name: 'curves' }));
+    // curves: end values by rung name in the legend under each plot, the Ideal dashed
+    await user.click(screen.getByRole('tab', { name: 'Curves' }));
     expect(document.querySelector('.lp-curve__line[data-rung="ideal"]')).not.toBeNull();
     expect(Array.from(document.querySelectorAll('.lp-curve__end')).map((e) => e.textContent!.split(' ')[0])).toEqual(expect.arrayContaining(['Hard', 'Medium', 'Easy', 'Ideal']));
   });
@@ -486,7 +543,7 @@ describe('Results: the ladder at every size (all four, three, Ideal equals Hard,
     expectGrid(4, 3, true);
     expect(chips()).toEqual([]);
     expect(document.querySelector('.lp-scale')!.getAttribute('data-mode')).toBe('ladder');
-    expect(document.querySelector('.lp-scale__xlabel')!.textContent).toBe('Effort (0 = how you live now, 100 = your limits)');
+    expect(document.querySelector('.lp-scale__xlabel')!.textContent).toBe('Effort: 0 = as you live now, 100 = your limits');
     expect(document.querySelector('.lp-scale__axis')!.textContent).not.toMatch(/effort/);
     expect(document.querySelector('.lp-scale__how')!.textContent).toContain(CAPTION);
     expectEffortParts();
@@ -519,10 +576,10 @@ describe('Results: the ladder at every size (all four, three, Ideal equals Hard,
     expect(scale.querySelector('polyline.lp-scale__search')!.getAttribute('points')!.split(' ').length).toBeGreaterThan(10);
     expect(scale.querySelector('.lp-scale__xlabel')!.textContent).toBe('plans searched');
     const view = within(scale).getByRole('radiogroup', { name: 'Show the graph as' });
-    await user.click(within(view).getByRole('radio', { name: 'ladder' }));
+    await user.click(within(view).getByRole('radio', { name: 'Ladder' }));
     expect(scale.getAttribute('data-mode')).toBe('ladder');
-    expect(scale.querySelector('.lp-scale__xlabel')!.textContent).toBe('Effort (0 = how you live now, 100 = your limits)');
-    await user.click(within(view).getByRole('radio', { name: 'search' }));
+    expect(scale.querySelector('.lp-scale__xlabel')!.textContent).toBe('Effort: 0 = as you live now, 100 = your limits');
+    await user.click(within(view).getByRole('radio', { name: 'Search' }));
     expect(scale.getAttribute('data-mode')).toBe('search');
   });
 
@@ -559,17 +616,18 @@ describe('Results: the ladder at every size (all four, three, Ideal equals Hard,
     expect(screen.getAllByText(SAME)).toHaveLength(1);
     // the graph: the search's convergence (one rung marker), the ceiling is Hard's own value
     expect(document.querySelector('.lp-scale')!.getAttribute('data-mode')).toBe('search');
-    expect(document.querySelector('.lp-scale__ceil-text')!.textContent).toMatch(/^ceiling = Hard −5\.2/);
+    expect(document.querySelector('.lp-scale__ceil-text')!.textContent).toMatch(/^Ideal = Hard −5\.2/);
     expect(document.querySelector('.lp-scale__how')!.textContent).toContain(CAPTION);
     // ?rung=ideal lands on Hard; the table drops the Ideal column and carries the line above it
     expect(screen.queryByRole('button', { name: /^Select Ideal/ })).toBeNull();
     const bank = screen.getByRole('radiogroup', { name: 'Show the plans as' });
-    await user.click(within(bank).getByRole('radio', { name: 'table' }));
+    await user.click(within(bank).getByRole('radio', { name: 'Table' }));
     await waitFor(() => expect(where()).toContain('view=table'));
     const table = screen.getByRole('table', { name: /The plans side by side/ });
-    expect(within(table).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['Measure', 'HHard']);
+    // r068 W2-8: the line sits under Hard's own column head (and, on phones, at the table's foot), never between cards
+    expect(within(table).getAllByRole('columnheader').map((th) => th.querySelector('button')?.textContent ?? th.textContent)).toEqual(['Measure', 'HHard']);
+    expect(within(table).getAllByRole('columnheader')[1]!.textContent).toContain(SAME);
     expect(within(table).queryByRole('rowheader', { name: 'what your limits cost' })).toBeNull();
-    expect(screen.getByText(SAME)).toBeInTheDocument();
   });
 
   it('an older result that only says nothing binds reads the same way (the relaxed list)', async () => {
@@ -596,7 +654,7 @@ describe('Results: the ladder at every size (all four, three, Ideal equals Hard,
     expect(line.getAttribute('points')!.split(' ').length).toBeGreaterThan(10);
     expect(scale.querySelector('.lp-scale__xlabel')!.textContent).toBe('plans searched');
     expect(scale.querySelector('.lp-scale__title')!.textContent).toContain('goal 1 · fat mass');
-    expect(scale.textContent).toMatch(/The search tried 240\s000 plans; the best result stopped improving after about 160\s000 at −5\.2 kg\./);
+    expect(scale.textContent).toMatch(/The search tried 240,000 plans; the best result stopped improving after about 160,000 at −5\.2 kg\./);
     expect(within(scale).getByRole('button', { name: /^Select Hard plan/ })).toBeInTheDocument();
     // no Ideal: no caption about it
     expect(scale.querySelector('.lp-scale__how')!.textContent).not.toContain(CAPTION);
@@ -607,7 +665,7 @@ describe('Results: the ladder at every size (all four, three, Ideal equals Hard,
     const hard = document.querySelector<HTMLElement>('article[data-rung="hard"]')!;
     expect(hard.querySelectorAll('[data-hover]')).toHaveLength(0);
     const goalRows = hard.querySelectorAll('button.lp-lgoal.lp-rowbtn');
-    expect(goalRows).toHaveLength(3);
+    expect(goalRows).toHaveLength(2); // the fixture's legacy autophagy goal is no goal row (D2-02)
     fireEvent.mouseEnter(goalRows[0]!);
     expect(document.querySelectorAll('[data-hover]')).toHaveLength(0);
     await user.click(goalRows[0]!);

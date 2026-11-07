@@ -57,8 +57,9 @@ function codexTableRanges(lines: string[]): Array<[number, number]> {
   const ranges: Array<[number, number]> = [];
   let start = -1;
   const isOurs = (name: string) => {
-    const n = name.replace(/"/g, '');
-    return n === `mcp_servers.${MCP_NAME}` || n.startsWith(`mcp_servers.${MCP_NAME}.`);
+    // Dots separate TOML keys only outside quotes. Match our two key segments
+    // without flattening quoted dots, and allow literal quotes / legal spacing.
+    return /^\s*(?:mcp_servers|"mcp_servers"|'mcp_servers')\s*\.\s*(?:vitals|"vitals"|'vitals')\s*(?:\.|$)/.test(name);
   };
   lines.forEach((line, i) => {
     const m = TABLE_HEADER.exec(line);

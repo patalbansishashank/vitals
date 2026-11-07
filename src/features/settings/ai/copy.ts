@@ -1,25 +1,32 @@
-/** Settings › AI provider copy (design/screens/settings-sync-ai.md §5). */
+/** Settings › Coach copy (design/screens/settings-sync-ai.md §5). */
 import type { Preset } from '@/ai';
+import { formatNumber } from '@/components';
 
 export const AI_COPY = {
-  title: 'AI provider',
-  none: 'No AI provider. The Coach is off; everything else works and you can log by hand.',
-  uiOnly: 'Only you can change this. Neither the Coach nor any agent can change providers, keys or safety settings.',
-  providerLabel: 'provider',
+  title: 'Coach',
+  coachLabel: 'Coach',
+  none: 'Off',
+  offHelp: 'Choose a provider below and add its key to turn it on',
+  providerLabel: 'Provider',
   customLabel: 'Custom endpoint',
-  customNote: 'Any server with an OpenAI- or Anthropic-style API.',
-  siwcNote: 'Uses your ChatGPT plan instead of an API key. Your server signs in and sends the requests.',
-  zenNote: 'Your OpenCode Zen key, kept on your server. The free tier only works inside OpenCode, so a paid key is needed here.',
+  customNote: 'Any server with an OpenAI- or Anthropic-style API',
+  siwcNote: 'Your ChatGPT plan, signed in on your server.',
+  zenNote: 'A paid OpenCode Zen key, kept on your server.',
   nimNote: 'Your NVIDIA key, kept on your server.',
-  viaServer: 'via your server',
-  chip: { needsServer: 'needs your server', notSignedIn: 'not signed in', signedIn: 'signed in', expired: 'sign-in expired', noKey: 'no key', keySet: 'key set' },
-  needsServer: 'This provider works through your server. Pair this device with your server first.',
+  viaServer: 'Through your server',
+  /** The provider list's groups (r068 V5): hosted services, servers on this computer, any other endpoint. */
+  hostedGroup: 'Hosted',
+  localGroup: 'On this computer',
+  otherGroup: 'Other',
+  choose: 'Choose',
+  chip: { needsServer: 'Needs your server', notSignedIn: 'Not signed in', signedIn: 'Signed in', expired: 'Sign-in expired', noKey: 'No key', keySet: 'Key set' },
+  needsServer: 'This provider works through your server. Pair this device in Sync first.',
   needsServerShort: 'Pair this device with your server first.',
-  pairServer: 'Pair a server',
+  pairServer: 'Open Sync',
   serverKeyHelp: (provider: string) =>
     `Your key is sent once to your server, kept there, and only ever sent to ${provider}. It never stays in this browser. It can spend money on your account: set a spending limit with ${provider}.`,
-  serverKeySaved: 'key set on your server',
-  serverKeyNone: 'no key on your server yet',
+  serverKeySaved: 'Key set on your server',
+  serverKeyNone: 'No key on your server yet',
   replaceKey: 'Replace key',
   removeServerKeyTitle: (provider: string) => `Remove the ${provider} key from your server?`,
   removeServerKeyBody: 'Every device stops using it.',
@@ -33,51 +40,47 @@ export const AI_COPY = {
   manageUsageUrl: 'https://chatgpt.com/settings/usage',
   serverUnreachable: (provider: string) => `Your server isn't answering, so the Coach can't use ${provider} right now.`,
   serverModelsFailed: "Couldn't reach your server. Check that it is on, then try again.",
-  serverUsage: 'counted by your server for all your devices',
   cancel: 'Cancel',
   loadModels: 'Load the model list',
   loadingModels: 'Loading…',
   modelsLoaded: (n: number) => `${n} models listed by the provider.`,
   modelsFailed: (reason: string) => `Couldn't load the list: ${reason}`,
-  localNote: 'Free, private, runs on your computer. Simpler models can log and answer, not re-plan.',
-  vllmNote: 'Any OpenAI-compatible server you run.',
-  keyNote: 'Your API key.',
-  baseUrlLabel: 'base URL',
+  vllmNote: 'Any OpenAI-compatible server you run',
+  baseUrlLabel: 'Base URL',
   baseUrlHelp: 'https://, or http:// on this computer.',
   styleLabel: 'API style',
+  styleHelp: 'OpenAI chat completions, OpenAI responses or Anthropic messages',
   keyLabel: 'API key',
-  keyHelp: (provider: string) =>
-    `Your key stays on this device, encrypted, and is only ever sent to ${provider}. It can spend money on your account: set a spending limit with ${provider} (for example a monthly project limit). Encryption protects against lost backups and exports; it can't protect against malicious browser extensions or someone using your unlocked device.`,
+  keyHelp: (provider: string) => `Kept on this device, encrypted, and only ever sent to ${provider}. It can spend money: set a spending limit with ${provider}.`,
   getKey: 'Get a key',
   saveKey: 'Save key',
   removeKey: 'Remove key',
   show: 'Show key',
   hide: 'Hide key',
-  keySaved: (last4: string) => `key saved • ends …${last4}`,
-  keyNone: 'no key saved',
+  keySaved: (last4: string) => `Key saved · ends …${last4}`,
+  keyNone: 'No key saved',
   keyMoved: 'Enter the key again for the new address.',
   keyEmpty: 'Paste the key first.',
   noKeyNeeded: 'No key needed.',
-  checkHeading: 'check what the model can do',
-  checkConsent: (provider: string) => `Check what this model can do? This sends three tiny test requests to ${provider} (about 600 tokens).`,
+  checkConsent: (provider: string) => `Test connection sends three tiny requests to ${provider} (about 600 tokens) to see what this model can do.`,
   check: 'Test connection',
   checking: 'Checking…',
-  modelLabel: 'model',
-  modelHelp: 'Pick from the list or type a model id.',
+  modelLabel: 'Model',
+  modelHelp: 'Pick from the list or type a model ID.',
   modelOther: 'Other model…',
-  modelIdLabel: 'model id',
-  visionLabel: 'model for photos',
-  visionHelp: 'Optional: a second model that reads food photos when the main one cannot.',
-  behaviourHeading: 'coach behaviour',
-  smallEditsLabel: 'small plan edits without asking',
-  smallEditsHelp:
-    "Only moves of up to 3 days that don't add load and don't change any safety setting. Anything else is always a proposal you approve.",
-  capLabel: 'monthly spending cap',
-  capHelp: 'Warns at 80 %. Leave empty for no cap.',
-  stopAtCapLabel: 'stop the Coach at the cap',
+  modelIdLabel: 'Model ID',
+  visionLabel: 'Model for photos',
+  visionHelp: "Optional. Reads food photos when the main model can't.",
+  behaviourHeading: 'Coach behaviour',
+  smallEditsLabel: 'Small plan edits without asking',
+  smallEditsHelp: 'Moves of up to 3 days that add no load and change no safety setting.',
+  capLabel: 'Monthly spending cap',
+  capHelp: 'Warns at 80 %. Empty: no cap.',
+  stopAtCapLabel: 'Stop the Coach at the cap',
   stopAtCapHelp: 'Off: warn only.',
-  usageHeading: 'usage',
-  usageNote: "estimated; your provider's bill is the truth",
+  usageHeading: 'Usage',
+  usageNote: 'estimate',
+  spendInfo: "Spend is an estimate from the tokens each reply used and your provider's list price; your provider's invoice is the truth. The cap warns at 80 % and, if stop at cap is on, pauses the Coach at 100 %.",
   capWarn: (pct: number, cap: string) => `You've used ${pct} % of this month's cap (${cap}).`,
   capReached: (cap: string) => `You've reached this month's cap (${cap}).`,
   capPaused: 'The Coach is paused.',
@@ -127,24 +130,35 @@ export function probeErrorText(kind: string | undefined, provider: string, corsF
   }
 }
 
+/** The one line under a provider's name: only where it says what the provider needs (your own server, through the server). */
 export function presetNote(p: Preset): string {
   if (p.id === 'siwc') return AI_COPY.siwcNote;
   if (p.id === 'opencode-zen') return AI_COPY.zenNote;
   if (p.id === 'nim') return AI_COPY.nimNote;
-  if (p.id === 'ollama' || p.id === 'lmstudio') return AI_COPY.localNote;
   if (p.id === 'vllm') return AI_COPY.vllmNote;
-  if (p.id === 'openai') return 'Your API key. Billed by OpenAI, separate from a ChatGPT subscription.';
-  if (p.id === 'openrouter') return 'One key for many models, including free ones.';
-  return AI_COPY.keyNote;
+  return '';
 }
 
 export const TIER_WORD: Record<string, string> = {
-  best: 'best',
-  balanced: 'balanced',
-  budget: 'budget',
-  free: 'free — may be slow or unavailable',
-  local: 'local — free, basic',
-  'text-only': 'text only',
+  best: 'Best',
+  balanced: 'Balanced',
+  budget: 'Budget',
+  free: 'Free, may be slow or unavailable',
+  local: 'Local, free, basic',
+  'text-only': 'Text only',
 };
 
-export const usd = (n: number) => (n >= 10 ? `$${n.toFixed(0)}` : `$${n.toFixed(2)}`);
+export const usd = (n: number) => `$${formatNumber(n, n >= 10 ? 0 : 2)}`;
+
+/** Settings › Coach while this device is paired with the server, which runs the Coach (server-coach contract). */
+export const SERVER_COACH_COPY = {
+  title: 'Coach',
+  label: 'Coach',
+  value: 'On your server',
+  checking: 'Checking…',
+  available: (hours: number) => `Available · chats are deleted after ${hours} h`,
+  unavailable: (reason: string, hours: number) => `${reason} · chats are deleted after ${hours} h`,
+  off: 'Off on your server',
+  unreachable: 'Your server can’t be reached',
+  notSupported: 'Your server doesn’t run the Coach yet',
+} as const;

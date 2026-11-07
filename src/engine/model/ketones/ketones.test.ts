@@ -389,7 +389,7 @@ describe('properties', () => {
 
 // ------------------------------------------------------------------------------------------------ events
 describe('ketosis state machine and events (MODEL_SPEC §1.7 step 7, §7.1)', () => {
-  it('fast then carbohydrate refeed: entered (~0.5 mM, 2-h persistence) → deepKetosis → ketoAdapted → exited', () => {
+  it('fast then carbohydrate refeed: entered (~0.5 mM, 2-h persistence) → deepKetosis → exited (no keto-adapted certificate, D2-08)', () => {
     const b = BODY.leanMan;
     const hab = habitual(b);
     const meals = [...mealsOfDays(-BURN_IN_DAYS, 1, hab), ...mealsOfDays(7, 9, hab)];
@@ -405,7 +405,7 @@ describe('ketosis state machine and events (MODEL_SPEC §1.7 step 7, §7.1)', ()
     const deep = first('deepKetosis')!;
     expect(deep.hour).toBeGreaterThan(entered.hour);
     expect(v.mean(deep.hour)).toBeGreaterThanOrEqual(3);
-    expect(first('ketoAdapted')!.hour).toBeGreaterThan(entered.hour);
+    expect(first('ketoAdapted')).toBeUndefined(); // D2-08: retired event (A_f is a latent state, not a certificate)
     const exited = first('ketosisExited')!;
     expect(exited.hour).toBeGreaterThanOrEqual(24 * 7);
     expect(exited.hour).toBeLessThan(24 * 8);

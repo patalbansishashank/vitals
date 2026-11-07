@@ -23,7 +23,7 @@ import type {
 import { RULES, RULE_INDEX } from './rules';
 import type { SafetyTrace } from '../../types/result';
 import type { SafetyConstants } from './params';
-import { defaultSafetyConstants } from './params';
+import { SAFETY_EA_EXPOSURE_POLICY, defaultSafetyConstants } from './params';
 import { bfFloorPct, deficitCapPct, energyFloorKcal, rateBoundPct, rateCapPct } from './derived';
 
 /** Facts about the person the margins need (all known before the run). */
@@ -137,6 +137,148 @@ export function computeConstraintMargins(
   return [e1, e3, e4, e5, e6, e7, e8, p4, p5, f2];
 }
 
+/**
+ * D8-04: days on which the energy-availability rules apply (net session exercise in the trailing 7 days, a 7-day deficit
+ * above the "any deficit" threshold, not a fast-event day) but EA_7 has no value — an unknown intake or an invalid
+ * fat-free mass (`SAFETY_EA_POLICY` v2). The exposure is incomplete there: the EA floor is unchecked for the run, never
+ * "not applicable" and never a pass. Empty when the trace has no exercise series (legacy hand-built traces).
+ */
+export function eaUnevaluatedDays(trace: SafetyTrace, constants: SafetyConstants = defaultSafetyConstants()): number[] {
+  const eee = trace.eee7;
+  if (!eee) return [];
+  const out: number[] = [];
+  for (let d = 0; d < trace.ea7.length; d++) {
+    if (Number.isFinite(trace.ea7[d]!)) continue;
+    if (trace.fastDay && trace.fastDay[d]! > 0) continue;
+    const def7 = trace.deficitPct7[d]!;
+    if (eee[d]! > 0 && Number.isFinite(def7) && def7 > constants.deficitAnyPct) out.push(d);
+  }
+  return out;
+}
+
+/**
+ * D4-04: the calendar energy-availability exposure of a run at day `at` (default: the last day), from the trace's ledger
+ * (`SAFETY_EA_EXPOSURE_POLICY`). Descriptive only: values in kcal/kg FFM/day, the days covered, and how long the
+ * calendar EA_7 and the raw daily EA sat below the precautionary policy reference. Null when the trace carries no
+ * calendar ledger (a core that does not record it, or a hand-built trace).
+ */
+export interface CalendarEaSummary {
+  policyVersion: number;
+  /** The precautionary policy reference, kcal/kg FFM/day (not a universal safe boundary). */
+  referenceKcalPerKgFfm: number;
+  day: number;
+  eatingDayEa7: number | null;
+  calendarEa7: number | null;
+  calendarEa28: number | null;
+  /** Days with known intake, covered net exercise and compatible FFM (out of 7 / 28). */
+  coverage7: number;
+  coverage28: number;
+  /** Exposure is incomplete when a window has unknown days (not a precise reassuring number). */
+  complete7: boolean;
+  complete28: boolean;
+  /** Days of the trailing 28 whose own raw daily EA was below the reference (known days only). */
+  daysBelowReference28: number;
+  /** Consecutive full elapsed 7-day windows below the reference; any unknown, gap or incomplete window resets it. */
+  calendarRunBelowReference: number;
+}
+
+/** One elapsed calendar day's trailing-window exposure; coverage includes intake, exercise and compatible FFM. */
+export interface CalendarEaPolicyDay {
+  day: number;
+  ea7: number | null;
+  coverage7: number;
+}
+
+/**
+ * Shared precautionary policy for core and living consumers. Available-day means before day 6, gaps and incomplete
+ * windows never establish persistence. Counts windows, not a diagnosis or an individual event probability.
+ */
+export function repeatedCalendarEaPolicy(
+  days: readonly CalendarEaPolicyDay[],
+  opts: { cautionDays?: number; reference?: number; atDay?: number } = {},
+): { needed: boolean; consecutiveEligibleWindows: number; reasonCodes: string[] } {
+  const reference = opts.reference ?? SAFETY_EA_EXPOSURE_POLICY.referenceKcalPerKgFfm;
+  const cautionDays = opts.cautionDays ?? defaultSafetyConstants().eaCautionDays;
+  const atDay = opts.atDay ?? days[days.length - 1]?.day ?? -1;
+  const byDay = new Map(days.map((d) => [d.day, d]));
+  let run = 0;
+  for (let d = atDay; d >= 6; d--) {
+    const sample = byDay.get(d);
+    if (!sample || sample.coverage7 !== 7 || sample.ea7 === null || !Number.isFinite(sample.ea7) || sample.ea7 >= reference) break;
+    run++;
+  }
+  const needed = run > cautionDays;
+  return { needed, consecutiveEligibleWindows: run, reasonCodes: needed ? ['repeatedCalendarEaBelowReference'] : [] };
+}
+
+const finiteOrNull = (v: number | undefined): number | null => (v !== undefined && Number.isFinite(v) ? v : null);
+
+export function calendarEaSummary(trace: SafetyTrace, at?: number): CalendarEaSummary | null {
+  const cal7 = trace.calendarEa7;
+  const cal28 = trace.calendarEa28;
+  if (!cal7 || !cal28) return null;
+  const n = cal7.length;
+  if (n === 0) return null;
+  const day = at === undefined ? n - 1 : Math.max(0, Math.min(n - 1, Math.floor(at)));
+  const ref = SAFETY_EA_EXPOSURE_POLICY.referenceKcalPerKgFfm;
+  const cov7 = trace.eaCoverage7 ? trace.eaCoverage7[day]! : 0;
+  const cov28 = trace.eaCoverage28 ? trace.eaCoverage28[day]! : 0;
+  let below = 0;
+  const raw = trace.eaRawDaily;
+  if (raw) for (let d = Math.max(0, day - 27); d <= day; d++) if (Number.isFinite(raw[d]!) && raw[d]! < ref) below++;
+  const policy = repeatedCalendarEaPolicy(Array.from({ length: day + 1 }, (_, d) => ({
+    day: d, ea7: finiteOrNull(cal7[d]), coverage7: trace.eaCoverage7?.[d] ?? 0,
+  })), { atDay: day });
+  // Burn-in is assumed habitual history, never elapsed observed exposure.
+  return {
+    policyVersion: SAFETY_EA_EXPOSURE_POLICY.version,
+    referenceKcalPerKgFfm: ref,
+    day,
+    eatingDayEa7: finiteOrNull(trace.eatingDayEa7 ? trace.eatingDayEa7[day] : trace.ea7[day]),
+    calendarEa7: finiteOrNull(cal7[day]),
+    calendarEa28: finiteOrNull(cal28[day]),
+    coverage7: cov7,
+    coverage28: cov28,
+    complete7: day >= 6 && cov7 === 7,
+    complete28: day >= 27 && cov28 === 28,
+    daysBelowReference28: below,
+    calendarRunBelowReference: policy.consecutiveEligibleWindows,
+  };
+}
+
+/** Observed concerns that trigger an energy-availability scope review at any EA (logged by the person; never a diagnosis). */
+export type EaConcern = 'menstrualChange' | 'persistentFatigue' | 'performanceDecline' | 'injury';
+
+export interface EaExposureReview {
+  /** 'review' = a precaution applies (short Review inline); 'incomplete' = exposure unknown; 'none' = no precaution applies. */
+  status: 'review' | 'incomplete' | 'none';
+  /** Why (stable codes for the info sheet): `concern:<flag>`, `repeatedCalendarEaBelowReference`. */
+  reasons: string[];
+  /** No individual event probability is ever attached (D4-04). */
+  probability: null;
+  /** Review narrows scope; it never adds a blanket fasting prohibition by itself (existing tier rules decide fasts). */
+  newFastingProhibition: false;
+}
+
+/**
+ * D4-04 scope review of an energy-availability exposure (`SAFETY_EA_EXPOSURE_POLICY`). Logged concerns (menstrual change
+ * where relevant — contraception or menopause change what a cycle sign means, so the caller passes it only when it
+ * applies — persistent fatigue, performance decline, stress injury) trigger review whatever the EA: EA at or above the
+ * reference never overrides them. A repeated pattern (calendar EA_7 below the reference for longer than the existing
+ * `eaCautionDays` policy duration) triggers review under the explicit precautionary policy, not as a diagnosis. Unknown
+ * coverage reads as incomplete, never as reassuring.
+ */
+export function eaExposureReview(
+  summary: CalendarEaSummary | null,
+  concerns: readonly EaConcern[] = [],
+  constants: SafetyConstants = defaultSafetyConstants(),
+): EaExposureReview {
+  const reasons: string[] = [...new Set(concerns)].sort().map((c) => `concern:${c}`);
+  if (summary && summary.calendarRunBelowReference > constants.eaCautionDays) reasons.push('repeatedCalendarEaBelowReference');
+  const status: EaExposureReview['status'] = reasons.length ? 'review' : !summary || !summary.complete7 || summary.calendarEa7 === null ? 'incomplete' : 'none';
+  return { status, reasons, probability: null, newFastingProhibition: false };
+}
+
 /** Minimum over days (ignoring NaN) of one margin, and the first day it is reached; `NaN`/−1 when it never applied. */
 export function worstMargin(m: ConstraintMargin): { value: number; day: number } {
   let value = NAN;
@@ -246,10 +388,12 @@ export function computeWarningMargins(
       s01.margin[d] = (k.gainRateMaxPct + rp) / k.scaleRatePct;
     }
     const ea = trace.ea7[d]!;
-    const eaApplies = Number.isFinite(ea) && (!trace.eee7 || trace.eee7[d]! > 0) && Number.isFinite(def7) && def7 > k.deficitAnyPct;
+    const eaRuleDay = (!trace.eee7 || trace.eee7[d]! > 0) && Number.isFinite(def7) && def7 > k.deficitAnyPct;
+    const eaApplies = Number.isFinite(ea) && eaRuleDay;
     if (eaApplies) e07.margin[d] = (ea - k.eaReducedUpper) / k.scaleEa;
-    // the EA persistence counter pauses on fast-event days, as the rule's does (ruling R-FAST-GATE)
-    if (!fastDay) runEa45 = eaApplies && ea < k.eaAdequate ? runEa45 + 1 : 0;
+    // the EA persistence counter pauses on fast-event days, as the rule's does (ruling R-FAST-GATE), and on rule days with
+    // no EA value (D8-04: unknown is not adequate, so it neither counts nor resets)
+    if (!fastDay && !(eaRuleDay && !Number.isFinite(ea))) runEa45 = eaApplies && ea < k.eaAdequate ? runEa45 + 1 : 0;
     e11.margin[d] = (k.cumLossMaxPct - trace.cumLossPct[d]!) / k.scalePct;
     if (Number.isFinite(bmi)) {
       const cumTm = w0 > 0 ? (100 * (w0 - tm)) / w0 : 0;

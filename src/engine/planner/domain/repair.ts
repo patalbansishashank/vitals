@@ -15,7 +15,8 @@ import { MIN_MEAL_SPACING_H } from './context';
 import { estimateDay, mealClocks, mergeDay, type DayRefs } from './dayMath';
 import { placeTraining, type DecodedPlan } from './decode';
 import { eatingGapNeedH, eventPeriodDays, fastCoverage, fastEndDay, recoveryDayCount, refeedDayFactors } from './fastMath';
-import { HC, fastAllowed, tierForHours } from './safety';
+import { DEFAULTS } from '../../core/defaults';
+import { retainRenalRoutine, HC, fastAllowed, tierForHours, type ExerciseIntensityCap } from './safety';
 import { CARDIO_BANDS, supplementConsent } from './skeleton';
 import { IDEAL_SLEEP, SESSION_BEFORE_BED_H, bedClockOf, mod24, sleepHoursOf } from './ideal';
 
@@ -106,6 +107,49 @@ export function zeroSpans(ctx: PlanningContext, s: Schedule, minHours: number = 
 // template-level rules
 // ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Lower a cardio session to every supported clinician intensity maximum (D4-02/A1-003): the session's own value and every
+ * interval phase's (the peak part, never a mean). A %VO2max maximum also gives a session with no stated intensity an
+ * explicit one — the modelled modality default lowered to the maximum (never raised) — so its dose is comparable. A
+ * MET or CR-10 maximum lowers only a stated value of that channel; nothing is converted between channels.
+ */
+function clampCardioToClinicianCaps(c0: CardioSession, caps: readonly ExerciseIntensityCap[], ed: Editor, path: (f: string) => string): CardioSession {
+  let c = c0;
+  for (const cap of caps) {
+    const n = cap.normalized;
+    if (cap.status !== 'supported' || !n) continue;
+    const field = n.channel === 'pctVo2maxFraction' ? 'pctVo2max' : n.channel === 'grossMet' ? 'met' : 'rpe';
+    const scaleOk = (sc: string | undefined) => n.channel !== 'cr10' || sc === 'cr10';
+    const sessionScale = (c as { rpeScale?: string }).rpeScale;
+    const own = c[field];
+    if (typeof own === 'number' && own > n.max + 1e-9 && scaleOk(sessionScale)) {
+      ed.note('envelope.intensity', { path: path(`exercise.cardio.${field}`), amount: own - n.max });
+      c = { ...c, [field]: n.max };
+    }
+    const anyGiven = c.pctVo2max !== undefined || c.met !== undefined || c.speedKmh !== undefined || c.powerW !== undefined || c.rpe !== undefined;
+    if (n.channel === 'pctVo2maxFraction' && !anyGiven) {
+      const def = DEFAULTS.cardioPctVo2max[c.modality] ?? DEFAULTS.cardioPctVo2max.other;
+      if (def > n.max + 1e-9) ed.note('envelope.intensity', { path: path('exercise.cardio.pctVo2max'), amount: def - n.max });
+      c = { ...c, pctVo2max: Math.min(def, n.max) };
+    }
+    if (c.phases?.length) {
+      let changed = false;
+      const phases = c.phases.map((ph) => {
+        const v = ph[field];
+        const sc = (ph as { rpeScale?: string }).rpeScale ?? sessionScale;
+        if (typeof v === 'number' && v > n.max + 1e-9 && scaleOk(sc)) {
+          changed = true;
+          ed.note('envelope.intensity', { path: path(`exercise.cardio.phases.${field}`), amount: v - n.max });
+          return { ...ph, [field]: n.max };
+        }
+        return ph;
+      });
+      if (changed) c = { ...c, phases };
+    }
+  }
+  return c;
+}
+
 /** Exercise rules on one session list: permission (HC-X4 lock), exclusions, intensity band, HIIT, session length. */
 function repairExercise(ctx: PlanningContext, sessions: readonly ExerciseSession[], ed: Editor, path: (f: string) => string): ExerciseSession[] {
   const caps = ctx.caps;
@@ -114,6 +158,11 @@ function repairExercise(ctx: PlanningContext, sessions: readonly ExerciseSession
   if (!caps.exercise.allowed) {
     ex = [];
     ed.note('HC-X4', { path: path('exercise') });
+  } else if (!caps.exercise.rtAllowed || !caps.exercise.cardioAllowed) {
+    // a reviewed exercise envelope (D4-02) permits only some domains: a missing domain is never authorized
+    const kept = ex.filter((s) => (s.kind === 'resistance' ? caps.exercise.rtAllowed : caps.exercise.cardioAllowed));
+    if (kept.length !== ex.length) ed.note('HC-X4', { path: path('exercise') });
+    ex = kept;
   }
   if (p.excluded.has('resistanceTraining')) ex = ex.filter((s) => s.kind !== 'resistance');
   if (p.excluded.has('cardio')) ex = ex.filter((s) => s.kind !== 'cardio');
@@ -129,14 +178,23 @@ function repairExercise(ctx: PlanningContext, sessions: readonly ExerciseSession
         ed.note('HC-X4', { path: path('exercise.cardio.pctVo2max'), amount: c.pctVo2max - band.max });
         c = { ...c, pctVo2max: band.max };
       }
-      if (c.durationMin > p.maxSessionMin) {
-        ed.note('user.maxSessionMin', { path: path('exercise.cardio.durationMin'), amount: c.durationMin - p.maxSessionMin });
-        c = { ...c, durationMin: p.maxSessionMin };
+      // (D4-02/A1-003) a clinician intensity maximum intersects the band: every comparable part is lowered to it
+      c = clampCardioToClinicianCaps(c, caps.exercise.intensityCaps ?? [], ed, path);
+      if (c.durationMin > p.maxCardioSessionMin) {
+        ed.note('user.maxCardioSessionMin', { path: path('exercise.cardio.durationMin'), amount: c.durationMin - p.maxCardioSessionMin });
+        c = { ...c, durationMin: p.maxCardioSessionMin };
       }
       return c;
     }
     let r: ResistanceSession = s;
     if (r.toFailure && caps.rtNovice) r = { ...r, toFailure: false };
+    // (A1-003) a stated gross MET is lowered to a clinician MET maximum (nothing else of a resistance session compares)
+    for (const cap of caps.exercise.intensityCaps ?? []) {
+      if (cap.normalized?.channel === 'grossMet' && typeof r.met === 'number' && r.met > cap.normalized.max + 1e-9) {
+        ed.note('envelope.intensity', { path: path('exercise.resistance.met'), amount: r.met - cap.normalized.max });
+        r = { ...r, met: cap.normalized.max };
+      }
+    }
     const dur = r.durationMin ?? 60;
     if (dur > p.maxSessionMin + 1e-9 && r.setsByRegion) {
       const f = p.maxSessionMin / dur;
@@ -163,17 +221,21 @@ function repairTemplate(ctx: PlanningContext, t: DayTemplate, ed: Editor, pi: nu
       ed.note('HC-M10', { path: path('substances.alcohol') });
     }
     if (sub.caffeine?.length) {
+      // HC-M11 (≤ 200 mg a dose, ≤ 400 mg a day) and a caffeine-cap lock (mg/day, D4-01): doses past the cap are dropped
+      const dayCap = Math.min(400, caps.caffeineMaxMgPerDay ?? Infinity);
       let tot = 0;
-      sub.caffeine = sub.caffeine.map((c) => ({ ...c, mg: Math.min(c.mg, 200) })).filter((c) => (tot += c.mg) <= 400);
-      if (tot > 400) ed.note('HC-M11', { path: path('substances.caffeine') });
+      const before = sub.caffeine.length;
+      sub.caffeine = sub.caffeine.map((c) => ({ ...c, mg: Math.min(c.mg, 200) })).filter((c) => (tot += c.mg) <= dayCap + 1e-9);
+      if (sub.caffeine.length < before) ed.note(dayCap < 400 ? 'lock.caffeine-cap' : 'HC-M11', { path: path('substances.caffeine') });
     }
     if (sub.creatineG !== undefined) {
       if (!caps.creatineAllowed || p.excluded.has('L7') || p.excluded.has('creatine') || !supplementConsent(ctx, 'L7')) {
         delete sub.creatineG;
         ed.note(!caps.creatineAllowed ? 'HC-M12' : !supplementConsent(ctx, 'L7') ? 'tier.optIn' : 'user.excluded', { path: path('substances.creatineG') });
-      } else if (sub.creatineG > HC.creatineMaxG) {
-        ed.note('HC-M12', { path: path('substances.creatineG'), amount: sub.creatineG - HC.creatineMaxG });
-        sub.creatineG = HC.creatineMaxG;
+      } else if (sub.creatineG > caps.creatineMaxG) {
+        // HC-M12 maximum and a positive creatine-cap lock (g/day, D4-01) on the resolved dose
+        ed.note('HC-M12', { path: path('substances.creatineG'), amount: sub.creatineG - caps.creatineMaxG });
+        sub.creatineG = caps.creatineMaxG;
       }
     }
     if (sub.creatineLoading) {
@@ -186,8 +248,18 @@ function repairTemplate(ctx: PlanningContext, t: DayTemplate, ed: Editor, pi: nu
     out.macros = { ...out.macros, fatTypes: { ...out.macros.fatTypes, omega3G: undefined } };
     ed.note('tier.optIn', { path: path('macros.fatTypes.omega3G') });
   }
-  // exercise: permission (HC-X4 lock), exclusions, intensity band, HIIT, session length
+  // exercise: permission (HC-X4 lock, D4-02 gate/envelope), exclusions, intensity band, HIIT, session length
   if (out.exercise?.length) out.exercise = repairExercise(ctx, out.exercise, ed, path);
+  // "training as usual" cannot slip past a stopped exercise prescription (D4-02); logged history is not a template here
+  if (out.habitualTraining && !caps.exercise.habitualTrainingAllowed) {
+    out.habitualTraining = false;
+    ed.note('HC-X4', { path: path('habitualTraining') });
+  }
+  // steps: never above the symptom gate's / envelope's ceiling (D4-02)
+  if (caps.exercise.stepsCeiling !== null && out.steps !== undefined && out.steps > caps.exercise.stepsCeiling) {
+    ed.note('HC-X4.steps', { path: path('steps'), amount: out.steps - caps.exercise.stepsCeiling });
+    out.steps = Math.floor(caps.exercise.stepsCeiling);
+  }
   if (out.energy.kind === 'zero') return out;
   // eating window: user bounds, HC-F5 minimum, meals ≥ 2 (single-meal days never planned), meal spacing
   const mp = out.meals ?? {};
@@ -309,6 +381,17 @@ function repairMacros(ctx: PlanningContext, t: DayTemplate, ed: Editor, pi: numb
     const n = Math.max(1, Math.round(t.meals?.count ?? 3));
     if (pct <= 100 - HC.fat.mealRuleDeficitPct && (2 * e3.fatG) / (n + 1) < HC.fat.mealMinG && t.meals) {
       ed.note('HC-M3', { path: path('meals.split') });
+    }
+  }
+  // total-fat lock (% of energy, D4-01): fat as a share of energy so it holds whatever the runtime maintenance resolves to
+  // (a cap below the HC-M3 floor is a reported conflict, never averaged); the final resolved check stays authoritative
+  if (caps.fatMaxPctEnergy !== null && E > 0) {
+    const e6 = estimateDay({ energy: t.energy, macros: m }, refs);
+    const capPctE = Math.max(HC.fat.minPctEnergy, caps.fatMaxPctEnergy);
+    if ((900 * e6.fatG) / E > capPctE + 1e-6) {
+      ed.note('lock.fat-cap', { path: path('fat'), amount: (900 * e6.fatG) / E - capPctE });
+      m.fat = { unit: 'pctEnergy', value: capPctE };
+      if (m.carbs.unit !== 'remainder' && m.protein.unit !== 'remainder') m.carbs = { unit: 'remainder' };
     }
   }
   // carbohydrate floor (HC-M4 keto exclusions, HC-P3 R1 100 g, lock)
@@ -922,7 +1005,7 @@ function ramps(ctx: PlanningContext, ed: Editor): void {
       }
     }
     if (t.steps !== undefined) {
-      const cap = Math.max(habSteps, 0) + 1000 * (w + 1);
+      const cap = Math.min(Math.max(habSteps, 0) + 1000 * (w + 1), ctx.caps.exercise.stepsCeiling ?? Infinity);
       if (t.steps > cap + 1e-6) {
         ed.patch(d, { steps: Math.round(cap) });
         if (d % 7 === 0) ed.note('L1.ramp', { day: d, amount: t.steps - cap });
@@ -999,6 +1082,24 @@ function idealGeneRules(ctx: PlanningContext, ed: Editor): void {
 }
 
 /** Training only on allowed weekdays (user hard constraint). */
+/**
+ * (D4-02/A1-004) From the day the governing clinician envelope no longer applies (its own review date passed, or a recorded
+ * withdrawal) the symptom gate holds again: no sessions, no training as usual, steps at the habit. Uses only the entered
+ * dates (no invented expiry).
+ */
+function envelopeLapse(ctx: PlanningContext, ed: Editor): void {
+  const change = ctx.caps.exercise.gateChange;
+  if (!change) return;
+  const habit = Math.max(0, ctx.rp.habits.typicalSteps);
+  for (let d = Math.max(0, change.day); d < ed.s.horizonDays; d++) {
+    const t = ed.day(d);
+    const steps = t.steps !== undefined && t.steps > habit ? Math.floor(habit) : t.steps;
+    if (!(t.exercise ?? []).length && !t.habitualTraining && steps === t.steps) continue;
+    ed.patch(d, { exercise: [], habitualTraining: false, ...(steps !== undefined ? { steps } : {}) });
+    ed.note('HC-X4.envelope', { day: d });
+  }
+}
+
 function trainingDays(ctx: PlanningContext, ed: Editor): void {
   const allowed = new Set(ctx.practical.allowedTrainingWeekdays);
   for (let d = 0; d < ed.s.horizonDays; d++) {
@@ -1043,11 +1144,12 @@ export function repairSchedule(ctx: PlanningContext, schedule: Schedule, plan?: 
     if (fixed !== t.macros) ed.patch(d, { macros: fixed });
   }
   proteinFloors(ctx, ed);
+  envelopeLapse(ctx, ed);
   trainingDays(ctx, ed);
   if (!isBaseline) {
     ramps(ctx, ed);
     sessionsClearOfMeals(ctx, ed);
     idealGeneRules(ctx, ed);
   }
-  return { schedule: ed.s, log: ed.log };
+  return { schedule: retainRenalRoutine(ed.s, ctx.caps), log: ed.log };
 }

@@ -8,10 +8,31 @@
  * Vocabulary follows the R3 seed schema (R3-0.1) where it is richer than the PLANNER_V2 sketch (loadType, intensityScale,
  * priceTier, space); docs/CATALOGUES.md lists the differences.
  */
-import type { CardioModality, ProteinSource, TrainingRegion } from '@/engine/types/schedule';
+import type {
+  CardioModality,
+  DoseFieldProvenance,
+  EffortScale,
+  HealthClassSource,
+  HealthIntensityClass,
+  IntervalPhase,
+  ProteinSource,
+  ResistanceSetGroup,
+  TrainingRegion,
+  UnknownDoseScenario,
+} from '@/engine/types/schedule';
 import type { EvidenceGrade } from '@/engine/types/params';
+import type { CarbohydrateBasis, ExerciseCostBreakdown } from '@/lib/bodyContracts';
 
-export type { CardioModality, ProteinSource, TrainingRegion, EvidenceGrade };
+export type { CardioModality, ProteinSource, TrainingRegion, EvidenceGrade, EffortScale };
+
+/** Talk-test answer of a bout (D3-03/A1-062): sing = light; talk but not sing = moderate; only a few words = vigorous. */
+export type TalkTest = 'canSing' | 'talkNotSing' | 'fewWords' | 'fullSentences' | 'unknown';
+
+/**
+ * (D3-09/A1-022) Quantitative-dose status of one outcome family: `unknown` when the dose that outcome needs (a hard-set
+ * count for hypertrophy/strength) was not observed — the numeric dose is then only the named `UnknownDoseScenario`.
+ */
+export type OutcomeDoseStatus = DoseFieldProvenance;
 
 /** 0 = Sunday … 6 = Saturday (same convention as the planner's `Weekday`). */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -210,6 +231,14 @@ export interface ExerciseEnergy {
   compendiumCode: string | null;
   /** Where the MET comes from ("compendium", "analog: …", "ESTIMATE: …"). */
   metSource: string;
+  /**
+   * (SPEC V1.6, 2026-10-27) True when `compendiumCode` is only an ANALOG (a similar activity; the item itself has no
+   * official row) — the energy is "estimated from similar activity", ±50 % scenario envelope. False/absent = the code's own
+   * row describes the item. Derived from `metSource` for seed rows; every entry has either `analog: true` or a `mappingNote`.
+   */
+  analog?: boolean;
+  /** How the item maps onto its code when it is not an analog (e.g. "compendium (90-100 W)"). */
+  mappingNote?: string;
 }
 
 export type ExerciseOrigin = 'seed' | 'ai-resolved' | 'user';
@@ -255,6 +284,65 @@ export interface ExerciseRecord {
   /** Keys into the catalogue source table. */
   sources: readonly string[];
   origin: ExerciseOrigin;
+  // ---- contract additions 2026-10-18 (D3-02, D3-09; qualitative descriptors, no efficacy multipliers)
+  /** Task identity for exact-same-task strength matching (pattern + implement alone does not establish it). */
+  task?: string;
+  /** Joint actions, range of motion, muscle length emphasis and velocity (swap context only). */
+  jointActions?: readonly string[];
+  rom?: 'full' | 'partial' | 'lengthened' | 'shortened' | 'unknown';
+  velocity?: 'slow' | 'moderate' | 'explosive' | 'unknown';
+  // ---- contract addition 2026-10-27 (SPEC V1.6, additive)
+  /**
+   * false = an activity type for logging, review and import mapping only (Health Connect / Google Fit / Gauge types such as
+   * air bike, treadmill desk, team sports): the composer, swaps, envelope and shopping list never prescribe it. Absent =
+   * prescribable (every pre-2026-10-27 entry), so plans are unchanged by the activity catalogue. Engineering default (P).
+   */
+  prescribable?: boolean;
+}
+
+// ================================================================== activity types and import aliases (SPEC V1.6)
+
+/** Namespaces of external activity-type codes. `hc` Health Connect `EXERCISE_TYPE_*`; `fit` Google Fit activity ints. */
+export type ActivityAliasNamespace = 'hc' | 'fit' | 'gauge' | 'ring';
+
+/** One external code → canonical exercise id (`needsReview` when the mapping is generic or ambiguous). */
+export interface ActivityAlias {
+  namespace: ActivityAliasNamespace;
+  /** The external code as a string (HC/Fit integers in decimal; Gauge/ring type names). */
+  code: string;
+  /** The external label (HC constant name, Fit label, Gauge type). */
+  label: string;
+  /** Version of the external taxonomy the code was read from. */
+  version: string;
+  exerciseId: string;
+  /** The mapping is generic or ambiguous: the user should confirm the type in review. */
+  needsReview?: boolean;
+  /** Not physical activity (in vehicle, still, tilting, elevator, escalator, meditation, breathing, sleep): never a bout. */
+  nonActivity?: boolean;
+}
+
+/** How the person carries the phone during the activity (context for step-source choice, SPEC §2.3 rule b). */
+export type ActivityCarry = 'pocket' | 'hand' | 'desk' | 'none' | 'unknown';
+
+/**
+ * Energy estimators that MAY apply to a type, in booking order (SPEC V2.4). `power` requires a verified external-work
+ * source with stated efficiency (leg cycle ergometers only by default); `speedGrade` requires belt or GPS moving speed of a
+ * gait type (never outdoor cycling); `keytel` only when D2 is on and the type is in or flagged out of its domain.
+ */
+export type ActivityEstimator = 'reported' | 'power' | 'speedGrade' | 'personalHr' | 'keytel' | 'met';
+
+/** Keytel HR→energy eligibility of a type (RESEARCH E5): in domain, eligible but flagged out of domain, or never. */
+export type HrEnergyEligibility = 'inDomain' | 'outOfDomain' | 'never';
+
+/** Sensor-facing traits of a canonical activity type (SPEC V1.6). */
+export interface ActivityTraits {
+  /** The activity is gait (steps are locomotion, can be booked inside the bout as `stepsIncluded`). */
+  stepsLocomotor: boolean;
+  /** Treadmill types: belt walking/running where hands may be fixed (step rule b). */
+  treadmill: boolean;
+  carry: ActivityCarry;
+  estimators: readonly ActivityEstimator[];
+  hrEnergyEligible: HrEnergyEligibility;
 }
 
 // ================================================================== equipment (R3 §2.2)
@@ -375,6 +463,27 @@ export interface PerformedExercise {
   oneRepMaxKg?: number;
   /** Equipment actually used (picks the implement class for strength specificity). */
   equipmentUsed?: readonly string[];
+  // ---- contract additions 2026-10-18 (D3-03, D3-07, D3-09; optional)
+  /** Field-level provenance: reported, inferred from defaults, default, or unknown (never promoted to measured). */
+  provenance?: Partial<Record<'sets' | 'reps' | 'load' | 'rir' | 'minutes' | 'rest', DoseFieldProvenance>>;
+  /**
+   * Scale of `rpe` (A1-062): resistance RIR-based RPE, Borg CR10 (serialized 'cr10', kept as is), the WHO/CDC generic
+   * relative-effort 0–10 scale, or unknown legacy. Only the generic scale (or a stated class/talk test) classifies guideline
+   * minutes; CR10 stays a useful effort and a labelled energy scenario.
+   */
+  rpeScale?: EffortScale;
+  /** (A1-062) Talk-test answer for the bout (sing = light, talk not sing = moderate, few words = vigorous). */
+  talkTest?: TalkTest;
+  /** Why the set/bout stopped (skill-limited stopping is not proximity to failure). */
+  stopReason?: 'failure' | 'technique' | 'skill' | 'time' | 'pain' | 'other';
+  /** Minutes-only flows: optional count of genuinely challenging bouts and approximate effort. */
+  hardBouts?: number;
+  effort?: 'light' | 'moderate' | 'hard' | 'maximal';
+  /** Interval structure and public-health class of a cardio bout (D3-03). */
+  intervals?: readonly IntervalPhase[];
+  healthIntensityClass?: HealthIntensityClass;
+  /** Locomotor steps inside a total-day step count (D3-07). */
+  stepsIncluded?: number;
 }
 
 // ================================================================== stimulus currency (PLANNER_V2 §8.6, R3 §5.1)
@@ -391,6 +500,10 @@ export interface StrengthWork {
   sets: number;
   /** Set-weighted mean %1RM (or %1RM-equivalent). */
   loadPct: number;
+  /** (D3-02) exercise identity, task and range of motion: exact same task ⇒ transfer 1; otherwise a labelled heuristic. */
+  exerciseId?: string;
+  task?: string;
+  rom?: ExerciseRecord['rom'];
 }
 
 export interface StimulusVector {
@@ -402,7 +515,10 @@ export interface StimulusVector {
   loadClass: LoadClass;
   /** Net kcal above own resting rate, (MET − 1)·3.5·kg/200 per minute. */
   netKcal: number;
-  /** Moderate-equivalent minutes (engine memWeight × cardio minutes). */
+  /**
+   * Moderate-equivalent minutes (engine memWeight × cardio minutes): a heuristic FITNESS dose index (D3-03), not
+   * public-health guideline minutes (those are `healthModerateMin` + 2 × `healthVigorousMin`).
+   */
   mem: number;
   /** Cardio minutes at x ≥ hardX (0.85 VO2max). */
   hiMinutes: number;
@@ -426,6 +542,32 @@ export interface StimulusVector {
   minutes?: number;
   /** Exercise ids that contributed. */
   exerciseIds?: string[];
+  // ---- contract additions 2026-10-18 (D3-01, D3-03, D3-07, D3-09; optional)
+  /**
+   * D3-01: `effectiveSetsByRegion` already includes the contraction-type factor (true for the legacy catalogue
+   * conversion). Engine dose must come from `setGroups` so drawn factors re-apply per group, fType exactly once.
+   */
+  typeFactorIncluded?: boolean;
+  /** D3-01: the homogeneous set groups behind the stimulus (raw sets, region weights, load, RIR, rest, contraction). */
+  setGroups?: readonly ResistanceSetGroup[];
+  /** D3-01: physical sets performed (whole sets), distinct from effective sets. */
+  physicalSets?: number;
+  /** D3-03: guideline aerobic minutes by stated class; unknown class keeps them null (not zero). */
+  healthModerateMin?: number | null;
+  healthVigorousMin?: number | null;
+  /** D3-07: labelled energy terms of the bout (gross, own rest, net above rest, displaced, incremental). */
+  cost?: ExerciseCostBreakdown;
+  /** D3-09: provenance of the derived muscle dose (minutes-only records: unknown, not zero). */
+  doseStatus?: 'reported' | 'inferred' | 'default' | 'unknown';
+  /**
+   * D3-09/A1-022: per-outcome dose status. A minutes-only resistance/flow record has `hypertrophy`/`strength` unknown while
+   * `energy`/`mobility`/`cardio` stay independently known; an ordinary inferred region mapping is `inferred`, not unknown.
+   */
+  outcomeDoseStatus?: Partial<Record<'hypertrophy' | 'strength' | 'cardio' | 'energy' | 'mobility', OutcomeDoseStatus>>;
+  /** D3-09/A1-022: the named scenario behind a numeric dose whose hard-set count is unknown. */
+  unknownDoseScenario?: UnknownDoseScenario;
+  /** D3-03/A1-062: how the guideline class of the bout was established (stated, talk test, generic scale, unknown). */
+  healthClassSource?: HealthClassSource;
 }
 
 /** α: intent weights of a prescribed item over the five terms; sums to 1 (R3 §5.1). */
@@ -449,13 +591,20 @@ export interface ShortfallNote {
 export type CreditBand = 'full' | 'partial' | 'different';
 
 export interface EquivalenceResult {
-  /** Raw equivalence S ∈ [0, 1]. */
+  /** Raw equivalence S ∈ [0, 1]. With `completion.status !== 'known'` it is the named conditional scenario score. */
   score: number;
   /** Adherence credit: 1 at parity (S ≥ 0.90), else S (credited for what it trains). */
   credit: number;
   parity: boolean;
   band: CreditBand;
-  perTerm: Array<{ term: StimulusTermId; ratio: number; weight: number }>;
+  /** `status: 'unknown'` = the term's dose (prescribed or performed) is unknown: its ratio is the scenario value only. */
+  perTerm: Array<{ term: StimulusTermId; ratio: number; weight: number; status?: 'known' | 'unknown' }>;
+  /**
+   * (D3-09/A1-022) Completion status: `known` when every weighted term's dose is known; `partial`/`unknown` when a weighted
+   * term's hard-set count is unknown — then `parity`/`credit` must not be reported as observed full completion; the
+   * independently known terms' score (`knownTermsScore`, null when none) stays usable.
+   */
+  completion?: { status: 'known' | 'partial' | 'unknown'; unknownTerms: readonly StimulusTermId[]; knownTermsScore: number | null; scenario?: UnknownDoseScenario };
   shortfall: ShortfallNote[];
   /** Regions trained beyond the prescription ("also trained: …"). */
   alsoTrained: TrainingRegion[];
@@ -548,6 +697,30 @@ export interface Nutrients {
 }
 export type NutrientKey = keyof Nutrients;
 
+/** (D6-05) Source provenance of a food record: exact source ids, release/data type, retrieval and nutrient-level provenance. */
+export interface FoodProvenance {
+  sourceId: string;
+  release?: string;
+  dataType?: string;
+  retrievedAt?: string;
+  /** Frozen dataset/manifest version the record was imported in. */
+  datasetVersion: string;
+  /** Per nutrient: assay, label, derived, imputed, or analysed-missing (absent = unknown provenance). */
+  nutrientProvenance?: Partial<Record<NutrientKey, 'assay' | 'label' | 'derived' | 'imputed' | 'missing'>>;
+  /** A transparent proxy (e.g. a USDA row standing in for an unlicensed IFCT row). */
+  proxy?: boolean;
+}
+
+/** (D6-08) A food/form-specific measured ME that replaces the convention energy (never stacks with another discount). */
+export interface MeasuredMetabolizableEnergy {
+  kcalPer100g: number;
+  species?: string;
+  form?: string;
+  sourceRef: string;
+  /** What the value represents relative to the convention energy. */
+  represents: 'sourceME' | 'unavailableSubstrate' | 'netEnergy';
+}
+
 export interface FoodRecord {
   id: string;
   name: string;
@@ -565,6 +738,89 @@ export interface FoodRecord {
   /** Engine protein-quality class (dossier protein table) when the food is a protein source. */
   proteinSource?: ProteinSource;
   sources: readonly string[];
+  // ---- contract additions 2026-10-18 (D6-01, D6-03, D6-05, D6-08; optional)
+  /** Basis of `per100g.carbG` (absent = legacy total-by-difference, labelled legacy-assumed; never inferred from geography). */
+  carbBasis?: CarbohydrateBasis;
+  /** Original label fields as printed, per 100 g or per serving (null = printed as not given). */
+  label?: { per: '100g' | 'serving'; servingG?: number; fields: Readonly<Record<string, number | null>>; text?: string };
+  /** Polyols by identity, g per 100 g. */
+  polyolsG?: Readonly<Record<string, number>>;
+  provenance?: FoodProvenance;
+  preparation?: string;
+  fortified?: boolean;
+  measuredME?: MeasuredMetabolizableEnergy;
+  /**
+   * (D6-01) Id of an earlier custom record this one explicitly replaces (e.g. a declared carbohydrate basis on a legacy
+   * food). Readers keep the replacement; logged meals keep their own frozen snapshots, so history is never rewritten.
+   */
+  supersedes?: string;
+}
+
+/**
+ * (D6-04) One recipe ingredient with an explicit mass basis and state. Refuse converts exactly once (as-purchased ×
+ * edibleFraction); an already-cooked source never gets raw→cooked retention again.
+ */
+export interface RecipeIngredient {
+  /** (A1-044) Explicit material identity within the recipe (an addition with the same id is the same material: refused, never counted twice). */
+  id?: string;
+  foodId?: string;
+  name: string;
+  massG: number;
+  massBasis: 'asPurchased' | 'edible' | 'legacyUnknown';
+  state?: 'raw' | 'cooked' | 'asEaten' | 'unknown';
+  preparation?: string;
+  /** Supported preparation-specific retention factors per nutrient (absent = none applied, not a universal factor). */
+  retention?: Partial<Record<NutrientKey, number>>;
+}
+
+/**
+ * (D6-04) Recipe definition, schema v2. batch_n = Σ(edible_i/100 × source_n_i × retention_n_i) + added_n − discarded_n;
+ * per100_n = 100 × batch_n / finalEdibleMassG only when the final edible mass is measured or a sourced estimate.
+ * Unknown yield supports fraction-of-batch servings and no cooked-gram density.
+ *
+ * (A1-044) Mass balance: finalMassG = Σ edible ingredient masses + Σ addition material masses + waterAddedG − evaporationG −
+ * Σ discarded masses, each material counted exactly once. A calculated cooked density (`massBalance`) is claimed only when
+ * every positive and negative material contribution is known, valid and on the edible basis; an addition with nutrients
+ * but no `massG` leaves the final mass unknown (batch nutrients and fractions/servings stay usable). A measured or sourced
+ * final mass overrides the balance. Material mass is never inferred from energy.
+ */
+export interface RecipeDefinition {
+  schemaVersion: 2;
+  name: string;
+  ingredients: readonly RecipeIngredient[];
+  finalEdibleMassG?: number;
+  yieldSource: 'measured' | 'sourcedEstimate' | 'unknown';
+  servings?: number;
+  additions?: ReadonlyArray<RecipeAddition>;
+  /** Drained/discarded liquid or oil: nutrients leave only when known; water loss is mass, not macronutrient loss. */
+  discards?: ReadonlyArray<{ kind: 'oil' | 'liquid' | 'other'; massG?: number; nutrients?: Partial<Nutrients> }>;
+  waterAddedG?: number;
+  evaporationG?: number;
+}
+
+/**
+ * (D6-04/A1-044) A material added to a recipe beyond its ingredients: its nutrient amounts and, separately, its material
+ * mass (`massG` on `massBasis`). `id` is its material identity: an addition sharing an ingredient's id is a double
+ * inclusion (refused by explicit identity, never silently adjusted).
+ */
+export interface RecipeAddition {
+  id?: string;
+  name: string;
+  nutrients: Partial<Nutrients>;
+  /** Material mass entering the batch, g; absent = unknown (no calculated density). */
+  massG?: number;
+  massBasis?: 'edible' | 'asPurchased' | 'legacyUnknown';
+}
+
+/** (D6-04/D6-03) Immutable nutrient snapshot of a recipe as logged (never re-read from today's recipe or food table). */
+export interface RecipeNutrientSnapshot {
+  recipeVersion: string;
+  batch: Readonly<Partial<Record<NutrientKey, number | null>>>;
+  /** (A1-044) How the final mass is known: measured, sourced estimate, a complete mass balance, or unknown. */
+  finalMassBasis?: 'measured' | 'sourcedEstimate' | 'massBalance' | 'unknown';
+  finalEdibleMassG: number | null;
+  /** Null when the final edible mass is unknown (no cooked-gram density is asserted). */
+  per100g: Readonly<Partial<Record<NutrientKey, number | null>>> | null;
 }
 
 /** The bundled food reference (R4 §2.4). The curated IFCT/USDA subset is a later data task; see docs/CATALOGUES.md. */
@@ -598,6 +854,25 @@ export interface MealTotals {
   fibreG: number;
   satFatG: number;
 }
+
+/**
+ * (D6-01/D6-08, A1-028) Source status of planning totals, the same for every planning/display/fit/log path of one source
+ * version/form/portion: `energyKcal` (in `MealTotals`) is the shared resolved source energy (an eligible measured-ME
+ * alternative replaces the convention value ONCE, never stacked with a second discount), `sourceEnergyKcal` the original
+ * source kcal (audit only, never added); `netCarbG` the record-aware available carbohydrate (fibre subtracted once, only when
+ * the basis includes it); `carbStatus: 'bounded'` = an unresolved basis: `netCarbLowG`–`netCarbHighG` is a labelled
+ * conservative planning bound and no precise carbohydrate compliance may pass on it; `polyolG` identified polyols, g.
+ */
+export interface MealTotalsSourceStatus {
+  sourceEnergyKcal: number;
+  carbStatus: 'resolved' | 'bounded';
+  netCarbLowG: number;
+  netCarbHighG: number;
+  polyolG: number;
+}
+
+/** Planning totals with their source status (A1-028): what `mealTotals` returns and `portionFit`'s `checkDay` evaluates. */
+export type SourceAwareMealTotals = MealTotals & MealTotalsSourceStatus;
 
 export interface NutrientEquivalenceResult {
   score: number;

@@ -108,7 +108,9 @@ export type CoachStatusKind =
   | 'cors'
   | 'noTools'
   | 'basic'
-  | 'safetyNoPlanning';
+  | 'safetyNoPlanning'
+  /** The Coach runs on the paired server and can't answer now (`problem` says why; none while it is being checked). */
+  | 'serverUnavailable';
 
 export interface CoachStatusView {
   kind: CoachStatusKind;
@@ -139,6 +141,8 @@ export interface TurnView {
   stopped?: boolean;
   error?: { kind: string; message: string };
   segment?: number;
+  /** While streaming: what the Coach is doing now ("Looking at sleep…"), one short line. */
+  progress?: string;
 }
 
 export type StreamEventView =
@@ -156,7 +160,7 @@ export interface SendInputView {
 }
 
 export interface BriefingSectionView {
-  id: 'always' | 'about' | 'plan' | 'week' | 'signals' | 'ask' | 'sentTo';
+  id: 'always' | 'about' | 'plan' | 'week' | 'ask' | 'sentTo';
   title: string;
   lines: string[];
   link?: { label: string; to: string };
@@ -164,6 +168,31 @@ export interface BriefingSectionView {
 
 export interface BriefingModelView {
   sections: BriefingSectionView[];
+}
+
+/** A chat kept on the paired server (temporary: deleted `retentionHours` after its last message). */
+export interface ServerChatView {
+  id: string;
+  title?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** What only the Coach on the paired server offers: its temporary chats. */
+export interface ServerCoachControlsView {
+  /** The open chat's id and expiry (null before the first message). */
+  current(): { id: string; expiresAt: string } | null;
+  /** Hours a chat is kept after its last message (from the server's status). */
+  retentionHours(): number;
+  list(): Promise<ServerChatView[]>;
+  /** Reattach to a chat on the server (its messages replace the conversation). */
+  open(id: string): Promise<{ ok: boolean; message?: string }>;
+  /** Keep the open chat for another `retentionHours`. */
+  keep(): Promise<{ ok: boolean; message?: string; expiresAt?: string }>;
+  /** Delete a chat on the server (default the open one). */
+  remove(id?: string): Promise<{ ok: boolean; message?: string }>;
+  /** Start a new chat with the next message (the open one stays on the server until it expires). */
+  fresh(): void;
 }
 
 /** The adapter shape (`CoachAdapter`). */
@@ -176,6 +205,8 @@ export interface CoachAdapterShape {
   briefing(): BriefingModelView;
   subscribe(listener: () => void): () => void;
   revision(): number;
+  /** Only when the Coach runs on the paired server. */
+  server?: ServerCoachControlsView;
 }
 
 /** The one continuous conversation; a fixed valid ULID (the conversations collection keys by ULID). */

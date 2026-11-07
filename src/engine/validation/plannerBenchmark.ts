@@ -87,6 +87,11 @@ export interface PlannerBenchmarkSummary {
   coverage: { report: string } | null;
   /** Repository path of the full report. */
   report: string;
+  /**
+   * D4-09: the production comparison policy the shipped planner ran under (version and fingerprint) and the versioned
+   * reference file the runs were judged against. Absent in summaries published before the policy was versioned.
+   */
+  policy?: { version: number; fingerprint: string; reference: string | null };
 }
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -143,5 +148,7 @@ export function isPlannerBenchmarkSummary(x: unknown): x is PlannerBenchmarkSumm
   if (!isObj(c) || !isStrArr(c['shown']) || !isStrArr(c['notShown'])) return false;
   const cov = x['coverage'];
   if (cov !== null && !(isObj(cov) && isStr(cov['report']))) return false;
+  const pol = x['policy'];
+  if (pol !== undefined && !(isObj(pol) && isNum(pol['version']) && isStr(pol['fingerprint']) && (pol['reference'] === null || isStr(pol['reference'])))) return false;
   return true;
 }

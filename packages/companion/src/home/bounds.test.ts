@@ -1,77 +1,21 @@
 // @vitest-environment node
-/** E6 review of the home role: files that grow with traffic stay bounded, workers never overlap, a revoked token stays revoked. */
+/** E6 review of the home role: workers never overlap, a revoked token stays revoked. */
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, open, readdir, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { tmpdir } from 'node:os';
 import { createDeviceStore } from './devices.ts';
-import { createIngestState, DEADLETTER_DAY_MAX_BYTES, WAL_COMPACT_BYTES } from './ingest.ts';
 import { createPersonRegistry } from './persons.ts';
 import { createWorkerPool } from './workers.ts';
 
 const tmp = () => mkdtemp(join(process.env.TMPDIR ?? tmpdir(), 'e6-'));
-async function rig(now?: () => number, walPendingMaxBytes?: number) {
+async function rig(now?: () => number) {
   const dir = await tmp();
   const persons = createPersonRegistry(dir);
   const p = await persons.add({ label: 'Ana', timeZone: 'UTC', secret: new Uint8Array(32).fill(1), relayUrl: null });
-  return { dir, persons, id: p.id, ingest: createIngestState({ persons, ...(now ? { now } : {}), ...(walPendingMaxBytes ? { walPendingMaxBytes } : {}) }), devices: createDeviceStore({ dataDir: dir, persons, ...(now ? { now } : {}) }) };
+  return { dir, persons, id: p.id, devices: createDeviceStore({ dataDir: dir, persons, ...(now ? { now } : {}) }) };
 }
-const entry = (n: number, bytes = 10) => ({ envelopeId: `e${n}`, topic: 't', receivedAt: 'x', payload: 'x'.repeat(bytes) });
-
-describe('dead letters', { timeout: 60_000 }, () => {
-  it('stop taking lines at the day cap and keep a count of what was dropped', async () => {
-    const { ingest, persons, id } = await rig();
-    const N = 700;
-    for (let i = 0; i < N; i++) await ingest.deadLetter(id, { reason: 'not_json', bytes: 5000, sample: 'z'.repeat(2048) }, false);
-    const dir = persons.paths(id).deadletter;
-    const files = await readdir(dir);
-    const jsonl = files.filter((f) => f.endsWith('.jsonl'));
-    expect(jsonl).toHaveLength(1);
-    expect((await stat(join(dir, jsonl[0]!))).size).toBeLessThanOrEqual(DEADLETTER_DAY_MAX_BYTES);
-    const lines = (await readFile(join(dir, jsonl[0]!), 'utf8')).split('\n').filter(Boolean).length;
-    const dropped = (await stat(join(dir, jsonl[0]!.replace('.jsonl', '.dropped')))).size;
-    expect(lines + dropped).toBe(N);
-    const s = await ingest.status(id, { enabled: true, address: null, connected: () => false });
-    expect(s.deadLetters.today).toBe(N);
-  });
-
-  it('old files are pruned while the server runs, not only at start-up', async () => {
-    const { ingest, persons, id } = await rig();
-    const dir = persons.paths(id).deadletter;
-    await mkdir(dir, { recursive: true });
-    const old = join(dir, '2020-01-01.jsonl');
-    await writeFile(old, '{}\n');
-    await ingest.deadLetter(id, { reason: 'not_json', bytes: 1, sample: 'x' });
-    expect(await readdir(dir)).not.toContain('2020-01-01.jsonl');
-    await utimes(dir, new Date(), new Date());
-  });
-});
-
-describe('write-ahead log', { timeout: 60_000 }, () => {
-  it('refuses new messages once too many are waiting for import (no PUBACK), and accepts again after they are imported', async () => {
-    const MiB = 1024 * 1024;
-    const { ingest, id } = await rig(undefined, 8 * MiB);
-    const fit = 8;
-    for (let i = 0; i < fit; i++) expect(await ingest.walWrite(id, entry(i, MiB))).toBe('written');
-    await expect(ingest.walWrite(id, entry(9999, MiB))).rejects.toMatchObject({ code: 'wal_full' });
-    await ingest.walDone(id, 'e0');
-    expect(await ingest.walWrite(id, entry(9999, MiB))).toBe('written');
-  });
-
-  it('is compacted under a stream that never goes idle, and pending entries survive the rewrite', async () => {
-    const { ingest, persons, id } = await rig();
-    const MiB = 4 * 1024 * 1024;
-    expect(await ingest.walWrite(id, entry(0, 100))).toBe('written'); // stays pending
-    for (let i = 1; i <= 12; i++) {
-      await ingest.walWrite(id, entry(i, MiB));
-      await ingest.walDone(id, `e${i}`);
-    }
-    expect((await stat(persons.paths(id).wal)).size).toBeLessThan(WAL_COMPACT_BYTES + 2 * MiB);
-    expect((await ingest.walPending(id)).map((e) => e.envelopeId)).toEqual(['e0']);
-    expect(await ingest.walWrite(id, entry(5, 10))).toBe('duplicate'); // done markers still recognise a resend
-  });
-});
 
 describe('worker pool', () => {
   it('never opens a second worker for a person while the first is still closing', async () => {
@@ -156,7 +100,7 @@ describe('limits', () => {
 
   it('the pairing limiter keys on the address the proxy saw, not on a client-chosen X-Forwarded-For', async () => {
     const { startTestHome } = await import('./testHome.ts');
-    const t = await startTestHome({ mqtt: false });
+    const t = await startTestHome();
     try {
       let limited = 0;
       for (let i = 0; i < 80; i++) {

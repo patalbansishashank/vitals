@@ -230,62 +230,8 @@ function diffItems(preview: unknown, input: unknown, commandId: string, today: s
   return describeInput(commandId, input, today).slice(0, 8);
 }
 
-/** Where the device's own value for a correction target comes from (hours / steps / kg); the app registers it at start. */
-type DeviceLookup = (kind: 'sleep' | 'steps' | 'weight', date: string) => number | null;
-let deviceLookup: DeviceLookup = () => null;
-export function setCorrectionDeviceLookup(fn: DeviceLookup): void {
-  deviceLookup = fn;
-}
-const deviceValueOf = (kind: 'sleep' | 'steps' | 'weight', date: string): number | null => {
-  try {
-    return deviceLookup(kind, date);
-  } catch {
-    return null;
-  }
-};
-
-/** "Correct your sleep for 2 Oct: Device 5 h 10 min → Yours 6 h 00 min" (a staged `biometrics.correct`). */
-function correctionProposal(id: string, input: unknown, preview: unknown, opts: { createdAt: string; until?: string }): CardView | null {
-  if (!isRec(input) || !isRec(input.target) || !isRec(input.value)) return null;
-  const t = input.target;
-  const v = input.value;
-  const date = str(t.localDate);
-  const kind = t.kind === 'sleep' ? 'sleep' : t.metric === 'steps' ? 'steps' : t.metric === 'weight_kg' ? 'weight' : null;
-  if (!date || !kind) return null;
-  const mine = kind === 'sleep' ? num(v.asleepS) : kind === 'steps' ? num(isRec(v.fields) ? v.fields.steps : undefined) : num(v.value);
-  if (mine === undefined) return null;
-  const show = (n: number | null) => {
-    if (n === null) return 'no reading';
-    if (kind === 'steps') return Math.round(n).toLocaleString('en-US');
-    if (kind === 'weight') return `${n.toFixed(1)} kg`;
-    const m = Math.round(n * 60);
-    return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
-  };
-  const pv = isRec(preview) ? num(preview.deviceValue) : undefined;
-  const device = pv ?? deviceValueOf(kind, date);
-  const yours = show(kind === 'sleep' ? mine / 3600 : mine);
-  const when = dateText(date, localDateOf(opts.createdAt));
-  const note = str(input.note);
-  return {
-    id,
-    class: 'edit',
-    title: `Correct your ${kind} for ${when}: Device ${show(device)} → Yours ${yours}`,
-    source: { label: 'Coach · proposal' },
-    createdAt: opts.createdAt,
-    ...(opts.until ? { until: opts.until } : {}),
-    items: [{ label: kind, before: `Device ${show(device)}`, after: `Yours ${yours}` }],
-    impact: { goalDates: [], metrics: [] },
-    ...(note ? { note } : {}),
-    state: 'pending',
-  };
-}
-
 /** A proposal card (`edit`). */
 export function proposalCard(id: string, title: string, input: unknown, preview: unknown, opts: { createdAt: string; until?: string; summary?: string; commandId?: string }): CardView {
-  if (opts.commandId === 'biometrics.correct') {
-    const c = correctionProposal(id, input, preview, opts);
-    if (c) return c;
-  }
   const impact = impactOf(preview) ?? { goalDates: [], metrics: [] };
   const notes = isRec(preview) && Array.isArray(preview.notes) ? strs(preview.notes) : isRec(preview) && Array.isArray(preview.explanation) ? strs(preview.explanation) : undefined;
   return {

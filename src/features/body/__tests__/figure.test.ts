@@ -1,5 +1,5 @@
 import { DEFAULT_BODY, type BodyProfileValues } from '@/state/profileStore';
-import { deriveFigure, muscleImpliedBodyFat } from '../figure';
+import { describeFigureQuiet, deriveFigure, muscleImpliedBodyFat } from '../figure';
 import { summarizeBody } from '../model';
 
 const man: BodyProfileValues = { ...DEFAULT_BODY, sex: 'male', ageYears: 36, heightCm: 178, weightKg: 84.9 };
@@ -126,5 +126,18 @@ describe('figure derivation (sliders describe the figure, estimates fuse)', () =
     const t0 = performance.now();
     for (let i = 0; i < 200; i++) view({ ...man, sex: i % 2 ? 'male' : 'unspecified', shape: { bodyFatPct: 10 + (i % 40), muscleUpper: 0.5, muscleLower: 0.3 } });
     expect((performance.now() - t0) / 200).toBeLessThan(8);
+  });
+});
+
+describe('the figure named in quiet mode', () => {
+  it('says its frame, where its fat sits, its muscle and its layers, and no number (not the height, not the body fat)', () => {
+    const { f } = view(man);
+    const quiet = describeFigureQuiet(f, 'two-layer');
+    expect(quiet).toMatch(/^Figure, (hips|shoulders)/);
+    expect(quiet).toMatch(/Fat (weighted|evenly)/);
+    expect(quiet).toMatch(/Muscle (as expected|less than expected|more than expected|much)/);
+    expect(quiet).toMatch(/Drawn in two layers/);
+    expect(quiet).not.toMatch(/\d/);
+    expect(describeFigureQuiet(f, 'envelope')).not.toMatch(/two layers/);
   });
 });

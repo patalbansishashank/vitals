@@ -1,4 +1,6 @@
-/* CoachComposer (COMPONENTS §13.18): ink keys, a well field, no accent colour. */
+/* CoachComposer (COMPONENTS §13.18, Ember): prompt chips (neutral pills) above one floating surface — card material,
+   0.5 px gold hairline, 24 px corners — holding the field, the stone attach key and the gold send key. The send key is
+   the only gold here. Disabled: the field reads as disabled (faint), no chips, no attach key, the send key greyed. */
 @layer components {
   .lv-composer {
     display: grid;
@@ -10,7 +12,7 @@
   .lv-composer__chips {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     min-width: 0;
   }
   .lv-composer__chip {
@@ -19,38 +21,57 @@
   .lv-composer__row {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
+    gap: 4px;
     min-width: 0;
+    padding: 4px;
+    padding-left: 16px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-xl);
+  }
+  /* the field has no box of its own: the surface's edge turns into the 2 px gold focus line (Ember fields) */
+  .lv-composer__row:has(.lv-composer__field:focus-visible) {
+    outline: 2px solid var(--lm-signal);
+    outline-offset: -1px;
   }
   .lv-composer__field {
     flex: 1;
     min-width: 0;
-    /* one line is exactly the bar control height (22 px line + 2 px border + the padding) */
-    min-height: var(--lm-bar-control-h);
-    padding: calc((var(--lm-bar-control-h) - 24px) / 2) 12px;
-    border: 1px solid var(--lm-edge);
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-well);
+    /* one line is exactly the send key's 40 px (24 px line + the padding) */
+    min-height: 40px;
+    padding: 8px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: var(--lm-ink);
+    caret-color: var(--lm-signal);
     font: inherit;
-    /* 16 px on mobile so the browser never zooms the field */
-    font-size: 1rem;
-    line-height: 1.375rem;
+    /* 16 px on every screen: the browser never zooms the field, and it reads like the messages */
+    font-size: var(--lm-text-body-l);
+    line-height: var(--lm-text-body-l--lh);
+    font-weight: var(--lm-weight-regular);
     resize: none;
+  }
+  .lv-composer__field:focus-visible {
+    outline: none;
   }
   .lv-composer__field::placeholder {
     color: var(--lm-ink-3);
   }
+  .lv-composer__field:disabled {
+    color: var(--lm-ink-faint);
+    cursor: not-allowed;
+  }
+  .lv-composer__field:disabled::placeholder {
+    color: var(--lm-ink-faint);
+  }
   textarea.lv-composer__field {
     field-sizing: content;
     /* 1–6 lines */
-    max-height: calc(6 * 1.375rem + 20px);
+    max-height: calc(6 * 1.5rem + 16px);
     overflow-y: auto;
   }
-  @media (min-width: 64rem) {
-    .lv-composer__field {
-      font-size: var(--lm-text-base);
-    }
+  .lv-composer__send {
+    flex: none;
   }
   .lv-composer__staged {
     display: flex;
@@ -62,9 +83,27 @@
     height: 40px;
     object-fit: cover;
     border-radius: var(--lm-radius-sm);
-    border: 1px solid var(--lm-line);
   }
   .lv-composer__notice:empty {
     display: none;
+  }
+}
+
+@layer components {
+  .lv-composer__chip-icon {
+    flex: none;
+    color: var(--lm-ink-2);
+  }
+  .lv-composer__chip:nth-child(1) .lv-composer__chip-icon {
+    color: var(--lm-hue-food);
+  }
+  .lv-composer__chip:nth-child(2) .lv-composer__chip-icon {
+    color: var(--lm-hue-body);
+  }
+  .lv-composer__row {
+    --lm-glow-a: 0;
+  }
+  .lv-composer__row:focus-within {
+    --lm-glow-a: 0.18;
   }
 }

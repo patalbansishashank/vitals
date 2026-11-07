@@ -34,6 +34,45 @@ const p = (
   note,
 });
 
+/**
+ * D8-04: version and semantics of the safety layer's energy-availability policy (kept explicit while the raw exposure and
+ * the shared safety contract evolve). EA_7 here is a policy quantity: the trailing 7-day mean, over non-fast days, of daily
+ * samples (EI − net session EE)/FFM_act clipped to [`eaSampleMin`, `eaSampleMax`] — the legacy internal drive bounds,
+ * separate from the raw unclipped exposure the wellbeing model reports. The 45 / 35 / 30 kcal/kg FFM/day markers are
+ * conservative operational policy, not diagnostic boundaries. Version 2: a day with an invalid fat-free mass has no EA
+ * sample (unchecked; version 1 divided by 1 kg). A logged cycle change raises the cycle concern whatever the model's EA.
+ */
+export const SAFETY_EA_POLICY = { version: 2, sample: 'clippedDailyNonFast', invalidFfm: 'unavailable', thresholds: 'operationalPolicy' } as const;
+
+/**
+ * D4-04: semantics of the energy-availability exposure ledger, versioned beside (not replacing) `SAFETY_EA_POLICY`, whose
+ * tier rules keep their eating-day statistic (`eatingDayEa7` = the legacy `ea7`). Calendar EA_n is
+ * Σ_d(EI_d − EEE_net,d) / Σ_d FFM_act,d over the known days of the trailing n calendar days (equal 24-h days; an
+ * FFM-weighted daily mean, not the arithmetic mean of daily ratios): fast, refeed and rest days stay in, daily values may
+ * be negative and are never clipped, EEE_net is net session exercise energy above the resting baseline (not TDEE, so the
+ * resting component is not subtracted twice) and FFM_act is sampled at the end of each day. Unknown intake is excluded
+ * (coverage counts the known days), never read as zero, and the burn-in (assumed habitual history) is not counted as
+ * observed exposure. 30 kcal/kg FFM/day is an existing precautionary design policy
+ * reference (mainly young women/athletes): not a universal safe boundary, not a diagnostic test, and not by itself a new
+ * fasting prohibition; logged menstrual, fatigue, performance or stress-injury concerns trigger review at any EA.
+ */
+export const SAFETY_EA_EXPOSURE_POLICY = {
+  version: 2,
+  eatingDay: 'eatingDayEa7',
+  calendar: 'sumEiMinusEeeOverSumFfm',
+  windowsD: [7, 28],
+  ffmSample: 'endOfDay',
+  rawLedger: 'unclipped',
+  fastDays: 'included',
+  missingIntake: 'excluded',
+  missingExercise: 'excluded',
+  exerciseScope: 'independentCoverage',
+  referenceKcalPerKgFfm: 30,
+  reference: 'precautionaryPolicy',
+  /** Repeated-pattern review: calendar EA_7 below the reference on more than `eaCautionDays` consecutive days (existing policy duration). */
+  repeatedPattern: 'calendarEa7BelowReferenceLongerThanEaCautionDays',
+} as const;
+
 export const SAFETY_PARAMS: readonly ParamDef[] = [
   p(
     'floorFemaleKcal',
@@ -173,7 +212,7 @@ export const SAFETY_PARAMS: readonly ParamDef[] = [
     'Loucks 2003 PMID 12519869',
     '17 \u00a72.2 HC-E4; \u00a73 W-E08',
     'verified',
-    'EA below this is problematic (LH pulsatility disrupted; REDs 2023 debates a universal 30)',
+    'EA below this is problematic (LH pulsatility disrupted; REDs 2023 debates a universal 30). D8-04: a conservative operational policy marker of the safety layer, not a diagnostic boundary (no REDs diagnosis or probability from it)',
   ),
   p(
     'eaReducedUpper',
@@ -193,7 +232,7 @@ export const SAFETY_PARAMS: readonly ParamDef[] = [
     'Mountjoy 2023 REDs PMID 37752011',
     '17 \u00a72.3 EA zones; \u00a73 W-E09',
     'verified',
-    'EA >= 45 adequate; 30-45 reduced',
+    'EA >= 45 adequate; 30-45 reduced. D8-04: historical context/policy bands, not physiological breakpoints; EA at or above 45 is no "healthy" clearance and never overrides logged concerns',
   ),
   p(
     'eaNeedsExercise',

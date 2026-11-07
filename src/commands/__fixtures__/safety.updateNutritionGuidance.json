@@ -1,0 +1,35 @@
+{
+  "id": "nutrition-guidance-fixture-old",
+  "envelope": {
+    "id": "nutrition-guidance-fixture",
+    "version": 1,
+    "condition": "other",
+    "stability": "stable",
+    "weightBasis": "notApplicable",
+    "bounds": [
+      {
+        "id": "protein-fixture",
+        "quantity": "proteinPerDay",
+        "unit": "g/d",
+        "comparator": "cap",
+        "value": 95,
+        "basis": "notApplicable",
+        "scope": "total",
+        "window": {
+          "kind": "day"
+        },
+        "applicability": "applicable",
+        "mandatory": true,
+        "source": {
+          "kind": "clinician",
+          "ref": "fixture-document"
+        },
+        "policyVersion": 1
+      }
+    ],
+    "assessedAt": "2026-10-01",
+    "source": "selfEnteredClinician",
+    "sourceDocument": "fixture-document"
+  },
+  "at": "2026-10-01T10:00:00.000Z"
+}

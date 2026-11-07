@@ -58,7 +58,7 @@ function checkBaseUrl(raw: unknown): string {
 export function parseConfigureInput(input: { preset: Record<string, unknown> }): AiProviderConfig | null {
   const p = input.preset;
   const secret = secretPath(input);
-  if (secret) fail('invalid_input', 'Keys are never part of the provider settings. Enter the key in Settings › AI provider.', { path: secret });
+  if (secret) fail('invalid_input', 'Keys are never part of the provider settings. Enter the key in Settings › Coach.', { path: secret });
   for (const k of Object.keys(p)) if (!ALLOWED.has(k)) fail('invalid_input', `Unknown provider setting "${k}".`, { path: `/preset/${k}` });
   if (p.remove === true) return null;
   if (p.remove !== undefined) fail('invalid_input', '"remove" must be true when present.', { path: '/preset/remove' });

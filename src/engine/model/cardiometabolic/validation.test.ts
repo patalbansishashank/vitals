@@ -7,12 +7,19 @@
  *
  * A target the module misses stays here as `it.fails` with the measured number in the comment (never loosened); the
  * tolerance of each `it` is the dossier's own unless a comment says a tolerance was not stated.
+ *
+ * Review 2026-10-18 (D7-07/D7-08/D7-09): the standard projection has no LEM lean-responder LDL term, no permanent
+ * independent ketosis liver-fat term and no FPG-linked HbA1c response. The targets those terms were fitted to are checked
+ * twice: against the standard model (an expected miss stays visible as `it.fails`) and against the explicitly labelled
+ * exploratory scenario (`lem.enabled`, `liver.ketoScenario`, `a1c.fpgScenario` = 1) they belong to.
  */
 import { buildModelParams, sampleParams } from '../../core/paramsRegistry';
 import { cardiometabolicModule } from './index';
 import { dietDay, makeRig, MAN_PROFILE, RIG_FAT_SHARE, run, spotBhb, WOMAN_PROFILE, type Rig } from './testkit';
 
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
+/** D7-07: the LEM lean-responder term as its explicit exploratory adverse-response scenario. */
+const LEM = { 'lem.enabled': 1 } as const;
 const within = (x: number, target: number, rel: number) => expect(Math.abs(x - target)).toBeLessThanOrEqual(Math.abs(target) * rel);
 
 const man = (age: number, bmi: number, cm = 178) => ({ ...MAN_PROFILE, body: { sex: 'male' as const, ageYears: age, heightCm: cm, weightKg: bmi * (cm / 100) ** 2 } });
@@ -81,16 +88,40 @@ describe('06 V3 Skulas-Ray 2011 omega-3 (men, TG 150-500 mg/dL)', () => {
 });
 
 describe('06 V4 Browning 2011 (NAFLD BMI 35, 2 weeks 1 200-1 500 kcal vs < 20 g carbohydrate/d)', () => {
-  const scenario = (kgLoss: number, bhb: number, carbG: number) => {
-    const rig = makeRig({ profile: man(40, 35), labs: { liverFatPct: 12 } });
+  const scenario = (kgLoss: number, bhb: number, carbG: number, params: Record<string, number> = {}) => {
+    const rig = makeRig({ profile: man(40, 35), labs: { liverFatPct: 12 }, params });
     const r = run(rig, 14, (d) => ({ u: -0.5, bhb: spotBhb(bhb), fmKg: fmAfterLoss(rig, kgLoss * frontLoaded(d, 14)), day: dietDay(rig, { kcal: 1350, carbG }) }));
     return r[13]!.liver / 12 - 1;
   };
+  const KETO_SCENARIO = { 'liver.ketoScenario': 1 };
   it('calorie restriction: IHTG −28 % ± 10 points', () => near(scenario(4.0, 0.3, 180), -0.28, 0.1));
-  it('low carbohydrate (ketotic): IHTG −55 % ± 10 points', () => near(scenario(4.6, 2.0, 20), -0.55, 0.1));
-  it('the ketogenic advantage at equal weight loss is positive (Δ ≈ −27 points, ratio 0.63 in the dossier)', () => {
+  // MISS (D7-08 standard containment): the standard projection has no independent sustained ketosis term, so the ketotic
+  // arm follows its weight/deficit terms (measured −28 %, the same as calorie restriction at equal loss) instead of −55 %.
+  // The early composition effect is real; it is the labelled scenario below (measured −45 %), not a calibrated personal
+  // response.
+  it.fails('low carbohydrate (ketotic), standard model: IHTG −55 % ± 10 points', () => near(scenario(4.6, 2.0, 20), -0.55, 0.1));
+  it.fails('the ketogenic advantage at equal weight loss, standard model (Δ ≈ −27 points in the dossier)', () => {
     expect(scenario(4.6, 2.0, 20)).toBeLessThan(scenario(4.6, 0.3, 180) - 0.12);
   });
+  it('early-composition scenario (liver.ketoScenario): ketotic IHTG −55 % ± 10 points and a positive ketogenic advantage', () => {
+    near(scenario(4.6, 2.0, 20, KETO_SCENARIO), -0.55, 0.1);
+    expect(scenario(4.6, 2.0, 20, KETO_SCENARIO)).toBeLessThan(scenario(4.6, 0.3, 180, KETO_SCENARIO) - 0.12);
+  });
+});
+
+describe('Kirk 2009 48 h (D7-08: early and sustained endpoints are separate validation targets)', () => {
+  // 48 h of isocaloric low- vs high-carbohydrate restriction at the same energy and weight: the early hepatic substrate
+  // effect lowers IHTG more with low carbohydrate. The standard model has no weight-independent keto term, so both arms
+  // match (measured −2.7 % each) — an expected miss kept visible; the labelled scenario reproduces the direction (−8.5 % vs
+  // −2.7 %; no new coefficient is fitted).
+  const arm = (bhb: number, carbG: number, params: Record<string, number> = {}) => {
+    const rig = makeRig({ profile: man(45, 36), labs: { liverFatPct: 10 }, params });
+    const r = run(rig, 2, () => ({ u: -0.4, bhb: spotBhb(bhb), day: dietDay(rig, { kcal: 1100, carbG }) }));
+    return r[1]!.liver / 10 - 1;
+  };
+  it.fails('standard model: 48 h low-carbohydrate lowers IHTG more than high-carbohydrate at equal energy', () => expect(arm(1.5, 40)).toBeLessThan(arm(0.2, 180) - 0.01));
+  it('scenario: 48 h low-carbohydrate lowers IHTG more than high-carbohydrate at equal energy', () =>
+    expect(arm(1.5, 40, { 'liver.ketoScenario': 1 })).toBeLessThan(arm(0.2, 180, { 'liver.ketoScenario': 1 }) - 0.01));
 });
 
 describe('06 V5 Mardinoglu 2018 (NAFLD, IHTG 16 %, isocaloric < 30 g carbohydrate, 14 d)', () => {
@@ -128,16 +159,18 @@ describe('06 §4.9 weight-loss liver fat: −40 % at 7 % loss ± 15 points (Kirk
     near(kirk(0.2, 220), -0.4, 0.15);
     near(kirk(0.2, 220), -0.445, 0.15);
   });
-  // MISS (informational, dossier flags the sustained ketogenic advantage as uncertain): Kirk's low-carbohydrate arm lost 38 % at 11 weeks
-  // (equal to the high-carbohydrate arm); the model keeps the −0.40 ln ketosis term and predicts ≈ −60 %.
-  it.fails('low-carbohydrate arm at 11 weeks: IHTG −38 % ± 15 points (no sustained ketogenic advantage in Kirk 2009)', () => near(kirk(1.5, 40), -0.38, 0.15));
+  // D7-08: the standard projection has no sustained independent ketosis term, so Kirk's low-carbohydrate arm (−38 % at
+  // 11 weeks, equal to the high-carbohydrate arm) is now met; the legacy scenario predicts ≈ −60 % (kept as a visible miss).
+  it('low-carbohydrate arm at 11 weeks: IHTG −38 % ± 15 points (no sustained ketogenic advantage in Kirk 2009)', () => near(kirk(1.5, 40), -0.38, 0.15));
+  it('the standard trajectory does not multiply long-term liver fat by exp(−0.4) for ketosis (arms at equal loss match)', () => near(kirk(1.5, 40), kirk(0.2, 220), 0.02));
 });
 
 describe('MODEL_SPEC §1.14 "Hall 2016 KD LDL": isocaloric switch to 5 %E carbohydrate for 4 weeks in overweight men (BMI 25-35)', () => {
   // The dossiers give no numeric LDL target for Hall 2016 (13 V1 is a weight/N-balance target); the check is qualitative: the mean
   // response of overweight men is modest and far below the lean-adult response (06 §4.3: mean effects in mixed populations +5…+16 mg/dL).
+  // D7-07: checked on the LEM exploratory adverse-response scenario the BMI dependence belongs to.
   const ketoSwitch = (bmi: number) => {
-    const rig = makeRig({ profile: man(35, bmi) });
+    const rig = makeRig({ profile: man(35, bmi), params: LEM });
     const r = run(rig, 28, (d) => ({ u: 0, bhb: spotBhb(1.2), fmKg: fmAfterLoss(rig, (2.2 * (d + 1)) / 28), day: dietDay(rig, { proteinPct: 16, carbPct: 5, sfaPct: 28, mufaPct: 32, pufaPct: 9 }) }))[27]!;
     return r.ldl - rig.k.ldl0;
   };
@@ -276,13 +309,22 @@ describe('06 V9 blood pressure: DASH and sodium (Appel 1997, Sacks 2001, Jurasch
 });
 
 describe('06 V10 HbA1c kinetics (Tahara 1995)', () => {
+  it('D7-09 standard: a sustained fasting-glucose fall does not move the HbA1c forecast (FPG is not the full-day mean)', () => {
+    const rig = makeRig();
+    for (let d = 0; d < 120; d++) {
+      rig.s.fpgWeight = -12;
+      run(rig, 1, () => ({}));
+    }
+    expect(rig.s.a1cDelta).toBe(0);
+    expect(rig.s.outA1cPct).toBe(rig.k.a1cAnchor);
+  });
   it('HbA1c half-time = 34.6 d ± 10 (τ 50 d)', () => {
     const { k } = makeRig();
     const halfTime = -Math.LN2 / Math.log(k.fA1c);
     near(halfTime, 34.6, 1.0);
   });
-  it('a sustained fasting-glucose fall of 12 mg/dL moves HbA1c by −0.54 % (eAG factor 1.3) at steady state', () => {
-    const rig = makeRig();
+  it('a1c.fpgScenario (exploratory): a sustained fasting-glucose fall of 12 mg/dL moves HbA1c by −0.54 % (eAG factor 1.3) at steady state', () => {
+    const rig = makeRig({ params: { 'a1c.fpgScenario': 1 } });
     rig.s.fpgWeight = -12;
     // hold the FPG state by resetting it each day (its own τ 30 d would otherwise decay to the weight target of 0)
     const days = 400;
@@ -294,9 +336,16 @@ describe('06 V10 HbA1c kinetics (Tahara 1995)', () => {
   });
 });
 
-describe('06 V11 LDL response depends on BMI (Buren 2021, Retterstol 2018, Petersen 2026)', () => {
-  it('(a) lean young women, ketogenic 4 weeks: LDL ≈ +70 mg/dL (model within ±30 %), increases in every ensemble member', () => {
+describe('06 V11 LDL response depends on BMI (Buren 2021, Retterstol 2018, Petersen 2026) — LEM exploratory scenario (D7-07)', () => {
+  it('standard model: the LEM term is off (no nominal lean-responder LDL rise), so a ketogenic run is flagged uncertain instead', () => {
     const rig = makeRig({ profile: woman(27, 22) });
+    expect(rig.k.lemEnabled).toBe(0);
+    run(rig, 28, (d) => ({ u: -0.02, bhb: spotBhb(1.5), fmKg: fmAfterLoss(rig, (3 * (d + 1)) / 28), day: dietDay(rig, { proteinPct: 19, carbPct: 4, sfaPct: 30, mufaPct: 28, pufaPct: 10 }) }));
+    expect(rig.s.ldlKeto).toBe(0);
+    expect(rig.s.ketoFromDay).toBeGreaterThanOrEqual(0);
+  });
+  it('(a) lean young women, ketogenic 4 weeks: LDL ≈ +70 mg/dL (model within ±30 %), increases in every ensemble member', () => {
+    const rig = makeRig({ profile: woman(27, 22), params: LEM });
     const r = run(rig, 28, (d) => ({ u: -0.02, bhb: spotBhb(1.5), fmKg: fmAfterLoss(rig, (3 * (d + 1)) / 28), day: dietDay(rig, { proteinPct: 19, carbPct: 4, sfaPct: 30, mufaPct: 28, pufaPct: 10 }) }))[27]!;
     within(r.ldl - rig.k.ldl0, 70, 0.3);
     const base = buildModelParams([cardiometabolicModule as never]);
@@ -304,13 +353,13 @@ describe('06 V11 LDL response depends on BMI (Buren 2021, Retterstol 2018, Peter
     for (const v of draws) {
       const params: Record<string, number> = {};
       base.defs.forEach((d, i) => (params[d.id.replace('cardiometabolic.', '')] = v[i]!));
-      const g = makeRig({ profile: woman(27, 22), params });
+      const g = makeRig({ profile: woman(27, 22), params: { ...params, ...LEM } });
       const e = run(g, 28, (d) => ({ u: -0.02, bhb: spotBhb(1.5), fmKg: fmAfterLoss(g, (3 * (d + 1)) / 28), day: dietDay(g, { proteinPct: 19, carbPct: 4, sfaPct: 30, mufaPct: 28, pufaPct: 10 }) }))[27]!;
       expect(e.ldl).toBeGreaterThan(g.k.ldl0); // 17/17 increased
     }
   });
   const retterstol = (params: Record<string, number> = {}) => {
-    const rig = makeRig({ profile: man(25, 23), params });
+    const rig = makeRig({ profile: man(25, 23), params: { ...params, ...LEM } });
     const r = run(rig, 21, () => ({ u: 0, bhb: spotBhb(1.5), day: dietDay(rig, { proteinPct: 18, carbG: 20, sfaPct: 25, mufaPct: 25, pufaPct: 10 }) }))[20]!;
     return { dl: r.ldl - rig.k.ldl0, pct: r.ldl / rig.k.ldl0 - 1 };
   };
@@ -337,7 +386,7 @@ describe('06 V11 LDL response depends on BMI (Buren 2021, Retterstol 2018, Peter
     expect(q(0.9)).toBeGreaterThan(q(0.1) + 30); // the spread is wide (individual +5 … +107 %)
   });
   const petersen = () => {
-    const rig = makeRig({ profile: man(50, 39, 172), labs: { ldlMmolL: 115 / 38.67 } });
+    const rig = makeRig({ profile: man(50, 39, 172), labs: { ldlMmolL: 115 / 38.67 }, params: LEM });
     const kg = 0.105 * rig.ctx.profile.weightKg;
     const r = run(rig, 84, (d) => ({ u: -0.25, bhb: spotBhb(1.5), fmKg: fmAfterLoss(rig, (kg * (d + 1)) / 84), day: dietDay(rig, { proteinPct: 20, carbPct: 8, sfaPct: 23, mufaPct: 30, pufaPct: 10 }) }))[83]!;
     return { dl: r.ldl - 115, dApoB: r.apoB - rig.k.apoB0 };

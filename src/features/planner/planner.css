@@ -8,47 +8,69 @@
   .lp-page {
     padding-bottom: 32px;
   }
-  .lp-notice {
-    margin-bottom: 16px;
+
+  /* A field label inside a card (body-s, stone, sentence case): "Longest fast I’d do", "Keep the order". */
+  .lp-label {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.125rem;
+    font-weight: 400;
+    color: var(--lm-ink-2);
   }
 
-  /* Safety settings, folded to one line in Standard mode (components/SafetyPanel.tsx) */
+  /* Safety mode: a quiet row at the end of the Goals screen (components/SafetyPanel.tsx), no card */
   .lp-safety {
-    margin-bottom: 16px;
+    margin-top: var(--lm-stack);
+    padding-inline: var(--lm-card-pad);
+  }
+  @media (min-width: 64rem) {
+    .lp-safety {
+      padding-inline: var(--lm-card-pad-lg);
+    }
   }
   .lp-safety__summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 12px;
-    min-height: 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'title chev' 'line chev';
+    align-items: center;
+    gap: 2px 12px;
+    min-height: 56px;
+    padding: var(--lm-card-gap) 0;
     cursor: pointer;
     list-style: none;
   }
   .lp-safety__summary::-webkit-details-marker {
     display: none;
   }
+  .lp-safety__summary:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-sm);
+  }
   .lp-safety__chev {
-    align-self: center;
-    color: var(--lm-ink-2);
+    grid-area: chev;
+    color: var(--lm-ink-3);
     transition: transform var(--lm-dur-fast, 120ms) ease;
   }
-  .lp-safety details[open] .lp-safety__chev {
+  .lp-safety[open] .lp-safety__chev {
     transform: rotate(90deg);
   }
   .lp-safety__title {
-    font-size: var(--lm-text-sm);
+    grid-area: title;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     font-weight: 600;
     color: var(--lm-ink);
   }
   .lp-safety__line {
-    font-size: var(--lm-text-sm);
+    grid-area: line;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
   .lp-safety__body {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px solid var(--lm-line);
+    padding: 4px 0 16px;
   }
   @media (prefers-reduced-motion: reduce) {
     .lp-safety__chev {
@@ -57,24 +79,6 @@
   }
   :root[data-motion='reduce'] .lp-safety__chev {
     transition: none;
-  }
-  .lp-notice.lm-notice,
-  .lp-notice {
-    background: var(--lm-face);
-  }
-  .lp-bar-actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .lp-bar-params {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .lp-actionbar-text {
-    min-width: 0;
-    flex: 1;
   }
   .lp-plain {
     margin: 0;
@@ -86,7 +90,7 @@
     margin: 0;
     padding-left: 18px;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     font-size: var(--lm-text-sm);
     line-height: 1.45;
     color: var(--lm-ink);
@@ -97,113 +101,131 @@
   /* ---------------------------------------------------------------- goals grid */
   .lp-goals-grid {
     display: grid;
-    gap: 16px;
+    gap: var(--lm-stack);
     grid-template-columns: minmax(0, 1fr);
   }
-  .lp-goals-grid__main,
-  .lp-goals-grid__side {
-    display: grid;
-    gap: 16px;
-    align-content: start;
-    min-width: 0;
-  }
-  .lp-goals-grid__wont,
   .lp-goals-grid__horizon,
   .lp-goals-grid__preflight,
   .lp-goals-grid__limits {
     display: grid;
     min-width: 0;
   }
-  /* phones and tablets: one column, read in order: (suggestion) goals · horizon · practical limits · won't do ·
-     before you run (both halves lend their cards to the page grid, which orders them) */
-  @media (max-width: 63.99rem) {
-    .lp-goals-grid__main,
-    .lp-goals-grid__side {
-      display: contents;
-    }
-    .lp-goals-grid__horizon {
-      order: 1;
-    }
-    .lp-goals-grid__limits {
-      order: 2;
-    }
-    .lp-goals-grid__wont {
-      order: 3;
-    }
-    .lp-goals-grid__preflight {
-      order: 4;
-    }
+  /* "Before you run" renders nothing when there is nothing to say: no empty cell, no stray gap */
+  .lp-goals-grid__preflight:empty {
+    display: none;
   }
-  /* wide screens: two equal halves, the same gap and page padding as Your body's halves; left: (suggestion) goals ·
-     won't do; right: horizon · before you run · practical limits */
+  /* r068 PG3 / U4: one column at every width, read in order: (suggestion) goals · horizon · practical limits · before
+     you run. The two top-row halves lend their cards to the page grid, which orders them; only the limits card splits
+     its four sections into two columns where the window is wide (a long form reads better side by side). */
+  .lp-goals-grid__main,
+  .lp-goals-grid__aside {
+    display: contents;
+  }
+  .lp-goals-grid__horizon {
+    order: 1;
+  }
+  .lp-goals-grid__limits {
+    order: 2;
+  }
+  .lp-goals-grid__preflight {
+    order: 3;
+  }
   @media (min-width: 64rem) {
-    .lp-goals-grid {
+    .lp-goals-grid__limits .lp-limits__body {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px 40px;
+      align-items: start;
     }
   }
 
   .lp-goalsface .lm-face-foot {
     justify-content: flex-start;
   }
+  /* "Keep the order": its label over a full-width selector, the card's last row */
   .lp-strict {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 12px;
+    display: grid;
+    gap: var(--lm-row-gap);
+    width: 100%;
   }
-  .lp-goals-empty {
-    border-radius: var(--lm-radius-sm);
-    padding: 28px 16px;
-  }
-  .lp-goals-empty .lm-empty__art {
-    color: var(--lm-ink-3);
-  }
-  .lp-add {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 14px;
-    margin-top: 14px;
-  }
+  /* no goals yet: "Suggested" rows are the card's body, each a full-width row with its own Add at the end (the
+     header's Add a goal opens the full picker) */
   .lp-suggest {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
+    display: grid;
+    gap: var(--lm-row-gap);
   }
-  .lp-suggest__chip {
-    display: inline-flex;
+  .lp-suggest__row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 6px 0 8px;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-xs);
-    background: var(--lm-face);
+    gap: var(--lm-inline) var(--lm-card-gap);
+    width: 100%;
+    min-height: 48px;
+    padding: var(--lm-inline) var(--lm-inline) var(--lm-inline) var(--lm-card-gap);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-control-radius);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 3%);
     color: var(--lm-ink);
     font: inherit;
-    font-size: var(--lm-text-xs);
-    font-weight: 500;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    text-align: left;
     cursor: pointer;
     transition:
       background-color var(--lm-dur-fast) var(--lm-ease-out),
       border-color var(--lm-dur-fast) var(--lm-ease-out);
   }
-  .lp-suggest__chip:hover {
-    border-color: var(--lm-edge);
-    background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 3%);
+  .lp-suggest__name {
+    min-width: 0;
+  }
+  .lp-suggest__add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 32px;
+    padding: 0 var(--lm-card-gap);
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-gold-action);
+    color: var(--lm-signal);
+    font-size: var(--lm-text-label);
+    font-weight: 500;
+  }
+  .lp-suggest__row:hover:not(:disabled) {
+    border-color: var(--lm-line-strong);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+  }
+  .lp-suggest__row:hover:not(:disabled) .lp-suggest__add {
+    background: var(--lm-gold-action-on);
+  }
+  .lp-suggest__row:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lp-suggest__row:disabled {
+    color: var(--lm-ink-faint);
+    cursor: not-allowed;
+  }
+  .lp-suggest__row:disabled .lp-suggest__add {
+    color: var(--lm-ink-faint);
+    background: var(--lm-raised);
+  }
+  /* the legacy-basis confirm action inside a goal row (GoalRankList) */
+  .lp-suggest__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-row-gap);
+    min-height: 32px;
+    padding: 0 var(--lm-card-gap);
+    border: var(--lm-hairline) solid var(--lm-line-strong);
+    border-radius: var(--lm-control-radius);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    color: var(--lm-ink);
+    font: inherit;
+    font-size: var(--lm-text-label);
+    cursor: pointer;
   }
   .lp-suggest__chip:disabled {
     color: var(--lm-ink-faint);
     cursor: not-allowed;
-  }
-  .lp-suggest__chip .lm-icon {
-    color: var(--lm-ink-2);
-  }
-  @media (pointer: coarse) {
-    .lp-suggest__chip {
-      height: 36px;
-    }
   }
 
   /* ---------------------------------------------------------------- rank list */
@@ -216,13 +238,16 @@
   }
   .lp-goal {
     position: relative;
-    background: var(--lm-face);
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
     padding: 10px 0 12px;
   }
   .lp-goal:first-child {
     border-top: 0;
     padding-top: 2px;
+  }
+  /* r068 W2-16: the card's own padding closes the list (no extra band under the last goal) */
+  .lp-goal:last-child {
+    padding-bottom: 0;
   }
   .lp-goal[data-animate] {
     transition: transform var(--lm-dur-base) var(--lm-ease-out);
@@ -231,7 +256,7 @@
     z-index: 2;
     transition: none;
     border-radius: var(--lm-radius-sm);
-    box-shadow: var(--lm-shadow-pop);
+    background: var(--lm-elevated);
     outline: 1px solid var(--lm-line-strong);
     cursor: grabbing;
   }
@@ -240,25 +265,28 @@
     outline: 1px dashed var(--lm-edge);
     outline-offset: 2px;
   }
+  /* a goal row: rank, name and ⋯ / × on the title row; the goal type as a full-width selector under it; then the
+     amount ("at the end") and a labelled priority (r068 PG2: no phantom handle column under the title) */
   .lp-goal__grid {
     display: grid;
-    grid-template-columns: 32px 20px minmax(0, 1fr) auto;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     grid-template-areas:
       'handle rank metric actions'
-      '. mode mode mode'
-      '. controls controls controls'
-      '. notes notes notes';
+      'mode mode mode mode'
+      'controls controls controls controls'
+      'notes notes notes notes';
     align-items: center;
-    column-gap: 6px;
-    row-gap: 8px;
+    column-gap: var(--lm-inline);
+    row-gap: var(--lm-row-gap);
   }
   @media (min-width: 48rem) {
     .lp-goal__grid {
-      grid-template-columns: 36px 26px minmax(0, 1fr) auto;
+      grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 1fr) auto;
       grid-template-areas:
-        'handle rank metric mode'
-        '. . controls actions'
-        '. . notes notes';
+        'handle rank metric metric actions'
+        'mode mode mode controls controls'
+        'notes notes notes notes notes';
+      column-gap: var(--lm-card-gap);
     }
   }
   .lp-goal__handle {
@@ -284,7 +312,6 @@
   .lp-goal__handle[aria-pressed='true'] {
     color: var(--lm-ink);
     background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
   }
   .lp-goal__handle:disabled {
     cursor: default;
@@ -292,8 +319,9 @@
   }
   .lp-goal__rank {
     grid-area: rank;
-    font-size: var(--lm-text-md);
-    font-weight: 700;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-body-l);
+    font-weight: 600;
     color: var(--lm-ink);
     text-align: center;
   }
@@ -312,39 +340,26 @@
     margin-right: 8px;
   }
   .lp-goal__name {
-    font-size: var(--lm-text-base);
+    font-size: var(--lm-text-body-l);
     font-weight: 600;
     color: var(--lm-ink);
     line-height: 1.25;
   }
+  /* a status word after the name ("exploratory", "scenario"): plain stone text, not another tag */
   .lp-goal__tag {
-    font-size: var(--lm-text-2xs);
-    font-weight: 500;
-    color: var(--lm-ink-2);
-    padding: 1px 6px;
-    border: 1px dashed var(--lm-grade-d-edge);
-    border-radius: var(--lm-radius-xs);
+    font-size: var(--lm-text-body-s);
+    font-weight: 400;
+    color: var(--lm-ink-3);
   }
   .lp-goal__mode {
     grid-area: mode;
-    justify-self: start;
     min-width: 0;
   }
-  @media (min-width: 48rem) {
-    .lp-goal__mode {
-      justify-self: end;
-    }
+  .lp-goal__mode:empty {
+    display: none;
   }
   .lp-goal__dir {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: 28px;
-    padding: 0 10px;
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-    font-size: var(--lm-text-sm);
+    font-size: var(--lm-text-body);
     font-weight: 500;
     color: var(--lm-ink);
   }
@@ -367,8 +382,20 @@
   .lp-goal__when {
     white-space: nowrap;
   }
+  .lp-goal__prio {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    flex-basis: 100%;
+  }
   .lp-goal__strength {
-    min-width: 112px;
+    min-width: 128px;
+  }
+  @media (min-width: 48rem) {
+    .lp-goal__prio {
+      flex-basis: auto;
+      margin-left: auto;
+    }
   }
   .lp-goal__actions {
     grid-area: actions;
@@ -379,7 +406,7 @@
   .lp-goal__notes {
     grid-area: notes;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     justify-items: start;
   }
   .lp-goal__help,
@@ -395,22 +422,16 @@
   }
 
   /* conflict / synergy connector: a hairline bracket from the row above */
+  /* conflict / synergy between two goals: one quiet line above the second goal (r068: no floating bracket) */
   .lp-conn {
     position: relative;
     display: flex;
     align-items: center;
     min-height: 28px;
-    margin: -4px 0 6px 58px;
+    margin: 0 0 var(--lm-row-gap);
   }
   .lp-conn__bracket {
-    position: absolute;
-    left: -44px;
-    top: -18px;
-    width: 12px;
-    height: 32px;
-    border: 1px solid var(--lm-ink-3);
-    border-right: 0;
-    border-radius: 3px 0 0 3px;
+    display: none;
   }
   .lp-conn[data-kind='synergy'] .lp-conn__bracket {
     border-color: var(--lm-ok-mark);
@@ -418,7 +439,7 @@
   .lp-conn__btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     min-height: 28px;
     padding: 2px 6px;
     margin-left: -6px;
@@ -450,7 +471,7 @@
   .lp-pop__title {
     margin: 0;
     font-size: var(--lm-text-sm);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-pop__body {
@@ -458,9 +479,6 @@
     font-size: var(--lm-text-sm);
     line-height: 1.5;
     color: var(--lm-ink);
-  }
-  .lp-pop__foot {
-    margin: 0;
   }
 
   /* ---------------------------------------------------------------- picker */
@@ -480,6 +498,9 @@
   }
   .lp-picker-pop .lp-picker {
     max-height: min(560px, calc(100dvh - 120px));
+  }
+  .lp-picker__suggest {
+    padding: 12px 12px 4px;
   }
   .lp-picker__search {
     position: relative;
@@ -501,21 +522,21 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--lm-card-gap);
     padding: 0 14px 8px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-picker__toggle {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     font-size: var(--lm-text-xs);
     font-weight: 500;
     color: var(--lm-ink-2);
     cursor: pointer;
   }
   .lp-picker__toggle input {
-    accent-color: var(--lm-ink);
+    accent-color: var(--lm-signal);
     width: 14px;
     height: 14px;
   }
@@ -524,7 +545,7 @@
     padding: 8px 14px;
     font-size: var(--lm-text-xs);
     color: var(--lm-ink);
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-picker__groups {
     overflow-y: auto;
@@ -554,7 +575,7 @@
     padding: 6px 14px;
     background: var(--lm-raised);
     font-size: var(--lm-text-xs);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-picker__count {
@@ -570,12 +591,12 @@
   }
   .lp-pick__btn {
     display: grid;
-    grid-template-columns: 14px minmax(0, 1fr) auto auto 20px;
+    grid-template-columns: minmax(0, 1fr) auto 20px;
     align-items: center;
-    gap: 8px;
+    gap: var(--lm-inline);
     width: 100%;
-    min-height: 36px;
-    padding: 4px 14px;
+    min-height: 40px;
+    padding: 4px var(--lm-card-pad);
     border: 0;
     background: transparent;
     color: var(--lm-ink);
@@ -585,7 +606,7 @@
     cursor: pointer;
   }
   .lp-pick__btn:hover:not([aria-disabled='true']) {
-    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
+    background: var(--lm-gold-soft);
   }
   .lp-pick__btn[aria-disabled='true'] {
     cursor: default;
@@ -594,7 +615,7 @@
     color: var(--lm-ink-2);
   }
   .lp-pick[data-added] .lp-pick__act {
-    color: var(--lm-ink);
+    color: var(--lm-signal);
   }
   .lp-pick__name {
     font-weight: 500;
@@ -610,7 +631,7 @@
     color: var(--lm-ink-2);
   }
   .lp-pick__detail {
-    padding: 0 14px 0 36px;
+    padding: 0 var(--lm-card-pad);
   }
   .lp-pick__detail:empty {
     display: none;
@@ -618,7 +639,7 @@
   .lp-pick__reason,
   .lp-pick__help,
   .lp-pick__caveat {
-    margin: 0 0 6px;
+    margin: 0 0 var(--lm-row-gap);
     font-size: var(--lm-text-2xs);
     line-height: 1.45;
     color: var(--lm-ink-2);
@@ -631,25 +652,6 @@
     .lp-pick__btn {
       min-height: 44px;
     }
-  }
-
-  /* ---------------------------------------------------------------- horizon */
-  .lp-horizon__row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
-  }
-  .lp-horizon__weeks {
-    width: 176px;
-  }
-  .lp-horizon__start {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .lp-horizon__start .lm-input {
-    width: 150px;
   }
 
   /* ---------------------------------------------------------------- limits */
@@ -665,20 +667,73 @@
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
   }
   .lp-days legend {
     padding: 0;
     margin-bottom: 6px;
   }
+  /* Days I can train: seven equal segments in a selector well; several can be on (r068 PG5) */
   .lp-days__keys {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
+    gap: var(--lm-select-inset);
+    padding: var(--lm-select-inset);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-select-track);
   }
-  .lp-days__keys .lm-key {
-    padding-inline: 0;
+  .lp-days__key {
     min-width: 0;
+    height: 32px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: calc(var(--lm-radius-md) - var(--lm-select-inset));
+    background: transparent;
+    color: var(--lm-ink-3);
+    font: inherit;
+    font-size: var(--lm-text-label-s);
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      color var(--lm-dur-fast) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lp-days__key:hover:not(:disabled) {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+  }
+  .lp-days__key[aria-pressed='true'] {
+    background: var(--lm-select-on);
+    border-color: var(--lm-select-on-edge);
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .lp-days__key:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lp-days__key:disabled {
+    color: var(--lm-ink-faint);
+    cursor: not-allowed;
+  }
+  @media (pointer: coarse) {
+    .lp-days__key {
+      height: 36px;
+    }
+  }
+  /* every on/off row of the limits (the fasting preference and the opt-ins) puts its switch in one trailing column */
+  .lp-limits .lm-safety-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--lm-card-pad);
+  }
+  .lp-limits .lm-safety-row > :is(.lm-safety-row__note) {
+    grid-column: 1 / -1;
+  }
+  .lp-switchrow {
+    border-top: 0;
   }
   .lp-limits__pair {
     display: grid;
@@ -686,44 +741,82 @@
   }
   .lp-field {
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     min-width: 0;
   }
-  .lp-field__note {
-    margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+  .lp-field__hint {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
-  .lp-eat {
+  .lp-limits__optins {
+    margin-top: -4px;
+  }
+  /* "Leave out": a checkbox list, checked = left out of plans; two or three columns where the card is wide */
+  .lp-leaveout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
+    gap: var(--lm-row-gap) var(--lm-stack);
   }
   .lp-dial__read {
     font-size: 13px;
-    font-weight: 600;
-    font-stretch: 112%;
+    font-weight: 500;
     fill: var(--lm-ink);
     font-variant-numeric: tabular-nums;
   }
   .lp-dial__sub {
     font-size: 11px;
-    font-weight: 500;
-    font-stretch: 84%;
+    font-weight: 400;
     fill: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
   }
-  .lp-wont {
-    display: grid;
-    gap: 10px;
-  }
 
   /* ---------------------------------------------------------------- before you run */
+  /* hints as rows of the card: mark · title + one line · its remedy */
   .lp-preflight__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: grid;
-    gap: 12px;
+  }
+  .lp-hint {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 8px;
+    padding: var(--lm-card-gap) 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lp-hint:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+  .lp-hint:last-child {
+    padding-bottom: 0;
+  }
+  .lp-hint__mark {
+    margin-top: 2px;
+  }
+  .lp-hint__text {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+  .lp-hint__title {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: 1.3125rem;
+    color: var(--lm-ink);
+  }
+  .lp-hint__body {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: 1.125rem;
+    color: var(--lm-ink-2);
+  }
+  .lp-hint__action {
+    grid-column: 2;
+    justify-self: start;
   }
   .lp-preflight__pending {
     display: flex;
@@ -732,15 +825,6 @@
     margin: 0 0 8px;
     font-size: var(--lm-text-sm);
     color: var(--lm-ink-2);
-  }
-  .lp-preflight__ok {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink);
-    line-height: 1.45;
   }
 
   /* ---------------------------------------------------------------- run */
@@ -758,8 +842,28 @@
   }
   .lp-run__lead {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: 1.5;
+    font-size: var(--lm-text-sm);
+    line-height: 1.3125rem;
+    color: var(--lm-ink-2);
+  }
+  .lp-run__note {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  /* exhaustive search plateau: a fact and its two keys, a row of the run card */
+  .lp-run__plateau {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    padding-top: 12px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lp-run__plateau-text {
+    margin: 0;
+    font-size: var(--lm-text-sm);
     color: var(--lm-ink);
   }
   .lp-run__actions {
@@ -767,9 +871,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 12px;
-  }
-  .lp-run__hint {
-    color: var(--lm-ink-3);
   }
   .lp-slots {
     list-style: none;
@@ -779,16 +880,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
+  /* slots are rows of the run card, not boxes inside it */
   .lp-slot {
     --lp-c: var(--lm-plan-a);
     display: flex;
     align-items: center;
     gap: 10px;
     min-width: 0;
-    padding: 8px 10px;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-well);
+    padding: 4px 0;
   }
   .lp-slot[data-plan='b'] {
     --lp-c: var(--lm-plan-b);
@@ -796,38 +895,17 @@
   .lp-slot[data-plan='c'] {
     --lp-c: var(--lm-plan-c);
   }
-  .lp-slot__key {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    flex: none;
-    border-radius: 5px;
-    border: 1.5px solid var(--lp-c);
-    color: var(--lm-ink-2);
-    font-weight: 700;
-    font-stretch: 112%;
-    font-size: var(--lm-text-sm);
-    background: var(--lm-face);
-    transition:
-      background-color var(--lm-dur-slow) var(--lm-ease-out),
-      color var(--lm-dur-slow) var(--lm-ease-out);
-  }
-  .lp-slot[data-filled] {
-    background: var(--lm-face);
-  }
-  .lp-slot[data-filled] .lp-slot__key {
-    background: var(--lp-c);
-    color: var(--lm-ink-inverse);
-  }
   .lp-slot__text {
     display: grid;
     min-width: 0;
   }
   .lp-slot__name {
     font-size: var(--lm-text-xs);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
+  }
+  .lp-slot:not([data-filled]):not([data-rung='hard']) .lp-slot__name {
+    color: var(--lm-ink-3);
   }
   .lp-slot__status {
     font-size: var(--lm-text-2xs);
@@ -850,34 +928,24 @@
     color: var(--lm-ink);
     overflow-wrap: anywhere;
   }
-  .lp-slot__pct {
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-2xs);
-    white-space: nowrap;
-  }
   .lp-run__chart {
-    border: 1px solid var(--lm-line);
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-face);
     min-height: 150px;
   }
+  /* before the first plan: the chart's place, an empty well (no dot grid) */
   .lp-run__chart--empty {
-    display: grid;
-    place-items: center;
-    background-color: var(--lm-avatar-stage);
-    background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1.1px, transparent 1.4px);
-    background-size: 12px 12px;
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-well);
   }
   .lp-counters {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
     margin: 0;
-    border-top: 1px solid var(--lm-line);
-    border-bottom: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-counters > div {
     padding: 10px 12px;
-    border-left: 1px solid var(--lm-line);
+    border-left: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-counters > div:first-child {
     border-left: 0;
@@ -885,137 +953,61 @@
   }
   .lp-counters dd {
     margin: 2px 0 0;
-    font-size: var(--lm-readout-sm, 22px);
-    font-weight: 600;
+    font-size: var(--lm-readout-sm, 20px);
+    font-weight: 500;
     color: var(--lm-ink);
     line-height: 1.1;
+    font-variant-numeric: tabular-nums;
   }
+  /* the stages as a vertical list: a mark per stage (done ✓-dot, the current one gold), the current one in ink */
   .lp-stages {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 0;
-    font-size: var(--lm-text-xs);
-    font-weight: 500;
+    display: grid;
+    gap: var(--lm-row-gap);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 400;
     color: var(--lm-ink-3);
   }
   .lp-stages li {
-    display: inline-flex;
+    display: grid;
+    grid-template-columns: 8px minmax(0, 1fr);
     align-items: center;
+    gap: var(--lm-card-gap);
   }
-  .lp-stages li + li::before {
-    content: '→';
-    margin: 0 8px;
-    color: var(--lm-ink-3);
+  .lp-stages li::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid var(--lm-line-strong);
   }
   .lp-stages li[data-state='done'] {
     color: var(--lm-ink-2);
   }
+  .lp-stages li[data-state='done']::before {
+    border-color: var(--lm-ink-3);
+    background: var(--lm-ink-3);
+  }
   .lp-stages li[data-state='now'] {
     color: var(--lm-ink);
-    font-weight: 600;
+    font-weight: 500;
   }
-  .lp-stages li[data-state='now']::after {
-    content: '';
-    width: 6px;
-    height: 6px;
-    margin-left: 6px;
-    border-radius: 50%;
+  .lp-stages li[data-state='now']::before {
+    border-color: var(--lm-signal);
     background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
   }
 
   /* ---------------------------------------------------------------- results */
-  .lp-confidence {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    margin: 0 0 14px;
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
-    color: var(--lm-ink-2);
-  }
   .lp-results {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
-  .lp-results > .lp-notice {
-    margin: 0;
-  }
-  @media (min-width: 64rem) {
-    /* one plan: the card and "why" read side by side */
-    .lp-results[data-count='1'] {
-      grid-template-columns: minmax(320px, 440px) minmax(0, 1fr);
-      align-items: start;
-    }
-    .lp-results[data-count='1'] > * {
-      grid-column: 1 / -1;
-    }
-    .lp-results[data-count='1'] > .lp-cards-wrap {
-      grid-column: 1;
-    }
-    .lp-results[data-count='1'] > .lp-why-face {
-      grid-column: 2;
-    }
-    .lp-results[data-count='1'] .lp-cards {
-      grid-template-columns: minmax(0, 1fr);
-    }
-  }
-  .lp-results.is-stale .lp-cards,
-  .lp-results.is-stale .lp-why-face,
   .lp-results.is-stale .lp-tabs {
     opacity: 0.6;
-  }
-  .lp-cards-wrap {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    min-width: 0;
-  }
-  .lp-cards {
-    /* containing block for the cards' visually-hidden (absolute) text, so the swipe row clips it instead of the page
-       growing sideways at 375 px (sweep 2026-10-01) */
-    position: relative;
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: calc(100% - 28px);
-    gap: 12px;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    scroll-padding-inline: 0;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-    padding: 4px 2px 8px;
-    margin: -4px -2px 0;
-  }
-  .lp-cards::-webkit-scrollbar {
-    display: none;
-  }
-  .lp-cards[data-count='1'] {
-    grid-auto-columns: 100%;
-  }
-  @media (min-width: 48rem) {
-    .lp-cards {
-      grid-auto-flow: row;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      overflow: visible;
-      padding: 0;
-      margin: 0;
-    }
-  }
-  @media (min-width: 64rem) {
-    .lp-cards {
-      grid-template-columns: repeat(3, minmax(300px, 1fr));
-    }
-    .lp-cards[data-count='2'] {
-      grid-template-columns: repeat(2, minmax(300px, 480px));
-    }
-    .lp-cards[data-count='1'] {
-      grid-template-columns: minmax(300px, 520px);
-    }
   }
   .lp-dots {
     display: flex;
@@ -1039,65 +1031,16 @@
   }
   .lp-dot::after {
     content: '';
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
-    border: 1px solid var(--lm-ink-3);
+    background: var(--lm-ink-faint);
   }
   .lp-dot[data-on]::after {
     background: var(--lm-ink);
-    border-color: var(--lm-ink);
-  }
-  .lp-count-note {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
   }
 
   /* plan card */
-  .lp-card {
-    --lp-c: var(--lm-plan-a);
-    scroll-snap-align: start;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px;
-    background: var(--lm-face);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
-    cursor: pointer;
-    transition:
-      box-shadow var(--lm-dur-fast) var(--lm-ease-out),
-      border-color var(--lm-dur-fast) var(--lm-ease-out);
-  }
-  .lp-card[data-plan='b'] {
-    --lp-c: var(--lm-plan-b);
-  }
-  .lp-card[data-plan='c'] {
-    --lp-c: var(--lm-plan-c);
-  }
-  .lp-card:hover {
-    border-color: var(--lm-edge);
-  }
-  .lp-card[data-selected] {
-    border-color: var(--lm-ink);
-    box-shadow:
-      0 0 0 1px var(--lm-ink),
-      var(--lm-shadow-face);
-  }
-  .lp-card__head {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    border-radius: var(--lm-radius-sm);
-    outline-offset: 4px;
-  }
-  .lp-card__title {
-    min-width: 0;
-    flex: 1;
-  }
   .lp-card__figure {
     width: 56px;
     flex: none;
@@ -1105,95 +1048,8 @@
     border-radius: var(--lm-radius-sm);
     overflow: hidden;
   }
-  .lp-card__name {
-    margin: 0;
-    font-size: var(--lm-text-base);
-    font-weight: 600;
-    line-height: 1.3;
-    color: var(--lm-ink);
-    text-wrap: balance;
-  }
-  .lp-card__meta {
-    margin: 2px 0 0;
-    font-size: var(--lm-text-xs);
-    color: var(--lm-ink-2);
-  }
-  .lp-card__diff {
-    margin-top: -4px;
-  }
-  .lp-card__practical {
-    margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: 1.5;
-    color: var(--lm-ink-2);
-  }
   .lp-cards__disclaimer {
     margin: 0 !important;
-  }
-  .lp-card__actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
-    margin-top: auto;
-    padding-top: 10px;
-    border-top: 1px solid var(--lm-line);
-  }
-
-  .lp-letter {
-    --lp-c: var(--lm-plan-a);
-    display: inline-grid;
-    place-items: center;
-    flex: none;
-    width: var(--lp-letter, 24px);
-    height: var(--lp-letter, 24px);
-    border-radius: 5px;
-    background: var(--lp-c);
-    color: var(--lm-ink-inverse);
-    font-size: 13px;
-    font-weight: 700;
-    font-stretch: 112%;
-    box-shadow: var(--lm-shadow-key);
-  }
-  .lp-letter[data-plan='b'] {
-    --lp-c: var(--lm-plan-b);
-  }
-  .lp-letter[data-plan='c'] {
-    --lp-c: var(--lm-plan-c);
-  }
-  .lp-letter[data-pressed] {
-    box-shadow: var(--lm-shadow-key-pressed);
-    transform: translateY(1px);
-  }
-  .lp-letter--inline {
-    width: 18px;
-    height: 18px;
-    font-size: 11px;
-    box-shadow: none;
-  }
-
-  .lp-diff {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--lm-text-xs);
-    font-weight: 500;
-    color: var(--lm-ink-2);
-    border-radius: var(--lm-radius-xs);
-  }
-  .lp-diff__pips {
-    display: inline-flex;
-    gap: 3px;
-  }
-  .lp-diff__pips i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    border: 1px solid var(--lm-ink-3);
-  }
-  .lp-diff__pips i[data-on] {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
   }
 
   /* phase timeline */
@@ -1215,6 +1071,45 @@
   .lp-phases[data-size='detail'] .lp-phases__strip {
     height: 44px;
   }
+  .lp-phases[data-size='card'] {
+    gap: var(--lm-row-gap);
+  }
+  .lp-phases[data-size='card'] .lp-phases__strip {
+    height: 8px;
+  }
+  .lp-phases[data-size='card'] .lp-phases__seg {
+    padding: 0;
+    border-radius: 2px;
+  }
+  .lp-phases__rows {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: var(--lm-row-gap);
+  }
+  .lp-phases__row {
+    display: grid;
+    grid-template-columns: 10px minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--lm-inline);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink);
+  }
+  .lp-phases__swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    align-self: center;
+    background: var(--lm-energy-neutral);
+    outline: 1px solid color-mix(in oklab, var(--lm-ink) 14%, transparent);
+    outline-offset: -1px;
+  }
+  .lp-phases__rwk {
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+  }
   .lp-phases__seg {
     flex: 1 1 0;
     min-width: 6px;
@@ -1224,7 +1119,8 @@
     border-radius: 3px;
     overflow: hidden;
     background: var(--lm-energy-neutral);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-ink) 8%, transparent);
+    outline: 1px solid color-mix(in oklab, var(--lm-ink) 8%, transparent);
+    outline-offset: -1px;
     font-size: var(--lm-text-2xs);
     font-weight: 500;
     color: var(--lm-ink);
@@ -1266,38 +1162,37 @@
   }
   /* cards show the phase name too when the segment is wide enough (the container query above hides it in narrow
      segments); before Q6 a card drew an unlabelled tinted bar */
-  .lp-phases__seg[data-tone='deficit-1'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='deficit-1'] {
     background: var(--lm-energy-deficit-1);
   }
-  .lp-phases__seg[data-tone='deficit-2'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='deficit-2'] {
     background: var(--lm-energy-deficit-2);
   }
-  .lp-phases__seg[data-tone='deficit-3'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='deficit-3'] {
     background: var(--lm-energy-deficit-3);
   }
-  .lp-phases__seg[data-tone='deficit-4'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='deficit-4'] {
     background: var(--lm-energy-deficit-4);
   }
-  .lp-phases__seg[data-tone='surplus-1'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='surplus-1'] {
     background: var(--lm-energy-surplus-1);
   }
-  .lp-phases__seg[data-tone='surplus-2'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='surplus-2'] {
     background: var(--lm-energy-surplus-2);
   }
-  .lp-phases__seg[data-tone='surplus-3'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='surplus-3'] {
     background: var(--lm-energy-surplus-3);
   }
-  .lp-phases__seg[data-tone='surplus-4'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='surplus-4'] {
     background: var(--lm-energy-surplus-4);
   }
-  .lp-phases__seg[data-tone='fast'] {
+  :is(.lp-phases__seg, .lp-phases__swatch)[data-tone='fast'] {
     background: repeating-linear-gradient(135deg, var(--lm-well) 0 4px, color-mix(in oklab, var(--lm-ink) 22%, var(--lm-well)) 4px 5px);
   }
   .lp-phases__scale {
     position: relative;
     height: 16px;
     font-size: 11px;
-    font-stretch: 84%;
     font-variant-numeric: tabular-nums;
     color: var(--lm-ink-2);
   }
@@ -1337,7 +1232,8 @@
     border-radius: 2px;
     vertical-align: -1px;
     background: var(--lm-energy-neutral);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-ink) 14%, transparent);
+    outline: 1px solid color-mix(in oklab, var(--lm-ink) 14%, transparent);
+    outline-offset: -1px;
   }
   .lp-phase-dot[data-tone='deficit-1'] {
     background: var(--lm-energy-deficit-1);
@@ -1359,12 +1255,6 @@
   }
 
   /* scorecard */
-  .lp-card__scores {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-  }
   .lp-score {
     display: grid;
     grid-template-columns: 18px minmax(0, 1fr) auto;
@@ -1375,12 +1265,12 @@
     column-gap: 8px;
     row-gap: 1px;
     padding: 8px 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
     align-items: baseline;
   }
   .lp-score__rank {
     grid-area: rank;
-    font-weight: 700;
+    font-weight: 500;
     font-size: var(--lm-text-sm);
     color: var(--lm-ink);
   }
@@ -1391,7 +1281,7 @@
     line-height: 1.3;
   }
   .lp-score__name {
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-score__what {
@@ -1423,7 +1313,7 @@
   .lp-score__value {
     grid-area: value;
     font-size: var(--lm-text-md);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-score__detail {
@@ -1435,7 +1325,7 @@
   .lp-safety-line {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     margin: 0;
     font-size: var(--lm-text-xs);
     font-weight: 500;
@@ -1458,46 +1348,19 @@
   }
 
   /* why they differ */
-  .lp-why-face__lead {
-    margin: 0 0 12px;
-    font-size: var(--lm-text-md);
-    font-weight: 600;
-    line-height: 1.4;
-    color: var(--lm-ink);
-    text-wrap: balance;
-  }
-  .lp-why-face__plans {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 8px;
-  }
-  .lp-why-face__plans li {
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 10px;
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
-    color: var(--lm-ink);
-  }
-  .lp-why-face__plans .lp-letter--inline {
-    margin-top: 2px;
+  .lp-why-face__fasting strong {
+    font-weight: 500;
   }
   .lp-why-face__fasting {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: baseline;
-    gap: 10px;
-    margin: 12px 0 0;
-    padding-top: 10px;
-    border-top: 1px solid var(--lm-line);
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
+    gap: 2px;
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
   }
-  .lp-why-face__sub {
-    margin: -4px 0 14px;
+  .lp-why-face__fasting strong {
+    font-size: var(--lm-text-body-s);
     color: var(--lm-ink-2);
   }
   .lp-notes {
@@ -1517,11 +1380,10 @@
   }
   .lp-relations {
     list-style: none;
-    margin: 14px 0 0;
-    padding: 12px 0 0;
-    border-top: 1px solid var(--lm-line);
+    margin: 0;
+    padding: 0;
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
   }
   .lp-relations li {
     display: grid;
@@ -1538,29 +1400,56 @@
 
   /* tabs */
   .lp-tabs {
-    scroll-margin-top: calc(var(--lm-topbar-h, 56px) + 16px);
+    scroll-margin-top: calc(var(--lm-header-h, 56px) + 16px);
   }
+  /* the five tabs fill the row and all fit at 360 px (r068 PR1); the plan they describe is named under them */
   .lp-tabs__bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 14px;
-    margin-bottom: 12px;
+    display: grid;
+    gap: var(--lm-row-gap);
+    margin-bottom: var(--lm-card-gap);
   }
-  .lp-tabs__for {
+  /* the plan the tabs describe, as the panel's head: name in the card-title role, its subtitle under it */
+  .lp-tabpanel__head {
+    display: grid;
+    gap: 2px;
+    margin: 0 0 var(--lm-card-gap);
+    padding-bottom: var(--lm-card-gap);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
     min-width: 0;
   }
+  .lp-tabpanel__title {
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: var(--lm-text-title-m--wt);
+    color: var(--lm-ink);
+  }
+  .lp-tabpanel__sub {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lp-nowrap {
+    white-space: nowrap;
+  }
+  @media (max-width: 47.99rem) {
+    .lp-tabs__bar .lm-bank > .lm-bank__key {
+      min-width: 0;
+      padding-inline: 4px;
+      font-size: var(--lm-text-label-s);
+    }
+  }
+  /* the tab panel is one card (card material); nothing inside it is a card */
   .lp-tabpanel {
-    padding: 16px;
-    background: var(--lm-face);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
+    padding: var(--lm-card-pad);
+    background: var(--lm-card-bg);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
     min-width: 0;
   }
   @media (min-width: 64rem) {
     .lp-tabpanel {
-      padding: 20px;
+      padding: var(--lm-card-pad-lg);
     }
   }
 
@@ -1572,18 +1461,40 @@
   }
   .lp-overview__facts {
     display: grid;
-    gap: 20px;
+    gap: calc(var(--lm-stack) + var(--lm-row-gap));
   }
   @media (min-width: 64rem) {
     .lp-overview__facts {
       display: block;
       columns: 2;
-      column-gap: 40px;
+      column-gap: calc(2 * var(--lm-gutter-lg));
     }
     .lp-overview__facts > .lm-section {
       break-inside: avoid;
-      margin-bottom: 22px;
+      margin-bottom: calc(var(--lm-stack) + var(--lm-row-gap));
     }
+  }
+  /* r068 W2-5: section headings in the card-title role, clearly above the prose; the prose one step quieter */
+  .lp-overview .lm-section-label,
+  .lp-limitstab .lm-section-label,
+  .lp-safetytab .lm-section-label {
+    margin: 0 0 var(--lm-row-gap);
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    font-weight: var(--lm-text-title-m--wt);
+  }
+  .lp-overview__facts .lp-plain,
+  .lp-overview__facts .lp-plain-list {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .lp-overview .lp-overview__caption {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+    margin-bottom: var(--lm-row-gap);
   }
   .lp-table-wrap {
     overflow-x: auto;
@@ -1601,7 +1512,7 @@
   .lp-week th,
   .lp-week td {
     padding: 8px 10px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
     text-align: left;
     vertical-align: top;
   }
@@ -1620,6 +1531,12 @@
   .lp-week td:first-child {
     padding-left: 0;
   }
+  @media (min-width: 48rem) {
+    .lp-phase-table thead th:last-child,
+    .lp-phase-table tbody td:last-child {
+      text-align: right;
+    }
+  }
   .lp-phase-table .num,
   .lp-week .num {
     text-align: right;
@@ -1627,7 +1544,7 @@
     white-space: nowrap;
   }
   .lp-phase-table tbody th {
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
   }
   .lp-phase-table__bal {
@@ -1635,7 +1552,6 @@
     margin-top: 2px;
     font-size: var(--lm-text-2xs);
     color: var(--lm-ink-2);
-    font-stretch: 100%;
   }
   .lp-phase-table__why {
     min-width: 260px;
@@ -1645,12 +1561,13 @@
     .lp-phase-table thead {
       display: none;
     }
+    /* r068 W2-5: the phase's name has the row to itself (its ⓘ stays on its line); weeks and energy sit under it */
     .lp-phase-table tbody tr {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      column-gap: 12px;
+      grid-template-columns: auto auto minmax(0, 1fr);
+      column-gap: var(--lm-card-gap);
       padding: 10px 0;
-      border-bottom: 1px solid var(--lm-line);
+      border-bottom: var(--lm-hairline) solid var(--lm-line);
     }
     .lp-phase-table tbody th,
     .lp-phase-table tbody td {
@@ -1658,7 +1575,16 @@
       padding: 2px 0;
     }
     .lp-phase-table tbody th {
+      grid-column: 1 / -1;
       white-space: normal;
+    }
+    .lp-phase-table tbody td:nth-of-type(1),
+    .lp-phase-table tbody td:nth-of-type(2) {
+      text-align: left;
+      color: var(--lm-ink-2);
+    }
+    .lp-phase-table tbody td:nth-of-type(1)::before {
+      content: 'wk ';
     }
     .lp-phase-table tbody td:nth-of-type(3),
     .lp-phase-table__why {
@@ -1675,11 +1601,20 @@
   .lp-phase-table__sum {
     display: block;
     color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs);
-    margin-bottom: 4px;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    margin-top: 4px;
+  }
+  .lp-phase-table__more {
+    margin-top: var(--lm-row-gap);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lp-phase-table tbody th .lm-key {
+    vertical-align: middle;
+    margin: -8px 0 -8px 2px;
   }
   .lp-why {
-    display: inline;
+    display: block;
   }
   .lp-why .lm-key {
     vertical-align: middle;
@@ -1718,19 +1653,16 @@
     place-items: center;
     width: 24px;
     height: 24px;
-    border-radius: var(--lm-radius-xs);
+    border-radius: var(--lm-radius-sm);
     background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-key);
-    border: 1px solid var(--lm-edge);
+    border: var(--lm-hairline) solid var(--lm-line);
     font-size: var(--lm-text-xs);
-    font-weight: 700;
-    font-stretch: 112%;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-week__type {
     width: 22px;
     height: 22px;
-    box-shadow: none;
   }
   .lp-type__text {
     display: grid;
@@ -1739,7 +1671,7 @@
   }
   .lp-type__label {
     font-size: var(--lm-text-sm);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
     overflow-wrap: anywhere;
   }
@@ -1750,7 +1682,7 @@
   }
   .lp-type__count {
     font-size: var(--lm-text-md);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-macrobar {
@@ -1784,7 +1716,7 @@
   }
   .lp-weeknav__wk {
     font-size: var(--lm-text-md);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-weekrail {
@@ -1801,7 +1733,7 @@
     gap: 18px;
     min-width: 0;
   }
-  @media (min-width: 80rem) {
+  @media (min-width: 100rem) {
     .lp-days-grid {
       grid-template-columns: minmax(0, 1fr) 420px;
       align-items: start;
@@ -1817,8 +1749,7 @@
     }
   }
   .lp-week tbody tr[data-selected] {
-    background: var(--lm-well);
-    box-shadow: inset 2px 0 0 var(--lm-ink);
+    background: var(--lm-gold-soft);
   }
   .lp-week th:first-child,
   .lp-week td:first-child {
@@ -1834,7 +1765,7 @@
   }
   .lp-week__day {
     display: inline-flex;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     align-items: baseline;
     border: 0;
     padding: 0;
@@ -1844,10 +1775,15 @@
     cursor: pointer;
     border-radius: var(--lm-radius-xs);
   }
+  /* r068 W2-4: the weekday has its own fixed slot, wide enough for "wed" in Inter 500, so it never touches the date */
   .lp-week__wd {
+    display: inline-block;
+    min-width: 3.6ch;
     color: var(--lm-ink-2);
     font-weight: 500;
-    width: 3ch;
+  }
+  .lp-week__win {
+    white-space: nowrap;
   }
   .lp-week__pct {
     font-size: var(--lm-text-2xs);
@@ -1855,7 +1791,7 @@
   }
   .lp-week__fast {
     font-size: var(--lm-text-xs);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-week__train {
@@ -1863,22 +1799,39 @@
     gap: 4px;
     color: var(--lm-ink-2);
   }
+  .lp-week__bar {
+    display: none;
+  }
+  .lp-type .lp-macrobar {
+    max-width: none;
+  }
+  /* phones (r068 PR11): one compact row per day — day, type, energy over its P · C · F bar, protein — so the table fits
+     the card with no sideways scroll; the rest of the day is in the day panel under it */
   @media (max-width: 47.99rem) {
-    .lp-week .lp-col-wide {
+    .lp-week :is(.lp-col-wide, .lp-col-md) {
       display: none;
+    }
+    .lp-week__bar {
+      display: block;
+      margin-top: 4px;
+    }
+    .lp-week__bar .lp-macrobar {
+      max-width: none;
+      margin-left: auto;
+      width: 100%;
     }
     .lp-week th,
     .lp-week td {
       padding: 8px 6px;
     }
   }
+  /* the selected day: a plain well inside the tab's card (never a second card) */
   .lp-daydetail {
-    border: 1px solid var(--lm-line-strong);
     border-radius: var(--lm-radius-md);
     padding: 14px;
-    background: var(--lm-face);
+    background: var(--lm-well);
     display: grid;
-    gap: 12px;
+    gap: var(--lm-card-gap);
     min-width: 0;
   }
   .lp-daydetail__head {
@@ -1887,12 +1840,12 @@
     align-items: baseline;
     gap: 4px 10px;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--lm-line);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
   }
   .lp-daydetail__title {
     margin: 0;
     font-size: var(--lm-text-base);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-daydetail__body {
@@ -1900,7 +1853,7 @@
     gap: 14px;
     justify-items: center;
   }
-  @media (min-width: 48rem) and (max-width: 79.99rem) {
+  @media (min-width: 48rem) and (max-width: 99.99rem) {
     .lp-daydetail__body {
       grid-template-columns: auto minmax(0, 1fr);
       justify-items: start;
@@ -1909,7 +1862,7 @@
   }
   .lp-daydetail__facts {
     display: grid;
-    gap: 12px;
+    gap: var(--lm-card-gap);
     width: 100%;
     min-width: 0;
   }
@@ -1933,7 +1886,7 @@
   .lp-daydetail__energy dd {
     margin: 0;
     font-size: var(--lm-text-md);
-    font-weight: 600;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lp-daydetail__energy > div:first-child dd {
@@ -1943,7 +1896,6 @@
     margin-left: 10px;
     font-size: var(--lm-text-xs);
     font-weight: 500;
-    font-stretch: 100%;
     color: var(--lm-ink-2);
   }
   .lp-meals {
@@ -1962,15 +1914,15 @@
     gap: 8px;
   }
   .lp-meals__t {
-    font-weight: 600;
+    font-weight: 500;
   }
   .lp-daydetail__list {
     list-style: none;
     margin: 0;
     padding: 10px 0 0;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
     display: grid;
-    gap: 6px;
+    gap: var(--lm-row-gap);
     font-size: var(--lm-text-sm);
     color: var(--lm-ink);
   }
@@ -1984,19 +1936,18 @@
     flex: none;
   }
   .lp-exports {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: var(--lm-row-gap);
     padding-top: 14px;
-    border-top: 1px solid var(--lm-line);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
 
   /* curves / safety */
   .lp-curves {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
+    gap: var(--lm-card-gap);
   }
   .lp-safetytab {
     display: grid;
@@ -2007,12 +1958,22 @@
     display: grid;
     gap: 10px;
   }
+  /* wide: the check's rows run in two label · value pairs a line, so no value sits a screen away from its label */
+  @media (min-width: 64rem) {
+    .lp-safetytab .lm-kv {
+      grid-template-columns: repeat(2, minmax(10em, 1fr) minmax(0, max-content));
+      column-gap: var(--lm-gutter-lg);
+    }
+    .lp-safetytab .lm-kv dd {
+      padding-right: var(--lm-gutter-lg);
+    }
+  }
   .lp-safetytab__always {
     font-weight: 500;
   }
   .lp-nosafe {
     display: grid;
-    gap: 12px;
+    gap: var(--lm-card-gap);
   }
 }
 
@@ -2029,10 +1990,6 @@
   display: none;
 }
 @media print {
-  @page {
-    size: A4 landscape;
-    margin: 12mm;
-  }
   body:has(> .lp-print-root) > :not(.lp-print-root) {
     display: none !important;
   }
@@ -2043,19 +2000,19 @@
     display: block;
     color: #000;
     background: #fff;
-    font-family: var(--lm-font-sans, Archivo, Arial, sans-serif);
+    font-family: var(--lm-font-sans, Inter, Arial, sans-serif);
     font-size: 9.5pt;
     line-height: 1.35;
   }
   .lp-print-root h1 {
     margin: 0 0 2pt;
     font-size: 15pt;
-    font-weight: 600;
+    font-weight: 500;
   }
   .lp-print-root h2 {
     margin: 10pt 0 4pt;
     font-size: 10.5pt;
-    font-weight: 600;
+    font-weight: 500;
   }
   .lp-print__head p {
     margin: 0 0 2pt;
@@ -2080,7 +2037,7 @@
   .lp-print__week caption {
     caption-side: top;
     text-align: left;
-    font-weight: 600;
+    font-weight: 500;
     padding: 0 0 3pt;
   }
   .lp-print__week th,
@@ -2097,7 +2054,7 @@
     white-space: nowrap;
   }
   .lp-print__week tbody th {
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
   }
   .lp-print__week .num {
@@ -2107,5 +2064,172 @@
   .lp-print__check {
     width: 14pt;
     border: 0.75pt solid #000 !important;
+  }
+}
+
+/* r068 G4: in the Planner and its goal picker an evidence grade is a quiet mark after a name (the letter
+   and its pips in stone, no capsule), so it never competes with the value or reads as one more tag. The full grade
+   stays in the tooltip and the Explain view. */
+@layer components {
+  :is(.lp-page, .lp-picker, .lp-picker-pop) .lm-grade {
+    height: auto;
+    padding: 0;
+    gap: 3px;
+    border: 0;
+    background: none;
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-label-s);
+    font-weight: 500;
+  }
+  :is(.lp-page, .lp-picker, .lp-picker-pop) .lm-grade .lm-grade__pips i {
+    width: 3px;
+    height: 3px;
+  }
+}
+
+/* r068 W2-5 / W2-6: a disclosure as a full-width row (label · value · chevron), 44 px to tap; its body opens under it.
+   Used for a card's Effort and for "Details" in the Overview tab. */
+@layer components {
+  .lp-disc {
+    min-width: 0;
+  }
+  .lp-disc__sum {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    min-height: 44px;
+    margin: 0;
+    cursor: pointer;
+    list-style: none;
+    border-radius: var(--lm-radius-sm);
+    color: var(--lm-ink);
+  }
+  .lp-disc__sum::-webkit-details-marker {
+    display: none;
+  }
+  .lp-disc__sum:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  .lp-disc__sum > .lp-lcard__sec {
+    display: inline-block;
+    margin: 0;
+  }
+  .lp-disc__label {
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: var(--lm-text-label--wt);
+    color: var(--lm-ink);
+  }
+  .lp-disc__value {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: right;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lp-disc__chev {
+    flex: none;
+    color: var(--lm-ink-3);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lp-disc[open] > .lp-disc__sum .lp-disc__chev {
+    transform: rotate(180deg);
+  }
+  .lp-disc[open] > .lp-disc__sum {
+    margin-bottom: var(--lm-row-gap);
+  }
+  @media (hover: hover) {
+    .lp-disc__sum:hover .lp-disc__chev {
+      color: var(--lm-ink);
+    }
+  }
+  /* the Overview's "Details": a hairline above, the row at the section's full width */
+  .lp-disc--rule {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+}
+
+/* r068 W2-14: the Overview's start → end figure fills its column; the layer switches are one even bank (2 × 2 on a
+   phone, 4 across when there is room), in the card's language — never four pills stacked one per row */
+@layer components {
+  .lp-figure {
+    display: grid;
+    gap: var(--lm-row-gap);
+    min-width: 0;
+  }
+  .lp-figure__stage {
+    height: clamp(20rem, 52vh, 28rem);
+    min-width: 0;
+  }
+  .lp-figure__stage > .lm-fig3d {
+    height: 100%;
+  }
+  .lp-figure__key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px var(--lm-card-gap);
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lp-figure__key span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-row-gap);
+  }
+  .lp-figure__key i {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+  .lp-figure__key i[data-k='start'] {
+    border: 1px dashed var(--lm-ink-3);
+  }
+  .lp-figure__key i[data-k='end'] {
+    background: var(--lm-ink-2);
+  }
+  .lp-figure .lm-fig3d__tools {
+    padding-inline: 0;
+  }
+  .lp-figure .lm-fig3d__panel {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .lp-figure .lm-fig3d__panel {
+    container: lp-layers / inline-size;
+  }
+  .lp-figure .lm-fig3d__layers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    padding: 3px;
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-select-radius);
+  }
+  .lp-figure .lm-fig3d__chip {
+    justify-content: center;
+    min-width: 0;
+    border-color: transparent;
+    border-radius: var(--lm-select-key-radius);
+    font-size: var(--lm-text-label-s);
+  }
+  .lp-figure .lm-fig3d__chip[aria-pressed='true'] {
+    border-color: var(--lm-gold-edge);
+  }
+  .lp-figure .lm-fig3d__heading {
+    display: none;
+  }
+  .lp-figure .lm-fig3d__chip {
+    white-space: nowrap;
+    padding-inline: 6px;
+  }
+  @container lp-layers (min-width: 30rem) {
+    .lp-figure .lm-fig3d__layers {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
 }

@@ -20,12 +20,23 @@ import {
   checkSteadyState,
   checkZeroIntake,
   measureRunMs,
+  checkConservationThroughModelLimit,
+  checkIngestionAudit,
+  checkNitrogenBoundary,
+  checkOffsetLedger,
+  checkRecordingMaskEquivalence,
+  checkSnapshotContinuation,
   type InvariantReport,
 } from './harness/invariants';
 import { REQUIRES, missingModules, readinessSummary, scenarioReady } from './harness/stubs';
-import { runBundledBench } from './harness/bundledBench';
+import { withBundledBench } from './harness/bundledBench';
+import { measureWithLoadRetry } from './harness/loadRetry';
+import type { BenchRow } from './bench/benchEntry';
 import { LEAN_MAN, MAN, WOMAN, person } from './fixtures/personas';
-import { buildSchedule, cardioSession, fastEvent, pctProgram, rtSession, neutralMacros, constantSchedule } from './fixtures/programs';
+import { buildSchedule, cardioSession, fastEvent, pctProgram, rtSession, neutralMacros, constantSchedule, pctMacros, waterOnlyProgram } from './fixtures/programs';
+import { Rng } from '../planner/optim/rng';
+import { SIGNAL_BY_NAME, SIGNAL_META, type SignalName } from '../types/signals';
+import { MODULE_ORDER, checkSignalHooks } from '../core/moduleRegistry';
 import type { PersonProfile, Schedule } from '../types';
 import type { SeriesId } from '../types/metrics';
 import { compileSchedule } from '../core/compileSchedule';
@@ -34,14 +45,6 @@ import { resolveProfile } from '../core/resolveProfile';
 import { MODULES } from '../core/moduleRegistry';
 import { buildModelParams, sampleParams } from '../core/paramsRegistry';
 
-/** 1-min load average per logical core (0 when unknown, e.g. outside Node). */
-function machineLoad(): number {
-  const g = globalThis as { process?: { getBuiltinModule?: (id: string) => unknown } };
-  const os = g.process?.getBuiltinModule?.('node:os') as { loadavg(): number[]; availableParallelism?(): number; cpus(): unknown[] } | undefined;
-  if (!os) return 0;
-  const n = os.availableParallelism ? os.availableParallelism() : os.cpus().length;
-  return (os.loadavg()[0] ?? 0) / Math.max(1, n);
-}
 import type { ModuleId } from '../types/signals';
 
 // The first test of the file runs every scenario (several seconds); the default 5 s timeout is too short.
@@ -201,22 +204,126 @@ describe(`O-11 performance${waiting(REQUIRES.FULL)}`, () => {
   // deficit, 14-d burn-in — in the four ways the app runs the engine: planner mode as the planner calls it (record 'daily',
   // goal series only; the gating O-11 number), and simulate mode with record 'none' / 'daily' / 'full' (warnings, events and,
   // for 'full', the hourly arrays of the Simulator). Bounds (MODEL_SPEC §9.1 O-11): planner ≤ 10 ms desktop; simulate modes
-  // ≤ 15 ms ("Simulator full ≤ 15 ms"). Timing is only meaningful on a machine that is not saturated: when the 1-min load
-  // average exceeds half the logical cores (e.g. the whole repository's suite running in parallel) the measurement is
-  // repeated once and, if still over budget, the test is marked skipped with the numbers — never passed on a noisy clock.
-  it.skipIf(!readyFull)(`bundled engine: 180-day run best-of-15 — planner ≤ ${PERF_BUDGET_MS.desktop} ms, simulate none/daily/full ≤ ${PERF_BUDGET_MS.simulate} ms (desktop)`, async (ctx) => {
-    const within = (rows: Awaited<ReturnType<typeof runBundledBench>>): boolean =>
+  // ≤ 15 ms ("Simulator full ≤ 15 ms"). Build/import once so the optional retry keeps the same production module's
+  // JIT state. A high ONE-MINUTE load average can include recent build work; it is not proof of current CPU use.
+  // An over-budget first result under high rolling load waits at most 120 s before the existing 25-run retry.
+  // Every final result must meet the unchanged budget, including when load remains high: never skip a release budget.
+  it.skipIf(!readyFull)(`bundled engine: 180-day run best-of-15 — planner ≤ ${PERF_BUDGET_MS.desktop} ms, simulate none/daily/full ≤ ${PERF_BUDGET_MS.simulate} ms (desktop)`, async () => {
+    const deadlineMs = performance.now() + 240_000;
+    const within = (rows: BenchRow[]): boolean =>
       rows.every((r) => r.bestMs <= (r.mode === 'planner' ? PERF_BUDGET_MS.desktop : PERF_BUDGET_MS.simulate));
-    let rows = await runBundledBench(15);
-    const fmt = (): string => rows.map((r) => `${r.mode} ${r.bestMs.toFixed(2)}/${r.medianMs.toFixed(2)}`).join(' · ');
-    console.log(`O-11 (bundled, ms per 180 d, best/median of 15): ${fmt()} · load ${machineLoad().toFixed(2)}`);
-    if (!within(rows) && machineLoad() > 0.5) {
-      rows = await runBundledBench(25);
-      console.log(`O-11 retry (machine busy): ${fmt()} · load ${machineLoad().toFixed(2)}`);
-      if (!within(rows) && machineLoad() > 0.5) ctx.skip(`machine saturated (load ${machineLoad().toFixed(2)} per core); not a timing measurement: ${fmt()}`);
-    }
-    for (const r of rows) expect(r.bestMs, `${r.mode} best ms`).toBeLessThanOrEqual(r.mode === 'planner' ? PERF_BUDGET_MS.desktop : PERF_BUDGET_MS.simulate);
+    await withBundledBench(async (bench) => {
+      const result = await measureWithLoadRetry(bench, within, {
+        deadlineMs,
+        onAttempt: ({ runs, rows, load }) => {
+          const values = rows.map((r) => `${r.mode} ${r.bestMs.toFixed(2)}/${r.medianMs.toFixed(2)}`).join(' · ');
+          console.log(`O-11 (bundled, ms per 180 d, best/median of ${runs}): ${values} · 1-min load/core ${load.toFixed(2)}`);
+        },
+        onWait: (wait) => console.log(`O-11 load settle: waited ${wait.waitedMs.toFixed(0)} ms; 1-min load/core ${wait.initialLoad.toFixed(2)} → ${wait.finalLoad.toFixed(2)}; below 0.5: ${wait.belowThreshold}`),
+      });
+      // Preserve full precision for both attempts and the actual wait/load observations in failure/pass receipts.
+      console.log(`O-11 measurement receipt: ${JSON.stringify(result)}`);
+      for (const r of result.rows)
+        expect(r.bestMs, `${r.mode} best ms; 1-min load/core ${(result.retry ?? result.first).load.toFixed(2)}; waited ${result.wait?.waitedMs ?? 0} ms`).toBeLessThanOrEqual(r.mode === 'planner' ? PERF_BUDGET_MS.desktop : PERF_BUDGET_MS.simulate);
+    });
   }, 240_000);
+});
+
+describe('review release invariants (C2/C3/C7; runs for real)', () => {
+  const VERY_LEAN = person({ sex: 'male', ageYears: 30, heightCm: 180, weightKg: 62, bodyFatPct: 6, steps: 4000 });
+
+  it('D1-08: a 120-day water fast of a very lean man ends at a model limit; the identities hold up to it and nothing after it is recorded as a forecast', () => {
+    const r = checkConservationThroughModelLimit(VERY_LEAN, constantSchedule(120, waterOnlyProgram()));
+    expect(r.limitReached).toBe(true);
+    expectPass(r);
+  });
+
+  it('D1-08: an ordinary mixed schedule reaches no model limit and conserves energy and mass', () => {
+    const r = checkConservationThroughModelLimit(MAN, mixedSchedule('male'));
+    expect(r.limitReached).toBe(false);
+    expectPass(r);
+  });
+
+  it.skipIf(!readyFasting)(`D2-05: on a 4-day water fast the body-N change equals the urinary-N prior; urinary N, lean tissue and scale stay distinct${waiting(REQUIRES.FASTING)}`, () => {
+    expectPass(checkNitrogenBoundary(MAN, 4));
+  });
+
+  it.skipIf(!readyCore)(`D5-03: a zero correction is the legacy run; corrections keep the logged intake, skip zero-energy days and conserve energy${waiting(CORE)}`, () => {
+    const macros = neutralMacros('male');
+    const sched = buildSchedule({ days: 21, programs: [pctProgram('m', 90, macros), waterOnlyProgram()], use: (d) => (d % 7 === 3 ? 1 : 0) });
+    expectPass(checkOffsetLedger(MAN, sched, [{ fromDay: 0, kcal: 0 }, { fromDay: 5, kcal: 100 }, { fromDay: 12, kcal: -150 }]));
+  });
+
+  it('D6-02 / D6-08: every submitted kcal is registered and appears or stays in the gut; no generic ME correction on a high-fibre, nut-free schedule with a fast', () => {
+    const hiFibre = pctMacros(18, 45, { fibre: { unit: 'gPer1000Kcal', value: 20 } });
+    const sched = buildSchedule({ days: 10, programs: [pctProgram('hf', 95, hiFibre), pctProgram('m', 100, neutralMacros('female'))], use: (d) => d % 2, events: [fastEvent(4, 36, 20, { refeed: 'auto' })] });
+    expectPass(checkIngestionAudit(WOMAN, sched));
+  });
+
+  it.skipIf(!readyTraining)('D6-08: with the generic fibre correction off, a weight-stable person on a high-fibre maintenance diet does not drift (O-12 limits)', () => {
+    const hiFibre = { ...neutralMacros('male'), fibre: { unit: 'gPer1000Kcal' as const, value: 20 } };
+    const r = checkConservation(MAN, constantSchedule(30, pctProgram('hf', 100, hiFibre)));
+    expect(r.failures.filter((f) => !f.startsWith('day-0'))).toEqual([]);
+    const rp = resolveProfile(MAN);
+    const res = runEngine(rp, compileSchedule(constantSchedule(30, pctProgram('hf', 100, hiFibre)), rp), { record: 'daily', burnInDays: 14, series: ['fatMass'] });
+    const fm = res.daily.fatMass!;
+    expect(Math.abs(fm[29]! - res.initial.fatMass!), 'ΔFM over 30 d').toBeLessThan(MAINTENANCE_DRIFT_TOL.fatKg);
+  });
+
+  it('D8-01: bone alone equals bone + micronutrient score for a postmenopausal woman in a 180-day deficit; singleton, pair and random masks change no shared output, safety trace or final value', () => {
+    const post = person({ sex: 'female', ageYears: 62, heightCm: 162, weightKg: 76, bodyFatPct: 40, steps: 6000, menopause: 'post' });
+    const sched = constantSchedule(180, pctProgram('deficit', 75, neutralMacros('female')));
+    const pool: SeriesId[] = ['hipBmdChange', 'micronutrientScore', 'fatMass', 'leanTissue', 'scaleWeight', 'visceralFat', 'ldl', 'hunger', 'strength', 'energyAvailability', 'bhb', 'tdee'];
+    const masks: SeriesId[][] = [['hipBmdChange'], ['hipBmdChange', 'micronutrientScore'], ['micronutrientScore'], ...pool.map((x) => [x])];
+    for (let i = 0; i + 1 < pool.length; i += 2) masks.push([pool[i]!, pool[i + 1]!]);
+    const rng = new Rng('d801-masks');
+    for (let k = 0; k < 4; k++) masks.push(pool.filter(() => rng.float() < 0.4).concat(['fatMass']));
+    expectPass(checkRecordingMaskEquivalence(post, sched, masks));
+  });
+
+  it('D8-01 / C7: capture and continue under one recording mask equals the uninterrupted run; another mask is rejected', () => {
+    expectPass(checkSnapshotContinuation(WOMAN, mixedSchedule('female'), ['fatMass', 'hipBmdChange', 'micronutrientScore'], 9, ['fatMass']));
+  });
+});
+
+describe('D8-07: signal contract metadata matches the module hooks that actually run', () => {
+  it('the registry has no hook-declaration violations', () => {
+    expect(checkSignalHooks()).toEqual([]);
+  });
+
+  // Modules that do not declare hook-aware accesses yet (their SIGNAL_META entries are checked against the module order
+  // only). Activity (endOfDay write of exSessionNetKcalD) and muscle (endOfDay read of strengthEaMult, lag 1) declare
+  // theirs since the wave-3 integration, so every SIGNAL_META write hook and reader is now checked exactly.
+  const UNDECLARED_HOOK_MODULES: readonly string[] = [];
+
+  it('every SIGNAL_META write hook and reader (hook and lag) is declared by the writing and reading modules, and each lag follows the module order', () => {
+    const mods = new Map(MODULES.map((m) => [m.id, m]));
+    const bad: string[] = [];
+    const undeclared = new Set<string>();
+    for (const [name, meta] of Object.entries(SIGNAL_META) as [SignalName, NonNullable<(typeof SIGNAL_META)[SignalName]>][]) {
+      const def = SIGNAL_BY_NAME.get(name)!;
+      if (meta.writeHook) {
+        const w = mods.get(def.writer)?.signalHooks;
+        if (!w?.length) undeclared.add(def.writer);
+        else if (!w.some((h) => h.access === 'write' && h.signal === name && h.hook === meta.writeHook)) bad.push(`${name}: ${def.writer} does not declare a write in ${meta.writeHook}`);
+      }
+      for (const r of meta.reads ?? []) {
+        const hs = mods.get(r.module)?.signalHooks;
+        if (!hs?.length) undeclared.add(r.module);
+        else if (!hs.some((h) => h.access === 'read' && h.signal === name && h.hook === r.hook && h.lag === r.lag)) bad.push(`${name}: ${r.module} does not declare a ${r.hook} read with lag ${r.lag}`);
+        // same hook: a reader after the writer sees today's value (lag 0); a reader before it sees yesterday's (lag 1)
+        if (meta.writeHook === r.hook) {
+          const after = MODULE_ORDER.indexOf(r.module) > MODULE_ORDER.indexOf(def.writer);
+          if ((r.lag === 0) !== after) bad.push(`${name}: ${r.module} reads with lag ${r.lag} but runs ${after ? 'after' : 'before'} ${def.writer} in ${r.hook}`);
+        }
+      }
+    }
+    expect(bad).toEqual([]);
+    expect([...undeclared].sort(), 'modules whose hook declarations are still missing (update UNDECLARED_HOOK_MODULES)').toEqual([...UNDECLARED_HOOK_MODULES].sort());
+    // the two documented cases: daily session EEE reaches wellbeing the same endOfDay; strengthEaMult reaches muscle the next day
+    expect(SIGNAL_META.exSessionNetKcalD?.reads).toEqual([{ module: 'wellbeing', hook: 'endOfDay', lag: 0 }]);
+    expect(SIGNAL_META.strengthEaMult?.reads).toEqual([{ module: 'muscle', hook: 'endOfDay', lag: 1 }]);
+  });
 });
 
 describe('invariant report', () => {

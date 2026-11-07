@@ -118,6 +118,8 @@ export function miniRun(
     afterHour?: (clockDay: number, hourOfDay: number, bus: SignalBus) => void;
     afterDay?: (clockDay: number, bus: SignalBus) => void;
     bus?: SignalBus;
+    /** Expand each day with the previous day's sessions past midnight, as core/loop.ts does (opt-in, 2026-10-27). */
+    withPrevDay?: boolean;
   } = {},
 ): MiniRun {
   const bus = hooks.bus ?? createSignalBus();
@@ -129,10 +131,11 @@ export function miniRun(
   const clock = newClock(0);
   let prevBed = ctx.profile.habits.bedTimeH;
   let prevSleep = (((ctx.profile.habits.wakeTimeH - ctx.profile.habits.bedTimeH) % 24) + 24) % 24 || 24;
+  let prevDay: DayInput | null = null;
   for (const { clockDay, day } of days) {
     clock.day = clockDay;
     clock.weekday = (((ctx.profile.startWeekday + clockDay) % 7) + 7) % 7;
-    expandDayToHours(day, prevBed, prevSleep, null, 0, table);
+    expandDayToHours(day, prevBed, prevSleep, null, 0, table, hooks.withPrevDay ? prevDay : null);
     hooks.beforeDay?.(clockDay, bus);
     for (let i = 0; i < modules.length; i++) modules[i]!.startDay(S[i]!, K[i]!, bus, day, clock);
     for (let h = 0; h < 24; h++) {
@@ -149,6 +152,7 @@ export function miniRun(
     hooks.afterDay?.(clockDay, bus);
     prevBed = day.sleepBedH;
     prevSleep = day.sleepHours;
+    prevDay = day;
   }
   return { bus, K, S, hour };
 }

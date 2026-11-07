@@ -2,25 +2,28 @@
 /**
  * One person's program in-process (production runs it in a Worker): the command bus on the person's Evolu replica,
  * "today" in the person's zone, local-only collections and the undo/idempotency ledgers surviving a restart, file
- * modes, and the Lumen ingest.
+ * modes. A person directory left from an older build (`ingest/`, `deadletter/`, `mqtt.json`) is ignored.
  */
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { newOwnerSecret } from '@/sync/pairing';
 import { openPersonProgram } from './personProgram.ts';
-import type { IngestLumenResult, PersonInit, PersonProgram, PersonResponse, PersonStats } from './personRpc.ts';
+import type { PersonInit, PersonProgram, PersonResponse, PersonStats } from './personRpc.ts';
 
 const root = join(process.env.TMPDIR ?? '/tmp', `person-program-${process.pid}`);
 const init: PersonInit = { personId: '0123456789abcdef', dir: join(root, 'persons', '0123456789abcdef'), timeZone: 'Pacific/Kiritimati', deviceId: 'SERVERHME0000001', relayUrl: null, instance: 'pp1' };
 const secret = newOwnerSecret();
-const fixture = readFileSync(join(import.meta.dirname, '../../spike/headless/fixtures/ring.jsonl'), 'utf8').trim().split('\n');
 
 // 16:00 UTC = 06:00 the next day in Kiritimati (UTC+14), past the 04:00 rollover: the person's day is 2 October
 const NOW = new Date('2026-10-01T16:00:00.000Z');
 
 beforeAll(() => {
   mkdirSync(root, { recursive: true });
+  // what an older build (ring ingest over MQTT) left in the person directory: opened and ignored, no migration
+  mkdirSync(join(init.dir, 'ingest'), { recursive: true, mode: 0o700 });
+  writeFileSync(join(init.dir, 'ingest', 'wal.jsonl'), '{"envelopeId":"e1","topic":"t","receivedAt":"x","payload":"{}"}\n', { mode: 0o600 });
+  writeFileSync(join(init.dir, 'mqtt.json'), '[]', { mode: 0o600 });
   vi.useFakeTimers({ toFake: ['Date'], now: NOW, shouldAdvanceTime: true });
 });
 afterAll(() => {
@@ -34,7 +37,7 @@ const value = <T>(r: PersonResponse): T => {
 };
 type Envelope = { ok: boolean; output?: unknown };
 
-it('runs the bus in the person zone, persists local-only collections and ingests Lumen events', async () => {
+it('runs the bus in the person zone, persists local-only collections and ignores old ingest files', async () => {
   let p: PersonProgram = await openPersonProgram(init, secret);
 
   const logged = value<Envelope>(await p.handle({ op: 'dispatch', command: 'log.steps', input: { steps: 7000 }, source: 'ui' }));
@@ -45,19 +48,12 @@ it('runs the bus in the person zone, persists local-only collections and ingests
   const day = value<Envelope>(await p.handle({ op: 'dispatch', command: 'log.get', input: { from: '2026-10-02', to: '2026-10-02' }, source: 'ui' }));
   expect(JSON.stringify(day.output)).toContain('7000');
 
-  const keyed = value<Envelope>(await p.handle({ op: 'dispatch', command: 'log.steps', input: { date: '2026-10-01', steps: 4321 }, source: 'agent', idempotencyKey: 'mqtt-replay-1' }));
+  const keyed = value<Envelope>(await p.handle({ op: 'dispatch', command: 'log.steps', input: { date: '2026-10-01', steps: 4321 }, source: 'agent', idempotencyKey: 'agent-replay-1' }));
   expect(keyed.ok).toBe(true);
 
   // the planner pool is not on the server: planner runs (past their safety gate) fail with rule not_on_server
   const { getPorts } = await import('@/commands');
   expect(() => getPorts().planner!.prepare()).toThrow(expect.objectContaining({ error: expect.objectContaining({ code: 'precondition_failed', detail: expect.objectContaining({ rule: 'not_on_server' }) }) }));
-
-  const odd = { specversion: '1.0', id: 'odd-1', type: 'health.unheard_of', source: 'urn:pulseloop:installation:spike', data: {} };
-  const ingest = value<IngestLumenResult>(await p.handle({ op: 'ingestLumen', events: [...fixture.slice(0, 40).map((l) => JSON.parse(l) as unknown), odd], installations: {} }));
-  expect(ingest.added).toBeGreaterThan(0);
-  expect(ingest.rejected).toEqual([{ index: 40, reason: 'unknown_type', type: 'health.unheard_of' }]);
-  const again = value<IngestLumenResult>(await p.handle({ op: 'ingestLumen', events: fixture.slice(0, 40).map((l) => JSON.parse(l) as unknown), installations: {} }));
-  expect(again.added).toBe(0);
 
   const stats = value<PersonStats>(await p.handle({ op: 'stats' }));
   expect(stats).toMatchObject({ personId: init.personId, timeZone: 'Pacific/Kiritimati', deviceId: init.deviceId });
@@ -90,7 +86,7 @@ it('runs the bus in the person zone, persists local-only collections and ingests
   expect(JSON.stringify(after.output)).toContain('7000');
   expect(changeSets().some((c) => c.commandId === 'log.steps')).toBe(true);
   // the same idempotency key replays the stored result instead of logging again
-  const replay = value<Envelope>(await p.handle({ op: 'dispatch', command: 'log.steps', input: { date: '2026-10-01', steps: 4321 }, source: 'agent', idempotencyKey: 'mqtt-replay-1' }));
+  const replay = value<Envelope>(await p.handle({ op: 'dispatch', command: 'log.steps', input: { date: '2026-10-01', steps: 4321 }, source: 'agent', idempotencyKey: 'agent-replay-1' }));
   expect(replay).toEqual(keyed);
   expect(changeSets().filter((c) => c.commandId === 'log.steps')).toHaveLength(2);
   await p.close();

@@ -22,6 +22,15 @@ const prevOf = (r: PlannerResult<ToyStructure>, tier: string, ids: ReadonlyArray
 const cards = (r: PlannerResult<ToyStructure>) => (['hard', 'medium', 'easy'] as const).filter((k) => r.ladder!.rungs[k]);
 
 describe('carry-forward', () => {
+  it('a completed fresh search re-evaluates the known Hard incumbent instead of losing a better plan to a new seed', async () => {
+    const toy = ladderToy();
+    const short = await run(toy, { seed: 'm' });
+    const known = short.ladder!.rungs.hard!;
+    const longer = await run(toy, { seed: 'x', easySearch: false, mediumBand: false, totalEU: 100, previous: prevOf(short, 'M', ['hard']) });
+    expect(longer.complete).toBe(true);
+    expect(longer.ladder!.rungs.hard!.desirability[0]!).toBeGreaterThanOrEqual(known.desirability[0]! - 1e-6);
+  }, 120_000);
+
   it('a longer run whose own rungs collapse keeps the shorter run’s Medium and Easy (never fewer cards)', async () => {
     const toy = ladderToy();
     const short = await run(toy, { seed: 'm' });

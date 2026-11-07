@@ -6,7 +6,8 @@
     "sources": "ids refer to the numbered source lists (S1…S108) in the markdown dossier",
     "whenAlso": "optional when.also = second predicate on another marker (markerId), a profile/plan field (field), or {repeat:true} = confirmed on a repeat test",
     "symbolicValues": "whoCutoff (13.0 g/dL men, 12.0 g/dL women), labLow/labHigh/labRange = the range printed on the report",
-    "grades": "A meta-analysis or several concordant RCTs; B few RCTs or consistent human data; C limited or indirect human; D mechanism, animal or expert opinion (R5 policy: grades set band width and wording, never gate)"
+    "grades": "A meta-analysis or several concordant RCTs; B few RCTs or consistent human data; C limited or indirect human; D mechanism, animal or expert opinion (R5 policy: grades set band width and wording, never gate)",
+    "applicability": "optional rule.applicability = population the threshold is defined for: referencePhysiology adultMale|adultFemale (unknown physiology or hormone therapy = unresolved, never a match), adultOnly, sample {morning, fasting} = the claim the message makes about the draws ({sampleClaim} is filled only when every counted draw records those facts); thresholdContext documents where the number comes from"
   },
   "markers": [
     {
@@ -418,12 +419,20 @@
           "op": "<",
           "value": 264,
           "unit": "ng/dL",
-          "message": "Testosterone below 264 ng/dL on two morning tests needs a clinician, especially with low libido, low energy or loss of morning erections.",
+          "message": "Testosterone below 264 ng/dL on two {sampleClaim}tests needs a clinician, especially with low libido, low energy or loss of morning erections.",
           "source": [
             "S80",
             "S81",
             "S82"
-          ]
+          ],
+          "applicability": {
+            "referencePhysiology": "adultMale",
+            "adultOnly": true,
+            "sample": {
+              "morning": true,
+              "fasting": true
+            }
+          }
         }
       ],
       "retestWeeks": 4
@@ -2754,7 +2763,12 @@
       "sources": [
         "S88",
         "S75"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true
+      },
+      "thresholdContext": "300 ng/dL: AUA 2018 threshold (two early-morning tests); kept with its own provenance"
     },
     {
       "id": "W-L-FT3-4",
@@ -2813,7 +2827,12 @@
       "sources": [
         "S80",
         "S82"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true
+      },
+      "thresholdContext": "264 ng/dL: harmonised reference of non-obese men 19-39 y (assay-standardised cohorts), not a universal lower limit"
     },
     {
       "id": "W-L-TESTOSTERONE-2",
@@ -2829,13 +2848,22 @@
       "kind": "clinician",
       "target": "plan",
       "severity": "see-clinician",
-      "message": "Your testosterone has been below 264 ng/dL on two morning tests ({date}). Please see a clinician.",
+      "message": "Your testosterone has been below 264 ng/dL on two {sampleClaim}tests ({date}). Please see a clinician.",
       "grade": "A",
       "sources": [
         "S80",
         "S81",
         "S82"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true,
+        "sample": {
+          "morning": true,
+          "fasting": true
+        }
+      },
+      "thresholdContext": "264 ng/dL: harmonised reference of non-obese men 19-39 y (assay-standardised cohorts), not a universal lower limit"
     },
     {
       "id": "W-L-TESTOSTERONE-3",
@@ -2853,12 +2881,17 @@
       "kind": "cap",
       "target": "deficit_large",
       "severity": "caution",
-      "message": "Because your testosterone was {value} ng/dL on {date} during a large deficit, the deficit is capped at moderate and a diet break is suggested; this usually recovers with more food.",
+      "message": "Because your testosterone was {value} ng/dL on {date} during a large deficit, the deficit is capped at moderate and a diet break is suggested.",
       "grade": "B",
       "sources": [
         "S88",
         "S89"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true
+      },
+      "thresholdContext": "300 ng/dL: AUA 2018 threshold (two early-morning tests); kept with its own provenance"
     },
     {
       "id": "W-L-TESTOSTERONE-4",
@@ -2876,11 +2909,16 @@
       "kind": "warn",
       "target": "sleep_debt",
       "severity": "caution",
-      "message": "Because your testosterone was {value} ng/dL on {date} and you sleep under 6 hours, sleep is the first lever: one week of 5-hour nights lowers it 10–15 %.",
+      "message": "Because your testosterone was {value} ng/dL on {date} and you sleep under 6 hours, more sleep is worth trying: a week of 5-hour nights lowered it 10–15 % in young men.",
       "grade": "B",
       "sources": [
         "S92"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true
+      },
+      "thresholdContext": "300 ng/dL: AUA 2018 threshold (two early-morning tests); kept with its own provenance"
     },
     {
       "id": "W-L-TESTOSTERONE-5",
@@ -2890,17 +2928,27 @@
         "value": 300,
         "unit": "ng/dL"
       },
-      "kind": "cap",
+      "kind": "warn",
       "target": "highprotein",
-      "value": 3.4,
+      "value": {
+        "flagProteinGPerKg": 3.4,
+        "alsoTargets": [
+          "vlc"
+        ]
+      },
       "severity": "info",
-      "message": "Because your testosterone was {value} ng/dL on {date}, protein stays at or below 3.4 g/kg and very-low-carb plans keep enough fat.",
+      "message": "Because your testosterone was {value} ng/dL on {date}: very high protein with very little carbohydrate has been linked to lower testosterone (limited evidence).",
       "grade": "C",
       "sources": [
         "S85",
         "S84",
         "S83"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true
+      },
+      "thresholdContext": "300 ng/dL: AUA 2018 threshold (two early-morning tests); kept with its own provenance"
     },
     {
       "id": "W-L-TESTOSTERONE-6",
@@ -2922,7 +2970,12 @@
       "grade": "A",
       "sources": [
         "S87"
-      ]
+      ],
+      "applicability": {
+        "referencePhysiology": "adultMale",
+        "adultOnly": true
+      },
+      "thresholdContext": "300 ng/dL: AUA 2018 threshold (two early-morning tests); kept with its own provenance"
     },
     {
       "id": "W-L-CORTISOL-1",

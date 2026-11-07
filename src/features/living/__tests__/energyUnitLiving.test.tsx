@@ -5,7 +5,8 @@ import type { PrescribedDaySnapshot } from '@/living';
 import { useSettingsStore } from '@/state/settingsStore';
 import { EstimateReadout } from '../components/Estimate';
 import { TargetsFace } from '../food/components/TargetsFace';
-import { TodayDial } from '../today/components/TodayDial';
+import { SoFarFace } from '../today/components/Faces';
+import { todayViewFixture } from '../today/__tests__/todayView.fixture';
 
 const rx = {
   energyKcal: 2000,
@@ -25,7 +26,7 @@ describe('energy unit on the daily screens', () => {
     const { container } = render(<EstimateReadout value={600} sd={50} unit="of 2 000 kcal" approx short />);
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/kcal/);
-    expect(text).toMatch(/≈ 2[\s\u2009\u202f]?510 of 8[\s\u2009\u202f]?370 kJ/);
+    expect(text).toMatch(/≈ 2,510 of 8,370 kJ/);
   });
 
   it('kcal mode is unchanged', () => {
@@ -33,15 +34,20 @@ describe('energy unit on the daily screens', () => {
     expect(container.textContent).toMatch(/^600 kcal$/);
   });
 
-  it('Food targets and the dial summary follow the setting', () => {
+  it('Food targets and Today’s eaten bar follow the setting', () => {
     setUnit('kJ');
     const { container } = render(
       <>
         <TargetsFace rx={rx} totals={totals} logged quiet={false} />
-        <TodayDial rx={rx} nowH={10} centre={{ primary: '' }} />
+        <SoFarFace view={todayViewFixture()} quiet={false} size="sm" title="So far" onArc={() => undefined} />
       </>,
     );
     expect(container.textContent).not.toMatch(/kcal/);
-    expect(screen.getByText(/^Eat 09:00/).textContent).toMatch(/2[\s\u2009\u202f]?510 kJ/);
+    // r071 gives the numerator its own hero and the target a separate fact line.
+    expect(screen.getByLabelText(/2,680\s?kJ eaten/)).toBeInTheDocument();
+    expect(screen.getByText(/of 8,580\s?kJ/)).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: 'Energy' })).toHaveAttribute(
+      'aria-valuetext', expect.stringMatching(/Energy: eaten 4,184 of 8,368 kJ/),
+    );
   });
 });

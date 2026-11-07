@@ -101,16 +101,22 @@ export function energyUnitOf(displayUnit: string): EnergyUnitChoice {
   return /^kJ\b/.test(displayUnit) ? 'kJ' : 'kcal';
 }
 
-/** Tone step for a % of maintenance (tokens §8: 1 = 1–10 %, 2 = 10–20 %, 3 = 20–35 %, 4 = > 35 %). */
-export function energyStep(fractionOfMaintenance: number): { side: 'deficit' | 'surplus' | 'neutral' | 'fast'; step: 0 | 1 | 2 | 3 | 4 } {
+/** The deepest step of each arm of the balance ramp (`--lm-balance-deficit-1..6`, `--lm-balance-surplus-1..4`). */
+export const BALANCE_STEPS = { deficit: 6, surplus: 4 } as const;
+
+/**
+ * Tone step for a % of maintenance (r071 tokens §8): 10 % bands, step n is the n-th band from maintenance: deficit 1 =
+ * 0–10 % below … 6 = more than 50 % below, surplus 1 = 0–10 % above … 4 = more than 30 % above. A water-only fast
+ * (intake at or under 2 % of maintenance) is `fast` at the deepest deficit step.
+ */
+export function energyStep(fractionOfMaintenance: number): { side: 'deficit' | 'surplus' | 'neutral' | 'fast'; step: 0 | 1 | 2 | 3 | 4 | 5 | 6 } {
   if (!Number.isFinite(fractionOfMaintenance)) return { side: 'neutral', step: 0 };
-  if (fractionOfMaintenance <= 0.02) return { side: 'fast', step: 4 };
+  if (fractionOfMaintenance <= 0.02) return { side: 'fast', step: BALANCE_STEPS.deficit };
   const d = Math.abs(1 - fractionOfMaintenance);
   const side = fractionOfMaintenance < 1 ? 'deficit' : 'surplus';
   if (d < 0.01) return { side: 'neutral', step: 0 };
-  if (d <= 0.1) return { side, step: 1 };
-  if (d <= 0.2) return { side, step: 2 };
-  if (d <= 0.35) return { side, step: 3 };
-  return { side, step: 4 };
+  const max = BALANCE_STEPS[side];
+  const step = Math.min(max, Math.max(1, Math.ceil(d * 10 - 1e-9))) as 1 | 2 | 3 | 4 | 5 | 6;
+  return { side, step };
 }
 

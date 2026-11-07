@@ -14,7 +14,7 @@ import java.util.concurrent.Executors
 
 /**
  * Files shared to Vitals (ACTION_SEND, ACTION_SEND_MULTIPLE, ACTION_VIEW). Each stream is copied into cache/shared/
- * on a worker thread (never into memory: a Lumen export can be large), then added to the pending list and announced
+ * on a worker thread (never into memory: a shared file can be large), then added to the pending list and announced
  * to JS through the `sharedFiles` event. The URI grant lasts as long as the activity, which is what started this.
  */
 object SharedFiles {

@@ -60,17 +60,16 @@ function renderAt(url: string, repo: EvidenceRepository) {
 }
 
 describe('Evidence library pages', () => {
-  it('index (by category and by topic) names no research notes', async () => {
+  it('index (by topic, and by category for old links) names no research notes', async () => {
     const repo = await realRepository();
     const a = renderAt('/evidence', repo);
     await screen.findByRole('heading', { name: 'Mechanisms' });
     expect(hits()).toEqual([]);
-    expect(screen.getByText('by topic')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Safety limits/ })).toHaveAttribute('href', '/evidence/topics/safety-limits');
     a.unmount();
-    renderAt('/evidence?group=topic', repo);
+    renderAt('/evidence?group=category', repo);
     await screen.findByRole('heading', { name: 'Mechanisms' });
     expect(hits()).toEqual([]);
-    expect(screen.getAllByText(/\d+ topics/).length).toBeGreaterThan(0);
   }, 30_000);
 
   it('a topic page names no research notes and its sources can be reached by number', async () => {

@@ -6,7 +6,8 @@
  */
 import { computeConstraintMargins, worstMargin } from './constraints';
 import type { ConstraintPerson } from './constraints';
-import { defaultSafetyConstants } from './params';
+import { SAFETY_EA_POLICY, defaultSafetyConstants } from './params';
+import type { PersonProfile } from '../../types/profile';
 import { deficitCapPct, minIntakeForEa, rateCapPct, weeksToReach, weightAtBfFloorKg } from './derived';
 import type { Scenario } from './testkit';
 import { linear, person, prog, runScenario, sched } from './testkit';
@@ -378,5 +379,49 @@ describe('caps (17 §2.3)', () => {
     expect(rateCapPct(K, 26, 40, 39.9, 18, true)).toBe(0.75);
     expect(rateCapPct(K, 26, 40, 40, 18, true)).toBe(1.0);
     expect(rateCapPct(K, 31, 66, 35, 10, false)).toBe(0.5);
+  });
+});
+
+describe('cycle concern W-E18: eligibility and logged changes (D2-07, D8-04)', () => {
+  // GT-05's regime (BF falls below 20 % and EA stays reduced) and a well-fed regime (no deficit, adequate EA)
+  const lean = (cycle?: PersonProfile['cycle']) =>
+    runScenario({
+      person: { ...person({ sex: 'female', ageYears: 27, heightCm: 165, weightKg: 64 }), ...(cycle ? { cycle } : {}) },
+      schedule: sched(120, [prog('A', 1700, { proteinG: 100, carbsG: 170 })], () => 0),
+      plant: { tdee: 2000, scaleKg: linear(64, -7.9 / 120), bfPct: (d) => 28 - (11 / 120) * d },
+    });
+  const fed = (cycle?: PersonProfile['cycle']) =>
+    runScenario({
+      person: { ...person({ sex: 'female', ageYears: 30, heightCm: 165, weightKg: 62 }), ...(cycle ? { cycle } : {}) },
+      schedule: sched(28, [prog('A', 2000, { proteinG: 100, carbsG: 230 })], () => 0),
+      plant: { tdee: 2000, scaleKg: () => 62, bfPct: () => 27 },
+    });
+
+  it('unknown menstruation keeps the exposure-based concern (an absent log never reassures)', () => {
+    expect(lean().has('W-E18')).toBe(true);
+    expect(lean({ tracking: false, menstruating: 'unknown' }).has('W-E18')).toBe(true);
+  });
+
+  it('no period sign when the person said they do not menstruate; other EA and body-fat rules still apply', () => {
+    const s = lean({ tracking: false, menstruating: 'no' });
+    expect(s.has('W-E18')).toBe(false);
+    expect(s.has('W-E15') || s.has('W-E16') || s.has('W-E19')).toBe(true);
+  });
+
+  it('a logged missed period or new irregularity raises the concern although the model’s energy availability is adequate', () => {
+    expect(fed().has('W-E18')).toBe(false);
+    for (const recentChange of ['missedPeriods', 'newIrregularity'] as const) {
+      const s = fed({ tracking: false, recentChange });
+      expect(s.has('W-E18'), recentChange).toBe(true);
+      expect(s.warn('W-E18')[0]!.severity).toBe('caution');
+    }
+    expect(fed({ tracking: false, recentChange: 'none' }).has('W-E18')).toBe(false);
+  });
+});
+
+describe('energy-availability policy markers (D8-04)', () => {
+  it('45 / 35 / 30 kcal/kg FFM/day stay the versioned operational policy, not a diagnostic boundary', () => {
+    expect([K.eaAdequate, K.eaReducedUpper, K.eaHardMin]).toEqual([45, 35, 30]);
+    expect(SAFETY_EA_POLICY).toMatchObject({ version: 2, thresholds: 'operationalPolicy', sample: 'clippedDailyNonFast' });
   });
 });

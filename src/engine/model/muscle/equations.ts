@@ -2,6 +2,7 @@
  * Pure equations of the muscle module (dossier 09 §4.1-4.14, 03 §4.5/4.7/4.8/4.10/4.14, 15 §4.10/4.12).
  * No allocation; every function is a scalar map so it can be unit-tested against the dossiers' worked numbers.
  */
+import type { ContractionType } from '../../types/schedule';
 import type { MuscleConstants as K, Mps03Constants as M } from './constants';
 
 export const clamp = (x: number, lo: number, hi: number): number => (x < lo ? lo : x > hi ? hi : x);
@@ -34,6 +35,68 @@ export function fRest(k: K, restSec: number): number {
   if (restSec <= k.restShortSec) return k.fRest60;
   if (restSec < k.restFullSec) return k.fRest90;
   return 1;
+}
+
+// ------------------------------------------------------------------ D3-01 homogeneous set groups
+
+/**
+ * Contraction-type set factor f_type (D3-01), applied once to a set group whose region weights do not already include it:
+ * dynamic 1; an isometric hold that does not end near failure, and a qualifying ballistic bout, 0.5. These are the
+ * catalogue's `isometricNonFailureFactor` / `ballisticSetFactor` defaults (R3 §3.1, grade D design priors, not personal
+ * biology; a parity test keeps them equal). A producer with another factor (a hold taken to failure, an item-specific
+ * ballistic factor) folds it into the region weights and sets `typeFactorIncluded`.
+ */
+export const CONTRACTION_TYPE_FACTOR: Readonly<Record<ContractionType, number>> = { dynamic: 1, isometric: 0.5, ballistic: 0.5 };
+
+/** f_type of a group: 1 when its region weights already include it (legacy merged dose), else the contraction default. */
+export function typeFactor(contraction: ContractionType, included: boolean): number {
+  if (included) return 1;
+  const f = CONTRACTION_TYPE_FACTOR[contraction];
+  return f === undefined ? 1 : f;
+}
+
+/**
+ * Per-set effective-set factor of one homogeneous group (09 §4.1, D3-01) with the run's drawn constants:
+ * f_type·f_RIR(L, RIR)·f_load(L)·f_rest(rest)·f_conc. Isometric holds bypass f_RIR and f_load (their proximity to failure
+ * is carried by f_type). L in %1RM, RIR in reps, rest in s.
+ */
+export function groupSetFactor(k: K, contraction: ContractionType, typeFactorIncluded: boolean, loadPct: number, rir: number, restSec: number): number {
+  const effort = contraction === 'isometric' ? 1 : fRir(k, rir, loadPct) * fLoad(k, loadPct);
+  return typeFactor(contraction, typeFactorIncluded) * effort * fRest(k, restSec) * k.fConc;
+}
+
+/** One homogeneous set group as the effective-set equation needs it (finite load/RIR/rest: defaults already applied). */
+export interface SetGroupDose {
+  /** Physical sets of the group. */
+  sets: number;
+  /** Per-set region weights w_rg, TRAINING_REGIONS order. */
+  regionWeights: ArrayLike<number>;
+  contraction: ContractionType;
+  typeFactorIncluded: boolean;
+  /** %1RM, reps in reserve, inter-set rest s. */
+  loadPct1RM: number;
+  rir: number;
+  restSec: number;
+}
+
+/**
+ * e_r = Σ_g n_g·w_rg·f_type,g·f_RIR,g·f_load,g·f_rest,g (D3-01): each group's factors are evaluated with the drawn constants
+ * and applied once, then summed per region into `out` (added to its current values). Effective sets are dimensionless
+ * set equivalents; the raw physical count is Σ n_g, never the sum of region weights.
+ */
+export function addGroupEffectiveSets(k: K, groups: ArrayLike<SetGroupDose>, out: Float64Array): Float64Array {
+  for (let g = 0; g < groups.length; g++) {
+    const grp = groups[g]!;
+    if (!(grp.sets > 0)) continue;
+    const f = grp.sets * groupSetFactor(k, grp.contraction, grp.typeFactorIncluded, grp.loadPct1RM, grp.rir, grp.restSec);
+    const w = grp.regionWeights;
+    const n = out.length < w.length ? out.length : w.length;
+    for (let r = 0; r < n; r++) {
+      const wr = w[r]!;
+      if (wr > 0) out[r] = out[r]! + wr * f;
+    }
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ 09 §4.2-4.3 volume and frequency
@@ -205,12 +268,25 @@ export function trainedGains0(mAcc0: number, heightM: number, ffmiExcess: number
 }
 
 /**
- * R-DETRAIN retained floor of a region, kg: `mBase + φ·(M_acc,0 − mBase)` — the set-point plus the retained share φ of the
- * long-term trained gains. Detraining decays towards it (09 §4.10 exponential, τ_d), never below.
+ * Floor detraining decays towards, kg (D3-06): `mBase + φ·(M_peak − mBase)` — the untrained set-point plus the retained share
+ * φ of the attained trained gains (history: the region's peak, never the run origin). φ = `detrainFloorFrac`, 0 centrally
+ * (no guaranteed permanent trained-gain floor; 0.5 = the legacy R-DETRAIN research scenario). Detraining decays towards
+ * it (09 §4.10 exponential, τ_d), never below.
  */
-export function detrainFloor(mAcc0: number, mBase: number, phi: number): number {
-  const g = mAcc0 - mBase;
+export function detrainFloor(mPeak: number, mBase: number, phi: number): number {
+  const g = mPeak - mBase;
   return g > 0 ? mBase + clamp(phi, 0, 1) * g : mBase;
+}
+
+/**
+ * 09 §4.10 detraining loss of one region for one day, kg/d (legacy kinetics, an uncertain scenario rather than a hard
+ * no-loss window, D3-06): λ(T_low)·(1 − min(V/V_maint, 1))·max(M − floor, 0)/τ_d.
+ */
+export function detrainLoss(k: K, tLow: number, v: number, vMaint: number, m: number, floor: number): number {
+  const lam = detrainLambda(k, tLow);
+  const dyn = m - floor;
+  if (!(lam > 0) || !(dyn > 0)) return 0;
+  return (lam * (1 - (v < vMaint ? v / vMaint : 1)) * dyn) / k.tauD;
 }
 
 // ------------------------------------------------------------------ 09 §4.14 strength
@@ -304,7 +380,8 @@ export function obesityRamp(k: M, bmi: number): number {
 // ------------------------------------------------------------------ 03 §4.8 distribution efficiency (daily formula)
 
 /**
- * E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1), clamped to [0.83, 1] (MODEL_SPEC §1.9 range).
+ * LEGACY RESEARCH SENSITIVITY (D3-04; used only under `muscle.eDistMode` 1 — production applies E_dist = 1, a neutral design
+ * choice): E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1), clamped to [0.83, 1] (MODEL_SPEC §1.9 range).
  * n_eff = meals whose quality-weighted protein ≥ max(0.28 g/kg FFM·(1 + 0.8·ageRamp)·FFM, 15 g), spaced ≥ 3 h from
  * the previous qualifying meal, capped at 3; W = first to last protein-containing meal + 1 h.
  * `mealClockH`, `mealProtQ` (g, Q_meal-weighted) and `mealProtG` are parallel arrays of `n` meals in clock order.

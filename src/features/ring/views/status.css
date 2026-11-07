@@ -1,0 +1,12 @@
+@layer components {
+  .rg-status__words {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+  }
+  .rg-status__words:empty {
+    display: none;
+  }
+}

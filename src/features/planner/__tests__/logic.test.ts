@@ -26,6 +26,8 @@ const outcome = {
 } as unknown as SafetySnapshot['outcome'] & Pick<ScreeningOutcome, 'fasting'>;
 
 const safety: SafetySnapshot = { outcome, plannerAccess: 'full', optedTier: null, shortWindowOn: false };
+/** The fixture goals with an eligible third goal (the fixture's autophagy index is a legacy saved goal the store refuses, D2-02). */
+const ELIGIBLE = [GOALS[0]!, GOALS[1]!, { key: 'g3', metric: 'hunger' as const, mode: 'lower' as const, amount: null, strength: 'nice' as const, functional: null }];
 
 beforeEach(() => {
   localStorage.clear();
@@ -45,16 +47,16 @@ describe('planner store', () => {
 
   it('moves goals and keeps rank order', () => {
     const s = usePlannerStore.getState();
-    for (const g of GOALS) s.addGoal(g);
+    for (const g of ELIGIBLE) s.addGoal(g);
     s.moveGoal(2, 0);
-    expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['autophagyIdx', 'fatMass', 'leanTissue']);
+    expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['hunger', 'fatMass', 'leanTissue']);
     s.moveGoal(0, 99);
-    expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['fatMass', 'leanTissue', 'autophagyIdx']);
+    expect(usePlannerStore.getState().goals.map((g) => g.metric)).toEqual(['fatMass', 'leanTissue', 'hunger']);
   });
 
   it('persists goals and limits, never the run or its result', () => {
     const s = usePlannerStore.getState();
-    for (const g of GOALS) s.addGoal(g);
+    for (const g of ELIGIBLE) s.addGoal(g);
     s.setConstraints({ longestFastH: 16 });
     s.runStarted('h1', {} as never, 0);
     s.runFinished(fixtureResult(), 1);
@@ -122,11 +124,13 @@ describe('goal catalogue', () => {
     for (const m of GOAL_METRICS) if (!m.eligible) expect(m.reason).toBeTruthy();
   });
 
-  it('carries the mandatory autophagy caveat and grade D', () => {
+  it('keeps the autophagy caveat and grade D on a metric that is no goal (D2-02)', () => {
     const a = goalMetric('autophagyIdx')!;
     expect(a.grade).toBe('D');
     expect(a.caveat).toMatch(/cannot be measured in your organs/);
-    expect(a.modes.map((m) => m.direction)).toEqual(['maximise']);
+    expect(a.eligible).toBe(false);
+    expect(a.reason).toBeTruthy();
+    expect(a.modes).toEqual([]);
   });
 
   it('searches plain words and aliases, never diet brands', () => {
@@ -146,7 +150,7 @@ describe('target editor units', () => {
 
   it('maps goal phrasing to engine directions and signed change targets', () => {
     expect(toRankedGoal({ ...GOALS[0]!, amount: 10 }, 0)).toEqual({ metric: 'fatMass', direction: 'target', target: -10, targetKind: 'change' });
-    expect(toRankedGoal(GOALS[1]!, 1)).toEqual({ metric: 'leanTissue', direction: 'maximise', target: 0, targetKind: 'change' });
+    expect(toRankedGoal(GOALS[1]!, 1)).toEqual({ metric: 'leanTissue', direction: 'target', target: 0, targetKind: 'change' });
     expect(toRankedGoal({ key: 'k', metric: 'bhb', mode: 'reach', amount: 1.2, strength: 'must', functional: 'mean' }, 0)).toEqual({
       metric: 'bhb',
       direction: 'target',
@@ -200,7 +204,7 @@ describe('constraint form → PlannerRequest', () => {
     const c = defaultConstraints(PROFILE.habits);
     const make = () => buildPlannerRequest({ goals: GOALS, horizonDays: 84, startDate: START, constraints: c, strictness: 'balanced', profile: PROFILE, safety });
     expect(requestHash(make())).toBe(requestHash(make()));
-    const other = buildPlannerRequest({ goals: GOALS.slice(0, 2), horizonDays: 84, startDate: START, constraints: c, strictness: 'balanced', profile: PROFILE, safety });
+    const other = buildPlannerRequest({ goals: GOALS.slice(0, 1), horizonDays: 84, startDate: START, constraints: c, strictness: 'balanced', profile: PROFILE, safety });
     expect(requestHash(other)).not.toBe(requestHash(make()));
   });
 });
@@ -270,7 +274,7 @@ describe('pre-flight hints', () => {
 
   it('names catalogue conflicts and contradictory limits', () => {
     const c = { ...defaultConstraints(PROFILE.habits), trainingDays: [2, 5] as [number, number], trainingWeekdays: [0, 2, 4] as (0 | 2 | 4)[], longestFastH: 16 as const };
-    const goals = [newGoal(goalMetric('leanTissue')!, 'gain'), newGoal(goalMetric('autophagyIdx')!)];
+    const goals = [newGoal(goalMetric('leanTissue')!, 'gain'), newGoal(goalMetric('bhb')!, 'raise')];
     const hints = preflightHints({ goals, horizonDays: 84, constraints: c, body });
     expect(hints.map((h) => h.id)).toEqual(expect.arrayContaining(['train-days', 'transient-no-fast']));
     expect(hints.some((h) => /pull apart/.test(h.title))).toBe(true);
@@ -332,7 +336,11 @@ describe('prescription', () => {
     const fastStart = rx.days[15]!;
     expect(fastStart.fast).toMatchObject({ part: 'start', totalH: 40 });
     expect(rx.days[16]!.fast).toMatchObject({ totalH: 40 });
-    expect(rx.types.map((t) => t.label)).toEqual(['eating day · resistance training', 'eating day', 'zero-energy day']);
+    // r068 PR12: a day a fast cuts well below its template's fullest day is its own "fast day" type (here Wednesday,
+    // which the fixture's run echoes at 0 kcal), never an "eating day" sharing a letter with the full days
+    expect(rx.types.map((t) => t.label)).toEqual(['eating day · resistance training', 'eating day', 'zero-energy day', 'fast day · resistance training']);
+    expect(rx.days[16]!.typeLabel).toBe('fast day · resistance training');
+    expect(rx.days[15]!.typeLabel).toBe('eating day');
   });
 });
 

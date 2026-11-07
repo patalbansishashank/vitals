@@ -1,52 +1,98 @@
-/* Train (design/screens/living-mode.md, Train). Tokens only; achromatic chrome; class prefix lv-train-. */
+/* Train (design/screens/living-mode.md, Train). Ember: tokens only, no rules under headings, no dots, weights 350/400/500;
+   gold only for the primary key, selection and state. Class prefix lv-train-. */
 @layer components {
-  /* the today / week switch sits at the right end of the title row, like the keys in a card head */
-  .lv-train-viewbank {
-    margin-inline-start: auto;
-  }
-  .lm-ctx:has(> .lv-train-viewbank) > .lm-ctx__grow {
-    display: none;
-  }
-
   .lv-train {
     display: grid;
     gap: var(--lm-space-4);
     padding-bottom: var(--lm-space-8);
   }
 
-  /* date strip: a mobile scroll strip whose next key peeks; snap keeps the gutter */
-  .lv-train-strip {
-    min-width: 0;
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    scroll-padding-inline: var(--lm-gutter);
-    overscroll-behavior-x: contain;
-  }
-
-  .lv-train-notes {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--lm-space-2) var(--lm-space-4);
-  }
-  .lv-train-note {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
-  }
-  .lv-train-footnote {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink-2);
-    padding-inline: var(--lm-space-1);
-  }
-
-  /* layout: one column on mobile; two equal columns from 1024 px */
+  /* layout: one column on phones; the day and the week side by side from 1024 px */
   .lv-train-grid {
     display: grid;
     gap: var(--lm-space-4);
     align-items: start;
   }
+  /* the activity hub's keys (r068 T11): one primary, the others the same shape and height; an equal-width row that
+     stacks on a narrow phone */
+  .lv-train-hub__keys {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--lm-inline);
+  }
+  .lv-train-hub__keys > :first-child:not(:last-child) {
+    grid-column: 1 / -1;
+  }
+  @media (min-width: 40rem) {
+    .lv-train-hub__keys {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+  }
+  /* r068 L17: the keys, then the week's activities as rows in one card */
+  .lv-train-hub {
+    display: grid;
+    gap: var(--lm-stack);
+    min-width: 0;
+  }
+  .lv-train-hub__none {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lv-train-hub__list {
+    display: grid;
+    margin: 0 calc(-1 * var(--lm-space-2));
+    padding: 0;
+    list-style: none;
+  }
+  .lv-train-hub__list > li + li {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-train-hub__row {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    width: 100%;
+    min-height: 56px;
+    padding: var(--lm-space-2);
+    border: 0;
+    border-radius: var(--lm-radius-md);
+    background: none;
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .lv-train-hub__row:hover {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+  }
+  .lv-train-hub__row:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .lv-train-hub__what {
+    display: grid;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .lv-train-hub__name {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
+  }
+  .lv-train-hub__facts {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-train-hub__chev {
+    flex: none;
+    color: var(--lm-ink-3);
+  }
+
   .lv-train-main,
   .lv-train-aside {
     display: grid;
@@ -54,80 +100,216 @@
     min-width: 0;
     align-content: start;
   }
-  @media (min-width: 64rem) {
-    .lv-train-grid {
-      grid-template-columns: repeat(12, minmax(0, 1fr));
+  /* (r068 final S4) the split follows the content column, not the window: with a side panel open beside the page
+     (about 780 px left) the page is one column; the week rail holds still beside a long session */
+  .lv-train-cq {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  @container (min-width: 56rem) {
+    .lv-train-grid:has(> .lv-train-aside) {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
     }
-    /* two equal columns on desktop */
-    .lv-train-main,
-    .lv-train-aside {
-      grid-column: span 6;
+    .lv-train-grid > .lv-train-aside {
+      position: sticky;
+      top: calc(var(--lm-header-h, 0px) + var(--lm-stack));
     }
   }
 
-  /* session faceplate */
-  .lv-train-session__meta {
+  /* session card */
+  .lv-train-session {
     display: grid;
-    gap: var(--lm-space-2);
-    padding-block: var(--lm-space-2) var(--lm-space-3);
+    gap: var(--lm-space-3);
+  }
+  /* the keys stay beside the title; a long exercise name wraps instead of pushing them under it */
+  .lv-train-session > .lm-face-head {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    margin-bottom: 0;
+  }
+  .lv-train-session > .lm-face-head > .lm-face-head__actions {
+    flex: none;
+  }
+  /* r068 L22: the title fills the head's width before it wraps (no balanced half-width lines), and a session with
+     nothing under its head (a preview of a one-activity day) leaves no empty rail, so the bottom padding is the card's */
+  .lv-train-session > .lm-face-head :is(h2, h3) {
+    text-wrap: pretty;
+  }
+  .lv-train-session > .lv-rail-host:not(:has(li > :not(.lm-sr))) {
+    display: none;
   }
   .lv-train-session__keys {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--lm-space-1);
   }
-  .lv-train-session__sum {
-    display: flex;
+  /* the facts under the title: the energy, and the effort cue the rep work shares (said once, r068 T14) */
+  .lv-train-session__facts {
+    display: inline-flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 14px;
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
+    gap: 0;
   }
-  .lv-train-session__sum > .lm-num {
-    color: var(--lm-ink);
-    font-weight: 600;
+  .lv-train-session__tank::before {
+    content: '\00a0· ';
   }
-  .lv-train-session__kit {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
+  .lv-train-session__facts > .lv-train-session__tank:first-child::before {
+    content: none;
   }
-  .lv-train-session__controls {
+  /* the running timer (r068 T13): its own row under the title, the clock in the display face and a visible Stop */
+  .lv-train-session__timer {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: var(--lm-space-2) var(--lm-space-3);
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    padding: var(--lm-row-gap) var(--lm-space-3);
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-well);
   }
   .lv-train-session__elapsed {
-    font-size: var(--lm-text-sm);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     color: var(--lm-ink);
-  }
-  .lv-train-energy {
-    font-size: var(--lm-text-sm);
     white-space: nowrap;
   }
-  .lv-train-rest {
-    padding-block: var(--lm-space-3) var(--lm-space-1);
-    color: var(--lm-ink);
+  /* "Log by" (r068 T2): a labelled row, the selector full width */
+  .lv-train-session__style {
+    display: grid;
+    gap: var(--lm-row-gap);
+  }
+  .lv-train-session__label {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-train-energy {
+    white-space: nowrap;
   }
 
-  /* exercise rows (PrescriptionRow look) */
+  /* exercise rows on the shared day rail (living.css): number · node · name + readout · Done (no ⋯) */
   .lv-train-rows {
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  /* the exercises ride the shared day rail (living.css): number · node · name + readout · Done + ⋯ */
+  /* one index per exercise (r068 T3): its number sits in the node, which fills gold when done; no time column, and the
+     row's key trails its set keys instead of holding a column of its own, so a name takes the full width */
+  .lv-train-rows.lv-day {
+    --node: 26px;
+    --gx: 12px;
+  }
+  .lv-train-rows.lv-day > .lv-train-row,
+  .lv-train-rows.lv-day > .lv-train-row:is(*) {
+    grid-template-columns: var(--node) minmax(0, 1fr);
+    grid-template-areas:
+      'node label'
+      '.    sub';
+  }
+  .lv-train-rows.lv-day > .lv-train-row > .lv-item__body {
+    grid-column: 2 / -1;
+  }
+  .lv-train-row__node.lv-item__node {
+    align-self: start;
+    margin-top: 1px;
+    display: grid;
+    place-items: center;
+    border-width: 1px;
+    font-size: var(--lm-text-label-s);
+    line-height: 1;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .lv-train-row[data-state='done'] .lv-train-row__node {
+    color: var(--lm-signal-ink);
+  }
+  .lv-train-row[data-state='partial'] .lv-train-row__node {
+    color: var(--lm-ink);
+  }
+  /* r068 L5: the row's one key is not a set. Phones: the controls, then Done as a full-width quiet key under them.
+     From 48rem: the controls at their own width and Done on its own row under them (final S5). */
+  .lv-train-row__act {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-row-gap);
+  }
+  .lv-train-row__key {
+    display: grid;
+    justify-items: start;
+  }
+  .lv-train-row__key > .lm-key[data-variant='outlined'] {
+    width: 100%;
+    min-height: 40px;
+  }
+  /* (r068 final S5) From 48rem Done always sits on its own row under the sets, start-aligned at a set key's width,
+     never inline after some exercises and below others depending on how the sets wrapped */
+  @media (min-width: 48rem) {
+    .lv-train-row__act {
+      justify-items: start;
+    }
+    .lv-train-row__act > :not(.lv-train-row__key) {
+      min-width: 0;
+      max-width: 100%;
+    }
+    .lv-train-row__act > .lv-train-chips {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .lv-train-row__act > .lv-train-chips > .lv-train-chip {
+      width: 7.5rem;
+    }
+    .lv-train-row__key > .lm-key[data-variant='outlined'] {
+      width: auto;
+      min-width: 7.5rem;
+      min-height: 40px;
+    }
+    .lv-train-row__act > .lv-train-dose {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .lv-train-row__act > .lv-train-dose > .lm-field {
+      width: 9rem;
+    }
+  }
+  @media (min-width: 48rem) and (pointer: coarse) {
+    .lv-train-row__key > .lm-key[data-variant='outlined'] {
+      min-height: var(--lm-hit-touch);
+    }
+  }
   .lv-train-row__name {
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 600;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: var(--lm-weight-medium);
+  }
+  /* the name opens the exercise's swap sheet: the whole row is the target, as on Today; the key and body sit above it */
+  .lv-train-row__open {
+    display: block;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lv-train-row__open::first-letter {
+    text-transform: uppercase;
+  }
+  .lv-train-row__open::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: var(--lm-radius-md);
+  }
+  .lv-train-row__open:focus-visible {
+    outline: none;
+  }
+  .lv-train-row__open:focus-visible::after {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
   }
   .lv-train-row[data-state='done'] .lv-train-row__name,
   .lv-train-row[data-state='skipped'] .lv-train-row__name {
-    font-weight: 500;
+    font-weight: var(--lm-weight-regular);
     color: var(--lm-ink-2);
   }
   .lv-train-row__swap {
@@ -136,52 +318,72 @@
     align-items: center;
     gap: var(--lm-space-1) var(--lm-space-2);
   }
-  .lv-train-rows .lv-day,
-  .lv-train-rows.lv-day {
-    --t: 1.5rem;
+  /* a one-exercise session: no rail; the readout, a swap's note and the log controls */
+  .lv-train-solo {
+    display: grid;
+    gap: var(--lm-space-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
   }
 
-  /* quick log: a chip per planned set */
+  /* log by sets (r068 T1): a key per planned set in an equal-width grid, in the card's language (a rounded rectangle,
+     the well fill, a hairline); "Set 1" small over "6 reps"; done = the gold tile */
   .lv-train-chips {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
     gap: var(--lm-space-1-5);
   }
   .lv-train-chip {
-    display: inline-flex;
-    align-items: baseline;
-    gap: var(--lm-space-1);
-    min-width: 44px;
-    min-height: 44px;
-    padding-inline: var(--lm-space-2);
-    border-radius: var(--lm-radius-sm);
-    border: 1px solid var(--lm-edge);
-    background: var(--lm-face);
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-sm);
+    display: grid;
     align-content: center;
-    justify-content: center;
-    align-items: center;
+    justify-items: start;
+    gap: 0;
+    min-height: var(--lm-hit-touch);
+    padding: var(--lm-space-1) var(--lm-space-3);
+    border-radius: var(--lm-control-radius);
+    border: 1px solid var(--lm-line);
+    background: var(--lm-well);
+    color: var(--lm-ink);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    text-align: left;
     cursor: pointer;
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lv-train-chip[aria-pressed='true'] {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
-    color: var(--lm-ink-inverse);
+    background: var(--lm-select-on, var(--lm-gold-wash));
+    border-color: var(--lm-select-on-edge, var(--lm-gold-edge));
+    color: var(--lm-ink);
+  }
+  .lv-train-chip:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
   }
   .lv-train-chip__k {
-    font-size: var(--lm-text-2xs);
-    line-height: var(--lm-text-2xs--lh);
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
+    font-weight: 400;
+    color: var(--lm-ink-3);
+  }
+  .lv-train-chip[aria-pressed='true'] .lv-train-chip__k {
+    color: var(--lm-ink-2);
+  }
+  @media (hover: hover) {
+    .lv-train-chip:not([aria-pressed='true']):hover {
+      border-color: var(--lm-line-strong);
+    }
   }
   @media (pointer: fine) {
     .lv-train-chip {
-      min-height: 32px;
-      min-width: 36px;
+      min-height: 40px;
     }
   }
 
-  /* detailed and duration logs */
+  /* log by reps and by minutes */
   .lv-train-sets {
     display: grid;
     gap: var(--lm-space-2);
@@ -195,48 +397,77 @@
   .lv-train-sets__k {
     align-self: center;
   }
+  /* log by minutes: labelled fields at a field's width, never a bare bar across the card */
+  .lv-train-dose {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7rem, 9rem));
+    gap: var(--lm-space-3);
+  }
   .lv-train-sets__keys {
     display: flex;
     flex-wrap: wrap;
     gap: var(--lm-space-2);
   }
 
-  /* footer: session done · something else · skipped; verdict once logged; partial summary */
+  /* foot: the session's one done key (full width on phones, r068 T15); once logged, the verdict as a full-width line
+     and "Change what you did" a button under it (r068 T6) */
   .lv-train-foot {
     display: grid;
-    gap: var(--lm-space-2);
-    padding-top: var(--lm-space-3);
-    border-top: 1px solid var(--lm-line);
-  }
-  .lv-train-foot[data-logged='true'] {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
+    gap: var(--lm-card-gap);
+    padding-top: var(--lm-space-1);
   }
   .lv-train-foot__keys {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--lm-space-2);
+    display: grid;
+    gap: var(--lm-inline);
+  }
+  @media (min-width: 40rem) {
+    .lv-train-foot__keys {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .lv-train-foot[data-logged='true'] > .lm-key {
+      justify-self: start;
+    }
   }
   .lv-train-verdict {
     display: grid;
     gap: var(--lm-space-1);
+    padding: var(--lm-space-3);
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-well);
   }
   .lv-train-verdict__line,
   .lv-train-review__sum {
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
   }
-
-  .lv-train-bar {
-    flex: 1;
-    min-width: 0;
+  .lv-train-verdict > .lm-eng {
+    margin: 0;
+  }
+  /* r068 L7: Undo sits at the end of the verdict's own row (no toast repeating the card) */
+  .lv-train-verdict[data-undo='true'] {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--lm-inline);
+    padding-block: var(--lm-space-2);
+  }
+  .lv-train-verdict[data-undo='true'] > :not(.lv-train-verdict__undo) {
+    grid-column: 1;
+  }
+  .lv-train-verdict__undo {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  /* a rest day with no step count: one line, no empty dot matrix (r068 T10) */
+  .lv-train-rest__none {
+    margin: 0;
+    color: var(--lm-ink-2);
     font-size: var(--lm-text-sm);
-    color: var(--lm-ink);
   }
-
-  /* panels: swap list, search results */
+  /* sheets: swap list, search results, equipment, the week on phones */
   .lv-train-panel {
     /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
     padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
@@ -260,7 +491,9 @@
     gap: var(--lm-space-3);
     align-items: start;
     padding-block: var(--lm-space-3);
-    border-top: 1px solid var(--lm-line);
+  }
+  .lv-train-swap + .lv-train-swap {
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lv-train-swap__main {
     display: grid;
@@ -268,8 +501,8 @@
     min-width: 0;
   }
   .lv-train-swap__name {
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     font-weight: var(--lm-weight-medium);
     color: var(--lm-ink);
   }
@@ -278,8 +511,8 @@
   }
   .lv-train-swap__dose,
   .lv-train-swap__needs {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
   .lv-train-result {
@@ -289,73 +522,74 @@
     align-items: baseline;
     justify-content: space-between;
     gap: var(--lm-space-1) var(--lm-space-3);
-    min-height: 44px;
+    min-height: var(--lm-hit-touch);
     padding: var(--lm-space-2) var(--lm-space-1);
     border: 0;
-    border-top: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
     background: transparent;
     color: var(--lm-ink);
     text-align: left;
     cursor: pointer;
   }
-  /* whole-row buttons: surface hover only (COMPONENTS §14.1); the chosen row keeps its well */
+  /* whole-row buttons: surface hover only (COMPONENTS §14.1); the chosen row takes the selected-row gold */
   @media (hover: hover) {
     .lv-train-result:not([aria-pressed='true']):hover {
       background: var(--lm-face-hover);
     }
   }
   .lv-train-result[aria-pressed='true'] {
-    background: var(--lm-well);
+    background: var(--lm-gold-soft);
   }
   .lv-train-result__name {
-    font-size: var(--lm-text-base);
+    font-size: var(--lm-text-body);
+  }
+  /* "What you did": the name, the dose fields, how hard; then the estimate and (against a plan) the meter */
+  .lv-train-picked {
+    display: grid;
+    gap: var(--lm-space-3);
+  }
+  .lv-train-effort {
+    display: grid;
+    gap: var(--lm-space-1);
+    justify-items: start;
+  }
+  .lv-train-effort__label {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-train-preview {
+    margin-top: var(--lm-space-3);
   }
 
-  /* equipment and things to buy */
-  .lv-train-equip,
-  .lv-train-places,
+  /* equipment sheet: plain lines, no chips (nothing here is selectable) */
+  .lv-train-list,
   .lv-train-buy {
+    display: grid;
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  .lv-train-equip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--lm-space-1-5);
-    padding-block: var(--lm-space-2) var(--lm-space-3);
-  }
-  .lv-train-equip__none {
-    display: grid;
-    gap: var(--lm-space-2);
-    justify-items: start;
-    padding-block: var(--lm-space-2) var(--lm-space-3);
+  .lv-train-list {
+    gap: var(--lm-space-1);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
   }
-  .lv-train-places {
-    display: grid;
-    gap: var(--lm-space-1);
-    padding-block: var(--lm-space-1) var(--lm-space-3);
-    font-size: var(--lm-text-sm);
+  .lv-train-equip__none {
     color: var(--lm-ink);
   }
   .lv-train-buy__row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--lm-space-3);
-    align-items: center;
+    gap: var(--lm-space-0-5);
     padding-block: var(--lm-space-2);
   }
   .lv-train-buy__row + .lv-train-buy__row {
-    border-top: 1px solid var(--lm-line);
-  }
-  .lv-train-buy__main {
-    display: grid;
-    gap: var(--lm-space-0-5);
-    min-width: 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
   .lv-train-buy__name {
-    font-size: var(--lm-text-base);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     color: var(--lm-ink);
   }
 
@@ -371,14 +605,15 @@
     align-items: center;
     gap: var(--lm-space-3);
     width: 100%;
-    min-height: 44px;
-    padding: var(--lm-space-2) var(--lm-space-1);
+    min-height: var(--lm-hit-touch);
+    padding: var(--lm-space-2);
     border: 0;
-    border-top: 1px solid var(--lm-line);
+    border-radius: var(--lm-radius-sm);
     background: transparent;
     color: var(--lm-ink);
     text-align: left;
-    font-size: var(--lm-text-sm);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
     cursor: pointer;
   }
   @media (hover: hover) {
@@ -387,20 +622,14 @@
     }
   }
   .lv-train-weekrow[aria-current='date'] {
-    background: var(--lm-well);
+    background: var(--lm-gold-soft);
   }
   .lv-train-weekrow__day {
     font-weight: var(--lm-weight-medium);
   }
-  .lv-train-weekrow[data-today] .lv-train-weekrow__day::after {
-    content: '';
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    margin-left: var(--lm-space-1-5);
-    border-radius: var(--lm-radius-full);
-    background: var(--lm-signal);
-    vertical-align: middle;
+  /* today: the day in gold (no dot) */
+  .lv-train-weekrow[data-today] .lv-train-weekrow__day {
+    color: var(--lm-signal);
   }
   .lv-train-weekrow__what {
     color: var(--lm-ink-2);
@@ -417,11 +646,13 @@
     align-items: center;
     gap: var(--lm-space-1);
     color: var(--lm-ink-2);
-    font-size: var(--lm-text-xs);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     white-space: nowrap;
   }
   .lv-train-status__mark {
     position: relative;
+    box-sizing: border-box;
     width: 10px;
     height: 10px;
     border-radius: var(--lm-radius-full);
@@ -432,9 +663,15 @@
     background: var(--lm-ink);
     border-color: var(--lm-ink);
   }
+  /* partly: the left half filled */
   .lv-train-status[data-status='partial'] .lv-train-status__mark {
-    background: linear-gradient(to right, var(--lm-ink) 50%, transparent 50%);
     border-color: var(--lm-ink);
+  }
+  .lv-train-status[data-status='partial'] .lv-train-status__mark::before {
+    content: '';
+    position: absolute;
+    inset: 0 50% 0 0;
+    background: var(--lm-ink);
   }
   .lv-train-status[data-status='skipped'] .lv-train-status__mark::after {
     content: '';
@@ -453,4 +690,151 @@
     border: 0;
     background: var(--lm-ink-3);
   }
+}
+
+/* r068 (Train sheets): list rows, the chosen activity, quiet estimate stats */
+@layer components {
+  /* common activities and search results (r068 T7): list rows with hairlines and a chevron */
+  .lv-train-results > li + li {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-train-results .lv-train-result {
+    flex-wrap: nowrap;
+    align-items: center;
+    padding-inline: var(--lm-space-1);
+  }
+  .lv-train-result__name {
+    flex: 1;
+    min-width: 0;
+  }
+  .lv-train-result__chev {
+    flex: none;
+    color: var(--lm-ink-3);
+  }
+  /* the chosen activity (r068 T8): one row, its name and a Change button */
+  .lv-train-chosen {
+    display: grid;
+    gap: var(--lm-space-4);
+  }
+  .lv-train-picked__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    padding-bottom: var(--lm-card-gap);
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-train-picked__what {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lv-train-picked__what > p {
+    margin: 0;
+  }
+  .lv-train-effort {
+    justify-items: stretch;
+  }
+  .lv-train-when {
+    display: grid;
+    gap: var(--lm-row-gap);
+  }
+  /* (r069 D3) the steps counted in the logged time, under the start */
+  .lv-train-steps {
+    display: grid;
+    gap: var(--lm-row-gap);
+    padding-top: var(--lm-row-gap);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  /* the estimate's stats (r068 G7): values in the display face, the qualifier a plain caption under them, no tag */
+  .lv-train-preview .lmv-stat__value {
+    font-family: var(--lm-font-display);
+    font-weight: 600;
+  }
+  .lv-train-preview .lmv-stat__chip .lm-chip[data-kind='qualifier'] {
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lm-ink-2);
+    font-weight: 400;
+  }
+}
+
+/* r068 T9: the swap sheet — one thin credit bar per option (the threshold is said once at the top), footer buttons */
+@layer components {
+  /* footer actions: equal-width keys two to a row (r068 L6); an odd last key takes the whole row */
+  .lv-train-panelfoot {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex: 1 1 auto;
+    width: 100%;
+    gap: var(--lm-inline);
+  }
+  .lv-train-panelfoot > .lm-key {
+    min-width: 0;
+  }
+  .lv-train-panelfoot > .lm-key:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  /* the list head: what the list is, and "Show all" at its end */
+  .lv-train-swaps__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-row-gap) var(--lm-inline);
+  }
+}
+
+/* r071: a session's explicit progress, one ring and compact set controls. */
+@layer components {
+  .lv-train { gap: var(--lm-card-gap); }
+  .lv-train-session > .lm-gcard__body, .lv-train-weekface > .lm-gcard__body, .lv-train-hub__card > .lm-gcard__body { display: grid; gap: var(--lm-space-4); min-width: 0; }
+  .lv-train-session__hero { display: flex; align-items: center; gap: var(--lm-space-4); min-width: 0; }
+  .lv-train-session__summary { display: grid; gap: var(--lm-space-2); flex: 1; min-width: 0; color: var(--lm-hue-steps-ink); }
+  .lv-train-session__summary .lv-estimate { flex-wrap: wrap; }
+  .lv-train-session__effort,
+  .lv-train-session__body-link { font-size: var(--lm-text-sm); line-height: 1.4; overflow-wrap: anywhere; }
+  .lv-train-session__progress-label { font-family: var(--lm-font-mono); font-size: var(--lm-text-meta); line-height: 1.3; text-transform: uppercase; color: var(--lm-ink-2); }
+  .lv-train-rows.lv-day > .lv-train-row, .lv-train-row {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: 'node label' 'node sub' '. body'; column-gap: 8px; row-gap: 4px;
+    position: relative; padding-block: 12px; min-width: 0;
+  }
+  .lv-train-row + .lv-train-row { border-top: var(--lm-hairline) solid var(--lm-line); }
+  .lv-train-row > .lm-rail__node { grid-area: node; align-self: start; }
+  .lv-train-row > .lv-item__label { grid-area: label; margin: 0; padding: 0; font-weight: 600; font-size: 1rem; }
+  .lv-train-row > .lv-item__sub { grid-area: sub; margin: 0; }
+  .lv-train-row > .lv-item__body { grid-area: body; padding-top: 8px; min-width: 0; }
+  .lv-train-row .lv-train-row__open { position: relative; min-height: 36px; }
+  .lv-train-row .lv-train-row__open::after { display: none; }
+  .lv-train-chips, .lv-train-row__act > .lv-train-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .lv-train-row__act > .lv-train-chips > .lv-train-chip, .lv-train-chip { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; place-items: center; border-radius: var(--lm-radius-track); }
+  .lv-train-chip__k { font: 500 0.875rem var(--lm-font-mono); color: var(--lm-ink); }
+  .lv-train-chip[aria-pressed='true'] { background: var(--lm-hue-steps-dim); border-color: var(--lm-hue-steps); }
+  .lv-train-chip[aria-pressed='true'] .lv-train-chip__k { color: var(--lm-hue-steps-ink); }
+  .lv-train-session__style { border-top: var(--lm-hairline) solid var(--lm-line); padding-top: 12px; }
+  .lv-train-weekface__summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .lv-train-status__mark { width: 12px; height: 12px; }
+  .lv-train-hub__keys { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .lv-train-hub__keys > .lm-key[data-variant='primary'] { flex: 1 1 220px; }
+  .lv-train-hub__keys > .lm-statusdot { margin-left: auto; }
+  .lv-train-hub__facts { font-family: var(--lm-font-mono); font-size: var(--lm-text-meta); letter-spacing: var(--lm-text-meta--ls); text-transform: uppercase; }
+  .lv-train-preview { display: grid; gap: 12px; }
+  .lv-train-result__icon { color: var(--lm-hue-steps); flex: none; }
+  .lv-train-price { display: inline-flex; gap: 4px; vertical-align: middle; }
+  .lv-train-price i { width: 5px; height: 5px; border-radius: 50%; background: var(--lm-unlit); }
+  .lv-train-price i[data-lit] { background: var(--lm-hue-steps); }
+  .lv-train-aside { order: -1; }
+  @container (min-width: 56rem) { .lv-train-aside { order: 0; } }
+  @media (max-width: 390px) { .lv-train-session__hero { gap: 8px; } }
+}
+@layer components {
+  .lv-train-session__hero > .lmz-radial { flex: 0 0 144px; width: 144px; }
+  .lv-train-rest .lv-train-session__hero { justify-content: center; }
+}
+@layer components {
+  .lv-train-row .lv-train-row__open { min-height: 44px; }
+  .lv-train-row .lv-train-row__open:focus-visible { outline: 2px solid var(--lm-focus); outline-offset: 2px; border-radius: var(--lm-radius-sm); }
 }

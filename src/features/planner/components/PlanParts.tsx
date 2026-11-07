@@ -1,9 +1,11 @@
-import { StatusMark, Tooltip, cx, energyInText } from '@/components';
+import { HeroNumber, StatusMark, Tooltip, cx, energyInText } from '@/components';
 import type { GoalFeasibility, GoalScore, PlanOption, RankedGoal } from '@/engine/planner/domain/types';
 import { useEnergyUnit, type EnergyUnit, type UnitSystem } from '@/state/settingsStore';
 import { goalMetric, ladderTolerance } from '../catalogue';
 import { fmtChange, fmtKcal, fmtMetric, fmtMetricRange, fmtPct, fmtSignedRange } from '../format';
 import { phaseBalance, phaseKcal, type PhaseFact } from '../planFacts';
+import { INTERPRETABLE_STATUSES, STATUS_LABEL, type OutputStatus } from '@/lib/bodyContracts';
+import { OF_BEST_FOUND, SAFETY_STATUS_WORD, planSafetyStatus, searchWord } from '../ladder';
 
 /* ------------------------------------------------------------------------------------- phase timeline */
 
@@ -26,6 +28,9 @@ export function phaseTip(p: PhaseFact, energy: EnergyUnit): string {
   return `${parts.filter(Boolean).join(' · ')}${maint}`;
 }
 
+/** "Deficit 5 % · protein 1.7 g/kg" → "Deficit 5 %": the phase's own name, without the details after the first dot. */
+export const phaseShortName = (name: string): string => name.split(' · ')[0] ?? name;
+
 /** Phase strip (COMPONENTS §8): energy tints, 2 px surface gaps, names inside when they fit (never clipped into another meaning). */
 export function PhaseTimeline({ phases, days, size = 'card', scale = false }: PhaseTimelineProps) {
   const energy = useEnergyUnit();
@@ -43,8 +48,9 @@ export function PhaseTimeline({ phases, days, size = 'card', scale = false }: Ph
           return (
             <Tooltip key={`${p.startDay}-${i}`} content={phaseTip(p, energy)}>
               <li className="lp-phases__seg" data-tone={p.tone} style={{ flexBasis: `${w}%` }} tabIndex={size === 'detail' ? 0 : -1}>
-                <span className="lp-phases__label">
-                  <span className="lp-phases__name">{energyInText(p.name, energy)}</span>
+                <span className="lp-phases__label" hidden={size === 'card'}>
+                  {/* r068 W2-5: the strip names the phase only ("Deficit 5 %"); its protein and the rest are in the rows */}
+                  <span className="lp-phases__name">{phaseShortName(energyInText(p.name, energy))}</span>
                   {size === 'detail' ? (
                     <span className="lp-phases__sub">
                       {bal ? <span className="lp-phases__bal">{bal} · </span> : null}
@@ -57,6 +63,20 @@ export function PhaseTimeline({ phases, days, size = 'card', scale = false }: Ph
           );
         })}
       </ol>
+      {/* on a ladder card the strip is a thin bar and the phases are read as rows under it, never cut short (r068 PR2) */}
+      {size === 'card' ? (
+        <ul className="lp-phases__rows">
+          {phases.map((p, i) => (
+            <li key={`${p.startDay}-${i}`} className="lp-phases__row">
+              <span className="lp-phases__swatch" data-tone={p.tone} aria-hidden="true" />
+              <span className="lp-phases__rname">{energyInText(p.name, energy)}</span>
+              <span className="lp-phases__rwk lm-num">
+                wk {Math.floor(p.startDay / 7) + 1}–{Math.ceil(p.endDay / 7)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {scale ? (
         <div className="lp-phases__scale" aria-hidden="true">
           {Array.from({ length: weeks + 1 }, (_, i) => i)
@@ -74,7 +94,8 @@ export function PhaseTimeline({ phases, days, size = 'card', scale = false }: Ph
 
 /* ------------------------------------------------------------------------------------------ scorecard */
 
-export type ScoreStatus = 'reached' | 'partial' | 'missed' | 'unachievable' | 'near' | 'directional';
+/** `unsupported`: the score's C6 status forbids reading its number (the row shows the status word instead). */
+export type ScoreStatus = 'reached' | 'partial' | 'missed' | 'unachievable' | 'near' | 'directional' | 'unsupported';
 
 export interface ScoreView {
   status: ScoreStatus;
@@ -102,7 +123,7 @@ export function StatusGlyph({ status }: { status: ScoreStatus }) {
     );
   return (
     <svg {...common} className="lp-glyph" data-status={status}>
-      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === 'unachievable' ? '2 2' : undefined} />
+      <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={status === 'unachievable' || status === 'unsupported' ? '2 2' : undefined} />
     </svg>
   );
 }
@@ -113,7 +134,7 @@ export const isMustGoal = (tolerance: number | undefined, rank: number): boolean
 /** A "keep" goal: a change target of zero (Goals "keep"; `goalText` reads "keep"). */
 export const isKeepGoal = (goal: Pick<RankedGoal, 'target' | 'targetKind'> | undefined): boolean => goal?.targetKind === 'change' && goal.target === 0;
 
-/** "Near its best" on the number the scorecard prints (the engine's % of what is achievable, engine rounding). */
+/** "Near its best" on the number the scorecard prints (the engine's % of the best value found, engine rounding). */
 export const nearBest = (sc: Pick<GoalScore, 'percentOfAchievable'>): boolean => Math.round(sc.percentOfAchievable) >= 90;
 
 export interface Verdict {
@@ -124,27 +145,39 @@ export interface Verdict {
 /**
  * The verdict on one goal, from the planner's own fields only: its `verdict` ('reached' | 'kept' | 'notReached', one
  * word for every place that shows the goal; `met` for results from before the field), the goal's feasibility status and
- * must-strength; goals without a target by the engine's % of what is achievable. The same function words the cards,
- * the text export and the headline.
+ * its finite-search outcome (C6/D4-08: a target the search did not reach is "not found", never "not reachable" or "not
+ * achievable"; only a proven policy conflict reads "limit conflict"), must-strength; goals without a target by the
+ * engine's % of the best value found. A score whose C6 status forbids its number reads that status. The same function
+ * words the cards, the text export and the headline.
  */
 export function goalVerdict(sc: GoalScore, feas: GoalFeasibility | undefined, must: boolean, keep: boolean): Verdict {
+  if (scoreHidden(sc.status)) return { status: 'unsupported', word: STATUS_LABEL[sc.status!].toLowerCase() };
   if (sc.verdict === 'kept') return { status: 'reached', word: 'kept' };
   if (sc.verdict === 'reached') return { status: 'reached', word: 'reached' };
   if (sc.target !== null && sc.met !== null) {
     if (sc.met && sc.verdict !== 'notReached') return { status: 'reached', word: keep ? 'kept' : 'reached' };
-    if (must) return { status: 'unachievable', word: keep ? 'not kept' : 'not achievable' };
-    if (feas?.status === 'unattainable' || feas?.status === 'attainableAloneNotJointly') return { status: 'missed', word: keep ? 'not kept' : 'not reachable' };
+    if (must) return { status: 'unachievable', word: keep ? 'not kept' : searchWord(feas) };
+    if (feas?.status === 'unattainable' || feas?.status === 'attainableAloneNotJointly') return { status: 'missed', word: keep ? 'not kept' : searchWord(feas) };
     return { status: 'partial', word: keep ? 'not kept' : 'partial' };
   }
   return nearBest(sc) ? { status: 'near', word: 'near its best' } : { status: 'directional', word: 'partial' };
 }
 
+/** A score status that forbids reading the number (C6): unsupported, model limit, unknown… */
+const scoreHidden = (st: OutputStatus | undefined): boolean => st !== undefined && !INTERPRETABLE_STATUSES.has(st);
+
+/** The word an interpretable non-estimate status adds to a row ("Scenario", "Limited"), else null. */
+function scoreQualifier(st: OutputStatus | undefined): string | null {
+  return st === 'scenario' || st === 'limited' || st === 'partial' || st === 'exploratory' ? STATUS_LABEL[st] : null;
+}
+
 /**
- * A scorecard row with its likely range: the engine's functional band when present, else the option's daily ensemble
- * band at the end of the plan (end-value goals only). Never a catalogue fallback range.
+ * A scorecard row with its range (P10–P90 of the check runs, a sensitivity range): the engine's functional band when
+ * present, else the option's daily ensemble band at the end of the plan (end-value goals only). Never a catalogue
+ * fallback range, and none for a score whose status forbids its number.
  */
 export function withBand(sc: GoalScore, option: Pick<PlanOption, 'bands'>, functional?: 'end' | 'mean' | null): GoalScore {
-  if (sc.band || functional === 'mean') return sc;
+  if (sc.band || functional === 'mean' || scoreHidden(sc.status)) return sc;
   const b = option.bands?.series[sc.metric as keyof NonNullable<PlanOption['bands']>['series']];
   const last = b ? b.p10.length - 1 : -1;
   if (!b || last < 0 || !Number.isFinite(b.p10[last]!) || !Number.isFinite(b.p90[last]!)) return sc;
@@ -160,28 +193,28 @@ export function scoreView(
   goal: Pick<RankedGoal, 'target' | 'targetKind'> | undefined,
   energy: EnergyUnit = 'kcal',
 ): ScoreView {
+  // C6: a status that forbids the number shows the word (never the compatibility value or a range)
+  if (scoreHidden(sc.status)) return { status: 'unsupported', word: STATUS_LABEL[sc.status!].toLowerCase(), value: STATUS_LABEL[sc.status!], detail: null };
   const changeGoal = goal?.targetKind === 'change';
   const changeText = fmtChange(sc.metric, sc.start, sc.value, units, energy);
+  const qualifier = scoreQualifier(sc.status);
   const valueText = changeGoal ? changeText : fmtMetric(sc.metric, sc.value, units, { energy });
   let detail: string | null = null;
   if (sc.band) {
     const lo = changeGoal ? sc.band.p10 - sc.start : sc.band.p10;
     const hi = changeGoal ? sc.band.p90 - sc.start : sc.band.p90;
-    // "lose" goals read as magnitudes ("−10.4 kg, likely 9.1–11.0"); any other change keeps its sign so a keep/gain goal
+    // "lose" goals read as magnitudes ("−10.4 kg · 9.1–11.0 kg"); any other change keeps its sign so a keep/gain goal
     // that ends below its start never shows a positive-looking range next to a negative value.
     const loseGoal = changeGoal && sc.target !== null && sc.target < sc.start;
     const range = loseGoal && lo < 0 && hi < 0 ? fmtMetricRange(sc.metric, -hi, -lo, units, energy) : fmtSignedRange(sc.metric, lo, hi, units, energy);
-    const p = sc.band.pTargetMet;
-    // a kept goal is held by definition of its tolerance: its ensemble "chance" of an exact zero change (often 0 %)
-    // would contradict the verdict, so it reads the planner's % of what is achievable instead (100 for a held goal)
+    // a kept goal is held by definition of its tolerance, so it reads the planner's % of the best value found (100 for
+    // a held goal). The share of check runs meeting a target is a design robustness screen, not a chance (C6/D4-03): it
+    // is never printed inline; the range is a parameter-sensitivity range with its unit, never "likely".
     const kept = sc.verdict === 'kept';
-    const tail = kept
-      ? ` · ${fmtPct(sc.percentOfAchievable)} of what’s possible`
-      : p !== null && Number.isFinite(p)
-        ? ` · ${fmtPct(p <= 1 ? p * 100 : p)} chance`
-        : '';
-    detail = `likely ${range}${tail}`;
-  } else if (sc.verdict === 'kept') detail = `${fmtPct(sc.percentOfAchievable)} of what’s possible`;
+    const tail = kept ? ` · ${fmtPct(sc.percentOfAchievable)} ${OF_BEST_FOUND}` : '';
+    detail = `${range}${tail}`;
+  } else if (sc.verdict === 'kept') detail = `${fmtPct(sc.percentOfAchievable)} ${OF_BEST_FOUND}`;
+  if (qualifier) detail = detail ? `${detail} · ${qualifier}` : qualifier;
   const v = goalVerdict(sc, feas, must, isKeepGoal(goal));
   if (sc.target !== null && sc.met !== null) {
     if (v.status === 'reached') return { ...v, value: valueText, detail };
@@ -193,11 +226,12 @@ export function scoreView(
     return { ...v, value: valueText, detail: detail ?? (sc.percentOfTarget !== null ? `${fmtPct(sc.percentOfTarget)} of the target` : null) };
   }
   // the engine's % as it prints it everywhere (option explanation, run view): same rounding, not clamped
-  return { ...v, value: `${fmtPct(sc.percentOfAchievable)} of what’s possible`, detail: `${changeText}${detail ? ` · ${detail}` : ''}` };
+  return { ...v, value: `${fmtPct(sc.percentOfAchievable)} ${OF_BEST_FOUND}`, detail: `${changeText}${detail ? ` · ${detail}` : ''}` };
 }
 
 export function ScoreRow({ sc, view, goalLabel }: { sc: GoalScore; view: ScoreView; goalLabel: string }) {
   const m = goalMetric(sc.metric);
+  const parts = /^(.+?)[\s\u2009]+(kg|lb|cm|in|%|kcal|kJ|g|mmol\/L)$/.exec(view.value);
   return (
     <li className="lp-score" data-status={view.status}>
       <span className="lp-score__rank lm-num">{sc.goal + 1}</span>
@@ -209,8 +243,22 @@ export function ScoreRow({ sc, view, goalLabel }: { sc: GoalScore; view: ScoreVi
         <StatusGlyph status={view.status} />
         <span>{view.word}</span>
       </span>
-      <span className="lp-score__value lm-num">{view.value}</span>
+      {sc.goal === 0 && view.status !== 'unsupported' ? (
+        <HeroNumber
+          className="lp-score__hero"
+          value={parts?.[1] ?? view.value}
+          unit={parts?.[2]}
+          size="num"
+          countUp={false}
+          label={`${m?.label ?? sc.label}: ${view.value}${view.detail ? `, ${view.detail}` : ''}`}
+        />
+      ) : (
+        <span className="lp-score__value lm-num">{view.value}</span>
+      )}
       {view.detail ? <span className="lp-score__detail">{view.detail}</span> : null}
+      {!sc.band && view.status !== 'unsupported' ? (
+        <span className="lp-score__detail lm-meta">No range</span>
+      ) : null}
     </li>
   );
 }
@@ -246,15 +294,27 @@ export function safetyCounts(items: readonly PlanSafetyItem[]): { danger: number
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-export function SafetyLine({ option, onOpen }: { option: Pick<PlanOption, 'safetyItems' | 'safetyNotes'>; onOpen?: () => void }) {
+/**
+ * The card's safety line (C5/D4-01/D4-03): the plan's safety status word (Verified · Unchecked · Limit conflict ·
+ * Review), then the engine's dangers and cautions. No status attached reads Unchecked: a plan without warnings is not
+ * a verified plan, so there is no automatic "within safety limits".
+ */
+export function SafetyLine({ option, onOpen }: { option: Pick<PlanOption, 'safetyItems' | 'safetyNotes' | 'safety'>; onOpen?: () => void }) {
   const c = safetyCounts(safetyItemsOf(option));
   const flagged = c.danger + c.caution;
-  const text = flagged
-    ? [c.danger ? plural(c.danger, 'danger', 'dangers') : null, c.caution ? plural(c.caution, 'caution', 'cautions') : null].filter(Boolean).join(', ')
-    : `within safety limits${c.info ? ` · ${plural(c.info, 'note', 'notes')}` : ''}`;
+  const status = planSafetyStatus(option);
+  const text = [
+    SAFETY_STATUS_WORD[status],
+    c.danger ? plural(c.danger, 'danger', 'dangers') : null,
+    c.caution ? plural(c.caution, 'caution', 'cautions') : null,
+    !flagged && c.info ? plural(c.info, 'note', 'notes') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const severity = c.danger ? 'danger' : c.caution || (status !== 'verified' && status !== 'unchecked') ? 'caution' : status === 'verified' ? 'ok' : 'info';
   const body = (
     <>
-      <StatusMark severity={c.danger ? 'danger' : c.caution ? 'caution' : 'ok'} size={16} />
+      <StatusMark severity={severity} size={16} />
       <span>{text}</span>
     </>
   );

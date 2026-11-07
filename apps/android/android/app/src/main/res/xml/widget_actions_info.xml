@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Home screen only (never the lock screen: widgetCategory has no keyguard). Keys only: no data, no periodic update. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:widgetCategory="home_screen"
+    android:initialLayout="@layout/widget_keys"
+    android:previewImage="@drawable/vw_preview_actions"
+    android:description="@string/widget_actions_description"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal"
+    android:updatePeriodMillis="0" />

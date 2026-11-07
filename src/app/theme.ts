@@ -1,63 +1,56 @@
 /**
  * Theme + motion bootstrap. Imported first in src/main.tsx and run before the
- * first render, so <html data-theme> / data-motion are set before React paints.
- * public/theme-boot.js does the same synchronously in <head> (CSP-safe external
- * classic script) so even the chassis background never flashes.
+ * first render. public/theme-boot.js does the same synchronously in <head>
+ * (CSP-safe external classic script) so nothing flashes before React paints.
  *
- * - Theme: 'system' removes data-theme (tokens.css follows the OS); 'light' /
- *   'dark' force it. `?theme=light|dark` in the URL overrides without saving
- *   (review deep links, like the prototype).
+ * - Theme: Vitals is DARK ONLY (Ember, SPEC §1). <html> always carries
+ *   data-theme="dark" and color-scheme: dark, whatever the stored setting, the
+ *   OS preference or a `?theme=` query says. The attribute stays (rather than
+ *   being removed) so any stylesheet or canvas reader that still checks
+ *   [data-theme="dark"] keeps resolving to the one palette. tokens.css has no
+ *   light palette to fall back to.
  * - Motion: 'on' → data-motion="reduce", 'off' → "full", 'system' → removed.
+ *
+ * applyTheme / resolveTheme / syncThemeColor / toggleTheme keep their names
+ * and signatures for existing callers; they no longer switch anything.
  */
 import { useSettingsStore, type MotionChoice, type ThemeChoice } from '@/state/settingsStore';
 
-export type ResolvedTheme = 'light' | 'dark';
+export type ResolvedTheme = 'dark';
 
-function prefersDark(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+/** The one theme, and the browser chrome colour that matches the backdrop (--lm-chassis). */
+export const THEME: ResolvedTheme = 'dark';
+export const THEME_COLOR = '#090909';
+
+/** The theme actually shown: always dark. */
+export function resolveTheme(_choice?: ThemeChoice): ResolvedTheme {
+  return THEME;
 }
 
-/** The theme actually shown for a choice. */
-export function resolveTheme(choice: ThemeChoice): ResolvedTheme {
-  if (choice === 'light' || choice === 'dark') return choice;
-  return prefersDark() ? 'dark' : 'light';
-}
-
-function urlOverride(): ResolvedTheme | null {
-  if (typeof location === 'undefined') return null;
-  const q = new URLSearchParams(location.search).get('theme');
-  return q === 'light' || q === 'dark' ? q : null;
-}
-
-let fadeTimer: number | undefined;
-
-/** Write data-theme and the browser theme-color. `animate` cross-fades surfaces (200 ms). */
-export function applyTheme(choice: ThemeChoice, options: { animate?: boolean } = {}): void {
+/** Pin <html> to the dark theme and the browser theme-color. The choice is ignored (dark only). */
+export function applyTheme(_choice?: ThemeChoice, _options: { animate?: boolean } = {}): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  const forced = urlOverride() ?? (choice === 'system' ? null : choice);
-  if (options.animate) {
-    root.classList.add('lm-theme-fading');
-    window.clearTimeout(fadeTimer);
-    fadeTimer = window.setTimeout(() => root.classList.remove('lm-theme-fading'), 260);
-  }
-  if (forced) root.setAttribute('data-theme', forced);
-  else root.removeAttribute('data-theme');
+  root.setAttribute('data-theme', THEME);
+  root.style.colorScheme = 'dark';
   syncThemeColor();
 }
 
-/** Keep <meta name="theme-color"> equal to the chassis so browser chrome matches. */
+/** Keep one <meta name="theme-color"> equal to the backdrop so browser chrome matches. */
 export function syncThemeColor(): void {
-  if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return;
-  const color = getComputedStyle(document.documentElement).getPropertyValue('--lm-chassis-2').trim();
-  if (!color) return;
-  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
-  if (!meta) {
+  if (typeof document === 'undefined') return;
+  const metas = document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]');
+  metas.forEach((m, i) => {
+    if (i > 0) m.remove();
+  });
+  let meta = metas[0] ?? null;
+  if (!meta || !meta.isConnected) {
     meta = document.createElement('meta');
     meta.name = 'theme-color';
     document.head.appendChild(meta);
   }
-  meta.content = color;
+  meta.removeAttribute('media');
+  meta.content = THEME_COLOR;
 }
 
 export function applyMotion(choice: MotionChoice): void {
@@ -70,30 +63,19 @@ export function applyMotion(choice: MotionChoice): void {
 
 let started = false;
 
-/** Apply the persisted choice now and keep <html> in sync with the settings store and the OS. */
+/** Pin the dark theme now and keep data-motion in sync with the settings store. */
 export function initTheme(): () => void {
   if (started || typeof window === 'undefined') return () => {};
   started = true;
-  const s = useSettingsStore.getState();
-  applyTheme(s.theme);
-  applyMotion(s.reduceMotion);
+  applyTheme();
+  applyMotion(useSettingsStore.getState().reduceMotion);
 
   const unsub = useSettingsStore.subscribe((next, prev) => {
-    if (next.theme !== prev.theme) applyTheme(next.theme, { animate: true });
     if (next.reduceMotion !== prev.reduceMotion) applyMotion(next.reduceMotion);
   });
-  const mql = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
-  const onOs = () => syncThemeColor();
-  mql?.addEventListener('change', onOs);
   return () => {
     unsub();
-    mql?.removeEventListener('change', onOs);
     started = false;
   };
 }
 
-/** Flip between light and dark from whatever is showing now (rail / top-bar theme key). */
-export function toggleTheme(): void {
-  const { theme, setTheme } = useSettingsStore.getState();
-  setTheme(resolveTheme(theme) === 'dark' ? 'light' : 'dark');
-}

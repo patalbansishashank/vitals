@@ -26,6 +26,8 @@ export interface DriverRow {
   question?: string;
   /** "Correct it" path for parts no question sets (resting metabolism → measured). */
   path?: 'measured';
+  /** The steps part: the steps a day it counts (rounded to 100), for the compact "6 000 steps" line. */
+  steps?: number;
 }
 
 /** The question that sets each driver. */
@@ -83,6 +85,7 @@ export function driverRows(m: MaintenanceEstimate, defaulted: readonly ActivityD
         assumed: defaulted.includes(d.id),
         ...(DRIVER_QUESTION[d.id] ? { question: DRIVER_QUESTION[d.id] } : {}),
         ...(d.id === 'rmr' ? { path: 'measured' as const } : {}),
+        ...(d.id === 'steps' ? { steps: Math.round(act.steps / 100) * 100 } : {}),
       };
     });
 }
@@ -97,7 +100,6 @@ export interface MaintenanceView {
   rows: DriverRow[];
   explanation: MaintenanceExplanation;
   unknownText?: string;
-  comparison?: string;
   palNote?: string;
 }
 
@@ -116,11 +118,10 @@ export function maintenanceView(m: MaintenanceEstimate, intake: ActivityIntake |
     hi,
     unit: u,
     headline: MAINT.headline(kcal, lo, hi, u),
-    rail: MAINT.rail(kcal, lo, hi),
+    rail: MAINT.rail(kcal, lo, hi, u),
     rows: driverRows(m, defaulted),
     explanation: ex,
     ...(unknownText ? { unknownText } : {}),
-    ...(ex.palBandLabel ? { comparison: MAINT.comparison(MAINT.level[ex.palBandLabel]) } : {}),
     ...(ex.palFlag === 'capped' ? { palNote: MAINT.palCapped } : ex.palFlag === 'high' ? { palNote: MAINT.palHigh } : {}),
   };
 }

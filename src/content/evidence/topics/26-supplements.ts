@@ -467,10 +467,25 @@ const topic: EvidenceTopic = {
       moderators: 'Baseline triglycerides, dose, background fish intake.',
       grade: 'A',
       gradeReason:
-        'Consistent trial evidence for triglycerides and blood pressure; the atrial fibrillation signal is a meta-analysis of trials.',
+        'For the triglyceride and blood-pressure changes only: consistent trial evidence; the atrial fibrillation signal is a meta-analysis of trials. Not a grade for heart events.',
       status: 'established',
-      caveats: 'Consistent with the other-levers topic. Benefit and risk both rise with dose.',
+      caveats:
+        'Consistent with the other-levers topic. Benefit and risk both rise with dose. Lower triglycerides do not by themselves show fewer heart events, and one prescription product’s trial results do not transfer to every fish-oil supplement.',
       referenceIds: ['skulasRay2019', 'zhang2022', 'gencer2021'],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'high',
+          scope: 'triglyceride and small blood-pressure changes at the doses tested',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'fewer heart events inferred from lower triglycerides',
+        },
+      ],
+      outcomeScope:
+        'Triglyceride, blood-pressure and weight change, and atrial fibrillation risk; not heart events',
       relatedMetricIds: ['triglycerides', 'sbp'],
     },
     {
@@ -617,6 +632,7 @@ const topic: EvidenceTopic = {
       status: 'established',
       caveats: 'The national recommended intake of 1,000 mg a day was not re-read.',
       referenceIds: ['nihCalcium'],
+      modelStatus: 'notModelled',
       relatedMetricIds: ['hipBmdChange'],
     },
     {
@@ -775,6 +791,7 @@ const topic: EvidenceTopic = {
       status: 'established',
       caveats: 'No benefit for short sprints or long endurance is claimed.',
       referenceIds: ['trexler2015', 'maughan2018'],
+      modelStatus: 'notModelled',
       relatedMetricIds: ['enduranceCapacity'],
     },
     {
@@ -811,6 +828,7 @@ const topic: EvidenceTopic = {
       status: 'established',
       caveats: 'The effect range is wide and individual tolerance varies.',
       referenceIds: ['grgic2021', 'grgic2021a'],
+      modelStatus: 'notModelled',
       relatedMetricIds: ['enduranceCapacity'],
     },
     {
@@ -1127,8 +1145,7 @@ const topic: EvidenceTopic = {
       id: 'neal2021',
       authors: 'Neal B, et al.',
       year: 2021,
-      title:
-        'Effect of salt substitution on cardiovascular events and death',
+      title: 'Effect of salt substitution on cardiovascular events and death',
       journal: 'N Engl J Med',
       pmid: '34459569',
       doi: '10.1056/NEJMoa2105675',

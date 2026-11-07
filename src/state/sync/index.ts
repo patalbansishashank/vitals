@@ -15,6 +15,7 @@ import { relayHttpBase } from '@/sync/pairing';
 import { createRemoteBlobBackend } from '@/sync/blobs/remote';
 import type { PairingCode, SyncStore } from '@/sync/types';
 import { getBlobStore, isChunkStore } from '../blobStore';
+import { invalidateExternalRestore } from '../writeBarrier';
 import { bootDocuments, deviceId } from '../runtime';
 import { createSyncRuntime, type SyncRuntime, type SyncView } from './controller';
 import { createIdbVault, createMemoryVault } from './vault';
@@ -61,7 +62,7 @@ function browserRuntime(): SyncRuntime {
   return createSyncRuntime({
     vault: available ? createIdbVault() : createMemoryVault(),
     createEngine: createEvoluEngine,
-    localBackend: () => (isIndexedDbAvailable() ? createIdbBackend({ device: deviceId() }) : createMemoryBackend({ device: deviceId() })),
+    localBackend: () => (isIndexedDbAvailable() ? createIdbBackend({ device: deviceId(), onExternalRestore: invalidateExternalRestore }) : createMemoryBackend({ device: deviceId() })),
     allowRelay: (url) => void allowOrigin(relayHttpBase(url), 'sync'),
     watchEnvironment,
     blobs: async () => {

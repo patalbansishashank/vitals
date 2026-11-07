@@ -72,7 +72,10 @@ export function hungerPressureIndex(eK: number, mid: number, scale: number): num
   return 100 / (1 + Math.exp(-(eK - mid) / scale));
 }
 
-/** Daily dropout hazard h = coef·((HPI − thr)/scale)² for HPI > thr (12 §4.10a). */
+/**
+ * Legacy daily hazard h = coef·((HPI − thr)/scale)² for HPI > thr (12 §4.10a). D2-06: it feeds only the deprecated latent
+ * adherence index; with no defined dropout event, horizon or calibration it is not a dropout probability.
+ */
 export function dropoutHazard(hpi: number, coef: number, thr: number, scale: number): number {
   if (!(hpi > thr)) return 0;
   const x = (hpi - thr) / scale;
@@ -80,7 +83,7 @@ export function dropoutHazard(hpi: number, coef: number, thr: number, scale: num
 }
 
 /**
- * 21 §4G G10 behavioural levers → multiplicative shift on the dropout hazard (MODEL_SPEC §1.12 step 4):
+ * 21 §4G G10 behavioural levers → multiplicative shift on the legacy hazard of the latent index (MODEL_SPEC §1.12 step 4):
  * hazard × (1 − min(cap, ΣΔp)). Flags are 0/1.
  */
 export function leverHazardMultiplier(

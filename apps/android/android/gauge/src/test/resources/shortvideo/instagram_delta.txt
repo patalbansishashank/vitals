@@ -1,0 +1,116 @@
+# Instagram Reels pager that reports scrollDeltaY but no indices.
+# Enter, forward 3, a half drag that snaps back, jitter of a few px, back 1, forward 1 (seen), forward 1 new.
+# expect reels=5
+500 screen instagram in h=2772
+750 tick
+1000 tick
+1250 tick
+1500 tick
+1750 tick
+2000 tick
+2000 scroll instagram dy=462 h=2772
+2016 scroll instagram dy=462 h=2772
+2032 scroll instagram dy=462 h=2772
+2048 scroll instagram dy=462 h=2772
+2064 scroll instagram dy=462 h=2772
+2080 scroll instagram dy=462 h=2772
+2346 tick
+2596 tick
+2846 tick
+3096 tick
+3346 tick
+3596 tick
+3846 tick
+4096 tick
+4096 scroll instagram dy=462 h=2772
+4112 scroll instagram dy=462 h=2772
+4128 scroll instagram dy=462 h=2772
+4144 scroll instagram dy=462 h=2772
+4160 scroll instagram dy=462 h=2772
+4176 scroll instagram dy=462 h=2772
+4442 tick
+4692 tick
+4942 tick
+5192 tick
+5442 tick
+5692 tick
+5942 tick
+6192 tick
+6192 scroll instagram dy=462 h=2772
+6208 scroll instagram dy=462 h=2772
+6224 scroll instagram dy=462 h=2772
+6240 scroll instagram dy=462 h=2772
+6256 scroll instagram dy=462 h=2772
+6272 scroll instagram dy=462 h=2772
+6538 tick
+6788 tick
+7038 tick
+7288 tick
+7538 tick
+7788 tick
+8038 tick
+8288 tick
+8288 scroll instagram dy=300 h=2772
+8304 scroll instagram dy=300 h=2772
+8320 scroll instagram dy=300 h=2772
+8336 scroll instagram dy=-300 h=2772
+8352 scroll instagram dy=-300 h=2772
+8368 scroll instagram dy=-300 h=2772
+8634 tick
+8884 tick
+9134 tick
+9384 tick
+9634 tick
+9884 tick
+9884 scroll instagram dy=4 h=2772
+9924 scroll instagram dy=-3 h=2772
+9964 scroll instagram dy=2 h=2772
+10004 scroll instagram dy=-3 h=2772
+10294 tick
+10544 tick
+10794 tick
+11044 tick
+11294 tick
+11544 tick
+11544 scroll instagram dy=-462 h=2772
+11560 scroll instagram dy=-462 h=2772
+11576 scroll instagram dy=-462 h=2772
+11592 scroll instagram dy=-462 h=2772
+11608 scroll instagram dy=-462 h=2772
+11624 scroll instagram dy=-462 h=2772
+11890 tick
+12140 tick
+12390 tick
+12640 tick
+12890 tick
+13140 tick
+13390 tick
+13640 tick
+13640 scroll instagram dy=462 h=2772
+13656 scroll instagram dy=462 h=2772
+13672 scroll instagram dy=462 h=2772
+13688 scroll instagram dy=462 h=2772
+13704 scroll instagram dy=462 h=2772
+13720 scroll instagram dy=462 h=2772
+13986 tick
+14236 tick
+14486 tick
+14736 tick
+14986 tick
+15236 tick
+15486 tick
+15736 tick
+15736 scroll instagram dy=462 h=2772
+15752 scroll instagram dy=462 h=2772
+15768 scroll instagram dy=462 h=2772
+15784 scroll instagram dy=462 h=2772
+15800 scroll instagram dy=462 h=2772
+15816 scroll instagram dy=462 h=2772
+16082 tick
+16332 tick
+16582 tick
+16832 tick
+17082 tick
+17332 tick
+17582 tick
+17832 tick

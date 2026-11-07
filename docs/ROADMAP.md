@@ -34,9 +34,9 @@ D design, E engineering, QA, REL). Target release: v0.2.0 via `pnpm release mino
 - Living plan: domain, assimilation and Today/Food/Train/Coach/Progress/Plan screens (E5, E13, items 6, 10, 13).
 - AI provider wrapper and tool registry (E9a); Evolu sync, encrypted blob store, Companion relay (E11, item 18).
 - Companion `serve`, `proxy`, Sign in with ChatGPT, `mcp`, pairing and keys; tool manifest; WebMCP and Companion client in the app (E12, items 9, 15, 19).
-- Biometrics: importers, scores, Web Bluetooth drivers, policy, engine adapter (E10, items 16, 20).
+- Biometrics: importers, scores, Web Bluetooth drivers, policy, engine adapter (E10, items 16, 20). Removed in 0.6.0 (Vitals is manual-only).
 - 3D figure with visceral view (E14, items 2-4), available on the `/dev/figure` route.
-- Evidence library (E15, items 5, 14, 17, 20): six new topics (daily activity and maintenance energy, scores from wearable data, tracking and re-planning, training catalogue evidence, supplements, how Vitals weighs evidence), parameter cards with the two evidence labels and band inflation, and the validation page's planner-benchmarks section (schema and fixture; waits for the planner harness's results file) and activity-intake validation section.
+- Evidence library (E15, items 5, 14, 17, 20): six new topics (daily activity and maintenance energy, scores from wearable data (removed in 0.6.0), tracking and re-planning, training catalogue evidence, supplements, how Vitals weighs evidence), parameter cards with the two evidence labels and band inflation, and the validation page's planner-benchmarks section (schema and fixture; waits for the planner harness's results file) and activity-intake validation section.
 
 **Remaining before v0.2.0**
 - E6 planner v2: ladder (Hard/Medium/Easy) and Ideal plan, benchmark harness, evidence-coverage audit, re-plan; code exists, package not signed off (items 7, 17).

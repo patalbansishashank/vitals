@@ -5,17 +5,18 @@
  *  7.1.2 energy consistency after the engine's own compilation (no macro/energy conflicts; pct days resolve exactly),
  *  7.1.3 every multi-day fast has its locked recovery; spacing / cumulative limits hold incl. horizon end,
  *  7.1.4 idempotence decode(encode(decode(x))) = decode(x),
- *  7.1.5 `never` levers and `optIn` levers without consent never appear.
+ *  7.1.5 `never` levers and `optIn` levers without consent never appear,
+ *  D7-04 habitual active exposure: observed daily use in the baseline, continued (never re-added) by plans, increments only.
  */
 import { describe, expect, it } from 'vitest';
 import { compileSchedule } from '../../../core/compileSchedule';
 import { Rng } from '../../optim/rng';
 import { compileRequest, type PlanningContext } from '../context';
-import { decodePlan, encodeValues, roundGenome } from '../decode';
+import { decodePlan, encodeValues, habitualCreatine, plannedCreatineG, roundGenome, type HabitualActiveExposure } from '../decode';
 import { repairSchedule, zeroSpans } from '../repair';
 import { enumerateStructures, type SkeletonStructure } from '../skeleton';
 import { validatePlan } from '../validate';
-import { AUTOPHAGY_FIRST, FAT_LOSS_KEEP_LEAN, LEAN_MAN, MAN_95, OBESE_MAN, OLDER_WOMAN, WOMAN_62, request } from './personas';
+import { KETOSIS_FIRST, FAT_LOSS_KEEP_LEAN, LEAN_MAN, MAN_95, OBESE_MAN, OLDER_WOMAN, WOMAN_62, request } from './personas';
 
 function contexts(): Array<[string, PlanningContext]> {
   return [
@@ -26,7 +27,7 @@ function contexts(): Array<[string, PlanningContext]> {
     [
       'obese man fasting opt-in',
       compileRequest(
-        request(OBESE_MAN, AUTOPHAGY_FIRST, {
+        request(OBESE_MAN, KETOSIS_FIRST, {
           horizonDays: 140,
           safety: { mode: 'M0', optIns: { fastingTier: 'T3' }, fasting: { maxFastHours: 72 } },
           constraints: { prefersFasting: true },
@@ -51,6 +52,16 @@ function corners(n: number, max = 4096): Float64Array[] {
 
 describe('7.1 decoder properties', () => {
   const ctxs = contexts();
+
+  it('declares proposed steps outside separately prescribed walking while leaving the habitual baseline intact', () => {
+    const ctx = compileRequest(request(MAN_95, FAT_LOSS_KEEP_LEAN, { constraints: { cardioModality: 'walk' } }));
+    const st = enumerateStructures(ctx).find(s => !s.skeleton.baseline)!;
+    const proposed = run(ctx, st, st.x0 as Float64Array).schedule;
+    expect(proposed.programs.length).toBeGreaterThan(0);
+    expect(proposed.programs.every(p => p.stepsScope === 'excludesTraining')).toBe(true);
+    const compiled = compileSchedule(proposed, ctx.rp);
+    expect(compiled.days.every(d => d.stepsScope === 'excludesTraining')).toBe(true);
+  });
 
   it('enumerates a non-trivial, pruned structure list per persona (baseline first)', () => {
     for (const [name, ctx] of ctxs) {
@@ -145,7 +156,7 @@ describe('7.1 decoder properties', () => {
   it('ruling 18:10: opted-in 72-h fasts and expert-tier 3-7-day fasts survive repair and validate (tier rules, 28-day floor)', () => {
     const t3 = contexts()[4]![1];
     const t4 = compileRequest(
-      request(OBESE_MAN, AUTOPHAGY_FIRST, {
+      request(OBESE_MAN, KETOSIS_FIRST, {
         horizonDays: 168,
         safety: { mode: 'M0', optIns: { fastingTier: 'T4' }, fasting: { maxFastHours: 168 }, expertMode: true },
         constraints: { prefersFasting: true },
@@ -206,7 +217,7 @@ describe('7.1 decoder properties', () => {
       expect(s.skeleton.overlay?.lever).not.toBe('fastDay24');
     }
     // T2 consent without T3: 72-h events never enumerated; R1 mode: no deficit blocks at all
-    const t2 = compileRequest(request(OBESE_MAN, AUTOPHAGY_FIRST, { safety: { optIns: { fastingTier: 'T2' } } }));
+    const t2 = compileRequest(request(OBESE_MAN, KETOSIS_FIRST, { safety: { optIns: { fastingTier: 'T2' } } }));
     expect(enumerateStructures(t2).some((s) => s.skeleton.event?.durationH === 72)).toBe(false);
     const r1 = compileRequest(request(WOMAN_62, [{ metric: 'leanTissue', direction: 'maximise' }], { safety: { mode: 'R1' } }));
     const r1s = enumerateStructures(r1);
@@ -219,4 +230,94 @@ describe('7.1 decoder properties', () => {
       expect(validatePlan(r1, schedule).ok).toBe(true);
     }
   }, 60_000);
+});
+
+describe('D7-04: habitual active exposure (baseline, continuation, planned increments)', () => {
+  const taking5: HabitualActiveExposure = { active: 'creatine', gPerDay: 5, schedule: 'daily', state: 'taking' };
+  const req = request(LEAN_MAN, [{ metric: 'leanTissue', direction: 'maximise' }, { metric: 'strength', direction: 'maximise' }], { horizonDays: 56, safety: { optIns: { levers: ['creatine'] } } });
+  const plain = compileRequest(req);
+  const withHabit = (h: readonly HabitualActiveExposure[], extra: Partial<PlanningContext> = {}): PlanningContext => ({ ...plain, habitualActives: h, ...extra });
+  const creatineOn = (s: { programs: ReadonlyArray<{ substances?: { creatineG?: number; creatineLoading?: boolean } }> }) => s.programs.map((p) => p.substances?.creatineG ?? 0);
+
+  it('pure rules: only current daily use with a known dose continues; identical actives sum; unknown potency or a weekly regimen is unchecked', () => {
+    expect(habitualCreatine([taking5])).toEqual({ continuedGPerDay: 5, unchecked: false });
+    expect(habitualCreatine([taking5, { ...taking5, gPerDay: 2 }])).toEqual({ continuedGPerDay: 7, unchecked: false });
+    expect(habitualCreatine([{ ...taking5, state: 'onHand' }])).toEqual({ continuedGPerDay: 0, unchecked: false });
+    expect(habitualCreatine([{ ...taking5, state: 'stopped' }])).toEqual({ continuedGPerDay: 0, unchecked: false });
+    expect(habitualCreatine([{ ...taking5, clinicianStop: true }])).toEqual({ continuedGPerDay: 0, unchecked: false });
+    expect(habitualCreatine([{ ...taking5, gPerDay: null }])).toEqual({ continuedGPerDay: 0, unchecked: true });
+    expect(habitualCreatine([{ ...taking5, schedule: 'weekly' }])).toEqual({ continuedGPerDay: 0, unchecked: true });
+    expect(habitualCreatine(undefined)).toEqual({ continuedGPerDay: 0, unchecked: false });
+    const h = habitualCreatine([taking5]);
+    expect(plannedCreatineG(h, 0, true, 10)).toEqual({ totalG: 5, incrementG: 0 });
+    expect(plannedCreatineG(h, 4, true, 10)).toEqual({ totalG: 5, incrementG: 0 });
+    expect(plannedCreatineG(h, 8, true, 10)).toEqual({ totalG: 8, incrementG: 3 });
+    expect(plannedCreatineG(h, 8, true, 3)).toEqual({ totalG: 3, incrementG: 0 });
+    expect(plannedCreatineG(h, 8, false, 10)).toEqual({ totalG: 0, incrementG: 0 });
+  });
+
+  it('observed daily use is in the baseline (no loading); on-hand stock is not', () => {
+    const sts = enumerateStructures(withHabit([taking5]));
+    const base = decodePlan(withHabit([taking5]), sts[0]!, new Float64Array(0));
+    expect(new Set(creatineOn(base.schedule))).toEqual(new Set([5]));
+    expect(base.schedule.programs.some((p) => p.substances?.creatineLoading)).toBe(false);
+    expect(base.lifestyle.creatineG).toBe(5);
+    const onHand = decodePlan(withHabit([{ ...taking5, state: 'onHand' }]), sts[0]!, new Float64Array(0));
+    expect(creatineOn(onHand.schedule).every((g) => g === 0)).toBe(true);
+  });
+
+  it('every plan continues the habitual dose without adding it again; a creatine lever adds only the increment above it', () => {
+    const ctx = withHabit([taking5]);
+    const sts = enumerateStructures(ctx).filter((s) => !s.skeleton.baseline);
+    const noLever = sts.find((s) => !s.skeleton.creatine)!;
+    const p = decodePlan(ctx, noLever, noLever.x0);
+    expect(p.lifestyle.creatineG).toBe(5);
+    expect(p.lifestyle.creatineIncrementG).toBe(0);
+    for (const t of p.schedule.programs) if (t.energy.kind !== 'zero') expect(t.substances?.creatineG).toBe(5);
+    const lever = sts.find((s) => s.skeleton.creatine);
+    expect(lever, 'a creatine structure (consented, muscle goal, training allowed)').toBeDefined();
+    if (lever) {
+      const x = Float64Array.from(lever.x0);
+      const gi = lever.geneIndex['creatine.g']!;
+      x[gi] = 1; // the lever's top dose
+      const q = decodePlan(ctx, lever, x);
+      expect(q.lifestyle.creatineG).toBeGreaterThanOrEqual(5);
+      expect(q.lifestyle.creatineIncrementG).toBeCloseTo(q.lifestyle.creatineG - 5, 9);
+      x[gi] = 0; // the lever's lowest dose (3 g) is below the habitual 5 g: the plan carries 5 g, adds nothing
+      const r = decodePlan(ctx, lever, x);
+      expect(r.lifestyle.creatineG).toBe(5);
+      expect(r.lifestyle.creatineIncrementG).toBe(0);
+    }
+  });
+
+  it('a lock that forbids creatine ends the planned continuation; the baseline keeps the observed use', () => {
+    const lockedReq = { ...req, safety: { ...req.safety, plannerLocks: [{ id: 'creatine-cap', value: 0, source: 'clinician' as const }] } };
+    const locked = { ...compileRequest(lockedReq), habitualActives: [taking5] };
+    expect(locked.caps.creatineAllowed).toBe(false);
+    const sts = enumerateStructures(locked);
+    const plan = sts.find((s) => !s.skeleton.baseline)!;
+    expect(decodePlan(locked, plan, plan.x0).lifestyle.creatineG).toBe(0);
+    expect(decodePlan(locked, sts[0]!, new Float64Array(0)).lifestyle.creatineG).toBe(5);
+  });
+
+  it('unknown potency is a valid record with an unchecked safety status and no numeric contribution', () => {
+    const ctx = withHabit([{ ...taking5, gPerDay: null }]);
+    const sts = enumerateStructures(ctx);
+    const base = decodePlan(ctx, sts[0]!, new Float64Array(0));
+    expect(base.exposureChecks).toEqual([{ active: 'creatine', status: 'unchecked', reasonCode: 'unknownPotencyOrSchedule' }]);
+    expect(creatineOn(base.schedule).every((g) => g === 0)).toBe(true);
+    const plan = sts.find((s) => !s.skeleton.baseline)!;
+    expect(decodePlan(ctx, plan, plan.x0).exposureChecks?.[0]?.status).toBe('unchecked');
+  });
+
+  it('without a habitual exposure the decode is unchanged (no continuation, no exposure checks)', () => {
+    const sts = enumerateStructures(plain);
+    for (const st of sts.slice(0, 12)) {
+      const a = decodePlan(plain, st, st.x0);
+      const b = decodePlan({ ...plain, habitualActives: [] }, st, st.x0);
+      expect(JSON.stringify(b.schedule)).toBe(JSON.stringify(a.schedule));
+      expect(a.exposureChecks).toBeUndefined();
+      expect(a.lifestyle.creatineIncrementG).toBeUndefined();
+    }
+  });
 });

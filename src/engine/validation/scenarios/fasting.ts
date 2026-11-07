@@ -368,7 +368,7 @@ export const V9_TEMPLEMAN: Scenario = {
     { id: 'bw75', label: '75:75 weight change after 3 wk (−1.91 kg)', unit: 'kg', measure: (c) => c.arm('daily75').after('scaleWeight', 21) - c.arm('daily75').profile.weightKg, check: val(-1.91, 0.8), source: 'dossier 20 V9' },
     { id: 'nonFat', label: 'non-fat mass loss 0:150 exceeds 75:75 (kg, > 0)', unit: 'kg', measure: (c) => -(c.arm('adf150').delta('leanMass', 21) - c.arm('daily75').delta('leanMass', 21)), check: above(0), source: 'dossier 20 V9' },
     { id: 'fatOrder', label: 'fat loss 0:150 smaller than 75:75 by ≥ 0.5 kg (study 0.74 vs 1.75)', unit: 'kg', measure: (c) => c.arm('adf150').delta('fatMass', 21) - c.arm('daily75').delta('fatMass', 21), check: above(0.5), gate: 'K', source: 'dossier 20 V9; §9.2 07 #9 / 13 V10 (fat K)' },
-    { id: 'fat0200', label: '0:200 fat change (−0.12 ± 0.3 kg)', unit: 'kg', measure: (c) => c.arm('adf200').delta('fatMass', 21), check: val(-0.12, 0.3), gate: 'K', source: 'dossier 20 V9; §9.2 (fat K)' },
+    { id: 'fat0200', label: '0:200 fat change (−0.12 ± 0.3 kg)', unit: 'kg', measure: (c) => c.arm('adf200').delta('fatMass', 21), check: val(-0.12, 0.3), gate: 'M' /* promoted from K 2026-10-18: inside its band since D2-01 removed the planned-span overlay switch */, source: 'dossier 20 V9; §9.2 (fat K)' },
     { id: 'fat150', label: '0:150 fat change (−0.74 kg)', unit: 'kg', measure: (c) => c.arm('adf150').delta('fatMass', 21), check: val(-0.74, 0.5), gate: 'M' /* promoted from K at integration 2026-09-30: inside its band */, source: 'dossier 20 V9 (study value; band assumed)', note: 'No tolerance in the dossier; ±0.5 kg assumed.' },
   ],
 };

@@ -4,9 +4,23 @@
  * regional/VAT, burn-in re-anchoring, properties (steady state, zero intake, bounds, determinism).
  */
 import { describe, expect, it } from 'vitest';
-import { compositionModule, REGIME_DEFICIT, REGIME_SURPLUS, REGIME_VLI, initialLeanTissue } from './index';
+import {
+  COMPOSITION_NITROGEN_LEDGER,
+  COMPOSITION_PARTITION_SERIES,
+  COMPOSITION_TISSUE_SERIES,
+  COMPOSITION_VALIDITY,
+  compositionModelLimit,
+  compositionModule,
+  compositionOutputStatuses,
+  REGIME_DEFICIT,
+  REGIME_SURPLUS,
+  REGIME_VLI,
+  initialLeanTissue,
+} from './index';
 import { flatFlux, makeRig, mealFlux, PERSON_MAN, runDay, setIntake, type Rig } from './testHarness';
-import { overshootGamma } from './partition';
+import { overshootGamma, SURPLUS_PROTEIN_LOW, SURPLUS_PROTEIN_UNKNOWN } from './partition';
+import { VAT_ALLOMETRY } from '../../body/regional';
+import { closeStatuses, type OutputStatus } from '@/lib/bodyContracts';
 import type { PersonProfile } from '../../types/profile';
 
 const effF = 9441 + 179;
@@ -373,10 +387,38 @@ describe('regional depots, VAT and waist (14 M7-M8 via the body module)', () => 
     expect(r.bus.vatKg).toBe(r.s.vatKg);
   });
 
-  it('allocation-free VAT fallback (regional off) follows the same allometry', () => {
+  it('D1-02: one VAT transition for every output mask (regional geometry on/off gives the identical VAT, bit for bit)', () => {
     const on = lossRun(true);
     const off = lossRun(false);
-    expect(off.r.s.vatKg).toBeCloseTo(on.r.s.vatKg, 1);
+    expect(off.r.s.vatKg).toBe(on.r.s.vatKg);
+    expect(off.r.bus.vatKg).toBe(on.r.bus.vatKg);
+    // the loss branch follows the chosen allometric law exactly: VAT = VAT0·(FM/FM0)^1.3
+    expect(on.r.s.vatKg).toBeCloseTo(on.vat0 * Math.pow(on.r.s.fmKg / on.fm0, VAT_ALLOMETRY.kLoss), 9);
+    // the explicit VAT is handed to the regional allocation: the other depots carry FM − VAT
+    const f = on.r.s.regional.fat;
+    expect(f.vatKg).toBe(on.r.s.vatKg);
+    expect(f.headKg + f.armsKg + f.legsKg + f.trunkSatKg).toBeCloseTo(on.r.s.fmKg - on.r.s.vatKg, 9);
+  });
+
+  it('D1-02: loss/gain cycles keep VAT within [0, FM] and identical across masks; gain uses the labelled symmetric hypothesis', () => {
+    expect(VAT_ALLOMETRY.lossWarrant).toBe('empiricalPopulationPrior');
+    expect(VAT_ALLOMETRY.gainWarrant).toBe('assumedSymmetricHypothesis');
+    const cycle = (regional: boolean): number[] => {
+      const r = makeRig(PERSON_MAN, { regional });
+      r.bus.tdeeEstKcalD = 2600;
+      const out: number[] = [];
+      for (const [kcal, days] of [[1700, 30], [3400, 30], [1500, 20], [3200, 25]] as const) {
+        setIntake(r, kcal, 140);
+        for (let i = 0; i < days; i++) {
+          runDay(r, mealFlux(kcal, 2600));
+          expect(r.s.vatKg).toBeGreaterThanOrEqual(0);
+          expect(r.s.vatKg).toBeLessThanOrEqual(r.s.fmKg);
+          out.push(r.s.vatKg);
+        }
+      }
+      return out;
+    };
+    expect(cycle(false)).toEqual(cycle(true));
   });
 
   it('waist falls with fat loss (ψ = 0.83 hysteresis inside circumferencesFor)', () => {
@@ -388,6 +430,158 @@ describe('regional depots, VAT and waist (14 M7-M8 via the body module)', () => 
     const { r } = lossRun(true);
     const m = r.s.regional.muscle;
     expect(m.armsKg + m.legsKg + m.trunkKg).toBeCloseTo(r.s.smKg, 9);
+  });
+});
+
+describe('D1-05 unsupported surplus-protein partition (status only)', () => {
+  const surplus = (proteinG: number, coverage?: 'partial' | 'complete') => {
+    const r = makeRig();
+    r.bus.tdeeEstKcalD = 2600;
+    setIntake(r, 3500, proteinG);
+    if (coverage) (r.day as { coverage?: Record<string, string> }).coverage = { protein: coverage };
+    for (let i = 0; i < 28; i++) runDay(r, mealFlux(3500, 2600));
+    return r;
+  };
+  const closed = (r: Rig) => {
+    const own: Record<string, OutputStatus> = {};
+    for (const st of compositionOutputStatuses(r.s)) for (const id of st.series) own[id] = st.status;
+    return closeStatuses(own);
+  };
+
+  it('known protein below the 0.75 g/kg BW knee: lean partition is a scenario; fat, scale, body fat and markers follow', () => {
+    const r = surplus(40); // 0.49 g/kg BW
+    expect(r.s.surplusDomain).toBe(SURPLUS_PROTEIN_LOW);
+    expect(r.s.lowProteinSurplusFromDay).toBe(0);
+    const st = compositionOutputStatuses(r.s);
+    expect(st).toEqual([{ series: COMPOSITION_PARTITION_SERIES, status: 'scenario', reasonCode: 'lowProteinSurplusPartition', uncertaintyKind: 'scenario', fromDay: 0 }]);
+    const c = closed(r);
+    for (const id of ['leanTissue', 'fatMass', 'bodyFatPct', 'scaleWeight', 'skeletalMuscle', 'ldl', 'triglycerides']) expect(c[id], id).toBe('scenario');
+  });
+
+  it('protein only a known lower bound (partial coverage) is unknown, never treated as low or as adequate', () => {
+    const r = surplus(160, 'partial');
+    expect(r.s.surplusDomain).toBe(SURPLUS_PROTEIN_UNKNOWN);
+    expect(r.s.unknownProteinSurplusFromDay).toBe(0);
+    expect(r.s.lowProteinSurplusFromDay).toBe(-1);
+    expect(closed(r).fatMass).toBe('scenario');
+  });
+
+  it('adequate protein: no status, and the energy budget and partition are unchanged by the containment', () => {
+    const a = surplus(160);
+    const b = surplus(160, 'complete');
+    expect(compositionOutputStatuses(a.s)).toEqual([]);
+    expect(compositionOutputStatuses(b.s)).toEqual([]);
+    expect([b.s.fmKg, b.s.ltKg]).toEqual([a.s.fmKg, a.s.ltKg]);
+  });
+
+  it('the containment changes no number: low-protein surplus keeps the existing (broad scenario) partition and conserves energy', () => {
+    const r = makeRig();
+    r.bus.tdeeEstKcalD = 2600;
+    setIntake(r, 3500, 40);
+    let resid = 0;
+    for (let i = 0; i < 14; i++) resid = Math.max(resid, runDay(r, mealFlux(3500, 2600)).maxHourResid);
+    expect(resid).toBeLessThan(1e-6);
+    expect(r.s.regime).toBe(REGIME_SURPLUS);
+  });
+
+  it('inside the ±W maintenance blend the surplus share still books lean: status from the first affected day (A1-039)', () => {
+    const r = makeRig();
+    r.bus.tdeeEstKcalD = 2600;
+    setIntake(r, 2650, 40); // EB7 = +50 kcal/d < W = 100: the surplus share has blend weight 0.75
+    const lt0 = r.s.ltKg;
+    for (let i = 0; i < 14; i++) runDay(r, mealFlux(2650, 2600));
+    expect(r.s.eb7).toBeGreaterThan(0);
+    expect(r.s.ltKg).toBeGreaterThan(lt0); // the unsupported component's positive lean claim exists
+    expect(r.s.surplusDomain).toBe(SURPLUS_PROTEIN_LOW);
+    expect(compositionOutputStatuses(r.s)).toEqual([{ series: COMPOSITION_PARTITION_SERIES, status: 'scenario', reasonCode: 'lowProteinSurplusPartition', uncertaintyKind: 'scenario', fromDay: 0 }]);
+  });
+
+  describe('A1-039: every positive lean claim through the low/unknown-protein surplus share is a scenario', () => {
+    /** 28-day rig at a fixed balance (kcal/d above a 2500 kcal/d TEE), 82 kg man, protein g/d, optional partial coverage. */
+    const rig = (surplusKcal: number, proteinG: number, coverage?: 'partial' | 'complete', days = 28) => {
+      const r = makeRig();
+      r.bus.tdeeEstKcalD = 2500;
+      setIntake(r, 2500 + surplusKcal, proteinG);
+      if (coverage) (r.day as { coverage?: Record<string, string> }).coverage = { protein: coverage };
+      const lt0 = r.s.ltKg;
+      let resid = 0;
+      for (let i = 0; i < days; i++) resid = Math.max(resid, runDay(r, mealFlux(2500 + surplusKcal, 2500)).maxHourResid);
+      return { r, dLt: r.s.ltKg - lt0, resid };
+    };
+    const closed = (r: Rig) => {
+      const own: Record<string, OutputStatus> = {};
+      for (const st of compositionOutputStatuses(r.s)) for (const id of st.series) own[id] = st.status;
+      return closeStatuses(own);
+    };
+
+    for (const kcal of [1, 50, 99, 100, 101]) {
+      it(`+${kcal} kcal/d: known 40 g/d is low-protein and unknown protein is unknown, both from day 0 with coupled outcomes`, () => {
+        const low = rig(kcal, 40);
+        expect(low.dLt).toBeGreaterThan(0);
+        expect(low.r.s.lowProteinSurplusFromDay).toBe(0);
+        expect(low.r.s.unknownProteinSurplusFromDay).toBe(-1);
+        const c = closed(low.r);
+        for (const id of ['leanTissue', 'fatMass', 'scaleWeight', 'bodyFatPct', 'nitrogenBalance', 'muscleArms', 'fatTrunk', 'visceralFat', 'ldl']) expect(c[id], id).toBe('scenario');
+        const unk = rig(kcal, 160, 'partial');
+        expect(unk.dLt).toBeGreaterThan(0);
+        expect(unk.r.s.unknownProteinSurplusFromDay).toBe(0);
+        expect(unk.r.s.lowProteinSurplusFromDay).toBe(-1);
+        expect(compositionOutputStatuses(unk.r.s)[0]!.reasonCode).toBe('unknownProteinSurplusPartition');
+        // status only: hourly conservation and the numbers are those of the same intake with known (adequate) protein
+        expect(Math.max(low.resid, unk.resid)).toBeLessThan(1e-6);
+        const known = rig(kcal, 160, 'complete');
+        expect([unk.r.s.fmKg, unk.r.s.ltKg]).toEqual([known.r.s.fmKg, known.r.s.ltKg]);
+        expect(compositionOutputStatuses(known.r.s)).toEqual([]);
+      });
+    }
+
+    it('the first day of a +500 kcal/d schedule is flagged while the 7-day boxcar is still filling', () => {
+      const one = rig(500, 40, undefined, 1);
+      expect(one.r.s.eb7).toBeLessThan(100); // EB7 = 500/7 < W
+      expect(one.dLt).toBeGreaterThan(0);
+      expect(one.r.s.lowProteinSurplusFromDay).toBe(0);
+    });
+
+    it('exact maintenance with no net tissue gain and adequate-protein controls record nothing (no blanket abstention)', () => {
+      const m = rig(0, 40);
+      expect(Math.abs(m.dLt)).toBeLessThan(1e-9);
+      expect(compositionOutputStatuses(m.r.s)).toEqual([]);
+      for (const kcal of [1, 50, 101, 500]) expect(compositionOutputStatuses(rig(kcal, 160).r.s), `+${kcal}`).toEqual([]);
+    });
+  });
+
+  it('a deficit day with low protein records no surplus status (the deficit model owns it)', () => {
+    const r = makeRig();
+    r.bus.tdeeEstKcalD = 2600;
+    setIntake(r, 1500, 40);
+    for (let i = 0; i < 14; i++) runDay(r, mealFlux(1500, 2600));
+    expect(r.s.lowProteinSurplusFromDay).toBe(-1);
+    expect(compositionOutputStatuses(r.s)).toEqual([]);
+  });
+
+  it('the very-low-intake branch marks the tissue forecast Limited (existing entry rule; Minnesota is a mismatched-protocol challenge)', () => {
+    const r = makeRig();
+    r.bus.tdeeEstKcalD = 2600;
+    setIntake(r, 400, 10, 60);
+    runDay(r, flatFlux(400, 2600));
+    expect(r.s.regime).toBe(REGIME_VLI);
+    const st = compositionOutputStatuses(r.s);
+    expect(st[0]).toMatchObject({ status: 'limited', reasonCode: 'veryLowIntakeOutsideSupport', fromDay: 0 });
+    expect(COMPOSITION_VALIDITY.domains.severeRestrictionMinnesota).toMatchObject({ protocolFidelity: 'mismatched', externalPrediction: 'failedChallenge' });
+  });
+});
+
+describe('D2-05 nitrogen, protein and tissue outputs are distinct estimands', () => {
+  it('nitrogenBalance is the body-N change implied by ΔLT (approximate conversion), not urinary N or muscle protein', () => {
+    expect(COMPOSITION_NITROGEN_LEDGER.nitrogenBalance).toMatchObject({ estimand: 'modelBodyNitrogenChange', unit: 'g N/d', notUrinaryNitrogen: true, notSkeletalMuscleProtein: true });
+    expect(COMPOSITION_NITROGEN_LEDGER.fastProteinCost).toMatchObject({ includesBoundWater: true, notSkeletalMuscle: true });
+    expect(COMPOSITION_NITROGEN_LEDGER.intakeBoundary).toBe('reportedME');
+    const r = makeRig();
+    r.bus.tdeeEstKcalD = 2600;
+    setIntake(r, 1800, 130);
+    const lt0 = r.s.ltKg;
+    runDay(r, flatFlux(1800, 2600));
+    expect(r.s.nBalanceG).toBeCloseTo(((r.s.ltKg - lt0) * 1000 * r.k.fProt) / 6.25, 12);
   });
 });
 
@@ -493,6 +687,52 @@ describe('properties', () => {
     expect(r.s.fmKg).toBeGreaterThanOrEqual(0);
     expect(Number.isFinite(r.s.ltKg)).toBe(true);
     expect(r.s.ltKg).toBeGreaterThan(0);
+  });
+
+  it('D1-08: a tissue floor is a model limit — conserved up to and through the boundary hour, recorded with its hour', () => {
+    const r = makeRig();
+    setIntake(r, 500, 30);
+    r.bus.tdeeEstKcalD = 3000;
+    let limitDay = -1;
+    let nonConsDay = -1;
+    for (let d = 0; d < 400 && nonConsDay < 0; d++) {
+      const { maxHourResid } = runDay(r, flatFlux(500, 3000));
+      const lim = compositionModelLimit(r.s);
+      if (lim === null || (limitDay >= 0 && lim.kind === 'conservedBoundary')) {
+        // every hour before termination closes the ledger, including the lean-floor boundary event itself
+        expect(maxHourResid).toBeLessThan(1e-6);
+      }
+      if (lim !== null && limitDay < 0) {
+        limitDay = d;
+        expect(lim.day).toBe(d);
+        expect(lim.kind).toBe('conservedBoundary');
+        expect(lim.validThroughHour).toBe(lim.hourIndex);
+        expect(maxHourResid).toBeLessThan(1e-6);
+        expect(r.s.ltKg).toBeCloseTo(0.3 * r.s.lt0Kg, 9);
+      }
+      if (lim?.kind === 'nonConservable') nonConsDay = d;
+    }
+    expect(limitDay).toBeGreaterThan(0);
+    // once fat cannot supply the remaining energy either, the hour is not conservable: the run is valid only before it
+    expect(nonConsDay).toBeGreaterThanOrEqual(limitDay);
+    const lim = compositionModelLimit(r.s)!;
+    expect(lim.kind).toBe('nonConservable');
+    expect(lim.validThroughHour).toBe(lim.hourIndex); // the first (boundary) hour was conserved
+    expect(lim.hourIndex).toBe(limitDay * 24 + (lim.hourIndex % 24));
+    const st = compositionOutputStatuses(r.s).find((x) => x.status === 'modelLimit')!;
+    expect(st.fromDay).toBe(limitDay);
+    expect(st.series).toEqual(COMPOSITION_TISSUE_SERIES);
+    expect(st.reasonCode).toBe(COMPOSITION_VALIDITY.domains.tissueFloor.reasonCode);
+  });
+
+  it('D1-08: burn-in hours never record a model limit; an ordinary run records none', () => {
+    const r = makeRig();
+    r.clock.day = -3;
+    setIntake(r, 2600, 120);
+    for (let i = 0; i < 3; i++) runDay(r, mealFlux(2600, 2600));
+    for (let i = 0; i < 30; i++) runDay(r, mealFlux(2600, 2600));
+    expect(compositionModelLimit(r.s)).toBeNull();
+    expect(compositionOutputStatuses(r.s)).toEqual([]);
   });
 
   it('determinism: identical inputs → bit-identical states', () => {

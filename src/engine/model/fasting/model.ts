@@ -3,12 +3,60 @@
  * §4.2, §4.3.4, §4.4.2, §4.5.2, §4B.1). Everything the hot path calls lives in this one file so calls stay local
  * (no cross-module bindings per step). All functions are allocation-free; the unit tests and other modules'
  * calibration tests (ketones: `bhbRefMmolL`) share this implementation.
+ *
+ * Causal boundary (D2-01, contract C2): the overlay is routed by observed intake history only, i.e. the rolling 24-h
+ * sums of the hours already stepped. A planned fast's label, length or end hour (`CompiledSchedule.fastSpans`,
+ * `HourInput.plannedFast`, `DayInput.fastPolicy`) is policy/consent/forecast metadata: it drives the fastStart/fastEnd
+ * events and nothing physiological. The 24-h thresholds are the named legacy routing approximation
+ * `FASTING_ROUTING.model` (routing shortcuts, not biological discontinuities; no fitted transition kinetics yet).
+ * Daily-native inputs (`FASTING_CAUSAL_RESOLUTION`): the refeeding-oedema gate reads the day's total sodium and
+ * carbohydrate (`FASTING_DAILY_NATIVE`), and the thresholds and N model read energy's and composition's daily-native
+ * signals, so every output of this module carries daily resolution in an observed replay (never a within-day causal claim).
+ *
+ * Nitrogen and protein (D2-05, contracts C3/C4/C7; `FASTING_NITROGEN_BOUNDARY`): the N model gives a urinary-N PRIOR in
+ * g N/d while the overlay is active. It is not muscle loss: protein oxidised = 6.25 g/g N × N (approximate conversion),
+ * composition converts it to model lean tissue with its own effective hydration convention (h_P 1.6 g water/g protein →
+ * 2.6 g lean tissue per g protein) and books its energy once at the run's effective lean cost; DXA lean, scale mass and
+ * skeletal muscle are separate operators. The system boundary is the body excluding the GI lumen with reported-ME intake:
+ * dN_body = N_absorbed − N_urine − N_other, so unabsorbed dietary N (already outside ME) is never subtracted again. The
+ * labile-pool deficit and its repletion (L_max 0.75 g/kg FFM0, τ_rep 2 d) and the refeeding oedema are broad structural
+ * scenarios — jointly unidentifiable design fits, not measured constants — and carry no precise recovery date. Repletion
+ * needs dietary protein (substrate bound below) and its tissue energy is booked by composition; refeeding safety never
+ * reads the oedema state.
  */
 import { G_PROTEIN_PER_G_N, HOURS_PER_DAY, RHO, ZERO_INTAKE_KCAL } from '../../core/defaults';
 import { param } from '../../core/paramsRegistry';
 import type { DayInput, HourInput } from '../../types/inputs';
 import type { EventSink, StepClock } from '../../types/module';
+import type { SeriesId } from '../../types/metrics';
 import type { ModelParams } from '../../types/params';
+import type { CausalResolution, HistoryAssumptionKind } from '@/lib/bodyContracts';
+import type { ModuleId, SignalName } from '../../types/signals';
+
+/**
+ * Nitrogen system boundary and conversion conventions of the fasting N model (D2-05). Declarative: consumers (composition,
+ * fuel, evidence/info sheet, validation) read it instead of re-deriving their own boundary.
+ */
+export const FASTING_NITROGEN_BOUNDARY = {
+  version: 1,
+  /** Body excluding the GI lumen; intake enters as reported metabolizable energy (urinary/fecal energy already deducted). */
+  system: 'bodyExcludingGutLumen',
+  intakeBoundary: 'reportedME',
+  /** dN_body = N_absorbed − N_urine − N_other_endogenous (g N/d); unabsorbed dietary (fecal) N is outside the body: never subtracted twice. */
+  balance: 'dN_body = N_absorbed - N_urine - N_otherEndogenous',
+  /** Overlay output: urinary-N prior while the fasting overlay is active (g N/d); N_other is not modelled separately. */
+  urinaryNitrogen: { unit: 'g N/d', operator: 'urinaryNitrogen', status: 'prior', otherLossesModelled: false },
+  /** 6.25 g protein per g N: approximate conversion (depends on the N pool and non-urinary losses), not a measurement. */
+  proteinPerN: { value: 6.25, status: 'approximation' },
+  /** Lean tissue per g protein = 1 + h_P (h_P 1.6 g/g in composition): effective hydration convention, not wet-muscle identity. */
+  leanTissuePerProtein: { convention: '1 + hP (composition.hP)', status: 'effectiveConvention' },
+  /** Labile pool, repletion and oedema: broad structural scenarios (design fits), no precise recovery certificate. */
+  labilePool: { status: 'scenario', certificate: false },
+  oedema: { status: 'scenario', refeedSafetyInput: false },
+  /** Nothing here is skeletal-muscle loss; tissue energy is booked once by composition at the run's effective lean cost. */
+  skeletalMuscle: false,
+  energyBookedBy: 'composition',
+} as const;
 
 /** Prepared constants (read from ModelParams once per run; decay factors precomputed, §0.3). */
 export interface FastingConstants {
@@ -17,8 +65,6 @@ export interface FastingConstants {
   fastProteinMaxG: number;
   fastCarbMaxG: number;
   modKcalFrac: number;
-  /** 1 for every absolute hour inside a planned zero-intake span of ≥ plannedMinSpanH (review M7); length nDays·24. */
-  longPlanMask: Uint8Array;
   /** Intake event (20 §2): > 50 kcal (17 §2.5 ZERO_INTAKE_KCAL) or > protein/carb grams in an hour. */
   eventKcal: number;
   eventProteinG: number;
@@ -98,32 +144,87 @@ export interface FastingConstants {
 const hourMeanFactor = (tauH: number): number => tauH * (1 - Math.exp(-1 / tauH));
 
 /**
- * Planned zero-intake spans as compiled (absolute hours from t = 0, end exclusive). `mealToMealH` is the fast's duration
- * by the ruling of 2026-09-30 18:10 (last intake to first intake): a 24-h dinner-to-dinner fast compiles to a 23-h
- * zero-intake span and must still activate the overlay.
+ * Planned zero-intake spans as compiled (absolute hours from t = 0, end exclusive; `mealToMealH` = last intake to first
+ * intake, ruling 2026-09-30 18:10). Policy/forecast metadata only (D2-01): the physiology never reads them.
  */
 export type PlannedSpans = ReadonlyArray<{ readonly startHour: number; readonly endHour: number; readonly mealToMealH?: number }>;
 
 export interface FastingRunContext {
   ffm0Kg: number;
   nHours: number;
-  fastSpans: PlannedSpans;
+  /**
+   * Planned spans (policy metadata). Accepted so callers can keep passing the compiled schedule; no physiological
+   * quantity depends on it, which is the immediate D2-01 invariant (identical realised intake ⇒ identical physiology
+   * whatever the planned label, duration or end of a fast).
+   */
+  fastSpans?: PlannedSpans;
   events?: EventSink | null;
   checks?: boolean;
 }
 
+/**
+ * Overlay routing (D2-01): one observed-history rule for planned and unplanned fasts alike. Water-only:
+ * kcal24 < 0.10·maintenance ∧ protein24 < 5 g ∧ carb24 < 10 g; modified: kcal24 < 0.15·maintenance ∧ protein24 < 5 g
+ * (registry values `fasting.fastKcalFrac`, `fastProteinMaxG`, `fastCarbMaxG`, `modKcalFrac`). Named legacy
+ * approximation, kept until a continuous fed/postabsorptive transition is fitted jointly to tracer, N and refeed data.
+ */
+export const FASTING_ROUTING = {
+  model: 'legacyRolling24hIntake',
+  version: 2,
+  status: 'approximation',
+  /** Name of this approximation in run metadata (`SimulationMeta.assumptions`). */
+  assumption: 'legacyRollingIntakeRouting',
+  /** What the routing may read: hours already stepped (rolling 24-h ingested sums, hours since the last intake event). */
+  reads: 'observedIntakePrefix',
+  /** Read by events/policy only, never by physiology. */
+  policyOnly: ['CompiledSchedule.fastSpans', 'HourInput.plannedFast', 'DayInput.fastPolicy'],
+} as const;
+
+/**
+ * Outputs of this module that still consume whole-day inputs (D2-01/C2): in an observed replay of a partly elapsed day
+ * they carry `resolution` 'daily' (a later meal the same day can change them), and so does every descendant. The
+ * refeeding-oedema gate is 20 §4.5.2's daily threshold (< 1.5 g Na or < 50 g carbohydrate on the refeed day); swapping
+ * in elapsed totals would need its own fit, so it stays daily until the causal event-time refactor.
+ */
+export const FASTING_DAILY_NATIVE: ReadonlyArray<{
+  readonly signal: SignalName;
+  readonly dayInputs: readonly ('sodiumMg' | 'carbG')[];
+  readonly resolution: CausalResolution;
+}> = [{ signal: 'fastOedemaL', dayInputs: ['sodiumMg', 'carbG'], resolution: 'daily' }];
+
+/**
+ * Causal-resolution declaration (C2/D2-01), same shape as the other modules' declarations. Own whole-day reads: the
+ * refeed-oedema gate (`FASTING_DAILY_NATIVE`). Upstream daily-native signals read every hour: maintenance (routing
+ * thresholds, energy) and TEE, fat mass and active FFM (N model, energy and composition). Every output therefore inherits
+ * daily resolution through `weakestResolution`. No plan metadata: `plannedFast` feeds the policy events only.
+ * Declarative only; nothing here changes physiology.
+ */
+export const FASTING_CAUSAL_RESOLUTION = {
+  module: 'fasting',
+  nativeResolution: 'daily',
+  dailyInputs: ['sodiumMg', 'carbG'],
+  dayStartSignals: [],
+  upstreamDailySignals: ['maintenanceKcalD', 'tdeeEstKcalD', 'fatMassKg', 'ffmActKg'],
+  planMetadataReads: [],
+  series: [],
+  signals: ['fastActive', 'fastHoursH', 'fastRmrMult', 'fastProtOxGH', 'fastRepletionGH', 'fastOedemaL'],
+  assumption: 'dailyNativeModel',
+  reasonCode: 'dailyNativeRefeedGateAndUpstream',
+} as const satisfies {
+  module: ModuleId;
+  nativeResolution: CausalResolution;
+  dailyInputs: readonly (keyof DayInput)[];
+  dayStartSignals: readonly SignalName[];
+  upstreamDailySignals: readonly SignalName[];
+  planMetadataReads: readonly (keyof DayInput)[];
+  series: readonly SeriesId[];
+  signals: readonly SignalName[];
+  assumption: HistoryAssumptionKind;
+  reasonCode: string;
+};
+
 export function fastingConstants(p: ModelParams, run: FastingRunContext): FastingConstants {
   const v = (id: string): number => param(p, `fasting.${id}`);
-  const minSpan = v('plannedMinSpanH');
-  const longPlanMask = new Uint8Array(Math.max(0, run.nHours));
-  for (const sp of run.fastSpans) {
-    // duration = meal to meal (ruling 2026-09-30 18:10); the zero-intake span itself is one hour shorter
-    const dur = sp.mealToMealH !== undefined && sp.mealToMealH > 0 ? sp.mealToMealH : sp.endHour - sp.startHour;
-    if (dur < minSpan) continue;
-    const a = Math.max(0, sp.startHour);
-    const b = Math.min(longPlanMask.length, sp.endHour);
-    for (let h = a; h < b; h++) longPlanMask[h] = 1;
-  }
   const ffm0Kg = run.ffm0Kg;
   const tauATh = v('tauAT') * HOURS_PER_DAY;
   const tauAToffh = v('tauATOff') * HOURS_PER_DAY;
@@ -137,7 +238,6 @@ export function fastingConstants(p: ModelParams, run: FastingRunContext): Fastin
     fastProteinMaxG: v('fastProteinMaxG'),
     fastCarbMaxG: v('fastCarbMaxG'),
     modKcalFrac: v('modKcalFrac'),
-    longPlanMask,
     eventKcal: ZERO_INTAKE_KCAL,
     eventProteinG: v('eventProteinG'),
     gProtPerGN: G_PROTEIN_PER_G_N,
@@ -348,15 +448,22 @@ const TINY = 1e-12;
 const SUM_EPS = 1e-9;
 
 export interface FastingState {
-  /** Overlay active this hour, 0/1 (20 §4B.1 criteria or planned zero-intake span). */
+  /** Overlay active this hour, 0/1 (20 §4B.1 criteria on observed intake history; never the planned span, D2-01). */
   active: number;
-  /** tFast, h: hours of zero intake at the end of this hour (0 when inactive; 20 §2 definition at activation). */
+  /**
+   * tFast, h: physiological fasting time of the overlay at the end of this hour (0 when inactive; back-dated to the last
+   * intake event at activation, 20 §2). Approximate scenario clock, distinct from the intake-event clock
+   * `hoursSinceIntakeH`, from the realised history's observed fast and from any planned duration.
+   */
   tFastH: number;
   /** Resting-adaptation state s_AT, 0..1 (τ 9 d on after t_lag 2 d; τ 4 d off). */
   sAT: number;
   /** Protein-sparing state S_N, 0..1 (BHB-driven; τ_N 8 d; off τ 3 d, 7 d when low-carb refeed). */
   sN: number;
-  /** Labile protein pool deficit D_lab, g protein (≤ 0.75 g/kg FFM0), repleted with τ_rep 2 d on adequate refeeding. */
+  /**
+   * Labile protein pool deficit D_lab, g protein (≤ 0.75 g/kg FFM0), repleted with τ_rep 2 d on adequate refeeding. Broad
+   * structural scenario state (D2-05): not skeletal muscle, no precise recovery date.
+   */
   dLabG: number;
   /** Refeeding oedema E_oed, L. */
   eOedL: number;
@@ -376,11 +483,15 @@ export interface FastingState {
   /** 24 slots × [kcal, protein g, carb g, in-fast carb g]. */
   ring: Float64Array;
   ringIdx: number;
-  /** Hours since the last intake event (> 50 kcal or > 5 g protein or > 5 g carbohydrate in an hour; 20 §2), h. */
+  /**
+   * Intake-event clock: hours since the last intake event (> 50 kcal or > 5 g protein or > 5 g carbohydrate in an hour;
+   * 20 §2 tolerance), h. Ends in the hour of ingestion, not after absorption (D2-01). Not the literal zero-calorie clock:
+   * the realised history ends an observed zero-calorie fast at the first verified intake with any positive energy (C2).
+   */
   hoursSinceIntakeH: number;
   /** Last finite, positive maintenance estimate, kcal/d (guards energy's zero-intake α_mix NaN, review M12). */
   maintRefKcalD: number;
-  /** Planned-span bookkeeping for fastStart/fastEnd events: previous hour's flag (0/1) and span length, h. */
+  /** Planned-span bookkeeping for the fastStart/fastEnd policy events only: previous hour's flag (0/1) and span length, h. */
   plannedPrev: number;
   plannedSpanH: number;
   /** Diagnostics: urinary N this hour, g N/d; cumulative fasting protein oxidised, g; repleted, g; fasts started. */
@@ -388,6 +499,21 @@ export interface FastingState {
   protOxCumG: number;
   repletedCumG: number;
   fastCount: number;
+  /**
+   * Urinary-N prior ledger (D2-05), g N: excreted so far on the current day, on the last completed day, and cumulatively;
+   * `uNDay` is the day index the running total belongs to. Prior output (operator `urinaryNitrogen`), not muscle loss.
+   */
+  uNTodayG: number;
+  uNLastDayG: number;
+  uNCumG: number;
+  uNDay: number;
+  /**
+   * Repletion gate of the last hour with a labile deficit (D1-05/D2-05): 0 no deficit, 1 repleting, 2 energy or known
+   * protein below the gate, 3 protein unknown (energy-only intake: known protein below the gate is a lower bound, so the
+   * gate is undetermined; the scenario holds the deficit and says so). Hours held for unknown protein are counted.
+   */
+  repGate: number;
+  repUnknownProteinH: number;
 }
 
 /** The bus fields this module reads and writes (structural subset of SignalBus, so unit tests can pass a plain object). */
@@ -444,10 +570,48 @@ export function fastingInitialState(p: {
     protOxCumG: 0,
     repletedCumG: 0,
     fastCount: 0,
+    uNTodayG: 0,
+    uNLastDayG: 0,
+    uNCumG: 0,
+    uNDay: Number.MIN_SAFE_INTEGER,
+    repGate: 0,
+    repUnknownProteinH: 0,
   };
 }
 
-/** `EngineModule.stepHour` of the fasting module (MODEL_SPEC §1.4); planned spans < 24 h do not activate the overlay (M7). */
+/** Repletion gate codes (`FastingState.repGate`). */
+export const REPLETION_GATE = { none: 0, repleting: 1, belowGate: 2, proteinUnknown: 3 } as const;
+
+/**
+ * Nitrogen/protein ledger of the fasting overlay (D2-05): the urinary-N prior (g N; daily totals) and the model protein
+ * fluxes (g protein) kept apart from tissue mass and measurement operators. `netProteinG` = oxidised − repleted is the
+ * overlay's body-protein change; composition turns it into model lean tissue (its hydration convention) and nothing here
+ * is skeletal-muscle loss or a DXA/scale quantity.
+ */
+export function fastingNitrogenLedger(s: Pick<FastingState, 'uNTodayG' | 'uNLastDayG' | 'uNCumG' | 'protOxCumG' | 'repletedCumG' | 'dLabG'>): {
+  urinaryNTodayG: number;
+  urinaryNLastDayG: number;
+  urinaryNCumG: number;
+  proteinOxidisedG: number;
+  proteinRepletedG: number;
+  netProteinG: number;
+  labileDeficitG: number;
+} {
+  return {
+    urinaryNTodayG: s.uNTodayG,
+    urinaryNLastDayG: s.uNLastDayG,
+    urinaryNCumG: s.uNCumG,
+    proteinOxidisedG: s.protOxCumG,
+    proteinRepletedG: s.repletedCumG,
+    netProteinG: s.protOxCumG - s.repletedCumG,
+    labileDeficitG: s.dLabG,
+  };
+}
+
+/**
+ * `EngineModule.stepHour` of the fasting module (MODEL_SPEC §1.4). The overlay follows observed intake history only;
+ * `hour.plannedFast` feeds the policy events (D2-01).
+ */
 export function fastingHook(
   s: FastingState,
   k: FastingConstants,
@@ -456,9 +620,6 @@ export function fastingHook(
   day: DayInput,
   clock: StepClock,
 ): void {
-  const hi = clock.hourIndex;
-  const longPlan =
-    hour.plannedFast > 0 && hi >= 0 && hi < k.longPlanMask.length && k.longPlanMask[hi] === 1 ? 1 : 0;
   fastingStepHour(
     s,
     k,
@@ -467,19 +628,21 @@ export function fastingHook(
     hour.proteinG,
     hour.carbG,
     hour.plannedFast,
-    longPlan,
     day.sodiumMg,
     day.carbG,
     clock.day,
-    hi,
+    clock.hourIndex,
+    day.unallocatedKcal !== undefined && day.unallocatedKcal > 0 ? 1 : 0,
   );
 }
 
 /**
  * One hour of the overlay (the loop calls it through `stepHour`; exported for unit tests).
- * Inputs: this hour's ingested kcal, protein g and net carbohydrate g; `plannedFast` = the hour lies in any planned
- * span (events); `plannedLong` = it lies in a planned span ≥ 24 h (activates the overlay, review M7); the day's planned
- * sodium (mg) and net carbohydrate (g) characterise a refeed for the oedema factor (20 §4.5.2).
+ * Inputs: this hour's ingested kcal, protein g and net carbohydrate g; `plannedFast` = the hour lies in a planned span
+ * (fastStart/fastEnd policy events only, never physiology, D2-01); the day's sodium (mg) and net carbohydrate (g)
+ * characterise a refeed for the oedema factor (20 §4.5.2; daily-native, see `FASTING_DAILY_NATIVE`). `proteinUnknown` = 1
+ * when the day carries energy-only intake whose protein is unknown (D6-02): repletion that the known protein cannot prove is
+ * then held and flagged (`repGate` 3), never treated as a confirmed protein deficiency (D1-05).
  */
 export function fastingStepHour(
   s: FastingState,
@@ -489,12 +652,20 @@ export function fastingStepHour(
   proteinGH: number,
   carbGH: number,
   plannedFast: number,
-  plannedLong: number,
   daySodiumMg: number,
   dayCarbG: number,
   day: number,
   hourIndex: number,
+  proteinUnknown = 0,
 ): void {
+  // ---- urinary-N ledger day boundary (D2-05): the running day total becomes the last completed day's total
+  if (day !== s.uNDay) {
+    s.uNLastDayG = s.uNTodayG >= 0 ? s.uNTodayG : 0;
+    if (!(s.uNCumG >= 0)) s.uNCumG = 0; // a state from an older layout carries no ledger
+    if (!(s.repUnknownProteinH >= 0)) s.repUnknownProteinH = 0;
+    s.uNTodayG = 0;
+    s.uNDay = day;
+  }
   // ---- 1. rolling 24-h intake (MODEL_SPEC §1.4 state) and the intake-event clock (20 §2)
   const kc = kcalH > 0 ? kcalH : 0;
   const pr = proteinGH > 0 ? proteinGH : 0;
@@ -521,12 +692,13 @@ export function fastingStepHour(
   if (mBus > 0 && mBus < Infinity) s.maintRefKcalD = mBus;
   const maint = s.maintRefKcalD;
 
-  // ---- 1. criteria (20 §4.1, §4B.1): water-only ∨ modified ∨ planned span ≥ 24 h (review M7)
+  // ---- 1. criteria (20 §4.1, §4B.1; D2-01): water-only ∨ modified, on observed rolling intake only. A planned span's
+  //         label or length never activates the overlay (legacy approximation `FASTING_ROUTING`).
   const fasting =
     s.kcal24 < k.fastKcalFrac * maint && s.protein24 < k.fastProteinMaxG && s.carb24 < k.fastCarbMaxG;
   const modified = !fasting && s.kcal24 < k.modKcalFrac * maint && s.protein24 < k.fastProteinMaxG;
   const planned = plannedFast > 0;
-  const active = fasting || modified || plannedLong > 0;
+  const active = fasting || modified;
 
   if (active) {
     // start: tFast = hours since the last intake event (20 §2), ≥ 1 (end of the first zero-intake hour)
@@ -550,7 +722,7 @@ export function fastingStepHour(
   if (s.carbFast24 < SUM_EPS) s.carbFast24 = 0;
   s.ringIdx = s.ringIdx === RING_SLOTS - 1 ? 0 : s.ringIdx + 1;
 
-  // ---- events: planned span start/end (MODEL_SPEC §7.1); never during burn-in
+  // ---- events: planned span start/end (MODEL_SPEC §7.1; policy metadata, no physiological effect); never in burn-in
   if (planned) {
     if (s.plannedPrev === 0) {
       s.plannedSpanH = 0;
@@ -575,6 +747,7 @@ export function fastingStepHour(
     s.oedPendingL === 0
   ) {
     s.uNGd = 0;
+    s.repGate = REPLETION_GATE.none;
     bus.fastActive = 0;
     bus.fastHoursH = 0;
     bus.fastRmrMult = 1;
@@ -629,28 +802,38 @@ export function fastingStepHour(
     const exo = bus.bhbMmolL - bus.bhbEndoMmolL;
     const n = urinaryNGd(k, ffm, fm, bfPct, teeKcalD, sNmean, tMidD, s.carbFast24, exo > 0 ? exo : 0);
     s.uNGd = n;
+    s.uNTodayG += n / 24;
+    s.uNCumG += n / 24;
     protOx = (n * k.gProtPerGN) / 24;
     s.protOxCumG += protOx;
     const d = s.dLabG + protOx;
     s.dLabG = d < k.lMaxG ? d : k.lMaxG;
   } else s.uNGd = 0;
 
-  // ---- 4. labile-pool repletion on adequate refeeding (energy ≥ 90 % maintenance, protein ≥ 1.0 g/kg BW)
+  // ---- 4. labile-pool repletion on adequate refeeding (energy ≥ 90 % maintenance, protein ≥ 1.0 g/kg BW); broad structural
+  //         scenario (D2-05). Substrate bound: the pool never repletes faster than the window's mean dietary protein supply
+  //         (mass balance, inactive at the nominal pool size). Known protein below the gate on a day with energy-only intake is a
+  //         lower bound only: the gate is undetermined and the scenario holds the deficit, flagged (D1-05).
   let rep = 0;
-  if (
-    !active &&
-    s.dLabG > 0 &&
-    s.kcal24 >= k.repEnergyFrac * maint &&
-    s.protein24 >= k.repProteinGPerKg * bw
-  ) {
-    rep = s.dLabG * (1 - k.fRep);
-    s.dLabG -= rep;
-    if (s.dLabG < TINY) s.dLabG = 0;
-    s.repletedCumG += rep;
-  }
+  if (!active && s.dLabG > 0) {
+    const energyOk = s.kcal24 >= k.repEnergyFrac * maint;
+    const proteinOk = s.protein24 >= k.repProteinGPerKg * bw;
+    if (energyOk && proteinOk) {
+      rep = s.dLabG * (1 - k.fRep);
+      const supply = s.protein24 / 24;
+      if (rep > supply) rep = supply;
+      s.dLabG -= rep;
+      if (s.dLabG < TINY) s.dLabG = 0;
+      s.repletedCumG += rep;
+      s.repGate = REPLETION_GATE.repleting;
+    } else if (energyOk && proteinUnknown > 0) {
+      s.repGate = REPLETION_GATE.proteinUnknown;
+      s.repUnknownProteinH += 1;
+    } else s.repGate = REPLETION_GATE.belowGate;
+  } else s.repGate = REPLETION_GATE.none;
 
   // ---- 5. refeeding oedema: pending pool P (rate 1/τr + 1/τd) feeds E (rate 1/τd); inflow × 0.3 when the day's refeed
-  //         is salt-free (< 1.5 g Na) or < 50 g carbohydrate (20 §4.5.2)
+  //         is salt-free (< 1.5 g Na) or < 50 g carbohydrate (20 §4.5.2). Whole-day gate: daily-native (FASTING_DAILY_NATIVE)
   if (s.oedPendingL > 0 || s.eOedL > 0) {
     const m = dayCarbG < k.oedLowCarbG || daySodiumMg < k.oedLowNaMg ? k.oedLowMult : 1;
     const p0 = s.oedPendingL;

@@ -388,7 +388,7 @@ export function VisceralLocator({ className }: { className?: string }) {
 }
 
 /**
- * The plate: dotted stage; on one margin, the locator top left and the key to the two dashed outlines top right; the
+ * The plate: straight on the card (no stage pattern); on one margin, the locator top left and the key to the two dashed outlines top right; the
  * slice centred and scaled to fit, "front" just above it; the scale bar bottom right on the same margin.
  */
 export function VisceralPlate({

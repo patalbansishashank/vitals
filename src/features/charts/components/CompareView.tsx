@@ -10,8 +10,9 @@ import { type CSSProperties, memo, useCallback, useEffect, useMemo, useRef, useS
 import { PLAN_ORDER } from '../catalogue';
 import type { ChartController } from '../core/controller';
 import { compareModel, type ComparePlan } from '../core/compareModels';
-import { useChartController, useElementWidth } from '../core/hooks';
+import { useAxisGutter, useAxisModel, useChartController, useElementWidth } from '../core/hooks';
 import type { DataArea } from '../core/interaction';
+import { AXIS_INSET } from '../core/layout';
 import { PlotCanvas, type PlotApi } from '../core/PlotCanvas';
 import { formatNumber, formatSigned, THIN, unitSuffix } from '../lib/format';
 import { relaxLabels } from '../lib/labels';
@@ -107,16 +108,20 @@ const CompareMultiple = memo(function CompareMultiple({ m, data, plans, controll
   const readRef = useRef<HTMLSpanElement>(null);
   const labelsRef = useRef<HTMLDivElement>(null);
   const dotRefs = useRef(new Map<PlanId, HTMLDivElement>());
-  const tickCol = width < 500 ? 26 : 32;
+  // the tick column fits this multiple's widest tick label (measured in the canvas tick font), never below the base
+  const tickBase = width < 500 ? 26 : 32;
+  const axis = useAxisGutter(controller);
+  const tickCol = axis.width > 0 ? Math.max(tickBase, Math.ceil(axis.width + (width < 768 ? AXIS_INSET.s : AXIS_INSET.m))) : tickBase;
   const cps: ComparePlan[] = useMemo(
     () => plans.map((pl) => ({ id: pl.id, series: pl.series.find((s) => s.id === m.metricId)! })).filter((x) => !!x.series),
     [plans, m.metricId],
   );
   const s0 = cps[0]?.series;
   const model = useMemo(
-    () => (cps.length ? compareModel(cps, { tickColCss: tickCol, selected, target: m.goal?.target, isolate }) : null),
-    [cps, tickCol, selected, m.goal?.target, isolate],
+    () => (cps.length ? compareModel(cps, { tickColCss: tickBase, selected, target: m.goal?.target, isolate }) : null),
+    [cps, tickBase, selected, m.goal?.target, isolate],
   );
+  useAxisModel(axis.register, `compare:${m.metricId}`, model);
   const padding = useMemo(() => ({ top: 10, bottom: 8, left: tickCol, right: 8 + LABEL_COL }), [tickCol]);
   const plotW = width - tickCol - 8 - LABEL_COL;
   const area: DataArea = useMemo(() => ({ left: tickCol, width: plotW }), [tickCol, plotW]);
@@ -212,7 +217,7 @@ const CompareMultiple = memo(function CompareMultiple({ m, data, plans, controll
                 }}
                 className="lmc-dot"
                 data-on="false"
-                style={{ background: `var(--lm-plan-${c.id.toLowerCase()})` }}
+                style={{ '--lmc-dot': `var(--lm-plan-${c.id.toLowerCase()})` } as CSSProperties}
               />
             ))}
             <div ref={labelsRef} className="lmc-plan-labels" style={{ width: LABEL_COL }} aria-hidden="true">

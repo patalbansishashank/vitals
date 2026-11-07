@@ -2,9 +2,15 @@
  * Series recorder (docs/MODEL_SPEC.md §6.2): zero-allocation per step. Modules write instantaneous values into a
  * frame (Float64Array indexed by SERIES_INDEX); the recorder aggregates hourly values into daily values according to
  * the catalogue (`agg`) and stores hourly arrays when record = 'full'.
+ *
+ * C6/D7-02 (2026-10-18): numbers and statuses travel separately. The numeric buffers stay as they are (no status is ever
+ * encoded as NaN, Infinity or a sentinel zero); a per-series status sidecar (`setStatus`) says when a series' finite
+ * compatibility values must not be interpreted, and is closed over the output dependencies at export. An accepted measured
+ * value is stored exactly as a series' t = 0 value (`anchorInitial`), never a clamped or truncated model replacement.
  */
+import { closeStatusMeta, worstStatus, type StatusMetaLike } from '@/lib/bodyContracts';
 import { N_SERIES, SERIES, SERIES_INDEX, type DailyAgg, type SeriesId } from '../types/metrics';
-import type { RecordMode } from '../types/result';
+import type { RecordMode, SeriesStatusMeta } from '../types/result';
 
 const AGG_CODE = { end: 0, wake: 1, mean: 2, sum: 3, min: 4, max: 5 } as const;
 
@@ -29,6 +35,10 @@ export class Recorder {
   readonly daily: (Float32Array | null)[];
   readonly hourly: (Float32Array | null)[];
   readonly initial = new Float64Array(N_SERIES).fill(Number.NaN);
+  /** D7-02: measured t = 0 values (NaN = none), re-applied at export so no later write can replace them. */
+  private readonly anchor = new Float64Array(N_SERIES).fill(Number.NaN);
+  /** C6: status sidecar per series (null = estimated under the run's assumptions). Set outside the hot path. */
+  private readonly status: (SeriesStatusMeta | null)[] = new Array<SeriesStatusMeta | null>(N_SERIES).fill(null);
 
   constructor(
     readonly nDays: number,
@@ -185,6 +195,58 @@ export class Recorder {
     return this.lastVal[i]!;
   }
 
+  /**
+   * D7-02: an accepted, finite measured value is the series' t = 0 value exactly (the model's own t = 0 value may differ
+   * when the measurement lies outside its calibration domain; the projection's status then says so). Non-finite values
+   * are refused (an invalid observation is rejected at the boundary, never stored as a sentinel).
+   */
+  anchorInitial(i: number, value: number): boolean {
+    if (!Number.isFinite(value)) return false;
+    this.anchor[i] = value;
+    this.initial[i] = value;
+    return true;
+  }
+
+  /** C6: set (or worsen) the status of series `i`; a status never improves within a run. */
+  setStatus(i: number, meta: SeriesStatusMeta): void {
+    const cur = this.status[i];
+    if (cur && worstStatus(cur.status, meta.status) === cur.status) return;
+    this.status[i] = { ...meta };
+  }
+
+  statusOf(i: number): SeriesStatusMeta | null {
+    return this.status[i] ?? null;
+  }
+
+  /**
+   * C6 status sidecar for `ids`, closed over the mathematical output dependencies (an unsupported or scenario upstream
+   * makes a dependant a conditional scenario) — computed over every series that has a status, so a requested output still
+   * sees the status of an upstream that was not requested. An induced status keeps its root's first affected day,
+   * uncertainty kind and reason (`closeStatusMeta`, A1-013: reason `dependsOn:<root>`, `rootReason`), so a minimal mask and a
+   * continuation see the same onset and reason as the full run. Undefined when nothing has a status.
+   */
+  exportStatus(ids: readonly SeriesId[]): Partial<Record<SeriesId, SeriesStatusMeta>> | undefined {
+    const own: Record<string, StatusMetaLike> = {};
+    let any = false;
+    for (let i = 0; i < N_SERIES; i++) {
+      const s = this.status[i];
+      if (!s) continue;
+      own[SERIES[i]!.id] = s;
+      any = true;
+    }
+    if (!any) return undefined;
+    const closed = closeStatusMeta(own);
+    const out: Partial<Record<SeriesId, SeriesStatusMeta>> = {};
+    let n = 0;
+    for (const id of ids) {
+      const m = closed[id];
+      if (m === undefined) continue;
+      out[id] = { ...m };
+      n++;
+    }
+    return n > 0 ? out : undefined;
+  }
+
   /** Build the public maps (allocation allowed: called once). */
   export(ids: readonly SeriesId[]): {
     daily: Partial<Record<SeriesId, Float32Array>>;
@@ -203,7 +265,8 @@ export class Recorder {
       const h = this.hourly[i];
       if (d) daily[id] = d;
       if (h) hourly[id] = h;
-      initial[id] = this.initial[i]!;
+      const a = this.anchor[i]!;
+      initial[id] = Number.isFinite(a) ? a : this.initial[i]!;
       final[id] = this.lastVal[i]!;
     }
     return { daily, hourly, initial, final };

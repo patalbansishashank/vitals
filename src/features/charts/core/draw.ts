@@ -5,8 +5,9 @@
    ========================================================================== */
 import type { MarkerShape } from '../catalogue';
 import { decimalsForStep, formatNumber } from '../lib/format';
+import type { TickSet } from '../lib/ticks';
 import type { ChartEvent, Phase } from '../types';
-import { canvasFont, type ChartTheme, withAlpha } from './theme';
+import { canvasFont, type ChartTheme, getThemeSnapshot, withAlpha } from './theme';
 
 export interface PlotBox {
   left: number;
@@ -64,12 +65,19 @@ export function drawPhaseBands(a: DrawArgs, phases: readonly Phase[] | undefined
   ctx.restore();
 }
 
-/** Layer 2: 1 px solid gridlines at the ticks. */
+/**
+ * Layer 2 (r071 skin): horizontal gridlines at the ticks, dotted (1 px dots 3 px apart) and dim (ink at `--lmc-grid-a`).
+ * A grid is decoration, not text and not a data mark, so it may sit under 3:1; thresholds, targets and the zero line
+ * are drawn by their own helpers and stay solid.
+ */
 export function drawGrid(a: DrawArgs, ticks: readonly number[], color?: string): void {
   const { ctx } = a;
+  const lw = Math.max(1, Math.round(a.dpr));
   ctx.save();
-  ctx.strokeStyle = color ?? a.theme.grid;
-  ctx.lineWidth = Math.max(1, Math.round(a.dpr));
+  ctx.strokeStyle = color ?? a.theme.gridDot;
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'butt';
+  ctx.setLineDash([lw, 3 * lw]);
   ctx.beginPath();
   for (const t of ticks) {
     const yy = crisp(a.y(t), a.dpr);
@@ -96,7 +104,10 @@ export function drawHLine(a: DrawArgs, v: number, color: string, widthCss = 1): 
 }
 
 export interface YAxisOptions {
-  /** Width of the tick column (CSS px) to the left of the plot. */
+  /**
+   * The tick column's width class (CSS px): below 40 the default format compacts thousands ("2k"). It decides the
+   * label text only; the column itself is the plot's left padding, sized to the widest label (see `yAxisWidth`).
+   */
   colCss: number;
   format?: (v: number, step: number) => string;
   step: number;
@@ -106,13 +117,79 @@ export interface YAxisOptions {
   clampLabels?: boolean;
 }
 
-/** Y tick labels in the tick column, right-aligned 5 px from the data area, with printed ticks. */
+/** Tick label size (CSS px) and the space between a label's right edge and the data area: tick, gap, spine. */
+export const Y_LABEL_PX = 11;
+const Y_TICK_PX = 4;
+const Y_GAP_PX = 3;
+const Y_SPINE_PX = 1;
+
+/** The labels `drawYAxis` prints for these ticks (one per tick, same order). */
+export function yAxisLabels(ticks: readonly number[], o: Pick<YAxisOptions, 'colCss' | 'format' | 'step'>): string[] {
+  const fmt = o.format ?? ((v: number, step: number) => formatTick(v, step, o.colCss));
+  return ticks.map((t) => fmt(t, o.step));
+}
+
+/** The labels a model prints for a tick set over the domain [lo, hi] (ticks outside it are not drawn). */
+export function yAxisLabelsIn(t: TickSet, lo: number, hi: number, o: Pick<YAxisOptions, 'colCss' | 'format'>): string[] {
+  const eps = Math.abs(hi - lo) * 1e-6;
+  return yAxisLabels(
+    t.ticks.filter((v) => v >= Math.min(lo, hi) - eps && v <= Math.max(lo, hi) + eps),
+    { ...o, step: t.step },
+  );
+}
+
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+const widthCache = new Map<string, number>();
+
+/** Forget measured label widths (the chart font changed or finished loading). */
+export function resetLabelWidths(): void {
+  widthCache.clear();
+}
+
+/** Width (CSS px) of a tick label in the canvas tick font; an estimate where there is no 2D canvas. */
+export function labelWidth(text: string, theme: ChartTheme = getThemeSnapshot()): number {
+  const font = canvasFont(theme, Y_LABEL_PX);
+  const key = `${font}|${text}`;
+  const hit = widthCache.get(key);
+  if (hit !== undefined) return hit;
+  if (measureCtx === undefined) {
+    try {
+      measureCtx = typeof document === 'undefined' ? null : (document.createElement('canvas').getContext('2d') ?? null);
+    } catch {
+      measureCtx = null;
+    }
+  }
+  let w: number;
+  if (measureCtx && typeof measureCtx.measureText === 'function') {
+    measureCtx.font = font;
+    w = measureCtx.measureText(text).width;
+  } else w = text.length * Y_LABEL_PX * 0.62;
+  if (!Number.isFinite(w)) w = text.length * Y_LABEL_PX * 0.62;
+  if (widthCache.size > 4000) widthCache.clear();
+  widthCache.set(key, w);
+  return w;
+}
+
+/**
+ * The tick column (CSS px, from its left edge to the data area) that shows these labels whole: the widest label plus
+ * the gap, the printed tick and the spine. Callers add their outer inset.
+ */
+export function yAxisWidth(labels: readonly string[], theme?: ChartTheme): number {
+  let w = 0;
+  for (const l of labels) w = Math.max(w, labelWidth(l, theme));
+  return w > 0 ? w + Y_GAP_PX + Y_TICK_PX + Y_SPINE_PX : 0;
+}
+
+/**
+ * Y tick labels in the tick column, right-aligned against the printed ticks at the data edge. The column is the plot's
+ * left padding; charts size it with `yAxisWidth` so no label runs past the canvas edge.
+ */
 export function drawYAxis(a: DrawArgs, ticks: readonly number[], o: YAxisOptions): void {
   const { ctx, dpr } = a;
-  const tick = (o.tickCss ?? 4) * dpr;
-  const fmt = o.format ?? ((v: number, step: number) => formatTick(v, step, o.colCss));
+  const tick = (o.tickCss ?? Y_TICK_PX) * dpr;
+  const labels = yAxisLabels(ticks, o);
   ctx.save();
-  ctx.font = canvasFont(a.theme, 11 * dpr, { stretch: 'condensed' });
+  ctx.font = canvasFont(a.theme, Y_LABEL_PX * dpr);
   ctx.fillStyle = a.theme.ink3;
   ctx.strokeStyle = a.theme.ink3;
   ctx.lineWidth = Math.max(1, Math.round(dpr));
@@ -120,7 +197,7 @@ export function drawYAxis(a: DrawArgs, ticks: readonly number[], o: YAxisOptions
   ctx.textBaseline = 'middle';
   const half = 5.5 * dpr;
   // printed scale: a hairline spine at the data edge with ticks protruding into the tick column
-  const sx = crisp(a.box.left - dpr, dpr);
+  const sx = crisp(a.box.left - Y_SPINE_PX * dpr, dpr);
   ctx.strokeStyle = a.theme.axis;
   ctx.beginPath();
   ctx.moveTo(sx, a.box.top);
@@ -128,15 +205,15 @@ export function drawYAxis(a: DrawArgs, ticks: readonly number[], o: YAxisOptions
   ctx.stroke();
   ctx.strokeStyle = a.theme.ink3;
   ctx.beginPath();
-  for (const t of ticks) {
+  ticks.forEach((t, k) => {
     const yy = a.y(t);
-    if (yy < a.box.top - 1 || yy > a.box.top + a.box.height + 1) continue;
+    if (yy < a.box.top - 1 || yy > a.box.top + a.box.height + 1) return;
     const cy = crisp(yy, dpr);
     ctx.moveTo(sx - tick, cy);
     ctx.lineTo(sx, cy);
     const ly = o.clampLabels === false ? yy : Math.min(a.canvasH - half, Math.max(half, yy));
-    ctx.fillText(fmt(t, o.step), sx - tick - 3 * dpr, ly);
-  }
+    ctx.fillText(labels[k]!, sx - tick - Y_GAP_PX * dpr, ly);
+  });
   ctx.stroke();
   ctx.restore();
 }
@@ -199,7 +276,7 @@ export function drawThresholds(
   clipToPlot(a, 0, 0);
   ctx.strokeStyle = withAlpha(a.theme.ink3, 0.8);
   ctx.lineWidth = Math.max(1, Math.round(dpr));
-  ctx.font = canvasFont(a.theme, 11 * dpr, { stretch: 'condensed' });
+  ctx.font = canvasFont(a.theme, 11 * dpr);
   ctx.textAlign = 'right';
   ctx.textBaseline = 'bottom';
   for (const t of thresholds) {
@@ -231,7 +308,7 @@ export function drawReference(a: DrawArgs, ref: { lo: number; hi: number; label?
   ctx.fillStyle = withAlpha(a.theme.ink, a.theme.dark ? 0.05 : 0.04);
   ctx.fillRect(a.box.left, top, a.box.width, bot - top);
   if (labels && ref.label) {
-    ctx.font = canvasFont(a.theme, 11 * dpr, { stretch: 'condensed' });
+    ctx.font = canvasFont(a.theme, 11 * dpr);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     if (bot - top > 13 * dpr) haloText(a, ref.label, a.box.left + 6 * dpr, top + 2 * dpr, a.theme.ink3, 'left');
@@ -267,6 +344,163 @@ export function drawSeverityLines(a: DrawArgs, events: readonly ChartEvent[] | u
     ctx.fillRect(Math.round(a.x(t)), 0, Math.max(1, Math.round(dpr)), a.canvasH);
   }
   ctx.restore();
+}
+
+/* ------------------------------------------------------- r071 chart skin */
+
+/** Radius (CSS px) of an end dot: the focused lane's, and every other lane's small static one. */
+export const END_DOT_R = { focus: 5, lane: 3.5 } as const;
+
+export interface EndDotOptions {
+  /** `focus` r 5, `lane` r 3.5 (the default), or a radius in CSS px (the overlay and comparison markers are 4). */
+  size?: 'focus' | 'lane' | number;
+  /** The mark's shape: a series' marker identity (overlay) or a circle. */
+  shape?: MarkerShape;
+  /** False: the dot and its ring only (the start marker). Default true; it also needs `theme.glow`. */
+  glow?: boolean;
+}
+
+/**
+ * The end of a line (AUDIT §1.4 "GlowLine"): the hue fill, a 2 px surface ring (`--lm-chart-ring`) and, when the theme
+ * allows a glow, a flat halo disc (hue at 18 %, spread 6 px) and a soft glow (hue at 45 %, blur 12 px) on a dot of
+ * r 4 or more. The glow is the shadow of the ring disc, so the dot's own pixels stay crisp, and it is one `shadowBlur`
+ * draw per mark inside save()/restore(): never on the line. Forced colours, high contrast and reduced motion draw the dot
+ * and its ring only.
+ */
+export function drawEndDot(a: DrawArgs, cx: number, cy: number, hue: string, o: EndDotOptions = {}): void {
+  const { ctx, dpr, theme } = a;
+  const size = o.size ?? 'lane';
+  const radius = typeof size === 'number' ? size : END_DOT_R[size];
+  const big = radius >= 4;
+  const r = radius * dpr;
+  const shape = o.shape ?? 'circle';
+  ctx.save();
+  if (theme.glow && o.glow !== false) {
+    const d = theme.dot;
+    if (big) {
+      ctx.fillStyle = withAlpha(hue, d.haloAlpha);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + d.haloSpread * dpr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowColor = withAlpha(hue, big ? d.glowAlpha : d.glowAlpha * 0.8);
+    ctx.shadowBlur = (big ? d.glowBlur : d.glowBlur * 0.6) * dpr;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+  ctx.fillStyle = theme.ring;
+  ctx.beginPath();
+  markerPath(ctx, shape, cx, cy, r + 2 * dpr);
+  ctx.fill();
+  ctx.shadowColor = 'rgba(0,0,0,0)';
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = hue;
+  ctx.beginPath();
+  markerPath(ctx, shape, cx, cy, r);
+  ctx.fill();
+  ctx.restore();
+}
+
+const gradientCache = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasGradient>>();
+/** A context holds at most this many gradients (a few lanes' worth at a few scales); a full cache starts over. */
+export const GRADIENT_CACHE_MAX = 48;
+
+/**
+ * A vertical gradient of `hue`, `alpha` at canvas y `top` fading to 0 at `bottom`, built once per (ctx, hue, alpha, top,
+ * bottom) the way `hatch()` keeps its patterns, so a redraw that did not move the lane (a crosshair frame, a pan on a
+ * fixed scale) allocates nothing. Rows are rounded to whole canvas px. Null where the colour cannot fade (a system
+ * colour under forced colours).
+ */
+export function areaGradient(ctx: CanvasRenderingContext2D, hue: string, alpha: number, top: number, bottom: number): CanvasGradient | null {
+  const from = withAlpha(hue, alpha);
+  if (from === hue) return null;
+  const y0 = Math.round(top);
+  const y1 = Math.max(y0 + 1, Math.round(bottom));
+  const key = `${hue}|${alpha}|${y0}|${y1}`;
+  let m = gradientCache.get(ctx);
+  if (!m) {
+    m = new Map();
+    gradientCache.set(ctx, m);
+  }
+  const hit = m.get(key);
+  if (hit) return hit;
+  const g = ctx.createLinearGradient(0, y0, 0, y1);
+  g.addColorStop(0, from);
+  g.addColorStop(1, withAlpha(hue, 0));
+  if (m.size >= GRADIENT_CACHE_MAX) m.clear();
+  m.set(key, g);
+  return g;
+}
+
+/**
+ * Layer 3 (r071 skin): the area of a single series that has no likely-range band: the hue at `theme.areaTop` (0.26) at
+ * the series' highest visible point, 0 at the plot's baseline, under the line (the band does that job where there is
+ * one). Gaps stay gaps: a run ends at a non-finite value. Returns false when nothing was drawn (forced colours, no
+ * finite run of two points).
+ */
+export function drawAreaGradient(a: DrawArgs, xs: ArrayLike<number>, vs: ArrayLike<number>, i0: number, i1: number, hue: string, o: { alpha?: number } = {}): boolean {
+  if (a.theme.forced) return false;
+  const { ctx } = a;
+  const base = a.box.top + a.box.height;
+  let topY = Infinity;
+  for (let i = Math.max(0, i0); i <= i1 && i < vs.length; i++) {
+    const v = vs[i]!;
+    if (!Number.isFinite(v)) continue;
+    const y = a.y(v);
+    if (y < topY) topY = y;
+  }
+  if (!Number.isFinite(topY)) return false;
+  const g = areaGradient(ctx, hue, o.alpha ?? a.theme.areaTop, Math.min(topY, base - 1), base);
+  if (!g) return false;
+  ctx.save();
+  clipToPlot(a);
+  ctx.fillStyle = g;
+  let drew = false;
+  let start = -1;
+  const flush = (end: number) => {
+    if (start < 0 || end <= start) {
+      start = -1;
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(a.x(xs[start]!), base);
+    for (let i = start; i <= end; i++) ctx.lineTo(a.x(xs[i]!), a.y(vs[i]!));
+    ctx.lineTo(a.x(xs[end]!), base);
+    ctx.closePath();
+    ctx.fill();
+    drew = true;
+    start = -1;
+  };
+  const last = Math.min(i1, vs.length - 1, xs.length - 1);
+  for (let i = Math.max(0, i0); i <= last; i++) {
+    if (Number.isFinite(vs[i]!) && Number.isFinite(xs[i]!)) {
+      if (start < 0) start = i;
+    } else flush(i - 1);
+  }
+  flush(last);
+  ctx.restore();
+  return drew;
+}
+
+/**
+ * The last finite point of a series whose time is inside [x0, x1] (the line's end for this view), or null. `xs` is sorted
+ * ascending; binary search, so a long hourly track costs a few steps.
+ */
+export function lastPointIn(xs: ArrayLike<number>, ys: ArrayLike<number | null>, x0: number, x1: number): { i: number; t: number; v: number } | null {
+  let lo = 0;
+  let hi = xs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (xs[mid]! <= x1 + 1e-9) lo = mid;
+    else hi = mid - 1;
+  }
+  for (let i = Math.min(lo, xs.length - 1); i >= 0; i--) {
+    const t = xs[i]!;
+    if (t < x0 - 1e-9) return null;
+    const v = ys[i];
+    if (v != null && Number.isFinite(v) && t <= x1 + 1e-9) return { i, t, v };
+  }
+  return null;
 }
 
 /** Filled marker (≥ 8 px) with a 2 px surface ring. Size is the CSS diameter. */

@@ -12,7 +12,8 @@
 
 export type ChangeClass = 'read' | 'log' | 'edit' | 'destructive' | 'blocked' | 'uiOnly';
 export type ChangeState = 'applied' | 'pending' | 'undone' | 'discarded' | 'expired' | 'stale';
-export type ChangeAction = 'undo' | 'redo' | 'edit' | 'apply' | 'adjust' | 'discard' | 'review' | 'dismiss' | 'alternative' | 'open';
+export type ChangeAction =
+  'undo' | 'redo' | 'edit' | 'apply' | 'adjust' | 'discard' | 'review' | 'dismiss' | 'alternative' | 'open';
 
 /** 24 h undo window for applied cards and expiry for proposals. */
 export const CHANGE_WINDOW_MS = 24 * 3600 * 1000;
@@ -20,6 +21,9 @@ export const CHANGE_WINDOW_MS = 24 * 3600 * 1000;
 export interface ChangeCardModel {
   id: string;
   class: ChangeClass;
+  /** The domain of a logged change; proposals always carry the plan's glow. */
+  domain?:
+    'plan' | 'energy' | 'heart' | 'steps' | 'food' | 'recovery' | 'body' | 'sleep' | 'videos' | 'neutral';
   /** "Logged lunch · 13:10", "Proposal · no training Thu–Sat", "end Spring cut". */
   title: string;
   /** Who made it and how: "you · typed", "Coach · photo", "the plan · small adjustment". */
@@ -84,6 +88,13 @@ export function timeLeftText(card: ChangeCardModel, now: Date): string | null {
   return null;
 }
 
+/** Fraction of this card's own undo/expiry window remaining, clamped for future clocks and expired cards. */
+export function changeWindowRatio(card: Pick<ChangeCardModel, 'createdAt' | 'until'>, now: Date): number {
+  const length = windowEnd(card) - Date.parse(card.createdAt);
+  if (!Number.isFinite(length) || length <= 0) return 0;
+  return Math.min(1, Math.max(0, timeLeft(card, now) / length));
+}
+
 /**
  * The transition function. Illegal events return the card unchanged (the UI never offers them; the reducer is total).
  *  log:          applied ⇄ undone (undo within the window; redo while undone); pending (a suggested log: confidence
@@ -93,39 +104,55 @@ export function timeLeftText(card: ChangeCardModel, now: Date): string | null {
  *  destructive:  pending → applied only by `confirmed`; discard
  *  read/blocked/uiOnly: informational; blocked and uiOnly can be dismissed (discarded)
  */
-export function changeCardReducer(card: ChangeCardModel, ev: ChangeEvent, now: Date = new Date()): ChangeCardModel {
+export function changeCardReducer(
+  card: ChangeCardModel,
+  ev: ChangeEvent,
+  now: Date = new Date(),
+): ChangeCardModel {
   const open = timeLeft(card, now) > 0;
   switch (ev.type) {
     case 'undo':
-      if (card.state === 'applied' && open && (card.class === 'log' || card.class === 'edit')) return { ...card, state: 'undone' };
+      if (card.state === 'applied' && open && (card.class === 'log' || card.class === 'edit'))
+        return { ...card, state: 'undone' };
       return card;
     case 'redo':
       if (card.state === 'undone') return { ...card, state: 'applied' };
       return card;
     case 'apply':
       // Apply acts only on a live proposal; a stale card must be refreshed first (Apply re-enabled on the refreshed version)
-      if (card.class === 'edit' && card.state === 'pending' && open) return { ...card, state: 'applied', createdAt: now.toISOString(), until: undefined };
+      if (card.class === 'edit' && card.state === 'pending' && open)
+        return { ...card, state: 'applied', createdAt: now.toISOString(), until: undefined };
       // A suggested log the person confirms ("Log it"); its undo window starts now
-      if (card.class === 'log' && card.state === 'pending') return { ...card, state: 'applied', createdAt: now.toISOString(), until: undefined };
+      if (card.class === 'log' && card.state === 'pending')
+        return { ...card, state: 'applied', createdAt: now.toISOString(), until: undefined };
       return card;
     case 'confirmed':
       if (card.class === 'destructive' && card.state === 'pending') return { ...card, state: 'applied' };
       return card;
     case 'discard':
       if (card.state === 'pending' || card.state === 'stale') return { ...card, state: 'discarded' };
-      if ((card.class === 'blocked' || card.class === 'uiOnly') && card.state === 'applied') return { ...card, state: 'discarded' };
+      if ((card.class === 'blocked' || card.class === 'uiOnly') && card.state === 'applied')
+        return { ...card, state: 'discarded' };
       return card;
     case 'expire':
       if (card.state === 'pending' && !open) return { ...card, state: 'expired' };
       return card;
     case 'stale':
-      if (card.class === 'edit' && card.state === 'pending') return { ...card, state: 'stale', refreshed: ev.refreshed };
+      if (card.class === 'edit' && card.state === 'pending')
+        return { ...card, state: 'stale', refreshed: ev.refreshed };
       return card;
     case 'refresh':
       if (card.state === 'stale' && card.refreshed) {
         // the stale version's impact no longer holds: keep only what the refreshed version says
         const { refreshed, impact: _stale, ...rest } = card;
-        return { ...rest, items: refreshed.items, ...(refreshed.impact ? { impact: refreshed.impact } : {}), state: 'pending', createdAt: now.toISOString(), until: undefined };
+        return {
+          ...rest,
+          items: refreshed.items,
+          ...(refreshed.impact ? { impact: refreshed.impact } : {}),
+          state: 'pending',
+          createdAt: now.toISOString(),
+          until: undefined,
+        };
       }
       return card;
   }
@@ -159,5 +186,7 @@ export function availableActions(card: ChangeCardModel, now: Date = new Date()):
 
 /** Collapse expired proposals at render time (cards are stored as made; time moves on). */
 export function withClock(card: ChangeCardModel, now: Date): ChangeCardModel {
-  return card.state === 'pending' && card.class === 'edit' && timeLeft(card, now) <= 0 ? changeCardReducer(card, { type: 'expire' }, now) : card;
+  return card.state === 'pending' && card.class === 'edit' && timeLeft(card, now) <= 0
+    ? changeCardReducer(card, { type: 'expire' }, now)
+    : card;
 }

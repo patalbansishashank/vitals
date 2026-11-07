@@ -8,11 +8,9 @@ import { dispatch } from '@/commands/bus';
 import '@/commands/defs/intake';
 import '@/commands/defs/profile';
 import '@/commands/defs/catalogue';
-import '@/commands/defs/bio';
-import { policyCalls } from './devicePolicies';
 import { readIntake } from './doc';
 import { chapterOutput, sectionPatches, type SectionContext } from './sections';
-import { CHAPTER_SECTIONS, QUESTION_SET_VERSION, type ChapterAnswers, type ChapterId, type StreamPolicy } from './types';
+import { CHAPTER_SECTIONS, QUESTION_SET_VERSION, type ChapterAnswers, type ChapterId } from './types';
 
 let chain: Promise<unknown> = Promise.resolve();
 
@@ -52,7 +50,7 @@ export function saveChapter(chapter: ChapterId, answers: ChapterAnswers, ctx: Se
 
 const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : []);
 
-/** What the saved answers set outside the intake document: typed equipment joins the catalogue, the devices matrix the biometric policies. */
+/** What the saved answers set outside the intake document: typed equipment joins the catalogue. */
 export async function applyDerived(chapter: ChapterId, before: ReturnType<typeof readIntake>, sections: Record<string, unknown>): Promise<void> {
   if (chapter === 'training') {
     const was = new Set(strList((before.training as { prefs?: { customEquipment?: unknown } } | undefined)?.prefs?.customEquipment).map((x) => x.trim().toLowerCase()));
@@ -61,14 +59,6 @@ export async function applyDerived(chapter: ChapterId, before: ReturnType<typeof
       if (was.has(name.trim().toLowerCase())) continue;
       const r = await dispatch('catalogue.addEquipment', { equipment: { name: name.trim() } });
       if (!r.ok) console.warn(`Vitals: could not add “${name}” to your equipment`, r);
-    }
-  }
-  if (chapter === 'devices') {
-    const prev = (before.devices as { streams?: StreamPolicy[] } | undefined)?.streams;
-    const next = (sections.devices as { streams?: StreamPolicy[] } | undefined)?.streams;
-    for (const { stream, policy } of policyCalls(prev, next)) {
-      const r = await dispatch('bio.setPolicy', { stream, policy });
-      if (!r.ok) console.warn(`Vitals: could not set the ${stream} sharing policy`, r);
     }
   }
 }

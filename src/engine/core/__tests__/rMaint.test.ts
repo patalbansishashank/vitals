@@ -205,7 +205,8 @@ describe('the `maintenance` metric (final-round definition): current body, sched
     const { rp, r, d, cs } = run(person({ weightKg: 85 }), weekSchedule([pct(80, MACROS_16, [RT]), pct(80, MACROS_16)], [0, 1, 0, 1, 0, 1, 1], 84));
     // t = 0: TDEE0 + Δ/(1 − α0), Δ = the planned − habitual booked activity (α0 ≈ 0.09)
     const delta = cs.days[0]!.activityDeltaKcal!;
-    expect(delta).toBeGreaterThan(100);
+    // D3-08: the session energy alone (no 72-h post-RT REE rectangle in production)
+    expect(delta).toBeGreaterThan(50);
     expect(r.initial.maintenance! - rp.tdee0Kcal).toBeGreaterThan(delta);
     expect(r.initial.maintenance! - rp.tdee0Kcal).toBeLessThan(1.15 * delta);
     expect(d.maintenance![83]!).toBeLessThan(d.maintenance![6]!);

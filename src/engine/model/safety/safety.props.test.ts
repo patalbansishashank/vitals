@@ -297,9 +297,10 @@ describe('properties', () => {
     });
     const t = s.res.safety;
     // ruling 18:10: on fast-event days the 7-day TDEE / deficit are not evaluated (NaN); ei7 carries the 28-day mean;
-    // ruling R-FAST-GATE: neither is EA_7 (it is taken over non-fast days)
+    // ruling R-FAST-GATE: neither is EA_7 (it is taken over non-fast days); eatingDayEa7 is the same estimand (D4-04)
     for (const key of Object.keys(t) as Array<keyof SafetyTrace>) {
-      if (key === 'tdee7' || key === 'deficitPct7' || key === 'proteinGPerKgRw' || key === 'fatPctEnergy' || key === 'ea7')
+      const fastNaN = ['tdee7', 'deficitPct7', 'proteinGPerKgRw', 'fatPctEnergy', 'ea7', 'eatingDayEa7'];
+      if (fastNaN.includes(key))
         expect(Array.from(t[key]!).every((v) => Number.isNaN(v)), key).toBe(true);
       else expect(finiteDays(t[key]!), key).toBe(true);
     }

@@ -2,7 +2,6 @@ import { lazy, Suspense, useState } from 'react';
 import { ScanLine } from 'lucide-react';
 import { Field, InlineWarning, Key, TextInput, useField } from '@/components';
 import { dispatch } from '@/commands';
-import { platformCaps } from '@/platform';
 import { describeLocalData } from '@/state/sync';
 import { normalizeRelayUrl, parsePairingUri, wordsToSecret } from '@/sync/pairing';
 import type { PairingCode } from '@/sync/types';
@@ -34,19 +33,21 @@ function CodeArea({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
+/** Sync off: a sync server address (Test, Set up sync on this device) or a pairing code / the 24 words to join. */
 export function UnpairedView({
   initialUrl = '',
   onPaired,
-  intro = SYNC_COPY.intro,
   canSetUp = true,
+  primary = true,
 }: {
   initialUrl?: string;
   onPaired: (code: PairingCode) => void;
-  /** The first sentence (a home server holds a readable copy, a relay does not). */
-  intro?: string;
   /** False with a paired home server: the server owns the sync group, so this device joins it and never makes a new one. */
   canSetUp?: boolean;
+  /** False where the server's pairing is the screen's one primary action: these keys are then secondary pills. */
+  primary?: boolean;
 }) {
+  const strong = primary ? 'solid' : 'action';
   const [url, setUrl] = useState(initialUrl);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -138,9 +139,7 @@ export function UnpairedView({
 
   return (
     <div className="grid gap-4">
-      <p className="m-0 text-sm leading-[1.5] text-ink">{intro}</p>
-      {platformCaps().installedApp ? null : <p className="m-0 text-xs leading-[1.45] text-ink-2">{SYNC_COPY.lnaHint}</p>}
-      <Field label={SYNC_COPY.serverLabel} help={SYNC_COPY.serverHelp} error={urlError ?? (tested && !tested.ok ? tested.message : null)}>
+      <Field label={SYNC_COPY.serverLabel} error={urlError ?? (tested && !tested.ok ? tested.message : null)}>
         <TextInput
           type="url"
           inputMode="url"
@@ -160,16 +159,16 @@ export function UnpairedView({
         />
       </Field>
       {tested?.ok ? (
-        <p role="status" className="m-0 text-sm text-ink">
-          ✓ {tested.message}
+        <p role="status" className="settings-text">
+          {tested.message}
         </p>
       ) : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="settings-keys">
         <Key loading={busy === 'test'} disabledReason={busy === 'pair' || busy === 'join' ? SYNC_COPY.testing : undefined} onClick={() => void onTest()}>
           {SYNC_COPY.test}
         </Key>
         {canSetUp ? (
-          <Key variant="solid" loading={busy === 'pair'} disabledReason={busy === 'join' ? 'Joining…' : undefined} onClick={() => void onPair()}>
+          <Key variant={strong} loading={busy === 'pair'} disabledReason={busy === 'join' ? 'Joining…' : undefined} onClick={() => void onPair()}>
             {SYNC_COPY.setUp}
           </Key>
         ) : null}
@@ -178,7 +177,7 @@ export function UnpairedView({
         </Key>
       </div>
       {joinOpen ? (
-        <div className="grid gap-3 border-t border-line pt-4">
+        <div className="grid gap-3">
           <Field label={SYNC_COPY.codeLabel} help={SYNC_COPY.joinHelp} error={codeError}>
             <CodeArea
               value={code}
@@ -188,8 +187,8 @@ export function UnpairedView({
               }}
             />
           </Field>
-          <div className="flex flex-wrap gap-2">
-            <Key variant="solid" loading={busy === 'join'} disabledReason={busy === 'pair' ? 'Setting up…' : undefined} onClick={() => void join(code)}>
+          <div className="settings-keys">
+            <Key variant={strong} loading={busy === 'join'} disabledReason={busy === 'pair' ? 'Setting up…' : undefined} onClick={() => void join(code)}>
               {SYNC_COPY.joinKey}
             </Key>
             <Key icon={ScanLine} onClick={() => setScanOpen(true)}>

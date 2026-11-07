@@ -8,7 +8,6 @@ import type { ActivityDriverId } from '@/engine/types/profile';
 import { explainMaintenance, type MaintenanceExplanation } from '@/features/body/maintenance';
 import { summarizeBody } from '@/features/body/model';
 import { measuredRmrKcal, reduceActivity } from '@/features/intake/chapters/activity';
-import { hasStepDevice } from '@/features/intake/chapters/devices';
 import { detectIndia, flowContextOf } from '@/features/intake/context';
 import { toIntakeDoc, turnsOf } from '@/features/intake/doc';
 import { chapterOutput, type SectionContext } from '@/features/intake/sections';
@@ -22,12 +21,11 @@ import { safetyAccessNow, safetyValues } from './safety';
 const HABIT_CHAPTER: Partial<Record<IntakeSectionId, ChapterId>> = { activity: 'activity', diet: 'food' };
 
 /** The intake flow context, headlessly (what `useFlowContext` gives the screens). */
-export function intakeContextNow(doc: IntakeDoc, now: string): SectionContext {
+export function intakeContextNow(_doc: IntakeDoc, now: string): SectionContext {
   const access = safetyAccessNow(now);
   return {
     india: detectIndia(),
     gentle: access.ready && access.outcome.restrictions.includes('R1'),
-    stepDevice: hasStepDevice(doc.devices),
     safety: safetyValues().answers,
     now,
   };

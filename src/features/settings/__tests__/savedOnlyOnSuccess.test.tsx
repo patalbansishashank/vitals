@@ -1,4 +1,4 @@
-/** Settings says "saved" only when the change went through; a refusal shows its reason instead. */
+/** Settings says "Saved" only when the change went through; a refusal shows its reason instead. */
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -38,18 +38,18 @@ describe('Settings › saved', () => {
   it('says saved after a change that went through', async () => {
     const user = userEvent.setup();
     renderUnits();
-    await user.click(screen.getByRole('radio', { name: 'imperial' }));
+    await user.click(screen.getByRole('radio', { name: 'Imperial' }));
     await waitFor(() => expect(useSettingsStore.getState().units).toBe('imperial'));
-    expect(await screen.findByText('saved')).toBeInTheDocument();
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
   });
 
   it('does not say saved when the change is refused, and shows the reason', async () => {
     refuse.on = true;
     const user = userEvent.setup();
     renderUnits();
-    await user.click(screen.getByRole('radio', { name: 'imperial' }));
+    await user.click(screen.getByRole('radio', { name: 'Imperial' }));
     expect(await screen.findByText('Settings are read-only while syncing.')).toBeInTheDocument();
-    expect(screen.queryByText('saved')).toBeNull();
+    expect(screen.queryByText('Saved')).toBeNull();
     expect(useSettingsStore.getState().units).not.toBe('imperial');
   });
 });

@@ -9,7 +9,7 @@ const s = (id: string) => data.series.find((x) => x.id === id)!;
 describe('accessible summaries', () => {
   it('names the metric, unit words, grade, direction, range and duration', () => {
     const t = laneSummary(s('fat_mass'));
-    expect(t).toMatch(/^Fat mass, kilograms, grade A\. Falls from 24\.1 to 20\.\d \(likely \d+\.\d to \d+\.\d\) over 12 weeks; fastest in weeks \d+ to \d+/);
+    expect(t).toMatch(/^Fat mass, kilograms, grade A\. Falls from 24\.1 to 20\.\d \(range \d+\.\d to \d+\.\d\) over 12 weeks; fastest in weeks \d+ to \d+/);
     expect(t.endsWith('Press T for the data table.')).toBe(true);
   });
   it('flags grade D as exploratory and uses index wording', () => {
@@ -33,11 +33,23 @@ describe('intake derivations', () => {
     expect(k.byMacro.fat[d]).toBeCloseTo(g.fat[d]! * 9, 3);
     expect(k.totalWithFibre[d]! - k.total[d]!).toBeCloseTo(g.fibre[d]! * 2, 3);
   });
-  it('steps energy tints by percent of maintenance (tokens §8)', () => {
-    expect(energyStep(0)).toEqual({ side: 'fast', step: 4 });
+  it('steps energy tints by percent of maintenance in 10 % bands: six deficit steps, four surplus steps (tokens §8)', () => {
+    expect(energyStep(0)).toEqual({ side: 'fast', step: 6 });
     expect(energyStep(0.85)).toEqual({ side: 'deficit', step: 2 });
     expect(energyStep(0.7)).toEqual({ side: 'deficit', step: 3 });
     expect(energyStep(1)).toEqual({ side: 'neutral', step: 0 });
     expect(energyStep(1.4)).toEqual({ side: 'surplus', step: 4 });
+  });
+  it('puts a band edge in the lower step and caps each arm at its deepest', () => {
+    expect(energyStep(0.995)).toEqual({ side: 'neutral', step: 0 });
+    expect(energyStep(0.9)).toEqual({ side: 'deficit', step: 1 });
+    expect(energyStep(0.89)).toEqual({ side: 'deficit', step: 2 });
+    expect(energyStep(0.5)).toEqual({ side: 'deficit', step: 5 });
+    expect(energyStep(0.45)).toEqual({ side: 'deficit', step: 6 });
+    expect(energyStep(0.1)).toEqual({ side: 'deficit', step: 6 });
+    expect(energyStep(1.1)).toEqual({ side: 'surplus', step: 1 });
+    expect(energyStep(1.25)).toEqual({ side: 'surplus', step: 3 });
+    expect(energyStep(2)).toEqual({ side: 'surplus', step: 4 });
+    expect(energyStep(Number.NaN)).toEqual({ side: 'neutral', step: 0 });
   });
 });

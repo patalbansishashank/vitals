@@ -101,6 +101,24 @@ export interface EngineModule<S extends object = object, K extends object = obje
    * references) to the profile values; water re-anchors its labile-water references. Allocation allowed.
    */
   endBurnIn?(s: S, k: K, bus: SignalBus, ctx: ModuleContext): void;
+  /**
+   * Hook-aware signal declarations (D8-07, C7; optional until the registry check lands): for each signal the module writes
+   * or reads, the hook where it happens and the read lag (0 = same pass, 1 = the value from the previous step/day). The
+   * registry fails on an undeclared or mismatched writer/reader/lag once these are present.
+   */
+  readonly signalHooks?: ReadonlyArray<SignalHookDecl>;
+}
+
+/** Engine hook names a signal access can happen in. */
+export type ModuleHook = 'init' | 'startDay' | 'stepHour' | 'endOfDay' | 'recordHour' | 'recordDay' | 'endBurnIn';
+
+/** One hook-aware signal access (D8-07). */
+export interface SignalHookDecl {
+  readonly signal: SignalName;
+  readonly access: 'write' | 'read';
+  readonly hook: ModuleHook;
+  /** Reads only: 0 = value written earlier in the same pass, 1 = previous hour/day. */
+  readonly lag?: 0 | 1;
 }
 
 /** Type-erased module for the registry (method bivariance makes any EngineModule<S, K> assignable). */

@@ -1,6 +1,9 @@
 /* ==========================================================================
    Crosshair readout (COMPONENTS §7): floating panel beside the crosshair on
    pointer devices, docked rail above the chart on touch / narrow layouts.
+   The docked rail never carries an instruction: before the first scrub it
+   reads the last day in view (as the lane values do), headed by that day, so
+   it shows itself as a reading of one day that a drag moves.
    Pre-built DOM; the cursor only swaps textContent (CHART_SPEC §8.3).
    Mirrored to a polite live region, debounced 400 ms (CHART_SPEC §5.1).
    ========================================================================== */
@@ -43,8 +46,6 @@ export interface CrosshairReadoutProps {
   visible?: Store<ReadonlySet<string>>;
   area: () => DataArea;
   bodyWidth: number;
-  /** Shown in the dock before the first scrub. */
-  hint?: string;
 }
 
 const MANY = 14;
@@ -101,17 +102,22 @@ export const CrosshairReadout = memo(function CrosshairReadout(p: CrosshairReado
       const v = controller.view.get();
       const on = c.t != null && c.t >= v.x0 && c.t <= v.x1;
       const show = q.mode === 'float' ? on && (c.source === 'pointer' || c.source === 'keyboard' || c.pinned) && c.source !== 'touch' : on;
+      // data-on: the crosshair is live (the float panel shows only then; the dock styles its resting reading by it)
       setData(root, 'on', String(show));
-      if (!show) {
+      if (!show && q.mode === 'float') {
         lastT = null;
         return;
       }
-      const t = c.t!;
+      // at rest the dock follows the view's end only once a zoom has settled (no per-frame rewrites while it animates)
+      if (!show && v.animating && lastT !== null) return;
+      // the dock at rest reads the last day in view, daily, as the lane values do
+      const t = show ? c.t! : Math.max(0, Math.min(controller.days, v.x1) - 1e-6);
+      const res = show ? v.res : 'daily';
       // content only changes when the snapped sample (or resolution) changes
-      if (t !== lastT || v.res !== lastRes) {
+      if (t !== lastT || res !== lastRes) {
         lastT = t;
-        lastRes = v.res;
-        if (headRef.current) headRef.current.textContent = describeSample(q.time, t, v.res);
+        lastRes = res;
+        if (headRef.current) headRef.current.textContent = describeSample(q.time, t, res);
         const ph = phaseAt(q.phases, t);
         if (phaseRef.current) phaseRef.current.textContent = ph ? ph.label : '';
         const vis = q.visible?.get();
@@ -123,14 +129,14 @@ export const CrosshairReadout = memo(function CrosshairReadout(p: CrosshairReado
           const disp = shown ? '' : 'none';
           if (el.row.style.display !== disp) el.row.style.display = disp;
           if (!shown) continue;
-          const val = r.value(t, v.res);
+          const val = r.value(t, res);
           el.b.textContent = val.value;
           el.unit.textContent = val.unit;
           if (q.mode === 'float') el.span.textContent = val.detail;
         }
-        const evs = eventsAt(q.events, t, v.res);
+        const evs = eventsAt(q.events, t, res);
         if (evRef.current)
-          evRef.current.textContent = evs.map((e) => (e.hour != null && v.res !== 'daily' ? `${e.label} · ${formatClock(e.hour)}` : e.label)).join(' · ');
+          evRef.current.textContent = evs.map((e) => (e.hour != null && res !== 'daily' ? `${e.label} · ${formatClock(e.hour)}` : e.label)).join(' · ');
       }
       place();
     };
@@ -177,11 +183,6 @@ export const CrosshairReadout = memo(function CrosshairReadout(p: CrosshairReado
     return (
       <div className="lmc-dock" data-no-crosshair="" aria-hidden="true">
         <div ref={rootRef} data-on="false" className="lmc-dock__inner">
-          {p.hint ? (
-            <div className="lmc-dock__hint">
-              <b>Tap and drag across the chart</b> {p.hint}
-            </div>
-          ) : null}
           <div>
             <b ref={headRef} /> <span ref={phaseRef} />
           </div>

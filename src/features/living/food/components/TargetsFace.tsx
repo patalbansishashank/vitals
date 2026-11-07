@@ -1,21 +1,26 @@
 /**
- * Targets faceplate. Energy is the hero: a large readout "1 332 of 2 664 kcal" with what is left (or a calm
- * "+120 over"), over one full-width bar whose END is the target — the eaten part filled in the energy colour, its
- * likely range a soft lighter band around the fill's end. Protein, carbs and fat follow as three equal tiles (name,
- * "78 of 156 g", a short bar to target; the likely range as small text). Fibre is one quiet line unless food reported
- * some. Before anything is logged the head says so once and every readout shows its target.
- * Quiet mode: words instead of numbers, behind the per-view "show numbers" key.
+ * Food’s targets use the same intake model and pictures as Today: energy on one ring, four nutrient tracks, and
+ * unknown amounts left unknown. Only your day report confirms a complete day or zero intake. Explanations and the
+ * table live in the (i); quiet mode keeps the energy ratio and hides nutrient numbers.
  */
-import type { CSSProperties, ReactNode } from 'react';
-import { Faceplate, cx, formatNumber, toEnergyUnit } from '@/components';
+import { useId, type ReactNode } from 'react';
+import { CardFoot, CardHead, ChartTwin, DottedTrack, GradientCard, HeroNumber, KeyBank, MonoMeta, formatNumber, formatRange, toast } from '@/components';
+import { Utensils } from 'lucide-react';
+import { IntakeRing, IntakeTrack, intakeGoalText, spokenIntake } from '../../components/IntakeViz';
+import { infoSpec } from '../../components/info';
+import { INTAKE_WHY_TEXT, intakeModel, type IntakeChannel, type IntakeView } from '../../model/intake';
 import { useEnergyUnit } from '@/state/settingsStore';
-import type { Est, PrescribedDaySnapshot, TodayView } from '@/living';
-import { fmtLikely, likely, quietEaten } from '../../format';
-import { FOOD_COPY } from '../copy';
+import type { Est, LocalDate, PrescribedDaySnapshot, TodayView } from '@/living';
+import { compareDates } from '@/living/dates';
+import type { ChannelCoverage, ChannelCoverageMap, DayIntakeAttestation, ExposureChannel } from '@/lib/bodyContracts';
+import { useToday } from '../../clock';
+import { useLivingActions, useOptionalLivingActions } from '../../data/actions';
+import { fmtLikely, quietEaten } from '../../format';
+import { FOOD_COPY, INFO } from '../copy';
 
 const T = FOOD_COPY.targets;
 
-interface Channel {
+export interface Channel {
   what: string;
   target: number;
   eaten: Est;
@@ -24,42 +29,31 @@ interface Channel {
   color: string;
 }
 
-const pct = (v: number, target: number) => `${Math.max(0, Math.min(100, (v / Math.max(target, 1e-9)) * 100))}%`;
-
-/** Eaten against the target: the track's end IS the target; the range is a lighter band of the same colour. */
-function TargetBar({ c, logged, size }: { c: Channel; logged: boolean; size: 'lg' | 'sm' }) {
-  const r = likely(c.eaten.value, c.eaten.sd);
-  const label = logged
-    ? T.barLabel(c.what, formatNumber(c.eaten.value, 0), formatNumber(c.target, 0), c.unit, c.eaten.sd > 0 ? fmtLikely(c.eaten.value, c.eaten.sd) : null)
-    : T.barNone(c.what, formatNumber(c.target, 0), c.unit);
-  return (
-    <div className={cx('lv-tbar', `lv-tbar--${size}`)} role="img" aria-label={label} style={{ '--c': c.color } as CSSProperties}>
-      {logged && c.eaten.sd > 0 ? <span className="lv-tbar__range" style={{ left: pct(r.lo, c.target), width: `calc(${pct(r.hi, c.target)} - ${pct(r.lo, c.target)})` }} /> : null}
-      {logged ? <span className="lv-tbar__fill" style={{ width: pct(c.eaten.value, c.target) }} /> : null}
-    </div>
-  );
+/**
+ * The bar's accessible name (C6, D6-02): an exact entry reads exactly ("eaten 600 of 1 850 kcal"); an estimated one says
+ * "about" with its estimate range ("eaten about 640 of 1 850 kcal (range 510–780)"), never "likely" (not a probability).
+ */
+export function barLabel(c: Pick<Channel, 'what' | 'target' | 'eaten' | 'unit'>): string {
+  const est = c.eaten.sd > 0;
+  return `${c.what}: eaten ${est ? 'about ' : ''}${formatNumber(c.eaten.value, 0)} of ${formatNumber(c.target, 0)} ${c.unit}${est ? ` (range ${fmtLikely(c.eaten.value, c.eaten.sd)})` : ''}`;
 }
 
-/** "78 of 156 g" (logged) or "156 g" (nothing yet), figures in tabular ink and the unit small. */
-function Readout({ c, logged, big }: { c: Channel; logged: boolean; big?: boolean }) {
-  return (
-    <p className={cx('lv-tread', big && 'lv-tread--big')}>
-      {logged ? (
-        <>
-          <span className="lv-tread__n lm-num">{formatNumber(c.eaten.value, 0)}</span>
-          <span className="lv-tread__u"> {T.of} </span>
-        </>
-      ) : null}
-      <span className={cx('lm-num', logged ? 'lv-tread__t' : 'lv-tread__n')}>{formatNumber(c.target, 0)}</span>
-      <span className="lv-tread__u"> {c.unit}</span>
-    </p>
-  );
+const COVERAGE_RANK: Readonly<Record<ChannelCoverage, number>> = { unknown: 0, partial: 1, asPlannedEstimate: 2, complete: 3, confirmedZero: 3 };
+
+/**
+ * Whether a macro's coverage lags the day's energy coverage (D6-02/D6-03): some logged food has energy but no figure for
+ * this macro, so its total is a lower amount. Without a coverage map nothing is claimed either way.
+ */
+export function macroLags(coverage: ChannelCoverageMap | null | undefined, channel: ExposureChannel): boolean {
+  if (!coverage || !coverage.energy) return false;
+  return COVERAGE_RANK[coverage[channel] ?? 'unknown'] < COVERAGE_RANK[coverage.energy];
 }
 
-/** What is left, or a calm "+N over" (no red: an over day is information, not a fault). */
-function leftText(c: Channel): string {
-  const d = c.target - c.eaten.value;
-  return d >= 0 ? T.left(formatNumber(d, 0), c.unit) : T.over(formatNumber(-d, 0), c.unit);
+/** The day's food status word (C1/D5-01). */
+export function dayFoodStatus(logged: boolean, intake?: DayIntakeAttestation | null): 'Not logged' | 'Partial' | 'Complete' | 'No intake' {
+  if (intake === 'none') return logged ? 'Partial' : 'No intake';
+  if (intake === 'complete' && logged) return 'Complete';
+  return logged ? 'Partial' : 'Not logged';
 }
 
 export interface TargetsFaceProps {
@@ -70,63 +64,86 @@ export interface TargetsFaceProps {
   quiet: boolean;
   /** The per-view "show numbers" key (quiet mode only). */
   quietKey?: ReactNode;
+  /** The person's day report about food (`TodayView.intake`); absent = no statement. */
+  intake?: DayIntakeAttestation | null;
+  /**
+   * The day shown: with it, today and past days offer the one optional day report (All logged · Partial · No intake;
+   * "No intake" is a confirmed zero, never "skipped"), when the actions support it.
+   */
+  date?: LocalDate;
+  /** The day's per-channel coverage (`TodayView.coverage`): a macro lagging energy reads "partial" on its tile. */
+  coverage?: ChannelCoverageMap | null;
 }
 
-export function TargetsFace({ rx, totals, logged, quiet, quietKey }: TargetsFaceProps) {
-  const m = rx.macros;
-  // energy in the person's unit (Settings › Units › energy); the bar is a ratio, so it is unchanged
-  const eu = useEnergyUnit();
-  const e = (v: number) => toEnergyUnit(v, eu);
-  const energy: Channel = { what: T.bars.energy, target: e(rx.energyKcal), eaten: { ...totals.energyKcal, value: e(totals.energyKcal.value), sd: e(totals.energyKcal.sd) }, unit: eu as string, color: 'var(--lm-cat-energy)' };
-  const macros: Channel[] = [
-    { what: T.bars.protein, target: m.proteinG, eaten: totals.proteinG, unit: 'g', color: 'var(--lm-macro-protein)' },
-    { what: T.bars.carbs, target: m.carbG, eaten: totals.carbG, unit: 'g', color: 'var(--lm-macro-carbs)' },
-    { what: T.bars.fat, target: m.fatG, eaten: totals.fatG, unit: 'g', color: 'var(--lm-macro-fat)' },
-  ];
-  const fibre = totals.fibreG ?? { value: 0, sd: 0 };
-  const fibreCounted = logged && (fibre.value > 0 || fibre.sd > 0);
+const ATTEST: ReadonlyArray<{ value: DayIntakeAttestation; label: string }> = [
+  { value: 'complete', label: 'All logged' },
+  { value: 'partial', label: 'Partial' },
+  { value: 'none', label: 'No intake' },
+];
+
+/** Whether the day report can be given for this day: today or a past day, when the actions support it. */
+function useDayReport(date: LocalDate | undefined): boolean {
+  const actions = useOptionalLivingActions();
+  const today = useToday();
+  return !!date && !!actions?.confirmDayIntake && compareDates(date, today) <= 0;
+}
+
+/**
+ * The one optional day report (C1/D5-01, r068 F1): a labelled full-width row at the card's foot. It is the card's status
+ * too (the head drops its caption while it shows): the person's own report is selected, else "Partial" once anything
+ * is logged (what the status would say); nothing is selected on an empty day.
+ */
+function DayReport({ date, intake, logged }: { date: LocalDate; intake?: DayIntakeAttestation | null; logged: boolean }) {
+  const actions = useLivingActions();
+  const labelId = useId();
+  if (!actions.confirmDayIntake) return null;
+  const attest = actions.confirmDayIntake.bind(actions);
+  const report = (a: DayIntakeAttestation) => {
+    if (a === intake) return;
+    void attest(date, a).then((o) => toast(o.ok ? `Food today: ${ATTEST.find((x) => x.value === a)!.label.toLowerCase()}` : (o.message ?? 'That couldn’t be saved.'), o.ok && o.undo ? { action: { label: 'Undo', onClick: () => void o.undo?.() } } : {}));
+  };
+  const shown = intake ?? (logged ? 'partial' : undefined);
   return (
-    <Faceplate id="targets" className="lv-food-targets" title={T.title} caption={logged || quiet ? undefined : T.nothingYet} actions={quietKey}>
-      {quiet ? (
-        <>
-          <p className="lv-food-targets__quiet">{T.quietEaten(logged ? quietEaten(totals.energyKcal.value / Math.max(1, rx.energyKcal)) : T.nothingYet)}</p>
-          <p className="lv-food-note">{T.quietNote}</p>
-        </>
-      ) : (
-        <div className="lv-tgt">
-          <section className="lv-tgt__hero" aria-label={energy.what}>
-            <div className="lv-tgt__heroHead">
-              <span className="lm-eng">{energy.what}</span>
-              <Readout c={energy} logged={logged} big />
-              {logged ? <span className="lv-tgt__left">{leftText(energy)}</span> : null}
-            </div>
-            <TargetBar c={energy} logged={logged} size="lg" />
-            {logged && energy.eaten.sd > 0 ? <p className="lv-tgt__range">{T.likely(fmtLikely(energy.eaten.value, energy.eaten.sd), energy.unit)}</p> : null}
-          </section>
-          <ul className="lv-tgt__tiles">
-            {macros.map((c) => (
-              <li key={c.what} className="lv-tgt__tile">
-                <span className="lm-eng">{c.what}</span>
-                <Readout c={c} logged={logged} />
-                <TargetBar c={c} logged={logged} size="sm" />
-                {logged ? <span className="lv-tgt__small">{c.eaten.value > c.target ? leftText(c) : c.eaten.sd > 0 ? T.likelyShort(fmtLikely(c.eaten.value, c.eaten.sd)) : leftText(c)}</span> : null}
-              </li>
-            ))}
-          </ul>
-          <p className="lv-tgt__fibre">
-            <span className="lm-eng">{T.bars.fibre}</span>{' '}
-            {fibreCounted ? (
-              <>
-                <span className="lm-num">≈ {formatNumber(fibre.value, 0)}</span> {T.of} <span className="lm-num">{formatNumber(m.fibreG, 0)}</span> g
-              </>
-            ) : (
-              <>
-                <span className="lm-num">{formatNumber(m.fibreG, 0)}</span> g {T.target}
-              </>
-            )}
-          </p>
+    <div className="lv-tgt__report">
+      <span className="lv-tgt__name" id={labelId}>
+        {T.report}
+      </span>
+      <KeyBank<DayIntakeAttestation> size="sm" labelledBy={labelId} value={shown} onChange={report} options={ATTEST} />
+    </div>
+  );
+}
+
+/** Empty channels still show the planned amount; an unknown is never drawn as zero. */
+function TargetTrack({ channel: c }: { channel: IntakeChannel }) {
+  if (c.value !== null) return <IntakeTrack channel={c} />;
+  const why = INTAKE_WHY_TEXT[c.why ?? 'nothingLogged'];
+  return <div className="lv-intake" data-intake={c.id} data-state="unknown" data-kind={c.kind}>
+    <div className="lv-intake__head"><span className="lv-intake__name">{c.label}{c.kind === 'floor' ? <MonoMeta size="sm">At least</MonoMeta> : null}</span><MonoMeta tone="hue">{c.kind === 'floor' ? '' : 'Target '}{intakeGoalText(c)}</MonoMeta></div>
+    <DottedTrack label={c.label} value={null} goal={c.target} goalKind={c.kind} unit={c.unit} valueText={why} goalText={intakeGoalText(c)} state="unknown" />
+  </div>;
+}
+
+export function TargetsFace({ rx, totals, logged, quiet, quietKey, intake, date, coverage }: TargetsFaceProps) {
+  const energyUnit = useEnergyUnit();
+  // The compatible props supply a meal-presence flag; the shared model only reads entry kinds here.
+  const model = intakeModel({ logged: { totals, entries: logged ? [{ kind: 'meal' }] : [] } as IntakeView['logged'], coverage: coverage ?? undefined, intake: intake ?? undefined }, rx, { energyUnit });
+  const today = useToday();
+  const future = !!date && compareDates(date, today) > 0;
+  const reporting = useDayReport(date);
+  const energy = model.energy;
+  const n = (value: number) => formatNumber(Math.round(value), 0);
+  const twin = quiet ? undefined : <ChartTwin data={{ title: 'Today’s targets, table', caption: 'What you logged against your plan.', head: ['Nutrient', 'Eaten', 'Plan', 'Range'], rows: model.channels.map((c) => [c.label, c.value === null ? 'Not known' : `${c.state === 'atLeast' ? 'At least ' : ''}${n(c.value)} ${c.unit}${c.state === 'partial' ? ' · partial' : ''}`, `${c.kind === 'floor' ? 'At least ' : ''}${n(c.target)} ${c.unit}`, c.lo !== undefined && c.hi !== undefined ? formatRange(Math.round(c.lo), Math.round(c.hi), 0) : '—']), fileName: 'vitals-food-targets.csv', rowNoun: ['nutrient', 'nutrients'] }} />;
+  return (
+    <GradientCard id="targets" className="lv-food-targets" domain="food" glow="br" head={<CardHead icon={Utensils} title={T.title} info={infoSpec(INFO.targets, { twin })} />} foot={<CardFoot state={!reporting ? { word: future ? T.planned : model.status } : undefined}>{date && reporting ? <DayReport date={date} intake={intake} logged={logged} /> : null}{quietKey}</CardFoot>}>
+      <div className="lv-food-targets__body">
+        <div className="lv-food-targets__ring">
+          <IntakeRing channel={energy} quiet={quiet} quietWord={energy.value === null ? T.nothingYet : quietEaten(energy.ratio)} size={160} centre={!quiet && energy.value !== null && energy.lo !== undefined ? <HeroNumber value={Math.round(energy.value)} format={(v) => `≈ ${n(v)}`} size="time" countUp numerals="proportional" unit={energy.unit} unitPlacement="below" label={spokenIntake(energy)} /> : 'number'} />
+          {!quiet ? <MonoMeta tone="hue">Of {n(energy.target)} {energy.unit}{model.left ? ` · ${n(model.left.amount)} ${energy.unit} ${model.left.over ? 'over' : 'left'}` : ''}</MonoMeta> : null}
+          {!quiet && energy.lo !== undefined && energy.hi !== undefined ? <MonoMeta tone="hue">Likely {formatRange(Math.round(energy.lo), Math.round(energy.hi), 0)}</MonoMeta> : null}
+          <span className="lm-sr">{spokenIntake(energy, quiet)}</span>
         </div>
-      )}
-    </Faceplate>
+        {!quiet ? <div className="lv-food-targets__tracks">{model.channels.filter((c) => c.id !== 'energy').map((c) => <TargetTrack key={c.id} channel={c} />)}</div> : null}
+      </div>
+    </GradientCard>
   );
 }

@@ -9,6 +9,7 @@ import { Chip, Dialog, Field, InlineWarning, Key, KeyLink, TextInput, type Sever
 import { ProviderError, type Preset } from '@/ai';
 import { isServerErrorCode, SERVER_MESSAGES, ServerError, type ServerAiPreset, type SiwcStatus } from '@/net/server';
 import { useServerClient, useServerConnection, useServerPairing } from '../server/hooks';
+import { SettingsItem } from '../SettingRow';
 import { AI_COPY } from './copy';
 
 export const SERVER_PRESETS: ReadonlySet<string> = new Set(['siwc', 'nim', 'opencode-zen']);
@@ -77,16 +78,17 @@ export function ServerPresetLabel({ preset, paired, state }: { preset: Preset; p
   );
 }
 
+/** A provider through the server while this device is not paired: one line and the way to Sync, where pairing lives. */
 export function NeedsServer() {
   return (
-    <div className="grid gap-2 border-t border-line pt-4">
-      <p className="m-0 text-sm text-ink">{AI_COPY.needsServer}</p>
+    <SettingsItem>
+      <p className="settings-text">{AI_COPY.needsServer}</p>
       <div>
-        <KeyLink size="sm" to="/settings/server">
+        <KeyLink size="sm" to="/settings/sync">
           {AI_COPY.pairServer}
         </KeyLink>
       </div>
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -94,7 +96,11 @@ export function NeedsServer() {
 export function ServerUnreachableLine({ preset }: { preset: Preset }) {
   const { connection } = useServerConnection();
   if (connection.state !== 'unreachable') return null;
-  return <InlineWarning severity="caution">{AI_COPY.serverUnreachable(preset.label)}</InlineWarning>;
+  return (
+    <SettingsItem>
+      <InlineWarning severity="caution">{AI_COPY.serverUnreachable(preset.label)}</InlineWarning>
+    </SettingsItem>
+  );
 }
 
 /** NVIDIA and OpenCode Zen: the key is sent once to the server (`PUT /v1/ai/keys/{preset}`) and never kept here. */
@@ -136,7 +142,7 @@ export function ServerKeyBlock({ preset, state }: { preset: Preset; state: Serve
   };
 
   return (
-    <div className="grid gap-2 border-t border-line pt-4">
+    <SettingsItem>
       {!set || replacing ? (
         <>
           <Field label={AI_COPY.keyLabel} help={AI_COPY.serverKeyHelp(preset.label)} error={error}>
@@ -152,11 +158,11 @@ export function ServerKeyBlock({ preset, state }: { preset: Preset; state: Serve
               }}
             />
           </Field>
-          <div className="flex flex-wrap items-center gap-2">
-            <Key size="sm" variant="solid" loading={busy} onClick={() => void save()}>
+          <div className="settings-keys">
+            <Key size="sm" variant="action" loading={busy} onClick={() => void save()}>
               {AI_COPY.saveKey}
             </Key>
-            <Key size="sm" variant="quiet" icon={shown ? EyeOff : Eye} onClick={() => setShown((s) => !s)} aria-pressed={shown}>
+            <Key size="sm" variant="outlined" icon={shown ? EyeOff : Eye} onClick={() => setShown((s) => !s)} aria-pressed={shown}>
               {shown ? AI_COPY.hide : AI_COPY.show}
             </Key>
             {replacing ? (
@@ -167,7 +173,7 @@ export function ServerKeyBlock({ preset, state }: { preset: Preset; state: Serve
           </div>
         </>
       ) : (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="settings-keys">
           <Key size="sm" onClick={() => setReplacing(true)}>
             {AI_COPY.replaceKey}
           </Key>
@@ -177,7 +183,7 @@ export function ServerKeyBlock({ preset, state }: { preset: Preset; state: Serve
           {error ? <InlineWarning severity="danger">{error}</InlineWarning> : null}
         </div>
       )}
-      <p className="m-0 text-xs text-ink-2" role="status">
+      <p className="settings-note" role="status">
         {set ? AI_COPY.serverKeySaved : AI_COPY.serverKeyNone}
       </p>
       <Dialog
@@ -196,7 +202,7 @@ export function ServerKeyBlock({ preset, state }: { preset: Preset; state: Serve
       >
         <p className="m-0">{AI_COPY.removeServerKeyBody}</p>
       </Dialog>
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -217,12 +223,12 @@ export function SiwcBlock({ state }: { state: ServerAiState }) {
     }
   };
   return (
-    <div className="grid gap-2 border-t border-line pt-4">
-      <p className="m-0 text-sm text-ink" role="status">
-        {signedIn ? `✓ ${AI_COPY.siwcSignedIn}${s?.plan ? ` · ${AI_COPY.siwcPlan(s.plan)}` : ''}` : AI_COPY.siwcSignedOut}
+    <SettingsItem>
+      <p className="settings-text" role="status">
+        {signedIn ? `${AI_COPY.siwcSignedIn}${s?.plan ? ` · ${AI_COPY.siwcPlan(s.plan)}` : ''}` : AI_COPY.siwcSignedOut}
       </p>
       {signedIn ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="settings-keys">
           <a className="lm-link text-sm" href={AI_COPY.manageUsageUrl} target="_blank" rel="noreferrer noopener">
             {AI_COPY.manageUsage}
           </a>
@@ -252,6 +258,6 @@ export function SiwcBlock({ state }: { state: ServerAiState }) {
       >
         <p className="m-0">{AI_COPY.siwcSignOutBody}</p>
       </Dialog>
-    </div>
+    </SettingsItem>
   );
 }

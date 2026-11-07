@@ -19,7 +19,7 @@ import type { ChapterPart } from './index';
 // turns them into the flow's `Question` shape.
 export type QuestionId = string;
 export type Answers = Readonly<Record<QuestionId, unknown>>;
-export type ChapterIdV3 = 'activity' | 'training' | 'food' | 'markers' | 'devices';
+export type ChapterIdV3 = 'activity' | 'training' | 'food' | 'markers';
 export interface AnswerOption {
   value: string;
   label: string;
@@ -47,11 +47,11 @@ export interface QuestionV3 {
   anchor?: string;
 }
 
-/** A kitchen question: the picker kind it opens, and (pantry) the optional framing with "Skip this list". */
+/** A kitchen question: the picker kind it opens, and (pantry) the optional framing: an empty list is an answer. */
 export interface KitchenQuestion extends QuestionV3 {
   answer: { kind: 'custom'; widget: `cataloguePicker:${KitchenKind}` };
   pickerKind: KitchenKind;
-  /** F7c: optional framing above the picker; the footer reads "Skip this list" and skipping counts as answered. */
+  /** F7c: optional list; Next with nothing ticked commits an empty list, answered ("skipped, by choice"). */
   pantryOptional?: true;
   /** What a skip records as the answer ("skipped, by choice": answered, never asked again). */
   skipAnswer?: 'skipped';
@@ -169,13 +169,13 @@ const idWords = (id: string): string => id.replace(/^[a-z]+\./, '').replace(/[_-
 
 /**
  * The answered-list line of a picker answer: the first few items by name, then a count; never the raw entries. An
- * empty list reads `empty` ("none"; the optional pantry's "Skip this list" commits an empty list: "skipped, by choice").
+ * empty list reads `empty` ("none"; the optional pantry's empty list reads "skipped, by choice").
  */
 export function pickerReceipt(value: unknown, skipText: string, empty = 'none'): string {
   if (value === 'skipped') return skipText;
   if (!Array.isArray(value)) return '';
   const text = (s: unknown): string => (typeof s === 'string' ? s.trim() : '');
-  // the person's words, else the catalogue name stored at Done, else the catalogue's (when loaded), else the id's words
+  // the person's words, else the catalogue name stored at commit, else the catalogue's (when loaded), else the id's words
   const names = (value as PickerValue)
     .map((e) => text(e?.label) || text(e?.name) || (typeof e?.id === 'string' ? (kitchenNow()?.cat.get(e.id)?.label ?? idWords(e.id)) : ''))
     .filter(Boolean);

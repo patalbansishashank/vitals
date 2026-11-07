@@ -1,0 +1,1735 @@
+{
+  "schemaVersion": 1,
+  "reviewed": "2026-10-31",
+  "basis": "Executed scientific inventory on the 0.7.7 source; ordinary software TOML gap is fixed in the 0.7.8 integration. No timing skip is approved.",
+  "entries": [
+    {
+      "file": "src/agents/__tests__/serverAgents.live.e26.test.ts",
+      "name": "agents connect to the server and call a tool (live) > Claude Code (Streamable HTTP with an Authorization header)",
+      "status": "skipped",
+      "reason": "Explicit opt-in smoke check invokes installed external agents using their accounts. Offline software gates must not contact those services.",
+      "source": "src/agents/__tests__/serverAgents.live.e26.test.ts",
+      "disposition": "Manual integration check; excluded from offline pass count. Run only with explicit authorization using E26_LIVE=1."
+    },
+    {
+      "file": "src/agents/__tests__/serverAgents.live.e26.test.ts",
+      "name": "agents connect to the server and call a tool (live) > Codex (url + bearer_token_env_var)",
+      "status": "skipped",
+      "reason": "Explicit opt-in smoke check invokes installed external agents using their accounts. Offline software gates must not contact those services.",
+      "source": "src/agents/__tests__/serverAgents.live.e26.test.ts",
+      "disposition": "Manual integration check; excluded from offline pass count. Run only with explicit authorization using E26_LIVE=1."
+    },
+    {
+      "file": "src/agents/__tests__/serverAgents.live.e26.test.ts",
+      "name": "agents connect to the server and call a tool (live) > OpenCode (type remote, headers with {env:VITALS_TOKEN})",
+      "status": "skipped",
+      "reason": "Explicit opt-in smoke check invokes installed external agents using their accounts. Offline software gates must not contact those services.",
+      "source": "src/agents/__tests__/serverAgents.live.e26.test.ts",
+      "disposition": "Manual integration check; excluded from offline pass count. Run only with explicit authorization using E26_LIVE=1."
+    },
+    {
+      "file": "src/engine/body/estimateBody.test.ts",
+      "name": "D1-03 — body-fat evidence is deduplicated by provenance and its uncertainty is conditional, not calibrated > coverage and method bias against held-out reference datasets (DXA/4C, whole people held out) before any coverage label",
+      "status": "todo",
+      "reason": "Held-out whole-person DXA/4C reference dataset and method-bias/coverage evaluation have not been supplied or performed.",
+      "source": "src/engine/body/estimateBody.test.ts",
+      "disposition": "Missing independent empirical evidence. No calibrated coverage or prediction-accuracy claim is allowed."
+    },
+    {
+      "file": "src/engine/body/estimateBody.test.ts",
+      "name": "golden end-to-end results (dossier 14 sec. 7, last digit +-1) > #6 legs / SAT depots at +-0.01 kg - strict",
+      "status": "expectedFailure",
+      "reason": "Decade-table LMS interpolation differs from the published prototype golden values for case 6 legs/SAT; the strict original precision remains unmet.",
+      "source": "src/engine/body/estimateBody.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/body/lms.test.ts",
+      "name": "LMS golden values (dossier 14 sec. 7) > Kelly text check at 69 y: P9.9 (+-0.1) - strict",
+      "status": "expectedFailure",
+      "reason": "Published rounded LMS table and Kelly text percentile do not agree at the strict tolerance; no percentile target was widened.",
+      "source": "src/engine/body/lms.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/body/validation.test.ts",
+      "name": "V8 NHANES 2015-18 waist vs BMI/age (M 24.81 + 2.612 BMI + 0.179(age-40); F 30.46 + 2.235 BMI + 0.113(age-40)) > max residual <= 3.5 cm over BMI 20-42 x ages 25-65 (both sexes) - strict",
+      "status": "expectedFailure",
+      "reason": "Age-40 waist geometry fit under-predicts waist at high BMI away from the fitted age; whole-grid maximum residual is still unmet.",
+      "source": "src/engine/body/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/activity/activity.test.ts",
+      "name": "10 V17: mitochondrial oxidative capacity > V17 M_r back to ≈ 1.0 (≤ 1.08) two weeks after stopping high-intensity training",
+      "status": "expectedFailure",
+      "reason": "Post-training decay does not reach the specified detraining reference band within two weeks.",
+      "source": "src/engine/model/activity/activity.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/appetite/appetite.test.ts",
+      "name": "12 §7 intake-effort targets > Rolls 2006: −25 % energy density → −575 kcal/d over 2 d (±30 %; known miss by design)",
+      "status": "expectedFailure",
+      "reason": "Appetite model/reference-table and study discrepancies remain, including synthetic HPI cells, legacy ketosis attenuation and dropout/energy-density effects. This is not calibrated individual prediction.",
+      "source": "src/engine/model/appetite/appetite.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/appetite/appetite.test.ts",
+      "name": "12 Appendix A regression table (HPI ±10 points, P_surv ±0.02) > B@84: HPI 66 (known miss)",
+      "status": "expectedFailure",
+      "reason": "Appetite model/reference-table and study discrepancies remain, including synthetic HPI cells, legacy ketosis attenuation and dropout/energy-density effects. This is not calibrated individual prediction.",
+      "source": "src/engine/model/appetite/appetite.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/appetite/appetite.test.ts",
+      "name": "12 Appendix A regression table (HPI ±10 points, P_surv ±0.02) > C@84: HPI 52 (known miss)",
+      "status": "expectedFailure",
+      "reason": "Appetite model/reference-table and study discrepancies remain, including synthetic HPI cells, legacy ketosis attenuation and dropout/energy-density effects. This is not calibrated individual prediction.",
+      "source": "src/engine/model/appetite/appetite.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/appetite/appetite.test.ts",
+      "name": "12 Appendix A regression table (HPI ±10 points, P_surv ±0.02) > I: lean man 80 kg / 11 kg fat, EI_hab 3 000, 25 % deficit, protein 180 g → HPI 62 / 81 / 94 / 98 (known miss)",
+      "status": "expectedFailure",
+      "reason": "Appetite model/reference-table and study discrepancies remain, including synthetic HPI cells, legacy ketosis attenuation and dropout/energy-density effects. This is not calibrated individual prediction.",
+      "source": "src/engine/model/appetite/appetite.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/appetite/appetite.test.ts",
+      "name": "adherence P_surv (12 §4.10a attrition calibration) > ADF dropout exceeds CR dropout by ≈ 9 pp (38 % vs 29 %; ±6 pp) (known miss)",
+      "status": "expectedFailure",
+      "reason": "Appetite model/reference-table and study discrepancies remain, including synthetic HPI cells, legacy ketosis attenuation and dropout/energy-density effects. This is not calibrated individual prediction.",
+      "source": "src/engine/model/appetite/appetite.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V11 LDL response depends on BMI (Buren 2021, Retterstol 2018, Petersen 2026) — LEM exploratory scenario (D7-07) > (c) BMI 39 keto: LDL −10 mg/dL (sign flips vs the lean result)",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V12 DIETFITS 12 months (healthy low-fat 48/29/21 vs low-carbohydrate 30/45/23 %E carbohydrate/fat/protein) > LDL +3.6 (LC) within ±4 mg/dL",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V12 DIETFITS 12 months (healthy low-fat 48/29/21 vs low-carbohydrate 30/45/23 %E carbohydrate/fat/protein) > LDL −2.1 (LF) within ±4 mg/dL",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V12 DIETFITS 12 months (healthy low-fat 48/29/21 vs low-carbohydrate 30/45/23 %E carbohydrate/fat/protein) > SBP −3.2 (LF) and −3.7 (LC) within ±1 mmHg",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V13 / 20 V7 fasting urate (Grundler 2024; Dai 2024, Ogłodek 2021) > 20 §4.7 / V7: uric acid ×2.2 ± 0.4 at day 8 of a water-only fast",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V4 Browning 2011 (NAFLD BMI 35, 2 weeks 1 200-1 500 kcal vs < 20 g carbohydrate/d) > low carbohydrate (ketotic), standard model: IHTG −55 % ± 10 points",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V4 Browning 2011 (NAFLD BMI 35, 2 weeks 1 200-1 500 kcal vs < 20 g carbohydrate/d) > the ketogenic advantage at equal weight loss, standard model (Δ ≈ −27 points in the dossier)",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V5 Mardinoglu 2018 (NAFLD, IHTG 16 %, isocaloric < 30 g carbohydrate, 14 d) > IHTG −43.8 % ± 10 points at day 14",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V6 Lim 2011 (T2D BMI 33.6, 600 kcal/d × 8 weeks, −15.3 kg) > fasting glucose 9.2 → 5.9 mmol/L by week 1 (±20 %)",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V6 Lim 2011 (T2D BMI 33.6, 600 kcal/d × 8 weeks, −15.3 kg) > triglycerides 2.4 → 1.2 mmol/L in week 1 (±20 %)",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V7 overfeeding: liver fat by macronutrient type (Luukkonen 2018, Rosqvist 2014/2019) > 8-week SFA overfeeding (+2.31 kg): liver fat +50 % ± 15 points (Rosqvist 2019)",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V8 Magkos 2016 (obese BMI 40, weight-stable after 5.1 / 10.8 / 16.4 % loss) > liver fat 8.5 → 3.0 % at 16.4 % loss within ±15 %",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V8 Magkos 2016 (obese BMI 40, weight-stable after 5.1 / 10.8 / 16.4 % loss) > liver fat 8.5 → 7.4 % at 5.1 % loss within ±15 %",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "06 V9 blood pressure: DASH and sodium (Appel 1997, Sacks 2001, Juraschek 2017) > sodium 150 → 50 mmol/d at mean trial baseline SBP 135: −6.7 mmHg ± 1.5",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cardiometabolic/validation.test.ts",
+      "name": "Kirk 2009 48 h (D7-08: early and sustained endpoints are separate validation targets) > standard model: 48 h low-carbohydrate lowers IHTG more than high-carbohydrate at equal energy",
+      "status": "expectedFailure",
+      "reason": "Current equations omit or differ from the study-specific liver-fat, lipid, glucose, sodium/BP and fasting urate dynamics; named study targets remain unmet.",
+      "source": "src/engine/model/cardiometabolic/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cellular/anchors.test.ts",
+      "name": "08 §4.10 illustrative daily patterns (hand-built 03/04 kernels; the full-engine version is in fullLoop.test.ts) > one meal a day: daily mean within ±5 of 24 (measured ≈ 18.4, −5.6)",
+      "status": "expectedFailure",
+      "reason": "Hourly feeding/fasting integration differs from the dossier synthetic autophagy table; table agreement would not validate an autophagy measurement in people.",
+      "source": "src/engine/model/cellular/anchors.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cellular/fullLoop.test.ts",
+      "name": "08 §4.10 illustrative daily patterns through the full engine (120 g protein, 220 g carbohydrate, day 4) > 20:4 daily peak within ±5 of the table (32)",
+      "status": "expectedFailure",
+      "reason": "Hourly feeding/fasting integration differs from the dossier synthetic autophagy table; table agreement would not validate an autophagy measurement in people.",
+      "source": "src/engine/model/cellular/fullLoop.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/cellular/fullLoop.test.ts",
+      "name": "08 §4.10 illustrative daily patterns through the full engine (120 g protein, 220 g carbohydrate, day 4) > daily means within ±5 of the table (3 meals 15, 16:8 16, 18:6 18, 20:4 19, one meal 24)",
+      "status": "expectedFailure",
+      "reason": "Hourly feeding/fasting integration differs from the dossier synthetic autophagy table; table agreement would not validate an autophagy measurement in people.",
+      "source": "src/engine/model/cellular/fullLoop.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/composition/oracles.test.ts",
+      "name": "11 §4.15 prototype table (ΔBW ±25 % of observed) > KNOWN-MISS Bray 2012 5 % protein: ΔBW 3.16 kg (model ≈ 5.2 kg, +64 %)",
+      "status": "expectedFailure",
+      "reason": "Bray low-protein overfeeding weight gain differs from the model partitioning result; the study target remains unchanged.",
+      "source": "src/engine/model/composition/oracles.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/energy/energy.validation.test.ts",
+      "name": "02 V10 — Mikkelsen 2000 isoenergetic +17.5 %E protein for carbohydrate, day 4 (+80-120 kcal/d) > default k_P 0.6: ΔTEE within +80-120 kcal/d — KNOWN MISS",
+      "status": "expectedFailure",
+      "reason": "Chosen adaptive-thermogenesis, composition compensation and protein-energy parameters differ from the cited reference bands; conflicting targets and documented rulings remain visible.",
+      "source": "src/engine/model/energy/energy.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/energy/energy.validation.test.ts",
+      "name": "02 V3 — Hall 2016 isocaloric ketogenic diet (ΔTEE −30 to +100) > default parameters (gngCost 0): ΔTEE ≥ −30 — KNOWN MISS after ruling M5",
+      "status": "expectedFailure",
+      "reason": "Chosen adaptive-thermogenesis, composition compensation and protein-energy parameters differ from the cited reference bands; conflicting targets and documented rulings remain visible.",
+      "source": "src/engine/model/energy/energy.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/energy/energy.validation.test.ts",
+      "name": "02 V4 — CALERIE-1 25 % CR × 6 months (AT_R + ΔTEF −60 to −200; AT_R + AT_N −100 to −350) > AT_R + AT_N within −100 to −350 kcal/d at M6 — KNOWN MISS (≈ −93 for TDEE0 ≈ 2 650)",
+      "status": "expectedFailure",
+      "reason": "Chosen adaptive-thermogenesis, composition compensation and protein-energy parameters differ from the cited reference bands; conflicting targets and documented rulings remain visible.",
+      "source": "src/engine/model/energy/energy.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/energy/energy.validation.test.ts",
+      "name": "02 V6 — Biggest Loser wk 30 (AT_R + C_comp −300 to −650) > AT_R + C_comp within −300 to −650 kcal/d — KNOWN MISS under R-COMP (cap −5 % RMR)",
+      "status": "expectedFailure",
+      "reason": "Chosen adaptive-thermogenesis, composition compensation and protein-energy parameters differ from the cited reference bands; conflicting targets and documented rulings remain visible.",
+      "source": "src/engine/model/energy/energy.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/energy/energy.validation.test.ts",
+      "name": "02 V8 — Leibel 1995 weight-reduced maintenance (K: documented known-miss) > AT beyond composition ≤ −6 kcal/kg FFM/d at −10 % weight maintained (engine ≈ −1)",
+      "status": "expectedFailure",
+      "reason": "Chosen adaptive-thermogenesis, composition compensation and protein-energy parameters differ from the cited reference bands; conflicting targets and documented rulings remain visible.",
+      "source": "src/engine/model/energy/energy.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.test.ts",
+      "name": "fasting — D2-01 observed prefix, censoring and daily-native inputs > UNRESOLVED: refeed oedema before the later meals is invariant to what is eaten after them",
+      "status": "expectedFailure",
+      "reason": "Unresolved daily-input approximation: the refeed-oedema estimate uses the entire day carbohydrate/sodium totals, so later meals can change an earlier hourly oedema estimate. Other observed-event prefix invariants pass. This is a known model causality limitation, not missing data.",
+      "source": "src/engine/model/fasting/fasting.test.ts",
+      "disposition": "Unresolved model limitation"
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > 24 h: protein ≈ 83 g ± 10 % (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > 24 h: ΔBW −1.6 kg ± 15 % and fat −0.17 kg ± 25 % (early water/absorption; see comment)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > 48 h: protein ≈ 173 g ± 10 % (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > 48 h: ΔBW −2.7 kg ± 15 % and fat −0.35 kg ± 25 % (early water/absorption; see comment above)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > 72 h: protein ≈ 270 g ± 10 % (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > 72 h: ΔBW −3.5 kg ± 15 % (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > monthly 72-h fast × 6: each fast costs ≈ 270 g protein ± 10 % (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §4B.3 schedule behaviours (lean man of Table A1) > weekly dinner→dinner 24-h fast × 12 wk: net protein cost 35-45 g per fast (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §7 V1-V10 (tolerances of 20 §7) > V1 Kolnes 7 d: ΔBW −5.8 ± 0.8 kg (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §7 V1-V10 (tolerances of 20 §7) > V1 Kolnes: muscle glycogen −53 ± 15 points at day 7 (k_Mf) (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §7 V1-V10 (tolerances of 20 §7) > V2 Pietzner: fat −1.85 ± 0.5 kg kept 3 d after refeeding (known miss with stand-ins; see comment)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §7 V1-V10 (tolerances of 20 §7) > V3 Dai 2024 21 d: ΔBW −10.0 ± 1.5 kg (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §7 V1-V10 (tolerances of 20 §7) > V5 Levanzin 31 d: ΔBW −13.25 ± 2 kg (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 §7 V1-V10 (tolerances of 20 §7) > V9 Templeman: fat loss 0:150 smaller than 75:75 by ≥ 0.5 kg (needs the real composition partition)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fasting/fasting.validation.test.ts",
+      "name": "20 Table 4.4.3 and Tables A1-A4 — fasting-module quantities > hydrated protein tissue on day 1 (lean man, obese woman) and day 3 (obese woman) within ±10 % (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Observed-event fasting routing and nitrogen accounting retain known mismatches against the older reference tables and human fasting weight/protein targets; no safety threshold is relaxed.",
+      "source": "src/engine/model/fasting/fasting.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 §4.2 / 04 §4.6 / 20 §4.3.1 / 04 §4.9 behaviours > supercompensated muscle glycogen decays ≈ 5 %/d (± 3) over the first 3 days",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V3 liver glycogen (Taylor 1996, Magnusson 1992) — ±20 % > Magnusson 282 → 98 mmol/L from 4 to 22.5 h",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V3 liver glycogen (Taylor 1996, Magnusson 1992) — ±20 % > Taylor 139-g glucose meal: peak at ≈ 5.3 h (± 1 h)",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V4 Bussau 2002 — 10 g/kg/d high-GI CHO, inactive: 95 → 180 mmol/kg ww in 24 h (± 15) > no further rise between 24 and 72 h",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V4 Bussau 2002 — 10 g/kg/d high-GI CHO, inactive: 95 → 180 mmol/kg ww in 24 h (± 15) > reaches 180 ± 15 mmol/kg ww after 24 h",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V6 Schrauwen 1997 — 55 → 25 %E CHO at energy balance: fat balance +1.06/+0.75/+0.55 MJ on days 1-3 (± 0.4) > day 1 within ± 0.4 MJ",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V6 Schrauwen 1997 — 55 → 25 %E CHO at energy balance: fat balance +1.06/+0.75/+0.55 MJ on days 1-3 (± 0.4) > day 2 within ± 0.4 MJ",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/fuel/fuel.validation.test.ts",
+      "name": "04 V6 Schrauwen 1997 — 55 → 25 %E CHO at energy balance: fat balance +1.06/+0.75/+0.55 MJ on days 1-3 (± 0.4) > day 3 within ± 0.4 MJ",
+      "status": "expectedFailure",
+      "reason": "A single liver timescale and muscle glycogen rules cannot satisfy all published glycogen and carbohydrate balance targets, including supercompensation and its decay.",
+      "source": "src/engine/model/fuel/fuel.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "Ebbeling 2012 weight-reduced maintenance by diet (12 §7.4) > T3 ≥ 10 % lower on very-low-carbohydrate than low-fat (superseded by R-T3)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "IGF-1 (08 §7 V4-V6; 20 §4B.3) > Hartman 1992: IGF-1 unchanged at 56 h of fasting (±15 points)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "IGF-1 (08 §7 V4-V6; 20 §4B.3) > obese men: no IGF-1 fall by 72 h (known miss, 08 has no obesity modifier)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "leptin (12 §4.1 fit list, §7.1-7.3; ±15 points) > Chan 2003 (known miss): lean men, 72-h fast → leptin ≈ 10 % of baseline (±15 points)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "leptin (12 §4.1 fit list, §7.1-7.3; ±15 points) > Weigle 1997: ≥ 85 % of baseline 24 h after refeeding (rig 0.846; full engine 0.87 passes)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "thyroid T3 (12 §4.3 fit list, ±12 points; ruling R-T3) > Müller 2015: 3 wk at −50 % → T3 −39 % (±12 points; 12 §4.3 own fit −25 %)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/hormones/hormones.test.ts",
+      "name": "thyroid T3 (12 §4.3 fit list, ±12 points; ruling R-T3) > Spaulding 1976: 800 kcal/d with ≥ 50 g carbohydrate → no T3 change (±12 points)",
+      "status": "expectedFailure",
+      "reason": "The hormone rig lacks study/population-specific dynamics and conflicts with some reference-table targets (leptin refeeding, T3, IGF-1); the original bands remain tested.",
+      "source": "src/engine/model/hormones/hormones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastingBhb.test.ts",
+      "name": "coupled-engine BHB calibration (05 §7, 20 §4.3.4) > Burke day 6 07:00: 1.2 ± 0.36 (05 V13 Burke 2021 (eucaloric)) — KNOWN MISS: eucaloric LCHF with 3 h/d of walking: 1.60 vs 1.2 ± 0.36 (05 k_mgF grade D on the exercise-driven glycogen deficit)",
+      "status": "expectedFailure",
+      "reason": "Registered coupled-calibration miss: sex-specific fasting targets conflict across sources, or exercise-driven glycogen depletion overshoots the LCHF target; the test name records the row-specific explanation.",
+      "source": "src/engine/model/ketones/integration/fastingBhb.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastingBhb.test.ts",
+      "name": "coupled-engine BHB calibration (05 §7, 20 §4.3.4) > lean woman 24 h: 0.33 ± 0.15 (20 V8 Browning F 0.33) — KNOWN MISS: Browning F 0.33 vs Haymond F 1.7 at 30 h conflict (20 §4.3.4: no sex term); the model sits between (≈ 0.66 at 24 h, 1.12 at 30 h)",
+      "status": "expectedFailure",
+      "reason": "Registered coupled-calibration miss: sex-specific fasting targets conflict across sources, or exercise-driven glycogen depletion overshoots the LCHF target; the test name records the row-specific explanation.",
+      "source": "src/engine/model/ketones/integration/fastingBhb.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastingBhb.test.ts",
+      "name": "coupled-engine BHB calibration (05 §7, 20 §4.3.4) > lean woman 48 h: 1.22 ± 0.37 (20 V8 Browning F 1.22) — KNOWN MISS: same conflict: Browning F 1.22 (lower than men) vs the model 1.82 (women ≥ men via the smaller FFM-scaled clearance)",
+      "status": "expectedFailure",
+      "reason": "Registered coupled-calibration miss: sex-specific fasting targets conflict across sources, or exercise-driven glycogen depletion overshoots the LCHF target; the test name records the row-specific explanation.",
+      "source": "src/engine/model/ketones/integration/fastingBhb.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "name": "21-day water-only fast vs dossier 20 Table A1 / A3 (full engine) > lean man (Table A1): protein tissue and urinary N on day 1 (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Fasting nitrogen/weight/DXA-lean reference discrepancies remain after observed-event routing; hydrated protein, urinary nitrogen and scale are not interchangeable measurements.",
+      "source": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "name": "21-day water-only fast vs dossier 20 Table A1 / A3 (full engine) > lean man (Table A1): scale weight and DXA-lean on days 1-2 (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Fasting nitrogen/weight/DXA-lean reference discrepancies remain after observed-event routing; hydrated protein, urinary nitrogen and scale are not interchangeable measurements.",
+      "source": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "name": "21-day water-only fast vs dossier 20 Table A1 / A3 (full engine) > obese woman (Table A3): protein tissue and urinary N on day 1 (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Fasting nitrogen/weight/DXA-lean reference discrepancies remain after observed-event routing; hydrated protein, urinary nitrogen and scale are not interchangeable measurements.",
+      "source": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "name": "21-day water-only fast vs dossier 20 Table A1 / A3 (full engine) > obese woman (Table A3): scale weight and DXA-lean",
+      "status": "expectedFailure",
+      "reason": "Fasting nitrogen/weight/DXA-lean reference discrepancies remain after observed-event routing; hydrated protein, urinary nitrogen and scale are not interchangeable measurements.",
+      "source": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "name": "repeated fasts (20 §4B.3) > weekly 24-h dinner-to-dinner fast × 12: each fast re-enters peak N; net protein 420-540 g (±25 %) (KNOWN MISS, D2-01)",
+      "status": "expectedFailure",
+      "reason": "Fasting nitrogen/weight/DXA-lean reference discrepancies remain after observed-event routing; hydrated protein, urinary nitrogen and scale are not interchangeable measurements.",
+      "source": "src/engine/model/ketones/integration/fastTrajectories.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/transitions.test.ts",
+      "name": "high-carbohydrate meals, days and weekends inside a very-low-carbohydrate period (05 §4.9, 13 T8) > re-entry after a 2-day high-carbohydrate weekend within 5 mornings (13 T8)",
+      "status": "expectedFailure",
+      "reason": "Current glycogen/ketone coupling does not meet the synthetic diet-entry or post-weekend re-entry timing target.",
+      "source": "src/engine/model/ketones/integration/transitions.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/integration/transitions.test.ts",
+      "name": "mixed diet → < 30 g/d carbohydrate (05 §4.7) > 50 g/d at maintenance: within 1-4 days (05 §4.7 surface: day 3)",
+      "status": "expectedFailure",
+      "reason": "Current glycogen/ketone coupling does not meet the synthetic diet-entry or post-weekend re-entry timing target.",
+      "source": "src/engine/model/ketones/integration/transitions.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.test.ts",
+      "name": "O-10: hourly integrator vs the 05 §4.17 reference (≤ 0.05 mM or 5 %) > V11 vs the literal 5-min Euler reference",
+      "status": "expectedFailure",
+      "reason": "The hourly analytical update differs from the literal five-minute Euler reference; that numerical-method discrepancy remains explicit.",
+      "source": "src/engine/model/ketones/ketones.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "20 §4.3.4 BHB_ref (water-only fasts; owner of the zero-intake target beyond day 2) > lean and obese within ±30 % of BHB_ref at 24, 36 and 48 h (conflicts with 05 V1-V3)",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "coupled proxy preview for the R-KET retune (04 §4.2 liver τ 24 h / floor 5 g, 20 §4B.1 k_Mf, nominal G50) > 05 calibration on the 04 liver proxy reproduces BHB_ref from 72 h to 21 d (±30 %)",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "tracked known misses (MODEL_SPEC §1.7; reported, not gating) > Harvey 2018: MCT 3 × 30 mL/d on a ketogenic diet raises morning BHB by +0.8 mM on days 7-19",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "tracked known misses (MODEL_SPEC §1.7; reported, not gating) > Neudorf 2025: lean adults 3.7 mM at 48 h of fasting",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "tracked known misses (MODEL_SPEC §1.7; reported, not gating) > V11 fed (Stubbs 2017): food lowers the ester Cmax by 33 % (fed 2.2 mM)",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "tracked known misses (MODEL_SPEC §1.7; reported, not gating) > V14 Johnstone 2008: ad libitum 4 %E carbohydrate, 30 %E protein, 7.25 MJ/d, obese men → 1.52 mM",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "tracked known misses (MODEL_SPEC §1.7; reported, not gating) > V15 Veldhorst 2010: 1 day 0 % carbohydrate / 30 %E protein after glycogen-lowering exercise → 1.35 mM next morning",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/ketones/ketones.validation.test.ts",
+      "name": "tracked known misses (MODEL_SPEC §1.7; reported, not gating) > V8 Gipson 2025 (older adults, BMI ≥ 27): 24-h values 0.50 (6-g shake) / 0.31 mM (84-g shake)",
+      "status": "expectedFailure",
+      "reason": "Current ketone model cannot meet all contradictory fasting/diet/ester and population targets or the dossier reference surface; unchanged target bands continue to run.",
+      "source": "src/engine/model/ketones/ketones.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/moderators/moderators.test.ts",
+      "name": "16 V1-V2: partition shift under sleep restriction (Nedeltcheva, Wang) > V1 upper band edge reaches the dossier value ≈ 21 % (needs a cap that scales with k_P)",
+      "status": "expectedFailure",
+      "reason": "The parameter cap does not scale with k_P, so the upper uncertainty-band edge misses the dossier value.",
+      "source": "src/engine/model/moderators/moderators.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/muscle/validation.test.ts",
+      "name": "09 #5 Longland 2016 — 4 wk, −40 %, RT + HIIT 6 d/wk, 2.4 vs 1.2 g/kg (FM₀ 25 kg) > magnitude: PRO − CON = 1.1 kg ± 0.3",
+      "status": "expectedFailure",
+      "reason": "Resistance-training/protein model effect magnitudes differ from the named human study contrasts; qualitative agreement does not count as magnitude validation.",
+      "source": "src/engine/model/muscle/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/muscle/validation.test.ts",
+      "name": "09 #6 Garthe 2011 — elite athletes, 4 RT/wk, −19 % (8.5 wk) vs −30 % (5.3 wk) > magnitude: slow arm +2.1 % ± 0.7",
+      "status": "expectedFailure",
+      "reason": "Resistance-training/protein model effect magnitudes differ from the named human study contrasts; qualitative agreement does not count as magnitude validation.",
+      "source": "src/engine/model/muscle/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/muscle/validation.test.ts",
+      "name": "09 #7 Villareal 2017 — obese older adults, 6 mo, −9 % BW, RT vs aerobic > RT arm −1.0 kg ± 0.8 and ratio RT/aerobic 0.37 ± 0.2",
+      "status": "expectedFailure",
+      "reason": "Resistance-training/protein model effect magnitudes differ from the named human study contrasts; qualitative agreement does not count as magnitude validation.",
+      "source": "src/engine/model/muscle/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/muscle/validation.test.ts",
+      "name": "Sardeli 2018 — RT prevents CR-induced lean loss in obese elderly (6 RCTs, 12-24 wk) > RT − CR lean difference inside the 95 % CI 0.36-1.27 kg",
+      "status": "expectedFailure",
+      "reason": "Resistance-training/protein model effect magnitudes differ from the named human study contrasts; qualitative agreement does not count as magnitude validation.",
+      "source": "src/engine/model/muscle/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/water/water.validation.test.ts",
+      "name": "13 V1 — Hall 2016 isocaloric switch 50 %E → 5 %E carbohydrate (rapid extra loss −1.6 ± 0.4 kg) > joint scenario with the ward sodium rise: total inside 15 V7’s −1.0 to −2.2 kg window (known miss by ≈ 0.06 kg)",
+      "status": "expectedFailure",
+      "reason": "Combined ward sodium and carbohydrate scenario narrowly exceeds the original body-water target window; the original band stays in force.",
+      "source": "src/engine/model/water/water.validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/wellbeing/__tests__/validation.test.ts",
+      "name": "13 §4.10 keto-induction symptoms (Φ_ind) > median induction resolution (fall to half of the peak) is 4.5 d ± 1 d",
+      "status": "expectedFailure",
+      "reason": "Current P1NP response timescale and induction-symptom decay do not meet the dynamic reference targets.",
+      "source": "src/engine/model/wellbeing/__tests__/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/model/wellbeing/__tests__/validation.test.ts",
+      "name": "19 V7 Papageorgiou 2018: P1NP after 3-5 d at EA 15 > dynamic: P1NP_rel is within 0.83 ± 0.05 at day 5 of a step to EA 15 (diet-created)",
+      "status": "expectedFailure",
+      "reason": "Current P1NP response timescale and induction-symptom decay do not meet the dynamic reference targets.",
+      "source": "src/engine/model/wellbeing/__tests__/validation.test.ts",
+      "disposition": "Scientific/reference discrepancy retained at its original target; not an ordinary software pass."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.1 Minnesota semistarvation, 24 wk > [M, known miss · scenario · mapping] body weight at 24 wk (76 % of 69.4 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · scenario · mapping] body weight at 24 wk (76 % of 69.4 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.1 Minnesota semistarvation, 24 wk > [M, known miss · scenario · mapping] fat mass at 24 wk (34 % of 9 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · scenario · mapping] fat mass at 24 wk (34 % of 9 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.2 Jebb 1996 12-d over/underfeeding > [M, known miss · water · structure] overfeeding: weight change day 12",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · water · structure] overfeeding: weight change day 12",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.2 Jebb 1996 12-d over/underfeeding > [M, open calibration · composition · calibration] underfeeding: weight change day 12",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · composition · calibration] underfeeding: weight change day 12",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.3 CALERIE-1, 6 mo (control, CR 25 %, CR 12.5 % + EX 12.5 %, VLCD) > [M, known miss · energy · reviewDecision] CR + EX: weight change at 6 mo (−10.0 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · reviewDecision] CR + EX: weight change at 6 mo (−10.0 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.4 CALERIE-2, 2 y from the measured intake trajectory > [M, open calibration · energy · calibration] weight change at 24 mo (−10.4 % maintained)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · energy · calibration] weight change at 24 mo (−10.4 % maintained)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.5 Hall 2015 reduced-carbohydrate (RC) vs reduced-fat (RF), 6 d > [M, known miss · fuel · ruling] RC: cumulative fat loss over 6 d (245 ± 21 g)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] RC: cumulative fat loss over 6 d (245 ± 21 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.6 Hall 2016 isocaloric ketogenic diet, 4 wk BD then 4 wk KD > [M, known miss · energy · ruling] EE difference KD (days 43-56) − BD (days 15-28)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · ruling] EE difference KD (days 43-56) − BD (days 15-28)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.7d Bray 2012 low/normal/high-protein overfeeding, +954 kcal/d for 8 wk > [K] 5 % protein: weight change (+3.16 kg)",
+      "status": "expectedFailure",
+      "reason": "[K] 5 % protein: weight change (+3.16 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 01 7.7d Bray 2012 low/normal/high-protein overfeeding, +954 kcal/d for 8 wk > [M, known miss · energy · dossier] 25 % protein: REE change (+227 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · dossier] 25 % protein: REE change (+227 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 02 V3 Hall 2016 isocaloric ketogenic diet: expenditure difference −30 … +100 kcal/d > [M, known miss · energy · ruling] expenditure KD (days 43-56) − BD (days 15-28) (−30 … +100 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · ruling] expenditure KD (days 43-56) − BD (days 15-28) (−30 … +100 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 02 V4 CALERIE-1 (Heilbronn 2006 / Redman 2009): adaptive thermogenesis at 25 % restriction for 6 months > [M, known miss · energy · dossier] AT_R + AT_N at month 6 (−100 … −350 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · dossier] AT_R + AT_N at month 6 (−100 … −350 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 02 V8 Leibel 1995: TEE per kg FFM at −10 % and +10 % maintained weight (known discrepancy) > [K] +10 %: AT per kg FFM at the end of maintenance (+8 … +9 kcal/kg FFM/d)",
+      "status": "expectedFailure",
+      "reason": "[K] +10 %: AT per kg FFM at the end of maintenance (+8 … +9 kcal/kg FFM/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 02 V8 Leibel 1995: TEE per kg FFM at −10 % and +10 % maintained weight (known discrepancy) > [K] −10 %: AT per kg FFM at the end of maintenance (−6 … −8 kcal/kg FFM/d)",
+      "status": "expectedFailure",
+      "reason": "[K] −10 %: AT per kg FFM at the end of maintenance (−6 … −8 kcal/kg FFM/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #2 Mettler 2010: RT-trained athletes, 60 % of energy for 2 wk, 1.0 vs 2.3 g/kg protein > [M, known miss · muscle · ruling] control protein: DXA-like LBM change (−1.6 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · muscle · ruling] control protein: DXA-like LBM change (−1.6 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #2 Mettler 2010: RT-trained athletes, 60 % of energy for 2 wk, 1.0 vs 2.3 g/kg protein > [M, known miss · muscle · ruling] LBM loss ratio, high protein / control (≤ 0.5)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · muscle · ruling] LBM loss ratio, high protein / control (≤ 0.5)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #3 Bray 2012 (dossier 03 tolerances): lean and fat change with 5 / 15 / 25 % protein overfeeding > [M, known miss · composition · ruling] 5 % protein: lean change (−0.70 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · ruling] 5 % protein: lean change (−0.70 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #3 Bray 2012 (dossier 03 tolerances): lean and fat change with 5 / 15 / 25 % protein overfeeding > [M, known miss · energy · dossier] fat gain independent of protein: 25 % minus 5 % arm (0 ± 0.5 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · dossier] fat gain independent of protein: 25 % minus 5 % arm (0 ± 0.5 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #3 Bray 2012 (dossier 03 tolerances): lean and fat change with 5 / 15 / 25 % protein overfeeding > [M, open calibration · composition · calibration] 25 % protein: lean change (+3.18 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · composition · calibration] 25 % protein: lean change (+3.18 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #7 Hoffer 1984: 500 kcal/d diets in obese women, 1.5 vs 0.8 g protein per kg ideal weight, nitrogen balance > [M, known miss · composition · dossier] high protein: N balance in week 3 (≈ 0 g N/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · dossier] high protein: N balance in week 3 (≈ 0 g N/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #7 Hoffer 1984: 500 kcal/d diets in obese women, 1.5 vs 0.8 g protein per kg ideal weight, nitrogen balance > [M, known miss · composition · dossier] low protein: N balance in week 3 (−2 g N/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · dossier] low protein: N balance in week 3 (−2 g N/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 #8 Wycherley 2012 / Krieger 2006 / Kim 2016: isocaloric restriction, high vs standard protein, 12 wk > [M, known miss · energy · structure] FFM retained by high protein (HP − SP lean-tissue change, 0.3-0.9 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · structure] FFM retained by high protein (HP − SP lean-tissue change, 0.3-0.9 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 Longland Longland 2016 deficit + RT/HIIT, 1.2 vs 2.4 g/kg protein, 4 wk > [K] PRO: lean-mass change (+1.2 ± 1.0 kg)",
+      "status": "expectedFailure",
+      "reason": "[K] PRO: lean-mass change (+1.2 ± 1.0 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 03 Longland Longland 2016 deficit + RT/HIIT, 1.2 vs 2.4 g/kg protein, 4 wk > [M, known miss · composition · ruling] between-group lean difference PRO − CON (observed 1.1 kg, target ≥ 0.4 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · ruling] between-group lean difference PRO − CON (observed 1.1 kg, target ≥ 0.4 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V1 Acheson 1982: a single 479 g starch meal after an overnight fast, 10 h of calorimetry > [M, known miss · energy · mapping] CHO oxidised in the 10 h after the meal (133 g)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · mapping] CHO oxidised in the 10 h after the meal (133 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V1 Acheson 1982: a single 479 g starch meal after an overnight fast, 10 h of calorimetry > [M, known miss · energy · mapping] glycogen gain 10 h after the meal (+346 ± 12 g)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · mapping] glycogen gain 10 h after the meal (+346 ± 12 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V1 Acheson 1982: a single 479 g starch meal after an overnight fast, 10 h of calorimetry > [M, known miss · intake · structure] glycogen gain 5 h after the meal (+408 g)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · intake · structure] glycogen gain 5 h after the meal (+408 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V3 Taylor 1996 / Magnusson 1992: liver glycogen after an overnight fast and after a liquid meal with 139 g glucose > [M, known miss · fuel · structure] liver glycogen gain at the peak (+28 g ≈ 19 % of the carbohydrate)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · structure] liver glycogen gain at the peak (+28 g ≈ 19 % of the carbohydrate)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V3 Taylor 1996 / Magnusson 1992: liver glycogen after an overnight fast and after a liquid meal with 139 g glucose > [M, known miss · fuel · structure] time of the liver-glycogen peak after the meal (5.3 h)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · structure] time of the liver-glycogen peak after the meal (5.3 h)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V3 Taylor 1996 / Magnusson 1992: liver glycogen after an overnight fast and after a liquid meal with 139 g glucose > [M, open calibration · fuel · calibration] liver glycogen at 08:00 after the overnight fast (207 mmol/L)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · fuel · calibration] liver glycogen at 08:00 after the overnight fast (207 mmol/L)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V4 Bussau 2002 / Shiose 2016: muscle glycogen and body water with 10-12 g/kg/d carbohydrate > [M, known miss · fuel · structure] muscle glycogen at 24 h of 10 g/kg/d relative to the start (95 → 180 mmol/kg, × 1.89)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · structure] muscle glycogen at 24 h of 10 g/kg/d relative to the start (95 → 180 mmol/kg, × 1.89)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V4 Bussau 2002 / Shiose 2016: muscle glycogen and body water with 10-12 g/kg/d carbohydrate > [M, known miss · fuel · structure] no further rise between 24 h and 72 h (ratio ≤ 1.1)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · structure] no further rise between 24 h and 72 h (ratio ≤ 1.1)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V4 Bussau 2002 / Shiose 2016: muscle glycogen and body water with 10-12 g/kg/d carbohydrate > [M, known miss · water · dossier] body water change over the 72 h of carbohydrate loading (+0.9 kg, range +0.6 … +1.6)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · water · dossier] body water change over the 72 h of carbohydrate loading (+0.9 kg, range +0.6 … +1.6)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V7 Hall 2015: fat loss and substrate oxidation with carbohydrate vs fat restriction (dossier 04 tolerances) > [M, known miss · fuel · ruling] cumulative fat loss RF − RC (218 g; must be ≥ 109 g)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] cumulative fat loss RF − RC (218 g; must be ≥ 109 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V7 Hall 2015: fat loss and substrate oxidation with carbohydrate vs fat restriction (dossier 04 tolerances) > [M, known miss · fuel · ruling] RC: CHO oxidation change by day 6 (−595 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] RC: CHO oxidation change by day 6 (−595 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 04 V7 Hall 2015: fat loss and substrate oxidation with carbohydrate vs fat restriction (dossier 04 tolerances) > [M, known miss · fuel · ruling] RC: net fat oxidation change by day 6 (+463 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] RC: net fat oxidation change by day 6 (+463 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 05 V11 Stubbs 2017 / Myette-Côté 2018: a ketone ester (25 g BHB equivalent) fasted and fed > [K] fed Cmax relative to fasted (−33 %)",
+      "status": "expectedFailure",
+      "reason": "[K] fed Cmax relative to fasted (−33 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 05 V15 Veldhorst 2010: one day at 0 % carbohydrate / 30 % protein after glycogen-lowering exercise (known under-prediction) > [K] BHB the morning after the 0 % carbohydrate day (1.35 mM)",
+      "status": "expectedFailure",
+      "reason": "[K] BHB the morning after the 0 % carbohydrate day (1.35 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 05 V2 Haymond 1982: BHB at 30 h of fasting in men and women > [M, known miss · ketones · dossier] women: BHB at 30 h (1.7 mM)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · ketones · dossier] women: BHB at 30 h (1.7 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 05 V8 Gipson 2025: 24-h fast begun with 6 g vs 84 g of carbohydrate (known miss at 24 h) > [K] high carbohydrate: BHB at 24 h (0.31 mM)",
+      "status": "expectedFailure",
+      "reason": "[K] high carbohydrate: BHB at 24 h (0.31 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 05 V8 Gipson 2025: 24-h fast begun with 6 g vs 84 g of carbohydrate (known miss at 24 h) > [K] low carbohydrate: BHB at 24 h (0.50 mM)",
+      "status": "expectedFailure",
+      "reason": "[K] low carbohydrate: BHB at 24 h (0.50 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 05 V8 Gipson 2025: 24-h fast begun with 6 g vs 84 g of carbohydrate (known miss at 24 h) > [M, known miss · ketones · structure] low carbohydrate: BHB at 12 h (0.54 mM)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · ketones · structure] low carbohydrate: BHB at 12 h (0.54 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V11 Buren 2021 / Retterstøl 2018 vs Petersen 2026: LDL on a ketogenic diet flips sign with BMI > [M, known miss · cardiometabolic · dossier] BMI 39 with ≈ 10 % loss: LDL change (−0.26 mmol/L; sign and order)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] BMI 39 with ≈ 10 % loss: LDL change (−0.26 mmol/L; sign and order)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V11 Buren 2021 / Retterstøl 2018 vs Petersen 2026: LDL on a ketogenic diet flips sign with BMI > [M, known miss · cardiometabolic · reviewDecision] lean woman: LDL change after 4 wk (+1.81 mmol/L; sign and order)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · reviewDecision] lean woman: LDL change after 4 wk (+1.81 mmol/L; sign and order)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V11 Buren 2021 / Retterstøl 2018 vs Petersen 2026: LDL on a ketogenic diet flips sign with BMI > [M, known miss · cardiometabolic · reviewDecision] normal-weight adult: LDL change after 3 wk (+0.9 mmol/L; sign and order)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · reviewDecision] normal-weight adult: LDL change after 3 wk (+0.9 mmol/L; sign and order)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V12 DIETFITS: 12 months of healthy low-fat vs healthy low-carbohydrate diets (≈ −5.3 vs −6.0 kg) > [M, known miss · cardiometabolic · dossier] low-carbohydrate: LDL change (+3.6 mg/dL)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] low-carbohydrate: LDL change (+3.6 mg/dL)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V12 DIETFITS: 12 months of healthy low-fat vs healthy low-carbohydrate diets (≈ −5.3 vs −6.0 kg) > [M, known miss · cardiometabolic · dossier] low-carbohydrate: SBP change (−3.7 mmHg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] low-carbohydrate: SBP change (−3.7 mmHg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V12 DIETFITS: 12 months of healthy low-fat vs healthy low-carbohydrate diets (≈ −5.3 vs −6.0 kg) > [M, known miss · cardiometabolic · dossier] low-fat: LDL change (−2.1 mg/dL)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] low-fat: LDL change (−2.1 mg/dL)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V12 DIETFITS: 12 months of healthy low-fat vs healthy low-carbohydrate diets (≈ −5.3 vs −6.0 kg) > [M, known miss · cardiometabolic · dossier] low-fat: SBP change (−3.2 mmHg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] low-fat: SBP change (−3.2 mmHg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V4 Browning 2011: NAFLD, 2 weeks of 1 200-1 500 kcal vs < 20 g carbohydrate/d > [M, open calibration · cardiometabolic · mapping] hypocaloric mixed diet: liver-fat change after 14 d (−28 %)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · cardiometabolic · mapping] hypocaloric mixed diet: liver-fat change after 14 d (−28 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V4 Browning 2011: NAFLD, 2 weeks of 1 200-1 500 kcal vs < 20 g carbohydrate/d > [M, open calibration · cardiometabolic · mapping] low-carbohydrate: liver-fat change after 14 d (−55 %)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · cardiometabolic · mapping] low-carbohydrate: liver-fat change after 14 d (−55 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V5 Mardinoglu 2018: obese NAFLD adults, 14 d isocaloric (3 115 kcal/d), < 30 g carbohydrate > [M, known miss · cardiometabolic · structure] liver-fat change after 14 d (−43.8 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · structure] liver-fat change after 14 d (−43.8 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V6 Lim 2011: type 2 diabetes, 600 kcal/d for 8 weeks (glucose, TG and liver fat) > [M, known miss · cardiometabolic · dossier] fasting glucose at week 1 (5.9 mmol/L)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] fasting glucose at week 1 (5.9 mmol/L)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V6 Lim 2011: type 2 diabetes, 600 kcal/d for 8 weeks (glucose, TG and liver fat) > [M, known miss · cardiometabolic · reviewDecision] IHTG at 8 weeks (2.9 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · reviewDecision] IHTG at 8 weeks (2.9 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V8 Magkos 2016: liver fat and triglycerides after 5.1 / 10.8 / 16.4 % weight loss > [M, known miss · cardiometabolic · dossier] IHTG at −5.1 % weight (7.4 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] IHTG at −5.1 % weight (7.4 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V8 Magkos 2016: liver fat and triglycerides after 5.1 / 10.8 / 16.4 % weight loss > [M, known miss · cardiometabolic · dossier] TG at −10.8 % weight (110 mg/dL)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] TG at −10.8 % weight (110 mg/dL)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V8 Magkos 2016: liver fat and triglycerides after 5.1 / 10.8 / 16.4 % weight loss > [M, known miss · cardiometabolic · dossier] TG at −16.4 % weight (97 mg/dL)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] TG at −16.4 % weight (97 mg/dL)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 06 V9 (sodium) Sacks 2001: sodium 150 → 50 mmol/d on the control diet, systolic BP > [M, known miss · cardiometabolic · dossier] SBP change after 4 weeks (−6.7 mmHg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] SBP change after 4 weeks (−6.7 mmHg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 07 1 Rothman 1991 / Roden 2001: liver glycogen, 650-kcal meal then 68-h fast > [M, open calibration · fuel · calibration] liver glycogen 15 h after the meal (≈ 60 g)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · fuel · calibration] liver glycogen 15 h after the meal (≈ 60 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 07 1 Rothman 1991 / Roden 2001: liver glycogen, 650-kcal meal then 68-h fast > [M, open calibration · fuel · calibration] liver glycogen 4 h after the meal (≈ 94 g)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · fuel · calibration] liver glycogen 4 h after the meal (≈ 94 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 07 1 Rothman 1991 / Roden 2001: liver glycogen, 650-kcal meal then 68-h fast > [M, open calibration · fuel · calibration] liver glycogen 64 h after the meal (−83 % vs 4 h, ≈ 16 g)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · fuel · calibration] liver glycogen 64 h after the meal (−83 % vs 4 h, ≈ 16 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 07 2 Klein 1993: short-term fasting 12 → 72 h (glucose, insulin) > [M, known miss · intake · structure] insulin at 72 h / insulin at 12 h (30.1 / 64.6 = 0.466)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · intake · structure] insulin at 72 h / insulin at 12 h (30.1 / 64.6 = 0.466)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 07 4 Hartman 1992 / Ho 1988: 5-day fast (IGF-1, glucose) > [M, known miss · hormones · dossier] IGF-1 change day 1 → day 5 (−41 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · hormones · dossier] IGF-1 change day 1 → day 5 (−41 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 07 5 Chan 2003: 72-h fast endocrine panel in lean men > [K] leptin change (−90 %)",
+      "status": "expectedFailure",
+      "reason": "[K] leptin change (−90 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 09 #14 McDonald / Aragon-Helms heuristics: muscle gained in years 1-4 of optimal training (men) > [M, known miss · muscle · structure] year 2 gain (4.5-5.5 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · muscle · structure] year 2 gain (4.5-5.5 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 09 #4 Murphy & Koehler 2022: net lean change of 12 wk of RT at 0-1 000 kcal/d deficit > [M, known miss · activity · reviewDecision] deficit at which the 12-wk lean change crosses zero (500-700 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · activity · reviewDecision] deficit at which the 12-wk lean change crosses zero (500-700 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 09 #6 (03 Garthe) Garthe 2011: elite athletes, −19 % energy for 8.5 wk vs −30 % for 5.3 wk (both −5.5 % BW) > [K] slow arm: lean change (+2.1 %)",
+      "status": "expectedFailure",
+      "reason": "[K] slow arm: lean change (+2.1 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 09 #7 Villareal 2017: obese older adults, 6 months of diet + resistance vs diet + aerobic training > [M, known miss · composition · structure] aerobic arm: DXA lean-mass change after 6 mo (−2.7 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] aerobic arm: DXA lean-mass change after 6 mo (−2.7 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 09 #8 Ballor & Poehlman 1994: FFM share of weight lost, diet vs diet + exercise (≈ −10 kg) > [M, known miss · composition · structure] diet only: FFM share of the loss (24-28 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] diet only: FFM share of the loss (24-28 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 09 #8 Ballor & Poehlman 1994: FFM share of weight lost, diet vs diet + exercise (≈ −10 kg) > [M, known miss · muscle · dossier] diet + RT: FFM share of the loss (11-13 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · muscle · dossier] diet + RT: FFM share of the loss (11-13 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 10 V14 HERITAGE: 20 weeks of endurance training raise VO2max by 18 ± 9 % > [M, known miss · activity · dossier] VO2max change after 20 weeks (+18 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · activity · dossier] VO2max change after 20 weeks (+18 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 10 V22 Verheggen 2016: exercise without weight loss lowers visceral fat (−6.1 %), sign and order of magnitude > [M, known miss · composition · structure] visceral-fat change after 12 wk without weight loss (−6.1 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] visceral-fat change after 12 wk without weight loss (−6.1 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 10 V8 MET-2 (Donnelly 2013): 400 vs 600 kcal/session, 5 d/wk for 10 months at unchanged intake > [M, known miss · energy · structure] 400 kcal/session: weight change after 10 months (−3.9 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · structure] 400 kcal/session: weight change after 10 months (−3.9 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 10 V8 MET-2 (Donnelly 2013): 400 vs 600 kcal/session, 5 d/wk for 10 months at unchanged intake > [M, known miss · energy · structure] 600 kcal/session: weight change after 10 months (−5.2 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · structure] 600 kcal/session: weight change after 10 months (−5.2 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 §4.15 boden Boden 2015: ≈ 6 000 vs 2 600 kcal/d for 7 d > [M, open calibration · water · calibration] ΔBW after 7 d (3.5 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · water · calibration] ΔBW after 7 d (3.5 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 §4.15 sagayama Sagayama 2014: +1 500 kcal/d for 3 d > [M, known miss · water · mapping] ΔBW after 3 d (0.7 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · water · mapping] ΔBW after 3 d (0.7 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #2 Bray 2012 (dossier 11 tolerances): 15 vs 25 % protein in a +954 kcal/d surplus > [M, known miss · energy · dossier] ΔFM difference 25 % − 15 % protein (< 0.3 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · dossier] ΔFM difference 25 % − 15 % protein (< 0.3 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #3 (prototype) Horton 1995: +50 % of maintenance for 14 d as carbohydrate or as fat, share of the excess stored > [M, open calibration · energy · calibration] fat-surplus storage (≥ 88 %)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · energy · calibration] fat-surplus storage (≥ 88 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #4 (36 h fat load) Schutz 1989: +987 kcal of fat for 36 h changes fat oxidation < 5 % and 24-h EE < 2 % > [M, known miss · composition · structure] fat oxidation change on the second fat-load day vs the maintenance day (< 5 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] fat oxidation change on the second fat-load day vs the maintenance day (< 5 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #4 (36 h fat load) Schutz 1989: +987 kcal of fat for 36 h changes fat oxidation < 5 % and 24-h EE < 2 % > [M, open calibration · energy · calibration] 24-h EE change on the second fat-load day (< 2 %)",
+      "status": "expectedFailure",
+      "reason": "[M, open calibration · energy · calibration] 24-h EE change on the second fat-load day (< 2 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #4 Jebb 1996 / Schutz 1989: carbohydrate oxidation tracks intake, fat balance takes the surplus > [M, known miss · composition · structure] fat balance as a share of the energy imbalance, days 6-12 (70-80 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] fat balance as a share of the energy imbalance, days 6-12 (70-80 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #8 Sagayama 2014: 3 d at +1 500 kcal/d, fat gain small, weight back to baseline within 7 d at maintenance > [M, known miss · composition · structure] weight vs baseline after 7 d at maintenance (≤ +0.3 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] weight vs baseline after 7 d at maintenance (≤ +0.3 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 11 #8 Sagayama 2014: 3 d at +1 500 kcal/d, fat gain small, weight back to baseline within 7 d at maintenance > [M, known miss · water · mapping] ΔBW after 3 d (0.6-1.2 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · water · mapping] ΔBW after 3 d (0.6-1.2 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 12 #4 Ebbeling 2012: leptin and T3 after 10-15 % weight loss on low-fat, low-glycaemic-index or very-low-carbohydrate maintenance > [M, known miss · hormones · ruling] T3, very-low-carbohydrate / low-fat (≤ 0.9)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · hormones · ruling] T3, very-low-carbohydrate / low-fat (≤ 0.9)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 12 #5 Friedl 2000 / Henning 2014: 8 weeks at a ≈ 1 100 kcal/d deficit, then recovery > [M, known miss · hormones · structure] IGF-1 change at day 56 (−39 … −50 %; engine −30 … −50 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · hormones · structure] IGF-1 change at day 56 (−39 … −50 %; engine −30 … −50 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 12 #5 Friedl 2000 / Henning 2014: 8 weeks at a ≈ 1 100 kcal/d deficit, then recovery > [M, known miss · hormones · structure] testosterone change at day 56 (−70 %; engine −55 … −80 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · hormones · structure] testosterone change at day 56 (−70 %; engine −55 … −80 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 12 #6 Pardue 2017 / Rossow 2013: 8 months of contest preparation, intake 3 860 → 1 724 kcal/d > [M, known miss · hormones · dossier] T3 change at the end of preparation (≥ −45 %; observed 123 → 40 ng/dL)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · hormones · dossier] T3 change at the end of preparation (≥ −45 %; observed 123 → 40 ng/dL)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 13 V1 Hall 2016: rapid extra weight loss and fat-loss slowing after the switch to an isocaloric KD > [M, known miss · fuel · ruling] extra weight loss in the first KD week vs the last baseline week (−1.6 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] extra weight loss in the first KD week vs the last baseline week (−1.6 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 13 V15 Schrauwen 1997: fat balance after an isocaloric switch from a low-fat to a high-fat diet (55 → 25 %E carbohydrate) > [M, known miss · fuel · ruling] fat balance day 2 (+0.75 MJ/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] fat balance day 2 (+0.75 MJ/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 13 V15 Schrauwen 1997: fat balance after an isocaloric switch from a low-fat to a high-fat diet (55 → 25 %E carbohydrate) > [M, known miss · fuel · ruling] fat balance day 3 (+0.55 MJ/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] fat balance day 3 (+0.55 MJ/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 13 V2 Yang & Van Itallie 1976: 800 kcal ketogenic vs mixed diet, 10 d > [M, known miss · fuel · ruling] ketogenic: mean weight loss (467 g/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] ketogenic: mean weight loss (467 g/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 13 V2 Yang & Van Itallie 1976: 800 kcal ketogenic vs mixed diet, 10 d > [M, known miss · scenario · mapping] ketogenic: mean fat loss (163 g/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · scenario · mapping] ketogenic: mean fat loss (163 g/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 13 V2 Yang & Van Itallie 1976: 800 kcal ketogenic vs mixed diet, 10 d > [M, known miss · scenario · mapping] mixed: mean fat loss (165 g/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · scenario · mapping] mixed: mean fat loss (165 g/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 14 V10 Ambikairajah 2019: waist at fixed BMI, woman 45 → 57 y (+2.0 cm) > [M, known miss · composition · structure] waist change over 12 years at maintenance (+2.0 cm)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · composition · structure] waist change over 12 years at maintenance (+2.0 cm)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 15 V1 Karl 2017: fibre 21 → 40 g/d at ≈ 2 550 kcal lowers metabolisable energy by 30-90 kcal/d > [M, known miss · intake · reviewDecision] metabolisable-energy change with +19 g fibre (−30 … −90 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · intake · reviewDecision] metabolisable-energy change with +19 g fibre (−30 … −90 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 15 V10 Suter 1992: 96 g/d ethanol added (25 % of energy) lowers fat oxidation by 400-480 kcal/d and raises EE by 4-7 % > [M, known miss · energy · ruling] 24-h EE change with 96 g ethanol (+4 … +7 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · ruling] 24-h EE change with 96 g ethanol (+4 … +7 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 15 V10 Suter 1992: 96 g/d ethanol added (25 % of energy) lowers fat oxidation by 400-480 kcal/d and raises EE by 4-7 % > [M, known miss · energy · ruling] fat oxidation change with 96 g ethanol (−400 … −480 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · energy · ruling] fat oxidation change with 96 g ethanol (−400 … −480 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 15 V3 Novotny 2012: 84 g/d whole raw almonds, Atwater over-estimates measured ME (−120 to −140 kcal/d) > [M, known miss · intake · reviewDecision] metabolisable-energy change from 84 g whole raw almonds (−120 … −140 kcal/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · intake · reviewDecision] metabolisable-energy change from 84 g whole raw almonds (−120 … −140 kcal/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 15 V8 Yang & Van Itallie 1976: water is 50-70 % of the weight lost on an 800-kcal ketogenic diet > [M, known miss · fuel · ruling] water share of the weight lost, ketogenic arm (50-70 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] water share of the weight lost, ketogenic arm (50-70 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 19 V10 Nindl 2007: 8 weeks at ≈ −1 000 kcal/d in lean soldiers (strength −20 %) > [M, known miss · scenario · mapping] strength change at 8 weeks (−20 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · scenario · mapping] strength change at 8 weeks (−20 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 19 V2 Burke 2017: 3 weeks of intensified training on LCHF vs HCHO (iso-energetic), performance gap ≈ 8 points > [M, known miss · wellbeing · mapping] endurance-capacity gap, HCHO − LCHF (8 ± 3 points)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · wellbeing · mapping] endurance-capacity gap, HCHO − LCHF (8 ± 3 points)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 §4B.3 24 h §4B.3 schedule behaviour: 24-h fast, lean man (Table A1) > [M, known miss · fasting · reviewDecision] 24 h: N on day 1 (13-14 g)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fasting · reviewDecision] 24 h: N on day 1 (13-14 g)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 §4B.3 24 h §4B.3 schedule behaviour: 24-h fast, lean man (Table A1) > [M, known miss · fasting · reviewDecision] 24 h: weight change (-1.6 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fasting · reviewDecision] 24 h: weight change (-1.6 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 §4B.3 504 h §4B.3 schedule behaviour: 21-day fast, lean man (Table A1) > [M, known miss · cardiometabolic · dossier] 21 d: uric acid relative to baseline (×2.2)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] 21 d: uric acid relative to baseline (×2.2)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 §4B.3 weekly 24-h × 12 wk §4B.3: weekly 24-h fast for 12 weeks, lean man > [M, known miss · fasting · reviewDecision] peak daily N of the last fast (13-14 g/d)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fasting · reviewDecision] peak daily N of the last fast (13-14 g/d)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V10 (08, 12) Sävendahl 1999 (7-d fast lipids, IGF-1) and Chan 2003 (72-h fast hormones) > [K] 72-h fast: leptin falls to ≈ 10 % of baseline (−90 %)",
+      "status": "expectedFailure",
+      "reason": "[K] 72-h fast: leptin falls to ≈ 10 % of baseline (−90 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V10 (08, 12) Sävendahl 1999 (7-d fast lipids, IGF-1) and Chan 2003 (72-h fast hormones) > [M, known miss · cardiometabolic · structure] 7-d fast: apoB change (+65 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · structure] 7-d fast: apoB change (+65 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V10 (08, 12) Sävendahl 1999 (7-d fast lipids, IGF-1) and Chan 2003 (72-h fast hormones) > [M, known miss · cardiometabolic · structure] 7-d fast: LDL change (+66 %)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · structure] 7-d fast: LDL change (+66 %)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V2 Pietzner 2024, 7-d water-only fast then 3 d ad libitum (12 adults) > [M, known miss · fasting · mapping] lean change 3 d after refeeding (−0.69 ± 0.49 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fasting · mapping] lean change 3 d after refeeding (−0.69 ± 0.49 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V4 (07 #7, 13 V4) Laurens 2021, 10-d modified fast at 200-250 kcal/d (16 men) > [M, known miss · fasting · dossier] weight change after 10 d (−5.9 ± 0.2 kg)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fasting · dossier] weight change after 10 d (−5.9 ± 0.2 kg)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V7 Ogłodek 2021, 8-d water-only fast (12 men) > [M, known miss · cardiometabolic · dossier] uric acid at day 8 relative to baseline (0.38 → 0.85 mmol/L, ×2.2)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · cardiometabolic · dossier] uric acid at day 8 relative to baseline (0.38 → 0.85 mmol/L, ×2.2)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V8 (07 #3) Browning 2012 / McDougal 2018 / Klein 1993: BHB at 24, 48 and 72 h by sex > [M, known miss · ketones · dossier] women: BHB at 24 h (0.33 mM)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · ketones · dossier] women: BHB at 24 h (0.33 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V8 (07 #3) Browning 2012 / McDougal 2018 / Klein 1993: BHB at 24, 48 and 72 h by sex > [M, known miss · ketones · dossier] women: BHB at 48 h (1.22 mM)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · ketones · dossier] women: BHB at 48 h (1.22 mM)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > 20 V9 (07 #9, 13 V10) Templeman 2021, 3 wk alternate-day fasting vs 75 % daily vs 0:200 > [K] fat loss 0:150 smaller than 75:75 by ≥ 0.5 kg (study 0.74 vs 1.75)",
+      "status": "expectedFailure",
+      "reason": "[K] fat loss 0:150 smaller than 75:75 by ≥ 0.5 kg (study 0.74 vs 1.75)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > O-3 30 %E ±5 % rule vs 04 §4.11 daily form, 30 %E carbohydrate, 7 d > [M, known miss · fuel · ruling] glycogen 7 d after the switch vs habitual steady state, engine − oracle (% of G_ref)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] glycogen 7 d after the switch vs habitual steady state, engine − oracle (% of G_ref)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > O-3 70 %E ±5 % rule vs 04 §4.11 daily form, 70 %E carbohydrate, 7 d > [M, known miss · fuel · ruling] fat oxidation day 7, engine vs oracle",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] fat oxidation day 7, engine vs oracle",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > O-3 70 %E ±5 % rule vs 04 §4.11 daily form, 70 %E carbohydrate, 7 d > [M, known miss · fuel · ruling] glycogen 7 d after the switch vs habitual steady state, engine − oracle (% of G_ref)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · fuel · ruling] glycogen 7 d after the switch vs habitual steady state, engine − oracle (% of G_ref)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > R1 V1 Activity intake archetypes vs the FAO/WHO lifestyle PAL table > [M, known miss · activityIntake · dossier] man, desk, little moving: PAL0 = TDEE0/RMR0 (FAO 1.4-1.5)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · activityIntake · dossier] man, desk, little moving: PAL0 = TDEE0/RMR0 (FAO 1.4-1.5)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > R1 V1 Activity intake archetypes vs the FAO/WHO lifestyle PAL table > [M, known miss · activityIntake · dossier] man, on feet (retail): PAL0 = TDEE0/RMR0 (FAO 1.7-1.9)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · activityIntake · dossier] man, on feet (retail): PAL0 = TDEE0/RMR0 (FAO 1.7-1.9)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > R1 V1 Activity intake archetypes vs the FAO/WHO lifestyle PAL table > [M, known miss · activityIntake · dossier] woman, desk, little moving: PAL0 = TDEE0/RMR0 (FAO 1.4-1.5)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · activityIntake · dossier] woman, desk, little moving: PAL0 = TDEE0/RMR0 (FAO 1.4-1.5)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    },
+    {
+      "file": "src/engine/validation/scenarios.test.ts",
+      "name": "§9.2 dossier targets > R1 V1 Activity intake archetypes vs the FAO/WHO lifestyle PAL table > [M, known miss · activityIntake · dossier] woman, on feet (retail): PAL0 = TDEE0/RMR0 (FAO 1.7-1.9)",
+      "status": "expectedFailure",
+      "reason": "[M, known miss · activityIntake · dossier] woman, on feet (retail): PAL0 = TDEE0/RMR0 (FAO 1.7-1.9)",
+      "source": "src/engine/validation/KNOWN_MISSES.md; src/engine/validation/knownMisses.ts; src/engine/validation/scenarios/",
+      "disposition": "Registered scientific/reference miss; unchanged assertion must continue to fail. Review the model and registry if it starts passing."
+    }
+  ]
+}

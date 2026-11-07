@@ -15,14 +15,30 @@
  * so a habitual exerciser eating a flat habitual intake sits at u ≈ 0 every day instead of alternating deficit/surplus.
  * `endBurnIn` sets every state to its habitual-week equilibrium at u = 0 and latches it as the reference of the relative
  * outputs, so every relative output is exactly 1 at t = 0 (habitual carbohydrate, fat share, sleep and insulin included).
+ *
+ * D2-07 (contracts C4/C6; `HORMONES_OUTPUT_CONTRACT`): every endocrine output is a dimensionless, directional EXPLORATORY
+ * mechanism relative to the person's own baseline — never an expected laboratory value or % change, never a deficiency
+ * diagnosis and never an optimisation target (IGF-1 earns no goal benefit; low IGF-1 is no longevity benefit). Measured
+ * labs stay separate observations with their own units, date and assay context; a dated baseline assay alone does not
+ * authorise a quantitative analyte prediction (`endocrineLabPrediction` abstains until a validated response model and
+ * domain exist). The internal Vermeulen free-T state runs on assumed TT/SHBG/albumin and has no recorder or UI reader;
+ * an absolute free-T value is only ever computed from measured total T and SHBG with a documented albumin
+ * (`conditionalFreeTestosterone`). The menstrual index keeps its legacy logistic as a deprecated research value; the
+ * product reads the qualitative energy/reproductive concern status (`reproductiveConcernStatus`), which needs a full
+ * window of known history (missing history is unknown, never 84 zero-deficit days; A1-056: a calendar-aligned known-day
+ * mask counts only realised days with complete energy and exercise coverage, evicted days leave the count, prescribed days
+ * never count), keeps cycle/contraception/menopause eligibility, and yields to observed cycle changes. The status is
+ * qualitative and unvalidated; the 84-day window is the legacy model's, not a validated personal-risk threshold. Hormones never drive energy expenditure (no duplicate adaptation).
  */
 import { defineModule } from '../../core/moduleKit';
 import { param } from '../../core/paramsRegistry';
 import { decayFactor, relax as relaxI, relax2 as relax2I } from '../../core/math';
 import { ZERO_INTAKE_KCAL } from '../../core/defaults';
 import type { ModuleContext } from '../../types/module';
+import type { DayInput } from '../../types/inputs';
 import type { SignalBus } from '../../types/signals';
 import { MI } from '../../types/metrics';
+import { coverageOf, statusValue, type ChannelCoverage, type StatusValue } from '@/lib/bodyContracts';
 import { HORMONES_PARAMS } from './params';
 import {
   balanceTeeRing,
@@ -61,6 +77,126 @@ const t3fTarget = t3fTargetI;
 const vermeulenFreeT = vermeulenFreeTI;
 
 export { HORMONES_PARAMS } from './params';
+
+/** What the endocrine outputs mean (D2-07, C6): exploratory directional mechanisms relative to the person's baseline. */
+export const HORMONES_OUTPUT_CONTRACT = {
+  /** 3 = concern status reads the calendar-aligned known-day mask (realised, covered days only); derived states recomputed. */
+  version: 3,
+  relativeOutputs: {
+    leptin: { signal: 'leptinRel', status: 'exploratory', unit: 'rel', labPrediction: false },
+    t3: { signal: 't3Rel', status: 'exploratory', unit: 'rel', labPrediction: false },
+    cortisol: { signal: null, status: 'exploratory', unit: 'rel', labPrediction: false },
+    testosterone: { signal: 'testosteroneRel', status: 'exploratory', unit: 'rel', labPrediction: false },
+    igf1: { signal: 'igf1Rel', status: 'exploratory', unit: 'rel', labPrediction: false, goalBenefit: false },
+  },
+  /** Internal Vermeulen state on assumed TT0/SHBG0/albumin: no recorder or UI reader, never shown as absolute free T. */
+  freeTestosterone: { state: 'internalAssumedInputs', absoluteRequires: ['measuredTotalT', 'measuredShbg', 'albumin'] },
+  /** Legacy 84-day logistic: deprecated research value (zero-filled window); the product reads the concern status. */
+  menstrualRisk: { legacyUnit: '%/cycle', status: 'deprecated', probability: false, productOutput: 'reproductiveConcernStatus' },
+  /** Concern status: qualitative, unvalidated; known history = realised days with complete energy and exercise coverage. */
+  reproductiveConcern: { series: 'reproductiveConcern', status: 'qualitative', validated: false, knownHistory: 'realisedCoveredDays', aggregation: 'end' },
+  /** Hormones are biomarkers/appetite drivers only; energy owns adaptive thermogenesis. */
+  drivesEnergyExpenditure: false,
+} as const;
+
+/**
+ * Qualitative energy/reproductive concern status (D2-07): `notApplicable` (men, post-menopause, hormonal contraception,
+ * not menstruating), `review` (an observed cycle change: overrides any model reassurance), `insufficientHistory` (less than
+ * a full window of known energy history: missing history is not reassurance), `concern` (mean energy deficit over the
+ * window at or above the legacy model's midpoint), `unknownEligibility` (no model concern, but cycle status not confirmed,
+ * so nothing reassuring is said) or `noModelConcern` (no model concern; observed symptoms and hard energy rules still apply).
+ */
+export type ReproductiveConcernStatus = 'notApplicable' | 'review' | 'unknownEligibility' | 'insufficientHistory' | 'concern' | 'noModelConcern';
+
+/** Codes of the optional state series (stable; 0 = not applicable). */
+export const REPRO_CONCERN_CODE: Readonly<Record<ReproductiveConcernStatus, number>> = {
+  notApplicable: 0,
+  noModelConcern: 1,
+  insufficientHistory: 2,
+  unknownEligibility: 3,
+  concern: 4,
+  review: 5,
+};
+
+export type ReproductiveEligibility = 'eligible' | 'unknown' | 'notApplicable';
+
+/**
+ * Cycle eligibility of the concern status (D2-07/D8-08): never inferred from sex or menopause alone. Confirmed by the
+ * person's `menstruating: 'yes'` or by explicit cycle tracking; hormonal contraception, post-menopause, men and
+ * `menstruating: 'no'` are not applicable; unspecified sex, peri-menopause and unconfirmed cycles are unknown.
+ */
+export function reproductiveEligibility(p: {
+  readonly sex: 'male' | 'female' | 'unspecified';
+  readonly menopause: 'pre' | 'peri' | 'post';
+  readonly hormonalContraception: boolean;
+  readonly menstruating?: 'yes' | 'no' | 'unknown';
+  readonly cycleTracking?: boolean;
+}): ReproductiveEligibility {
+  if (p.sex === 'male' || p.menopause === 'post' || p.hormonalContraception || p.menstruating === 'no') return 'notApplicable';
+  if (p.sex === 'unspecified' || p.menopause === 'peri') return 'unknown';
+  if (p.menstruating === 'yes' || (p.menstruating === undefined && p.cycleTracking === true)) return 'eligible';
+  return 'unknown';
+}
+
+export interface ReproductiveConcernInput {
+  readonly eligibility: ReproductiveEligibility;
+  /** Observed recent cycle change as told (absent = not asked). */
+  readonly recentChange?: 'none' | 'missedPeriods' | 'newIrregularity' | 'unknown';
+  /** Days of known energy history in the window and the window length, d. */
+  readonly knownDays: number;
+  readonly windowDays: number;
+  /** Mean % energy deficit over the known days. */
+  readonly meanDeficitPct: number;
+  /** Concern point on the mean deficit, % (the legacy logistic's midpoint parameter `hormones.lpdMidPct`; no new cutoff). */
+  readonly concernAtPct: number;
+}
+
+export function reproductiveConcernStatus(i: ReproductiveConcernInput): ReproductiveConcernStatus {
+  if (i.eligibility === 'notApplicable') return 'notApplicable';
+  if (i.recentChange === 'missedPeriods' || i.recentChange === 'newIrregularity') return 'review';
+  if (!(i.knownDays >= i.windowDays)) return 'insufficientHistory';
+  if (i.meanDeficitPct >= i.concernAtPct) return 'concern';
+  return i.eligibility === 'eligible' ? 'noModelConcern' : 'unknownEligibility';
+}
+
+/** Albumin molar mass used by Vermeulen 1999 (43 g/L ↔ 6.2·10⁻⁴ mol/L as in `hormones.albuminMolL`), g/mol. */
+export const ALBUMIN_G_PER_MOL = 69_000;
+
+export interface FreeTestosteroneInput {
+  /** Measured total testosterone, nmol/L (absent = not measured). */
+  readonly totalTNmolL?: number;
+  /** Measured SHBG, nmol/L (absent = not measured). */
+  readonly shbgNmolL?: number;
+  /** Albumin, g/L, measured or an explicitly documented assumption (absent = abstain). */
+  readonly albumin?: { readonly gL: number; readonly source: 'measured' | 'documentedAssumption' };
+  /** Association constants, L/mol (default: the registry's Vermeulen 1999 values). */
+  readonly kAlbLMol?: number;
+  readonly kShbgLMol?: number;
+}
+
+/**
+ * Conditional absolute free testosterone (Vermeulen equilibrium, D2-07), pmol/L. Abstains (status `unavailable`) unless
+ * total T and SHBG are measured and albumin is measured or an explicitly documented assumption; units are converted to
+ * mol/L internally (nmol/L × 10⁻⁹, albumin g/L ÷ molar mass). A calculation, not a measurement: status `estimated`.
+ */
+export function conditionalFreeTestosterone(i: FreeTestosteroneInput): StatusValue {
+  const tt = i.totalTNmolL;
+  const shbg = i.shbgNmolL;
+  if (tt === undefined || !Number.isFinite(tt) || tt <= 0) return statusValue({ status: 'unavailable', unit: 'pmol/L', reasonCode: 'totalTNotMeasured' });
+  if (shbg === undefined || !Number.isFinite(shbg) || shbg < 0) return statusValue({ status: 'unavailable', unit: 'pmol/L', reasonCode: 'shbgNotMeasured' });
+  if (!i.albumin || !Number.isFinite(i.albumin.gL) || i.albumin.gL <= 0) return statusValue({ status: 'unavailable', unit: 'pmol/L', reasonCode: 'albuminUndocumented' });
+  const ft = vermeulenFreeT(tt * 1e-9, shbg * 1e-9, i.albumin.gL / ALBUMIN_G_PER_MOL, i.kAlbLMol ?? 3.6e4, i.kShbgLMol ?? 1.0e9);
+  return statusValue({ status: 'estimated', value: ft * 1e12, unit: 'pmol/L', reasonCode: i.albumin.source === 'measured' ? 'conditionalVermeulen' : 'conditionalVermeulenAssumedAlbumin' });
+}
+
+/**
+ * Quantitative laboratory prediction of an endocrine analyte (D2-07): abstains. A dated baseline assay is necessary but
+ * not sufficient; no validated response model, operator and population domain exists for these mechanisms, so the
+ * relative model states are never converted into expected concentrations or % changes.
+ */
+export function endocrineLabPrediction(_analyte: 'leptin' | 't3' | 'cortisol' | 'testosterone' | 'igf1', _baseline?: { value: number; unit: string; measuredOn?: string }): StatusValue {
+  return statusValue({ status: 'unavailable', unit: 'lab', reasonCode: 'noValidatedResponseModel' });
+}
 
 /** Days in the IGF-1 protein-intake window (08 §4.12 "P7 = 7-day mean protein g/kg/d on eating days"). */
 const P7_DAYS = 7;
@@ -127,13 +263,31 @@ export interface HormonesState {
   /** Free testosterone (Vermeulen), pmol/L. */
   freeTPmolL: number;
   // ---- menstrual-disturbance risk (19 §4.9)
-  /** P_LPD per cycle 0..1 (NaN when not applicable: men, unspecified sex, post/peri-menopause, hormonal contraception). */
+  /**
+   * Legacy P_LPD 0..1 (NaN when not applicable: men, unspecified sex, post/peri-menopause, hormonal contraception).
+   * D2-07: deprecated research value (zero-filled 84-day window), not a personal per-cycle probability.
+   */
   reproRisk: number;
-  /** Ring of daily % deficit max(0, −100·u), length 84 (recorded days only; pre-simulation days = 0 %). */
+  /** Qualitative concern status of the last day (`ReproductiveConcernStatus` code, `REPRO_CONCERN_CODE`). */
+  concernCode: number;
+  /**
+   * Ring of daily % deficit max(0, −100·u), length 84, one calendar slot per elapsed simulated day (pre-simulation slots
+   * = 0 %). Feeds the legacy zero-filled logistic; every day stays in the physiology whatever its coverage.
+   */
   menRing: Float64Array;
   menIdx: number;
-  /** Sum of `menRing`, % · d. */
+  /** Sum of `menRing`, % · d (legacy logistic). */
   menSum: number;
+  /**
+   * Known-day mask aligned with `menRing` (D2-07): 1 only for an elapsed REALISED day whose energy-intake and intentional-
+   * exercise coverage are complete/confirmedZero with finite inputs; unknown, partial, as-planned, burn-in and prescribed
+   * (future) days are 0. Selects the concern interpretation only, never the exposure.
+   */
+  menKnown: Uint8Array;
+  /** Known days in the current window = sum of `menKnown` (new bit added, evicted bit subtracted; never saturates), d. */
+  menKnownN: number;
+  /** Sum of `menRing` over the known slots, % · d. */
+  menKnownSum: number;
   // ---- IGF-1 (08 §4.12)
   /** IGF-1 state (hourly, 08's scale) and its value relative to the habitual level at t = 0, 1. */
   igfS: number;
@@ -175,6 +329,13 @@ export interface HormonesK {
   // sex / eligibility
   male: boolean;
   lpdEligible: boolean;
+  /** Inputs of the concern status that do not change during a run (D2-07). */
+  concernBase: Pick<ReproductiveConcernInput, 'eligibility' | 'recentChange'>;
+  /**
+   * End (exclusive) of the schedule's realised prefix, day index (C2 `realised.throughDay`); NaN = the schedule carries no
+   * prefix (then only a day with its own channel coverage, which realised days alone carry, can be known).
+   */
+  realisedThroughDay: number;
   /** Cortisol metric recorded (the cortisol state has no reader; skipped otherwise, MODEL_SPEC §0.3). */
   recCort: boolean;
   /** Display-only states without a metric (rT3, SHBG, free T): computed outside planner mode. */
@@ -352,6 +513,17 @@ function prepareHormones(ctx: ModuleContext): HormonesK {
   return {
     male: sx.male,
     lpdEligible: sx.female && prof.menopause === 'pre' && !onHormonalContraception(ctx),
+    realisedThroughDay: ctx.schedule.realised?.throughDay ?? Number.NaN,
+    concernBase: {
+      eligibility: reproductiveEligibility({
+        sex: sx.unspecified ? 'unspecified' : sx.male ? 'male' : 'female',
+        menopause: prof.menopause,
+        hormonalContraception: onHormonalContraception(ctx),
+        ...(prof.cycle.menstruating !== undefined ? { menstruating: prof.cycle.menstruating } : {}),
+        cycleTracking: prof.cycle.tracking,
+      }),
+      ...(prof.cycle.recentChange !== undefined ? { recentChange: prof.cycle.recentChange } : {}),
+    },
     // test rigs may pass an empty `seriesEnabled` (undefined entries) → treated as recorded
     recCort: ctx.seriesEnabled[MI.cortisol] !== 0,
     extras: ctx.mode !== 'planner',
@@ -487,9 +659,13 @@ function initHormones(k: HormonesK, _ctx: ModuleContext, bus: SignalBus): Hormon
     shbg: 1,
     freeTPmolL: k.male ? k.freeT0PmolL : Number.NaN,
     reproRisk: Number.NaN,
+    concernCode: REPRO_CONCERN_CODE.notApplicable,
     menRing: new Float64Array(k.lpdWindow),
     menIdx: 0,
     menSum: 0,
+    menKnown: new Uint8Array(k.lpdWindow),
+    menKnownN: 0,
+    menKnownSum: 0,
     igfS: 1,
     igf1Rel: 1,
     igfProt: 1,
@@ -517,8 +693,30 @@ function initHormones(k: HormonesK, _ctx: ModuleContext, bus: SignalBus): Hormon
     insMin: Number.POSITIVE_INFINITY,
   };
   if (k.lpdEligible) s.reproRisk = pLpd(0, k.lpdMid, k.lpdSlope, k.lpdLo, k.lpdHi);
+  s.concernCode = REPRO_CONCERN_CODE[concernOf(s, k)];
   writeSignals(s, k, bus);
   return s;
+}
+
+/** Concern status of the current calendar window (D2-07): known-day count and the mean deficit over the known days. */
+function concernOf(s: HormonesState, k: HormonesK): ReproductiveConcernStatus {
+  const n = s.menKnownN > 0 ? s.menKnownN : 0;
+  return reproductiveConcernStatus({ ...k.concernBase, knownDays: n, windowDays: k.lpdWindow, meanDeficitPct: n > 0 ? s.menKnownSum / n : 0, concernAtPct: k.lpdMid });
+}
+
+const KNOWN_COVERAGE: ReadonlySet<ChannelCoverage> = new Set<ChannelCoverage>(['complete', 'confirmedZero']);
+
+/**
+ * Whether an elapsed day counts as KNOWN energy history for the concern status (D2-07): it lies in the realised prefix
+ * (when the schedule declares one), its energy-intake and intentional-exercise channels are complete or confirmed zero, and
+ * its model inputs are finite. A prescribed day carries no coverage (C1), so a forward plan is never known history; a
+ * fully logged channel is not discarded merely because another driver is a daily scenario (no blanket resolution test).
+ */
+export function isKnownConcernDay(day: Pick<DayInput, 'coverage' | 'energyKcal'>, dayIndex: number, realisedThroughDay: number, u: number): boolean {
+  if (dayIndex < 0) return false;
+  if (realisedThroughDay === realisedThroughDay && !(dayIndex < realisedThroughDay)) return false;
+  if (!Number.isFinite(day.energyKcal) || !Number.isFinite(u)) return false;
+  return KNOWN_COVERAGE.has(coverageOf(day.coverage, 'energy')) && KNOWN_COVERAGE.has(coverageOf(day.coverage, 'exercise'));
 }
 
 function writeSignals(s: HormonesState, k: HormonesK, bus: SignalBus): void {
@@ -539,7 +737,9 @@ export const hormonesModule = defineModule<HormonesState, HormonesK>({
   params: HORMONES_PARAMS,
   reads: ['tdeeEstKcalD', 'fatMassKg', 'ffmActKg', 'insulinRel', 'hoursSinceMealH', 'testoSleepMult', 'sleepDebtFastH'],
   writes: ['leptinRel', 'leptinSuffFM', 'leptinSuff0', 't3Rel', 'testosteroneRel', 'reproRiskFemale', 'igf1Rel'],
-  records: ['leptin', 't3', 'cortisol', 'testosterone', 'menstrualRisk', 'igf1'],
+  // `reproductiveConcern` (daily categorical state, `REPRO_CONCERN_CODE`, aggregation end — never averaged, never a
+  // probability) is a typed catalogue record (D2-07, C7); `menstrualRisk` stays the deprecated legacy research value.
+  records: ['leptin', 't3', 'cortisol', 'testosterone', 'menstrualRisk', 'igf1', 'reproductiveConcern'],
   prepare: prepareHormones,
   init: initHormones,
 
@@ -752,18 +952,32 @@ export const hormonesModule = defineModule<HormonesState, HormonesK>({
     // ---- IGF-1 relative to the habitual level (08 §4.12 state on its own scale)
     s.igf1Rel = s.igfS / s.igfRef;
 
-    // ---- menstrual-disturbance risk (19 §4.9, R-MENS): mean % deficit (incl. exercise) over the last 84 days
-    if (k.lpdEligible) {
+    // ---- menstrual-disturbance index (19 §4.9, R-MENS): mean % deficit (incl. exercise) over the last 84 days. The
+    // legacy logistic (zero-filled window) stays a deprecated research value; the concern status reads the calendar-
+    // aligned known-day mask (D2-07: days before the run, unknown/partial/as-planned days and prescribed days are not
+    // known history). Every elapsed day advances the slot; the evicted slot's known bit and deficit leave the counts.
+    if (k.lpdEligible || k.concernBase.eligibility !== 'notApplicable') {
       if (!burnIn) {
         const defPct = u < 0 ? -100 * u : 0;
         const i = s.menIdx;
-        s.menSum += defPct - s.menRing[i]!;
+        const oldDef = s.menRing[i]!;
+        const oldKnown = s.menKnown[i]!;
+        const known = isKnownConcernDay(day, clock.day, k.realisedThroughDay, u) ? 1 : 0;
+        s.menSum += defPct - oldDef;
         s.menRing[i] = defPct;
+        s.menKnownN += known - oldKnown;
+        s.menKnownSum += (known === 1 ? defPct : 0) - (oldKnown === 1 ? oldDef : 0);
+        s.menKnown[i] = known;
         s.menIdx = i + 1 === k.lpdWindow ? 0 : i + 1;
         if (s.menSum < 0) s.menSum = 0;
+        if (s.menKnownN <= 0) {
+          s.menKnownN = 0;
+          s.menKnownSum = 0;
+        } else if (s.menKnownSum < 0) s.menKnownSum = 0;
       }
-      s.reproRisk = pLpd(s.menSum / k.lpdWindow, k.lpdMid, k.lpdSlope, k.lpdLo, k.lpdHi);
+      if (k.lpdEligible) s.reproRisk = pLpd(s.menSum / k.lpdWindow, k.lpdMid, k.lpdSlope, k.lpdLo, k.lpdHi);
     }
+    s.concernCode = REPRO_CONCERN_CODE[concernOf(s, k)];
 
     writeSignals(s, k, bus);
   },
@@ -775,5 +989,6 @@ export const hormonesModule = defineModule<HormonesState, HormonesK>({
     out[MI.testosterone] = k.male ? s.tt : Number.NaN;
     out[MI.menstrualRisk] = k.lpdEligible ? 100 * s.reproRisk : Number.NaN;
     out[MI.igf1] = s.igf1Rel;
+    out[MI.reproductiveConcern] = s.concernCode;
   },
 });

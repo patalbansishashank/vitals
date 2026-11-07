@@ -1,27 +1,12 @@
 /**
- * Settings › AI provider (design/screens/settings-sync-ai.md §5): provider, key, capability check, model, Coach
+ * Settings › Coach (design/screens/settings-sync-ai.md §5): provider, key, capability check, model, Coach
  * behaviour and spending cap. Every control is UI-only (`ai.configure` has surfaces ['ui']); nothing here touches safety
  * settings. The key goes straight from an uncontrolled password field into the KeyVault: it is never held in React
  * state, never logged, and never part of the config (only its last four characters are shown).
  */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Eye, EyeOff, ExternalLink, Trash2 } from 'lucide-react';
-import {
-  Chip,
-  Engraved,
-  Field,
-  Icon,
-  InlineWarning,
-  Key,
-  KeyBank,
-  Notice,
-  NumberField,
-  RadioGroup,
-  Select,
-  Switch,
-  TextInput,
-  type RadioOption,
-} from '@/components';
+import { Check, ChevronRight, Eye, EyeOff, ExternalLink, Trash2, X } from 'lucide-react';
+import { Chip, Field, Icon, InlineWarning, Key, KeyBank, MonoMeta, NumberField, RadioGroup, Select, Sheet, Stack, Switch, TextInput, formatNumber, useMediaQuery, type RadioOption } from '@/components';
 import { degradeFor, getPreset, listPresets, makeCustomPreset, ProviderError, type AdapterKind, type ModelInfo, type Preset } from '@/ai';
 import { dispatch } from '@/commands';
 import { sendCommand } from '@/features/lib/sendCommand';
@@ -29,11 +14,12 @@ import { onAiConfigChange, onAiUsageChange, readAiConfig, type AiProviderConfig,
 import { setCoachAvailable } from '@/features/living/coach/availability';
 import { registerDatabase } from '@/state/persistence';
 import { SettingsSection } from '../sections';
-import { SettingRow, useSavedFlash } from '../SettingRow';
+import { SettingRow, SettingsDisclosure, SettingsGroup, SettingsItem, SettingInfo, useSavedFlash } from '../SettingRow';
 import { AI_COPY, BADGE, presetNote, probeErrorText, TIER_WORD, usd } from './copy';
 import { defaultAiDeps, keyBaseUrl, listModelsFor, resolveBaseUrl, runProbe, type AiSectionDeps, type ProbeOutcome } from './services';
 import { NeedsServer, SERVER_PRESETS, serverErrorText, ServerKeyBlock, ServerPresetLabel, ServerUnreachableLine, SiwcBlock, useServerAi } from './ServerProviders';
 import { useServerPairing } from '../server/hooks';
+import { SpendTrack } from './SpendTrack';
 
 // Erase everything also forgets saved keys and probe results (database `vitals-ai`).
 registerDatabase('vitals-ai');
@@ -43,10 +29,13 @@ const OTHER = '__other';
 const LOCAL_PRESETS = new Set(['ollama', 'lmstudio', 'vllm']);
 /** `openai-chat` is the same provider as `openai` through another API; offered as the custom endpoint's style instead. */
 const HIDDEN_PRESETS = new Set(['openai-chat']);
+/** Below 768 px the provider list opens in a sheet instead of in place (r068 V5). */
+const PHONE_ONLY = '(max-width: 47.99rem)';
 
 const API_STYLES: ReadonlyArray<{ value: AdapterKind; label: string }> = [
-  { value: 'openai-chat', label: 'OpenAI chat' },
-  { value: 'openai-responses', label: 'OpenAI responses' },
+  // (r068 final H1) short labels so three equal segments fit a phone row; the help line names the APIs in full
+  { value: 'openai-chat', label: 'Chat' },
+  { value: 'openai-responses', label: 'Responses' },
   { value: 'anthropic-messages', label: 'Anthropic' },
 ];
 
@@ -86,6 +75,9 @@ export function AiSection({ deps }: { deps?: AiSectionDeps }) {
   const [keyFor, setKeyFor] = useState<string | null>(null);
   const [probe, setProbe] = useState<ProbeState>({ state: 'idle' });
   const [status, setStatus] = useState<{ tone: 'ok' | 'danger'; text: string } | null>(null);
+  // phones pick the provider in a sheet (a phone-only query: matchMedia-less tests keep the in-place list)
+  const phone = useMediaQuery(PHONE_ONLY);
+  const [picking, setPicking] = useState(false);
 
   // A config loaded or changed elsewhere (boot, another tab, undo) resets the draft (state adjusted during render).
   const configJson = JSON.stringify(config);
@@ -200,69 +192,138 @@ export function AiSection({ deps }: { deps?: AiSectionDeps }) {
     flash();
   };
 
-  const providerOptions = useMemo<RadioOption[]>(() => {
-    const opts: RadioOption[] = listPresets()
-      .filter((p) => !p.custom && !HIDDEN_PRESETS.has(p.id) && p.via === 'browser')
-      .map((p) => ({ value: p.id, label: p.label, help: presetNote(p), disabled: false }));
-    opts.push({ value: CUSTOM, label: AI_COPY.customLabel, help: AI_COPY.customNote });
-    return opts;
+  // a plain list of names in three groups (hosted · on this computer · other); a note only where it says what the
+  // provider needs (local, custom, through the server)
+  const providerGroups = useMemo<ReadonlyArray<{ id: string; label: string; options: RadioOption[] }>>(() => {
+    const browser = listPresets().filter((p) => !p.custom && !HIDDEN_PRESETS.has(p.id) && p.via === 'browser');
+    // under "On this computer" a name needs no "(this computer)" of its own
+    const option = (p: Preset): RadioOption => ({ value: p.id, label: p.label.replace(/ \(this computer\)$/, ''), help: presetNote(p) });
+    return [
+      { id: 'hosted', label: AI_COPY.hostedGroup, options: browser.filter((p) => !LOCAL_PRESETS.has(p.id)).map(option) },
+      { id: 'local', label: AI_COPY.localGroup, options: browser.filter((p) => LOCAL_PRESETS.has(p.id)).map(option) },
+      { id: 'other', label: AI_COPY.otherGroup, options: [{ value: CUSTOM, label: AI_COPY.customLabel, help: AI_COPY.customNote }] },
+    ];
   }, []);
-  // the providers a web page cannot call, grouped under "via your server" with their state (§13.2)
+  // the providers a web page cannot call, grouped under "Through your server" with their state (§13.2): listed once this
+  // device is paired with the server (or while one of them is still the chosen provider)
   const serverOptions: RadioOption[] = listPresets()
     .filter((p) => SERVER_PRESETS.has(p.id))
     .map((p) => ({ value: p.id, label: <ServerPresetLabel preset={p} paired={serverPaired} state={serverAi} />, help: presetNote(p) }));
+  const showServerOptions = serverPaired || SERVER_PRESETS.has(presetId);
   const serverBlocked = preset?.via === 'server' && !serverPaired;
+  const chosenName = preset ? (presetId === CUSTOM ? AI_COPY.customLabel : preset.label) : undefined;
+  const providerList = (onChoose: (id: string) => void) => (
+    <Stack gap="card">
+      {providerGroups.map((g) => (
+        <RadioGroup
+          key={g.id}
+          className="settings-providers"
+          name="ai-provider"
+          label={<span className="lm-group-label block">{g.label}</span>}
+          value={presetId || undefined}
+          onChange={onChoose}
+          options={g.options}
+        />
+      ))}
+      {showServerOptions ? (
+        <RadioGroup
+          className="settings-providers"
+          name="ai-provider"
+          label={<span className="lm-group-label block">{AI_COPY.viaServer}</span>}
+          value={presetId || undefined}
+          onChange={onChoose}
+          options={serverOptions}
+        />
+      ) : null}
+    </Stack>
+  );
 
   return (
     <SettingsSection id="coach" title={AI_COPY.title} saved={saved}>
-      <div className="grid gap-4">
-        <div className="grid gap-1">
-          <p className="m-0 text-sm leading-[1.5] text-ink" role="status">
-            {config ? `${getPreset(config.presetId)?.label ?? AI_COPY.customLabel} · ${config.model}` : AI_COPY.none}
-          </p>
-          <p className="m-0 text-xs leading-[1.45] text-ink-2">{AI_COPY.uiOnly}</p>
-        </div>
-
-        <details className="group border-t border-line pt-4" open={!config}>
-          <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
-            {AI_COPY.providerLabel}: {preset ? (presetId === CUSTOM ? AI_COPY.customLabel : preset.label) : '—'}
-          </summary>
-          <div className="mt-3">
-            <RadioGroup name="ai-provider" label={<span className="lm-sr">{AI_COPY.providerLabel}</span>} value={presetId || undefined} onChange={choosePreset} options={providerOptions} />
-            <div className="mt-4 border-t border-line pt-3">
-              <RadioGroup name="ai-provider" label={<Engraved>{AI_COPY.viaServer}</Engraved>} value={presetId || undefined} onChange={choosePreset} options={serverOptions} />
-            </div>
-          </div>
-        </details>
-
+      <SettingsGroup>
+        {/* a status line, not a control (r068 S28): a dot that lights when the Coach is on, and what to do when it is off */}
+        <SettingRow label={AI_COPY.coachLabel} help={config ? undefined : AI_COPY.offHelp} info={preset ? { title: 'What the Coach sends', body: AI_COPY.sent.replace('{provider}', preset.label) } : undefined}>
+          {() => (
+            <span className="settings-status" data-on={config ? '' : undefined} role="status">
+              <span className="settings-status__dot" aria-hidden="true" />
+              {config ? `${getPreset(config.presetId)?.label ?? AI_COPY.customLabel} · ${config.model}` : AI_COPY.none}
+            </span>
+          )}
+        </SettingRow>
+        {phone ? (
+          // phones (r068 V5): one row naming the provider; the grouped list opens in a sheet and a choice closes it
+          <>
+            <button type="button" className="settings-row settings-row--button" aria-haspopup="dialog" onClick={() => setPicking(true)}>
+              <span className="settings-row__title">{AI_COPY.providerLabel}</span>
+              <span className="settings-row__value">{chosenName ?? AI_COPY.choose}</span>
+              <Icon icon={ChevronRight} size={18} className="settings-row__chev" />
+            </button>
+            <Sheet open={picking} onClose={() => setPicking(false)} title={AI_COPY.providerLabel}>
+              <div className="settings-sheet">
+                {providerList((id) => {
+                  choosePreset(id);
+                  setPicking(false);
+                })}
+              </div>
+            </Sheet>
+          </>
+        ) : (
+          <SettingsDisclosure title={AI_COPY.providerLabel} value={chosenName} defaultOpen={!config}>
+            {providerList(choosePreset)}
+          </SettingsDisclosure>
+        )}
         {presetId === CUSTOM || LOCAL_PRESETS.has(presetId) ? (
-          <div className="grid gap-3">
+          <SettingsItem>
             <Field label={AI_COPY.baseUrlLabel} help={AI_COPY.baseUrlHelp} error={presetId === CUSTOM && baseUrl && !preset ? AI_COPY.baseUrlHelp : undefined}>
               <TextInput type="url" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value.trim())} />
             </Field>
-            {presetId === CUSTOM ? (
-              <SettingRow label={AI_COPY.styleLabel}>
-                {({ labelId }) => <KeyBank labelledBy={labelId} value={adapter} options={API_STYLES} onChange={setAdapter} />}
-              </SettingRow>
-            ) : null}
-          </div>
+          </SettingsItem>
         ) : null}
-
+        {presetId === CUSTOM ? (
+          <SettingRow label={AI_COPY.styleLabel} help={AI_COPY.styleHelp} wide>
+            {({ labelId }) => <KeyBank labelledBy={labelId} value={adapter} options={API_STYLES} onChange={setAdapter} />}
+          </SettingRow>
+        ) : null}
         {preset && serverBlocked ? <NeedsServer /> : null}
+        {preset && !serverBlocked && preset.via === 'server' ? <ServerUnreachableLine preset={preset} /> : null}
         {preset && !serverBlocked ? (
-          <>
-            {preset.via === 'server' ? <ServerUnreachableLine preset={preset} /> : null}
-            {preset.id === 'siwc' ? <SiwcBlock state={serverAi} /> : preset.via === 'server' ? <ServerKeyBlock preset={preset} state={serverAi} /> : null}
-            {preset.via === 'browser' ? <KeyBlock key={`${presetId}|${keyUrl}`} preset={preset} presetId={presetId} keyUrl={keyUrl} vault={d.vault} onChange={(has) => setKeyFor(has ? `${presetId}|${keyUrl}` : null)} /> : null}
-            <ModelBlock key={presetId} preset={preset} model={model} setModel={setModel} visionModel={visionModel} setVisionModel={setVisionModel} loadModels={async (signal) => listModelsFor({ preset, baseUrl: effectiveBase, apiKey: needsKey(preset) ? ((await d.vault.get(presetId, keyBaseUrl(preset, effectiveBase))) ?? '') : '', deps: d, signal })} />
-            <ProbeBlock preset={preset} probe={probe} current={probeKey} onTest={() => void testConnection()} />
-          </>
+          preset.id === 'siwc' ? (
+            <SiwcBlock state={serverAi} />
+          ) : preset.via === 'server' ? (
+            <ServerKeyBlock preset={preset} state={serverAi} />
+          ) : (
+            <KeyBlock key={`${presetId}|${keyUrl}`} preset={preset} presetId={presetId} keyUrl={keyUrl} vault={d.vault} onChange={(has) => setKeyFor(has ? `${presetId}|${keyUrl}` : null)} />
+          )
         ) : null}
+        {preset && !serverBlocked ? (
+          <ModelBlock key={presetId} preset={preset} model={model} setModel={setModel} visionModel={visionModel} setVisionModel={setVisionModel} loadModels={async (signal) => listModelsFor({ preset, baseUrl: effectiveBase, apiKey: needsKey(preset) ? ((await d.vault.get(presetId, keyBaseUrl(preset, effectiveBase))) ?? '') : '', deps: d, signal })} />
+        ) : null}
+        {preset && !serverBlocked ? <ProbeBlock preset={preset} probe={probe} current={probeKey} onTest={() => void testConnection()} /> : null}
+        {presetId || config || status ? (
+          <SettingsItem>
+            {status ? (
+              <InlineWarning severity={status.tone === 'ok' ? 'ok' : 'danger'} alert={status.tone === 'danger'}>
+                {status.text}
+              </InlineWarning>
+            ) : null}
+            {presetId || config ? (
+              <div className="settings-keys">
+                <Key variant="solid" onClick={() => void save()} disabled={!presetId} disabledReason={serverBlocked ? AI_COPY.needsServerShort : undefined}>
+                  {AI_COPY.save}
+                </Key>
+                {config ? (
+                  <Key variant="danger" icon={Trash2} onClick={() => void remove()}>
+                    {AI_COPY.remove}
+                  </Key>
+                ) : null}
+              </div>
+            ) : null}
+          </SettingsItem>
+        ) : null}
+      </SettingsGroup>
 
-        <div className="grid gap-0 border-t border-line pt-4">
-          <Engraved as="p" className="m-0 mb-2">
-            {AI_COPY.behaviourHeading}
-          </Engraved>
+      {config ? (
+        <SettingsGroup label={AI_COPY.behaviourHeading}>
           <SettingRow label={AI_COPY.smallEditsLabel} help={AI_COPY.smallEditsHelp}>
             {({ labelId, helpId }) => (
               <Switch
@@ -307,27 +368,8 @@ export function AiSection({ deps }: { deps?: AiSectionDeps }) {
             )}
           </SettingRow>
           <UsageBlock cap={cap} stopAtCap={stopAtCap} />
-        </div>
-
-        {preset ? <p className="m-0 text-xs leading-[1.45] text-ink-2">{AI_COPY.sent.replace('{provider}', preset.label)}</p> : null}
-
-        {status ? (
-          <InlineWarning severity={status.tone === 'ok' ? 'ok' : 'danger'} alert={status.tone === 'danger'}>
-            {status.text}
-          </InlineWarning>
-        ) : null}
-
-        <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-          <Key variant="solid" onClick={() => void save()} disabled={!presetId} disabledReason={serverBlocked ? AI_COPY.needsServerShort : undefined}>
-            {AI_COPY.save}
-          </Key>
-          {config ? (
-            <Key variant="danger" icon={Trash2} onClick={() => void remove()}>
-              {AI_COPY.remove}
-            </Key>
-          ) : null}
-        </div>
-      </div>
+        </SettingsGroup>
+      ) : null}
     </SettingsSection>
   );
 }
@@ -366,7 +408,11 @@ function KeyBlock({ preset, presetId, keyUrl, vault, onChange }: { preset: Prese
   }, [preset, presetId, keyUrl, vault]);
 
   if (!needsKey(preset)) {
-    return <p className="m-0 border-t border-line pt-4 text-xs text-ink-2">{AI_COPY.noKeyNeeded}</p>;
+    return (
+      <SettingsItem>
+        <p className="settings-note">{AI_COPY.noKeyNeeded}</p>
+      </SettingsItem>
+    );
   }
 
   const saveKey = async () => {
@@ -394,7 +440,7 @@ function KeyBlock({ preset, presetId, keyUrl, vault, onChange }: { preset: Prese
   };
 
   return (
-    <div className="grid gap-2 border-t border-line pt-4">
+    <SettingsItem>
       <Field label={AI_COPY.keyLabel} help={AI_COPY.keyHelp(preset.label)} error={error}>
         <TextInput
           ref={input}
@@ -409,11 +455,11 @@ function KeyBlock({ preset, presetId, keyUrl, vault, onChange }: { preset: Prese
           }}
         />
       </Field>
-      <div className="flex flex-wrap items-center gap-2">
-        <Key size="sm" variant="solid" loading={busy} onClick={() => void saveKey()}>
+      <div className="settings-keys">
+        <Key size="sm" variant="action" loading={busy} onClick={() => void saveKey()}>
           {AI_COPY.saveKey}
         </Key>
-        <Key size="sm" variant="quiet" icon={shown ? EyeOff : Eye} onClick={() => setShown((s) => !s)} aria-pressed={shown}>
+        <Key size="sm" variant="outlined" icon={shown ? EyeOff : Eye} onClick={() => setShown((s) => !s)} aria-pressed={shown}>
           {shown ? AI_COPY.hide : AI_COPY.show}
         </Key>
         {last4 ? (
@@ -427,10 +473,10 @@ function KeyBlock({ preset, presetId, keyUrl, vault, onChange }: { preset: Prese
           </a>
         ) : null}
       </div>
-      <p className="m-0 text-xs text-ink-2" role="status">
+      <p className="settings-note" role="status">
         {last4 ? AI_COPY.keySaved(last4) : (note ?? AI_COPY.keyNone)}
       </p>
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -459,7 +505,7 @@ function ModelBlock({ preset, model, setModel, visionModel, setVisionModel, load
     }
   };
   return (
-    <div className="grid gap-3 border-t border-line pt-4">
+    <SettingsItem>
       {listed.length ? (
         <Field label={AI_COPY.modelLabel} help={AI_COPY.modelHelp}>
           <Select
@@ -478,13 +524,13 @@ function ModelBlock({ preset, model, setModel, visionModel, setVisionModel, load
           <TextInput autoComplete="off" autoCapitalize="none" spellCheck={false} value={model} onChange={(e) => setModel(e.target.value)} />
         </Field>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <Key variant="quiet" onClick={() => void load()} disabled={loadState.state === 'loading'}>
+      <div className="settings-keys">
+        <Key variant="outlined" onClick={() => void load()} disabled={loadState.state === 'loading'}>
           {loadState.state === 'loading' ? AI_COPY.loadingModels : AI_COPY.loadModels}
         </Key>
-        {loadState.state === 'done' ? <p className="m-0 text-xs text-ink-2">{AI_COPY.modelsLoaded(loadState.n)}</p> : null}
+        {loadState.state === 'done' ? <p className="settings-note">{AI_COPY.modelsLoaded(loadState.n)}</p> : null}
         {loadState.state === 'error' ? (
-          <p className="m-0 text-xs text-ink-2" role="status">
+          <p className="settings-note" role="status">
             {loadState.message}
           </p>
         ) : null}
@@ -492,7 +538,7 @@ function ModelBlock({ preset, model, setModel, visionModel, setVisionModel, load
       <Field label={AI_COPY.visionLabel} help={AI_COPY.visionHelp}>
         <TextInput autoComplete="off" autoCapitalize="none" spellCheck={false} value={visionModel} onChange={(e) => setVisionModel(e.target.value)} />
       </Field>
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -501,11 +547,8 @@ const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(
 function ProbeBlock({ preset, probe, current, onTest }: { preset: Preset; probe: ProbeState; current: string; onTest: () => void }) {
   const done = probe.state === 'done' && probe.for === current ? probe.outcome : null;
   return (
-    <div className="grid gap-2 border-t border-line pt-4">
-      <Engraved as="p" className="m-0">
-        {AI_COPY.checkHeading}
-      </Engraved>
-      <p className="m-0 text-xs leading-[1.45] text-ink-2">{AI_COPY.checkConsent(preset.label)}</p>
+    <SettingsItem>
+      <p className="settings-note">{AI_COPY.checkConsent(preset.label)}</p>
       <div>
         <Key size="sm" loading={probe.state === 'running'} onClick={onTest}>
           {probe.state === 'running' ? AI_COPY.checking : AI_COPY.check}
@@ -517,7 +560,7 @@ function ProbeBlock({ preset, probe, current, onTest }: { preset: Preset; probe:
         </InlineWarning>
       ) : null}
       {done ? <ProbeResults outcome={done} /> : null}
-    </div>
+    </SettingsItem>
   );
 }
 
@@ -525,17 +568,17 @@ function ProbeResults({ outcome }: { outcome: ProbeOutcome }) {
   const { caps, latencyMs, basicTier } = outcome;
   const deg = degradeFor(caps);
   const badge = deg.chatOnly ? BADGE.chatOnly : basicTier ? BADGE.basic : BADGE.supported;
-  const from = (tested: boolean) => (caps.source === 'selftest' && tested ? `tested ${fmtDate(caps.verifiedAt)}` : caps.source === 'catalog' ? "provider's catalogue" : "provider's list");
-  const yes = (b: boolean) => (b ? '✓ yes' : '✗ no');
+  const from = (tested: boolean) => (caps.source === 'selftest' && tested ? `Tested ${fmtDate(caps.verifiedAt)}` : caps.source === 'catalog' ? "Provider's catalogue" : "Provider's list");
+  const yes = (b: boolean) => (b ? 'Yes' : 'No');
   const rows: Array<[string, string, string]> = [
-    ['use Vitals’ tools', yes(caps.tools), from(true)],
-    ['several tools at once', yes(caps.parallelTools), from(true)],
-    ['read food photos', yes(caps.vision), from(true)],
-    ['structured answers', yes(caps.jsonSchema || caps.jsonObject), from(true)],
-    ['streaming', yes(caps.streaming), "provider's list"],
-    ['memory (context)', `${caps.contextTokens.toLocaleString()} tokens`, from(false)],
-    ['basic tier', basicTier ? 'yes — logs and answers only' : 'no', 'model size'],
-    ['latency', latencyMs >= 0 ? `${latencyMs.toLocaleString()} ms` : 'not measured', latencyMs >= 0 ? 'this check' : 'saved check'],
+    ['Use Vitals’ tools', yes(caps.tools), from(true)],
+    ['Several tools at once', yes(caps.parallelTools), from(true)],
+    ['Read food photos', yes(caps.vision), from(true)],
+    ['Structured answers', yes(caps.jsonSchema || caps.jsonObject), from(true)],
+    ['Streaming', yes(caps.streaming), "Provider's list"],
+    ['Memory (context)', `${formatNumber(caps.contextTokens)} tokens`, from(false)],
+    ['Basic tier', basicTier ? 'Yes, logs and answers only' : 'No', 'Model size'],
+    ['Latency', latencyMs >= 0 ? `${formatNumber(latencyMs)} ms` : 'Not measured', latencyMs >= 0 ? 'This check' : 'Saved check'],
   ];
   const meaning: string[] = [];
   if (deg.chatOnly) meaning.push("No tools: the Coach answers but can't log or look things up.");
@@ -549,32 +592,45 @@ function ProbeResults({ outcome }: { outcome: ProbeOutcome }) {
           {badge}
         </Chip>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[18rem] border-collapse text-sm">
-          <caption className="lm-sr">What this model can do</caption>
-          <thead>
-            <tr className="text-left">
-              <th scope="col" className="lm-eng pb-1 font-normal">capability</th>
-              <th scope="col" className="lm-eng pb-1 font-normal">result</th>
-              <th scope="col" className="lm-eng pb-1 font-normal">from</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([k, v, f]) => (
-              <tr key={k} className="border-t border-line">
-                <th scope="row" className="py-1 pr-3 text-left font-normal text-ink">{k}</th>
-                <td className="py-1 pr-3 tabular-nums">{v}</td>
-                <td className="py-1 text-xs text-ink-2">{f}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="settings-capabilities__head">
+        <p className="settings-text">What this model can do</p>
+        <SettingInfo title="What this model can do" info={{
+          body: meaning.length ? meaning.join(' ') : 'The connection check and provider catalogue show which features this model supports. The table records the result, where it came from, memory size and connection latency.',
+          twin: (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[18rem] border-collapse text-sm">
+                <caption className="lm-sr">What this model can do</caption>
+                <thead>
+                  <tr className="text-left">
+                    <th scope="col" className="lm-eng pb-1">Capability</th>
+                    <th scope="col" className="lm-eng pb-1">Result</th>
+                    <th scope="col" className="lm-eng pb-1">From</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(([k, v, f]) => (
+                    <tr key={k} className="border-t border-line">
+                      <th scope="row" className="py-1 pr-3 text-left font-normal text-ink">{k}</th>
+                      <td className="py-1 pr-3 tabular-nums">{v}</td>
+                      <td className="py-1 text-xs text-ink-2">{f}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ),
+        }} />
       </div>
-      {meaning.map((m) => (
-        <p key={m} className="m-0 text-xs leading-[1.45] text-ink-2">
-          {m}
-        </p>
-      ))}
+      <ul className="settings-capabilities" aria-label="Model capabilities">
+        {rows.slice(0, 5).map(([name, result]) => (
+          <li key={name}>
+            <Icon icon={result === 'Yes' ? Check : X} size={16} />
+            <span>{name}</span>
+            <span className="lm-sr">{result}</span>
+          </li>
+        ))}
+      </ul>
+      <MonoMeta items={[rows[5]![1], rows[7]![1]]} />
     </div>
   );
 }
@@ -595,24 +651,9 @@ function UsageBlock({ cap, stopAtCap }: { cap: number | null; stopAtCap: boolean
     };
   }, []);
   if (!usage) return null;
-  const month = usage.periods.thisMonth.costUsd;
-  const fraction = cap ? month / cap : null;
-  const est = (n: number) => `about ${usd(n)}`;
   return (
-    <div className="grid gap-2 border-t border-line pt-3">
-      <p className="m-0 text-sm text-ink">
-        <span className="lm-eng">{AI_COPY.usageHeading}</span> today {est(usage.periods.today.costUsd)} · 7 days {est(usage.periods.last7Days.costUsd)} · 30 days {est(usage.periods.last30Days.costUsd)}
-      </p>
-      <p className="m-0 text-xs text-ink-2">
-        {(usage.periods.last30Days.inputTokens + usage.periods.last30Days.outputTokens).toLocaleString()} tokens in 30 days · {AI_COPY.usageNote}
-      </p>
-      {cap && fraction !== null && fraction >= 1 ? (
-        <Notice severity="caution" layout="ruled" title={AI_COPY.capReached(usd(cap))}>
-          {stopAtCap ? AI_COPY.capPaused : AI_COPY.capWarnOnly}
-        </Notice>
-      ) : cap && fraction !== null && fraction >= 0.8 ? (
-        <InlineWarning severity="caution">{AI_COPY.capWarn(Math.floor(fraction * 100), usd(cap))}</InlineWarning>
-      ) : null}
-    </div>
+    <SettingsItem>
+      <SpendTrack usage={usage} cap={cap} stopAtCap={stopAtCap} />
+    </SettingsItem>
   );
 }

@@ -14,6 +14,11 @@ export interface SafetyGateProps {
   context?: SafetyBodyContext;
   /** Planner: show the safety summary + opt-in tier controls above the children (default true). */
   summary?: boolean;
+  /**
+   * Simulator: the "<mode> is on" note above the children outside Standard mode (default true). A page that shows
+   * `<SafetyModeChip />` in its header's status slot passes false: the capsule is the mode's one home.
+   */
+  notice?: boolean;
   children: ReactNode;
 }
 
@@ -27,7 +32,7 @@ export interface SafetyGateProps {
  * The route guard already sends unscreened visitors to /welcome; the fallbacks here keep the gate honest
  * when a page is rendered elsewhere (tests, embeds).
  */
-export function SafetyGate({ feature, context, summary = true, children }: SafetyGateProps) {
+export function SafetyGate({ feature, context, summary = true, notice = true, children }: SafetyGateProps) {
   const access = useSafetyAccess(context);
   const [checked, setChecked] = useState(false);
   const { outcome } = access;
@@ -62,9 +67,9 @@ export function SafetyGate({ feature, context, summary = true, children }: Safet
   if (feature === 'simulator') {
     return (
       <>
-        {outcome.modeName !== 'standard' ? (
+        {notice && outcome.modeName !== 'standard' ? (
           <Notice severity="info" title={GATE.simulatorNotice(access.modeLabel)} className="mb-4">
-            <KeyLink to={paths.safety} size="sm" variant="quiet">
+            <KeyLink to={paths.safety} size="sm" variant="text">
               {DISCLAIMER.resultsLink}
             </KeyLink>
           </Notice>

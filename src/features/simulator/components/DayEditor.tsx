@@ -229,24 +229,25 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
         </div>
         {day !== null ? (
           <div className="sim-editor__scope">
-            <span className="lm-eng">edits apply to</span>
+            <span className="lm-eng">Edits apply to</span>
             <KeyBank
               size="sm"
               block
               label="Edits apply to"
+              // r068 W2-10: when the block holds every day of the program, "this block" and "all A days" are one set
               options={[
                 { value: 'day', label: 'this day' },
-                { value: 'block', label: `this block · ${blockDays.length}` },
+                ...(blockDays.length !== usage ? [{ value: 'block' as EditScope, label: `this block · ${blockDays.length}` }] : []),
                 { value: 'all', label: `all ${usage} ${prog.id} days` },
               ]}
-              value={scope}
+              value={scope === 'block' && blockDays.length === usage ? 'all' : scope}
               onChange={onScope}
             />
           </div>
         ) : null}
         {effScope === 'all' ? (
           <label className="sim-editor__name">
-            <span className="lm-eng">program name</span>
+            <span className="lm-eng">Program name</span>
             <input
               className="sim-input"
               value={prog.label}
@@ -370,9 +371,7 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
                 value={macroView}
                 onChange={setMacroView}
               />
-            ) : (
-              <span className="sim-sub">energy held constant</span>
-            )
+            ) : undefined
           }
         >
           <MacroSplit
@@ -427,7 +426,7 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
       <EditorSection
         id="meals"
         title="Meals & window"
-        aside={<span className="sim-sub">{zero ? 'water only' : 'drag the window'}</span>}
+        aside={zero ? <span className="sim-sub">water only</span> : undefined}
       >
         {zero && longFast && day !== null ? (
           <p className="sim-sub">
@@ -506,9 +505,10 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
         {!zero ? (
           <div className="sim-meals__banks">
             <div className="sim-field">
-              <span className="lm-eng">meals</span>
+              <span className="lm-eng">Meals</span>
               <KeyBank
                 size="sm"
+                block
                 label="Number of meals"
                 options={['1', '2', '3', '4', '5'].map((v) => ({ value: v, label: v }))}
                 value={String(Math.min(5, times.length))}
@@ -526,9 +526,10 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
               />
             </div>
             <div className="sim-field">
-              <span className="lm-eng">split</span>
+              <span className="lm-eng">Split</span>
               <KeyBank
                 size="sm"
+                block
                 label="Meal split"
                 options={[
                   { value: 'even', label: 'even' },
@@ -556,6 +557,9 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
       <EditorSection
         id="exercise"
         title="Exercise"
+        // (r068 final M11) Exercise starts closed (its head says "training: as usual"), like Sleep and the rest below
+        // it, so the docked editor ends near the calendar beside it instead of running 700 px past it
+        defaultOpen={false}
         severity={issues.some((i) => i.id === 'W-F09') ? 'caution' : null}
         aside={<span className="sim-sub">training: {TRAINING_MODE_LABEL[tMode]}</span>}
       >
@@ -590,7 +594,6 @@ export function DayEditor({ sid, model, target, scope, onScope, onNavigate }: Da
         id="scenario"
         title="Whole scenario"
         defaultOpen={false}
-        aside={<span className="sim-sub">applies to every day</span>}
       >
         <ScenarioFields sid={sid} model={model} />
       </EditorSection>
@@ -914,7 +917,7 @@ function FastEventFields({ sid, index, model }: { sid: string; index: number; mo
           onChange={(h) => void editSchedule(sid, [{ op: 'updateFast', index, patch: { startH: h } }])}
         />
         <div className="sim-field">
-          <span className="lm-eng">meal to meal</span>
+          <span className="lm-eng">Meal to meal</span>
           <Stepper
             name="fast length"
             value={ev.durationH}

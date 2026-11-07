@@ -112,7 +112,21 @@ describe('planner end-to-end (real engine)', () => {
       const k = plannedKcal(ctx, a.schedule);
       const mean = k.reduce((s, v) => s + v, 0) / k.length;
       expect(mean / ctx.rp.tdee0Kcal).toBeLessThan(0.97);
-      expect(mean / ctx.rp.tdee0Kcal).toBeGreaterThanOrEqual(1 - ctx.caps.deficitCapPct / 100 - 0.01);
+      // the deficit cap applies to the non-fast days (ruling 18:10: fast-event days — including both days a 24-h fast
+      // spans — follow the fasting-tier rules) and to maintenance at the plan's own activity (R-MAINT), not to TDEE0
+      let ei = 0;
+      let ref = 0;
+      const sim = a.simulation.daily;
+      const fastDay = a.simulation.safety.fastDay;
+      for (let d = 0; d < k.length; d++) {
+        if (!(k[d]! > 0) || (fastDay && fastDay[d] === 1)) continue;
+        ei += sim.inEnergy![d]!;
+        ref += sim.inMaintRef![d]!;
+      }
+      expect(ei / ref).toBeGreaterThanOrEqual(1 - ctx.caps.deficitCapPct / 100 - 0.01);
+      // and the engine's own HC-E3 quantity (7-day deficit over non-fast days) stays inside the cap
+      const def7 = Array.from(a.simulation.safety.deficitPct7).filter((v) => Number.isFinite(v));
+      expect(Math.max(...def7)).toBeLessThanOrEqual(ctx.caps.deficitCapPct + 1);
       const lean = a.scorecard[1]!;
       expect(lean.change).toBeGreaterThan(-3);
     },

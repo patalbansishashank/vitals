@@ -18,7 +18,7 @@ describe('testRelay (test before create)', () => {
 
   it('says plainly when nothing answers or the address is not a relay, and leaves no grant behind', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
-    expect(await testRelay('https://nobody.example.ts.net')).toEqual({ ok: false, message: 'No answer from that address. Is the server running and is Tailscale on?' });
+    expect(await testRelay('https://nobody.example.ts.net')).toEqual({ ok: false, message: 'No answer from that address. Is the server running?' });
     expect(isAllowed('https://nobody.example.ts.net')).toBe(false);
     vi.stubGlobal('fetch', vi.fn(reply(200, { hello: 'world' })));
     expect(await testRelay('https://web.example.com')).toEqual({ ok: false, message: "That address isn't a Vitals sync server." });

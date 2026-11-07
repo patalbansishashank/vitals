@@ -54,29 +54,30 @@ describe('verdicts are the engine’s', () => {
     const kept = score({ value: 61.8, change: -0.2, verdict: 'kept', band: { p10: 61.8, p50: 61.8, p90: 61.9, pTargetMet: 0 } });
     const v = scoreView(kept, undefined, 'metric', 16, false, keepGoal);
     expect(v.word).toBe('kept');
-    expect(v.detail).toMatch(/100 % of what’s possible$/);
+    expect(v.detail).toMatch(/100 % of the best found$/);
     expect(v.detail).not.toMatch(/chance/);
-    // other goals keep their chance
+    // no goal shows a chance inline (C6/D4-03): the share of check runs meeting a target is a design screen, not a
+    // probability for the person, and lives in the plan details
     const reached = score({ target: 58, verdict: 'reached', band: { p10: 57, p50: 57.5, p90: 58, pTargetMet: 0.78 } });
-    expect(scoreView(reached, undefined, 'metric', 16, false, { target: -4, targetKind: 'change' }).detail).toMatch(/78 % chance/);
+    expect(scoreView(reached, undefined, 'metric', 16, false, { target: -4, targetKind: 'change' }).detail).not.toMatch(/chance|%/);
   });
 
   it('a keep goal the scorecard marks unmet reads "not kept"; a target goal keeps its own words', () => {
     const miss = score({ value: 61.5, change: -0.5, met: false });
     expect(goalVerdict(miss, unattainable, false, true)).toEqual({ status: 'missed', word: 'not kept' });
     expect(goalVerdict(miss, undefined, false, true).word).toBe('not kept');
-    expect(goalVerdict(miss, unattainable, false, false).word).toBe('not reachable');
+    expect(goalVerdict(miss, unattainable, false, false).word).toBe('not found');
     expect(goalVerdict(score({ met: true }), undefined, false, false).word).toBe('reached');
   });
 
   it('prints the engine % with the engine rounding, and decides "near its best" on the printed number', () => {
     const dir = (p: number) => score({ target: null, met: null, percentOfAchievable: p, percentOfTarget: null });
     // 89.5 prints "90 %" (as the engine's explanation does, Math.round) → near its best, never "partial · 90 %"
-    expect(scoreView(dir(89.5), undefined, 'metric', 12, false, undefined)).toMatchObject({ word: 'near its best', value: '90 % of what’s possible' });
+    expect(scoreView(dir(89.5), undefined, 'metric', 12, false, undefined)).toMatchObject({ word: 'near its best', value: '90 % of the best found' });
     expect(nearBest(dir(89.4))).toBe(false);
-    expect(scoreView(dir(89.4), undefined, 'metric', 12, false, undefined)).toMatchObject({ word: 'partial', value: '89 % of what’s possible' });
+    expect(scoreView(dir(89.4), undefined, 'metric', 12, false, undefined)).toMatchObject({ word: 'partial', value: '89 % of the best found' });
     // not clamped: the same number the engine's own sentence prints
-    expect(scoreView(dir(101.2), undefined, 'metric', 12, false, undefined).value).toBe('101 % of what’s possible');
+    expect(scoreView(dir(101.2), undefined, 'metric', 12, false, undefined).value).toBe('101 % of the best found');
     expect(fmtPct(-0.4)).toBe('0 %');
     expect(fmtPct(62)).toBe(`${Math.round(62)} %`);
   });
@@ -125,10 +126,10 @@ describe('energy readouts follow the kcal/kJ setting', () => {
   const rx = buildPrescription(fixtureSchedule(), PROFILE, fixtureSimulation(20));
 
   it('formats planner energy in kJ when chosen', () => {
-    expect(fmtKcal(2300, 'kcal')).toBe('2\u00a0300\u2009kcal');
-    expect(fmtKcal(2300, 'kJ')).toBe('9\u00a0620\u2009kJ');
-    expect(fmtMetric('tdee', 2500, 'metric', { energy: 'kJ' })).toBe('10\u00a0460\u2009kJ/d');
-    expect(fmtMetric('tdee', 2500, 'metric')).toBe('2\u00a0500\u2009kcal/d');
+    expect(fmtKcal(2300, 'kcal')).toBe('2,300\u2009kcal');
+    expect(fmtKcal(2300, 'kJ')).toBe('9,620\u2009kJ');
+    expect(fmtMetric('tdee', 2500, 'metric', { energy: 'kJ' })).toBe('10,460\u2009kJ/d');
+    expect(fmtMetric('tdee', 2500, 'metric')).toBe('2,500\u2009kcal/d');
   });
 
   it('exports the day-by-day prescription in the chosen unit', () => {
@@ -137,7 +138,7 @@ describe('energy readouts follow the kcal/kJ setting', () => {
     const monKj = Number(csv[1]!.split(',')[5]);
     expect(monKj).toBeCloseTo(rx.days[0]!.energyKcal * 4.184, 0);
     const text = prescriptionText(rx, { planTitle: 'Hard plan', planName: 'x', scorecard: [], phases: [], safety: [], disclaimer: 'd', energy: 'kJ' });
-    expect(text).toMatch(/9 620 kJ · P 180 g/);
+    expect(text).toMatch(/9,620 kJ · P 180 g/);
     expect(text).not.toMatch(/kcal/);
     const f = phaseFacts(fixtureResult().options[0]!, rx)[0]!;
     if (Number.isFinite(f.balanceKcal)) expect(phaseTip(f, 'kJ')).toMatch(/kJ a day/);

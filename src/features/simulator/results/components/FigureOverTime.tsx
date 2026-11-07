@@ -4,11 +4,21 @@
  * it. A `figure | visceral` key bank switches the stage between the 3D figure (SVG while it loads or without WebGL) and
  * the visceral view (waist slice + side cutaway, the start's contours as a ghost); both follow the crosshair. Play
  * sweeps the crosshair day 1 → last over 2.2 s (ease-in-out) so every lane, the figure and the slice move together;
- * press again to stop. Reduced motion jumps start → end. With "Show the figure" off (Settings), only the numbers.
+ * press again to stop. Reduced motion jumps start → end. With "Show the figure" off (Settings), only the numbers. No
+ * explainer captions under the stage (SPEC §6).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Pause, Play } from 'lucide-react';
-import { Faceplate, Key, KeyBank, formatNumber, formatSigned, useReducedMotion } from '@/components';
+import {
+  Faceplate,
+  HeroNumber,
+  IconKey,
+  KeyBank,
+  formatNumber,
+  formatRange,
+  formatSigned,
+  useReducedMotion,
+} from '@/components';
 import type { ChartController, ChartData, ChartSeries } from '@/features/charts';
 import { roundArea } from '@/features/body/avatar';
 import { Figure3D, VisceralView, liveVisceral } from '@/features/body/figure3d';
@@ -50,18 +60,30 @@ function line(s: ChartSeries | undefined, day: number, name: string): Line | nul
   const start = s.baseline ?? s.daily.values[0];
   if (v == null || !Number.isFinite(v) || start == null) return null;
   const d = s.format.decimals;
-  return { id: s.id, name, from: formatNumber(start, d), to: formatNumber(v, d), delta: formatSigned(v - start, d), unit: s.unit === 'index' ? '' : s.unit };
+  return {
+    id: s.id,
+    name,
+    from: formatNumber(start, d),
+    to: formatNumber(v, d),
+    delta: formatSigned(v - start, d),
+    unit: s.unit === 'index' ? '' : s.unit,
+  };
 }
 
 type StageView = 'figure' | 'visceral';
 const STAGE_VIEWS = [
-  { value: 'figure', label: 'figure' },
-  { value: 'visceral', label: 'visceral' },
+  { value: 'figure', label: 'Figure' },
+  { value: 'visceral', label: 'Visceral' },
 ] as const;
-const FIGURE_CAPTION = 'Illustrative figure. Outline: your start. Shows proportions from the projection, not your exact shape.';
-const VISCERAL_CAPTION = 'Waist slice, drawn to scale from the projection. Grey lines: your start. Range shown is the estimate’s; projections are less certain.';
 
-export function FigureOverTime({ timeline, data, controller, showFigure, units, titleAs = 'h2' }: FigureOverTimeProps) {
+export function FigureOverTime({
+  timeline,
+  data,
+  controller,
+  showFigure,
+  units,
+  titleAs = 'h2',
+}: FigureOverTimeProps) {
   const days = data.time.days;
   const day = useCursorDay(controller, days);
   const reduced = useReducedMotion();
@@ -130,11 +152,23 @@ export function FigureOverTime({ timeline, data, controller, showFigure, units, 
   const waist = byId.get('waist');
   const waistText = waist && Number.isFinite(waist.daily.values[day]!) ? `${formatNumber(waist.daily.values[day]!, 1)} ${waist.unit}` : undefined;
   const heightCm = timeline?.baseline.heightCm;
-  const heightText = heightCm ? (units === 'imperial' ? `${Math.floor(heightCm / 30.48)} ft ${Math.round((heightCm / 2.54) % 12)} in` : `${Math.round(heightCm)} cm`) : undefined;
+  const heightText = heightCm
+    ? units === 'imperial'
+      ? `${Math.floor(heightCm / 30.48)} ft ${Math.round((heightCm / 2.54) % 12)} in`
+      : `${Math.round(heightCm)} cm`
+    : undefined;
   const H = titleAs;
+  const weight = byId.get('scaleWeight');
+  const weightValue = weight?.daily.values[day];
+  const low = weight?.daily.band?.lo[day];
+  const high = weight?.daily.band?.hi[day];
+  const weightRange =
+    low !== undefined && high !== undefined && Number.isFinite(low) && Number.isFinite(high)
+      ? `range ${formatRange(low, high, weight?.format.decimals ?? 1)} ${weight?.unit}`
+      : 'No range';
 
   return (
-    <Faceplate variant="flush" className="rs-figure" aria-labelledby="rs-figure-title">
+    <Faceplate variant="flush" className="rs-figure" data-domain="body" aria-labelledby="rs-figure-title">
       <div className="rs-figure__bar">
         <H id="rs-figure-title" className="lm-h3 rs-figure__title">
           Figure over time
@@ -142,14 +176,30 @@ export function FigureOverTime({ timeline, data, controller, showFigure, units, 
         <span className="rs-figure__day lm-eng lm-num" aria-live="off">
           {dayLabel(data.time, day)}
         </span>
-        {showFigure && params && ghost ? (
-          <KeyBank<StageView> size="sm" label="What the figure panel shows" value={stage} onChange={setStage} options={STAGE_VIEWS} className="rs-figure__views" />
-        ) : null}
+        {/* r068 W2-14: Play is the bar's trailing icon key, not a lone pill above the numbers */}
+        <IconKey size="sm" variant="outlined" icon={playing ? Pause : Play} label={playing ? 'Stop' : 'Play'} pressed={playing} onClick={play} className="rs-figure__play" />
       </div>
+      {weightValue !== undefined && Number.isFinite(weightValue) ? (
+        <div className="rs-figure__hero">
+          <HeroNumber
+            value={weightValue}
+            decimals={weight?.format.decimals ?? 1}
+            unit={weight?.unit}
+            size="num"
+            countUp={false}
+            range={weightRange}
+            label={`Weight ${formatNumber(weightValue, weight?.format.decimals ?? 1)} ${weight?.unit}, ${weightRange}`}
+          />
+        </div>
+      ) : null}
+      {/* (r068 final S10/M10) the view bank on its own full-width row under the title, as every card-head bank */}
+      {showFigure && params && ghost ? (
+        <KeyBank<StageView> size="sm" label="What the figure panel shows" value={stage} onChange={setStage} options={STAGE_VIEWS} className="rs-figure__views" />
+      ) : null}
       {showFigure && params && ghost ? (
         visceral ? (
           <div className="rs-figure__visceral" data-testid="rs-visceral">
-            <VisceralView params={params} compareTo={ghost} caption={VISCERAL_CAPTION} />
+            <VisceralView params={params} compareTo={ghost} />
           </div>
         ) : (
           <div className="rs-figure__stage">
@@ -162,21 +212,23 @@ export function FigureOverTime({ timeline, data, controller, showFigure, units, 
               units={units}
               heightText={heightText}
               showMeasures={waistText ? { waist: waistText } : undefined}
-              caption={FIGURE_CAPTION}
+              // no helper caption under the figure (SPEC §6): the panel's title and the numbers below say what it is
+              caption={false}
             />
           </div>
         )
       ) : showFigure && !timeline ? (
         <p className="rs-figure__none">The figure needs your body inputs. Numbers are shown below.</p>
       ) : null}
-      {timeline?.endpointsOnly ? <p className="rs-figure__note">This run did not record the body day by day, so the figure shows the start and the last day only.</p> : null}
+      {timeline?.endpointsOnly ? (
+        <p className="rs-figure__note">
+          This run did not record the body day by day, so the figure shows the start and the last day only.
+        </p>
+      ) : null}
       <p className="lm-sr" aria-live="polite" data-testid="rs-figure-live">
         {announce}
       </p>
       <div className="rs-figure__foot">
-        <Key size="sm" icon={playing ? Pause : Play} onClick={play} aria-pressed={playing}>
-          {playing ? 'Stop' : 'Play'}
-        </Key>
         <dl className="rs-figure__vals">
           {lines.map((l) => (
             <div key={l.id}>

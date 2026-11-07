@@ -1,0 +1,100 @@
+/* The likely range as a scale across its cell (IntervalBar, r071). Its own stylesheet, imported by the component, so every
+   page that shows it (Your body, the intake's "Your picture so far" and maintenance result) is styled without body.css,
+   which only ships with the lazily loaded Body page (r068 V-IK-1).
+
+   Ticks in the unlit tone, the ticks inside the range lit in the card's hue (`--lm-hue`, gold where no card sets one), a
+   3 px ivory marker with a soft glow, the two ends in mono. Tokens only. The ticks light from the low end and the marker
+   drops in once, on first view; a bar that cannot animate is never pending and shows the final frame. */
+
+@layer components {
+  .lm-body-iv {
+    --lm-iv-hue: var(--lm-hue, var(--lm-hue-energy));
+    /* a lit tick is the card's hue drawn a little toward ivory, so it holds 3:1 on the glow's brightest part too */
+    --lm-iv-lit: color-mix(in oklab, var(--lm-iv-hue) 80%, var(--lm-ink));
+    --lm-iv-h: 26px;
+    --lm-iv-tick: 14px;
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lm-body-iv[data-size='thin'] {
+    --lm-iv-h: 16px;
+    --lm-iv-tick: 8px;
+    gap: 0;
+  }
+  .lm-body-iv__track {
+    position: relative;
+    height: var(--lm-iv-h);
+  }
+  .lm-body-iv__t {
+    position: absolute;
+    top: 50%;
+    width: 1.5px;
+    height: var(--lm-iv-tick);
+    margin: calc(var(--lm-iv-tick) / -2) 0 0 -0.75px;
+    border-radius: 1px;
+    background: var(--lm-unlit);
+    transition: background-color var(--lm-dur-base, 200ms) var(--lm-ease-out);
+    transition-delay: calc(var(--i, 0) * var(--lm-stagger-tick, 14ms) + 150ms);
+  }
+  .lm-body-iv__t[data-lit] {
+    background: var(--lm-iv-lit);
+  }
+  .lm-body-iv__pt {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    margin-left: -1.5px;
+    border-radius: 2px;
+    background: var(--lm-ink);
+    box-shadow: 0 0 10px 1px color-mix(in oklab, var(--lm-iv-hue) 55%, transparent);
+    transition:
+      transform var(--lm-dur-needle, 420ms) var(--lm-ease-needle),
+      opacity var(--lm-dur-base, 200ms) var(--lm-ease-out);
+    transition-delay: 400ms;
+  }
+  .lm-body-iv[data-reveal='pending'] .lm-body-iv__t[data-lit] {
+    background: var(--lm-unlit);
+  }
+  .lm-body-iv[data-reveal='pending'] .lm-body-iv__pt {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  /* the range's ends: mono caps like every fact, each under its own end of the span and reading outwards so the two
+     never meet */
+  .lm-body-iv__ends {
+    position: relative;
+    height: var(--lm-text-meta--lh, 14px);
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta, 0.6875rem);
+    line-height: var(--lm-text-meta--lh, 14px);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+    white-space: nowrap;
+  }
+  .lm-body-iv__ends > span {
+    position: absolute;
+    top: 0;
+  }
+  .lm-body-iv__ends > span:first-child {
+    transform: translateX(-100%);
+    padding-right: 2px;
+  }
+  .lm-body-iv__ends > span:last-child {
+    padding-left: 2px;
+  }
+  @media (forced-colors: active) {
+    .lm-body-iv__t {
+      background: GrayText;
+    }
+    .lm-body-iv__t[data-lit] {
+      background: Highlight;
+    }
+    .lm-body-iv__pt {
+      background: CanvasText;
+      box-shadow: none;
+    }
+  }
+}

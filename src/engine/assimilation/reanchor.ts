@@ -3,7 +3,12 @@
  * whose composition state and bus carry the anchor, plus the ledger entry. Used when a confirmed state must be adjusted
  * without a replay (e.g. the planner's particle states); the living plan itself replays with `RunOptions.anchors`, which
  * gives the same state (tested). Pure: the input snapshot is never mutated.
+ *
+ * Only the composition state and its bus signals change (D3-06): every other module's state — training history, peaks,
+ * low-dose clocks, region histories — is carried over by reference, so a re-anchored snapshot continues the same history.
+ * VAT follows the common allometric transition and stays within [0, FM] (D1-02).
  */
+import { VAT_ALLOMETRY } from '../body/regional';
 import { SIGNAL_DEFS } from '../types/signals';
 import type { AnchorApplied, AnchorSpec, EngineSnapshot } from '../types/result';
 import { applyTissueAnchor, type AnchorBusView, type AnchorConstants } from './runHooks';
@@ -13,7 +18,11 @@ const BUS_FIELDS: ReadonlyArray<keyof AnchorBusView> = [
 ];
 const BUS_INDEX: Record<string, number> = Object.fromEntries(SIGNAL_DEFS.map((d, i) => [d.name, i]));
 
-export const DEFAULT_ANCHOR_CONSTANTS: AnchorConstants = { rhoF: 9441, rhoL: 1816, smLossShare: 0.5 };
+/**
+ * Defaults for a snapshot re-anchor without the run's parameters: Hall densities, the SM share and the VAT allometry of the
+ * body module (D1-02). A run's own anchors use its parameter values (the loop passes them).
+ */
+export const DEFAULT_ANCHOR_CONSTANTS: AnchorConstants = { rhoF: 9441, rhoL: 1816, smLossShare: 0.5, vatKLoss: VAT_ALLOMETRY.kLoss, vatKGain: VAT_ALLOMETRY.kGain };
 
 export function reanchorSnapshot(
   snap: EngineSnapshot,

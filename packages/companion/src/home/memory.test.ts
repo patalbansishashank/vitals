@@ -2,12 +2,11 @@
 /**
  * Memory over the sequence the 2026-10-03 incident log shows, on the production shape: the bundled person program in
  * a real `worker_threads` Worker (with its heap limits), the relay in the same process with the person syncing to it,
- * the HTTP routes, `/mcp` and the MQTT broker. After each step it reads the worker's heap and the main thread's heap
+ * the HTTP routes and `/mcp`. After each step it reads the worker's heap and the main thread's heap
  * and fails if a step grows the worker by more than 100 MB or the main thread by more than 50 MB. The table it prints
  * is what docs/wp/E32.md reports.
  */
 import { execFileSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { setFlagsFromString } from 'node:v8';
@@ -15,14 +14,12 @@ import { runInNewContext } from 'node:vm';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import mqtt from 'mqtt';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { startCompanion, type Companion } from '../server.ts';
 import { SITE } from './testHome.ts';
 import { threadWorkerFactory } from './workers.ts';
 
 const pkg = new URL('../../', import.meta.url);
-const repo = new URL('../../../../', import.meta.url);
 const outDir = `dist/memtest-${process.pid}`;
 const bundle = new URL(`${outDir}/person-worker.mjs`, pkg);
 const done: Array<() => Promise<unknown>> = [];
@@ -46,7 +43,7 @@ it('no step of the incident sequence grows the worker by 100 MB or the main thre
     port: 0,
     dataDir: join(dataDir, 'relay'),
     allowedOrigins: [],
-    home: { dataDir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', mqtt: { enabled: true }, rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: threadWorkerFactory(bundle) },
+    home: { dataDir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: threadWorkerFactory(bundle) },
   });
   done.push(() => c.close());
   const home = c.home!;
@@ -95,22 +92,9 @@ it('no step of the incident sequence grows the worker by 100 MB or the main thre
   }
   await measure('today_get + log_steps x2');
 
-  const ring = (await readFile(new URL('spike/headless/fixtures/ring.jsonl', pkg), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as unknown);
-  const imported = await home.pool.call(p.id, { op: 'ingestLumen', events: ring, installations: {} });
-  expect(imported.ok).toBe(true);
-  await measure('Lumen import ring.jsonl');
-
-  const cred = await api('/v1/mqtt/credentials', device, {});
-  const m = await mqtt.connectAsync(`${c.url.replace('http', 'ws')}/mqtt`, { username: cred.username as string, password: cred.password as string, reconnectPeriod: 0 });
-  done.push(() => m.endAsync(true));
-  const stream = (await readFile(new URL('qa/fixtures/lumen/mqtt-stream.synthetic.jsonl', repo), 'utf8')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as { topic: string; payload: string });
-  for (let round = 0; round < 5; round++) for (const msg of stream) await m.publishAsync(msg.topic, msg.payload, { qos: 1 });
-  await home.broker!.idle();
-  await measure('MQTT stream x5');
-
-  // living automation runs from the open; give its timers, the debounced rescoring and the sync loop time to fire
+  // living automation runs from the open; give its timers and the sync loop time to fire
   await new Promise((r) => setTimeout(r, 8000));
-  await measure('8 s idle (automation, rescoring, sync)');
+  await measure('8 s idle (automation, sync)');
 
   for (let i = 0; i < 30; i++) await sessions[i % 2]!.callTool({ name: 'today_get', arguments: {} });
   await measure('30 more MCP calls');

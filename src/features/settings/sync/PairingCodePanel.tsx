@@ -36,10 +36,10 @@ export function PairingCodePanel({ code, requireAck, onHide }: { code: PairingCo
   };
 
   return (
-    <div ref={ref} tabIndex={-1} role="region" aria-labelledby={titleId} className="grid gap-3 rounded-md border border-line p-3 outline-none">
-      <h3 id={titleId} className="lm-eng m-0">
-        pairing code
-      </h3>
+    <div ref={ref} tabIndex={-1} role="region" aria-labelledby={titleId} className="grid gap-3 outline-none">
+      <h4 id={titleId} className="settings-list__title m-0">
+        Pairing code
+      </h4>
       <InlineWarning severity="caution">{SYNC_COPY.codeWarning}</InlineWarning>
       <div className="flex flex-wrap items-start gap-4">
         <ol aria-label="The 24 words" className="m-0 grid flex-[1_1_16rem] list-none grid-cols-2 gap-x-4 gap-y-1 p-0 font-mono text-sm sm:grid-cols-3">
@@ -54,11 +54,11 @@ export function PairingCodePanel({ code, requireAck, onHide }: { code: PairingCo
         </ol>
         <QrCode text={code.uri} label="QR code of the pairing code" className="w-40 shrink-0 rounded-sm" />
       </div>
-      <p className="m-0 text-xs leading-[1.45] text-ink-2">
+      <p className="settings-note">
         {SYNC_COPY.codeLoss} {SYNC_COPY.codeAutoHide}
       </p>
       {requireAck ? <Checkbox checked={saved} onChange={setSaved} label={SYNC_COPY.savedWords} /> : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="settings-keys">
         <Key size="sm" icon={Copy} onClick={copy}>
           {SYNC_COPY.copyCode}
         </Key>

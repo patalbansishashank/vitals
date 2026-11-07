@@ -1,11 +1,20 @@
 /**
  * `pnpm bench:planner`: runs the selected suites with every selected algorithm on paired seeds in worker threads
- * (evaluator threads serve the app's planner pool code), computes the metrics and statistics, updates the stored
- * references (bench/reference) and writes bench-results/<date>-<run-id>.json, docs/PLANNER_BENCHMARK.md,
- * docs/planner-benchmark.json and public/validation/planner-benchmark.json.
+ * (evaluator threads serve the app's planner pool code), computes the metrics and statistics and writes
+ * bench-results/<date>-<run-id>.json, docs/PLANNER_BENCHMARK.md, docs/planner-benchmark.json and
+ * public/validation/planner-benchmark.json.
+ *
+ * References (D4-09, C7): the runs are judged against one versioned reference file, `bench/reference/<BENCH_REFERENCE>.json`
+ * (default `review-policy-v1`, the production-policy reference of this release). It is reused only when its key (engine,
+ * parameter set, planner domain) matches; otherwise the references are recomputed in memory. Nothing is written unless
+ * BENCH_REFERENCE_WRITE=1 names the run as the one that freezes that file, and a frozen file of another key is never
+ * overwritten (pick a new selector, e.g. review-policy-v2). The historical r1-/r2-*.json and smoke-baseline.json files
+ * are read-only. The default comparison is the frozen v1 optimiser (historical comparator) against the shipped route
+ * (`hybrid`, production comparison policy); the summary records the policy version and fingerprint.
  *
  * Environment: BENCH_SUITE=T1,T2,…,R2 (default all) · BENCH_TIER=S · BENCH_SEEDS=31 (T-suites) ·
- * BENCH_SEEDS_R1 (default BENCH_SEEDS) · BENCH_SEEDS_R2=15 · BENCH_SPLIT=train|holdout · BENCH_ALGOS=v1,v2 (v1,v1b = sanity run) · BENCH_R2=all|golden|fuzz ·
+ * BENCH_SEEDS_R1 (default BENCH_SEEDS) · BENCH_SEEDS_R2=15 · BENCH_SPLIT=train|holdout · BENCH_ALGOS=v1,hybrid (v1,v2 = the live optimiser alone; v1,v1b = sanity run) ·
+ * BENCH_REFERENCE=review-policy-v1 · BENCH_REFERENCE_WRITE=1 (freeze/extend that file) · BENCH_R2=all|golden|fuzz ·
  * BENCH_EVALUATORS=18 · BENCH_JOBS=6 (real-engine runs at a time) · BENCH_TOY_JOBS=22 · BENCH_REPORT=1 (0 = results file only) · BENCH_MERGE=<results files> (add their
  * runs to the report) · BENCH_PROBLEMS=<substring filter on problem ids> · BENCH_PERF=a,b (timed full planner runs on
  * BENCH_PERF_EVALUATORS=8 evaluator threads, one at a time, after the suites; BENCH_PERF_TIERS=S,M,L,X; tier X uses
@@ -20,6 +29,8 @@ import { ENGINE_VERSION } from '../../core/defaults';
 import { MODULES } from '../../core/moduleRegistry';
 import { buildModelParams } from '../../core/paramsRegistry';
 import { hashString } from '../optim/rng';
+import { PLANNER_COMPARISON_POLICY, PLANNER_POLICY_FINGERPRINT } from '../optim/policy';
+import { PLANNER_POLICY_KEY } from '../domain/ladderPlanner';
 import { LIBRARY_VERSION } from '../domain/registry/blocks';
 import { liveIsV2 } from './algorithms';
 import { evaluateRuns, type RunMetrics, type StoredR2 } from './evaluate';
@@ -52,7 +63,21 @@ export interface BenchOptions {
   perfTiers: Array<'S' | 'M' | 'L' | 'X'>;
   perfEvaluators: number;
   perfXEU: number;
+  /** Versioned reference file under bench/reference (D4-09). */
+  reference: string;
+  /** Freeze/extend that reference file (explicit; off by default). */
+  writeReference: boolean;
   log: (line: string) => void;
+}
+
+/** Default reference set: the production-policy reference of this release (D4-09). */
+export const DEFAULT_REFERENCE = 'review-policy-v1';
+
+/** A reference selector names a new versioned file; the historical r1-/r2-*.json and smoke-baseline.json are read-only. */
+export function checkReferenceSelector(name: string): string {
+  if (!/^review-policy-v\d+(?:-[a-z0-9]+)*$/.test(name)) throw new RangeError(`BENCH_REFERENCE: "${name}" is not a versioned production-policy reference (review-policy-vN[-suffix]); historical reference files are read-only`);
+  if (name.endsWith('-smoke')) throw new RangeError(`BENCH_REFERENCE: "${name}" is the smoke test's reference, not a benchmark reference set`);
+  return name;
 }
 
 export function optionsFromEnv(root: string, env: Record<string, string | undefined>, log: (s: string) => void): BenchOptions {
@@ -60,7 +85,8 @@ export function optionsFromEnv(root: string, env: Record<string, string | undefi
   const suites = (env['BENCH_SUITE'] === 'none' ? [] : list(env['BENCH_SUITE']).length ? list(env['BENCH_SUITE']) : [...SUITES]).map((s) => s.toUpperCase()) as SuiteId[];
   for (const s of suites) if (!SUITES.includes(s)) throw new RangeError(`BENCH_SUITE: unknown suite ${s}`);
   const seeds = Number(env['BENCH_SEEDS'] ?? 31);
-  const algos = (list(env['BENCH_ALGOS']).length ? list(env['BENCH_ALGOS']) : ['v1', 'v2']) as AlgoId[];
+  // D4-09: by default the frozen v1 comparator against the shipped route (production comparison policy)
+  const algos = (list(env['BENCH_ALGOS']).length ? list(env['BENCH_ALGOS']) : ['v1', 'hybrid']) as AlgoId[];
   return {
     root,
     suites,
@@ -81,6 +107,8 @@ export function optionsFromEnv(root: string, env: Record<string, string | undefi
     perfTiers: (list(env['BENCH_PERF_TIERS']).length ? list(env['BENCH_PERF_TIERS']) : ['S', 'M', 'L', 'X']) as BenchOptions['perfTiers'],
     perfEvaluators: Number(env['BENCH_PERF_EVALUATORS'] ?? 8),
     perfXEU: Number(env['BENCH_PERF_X_EU'] ?? 30000),
+    reference: checkReferenceSelector(env['BENCH_REFERENCE'] ?? DEFAULT_REFERENCE),
+    writeReference: env['BENCH_REFERENCE_WRITE'] === '1',
     log,
   };
 }
@@ -124,6 +152,47 @@ export function referenceDir(root: string): string {
   return path.join(root, 'src', 'engine', 'planner', 'bench', 'reference');
 }
 
+/** A versioned reference file (D4-09): references of the R1 small spaces and the R2 stored best plans, for one key. */
+export interface PolicyReferenceFile {
+  selector: string;
+  /** Engine version, parameter set and planner domain the references were computed for (`referenceKey`). */
+  refKey: string;
+  /** Production comparison policy of the run that froze the file (provenance; references do not depend on it). */
+  policy: { version: number; fingerprint: string; key: string };
+  r1: Record<string, ReferenceSummary>;
+  r2: Record<string, StoredR2>;
+}
+
+/**
+ * The references a run starts from: the selected versioned file when its key matches, else a read-only historical
+ * r1-/r2-<key>.json pair of exactly this key, else nothing (recomputed in memory). Pure read.
+ */
+export function loadReferences(root: string, selector: string, refKey: string): { r1: Record<string, ReferenceSummary>; r2: Record<string, StoredR2>; reused: boolean; frozenKey: string | null } {
+  const dir = referenceDir(root);
+  const file = readJson<PolicyReferenceFile | null>(path.join(dir, `${selector}.json`), null);
+  if (file && file.refKey === refKey) return { r1: { ...file.r1 }, r2: { ...file.r2 }, reused: true, frozenKey: file.refKey };
+  const r1 = readJson<Record<string, ReferenceSummary>>(path.join(dir, `r1-${refKey}.json`), {});
+  const r2 = readJson<Record<string, StoredR2>>(path.join(dir, `r2-${refKey}.json`), {});
+  return { r1, r2, reused: Object.keys(r1).length > 0 || Object.keys(r2).length > 0, frozenKey: file?.refKey ?? null };
+}
+
+/** Freeze/extend the selected reference file; refuses a historical name and a file frozen for another key. */
+export function writeReferences(root: string, selector: string, refKey: string, r1: Record<string, ReferenceSummary>, r2: Record<string, StoredR2>): string {
+  checkReferenceSelector(selector);
+  const file = path.join(referenceDir(root), `${selector}.json`);
+  const prev = readJson<PolicyReferenceFile | null>(file, null);
+  if (prev && prev.refKey !== refKey) throw new Error(`reference ${selector} is frozen for ${prev.refKey}; this run is ${refKey}: use a new selector instead of overwriting it`);
+  const out: PolicyReferenceFile = {
+    selector,
+    refKey,
+    policy: { version: PLANNER_COMPARISON_POLICY.version, fingerprint: PLANNER_POLICY_FINGERPRINT, key: PLANNER_POLICY_KEY },
+    r1: { ...(prev?.r1 ?? {}), ...r1 },
+    r2: { ...(prev?.r2 ?? {}), ...r2 },
+  };
+  writeJson(file, out);
+  return file;
+}
+
 const isoNow = () => new Date(performance.timeOrigin + performance.now()).toISOString();
 
 export async function runBenchmark(o: BenchOptions): Promise<{ summary: BenchSummary; file: string }> {
@@ -131,12 +200,14 @@ export async function runBenchmark(o: BenchOptions): Promise<{ summary: BenchSum
   const date = isoNow();
   const runId = (hashString(`${date}|${o.suites.join(',')}|${o.split}|${o.algos.join(',')}`) >>> 0).toString(36);
   const refKey = referenceKey(o.root);
-  const refDir = referenceDir(o.root);
-  const r1File = path.join(refDir, `r1-${refKey}.json`);
-  const r2File = path.join(refDir, `r2-${refKey}.json`);
-  const r1Refs = readJson<Record<string, ReferenceSummary>>(r1File, {});
-  const r2Stored = readJson<Record<string, StoredR2>>(r2File, {});
-  o.log(`planner benchmark ${runId}: suites ${o.suites.join(',')} tier ${o.tier} split ${o.split} seeds ${o.seeds} (R1 ${o.seedsR1}, R2 ${o.seedsR2}) algos ${o.algos.join(',')}; live optimiser v2 API: ${liveIsV2()}`);
+  const loaded = loadReferences(o.root, o.reference, refKey);
+  const r1Refs = loaded.r1;
+  const r2Stored = loaded.r2;
+  if (o.writeReference && loaded.frozenKey !== null && loaded.frozenKey !== refKey) throw new Error(`reference ${o.reference} is frozen for ${loaded.frozenKey}; this run is ${refKey}: choose a new BENCH_REFERENCE`);
+  o.log(
+    `planner benchmark ${runId}: suites ${o.suites.join(',')} tier ${o.tier} split ${o.split} seeds ${o.seeds} (R1 ${o.seedsR1}, R2 ${o.seedsR2}) algos ${o.algos.join(',')}; live optimiser v2 API: ${liveIsV2()}; ` +
+      `policy ${PLANNER_POLICY_FINGERPRINT}; reference ${o.reference} (${loaded.reused ? 'reused' : 'recomputed in memory'}${o.writeReference ? ', will be written' : ', read-only'})`,
+  );
 
   // jobs
   const specs: ProblemSpec[] = [];
@@ -177,7 +248,6 @@ export async function runBenchmark(o: BenchOptions): Promise<{ summary: BenchSum
           },
           onErr,
         );
-        writeJson(r1File, r1Refs);
       }
       const realJobs: Job[] = [];
       for (const spec of [...realSpecs].sort((x, y) => (x.suite === y.suite ? 0 : x.suite === 'R2' ? -1 : 1))) {
@@ -233,7 +303,12 @@ export async function runBenchmark(o: BenchOptions): Promise<{ summary: BenchSum
   }
   for (const r of records) if (!r.ok && r.error && !r.info?.['blocked']) errors.push(`${r.problem} seed ${r.seed} ${r.algo}: ${r.error.split('\n')[0]}`);
   const { metrics, r2 } = evaluateRuns(records, r2Stored);
-  if (records.some((r) => r.suite === 'R2')) writeJson(r2File, r2);
+  let referenceWritten = false;
+  if (o.writeReference) {
+    const f = writeReferences(o.root, o.reference, refKey, r1Refs, r2);
+    referenceWritten = true;
+    o.log(`reference ${path.relative(o.root, f)} written (key ${refKey})`);
+  }
   const merged: RunMetrics[] = [...metrics];
   let perfAll: PerfResult[] = perf;
   for (const f of o.merge) {
@@ -263,6 +338,8 @@ export async function runBenchmark(o: BenchOptions): Promise<{ summary: BenchSum
     durationS: (performance.now() - t0) / 1000,
     notes,
     perf: perfAll.length ? perfAll : null,
+    policy: { version: PLANNER_COMPARISON_POLICY.version, fingerprint: PLANNER_POLICY_FINGERPRINT, key: PLANNER_POLICY_KEY },
+    reference: { selector: o.reference, key: refKey, reused: loaded.reused, written: referenceWritten },
   });
   // ensemble truth of the small real spaces (the 50 best plans on 256 model draws)
   const truths = summary.suites['R1'] ? Object.values(r1Refs).map((r) => (r.detail as { truth?: { starShare: number | null; chanceFeasible: number; evaluated: number; robustBest: { rank: number; nominalD: number[] } | null } } | undefined)?.truth).filter((t): t is NonNullable<typeof t> => !!t) : [];

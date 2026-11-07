@@ -1,15 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { paths } from '@/app/paths';
-import { Field, Key, KeyBank, KJ_PER_KCAL, ScaleRange, ScaleSlider, Section, Select, Stepper, Switch, TextInput, formatNumber } from '@/components';
+import { Field, Key, KeyBank, KJ_PER_KCAL, ScaleRange, Section, Select, Stepper, Switch, TextInput, formatNumber } from '@/components';
+import { RailSlider } from './ShapeScales';
 import type { TrainingQuality } from '@/engine/body';
 import { DEFAULTS } from '@/engine/core/defaults';
-import type { ContraceptionKind, DietAnimalLevel, SleepQuality, StressLevel, TrainingHistory } from '@/engine/types/profile';
+import type { ContraceptionKind, DietAnimalLevel, StressLevel, TrainingHistory } from '@/engine/types/profile';
 import { BODY_RANGES, type BodyProfileValues } from '@/state/profileStore';
 import { patchProfile, type ProfileUpdate } from '../commands';
 import { HABITS } from '../copy';
 import { TRAINING_KEY_YEARS, trainingHistoryOf } from '../model';
+import { DisclosureRow } from './Disclosure';
 import { OptionalNumber, wrapOptions } from './fields';
 import { energyIn, energyToKcal } from '../units';
 import { useSettingsStore } from '@/state/settingsStore';
@@ -30,13 +31,10 @@ function today(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Sleep scale runs 18:00 → 12:00 next day (hours 18…36) so a night never splits across midnight. */
-const toNight = (h: number) => (h < 12 ? h + 24 : h);
-
 function DefaultKey({ shown, onReset }: { shown: boolean; onReset: () => void }) {
   if (!shown) return null;
   return (
-    <Key variant="quiet" size="sm" onClick={onReset}>
+    <Key variant="text" size="sm" onClick={onReset}>
       {HABITS.resetDefault}
     </Key>
   );
@@ -60,7 +58,25 @@ export interface HabitsFormProps {
   headingAs?: 'h3' | 'h4';
 }
 
-/** The Habits editor (your-body.md §6 Habits + the engine's HabitProfile / CycleProfile inputs). */
+/**
+ * Numerals for a scale whose reference tick carries a word ("typical"): every major step from the first multiple of
+ * `step` at or above `min`, minus those within 12 % of the rail of the reference, so the word never sits on a number.
+ */
+export function labelsAround(min: number, max: number, step: number, ref: number, decimals = 0) {
+  const out: Array<{ value: number; label: string }> = [];
+  for (let x = Math.ceil(min / step - 1e-9) * step; x <= max + 1e-9; x += step) {
+    const v = Math.round(x * 1000) / 1000;
+    if (Math.abs(v - ref) / (max - min) < 0.12) continue;
+    out.push({ value: v, label: formatNumber(v, decimals) });
+  }
+  return out;
+}
+
+/**
+ * The Habits editor (your-body.md §6 Habits + the engine's HabitProfile / CycleProfile inputs): training history,
+ * stress, usual eating and the cycle. Steps, training sessions and type, and sleep have one home, "a normal day" (the
+ * intake), which writes them on the profile.
+ */
 export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
   const h = v.habits;
   const setH = (patch: Partial<Habits>) => patchProfile({ habits: patch });
@@ -68,17 +84,14 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
   const patchCycle = (cycle: NonNullable<ProfileUpdate['cycle']>) => patchProfile({ cycle });
   const years = v.training.years;
   const history = trainingHistoryOf(years);
-  const sessions = h.sessionsPerWeek ?? 0;
-  const mix = h.lifingCardioMix ?? 0.5;
   const proteinDefault = defaults.proteinGPerKg;
   const carbDefault = defaults.carbPct;
-  const bed = h.bedTimeH ?? DEFAULTS.bedTimeH;
-  const wake = h.wakeTimeH ?? DEFAULTS.wakeTimeH;
   const winStart = h.habitualWindowStartH ?? DEFAULTS.windowStartH;
   const winLen = h.habitualWindowLengthH ?? DEFAULTS.windowLengthH;
   const [advanced, setAdvanced] = useState(
     [h.habitualFibreGPer1000Kcal, h.habitualSodiumG, h.habitualCaffeineMg, h.habitualAlcoholDrinksPerWeek, h.upfShare, h.foodQuality, h.multivitamin, h.smoker, h.habitualLiquidKcal].some((x) => x !== undefined),
   );
+  const advancedId = useId();
   const female = v.sex === 'female';
   const energyUnit = useSettingsStore((st) => st.energyUnit);
 
@@ -110,82 +123,14 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
             </Field>
           </div>
         ) : null}
-        <Field label={HABITS.sessions}>
-          <Stepper name="sessions a week" value={sessions} onChange={(n) => setH({ sessionsPerWeek: n })} min={0} max={14} step={1} unit={HABITS.sessionsUnit} inputMode="numeric" />
-        </Field>
-        {sessions > 0 ? (
-          <ScaleSlider
-            label={HABITS.mix}
-            value={mix}
-            min={0}
-            max={1}
-            step={0.05}
-            minorStep={0.05}
-            majorStep={0.25}
-            labels={HABITS.mixLabels}
-            format={(x) => HABITS.mixValue(Math.round((1 - x) * 100))}
-            valueText={(x) => HABITS.mixValue(Math.round((1 - x) * 100)).replace(/%/g, 'percent')}
-            editable={false}
-            onChange={(x) => setH({ lifingCardioMix: x })}
-          />
-        ) : null}
       </Section>
 
-      <Section label={HABITS.activityTitle} labelAs={headingAs}>
-        <ScaleSlider
-          label={HABITS.steps}
-          value={h.typicalSteps ?? DEFAULTS.steps}
-          min={1000}
-          max={25000}
-          step={100}
-          minorStep={1000}
-          majorStep={5000}
-          labels={[
-            { value: 1000, label: '1k' },
-            { value: 5000, label: '5k' },
-            { value: 10000, label: '10k' },
-            { value: 15000, label: '15k' },
-            { value: 20000, label: '20k' },
-            { value: 25000, label: '25k' },
-          ]}
-          reference={{ value: DEFAULTS.steps }}
-          format={(x) => formatNumber(x, 0)}
-          unit={HABITS.stepsUnit}
-          valueText={(x) => `${formatNumber(x, 0, { grouping: 'none' })} steps a day`}
-          note={HABITS.stepsRef}
-          onChange={(x) => setH({ typicalSteps: x })}
-        />
-      </Section>
-
-      <Section label={HABITS.sleepTitle} labelAs={headingAs}>
-        <ScaleRange
-          label={HABITS.sleep}
-          value={[toNight(bed), toNight(wake) <= toNight(bed) ? toNight(wake) + 24 : toNight(wake)]}
-          min={18}
-          max={36}
-          step={0.25}
-          minGap={3}
-          minorStep={1}
-          majorStep={3}
-          labels={[18, 21, 24, 27, 30, 33, 36].map((x) => ({ value: x, label: clock(x) }))}
-          format={clock}
-          thumbLabels={HABITS.sleepThumbs}
-          valueText={(x, which) => `${which === 'low' ? 'bedtime' : 'wake time'} ${clock(x)}`}
-          onChange={([b, w]) => setH({ bedTimeH: b % 24, wakeTimeH: w % 24 })}
-        />
-        <div className="lm-body-pair">
-          <Field label={HABITS.sleepQuality}>
-            <KeyBank<SleepQuality> block value={h.sleepQuality ?? DEFAULTS.sleepQuality} onChange={(q) => setH({ sleepQuality: q })} options={HABITS.qualityWords} />
-          </Field>
-          <Field label={HABITS.stress}>
-            <KeyBank<StressLevel> block value={h.stress ?? DEFAULTS.stress} onChange={(x) => setH({ stress: x })} options={HABITS.stressWords} />
-          </Field>
-        </div>
+      <Section label={HABITS.stressTitle} labelAs={headingAs}>
+        <KeyBank<StressLevel> block label={HABITS.stress} value={h.stress ?? DEFAULTS.stress} onChange={(x) => setH({ stress: x })} options={HABITS.stressWords} />
       </Section>
 
       <Section label={HABITS.eatingTitle} labelAs={headingAs}>
-        <p className="lm-body-hint">{HABITS.eatingLead}</p>
-        <ScaleSlider
+        <RailSlider
           label={HABITS.carbs}
           value={h.habitualCarbPctEnergy ?? carbDefault}
           min={0}
@@ -193,18 +138,15 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
           step={1}
           minorStep={5}
           majorStep={25}
-          reference={{ value: carbDefault }}
+          // "typical" is a labelled tick on the scale itself (r068 BD-11); numerals near it give way
+          reference={{ value: carbDefault, label: HABITS.typicalTick }}
+          labels={labelsAround(0, 75, 25, carbDefault)}
           unit={HABITS.carbsUnit}
-          valueText={(x) => `carbohydrate ${x} percent of energy`}
-          note={
-            <span className="lm-body-row">
-              {HABITS.carbsRef}
-              <DefaultKey shown={h.habitualCarbPctEnergy !== undefined} onReset={() => setH({ habitualCarbPctEnergy: undefined })} />
-            </span>
-          }
+          valueText={(x) => `carbohydrate ${x} percent of energy, typical ${carbDefault}`}
+          note={<DefaultKey shown={h.habitualCarbPctEnergy !== undefined} onReset={() => setH({ habitualCarbPctEnergy: undefined })} />}
           onChange={(x) => setH({ habitualCarbPctEnergy: x })}
         />
-        <ScaleSlider
+        <RailSlider
           label={HABITS.protein}
           value={h.habitualProteinGPerKg ?? Math.round(proteinDefault * 20) / 20}
           min={0.4}
@@ -212,16 +154,12 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
           step={0.05}
           minorStep={0.1}
           majorStep={0.5}
-          reference={{ value: Math.round(proteinDefault * 20) / 20 }}
+          reference={{ value: Math.round(proteinDefault * 20) / 20, label: HABITS.typicalTick }}
+          labels={labelsAround(0.4, 3, 0.5, Math.round(proteinDefault * 20) / 20, 1)}
           unit={HABITS.proteinUnit}
           format={(x) => formatNumber(x, 2)}
-          valueText={(x) => `protein ${formatNumber(x, 2)} grams per kilogram a day`}
-          note={
-            <span className="lm-body-row">
-              {`typical ${formatNumber(Math.round(proteinDefault * 20) / 20, 2)}`}
-              <DefaultKey shown={h.habitualProteinGPerKg !== undefined} onReset={() => setH({ habitualProteinGPerKg: undefined })} />
-            </span>
-          }
+          valueText={(x) => `protein ${formatNumber(x, 2)} grams per kilogram a day, typical ${formatNumber(Math.round(proteinDefault * 20) / 20, 2)}`}
+          note={<DefaultKey shown={h.habitualProteinGPerKg !== undefined} onReset={() => setH({ habitualProteinGPerKg: undefined })} />}
           onChange={(x) => setH({ habitualProteinGPerKg: x })}
         />
         <Field label={HABITS.meals}>
@@ -252,13 +190,13 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
         </Field>
 
         <div className="lm-body-more">
-          <Key variant="quiet" size="sm" trailingIcon={advanced ? ChevronUp : ChevronDown} aria-expanded={advanced} onClick={() => setAdvanced((a) => !a)}>
+          {/* a full-width disclosure row like every other one on Your body (r068 V-BD-1), not a centred text key */}
+          <DisclosureRow open={advanced} controls={advancedId} onToggle={() => setAdvanced((a) => !a)}>
             {HABITS.advanced}
-          </Key>
+          </DisclosureRow>
           {advanced ? (
-            <div className="lm-body-form">
+            <div className="lm-body-form" id={advancedId}>
               <p className="lm-body-hint">
-                {HABITS.advancedLead}{' '}
                 <Link className="lm-link" to={paths.evidenceTopic('fibre-hydration-substances')}>
                   {HABITS.advancedEvidence}
                 </Link>
@@ -300,7 +238,7 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
                   <Stepper name="alcohol" value={h.habitualAlcoholDrinksPerWeek ?? DEFAULTS.habitualAlcoholDrinksPerWeek} onChange={(x) => setH({ habitualAlcoholDrinksPerWeek: x })} min={0} max={60} step={1} unit={HABITS.alcoholUnit} inputMode="numeric" />,
                 )}
               </Field>
-              <ScaleSlider
+              <RailSlider
                 label={HABITS.upf}
                 value={Math.round((h.upfShare ?? DEFAULTS.upfShare) * 100)}
                 min={0}
@@ -343,15 +281,12 @@ export function HabitsForm({ v, defaults, headingAs = 'h3' }: HabitsFormProps) {
 
       {female ? (
         <Section label={HABITS.cycleTitle} labelAs={headingAs}>
-          <Field label={HABITS.menopause} help={HABITS.menopauseHelp}>
+          <Field label={HABITS.menopause}>
             <KeyBank<'pre' | 'peri' | 'post'> block value={v.menopause ?? undefined} onChange={(m) => patchProfile({ menopause: m })} options={HABITS.menopauseOptions} />
           </Field>
           {v.menopause !== 'post' ? (
             <>
-              <Switch label={HABITS.cycleTrack} checked={v.cycle.tracking} onChange={(on) => patchCycle({ tracking: on })} describedBy="lm-body-cycle-help" />
-              <p id="lm-body-cycle-help" className="lm-body-hint">
-                {HABITS.cycleHelp}
-              </p>
+              <Switch label={HABITS.cycleTrack} checked={v.cycle.tracking} onChange={(on) => patchCycle({ tracking: on })} />
               {v.cycle.tracking ? (
                 <div className="lm-body-form">
                   <Field label={HABITS.cycleLength}>

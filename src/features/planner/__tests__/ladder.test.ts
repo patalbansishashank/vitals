@@ -105,17 +105,17 @@ describe('goal rows', () => {
     const v2 = fixtureLadder();
     const hard = outcomeView(v2.rungs.hard!.summary.outcomes[0]!, goals[0], 'hard', 'metric');
     expect(hard.value).toBe('−5.2\u2009kg');
-    expect(hard.range).toBe('likely 4.6–5.8\u2009kg');
-    expect(hard.verdict).toBe('reached in about 3 weeks · 82 % chance');
-    // quick searches round the chance to 10 %
-    expect(outcomeView(v2.rungs.hard!.summary.outcomes[0]!, goals[0], 'hard', 'metric', { roundChance: true }).verdict).toBe('reached in about 3 weeks · 80 % chance');
+    // a parameter-sensitivity range with its unit, never "likely"; no inline chance (C6/D4-03)
+    expect(hard.range).toBe('4.6–5.8\u2009kg');
+    expect(hard.verdict).toBe('reached in about 3 weeks');
+    expect(outcomeView(v2.rungs.hard!.summary.outcomes[0]!, goals[0], 'hard', 'metric', { roundChance: true }).verdict).toBe('reached in about 3 weeks');
     expect(hard.vsHard).toBeNull();
     const medium = outcomeView(v2.rungs.medium!.summary.outcomes[0]!, goals[0], 'medium', 'metric');
     expect(medium.verdict).toBe('about 6 weeks at this plan’s effort');
     expect(medium.vsHard).toBe('1.1\u2009kg less lost than Hard');
     expect(outcomeView(v2.rungs.medium!.summary.outcomes[1]!, goals[1], 'medium', 'metric').verdict).toBe('kept');
     const dir = outcomeView(v2.rungs.hard!.summary.outcomes[2]!, goals[2], 'hard', 'metric');
-    expect(dir.value).toBe('↑ 62 % of what’s possible');
+    expect(dir.value).toBe('↑ 62 % of the best found');
     expect(dir.verdict).toBe('partial · grade D');
   });
 
@@ -198,7 +198,7 @@ describe('the ladder strip', () => {
       ['easy', 18, -2.5],
     ]);
     expect(s.points[0]!.label).toBe('Hard −5.2');
-    expect(s.ceiling!.label).toBe('ceiling (Ideal) −5.8\u2009kg');
+    expect(s.ceiling!.label).toBe('Ideal −5.8\u2009kg');
     // the frontier passes through Hard
     const atHard = s.frontier.find((p) => p.x === 64)!;
     expect(atHard.y).toBeCloseTo(-5.2, 5);
@@ -306,7 +306,7 @@ describe('Ideal equals Hard', () => {
     expect(presentKinds(same)).toEqual(['hard']);
     expect(kindFromParams(new URLSearchParams('rung=ideal'), same)).toBe('hard');
     expect(comparisonRows(same, goals, 'metric').map((r) => r.id)).not.toContain('cost');
-    expect(ladderScale(same, goals[0], 'metric').ceiling!.label).toBe('ceiling = Hard −5.2\u2009kg');
+    expect(ladderScale(same, goals[0], 'metric').ceiling!.label).toBe('Ideal = Hard −5.2\u2009kg');
     expect(presentKinds(fixtureLadder())).toEqual(['hard', 'medium', 'easy', 'ideal']);
   });
 });
@@ -334,7 +334,7 @@ describe('the ladder graph', () => {
   it('plots rungs on the worded effort axis with two or more markers', () => {
     const g = ladderGraphData(fixtureLadder(), goals[0], 'metric');
     expect(g.mode).toBe('ladder');
-    expect(g.xLabel).toBe('Effort (0 = how you live now, 100 = your limits)');
+    expect(g.xLabel).toBe('Effort: 0 = as you live now, 100 = your limits');
     expect(g.yLabel).toBe('goal 1 · fat mass');
     expect(g.search).toBeNull();
     expect(g.summary).toBe(g.scale.summary);
@@ -350,7 +350,7 @@ describe('the ladder graph', () => {
     expect(s.points.at(-1)!.y).toBeCloseTo(-5.2, 5);
     expect(s.final).toMatchObject({ eu: 240000, label: 'Hard −5.2' });
     expect(s.settledAt).toBe(160000);
-    expect(g.summary).toMatch(/^The search tried 240\s000 plans; the best result stopped improving after about 160\s000 at −5\.2 kg\.$/);
+    expect(g.summary).toMatch(/^The search tried 240,000 plans; the best result stopped improving after about 160,000 at −5\.2 kg\.$/);
     // without a convergence trace a lone Hard stays on the effort axis with the frontier
     const bare = ladderGraphData({ ...fixtureLadderCase('hardOnly'), convergence: [] }, goals[0], 'metric');
     expect(bare.mode).toBe('ladder');

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The picker's labels and facts (a widget is described by what it shows, not by how it looks). -->
+    <string name="widget_today_label">Vitals · Today</string>
+    <string name="widget_today_description">Steps, energy and last night\'s sleep in three rings. Follows quiet mode.</string>
+    <string name="widget_ring_label">Vitals · Heart rate</string>
+    <string name="widget_ring_description">Your latest heart rate and its day. Follows quiet mode.</string>
+    <string name="widget_actions_label">Vitals · Log or record</string>
+    <string name="widget_actions_description">Log an activity, or record one with the ring app.</string>
+    <string name="widget_log_label">Vitals · Log</string>
+    <string name="widget_log_description">Log an activity in one tap.</string>
+    <string name="widget_energy_label">Vitals · Energy</string>
+    <string name="widget_energy_description">Energy burned so far today, with its range and the day\'s line. Says only that quiet mode is on, in quiet mode.</string>
+    <string name="widget_sleep_label">Vitals · Sleep</string>
+    <string name="widget_sleep_description">Last night\'s sleep against your goal and the night\'s stages. Follows quiet mode.</string>
+    <string name="widget_steps_label">Vitals · Steps</string>
+    <string name="widget_steps_description">Today\'s steps against your goal, and the hours they came in. Follows quiet mode.</string>
+    <string name="widget_weight_label">Vitals · Weight</string>
+    <string name="widget_weight_description">Your trend weight. Off until you turn it on in Settings › Widgets.</string>
+    <string name="widget_log_activity">Log an activity</string>
+    <string name="widget_log_short">Log</string>
+    <string name="widget_record">Record</string>
+</resources>

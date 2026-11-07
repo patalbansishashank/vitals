@@ -1,42 +1,105 @@
 /* ==========================================================================
-   Archivo — self-hosted variable font (SIL OFL 1.1), wght 100–900, wdth 62–125.
-   Files come from @fontsource-variable/archivo (the "wdth" build carries both
-   axes). Only latin + latin-ext are declared (DESIGN_DIRECTION §3.1); Vite
-   fingerprints the files into /assets so the CSP `font-src 'self'` holds.
-   The family is registered as "Archivo" so the token stack in tokens.css
-   (--lm-font-sans: "Archivo", …) resolves without changes.
+   The type pairing (r071) — two self-hosted variable fonts (SIL OFL 1.1):
+   - Geist (sans, title and display: body, labels, keys, chips, tables, ticks,
+     page and card titles, the big numerals) from @fontsource-variable/geist,
+     wght axis only;
+   - Geist Mono (meta: the one uppercase text, for facts: dates, ranges,
+     units, states, legends, times) from @fontsource-variable/geist-mono,
+     wght axis only.
+   Replaces Inter and Figtree (r068 U10). Only latin + latin-ext are declared
+   (unicode-range, so latin-ext downloads only when a page uses it; the rupee
+   sign lives there); Vite fingerprints the files into /assets, so the CSP
+   `font-src 'self'` holds and Capacitor / Electron work offline. Latin weighs
+   ~29 KB (Geist) + ~23 KB (Geist Mono); the arrow U+2192 is in neither file,
+   so "Add task →" is an icon, never a glyph.
+
+   Weight floors (a variable face clamps its wght axis to the declared range,
+   so a request outside the range renders at the nearest end):
+   - Geist is declared 300–600: nothing is heavier than 600 (a bold request
+     lands on 600), and 300 exists for numerals of 36 px and up only (measured
+     stem 0.068 em: 3.0 px at 44 px, 1.1 px at 16 px). Text of 24 px and under
+     is set at 400 or more; a stray `font-weight: 350` would render light, so
+     there are none (tokens.test.ts scans the stylesheets).
+   - Geist Mono is declared 400–600 (meta is 500; 600 is the heaviest).
+
+   Neither face has a width axis, so font-stretch is not declared.
    ========================================================================== */
 
+/* ---- Geist (sans, title, display) --------------------------------------- */
 @font-face {
-  font-family: 'Archivo';
+  font-family: 'Geist';
   font-style: normal;
   font-display: swap;
-  font-weight: 100 900;
-  font-stretch: 62% 125%;
-  src: url('@fontsource-variable/archivo/files/archivo-latin-ext-wdth-normal.woff2') format('woff2-variations'),
-    url('@fontsource-variable/archivo/files/archivo-latin-ext-wdth-normal.woff2') format('woff2');
+  font-weight: 300 600;
+  src: url('@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2') format('woff2-variations'),
+    url('@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2') format('woff2');
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
     U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 @font-face {
-  font-family: 'Archivo';
+  font-family: 'Geist';
   font-style: normal;
   font-display: swap;
-  font-weight: 100 900;
-  font-stretch: 62% 125%;
-  src: url('@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2') format('woff2-variations'),
-    url('@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2') format('woff2');
+  font-weight: 300 600;
+  src: url('@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2-variations'),
+    url('@fontsource-variable/geist/files/geist-latin-wght-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
     U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Metric-matched fallback so the swap does not shift layout (DESIGN_DIRECTION §3.1). */
+/* ---- Geist Mono (meta) --------------------------------------------------- */
 @font-face {
-  font-family: 'Archivo Fallback';
-  src: local('Arial'), local('Helvetica Neue'), local('Helvetica'), local('Liberation Sans');
-  size-adjust: 104%;
-  ascent-override: 87%;
-  descent-override: 21%;
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 600;
+  src: url('@fontsource-variable/geist-mono/files/geist-mono-latin-ext-wght-normal.woff2') format('woff2-variations'),
+    url('@fontsource-variable/geist-mono/files/geist-mono-latin-ext-wght-normal.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 600;
+  src: url('@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2') format('woff2-variations'),
+    url('@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---- metric-matched fallbacks, so the swap does not shift layout ---------
+   Measured with fontTools as in r068: the letter-frequency-weighted average
+   advance over Liberation Sans (Arial's metrics) gives size-adjust (Geist at
+   wght 400 for text, at wght 600 for titles; Geist Mono over Liberation Mono),
+   and hhea ascent / descent divided by it give the overrides; neither face has
+   a line gap. Re-measured from the installed files for r071 (r071/RESEARCH.md §2.4 has the method). */
+@font-face {
+  font-family: 'Geist Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Helvetica Neue'), local('Helvetica'), local('Roboto');
+  size-adjust: 107.5%;
+  ascent-override: 93.5%;
+  descent-override: 27.4%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Geist Title Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Helvetica Neue'), local('Helvetica'), local('Roboto');
+  size-adjust: 113.4%;
+  ascent-override: 88.6%;
+  descent-override: 26%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Geist Mono Fallback';
+  src: local('Courier New'), local('Liberation Mono'), local('Menlo'), local('Consolas');
+  size-adjust: 100%;
+  ascent-override: 100.5%;
+  descent-override: 29.5%;
   line-gap-override: 0%;
 }

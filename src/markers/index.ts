@@ -5,3 +5,5 @@ export * from './doc';
 export * from './table';
 export * from './rules';
 export * from './baselines';
+export * from './review';
+export * from './renal';

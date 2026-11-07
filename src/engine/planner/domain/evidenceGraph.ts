@@ -25,7 +25,7 @@
 import { catalogueEdges } from '@/catalogues';
 import { SEED_CATALOGUE } from '@/content/catalogues';
 import type { EvidenceTopicSlug } from '@/content/evidence/schema';
-import { SERIES, SERIES_INDEX, type MetricId, type SeriesDef, type SeriesId } from '../../types/metrics';
+import { GOAL_CAPABILITY, SERIES, SERIES_INDEX, isProductionGoalEligible, type MetricId, type SeriesDef, type SeriesId } from '../../types/metrics';
 import { SIGNAL_DEFS, type ModuleId, type SignalName } from '../../types/signals';
 import { BLOCKS, type BlockId } from './registry/blocks';
 import { LEVERS } from './registry/levers';
@@ -267,9 +267,11 @@ export const CHANNELS: Readonly<Record<ChannelId, ChannelDef>> = {
       ['glucose', -1],
       ['autophagyIdx', 1],
       ['ldl', 1],
-      ['apoB', 1],
+      // D7-07: ApoB is an exploratory proxy of LDL + TG/divisor (fat share raises LDL and lowers TG: either way), and the
+      // ketogenic liver-fat benefit is an opt-in scenario (the default follows energy and fat type: either way)
+      ['apoB', 0],
       ['triglycerides', -1],
-      ['liverFat', -1],
+      ['liverFat', 0],
       ['sbp', -1],
       ['enduranceCapacity', -1],
       ['tdee', -1],
@@ -290,7 +292,8 @@ export const CHANNELS: Readonly<Record<ChannelId, ChannelDef>> = {
       ['glucose', 1],
       ['enduranceCapacity', 1],
       ['ldl', -1],
-      ['apoB', -1],
+      // D7-07: the exploratory ApoB proxy follows LDL (down) and TG (up) with carbohydrate: either way
+      ['apoB', 0],
       ['triglycerides', 1],
     ],
   },
@@ -568,25 +571,28 @@ export const INFO_ONLY_EDGES: Readonly<Record<string, ReadonlyArray<readonly [Me
   L18: [['triglycerides', -1], ['rtMuscleGain', 1]],
 };
 
-/** Catalogue outcome families (E8) → goal metrics, with the metric direction of a benefit. Unlisted outcomes reach no goal metric. */
+/**
+ * Catalogue outcome families (E8) → goal metrics, with the metric direction of a benefit. Unlisted outcomes reach no goal
+ * metric. Task-specific performance outcomes (time trial, time to exhaustion, 4-10 min efforts, Wingate/Yo-Yo) are not
+ * represented by the generic endurance index (D8-09: each is its own task, outside the index's glycogen-limited cycling
+ * scope), and adequacy/deficiency claims do not credit the rule-based micronutrient score (D8-08: an unknown multivitamin
+ * supplies no known nutrient dose); those outcomes stay in the catalogue and the Evidence library.
+ */
 export const CATALOGUE_OUTCOME_METRICS: Readonly<Record<string, ReadonlyArray<readonly [MetricId, 1 | -1]>>> = {
   hypertrophy: [['skeletalMuscle', 1], ['leanTissue', 1], ['rtMuscleGain', 1]],
   strength: [['strength', 1]],
   energy: [['tdee', 1]],
-  cardio: [['vo2max', 1], ['enduranceCapacity', 1]],
+  cardio: [['vo2max', 1]],
   protein: [['leanTissue', 1]],
   fibre: [['ldl', -1]],
   lipids: [['ldl', -1], ['triglycerides', -1]],
   bloodPressure: [['sbp', -1]],
-  performance: [['enduranceCapacity', 1]],
-  micronutrient: [['micronutrientScore', 1]],
   // supplement outcome labels (free text in the seed)
   'FFM with RT': [['leanTissue', 1]],
   'MPS during energy deficit': [['leanTissue', 1]],
   'LBM/strength vs whey with RT': [['leanTissue', 1], ['strength', 1]],
   'chronic hypertrophy': [['skeletalMuscle', 1]],
   'LBM with RT': [['leanTissue', 1]],
-  'endurance TT': [['enduranceCapacity', 1]],
   'fat loss': [['fatMass', -1]],
   'BP and stroke': [['sbp', -1]],
   BP: [['sbp', -1]],
@@ -597,13 +603,6 @@ export const CATALOGUE_OUTCOME_METRICS: Readonly<Record<string, ReadonlyArray<re
   'weight in calorie restriction': [['fatMass', -1]],
   'low-carb flu prevention': [['ketoInduction', -1]],
   'muscle strength': [['strength', 1]],
-  'time to exhaustion': [['enduranceCapacity', 1]],
-  'time trial': [['enduranceCapacity', 1]],
-  '4-10 min efforts': [['enduranceCapacity', 1]],
-  'Wingate/Yo-Yo performance': [['enduranceCapacity', 1]],
-  'micronutrient adequacy': [['micronutrientScore', 1]],
-  'prevention of deficiency': [['micronutrientScore', 1]],
-  'preventing deficiency in at-risk diets': [['micronutrientScore', 1]],
 };
 
 /**
@@ -741,10 +740,36 @@ export const ZERO_INTAKE_SOURCES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Metrics whose goal capability says there is no health objective (C6/D2-02: the legacy autophagy research index, mTOR and
+ * AMPK activity). Their edges stay in the graph as mechanism (education); they never open fasting or earn benefit credit.
+ */
+export const NO_HEALTH_OBJECTIVE: ReadonlySet<MetricId> = new Set((Object.keys(GOAL_CAPABILITY) as MetricId[]).filter((m) => GOAL_CAPABILITY[m].reasonCode === 'noHealthObjective'));
+
+/**
+ * What an edge is to the planner (C6): `objective` when its metric is an optimizable goal, `mechanism` when the metric has
+ * no optimizable capability (the adherence index, the keto-adaptation states, IGF-1 and the other endocrine indices, the
+ * generic endurance index, the micronutrient score, BMD change): the mechanism stays in the graph and the Evidence
+ * library, it never opens a lever, earns credit or answers "what moves this goal".
+ */
+export function edgeRole(e: Pick<EvidenceEdge, 'metric' | 'status'>): 'objective' | 'mechanism' | 'infoOnly' {
+  if (e.status === 'infoOnly') return 'infoOnly';
+  return isProductionGoalEligible(e.metric) ? 'objective' : 'mechanism';
+}
+
+/** Edges that may steer the planner toward `metric` (empty for a metric without an optimizable capability). */
+export function objectiveEdgesTo(metric: MetricId): readonly EvidenceEdge[] {
+  return isProductionGoalEligible(metric) ? edgesTo(metric).filter((e) => e.status !== 'infoOnly') : [];
+}
+
+/**
  * PLANNER_V2_SPEC §3.1: a zero-intake lever has an edge to the metric with status ≠ infoOnly and a sign that helps the
  * goal's direction (`up` = the goal wants the metric higher), or sign 0 (condition-dependent).
  */
 export function servesFasting(metric: MetricId, direction: 'up' | 'down'): boolean {
+  // D2-02: a research/signalling index without a health objective keeps its mechanism edges for education only. A metric
+  // without an optimizable capability (adherence, keto adaptation, IGF-1, the generic endurance index, the micronutrient
+  // score; C6) never compiles as a goal, so the fasting gate never asks for it; steering consumers use `objectiveEdgesTo`
+  if (NO_HEALTH_OBJECTIVE.has(metric)) return false;
   const want = direction === 'up' ? 1 : -1;
   return edgesTo(metric).some((e) => ZERO_INTAKE_SOURCES.has(e.from.id) && e.status !== 'infoOnly' && (e.sign === 0 || e.sign === want));
 }

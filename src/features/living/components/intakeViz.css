@@ -1,0 +1,43 @@
+/* IntakeTrack rows (r071 0B). Tokens only. The macro hues are the validated set (RESEARCH §3.5); a track's lit dots wear
+   the macro, the thumb stays ivory (so only the lit layer is recoloured, never --lmz-lit). */
+@layer components {
+  .lv-intake {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lv-intake__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lv-intake__name {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+  }
+  .lv-intake[data-intake='protein'] .lmz-track__layer[data-layer='lit'] {
+    color: var(--lm-macro-protein);
+  }
+  .lv-intake[data-intake='carbs'] .lmz-track__layer[data-layer='lit'] {
+    color: var(--lm-macro-carbs);
+  }
+  .lv-intake[data-intake='fat'] .lmz-track__layer[data-layer='lit'] {
+    color: var(--lm-macro-fat);
+  }
+  .lv-intake[data-intake='fibre'] .lmz-track__layer[data-layer='lit'] {
+    color: var(--lm-macro-fibre);
+  }
+  @media (forced-colors: active) {
+    .lv-intake .lmz-track__layer[data-layer='lit'] {
+      color: CanvasText;
+    }
+  }
+}

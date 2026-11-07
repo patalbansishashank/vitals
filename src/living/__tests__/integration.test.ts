@@ -16,20 +16,24 @@ import {
   buildReplanRequest,
   buildTodayView,
   catalogueEquivalence,
+  compositionReadingsFor,
   confirmedStateFromRecord,
   dailyAssimilation,
   driftGoal,
   expectedCreditFor,
   forecastBandOn,
   freezePrescription,
+  intakeEvidenceOf,
   isCheckInDue,
   lapseState,
   localToInstant,
   pickReplan,
   projectLiving,
+  projectionSchedule,
   realisedSchedule,
   revealedAdherence,
   startFromScenario,
+  templateOfDay,
   toLoggedDay,
   weekdayOf,
   weeklyCheckIn,
@@ -112,8 +116,9 @@ function pipeline() {
     results.push(r);
     for (const o of r.loggedDay.items) if (o.credit !== null) credits.push({ date, type: o.type, credit: o.credit });
   }
-  const weighIns = weighInsFor(plan, measurements, [], entries);
-  const intakeDays = results.map((r, d) => (r.intakeLogged ? d : -1)).filter((d) => d >= 0);
+  const weighIns = weighInsFor(plan, measurements, entries);
+  // the balance estimate's exposure gate: only complete quantitative or confirmed-zero days (C1/D5-01)
+  const intakeDays = results.map((r, d) => (r.calibrationEligible ? d : -1)).filter((d) => d >= 0);
 
   // ---- weekly check-ins on days 14 and 21 (Mondays)
   for (const day of [14, 21]) {
@@ -146,7 +151,13 @@ describe('living plan end to end', () => {
       expect(Math.abs(r.trendWeight.kg - truthTissue)).toBeLessThan(2 * r.trendWeight.sd + 0.1);
       expect(r.inputsHash).toMatch(/^[0-9a-f]{16}$/);
       expect(r.residualSplit.source).toBe('engine');
+      // D5-02: the stored trend is the water-adjusted estimate (tagged), the raw scale trend is kept beside it
+      expect(r.trendWeightOperator).toBe('waterAdjustedWake');
+      expect(r.rawScale!.kg).not.toBeCloseTo(r.trendWeight.kg, 1);
+      expect(r.stamp?.contracts).toMatch(/^[0-9a-f]{16}$/);
     }
+    // partial meal days, as-planned taps and gaps are never exposure-calibration days (no day here is reported complete)
+    expect(run.intakeDays).toEqual([]);
     expect(biasOn(run.recordsOut, 21).mean).toBeLessThanOrEqual(0);
   });
 
@@ -195,7 +206,7 @@ describe('living plan end to end', () => {
       date: today, tz: TZ, rolloverH: 4, quietMode: false, minimalMode: false, now: localToInstant(today, 9, TZ), plan: run.plan, version: run.version,
       prescription: rx, entries: [], measurements: run.measurements.filter((m) => m.date === today), status: null, logged: so,
       trend: adherenceTrend(run.results.map((r) => ({ date: r.loggedDay.date, score: r.score.score, final: true, logged: r.score.coverage > 0 })), addDays(today, -1)),
-      drift: { asOf: today, goals: [drift] }, trendWeight: rec.trendWeight, forecastToday: band, checkIn: { due: false, lastAt: today }, observations: null,
+      drift: { asOf: today, goals: [drift] }, trendWeight: rec.trendWeight, forecastToday: band, checkIn: { due: false, lastAt: today },
       lapse: lapseState(addDays(today, -1), today, run.plan.startDate),
     });
     expect(view.mode).toBe('living');
@@ -207,16 +218,9 @@ describe('living plan end to end', () => {
     expect(view.trendWeight!.todayExpected).toEqual(band);
     expect(view.drift![0]!.state).toBe('onTrack');
     expect(JSON.stringify(view)).not.toMatch(/§|R11|SUITE_SPEC|PLANNER_V2/);
-    // a device's night and steps keep their rows, done, so Today can show the reading with Correct (Q9)
-    const observed = buildTodayView({
-      date: today, tz: TZ, rolloverH: 4, quietMode: false, minimalMode: false, now: localToInstant(today, 9, TZ), plan: run.plan, version: run.version,
-      prescription: rx, entries: [], measurements: [], status: null, logged: so, trend: adherenceTrend([], today), drift: null, trendWeight: null, forecastToday: null,
-      checkIn: { due: false, lastAt: today }, lapse: { welcomeBack: false, gap: [] },
-      observations: { date: today, sleep: { bedH: 23, wakeH: 6.5, hours: 7, source: 'J-Style 2301' }, steps: { value: 4210, source: 'J-Style 2301' } },
-    });
-    expect(observed.checklist.find((c) => c.kind === 'sleep')).toMatchObject({ done: true });
-    if (rx.steps !== undefined) expect(observed.checklist.find((c) => c.kind === 'steps')).toMatchObject({ done: true });
-    const quiet = buildTodayView({ ...{ date: today, tz: TZ, rolloverH: 4, minimalMode: true, now: localToInstant(today, 9, TZ), plan: run.plan, version: run.version, prescription: rx, entries: [], measurements: [], status: null, logged: so, trend: adherenceTrend([], today), drift: null, trendWeight: null, forecastToday: null, checkIn: { due: true, lastAt: null }, observations: null, lapse: { welcomeBack: false, gap: [] } }, quietMode: true });
+    // Vitals reads no devices: sleep and steps rows are done only once the person logs them
+    expect(view.checklist.find((c) => c.kind === 'sleep')).toMatchObject({ done: false });
+    const quiet = buildTodayView({ ...{ date: today, tz: TZ, rolloverH: 4, minimalMode: true, now: localToInstant(today, 9, TZ), plan: run.plan, version: run.version, prescription: rx, entries: [], measurements: [], status: null, logged: so, trend: adherenceTrend([], today), drift: null, trendWeight: null, forecastToday: null, checkIn: { due: true, lastAt: null }, lapse: { welcomeBack: false, gap: [] } }, quietMode: true });
     expect(quiet.remaining).toBeNull();
     expect(quiet.adherence.today).toBeNull();
     expect(quiet.checklist.map((c) => c.kind)).toEqual(['weigh', 'mark']);
@@ -238,6 +242,27 @@ describe('living plan end to end', () => {
   });
 });
 
+describe('drift on matched observation operators (D5-02)', () => {
+  it('weigh-ins exactly on the scale forecast (labile water included) stay on track: water is never read as tissue drift', () => {
+    const plan = run.plan;
+    const nominal = runReplay({ profile: plan.baselineProfile, schedule: run.version.schedule });
+    const measurements: MeasurementEntry[] = Array.from({ length: 21 }, (_, d) => ({ id: `n${d}`, date: addDays(plan.startDate, d), metric: 'weightKg' as const, value: nominal.scaleWakeKg[d]!, context: 'morningFasted' as const, source: { by: 'user' as const, method: 'typed' as const } }));
+    const dayStatus: DayStatusDoc[] = Array.from({ length: 21 }, (_, d) => ({ date: addDays(plan.startDate, d), marks: { all: 'asPlanned' as const } }));
+    const today = addDays(plan.startDate, 21);
+    const p = projectLiving({ docs: { plan, versions: [run.version], dayStatus, entries: [], measurements, records: [] }, today, tz: TZ, now: localToInstant(today, 10, TZ) });
+    const band = forecastBandOn(run.version, 21)!;
+    const scale = p.assimilation!.scaleToday!.kg;
+    const waterAdjusted = p.assimilation!.trendToday!.kg;
+    expect(scale).toBeGreaterThan(band.p10);
+    expect(scale).toBeLessThan(band.p90);
+    // the water-adjusted estimate is a different observable (scale minus model labile water), never this band's
+    expect(Math.abs(scale - waterAdjusted)).toBeGreaterThan(0.3);
+    expect(p.drift!.goals[0]!.state).toBe('onTrack');
+    // without a confirmed check-in the state is not yet a decision: unclear, never a claim of being on track
+    expect(p.drift!.goals[0]!.certainty).toBe('unclear');
+  });
+});
+
 describe('living projection (what today.get / plan.adherence / plan.drift return)', () => {
   const docs = () => ({ plan: run.plan, versions: [run.version], dayStatus: [...run.status.values()], entries: run.entries, measurements: run.measurements, records: run.recordsOut });
 
@@ -255,6 +280,13 @@ describe('living projection (what today.get / plan.adherence / plan.drift return
     expect(p.today.plan!.day).toBe(23);
     expect(p.today.trendWeight!.todayExpected.p50).toBeGreaterThan(80);
     expect(p.today.drift).toHaveLength(1);
+    // D5-02: the drift compares the scale trend with the scale band (one operator), no causal shares
+    const g = p.drift!.goals[0]!;
+    expect(g.operator).toBe('scaleWake');
+    expect(g.causes).toEqual([]);
+    expect(g.trend.value).toBe(p.assimilation!.scaleToday!.kg);
+    expect(g.decisionIds).toHaveLength(run.recordsOut.length);
+    expect(p.today.trendWeight!.kg).toBe(p.assimilation!.scaleToday!.kg);
     // deterministic
     expect(JSON.stringify(projectLiving({ docs: docs(), today, tz: TZ, now: localToInstant(today, 10, TZ) }).today)).toBe(JSON.stringify(p.today));
   });
@@ -275,5 +307,77 @@ describe('living projection (what today.get / plan.adherence / plan.drift return
     expect(p.today.prescription).toBeNull();
     const early = projectLiving({ docs: { ...docs(), plan: { ...run.plan, status: 'scheduled' } }, today: '2026-10-03', tz: TZ, now: '2026-10-03T09:00:00.000Z' });
     expect(early.today.notices[0]!.text).toMatch(/starts on 2026-10-05/);
+  });
+});
+
+// ------------------------------------------------------------------------------------------- W1 consumer round trips
+/** Deep-freeze a document tree: a read adapter that rewrote a stored document would throw (ES modules are strict). */
+function deepFreeze<T>(v: T): T {
+  if (v && typeof v === 'object' && !Object.isFrozen(v)) {
+    Object.freeze(v);
+    for (const x of Object.values(v as Record<string, unknown>)) deepFreeze(x);
+  }
+  return v;
+}
+
+describe('W1: consumer round trips, legacy reads and idempotence (C1–C7)', () => {
+  const start = run.plan.startDate;
+  const src = { by: 'user' as const, method: 'typed' as const };
+  const checkInAt = (day: number, extra: Partial<Parameters<typeof weeklyCheckIn>[0]> = {}, records: ConfirmedStateRecord[] = []) => {
+    const today = addDays(start, day);
+    const schedule = realisedSchedule(run.plan, run.version, run.results.slice(0, day), today);
+    return weeklyCheckIn({ plan: run.plan, schedule, records, weighIns: run.weighIns.filter((w) => w.day <= day), today, intakeDays: run.intakeDays, ...extra });
+  };
+
+  it('D6-06: the day reduction’s intake evidence reaches the check-in; the δ gate counts the same eligible days', () => {
+    const ev = intakeEvidenceOf(run.results.map((result, planDay) => ({ planDay, result })));
+    expect(ev).toHaveLength(21);
+    expect(ev.filter((e) => e.calibrationEligible).map((e) => e.day)).toEqual(run.intakeDays);
+    // meals logged as totals only: their amount method is unknown (a number is never assumed weighed)
+    expect(ev[1]!.amountMethods).toEqual({ unknown: 3 });
+    const plain = checkInAt(14);
+    const withEvidence = checkInAt(14, { intakeEvidence: ev.filter((e) => e.day < 14) });
+    expect(withEvidence.record!.energyBiasKcal).toEqual(plain.record!.energyBiasKcal);
+    expect(withEvidence.output.intakeEvidence!.interpretation).toBe('netResidual');
+    expect(withEvidence.output.intakeEvidence!.byCoverage.partial).toBeGreaterThan(0);
+  });
+
+  it('D5-07: a scan is used once at its own day, a later decision skips it as consumed; a legacy reading stays method unknown', () => {
+    const dxa: MeasurementEntry = { id: 'dxa1', date: addDays(start, 12), metric: 'bodyFatPct', value: 27, method: 'dxa', scanMassKg: 91.5, device: 'clinic-dxa', source: src };
+    const legacy: MeasurementEntry = { id: 'bf-old', date: addDays(start, 11), metric: 'bodyFatPct', value: 30, source: src };
+    const measurements = deepFreeze([...run.measurements, dxa, legacy]);
+    const composition = compositionReadingsFor(run.plan, measurements)!;
+    expect(composition.readings!.map((r) => [r.observationId, r.day, r.method, r.scanMassKg ?? null])).toEqual([['bf-old', 11, 'unknown', null], ['dxa1', 12, 'dxa', 91.5]]);
+    const first = checkInAt(14, { composition });
+    expect(first.output.composition!.consumedObservationIds).toContain('dxa1');
+    expect(first.record!.consumedObservationIds).toContain('dxa1');
+    expect(first.output.composition!.skipped.find((x) => x.observationId === 'bf-old')?.reason).toBe('methodUnknown');
+    // idempotent: the same documents give the same decision
+    expect(checkInAt(14, { composition }).record).toEqual(first.record);
+    // the next decision does not use the same revision again
+    const second = checkInAt(21, { composition }, [first.record!]);
+    expect(second.output.composition?.consumedObservationIds ?? []).not.toContain('dxa1');
+    // each record keeps what its own decision consumed; the earlier records' ids travel with every later request
+    expect(second.record!.consumedObservationIds ?? []).not.toContain('dxa1');
+  });
+
+  it('C7: a document seen twice (sync echo, repeated import) changes nothing: same history hash and day results', () => {
+    const today = addDays(start, 22);
+    const docs = { plan: run.plan, versions: [run.version], dayStatus: [...run.status.values()], entries: run.entries, measurements: run.measurements, records: run.recordsOut };
+    const a = projectLiving({ docs, today, tz: TZ, now: localToInstant(today, 10, TZ), skipAssimilation: true });
+    const b = projectLiving({ docs: { ...docs, entries: [...run.entries, ...run.entries], measurements: [...run.measurements, ...run.measurements] }, today, tz: TZ, now: localToInstant(today, 10, TZ), skipAssimilation: true });
+    expect(b.history!.contentHash).toBe(a.history!.contentHash);
+    expect(JSON.stringify(b.days.map((d) => d.result))).toBe(JSON.stringify(a.days.map((d) => d.result)));
+  });
+
+  it('C1/C7: legacy documents are read through adapters and never rewritten; today’s logged night initialises today only (D8-06)', () => {
+    const today = addDays(start, 22);
+    const night: LogEntry = { id: 'sl22', date: today, tz: TZ, source: src, kind: 'sleep', bedAt: localToInstant(addDays(start, 21), 23.5, TZ), wakeAt: localToInstant(today, 5, TZ) } as LogEntry;
+    const docs = deepFreeze({ plan: run.plan, versions: [run.version], dayStatus: [...run.status.values()], entries: [...run.entries, night], measurements: run.measurements, records: run.recordsOut });
+    const p = projectLiving({ docs, today, tz: TZ, now: localToInstant(today, 10, TZ), skipAssimilation: true });
+    expect(p.days[22]!.result.sleep!.hours).toBeCloseTo(5.5, 6);
+    const s = projectionSchedule(p, today)!;
+    expect(templateOfDay(s, 22).sleep?.hours).toBeCloseTo(5.5, 6);
+    expect(templateOfDay(s, 23)).toEqual(templateOfDay(run.version.schedule, 23));
   });
 });

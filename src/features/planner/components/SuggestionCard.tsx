@@ -1,6 +1,12 @@
-import { useEffect, useRef } from 'react';
-import { Chip, Faceplate, Key, ProgressRule } from '@/components';
-import type { GoalSuggestion, SuggestedConstraints, SuggestedGoal } from '@/engine/planner/domain/suggestGoals';
+import { useEffect, useRef, useState } from 'react';
+import { Chip, Faceplate, Key, NumberField, ProgressRule, ResponsivePanel } from '@/components';
+import type {
+  GoalSuggestion,
+  SuggestedConstraints,
+  SuggestedGoal,
+  SuggestedCandidate,
+  SuggestPurpose,
+} from '@/engine/planner/domain/suggestGoals';
 import type { ConstraintDraft } from '@/state/plannerStore';
 import type { UnitSystem } from '@/state/settingsStore';
 import { goalMetric } from '../catalogue';
@@ -25,12 +31,20 @@ export interface SuggestionCardProps {
   onAppend: () => void;
   onClear: () => void;
   onAgain: () => void;
+  onPurpose?: (purpose: SuggestPurpose) => void;
+  onCandidate?: (candidate: SuggestedCandidate, amount: number) => void;
   /** Route for a missing answer's [Add] link (null: no link). */
   linkFor: (question: string) => string | null;
   onOpen: (to: string) => void;
 }
 
-const TYPE_WORD: Readonly<Record<SuggestedGoal['mode'], string>> = { lose: 'lose', keep: 'keep', gain: 'gain', raise: 'raise', lower: 'lower' };
+const TYPE_WORD: Readonly<Record<SuggestedGoal['mode'], string>> = {
+  lose: 'lose',
+  keep: 'keep',
+  gain: 'gain',
+  raise: 'raise',
+  lower: 'lower',
+};
 
 function goalTarget(g: SuggestedGoal, units: UnitSystem): string {
   const word = g.metric === 'skeletalMuscle' && g.mode === 'keep' ? 'keep and build' : TYPE_WORD[g.mode];
@@ -43,21 +57,42 @@ const days = (r: readonly [number, number]) => (r[0] === r[1] ? `${r[1]} a week`
 const span = (a: number, b: number) => `${fmtClock(a)}–${fmtClock(b)}`;
 
 /** Limit rows: label · current → suggested ("(from your answers)" when the suggestion keeps it). */
-function limitRows(c: SuggestedConstraints, now: ConstraintDraft, fastingOptedIn: boolean): Array<{ label: string; text: string }> {
-  const row = (label: string, cur: string, next: string) => ({ label, text: cur === next ? `${next} (from your answers)` : `${cur} → ${next} (from your answers)` });
+function limitRows(
+  c: SuggestedConstraints,
+  now: ConstraintDraft,
+  fastingOptedIn: boolean,
+): Array<{ label: string; text: string }> {
+  const row = (label: string, cur: string, next: string) => ({
+    label,
+    text: cur === next ? `${next} (from your answers)` : `${cur} → ${next} (from your answers)`,
+  });
   const out: Array<{ label: string; text: string }> = [];
   if (c.trainingDays) out.push(row('training days', days(now.trainingDays), days(c.trainingDays)));
-  if (c.maxSessionMin !== undefined) out.push(row('longest session', `${now.maxSessionMin} min`, `${c.maxSessionMin} min`));
-  if (c.trainingTimeH !== undefined) out.push(row('training time', fmtClock(now.trainingTimeH), fmtClock(c.trainingTimeH)));
-  if (c.earliestH !== undefined && c.latestH !== undefined) out.push(row('eating between', span(now.earliestH, now.latestH), span(c.earliestH, c.latestH)));
-  if (c.sleepFixed !== undefined) out.push(row('sleep', now.sleepFixed ? 'kept as it is' : 'may change', c.sleepFixed ? 'kept as it is' : 'may move earlier'));
-  if (c.longestFastH !== undefined) out.push(row('longest fast', `${now.longestFastH} h`, `${c.longestFastH} h`));
+  if (c.maxSessionMin !== undefined)
+    out.push(row('longest session', `${now.maxSessionMin} min`, `${c.maxSessionMin} min`));
+  if (c.trainingTimeH !== undefined)
+    out.push(row('training time', fmtClock(now.trainingTimeH), fmtClock(c.trainingTimeH)));
+  if (c.earliestH !== undefined && c.latestH !== undefined)
+    out.push(row('eating between', span(now.earliestH, now.latestH), span(c.earliestH, c.latestH)));
+  if (c.sleepFixed !== undefined)
+    out.push(
+      row(
+        'sleep',
+        now.sleepFixed ? 'kept as it is' : 'may change',
+        c.sleepFixed ? 'kept as it is' : 'may move earlier',
+      ),
+    );
+  if (c.longestFastH !== undefined)
+    out.push(row('longest fast', `${now.longestFastH} h`, `${c.longestFastH} h`));
   else if (!fastingOptedIn) out.push({ label: 'fasting', text: 'no longer fasts (you haven’t opted in)' });
   return out;
 }
 
 /** The "Suggest from my answers" proposal card (planner-goals.md §12.2–§12.3). */
 export function SuggestionCard(p: SuggestionCardProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [candidate, setCandidate] = useState<SuggestedCandidate | null>(null);
+  const [amount, setAmount] = useState<number | null>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const ready = p.state.status === 'ready';
   // focus moves to the card title when it opens (never to Apply)
@@ -67,14 +102,13 @@ export function SuggestionCard(p: SuggestionCardProps) {
 
   const title = (
     <span ref={titleRef} tabIndex={-1} id="lp-sg-title">
-      <span className="lp-sg__mark" aria-hidden="true" />
       Suggested goals
     </span>
   );
 
   if (p.state.status === 'loading')
     return (
-      <Faceplate as="article" aria-labelledby="lp-sg-title" className="lp-sg" title={title} titleAs="h3" caption={p.state.source === 'ai' ? 'Coach · from your answers' : 'rules · from your answers'}>
+      <Faceplate as="article" aria-labelledby="lp-sg-title" className="lp-sg" title={title} titleAs="h3">
         <div className="lp-sg__body" role="status">
           <ProgressRule />
           <p className="lp-sg__plain">Reading your answers…</p>
@@ -107,7 +141,6 @@ export function SuggestionCard(p: SuggestionCardProps) {
   const s = p.state.suggestion;
   const empty = s.goals.length === 0;
   const limits = empty ? [] : limitRows(s.constraints, p.constraints, p.fastingOptedIn);
-  const source = s.source === 'ai' ? 'Coach · from your answers' : 'rules · from your answers';
 
   return (
     <Faceplate
@@ -116,11 +149,12 @@ export function SuggestionCard(p: SuggestionCardProps) {
       className="lp-sg"
       title={title}
       titleAs="h3"
-      caption={source}
       actions={
-        <Key size="sm" variant="quiet" onClick={p.onClear}>
-          Clear
-        </Key>
+        empty ? (
+          <Key size="sm" variant="quiet" onClick={p.onClear}>
+            Clear
+          </Key>
+        ) : undefined
       }
     >
       <div className="lp-sg__body">
@@ -174,6 +208,10 @@ export function SuggestionCard(p: SuggestionCardProps) {
                         <span>{g.metric}</span>
                       )}
                       <span className="lp-sg__target">{goalTarget(g, p.units)}</span>
+                      {/* D4-06: a suggestion is a candidate, never an adopted ranking */}
+                      <Chip kind="status" severity="info">
+                        Optional
+                      </Chip>
                       {g.because ? (
                         <Chip kind="status" severity="info">
                           because {g.because.label} {g.because.value} {g.because.unit}
@@ -229,7 +267,12 @@ export function SuggestionCard(p: SuggestionCardProps) {
                   <li key={m.field} className="lp-sg__missing">
                     <span>{m.why}</span>
                     {to ? (
-                      <Key size="sm" variant="quiet" onClick={() => p.onOpen(to)} aria-label={`Add: ${m.why}`}>
+                      <Key
+                        size="sm"
+                        variant="quiet"
+                        onClick={() => p.onOpen(to)}
+                        aria-label={`Add: ${m.why}`}
+                      >
                         Add
                       </Key>
                     ) : null}
@@ -240,18 +283,110 @@ export function SuggestionCard(p: SuggestionCardProps) {
           </section>
         ) : null}
 
+        <Key size="sm" variant="quiet" onClick={() => setDetailsOpen(true)}>
+          Suggestion details
+        </Key>
+        <ResponsivePanel open={detailsOpen} onClose={() => setDetailsOpen(false)} title="Suggestion details">
+          <div className="lp-sg__body">
+            <dl>
+              <dt>Purpose</dt>
+              <dd>{s.purpose ?? 'Not chosen'}</dd>
+              <dt>Source</dt>
+              <dd>{s.version}</dd>
+            </dl>
+            {s.reference ? (
+              <>
+                <p>BMI-linked population reference · provisional</p>
+                <dl>
+                  <dt>Reference band</dt>
+                  <dd>{s.reference.band.map((v) => v.toFixed(1)).join('–')} %</dd>
+                  <dt>Current estimate</dt>
+                  <dd>{s.reference.bfPct.toFixed(1)} %</dd>
+                  <dt>Likely range</dt>
+                  <dd>
+                    {s.reference.interval
+                      ? `${s.reference.interval.map((v) => v.toFixed(1)).join('–')} %`
+                      : 'Unknown'}
+                  </dd>
+                </dl>
+                <p>
+                  Gallagher 2000 links body-fat estimates to BMI. This reference does not establish an
+                  individual optimum or a need to lose fat. Numeric suggestions also require a supported route
+                  through the full requested horizon.
+                </p>
+              </>
+            ) : null}
+          </div>
+        </ResponsivePanel>
+        {s.purposeAsk?.length ? (
+          <div className="lp-sg__actions" role="group" aria-label="Optional planning purpose">
+            {s.purposeAsk.map((purpose) => (
+              <Key key={purpose} size="sm" variant="quiet" onClick={() => p.onPurpose?.(purpose)}>
+                {purpose === 'fatLoss' ? 'Fat loss' : purpose[0]!.toUpperCase() + purpose.slice(1)}
+              </Key>
+            ))}
+          </div>
+        ) : null}
+        {s.candidates?.map((c) => (
+          <Key
+            key={c.metric}
+            size="sm"
+            variant="quiet"
+            onClick={() => {
+              setCandidate(c);
+              setAmount(null);
+            }}
+          >
+            Choose {goalMetric(c.metric)?.label ?? c.metric}: {TYPE_WORD[c.mode]}
+          </Key>
+        ))}
+        {candidate ? (
+          <div className="lp-sg__actions">
+            <NumberField
+              name="Optional goal target (kg)"
+              value={amount}
+              onChange={setAmount}
+              min={goalMetric(candidate.metric)?.target?.min ?? 0.5}
+              max={goalMetric(candidate.metric)?.target?.max ?? 40}
+              step={goalMetric(candidate.metric)?.target?.step ?? 0.5}
+              decimals={1}
+              unit="kg"
+            />
+            <Key
+              size="sm"
+              variant="action"
+              disabledReason={amount === null ? 'Enter a target' : undefined}
+              onClick={() => {
+                if (amount !== null) {
+                  p.onCandidate?.(candidate, amount);
+                  setCandidate(null);
+                }
+              }}
+            >
+              Add to suggestion
+            </Key>
+            <Key size="sm" variant="quiet" onClick={() => setCandidate(null)}>
+              Cancel
+            </Key>
+          </div>
+        ) : null}
         {!empty ? (
           <div className="lp-sg__actions">
-            <Key variant="solid" onClick={p.onApply}>
-              {p.goalCount > 0 ? `Replace my ${p.goalCount === 1 ? 'goal' : `${p.goalCount} goals`}` : 'Apply'}
+            <Key variant="primary" onClick={p.onApply}>
+              {p.goalCount > 0
+                ? `Replace my ${p.goalCount === 1 ? 'goal' : `${p.goalCount} goals`}`
+                : 'Apply'}
             </Key>
-            {p.goalCount > 0 ? <Key onClick={p.onAppend}>Add only new goals</Key> : null}
+            {p.goalCount > 0 ? (
+              <Key variant="action" onClick={p.onAppend}>
+                Add only new goals
+              </Key>
+            ) : null}
             <Key variant="quiet" onClick={p.onClear}>
               Clear
             </Key>
           </div>
         ) : null}
-        {!empty && p.goalCount > 0 ? <p className="lp-sg__plain">Apply replaces your {p.goalCount === 1 ? 'goal' : `${p.goalCount} goals`} and the limits listed here. Nothing runs until you press Find plans.</p> : null}
       </div>
     </Faceplate>
   );

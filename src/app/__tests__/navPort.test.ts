@@ -25,7 +25,7 @@ const SAMPLES: Record<RouteId, { params: Record<string, string>; helper: string 
   food: { params: { date: '2026-10-01' }, helper: livingPaths.food('2026-10-01') },
   train: { params: {}, helper: livingPaths.train() },
   coach: { params: { conversationId: 'c1' }, helper: livingPaths.coach('c1') },
-  progress: { params: { metric: 'weight' }, helper: livingPaths.progress('weight') },
+  progress: { params: {}, helper: livingPaths.progress() },
   planActive: { params: { version: '3' }, helper: livingPaths.planVersion(3) },
 };
 

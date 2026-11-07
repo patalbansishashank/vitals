@@ -136,12 +136,6 @@ export const EVIDENCE_TOPICS: EvidenceTopicEntry[] = [
     load: () => import('./topics/22-daily-activity-maintenance'),
   },
   {
-    dossier: '23',
-    slug: 'wearable-scores',
-    title: 'Scores from wearable data',
-    load: () => import('./topics/23-wearable-scores'),
-  },
-  {
     dossier: '24',
     slug: 'tracking-replanning',
     title: 'Tracking and re-planning',

@@ -10,18 +10,35 @@ import { AgentActivityIndicator } from './AgentActivityIndicator';
 import { AgentsSection } from './AgentsSection';
 
 // The screen writes through `dispatch('agents.configure', …)`: a fake that keeps the agent settings in memory.
-const fake = vi.hoisted(() => ({ calls: [] as Array<[string, unknown]>, settings: { clients: {} } as { webmcp?: boolean; clients: Record<string, { directApply: boolean }> }, fail: false }));
-const fakeDispatch = vi.hoisted(() => async (id: string, input: { webmcp?: boolean; clients?: Record<string, { directApply: boolean }> }) => {
-  // the proposals list reads `coach.pending` (tested in ProposalsList.test.tsx): none waiting here
-  if (id === 'coach.pending') return { ok: true, output: [], changeSet: null, notices: [] };
-  fake.calls.push([id, input]);
-  if (fake.fail) return { ok: false, error: { code: 'internal', message: 'disk full' } };
-  fake.settings = { ...fake.settings, ...(input.webmcp !== undefined ? { webmcp: input.webmcp } : {}), clients: { ...fake.settings.clients, ...input.clients } };
-  return { ok: true, output: fake.settings, changeSet: null, notices: [] };
-});
-vi.mock('@/commands', async (importOriginal) => ({ ...(await importOriginal<object>()), dispatch: fakeDispatch }));
+const fake = vi.hoisted(() => ({
+  calls: [] as Array<[string, unknown]>,
+  settings: { clients: {} } as { webmcp?: boolean; clients: Record<string, { directApply: boolean }> },
+  fail: false,
+}));
+const fakeDispatch = vi.hoisted(
+  () =>
+    async (id: string, input: { webmcp?: boolean; clients?: Record<string, { directApply: boolean }> }) => {
+      // the proposals list reads `coach.pending` (tested in ProposalsList.test.tsx): none waiting here
+      if (id === 'coach.pending') return { ok: true, output: [], changeSet: null, notices: [] };
+      fake.calls.push([id, input]);
+      if (fake.fail) return { ok: false, error: { code: 'internal', message: 'disk full' } };
+      fake.settings = {
+        ...fake.settings,
+        ...(input.webmcp !== undefined ? { webmcp: input.webmcp } : {}),
+        clients: { ...fake.settings.clients, ...input.clients },
+      };
+      return { ok: true, output: fake.settings, changeSet: null, notices: [] };
+    },
+);
+vi.mock('@/commands', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  dispatch: fakeDispatch,
+}));
 // the Stop key sends through sendCommand (src/features/lib/sendCommand.ts), which uses the bus directly
-vi.mock('@/commands/bus', async (importOriginal) => ({ ...(await importOriginal<object>()), dispatch: fakeDispatch }));
+vi.mock('@/commands/bus', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  dispatch: fakeDispatch,
+}));
 
 function setModelContext(value: unknown) {
   Object.defineProperty(document, 'modelContext', { value, configurable: true, writable: true });
@@ -47,9 +64,14 @@ describe('AgentsSection', () => {
     for (const platform of ['electron', 'android'] as const) {
       setPlatformForTests(platform);
       setServerClientForTests(fakeClient({ paired: true }).client);
-      act(() => recordAgentActivity({ surface: 'webmcp', actor: 'webmcp', tool: 'today_get', status: 'applied' }));
+      act(() =>
+        recordAgentActivity({ surface: 'webmcp', actor: 'webmcp', tool: 'today_get', status: 'applied' }),
+      );
       const { container, unmount } = render(<AgentsSection />, { wrapper: MemoryRouter });
-      expect((await screen.findAllByRole('switch', { name: /agents in this app/i })).length).toBeGreaterThan(0);
+      expect((await screen.findAllByRole('switch', { name: /agents in this app/i })).length).toBeGreaterThan(
+        0,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'About What an agent can do' }));
       await screen.findByText(/even when no Vitals window is open/i);
       expect(container.textContent).not.toMatch(/browser|\btab\b/i);
       unmount();
@@ -57,12 +79,10 @@ describe('AgentsSection', () => {
     }
   });
 
-  it('WebMCP toggle is off by default and disabled when unsupported', async () => {
+  it('shows no WebMCP switch where the browser cannot share tools', () => {
     render(<AgentsSection />, { wrapper: MemoryRouter });
-    const toggle = screen.getByRole('switch', { name: /agents in this browser/i });
-    expect(toggle).not.toBeChecked();
-    expect(toggle).toBeDisabled();
-    expect(screen.getByText(/can't share tools with agents yet/i)).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /agents in this browser/i })).toBeNull();
+    expect(screen.queryByText(/can't share tools/i)).toBeNull();
   });
 
   it('WebMCP toggle turns on when supported', async () => {
@@ -88,7 +108,14 @@ describe('AgentsSection', () => {
   });
 
   it('lets the person allow an agent seen this session to apply plan changes directly', async () => {
-    act(() => recordAgentActivity({ surface: 'mcp', actor: 'claude-code', tool: 'plan_shift', status: 'pending_user' }));
+    act(() =>
+      recordAgentActivity({
+        surface: 'mcp',
+        actor: 'claude-code',
+        tool: 'plan_shift',
+        status: 'pending_user',
+      }),
+    );
     render(<AgentsSection />, { wrapper: MemoryRouter });
     const toggle = screen.getByRole('switch', { name: 'claude-code' });
     expect(toggle).not.toBeChecked();
@@ -97,11 +124,29 @@ describe('AgentsSection', () => {
     expect(fake.calls).toEqual([['agents.configure', { clients: { 'claude-code': { directApply: true } } }]]);
   });
 
-  it('without a server: the card asks to pair first', () => {
+  // r068 S26: not a dead end: one sentence on what they are and a way to Sync (still no second pairing key here)
+  it('without a server: says what agents on other computers need, with the way to Sync and no second pairing key', () => {
     render(<AgentsSection />, { wrapper: MemoryRouter });
-    expect(screen.getByText(/Pair this device with your server first/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Pair a server' })).toHaveAttribute('href', '/settings/server');
+    expect(screen.getByText(/Pair it in Sync first\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Set up Sync' })).toHaveAttribute('href', '/settings/sync');
+    expect(screen.queryByRole('button', { name: /pair|enter code/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Make an agent key' })).toBeNull();
     expect(screen.queryByText(/Companion/)).not.toBeInTheDocument();
+  });
+
+  it('opens on its settings: no explainer line under the page title, paired or not', async () => {
+    const first = () => {
+      const section = screen.getByRole('region', { name: 'Agents' });
+      return [...section.children].find((el) => !el.classList.contains('settings-section__saved'));
+    };
+    const { unmount } = render(<AgentsSection />, { wrapper: MemoryRouter });
+    expect(first()?.tagName).not.toBe('P');
+    unmount();
+    setModelContext({ registerTool: () => undefined });
+    setServerClientForTests(fakeClient({ paired: true }).client);
+    render(<AgentsSection />, { wrapper: MemoryRouter });
+    await screen.findByRole('button', { name: 'Make an agent key' });
+    expect(first()).toContainElement(screen.getByRole('switch', { name: /agents in this browser/i }));
   });
 
   it('paired: hands out the address and an agent key shown once, with recipes; keys list and Revoke', async () => {
@@ -111,21 +156,24 @@ describe('AgentsSection', () => {
     render(<AgentsSection />, { wrapper: MemoryRouter });
     expect(await screen.findByText(`${BASE}/mcp`)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Make an agent key' }));
-    expect(screen.getByRole('combobox', { name: 'agent' })).toHaveFocus();
+    expect(screen.getByRole('combobox', { name: 'Agent' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getByRole('button', { name: 'Make an agent key' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Make an agent key' }));
-    await user.type(screen.getByLabelText('name'), 'Codex on laptop');
-    await user.click(screen.getByRole('radio', { name: /^read/ }));
+    await user.type(screen.getByLabelText('Name'), 'Codex on laptop');
+    await user.click(screen.getByRole('radio', { name: /^Read\s*Your plan/ }));
     await user.click(screen.getByRole('button', { name: 'Make key' }));
     expect(await screen.findByText('agent-secret-xyz')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Your agent key · Codex on laptop' })).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Copy key' })).toBeInTheDocument();
-    expect(server.state.calls.find((c) => c.method === 'POST' && c.path === '/v1/agents/tokens')?.body).toEqual({ client: 'codex', scope: 'read', label: 'Codex on laptop' });
+    expect(
+      server.state.calls.find((c) => c.method === 'POST' && c.path === '/v1/agents/tokens')?.body,
+    ).toEqual({ client: 'codex', scope: 'read', label: 'Codex on laptop' });
     expect(screen.getByText(/bearer_token_env_var = "VITALS_TOKEN"/)).toBeInTheDocument();
     expect(screen.getByText(/claude mcp add --transport http -s user vitals/)).toBeInTheDocument();
     // recipes show a placeholder, never the key
-    for (const pre of document.querySelectorAll('pre')) expect(pre.textContent).not.toContain('agent-secret-xyz');
+    for (const pre of document.querySelectorAll('pre'))
+      expect(pre.textContent).not.toContain('agent-secret-xyz');
     await user.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByText('agent-secret-xyz')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Make an agent key' })).toHaveFocus();
@@ -155,7 +203,8 @@ describe('AgentsSection: secrets', () => {
     render(<AgentsSection />, { wrapper: MemoryRouter });
     await screen.findByRole('button', { name: 'Make an agent key' });
     expect(document.body.innerHTML).not.toContain('agent-secret-xyz');
-    for (let i = 0; i < localStorage.length; i++) expect(localStorage.getItem(localStorage.key(i)!)).not.toContain('agent-secret-xyz');
+    for (let i = 0; i < localStorage.length; i++)
+      expect(localStorage.getItem(localStorage.key(i)!)).not.toContain('agent-secret-xyz');
     expect(JSON.stringify(logs.mock.calls)).not.toContain('agent-secret-xyz');
     logs.mockRestore();
   });
@@ -166,7 +215,9 @@ describe('AgentActivityIndicator', () => {
     localStorage.setItem('vitals-agents.webmcp', 'true');
     const { container } = render(<AgentActivityIndicator />);
     expect(container).toBeEmptyDOMElement();
-    act(() => recordAgentActivity({ surface: 'webmcp', actor: 'webmcp', tool: 'today_get', status: 'applied' }));
+    act(() =>
+      recordAgentActivity({ surface: 'webmcp', actor: 'webmcp', tool: 'today_get', status: 'applied' }),
+    );
     expect(screen.getByText('An agent is using Vitals')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /stop agents/i }));
     await waitFor(() => expect(container).toBeEmptyDOMElement());

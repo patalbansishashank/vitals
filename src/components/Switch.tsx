@@ -6,7 +6,7 @@ export interface SwitchProps {
   onChange: (checked: boolean) => void;
   /** Visible label on the left. Omit when an external label is linked via `labelledBy`. */
   label?: ReactNode;
-  /** `engraved` lowercase caption (default) or `sentence` 15 px text. */
+  /** `engraved` (default): body-s stone caption · `sentence`: body text. */
   labelStyle?: 'engraved' | 'sentence';
   labelledBy?: string;
   describedBy?: string;
@@ -15,7 +15,7 @@ export interface SwitchProps {
   className?: string;
 }
 
-/** Slide switch: 36 × 20 well, raised thumb; on = ink track with a yellow light at the left end. */
+/** Switch: 40 × 24 pill. Off = ink-3 outline and thumb; on = gold track with a near-black thumb. */
 export function Switch({ checked, onChange, label, labelStyle = 'engraved', labelledBy, describedBy, disabled, id, className }: SwitchProps) {
   const auto = useId();
   const inputId = id ?? auto;

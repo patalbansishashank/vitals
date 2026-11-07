@@ -8,6 +8,8 @@
  * MODEL_SPEC §1.14 step 8 / §8.1: person-level heterogeneity is a parameter draw. The ten latent quantiles
  * `cardiometabolic.u*` (draw 'uniform', nominal 0.5 ⇒ z = 0) are mapped through Φ⁻¹ and the Cholesky factor of the
  * residual correlation matrix `CORR` (06 §4.17); the nominal run therefore reproduces the population-mean person.
+ * D7-07: the draws are correlated with each other only; a measured lab replaces its own marker's draw but does not
+ * condition the others (no posterior conditional generator is implemented — that needs a validated joint distribution).
  */
 
 /** Marker order of the 06 §4.17 residual correlation matrix and of the ten latent quantiles. */

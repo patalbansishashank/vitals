@@ -1,23 +1,27 @@
 /**
  * Simulator results for one scenario — mounted by `SimulatePage` at `/simulate/:sid/results`.
- * Contract: default export, props `{ scenarioId }`. View state lives in the query string
+ * Contract: default export, props `{ scenarioId, aside?, runAction? }`. View state lives in the query string
  * (`?view=lanes|overlay|focus&m=<metricId>&z=…&xi=…&explain=…`, IA §2).
  *
- * Connects `ResultsScreen` to the stores: the run (`useSimulation`, `useRunScenario`), the inputs behind the shown
+ * Connects `ResultsScreen` to the stores: the run (`useSimulation`), the inputs behind the shown
  * result (`lastRuns`), the scenario (name, horizon), unit/figure settings and the figure base from Your body.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { paths } from '@/app/paths';
 import { figureFrameOf, useProfileStore } from '@/state/profileStore';
 import { useScheduleStore } from '@/state/scheduleStore';
 import { useSettingsStore } from '@/state/settingsStore';
-import { useRunScenario, useSimulation, useSimulationStore, type LastRunInputs } from '@/state/simulationStore';
+import { useSimulation, useSimulationStore, type LastRunInputs } from '@/state/simulationStore';
 import { ResultsScreen, type ResultsPrefs } from './ResultsScreen';
 import { addDaysISO } from './lib/format';
 
 export interface ResultsViewProps {
   scenarioId: string;
+  /** A key beside the readouts' meta line (the page's "Start this plan"). */
+  aside?: ReactNode;
+  /** The page's one Run key: the empty card's action before the first run, then the head of the results stage. */
+  runAction?: ReactNode;
 }
 
 /**
@@ -32,9 +36,8 @@ function useShownInputs(sid: string, resultHash: string | null): LastRunInputs |
   return last ?? null;
 }
 
-export default function ResultsView({ scenarioId }: ResultsViewProps) {
+export default function ResultsView({ scenarioId, aside, runAction }: ResultsViewProps) {
   const sim = useSimulation(scenarioId);
-  const { run } = useRunScenario(scenarioId);
   const scenario = useScheduleStore((s) => s.scenarios.find((x) => x.id === scenarioId));
   const shown = useShownInputs(scenarioId, sim.resultHash);
   const settings = useSettingsStore(
@@ -79,9 +82,11 @@ export default function ResultsView({ scenarioId }: ResultsViewProps) {
       sim={sim}
       inputs={inputs}
       horizonDays={scenario?.schedule.horizonDays ?? shown?.schedule.horizonDays ?? 84}
-      onRun={run}
+      startDate={scenario?.schedule.startDate ?? shown?.schedule.startDate}
       prefs={prefs}
       scheduleHref={scheduleHref}
+      aside={aside}
+      runAction={runAction}
     />
   );
 }

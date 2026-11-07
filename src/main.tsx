@@ -2,6 +2,8 @@
 // data-motion> before the first render).
 import { qaEnabled } from '@/app/qaFlag';
 import { initTheme } from '@/app/theme';
+import { initGrainScale } from '@/app/grain';
+import { initMotion } from '@/app/motion';
 // The stylesheet entry must load before any component CSS: its `@layer` order (theme, base, components, utilities)
 // is fixed by the first layer a stylesheet names, and the shell's CSS (imported through App) names `components`.
 import '@/styles/index.css';
@@ -14,6 +16,8 @@ import { detectPlatform } from '@/platform/detect';
 import { setAppVersion } from '@/state/persistence';
 
 initTheme();
+initGrainScale();
+initMotion();
 setAppVersion(APP_VERSION);
 initPwa();
 
@@ -23,10 +27,9 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-// The Android app (SUITE_SPEC §15.7): files shared in and saved out, the foreground service and ring alerts that follow
-// the ring service, and no service worker. Nothing is loaded for this elsewhere.
+// The Android app (SUITE_SPEC §15.7): files saved out, and no service worker. Nothing is loaded for this elsewhere.
 if (detectPlatform() === 'android')
-  void Promise.all([import('@/platform/androidBoot'), import('@/biometrics/service')]).then(([m, s]) => m.installAndroidShell({ ringService: s.getRingService() }));
+  void import('@/platform/androidBoot').then((m) => m.installAndroidShell());
 
 // Sync is off until the user pairs; this chunk only checks the device vault and, when paired, loads the engine.
 void import('@/state/sync').then((m) => m.initSync());

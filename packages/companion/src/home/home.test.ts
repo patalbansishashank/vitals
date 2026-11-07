@@ -15,7 +15,7 @@ afterEach(async () => {
   stop = [];
 });
 const boot = async (o: Parameters<typeof startTestHome>[0] = {}) => {
-  const t = await startTestHome({ mqtt: false, ...o });
+  const t = await startTestHome(o);
   stop.push(() => t.c.close());
   return t;
 };
@@ -33,7 +33,8 @@ describe('pairing and device tokens', () => {
     expect(a.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const s = await t.api('/v1/pair/status', { token: a.token });
     expect(s.status).toBe(200);
-    expect(s.body).toMatchObject({ deviceId: a.deviceId, kind: 'device', scope: 'full', person: { id: a.id, label: 'Ana' }, server: { role: 'home', mqtt: 'off' } });
+    expect(s.body).toMatchObject({ deviceId: a.deviceId, kind: 'device', scope: 'full', person: { id: a.id, label: 'Ana' }, server: { role: 'home' } });
+    expect(s.body.server).not.toHaveProperty('mqtt');
     expect(s.headers.get('access-control-allow-origin')).toBe('https://vitals.creative.desi');
     const code = await t.api('/v1/pair/code', { method: 'POST', token: a.token, body: { label: 'Laptop' } });
     expect(code.body.qr).toMatch(/^vitals-server:1\?u=https%3A%2F%2Fhost\.tail0\.ts\.net%3A8443&c=\d{8}&n=Laptop$/);
@@ -41,6 +42,8 @@ describe('pairing and device tokens', () => {
     expect(b.status).toBe(200);
     const list = await t.api('/v1/devices', { token: a.token });
     expect((list.body.devices as unknown as Array<{ id: string; current: boolean; label: string }>).map((d) => [d.label, d.current])).toEqual([['Ana phone', true], ['Laptop', false]]);
+    // where each paired from, so the app can tell its desktop app and phones from a browser
+    expect((list.body.devices as unknown as Array<{ origin?: string }>)[1]?.origin).toBe('https://vitals.creative.desi');
     expect((await t.api(`/v1/devices/${b.body.deviceId}`, { method: 'DELETE', token: a.token })).status).toBe(204);
     const gone = await t.api('/v1/pair/status', { token: b.body.token as unknown as string });
     expect([gone.status, gone.body.error]).toEqual([401, 'revoked']);
@@ -76,7 +79,10 @@ describe('pairing and device tokens', () => {
     expect([pre.status, pre.headers.get('access-control-max-age'), pre.headers.get('access-control-allow-private-network'), pre.headers.get('access-control-allow-credentials')]).toEqual([204, '7200', 'true', null]);
     expect(pre.headers.get('access-control-allow-headers')).toBe('authorization, content-type, mcp-session-id');
     const h = await t.api('/health', { origin: null });
-    expect(h.body).toMatchObject({ role: 'home', persons: 1, mqtt: 'off' });
+    expect(h.body).toMatchObject({ role: 'home', persons: 1 });
+    expect(h.body).not.toHaveProperty('mqtt');
+    // the MQTT broker for ring data is gone: its routes are plain 404s
+    expect((await t.api('/v1/mqtt/status', { token: a.token })).status).toBe(404);
     expect(JSON.stringify(h.body)).not.toContain('Ana');
   });
 
@@ -187,7 +193,7 @@ async function mtimes(dir: string): Promise<Map<string, number>> {
 
 describe('two persons on one server', () => {
   it('never shows one person anything of the other, under random routes and tokens', async () => {
-    const t = await boot({ mqtt: true });
+    const t = await boot();
     const A = await t.person('Ana');
     const B = await t.person('Ben');
     const secretsOf = { [A.id]: new Set<string>([A.id, A.deviceId, 'Ana']), [B.id]: new Set<string>([B.id, B.deviceId, 'Ben']) };
@@ -196,10 +202,7 @@ describe('two persons on one server', () => {
     const ops = [
       (tok: string) => t.api('/v1/pair/status', { token: tok }),
       (tok: string) => t.api('/v1/devices', { token: tok }),
-      (tok: string) => t.api('/v1/mqtt/status', { token: tok }),
-      (tok: string, other: string) => t.api(`/v1/mqtt/status?person=${other}`, { token: tok }),
       (tok: string, other: string) => t.api('/v1/pair/code', { method: 'POST', token: tok, body: { person: other } }),
-      (tok: string, other: string) => t.api('/v1/mqtt/credentials', { method: 'POST', token: tok, body: { person: other } }),
       (tok: string, other: string) => t.api(`/v1/devices/${other === A.id ? A.deviceId : B.deviceId}`, { method: 'DELETE', token: tok }),
       // the AI and agent routes (§14.3, §14.4) mounted on the same resolver
       (tok: string) => t.api('/v1/ai/status', { token: tok }),
@@ -215,11 +218,7 @@ describe('two persons on one server', () => {
       const r = await ops[op]!(me.token, other.id);
       const text = JSON.stringify(r.body ?? '');
       for (const s of secretsOf[other.id]!) expect(text, `op ${op}`).not.toContain(s);
-      if (r.status === 200 && typeof r.body.username === 'string') {
-        expect(r.body.username).toContain(me.id);
-        secretsOf[me.id]!.add(r.body.username as unknown as string);
-      }
-      if (op === 4 && r.status === 200) secretsOf[me.id]!.add(r.body.code as unknown as string);
+      if (op === 2 && r.status === 200) secretsOf[me.id]!.add(r.body.code as unknown as string);
     }
     // deleting the other person's device id is "not found", never a revocation
     expect((await t.api('/v1/pair/status', { token: A.token })).status).toBe(200);
@@ -236,7 +235,7 @@ describe('two persons on one server', () => {
 
 describe('AI and agent routes on the home role', () => {
   it('keeps keys and agent tokens per person and resolves agent tokens to their person', async () => {
-    const t = await boot({ mqtt: false });
+    const t = await boot();
     const A = await t.person('Ana');
     const B = await t.person('Ben');
     const put = await t.api('/v1/ai/keys/nim', { method: 'PUT', token: A.token, body: { key: 'nvapi-test-key-for-ana-0001' } });

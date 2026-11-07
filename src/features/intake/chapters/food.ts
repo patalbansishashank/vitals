@@ -57,6 +57,8 @@ export const FOOD_KEYS: readonly FoodKey[] = ['dairy', 'eggs', 'fish', 'shellfis
 const ANIMAL: readonly FoodKey[] = ['eggs', 'fish', 'shellfish', 'chicken', 'mutton', 'beef', 'pork'];
 const MEAT: readonly FoodKey[] = ['chicken', 'mutton', 'beef', 'pork'];
 
+const sameFoods = (a: readonly FoodKey[], b: readonly FoodKey[]) => a.length === b.length && a.every((k) => b.includes(k));
+
 /** Presets tick the food chips (design F1: start from one, then adjust). */
 export const DIET_PRESETS: Readonly<Record<DietPreset, readonly FoodKey[]>> = {
   vegetarian: ['dairy'],
@@ -148,6 +150,9 @@ export function foodQuestions(_supplements: readonly SupplementChoice[] = []): Q
         const e = v as EatValue;
         const foods = e.foods.map((k) => F.eat.foods[k]);
         const head = e.preset ? F.eat.presets[e.preset] : '';
+        // the preset already names its foods ("vegetarian (with dairy)"): list them only when the person changed them
+        const asPreset = e.preset !== undefined && sameFoods(e.foods, DIET_PRESETS[e.preset]);
+        if (asPreset) return head;
         return [head, foods.length ? foods.join(', ') : F.eat.receiptNothing].filter(Boolean).join(' · ');
       },
     },

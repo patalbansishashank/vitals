@@ -6,7 +6,7 @@
  * parameter is `fixed`. Rulings applied: R-COMP (10 §4.3 owns the appetite half of exercise compensation; 12's 150/120
  * form = registry high), R-SLEEP (D_sleep reads 16's fast debt dF with the 7-h reference), R-INTAKE (outputs only).
  */
-import type { ParamDef } from '../../types/params';
+import type { ParamDef, ParamDistributionMeta } from '../../types/params';
 
 type Status = NonNullable<ParamDef['status']>;
 type Extra = Pick<ParamDef, 'draw' | 'note' | 'label'>;
@@ -39,7 +39,7 @@ const SRC_ATTRITION =
   'PROPOSED FIT to excess 12-month attrition: Trepanowski 2017 PMID 28459931; Dansinger 2005 PMID 15632335; Gardner 2018 PMID 29466592';
 const SRC_LEVERS = 'PROPOSED mapping (21 §4G G10): Madigan 2015 (self-weighing) ref 139; Berry 2021 ref 142; Hollis 2008 ref 141';
 
-export const APPETITE_PARAMS: readonly ParamDef[] = [
+const RAW_PARAMS: readonly ParamDef[] = [
   // ---------------------------------------------------------------- appetite drive D (12 §4.9.1)
   P('dWlSlope', 95, 'kcal/d per kg', 57, 133, 'B', 'Polidori 2016 PMID 27804272 (proportional control kP ≈ 95 kcal/d per kg lost)', '12 §4.9.1, §4.9.6', 'verified', {
     label: 'Weight-loss appetite feedback slope',
@@ -101,7 +101,8 @@ export const APPETITE_PARAMS: readonly ParamDef[] = [
   FIX('satDefScaleKcal', 1000, 'kcal/d', 'C', 'PROPOSED (saturation shape)', '12 §4.9.3', 'proposed-fit'),
   FIX('effortTauD', 1, 'd', 'C', 'PROPOSED (acute deficit acts within a day)', '12 §4.9.3', 'proposed-fit'),
   FIX('ketoHalfMmolL', 0.3, 'mmol/L', 'B', 'Nymo 2017 PMID 28439092; Sumithran 2013 PMID 23632752', '12 §4.0, §4.9.4', 'proposed-fit', 'K half-max and K_ad* threshold (BHB ≥ 0.3 mM).'),
-  FIX('ketoAtten', 0.9, '1', 'B', 'Nymo 2017 PMID 28439092; Gibson 2015 PMID 25402637', '12 §4.9.3', 'proposed-fit'),
+  FIX('ketoAtten', 0, '1', 'C', 'Nymo 2017 PMID 28439092; Gibson 2015 PMID 25402637; counter: Hall 2021 doi:10.1038/s41591-020-01209-1 (controlled diets)', '12 §4.9.3', 'proposed-fit',
+    'D2-06: no default ketosis offset (unknown central contribution). The legacy 0.9 attenuated ALL positive effort (weight-loss, sleep, fatigue drives included) by up to 90 %, a universal magnitude acute/drink/diet contexts do not support. alt 0.9 (12 §4.9.3, Nymo 2017): named scenario "legacyKetoRelief" via a parameter override only; a personal offset needs repeated routine contrasts in the person\'s own 0–10 ratings.'),
   FIX('kAdTauUpD', 10, 'd', 'C', 'PROPOSED from Nymo 2017 PMID 28439092', '12 §4.9.3', 'proposed-fit'),
   FIX('kAdTauDownD', 3, 'd', 'C', 'PROPOSED from Sumithran 2013 PMID 23632752', '12 §4.9.3', 'proposed-fit'),
   FIX('ketoInductionKcal', 100, 'kcal-eq/d', 'D', 'MODEL_SPEC §1.12 step 3 (13 §4.10 appetite hook; Nymo 2017 PMID 28439092)', '13 §4.10; MODEL_SPEC §1.12', 'proposed-fit'),
@@ -129,3 +130,38 @@ export const APPETITE_PARAMS: readonly ParamDef[] = [
   P('leverFlexibleRestraint', 0.03, '1', 0, 0.05, 'D', 'PROPOSED (21 §4G G10); Westenhoefer 1999 ref 144', '21 §4G G10', 'proposed-fit'),
   FIX('leverCap', 0.15, '1', 'D', '21 §4G G10 (sum of all Δp capped at +0.15)', '21 §4G G10', 'proposed-fit'),
 ];
+
+/** Legacy dropout-hazard constants (12 §4.10a): define a latent index only — no dropout definition, horizon or calibration. */
+const LEGACY_HAZARD = new Set(['hazardCoef', 'hazardHpiThresh', 'hazardHpiScale', 'leverSelfMonitor', 'leverMealReplacement', 'leverPreMealWater', 'leverFlexibleRestraint', 'leverCap'].map((n) => `appetite.${n}`));
+/** Fasting/ketosis hunger modifiers (D2-06): retained relief scenarios with experiential warrant, no universal magnitude. */
+const RELIEF_SCENARIO = new Set(['ketoAtten', 'kAdTauUpD', 'kAdTauDownD', 'ketoHalfMmolL', 'fastHungerOnsetH', 'fastHungerWidthH'].map((n) => `appetite.${n}`));
+/** HPI scaling choices (12 §4.9.3): the index scale itself, not a rating calibration. */
+const INDEX_SCALE = new Set(['hpiMidKcal', 'hpiScaleKcal'].map((n) => `appetite.${n}`));
+
+/**
+ * What an appetite constant represents (D2-06, C6): the HPI is an uncalibrated burden index (personal 0–10 ratings can
+ * anchor it; they cannot identify endocrine mechanisms), the hazard constants define a deprecated latent adherence index
+ * (never a probability), and the fasting/ketosis modifiers are labelled relief scenarios.
+ */
+function appetiteDistribution(p: ParamDef): ParamDistributionMeta {
+  const fixed = p.draw === 'fixed' || p.low === p.high;
+  const id = p.id;
+  const kind = LEGACY_HAZARD.has(id) || INDEX_SCALE.has(id) ? 'heuristic' : RELIEF_SCENARIO.has(id) ? 'scenario' : fixed ? 'heuristic' : 'parameterSensitivity';
+  return {
+    uncertaintyKind: kind,
+    bounds: 'support',
+    nominal: fixed ? 'designPoint' : 'mode',
+    basis: LEGACY_HAZARD.has(id)
+      ? 'legacy latent adherence-index constant: no defined dropout event, horizon or calibration; not a probability'
+      : RELIEF_SCENARIO.has(id)
+        ? 'fasting/ketosis hunger-relief scenario (experiential and acute-study warrant); no universal suppression magnitude'
+        : INDEX_SCALE.has(id)
+          ? 'scaling choice of the uncalibrated hunger burden index (not a 0–10 rating calibration)'
+          : 'hunger burden prior (direction from studies; personal magnitude uncalibrated until anchored to 0–10 ratings)',
+    population: 'adults in the cited diet/appetite studies; personal response uncalibrated',
+    version: 1,
+    label: p.status === 'verified' ? 'empirical' : 'designPrior',
+  };
+}
+
+export const APPETITE_PARAMS: readonly ParamDef[] = RAW_PARAMS.map((p) => ({ ...p, distribution: appetiteDistribution(p) }));

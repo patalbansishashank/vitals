@@ -13,10 +13,40 @@
  */
 import type { HabitProfile, PersonProfile, SafetyFlags, SafetyMode } from '@/engine/types/profile';
 import { supplementPlannerInputs, toSectionV2 } from '@/catalogues/supplements';
-import type { PlannerRequest, PlannerSafetyInput, PracticalConstraints, RankedGoal, Strictness, Weekday } from '@/engine/planner/domain/types';
-import { expertModeOn, type ScreeningOutcome, type OptInTier, type PlannerLock } from '@/features/onboarding/safetyRules';
+import { plannerHabitualActives } from '@/catalogues/supplements/planner';
+import { baselineSchedule, type HabitualActiveExposure } from '@/engine/planner/domain/decode';
+import { scenarioStartValues } from '@/engine/planner/domain/replan';
+import type {
+  PlannerRequest,
+  PlannerRequestV2,
+  PlannerSafetyInput,
+  PracticalConstraints,
+  RankedGoal,
+  Strictness,
+  Weekday,
+} from '@/engine/planner/domain/types';
+import type { TrainingProfile } from '@/catalogues/types';
+import { compileRequest, labBaselineDomainIssue } from '@/engine/planner/domain/context';
+import {
+  LOCK_UNIT,
+  expertModeOn,
+  type ScreeningOutcome,
+  type OptInTier,
+  type PlannerLock,
+  type PlannerLockId,
+} from '@/features/onboarding/safetyRules';
+import { LAB_LOCK_DEFS, type LabLockId } from '@/markers/types';
+import {
+  CONTRACT_VERSIONS,
+  type ClinicianExerciseEnvelope,
+  type ConstraintComparator,
+  type ScreeningAnswer,
+  type SymptomReport,
+} from '@/lib/bodyContracts';
+import { renalSafetyFlags, type RenalScope } from '@/lib/renalScope';
+import type { SuggestionSafetyInput } from '@/lib/safetyPolicy';
 import type { ConstraintDraft, GoalDraft, LongestFast } from '@/state/plannerStore';
-import { goalMetric, modeSpec, toleranceFor } from './catalogue';
+import { resolveSavedGoal, toleranceFor } from './catalogue';
 
 /* ---------------------------------------------------------------------------------------------------- dates */
 
@@ -62,7 +92,7 @@ export function defaultConstraints(habits: HabitProfile | undefined): Constraint
   const bed = h.bedTimeH ?? 23;
   const latestByBed = (bed < 12 ? bed + 24 : bed) - 3;
   const latest = clamp(Math.max(Math.min(winStart + winLen, latestByBed), earliest + 8), 14, 23);
-  const sleepH = (((h.wakeTimeH ?? 7) - bed + 24) % 24) || 8;
+  const sleepH = h.habitualSleepDurationH ?? (((h.wakeTimeH ?? 7) - bed + 24) % 24 || 8);
   return {
     trainingDays: [Math.min(2, rtMax), rtMax],
     trainingWeekdays: ALL_WEEKDAYS.slice(),
@@ -126,13 +156,25 @@ export function fastExclusions(longest: LongestFast): string[] {
 export function toPracticalConstraints(c: ConstraintDraft): PracticalConstraints {
   const excluded = new Set<string>([...c.excluded, ...fastExclusions(c.longestFastH)]);
   if (c.sleepFixed) excluded.add('L5');
-  const weekdays = [...new Set(c.trainingWeekdays)].filter((d) => d >= 0 && d <= 6).sort((a, b) => a - b) as Weekday[];
+  const weekdays = [...new Set(c.trainingWeekdays)]
+    .filter((d) => d >= 0 && d <= 6)
+    .sort((a, b) => a - b) as Weekday[];
   return {
-    trainingDaysPerWeek: { min: Math.min(c.trainingDays[0], c.trainingDays[1]), max: Math.max(c.trainingDays[0], c.trainingDays[1]) },
+    ...(c.maxMuscleLossPct !== undefined
+      ? { muscleRetention: c.maxMuscleLossPct === null ? null : { maxLossPct: c.maxMuscleLossPct } }
+      : {}),
+    trainingDaysPerWeek: {
+      min: Math.min(c.trainingDays[0], c.trainingDays[1]),
+      max: Math.max(c.trainingDays[0], c.trainingDays[1]),
+    },
     allowedTrainingWeekdays: weekdays,
     trainingTimeH: c.trainingTimeH,
     maxSessionMin: c.maxSessionMin,
-    cardioDaysPerWeek: { min: Math.min(c.cardioDays[0], c.cardioDays[1]), max: Math.max(c.cardioDays[0], c.cardioDays[1]) },
+    ...(c.maxCardioSessionMin != null ? { maxCardioSessionMin: c.maxCardioSessionMin } : {}),
+    cardioDaysPerWeek: {
+      min: Math.min(c.cardioDays[0], c.cardioDays[1]),
+      max: Math.max(c.cardioDays[0], c.cardioDays[1]),
+    },
     cardioModality: c.cardioModality,
     eatingWindow: { earliestH: c.earliestH, latestH: c.latestH },
     mealsPerDay: { min: c.mealsPerDay[0], max: c.mealsPerDay[1] },
@@ -148,26 +190,31 @@ export function toPracticalConstraints(c: ConstraintDraft): PracticalConstraints
   };
 }
 
+/** Only limits the person actually changed, for starting a custom scenario without adding unrelated form defaults. */
+export function explicitPracticalConstraints(c: Partial<ConstraintDraft>): PracticalConstraints {
+  const all = toPracticalConstraints({ ...defaultConstraints(undefined), ...c });
+  const sources: Partial<Record<keyof PracticalConstraints, readonly (keyof ConstraintDraft)[]>> = {
+    muscleRetention: ['maxMuscleLossPct'], trainingDaysPerWeek: ['trainingDays'], allowedTrainingWeekdays: ['trainingWeekdays'],
+    trainingTimeH: ['trainingTimeH'], maxSessionMin: ['maxSessionMin'], maxCardioSessionMin: ['maxCardioSessionMin'],
+    cardioDaysPerWeek: ['cardioDays'], cardioModality: ['cardioModality'], eatingWindow: ['earliestH', 'latestH'],
+    mealsPerDay: ['mealsPerDay'], steps: ['steps'], excludedLevers: ['excluded', 'longestFastH', 'sleepFixed'],
+    fasting: ['longestFastH'], prefersFasting: ['prefersFasting'], sleepFixed: ['sleepFixed'], hungerTolerance: ['hungerTolerance'],
+    maxFastHours: ['longestFastH'], proteinFloorGPerKg: ['proteinFloor'], carbFloorGPerDay: ['carbFloorG'],
+  };
+  return Object.fromEntries(Object.entries(all).filter(([key]) => sources[key as keyof PracticalConstraints]?.some((source) => Object.hasOwn(c, source)))) as PracticalConstraints;
+}
+
 /* ------------------------------------------------------------------------------------------------- goals */
 
 /** One goal row → engine `RankedGoal` (rank = index in the list). */
 export function toRankedGoal(g: GoalDraft, rankIndex: number): RankedGoal {
-  const metric = goalMetric(g.metric);
-  const spec = metric ? modeSpec(metric, g.mode) : null;
-  const out: RankedGoal = { metric: g.metric, direction: spec?.direction ?? 'maximise' };
-  if (spec) {
-    if (spec.target === 'zero') {
-      out.target = 0;
-      out.targetKind = 'change';
-    } else if (spec.target === 'change' && g.amount !== null) {
-      out.target = spec.sign * Math.abs(g.amount);
-      out.targetKind = 'change';
-    } else if (spec.target === 'absolute' && g.amount !== null) {
-      out.target = g.amount;
-      out.targetKind = 'absolute';
-    }
-  }
-  if (g.functional) out.functional = g.functional;
+  const resolved = resolveSavedGoal(g);
+  // Invalid saved intent remains an invalid target shape if a caller bypasses the runnable subset.
+  const out: RankedGoal = resolved.goal ?? {
+    metric: g.metric,
+    direction: 'target',
+    ...(g.endpointSemantics ? { endpointSemantics: { ...g.endpointSemantics } } : {}),
+  };
   const tol = toleranceFor(g.strength, rankIndex);
   if (tol !== undefined) out.tolerance = tol;
   return out;
@@ -177,7 +224,11 @@ export function toRankedGoal(g: GoalDraft, rankIndex: number): RankedGoal {
 
 /** The subset of `useSafetyAccess()` the request needs. */
 export interface SafetySnapshot {
-  outcome: Pick<ScreeningOutcome, 'plannerAccess' | 'mode' | 'restrictions' | 'plannerLocks' | 'fasting' | 'flags'>;
+  outcome: Pick<
+    ScreeningOutcome,
+    'plannerAccess' | 'mode' | 'restrictions' | 'plannerLocks' | 'fasting' | 'flags'
+  > &
+    Partial<Pick<ScreeningOutcome, 'renal'>>;
   plannerAccess: ScreeningOutcome['plannerAccess'];
   optedTier: OptInTier | null;
   shortWindowOn: boolean;
@@ -192,33 +243,93 @@ export interface SafetySnapshot {
    */
   supplementLevers?: readonly string[];
   supplementRefusals?: readonly string[];
+  /** (D7-04) observed active-ingredient exposure of the products the person takes (`plannerHabitualActives`). */
+  habitualActives?: readonly HabitualActiveExposure[];
+  /**
+   * (C5/D7-03) Tri-state answers behind the screening flags (`screeningAnswerMap`): unknown / prefer not stay distinct
+   * from a negative screen in the planner's gates and certificate. Absent = legacy (the flags alone).
+   */
+  answers?: Readonly<Partial<Record<string, ScreeningAnswer>>>;
+  /** (D4-02) structured symptom reports and reviewed exercise envelopes, when the person entered them. */
+  symptoms?: readonly SymptomReport[];
+  exerciseEnvelopes?: readonly ClinicianExerciseEnvelope[];
+  renal?: RenalScope;
 }
 
-type Lock = { id: string; value?: number; reasons?: ReadonlyArray<{ rule: string }> };
+type Lock = {
+  id: string;
+  value?: number;
+  reasons?: ReadonlyArray<{ rule: string }>;
+  /** D4-01: the unit as supplied (never inferred from the value's magnitude); kept when an input carries it. */
+  unit?: string;
+};
 
 const FLOOR_LOCKS = new Set(['protein-floor', 'carb-floor', 'fat-floor', 'min-eating-window']);
 const CAP_LOCKS = new Set(['deficit-cap', 'rate-cap', 'max-fast', 'protein-cap']);
 
-/** Merge lock lists: one entry per id, the stricter value wins (max for floors, min for caps). */
+/**
+ * Comparator of a lock id (C5/D4-01): the typed lab definition when there is one, else the screening floors and caps,
+ * else the id's own wording ("-cap" / "-floor"). Null = a lock without a numeric bound or an unknown comparator.
+ */
+export function lockComparator(id: string): ConstraintComparator | null {
+  const lab = (LAB_LOCK_DEFS as Readonly<Record<string, { comparator: ConstraintComparator }>>)[id];
+  if (lab) return lab.comparator;
+  if (FLOOR_LOCKS.has(id) || /-floor$/.test(id) || /^min-/.test(id)) return 'floor';
+  if (CAP_LOCKS.has(id) || /-cap$/.test(id) || /^max-/.test(id)) return 'cap';
+  return null;
+}
+
+/**
+ * Merge lock lists: one entry per id; caps keep the minimum and floors the maximum (C5: independent of order). A lock
+ * whose comparator is unknown keeps the smaller value, so the result never depends on which list came first; reasons of
+ * every input are kept.
+ */
 export function mergeLocks(...lists: ReadonlyArray<ReadonlyArray<Lock>>): Lock[] {
   const byId = new Map<string, Lock>();
   for (const list of lists)
     for (const l of list) {
       const prev = byId.get(l.id);
       if (!prev) {
-        byId.set(l.id, { id: l.id, ...(l.value !== undefined ? { value: l.value } : {}), reasons: [...(l.reasons ?? [])] });
+        byId.set(l.id, {
+          id: l.id,
+          ...(l.value !== undefined ? { value: l.value } : {}),
+          reasons: [...(l.reasons ?? [])],
+          ...(l.unit ? { unit: l.unit } : {}),
+        });
         continue;
       }
       const reasons = [...(prev.reasons ?? []), ...(l.reasons ?? [])];
       let value = prev.value;
       if (l.value !== undefined) {
         if (value === undefined) value = l.value;
-        else if (FLOOR_LOCKS.has(l.id)) value = Math.max(value, l.value);
-        else if (CAP_LOCKS.has(l.id)) value = Math.min(value, l.value);
+        else value = lockComparator(l.id) === 'floor' ? Math.max(value, l.value) : Math.min(value, l.value);
       }
-      byId.set(l.id, { id: l.id, ...(value !== undefined ? { value } : {}), reasons });
+      const unit = prev.unit ?? l.unit;
+      byId.set(l.id, {
+        id: l.id,
+        ...(value !== undefined ? { value } : {}),
+        reasons,
+        ...(unit ? { unit } : {}),
+      });
     }
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+/** Screening lock units in the constraint contract's vocabulary (`CONSTRAINT_UNITS`), where the quantity has one. */
+const SCREENING_CONSTRAINT_UNIT: Readonly<Partial<Record<PlannerLockId, string>>> = {
+  'protein-floor': 'g/kg/d',
+  'fat-floor': 'g/d',
+  'min-eating-window': 'h',
+};
+
+/**
+ * The unit a lock value is in (D4-01): explicit, from the typed definitions (the lab table's constraint units first, then
+ * the screening floors in the same vocabulary, then the screening table's own wording), never from the magnitude.
+ */
+export function lockUnit(id: string): string | undefined {
+  const lab = LAB_LOCK_DEFS[id as LabLockId];
+  if (lab) return lab.unit;
+  return SCREENING_CONSTRAINT_UNIT[id as PlannerLockId] ?? LOCK_UNIT[id as PlannerLockId];
 }
 
 export function toSafetyInput(s: SafetySnapshot): PlannerSafetyInput {
@@ -228,9 +339,18 @@ export function toSafetyInput(s: SafetySnapshot): PlannerSafetyInput {
     mode: o.mode,
     restrictions: [...o.restrictions],
     // screening locks only: the user's own limits are request constraints (maxFastHours, protein/carb floors)
+    // D4-01: each screening lock carries its explicit unit and is mandatory (unsupported mandatory bounds block the
+    // prescription in the planner, never a silent relaxation)
     plannerLocks: mergeLocks(
-      (o.plannerLocks as readonly PlannerLock[]).map((l) => ({ id: l.id, ...(l.value !== undefined ? { value: l.value } : {}), reasons: l.reasons.map((r) => ({ rule: r.rule })) })),
-    ),
+      (o.plannerLocks as readonly PlannerLock[]).map((l) => ({
+        id: l.id,
+        ...(l.value !== undefined ? { value: l.value } : {}),
+        reasons: l.reasons.map((r) => ({ rule: r.rule })),
+      })),
+    ).map((l) => {
+      const unit = l.value !== undefined ? (l.unit ?? lockUnit(l.id)) : undefined;
+      return { ...l, ...(unit ? { unit } : {}), source: 'screening' as const, mandatory: true };
+    }),
     fasting: {
       maxFastHours: o.fasting.maxFastHours,
       maxEligibleTier: o.fasting.maxEligibleTier,
@@ -240,17 +360,43 @@ export function toSafetyInput(s: SafetySnapshot): PlannerSafetyInput {
     },
     flags: [...o.flags],
     // supplements are planned only with consent (QA LIV-13): the intake's "open to supplements" answer
-    optIns: { fastingTier: s.optedTier, shortEatingWindow: s.shortWindowOn, levers: s.supplementLevers ? [...s.supplementLevers] : s.supplementsOpen ? ['creatine'] : [] },
+    optIns: {
+      fastingTier: s.optedTier,
+      shortEatingWindow: s.shortWindowOn,
+      levers: s.supplementLevers ? [...s.supplementLevers] : s.supplementsOpen ? ['creatine'] : [],
+    },
     // T4 (3-7-day fasts) needs expert mode in the engine's tier compiler; it was never passed (PLAN item 8 decision 6).
     // Only set when on, so requests (and their hashes) without expert mode are unchanged.
     ...(expertModeOn(s.optedTier, s.expertModeAvailable) ? { expertMode: true } : {}),
   };
 }
 
-const MED_FLAGS = new Set(['diuretic', 'raas-blocker', 'other-antihypertensive', 'lithium', 'topiramate-zonisamide', 'corticosteroid', 'qt-prolonging', 'chemotherapy', 'antacid', 'anticoagulant', 'thyroid-hormone', 'other-medication']);
+const MED_FLAGS = new Set([
+  'diuretic',
+  'raas-blocker',
+  'other-antihypertensive',
+  'lithium',
+  'topiramate-zonisamide',
+  'corticosteroid',
+  'qt-prolonging',
+  'chemotherapy',
+  'antacid',
+  'anticoagulant',
+  'thyroid-hormone',
+  'other-medication',
+]);
 
-/** Screening flags (onboarding vocabulary) → engine `SafetyFlags` on the profile. */
-export function profileSafetyFrom(flags: readonly string[], mode: SafetyMode, optedTier: OptInTier | null): { mode: SafetyMode; flags: SafetyFlags } {
+/**
+ * Screening flags (onboarding vocabulary) → engine `SafetyFlags` on the profile. `extra` carries the contract facts behind
+ * the booleans when the caller has them (C5/D4-02/D7-03): the tri-state answers, symptom reports and reviewed exercise
+ * envelopes. Absent fields are left out, so requests (and their hashes) without them are unchanged.
+ */
+export function profileSafetyFrom(
+  flags: readonly string[],
+  mode: SafetyMode,
+  optedTier: OptInTier | null,
+  extra: Pick<SafetySnapshot, 'answers' | 'symptoms' | 'exerciseEnvelopes' | 'renal'> = {},
+): { mode: SafetyMode; flags: SafetyFlags } {
   const f = new Set(flags);
   const out: SafetyFlags = {};
   if (f.has('pregnant')) out.pregnantOrBreastfeeding = true;
@@ -263,7 +409,8 @@ export function profileSafetyFrom(flags: readonly string[], mode: SafetyMode, op
   else if (f.has('glp1')) out.diabetesMedication = 'glp1';
   else if (f.has('metformin')) out.diabetesMedication = 'metforminOnly';
   else if (f.has('diabetes-diet-only')) out.diabetesMedication = 'dietOnly';
-  if (f.has('heart-condition') || f.has('high-blood-pressure') || f.has('stroke')) out.cardiovascularOrBp = true;
+  if (f.has('heart-condition') || f.has('high-blood-pressure') || f.has('stroke'))
+    out.cardiovascularOrBp = true;
   if (f.has('kidney-disease')) out.kidneyDisease = true;
   if (f.has('liver-disease')) out.liverDisease = true;
   if (f.has('gout')) out.gout = true;
@@ -277,6 +424,10 @@ export function profileSafetyFrom(flags: readonly string[], mode: SafetyMode, op
   if (f.has('heavy-alcohol')) out.heavyAlcoholUse = true;
   if (f.has('recent-illness')) out.acuteIllnessLast4Weeks = true;
   out.fastingOptIn = optedTier ?? 'none';
+  if (extra.answers && Object.keys(extra.answers).length) out.answers = { ...extra.answers };
+  if (extra.symptoms?.length) out.symptoms = [...extra.symptoms];
+  if (extra.exerciseEnvelopes?.length) out.exerciseEnvelopes = [...extra.exerciseEnvelopes];
+  if (extra.renal) Object.assign(out, renalSafetyFlags(extra.renal));
   return { mode, flags: out };
 }
 
@@ -290,41 +441,118 @@ export interface RequestInput {
   strictness: Strictness;
   profile: PersonProfile;
   safety: SafetySnapshot;
+  training?: TrainingProfile;
 }
 
-/** The supplement fields of the safety snapshot from the stored section (v1 or v2); empty when unanswered. */
-export function supplementSnapshot(raw: unknown): Pick<SafetySnapshot, 'supplementsOpen' | 'supplementLevers' | 'supplementRefusals'> {
+/**
+ * The supplement fields of the safety snapshot from the stored section (v1 or v2); empty when unanswered. With the shared
+ * suggestion-policy input (D7-03, `suggestionSafetyFrom`) a lever the person does not already take is opted in only when
+ * the policy suggests it (allow or caution); without it, the legacy consent reading.
+ */
+export function supplementSnapshot(
+  raw: unknown,
+  policy?: SuggestionSafetyInput,
+): Pick<SafetySnapshot, 'supplementsOpen' | 'supplementLevers' | 'supplementRefusals' | 'habitualActives'> {
   const section = toSectionV2(raw);
   if (!section) return {};
-  const p = supplementPlannerInputs(section);
+  const p = supplementPlannerInputs(section, policy);
+  const habitualActives = plannerHabitualActives(p.habitualActives);
   return {
     ...(section.stance === 'open' ? { supplementsOpen: true } : {}),
     supplementLevers: p.optInLevers,
     ...(p.excludedLevers.length ? { supplementRefusals: p.excludedLevers } : {}),
+    ...(habitualActives.length ? { habitualActives } : {}),
   };
 }
 
 /** "Not for me" supplement levers join the excluded levers (sorted, once each); unchanged when there are none. */
-export function withSupplementRefusals(c: PracticalConstraints, refused: readonly string[] | undefined): PracticalConstraints {
+export function withSupplementRefusals(
+  c: PracticalConstraints,
+  refused: readonly string[] | undefined,
+): PracticalConstraints {
   if (!refused?.length) return c;
   return { ...c, excludedLevers: [...new Set([...(c.excludedLevers ?? []), ...refused])].sort() };
 }
 
-export function buildPlannerRequest(i: RequestInput): PlannerRequest {
+/**
+ * The goals the Planner can optimise (C6): eligible under the capability registry and, given the profile, not forecast
+ * from a measured lab baseline outside the model's calibration domain (D7-02: the measurement stays exactly as entered,
+ * its forecast is Unsupported, so it cannot be a goal; the other goals plan normally). A run needs at least one; the
+ * screen gates Find plans on this, not on the raw list (a saved autophagy goal alone is information, not a goal, D2-02).
+ */
+export function plannableGoals<G extends GoalDraft>(
+  goals: readonly G[],
+  profile?: Pick<PersonProfile, 'labs' | 'labMeta' | 'medications'>,
+): G[] {
+  return goals.filter(
+    (g) => resolveSavedGoal(g, profile).runnable && !(profile && labBaselineDomainIssue(profile, g.metric)),
+  );
+}
+
+/** Why a goal's forecast is Unsupported for this profile (D7-02): its own measured baseline, or one it is forecast from. */
+export function goalDomainIssue(
+  profile: Pick<PersonProfile, 'labs' | 'labMeta'> | null | undefined,
+  metric: string,
+): 'own' | 'dependency' | null {
+  return profile ? labBaselineDomainIssue(profile, metric) : null;
+}
+
+export function buildPlannerRequest(i: RequestInput): PlannerRequestV2 {
   const profile: PersonProfile = {
     ...i.profile,
     startDate: i.startDate,
-    safety: profileSafetyFrom(i.safety.outcome.flags, i.safety.outcome.mode, i.safety.optedTier),
+    safety: profileSafetyFrom(i.safety.outcome.flags, i.safety.outcome.mode, i.safety.optedTier, {
+      ...i.safety,
+      renal: i.safety.outcome.renal ?? i.safety.renal,
+    }),
   };
-  return {
+  // C6/D2-02: only goals the capability registry allows are optimised; a saved goal on a metric that can no longer be a
+  // goal (the autophagy index) stays in the list as information and never reaches the planner; nor does a goal whose
+  // forecast is unsupported by an out-of-domain measured lab baseline (D7-02, shown as Unsupported on the goal row).
+  // Ranks follow the goals that remain; each carries the capability version it was validated under.
+  const goals = plannableGoals(i.goals, profile).map((g, rank) => ({
+    ...resolveSavedGoal(g).goal!,
+    ...(() => {
+      const tolerance = toleranceFor(g.strength, rank);
+      return tolerance === undefined ? {} : { tolerance };
+    })(),
+    capabilityVersion: CONTRACT_VERSIONS.goalCapability,
+  }));
+  const request: PlannerRequestV2 = {
     profile,
-    goals: i.goals.map(toRankedGoal),
+    goals,
     horizonDays: Math.round(i.horizonDays),
     startDate: i.startDate,
     constraints: withSupplementRefusals(toPracticalConstraints(i.constraints), i.safety.supplementRefusals),
     safety: toSafetyInput(i.safety),
     strictness: i.strictness,
+    ...(i.training ? { training: i.training } : {}),
+    // D7-04: observed habitual actives enter the request (and so its hash) only when there are any
+    ...(i.safety.habitualActives?.length ? { habitualActives: i.safety.habitualActives } : {}),
   };
+  if (
+    goals.some((g) => g.targetKind === 'change' && ['sbp', 'glucose', 'fastingGlucose'].includes(g.metric))
+  ) {
+    try {
+      // Preview only: use this new subject's actual initial operator. Keep the original delta so final scenario
+      // adoption can freeze it again against the final scenario start rather than this preview's baseline.
+      const baseline = baselineSchedule({ ...compileRequest({ ...request, goals: [] }), horizonDays: 1 });
+      const initial = scenarioStartValues(baseline, request);
+      request.goals = goals.map((g, k) => {
+        const value = initial.get(k);
+        return g.targetKind === 'change' &&
+          ['sbp', 'glucose', 'fastingGlucose'].includes(g.metric) &&
+          g.target !== undefined &&
+          value !== undefined &&
+          Number.isFinite(value)
+          ? { ...g, targetOrigin: { kind: 'change', delta: g.target, baseline: value } }
+          : g;
+      });
+    } catch {
+      /* A missing compatible initial operator stays Review; never supply a population target. */
+    }
+  }
+  return request;
 }
 
 /* ---------------------------------------------------------------------------------------------------- hash */
@@ -344,11 +572,16 @@ export function canonicalJson(v: unknown): string {
 }
 
 /** What changed between the request a result was found for and the current one (for the stale notice). */
-export function staleReason(prev: PlannerRequest | null, next: PlannerRequest | null): 'body' | 'safety' | 'goals' {
+export function staleReason(
+  prev: PlannerRequest | null,
+  next: PlannerRequest | null,
+): 'body' | 'safety' | 'goals' {
   if (!prev || !next) return 'goals';
-  const body = (r: PlannerRequest) => canonicalJson({ ...r.profile, startDate: undefined, safety: undefined });
+  const body = (r: PlannerRequest) =>
+    canonicalJson({ ...r.profile, startDate: undefined, safety: undefined });
   if (body(prev) !== body(next)) return 'body';
-  if (canonicalJson([prev.safety, prev.profile.safety]) !== canonicalJson([next.safety, next.profile.safety])) return 'safety';
+  if (canonicalJson([prev.safety, prev.profile.safety]) !== canonicalJson([next.safety, next.profile.safety]))
+    return 'safety';
   return 'goals';
 }
 

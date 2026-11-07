@@ -19,6 +19,8 @@ import { parseToolManifest, rejected, toMcpTools, type ToolManifest } from '../.
 import { AI_TOOL_IDS, isServerMcpUrl, type AiToolId } from '../shared/bridge';
 import { isNamedPipe, parseHello } from '../shared/mcpSocket';
 import type { PageRelay } from './pageRelay';
+import { ownerControlBackend } from './ownerControl';
+import { FULL_CONTROL_MCP_INSTRUCTIONS } from '../../../../packages/companion/src/briefingRules.ts';
 
 export const NOT_READY_MESSAGE = 'Vitals is still starting; try again in a moment.';
 const MAX_LINE_BYTES = 4 * 1024 * 1024;
@@ -134,7 +136,7 @@ export function createMcpHost(o: McpHostOptions): McpHost {
   };
 
   /** The Companion's MCP server over this socket; `scope` tells the idempotency keys of two sessions apart. */
-  const localSession = async (socket: Socket, client: string | null): Promise<Session> => {
+  const localSession = async (socket: Socket, client: string | null, fullControl = false): Promise<Session> => {
     const scope = randomUUID();
     const transport: Transport = {
       start: async () => undefined,
@@ -144,7 +146,8 @@ export function createMcpHost(o: McpHostOptions): McpHost {
         transport.onclose?.();
       },
     };
-    const mcp = createMcpServer(backend, { version, fallbackClientName: client ?? 'mcp', scope: () => scope });
+    const selected = fullControl && client ? ownerControlBackend(backend, relay, client) : backend;
+    const mcp = createMcpServer(selected, { version, fallbackClientName: client ?? 'mcp', scope: () => scope, ...(fullControl && client ? { instructions: FULL_CONTROL_MCP_INSTRUCTIONS } : {}) });
     await mcp.connect(transport);
     const off = relay.onManifestChange(() => void mcp.sendToolListChanged().catch(() => undefined));
     return {
@@ -207,6 +210,7 @@ export function createMcpHost(o: McpHostOptions): McpHost {
     socket.setNoDelay?.(true);
     let session: Session | null = null;
     let client: string | null = null;
+    let fullControl = false;
     let started = false;
     const queue: string[] = [];
     let draining: Promise<void> = Promise.resolve();
@@ -239,6 +243,8 @@ export function createMcpHost(o: McpHostOptions): McpHost {
     let target: RemoteTarget | null | undefined;
     let opening = false;
     const resolveTarget = async (): Promise<RemoteTarget | null> => {
+      // Delegation is explicitly granted by the local OS owner, not by a paired server's narrower agent token.
+      if (fullControl) return null;
       const id = isAiToolId(client) ? client : null;
       try {
         const t = await o.remote(id);
@@ -265,12 +271,12 @@ export function createMcpHost(o: McpHostOptions): McpHost {
         } catch (e) {
           await remote.close();
           log(`mcp: server not reachable (${e instanceof Error ? e.message : 'error'}); running locally`);
-          const local = await localSession(socket, client);
+          const local = await localSession(socket, client, fullControl);
           if (!keep(local)) return;
           await local.handle(probe);
         }
       } else {
-        const local = await localSession(socket, client);
+        const local = await localSession(socket, client, fullControl);
         if (!keep(local)) return;
         log(`mcp: ${id ?? 'a client'} connected locally`);
         await local.handle(probe);
@@ -283,6 +289,7 @@ export function createMcpHost(o: McpHostOptions): McpHost {
         started = true;
         const hello = parseHello(line);
         client = hello?.client ?? null;
+        fullControl = hello?.fullControl === true;
         if (!hello) queue.push(line);
         draining = resolveTarget()
           .then((t) => {

@@ -170,8 +170,8 @@ describe('real workers', () => {
 
   it('imports get the long limit', () => {
     const t = { commandMs: 60_000, importMs: 600_000 };
-    expect(timeoutOf({ op: 'ingestLumen', events: [], installations: {} }, t)).toBe(600_000);
-    expect(timeoutOf(cmd('bio.import'), t)).toBe(600_000);
+    expect(timeoutOf(cmd('data.import'), t)).toBe(600_000);
+    expect(timeoutOf(cmd('markers.import'), t)).toBe(600_000);
     expect(timeoutOf(cmd('log.steps'), t)).toBe(60_000);
     expect(isImport({ op: 'agentCall', command: 'log.steps', input: {}, actorId: 'x' })).toBe(false);
   });
@@ -217,7 +217,9 @@ describe('a removed person', () => {
       const m = JSON.parse(await readFile(file, 'utf8')) as Awaited<ReturnType<WorkerPool['memory']>>;
       expect(m.persons.map((x) => x.id)).toEqual([keep]);
     } finally {
-      await rm(dataDir, { recursive: true, force: true });
+      // Stop the 50 ms sampler first: a memory.json write landing mid-rm fails it with ENOTEMPTY under load.
+      for (const q of pools.splice(0)) await q.closeAll();
+      await rm(dataDir, { recursive: true, force: true, maxRetries: 5 });
     }
   });
 

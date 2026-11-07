@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { InlineWarning, KeyLink, Section, cx, energyInText } from '@/components';
+import { InlineWarning, KeyLink, cx, energyInText } from '@/components';
 import { useEnergyUnit } from '@/state/settingsStore';
 import { paths } from '@/app/paths';
 import { DISCLAIMER, LAST_REVIEWED, LIMITS_PAGE, STOP_AND_GET_HELP } from './copy';
@@ -72,57 +73,64 @@ export function StopAndGetHelp({ className }: { className?: string }) {
 }
 
 export interface DisclaimerFullProps {
-  /** Heading level for section labels (default h3); the help card sits one level below. */
-  headingAs?: 'h3' | 'h4';
-  /** Smaller prose (Settings › About, consent dialog). */
+  /** Heading level for the section titles (default h3); the help card sits one level below. */
+  headingAs?: 'h2' | 'h3' | 'h4';
+  /** Prose size: `sm` body 14/21 (default: /safety, the consent dialog) · `md` body-l 16/24. */
   size?: 'md' | 'sm';
   /** Include the help card (default true). */
   withHelp?: boolean;
-  /** Include the link to the full page (inside dialogs and Settings). */
+  /** Two columns (a wide /safety): prose on the left, the limits and the help beside it. */
+  split?: boolean;
+  /** Include the link to the full page (inside dialogs). */
   withPageLink?: boolean;
 }
 
-/**
- * The full disclaimer ("Important information and limits", dossier §4.6) — used on /safety, in the
- * first-run "Full disclaimer" dialog and in Settings › About. No faceplates inside: hairline sections only.
- */
-export function DisclaimerFull({ headingAs = 'h3', size = 'md', withHelp = true, withPageLink = false }: DisclaimerFullProps) {
+const BELOW = { h2: 'h3', h3: 'h4', h4: 'h4' } as const;
+
+/** One titled block of the disclaimer: a title-m heading (16/500) and its content; hairline sections, never cards. */
+function DisclaimerSection({ id, title, headingAs: H, children }: { id: string; title: string; headingAs: 'h2' | 'h3' | 'h4'; children: ReactNode }) {
+  const titleId = `lm-disclaimer-${id}`;
   return (
-    <div className="grid gap-5">
-      {LIMITS_PAGE.sections.map((s) => (
-        <Section key={s.id} label={s.title} labelAs={headingAs}>
-          <div className="lm-prose mt-2" data-size={size}>
-            {s.paragraphs.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-        </Section>
-      ))}
-      <Section label={LIMITS_PAGE.limitsTitle} labelAs={headingAs}>
-        <div className="lm-prose mt-2" data-size={size}>
-          <p>{LIMITS_PAGE.limitsLead}</p>
-        </div>
-        <LimitsList className="mt-3" />
-        <p className="mt-2 mb-0 text-xs text-ink-2">{LIMITS_PAGE.sexNote}</p>
-      </Section>
-      <Section label={LIMITS_PAGE.stopTitle} labelAs={headingAs}>
-        <div className="mt-2 grid gap-3">
-          <StopAndGetHelp />
-          <div className="lm-prose" data-size={size}>
-            <p>{LIMITS_PAGE.stopBody}</p>
-          </div>
-          {withHelp ? <HelpCard headingAs="h4" /> : null}
-        </div>
-      </Section>
-      <Section label={LIMITS_PAGE.dataTitle} labelAs={headingAs}>
-        <div className="lm-prose mt-2" data-size={size}>
+    <section className="lm-disclaimer__sec" aria-labelledby={titleId}>
+      <H className="lm-disclaimer__title" id={titleId}>
+        {title}
+      </H>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The full disclaimer (dossier §4.6) — used on /safety and in the first-run "Full disclaimer" dialog. Sections with a
+ * title-m heading over body-size prose, separated by hairlines; no cards inside.
+ */
+export function DisclaimerFull({ headingAs = 'h3', size = 'sm', withHelp = true, withPageLink = false, split = false }: DisclaimerFullProps) {
+  const limits = (
+    <DisclaimerSection id="limits" title={LIMITS_PAGE.limitsTitle} headingAs={headingAs}>
+      <div className="lm-prose" data-size={size}>
+        <p>{LIMITS_PAGE.limitsLead}</p>
+      </div>
+      <LimitsList />
+      <p className="lm-disclaimer__note">{LIMITS_PAGE.sexNote}</p>
+    </DisclaimerSection>
+  );
+  const stop = (
+    <DisclaimerSection id="stop" title={LIMITS_PAGE.stopTitle} headingAs={headingAs}>
+      <StopAndGetHelp />
+      {withHelp ? <HelpCard headingAs={BELOW[headingAs]} /> : null}
+    </DisclaimerSection>
+  );
+  const tail = (
+    <>
+      <DisclaimerSection id="data" title={LIMITS_PAGE.dataTitle} headingAs={headingAs}>
+        <div className="lm-prose" data-size={size}>
           {LIMITS_PAGE.data.map((p) => (
             <p key={p.slice(0, 24)}>{p}</p>
           ))}
         </div>
-      </Section>
-      <Section label={LIMITS_PAGE.changesTitle} labelAs={headingAs}>
-        <div className="lm-prose mt-2" data-size={size}>
+      </DisclaimerSection>
+      <DisclaimerSection id="changes" title={LIMITS_PAGE.changesTitle} headingAs={headingAs}>
+        <div className="lm-prose" data-size={size}>
           <p>
             {LIMITS_PAGE.changes} {LAST_REVIEWED}.{' '}
             <Link className="lm-link" to={paths.evidence}>
@@ -130,10 +138,76 @@ export function DisclaimerFull({ headingAs = 'h3', size = 'md', withHelp = true,
             </Link>
           </p>
         </div>
-      </Section>
+      </DisclaimerSection>
+    </>
+  );
+  const intro = LIMITS_PAGE.sections.map((s) => (
+    <DisclaimerSection key={s.id} id={s.id} title={s.title} headingAs={headingAs}>
+      <div className="lm-prose" data-size={size}>
+        {s.paragraphs.map((p) => (
+          <p key={p.slice(0, 24)}>{p}</p>
+        ))}
+      </div>
+    </DisclaimerSection>
+  ));
+  // a wide page: the prose in one column, the limits beside it, the help across both (r068 SA-1, final H3)
+  if (split)
+    return (
+      <div className="lm-disclaimer" data-split="true">
+        <div className="lm-disclaimer__main">
+          {intro}
+          {tail}
+        </div>
+        {/* (r068 final H3) the limits hold still beside the prose; the help spans both columns under them, its
+            helplines side by side, so neither column ends 500 px before the other */}
+        <div className="lm-disclaimer__side">
+          <div className="lm-material lm-disclaimer__card">{limits}</div>
+        </div>
+        <div className="lm-material lm-disclaimer__card lm-disclaimer__wide">{stop}</div>
+      </div>
+    );
+  return (
+    <div className="lm-disclaimer">
+      {LIMITS_PAGE.sections.map((s) => (
+        <DisclaimerSection key={s.id} id={s.id} title={s.title} headingAs={headingAs}>
+          <div className="lm-prose" data-size={size}>
+            {s.paragraphs.map((p) => (
+              <p key={p.slice(0, 24)}>{p}</p>
+            ))}
+          </div>
+        </DisclaimerSection>
+      ))}
+      <DisclaimerSection id="limits" title={LIMITS_PAGE.limitsTitle} headingAs={headingAs}>
+        <div className="lm-prose" data-size={size}>
+          <p>{LIMITS_PAGE.limitsLead}</p>
+        </div>
+        <LimitsList />
+        <p className="lm-disclaimer__note">{LIMITS_PAGE.sexNote}</p>
+      </DisclaimerSection>
+      <DisclaimerSection id="stop" title={LIMITS_PAGE.stopTitle} headingAs={headingAs}>
+        <StopAndGetHelp />
+        {withHelp ? <HelpCard headingAs={BELOW[headingAs]} /> : null}
+      </DisclaimerSection>
+      <DisclaimerSection id="data" title={LIMITS_PAGE.dataTitle} headingAs={headingAs}>
+        <div className="lm-prose" data-size={size}>
+          {LIMITS_PAGE.data.map((p) => (
+            <p key={p.slice(0, 24)}>{p}</p>
+          ))}
+        </div>
+      </DisclaimerSection>
+      <DisclaimerSection id="changes" title={LIMITS_PAGE.changesTitle} headingAs={headingAs}>
+        <div className="lm-prose" data-size={size}>
+          <p>
+            {LIMITS_PAGE.changes} {LAST_REVIEWED}.{' '}
+            <Link className="lm-link" to={paths.evidence}>
+              {LIMITS_PAGE.evidenceLink}
+            </Link>
+          </p>
+        </div>
+      </DisclaimerSection>
       {withPageLink ? (
         <div>
-          <KeyLink to={paths.safety} size="sm" variant="quiet">
+          <KeyLink to={paths.safety} size="sm" variant="text">
             {LIMITS_PAGE.title}
           </KeyLink>
         </div>

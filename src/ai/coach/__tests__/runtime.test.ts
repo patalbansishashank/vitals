@@ -58,6 +58,38 @@ describe('createCoachRuntime', () => {
     expect(problems).toEqual(['stop here']);
   });
 
+  it('suspended while the Coach runs on the paired server: no model, no ports, unavailable; resumed unchanged', async () => {
+    const built: string[] = [];
+    const available: boolean[] = [];
+    let cleared = 0;
+    writeAiConfig({ presetId: 'custom', baseUrl: 'http://127.0.0.1:4190/v1', adapter: 'openai-chat', model: 'm', smallEditsWithoutAsking: false }, { persist: false });
+    const rt = createCoachRuntime({
+      setAvailable: (on) => available.push(on),
+      keyVault: { get: async () => 'sk-saved' } as unknown as KeyVault,
+      capabilityCache: new CapabilityCache(new MemoryKv()),
+      clearPorts: () => void cleared++,
+      installPorts: () => undefined,
+      createModel: ((o: Parameters<typeof createChatModel>[0]) => (built.push(o.model ?? ""), createChatModel({ ...o, deps: { fetch: (async () => new Response('{}', { status: 500 })) as typeof fetch } }))) as typeof createChatModel,
+    });
+    await rt.settled();
+    expect(rt.adapter()).not.toBeNull();
+    const before = built.length;
+    await rt.setSuspended(true);
+    expect(rt.adapter()).toBeNull();
+    expect(rt.recipes()).toBeNull();
+    expect(available.at(-1)).toBe(false);
+    expect(cleared).toBeGreaterThan(0);
+    // a configuration change while suspended builds nothing
+    writeAiConfig({ presetId: 'custom', baseUrl: 'http://127.0.0.1:4190/v1', adapter: 'openai-chat', model: 'm2', smallEditsWithoutAsking: false }, { persist: false });
+    await rt.settled();
+    expect(built.length).toBe(before);
+    expect(rt.adapter()).toBeNull();
+    await rt.setSuspended(false);
+    expect(rt.adapter()).not.toBeNull();
+    expect(built.at(-1)).toBe('m2');
+    rt.stop();
+  });
+
   it('reports "connect first" in plain words when this device is not paired with a server', async () => {
     const problems: Array<string | null> = [];
     writeAiConfig({ presetId: 'opencode-zen', model: 'claude-sonnet-5-5', smallEditsWithoutAsking: false }, { persist: false });

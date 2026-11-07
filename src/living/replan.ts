@@ -28,11 +28,17 @@ import type {
   ReplanTrigger,
   RungId,
 } from './plannerContract';
+import { CONTRACT_FINGERPRINT, CONTRACT_VERSIONS, LEGACY_BAND_META, bandMetaFor, stampDerived, type SafetyStatus } from '@/lib/bodyContracts';
 import type { Actor, Instant, LocalDate, PlanDoc, PlanVersionDoc, ProjectionDigest, VersionReason } from './types';
 
 // ------------------------------------------------------------------------------------------- constants (PLANNER_V2 §7)
 /** Daily: a day "departed" when an item was skipped or energy was off by more than 10 %. */
 export const LIGHT_ENERGY_DEPARTURE = 0.1;
+/**
+ * (energy SPEC §V3.7, P) A closed day also departed when its approved exercise was more than 15 % of the planned exercise
+ * energy (EAT) above plan: the forecast updates; intake never changes automatically (D10).
+ */
+export const EXERCISE_DEPARTURE = 0.15;
 /** Energy nudge: at most 10 % of one day's target in total, over the next 1-3 days, overshoot only. */
 export const NUDGE_MAX_FRAC = 0.1;
 export const NUDGE_MAX_DAYS = 3;
@@ -59,7 +65,13 @@ export interface DeclaredEvent {
 export interface TriggerInputs {
   today: LocalDate;
   /** The day that just closed (yesterday): its outcomes and energy. */
-  closedDay: { date: LocalDate; items: readonly ItemOutcome[]; energy?: { target: number; actual: number } } | null;
+  closedDay: {
+    date: LocalDate;
+    items: readonly ItemOutcome[];
+    energy?: { target: number; actual: number };
+    /** (§V3.7) Incremental kcal of the day's approved exercise vs the planned exercise energy (EAT) of that day. */
+    exercise?: { incrementalKcal: number; plannedEatKcal: number };
+  } | null;
   /** A weekly check-in was confirmed today. */
   checkInConfirmed: boolean;
   /** Events declared since the last evaluation. */
@@ -73,6 +85,11 @@ export interface TriggerInputs {
   outOfBandDays: number;
   /** Goals, limits, opt-ins or safety answers changed. */
   requestChanged: boolean;
+  /**
+   * (D3-06) Declared breaks (no training, illness, travel…) in the recent window, inclusive dates. Items missed inside a
+   * declared break are a logged break, not a run of misses: they never fire a re-plan, so a break earns no catch-up.
+   */
+  absences?: ReadonlyArray<{ from: LocalDate; to: LocalDate }>;
   /** Days until a safety margin is predicted to bind (null = none in sight). */
   safetyBindsInDays: number | null;
 }
@@ -85,11 +102,17 @@ export interface TriggerDecision {
   full?: boolean;
   /** Safety first: the lock window may change. */
   bypassLock?: boolean;
+  /** (§V3.7, D10) The forecast updates only: no intake change is proposed or applied from this trigger. */
+  forecastOnly?: boolean;
 }
 
-/** Consecutive most recent skipped items of a type (unknown items neither count nor break the run). */
-export function missedInARow(recent: TriggerInputs['recent'], type: PlanItemType): number {
-  const seq = [...recent].sort((a, b) => (a.date < b.date ? -1 : 1)).flatMap((d) => d.items.filter((x) => x.type === type));
+/**
+ * Consecutive most recent skipped items of a type (unknown items neither count nor break the run). (D3-06) Items on a day
+ * inside a declared break are skipped over the same way: a logged break is not a failure and never triggers catch-up.
+ */
+export function missedInARow(recent: TriggerInputs['recent'], type: PlanItemType, absences: TriggerInputs['absences'] = []): number {
+  const onBreak = (date: LocalDate): boolean => absences.some((a) => date >= a.from && date <= a.to);
+  const seq = [...recent].filter((d) => !onBreak(d.date)).sort((a, b) => (a.date < b.date ? -1 : 1)).flatMap((d) => d.items.filter((x) => x.type === type));
   let n = 0;
   for (let k = seq.length - 1; k >= 0; k--) {
     const o = seq[k]!;
@@ -104,7 +127,18 @@ export function missedInARow(recent: TriggerInputs['recent'], type: PlanItemType
 export function dayDeparted(day: NonNullable<TriggerInputs['closedDay']>): boolean {
   if (day.items.some((x) => x.status === 'skipped')) return true;
   if (day.energy && day.energy.target > 0 && Math.abs(day.energy.actual - day.energy.target) > LIGHT_ENERGY_DEPARTURE * day.energy.target) return true;
-  return false;
+  return exerciseDeparted(day);
+}
+
+/**
+ * (energy SPEC §V3.7) The day's approved exercise went beyond the plan: incremental exercise kcal above the planned EAT by
+ * more than 15 % of it (an unplanned bout on a rest day departs as soon as it adds energy). Forecast only (D10).
+ */
+export function exerciseDeparted(day: NonNullable<TriggerInputs['closedDay']>): boolean {
+  const x = day.exercise;
+  if (!x || !Number.isFinite(x.incrementalKcal) || !Number.isFinite(x.plannedEatKcal)) return false;
+  const planned = Math.max(0, x.plannedEatKcal);
+  return x.incrementalKcal - planned > EXERCISE_DEPARTURE * planned && x.incrementalKcal > planned;
 }
 
 /** All triggers that fire, highest priority first. Rate changes < 0.4 kg/week are never a trigger (not detectable). */
@@ -115,7 +149,7 @@ export function evaluateTriggers(i: TriggerInputs): TriggerDecision[] {
   if (i.requestChanged) out.push({ kind: 'event', trigger: 'requestChange', reason: 'Goals, limits or safety answers changed.' });
   const types = new Set<PlanItemType>(i.recent.flatMap((d) => d.items.map((x) => x.type)));
   for (const t of [...types].sort()) {
-    const n = missedInARow(i.recent, t);
+    const n = missedInARow(i.recent, t, [...(i.absences ?? []), ...i.declared.map((e) => ({ from: e.from, to: e.to }))]);
     if (n >= MISSED_IN_A_ROW) {
       out.push({ kind: 'event', trigger: 'missedBlocks', reason: `${n} ${t} items missed in a row.` });
       break;
@@ -123,7 +157,11 @@ export function evaluateTriggers(i: TriggerInputs): TriggerDecision[] {
   }
   if (i.a7 !== null && i.scored7 >= LOW_ADHERENCE_MIN_DAYS && i.a7 < LOW_ADHERENCE) out.push({ kind: 'event', trigger: 'lowAdherence', reason: `7-day adherence ${Math.round(i.a7)}.` });
   if (i.checkInConfirmed) out.push({ kind: 'weekly', trigger: 'checkin', reason: 'Weekly check-in.', ...(i.outOfBandDays >= OUT_OF_BAND_DAYS ? { full: true } : {}) });
-  if (i.closedDay && dayDeparted(i.closedDay)) out.push({ kind: 'light', trigger: 'nudge', reason: 'Yesterday went differently from the plan.' });
+  if (i.closedDay && dayDeparted(i.closedDay)) {
+    // only the training went beyond the plan: the forecast updates, food stays as planned (D10: never an automatic increase)
+    const onlyExercise = exerciseDeparted(i.closedDay) && !i.closedDay.items.some((x) => x.status === 'skipped') && !(i.closedDay.energy && i.closedDay.energy.target > 0 && Math.abs(i.closedDay.energy.actual - i.closedDay.energy.target) > LIGHT_ENERGY_DEPARTURE * i.closedDay.energy.target);
+    out.push(onlyExercise ? { kind: 'light', trigger: 'nudge', reason: 'Yesterday’s training went beyond the plan: the forecast is updated; food stays as planned.', forecastOnly: true } : { kind: 'light', trigger: 'nudge', reason: 'Yesterday went differently from the plan.' });
+  }
   return out;
 }
 
@@ -319,7 +357,17 @@ export function adoptionPolicy(check: ReplanCheck, opts: { kind: ReplanKind; nud
 
 const toArr = (a: ArrayLike<number>): number[] => Array.from(a, (x) => x);
 
-/** ReplanResult → PlanVersionDoc (status from the policy; days before `effectiveFromDay` equal the parent's). */
+/** Daily bands of a re-plan result as digest series (index 0 = plan day `fromDay`). */
+function digestBands(bands: ReplanResult['forecast']['bands'] | undefined): ProjectionDigest['asPrescribed'] {
+  return Object.fromEntries(Object.entries(bands ?? {}).filter(([, b]) => !!b).map(([k, b]) => [k, { p10: toArr(b!.p10), p50: toArr(b!.p50), p90: toArr(b!.p90) }]));
+}
+
+/**
+ * ReplanResult → PlanVersionDoc (status from the policy; days before `effectiveFromDay` equal the parent's). Both forecast
+ * variants travel (C2/D5-05): the realistic bands when the planner returned them, else the realistic forecast is marked
+ * unavailable (never the as-prescribed band relabelled realistic). The digest records the shared history it started from
+ * and its band semantics; the version's safety status is never carried over from the parent (C5: revalidated at use).
+ */
 export function versionFromReplan(i: {
   result: ReplanResult;
   plan: PlanDoc & { id: string };
@@ -329,18 +377,37 @@ export function versionFromReplan(i: {
   adoption: Exclude<Adoption, 'reject'>;
   createdBy: Actor;
   createdAt: Instant;
+  /** (C2) content hash of the realised history the re-plan started from. */
+  historyHash?: string;
+  /** (C5) safety status at this lifecycle boundary (default 'unchecked': no certificate was revalidated). */
+  safetyStatus?: SafetyStatus;
 }): PlanVersionDoc {
   const r = i.result;
   const fromDay = Math.max(0, planDay(i.plan, i.today));
+  const realisticBands = r.forecast.realisticBands;
+  const realisticAvailable = !!realisticBands && Object.values(realisticBands).some((b) => !!b);
+  const firstMeta = Object.values(r.forecast.bands ?? {}).find((b) => b?.meta)?.meta;
   const forecast: ProjectionDigest = {
     fromDay,
-    asPrescribed: Object.fromEntries(Object.entries(r.forecast.bands).map(([k, b]) => [k, { p10: toArr(b!.p10), p50: toArr(b!.p50), p90: toArr(b!.p90) }])),
-    realistic: {},
+    asPrescribed: digestBands(r.forecast.bands),
+    realistic: realisticAvailable ? digestBands(realisticBands) : {},
+    realisticStatus: realisticAvailable ? 'available' : 'unavailable',
     goals: r.forecast.asPrescribed.map((g) => {
       const gd = r.goalDates.find((x) => x.goal === g.goal);
       return { metric: g.metric, endP50: g.endP50, dateRange: gd?.range ?? null };
     }),
     warnings: i.head.forecast.warnings,
+    // (D8-02) a result without stochastic bands has no range (never the legacy "draws" meaning by default)
+    bandMeta: firstMeta ?? (Object.values(r.forecast.bands ?? {}).some((b) => !!b) ? LEGACY_BAND_META : bandMetaFor('none', 0)),
+    ...(i.historyHash ? { historyHash: i.historyHash } : {}),
+    stamp: stampDerived({
+      versions: { realisedHistory: CONTRACT_VERSIONS.realisedHistory, uncertainty: CONTRACT_VERSIONS.uncertainty },
+      engineVersion: r.plan.provenance.engineVersion,
+      registryHash: r.plan.provenance.registryHash,
+      ...(i.historyHash ? { inputsHash: i.historyHash } : {}),
+      computedAt: i.createdAt,
+      origin: 'original',
+    }),
   };
   return {
     planId: i.plan.id,
@@ -359,6 +426,10 @@ export function versionFromReplan(i: {
     provenance: r.plan.provenance,
     createdBy: i.createdBy,
     createdAt: i.createdAt,
+    safetyStatus: i.safetyStatus ?? 'unchecked',
+    // (C5/D4-03) the re-plan's certificate of its prescription from today; revalidated at adoption, never authorizing alone
+    ...(r.safety?.certificate ? { certificate: r.safety.certificate } : {}),
+    contracts: CONTRACT_FINGERPRINT,
   };
 }
 

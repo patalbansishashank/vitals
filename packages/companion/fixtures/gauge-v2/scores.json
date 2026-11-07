@@ -1,0 +1,34 @@
+{
+  "route": "/v1/gauge/scores",
+  "tool": "gauge_scores",
+  "args": {
+    "from": "2026-10-20",
+    "to": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "No On-device scores from 2026-10-20T00:00:00+05:30 to 2026-10-20T23:59:59+05:30.",
+    "data": {
+      "from": "2026-10-20T00:00:00+05:30",
+      "to": "2026-10-20T23:59:59+05:30",
+      "units": {
+        "value": "see each entry's unit (\"score\" is 0–100)"
+      },
+      "legacy": true,
+      "note": "on-device legacy scores, computed on the phone. Vitals computes its experimental wellness indices itself; label these \"On-device (legacy)\".",
+      "scores": {},
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [],
+      "freshness": {
+        "lastUploadAt": null,
+        "lastReadingAt": null,
+        "minutesSinceLastUpload": null,
+        "minutesSinceLastReading": null
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

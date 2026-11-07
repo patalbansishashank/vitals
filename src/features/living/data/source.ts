@@ -11,7 +11,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from 'react'
 import type { DriftReport, LocalDate, TodayView } from '@/living';
 import type { TrendLaneData } from '@/features/charts/living/types';
 import type { ChangeCardModel } from '../model/changeCard';
-import type { AdherenceSummary, BodyComposition, CheckInModel, DayGlance, DriftCard, HistoryDay, PlanVersionRow } from './types';
+import type { AdherenceSummary, BodyComposition, CheckInModel, DayGlance, DriftCard, HistoryDay, MonitoredGoalRow, PlanVersionRow } from './types';
 
 export interface LivingDataSource {
   /** `today.get` for a date (past = frozen prescription + its logs; future = read-only preview); null without a live plan. */
@@ -23,6 +23,8 @@ export interface LivingDataSource {
   drift(): DriftReport | null;
   /** Drift cards with labels, one per ranked goal (Progress › Goals). */
   driftCards(): DriftCard[];
+  /** Observed non-weight goals, independent of weight and adherence. */
+  monitoredGoals(): MonitoredGoalRow[];
   adherence(asOf: LocalDate): AdherenceSummary;
   checkIn(asOf: LocalDate): CheckInModel | null;
   history(from: LocalDate, to: LocalDate): HistoryDay[];

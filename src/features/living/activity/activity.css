@@ -1,0 +1,1220 @@
+/* ==========================================================================
+   Today's activity, the review strip and sheet, the activity sheet, the
+   energy and steps charts, recording (energy research §V4.1–§V4.3), Ember.
+   Flat, tokens only: hairline rules inside one card, never a card in a card;
+   gold only for the action, the now mark and a disagreement or review dot.
+   ========================================================================== */
+@layer components {
+  /* ---- Today's activity card: parts under 0.5 px rules ---------------------- */
+  .lv-act {
+    display: grid;
+  }
+  .lv-act__part {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .lv-act__part + .lv-act__part {
+    margin-top: var(--lm-stack);
+    padding-top: var(--lm-stack);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-act__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 28px;
+  }
+  /* a section's own key ends on the card's content edge (no invisible overhang) */
+  .lv-act__head > .lm-key {
+    margin: 0;
+  }
+  /* (r068 G9) a section heading inside a card: the label role at 600, a step under the card title */
+  .lv-act__title {
+    margin: 0;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-act__sub {
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .lv-act__fact {
+    margin: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-act__caption {
+    margin-top: -8px;
+  }
+  .lv-act__fact:empty {
+    display: none;
+  }
+  .lv-act__lineage {
+    position: relative;
+  }
+  .lv-act__disagree,
+  .lv-review-strip__dot,
+  .lv-schart__key {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-inline-start: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    vertical-align: middle;
+  }
+  .lv-schart__key {
+    margin-inline: 0 6px;
+  }
+  .lv-act__hp {
+    display: grid;
+    gap: 6px;
+  }
+  .lv-act__list {
+    display: grid;
+    margin: 0 calc(-1 * var(--lm-row-gap));
+    padding: 0;
+    list-style: none;
+  }
+  /* (r068 T5) the mark sits on the title's line, the facts under it in nowrap segments, a chevron at the row's end */
+  .lv-act__row {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 2px var(--lm-card-gap);
+    width: 100%;
+    min-height: 52px;
+    padding: var(--lm-row-gap);
+    border: 0;
+    border-radius: var(--lm-radius-md);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .lv-act__row:disabled {
+    cursor: default;
+  }
+  .lv-act__row:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) {
+    .lv-act__row:not(:disabled):hover {
+      background: var(--lm-face-hover);
+    }
+  }
+  /* the row's mark: solid for a counted activity, dashed for one still to review (provisional), hollow when not counted */
+  .lv-act__mark {
+    width: 10px;
+    height: 10px;
+    /* centred on the name's first line (14/21) */
+    margin-top: 5.5px;
+    border: 1.5px solid var(--lm-ink-3);
+    border-radius: 50%;
+  }
+  li[data-status='approved'] .lv-act__mark,
+  li[data-status='edited'] .lv-act__mark {
+    border-color: var(--lm-cat-body);
+    background: var(--lm-cat-body);
+  }
+  li[data-status='pending'] .lv-act__mark,
+  li[data-updated] .lv-act__mark {
+    border-style: dashed;
+    border-color: var(--lm-signal);
+    background: none;
+  }
+  .lv-act__what {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lv-act__name {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-act__time,
+  .lv-act__facts,
+  .lv-act__word {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-act__name .lv-act__time {
+    font-size: inherit;
+  }
+  .lv-act__word,
+  .lv-act__seg {
+    white-space: nowrap;
+  }
+  li[data-status='pending'] .lv-act__word,
+  li[data-updated] .lv-act__word {
+    color: var(--lm-signal);
+  }
+  .lv-act__chev {
+    align-self: center;
+    color: var(--lm-ink-3);
+  }
+  .lv-act__row:disabled .lv-act__chev {
+    visibility: hidden;
+  }
+
+  /* ---- (r068 T3/T9) the energy card: one bar and its key -------------------- */
+  .lv-energy {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .lv-energy__bar {
+    position: relative;
+    padding-bottom: 8px;
+  }
+  .lv-energy__track {
+    position: relative;
+    height: 12px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-well);
+    box-shadow: inset 0 0 0 1px var(--lm-line);
+  }
+  .lv-energy__likely,
+  .lv-energy__sofar {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    border-radius: var(--lm-radius-full);
+  }
+  .lv-energy__likely {
+    background: color-mix(in oklab, var(--lm-signal) 32%, transparent);
+  }
+  .lv-energy__sofar {
+    background: var(--lm-signal);
+  }
+  /* the planned burn: an ivory tick through the bar */
+  .lv-energy__plan {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--lm-ink);
+  }
+  /* the day total's likely range: a whisker under the bar */
+  .lv-energy__range {
+    position: absolute;
+    bottom: 0;
+    height: 4px;
+    border-inline: 1px solid var(--lm-ink-3);
+  }
+  .lv-energy__range::before {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    border-top: 1px solid var(--lm-ink-3);
+  }
+  .lv-energy__note {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  .lv-energy__key {
+    display: grid;
+    margin: 0;
+  }
+  .lv-energy__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    padding-block: var(--lm-row-gap);
+  }
+  .lv-energy__row + .lv-energy__row {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-energy__row > dt {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    min-width: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  /* (r068 V17) a row's name with what it assumes small under it */
+  .lv-energy__name {
+    display: grid;
+    gap: 2px;
+  }
+  .lv-energy__sub {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+  .lv-energy__row > dt:has(.lv-energy__sub) {
+    align-items: flex-start;
+  }
+  .lv-energy__row > dt:has(.lv-energy__sub) .lv-energy__swatch {
+    margin-top: 5px;
+  }
+  .lv-energy__swatch {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background: var(--lm-signal);
+  }
+  .lv-energy__row[data-k='likely'] .lv-energy__swatch {
+    background: color-mix(in oklab, var(--lm-signal) 32%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--lm-signal) 50%, transparent);
+  }
+  .lv-energy__row[data-k='plan'] .lv-energy__swatch {
+    width: 2px;
+    height: 14px;
+    margin-inline: 4px;
+    border-radius: 1px;
+    background: var(--lm-ink);
+  }
+  .lv-energy__row > dd {
+    display: grid;
+    justify-items: end;
+    margin: 0;
+    text-align: right;
+  }
+  .lv-energy__value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    white-space: nowrap;
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    color: var(--lm-ink);
+  }
+  .lv-energy__value > .lm-unit {
+    margin: 0;
+  }
+  .lv-energy__rng {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+    white-space: nowrap;
+  }
+  /* (0.6.7) an episode the home server sees going on now: one line, a gold dot, no Approve until it ends */
+  .lv-act__live {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 6px 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-act__live-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  /* (r070) a weak detection: one muted line with two text keys, nothing that looks like a task */
+  .lv-act__possible {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px 12px;
+    margin: 0;
+    padding: 4px 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-act__possible-keys {
+    display: inline-flex;
+    gap: 4px;
+  }
+  li[data-status='rejected'] .lv-act__name {
+    color: var(--lm-ink-2);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+  }
+
+  /* ---- the review strip: one row, a gold dot (something waits), the text, Review ---- */
+  .lv-review-strip.lm-face {
+    padding-block: 10px;
+  }
+  .lv-review-strip__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .lv-review-strip__dot {
+    margin: 0;
+  }
+  .lv-review-strip__text {
+    flex: 1 1 auto;
+    display: grid;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink);
+  }
+  .lv-review-strip__head {
+    font-weight: 500;
+  }
+  .lv-review-strip__facts {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-review-strip__seg {
+    white-space: nowrap;
+  }
+
+  /* ---- panels: the shared body has no padding --------------------------------- */
+  .lv-review,
+  .lv-asheet,
+  .lv-apanel,
+  .lv-record {
+    display: grid;
+    gap: 16px;
+    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+  }
+  .lv-review {
+    gap: 0;
+  }
+  .lv-review__empty {
+    margin: 0;
+    color: var(--lm-ink-2);
+  }
+  .lv-review__list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-review__row {
+    display: grid;
+    gap: var(--lm-card-gap);
+    padding-block: var(--lm-stack);
+  }
+  .lv-review__row:first-child {
+    padding-top: 0;
+  }
+  .lv-review__row + .lv-review__row {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-review__what {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lv-review__name {
+    font: var(--lm-text-title-m--wt) var(--lm-text-title-m) / var(--lm-text-title-m--lh) var(--lm-text-title-m--font);
+    color: var(--lm-ink);
+  }
+  .lv-review__time {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-review__facts {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-review__src {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  /* held out of Approve all (Claude P1-5): the words carry it; the gold review dot marks it */
+  .lv-review__held {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink);
+  }
+  .lv-review__held::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-inline-end: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    vertical-align: middle;
+  }
+  /* (0.6.7) a detected activity: why, the promise, the type choice */
+  .lv-review__why {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-review__note {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-review__detected {
+    display: grid;
+    gap: 8px;
+  }
+  .lv-review__choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  /* (r068 S2) one key family: Approve (action) · Edit (outlined) · Reject (danger), one height, 8 px apart */
+  .lv-review__keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-inline);
+  }
+
+  /* ---- the activity sheet ------------------------------------------------------ */
+  .lv-asheet__when {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-asheet__types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  /* (r068 final M6) Record's single choice: equal tracks, two to a row, each choice as wide as its
+     track and its name wrapping inside it, instead of a ragged cloud of content-width chips */
+  .lv-record .lv-asheet__types {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--lm-row-gap);
+  }
+  .lv-record .lv-asheet__types > * {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 36px;
+    justify-content: flex-start;
+    text-align: start;
+    white-space: normal;
+  }
+  /* (r068 S1) the suggested type: a gold dot before its name */
+  .lv-asheet__pin {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin-inline-end: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+    vertical-align: middle;
+  }
+  /* (r068 S1/S7) a switch is a full-width row: its words at the left, the switch at the row's end */
+  .lv-switch-row.lm-switch {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+  }
+  /* (r068 G8) a few figures as label · value rows under hairlines (the activity sheet's heart-rate figures) */
+  .lv-kv {
+    display: grid;
+    margin: 0;
+  }
+  .lv-kv__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    padding-block: var(--lm-row-gap);
+  }
+  .lv-kv__row + .lv-kv__row {
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-kv__row > dt {
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-kv__row > dd {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    margin: 0;
+    font: var(--lm-text-title-m--wt) var(--lm-text-title-m) / var(--lm-text-title-m--lh) var(--lm-text-title-m--font);
+    color: var(--lm-ink);
+  }
+  .lv-kv__row > dd > .lm-unit {
+    margin: 0;
+  }
+  .lv-asheet__cmp > li::first-letter {
+    text-transform: uppercase;
+  }
+  .lv-asheet__big {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+    color: var(--lm-ink);
+  }
+  .lv-asheet__big > .lm-unit {
+    margin: 0;
+  }
+  .lv-asheet__rng,
+  .lv-asheet__method {
+    display: block;
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-asheet__note.lm-help {
+    margin-top: var(--lm-row-gap);
+  }
+  .lv-asheet__minutes {
+    display: block;
+    width: 100%;
+    height: 48px;
+    margin-bottom: 4px;
+  }
+  /* (r068 V10) the minute bars' clock: start, end and the whole hours between */
+  .lv-asheet__axis {
+    position: relative;
+    height: 16px;
+    margin-bottom: var(--lm-row-gap);
+    font-size: var(--lm-text-xs);
+    line-height: 16px;
+    color: var(--lm-ink-3);
+  }
+  .lv-asheet__axis > span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .lv-asheet__axis > span[data-edge='start'] {
+    transform: none;
+  }
+  .lv-asheet__axis > span[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  /* (r068 V10) the method and the other estimates, behind one quiet disclosure */
+  .lv-asheet__how {
+    margin-top: var(--lm-row-gap);
+    font-size: var(--lm-text-sm);
+    line-height: var(--lm-text-sm--lh);
+  }
+  .lv-asheet__how > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    width: fit-content;
+    min-height: 32px;
+    color: var(--lm-ink-2);
+    list-style: none;
+    cursor: pointer;
+  }
+  .lv-asheet__how > summary::-webkit-details-marker {
+    display: none;
+  }
+  .lv-asheet__how-chev {
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lv-asheet__how[open] .lv-asheet__how-chev {
+    transform: rotate(180deg);
+  }
+  .lv-asheet__how > summary:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+  .lv-asheet__how > .lv-asheet__cmp {
+    margin-top: var(--lm-row-gap);
+  }
+  .lv-asheet__bar {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.45;
+  }
+  .lv-asheet__bar[data-in] {
+    fill: var(--lm-signal);
+    fill-opacity: 1;
+  }
+  .lv-asheet__bar[data-none] {
+    fill: var(--lm-raised);
+    fill-opacity: 1;
+  }
+  .lv-asheet__trim {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-asheet__est {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+  }
+  .lv-asheet__est dt {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-asheet__est dd {
+    margin: 2px 0 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-asheet__method {
+    color: var(--lm-ink-2);
+  }
+  .lv-asheet__cmp {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--lm-ink-2);
+  }
+  .lv-asheet__points {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink);
+  }
+  .lv-act__zones {
+    display: grid;
+    gap: 12px;
+  }
+
+  /* ---- energy through the day ---------------------------------------------------- */
+  .lv-echart {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+  }
+  /* (r068 S5/G11) the legend line ends in the chart's Table key */
+  .lv-echart__foot,
+  .lv-schart__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-row-gap) var(--lm-card-gap);
+  }
+  .lv-echart__foot > .lm-key,
+  .lv-schart__foot > .lm-key {
+    margin-inline-start: auto;
+  }
+  /* (r068 V18) the legend takes the line's room and wraps inside it, so the Table key always ends the legend's line */
+  .lv-echart__foot {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+  .lv-echart__foot > .lv-echart__legend {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  /* a Table key with no legend beside it starts its row, under the chart it opens */
+  .lv-schart__foot > .lm-key:only-child {
+    margin-inline-start: 0;
+  }
+  .lv-echart__ahead {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    margin: 0;
+    padding-top: var(--lm-row-gap);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-echart__ahead-key {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    border: 1px dashed var(--lm-ink-3);
+  }
+  .lv-echart__ahead-v {
+    margin-inline-start: auto;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .lv-echart__plot {
+    display: block;
+    width: 100%;
+    height: 160px;
+    overflow: visible;
+  }
+  .lv-echart__col[data-future] .lv-echart__seg,
+  .lv-echart__seg[data-future],
+  .lv-echart__tef[data-future] {
+    fill-opacity: 0.38;
+  }
+  .lv-echart__seg[data-unknown] {
+    fill: none;
+    stroke: var(--lm-ink-3);
+    stroke-width: 0.1;
+    stroke-dasharray: 0.2 0.3;
+    vector-effect: non-scaling-stroke;
+  }
+  .lv-echart__plan {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.32;
+  }
+  .lv-echart__scale {
+    margin: 0 0 -6px;
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-chart-tick);
+  }
+  .lv-echart__tef {
+    fill: var(--lm-cat-fuel);
+  }
+  .lv-echart__base {
+    stroke: var(--lm-chart-axis);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .lv-echart__now {
+    stroke: var(--lm-chart-now);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .lv-echart__pending {
+    stroke: var(--lm-signal);
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .lv-echart__hatchbg {
+    fill: transparent;
+  }
+  .lv-echart__hatch {
+    stroke: var(--lm-signal);
+    stroke-opacity: 0.55;
+    stroke-width: 0.6;
+  }
+  .lv-echart__axis,
+  .lv-schart__axis {
+    position: relative;
+    height: 16px;
+    font-size: var(--lm-text-2xs);
+    color: var(--lm-chart-tick);
+  }
+  .lv-echart__axis > span,
+  .lv-schart__axis > span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .lv-echart__axis > span:first-child,
+  .lv-schart__axis > span:first-child {
+    transform: none;
+  }
+  .lv-echart__axis > span:last-child,
+  .lv-schart__axis > span:last-child {
+    transform: translateX(-100%);
+  }
+  .lv-echart__legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px var(--lm-card-gap);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-echart__legend > li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .lv-echart__key {
+    display: inline-block;
+    width: 14px;
+    height: 6px;
+    border-radius: 2px;
+  }
+  .lv-echart__key[data-kind='tef'] {
+    background: var(--lm-cat-fuel);
+  }
+  .lv-echart__key[data-kind='pending'] {
+    border: 1px dashed var(--lm-signal);
+    background: repeating-linear-gradient(45deg, transparent 0 2px, color-mix(in srgb, var(--lm-signal) 55%, transparent) 2px 3px);
+  }
+
+  /* ---- steps by source: three lanes on one hour axis ----------------------------- */
+  .lv-schart {
+    display: grid;
+    gap: 10px;
+  }
+  .lv-schart__lanes {
+    display: grid;
+    gap: 8px;
+  }
+  .lv-schart__lane {
+    position: relative;
+    display: grid;
+    gap: 2px;
+  }
+  .lv-schart__label {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-schart__sum {
+    color: var(--lm-ink);
+  }
+  .lv-schart__plot {
+    display: block;
+    width: 100%;
+    height: 44px;
+  }
+  .lv-schart__bar {
+    fill: var(--lm-ink-3);
+  }
+  /* (r069 U1) the counted steps wear the steps role, as on every other steps chart; the sources stay stone */
+  .lv-schart__lane[data-lane='selected'] .lv-schart__bar {
+    fill: var(--lm-steps);
+  }
+  .lv-schart__none {
+    fill: var(--lm-raised);
+  }
+  .lv-schart__dots {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 36px;
+    pointer-events: none;
+  }
+  .lv-schart__dot {
+    position: absolute;
+    top: 0;
+    width: 6px;
+    height: 6px;
+    margin-inline-start: -3px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+
+  /* ---- recording ------------------------------------------------------------------- */
+  .lv-record__via {
+    margin: 0;
+  }
+  .lv-record__gps {
+    display: grid;
+    gap: 2px;
+  }
+  .lv-rec__keys {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+  }
+  .lv-rec__wait {
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+
+  /* ---- UI audit fixes: needs weight, chart heads with their table key, over-plan line, no-reading totals ---- */
+  .lv-asheet__needs {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-asheet__weigh {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 8px 12px;
+  }
+  .lv-asheet__weigh > :first-child {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .lv-echart__head,
+  .lv-schart__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .lv-schart__head {
+    justify-content: flex-end;
+  }
+  /* the table twin scrolls inside its own region: the chart's grid never grows past the panel */
+  .lv-echart,
+  .lv-schart {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .lv-schart__sum[data-none] {
+    color: var(--lm-ink-3);
+  }
+  /* (r068 B1) the day's figures under the lanes: one row per number, label left, figure right */
+  .lv-schart__sums {
+    display: grid;
+    gap: 6px;
+    padding-top: var(--lm-space-2, 8px);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-schart__sumlist {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+  }
+  .lv-schart__sumrow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: var(--lm-text-sm);
+  }
+  .lv-schart__sumrow > dt {
+    color: var(--lm-ink-2);
+  }
+  .lv-schart__sumrow > dd {
+    display: grid;
+    justify-items: end;
+    margin: 0;
+    color: var(--lm-ink);
+    text-align: end;
+  }
+  .lv-schart__sumrow[data-key='shows'] > dd {
+    font-weight: 600;
+  }
+  .lv-schart__sumnote {
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+  }
+  .lv-act__over {
+    margin-top: 4px;
+  }
+}
+
+/* ---- steps by source: the correction form (SPEC §2.3 4(a)) ------------------------------------------------------ */
+@layer components {
+  .lv-scorrect__save {
+    justify-self: stretch;
+  }
+  .lv-scorrect {
+    display: grid;
+    gap: var(--lm-card-gap);
+    padding-top: var(--lm-stack);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-scorrect__title,
+  .lv-scorrect__sub {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-scorrect__label {
+    margin-bottom: calc(var(--lm-row-gap) - var(--lm-card-gap));
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-scorrect__span {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .lv-scorrect__list {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .lv-scorrect__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+
+  /* (0.6.5) remove a counted activity, at the foot of the sheet */
+  .lv-asheet__remove {
+    display: grid;
+    gap: var(--lm-space-2);
+    margin-block-start: var(--lm-space-4);
+  }
+  .lv-asheet__remove-keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-2);
+  }
+  /* (r068 final S15) the review sheet's Approve / Edit / Reject are touch targets: 44 px under a coarse pointer */
+  @media (pointer: coarse) {
+    .lv-review .lm-key[data-size='sm'] {
+      min-height: var(--lm-hit-touch);
+    }
+  }
+
+  /* ---- (r069 D3) an activity's steps: one chart for every activity sheet and the log sheet ---- */
+  .lv-swin {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+  }
+  .lv-swin__facts {
+    display: grid;
+    gap: 2px;
+    margin-top: var(--lm-row-gap);
+  }
+  .lv-swin__facts > p {
+    margin: 0;
+  }
+  .lv-swin__head {
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-sm);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-asheet__bar[data-zero] {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.7;
+  }
+  /* (r069 U1) the window's steps wear the steps role (the scrubber's gold marks the window itself) */
+  .lv-swin .lv-asheet__bar[data-in] {
+    fill: var(--lm-steps);
+  }
+  .lv-asheet__minutes[data-kind='hr'] .lv-asheet__bar[data-in] {
+    fill: var(--lm-cat-recovery);
+  }
+
+  .lv-apanel__part {
+    display: grid;
+    gap: var(--lm-row-gap);
+  }
+  /* ---- (r069 D3) steps through the day, with the day's activities on its time axis ---- */
+  .lv-sday {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+  }
+  .lv-sday__head {
+    margin: 0;
+    font-size: var(--lm-text-sm);
+    color: var(--lm-ink-2);
+  }
+  .lv-sday__total {
+    font-family: var(--lm-font-display);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-sday__plotwrap {
+    display: grid;
+    gap: 4px;
+  }
+  .lv-sday__plot {
+    display: block;
+    width: 100%;
+    height: 112px;
+    overflow: visible;
+  }
+  /* (r069 U1) steps wear the steps role */
+  .lv-sday__bar {
+    fill: var(--lm-steps);
+  }
+  .lv-sday__none {
+    fill: var(--lm-raised);
+  }
+  .lv-sday__band {
+    fill: var(--lm-ink);
+    fill-opacity: 0.06;
+  }
+  .lv-sday__band[data-pending] {
+    fill: var(--lm-signal);
+    fill-opacity: 0.06;
+  }
+
+  /* the activity lane: bands at their clock time, numbered, and the same numbers in the legend */
+  .lv-lane {
+    position: relative;
+    height: 18px;
+  }
+  .lv-lane__band {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    min-width: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--lm-radius-xs);
+    background: color-mix(in oklab, var(--lm-ink) 14%, transparent);
+    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+    overflow: visible;
+  }
+  .lv-lane__band[data-pending] {
+    background: transparent;
+    box-shadow: none;
+    border: 1px dashed var(--lm-signal);
+  }
+  .lv-lane__n {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 3px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-elevated);
+    box-shadow: 0 0 0 1px var(--lm-line-strong);
+    font-size: var(--lm-text-2xs);
+    line-height: 1;
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  .lv-lane__n[data-dot] {
+    min-width: 8px;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+  }
+  .lv-lane__legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 6px var(--lm-card-gap);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--lm-text-xs);
+    color: var(--lm-ink-2);
+  }
+  .lv-lane__legend > li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lv-lane__legend .lv-lane__n {
+    align-self: center;
+  }
+  .lv-lane__legend > li[data-pending] .lv-lane__n {
+    background: transparent;
+    box-shadow: 0 0 0 1px var(--lm-signal);
+  }
+  .lv-lane__name {
+    color: var(--lm-ink);
+    font-weight: 500;
+  }
+  .lv-lane__when {
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+}

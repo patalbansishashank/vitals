@@ -67,7 +67,7 @@ export function WeekScrubber({ model, rowPct, focusDay, onJump }: WeekScrubberPr
   return (
     <div className="sim-scrub">
       <span className="lm-eng sim-scrub__label" id="sim-scrub-label">
-        weeks
+        Weeks
       </span>
       <div
         ref={trackRef}

@@ -1,108 +1,366 @@
 /* ==========================================================================
-   Vitals — component styles (the primitives in src/components/*).
-   Anatomy, sizes and states follow design/COMPONENTS.md; pixel values follow
-   the prototype (design/prototype/index.html) which is the visual source of
-   truth; design/REVIEW_FINDINGS.md wins where it disagrees with both.
+   Vitals — component styles (the primitives in src/components/*), Ember.
+   The look follows .e6-tmp/unslop/SPEC.md §2–§5 (Lumen Health "Ember"),
+   revised by r071: charcoal cards with fine grain, 0.5 px gold hairlines,
+   20 px corners, no shadows, and (opt-in, `data-domain`) ONE soft glow in the
+   card's domain hue; ivory text, stone secondary; gold for the primary key
+   (a pill), the selection and the moment; ivory for where you are (dock,
+   sidebar); Geist for text and numerals, Geist Mono caps for facts.
    Rules: tokens only (var(--lm-*)); variants via data-attributes; everything
    lives in @layer components so Tailwind utilities can still override.
+   Type roles are written in rem so text follows the system size (values in
+   tokens.css §11): page 24/28 · title-l 20/26 · title-m 17/24 · card 15/20 ·
+   body 14/21 · body-s 12/18 · label 14/20 · label-s 12/16 · meta 11/14 (mono).
    ========================================================================== */
 
 @layer components {
   /* ------------------------------------------------------------------------
      TYPE ROLES
      ------------------------------------------------------------------------ */
+  /* Caption / secondary line: body-s, stone. Only for facts (a number, a date, a state). */
   .lm-eng {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    font-weight: 500;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    letter-spacing: var(--lm-text-body-s--ls);
+    font-weight: var(--lm-text-body-s--wt);
     color: var(--lm-ink-2);
-    letter-spacing: 0.005em;
   }
+  /* The title roles take the display face (Geist, 600). Page title: `--lm-text-page`, 24/28, the top bar's title on
+     every page (SPEC Q2: no large collapsing title); in the bar, shell.css adds the one-line truncation and, on a
+     phone's pushed page, steps it down to title-m beside Back. The Tailwind role utilities (text-title-m …) get the
+     face too. */
   .lm-title {
     margin: 0;
-    font-stretch: 120%;
-    font-weight: 600;
-    font-size: var(--lm-text-xl);
-    line-height: var(--lm-text-xl--lh);
-    letter-spacing: -0.015em;
+    font-family: var(--lm-text-page--font);
+    font-size: var(--lm-text-page);
+    line-height: var(--lm-text-page--lh);
+    letter-spacing: var(--lm-text-page--ls);
+    font-weight: var(--lm-text-page--wt);
     color: var(--lm-ink);
   }
+  .lm-title-l {
+    margin: 0;
+    font-family: var(--lm-text-title-l--font);
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+    letter-spacing: var(--lm-text-title-l--ls);
+    font-weight: var(--lm-text-title-l--wt);
+    color: var(--lm-ink);
+  }
+  /* Big values (headline). */
+  .lm-headline {
+    margin: 0;
+    font-family: var(--lm-text-headline--font);
+    font-size: var(--lm-text-headline);
+    line-height: var(--lm-text-headline--lh);
+    letter-spacing: var(--lm-text-headline--ls);
+    font-weight: var(--lm-text-headline--wt);
+    color: var(--lm-ink);
+  }
+  /* Card heading / row value: title-m. */
   .lm-h3 {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-weight: 600;
-    letter-spacing: -0.003em;
+    font-family: var(--lm-text-title-m--font);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+    letter-spacing: var(--lm-text-title-m--ls);
+    font-weight: var(--lm-text-title-m--wt);
     color: var(--lm-ink);
   }
-  .lm-num {
-    font-stretch: 112%;
-    font-variant-numeric: tabular-nums slashed-zero;
-    font-feature-settings:
-      'tnum' 1,
-      'zero' 1;
-    letter-spacing: -0.01em;
+  /* the display face on any element (a big value that is not a heading) */
+  .lm-display,
+  :where(.text-display, .text-headline, .text-title-l, .text-title-m, .text-page, .text-hero, .text-num-l, .text-num, .text-time, .text-readout-sm, .text-readout-md, .text-readout-lg) {
+    font-family: var(--lm-font-display);
   }
-  .lm-unit {
-    font-size: max(var(--lm-text-2xs), 0.62em);
+  /* The mono role (`--lm-text-meta`): the one uppercase text in the product, for FACTS only (a date, a range, a unit, a
+     state, a legend label, a time, a tick), never above a heading. `<MonoMeta>` (0B) is the component; this is the class
+     for CSS that has no component (the top bar's fact line, a bank's labels use the tokens directly). */
+  .lm-meta,
+  :where(.text-meta) {
+    font-family: var(--lm-text-meta--font);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    font-weight: var(--lm-text-meta--wt);
+    text-transform: uppercase;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
+  }
+  /* Hero, wide and tile numbers are PROPORTIONAL (tabular figures loosen "1,096" and "11:11" at display size); the
+     numerals of a clock, a column or a value that changes in place stay tabular (`.lm-num`, the root default). */
+  .lm-num-prop {
+    font-variant-numeric: proportional-nums;
+    font-feature-settings: var(--lm-num-pnum);
+  }
+  .lm-body-s {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: var(--lm-text-body-s--wt);
+  }
+  /* A fact beside content (the Results horizon): body, stone. (The top bar's fact line is body-s: shell.css
+     .lm-ctx__sub.) */
+  .lm-fact {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: var(--lm-text-body--wt);
     color: var(--lm-ink-2);
-    font-weight: 500;
-    font-stretch: 100%;
+  }
+  /* The only uppercase text: Settings group labels. */
+  /* A group's label over its card (Settings, More): sentence case, 13/18 600 stone (r068 S11: no shouting caps) */
+  .lm-group-label {
+    margin: 0;
+    padding: 8px 2px 4px;
+    font-family: var(--lm-font-sans);
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+    font-weight: 600;
     letter-spacing: 0;
-    margin-left: 0.18em;
+    color: var(--lm-ink-2);
+  }
+  .lm-num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  /* Units sit inline after the value, smaller and stone ("72.4 kg"). */
+  .lm-unit {
+    font-family: var(--lm-font-sans);
+    font-size: max(0.75rem, 0.5em);
+    color: var(--lm-ink-2);
+    font-weight: 400;
+    letter-spacing: 0;
+    margin-left: 0.25em;
   }
   .lm-muted {
     color: var(--lm-ink-2);
   }
   .lm-link {
-    color: var(--lm-ink);
-    font-weight: 500;
+    color: var(--lm-signal);
+    font-weight: 400;
     text-decoration: underline;
-    text-decoration-color: var(--lm-edge);
+    text-decoration-color: color-mix(in srgb, var(--lm-signal) 40%, transparent);
+    text-decoration-thickness: 1px;
     text-underline-offset: 3px;
     border-radius: 2px;
   }
   .lm-link:hover {
-    text-decoration-color: var(--lm-ink);
+    text-decoration-color: var(--lm-signal);
   }
 
   /* ------------------------------------------------------------------------
-     SURFACES — Faceplate, Section label, Rule, Stage
+     SURFACES — card material (Faceplate), Section, Rule, Stage
+     The card (SPEC §3, r071): the card colour at 83 % over the grain (= grain at
+     0.17), a 0.5 px gold hairline, 20 px corners, no shadow, 18 px padding (24
+     from 1024). `.lm-face` is the card with its padding (Faceplate, GradientCard),
+     `.lm-material` the same surface without padding (Tailwind alias:
+     `lm-material-card`), `.lm-card` an alias of `.lm-face`. The DEFAULT card
+     carries the faint gold wash (`--lm-card-bg`) and no glow. One source: the
+     tokens (--lm-card-bg, --lm-hairline, --lm-card-radius, --lm-card-pad[-lg]).
+
+     A card opts into its DOMAIN with `data-domain="energy"` (heart, steps, food,
+     sleep, body, recovery, videos; `plan` or `gold` for the Next-up card; `neutral`
+     keeps the default): it then paints ONE eased radial glow in the domain's deep
+     colour over the grain over the card colour (RESEARCH §3.3), and its marks read
+     the domain's variables, `--lm-hue` (solid), `--lm-ink-h` (ink tint), `--lm-deep`
+     (glow core) and `--lm-dim` (unlit remainder), which `data-domain` sets on ANY
+     element for itself and its descendants. Rules: one gradient layer per card (a
+     second one reads as a woven grid), rastered once on its own layer. Its opacity
+     fades in through `--lm-glow-k`: `data-glow="pending"` holds it at 0, removing
+     the attribute fades it over --lm-dur-glow without repainting the gradient or
+     invalidating every descendant on each frame. It stays away from small text,
+     `--lm-glow-k` 0–1 scales or switches off every glow. A banner (`.lm-notice`) and a
+     plain `.lm-face[data-variant='inset']` well never take it.
      ------------------------------------------------------------------------ */
-  .lm-face {
+  .lm-face,
+  .lm-material,
+  .lm-card,
+  .lm-sidepanel[data-mode='docked'] {
+    background: var(--lm-card-bg);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
+    box-shadow: none;
+  }
+  .lm-material {
+    position: relative; /* contains its domain glow layer; positioned utilities can still override it */
+  }
+  .lm-face,
+  .lm-card {
     position: relative; /* contains ProgressRule and visually-hidden text */
     min-width: 0;
-    background: var(--lm-face);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
-    padding: 16px;
+    padding: var(--lm-card-pad);
+    color: var(--lm-ink);
   }
-  @media (min-width: 64rem) {
-    .lm-face {
-      padding: 18px 20px;
+  /* the slim action card (Next up): the round key is the first thing in it, so 14 on its side and 20 at the far end */
+  :is(.lm-face, .lm-card)[data-size='slim'] {
+    padding: 14px 20px 14px 14px;
+  }
+  /* ---- domain wiring: the variables a card's marks read (the ONE place they are set) ----
+     `data-domain` on a card (or any element) and `data-hue` on a picture or a number set the same six variables for the
+     element and everything inside it: the role variables --lm-hue (solid), --lm-ink-h (ink tint), --lm-deep (glow core),
+     --lm-dim (unlit remainder) and --lm-tone-2 (secondary text on this card: the ink tint mixed into stone), and the
+     domain's glow inputs (--lm-glow-pos, -size, -a), which only the card recipe below reads. `neutral` and a missing
+     domain read as stone role marks (--lm-ink-2: a card icon, a dot) with ivory lit marks on an unlit remainder; a
+     mark drawn on its own for `neutral` (`domainColor`, a chip dot) is ivory. GradientCard, Faceplate, `.lm-material` and `.lm-card` all take
+     the same wiring and the same glow: there is no second recipe. ---- */
+  :where([data-domain], [data-hue]) {
+    --lm-hue: var(--lm-ink-2);
+    --lm-ink-h: var(--lm-ink);
+    --lm-deep: var(--lm-face);
+    --lm-dim: var(--lm-unlit);
+    --lm-tone-2: var(--lm-ink-2);
+  }
+  [data-hue='energy'],
+  [data-domain='energy'] {
+    --lm-hue: var(--lm-hue-energy);
+    --lm-ink-h: var(--lm-hue-energy-ink);
+    --lm-deep: var(--lm-hue-energy-deep);
+    --lm-dim: var(--lm-hue-energy-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-energy-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-energy-pos);
+    --lm-glow-size: var(--lm-glow-energy-size);
+    --lm-glow-a: var(--lm-glow-energy-a);
+  }
+  [data-hue='heart'],
+  [data-domain='heart'] {
+    --lm-hue: var(--lm-hue-heart);
+    --lm-ink-h: var(--lm-hue-heart-ink);
+    --lm-deep: var(--lm-hue-heart-deep);
+    --lm-dim: var(--lm-hue-heart-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-heart-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-heart-pos);
+    --lm-glow-size: var(--lm-glow-heart-size);
+    --lm-glow-a: var(--lm-glow-heart-a);
+  }
+  [data-hue='steps'],
+  [data-domain='steps'] {
+    --lm-hue: var(--lm-hue-steps);
+    --lm-ink-h: var(--lm-hue-steps-ink);
+    --lm-deep: var(--lm-hue-steps-deep);
+    --lm-dim: var(--lm-hue-steps-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-steps-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-steps-pos);
+    --lm-glow-size: var(--lm-glow-steps-size);
+    --lm-glow-a: var(--lm-glow-steps-a);
+  }
+  [data-hue='sleep'],
+  [data-domain='sleep'] {
+    --lm-hue: var(--lm-hue-sleep);
+    --lm-ink-h: var(--lm-hue-sleep-ink);
+    --lm-deep: var(--lm-hue-sleep-deep);
+    --lm-dim: var(--lm-hue-sleep-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-sleep-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-sleep-pos);
+    --lm-glow-size: var(--lm-glow-sleep-size);
+    --lm-glow-a: var(--lm-glow-sleep-a);
+  }
+  [data-hue='body'],
+  [data-domain='body'] {
+    --lm-hue: var(--lm-hue-body);
+    --lm-ink-h: var(--lm-hue-body-ink);
+    --lm-deep: var(--lm-hue-body-deep);
+    --lm-dim: var(--lm-hue-body-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-body-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-body-pos);
+    --lm-glow-size: var(--lm-glow-body-size);
+    --lm-glow-a: var(--lm-glow-body-a);
+  }
+  [data-hue='recovery'],
+  [data-domain='recovery'] {
+    --lm-hue: var(--lm-hue-recovery);
+    --lm-ink-h: var(--lm-hue-recovery-ink);
+    --lm-deep: var(--lm-hue-recovery-deep);
+    --lm-dim: var(--lm-hue-recovery-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-recovery-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-recovery-pos);
+    --lm-glow-size: var(--lm-glow-recovery-size);
+    --lm-glow-a: var(--lm-glow-recovery-a);
+  }
+  [data-hue='food'],
+  [data-domain='food'] {
+    --lm-hue: var(--lm-hue-food);
+    --lm-ink-h: var(--lm-hue-food-ink);
+    --lm-deep: var(--lm-hue-food-deep);
+    --lm-dim: var(--lm-hue-food-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-food-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-food-pos);
+    --lm-glow-size: var(--lm-glow-food-size);
+    --lm-glow-a: var(--lm-glow-food-a);
+  }
+  [data-hue='videos'],
+  [data-domain='videos'] {
+    --lm-hue: var(--lm-hue-videos);
+    --lm-ink-h: var(--lm-hue-videos-ink);
+    --lm-deep: var(--lm-hue-videos-deep);
+    --lm-dim: var(--lm-hue-videos-dim);
+    --lm-tone-2: color-mix(in oklab, var(--lm-hue-videos-ink) 62%, var(--lm-ink-2));
+    --lm-glow-pos: var(--lm-glow-videos-pos);
+    --lm-glow-size: var(--lm-glow-videos-size);
+    --lm-glow-a: var(--lm-glow-videos-a);
+  }
+  [data-hue='plan'],
+  [data-domain='plan'],
+  [data-domain='gold'] {
+    --lm-hue: var(--lm-signal);
+    --lm-ink-h: var(--lm-ink);
+    --lm-deep: var(--lm-hue-gold-deep);
+    --lm-dim: var(--lm-unlit);
+    --lm-tone-2: var(--lm-ink-2);
+    --lm-glow-pos: var(--lm-glow-gold-pos);
+    --lm-glow-size: var(--lm-glow-gold-size);
+    --lm-glow-a: var(--lm-glow-gold-a);
+  }
+  /* ---- the glow: one gradient layer, five eased stops (alpha 1, .84, .50, .16, 0 at 0, 20, 42, 64, 86 %), in oklab.
+     Behind @supports: an engine without `in oklab` or color-mix() keeps the default card above (a plain card, never a
+     broken one). ---- */
+  @supports (background: radial-gradient(in oklab ellipse 10% 10% at 0 0, red, transparent)) and (color: color-mix(in oklab, red 10%, transparent)) {
+    :is(.lm-face, .lm-material, .lm-card)[data-domain]:not([data-domain='neutral'], [data-variant='inset']) {
+      isolation: isolate;
+      background: var(--lm-grain-card) 0 0 / var(--lm-grain-size) repeat fixed, var(--lm-face);
     }
+    :is(.lm-face, .lm-material, .lm-card)[data-domain]:not([data-domain='neutral'], [data-variant='inset'])::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      z-index: -1;
+      pointer-events: none;
+      background: radial-gradient(
+        in oklab ellipse var(--lm-glow-size) at var(--lm-glow-pos),
+        color-mix(in oklab, var(--lm-deep) calc(var(--lm-glow-a) * 100%), transparent) 0%,
+        color-mix(in oklab, var(--lm-deep) calc(var(--lm-glow-a) * 84%), transparent) 20%,
+        color-mix(in oklab, var(--lm-deep) calc(var(--lm-glow-a) * 50%), transparent) 42%,
+        color-mix(in oklab, var(--lm-deep) calc(var(--lm-glow-a) * 16%), transparent) 64%,
+        transparent 86%
+      );
+      opacity: var(--lm-glow-k);
+      transition: opacity var(--lm-dur-glow) var(--lm-ease-out);
+    }
+    :is(.lm-face, .lm-material, .lm-card)[data-domain][data-glow='off']::before {
+      transition: none;
+    }
+  }
+  [data-glow='pending'] {
+    --lm-glow-k: 0;
+  }
+  [data-glow='off'] {
+    --lm-glow-k: 0;
+    transition: none;
   }
   .lm-face[data-variant='inset'] {
     background: var(--lm-well);
-    box-shadow: none;
   }
   .lm-face[data-variant='flush'] {
     padding: 0;
   }
-  /* Header: label (title + caption) left, actions right, centred on one row while
-     both fit. The label takes the free space (grow 9999 vs the actions' 1), so the
-     actions sit right without an auto margin; when the pair does not fit, the actions
-     drop to their own row starting on the title's left edge, and a key bank there
-     spans the row. A deliberate stack, never a right-hanging ragged wrap. */
+  /* Header: label (title + fact caption) left, actions right, centred on one row while
+     both fit. No divider: 12 px of space separates it from the body. When the pair does
+     not fit, the actions drop to their own row starting on the title's left edge. */
   .lm-face-head {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px 12px;
-    padding-bottom: 12px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid var(--lm-line);
+    gap: var(--lm-row-gap) var(--lm-card-inner-gap);
+    margin-bottom: var(--lm-card-inner-gap);
   }
   /* text-only actions (a count, a readout) share the title's baseline instead */
   .lm-face-head:not(:has(> .lm-face-head__actions :is(button, a, input, select, [role]))) {
@@ -113,21 +371,22 @@
     min-width: 0;
     padding-right: var(--head-lead, 0px);
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
   }
   .lm-face-head__label > .lm-h3 {
     min-width: 0;
+    max-width: 100%;
     overflow-wrap: break-word;
   }
   .lm-face[data-variant='flush'] > .lm-face-head {
     margin: 0;
-    padding: 12px 16px;
+    padding: var(--lm-card-pad) var(--lm-card-pad) var(--lm-card-inner-gap);
   }
   @media (min-width: 64rem) {
     .lm-face[data-variant='flush'] > .lm-face-head {
-      padding: 14px 20px;
+      padding: var(--lm-card-pad-lg) var(--lm-card-pad-lg) var(--lm-card-inner-gap);
     }
   }
   .lm-face-head__actions {
@@ -143,25 +402,32 @@
     flex-grow: 0;
     margin-left: auto;
   }
-  /* stacked, a key bank fills the row (on the title row it keeps its own width) */
+  /* A selector in the head takes its own full-width row under the title (r068 U2: selectors fill the width); its
+     segments share it equally. */
+  .lm-face-head__actions:has(> .lm-bank, > * > .lm-bank) {
+    flex: 1 1 100%;
+  }
   .lm-face-head__actions :is(.lm-bank, :has(> .lm-bank)) {
-    flex: 1 1 auto;
+    flex: 1 1 100%;
   }
-  .lm-face-head__actions .lm-bank:not([data-orientation='vertical']) > .lm-bank__key {
-    flex: 1 1 auto;
-  }
-  /* A leading quiet key: once stacked, its label (not its invisible cap: border +
-     padding) lines up with the title. The label gives the same room back, so the row
-     breaks and spaces exactly as without the shift. */
-  .lm-face-head:has(> .lm-face-head__actions > .lm-key[data-variant='quiet']:first-child),
-  .lm-face-head:has(> .lm-face-head__actions > :first-child > .lm-key[data-variant='quiet']:first-child) {
-    --head-lead: 17px;
-  }
-  .lm-face-head:has(> .lm-face-head__actions > .lm-key[data-variant='quiet'][data-size='sm']:first-child),
+  /* A leading text key: once stacked, its label (not its invisible padding) lines up
+     with the title. The label gives the same room back, so the row breaks and spaces
+     exactly as without the shift. */
+  .lm-face-head:has(> .lm-face-head__actions > .lm-key:is([data-variant='quiet'], [data-variant='text']):not([data-icon-only='true']):first-child),
   .lm-face-head:has(
-    > .lm-face-head__actions > :first-child > .lm-key[data-variant='quiet'][data-size='sm']:first-child
+    > .lm-face-head__actions > :first-child > .lm-key:is([data-variant='quiet'], [data-variant='text']):not([data-icon-only='true']):first-child
   ) {
     --head-lead: 13px;
+  }
+  .lm-face-head:has(
+    > .lm-face-head__actions > .lm-key:is([data-variant='quiet'], [data-variant='text'])[data-size='sm']:not([data-icon-only='true']):first-child
+  ),
+  .lm-face-head:has(
+    > .lm-face-head__actions
+      > :first-child
+      > .lm-key:is([data-variant='quiet'], [data-variant='text'])[data-size='sm']:not([data-icon-only='true']):first-child
+  ) {
+    --head-lead: 9px;
   }
   .lm-face-head__label + .lm-face-head__actions {
     margin-left: calc(-1 * var(--head-lead, 0px));
@@ -170,73 +436,85 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--lm-line);
+    gap: var(--lm-inline);
+    margin-top: var(--lm-stack);
   }
   .lm-face[data-variant='flush'] > .lm-face-foot {
     margin: 0;
-    padding: 12px 16px;
+    padding: var(--lm-card-inner-gap) var(--lm-card-pad);
   }
   .lm-rule {
-    height: 1px;
-    margin: 16px 0;
+    height: 0;
+    margin: var(--lm-stack) 0;
     border: 0;
-    background: var(--lm-line);
+    border-top: 0.5px solid var(--lm-line);
+    background: none;
   }
   .lm-section {
     display: grid;
-    gap: 12px;
+    gap: var(--lm-card-inner-gap);
     min-width: 0;
   }
   .lm-section-label {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 2px 0 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    margin: 4px 0 0;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
     font-weight: 600;
     color: var(--lm-ink);
   }
-  .lm-section-label::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--lm-line);
-  }
   .lm-section-label__aside {
-    order: 3;
+    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-weight: 500;
+    font-weight: 400;
   }
+  /* The stage behind the figure and chart placeholders: a plain well (texture comes from
+     the page grain; the perforated dot grid is gone). */
   .lm-stage {
     position: relative;
-    background-color: var(--lm-avatar-stage);
-    background-image: radial-gradient(circle at center, var(--lm-avatar-dot) 1.1px, transparent 1.4px);
-    background-size: 12px 12px;
-    background-position: 6px 6px;
+    background-color: var(--lm-avatar-stage, var(--lm-well));
   }
   .lm-kv {
     display: grid;
-    /* the label keeps at least 6em; a long value wraps instead of squeezing the label to nothing (Q6) */
-    grid-template-columns: minmax(6em, 1fr) minmax(0, max-content);
+    container: lm-kv / inline-size;
+    /* Give the value its natural single-line width first; the label only needs its longest word. */
+    grid-template-columns: minmax(min-content, 1fr) minmax(0, max-content);
     gap: 10px 12px;
     align-items: baseline;
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: var(--lm-text-body--wt);
   }
   .lm-kv dt {
     color: var(--lm-ink-2);
+    overflow-wrap: break-word;
   }
   .lm-kv dd {
     margin: 0;
-    font-weight: 550;
+    min-width: 0;
+    font-weight: 500;
+    color: var(--lm-ink);
     font-variant-numeric: tabular-nums;
+    text-align: right;
+    overflow-wrap: break-word;
+  }
+  @container lm-kv (max-width: 17rem) {
+    .lm-kv dt,
+    .lm-kv dd {
+      grid-column: 1 / -1;
+    }
+    .lm-kv dd {
+      text-align: start;
+    }
+  }
+  /* A card table's terminal column is the value edge, including its heading and text cells. */
+  :is(.lm-face, .lm-gcard, .lm-card, .lm-infopanel) table tr > :is(th, td):last-child {
     text-align: right;
   }
 
@@ -277,7 +555,20 @@
   }
 
   /* ------------------------------------------------------------------------
-     KEY (button)
+     KEY (button) — r068 U8: rounded rectangles in the card's language (10 px,
+     8 px small, 12 px large), no bevels, no shadows, and every variant reads
+     as a button at a glance. r071: the PRIMARY key is a gold pill; everything
+     else keeps its rounded rectangle.
+     primary (solid · signal · primary): a gold PILL, near-black label 15/600 and
+       an optional arrow icon (48 px `lg`, 40 `md`, 32 `sm`); gold is the action
+       colour, so there is one per view; ivory is reserved for "where you are"
+     secondary (default · outlined): a neutral tile (6 % ink fill, 1 px strong
+       hairline), ivory label — the ordinary button
+     action: gold label on a 16 % gold tile (an inline verb on a row: "Log")
+     text (quiet · text): gold label, no fill at rest, a gold tint on hover;
+       in a card's head or foot (its main actions) it takes the action tile;
+       icon-only quiet keys are round stone icons
+     danger: rose label on a rose-tinted tile with a rose hairline
      ------------------------------------------------------------------------ */
   .lm-key {
     position: relative;
@@ -285,16 +576,18 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
+    max-width: 100%;
     height: 40px;
     padding: 0 16px;
-    border-radius: var(--lm-radius-sm);
-    border: 1px solid var(--lm-edge);
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-key);
+    border-radius: var(--lm-control-radius);
+    border: 1px solid var(--lm-line-strong);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    box-shadow: none;
     color: var(--lm-ink);
-    font-size: var(--lm-text-base);
-    line-height: 1;
-    font-weight: 500;
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: var(--lm-text-label--wt);
     white-space: nowrap;
     text-decoration: none;
     user-select: none;
@@ -304,13 +597,13 @@
       background-color var(--lm-dur-fast) var(--lm-ease-out),
       border-color var(--lm-dur-fast) var(--lm-ease-out),
       color var(--lm-dur-fast) var(--lm-ease-out),
-      box-shadow var(--lm-dur-instant) var(--lm-ease-press),
+      filter var(--lm-dur-instant) var(--lm-ease-press),
       transform var(--lm-dur-instant) var(--lm-ease-press);
   }
   .lm-hit {
     position: relative;
   }
-  /* 44px touch target without changing the painted cap */
+  /* 44 px touch target without changing the painted key */
   .lm-key::after,
   .lm-hit::after {
     content: '';
@@ -321,34 +614,43 @@
     height: max(100%, 44px);
     transform: translate(-50%, -50%);
   }
+  /* icon keys get Lumen's 48 px target */
+  .lm-key[data-icon-only='true']::after {
+    width: max(100%, 48px);
+    height: max(100%, 48px);
+  }
   @media (pointer: fine) {
     .lm-key::after,
-    .lm-hit::after {
+    .lm-hit::after,
+    .lm-key[data-icon-only='true']::after {
       width: max(100%, 32px);
       height: max(100%, 32px);
     }
   }
   .lm-key:hover {
-    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
+    background-color: color-mix(in oklab, transparent, var(--lm-ink) 11%);
   }
-  .lm-key:active:not([aria-disabled='true']):not(:disabled),
-  .lm-key[data-pressed='true'] {
-    box-shadow: var(--lm-shadow-key-pressed);
-    transform: translateY(1px);
+  .lm-key:active:not([aria-disabled='true']):not(:disabled) {
+    filter: brightness(0.94);
+    transform: scale(0.985);
   }
   .lm-key[data-size='sm'] {
     height: 32px;
     padding: 0 12px;
     gap: 6px;
-    font-size: var(--lm-text-sm);
+    border-radius: var(--lm-radius-sm);
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
   }
   .lm-key[data-size='lg'] {
     height: 48px;
-    padding: 0 20px;
+    padding: 0 24px;
+    border-radius: var(--lm-radius-lg);
   }
   .lm-key[data-icon-only='true'] {
     width: 40px;
     padding: 0;
+    border-radius: var(--lm-radius-full);
   }
   .lm-key[data-icon-only='true'][data-size='sm'] {
     width: 32px;
@@ -360,94 +662,170 @@
     display: flex;
     width: 100%;
   }
-  /* variants */
-  .lm-key[data-variant='solid'] {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    box-shadow: none;
+
+  /* primary: solid, signal, primary: the gold pill. Hover is the brighter gold, pressed scales .98 and dims, focus is
+     the global 2 px gold ring at 2 px; a trailing arrow (`data-trailing`) takes less room on its side. */
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary']) {
+    background: var(--lm-signal);
+    border-color: var(--lm-signal);
+    border-radius: var(--lm-key-radius);
+    color: var(--lm-signal-ink);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    padding-inline: 22px;
   }
-  .lm-key[data-variant='solid']:hover {
-    background: color-mix(in oklab, var(--lm-ink), var(--lm-face) 14%);
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary'])[data-trailing='true'] {
+    padding-inline: 22px 18px;
   }
-  .lm-key[data-variant='quiet'] {
-    background: transparent;
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary'])[data-size='sm'] {
+    padding-inline: 14px;
+    font-size: var(--lm-text-label-s);
+  }
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary'])[data-size='sm'][data-trailing='true'] {
+    padding-inline: 14px 10px;
+  }
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary'])[data-icon-only='true'] {
+    padding-inline: 0;
+  }
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary']):hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lm-signal-hover);
+    border-color: var(--lm-signal-hover);
+    filter: none;
+  }
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary']):active:not([aria-disabled='true']):not(:disabled) {
+    filter: brightness(0.94);
+    transform: scale(0.98);
+  }
+  /* disabled: the raised fill with a pale-stone label, not a half-transparent gold */
+  .lm-key.lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary']):is(:disabled, [aria-disabled='true']:not([data-loading='true'])) {
+    background: var(--lm-raised);
     border-color: transparent;
-    box-shadow: none;
+    color: var(--lm-ink-3);
+    opacity: 1;
   }
-  .lm-key[data-variant='quiet']:hover {
+
+  /* action: gold label on a 16 % gold tile */
+  .lm-key[data-variant='action'] {
+    height: 32px;
+    padding: 0 12px;
+    gap: 6px;
+    border-color: transparent;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-gold-action);
+    color: var(--lm-signal);
+  }
+  .lm-key[data-variant='action'][data-size='sm'] {
+    height: 28px;
+    padding: 0 10px;
+  }
+  .lm-key[data-variant='action'][data-size='lg'] {
+    height: 40px;
+    padding: 0 16px;
+    border-radius: var(--lm-control-radius);
+  }
+  .lm-key[data-variant='action'][data-icon-only='true'] {
+    width: 32px;
+    padding: 0;
+    border-radius: var(--lm-radius-full);
+  }
+  .lm-key[data-variant='action'][data-icon-only='true'][data-size='sm'] {
+    width: 28px;
+  }
+  .lm-key[data-variant='action'][data-icon-only='true'][data-size='lg'] {
+    width: 40px;
+  }
+  .lm-key[data-variant='action']:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lm-gold-action-on);
+  }
+
+  /* text: gold label, no fill at rest, a gold tint on hover */
+  .lm-key:is([data-variant='quiet'], [data-variant='text']) {
+    border-color: transparent;
+    background: transparent;
+    color: var(--lm-signal);
+    padding-inline: 10px;
+  }
+  .lm-key:is([data-variant='quiet'], [data-variant='text']):hover:not(:disabled, [aria-disabled='true']) {
+    background-color: color-mix(in srgb, var(--lm-signal) 10%, transparent);
+  }
+  .lm-key:is([data-variant='quiet'], [data-variant='text'])[data-size='sm'] {
+    padding-inline: 8px;
+  }
+  /* A text key that is a card's main action (its head or its foot) does not read as loose text: it takes the action
+     tile, at the action's size. */
+  :is(.lm-face-head__actions, .lm-face-foot) .lm-key:is([data-variant='quiet'], [data-variant='text']):not([data-icon-only='true']) {
+    height: 32px;
+    padding-inline: 12px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-gold-action);
+  }
+  :is(.lm-face-head__actions, .lm-face-foot) .lm-key:is([data-variant='quiet'], [data-variant='text']):not([data-icon-only='true']):hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--lm-gold-action-on);
+  }
+  /* (r069 U1) …unless it only opens another page ("Details", "Open", "Scores"): a link is navigation, not an action, so
+     it takes the neutral tile, the same as the Table key beside it, and gold stays for what acts (Log, Review, Record,
+     Measure now) — a Ring overview had seven gold tiles before */
+  :is(.lm-face-head__actions, .lm-face-foot) a.lm-key:is([data-variant='quiet'], [data-variant='text']):not([data-icon-only='true']) {
+    border-color: var(--lm-line-strong);
     background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    color: var(--lm-ink);
   }
-  .lm-key[data-variant='quiet']:active:not([aria-disabled='true']):not(:disabled) {
-    background: color-mix(in oklab, transparent, var(--lm-ink) 9%);
-    box-shadow: none;
+  :is(.lm-face-head__actions, .lm-face-foot) a.lm-key:is([data-variant='quiet'], [data-variant='text']):not([data-icon-only='true']):hover:not([aria-disabled='true']) {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 11%);
   }
+  .lm-key:is([data-variant='quiet'], [data-variant='text'])[data-icon-only='true'] {
+    padding-inline: 0;
+    color: var(--lm-ink-2);
+  }
+  .lm-key:is([data-variant='quiet'], [data-variant='text'])[data-icon-only='true']:hover:not(:disabled, [aria-disabled='true']) {
+    background-color: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    color: var(--lm-ink);
+  }
+
+  /* danger: rose label on a rose-tinted tile */
   .lm-key[data-variant='danger'] {
     color: var(--lm-danger-fg);
-    border-color: var(--lm-danger-edge);
+    border-color: color-mix(in srgb, var(--lm-danger-fg) 45%, transparent);
+    background: color-mix(in srgb, var(--lm-danger-fg) 6%, transparent);
   }
-  .lm-key[data-variant='signal'] {
-    background: var(--lm-signal);
-    border-color: var(--lm-signal-edge);
-    color: var(--lm-signal-ink);
-    font-weight: 600;
+  .lm-key[data-variant='danger']:hover {
+    background-color: color-mix(in srgb, var(--lm-danger-fg) 12%, transparent);
   }
-  .lm-key[data-variant='signal']:hover {
-    background: var(--lm-signal-hover);
+
+  /* pressed / toggled key: the selected-segment treatment */
+  .lm-key[data-pressed='true']:not(:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary'])) {
+    background: var(--lm-gold-wash);
+    border-color: var(--lm-gold-edge);
+    color: var(--lm-ink);
   }
-  .lm-key[data-variant='signal']:active:not([aria-disabled='true']):not(:disabled) {
-    background: var(--lm-signal-press);
-  }
-  .lm-key[data-variant='signal'][data-shape='pill'] {
-    border-radius: var(--lm-radius-full);
-    padding-inline: 24px;
-  }
-  /* pressed/toggled key: the Braun pressed cap */
-  .lm-key[data-pressed='true']:not([data-variant='solid']):not([data-variant='signal']) {
-    background: var(--lm-well);
-    border-color: var(--lm-ink);
-  }
-  /* disabled — still focusable when aria-disabled carries a reason */
-  .lm-key:disabled,
-  .lm-key[aria-disabled='true']:not([data-loading='true']) {
-    background: var(--lm-well);
-    border-color: var(--lm-line-strong);
-    color: var(--lm-ink-faint);
-    box-shadow: none;
+
+  /* disabled — still focusable when aria-disabled carries a reason. It keeps its own shape (fill, edge) at 42 %, so a
+     disabled key still reads as that key and never as a grey label (r068 S23) */
+  .lm-key.lm-key:disabled,
+  .lm-key.lm-key[aria-disabled='true']:not([data-loading='true']) {
+    opacity: 0.42;
+    filter: none;
     transform: none;
+    cursor: not-allowed;
   }
-  .lm-key[data-variant='quiet']:disabled,
-  .lm-key[data-variant='quiet'][aria-disabled='true']:not([data-loading='true']) {
+  .lm-key:is([data-variant='quiet'], [data-variant='text']):disabled,
+  .lm-key:is([data-variant='quiet'], [data-variant='text'])[aria-disabled='true']:not([data-loading='true']) {
     background: transparent;
-    border-color: transparent;
   }
+  /* the old trailing indicator light is gone (state shows through `pressed`) */
   .lm-key__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    border: 1px solid var(--lm-edge);
-    flex: none;
-    transition:
-      background-color var(--lm-dur-instant) linear,
-      border-color var(--lm-dur-instant) linear;
-  }
-  .lm-key__dot[data-on='true'] {
-    background: var(--lm-signal);
-    border-color: var(--lm-signal-edge);
+    display: none;
   }
   .lm-key__hint {
-    font-size: var(--lm-text-xs);
+    font-size: 0.75rem;
     color: var(--lm-ink-3);
-    font-weight: 500;
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
-  .lm-key[data-variant='solid'] .lm-key__hint,
-  .lm-key[data-variant='signal'] .lm-key__hint {
+  .lm-key:is([data-variant='solid'], [data-variant='signal'], [data-variant='primary']) .lm-key__hint {
     color: inherit;
     opacity: 0.7;
-  }
-  .lm-key {
-    max-width: 100%;
   }
   .lm-key__label {
     display: inline-flex;
@@ -471,7 +849,7 @@
   }
 
   /* ------------------------------------------------------------------------
-     RUN KEY — the ET66 "=" key; the only round primary
+     RUN KEY — the primary gold pill for Run (Simulator, Planner)
      ------------------------------------------------------------------------ */
   .lm-runkey {
     display: inline-flex;
@@ -481,123 +859,155 @@
     border: 0;
     background: none;
     color: var(--lm-ink);
-    border-radius: var(--lm-radius-full);
+    border-radius: var(--lm-control-radius);
   }
   .lm-runkey:focus-visible {
     outline: none;
   }
   .lm-runkey:focus-visible .lm-runkey__cap {
     outline: 2px solid var(--lm-focus);
-    outline-offset: 3px;
+    outline-offset: 2px;
   }
   .lm-runkey__caption {
     text-align: right;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    font-weight: 500;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
   .lm-runkey__cap {
-    --cap: 44px;
+    --cap: 40px;
     position: relative;
-    display: grid;
-    place-items: center;
-    width: var(--cap);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     height: var(--cap);
-    border-radius: 50%;
+    min-width: var(--cap);
+    padding: 0 20px;
+    border-radius: var(--lm-radius-full);
     background: var(--lm-signal);
-    border: 1px solid var(--lm-signal-edge);
-    box-shadow: var(--lm-shadow-key);
     color: var(--lm-signal-ink);
-    font-size: 12px;
-    font-weight: 700;
-    font-stretch: 112%;
-    letter-spacing: 0.01em;
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
     transition:
-      transform var(--lm-dur-needle) var(--lm-ease-needle),
-      box-shadow var(--lm-dur-instant) var(--lm-ease-press),
+      filter var(--lm-dur-instant) var(--lm-ease-press),
       background-color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-runkey[data-size='lg'] .lm-runkey__cap {
-    --cap: 56px;
-    font-size: var(--lm-text-sm);
-    font-weight: 600;
+    --cap: 48px;
+    padding: 0 24px;
   }
   .lm-runkey:hover .lm-runkey__cap {
     background: var(--lm-signal-hover);
   }
   .lm-runkey:active:not([aria-disabled='true']) .lm-runkey__cap,
   .lm-runkey[data-state='running'] .lm-runkey__cap {
-    transform: translateY(1px);
-    box-shadow: var(--lm-shadow-key-pressed);
-    background: var(--lm-signal-press);
-    transition-duration: var(--lm-dur-instant);
-    transition-timing-function: var(--lm-ease-press);
+    filter: brightness(0.94);
   }
-  /* stale: 6px ink dot at one o'clock on the rim */
+  /* stale: a 6 px near-black dot after the label */
   .lm-runkey__cap::after {
     content: '';
-    position: absolute;
-    top: 12%;
-    right: 16%;
+    display: none;
+    flex: none;
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: var(--lm-signal-ink);
-    opacity: 0;
-    transition: opacity var(--lm-dur-fast);
   }
   .lm-runkey[data-state='stale'] .lm-runkey__cap::after {
-    opacity: 1;
+    display: block;
   }
+  /* running: a 14 px arc before the elapsed time */
   .lm-runkey__ring {
-    position: absolute;
-    inset: -5px;
-    width: calc(100% + 10px);
-    height: calc(100% + 10px);
-    opacity: 0;
-    pointer-events: none;
+    display: none;
+    order: -1;
+    flex: none;
+    width: 14px;
+    height: 14px;
     overflow: visible;
+    pointer-events: none;
   }
   .lm-runkey[data-state='running'] .lm-runkey__ring {
-    opacity: 1;
+    display: block;
   }
   .lm-runkey__ring circle {
     fill: none;
-    stroke: var(--lm-ink);
-    stroke-width: 2;
+    stroke: currentColor;
+    stroke-width: 6;
     stroke-linecap: round;
     transform-origin: 50% 50%;
     animation: lm-spin 1s linear infinite;
   }
   .lm-runkey[data-disabled='true'] .lm-runkey__cap {
-    background: var(--lm-well);
-    border-color: var(--lm-line-strong);
-    color: var(--lm-ink-faint);
-    box-shadow: none;
+    background: var(--lm-raised);
+    color: var(--lm-ink-3);
+    filter: none;
   }
 
   /* ------------------------------------------------------------------------
-     KEY BANK — Braun push-button bank (segmented control, tabs, link banks)
+     KEY BANK — every segmented selector, tab list and link bank (r068 U2).
+     The card's language, not pills: a rounded-rectangle track (the card
+     radius, an inset well with a hairline) holding equal segments 3 px
+     inside it (their radius concentric with the track's); the selected
+     segment is the gold tile of the week strip (gold wash, gold edge), ivory
+     label. r071: the labels are mono caps (Geist Mono 500, 11 px, +0.08em, 12 px
+     from 1024: `--lm-text-meta`), the geometry is unchanged, and every segment
+     is 44 px under a coarse pointer.
+     A horizontal bank fills the width it is given (KeyBank / LinkBank /
+     TabList default `block`); `fit` sizes it to its labels instead.
      ------------------------------------------------------------------------ */
   .lm-bank {
+    /* the narrowest a segment gets, padding included (a 48 px target; 40 for the dense sm bank) */
+    --lm-bank-key-min: 48px;
     display: inline-flex;
     align-items: stretch;
-    padding: 3px;
-    gap: 0;
+    padding: var(--lm-select-inset);
+    gap: var(--lm-select-inset);
     max-width: 100%;
-    border-radius: var(--lm-radius-sm);
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-    border: 1px solid var(--lm-line-strong);
+    box-sizing: border-box;
+    border-radius: var(--lm-select-radius);
+    background: var(--lm-select-track);
+    border: var(--lm-hairline) solid var(--lm-line);
+    box-shadow: none;
     vertical-align: middle;
+  }
+  .lm-bank[data-size='sm'] {
+    --lm-bank-key-min: 40px;
+    border-radius: var(--lm-radius-md);
+  }
+  /* Last resort only: a row of labels that cannot fit even at their own widths scrolls sideways inside the track
+     (no visible bar; swipe, wheel or arrow keys) instead of wrapping a label or running past the edge. The 3 px
+     track padding holds most of the keys' focus ring; the ring is drawn inside the segment (below) so the clip never
+     cuts it. */
+  .lm-bank:not([data-orientation='vertical']) {
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .lm-bank:not([data-orientation='vertical'])::-webkit-scrollbar {
+    display: none;
   }
   .lm-bank[data-block='true'] {
     display: flex;
     width: 100%;
+  }
+  /* One row (lumen.md §7). KeyBank, LinkBank and TabList set data-segments and --lm-bank-n: one grid column per
+     key, never a second row. Stretched (the default), every column takes an equal share of the row; each is still
+     at least its label (max-content), so a squeezed track lets short labels give their spare room to a long one,
+     and only when the labels themselves do not fit does the track scroll (above). */
+  .lm-bank[data-segments]:not([data-orientation='vertical']) {
+    display: inline-grid;
+    grid-template-columns: repeat(var(--lm-bank-n), minmax(max-content, 1fr));
+  }
+  .lm-bank[data-segments][data-block='true']:not([data-orientation='vertical']) {
+    display: grid;
   }
   .lm-bank[data-orientation='vertical'] {
     display: flex;
@@ -608,17 +1018,23 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    height: 32px;
-    min-width: 0;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 4px;
+    gap: 6px;
+    height: 36px;
+    min-width: var(--lm-bank-key-min, 48px);
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: var(--lm-select-key-radius);
     background: transparent;
-    color: var(--lm-ink-2);
-    font-size: var(--lm-text-sm);
-    line-height: 1;
-    font-weight: 500;
+    color: var(--lm-ink-3);
+    /* mono caps (r071): a bank's labels are facts about the choice, set as the product's one uppercase role */
+    font-family: var(--lm-text-meta--font);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    font-weight: var(--lm-text-meta--wt);
+    text-transform: uppercase;
+    font-variant-numeric: normal;
+    font-feature-settings: normal;
     white-space: nowrap;
     text-decoration: none;
     user-select: none;
@@ -626,103 +1042,105 @@
     touch-action: manipulation;
     transition:
       color var(--lm-dur-fast) var(--lm-ease-out),
-      background-color var(--lm-dur-instant) var(--lm-ease-press),
-      box-shadow var(--lm-dur-instant) var(--lm-ease-press);
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      border-color var(--lm-dur-fast) var(--lm-ease-out);
   }
-  .lm-bank[data-block='true'] > .lm-bank__key {
-    flex: 1 1 0;
+  .lm-bank__key:focus-visible {
+    outline-offset: -2px;
   }
   .lm-bank[data-orientation='vertical'] > .lm-bank__key {
     flex: none;
     justify-content: flex-start;
   }
-  .lm-bank__key + .lm-bank__key::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 1px;
-    background: var(--lm-line-strong);
-  }
-  .lm-bank[data-orientation='vertical'] > .lm-bank__key + .lm-bank__key::before {
-    left: 10px;
-    right: 10px;
-    top: 0;
-    bottom: auto;
-    width: auto;
-    height: 1px;
-  }
-  .lm-bank__key[data-selected='true'] + .lm-bank__key::before,
-  .lm-bank__key + .lm-bank__key[data-selected='true']::before,
-  .lm-bank__key[aria-current]:not([aria-current='false']) + .lm-bank__key::before,
-  .lm-bank__key + .lm-bank__key[aria-current]:not([aria-current='false'])::before {
-    display: none;
-  }
-  .lm-bank__key:hover {
-    color: var(--lm-ink);
+  /* (r068 final S11) hover only where a pointer hovers: on touch a tap left the segment under it lit */
+  @media (hover: hover) {
+    .lm-bank__key:hover {
+      color: var(--lm-ink);
+      background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+    }
   }
   .lm-bank__key[data-selected='true'],
   .lm-bank__key[aria-current]:not([aria-current='false']) {
-    background: var(--lm-raised);
+    background: var(--lm-select-on);
+    border-color: var(--lm-select-on-edge);
     color: var(--lm-ink);
-    box-shadow: var(--lm-shadow-key);
-  }
-  /* the yellow indicator light, left of the label; fades in, never slides */
-  .lm-bank__key[data-selected='true']::after,
-  .lm-bank__key[aria-current]:not([aria-current='false'])::after {
-    content: '';
-    order: -1;
-    flex: none;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
-    animation: lm-fade-in var(--lm-dur-instant) linear;
   }
   .lm-bank__key:disabled,
   .lm-bank__key[aria-disabled='true'] {
     color: var(--lm-ink-faint);
   }
+  /* "changed" marker (stale results): a 6 px gold dot after the label */
   .lm-bank__badge {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--lm-ink);
+    background: var(--lm-signal);
     flex: none;
   }
   .lm-bank[data-size='sm'] > .lm-bank__key {
-    height: 26px;
-    padding: 0 9px;
+    height: 28px;
+    padding: 0 10px;
     gap: 6px;
-    font-size: var(--lm-text-xs);
+    border-radius: calc(var(--lm-radius-md) - var(--lm-select-inset));
   }
   .lm-bank[data-size='lg'] > .lm-bank__key {
-    height: 36px;
-    padding: 0 14px;
-    font-size: var(--lm-text-base);
+    height: 44px;
+    padding: 0 16px;
+  }
+  /* (r068 final S2) five or more segments on a narrow phone (360 px): the segments give up their padding and minimum
+     width before the track scrolls, so "72 h" at the end of a six-key bank stays in view */
+  @media (max-width: 25rem) {
+    .lm-bank[data-segments='4'] > .lm-bank__key {
+      padding-inline: 8px;
+    }
+    .lm-bank:is([data-segments='5'], [data-segments='6'], [data-segments='7'], [data-segments='8']) > .lm-bank__key {
+      min-width: 0;
+      padding-inline: 4px;
+    }
   }
   .lm-bank[data-orientation='vertical'] > .lm-bank__key {
-    height: 36px;
-    padding: 0 12px;
+    height: 40px;
+    padding: 0 14px;
   }
-  @media (pointer: coarse) and (max-width: 47.99rem) {
-    /* The selected ::after is the indicator, so the key itself is the target. */
-    .lm-bank__key {
-      min-height: var(--lm-hit-touch);
-      min-width: var(--lm-hit-touch);
+  @media (pointer: coarse) {
+    .lm-bank > .lm-bank__key {
+      min-height: 44px;
+    }
+  }
+  /* (r068 final M7) a stretched bank keeps equal tracks: a label longer than its share wraps inside its segment
+     (at its longest word at least) instead of widening its column ("yes | no | prefer not to say" read 82 against
+     150 px). Fit banks keep sizing to their labels. */
+  .lm-bank[data-segments][data-block='true']:not([data-orientation='vertical']) {
+    grid-template-columns: repeat(var(--lm-bank-n), minmax(min-content, 1fr));
+  }
+  .lm-bank[data-block='true']:not([data-orientation='vertical']) > .lm-bank__key {
+    height: auto;
+    min-height: 36px;
+    padding-block: 2px;
+    white-space: normal;
+    text-align: center;
+    text-wrap: balance;
+  }
+  .lm-bank[data-block='true'][data-size='sm']:not([data-orientation='vertical']) > .lm-bank__key {
+    min-height: 28px;
+  }
+  .lm-bank[data-block='true'][data-size='lg']:not([data-orientation='vertical']) > .lm-bank__key {
+    min-height: 44px;
+  }
+  @media (pointer: coarse) {
+    .lm-bank[data-block='true']:not([data-orientation='vertical']) > .lm-bank__key {
+      min-height: 44px;
     }
   }
 
   /* ------------------------------------------------------------------------
-     SWITCH
+     SWITCH — gold track when on, ink-3 outline when off
      ------------------------------------------------------------------------ */
   .lm-switch {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     cursor: pointer;
     user-select: none;
     -webkit-user-select: none;
@@ -731,8 +1149,8 @@
   .lm-switch input {
     position: absolute;
     opacity: 0;
-    width: 36px;
-    height: 20px;
+    width: 40px;
+    height: 24px;
     margin: 0;
     right: 0;
     cursor: inherit;
@@ -740,12 +1158,11 @@
   .lm-switch__track {
     position: relative;
     flex: none;
-    width: 36px;
-    height: 20px;
-    border-radius: 10px;
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-    border: 1px solid var(--lm-edge);
+    width: 40px;
+    height: 24px;
+    border-radius: var(--lm-radius-full);
+    background: transparent;
+    border: 1.5px solid var(--lm-ink-3);
     transition:
       background-color var(--lm-dur-fast) var(--lm-ease-out),
       border-color var(--lm-dur-fast) var(--lm-ease-out);
@@ -753,31 +1170,24 @@
   .lm-switch__track::after {
     content: '';
     position: absolute;
-    top: 1px;
-    left: 1px;
-    width: 16px;
-    height: 16px;
+    top: 50%;
+    left: 3.5px;
+    width: 14px;
+    height: 14px;
+    margin-top: -7px;
     border-radius: 50%;
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-thumb);
-    transition: transform var(--lm-dur-base) var(--lm-ease-needle);
+    background: var(--lm-ink-3);
+    transition:
+      transform var(--lm-dur-base) var(--lm-ease-out),
+      background-color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-switch input:checked + .lm-switch__track {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
+    background: var(--lm-signal);
+    border-color: var(--lm-signal);
   }
   .lm-switch input:checked + .lm-switch__track::after {
     transform: translateX(16px);
-  }
-  .lm-switch input:checked + .lm-switch__track::before {
-    content: '';
-    position: absolute;
-    left: 6px;
-    top: 7px;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: var(--lm-signal);
+    background: var(--lm-signal-ink);
   }
   .lm-switch input:focus-visible + .lm-switch__track {
     outline: 2px solid var(--lm-focus);
@@ -788,24 +1198,29 @@
     color: var(--lm-ink-faint);
   }
   .lm-switch[data-disabled='true'] .lm-switch__track {
-    border-color: var(--lm-line-strong);
-    box-shadow: none;
+    border-color: var(--lm-ink-faint);
+  }
+  .lm-switch[data-disabled='true'] .lm-switch__track::after {
+    background: var(--lm-ink-faint);
   }
   .lm-switch[data-disabled='true'] input:checked + .lm-switch__track {
-    background: var(--lm-ink-faint);
+    background: var(--lm-raised);
     border-color: var(--lm-ink-faint);
+  }
+  .lm-switch[data-disabled='true'] input:checked + .lm-switch__track::after {
+    background: var(--lm-ink-3);
   }
 
   /* ------------------------------------------------------------------------
-     CHECKBOX / RADIO
+     CHECKBOX / RADIO — gold when chosen, ink-3 outline when not
      ------------------------------------------------------------------------ */
   .lm-check {
     display: inline-flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 12px;
     cursor: pointer;
     min-height: 24px;
-    line-height: var(--lm-text-base--lh);
+    line-height: 1.3125rem;
   }
   .lm-check[data-disabled='true'] {
     cursor: not-allowed;
@@ -818,11 +1233,10 @@
     -webkit-appearance: none;
     width: 18px;
     height: 18px;
-    margin: 2px 0 0;
-    border: 1px solid var(--lm-edge);
-    border-radius: 3px;
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-well);
+    margin: 1.5px 0 0;
+    border: 1.5px solid var(--lm-ink-3);
+    border-radius: var(--lm-radius-xs);
+    background: transparent;
     display: grid;
     place-content: center;
     cursor: inherit;
@@ -830,56 +1244,76 @@
       background-color var(--lm-dur-instant) linear,
       border-color var(--lm-dur-instant) linear;
   }
+  .lm-check:hover .lm-check__box:not(:disabled):not(:checked) {
+    border-color: var(--lm-ink-2);
+  }
   .lm-check__box[type='radio'] {
     border-radius: 50%;
   }
-  .lm-check__box:checked {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
+  .lm-check__box[type='checkbox']:checked,
+  .lm-check__box[type='checkbox']:indeterminate {
+    background: var(--lm-signal);
+    border-color: var(--lm-signal);
   }
   .lm-check__box[type='checkbox']:checked::after {
     content: '';
     width: 10px;
     height: 6px;
     margin-top: -2px;
-    border-left: 1.5px solid var(--lm-ink-inverse);
-    border-bottom: 1.5px solid var(--lm-ink-inverse);
+    border-left: 1.75px solid var(--lm-signal-ink);
+    border-bottom: 1.75px solid var(--lm-signal-ink);
     transform: rotate(-45deg);
-  }
-  .lm-check__box[type='checkbox']:indeterminate {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
   }
   .lm-check__box[type='checkbox']:indeterminate::after {
     content: '';
     width: 8px;
-    height: 1.5px;
-    background: var(--lm-ink-inverse);
+    height: 1.75px;
+    background: var(--lm-signal-ink);
+  }
+  .lm-check__box[type='radio']:checked {
+    border-color: var(--lm-signal);
   }
   .lm-check__box[type='radio']:checked::after {
     content: '';
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    background: var(--lm-ink-inverse);
+    background: var(--lm-signal);
   }
   .lm-check__box:disabled {
-    background: var(--lm-well);
-    border-color: var(--lm-line-strong);
-    box-shadow: none;
+    border-color: var(--lm-ink-faint);
+    background: transparent;
+  }
+  .lm-check__box[type='checkbox']:disabled:is(:checked, :indeterminate) {
+    background: var(--lm-raised);
+    border-color: var(--lm-ink-faint);
+  }
+  .lm-check__box[type='checkbox']:disabled:indeterminate::after {
+    background: var(--lm-ink-3);
+  }
+  .lm-check__box[type='radio']:disabled:checked {
+    border-color: var(--lm-ink-faint);
+  }
+  .lm-check__box[type='radio']:disabled:checked::after {
+    background: var(--lm-ink-3);
+  }
+  .lm-check__box[type='checkbox']:disabled:checked::after {
+    border-color: var(--lm-ink-3);
   }
   .lm-check__text {
     display: grid;
     gap: 2px;
   }
   .lm-check__help {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
 
   /* ------------------------------------------------------------------------
-     FIELD — label, help, error; well inputs
+     FIELD — label above (body-s, stone), outlined input, gold focus,
+     rose error text under the field
      ------------------------------------------------------------------------ */
   .lm-field {
     display: grid;
@@ -888,19 +1322,19 @@
     align-content: start;
   }
   .lm-field__label {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    font-weight: 500;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
-    letter-spacing: 0.005em;
   }
   .lm-field__label[data-disabled='true'] {
     color: var(--lm-ink-faint);
   }
   .lm-help {
     margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-error {
@@ -908,10 +1342,10 @@
     display: flex;
     align-items: flex-start;
     gap: 6px;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-danger-fg);
-    font-weight: 500;
   }
   .lm-error .lm-icon {
     margin-top: 1px;
@@ -921,33 +1355,42 @@
     min-width: 0;
     height: 40px;
     padding: 0 12px;
-    border: 1px solid var(--lm-edge);
-    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-md);
     background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
+    box-shadow: none;
     color: var(--lm-ink);
+    caret-color: var(--lm-signal);
     font-size: 16px;
-    transition: border-color var(--lm-dur-fast) var(--lm-ease-out);
+    font-weight: 400;
+    transition:
+      border-color var(--lm-dur-fast) var(--lm-ease-out),
+      box-shadow var(--lm-dur-fast) var(--lm-ease-out);
   }
   @media (min-width: 48rem) {
     .lm-input {
-      font-size: var(--lm-text-base);
+      font-size: 0.875rem;
     }
   }
-  .lm-input:focus-visible {
-    outline: 2px solid var(--lm-focus);
-    outline-offset: 1px;
+  /* focus: the outline becomes a 2 px gold line (border + inset ring, no layout shift) */
+  .lm-input:focus-visible,
+  .lm-input:focus {
+    outline: none;
+    border-color: var(--lm-signal);
+    box-shadow: inset 0 0 0 1px var(--lm-signal);
   }
   .lm-input[aria-invalid='true'] {
     border-color: var(--lm-danger-fg);
   }
+  .lm-input[aria-invalid='true']:focus {
+    box-shadow: inset 0 0 0 1px var(--lm-danger-fg);
+  }
   .lm-input:disabled {
     color: var(--lm-ink-faint);
-    border-color: var(--lm-line-strong);
-    box-shadow: none;
+    border-color: var(--lm-line);
   }
 
-  /* SELECT trigger (well + chevron) and native fallback */
+  /* SELECT trigger (outlined + chevron) and native fallback */
   .lm-select {
     position: relative;
     display: flex;
@@ -957,24 +1400,25 @@
     min-width: 0;
     height: 40px;
     padding: 0 10px 0 12px;
-    border: 1px solid var(--lm-edge);
-    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-md);
     background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
+    box-shadow: none;
     color: var(--lm-ink);
     font-size: 16px;
+    font-weight: 400;
     text-align: left;
     appearance: none;
     -webkit-appearance: none;
   }
   @media (min-width: 48rem) {
     .lm-select {
-      font-size: var(--lm-text-base);
+      font-size: 0.875rem;
     }
   }
   .lm-select[data-size='sm'] {
     height: 32px;
-    font-size: var(--lm-text-sm);
+    font-size: 0.75rem;
   }
   .lm-select__value {
     flex: 1;
@@ -987,7 +1431,7 @@
     color: var(--lm-ink-3);
   }
   .lm-select__chev {
-    color: var(--lm-ink-2);
+    color: var(--lm-ink-3);
     pointer-events: none;
   }
   .lm-select-native {
@@ -1010,12 +1454,13 @@
   .lm-select:disabled,
   .lm-select[aria-disabled='true'] {
     color: var(--lm-ink-faint);
-    border-color: var(--lm-line-strong);
-    box-shadow: none;
+    border-color: var(--lm-line);
   }
-  .lm-select:focus-visible {
-    outline: 2px solid var(--lm-focus);
-    outline-offset: 1px;
+  .lm-select:focus-visible,
+  .lm-select[aria-expanded='true'] {
+    outline: none;
+    border-color: var(--lm-signal);
+    box-shadow: inset 0 0 0 1px var(--lm-signal);
   }
 
   /* STEPPER / NUMBER FIELD */
@@ -1031,34 +1476,33 @@
     width: 40px;
     display: grid;
     place-items: center;
-    border: 1px solid var(--lm-edge);
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-key);
-    color: var(--lm-ink);
+    border: 1px solid var(--lm-line-strong);
+    background: var(--lm-well);
+    box-shadow: none;
+    color: var(--lm-ink-2);
     touch-action: manipulation;
     user-select: none;
     -webkit-user-select: none;
     transition:
       background-color var(--lm-dur-fast) var(--lm-ease-out),
-      box-shadow var(--lm-dur-instant) var(--lm-ease-press);
+      color var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-stepper__btn:first-child {
-    border-radius: var(--lm-radius-sm) 0 0 var(--lm-radius-sm);
+    border-radius: var(--lm-radius-md) 0 0 var(--lm-radius-md);
   }
   .lm-stepper__btn:last-child {
-    border-radius: 0 var(--lm-radius-sm) var(--lm-radius-sm) 0;
+    border-radius: 0 var(--lm-radius-md) var(--lm-radius-md) 0;
   }
   .lm-stepper__btn:hover {
-    background: color-mix(in oklab, var(--lm-raised), var(--lm-ink) 4%);
+    background: color-mix(in oklab, var(--lm-well), var(--lm-ink) 6%);
+    color: var(--lm-ink);
   }
   .lm-stepper__btn:active:not(:disabled) {
-    box-shadow: var(--lm-shadow-key-pressed);
+    background: color-mix(in oklab, var(--lm-well), var(--lm-ink) 10%);
   }
   .lm-stepper__btn:disabled {
-    background: var(--lm-well);
     color: var(--lm-ink-faint);
-    border-color: var(--lm-line-strong);
-    box-shadow: none;
+    background: var(--lm-well);
   }
   .lm-stepper__btn:focus-visible {
     z-index: 2;
@@ -1071,11 +1515,14 @@
     align-items: center;
     gap: 4px;
     height: 40px;
-    border: 1px solid var(--lm-edge);
-    border-radius: var(--lm-radius-sm);
+    border: 1px solid var(--lm-line-strong);
+    border-radius: var(--lm-radius-md);
     background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
+    box-shadow: none;
     cursor: text;
+    transition:
+      border-color var(--lm-dur-fast) var(--lm-ease-out),
+      box-shadow var(--lm-dur-fast) var(--lm-ease-out);
   }
   .lm-stepper > .lm-numfield {
     height: auto;
@@ -1087,8 +1534,9 @@
     border-left: 1px solid var(--lm-line-strong);
   }
   .lm-numfield:focus-within {
-    outline: 2px solid var(--lm-focus);
-    outline-offset: 1px;
+    outline: none;
+    border-color: var(--lm-signal);
+    box-shadow: inset 0 0 0 1px var(--lm-signal);
     z-index: 1;
   }
   .lm-numfield[data-invalid='true'] {
@@ -1105,13 +1553,19 @@
     background: transparent;
     text-align: right;
     color: var(--lm-ink);
-    font-stretch: 112%;
-    font-weight: 550;
+    caret-color: var(--lm-signal);
+    font-weight: 400;
     font-size: 16px;
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-variant-numeric: tabular-nums;
   }
   .lm-numfield input:focus {
     outline: none;
+  }
+  /* (r069 U1) a placeholder is read (pale stone, 6.9:1 on the well, as every other field's); faint stone (2.2:1) is for
+     disabled only */
+  .lm-numfield input::placeholder {
+    color: var(--lm-ink-3);
+    opacity: 1;
   }
   .lm-numfield input:disabled {
     color: var(--lm-ink-faint);
@@ -1119,8 +1573,13 @@
   .lm-numfield__unit {
     flex: none;
     padding-right: 14px;
-    font-size: var(--lm-text-sm);
+    font-size: 0.75rem;
     color: var(--lm-ink-2);
+  }
+  /* empty, showing its placeholder: the unit dims with it, so a hint ("58 bpm") never reads as a filled, disabled value
+     (r068 V13) */
+  .lm-numfield:has(input:placeholder-shown) .lm-numfield__unit {
+    color: var(--lm-ink-faint);
   }
   .lm-numfield[data-align='left'] input {
     text-align: left;
@@ -1128,11 +1587,12 @@
   }
 
   /* ------------------------------------------------------------------------
-     SCALE SLIDER — the radio tuning window (signature)
+     SCALE SLIDER — printed scale in a well; gold needle, gold thumb,
+     gold span (ScaleRange)
      ------------------------------------------------------------------------ */
   .lm-scale {
     display: grid;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
     user-select: none;
     -webkit-user-select: none;
@@ -1141,7 +1601,7 @@
     display: flex;
     align-items: baseline;
     gap: 8px;
-    min-height: 22px;
+    min-height: 23px;
   }
   .lm-scale__top .lm-eng {
     flex: 1;
@@ -1156,44 +1616,47 @@
     padding: 0;
     background: none;
     color: var(--lm-ink);
-    font-stretch: 112%;
-    font-weight: 600;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
-    font-variant-numeric: tabular-nums slashed-zero;
+    font-weight: 500;
+    font-size: 1rem;
+    line-height: 1.4375rem;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
     cursor: text;
-    border-radius: 3px;
+    border-radius: 4px;
   }
   .lm-scale__value .lm-unit {
-    font-size: var(--lm-text-xs);
+    font-size: 0.75rem;
   }
   .lm-scale__edit {
     width: 7ch;
-    height: 22px;
+    height: 26px;
     padding: 0 6px;
-    border: 1px solid var(--lm-edge);
-    border-radius: var(--lm-radius-xs);
+    border: 1px solid var(--lm-signal);
+    border-radius: var(--lm-radius-sm);
     background: var(--lm-well);
     color: var(--lm-ink);
+    caret-color: var(--lm-signal);
     text-align: right;
-    font-stretch: 112%;
-    font-weight: 600;
+    font-weight: 500;
     font-size: 16px;
     font-variant-numeric: tabular-nums;
   }
+  .lm-scale__edit:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--lm-signal);
+  }
   @media (min-width: 48rem) {
     .lm-scale__edit {
-      font-size: var(--lm-text-base);
+      font-size: 0.875rem;
     }
   }
   .lm-scale__well {
     position: relative;
     height: 28px;
-    border-radius: var(--lm-radius-sm);
+    border-radius: var(--lm-radius-md);
     background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-    border: 1px solid var(--lm-line-strong);
+    box-shadow: none;
+    border: 1px solid var(--lm-line);
     touch-action: pan-y;
     cursor: ew-resize;
   }
@@ -1230,19 +1693,19 @@
     height: 100%;
   }
   .lm-scale__ticks line {
-    stroke: var(--lm-line-strong);
+    stroke: var(--lm-line);
     stroke-width: 1;
     shape-rendering: crispEdges;
   }
   .lm-scale__ticks line[data-major='true'] {
-    stroke: var(--lm-edge);
+    stroke: var(--lm-line-strong);
   }
   .lm-scale__range {
     position: absolute;
     bottom: 3px;
     height: 4px;
     border-radius: 2px;
-    background: color-mix(in oklab, var(--lm-ink) 18%, transparent);
+    background: color-mix(in srgb, var(--lm-signal) 30%, transparent);
     pointer-events: none;
   }
   .lm-scale__ref {
@@ -1259,29 +1722,21 @@
     bottom: -1px;
     width: 2px;
     margin-left: -1px;
-    background: var(--lm-ink);
+    background: var(--lm-signal);
     pointer-events: none;
   }
+  /* the thumb: a 14 px gold disc riding on the well's top edge */
   .lm-scale__cap {
     position: absolute;
-    top: -9px;
+    top: -8px;
     width: 14px;
-    height: 12px;
+    height: 14px;
     margin-left: -7px;
-    border-radius: 3px;
-    background: var(--lm-raised);
-    border: 1px solid var(--lm-edge);
-    box-shadow: var(--lm-shadow-thumb);
+    border-radius: 50%;
+    background: var(--lm-signal);
+    border: 2px solid var(--lm-chassis);
+    box-shadow: none;
     pointer-events: none;
-  }
-  .lm-scale__cap::after {
-    content: '';
-    position: absolute;
-    left: 5.5px;
-    top: 2px;
-    width: 1px;
-    height: 6px;
-    background: var(--lm-ink-2);
   }
   /* needles settle with one damped overshoot, except while a finger holds them */
   .lm-scale__needle,
@@ -1299,7 +1754,8 @@
     position: absolute;
     bottom: -1px;
     height: 4px;
-    background: var(--lm-ink);
+    border-radius: 2px;
+    background: var(--lm-signal);
     pointer-events: none;
     transition:
       left var(--lm-dur-needle) var(--lm-ease-needle),
@@ -1320,36 +1776,34 @@
   /* the riding readout — follows the needle while a pointer drags (desktop) */
   .lm-scale__rider {
     position: absolute;
-    bottom: calc(100% + 12px);
+    bottom: calc(100% + 14px);
     transform: translateX(-50%);
-    padding: 3px 7px;
-    border-radius: var(--lm-radius-xs);
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    font-size: var(--lm-text-xs);
-    line-height: 16px;
-    font-weight: 600;
-    font-stretch: 112%;
-    font-variant-numeric: tabular-nums slashed-zero;
+    padding: 3px 8px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-elevated, #2b2721);
+    border: 0.5px solid var(--lm-line);
+    color: var(--lm-ink);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
     pointer-events: none;
     z-index: 2;
   }
   .lm-scale__rider .lm-unit {
-    color: inherit;
-    opacity: 0.75;
+    color: var(--lm-ink-2);
   }
   .lm-scale__nums {
     position: relative;
-    height: 14px;
+    height: 16px;
   }
   .lm-scale__nums span {
     position: absolute;
     white-space: nowrap;
     transform: translateX(-50%);
-    font-size: var(--lm-text-2xs);
-    line-height: 14px;
-    font-stretch: 84%;
+    font-size: 0.6875rem;
+    line-height: 16px;
     color: var(--lm-ink-3);
     font-variant-numeric: tabular-nums;
   }
@@ -1361,11 +1815,11 @@
   }
   .lm-scale__nums span[data-ref='true'] {
     color: var(--lm-ink-2);
-    font-weight: 500;
   }
   .lm-scale__note {
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-scale[data-locked='true'] .lm-scale__well {
@@ -1374,9 +1828,10 @@
   }
   .lm-scale[data-disabled='true'] .lm-scale__well {
     cursor: not-allowed;
-    box-shadow: none;
   }
-  .lm-scale[data-disabled='true'] .lm-scale__needle {
+  .lm-scale[data-disabled='true'] .lm-scale__needle,
+  .lm-scale[data-disabled='true'] .lm-scale__cap,
+  .lm-scale[data-disabled='true'] .lm-scale__span {
     background: var(--lm-ink-faint);
   }
   .lm-scale[data-disabled='true'] .lm-scale__value,
@@ -1385,22 +1840,28 @@
   }
 
   /* ------------------------------------------------------------------------
-     CHIP
+     CHIP — r068 U12: tags are quiet. A read-only chip is a small tag, a 6 %
+     ink tint with a stone label, no border; a status chip is only its dot and
+     words, no container. A chip you can press (filter, a chip with onClick, a
+     link) keeps a hairline and the 28 px control size, so it reads as a
+     control, not a tag.
      ------------------------------------------------------------------------ */
   .lm-chip {
     position: relative;
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 24px;
-    padding: 0 8px;
+    height: 22px;
+    padding: 0 9px;
     max-width: 100%;
-    border-radius: var(--lm-radius-xs);
-    border: 1px solid var(--lm-line-strong);
-    background: var(--lm-face);
-    color: var(--lm-ink);
-    font-size: var(--lm-text-xs);
-    line-height: 1;
+    box-sizing: border-box;
+    border-radius: var(--lm-radius-full);
+    border: 0;
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+    color: var(--lm-ink-2);
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
     font-weight: 500;
     white-space: nowrap;
     text-decoration: none;
@@ -1414,18 +1875,63 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  button.lm-chip,
+  a.lm-chip,
+  .lm-chip[data-kind='filter'] {
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--lm-radius-full);
+    border: 1px solid var(--lm-line);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+    color: var(--lm-ink-2);
+  }
   button.lm-chip:hover,
   a.lm-chip:hover {
-    background: color-mix(in oklab, var(--lm-face), var(--lm-ink) 5%);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 9%);
+    color: var(--lm-ink);
   }
   .lm-chip[data-kind='filter'][aria-pressed='true'],
   .lm-chip[data-kind='filter'][aria-current='true'] {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
-    color: var(--lm-ink-inverse);
+    background: var(--lm-gold-wash);
+    border-color: var(--lm-gold-edge);
+    color: var(--lm-ink);
+  }
+  /* status: the dot and the words, nothing around them */
+  span.lm-chip[data-kind='status'] {
+    height: auto;
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    color: var(--lm-ink-2);
+    font-weight: 400;
+  }
+  /* status chip: a 6 px dot in the severity colour in place of a mark */
+  .lm-chip__dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-ink-3);
+  }
+  .lm-chip[data-severity='info'] .lm-chip__dot {
+    background: var(--lm-info-fg);
+  }
+  .lm-chip[data-severity='ok'] .lm-chip__dot {
+    background: var(--lm-ok-fg);
+  }
+  .lm-chip[data-severity='caution'] .lm-chip__dot {
+    background: var(--lm-caution-fg);
+  }
+  .lm-chip[data-severity='danger'] .lm-chip__dot {
+    background: var(--lm-danger-fg);
+  }
+  /* a domain chip (r071): the dot is the domain's solid, set by Chip from `domainColor` (inline --lm-chip-hue); the
+     words stay stone, so the colour is on the mark only */
+  .lm-chip[data-kind='domain'] .lm-chip__dot {
+    background: var(--lm-chip-hue, var(--lm-ink-3));
   }
   .lm-chip[data-removable='true'] {
-    padding-right: 2px;
+    padding-right: 4px;
   }
   .lm-chip__remove {
     position: relative;
@@ -1436,14 +1942,14 @@
     margin-left: -2px;
     padding: 0;
     border: 0;
-    border-radius: 2px;
+    border-radius: 50%;
     background: transparent;
-    color: var(--lm-ink-2);
+    color: var(--lm-ink-3);
   }
   .lm-chip__remove::after {
     content: '';
     position: absolute;
-    inset: -2px;
+    inset: -4px;
   }
   .lm-chip__remove:hover {
     color: var(--lm-ink);
@@ -1452,7 +1958,6 @@
   .lm-chip:disabled,
   .lm-chip[aria-disabled='true'] {
     color: var(--lm-ink-faint);
-    border-color: var(--lm-line);
   }
   @media (pointer: coarse) and (max-width: 47.99rem) {
     /* Anchor rails have page-local sticky offsets; keep their sizing local. */
@@ -1479,19 +1984,77 @@
   }
 
   /* ------------------------------------------------------------------------
-     GRADE BADGE — A–D, achromatic by rule
+     STATUS ICON (StatusCapsule.tsx; SPEC §9) — the header's status: a 48 px
+     round target, one 22 px stone line icon, no words (its name is the
+     aria-label and the tooltip). A 6 px gold dot at the icon's top right
+     while the state wants attention; it breathes only for real activity.
+     ------------------------------------------------------------------------ */
+  .lm-status-icon {
+    position: relative;
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--lm-radius-full);
+    background: transparent;
+    color: var(--lm-ink-2);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    /* a held icon shows its tooltip: no callout, no text selection */
+    -webkit-touch-callout: none;
+    user-select: none;
+    transition:
+      background-color var(--lm-dur-fast) var(--lm-ease-out),
+      color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-status-icon[hidden] {
+    display: none;
+  }
+  .lm-status-icon:hover {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+  }
+  .lm-status-icon[aria-expanded='true'] {
+    color: var(--lm-ink);
+    background: var(--lm-elevated, var(--lm-raised));
+  }
+  .lm-status-icon__dot {
+    position: absolute;
+    top: calc(50% - 14px);
+    left: calc(50% + 8px);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+  .lm-status-icon[data-tone='danger'] > .lm-status-icon__dot {
+    background: var(--lm-danger-fg);
+  }
+  /* real activity only (a search running, a sync in flight): the dot breathes */
+  .lm-status-icon__dot[data-pulse='true'] {
+    animation: lm-breathe 1100ms ease-in-out infinite alternate;
+  }
+
+  /* ------------------------------------------------------------------------
+     GRADE BADGE — A–D: a quiet stone text pill; letter + pips carry the grade
      ------------------------------------------------------------------------ */
   .lm-grade {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     height: 20px;
-    padding: 0 6px 0 5px;
-    border: 0;
-    border-radius: var(--lm-radius-xs);
-    font-size: var(--lm-text-xs);
-    font-weight: 700;
-    font-stretch: 112%;
+    padding: 0 8px;
+    border: 0.5px solid var(--lm-line);
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-raised);
+    color: var(--lm-ink-2);
+    font-size: 0.75rem;
+    font-weight: 500;
     line-height: 1;
     flex: none;
     vertical-align: middle;
@@ -1499,8 +2062,9 @@
   }
   .lm-grade[data-size='sm'] {
     height: 18px;
-    padding: 0 5px 0 4px;
-    font-size: var(--lm-text-2xs);
+    padding: 0 6px;
+    gap: 4px;
+    font-size: 0.6875rem;
   }
   .lm-grade__pips {
     display: inline-flex;
@@ -1515,27 +2079,11 @@
   .lm-grade__pips i[data-on='false'] {
     background: color-mix(in oklab, currentColor 30%, transparent);
   }
-  .lm-grade[data-grade='A'] {
-    background: var(--lm-grade-a-bg);
-    color: var(--lm-grade-a-fg);
-  }
-  .lm-grade[data-grade='B'] {
-    background: var(--lm-grade-b-bg);
-    color: var(--lm-grade-b-fg);
-  }
-  .lm-grade[data-grade='C'] {
-    background: var(--lm-grade-c-bg);
-    color: var(--lm-grade-c-fg);
-    box-shadow: inset 0 0 0 1px var(--lm-grade-c-edge);
-  }
-  .lm-grade[data-grade='D'] {
-    background: var(--lm-grade-d-bg);
-    color: var(--lm-grade-d-fg);
-    outline: 1px dashed var(--lm-grade-d-edge);
-    outline-offset: -1px;
-  }
   button.lm-grade {
     cursor: pointer;
+  }
+  button.lm-grade:hover {
+    color: var(--lm-ink);
   }
   button.lm-grade:focus-visible {
     outline: 2px solid var(--lm-focus);
@@ -1543,7 +2091,8 @@
   }
 
   /* ------------------------------------------------------------------------
-     READOUT + RANGE BAR + READOUT STRIP
+     READOUT + RANGE BAR + READOUT STRIP — tabular values, units smaller
+     and stone
      ------------------------------------------------------------------------ */
   .lm-readout {
     position: relative;
@@ -1557,30 +2106,51 @@
     align-items: center;
     gap: 7px;
   }
+  /* md: headline 28/34. The line holds the "from →" trail and the figure, which is a HeroNumber (hero.css) drawn at the
+     readout's own size: it takes the font, weight, line and tracking of this line (the roles below), tabular. */
   .lm-readout__value {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    font-family: var(--lm-font-display);
     font-size: var(--lm-readout-md);
     line-height: var(--lm-readout-md--lh);
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: var(--lm-readout-md--ls);
     white-space: nowrap;
     color: var(--lm-ink);
   }
-  .lm-readout__value .lm-unit {
-    font-size: var(--lm-text-base);
+  .lm-readout .lm-readout__hero {
+    color: inherit;
   }
+  .lm-readout__hero .lm-hero__line {
+    font: inherit;
+    letter-spacing: inherit;
+  }
+  .lm-readout .lm-readout__hero .lm-hero__line > .lm-hero__part > .lm-hero__unit {
+    margin-inline-start: 0.25em;
+    font-size: 0.875rem;
+    line-height: inherit;
+    letter-spacing: 0;
+  }
+  /* sm: title-l 20/27 */
   .lm-readout[data-size='sm'] .lm-readout__value {
-    font-size: var(--lm-readout-sm);
-    line-height: var(--lm-readout-sm--lh);
+    font-size: 1.25rem;
+    line-height: 1.6875rem;
+    letter-spacing: 0;
   }
-  .lm-readout[data-size='sm'] .lm-readout__value .lm-unit {
-    font-size: var(--lm-text-xs);
+  .lm-readout[data-size='sm'] .lm-readout__hero .lm-hero__line > .lm-hero__part > .lm-hero__unit {
+    font-size: 0.75rem;
   }
+  /* lg: headline-l 32/38 */
   .lm-readout[data-size='lg'] .lm-readout__value {
-    font-size: var(--lm-readout-lg);
-    line-height: var(--lm-readout-lg--lh);
-    font-stretch: 120%;
+    font-size: 2rem;
+    line-height: 2.375rem;
+    letter-spacing: -0.04375rem;
   }
-  .lm-readout[data-size='lg'] .lm-readout__value .lm-unit {
-    font-size: var(--lm-text-lg);
+  .lm-readout__trail {
+    display: inline-flex;
+    align-items: baseline;
   }
   .lm-readout__from {
     color: var(--lm-ink-3);
@@ -1594,31 +2164,32 @@
     top: -0.12em;
   }
   .lm-readout__delta {
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    color: var(--lm-ink);
-    font-weight: 600;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    color: var(--lm-ink-2);
+    font-weight: 400;
     font-variant-numeric: tabular-nums;
   }
   .lm-readout__caption {
-    margin-top: 4px;
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+    margin-top: 2px;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-readout[data-unknown='true'] .lm-readout__value {
     color: var(--lm-ink-3);
   }
   .lm-readout-inline {
-    font-weight: 600;
+    font-weight: 500;
     white-space: nowrap;
   }
   .lm-rangebar {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
     color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
@@ -1635,18 +2206,18 @@
     shape-rendering: crispEdges;
   }
   .lm-rangebar__tick {
-    stroke: var(--lm-line-strong);
+    stroke: var(--lm-line);
     stroke-width: 1;
     shape-rendering: crispEdges;
   }
   .lm-rangebar__tick[data-major='true'] {
-    stroke: var(--lm-edge);
+    stroke: var(--lm-line-strong);
   }
   .lm-rangebar__span {
-    fill: color-mix(in oklab, var(--lm-ink) 24%, transparent);
+    fill: color-mix(in srgb, var(--lm-signal) 35%, transparent);
   }
   .lm-rangebar__pt {
-    fill: var(--lm-ink);
+    fill: var(--lm-signal);
   }
   .lm-rangebar__ghost {
     fill: var(--lm-ink-3);
@@ -1664,7 +2235,7 @@
     flex: 1 0 180px;
     min-width: 180px;
     padding: 14px 16px;
-    border-right: 1px solid var(--lm-line);
+    border-right: 0.5px solid var(--lm-line);
     scroll-snap-align: start;
   }
   .lm-strip__item:last-child {
@@ -1691,37 +2262,50 @@
   }
 
   /* ------------------------------------------------------------------------
-     NOTICE (banner) + INLINE WARNING
-     REVIEW_FINDINGS #5 overrides COMPONENTS.md: notices are achromatic
-     faceplate text; colour lives on the drawn status mark only.
+     NOTICE — a banner: the card material (grain over the card colour, the
+     faint gold wash) with NO glow, a 0.5 px hairline, 14 px corners (the field
+     radius: a banner is a short strip, not a data card, so it never takes a
+     domain glow and never wears the 20 px card corner); title + one line + at
+     most one action. Caution and danger carry their drawn mark (gold / rose);
+     info and ok carry none: severity lives on the mark. `ruled` (inside a
+     card) is plain text with no rules and no surface.
      ------------------------------------------------------------------------ */
   .lm-notice {
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 2px 12px;
     align-items: start;
-    padding: 12px 14px;
-    background: var(--lm-face);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
+    padding: 12px 16px;
+    background: var(--lm-card-bg);
+    border: 0.5px solid var(--lm-line);
+    border-radius: var(--lm-radius-field);
+    box-shadow: none;
     color: var(--lm-ink);
   }
+  .lm-notice[data-mark='true'] {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+  }
   .lm-notice[data-layout='ruled'] {
-    padding: 12px 0;
+    padding: 0;
     background: transparent;
     border: 0;
-    border-top: 1px solid var(--lm-line);
-    border-bottom: 1px solid var(--lm-line);
     border-radius: 0;
-    box-shadow: none;
   }
   .lm-notice[data-layout='ruled'] + .lm-notice[data-layout='ruled'] {
-    border-top: 0;
+    margin-top: 12px;
   }
   .lm-notice__mark {
-    grid-row: span 2;
-    margin-top: 1px;
+    grid-column: 1;
+    grid-row: 1;
+    margin-top: 0.5px;
+  }
+  .lm-notice__title,
+  .lm-notice__body,
+  .lm-notice__acts {
+    grid-column: 1;
+  }
+  .lm-notice[data-mark='true'] :is(.lm-notice__title, .lm-notice__body, .lm-notice__acts) {
+    grid-column: 2;
   }
   .lm-notice[data-severity='info'] .lm-notice__mark {
     color: var(--lm-info-fg);
@@ -1737,30 +2321,29 @@
   }
   .lm-notice__title {
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: 1.35;
-    font-weight: 600;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 500;
     color: var(--lm-ink);
   }
   .lm-notice__body {
-    grid-column: 2;
     margin: 0;
-    font-size: var(--lm-text-sm);
-    line-height: 1.5;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-notice__body > * + * {
     margin-top: 6px;
   }
   .lm-notice__acts {
-    grid-column: 2;
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
   }
   .lm-notice__side {
-    grid-column: 3;
+    grid-column: -2 / -1;
     grid-row: 1;
     display: flex;
     gap: 2px;
@@ -1773,12 +2356,13 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
     color: var(--lm-ink);
   }
   .lm-inline-warn .lm-icon {
-    margin-top: 1px;
+    margin-top: 2.5px;
   }
   .lm-inline-warn[data-severity='info'] .lm-icon {
     color: var(--lm-info-fg);
@@ -1806,47 +2390,60 @@
   }
 
   /* ------------------------------------------------------------------------
-     TOAST
+     TOAST — snackbar: elevated, 12 px corners, ink text, at most one gold
+     action; bottom centre 12 px above the mobile dock (--lm-dock-h is the
+     dock's full painted height, safe area included; the shell sets it).
      ------------------------------------------------------------------------ */
   .lm-toaster {
     position: fixed;
     z-index: var(--lm-z-toast);
     left: 50%;
-    bottom: calc(var(--lm-tabbar-h) + var(--lm-safe-bottom) + var(--lm-actionbar-h, 0px) + 12px);
+    bottom: calc(var(--lm-dock-h, calc(80px + var(--lm-safe-bottom, 0px))) + 12px);
     transform: translateX(-50%);
     display: grid;
     gap: 8px;
-    width: min(360px, calc(100vw - 2 * var(--lm-gutter)));
+    width: min(400px, calc(100vw - 2 * var(--lm-gutter)));
     pointer-events: none;
+  }
+  @media (max-width: 63.99rem) {
+    .lm-toaster {
+      width: calc(100vw - 2 * var(--lm-gutter) - var(--lm-safe-left) - var(--lm-safe-right));
+    }
   }
   @media (min-width: 64rem) {
     .lm-toaster {
-      left: calc(var(--lm-rail-w) + var(--lm-gutter-lg));
-      bottom: 24px;
-      transform: none;
+      bottom: var(--lm-gutter-lg);
     }
   }
   .lm-toast {
     pointer-events: auto;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 44px;
-    padding: 8px 8px 8px 14px;
-    border-radius: var(--lm-radius-md);
-    background: var(--lm-raised);
-    border: 1px solid var(--lm-line);
-    box-shadow: var(--lm-shadow-pop);
+    gap: 8px;
+    min-height: 48px;
+    padding: 6px 6px 6px 14px;
+    border-radius: var(--lm-radius-lg);
+    background: var(--lm-elevated, #2b2721);
+    border: 0.5px solid var(--lm-line);
+    box-shadow: none;
     color: var(--lm-ink);
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
     animation: lm-rise var(--lm-dur-base) var(--lm-ease-out);
+  }
+  .lm-toast__icon {
+    flex: none;
+    color: var(--lm-signal);
   }
   .lm-toast__msg {
     flex: 1;
     min-width: 0;
-    padding: 4px 0;
+    padding: 6px 4px 6px 0;
+  }
+  .lm-toast .lm-key {
+    flex: none;
+    height: 36px;
   }
   .lm-toast[data-leaving='true'] {
     opacity: 0;
@@ -1854,34 +2451,36 @@
   }
 
   /* ------------------------------------------------------------------------
-     TOOLTIP / POPOVER / MENU / LISTBOX
+     TOOLTIP / POPOVER / MENU / LISTBOX — elevated surface, 0.5 px hairline,
+     12 px corners (8 on tooltips), no shadow; 44 px rows
      ------------------------------------------------------------------------ */
   .lm-tooltip {
     position: fixed;
     z-index: var(--lm-z-tooltip);
     max-width: 260px;
-    padding: 6px 8px;
-    border-radius: var(--lm-radius-xs);
-    background: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-    font-size: var(--lm-text-xs);
-    line-height: 1.4;
-    font-weight: 500;
+    padding: 6px 10px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-elevated, #2b2721);
+    border: 0.5px solid var(--lm-line);
+    color: var(--lm-ink);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
     pointer-events: none;
     animation: lm-fade-in var(--lm-dur-instant) linear;
   }
   .lm-popover {
     position: fixed;
     z-index: var(--lm-z-popover);
-    min-width: 180px;
+    min-width: 200px;
     max-width: min(360px, calc(100vw - 16px));
-    max-height: min(420px, calc(100dvh - 16px));
+    max-height: min(560px, calc(100dvh - 16px));
     overflow: auto;
     padding: 6px;
-    border-radius: var(--lm-radius-md);
-    background: var(--lm-raised);
-    border: 1px solid var(--lm-line);
-    box-shadow: var(--lm-shadow-pop);
+    border-radius: var(--lm-radius-lg);
+    background: var(--lm-elevated, #2b2721);
+    border: 0.5px solid var(--lm-line);
+    box-shadow: none;
     color: var(--lm-ink);
     animation: lm-pop-in var(--lm-dur-fast) var(--lm-ease-out);
   }
@@ -1889,39 +2488,34 @@
     outline: none;
   }
   .lm-popover[data-padding='roomy'] {
-    padding: 12px 14px;
+    padding: 12px 16px;
   }
-  .lm-menu {
+  .lm-menu,
+  .lm-menu__group {
     display: grid;
-    gap: 1px;
+    gap: 0;
   }
   .lm-menu__item,
   .lm-listbox__opt {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    min-height: 36px;
-    padding: 0 10px;
+    min-height: 44px;
+    padding: 0 12px;
     border: 0;
-    border-radius: var(--lm-radius-xs);
+    border-radius: var(--lm-radius-sm);
     background: transparent;
     color: var(--lm-ink);
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    font-weight: 500;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
     text-align: left;
     text-decoration: none;
     cursor: pointer;
     user-select: none;
   }
-  @media (pointer: coarse) {
-    .lm-menu__item,
-    .lm-listbox__opt {
-      min-height: 44px;
-    }
-  }
-  /* 4 % (not the face's 6 %): on the dark raised popover 6 % would drop ink-3 to 4.3:1 (COMPONENTS §14.1) */
+  /* 4 % keeps ink-3 readable on the elevated popover (COMPONENTS §14.1) */
   .lm-menu__item:hover,
   .lm-menu__item:focus-visible,
   .lm-listbox__opt[data-active='true'] {
@@ -1942,19 +2536,30 @@
   .lm-menu__item .lm-icon {
     color: var(--lm-ink-2);
   }
+  .lm-menu__item[data-tone='danger'] .lm-icon {
+    color: inherit;
+  }
   .lm-menu__hint {
     margin-left: auto;
-    font-size: var(--lm-text-xs);
+    font-size: 0.75rem;
     color: var(--lm-ink-3);
   }
   .lm-menu__sep {
-    height: 1px;
-    margin: 4px 2px;
-    background: var(--lm-line);
+    height: 0;
+    margin: 6px 0;
+    border-top: 0.5px solid var(--lm-line);
+  }
+  /* a section: an optional stone label over its items */
+  .lm-menu__section {
+    padding: 8px 12px 4px;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
+    color: var(--lm-ink-2);
   }
   .lm-listbox {
     display: grid;
-    gap: 1px;
+    gap: 0;
   }
   .lm-listbox__opt {
     padding-left: 8px;
@@ -1962,14 +2567,14 @@
   .lm-listbox__check {
     width: 16px;
     flex: none;
-    color: var(--lm-ink);
+    color: var(--lm-signal);
   }
   .lm-listbox__opt[aria-selected='true'] {
-    font-weight: 600;
+    background: var(--lm-gold-soft, rgb(227 191 120 / 0.18));
   }
 
   /* ------------------------------------------------------------------------
-     PROGRESS RULE, SPINNER, METER
+     PROGRESS RULE, SPINNER, METER — gold traces
      ------------------------------------------------------------------------ */
   .lm-progress-rule {
     position: absolute;
@@ -1987,12 +2592,12 @@
     top: 0;
     height: 2px;
     width: 30%;
-    background: var(--lm-ink);
+    background: var(--lm-signal);
     animation: lm-slide 1.2s linear infinite;
   }
   .lm-progress-rule__bar {
     height: 2px;
-    background: var(--lm-ink);
+    background: var(--lm-signal);
     transition: width var(--lm-dur-base) var(--lm-ease-out);
   }
   .lm-progress-rule[data-static='true'] {
@@ -2001,7 +2606,7 @@
     overflow: visible;
   }
   .lm-progress-text {
-    font-size: var(--lm-text-xs);
+    font-size: 0.75rem;
     color: var(--lm-ink-2);
   }
   .lm-spinner {
@@ -2027,16 +2632,14 @@
   .lm-meter__row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
   .lm-meter__track {
     position: relative;
     flex: 1;
-    height: 10px;
-    border-radius: 3px;
-    background: var(--lm-well);
-    box-shadow: var(--lm-shadow-well);
-    border: 1px solid var(--lm-line-strong);
+    height: 6px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-raised);
     overflow: hidden;
   }
   .lm-meter__fill {
@@ -2044,35 +2647,34 @@
     left: 0;
     top: 0;
     bottom: 0;
-    background: var(--lm-ink);
+    border-radius: inherit;
+    background: var(--lm-signal);
     transition: width var(--lm-dur-base) var(--lm-ease-out);
   }
   .lm-meter[data-level='caution'] .lm-meter__fill {
-    background: var(--lm-caution-mark);
+    background: var(--lm-caution-fg);
   }
   .lm-meter[data-level='danger'] .lm-meter__fill {
-    background: var(--lm-danger-mark);
+    background: var(--lm-danger-fg);
   }
   .lm-meter__text {
     flex: none;
-    font-size: var(--lm-text-xs);
+    font-size: 0.75rem;
     color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
 
   /* ------------------------------------------------------------------------
-     EMPTY STAGE, SKELETON
+     EMPTY STAGE, SKELETON — one fact and one action, left-aligned, no stage
      ------------------------------------------------------------------------ */
   .lm-empty {
     display: grid;
-    justify-items: center;
+    justify-items: start;
     align-content: center;
-    gap: 8px;
-    min-height: 240px;
-    padding: 40px 24px;
-    border-radius: var(--lm-radius-md);
-    text-align: center;
+    gap: 6px;
+    padding: 8px 0;
+    text-align: left;
   }
   .lm-empty__art {
     color: var(--lm-ink-3);
@@ -2080,23 +2682,24 @@
   }
   .lm-empty__title {
     margin: 0;
-    font-size: var(--lm-text-md);
-    line-height: 1.35;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     font-weight: 600;
     color: var(--lm-ink);
   }
   .lm-empty__body {
     margin: 0;
-    max-width: 44ch;
-    font-size: var(--lm-text-base);
-    line-height: var(--lm-text-base--lh);
+    max-width: 52ch;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-empty__action {
-    margin-top: 10px;
+    margin-top: 8px;
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
     gap: 8px;
   }
   /* a long call to action may wrap on narrow screens instead of overflowing */
@@ -2111,12 +2714,21 @@
   .lm-skeleton {
     display: block;
     border-radius: var(--lm-radius-xs);
-    background: var(--lm-well);
-    box-shadow: inset 0 0 0 1px var(--lm-line);
+    background: var(--lm-raised);
   }
 
   /* ------------------------------------------------------------------------
      DIALOG (native <dialog>), SHEET, SIDE PANEL
+     Dialog: elevated, 24 px corners, 24 px padding, headline title, stone
+     body, gold text buttons. Sheet: bg-2, 24 px top corners, drag handle,
+     header row Cancel · title · Done (or title · Close). Side panel: the
+     sheet's materials on desktop; docked = card material.
+     r071 motion: a sheet and the side panel open with a SPRING (320 ms, one
+     damped overshoot of 2.5 %: --lm-ease-spring, behind @supports) and leave
+     with an ease-in (220 ms); the scrim fades in 200 ms; under reduced motion
+     they cross-fade in 100 ms and never move. The overshoot would open a gap
+     under a sheet (right of a panel), so each paints a hard 0-blur extension
+     in its own colour past the screen edge (not a shadow: offscreen at rest).
      ------------------------------------------------------------------------ */
   .lm-dialog {
     position: fixed;
@@ -2130,11 +2742,11 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    background: var(--lm-face);
+    border: 0.5px solid var(--lm-line);
+    border-radius: var(--lm-radius-xl);
+    background: var(--lm-elevated, #2b2721);
     color: var(--lm-ink);
-    box-shadow: var(--lm-shadow-pop);
+    box-shadow: none;
     z-index: var(--lm-z-dialog);
     opacity: 1;
     transform: none;
@@ -2171,14 +2783,16 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    padding: 18px 20px 0;
+    padding: 24px 24px 0;
   }
   .lm-dialog__title {
     flex: 1;
     margin: 0;
-    font-size: var(--lm-text-md);
-    line-height: 1.35;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-xl); /* 24/30 */
+    line-height: var(--lm-text-xl--lh);
     font-weight: 600;
+    letter-spacing: var(--lm-text-xl--ls);
     color: var(--lm-ink);
   }
   .lm-dialog__title:focus {
@@ -2188,27 +2802,47 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 10px 20px 4px;
-    font-size: var(--lm-text-base);
-    line-height: 1.5;
+    padding: 16px 24px 0;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
     color: var(--lm-ink-2);
   }
   .lm-dialog__body > * + * {
     margin-top: 12px;
   }
+  /* The dialog's keys are real keys (r068 S9): Cancel the neutral tile, the verb its own variant (a filled danger key
+     for a destructive one), right-aligned on wider screens; on phones the dialog rises from the bottom edge as a sheet
+     and its keys stack full width. */
   .lm-dialog__foot {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 8px;
-    padding: 16px 20px 18px;
+    gap: var(--lm-inline);
+    padding: var(--lm-space-6);
+  }
+  .lm-dialog__foot .lm-key[data-variant='danger']:not(:disabled, [aria-disabled='true']) {
+    background: color-mix(in srgb, var(--lm-danger-fg) 22%, transparent);
+    border-color: color-mix(in srgb, var(--lm-danger-fg) 55%, transparent);
+    color: var(--lm-ink);
+  }
+  @media (max-width: 47.99rem) {
+    .lm-dialog {
+      margin: auto var(--lm-space-2) calc(var(--lm-space-2) + var(--lm-safe-bottom));
+      width: calc(100vw - 2 * var(--lm-space-2));
+    }
+    /* stacked full width, the verb on top (a 360 px row cannot hold "Cancel" and "Delete everything" side by side) */
+    .lm-dialog__foot {
+      flex-direction: column-reverse;
+      align-items: stretch;
+    }
   }
   .lm-scrim {
     position: fixed;
     inset: 0;
     background: var(--lm-scrim);
     opacity: 0;
-    transition: opacity var(--lm-dur-slow) var(--lm-ease-out);
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out);
   }
   .lm-scrim[data-state='open'] {
     opacity: 1;
@@ -2225,29 +2859,54 @@
     display: flex;
     flex-direction: column;
     border: 0;
-    border-top: 1px solid var(--lm-line-strong);
+    border-top: 0.5px solid var(--lm-line);
     border-radius: var(--lm-radius-xl) var(--lm-radius-xl) 0 0;
-    background: var(--lm-face);
+    background: var(--lm-chassis-2);
     color: var(--lm-ink);
-    box-shadow: var(--lm-shadow-sheet);
     z-index: var(--lm-z-sheet);
     overflow: hidden;
     transform: translateY(0);
+    /* the spring's overshoot lifts the sheet by up to 2.5 % of its height: this colour block below the screen edge keeps
+       a gap from showing (0 blur, 0 spread; offscreen at rest, so it is not a shadow) */
+    box-shadow: 0 var(--lm-sheet-bleed, 32px) 0 0 var(--lm-chassis-2);
     transition:
-      transform var(--lm-dur-slow) var(--lm-ease-sheet),
+      transform var(--lm-dur-spring) var(--lm-ease-sheet),
       height var(--lm-dur-slow) var(--lm-ease-sheet);
+  }
+  @supports (transition-timing-function: linear(0, 1)) {
+    .lm-sheet {
+      transition:
+        transform var(--lm-dur-spring) var(--lm-ease-spring),
+        height var(--lm-dur-slow) var(--lm-ease-sheet);
+    }
+  }
+  /* content height, up to the full detent; the body scrolls past that */
+  .lm-sheet[data-detent='fit'] {
+    max-height: min(92dvh, calc(100dvh - var(--lm-safe-top) - 8px));
+  }
+  .lm-sheet[data-detent='fit'] .lm-panel__body {
+    flex: 0 1 auto;
   }
   .lm-sheet:not([open]) {
     display: none;
   }
   .lm-sheet[data-state='closed'] {
     transform: translateY(105%);
+    transition:
+      transform var(--lm-dur-exit) var(--lm-ease-in),
+      height var(--lm-dur-slow) var(--lm-ease-sheet);
   }
   .lm-sheet[data-dragging='true'] {
     transition: none;
   }
   .lm-sheet::backdrop {
     background: var(--lm-scrim);
+    transition: opacity var(--lm-dur-base) var(--lm-ease-out);
+  }
+  @starting-style {
+    .lm-sheet[open]::backdrop {
+      opacity: 0;
+    }
   }
   .lm-sheet[data-detent='peek']::backdrop {
     background: transparent;
@@ -2256,40 +2915,79 @@
     flex: none;
     display: grid;
     place-items: center;
-    height: 20px;
+    height: 22px;
     touch-action: none;
     cursor: grab;
   }
   .lm-sheet__grab::before {
     content: '';
-    width: 36px;
+    width: 32px;
     height: 4px;
     border-radius: 2px;
-    background: var(--lm-line-strong);
+    background: color-mix(in srgb, var(--lm-ink-2) 40%, transparent);
   }
+  /* PanelHead, one grammar for every sheet and side panel (r068 L1/L19): the title left-aligned like a page title,
+     then Cancel (stone) and, in a side panel, the commit as a small filled key; a phone sheet draws its commit full
+     width at the foot. Nothing to commit: title · ✕ */
   .lm-panel__head {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 52px;
-    padding: 6px 8px 6px 16px;
-    border-bottom: 1px solid var(--lm-line);
+    gap: var(--lm-inline);
+    min-height: 56px;
+    padding: 4px 8px 4px var(--lm-gutter);
   }
   .lm-sheet .lm-panel__head {
     padding-top: 0;
   }
+  .lm-panel__end {
+    flex: none;
+    margin-inline-start: auto;
+  }
+  .lm-panel__actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
   .lm-panel__title {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     margin: 0;
-    font-size: var(--lm-text-base);
-    line-height: 1.35;
+    text-align: start;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
     font-weight: 600;
     color: var(--lm-ink);
   }
   .lm-panel__title:focus {
     outline: none;
+  }
+  .lm-panel__cancel {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--lm-control-radius);
+    background: transparent;
+    color: var(--lm-ink-2);
+    font: var(--lm-text-label--wt) var(--lm-text-label) / var(--lm-text-label--lh) var(--lm-font-sans);
+    white-space: nowrap;
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-panel__cancel:hover {
+    background: color-mix(in oklab, transparent, var(--lm-ink) 6%);
+  }
+  .lm-panel__cancel::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 48px);
+    height: max(100%, 48px);
+    transform: translate(-50%, -50%);
   }
   .lm-panel__body {
     flex: 1;
@@ -2302,13 +3000,25 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
-    border-top: 1px solid var(--lm-line);
+    padding: 12px 16px;
+    border-top: 0.5px solid var(--lm-line);
+  }
+  /* a phone sheet's commit: the full-width filled key at the foot, no rule above it (r068 L1) */
+  .lm-panel__foot[data-commit='true'] {
+    padding: var(--lm-row-gap) var(--lm-gutter) var(--lm-gutter);
+    border-top: 0;
+  }
+  .lm-panel__foot .lm-panel__done[data-block='true'] {
+    flex: 1 1 auto;
+  }
+  /* a full-width primary in a sheet is 48 px tall */
+  .lm-sheet .lm-panel__foot .lm-key[data-block='true'] {
+    height: 48px;
   }
   .lm-sidepanel {
     display: flex;
     flex-direction: column;
-    background: var(--lm-face);
+    background: var(--lm-chassis-2);
     color: var(--lm-ink);
     min-width: 0;
   }
@@ -2318,24 +3028,41 @@
     right: 0;
     bottom: 0;
     width: min(var(--lm-drawer-w), 100vw);
-    border-left: 1px solid var(--lm-line-strong);
-    box-shadow: var(--lm-shadow-drawer);
+    border-left: 0.5px solid var(--lm-line);
     z-index: var(--lm-z-drawer);
     padding-top: var(--lm-safe-top);
     padding-bottom: var(--lm-safe-bottom);
     transform: translateX(0);
-    transition: transform var(--lm-dur-slow) var(--lm-ease-sheet);
+    /* the spring's overshoot pulls the panel left by up to 2.5 % of its width: a colour block past the right edge keeps
+       the page from showing there (the sheet's trick; offscreen at rest) */
+    box-shadow: 24px 0 0 0 var(--lm-chassis-2);
+    transition: transform var(--lm-dur-spring) var(--lm-ease-sheet);
+  }
+  @supports (transition-timing-function: linear(0, 1)) {
+    .lm-sidepanel[data-mode='overlay'] {
+      transition: transform var(--lm-dur-spring) var(--lm-ease-spring);
+    }
   }
   .lm-sidepanel[data-mode='overlay'][data-state='closed'] {
     transform: translateX(105%);
+    transition: transform var(--lm-dur-exit) var(--lm-ease-in);
+  }
+  /* the opt-in dimmed page beside an overlay panel (SidePanel `scrim`, r068 G10 / V-G-1; the page reflows beside it either way) */
+  .lm-sidepanel__scrim {
+    z-index: calc(var(--lm-z-drawer) - 1);
+  }
+  .lm-sidepanel__scrim[data-state='closed'] {
+    pointer-events: none;
+  }
+  @starting-style {
+    .lm-sidepanel__scrim[data-state='open'] {
+      opacity: 0;
+    }
   }
   .lm-sidepanel[data-mode='docked'] {
     position: sticky;
-    top: calc(var(--lm-topbar-h) + 12px);
-    max-height: calc(100dvh - var(--lm-topbar-h) - 24px);
-    border: 1px solid var(--lm-line-strong);
-    border-radius: var(--lm-radius-md);
-    box-shadow: var(--lm-shadow-face);
+    top: calc(var(--lm-header-h, 0px) + 12px);
+    max-height: calc(100dvh - var(--lm-header-h, 0px) - 24px);
     overflow: hidden;
   }
 
@@ -2344,6 +3071,117 @@
      ------------------------------------------------------------------------ */
   .lm-tabpanel:focus-visible {
     outline-offset: 4px;
+  }
+
+  /* ------------------------------------------------------------------------
+     LIVE MARK (r071) — the endpoint of a line that is still being written, a heart rate arriving, a recording: a 10 px ivory
+     dot (focal marks on a glow are ivory; the hue lives in the glow) with two thin rings. At rest the rings are still. With
+     `data-pulse` (usePulse in src/app/motion.ts: true for two pulses) the rings breathe twice, 2.4 s each, then stop: 4.8 s,
+     under WCAG 2.2.2's five seconds, so no pause control is needed. The count is --lm-pulse-cycles, 0 under reduced motion,
+     where the dot just stays. Nothing else loops on a page.
+     ------------------------------------------------------------------------ */
+  .lm-live {
+    position: relative;
+    display: inline-block;
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-ink);
+    box-shadow: 0 0 0 2px rgb(9 9 9 / 0.55);
+  }
+  .lm-live::before,
+  .lm-live::after {
+    content: '';
+    position: absolute;
+    border-radius: var(--lm-radius-full);
+    pointer-events: none;
+  }
+  .lm-live::before {
+    inset: -6px;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--lm-ink) 55%, transparent);
+    opacity: 0.55;
+  }
+  .lm-live::after {
+    inset: -13px;
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--lm-ink) 30%, transparent);
+    opacity: 0.3;
+  }
+  .lm-live[data-pulse]::before {
+    animation: lm-pulse-a 2400ms ease-out var(--lm-pulse-cycles);
+  }
+  .lm-live[data-pulse]::after {
+    animation: lm-pulse-b 2200ms ease-out 200ms var(--lm-pulse-cycles);
+  }
+
+  /* ------------------------------------------------------------------------
+     TOUCH TARGETS (r071, audit B P2-1: 27.6 % of controls were under 44 px) — under a coarse pointer a field, a
+     select, a stepper, a switch row, a check row and a slider are 44 px. The painted shape grows with the target for
+     fields, selects and steppers; a switch or a check keeps its drawing and takes its whole row; the slider's well
+     takes an invisible 44 px band. Segmented keys and chips already do (above); icon keys are 48 (`.lm-key::after`).
+     ------------------------------------------------------------------------ */
+  @media (pointer: coarse) {
+    .lm-input,
+    .lm-select,
+    .lm-select[data-size='sm'],
+    .lm-numfield,
+    .lm-stepper {
+      height: 44px;
+    }
+    .lm-stepper__btn {
+      width: 44px;
+    }
+    .lm-switch {
+      min-height: 44px;
+    }
+    .lm-check {
+      min-height: 44px;
+      padding-block: 11px;
+    }
+    .lm-scale__well::before {
+      content: '';
+      position: absolute;
+      inset: -8px 0;
+    }
+    .lm-scale[data-size='sm'] .lm-scale__well::before {
+      inset: -11px 0;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     REDUCED MOTION for overlays (r071, AUDIT §4.2 rule 6): a sheet, the side panel and a dialog do not move; they
+     cross-fade in 100 ms, a cue that something opened that an instant cut does not give. The global 0.01 ms kill in
+     base.css stays the backstop for everything else; this layered !important beats that unlayered one. Only the
+     STATE transforms are removed (a sheet being dragged keeps following the finger). Both switches: the OS
+     preference (unless Settings › Motion says "full") and Settings › Motion "reduce".
+     ------------------------------------------------------------------------ */
+  @media (prefers-reduced-motion: reduce) {
+    :root:not([data-motion='full']) :is(.lm-sheet, .lm-sidepanel[data-mode='overlay'], .lm-dialog) {
+      transition: opacity 100ms linear !important;
+    }
+    :root:not([data-motion='full']) :is(.lm-sheet, .lm-sidepanel[data-mode='overlay'], .lm-dialog)[data-state='closed'] {
+      transform: none;
+      opacity: 0;
+    }
+    @starting-style {
+      :root:not([data-motion='full']) :is(.lm-sheet, .lm-sidepanel[data-mode='overlay'], .lm-dialog)[data-state='open'] {
+        transform: none;
+        opacity: 0;
+      }
+    }
+  }
+  :root[data-motion='reduce'] :is(.lm-sheet, .lm-sidepanel[data-mode='overlay'], .lm-dialog) {
+    transition: opacity 100ms linear !important;
+  }
+  :root[data-motion='reduce'] :is(.lm-sheet, .lm-sidepanel[data-mode='overlay'], .lm-dialog)[data-state='closed'] {
+    transform: none;
+    opacity: 0;
+  }
+  @starting-style {
+    :root[data-motion='reduce'] :is(.lm-sheet, .lm-sidepanel[data-mode='overlay'], .lm-dialog)[data-state='open'] {
+      transform: none;
+      opacity: 0;
+    }
   }
 }
 
@@ -2382,5 +3220,40 @@
   from {
     opacity: 0;
     transform: translateY(-6px);
+  }
+}
+/* the live mark's rings (r071): out from the dot and gone, then back to rest */
+@keyframes lm-pulse-a {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 0.55;
+  }
+}
+@keyframes lm-pulse-b {
+  0% {
+    transform: scale(0.5);
+    opacity: 0.6;
+  }
+  70% {
+    transform: scale(1.1);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 0.3;
+  }
+}
+/* Lumen's connecting dot: opacity 1 ↔ .35 over 1100 ms, reversing */
+@keyframes lm-breathe {
+  to {
+    opacity: 0.35;
   }
 }

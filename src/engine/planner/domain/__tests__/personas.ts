@@ -44,8 +44,12 @@ export const FAT_LOSS_KEEP_LEAN: RankedGoal[] = [
   { metric: 'leanTissue', direction: 'maximise' },
 ];
 
-export const AUTOPHAGY_FIRST: RankedGoal[] = [
-  { metric: 'autophagyIdx', direction: 'maximise' },
+/**
+ * A fasting-served goal first (blood ketones, a transient marker) — formerly the autophagy index, which is no goal since
+ * D2-02 (a research index without a health objective never opens fasting).
+ */
+export const KETOSIS_FIRST: RankedGoal[] = [
+  { metric: 'bhb', direction: 'target', target: 1.0 },
   { metric: 'fatMass', direction: 'minimise' },
 ];
 

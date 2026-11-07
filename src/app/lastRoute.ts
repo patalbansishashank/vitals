@@ -1,9 +1,14 @@
-/** Remembers the last top-level destination so "/" can return the user there (IA §2). */
+/**
+ * Remembers the last planning destination, for "Planning tools" (it reopens Body, Simulate or the Planner where the
+ * person left off) and the Welcome screen's return. It never decides the start screen: "/" is Today in every mode
+ * (0.6.3). Settings and Safety & limits are not remembered, and a stored one from an older build reads as none, so
+ * neither can become where the app opens.
+ */
 import { registerStore } from '@/state/persistence';
 
 export const LAST_ROUTE_KEY = 'vitals.ui.lastRoute';
-// '/safety' (Safety & limits) is a destination too; '/welcome' is never remembered (it renders outside the shell).
-const TOP_LEVEL = ['/body', '/simulate', '/plan', '/evidence', '/settings', '/safety'];
+// '/welcome' is never remembered (it renders outside the shell); '/settings' and '/safety' no longer are (0.6.3).
+const TOP_LEVEL = ['/body', '/simulate', '/plan', '/evidence', '/ring'];
 
 registerStore(LAST_ROUTE_KEY, 1, { label: 'last screen', describe: () => null, syncable: false });
 

@@ -115,6 +115,32 @@ async function connectClient(socketPath: string, client: string | null, name = '
 
 const envelopeOf = (r: unknown) => JSON.parse((r as { content: { text: string }[] }).content[0]!.text) as ToolResultEnvelope;
 
+describe('explicit local owner control', () => {
+  it('adds full app tools only for that local session, stays local, and preserves the delegated client identity', async () => {
+    const page = fakePage();
+    const remote = vi.fn(async () => null);
+    const { socketPath } = await startHost(page.relay, remote);
+    const full = await connectClient(socketPath, 'codex', 'different-client-info', { fullControl: true });
+    expect((await full.sdk.listTools()).tools.map(t => t.name)).toContain('app_execute');
+    expect(remote).not.toHaveBeenCalled();
+    await full.sdk.callTool({ name: 'app_execute', arguments: { commandId: 'profile.patch', input: { weightKg: 74.8 } } });
+    expect(page.calls[0]).toMatchObject({ client: 'codex', fullControl: true, tool: 'app_execute' });
+    const ordinary = await connectClient(socketPath, 'opencode', 'opencode');
+    expect((await ordinary.sdk.listTools()).tools.map(t => t.name)).not.toContain('app_execute');
+    const rejected = envelopeOf(await ordinary.sdk.callTool({ name: 'app_execute', arguments: { commandId: 'profile.patch', input: { weightKg: 50 } } }));
+    expect(rejected.ok).toBe(false);
+    expect(page.calls).toHaveLength(1);
+  });
+
+  it('an ordinary tool argument cannot opt itself into owner authority', async () => {
+    const page = fakePage();
+    const { socketPath } = await startHost(page.relay);
+    const normal = await connectClient(socketPath, 'codex', 'codex');
+    await normal.sdk.callTool({ name: 'today_get', arguments: { fullControl: true } });
+    expect(page.calls[0]!.fullControl).toBeUndefined();
+  });
+});
+
 describe('mcp host: local path (no server paired)', () => {
   it('listens with mode 0600 in a 0700 dir and removes a stale socket file', async () => {
     const page = fakePage();

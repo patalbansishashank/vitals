@@ -1,3 +1,4 @@
+import { CURRENT_TISSUE_FAT_ENDPOINT } from '@/lib/bodyContracts';
 // @vitest-environment node
 /**
  * Practical limits and the Ideal transform (PLANNER_V2_SPEC §2.1-§2.4, §9.7 "Ideal"): every input field is classed;
@@ -26,12 +27,15 @@ import { FAT_LOSS_KEEP_LEAN, LEAN_MAN, MAN_95, WOMAN_62, request } from './perso
 
 // ---- every field of every input type (the compiler fails when a type gains a field these lists do not name)
 const PRACTICAL: Record<keyof PracticalConstraints, true> = {
-  trainingDaysPerWeek: true, allowedTrainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, cardioDaysPerWeek: true, cardioModality: true,
+  enforceDefaultDeficitCap: true, experimentalTracking: true,
+  muscleRetention: true,
+  trainingDaysPerWeek: true, allowedTrainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, maxCardioSessionMin: true, cardioDaysPerWeek: true, cardioModality: true,
   eatingWindow: true, mealsPerDay: true, steps: true, excludedLevers: true, fasting: true, prefersFasting: true, sleepFixed: true, hungerTolerance: true,
   maxFastHours: true, proteinFloorGPerKg: true, carbFloorGPerDay: true,
 };
 const DRAFT: Record<keyof ConstraintDraft, true> = {
-  trainingDays: true, trainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, cardioDays: true, cardioModality: true, earliestH: true, latestH: true,
+  maxMuscleLossPct: true,
+  trainingDays: true, trainingWeekdays: true, trainingTimeH: true, maxSessionMin: true, maxCardioSessionMin: true, cardioDays: true, cardioModality: true, earliestH: true, latestH: true,
   mealsPerDay: true, steps: true, longestFastH: true, prefersFasting: true, excluded: true, proteinFloor: true, carbFloorG: true, sleepFixed: true, hungerTolerance: true,
 };
 const SAFETY: Record<keyof PlannerSafetyInput, true> = {
@@ -46,6 +50,7 @@ const TRAINING: Record<keyof TrainingProfile, true> = {
 const REQUEST: Record<keyof PlannerRequestV2, true> = {
   profile: true, goals: true, horizonDays: true, startDate: true, constraints: true, safety: true, strictness: true, seed: true, budget: true, ideal: true,
   relaxedGroups: true, training: true, ladder: true, previous: true, markerWarnings: true, preferLevers: true, // E20: markers
+  habitualActives: true, // D7-04
 };
 
 function def(from: LimitFieldDef['from'], field: string): LimitFieldDef | undefined {
@@ -314,6 +319,26 @@ describe('Ideal-only genes', () => {
 });
 
 describe('binding limits, advice and g_min', () => {
+  it('keeps fifteen-minute cardio independent of a longer resistance session, through genes, decode and repair', () => {
+    const req = request(MAN_95, FAT_LOSS_KEEP_LEAN, { horizonDays: 28, constraints: { maxSessionMin: 60, maxCardioSessionMin: 15, trainingDaysPerWeek: { min: 3, max: 3 }, cardioDaysPerWeek: { min: 6, max: 6 } } });
+    const ctx = compileRequest(req);
+    const st = enumerateStructures(ctx).find((s) => s.geneIndex['cardio.minutes'] !== undefined)!;
+    expect(ctx.practical.maxSessionMin).toBe(60);
+    expect(ctx.practical.maxCardioSessionMin).toBe(15);
+    const g = st.genes[st.geneIndex['cardio.minutes']!]!;
+    expect([g.min, g.max]).toEqual([15, 15]);
+    const plan = decodePlan(ctx, st, new Float64Array(st.dim).fill(1));
+    const sessions = plan.schedule.programs.flatMap((p) => p.exercise ?? []);
+    const cardio = sessions.filter((s) => s.kind === 'cardio');
+    expect(cardio.length).toBeGreaterThan(0);
+    expect(cardio.every((s) => s.durationMin === 15)).toBe(true);
+    expect(sessions.some((s) => s.kind === 'resistance' && (s.durationMin ?? 0) > 15)).toBe(true);
+    const imported = { ...plan.schedule, programs: plan.schedule.programs.map((p) => ({ ...p, exercise: p.exercise?.map((s) => s.kind === 'cardio' ? { ...s, durationMin: 50 } : s) })) };
+    const repaired = repairSchedule(ctx, imported).schedule;
+    expect(repaired.programs.flatMap((p) => p.exercise ?? []).filter((s) => s.kind === 'cardio').every((s) => s.durationMin <= 15)).toBe(true);
+    expect(compileRequest(idealRequest(req).request).practical.maxCardioSessionMin).toBe(90);
+  });
+
   it('a plan at the user’s bounds binds those groups; the Ideal of the same plan binds none of them', () => {
     const req = request(MAN_95, FAT_LOSS_KEEP_LEAN, { horizonDays: 84, constraints: { trainingDaysPerWeek: { min: 0, max: 2 }, maxSessionMin: 40, steps: { min: 6000, max: 7000 }, hungerTolerance: 'low', cardioDaysPerWeek: { min: 0, max: 2 } } });
     const ctx = compileRequest(req);
@@ -352,8 +377,8 @@ describe('binding limits, advice and g_min', () => {
     const ctx1 = compileRequest(
       request(MAN_95, [
         { metric: 'fatMass', direction: 'minimise' },
-        { metric: 'scaleWeight', direction: 'minimise' },
-        { metric: 'bodyFatPct', direction: 'minimise' },
+        { metric: 'scaleWeight', direction: 'target', target: -3, targetKind: 'change' },
+        { metric: 'bodyFatPct', direction: 'target', target: -3, targetKind: 'change', endpointSemantics: CURRENT_TISSUE_FAT_ENDPOINT },
         { metric: 'waist', direction: 'minimise' },
         { metric: 'visceralFat', direction: 'minimise' },
         { metric: 'ldl', direction: 'minimise' },

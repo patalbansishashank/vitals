@@ -181,10 +181,10 @@ export const useScheduleStore = createProjection<ScheduleStoreState, Persisted>(
       ...p.scenarios.map((sc) => ({ col: 'scenarios' as const, id: sc.id, body: sc as unknown as Record<string, unknown>, src: sc })),
       { col: 'uiPrefs' as const, id: 'me', body: { activeScenarioId: p.activeId }, fields: ['activeScenarioId'] },
     ],
-    fromDocs: (read) => {
+    fromDocs: (read, includeEmpty = false) => {
       const list = read.list('scenarios').map(({ id, body }) => ({ ...body, id }) as unknown as Scenario);
       const active = read.get('uiPrefs', 'me')?.activeScenarioId;
-      if (list.length === 0 && typeof active !== 'string') return null;
+      if (list.length === 0 && typeof active !== 'string' && !includeEmpty) return null;
       list.sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
       return { scenarios: list, activeId: typeof active === 'string' && list.some((s) => s.id === active) ? active : (list[0]?.id ?? null) };
     },

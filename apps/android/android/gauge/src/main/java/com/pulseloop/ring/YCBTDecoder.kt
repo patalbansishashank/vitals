@@ -1,0 +1,192 @@
+package com.pulseloop.ring
+
+import java.time.Instant
+
+/**
+ * Ported from YCBTDecoder.swift.
+ * Decodes inbound YCBT frames into the shared RingDecodedEvent.
+ */
+
+class YCBTDecoder {
+
+    fun decode(frame: YCBTFrame, now: Instant = Instant.now(), startedMode: Int? = null): List<RingDecodedEvent> {
+        return when (frame.type) {
+            YCBTGroup.REAL -> decodeRealStream(frame, now)
+            YCBTGroup.DEV_CONTROL -> decodeDevControlPush(frame.cmd, payload = frame.payload, now = now)
+            YCBTGroup.GET -> decodeGetReply(frame)
+            YCBTGroup.APP_CONTROL -> if (frame.cmd == YCBTCommand.LIVE_MEASUREMENT) {
+                decodeMeasurementStartReply(frame.payload, startedMode = startedMode)
+            } else {
+                listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+            }
+            YCBTGroup.SETTING -> if (frame.cmd == YCBTSettingKey.SET_TIME) {
+                listOf(RingDecodedEvent.TimeSyncAck(_timestamp = now))
+            } else {
+                listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+            }
+            else -> listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+        }
+    }
+
+    private fun decodeMeasurementStartReply(payload: ByteArray, startedMode: Int?): List<RingDecodedEvent> {
+        val ack: List<RingDecodedEvent> = listOf(RingDecodedEvent.CommandAck(commandId = YCBTCommand.LIVE_MEASUREMENT.toUByte()))
+        if (payload.size != 1) return ack
+        val status = payload[0].toInt() and 0xFF
+        if (YCBTMeasurementMode.isAccepted(status) || startedMode == null) return ack
+        return listOf(RingDecodedEvent.MeasurementRejected(mode = startedMode))
+    }
+
+    private fun decodeRealStream(frame: YCBTFrame, now: Instant): List<RingDecodedEvent> {
+        val p = frame.payload
+        return when (frame.cmd) {
+            YCBTCommand.LIVE_STATUS -> {
+                if (p.size < 6) return listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+                listOf(RingDecodedEvent.ActivityUpdate(
+                    _timestamp = now,
+                    steps = YCBTBytes.u16(p, 0),
+                    distanceMeters = YCBTBytes.u16(p, 2),
+                    calories = YCBTBytes.u16(p, 4),
+                ))
+            }
+            YCBTCommand.LIVE_HEART_RATE -> {
+                val bpm = (p.firstOrNull()?.toInt() ?: return listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))) and 0xFF
+                return listOf(RingDecodedEvent.HeartRateSample(bpm = bpm, _timestamp = now))
+            }
+            YCBTCommand.LIVE_SPO2 -> {
+                val spo2 = (p.firstOrNull()?.toInt() ?: return listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))) and 0xFF
+                if (spo2 in RingEventBridge.spo2Range) {
+                    return listOf(RingDecodedEvent.Spo2Result(value = spo2, _timestamp = now))
+                }
+                return listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+            }
+            YCBTCommand.LIVE_VITALS -> decodeLiveVitals(p, cmd = frame.cmd, now = now)
+            YCBTCommand.LIVE_BATTERY -> {
+                if (p.size < 2) return listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+                listOf(RingDecodedEvent.Battery(percent = p[1].toInt() and 0xFF))
+            }
+            YCBTCommand.LIVE_WEARING_STATUS -> {
+                if (p.size < 5) return listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+                listOf(RingDecodedEvent.WearingStatus(
+                    worn = p[4].toInt() and 0xFF != 0,
+                    _timestamp = YCBTBytes.date(YCBTBytes.u32(p, 0))
+                ))
+            }
+            else -> listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+        }
+    }
+
+    private fun decodeLiveVitals(p: ByteArray, cmd: Int, now: Instant): List<RingDecodedEvent> {
+        val events = mutableListOf<RingDecodedEvent>()
+        if (p.size >= 2 && p[0].toInt() and 0xFF > 0 && p[1].toInt() and 0xFF > 0) {
+            events.add(RingDecodedEvent.BloodPressureSample(systolic = p[0].toInt() and 0xFF, diastolic = p[1].toInt() and 0xFF, _timestamp = now))
+        }
+        if (p.size >= 3 && p[2].toInt() and 0xFF > 0) {
+            events.add(RingDecodedEvent.HeartRateSample(bpm = p[2].toInt() and 0xFF, _timestamp = now))
+        }
+        if (p.size >= 4 && p[3].toInt() and 0xFF > 0) {
+            events.add(RingDecodedEvent.HrvSample(value = p[3].toInt() and 0xFF, _timestamp = now))
+        }
+        if (p.size >= 5 && (p[4].toInt() and 0xFF) in RingEventBridge.spo2Range) {
+            events.add(RingDecodedEvent.Spo2Result(value = p[4].toInt() and 0xFF, _timestamp = now))
+        }
+        if (p.size >= 7 && p[5].toInt() and 0xFF > 0) {
+            events.add(RingDecodedEvent.TemperatureSample(
+                celsius = YCBTHealthRecords.composite(p[5].toInt() and 0xFF, p[6].toInt() and 0xFF),
+                _timestamp = now
+            ))
+        }
+        return if (events.isEmpty()) listOf(RingDecodedEvent.CommandAck(commandId = cmd.toUByte())) else events
+    }
+
+    private fun decodeGetReply(frame: YCBTFrame): List<RingDecodedEvent> {
+        return when (frame.cmd) {
+            YCBTCommand.GET_DEVICE_INFO -> decodeDeviceInfo(frame.payload)
+            YCBTCommand.GET_SUPPORT_FUNCTION -> decodeSupportFunction(frame.payload)
+            YCBTCommand.GET_CHIP_SCHEME -> decodeChipScheme(frame.payload)
+            else -> listOf(RingDecodedEvent.CommandAck(commandId = frame.cmd.toUByte()))
+        }
+    }
+
+    private fun decodeDeviceInfo(p: ByteArray): List<RingDecodedEvent> {
+        val major = p.getOrNull(3)?.toInt()?.and(0xFF)
+        val minor = p.getOrNull(2)?.toInt()?.and(0xFF)
+        val firmware = if (major != null && minor != null) String.format("%d.%02d", major, minor) else null
+        val events = mutableListOf<RingDecodedEvent>(RingDecodedEvent.Status(address = null, firmware = firmware))
+        if (p.size >= 6) {
+            events.add(RingDecodedEvent.Battery(percent = p[5].toInt() and 0xFF))
+        }
+        return events
+    }
+
+    private fun decodeSupportFunction(p: ByteArray): List<RingDecodedEvent> {
+        val caps = YCBTSupportFunction.capabilities(p)
+        return listOf(RingDecodedEvent.SupportFunctions(caps))
+    }
+
+    private fun decodeChipScheme(p: ByteArray): List<RingDecodedEvent> {
+        val scheme = YCBTChipScheme.value(p)
+        return listOf(RingDecodedEvent.ChipScheme(value = scheme))
+    }
+
+    private fun decodeDevControlPush(cmd: Int, payload: ByteArray, now: Instant): List<RingDecodedEvent> {
+        return when (cmd) {
+            YCBTDevControl.MEASUREMENT_STATUS -> {
+                val events = measurementStatusEvents(payload, now)
+                if (events.isEmpty()) listOf(RingDecodedEvent.CommandAck(commandId = cmd.toUByte())) else events
+            }
+            YCBTDevControl.MEASUREMENT_RESULT -> {
+                measurementResultEvents(payload, now)
+                    ?: listOf(RingDecodedEvent.CommandAck(commandId = cmd.toUByte()))
+            }
+            else -> listOf(RingDecodedEvent.CommandAck(commandId = cmd.toUByte()))
+        }
+    }
+
+    /**
+     * `04 0e` — the ring finished a spot measurement and is reporting the verdict (issue #59).
+     *
+     * Layout, read off the vendor app rather than guessed: `BaseMeasureActivity.onDataResponse`
+     * (`decompiled-smarthealth/.../home/activity/BaseMeasureActivity.java:259`) requires
+     * `length > 1`, matches `bArr[0]` against the screen's own `getType()` — the same mode byte
+     * `appStartMeasurement(onOff, type)` sent on `03 2f` — and then switches on `bArr[1]`:
+     * `1` success, `2` failed, anything else cancelled.
+     *
+     * The vendor reads no value out of this frame (on success it calls `syncData()` and pulls the
+     * reading from history), so neither do we. Returns null for a payload the vendor would have
+     * ignored, so the caller falls back to a bare ack.
+     */
+    private fun measurementResultEvents(p: ByteArray, now: Instant): List<RingDecodedEvent>? {
+        if (p.size < 2) return null
+        return listOf(
+            RingDecodedEvent.MeasurementComplete(
+                mode = p[0].toInt() and 0xFF,
+                success = (p[1].toInt() and 0xFF) == YCBTDevControl.RESULT_SUCCESS,
+                _timestamp = now,
+            )
+        )
+    }
+
+    private fun measurementStatusEvents(p: ByteArray, now: Instant): List<RingDecodedEvent> {
+        if (p.size < 3) return emptyList()
+        val value = p[2].toInt() and 0xFF
+        val fraction = if (p.size >= 4) p[3].toInt() and 0xFF else 0
+        return when (p[0].toInt() and 0xFF) {
+            YCBTMeasurementMode.HEART_RATE -> if (value > 0) listOf(RingDecodedEvent.HeartRateSample(bpm = value, _timestamp = now)) else emptyList()
+            YCBTMeasurementMode.BLOOD_PRESSURE -> if (value > 0 && fraction > 0) listOf(
+                RingDecodedEvent.BloodPressureSample(systolic = value, diastolic = fraction, _timestamp = now)
+            ) else emptyList()
+            YCBTMeasurementMode.SPO2 -> if (value in RingEventBridge.spo2Range) listOf(RingDecodedEvent.Spo2Result(value = value, _timestamp = now)) else emptyList()
+            YCBTMeasurementMode.TEMPERATURE -> if (value > 0) listOf(
+                RingDecodedEvent.TemperatureSample(celsius = YCBTHealthRecords.composite(value, fraction), _timestamp = now)
+            ) else emptyList()
+            YCBTMeasurementMode.BLOOD_SUGAR -> {
+                val tenths = value * 10 + fraction
+                if (tenths > 0) listOf(RingDecodedEvent.BloodSugarSample(mgdl = YCBTHealthRecords.bloodSugarMgdl(tenths), _timestamp = now)) else emptyList()
+            }
+            // Live HRV values are evidenced on Real 06/03. No captured 04/13 HRV value
+            // layout exists, so keep status payload tails diagnostic-only rather than guessing.
+            YCBTMeasurementMode.HRV -> emptyList()
+            else -> emptyList()
+        }
+    }
+}

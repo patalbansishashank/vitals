@@ -1,6 +1,7 @@
 // @vitest-environment node
 /**
- * Golden plan (a): 88-kg man, 1) lose 10 kg fat 2) gain muscle 3) autophagy index — 12 weeks, tier M.
+ * Golden plan (a): 88-kg man, 1) lose 10 kg fat 2) gain muscle — 12 weeks, tier M (the autophagy index the owner request
+ * ranked third is no goal since D2-02; `GOLDEN` leaves it out).
  * Properties, not numbers (QA items 6, 9, 10): see golden.ts.
  */
 import { describe, expect, it } from 'vitest';
@@ -12,10 +13,22 @@ import { GOLDEN } from './golden.requests';
 import type { PlannerResult } from '../types';
 
 const req = { ...GOLDEN.a, budget: { tier: 'M' as const } };
+
+/** Planned energy of the first phase over all its days (fast days included), % of the maintenance reference. */
+function openingEnergyPct(o: PlannerResult['options'][number]): number {
+  const ph0 = o.phases.find((p) => p.weeks > 0)!;
+  let ei = 0;
+  let ref = 0;
+  for (let d = ph0.startDay; d < ph0.endDay; d++) {
+    ei += o.simulation.daily.inEnergy![d]!;
+    ref += o.simulation.daily.inMaintRef![d]!;
+  }
+  return (100 * ei) / ref;
+}
 let cached: Promise<PlannerResult> | null = null;
 const run = () => (cached ??= runDomainPlanner(req, { tier: 'M' }));
 
-describe('golden plan (a): fat loss first, muscle second, autophagy index third', () => {
+describe('golden plan (a): fat loss first, muscle second', () => {
   it('returns safe fat-loss plans with retained training, deficit-level protein and an honest time-to-target', async () => {
     const res = await run();
     const ctx = expectGoldenBasics(req, res, 1);
@@ -25,13 +38,17 @@ describe('golden plan (a): fat loss first, muscle second, autophagy index third'
       const msg = describe2(o, st);
       expectHonestText(ctx, o, st);
       // R-FAST-GATE: the "no fasting with a muscle goal in the top two" rule is gone (no dossier source); with fat loss
-      // first, 24-h fasts (default tier) are offered and the search keeps one where it serves a ranked goal — here a weekly
-      // 24-h fast in a very-low-carbohydrate phase raises the autophagy index (goal 3) with fat loss at the same level and
-      // muscle within its tolerance; only 24-h fasts without an opt-in; a plan without a fast says why
+      // first, 24-h fasts (default tier) are offered and the search keeps one only where it serves a ranked goal; only 24-h
+      // fasts without an opt-in; a plan without a fast says why
       for (const e of o.schedule.events ?? []) expect(e.durationH, msg).toBeLessThanOrEqual(24 + 1e-6);
       if (usesFast(fastingKind(o.schedule))) expect(o.fasting?.text, msg).toMatch(/^Includes /);
       else expect(o.fasting?.rival?.reason, msg).toBeDefined();
-      expect(st[0]!.energyPct, msg).toBeLessThan(97); // opens with the deficit
+      // Hard opens with the deficit: over the plain eating days, or — for a plan with fasts — over every day of the first
+      // phase (a weekly fast delivers part or all of the deficit, R-FAST-GATE; eating days may then sit at maintenance).
+      // An easier rung may phase the deficit in (lower difficulty, PLANNER_V2_SPEC §1.3; its goal-1 share is checked by
+      // the ladder rules in expectGoldenBasics), but every rung of a fat-loss-first request has a deficit phase
+      if (o === res.options[0]) expect(usesFast(fastingKind(o.schedule)) ? openingEnergyPct(o) : st[0]!.energyPct, msg).toBeLessThan(97);
+      else expect(usesFast(fastingKind(o.schedule)) || st.some((q) => q.energyPct < 97), msg).toBe(true);
       for (const p of st.filter((q) => q.energyPct < 97)) {
         expect(100 - p.energyPct, msg).toBeLessThanOrEqual(ctx.caps.deficitCapPct + 2);
         expect(p.proteinGPerKg, msg).toBeGreaterThanOrEqual(1.55);
@@ -40,7 +57,8 @@ describe('golden plan (a): fat loss first, muscle second, autophagy index third'
         expect(p.rtSetsPerMuscleWeek, msg).toBeGreaterThanOrEqual(9.5);
       }
       expect(o.scorecard[0]!.change, msg).toBeLessThan(-1.5);
-      expect(o.explanation.join(' '), msg).toMatch(/low confidence/);
+      // (the "low confidence" sentence belonged to the autophagy goal, no goal since D2-02)
+      expect(o.explanation.join(' '), msg).not.toMatch(/autophagy/i);
     }
     // R-EA-PLANNER: option A reaches dossier 17's rates for a non-athlete — a deficit of at least 15 % and ≈ 0.5 %BW a week
     // (the 25 % deficit cap and the 30 kcal/kg FFM energy-availability floor with training bind before the 0.75 % rate cap)

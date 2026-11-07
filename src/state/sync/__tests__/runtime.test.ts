@@ -73,6 +73,18 @@ describe('sync runtime: pair and join', { timeout: 30_000 }, () => {
     expect(await a.get('uiPrefs', 'me')).toMatchObject({ panel: 'closed' });
   });
 
+  it('a brand-new device holds no data of its own: the starter scenario (or an empty picker one) is not counted', async () => {
+    const b = await boot(new Map(), 'B');
+    const { initialScenarios } = await import('@/state/internal/scheduleModel');
+    const starter = initialScenarios('2026-10-17').scenarios[0]!;
+    await b.put('scenarios', 'starter', { ...starter });
+    await b.put('scenarios', 'S2', { ...starter, id: 'S2', name: 'New scenario', started: false });
+    expect(b.sync.describeLocalData()).toBeNull();
+    // the starter once edited is the person's data
+    await b.put('scenarios', 'starter', { ...starter, updatedAt: '2099-01-01T00:00:00.000Z' });
+    expect(b.sync.describeLocalData()).toBe('This device has 1 scenario.');
+  });
+
   it('a second device that joins with merge keeps its own data and takes the synced data', async () => {
     const hub: Hub = new Map();
     const a = await boot(hub, 'A');

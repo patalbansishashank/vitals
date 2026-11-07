@@ -21,6 +21,20 @@ const FULL_BODY: ResistancePrescription = {
   maxMin: 60,
   setsByRegion: { chest: 3, upperBack: 3, shoulders: 3, quads: 3, glutes: 3, hamstrings: 2, arms: 2, core: 2 },
 };
+
+describe('hard counted-set budgets', () => {
+  it('counts compound spill, preserves the real set groups and declares any reduced optimizer target', () => {
+    const caps = Object.fromEntries(Object.keys(FULL_BODY.setsByRegion).map(r => [r, 1]));
+    const rx: ResistancePrescription = { ...FULL_BODY, maxMin: 150, maxCountedSetsByRegion: caps };
+    const session = composeSession(rx, { profile: profile({ owned: ['dumbbell', 'bench', 'floor_mat', 'chair'] }), ctx: CTX, catalogue: C });
+    expect(session.items.length).toBeGreaterThan(0);
+    for (const [region, count] of Object.entries(session.engine.resistance?.setsByRegion ?? {})) expect(count, region).toBeLessThanOrEqual((caps[region] ?? Infinity) + 1e-9);
+    expect(session.engine.resistance?.groups?.length).toBeGreaterThan(0);
+    expect(session.doseAdjustment).toMatchObject({ reason: 'noviceCountedSetBudget', requestedEffectiveSetsByRegion: FULL_BODY.setsByRegion });
+    expect(session.target.effectiveSetsByRegion).toEqual(session.delivered.effectiveSetsByRegion);
+    expect(session.withinTolerance).toBe(true);
+  });
+});
 const HOME: TrainingProfile = profile({ owned: ['dumbbell', 'bench', 'mudgar_heavy', 'treadmill', 'floor_mat', 'chair', 'pullup_bar'] });
 const GYM: TrainingProfile = profile({
   owned: ['floor_mat'],

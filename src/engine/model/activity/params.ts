@@ -60,6 +60,7 @@ export const ACTIVITY_PARAMS: readonly ParamDef[] = [
   }),
   P('displacedBaseline', 0.2, '× RMR', 0.2, 0.5, 'D', 'PROPOSED (10 §4.1.3: displaced sedentary time 0.2-0.5 × RMR/min, default 0.2)', '10 §4.1.3', 'proposed-fit', {
     label: 'Displaced lifestyle baseline during a bout',
+    note: 'D3-07: the displaced-lifestyle term of the shared bout ledger (core/exerciseCost): incremental = net above own rest − displaced, signed. A design prior, not a measured individual substitution.',
   }),
   P('rtMetDefault', 4.0, 'MET', 3.0, 6.0, 'C', 'Herrmann 2024 PMID 38242596 / Melanson 2002 PMID 12439085: default 4.0 MET per 60-min session (range 3.0-6.0)', '10 §4.1.7; 09 §4.13', 'proposed-fit', {
     label: 'Resistance session MET when the session carries none',
@@ -68,7 +69,7 @@ export const ACTIVITY_PARAMS: readonly ParamDef[] = [
   FIX('habitCardioMet', 5.0, 'MET', 'C', 'Compendium elliptical moderate 5.0; core/resolveProfile HABIT_CARDIO_MET (habitual cardio session)', '10 §4.1.2', 'proposed-fit', 'Habitual cardio session MET used for the burn-in exercise energy and the habitual MEM.'),
   P('rpeIntercept', 0.25, 'frac VO2max', 0.2, 0.3, 'D', 'ENGINEERING DEFAULT: ACSM verbal anchors of the CR-10 scale (light 2, moderate 4, vigorous 6, near-maximal 8) mapped onto the 10 §4.8 MEM band edges 0.40/0.55/0.70/0.85', '10 §4.8', 'unverified', {
     label: 'RPE → %VO2max intercept',
-    note: 'The spec cites a "10 §4.1 RPE mapping" that does not exist in the dossier (only an "RPE-band" input in §3): interim linear map x = 0.25 + 0.075·RPE (RPE 2 → 0.40 … 10 → 1.00). Range = ±20 %. Orchestrator ruling 2026-09-30 18:10: kept as an interim, unverified convention (evidence/known-misses note).',
+    note: 'D3-03: a broad scenario prior for the energy and descriptors of a cardio bout logged only with a generic CR-10 rating; never reported as a precise %VO2max or as a measured-like VO2max, and never read as resistance RIR. The spec cites a "10 §4.1 RPE mapping" that does not exist in the dossier (only an "RPE-band" input in §3): interim linear map x = 0.25 + 0.075·RPE (RPE 2 → 0.40 … 10 → 1.00). Range = ±20 %. Orchestrator ruling 2026-09-30 18:10: kept as an interim, unverified convention (evidence/known-misses note).',
   }),
   P('rpeSlope', 0.075, 'frac VO2max per RPE unit', 0.06, 0.09, 'D', 'ENGINEERING DEFAULT (see rpeIntercept)', '10 §4.8', 'unverified', {
     label: 'RPE → %VO2max slope',
@@ -93,8 +94,9 @@ export const ACTIVITY_PARAMS: readonly ParamDef[] = [
   FIX('epocDurRefMin', 45, 'min', 'C', 'PROPOSED FIT Dfac = min(1, dur/45)^0.7', '10 §4.2', 'proposed-fit'),
   FIX('epocDurExp', 0.7, '1', 'C', 'PROPOSED FIT (see epocDurRefMin)', '10 §4.2', 'proposed-fit'),
   P('epocRt', 0, 'fraction of net', 0, 0.1, 'C', 'Abboud 2013 PMID 23085971; Melanson 2002 PMID 12439085 (resistance EPOC 0-0.10)', '10 §4.2; 09 §4.13', 'proposed-fit', {
-    label: 'EPOC fraction of a resistance session',
-    note: 'Review m12 (accepted): post-RT REE 0.05·REE for 72 h (09 §4.13) IS the slow EPOC of resistance work, so the default is 0 and only one of the two terms is booked. 10 §4.2 / MODEL_SPEC §1.2 list 0.05 [0, 0.10]; set value 0.05 to restore it (then reduce postRtRee).',
+    draw: 'fixed',
+    label: 'Residual recovery budget of a resistance session (fraction of its net kcal)',
+    note: 'D3-08 (2026-10-18): one finite recovery budget per resistance bout, B = φ·max(net session kcal, 0), released by the normalised two-component kernel k(t) = 0.6·e^(−t/0.4)/0.4 + 0.4·e^(−t/4)/4 (1/h, integrates to 1; the EPOC queue). Production central φ = 0 for the nominal run AND every draw (draw fixed): the overlap with the tissue-deposition cost composition already books is unaudited, so the residual is not booked — accounting containment, not a claim that afterburn is absent. φ 0.05 / 0.10 (the range) are named heuristic sensitivity scenarios set by override, not empirical means. Review m12 (accepted): post-RT REE (postRtRee) is the same slow recovery, so the two are never booked together (activityConstants keeps the budget and drops the rectangle when both are set).',
   }),
   FIX('epocLightX', 0.5, 'frac VO2max', 'C', '10 §4.17 epocKcal: light = x < 0.5 (single fast component)', '10 §4.17', 'proposed-fit'),
   FIX('epocTauLightH', 0.15, 'h', 'C', 'Wilkin 2012 PMID 22446673 (10-15 min); 10 §4.2 light kinetics a1 = 1, τ1 = 0.15 h', '10 §4.2', 'proposed-fit'),
@@ -104,12 +106,14 @@ export const ACTIVITY_PARAMS: readonly ParamDef[] = [
   FIX('epocTrainedTauMult', 0.25, '1', 'C', 'Borsheim 2003 PMID 14599232: trained individuals τ × 0.75; 10 §4.9 τ × 0.75 at index ≥ 1.4 (factor = 1 − 0.25·clamp((M_c·M_r − 1)/0.4))', '10 §4.2, §4.9', 'proposed-fit'),
   FIX('epocTrainedIdxSpan', 0.4, '1', 'C', '10 §4.9: oxidative-capacity index 1.4 = fully trained', '10 §4.9', 'proposed-fit'),
 
-  // ---- post-RT REE (09 §4.13)
-  P('postRtRee', 0.05, 'fraction of REE', 0, 0.1, 'C', 'Heden 2011 PMID 20886227 (REE +5 % ≈ 96 kcal/d at 24-72 h), Schuenke 2002 PMID 11882927; range mirrors epocRt (09 gives none)', '09 §4.13', 'proposed-fit', {
-    label: 'Post-resistance-session REE elevation',
+  // ---- post-RT REE (09 §4.13): research scenario only (D3-08)
+  P('postRtRee', 0, 'fraction of REE', 0, 0.1, 'C', 'Heden 2011 PMID 20886227 (REE +5 % ≈ 96 kcal/d at 24-72 h after a whole-body 10-exercise session, 8 young overweight men), Schuenke 2002 PMID 11882927; counter-evidence Melanson 2002 PMID 12439085 (no post-exercise EE difference in a chamber)', '09 §4.13', 'proposed-fit', {
+    draw: 'fixed',
+    label: 'Prolonged post-resistance REE elevation (research scenario)',
+    note: 'D3-08 (2026-10-18): production value 0 for the nominal run AND every draw (draw fixed). Spot REE at 24/48/72 h after one whole-body protocol does not identify a 72-h rectangle for any session, and recovery may be the biosynthesis composition already charges. 0.05 is the protocol-specific Heden research scenario (override), never booked together with an epocRt budget. The reference (core/activityReference), planned expenditure, hourly release, burn-in and snapshot tails all read this one value.',
   }),
-  FIX('postRtHours', 72, 'h', 'C', 'Heden 2011 PMID 20886227 (elevated at 72 h)', '09 §4.13', 'proposed-fit'),
-  FIX('postRtTsShield', 0.5, '1', 'C', '09 §4.13: ΔREE = 0.05·REE·(1 − 0.5·H_wb), H_wb read as the whole-body training status TS', '09 §4.13', 'proposed-fit', 'H_wb is not defined in dossier 09; trainingStatus (0..1) is the only whole-body training variable on the bus.'),
+  FIX('postRtHours', 72, 'h', 'C', 'Heden 2011 PMID 20886227 (elevated at 72 h)', '09 §4.13', 'proposed-fit', 'Duration of the research-scenario rectangle only (postRtRee > 0); no effect at the production value 0.'),
+  FIX('postRtTsShield', 0.5, '1', 'C', '09 §4.13: ΔREE = 0.05·REE·(1 − 0.5·H_wb), H_wb read as the whole-body training status TS', '09 §4.13', 'proposed-fit', 'H_wb is not defined in dossier 09; trainingStatus (0..1) is the only whole-body training variable on the bus. Research scenario only.'),
 
   // ---- VO2max: baseline (10 §4.8A) and dose-response (10 §4.8B-C)
   FIX('jacksonIntercept', 56.363, 'mL/kg/min', 'B', 'Jackson 1990 PMID 2287267 (R² 0.61, SEE 5.7)', '10 §4.8A', 'verified'),
@@ -161,14 +165,24 @@ export const ACTIVITY_PARAMS: readonly ParamDef[] = [
   FIX('trainYears1to3y', 2, 'y', 'D', 'ENGINEERING DEFAULT: midpoint of "1-3 y"', '10 §4.8C', 'unverified'),
   FIX('trainYearsGt3y', 5, 'y', 'D', 'ENGINEERING DEFAULT: representative of "> 3 y"', '10 §4.8C', 'unverified'),
 
-  // ---- moderate-equivalent minutes (10 §4.8B)
+  // ---- moderate-equivalent minutes (10 §4.8B): a heuristic FITNESS training-dose index (D3-03), pending refit; it is not
+  //      public-health guideline minutes (those are moderate + 2 × vigorous minutes of a stated class, below)
   FIX('memBand1', 0.4, 'frac VO2max', 'B', '10 §4.8B MEM weights: 0 below 0.40', '10 §4.8B', 'proposed-fit'),
   FIX('memBand2', 0.55, 'frac VO2max', 'B', '10 §4.8B', '10 §4.8B', 'proposed-fit'),
   FIX('memBand3', 0.7, 'frac VO2max', 'B', '10 §4.8B', '10 §4.8B', 'proposed-fit'),
   FIX('memW1', 0.4, 'MEM/min', 'B', '10 §4.8B weight 0.40-0.55', '10 §4.8B', 'proposed-fit'),
   FIX('memW2', 1.0, 'MEM/min', 'B', '10 §4.8B weight 0.55-0.70', '10 §4.8B', 'proposed-fit'),
-  FIX('memW3', 1.5, 'MEM/min', 'B', '10 §4.8B weight ≥ 0.70 (continuous work; the interval weights 3.0/0.3 need a work:rest split the schedule does not carry)', '10 §4.8B', 'proposed-fit'),
+  FIX('memW3', 1.5, 'MEM/min', 'B', '10 §4.8B weight ≥ 0.70 (continuous work)', '10 §4.8B', 'proposed-fit', 'D3-03: interval sessions with phases are weighted phase by phase at each phase\'s own intensity (work and recovery separately); the dossier\'s separate interval weights 3.0/0.3 stay unused (unfitted).'),
   FIX('hardX', 0.85, 'frac VO2max', 'B', '10 §4.8B high-intensity threshold; MODEL_SPEC §1.2 step 4 exHardSession', '10 §4.8B', 'proposed-fit'),
+
+  // ---- public-health aerobic minutes (D3-03): guideline accounting, separate from the fitness MEM index above
+  FIX('healthVigorousWeight', 2, 'moderate min per vigorous min', 'A', 'WHO 2020 guidelines on physical activity and sedentary behaviour (ISBN 9789240015128): 1 min vigorous ≈ 2 min moderate', 'MODEL_SPEC D3-03 (WHO 2020)', 'verified', 'Guideline equivalence, not a physiological dose: healthEquivalentMin = moderate + 2 × vigorous, from a stated, talk-test or relative-exertion class (unknown class stays unknown).'),
+  FIX('healthAerobicLowerMinWk', 150, 'min/wk', 'A', 'WHO 2020 guidelines (adults: at least 150-300 min moderate or 75-150 min vigorous per week, or an equivalent combination; no minimum bout length)', 'MODEL_SPEC D3-03 (WHO 2020)', 'verified', 'Adult lower aerobic reference; meeting it is not a complete health certificate (muscle-strengthening days and balance are separate).'),
+  FIX('healthAerobicUpperMinWk', 300, 'min/wk', 'A', 'WHO 2020 guidelines (adults: 150-300 min moderate-equivalent per week)', 'MODEL_SPEC D3-03 (WHO 2020)', 'verified', 'Upper end of the adult aerobic range shown with the lower reference; no health cliff at either end.'),
+  FIX('healthRelModerateMin', 5, 'relative effort 0-10', 'A', 'WHO 2020 guidelines glossary and CDC (physical-activity-basics/measuring): generic relative-intensity scale, 0 sitting, 10 maximal; moderate 5-6, vigorous 7-8', 'MODEL_SPEC D3-03 (WHO 2020); A1-062', 'verified', 'A1-062: only a rating DECLARED on the generic relative-effort scale (rpeScale relativeEffort0To10) ≥ 5 classifies moderate. Borg CR10 has other anchors (3 moderate, 5 strong; Borg CR Scales folder) and, like RIR-RPE or an unscaled rating, leaves guideline minutes unknown unless a class or talk test is stated (no CR10 → guideline conversion).'),
+  FIX('healthRelVigorousMin', 7, 'relative effort 0-10', 'A', 'WHO 2020 guidelines glossary and CDC (physical-activity-basics/measuring): generic relative-intensity scale, moderate 5-6, vigorous 7-8', 'MODEL_SPEC D3-03 (WHO 2020); A1-062', 'verified', 'A1-062: generic relative-effort scale only (never Borg CR10 or an unscaled rating); values outside 0-10 are unknown.'),
+  FIX('healthAbsModerateMet', 3, 'MET', 'A', 'WHO 2020 guidelines glossary: absolute intensity, moderate 3-5.9 MET, vigorous ≥ 6 MET', 'MODEL_SPEC D3-03 (WHO 2020)', 'verified', 'Absolute class of a catalogue/stated MET: an ESTIMATED class only (relative effort differs in fit and frail people), shown as a range, never as stated minutes.'),
+  FIX('healthAbsVigorousMet', 6, 'MET', 'A', 'WHO 2020 guidelines glossary: absolute intensity, moderate 3-5.9 MET, vigorous ≥ 6 MET', 'MODEL_SPEC D3-03 (WHO 2020)', 'verified'),
 
   // ---- mitochondrial oxidative capacity (10 §4.9)
   P('mitoMcMax', 0.5, '1', 0.35, 0.65, 'C', 'PROPOSED FIT M_c* = 1 + 0.5·D_c(MEM): Granata 2016 PMID 27402675 (CS +40-50 %), Coyle 1984 PMID 6511559 (+50 % retained); ' + NO_RANGE, '10 §4.9', 'proposed-fit', {

@@ -1,9 +1,10 @@
 /**
- * Per-exercise log controls, chosen by the exercise's intensity scale and the person's log style: quick (a chip per
- * planned set — tap the sets you did), detailed (kg, reps, reps left per set), duration (minutes; speed and incline for
- * speed-scaled items such as a treadmill). Nothing is logged until a control is touched; untouched exercises count as
- * planned when the session is saved.
+ * Per-exercise log controls, chosen by the exercise's intensity scale and the person's "log by" choice: Sets (a chip per
+ * planned set — tap the sets you did), Reps (kg, reps, reps left per set), Minutes (minutes; speed and incline for
+ * speed-scaled items such as a treadmill), each field labelled above. Minutes items always log minutes. Nothing is
+ * logged until a control is touched; untouched exercises count as planned when the session is saved.
  */
+import type { ReactNode } from 'react';
 import type { ConcreteItem, ExerciseRecord } from '@/catalogues';
 import { Key, NumberField } from '@/components';
 import { TRAIN_COPY } from '../copy';
@@ -14,6 +15,11 @@ export type ControlKind = 'chips' | 'sets' | 'minutes';
 export function controlKind(item: Pick<ConcreteItem, 'sets'>, style: LogStyle): ControlKind {
   if (isMinutesItem(item) || style === 'duration') return 'minutes';
   return style === 'detailed' ? 'sets' : 'chips';
+}
+
+/** The "log by" switch changes something only when some exercise is counted in sets (minutes items always log minutes). */
+export function logStyleMatters(items: ReadonlyArray<Pick<ConcreteItem, 'sets'>>): boolean {
+  return items.some((i) => !isMinutesItem(i));
 }
 
 export interface LogControlsProps {
@@ -38,7 +44,7 @@ export function LogControls(p: LogControlsProps) {
 }
 
 function amountOf(item: ConcreteItem): { short: string; spoken: string } {
-  if (item.reps !== undefined) return { short: String(item.reps), spoken: TRAIN_COPY.chipReps(item.reps) };
+  if (item.reps !== undefined) return { short: TRAIN_COPY.chipReps(item.reps), spoken: TRAIN_COPY.chipReps(item.reps) };
   const sec = item.holdSec ?? item.workSec;
   if (sec !== undefined) return { short: `${sec} s`, spoken: TRAIN_COPY.chipSec(sec) };
   return { short: '', spoken: '' };
@@ -55,9 +61,6 @@ function SetChips({ item, name, log, ticked, onLog }: LogControlsProps) {
   };
   return (
     <div className="lv-train-chips" role="group" aria-label={TRAIN_COPY.chips(name)}>
-      <span className="lm-eng" aria-hidden="true">
-        {TRAIN_COPY.setWord}
-      </span>
       {done.map((on, k) => (
         <button
           key={k}
@@ -70,11 +73,7 @@ function SetChips({ item, name, log, ticked, onLog }: LogControlsProps) {
           <span className="lv-train-chip__k" aria-hidden="true">
             {k + 1}
           </span>
-          {amount.short ? (
-            <span className="lv-train-chip__v lm-num" aria-hidden="true">
-              {amount.short}
-            </span>
-          ) : null}
+
         </button>
       ))}
     </div>
@@ -106,11 +105,11 @@ function SetFields({ item, ex, name, log, loadKg, onLog }: LogControlsProps) {
         </div>
       ))}
       <div className="lv-train-sets__keys">
-        <Key size="sm" variant="quiet" onClick={() => onLog({ kind: 'sets', sets: [...sets, { ...(last ?? {}) }] })}>
+        <Key size="sm" variant="text" onClick={() => onLog({ kind: 'sets', sets: [...sets, { ...(last ?? {}) }] })}>
           {TRAIN_COPY.addSet}
         </Key>
         {sets.length > 1 ? (
-          <Key size="sm" variant="quiet" onClick={() => onLog({ kind: 'sets', sets: sets.slice(0, -1) })}>
+          <Key size="sm" variant="text" onClick={() => onLog({ kind: 'sets', sets: sets.slice(0, -1) })}>
             {TRAIN_COPY.removeSet}
           </Key>
         ) : null}
@@ -119,20 +118,36 @@ function SetFields({ item, ex, name, log, loadKg, onLog }: LogControlsProps) {
   );
 }
 
+/** A minutes, speed or incline field with its label above (the field's spoken name also names the exercise). */
+function DoseField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="lm-field">
+      <span className="lm-field__label" aria-hidden="true">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
 function MinutesFields({ item, ex, name, log, onLog }: LogControlsProps) {
   const cur = log?.kind === 'minutes' ? log : { kind: 'minutes' as const, minutes: Math.max(1, Math.round(item.minutes)), ...(item.perf.speedKmh !== undefined ? { speedKmh: item.perf.speedKmh } : {}), ...(item.perf.gradePct !== undefined ? { gradePct: item.perf.gradePct } : {}) };
   const speed = ex?.intensityScale === 'speed';
   return (
-    <div className="lv-train-sets" role="group" aria-label={TRAIN_COPY.chips(name)}>
-      <div className="lv-train-sets__row">
+    <div className="lv-train-dose" role="group" aria-label={TRAIN_COPY.chips(name)}>
+      <DoseField label={TRAIN_COPY.fields.minutes}>
         <NumberField value={cur.minutes} onChange={(v) => onLog({ ...cur, minutes: Math.max(1, v) })} min={1} max={600} step={1} inputMode="numeric" unit="min" name={`${name} ${TRAIN_COPY.minutes}`} />
-        {speed ? (
-          <>
+      </DoseField>
+      {speed ? (
+        <>
+          <DoseField label={TRAIN_COPY.fields.speed}>
             <NumberField value={cur.speedKmh ?? null} onChange={(v) => onLog({ ...cur, speedKmh: v })} min={1} max={30} step={0.1} decimals={1} unit="km/h" name={`${name} ${TRAIN_COPY.speed}`} />
+          </DoseField>
+          <DoseField label={TRAIN_COPY.fields.incline}>
             <NumberField value={cur.gradePct ?? null} onChange={(v) => onLog({ ...cur, gradePct: v })} min={0} max={40} step={0.5} decimals={1} unit="%" name={`${name} ${TRAIN_COPY.incline}`} />
-          </>
-        ) : null}
-      </div>
+          </DoseField>
+        </>
+      ) : null}
     </div>
   );
 }

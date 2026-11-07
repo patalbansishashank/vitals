@@ -2,10 +2,7 @@
  * The desktop app's contract between the main process, the preload and the page (SUITE_SPEC §15.6). The page declares
  * the same shape structurally (`src/platform/bridge.ts`, `src/features/settings/agents/desktop.ts`); it never imports
  * desktop code. Every channel starts with `vitals:` and main rejects a call whose sender frame is not `app://vitals`.
- *
- * Bluetooth is L-XPORT's (`../ble/contract.ts`) and is exposed as `window.vitalsDesktop.bluetooth`.
  */
-import type { DesktopBluetoothBridge } from '../ble/contract';
 
 export const APP_SCHEME = 'app';
 export const APP_HOST = 'vitals';
@@ -18,6 +15,8 @@ export const FLAGS = {
   /** Run as a stdio MCP server for an AI tool (no window); `--client <AiToolId>` names the tool. */
   mcp: '--mcp',
   client: '--client',
+  /** Explicit local-owner delegation for this MCP session; never enabled by default or forwarded to a server. */
+  fullControl: '--full-control',
 } as const;
 
 export const CHANNELS = {
@@ -36,8 +35,7 @@ export const CHANNELS = {
   mcpManifest: 'vitals:mcp:manifest', // page → main: the tool manifest (or null)
   mcpServer: 'vitals:mcp:server', // page → main: McpServerInfo | null
   secretsSet: 'vitals:secrets:set', // page → main, write only: main reads the secrets itself, the page never can
-  keepAlive: 'vitals:keepalive',
-  show: 'vitals:show', // main → page: the window was shown (ShellBridge.onResume)
+  show: 'vitals:show', // main → page: the window was shown
   syncNow: 'vitals:sync:now', // main → page: the tray's "Sync now"
 } as const;
 
@@ -82,6 +80,8 @@ export interface McpCallRequest {
   args: unknown;
   /** Write tools with `idempotency: 'key'`: the key main derives from (client, session, JSON-RPC id), SUITE_SPEC §1.6. */
   idempotencyKey?: string;
+  /** Set ONLY by the native host for an owner-launched --full-control local session. Never read from tool arguments. */
+  fullControl?: boolean;
 }
 /** Page → main: the result envelope (`ToolResultEnvelope` from packages/companion/src/toolManifest.ts). */
 export interface McpCallResponse {
@@ -115,8 +115,7 @@ export type SecretKey = `agentToken:${AiToolId}`;
 export interface DesktopBridge {
   version: string;
   os: DesktopOs;
-  bluetooth: DesktopBluetoothBridge;
-  tray: { setStatus(s: { ring?: string; sync?: string }): void };
+  tray: { setStatus(s: { sync?: string }): void };
   autostart: { get(): Promise<boolean>; set(on: boolean): Promise<void> };
   updates: {
     onState(cb: (s: UpdateState) => void): () => void;
@@ -129,7 +128,7 @@ export interface DesktopBridge {
     add(id: AiToolId): Promise<AiToolRow>;
     remove(id: AiToolId): Promise<AiToolRow>;
     /** The page runs calls from AI tools when no server is paired. One handler; a new one replaces the old. */
-    onCall(handler: (call: { client: string; tool: string; args: unknown; idempotencyKey?: string }) => Promise<unknown>): () => void;
+    onCall(handler: (call: { client: string; tool: string; args: unknown; idempotencyKey?: string; fullControl?: boolean }) => Promise<unknown>): () => void;
     /** The page's current tool manifest (null while the command bus is not ready). */
     setManifest(manifest: unknown): void;
     /** The paired server's MCP address, or null when no server is paired. */
@@ -141,8 +140,6 @@ export interface DesktopBridge {
     /** False when there is no OS keyring: the keys are forgotten when the app quits. */
     persistent: boolean;
   };
-  /** ShellBridge on desktop: tray status line, and keeps the window running in the background. */
-  keepAlive(on: boolean, text: string): void;
   /** The window was shown again (from the tray or a second launch). */
   onShow(cb: () => void): () => void;
   /** The person chose "Sync now" in the tray. */

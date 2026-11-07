@@ -7,20 +7,15 @@ const config: CapacitorConfig = {
   appName: 'Vitals',
   webDir: '../../dist',
   server: { androidScheme: 'https' },
-  // Capacitor logs every plugin call and its result in debug builds; for Bluetooth that would put ring frames (the
-  // V0789 auth write among them) and the ring's advertised name in the console and logcat. Never log them.
+  // Capacitor logs every plugin call and its result in debug builds (shared and saved files among them). Never log them.
   loggingBehavior: 'none',
+  // Ember is dark only: the WebView paints the #090909 backdrop before the first frame (not white), and the system bars
+  // keep light icons on a light-mode device too.
+  backgroundColor: '#090909',
   android: { allowMixedContent: false },
-  plugins: {
-    BluetoothLe: {
-      displayStrings: {
-        scanning: 'Looking for your ring…',
-        cancel: 'Cancel',
-        availableDevices: 'Rings nearby',
-        noDeviceFound: 'No ring found',
-      },
-    },
-  },
+  // SystemBarInsets.kt keeps the page edge-to-edge even on WebViews < 140 and publishes our --lm-safe-* tokens.
+  // Don't let Capacitor's default listener add native padding over the page's backdrop as well.
+  plugins: { SystemBars: { style: 'DARK', insetsHandling: 'disable' } },
 };
 
 export default config;

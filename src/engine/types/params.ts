@@ -57,6 +57,34 @@ export interface ParamDef {
    * documentation, not ensemble draws (review M20). Suggested format: "alt <value> <unit> (<dossier §>): <why rejected>".
    */
   readonly note?: string;
+  /**
+   * Distribution semantics (D8-02, C6/C7; optional, absent = legacy semantics: a parameter-sensitivity prior with
+   * unvalidated coverage). Simulation-affecting fields here belong in the registry hash.
+   */
+  readonly distribution?: ParamDistributionMeta;
+}
+
+/**
+ * What a parameter's draw represents (D8-02). `low`/`high` are either the support of the draw or quantiles of it; the
+ * nominal value may be a mode or a design point; correlated parameters share a group drawn together.
+ */
+export interface ParamDistributionMeta {
+  /** Uncertainty kind of the draw ('parameterSensitivity' unless a calibrated predictive distribution exists). */
+  readonly uncertaintyKind: 'parameterSensitivity' | 'scenario' | 'heuristic' | 'calibratedPrediction';
+  /** `low`/`high` are the draw's support or its P10/P90 quantiles. */
+  readonly bounds: 'support' | 'quantiles';
+  /** The nominal value is the distribution's mode, its median or a design point (e.g. a latent quantile's 0.5). */
+  readonly nominal: 'mode' | 'median' | 'designPoint';
+  /** Evidence basis ('between-study range', 'design mixture fraction', 'engineering prior'). */
+  readonly basis: string;
+  /** Population/scope the range applies to. */
+  readonly population?: string;
+  /** Parameters in the same group are drawn jointly (correlation group id). */
+  readonly correlationGroup?: string;
+  /** Version of this distribution definition (hash it with the value/range). */
+  readonly version: number;
+  /** Engineering/policy defaults are labelled as such (never presented as measured physiology). */
+  readonly label?: 'engineeringDefault' | 'policy' | 'designPrior' | 'empirical';
 }
 
 /**

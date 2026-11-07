@@ -58,7 +58,11 @@ export const TRAINING_QUALITY_FACTOR: Readonly<Record<TrainingQuality, number>> 
 export const TRAINING_DFFMI_MAX: Readonly<Record<Sex, number>> = { male: 3.6, female: 2.5 }; // PROPOSED FIT
 export const TRAINING_TAU_Y = 3; // PROPOSED FIT
 
-/** Error correlations (dossier 14 M3; PROPOSED). navy-rfm .5, navy-eq .3 are the dossier's "if added" values. */
+/**
+ * Error correlations (dossier 14 M3; PROPOSED). navy-rfm .5, navy-eq .3 are the dossier's "if added" values. D1-03: these
+ * are kept as named legacy method priors between *different* estimator families; they are not used to fuse estimators that
+ * share the same girth inputs (one estimator per shared-input family is selected until a covariance is calibrated).
+ */
 const RHO_EQ_RFM = 0.6; // PROPOSED
 const RHO_FAT_MUS = 0.3; // PROPOSED
 const RHO_ANTHRO_VISUAL = 0.2; // PROPOSED
@@ -208,6 +212,26 @@ export function populationBodyFat(sex: Sex, ageYears: number, bmi: number, ethni
 const ANTHRO: ReadonlySet<FusionObservationId> = new Set(['eq', 'rfm', 'navy']);
 const VISUAL: ReadonlySet<FusionObservationId> = new Set(['fat', 'mus']);
 
+/** Calendar date part of an ISO date/instant, or undefined. */
+function isoDay(d: string | undefined): string | undefined {
+  return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10) : undefined;
+}
+
+/**
+ * D1-03: is a known Navy value demonstrably independent of the current girths? Only when its provenance shows another
+ * lineage: its own observation id, derivation parents that exclude the current girth observation, and another
+ * measurement date. Unknown provenance is never counted as independent of the current Navy/RFM (same-source inputs).
+ */
+export function knownNavyIndependentOfGirths(inputs: Pick<BodyInputs, 'knownBodyFatMeta' | 'girthMeta'>): boolean {
+  const km = inputs.knownBodyFatMeta;
+  const gm = inputs.girthMeta;
+  if (!km?.observationId || !km.parentIds || km.parentIds.length === 0) return false;
+  if (!gm?.observationId || km.parentIds.includes(gm.observationId) || km.observationId === gm.observationId) return false;
+  const kd = isoDay(km.measuredOn);
+  const gd = isoDay(gm.measuredOn);
+  return kd !== undefined && gd !== undefined && kd !== gd;
+}
+
 function rho(a: FusionObservationId, b: FusionObservationId): number {
   if (a === b) return 1;
   const pair = (x: FusionObservationId, y: FusionObservationId) => (a === x && b === y) || (a === y && b === x);
@@ -246,9 +270,21 @@ export function estimateBodyFat(inputs: BodyInputs): BodyFatFusion {
   const infl =
     (athleteFlag ? INFLATE_ATHLETE : 1) * (leanFlag ? INFLATE_LEAN : 1) * (obeseFlag ? INFLATE_OBESE : 1) * eth.sigmaMultiplier;
 
-  const obs: { id: FusionObservationId; y: number; sd: number }[] = [{ id: 'eq', y: e1, sd: SIGMA_EQ * infl }];
+  // D1-03: every candidate carries its estimator family and lineage. `rhoAs` = the id whose (legacy) correlation row it uses.
+  interface Cand {
+    id: FusionObservationId;
+    y: number;
+    sd: number;
+    family: NonNullable<FusionObservation['family']>;
+    rhoAs: FusionObservationId;
+    sourceObservationId?: string;
+    parentIds?: readonly string[];
+  }
+  const gm = inputs.girthMeta;
+  const girthLineage = gm?.observationId ? { sourceObservationId: gm.observationId, parentIds: [gm.observationId] } : {};
+  const cands: Cand[] = [{ id: 'eq', y: e1, sd: SIGMA_EQ * infl, family: 'prior', rhoAs: 'eq' }];
   if (n.waistCm !== undefined) {
-    obs.push({ id: 'rfm', y: rfm(sex, n.heightCm, n.waistCm) - RFM_TRAINING_FACTOR * dF, sd: SIGMA_RFM * infl });
+    cands.push({ id: 'rfm', y: rfm(sex, n.heightCm, n.waistCm) - RFM_TRAINING_FACTOR * dF, sd: SIGMA_RFM * infl, family: 'girth', rhoAs: 'rfm', ...girthLineage });
   }
   const { neckCm, hipCm } = inputs;
   if (
@@ -257,21 +293,52 @@ export function estimateBodyFat(inputs: BodyInputs): BodyFatFusion {
     (sex === 'male' ? n.waistCm - neckCm > 1 : hipCm !== undefined && n.waistCm + hipCm - neckCm > 1)
   ) {
     const navy = navyMetric(sex, n.heightCm, n.waistCm, neckCm, hipCm);
-    if (Number.isFinite(navy)) obs.push({ id: 'navy', y: navy, sd: SIGMA_NAVY * infl });
+    if (Number.isFinite(navy)) cands.push({ id: 'navy', y: navy, sd: SIGMA_NAVY * infl, family: 'girth', rhoAs: 'navy', ...girthLineage });
   }
-  if (visualBf !== undefined) obs.push({ id: 'fat', y: visualBf, sd: SIGMA_FAT_SLIDER });
+  if (visualBf !== undefined) cands.push({ id: 'fat', y: visualBf, sd: SIGMA_FAT_SLIDER, family: 'visual', rhoAs: 'fat' });
   if (visualFfmi !== undefined) {
     const sdMus = (100 * SIGMA_FFMI_SLIDER * h2) / W;
     const sdW = (100 * Math.max(inputs.weightSdKg ?? 0, 0)) / W; // self-report sensitivity term (dossier 14 M3)
-    obs.push({ id: 'mus', y: 100 * (1 - (visualFfmi * h2) / W), sd: Math.hypot(sdMus, sdW) });
+    cands.push({ id: 'mus', y: 100 * (1 - (visualFfmi * h2) / W), sd: Math.hypot(sdMus, sdW), family: 'visual', rhoAs: 'mus' });
   }
   if (inputs.knownBodyFatPct !== undefined) {
     const src = inputs.knownBodyFatSource ?? KNOWN_BF_DEFAULT_SOURCE;
-    obs.push({ id: 'known', y: inputs.knownBodyFatPct, sd: KNOWN_BF_SIGMA[src] });
+    const km = inputs.knownBodyFatMeta;
+    const lineage = { ...(km?.observationId ? { sourceObservationId: km.observationId } : {}), ...(km?.parentIds?.length ? { parentIds: [...km.parentIds] } : {}) };
+    if (src === 'navy') {
+      // a Navy value is a girth estimator: unless its lineage is demonstrably different, it shares the current girth family
+      const knownSharesGirths = !knownNavyIndependentOfGirths(inputs);
+      cands.push({ id: 'known', y: inputs.knownBodyFatPct, sd: KNOWN_BF_SIGMA[src], family: knownSharesGirths ? 'girth' : 'measured', rhoAs: 'navy', ...lineage });
+    } else {
+      cands.push({ id: 'known', y: inputs.knownBodyFatPct, sd: KNOWN_BF_SIGMA[src], family: 'measured', rhoAs: 'known', ...lineage });
+    }
   }
 
-  // GLS: BF = (1' S^-1 y)/(1' S^-1 1), var = 1/(1' S^-1 1)
-  const S = obs.map((p) => obs.map((q) => rho(p.id, q.id) * p.sd * q.sd));
+  // D1-03: one estimator per shared-input girth family until a covariance is calibrated. Current-girth estimators (RFM,
+  // Navy) share the same waist: the one with the smallest stated prior SD is kept (RFM on ties). A known Navy value that
+  // is not demonstrably independent shares those girths: the current-girth estimator is kept, or it is the family's only
+  // member when no girths are entered. Copies add no likelihood; distinct-date independent readings are retained.
+  const collapsed: { ids: FusionObservationId[]; reason: 'sharedInputs' | 'sameSource' }[] = [];
+  const current = cands.filter((c) => c.family === 'girth' && c.id !== 'known');
+  let keepGirth: Cand | undefined;
+  for (const c of current) if (!keepGirth || c.sd < keepGirth.sd) keepGirth = c;
+  const dropped = new Set<Cand>();
+  if (keepGirth) {
+    const others = current.filter((c) => c !== keepGirth);
+    if (others.length > 0) {
+      for (const c of others) dropped.add(c);
+      collapsed.push({ ids: [keepGirth.id, ...others.map((c) => c.id)], reason: 'sharedInputs' });
+    }
+    const knownGirth = cands.find((c) => c.id === 'known' && c.family === 'girth');
+    if (knownGirth) {
+      dropped.add(knownGirth);
+      collapsed.push({ ids: [keepGirth.id, 'known'], reason: 'sameSource' });
+    }
+  }
+  const obs = cands.filter((c) => !dropped.has(c));
+
+  // GLS: BF = (1' S^-1 y)/(1' S^-1 1), var = 1/(1' S^-1 1) — the conditional model SD given the stated method priors
+  const S = obs.map((p) => obs.map((q) => (p === q ? 1 : rho(p.rhoAs, q.rhoAs)) * p.sd * q.sd));
   const u = solveSpd(
     S,
     obs.map(() => 1),
@@ -280,11 +347,26 @@ export function estimateBodyFat(inputs: BodyInputs): BodyFatFusion {
   const mean = sum(obs.map((o, k) => (u[k] ?? 0) * o.y)) / denom;
   const variance = 1 / denom;
   const [lo, hi] = BF_BOUNDS[sex];
-  const observations: FusionObservation[] = obs.map((o, k) => ({ id: o.id, valuePct: o.y, sdPct: o.sd, weight: (u[k] ?? 0) / denom }));
+  const observations: FusionObservation[] = cands.map((o) => {
+    const k = obs.indexOf(o);
+    return {
+      id: o.id,
+      valuePct: o.y,
+      sdPct: o.sd,
+      weight: k >= 0 ? (u[k] ?? 0) / denom : 0,
+      family: o.family,
+      ...(o.sourceObservationId ? { sourceObservationId: o.sourceObservationId } : {}),
+      ...(o.parentIds ? { parentIds: o.parentIds } : {}),
+    };
+  });
+  const sd = Math.sqrt(variance);
 
   return {
     bodyFatPct: clamp(mean, lo, hi),
-    sdPct: Math.sqrt(variance),
+    sdPct: sd,
+    conditionalSdPct: sd,
+    coverage: 'unvalidated',
+    ...(collapsed.length > 0 ? { collapsed } : {}),
     unclampedPct: mean,
     observations,
     equationPct: e1,
@@ -530,6 +612,9 @@ export function estimateInitialState(inputs: BodyInputs, options: EstimateOption
       skeletalMuscleSdKg: Math.hypot(0.9 * ffmSd, SM_SEE_KG),
       vatRelativeSd: VAT_REL_SD,
       waistSdCm: hasWaist ? WAIST_SD_MEASURED : WAIST_SD_UNMEASURED[sex],
+      // D1-03: the band is the conditional model SD × 1.28 under the stated method priors; its predictive coverage is
+      // unvalidated until held-out reference validation (no 80 % claim before)
+      bandCoverage: 'unvalidated',
     },
     fusion,
     visualWeightKg,

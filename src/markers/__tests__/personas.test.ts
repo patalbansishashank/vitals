@@ -3,19 +3,21 @@
  * Golden personas with lab variants (PLAN 02 item 9; SUITE_SPEC §13.5 acceptance): a high-LDL and a low-eGFR version of
  * the 95-kg man. The rules fire, the caps bind in the planner's compiled limits and in the plans it returns, every note
  * says "because your X was Y on date", and nothing is removed: the planner still returns plans, very-low-carb stays
- * possible for the high-LDL person (it carries a warning instead), and creatine is only "not suggested".
+ * possible for the high-LDL person (it carries a warning instead), and creatine is only "not suggested". D4-07: the
+ * low-eGFR reading sets no protein bound of its own; it marks renal context (renal targets wait for a repeat test or the
+ * clinician's numbers), which the request carries in `profile.safety.flags.renalContext`.
  */
 import { describe, expect, it } from 'vitest';
 import { compileRequest } from '@/engine/planner/domain/context';
 import { runDomainPlanner } from '@/engine/planner/domain/planner';
 import { compileSafetyCaps } from '@/engine/planner/domain/safety';
 import type { PlannerResult } from '@/engine/planner/domain/types';
-import { phaseStats } from '@/engine/planner/domain/__tests__/golden';
 import { FAT_LOSS_KEEP_LEAN, MAN_95, request } from '@/engine/planner/domain/__tests__/personas';
 import { becauseText } from '../because';
 import { readingFromInput } from '../doc';
 import { evaluateMarkers, mergeSafety, ruleContextFrom } from '../rules';
 import type { MarkerReadingInput, MarkersDoc } from '../types';
+import { withMarkerSafety } from '../ui/request';
 
 const TODAY = '2026-10-02';
 const DATE = '2026-09-12';
@@ -82,38 +84,44 @@ describe('low-eGFR persona', () => {
   const ev = evaluateMarkers(LOW_EGFR, ctx);
   const ids = ev.notes.map((n) => n.rule);
 
-  it('fires the kidney rules: protein cap, kidney flag, creatine and potassium salt not suggested', () => {
+  it('fires the kidney rules: kidney flag, creatine and potassium salt not suggested, no protein bound of its own (D4-07)', () => {
     for (const id of ['W-L-EGFR-1', 'W-L-EGFR-2', 'W-L-EGFR-3', 'W-L-EGFR-4', 'W-L-ACR-1', 'W-L-ACR-2']) expect(ids).toContain(id);
     expect(ids).not.toContain('W-L-EGFR-6'); // clinician-only below 30
     expect(ev.safety.flags).toContain('kidney-disease');
     const locks = Object.fromEntries(ev.safety.plannerLocks.map((l) => [l.id, l.value]));
-    expect(locks['protein-cap']).toBe(1.3);
+    expect(locks['protein-cap']).toBeUndefined();
     expect(locks['creatine-cap']).toBe(0);
     expect(locks['potassium-supp-cap']).toBe(0);
     const n = ev.notes.find((x) => x.rule === 'W-L-EGFR-1')!;
-    expect(n.text).toBe('Because your eGFR was 52 on 12 Sep 2026, the plan keeps protein at or below 1.3 g per kg a day, as kidney guidelines advise.');
+    expect(n.text).toBe("Because your eGFR was 52 mL/min/1.73 m² on 12 Sep 2026, kidney targets for protein, potassium and fluid wait for a repeat test or your clinician's numbers.");
     expect(becauseText(n)).toBe('because your eGFR was 52 mL/min/1.73 m² on 12 Sep 2026');
   });
 
-  it('the planner compiles the cap and still returns plans whose protein stays at or under 1.3 g/kg', async () => {
-    const req = { ...request(MAN_95, FAT_LOSS_KEEP_LEAN, { safety: mergeSafety(undefined, ev.safety) }), budget: { tier: 'S' as const } };
+  it('the planner still returns plans, creatine stays out, and the request carries the renal review context', async () => {
+    const base = request({ ...MAN_95, safety: { mode: 'M0', flags: {} } }, FAT_LOSS_KEEP_LEAN);
+    const req = { ...withMarkerSafety(base, ev), budget: { tier: 'S' as const } };
+    expect(req.profile.safety?.flags.renalContext).toBe('priorAbnormalityReview');
+    expect(req.safety?.plannerLocks?.map((l) => l.id)).not.toContain('protein-cap');
     const pc = compileRequest(req);
-    expect(pc.caps.proteinCapRw).toBe(1.3);
     expect(pc.caps.creatineAllowed).toBe(false);
     expect(pc.caps.blocked).toBeNull();
     const res: PlannerResult = await runDomainPlanner(req, { tier: 'S' });
     expect(res.status).toBe('ok');
     expect(res.options.length).toBeGreaterThan(0);
-    for (const o of res.options) for (const p of phaseStats(pc, o)) expect(p.proteinGPerKg).toBeLessThanOrEqual(1.3 + 0.06);
+    for (const o of res.options) for (const prog of o.schedule.programs) expect(prog.substances?.creatineG ?? 0).toBe(0);
   }, 300_000);
 
-  it('the lock wins over a laxer screening value and keeps both reasons', () => {
-    const merged = mergeSafety({ plannerLocks: [{ id: 'protein-cap', value: 1.6, reasons: [{ rule: 'S-1' }] }] }, ev.safety);
+  it('a kidney reading does not tighten a screening protein cap; the supplement caps merge strictest-first with both reasons', () => {
+    const merged = mergeSafety({ plannerLocks: [{ id: 'protein-cap', value: 1.6, reasons: [{ rule: 'S-1' }] }, { id: 'creatine-cap', value: 5, reasons: [{ rule: 'S-2' }] }] }, ev.safety);
     const p = merged.plannerLocks!.filter((l) => l.id === 'protein-cap');
     expect(p).toHaveLength(1);
-    expect(p[0]!.value).toBe(1.3);
-    expect(p[0]!.reasons!.map((r) => r.rule)).toEqual(expect.arrayContaining(['S-1', 'W-L-EGFR-1', 'W-L-ACR-1']));
+    expect(p[0]!.value).toBe(1.6);
+    expect(p[0]!.reasons!.map((r) => r.rule)).toEqual(['S-1']);
+    const c = merged.plannerLocks!.filter((l) => l.id === 'creatine-cap');
+    expect(c).toHaveLength(1);
+    expect(c[0]!.value).toBe(0);
+    expect(c[0]!.reasons!.map((r) => r.rule)).toEqual(expect.arrayContaining(['S-2', 'W-L-EGFR-2']));
     const rp = compileRequest(request(MAN_95, FAT_LOSS_KEEP_LEAN)).rp;
-    expect(compileSafetyCaps(rp, merged).proteinCapRw).toBe(1.3);
+    expect(compileSafetyCaps(rp, merged).creatineAllowed).toBe(false);
   });
 });

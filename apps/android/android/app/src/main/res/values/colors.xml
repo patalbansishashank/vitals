@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Ember backdrop (the lm-chassis token in src/styles/tokens.css). Vitals is dark only: the window, the system bars and
+         the splash ground all use it, in light and night mode alike. -->
+    <color name="vitals_ember_background">#090909</color>
+</resources>

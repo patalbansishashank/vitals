@@ -7,8 +7,10 @@
  * User additions (`catalogue.addExercise` / `addFood` / `addEquipment`) are `catalogueCustom` documents written through
  * the command's transaction (undo: tombstone). Each kind has a natural key, the normalised name: adding a name the
  * person already added returns that item, and a name the seed knows returns the seed item (equipment then records that
- * the person owns it). The food reference bundle is a later data task (docs/CATALOGUES.md): food search reads the
- * person's own foods only, and says so.
+ * the person owns it). Food search and reads (`catalogue.searchFoods`, `catalogue.getFood`) use the one shared food
+ * provider (`commands/food/table.ts` `foodTable()`, D6-05/A1-045): the bundled reference plus the person's validated custom
+ * foods (an explicit custom override of a reference id wins; malformed records stay quarantined), the same records food
+ * logging resolves, with their carbohydrate basis, source and provenance.
  */
 import type {
   ConcreteItem,
@@ -28,13 +30,13 @@ import type {
 } from '@/catalogues';
 import type { LocalDate, PrescribedDaySnapshot } from '@/living';
 import { addDays, compareDates } from '@/living';
+import { getDocumentStore } from '@/state/runtime';
 import { implement } from '../implement';
 import { fail } from '../registry';
 import type { CommandContext } from '../types';
 import { catalogueWeekday, loadCatalogueModules, personCatalogueNow, prescribedDays, trainingSetupNow, type CatalogueModules, type TrainingSetupNow } from './setup';
 
 const BY = 'I1-C (catalogues)';
-const FOOD_REFERENCE_NOTE = 'The food reference is not bundled yet: only foods you added are searched.';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const fin = (x: number | undefined | null): number => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
@@ -120,6 +122,9 @@ function equivalenceView(e: EquivalenceResult) {
     alsoTrained: [...e.alsoTrained],
   };
 }
+
+/** (0.6.3 INT, S2) The kcal figures rest on a typical body when no weight was entered: never present them as the person's. */
+const TYPICAL_BODY_NOTICE = 'No body weight is entered, so the kcal figures here use a typical body, not this person’s. Say so, or leave them out, and suggest adding a weight in Your body.';
 
 const json = <T>(v: T): Record<string, unknown> => JSON.parse(JSON.stringify(v)) as Record<string, unknown>;
 
@@ -280,6 +285,7 @@ implement(
     const ex = s.catalogue.exercise(input.id);
     if (!ex) fail('not_found', `No exercise with id ${input.id}; search with catalogue.searchExercises.`, { path: '/id' });
     const d = m.cat.resolveDose(ex, { exerciseId: ex.id }, s.ctx);
+    if (s.typicalBody) ctx.notice({ level: 'info', text: TYPICAL_BODY_NOTICE });
     const ids = [...new Set(ex.equipmentAnyOf.flat())];
     const alternatives = m.cat.swapOptions({ exerciseId: ex.id }, { profile: s.profile, catalogue: s.catalogue, ctx: s.ctx, weekday: catalogueWeekday(ctx.today), startH: 18, limit: 5 });
     return {
@@ -358,14 +364,18 @@ function foodView(f: FoodRecord) {
   return { ...json(f), own: f.source === 'user' };
 }
 
+/** The shared food provider (lazy: it pulls the bundled reference and the document cache into the catalogue chunk). */
+async function sharedFoodTable() {
+  await getDocumentStore().ready;
+  const { foodTable } = await import('../food/table');
+  return foodTable();
+}
+
 implement(
   'catalogue.searchFoods',
-  async (ctx, input: { q?: string; limit?: number; filters?: Record<string, unknown> }) => {
-    const m = await loadCatalogueModules();
-    const { user } = personCatalogueNow(m);
-    ctx.notice({ level: 'info', text: FOOD_REFERENCE_NOTE });
-    const foods = user.catalogue.foods;
-    const table = m.cat.createFoodTable(foods, 'user');
+  async (_ctx, input: { q?: string; limit?: number; filters?: Record<string, unknown> }) => {
+    const table = await sharedFoodTable();
+    const foods = table.all();
     const q = input.q?.trim() ?? '';
     const tag = typeof input.filters?.tag === 'string' ? input.filters.tag : null;
     const group = typeof input.filters?.group === 'string' ? input.filters.group : null;
@@ -377,14 +387,9 @@ implement(
 
 implement(
   'catalogue.getFood',
-  async (ctx, input: { id: string }) => {
-    const m = await loadCatalogueModules();
-    const { user } = personCatalogueNow(m);
-    const f = user.catalogue.foods.find((x) => x.id === input.id);
-    if (!f) {
-      ctx.notice({ level: 'info', text: FOOD_REFERENCE_NOTE });
-      fail('not_found', `No food with id ${input.id}.`, { path: '/id' });
-    }
+  async (_ctx, input: { id: string }) => {
+    const f = (await sharedFoodTable()).get(input.id);
+    if (!f) fail('not_found', `No food with id ${input.id}.`, { path: '/id' });
     return foodView(f);
   },
   BY,
@@ -500,6 +505,7 @@ implement(
     const { plan, days } = prescribedDays([input.date], ctx.tz);
     if (!plan) ctx.notice({ level: 'info', text: 'There is no running plan, so no session is prescribed.' });
     const rx = days.get(input.date) ?? null;
+    if (s.typicalBody && rx) ctx.notice({ level: 'info', text: TYPICAL_BODY_NOTICE });
     const sessions = rx ? composeDay(m, s, rx, input.date) : [];
     return {
       date: input.date,

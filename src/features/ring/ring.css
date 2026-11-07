@@ -1,0 +1,994 @@
+/* ==========================================================================
+   Ring (Gauge's screens inside Vitals), Ember, on the r068 foundation.
+   Layout is <Stack> / <Columns> (one column unless two genuinely help: the
+   Overview's two lists of cards, a workout's summary beside its route).
+   Cards are the shared material (Faceplate); structure inside a card is rows,
+   facts and space, never another card or a pile of chips. Values and titles
+   are in the display face; facts, units and subtext in the text face. Gold only
+   on data traces, selection and the card's one verb. Tokens only.
+   ========================================================================== */
+@layer components {
+  .rg-card {
+    min-width: 0;
+  }
+  .rg-empty {
+    padding: var(--lm-space-6) 0;
+  }
+  .rg-loading {
+    padding: var(--lm-space-2) 0;
+  }
+  .rg-none,
+  .rg-note {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .rg-note {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+  }
+  /* a sub-heading inside a card: label size (14/600), so the card's title (17/600) leads (r068 G19) */
+  .rg-sub {
+    margin: 0;
+    font-family: var(--lm-font-display);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 600;
+    color: var(--lm-ink);
+  }
+  /* a sub-heading with its fact: the fact moves to the next line whole, never split by a dangling separator */
+  .rg-sub--fact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: var(--lm-space-2);
+  }
+  .rg-sub--fact > .rg-sub__fact {
+    margin: 0;
+    white-space: nowrap;
+  }
+  .rg-sub--info {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-1);
+  }
+  .rg-sub--block {
+    margin-top: var(--lm-space-2);
+  }
+  /* (r068 G11) the ⓘ beside a label: small, stone, no extra line height */
+  .rg-info {
+    margin: -8px -6px -8px 0;
+    color: var(--lm-ink-3);
+  }
+  /* the blocks inside a card: one rhythm (12 px) */
+  .rg-blocks {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .rg-blocks > .rg-sub:not(:first-child) {
+    margin-top: var(--lm-space-2);
+  }
+
+  /* ---- values: the display face, the unit in the text face ------------------- */
+  .rg-val {
+    font-family: var(--lm-font-display);
+    color: var(--lm-ink);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .rg-val .lm-unit {
+    font-family: var(--lm-font-sans);
+    font-weight: 400;
+  }
+  .rg-big {
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+  }
+  .rg-hero {
+    font-size: var(--lm-text-headline);
+    line-height: var(--lm-text-headline--lh);
+    letter-spacing: var(--lm-text-headline--ls);
+  }
+  .rg-word {
+    font-size: var(--lm-text-body);
+    color: var(--lm-ink-2);
+  }
+  .rg-readout__line {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--lm-space-1) var(--lm-inline);
+  }
+  .rg-readout__line .rg-status {
+    align-self: center;
+  }
+
+  /* ---- facts: a label · value grid (two columns on a 360 px phone) ------------- */
+  .rg-meta {
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-body-s);
+  }
+  .rg-facts {
+    display: grid;
+    /* (r068 G02) auto-fit: the facts share the card's width (auto-fill kept empty tracks and squeezed them left) */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+    align-items: start;
+    gap: var(--lm-card-gap) var(--lm-space-4);
+    margin: 0;
+  }
+  .rg-facts__item {
+    display: grid;
+    align-content: start;
+    gap: 2px;
+    min-width: 0;
+  }
+  .rg-facts__item dt {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-space-1);
+    min-width: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .rg-facts__item dd {
+    margin: 0;
+    font-size: var(--lm-text-body-l);
+    line-height: var(--lm-text-body-l--lh);
+  }
+  /* the line under a fact's value: when, how many, against what */
+  /* a fact whose value is words (apps, "1 started, 1 cancelled") reads at body size beside the numbers */
+  .rg-facts .rg-facts__item dd > span:only-child:not(.rg-val, .lm-chip) {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .rg-facts__item .rg-facts__sub {
+    margin: 0;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .rg-facts--big .rg-facts__item dd:not(.rg-facts__sub) {
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+  }
+
+  /* ---- the shared stat tiles inside a Ring card: space, no broken rules, facts as text (G05/G06) -- */
+  .rg-card .lmv-stats {
+    overflow: visible;
+  }
+  .rg-card .lmv-stats .lmv-stats__dl {
+    margin: 0;
+    gap: var(--lm-card-gap) var(--lm-space-4);
+  }
+  .rg-card .lmv-stats .lmv-stat.lmv-stat {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    gap: 2px;
+  }
+  .rg-card .lmv-stat__value {
+    font-family: var(--lm-font-display);
+    font-weight: 600;
+  }
+  .rg-card .lmv-stat__value .lmv-unit {
+    font-family: var(--lm-font-sans);
+    font-weight: 400;
+  }
+  /* a qualifier, a change or "calibrating" under a value is a fact line, not a tag */
+  .rg-card .lmv-stat__chip .lmv-chip:not([data-kind='status']) {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--lm-space-1);
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 400;
+    white-space: normal;
+  }
+  .rg-card .lmv-stat__chip .lmv-chip:not([data-kind='status']) svg {
+    flex: none;
+    align-self: center;
+  }
+  .rg-card .lmv-stat__chip .lmv-chip[data-kind='delta'][data-caution] {
+    color: var(--lm-caution-fg);
+  }
+
+  /* ---- rows (signals, workouts): a link per row, hairlines between ---------- */
+  .rg-rows {
+    display: grid;
+    margin: 0 calc(-1 * var(--lm-space-2));
+    padding: 0;
+    list-style: none;
+  }
+  /* (r068 G20) the rows keep their hover tile to the card's edge, but every rule sits on the content edge, as the Day
+     score rows' do */
+  .rg-rows > li {
+    position: relative;
+  }
+  .rg-rows > li + li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: var(--lm-space-2);
+    right: var(--lm-space-2);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    pointer-events: none;
+  }
+  .rg-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 18px;
+    align-items: center;
+    gap: var(--lm-space-3);
+    min-height: 56px;
+    padding: var(--lm-space-2);
+    border-radius: var(--lm-radius-sm);
+    color: inherit;
+    text-decoration: none;
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .rg-row:hover {
+    background: rgb(245 241 233 / 0.04);
+  }
+  .rg-row:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .rg-row__main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  /* (r068 G19) a row's name at body size: the card title leads, the row's value is the loudest thing in it */
+  .rg-row__label {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .rg-row__value {
+    display: grid;
+    gap: 2px;
+    justify-items: end;
+    text-align: right;
+  }
+  .rg-row__value .rg-val {
+    font-size: var(--lm-text-body-l);
+    line-height: var(--lm-text-body-l--lh);
+  }
+  .rg-row__sub {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+  }
+  .rg-row__chev {
+    color: var(--lm-ink-3);
+  }
+  /* a row that opens a sheet (Steps by source): the card's own row, a chevron at its end */
+  .rg-linkrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 18px;
+    align-items: center;
+    gap: var(--lm-space-3);
+    width: calc(100% + 2 * var(--lm-space-2));
+    min-height: 48px;
+    position: relative;
+    margin: 0 calc(-1 * var(--lm-space-2));
+    padding: var(--lm-space-2);
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--lm-ink);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  /* (r068 G20) its rules on the content edge, as the list rows' */
+  .rg-linkrow::before,
+  .rg-linkrow::after {
+    content: '';
+    position: absolute;
+    left: var(--lm-space-2);
+    right: var(--lm-space-2);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    pointer-events: none;
+  }
+  .rg-linkrow::before {
+    top: 0;
+  }
+  .rg-linkrow::after {
+    bottom: 0;
+  }
+  .rg-linkrow:last-child::after {
+    display: none;
+  }
+  .rg-linkrow:hover {
+    background: rgb(245 241 233 / 0.04);
+  }
+  .rg-linkrow:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  .rg-linkrow__label {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .rg-linkrow__value {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-space-2);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+  }
+  .rg-linkrow svg {
+    color: var(--lm-ink-3);
+  }
+  /* the list's foot: "Show all" */
+  .rg-more {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--lm-space-2);
+  }
+
+  /* ---- movement: the steps fill against the goal, then the numbers alone ------ */
+  .rg-move {
+    display: grid;
+    gap: var(--lm-card-gap);
+  }
+  .rg-move__disagree {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--lm-signal);
+  }
+
+  /* ---- charts: a head row (what it is or its unit · Table) above every plot (G07/G09) ---- */
+  .rg-chart {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--lm-space-2);
+    width: 100%;
+    min-width: 0;
+  }
+  .rg-chart > .lmc-lv-legend {
+    order: -1;
+    margin: 0;
+  }
+  .rg-chart__head {
+    order: -2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-space-3);
+    min-height: 32px;
+  }
+  .rg-chart__head .rg-sub {
+    margin: 0;
+  }
+  .rg-chart__unit {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+  }
+  .rg-chart > svg {
+    display: block;
+  }
+  .rg-future {
+    fill: var(--lm-well);
+    opacity: 0.55;
+  }
+  .rg-now__label {
+    fill: var(--lm-ink-2);
+  }
+  /* (r068 final) the outlined Table key ends on the card's content edge, in line with Details / Edit (no overhang) */
+  .rg-card .lmv-hyp__foot {
+    order: -1;
+    min-height: 32px;
+    justify-content: flex-start;
+  }
+  .rg-card .lmv-hyp__foot > .lmv-twinkey {
+    margin-inline-start: auto;
+  }
+  .rg-card .lmc-tl__head {
+    align-items: center;
+  }
+  /* (S04) the overnight trace's trend is a fact in its head row, not a heading */
+  .rg-card .lmv-trace__trend {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--lm-space-2);
+  }
+  .rg-card .lmv-trace__word {
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  /* (W3) zones over time: each zone its own step of the zone ramp, the same colours as the zone bars */
+  .rg-zones-strip .lmv-strip__seg rect[data-i='1'],
+  .rg-zones-strip .lmv-legend__sw rect[data-i='1'] {
+    fill: var(--lm-hr-zone-1);
+  }
+  .rg-zones-strip .lmv-strip__seg rect[data-i='2'],
+  .rg-zones-strip .lmv-legend__sw rect[data-i='2'] {
+    fill: var(--lm-hr-zone-2);
+  }
+  .rg-zones-strip .lmv-strip__seg rect[data-i='3'],
+  .rg-zones-strip .lmv-legend__sw rect[data-i='3'] {
+    fill: var(--lm-hr-zone-3);
+  }
+  .rg-zones-strip .lmv-strip__seg rect[data-i='4'],
+  .rg-zones-strip .lmv-legend__sw rect[data-i='4'] {
+    fill: var(--lm-hr-zone-4);
+  }
+  .rg-zones-strip .lmv-strip__seg rect[data-i='5'],
+  .rg-zones-strip .lmv-legend__sw rect[data-i='5'] {
+    fill: var(--lm-hr-zone-5);
+  }
+  .rg-zones-strip .lmv-strip__seg rect[data-i='0'],
+  .rg-zones-strip .lmv-legend__sw rect[data-i='0'] {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.5;
+  }
+  /* (SG8) stress through the day: a lightness ramp that ends in gold and rose, never three near-equal mauves */
+  .rg-stress-strip :is(.lmv-strip__seg, .lmv-legend__sw) rect[data-i='0'] {
+    fill: var(--lm-ink-3);
+    fill-opacity: 0.45;
+  }
+  .rg-stress-strip :is(.lmv-strip__seg, .lmv-legend__sw) rect[data-i='1'] {
+    fill: var(--lm-ink-2);
+  }
+  .rg-stress-strip :is(.lmv-strip__seg, .lmv-legend__sw) rect[data-i='2'] {
+    fill: var(--lm-signal);
+  }
+  .rg-stress-strip :is(.lmv-strip__seg, .lmv-legend__sw) rect[data-i='3'] {
+    fill: var(--lm-danger-fg);
+  }
+  /* an even grid of trend charts inside one card (Scores) */
+  .rg-chartgrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-space-6) var(--lm-gutter-lg);
+  }
+  @media (min-width: 64rem) {
+    .rg-chartgrid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .rg-chartgrid__cell {
+    display: grid;
+    gap: var(--lm-space-2);
+    min-width: 0;
+  }
+  /* each chart's name sits in its own head row (ScoreHistory's lead), beside its Table key */
+  .rg-chartgrid__cell .lmc-tl__head {
+    min-height: 32px;
+    align-items: center;
+  }
+  /* (r068 final) one series key and one Table key above a grid of small charts */
+  .rg-gridhead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-row-gap) var(--lm-inline);
+  }
+  .rg-trendkey {
+    --lmc-sh-hue: var(--lm-cat-cardio);
+    margin: 0;
+  }
+  .rg-sub__fact {
+    margin-inline-start: var(--lm-space-2);
+    font-family: var(--lm-font-sans);
+    font-size: var(--lm-text-body-s);
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .rg-bar {
+    fill: var(--lm-signal);
+  }
+  /* (r069 U1) steps wear their role colour on every chart (Progress, the day's hours, a period's days) */
+  .rg-bar--steps {
+    fill: var(--lm-steps);
+  }
+  /* (r069 U2) a period's bars: its average a solid stone line, its goal the dashed ivory reference */
+  .rg-avg {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+  }
+  .rg-avg__label {
+    fill: var(--lm-ink-2);
+    paint-order: stroke;
+    stroke: var(--lm-face);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+  }
+  .rg-goal {
+    stroke: var(--lm-ink);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+    opacity: 0.7;
+  }
+  .rg-span {
+    stroke: var(--lm-ink-2);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+  .rg-now {
+    stroke: var(--lm-chart-now, var(--lm-ink-2));
+    stroke-width: 1;
+  }
+  .rg-line {
+    fill: none;
+    stroke: var(--lm-signal);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .rg-line[data-dashed] {
+    stroke: var(--lm-cat-performance);
+    stroke-dasharray: 5 3;
+  }
+  .rg-dot {
+    fill: var(--lm-signal);
+  }
+  /* (r064) the smoothed line's interquartile band: flat, faint, the line's hue */
+  .rg-band {
+    fill: var(--lm-signal);
+    fill-opacity: 0.13;
+    stroke: none;
+  }
+  .rg-chart__foot[data-note] {
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+  .rg-chart__note {
+    margin: 0;
+    min-width: 0;
+    font-size: var(--lm-text-xs);
+    line-height: var(--lm-text-xs--lh);
+    color: var(--lm-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .rg-extreme {
+    fill: var(--lm-card, var(--lm-surface));
+    stroke: var(--lm-signal);
+    stroke-width: 1.5;
+  }
+  .rg-dot[data-dashed] {
+    fill: var(--lm-cat-performance);
+  }
+  .rg-limit {
+    stroke: var(--lm-ink-2);
+    stroke-width: 1;
+  }
+  .rg-app[data-app='a'] {
+    fill: var(--lm-signal);
+  }
+  .rg-app[data-app='b'] {
+    fill: var(--lm-cat-recovery);
+  }
+
+  /* sleep stages: the stage roles (tokens.css), an ordinal warm ramp by depth (the rows carry the names) */
+  .rg-stage[data-stage='awake'] {
+    fill: var(--lm-stage-awake);
+    background: var(--lm-stage-awake);
+  }
+  .rg-stage[data-stage='rem'] {
+    fill: var(--lm-stage-rem);
+    background: var(--lm-stage-rem);
+  }
+  .rg-stage[data-stage='light'] {
+    fill: var(--lm-stage-light);
+    background: var(--lm-stage-light);
+  }
+  .rg-stage[data-stage='deep'] {
+    fill: var(--lm-stage-deep);
+    background: var(--lm-stage-deep);
+  }
+  .rg-hypno {
+    margin-top: 8px;
+  }
+  /* the route: a well behind a gold trace; start hollow, end filled */
+  .rg-route {
+    width: 100%;
+    border-radius: var(--lm-radius-md);
+    background: var(--lm-well);
+    overflow: hidden;
+  }
+  .rg-route svg {
+    display: block;
+  }
+  .rg-route__line {
+    fill: none;
+    stroke: var(--lm-signal);
+    stroke-width: 2.5;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .rg-route__start {
+    fill: var(--lm-well);
+    stroke: var(--lm-ink);
+    stroke-width: 2;
+  }
+  .rg-route__end {
+    fill: var(--lm-ink);
+  }
+  .rg-route__label {
+    fill: var(--lm-ink-2);
+  }
+
+  /* ---- the words' ranges as one bar (SG2) ------------------------------------------- */
+  .rg-bands {
+    display: grid;
+    gap: var(--lm-space-1);
+    padding-top: var(--lm-space-1);
+  }
+  .rg-bands__track {
+    position: relative;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 2px;
+    height: 8px;
+  }
+  .rg-bands__seg {
+    border-radius: var(--lm-radius-xs);
+    background: rgb(245 241 233 / 0.14);
+  }
+  .rg-bands__seg[data-severity='caution'] {
+    background: rgb(227 191 120 / 0.3);
+  }
+  .rg-bands__seg[data-severity='danger'] {
+    background: rgb(229 163 155 / 0.34);
+  }
+  .rg-bands__seg[data-on] {
+    background: rgb(245 241 233 / 0.32);
+  }
+  .rg-bands__seg[data-on][data-severity='caution'] {
+    background: rgb(227 191 120 / 0.62);
+  }
+  .rg-bands__seg[data-on][data-severity='danger'] {
+    background: rgb(229 163 155 / 0.66);
+  }
+  .rg-bands__dot {
+    position: absolute;
+    top: -3px;
+    width: 10px;
+    height: 14px;
+    border: 2px solid var(--lm-face);
+    border-radius: var(--lm-radius-full);
+    background: var(--lm-ink);
+  }
+  .rg-bands__ticks {
+    position: relative;
+    height: 16px;
+    color: var(--lm-ink-3);
+    font-size: var(--lm-text-label-s);
+    line-height: 16px;
+  }
+  .rg-bands__ticks > span:not(.rg-bands__unit) {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+  }
+  .rg-bands__unit {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+  .rg-bands__words {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 2px;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    text-align: center;
+  }
+  .rg-bands__words > [data-on] {
+    color: var(--lm-ink);
+    font-weight: 500;
+  }
+
+  /* ---- Signals rows: reading, where it sits, word and age; Measure on heart rate --------- */
+  .rg-row__label svg {
+    margin-right: var(--lm-space-2);
+    vertical-align: -3px;
+    color: var(--lm-ink-3);
+  }
+  /* (O07) a thin track with the usual stretch shaded and a dot for the reading */
+  /* Measure now: in the rows it sits under the heart-rate row's text; on its own page it starts at the content edge */
+  .rg-measure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lm-space-2) var(--lm-space-3);
+  }
+  .rg-rows .rg-measure {
+    padding: 0 var(--lm-space-2) var(--lm-space-3);
+  }
+  .rg-measure__words,
+  .rg-cmd-words {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+  }
+  .rg-measure__words:empty,
+  .rg-cmd-words:empty {
+    display: none;
+  }
+
+  /* ---- Day score: the disc beside its parts (O01/O02) -------------------------------- */
+  .rg-dayscore {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: var(--lm-card-gap);
+  }
+  .rg-dayscore > .lmv-disc {
+    width: min(100%, 264px);
+  }
+  .rg-dayscore__parts {
+    display: grid;
+    gap: var(--lm-card-gap);
+    width: 100%;
+  }
+  @container (min-width: 34rem) {
+    .rg-dayscore__parts {
+      align-self: center;
+    }
+  }
+  @media (min-width: 40rem) {
+    .rg-dayscore {
+      grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+      align-items: center;
+      gap: var(--lm-space-6);
+    }
+  }
+  .rg-dayscore .lmv-disc [data-low] circle[data-lit] {
+    opacity: 0.55;
+  }
+  .rg-parts {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rg-parts__item {
+    display: grid;
+    padding: var(--lm-space-2) 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .rg-parts__item:first-child {
+    border-top: 0;
+  }
+  .rg-parts__item > .rg-contrib {
+    margin-top: var(--lm-space-1);
+  }
+  .rg-parts__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--lm-space-3);
+  }
+  .rg-parts__label {
+    display: grid;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
+  }
+  .rg-parts__note {
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+  }
+  .rg-parts__row .rg-val {
+    font-size: var(--lm-text-title-m);
+    line-height: var(--lm-text-title-m--lh);
+  }
+  .rg-dayscore__target {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding-top: var(--lm-space-2);
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .rg-dayscore__target[data-met] {
+    color: var(--lm-ink);
+  }
+
+  /* ---- glance (Today), signal page ---------------------------------------------- */
+  .rg-disc {
+    display: grid;
+    justify-items: center;
+  }
+
+  /* ---- contributor drawer: the index row's own disclosure, flush with the content ----- */
+  .rg-contrib {
+    display: grid;
+    gap: var(--lm-space-2);
+  }
+  .rg-contrib__key {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-space-2);
+    width: 100%;
+    min-height: 40px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--lm-signal);
+    font: inherit;
+    font-size: var(--lm-text-label);
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+  }
+  .rg-contrib__key:hover {
+    color: var(--lm-signal-hover);
+  }
+  .rg-contrib__key:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+  .rg-contrib__key svg {
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .rg-contrib__key[data-open] svg {
+    transform: rotate(180deg);
+  }
+  .rg-contrib__body {
+    display: grid;
+    gap: var(--lm-space-2);
+    width: 100%;
+  }
+  .rg-contrib__list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .rg-contrib__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--lm-space-1) var(--lm-space-3);
+    padding: var(--lm-space-2) 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .rg-contrib__label {
+    min-width: 0;
+    color: var(--lm-ink);
+  }
+  .rg-contrib__value {
+    color: var(--lm-ink);
+    font-family: var(--lm-font-display);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .rg-contrib__row[data-missing] .rg-contrib__label,
+  .rg-contrib__row[data-missing] .rg-contrib__value {
+    color: var(--lm-ink-3);
+    font-family: var(--lm-font-sans);
+    font-weight: 400;
+  }
+  .rg-contrib__weight {
+    grid-column: 1 / -1;
+    height: 4px;
+    border-radius: var(--lm-radius-full);
+    background: rgb(245 241 233 / 0.08);
+    overflow: hidden;
+  }
+  .rg-contrib__weight > span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--lm-ink-3);
+  }
+
+  /* ---- editors (short-video limit, Day-score target): the sheet's own padding, no second gap ---- */
+  .rg-reels,
+  .rg-target {
+    display: grid;
+    gap: var(--lm-space-4);
+    padding: 0 var(--lm-space-4) var(--lm-space-5);
+  }
+  .rg-target__error {
+    color: var(--lm-ink);
+  }
+  .rg-reels__apps {
+    display: grid;
+    gap: var(--lm-space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .rg-reels__apps > legend {
+    margin-bottom: var(--lm-space-2);
+    padding: 0;
+  }
+
+  /* ---- Today --------------------------------------------------------------------- */
+  /* 0.6.3: the one quiet line where Today's ring cards would be (no card, no icon: body-s ink-2) */
+}
+
+@layer components {
+  /* (0.6.3 S25) the activity history's Earlier / Later keys in the card head */
+  .rg-pager {
+    display: inline-flex;
+    gap: var(--lm-space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+@layer components {
+  /* (r068 O11) Edit signals: the grip beside the icon (no empty column), round remove and add keys */
+  .rg-mon .lmv-mon__row {
+    grid-template-columns: 24px 20px minmax(0, 1fr) 44px;
+    column-gap: var(--lm-space-3);
+  }
+  .rg-mon .lmv-mon__grip {
+    width: 36px;
+    height: 48px;
+    margin-left: -10px;
+  }
+  .rg-mon .lmv-mon__key {
+    margin-right: -10px;
+    color: var(--lm-ink-2);
+  }
+  .rg-mon .lmv-mon__row:not([data-add]) .lmv-mon__key:hover {
+    color: var(--lm-danger-fg);
+  }
+  .rg-mon .lmv-mon__row[data-add] .lmv-mon__key {
+    color: var(--lm-signal);
+  }
+}
+
+@layer components {
+  /* (r068 G04) a workout's summary: the facts, and the route beside them from 48rem (under them on a phone) */
+  .rg-summary {
+    display: grid;
+    gap: var(--lm-card-gap) var(--lm-gutter-lg);
+    min-width: 0;
+  }
+  @media (min-width: 48rem) {
+    .rg-summary[data-route] {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+  .rg-summary__route {
+    display: grid;
+    gap: var(--lm-space-2);
+    min-width: 0;
+    margin: 0;
+  }
+}

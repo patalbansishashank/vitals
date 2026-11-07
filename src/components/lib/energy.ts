@@ -3,7 +3,7 @@
  * only display and entry convert. kJ values are rounded to the nearest 10 kJ by default (same visual precision as
  * whole kcal at typical magnitudes), with the same thin-space grouping and U+2212 minus as `formatNumber`.
  */
-import { formatNumber, formatSigned, type FormatOptions } from './format';
+import { formatNumber, formatRange, formatSigned, type FormatOptions } from './format';
 
 export type EnergyUnitChoice = 'kcal' | 'kJ';
 
@@ -45,6 +45,14 @@ export function formatEnergy(kcal: number, unit: EnergyUnitChoice, opts: EnergyF
   const v = toEnergyUnit(kcal, unit);
   const r = step > 0 ? Math.round(v / step) * step : v;
   const body = opts.signed ? formatSigned(r, 0, opts) : formatNumber(r, 0, opts);
+  return opts.withUnit === false ? body : `${body}\u2009${unit}`;
+}
+
+/** A scenario range in the selected unit, with the same rounding as a single energy figure. */
+export function formatEnergyRange(lo: number, hi: number, unit: EnergyUnitChoice, opts: EnergyFormatOptions = {}): string {
+  const step = opts.step ?? (unit === 'kJ' ? 10 : 1);
+  const rounded = (v: number) => step > 0 ? Math.round(toEnergyUnit(v, unit) / step) * step : toEnergyUnit(v, unit);
+  const body = formatRange(rounded(lo), rounded(hi), 0, opts);
   return opts.withUnit === false ? body : `${body}\u2009${unit}`;
 }
 

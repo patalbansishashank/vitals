@@ -4,9 +4,22 @@ import { dispatch, outputOf, settleCommits } from '@/commands';
 import { freshState, MCP } from '@/commands/__tests__/harness';
 import { getDocumentStore } from '@/state/runtime';
 import { useProfileStore } from '@/state/profileStore';
-import { agentProductName, ProposalsList, proposalDetail, proposerName } from './ProposalsList';
+import { agentProductName, ProposalsList, proposalDetail, proposerName, usePendingProposals } from './ProposalsList';
 
 const LONG = { timeout: 4000 };
+
+/** The list renders nothing while nothing waits; this probe says when the read has come back. */
+function Probe() {
+  const { items } = usePendingProposals();
+  return <p>{items === null ? 'reading' : `${items.length} waiting`}</p>;
+}
+const ui = () =>
+  render(
+    <>
+      <Probe />
+      <ProposalsList />
+    </>,
+  );
 
 async function stage(weightKg: number) {
   const r = await dispatch('profile.patch', { weightKg }, { actor: MCP, idempotencyKey: `stage-${weightKg}` });
@@ -20,9 +33,11 @@ beforeEach(() => {
 });
 
 describe('Settings › Agents › proposals', () => {
-  it('says so quietly when nothing waits', async () => {
-    render(<ProposalsList />);
-    expect(await screen.findByText('No proposals waiting.')).toBeInTheDocument();
+  it('shows nothing while nothing waits', async () => {
+    ui();
+    expect(await screen.findByText('0 waiting')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Proposals waiting' })).toBeNull();
+    expect(screen.queryByRole('heading')).toBeNull();
   });
 
   it('lists a staged agent proposal, and Apply applies it as the person', async () => {
@@ -30,14 +45,15 @@ describe('Settings › Agents › proposals', () => {
     await stage(77);
     expect(useProfileStore.getState().weightKg).toBe(before);
     const user = userEvent.setup();
-    render(<ProposalsList />);
+    ui();
     const list = await screen.findByRole('list', { name: 'Proposals waiting' });
+    expect(screen.getByRole('heading', { name: '1 change waiting' })).toBeInTheDocument();
     const row = within(list).getByRole('listitem');
     expect(row).toHaveTextContent('claude-desktop through your server');
     expect(row).toHaveTextContent('weight kg 77');
     expect(row).toHaveTextContent(/valid until/);
     await user.click(within(row).getByRole('button', { name: 'Apply' }));
-    expect(await screen.findByText('No proposals waiting.', {}, LONG)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Proposals waiting' })).toBeNull(), LONG);
     expect(useProfileStore.getState().weightKg).toBe(77);
     expect(outputOf(await dispatch('coach.pending', {}))).toHaveLength(0);
   });
@@ -46,9 +62,9 @@ describe('Settings › Agents › proposals', () => {
     const before = useProfileStore.getState().weightKg;
     const pendingId = await stage(76);
     const user = userEvent.setup();
-    render(<ProposalsList />);
+    ui();
     await user.click(await screen.findByRole('button', { name: 'Dismiss' }));
-    expect(await screen.findByText('No proposals waiting.', {}, LONG)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Proposals waiting' })).toBeNull(), LONG);
     await settleCommits();
     expect(getDocumentStore().peek<{ status: string }>('pendingChanges', pendingId)?.status).toBe('discarded');
     expect(useProfileStore.getState().weightKg).toBe(before);
@@ -61,10 +77,12 @@ describe('Settings › Agents › proposals', () => {
     await dispatch('profile.patch', { weightKg: 81 });
     await settleCommits();
     const user = userEvent.setup();
-    render(<ProposalsList />);
+    ui();
     await user.click(await screen.findByRole('button', { name: 'Apply' }));
     expect(await screen.findByText(/edited since/, {}, LONG)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('No proposals waiting.')).toBeInTheDocument(), LONG);
+    await waitFor(() => expect(screen.queryByRole('list', { name: 'Proposals waiting' })).toBeNull(), LONG);
+    // the reason stays on screen after the stale proposal is gone
+    expect(screen.getByText(/edited since/)).toBeInTheDocument();
   });
 
   it('says what a proposal would change, from its input', () => {
@@ -92,8 +110,8 @@ describe('Settings › Agents › proposals', () => {
   });
 
   it('picks up a proposal staged while it is open', async () => {
-    render(<ProposalsList />);
-    await screen.findByText('No proposals waiting.');
+    ui();
+    await screen.findByText('0 waiting');
     await stage(74);
     expect(await screen.findByRole('button', { name: 'Apply' }, LONG)).toBeInTheDocument();
   });

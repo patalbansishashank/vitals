@@ -91,23 +91,28 @@ describe('living-plan forward model', () => {
     expect(benefitRetained(f.plan, rd, `rtSession:${rtDay}:${k}`, nothing, state)).toBeCloseTo(0, 9);
   }, 60_000);
 
-  it('projectRealistic: the realistic curve lies between omission and as prescribed', () => {
+  it('projectRealistic: utility credits do not scale physical dose; habitual continuation is an explicit scenario', () => {
     const half: BlockAdherence[] = FULL_ADHERENCE.map((b) => (b.type === 'energy' ? { ...b, a: 1, b: 1 } : b));
     const none: BlockAdherence[] = FULL_ADHERENCE.map((b) => ({ ...b, a: 0, b: 1 }));
     expect(expectedCredit(half, 'energy')).toBeCloseTo(0.5, 12);
     expect(expectedCredit([], 'energy')).toBeCloseTo(0.75, 12);
     const full = projectRealistic(f.plan, state, FULL_ADHERENCE, { now });
     const mid = projectRealistic(f.plan, state, half);
-    const omit = projectRealistic(f.plan, state, none);
+    const omit = projectRealistic(f.plan, state, none, { scenario: 'missingData' });
     const fat = (x: typeof full, which: 'asPrescribed' | 'realistic') => x[which].find((g) => g.metric === 'fatMass')!.endP50;
     expect(fat(full, 'realistic')).toBeCloseTo(fat(full, 'asPrescribed'), 9);
     expect(fat(mid, 'asPrescribed')).toBeCloseTo(fat(full, 'asPrescribed'), 9);
-    expect(fat(mid, 'realistic')).toBeGreaterThan(fat(mid, 'asPrescribed') + 0.01);
+    expect(fat(mid, 'realistic')).toBeCloseTo(fat(mid, 'asPrescribed'), 9);
+    expect(mid.schedule).toEqual(full.schedule);
+    expect(omit.behavior).toMatchObject({ scenario: 'missingData', assumption: 'habitualContinuation', assumptions: ['habitualIntakeNoAddedSessionContinuation', 'noCompletionEstimate'] });
     expect(fat(mid, 'realistic')).toBeLessThan(fat(omit, 'realistic') - 0.01);
     const band = mid.bands.realistic.fatMass!;
     expect(band.p50.length).toBe(f.plan.schedule.horizonDays - mid.fromDay);
     for (let i = 0; i < band.p50.length; i++) expect(band.p10[i]!).toBeLessThanOrEqual(band.p90[i]! + 1e-6);
     expect(mid.credits.energy).toBeCloseTo(0.5, 12);
+    // D5-08: the realistic curve is the plausible-execution scenario, heuristic, with its seed and fast-completion source
+    expect(full.behavior).toMatchObject({ algorithm: 'plausibleExecution', scenario: 'plausibleExecution', assumption: 'prescribedDose', version: 3, paths: 1, calibration: 'heuristic', fastCompletion: { p: 1, source: 'assumed', days: 0 } });
+    expect(full.behavior.seed).toBe(mid.behavior.seed);
     console.info(`projectRealistic: ${full.euUsed} runs, ${Math.round(full.ms)} ms`);
   }, 60_000);
 });

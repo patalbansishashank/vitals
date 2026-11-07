@@ -47,7 +47,7 @@ export function argsWithoutMcp(argv: readonly string[]): string[] {
   const out: string[] = [];
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i]!;
-    if (a === FLAGS.mcp || a === HEADLESS_FLAG) continue;
+    if (a === FLAGS.mcp || a === FLAGS.fullControl || a === HEADLESS_FLAG) continue;
     if (a === FLAGS.client) {
       i++;
       continue;
@@ -66,7 +66,9 @@ export function maybeRunMcp(o: LaunchOptions): boolean {
   const onSignal = o.onSignal ?? ((s, h) => process.on(s, h));
   const command = o.command ?? (o.env.APPIMAGE ? { path: o.env.APPIMAGE, args: [] } : { path: o.execPath, args: argsWithoutMcp(o.argv) });
 
-  const child = spawn(o.execPath, [o.mcpScript, ...o.argv.slice(at)], {
+  const bridgeArgs = o.argv.slice(at);
+  if (o.argv.includes(FLAGS.fullControl) && !bridgeArgs.includes(FLAGS.fullControl)) bridgeArgs.push(FLAGS.fullControl);
+  const child = spawn(o.execPath, [o.mcpScript, ...bridgeArgs], {
     stdio: 'inherit',
     env: { ...o.env, ELECTRON_RUN_AS_NODE: '1', [BRIDGE_ENV]: '1', [APP_COMMAND_ENV]: JSON.stringify(command) },
   });

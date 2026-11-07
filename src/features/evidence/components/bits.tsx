@@ -1,9 +1,9 @@
 import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ArrowUpRight, Check, CircleHelp, Minus, X } from 'lucide-react';
-import { CATEGORY_LABEL, Chip, Icon, StatusMark, Swatch, VisuallyHidden } from '@/components';
+import { CATEGORY_LABEL, Chip, Icon, KeyLink, Swatch, VisuallyHidden } from '@/components';
 import type { EvidenceCategory, Myth } from '@/content/evidence/schema';
-import { DISCLAIMER, VERDICT_TEXT } from '../copy';
+import { DISCLAIMER, VERDICT_TEXT, sentence } from '../copy';
 import type { Segment } from '../data/search';
 import { metricGoalHref, metricInfo, metricResultsHref } from '../metricLabels';
 
@@ -25,14 +25,9 @@ export function Highlighted({ segments }: { segments: readonly Segment[] }) {
   );
 }
 
-/** "■ fuel & ketosis" — the category hue on the swatch only, the name in words. */
+/** "Fuel & ketosis": the category in words (the word carries the meaning; no colour mark). */
 export function CategoryMark({ category }: { category: EvidenceCategory }) {
-  return (
-    <span className="ev-cat">
-      <Swatch category={category} shape="square" />
-      {CATEGORY_LABEL[category]}
-    </span>
-  );
+  return <span className="ev-cat">{sentence(CATEGORY_LABEL[category])}</span>;
 }
 
 const VERDICT_ICON = {
@@ -78,62 +73,41 @@ export function ExternalLink({
   );
 }
 
-/** A metric chip that links to Results with that metric focused. */
-export function MetricChipLink({ id }: { id: string }) {
-  const m = metricInfo(id);
-  return (
-    <Link
-      to={metricResultsHref(id)}
-      className="lm-chip ev-chiplink"
-      data-kind="metric"
-      title={`Show ${m.label} in your results`}
-    >
-      {m.category ? <Swatch category={m.category} /> : null}
-      <span className="lm-chip__text">{m.label}</span>
-    </Link>
-  );
-}
-
-/** "used by" chips; renders nothing when the mechanism drives no metric yet. */
-export function UsedByChips({ ids, label = true }: { ids: readonly string[]; label?: boolean }) {
+/**
+ * The metrics a mechanism drives (article › Used by): one row per metric — its swatch and name, which open it in the
+ * Simulator, and "Set as goal" at the trailing edge for a goal-eligible one (r068 EV-7: the same metrics are not
+ * listed twice, as chips and again as goal links). Renders nothing when it drives none yet.
+ */
+export function UsedByChips({ ids }: { ids: readonly string[] }) {
   if (!ids.length) return null;
   return (
-    <div className="ev-usedby">
-      {label ? <span className="lm-eng">used by</span> : null}
-      <ul className="ev-chiprow" aria-label="Metrics this mechanism drives">
-        {ids.map((id) => (
-          <li key={id}>
-            <MetricChipLink id={id} />
+    <ul className="ev-usedby" aria-label="Metrics this mechanism drives">
+      {ids.map((id) => {
+        const m = metricInfo(id);
+        const goal = metricGoalHref(id);
+        return (
+          <li key={id} className="ev-usedrow">
+            <Link
+              to={metricResultsHref(id)}
+              className="ev-usedrow__link"
+              title={`Show ${m.label} in your results`}
+            >
+              {m.category ? <Swatch category={m.category} /> : null}
+              <span className="ev-usedrow__name">{m.label}</span>
+            </Link>
+            {goal ? (
+              <KeyLink to={goal} variant="text" size="sm" aria-label={`Use as a goal: ${m.label}`}>
+                Set as goal
+              </KeyLink>
+            ) : null}
           </li>
-        ))}
-      </ul>
-    </div>
+        );
+      })}
+    </ul>
   );
 }
 
-/** "Use as a goal" links, only for goal-eligible metrics. */
-export function GoalLinks({ ids }: { ids: readonly string[] }) {
-  const goals = ids
-    .map((id) => ({ id, href: metricGoalHref(id) }))
-    .filter((g): g is { id: string; href: string } => Boolean(g.href));
-  if (!goals.length) return null;
-  return (
-    <p className="ev-goals">
-      {goals.map((g) => (
-        <Link key={g.id} to={g.href} className="ev-link">
-          Use as a goal: {metricInfo(g.id).label}
-        </Link>
-      ))}
-    </p>
-  );
-}
-
-/** One-line disclaimer (information, not medical advice). */
+/** One-line disclaimer (information, not medical advice), plain small text at the end of a reading. */
 export function Disclaimer({ className }: { className?: string }) {
-  return (
-    <p className={['ev-disclaimer', className].filter(Boolean).join(' ')}>
-      <StatusMark severity="info" size={16} />
-      <span>{DISCLAIMER}</span>
-    </p>
-  );
+  return <p className={['ev-disclaimer', className].filter(Boolean).join(' ')}>{DISCLAIMER}</p>;
 }

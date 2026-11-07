@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { routes } from '@/app/App';
 import { seedClearedSafety } from '@/features/onboarding/testing';
@@ -30,25 +30,33 @@ describe('app shell', () => {
     expect(navs).toHaveLength(2); // desktop rail + mobile tab bar (CSS shows one)
     expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main');
     expect(await screen.findByRole('heading', { level: 1 }, { timeout: 20_000 })).toBeInTheDocument();
-    for (const name of ['body', 'simulate', 'plan', 'evidence']) {
+    // 0.6.3: Today leads the Planning pill; Evidence sits in the sidebar's foot (and the phone ⋯)
+    for (const name of ['today', 'body', 'simulate', 'plan', 'evidence']) {
       expect(screen.getAllByRole('link', { name })[0]).toBeInTheDocument();
     }
     expect(screen.getAllByRole('link', { name: 'body' })[0]).toHaveAttribute('aria-current', 'page');
   }, 25_000);
 
-  it('redirects / to a destination', async () => {
+  // 0.6.3: "/" is Today in every mode (it was Your body, or the last route, without a plan)
+  it('redirects / to Today', async () => {
     localStorage.clear();
     const router = renderAt('/');
-    await screen.findByRole('heading', { level: 1 }, { timeout: 5000 });
-    expect(router.state.location.pathname).toBe('/body');
+    await screen.findByRole('heading', { level: 1 }, { timeout: 8000 });
+    expect(router.state.location.pathname).toBe('/today');
   });
 
-  it('renders the settings screen with its sections', async () => {
+  it('renders the settings index and a section page', async () => {
     renderAt('/settings');
     expect(await screen.findByRole('heading', { level: 1, name: 'Settings' }, { timeout: 5000 })).toBeInTheDocument();
-    for (const name of ['Units', 'Appearance', 'Your data', 'Safety', 'About']) {
-      expect(screen.getByRole('region', { name })).toBeInTheDocument();
+    // the index: one row per section, each opening its own pushed page
+    const index = screen.getByRole('navigation', { name: 'Settings sections' });
+    for (const [name, id] of [['Units', 'units'], ['Appearance', 'appearance'], ['Your data', 'data'], ['Safety', 'safety'], ['About', 'about']] as const) {
+      expect(within(index).getByRole('link', { name: new RegExp(`^${name}`) })).toHaveAttribute('href', `/settings/${id}`);
     }
+    cleanup();
+    renderAt('/settings/data');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your data' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Your data' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export data' })).toBeInTheDocument();
   });
 
@@ -69,14 +77,13 @@ describe('app shell', () => {
     spy.mockRestore();
   });
 
-  it('opens Body signals, also from the old /ring address', async () => {
-    // the page is lazy and heavier than the old Ring page: allow it longer under a loaded test run
+  it('shows the Ring section from Gauge data; the old Body signals page is gone', async () => {
     renderAt('/ring');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Body signals' }, { timeout: 15000 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Ring' }, { timeout: 8000 })).toBeInTheDocument();
     cleanup();
     renderAt('/signals');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Body signals' }, { timeout: 15000 })).toBeInTheDocument();
-  }, 30000);
+    expect(await screen.findByRole('heading', { name: 'Not found' }, { timeout: 5000 })).toBeInTheDocument();
+  });
 
   it('shows the not-found screen for unknown paths', async () => {
     renderAt('/nowhere');

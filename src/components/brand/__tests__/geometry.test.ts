@@ -1,96 +1,97 @@
 // @vitest-environment node
-// The SVGs under public/brand are the mark's source of truth; geometry.ts, index.html's start screen and
-// public/brand/launch.css must all agree with them.
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { arcLength, arcSweepDeg, CROP, CROP_VIEWBOX, cutFor, DRAW_ON, PALETTE, RING_CENTRE, RING_RADIUS, SMALL, SMALL_CUT_MAX_PX, STANDARD, trimOffset, type MarkCut } from '../geometry';
-
-const ROOT = path.resolve(__dirname, '..', '..', '..', '..');
-const read = (rel: string) => readFileSync(path.join(ROOT, rel), 'utf8');
+// The mark's geometry (mark-geometry.ts, written by design/brand/vitals-mark.py) and everything that repeats it:
+// public/brand/mark*.svg, index.html's start screen and public/brand/launch.css.
+import { BISECTOR_DEG, CENTRE, CROP, CROP_VIEWBOX, cutFor, DRAW_ON, EMBER, MEDIUM, OUTER, PALETTE, SMALL, SMALL_CUT_MAX_PX, MEDIUM_CUT_MAX_PX, STANDARD, trimOffset, type MarkCut } from '../geometry';
+import { read } from './brandFiles';
 
 const num = (src: string, re: RegExp) => {
   const m = src.match(re);
   if (!m) throw new Error(`not found: ${re}`);
   return Number(m[1]);
 };
+const angle = (x: number, y: number) => ((Math.atan2(y - CENTRE, x - CENTRE) * 180) / Math.PI + 360) % 360;
+const CUTS: [string, MarkCut][] = [
+  ['standard', STANDARD],
+  ['medium', MEDIUM],
+  ['small', SMALL],
+];
 
-/** The same reader scripts/brand/mark.mjs uses. */
-function readMark(file: string) {
-  const src = read(`public/brand/${file}`);
-  const circle = src.match(/<circle id="dot"[^>]*\/>/)?.[0] ?? '';
-  return {
-    d: src.match(/<path id="ring"[^>]*\sd="([^"]+)"/)?.[1],
-    stroke: num(src, /\.ring\s*{[^}]*stroke-width:\s*([\d.]+)/),
-    dot: { cx: num(circle, /cx="([\d.]+)"/), cy: num(circle, /cy="([\d.]+)"/), r: num(circle, /\sr="([\d.]+)"/), edge: num(src, /\.dot\s*{[^}]*stroke-width:\s*([\d.]+)/) },
-    src,
-  };
-}
+describe('the plan ring', () => {
+  for (const [name, c] of CUTS) {
+    it(`${name} cut: outer edge 9.95, the arc on its circle, open over openDeg centred on the bisector`, () => {
+      expect(c.ring.r + c.ring.stroke / 2).toBeCloseTo(OUTER, 9);
+      const n = c.ring.d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+      expect(n).toHaveLength(9);
+      expect(n[2]).toBe(c.ring.r);
+      const [x0, y0, x1, y1] = [n[0]!, n[1]!, n[7]!, n[8]!];
+      for (const [x, y] of [
+        [x0, y0],
+        [x1, y1],
+      ] as const)
+        expect(Math.hypot(x - CENTRE, y - CENTRE)).toBeCloseTo(c.ring.r, 2);
+      // the arc starts just after the opening and runs clockwise round to it
+      expect(angle(x0, y0)).toBeCloseTo(BISECTOR_DEG + c.ring.openDeg / 2, 1);
+      expect(angle(x1, y1)).toBeCloseTo(BISECTOR_DEG - c.ring.openDeg / 2, 1);
+      expect(c.ring.length).toBeCloseTo((c.ring.r * Math.PI * (360 - c.ring.openDeg)) / 180, 1);
+      if (c.track) expect(c.track.r).toBe(c.ring.r);
+    });
 
-const sameAsSvg = (cut: MarkCut, file: string) => {
-  const m = readMark(file);
-  expect(cut.ring.d).toBe(m.d);
-  expect(cut.ring.stroke).toBe(m.stroke);
-  expect(cut.dot).toEqual(m.dot);
-};
+    it(`${name} cut: the gold dot sits on the bisector, clear inside the ring`, () => {
+      expect(angle(c.dot.cx, c.dot.cy)).toBeCloseTo(BISECTOR_DEG, 0);
+      expect(Math.hypot(c.dot.cx - CENTRE, c.dot.cy - CENTRE) + c.dot.r).toBeLessThan(c.ring.r - c.ring.stroke / 2 - 1);
+    });
+  }
 
-describe('mark geometry mirrors public/brand/*.svg', () => {
-  it('standard cut equals mark.svg', () => sameAsSvg(STANDARD, 'mark.svg'));
-  it('small cut equals mark-small.svg', () => sameAsSvg(SMALL, 'mark-small.svg'));
+  it('gets heavier and more open as it gets small, and loses the hairline at 24 px and under', () => {
+    expect(STANDARD.ring.stroke).toBeLessThan(MEDIUM.ring.stroke);
+    expect(MEDIUM.ring.stroke).toBeLessThan(SMALL.ring.stroke);
+    expect(STANDARD.ring.openDeg).toBeLessThan(SMALL.ring.openDeg);
+    expect(STANDARD.dot.r).toBeLessThan(SMALL.dot.r);
+    expect(STANDARD.track).not.toBeNull();
+    expect(SMALL.track).toBeNull();
+    expect([SMALL_CUT_MAX_PX, MEDIUM_CUT_MAX_PX]).toEqual([24, 40]);
+    expect([cutFor(16), cutFor(24), cutFor(25), cutFor(40), cutFor(41), cutFor(88)]).toEqual([SMALL, SMALL, MEDIUM, MEDIUM, STANDARD, STANDARD]);
+  });
 
-  it('both arcs are circles of radius 30 around 54,54 (start and end points lie on the ring)', () => {
-    for (const c of [STANDARD, SMALL]) {
-      const nums = c.ring.d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
-      expect(nums[2]).toBe(RING_RADIUS);
-      const points: Array<[number, number]> = [
-        [nums[0]!, nums[1]!],
-        [nums[7]!, nums[8]!],
-      ];
-      for (const [x, y] of points) {
-        expect(Math.hypot(x - RING_CENTRE, y - RING_CENTRE)).toBeCloseTo(RING_RADIUS, 1);
-      }
+  it('the crop holds the outer edge', () => {
+    expect(CROP_VIEWBOX).toBe('2 2 20 20');
+    expect(CROP.x).toBeLessThanOrEqual(CENTRE - OUTER);
+    expect(CROP.x + CROP.size).toBeGreaterThanOrEqual(CENTRE + OUTER);
+  });
+
+  it('public/brand/mark.svg and mark-small.svg carry the standard and small cuts', () => {
+    for (const [file, c] of [
+      ['mark.svg', STANDARD],
+      ['mark-small.svg', SMALL],
+    ] as const) {
+      const src = read(`public/brand/${file}`);
+      expect(src).toContain('viewBox="0 0 24 24"');
+      expect(src.match(/<path id="ring"[^>]*\sd="([^"]+)"/)?.[1], file).toBe(c.ring.d);
+      expect(num(src, /\.ring\s*{[^}]*stroke-width:\s*([\d.]+)/)).toBe(c.ring.stroke);
+      const dot = src.match(/<circle id="dot"[^>]*\/>/)?.[0] ?? '';
+      expect([num(dot, /cx="([\d.]+)"/), num(dot, /cy="([\d.]+)"/), num(dot, /\sr="([\d.]+)"/)]).toEqual([c.dot.cx, c.dot.cy, c.dot.r]);
+      expect(num(src, /\.dot\s*{[^}]*stroke-width:\s*([\d.]+)/)).toBe(c.dot.edge);
+      expect(src.includes('<circle id="track"'), file).toBe(c.track !== null);
+      const [light, dark] = src.split('@media');
+      expect(light).toMatch(new RegExp(`\\.ring\\s*{[^}]*stroke:\\s*${PALETTE.light.ink}`));
+      expect(light).toMatch(new RegExp(`\\.dot\\s*{[^}]*fill:\\s*${PALETTE.light.signal};\\s*stroke:\\s*${PALETTE.light.edge}`));
+      expect(dark).toMatch(new RegExp(`\\.track, \\.ring\\s*{\\s*stroke:\\s*${PALETTE.dark.ink}`));
+      expect(dark).toMatch(/\.dot\s*{\s*stroke:\s*none/);
     }
   });
 
-  it('the opening is 23 degrees (standard) and 34 (small), and the length is the arc of radius 30 over the sweep', () => {
-    expect(360 - STANDARD.ring.sweepDeg).toBeCloseTo(23.46, 1);
-    expect(360 - SMALL.ring.sweepDeg).toBeCloseTo(34, 1);
-    for (const c of [STANDARD, SMALL]) {
-      expect(c.ring.length).toBeCloseTo((2 * Math.PI * RING_RADIUS * c.ring.sweepDeg) / 360, 1);
-      expect(c.ring.length).toBe(arcLength(arcSweepDeg(c.ring.d)));
-    }
-    expect(STANDARD.ring.length).toBeCloseTo(176.21, 2);
-    expect(SMALL.ring.length).toBeCloseTo(170.69, 2);
+  it('the brand-file palette is Ember: dark grounds get EMBER, light grounds the Ember ground colour as ink', () => {
+    expect(PALETTE.dark).toEqual(EMBER);
+    expect(PALETTE.light).toEqual({ ground: EMBER.ink, ink: EMBER.ground, signal: EMBER.signal, edge: EMBER.ground });
   });
 
-  it('the dot sits on the bisector of the opening (35 degrees) inside the ring', () => {
-    for (const c of [STANDARD, SMALL]) {
-      const angle = (Math.atan2(c.dot.cy - RING_CENTRE, c.dot.cx - RING_CENTRE) * 180) / Math.PI;
-      expect(angle).toBeCloseTo(35, 0);
-      expect(Math.hypot(c.dot.cx - RING_CENTRE, c.dot.cy - RING_CENTRE) + c.dot.r).toBeLessThan(RING_RADIUS - c.ring.stroke / 2);
-    }
-  });
-
-  it('the crop holds the heavier ring with a margin and the small cut starts at 32 px', () => {
-    const outer = RING_RADIUS + SMALL.ring.stroke / 2;
-    expect(CROP.x).toBeLessThan(RING_CENTRE - outer);
-    expect(CROP.x + CROP.size).toBeGreaterThan(RING_CENTRE + outer);
-    expect(CROP_VIEWBOX).toBe('18 18 72 72');
-    expect(SMALL_CUT_MAX_PX).toBe(32);
-    expect(cutFor(32)).toBe(SMALL);
-    expect(cutFor(33)).toBe(STANDARD);
-  });
-
-  it('the palette equals the colours in the SVGs and the chassis in tokens.css', () => {
-    const { src } = readMark('mark.svg');
-    const light = src.split('@media')[0]!;
-    const dark = src.split('@media')[1]!;
-    expect(light).toMatch(new RegExp(`\\.ring\\s*{[^}]*stroke:\\s*${PALETTE.light.ink}`));
-    expect(light).toMatch(new RegExp(`\\.dot\\s*{[^}]*fill:\\s*${PALETTE.light.signal};\\s*stroke:\\s*${PALETTE.light.edge}`));
-    expect(dark).toMatch(new RegExp(`\\.ring\\s*{[^}]*stroke:\\s*${PALETTE.dark.ink}`));
-    expect(dark).toMatch(new RegExp(`\\.dot\\s*{[^}]*fill:\\s*${PALETTE.dark.signal};\\s*stroke:\\s*none`));
+  it('the in-app (Ember) palette is the one tokens.css gives the auto tone: backdrop, ivory ring, gold dot, no edge', () => {
     const tokens = read('src/styles/tokens.css');
-    expect(tokens).toMatch(new RegExp(`--lm-chassis:\\s*${PALETTE.light.ground}`));
-    expect(tokens).toMatch(new RegExp(`--lm-chassis:\\s*${PALETTE.dark.ground}`));
+    const token = (name: string) => tokens.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]?.trim().toLowerCase();
+    expect(token('lm-chassis')).toBe(EMBER.ground);
+    expect(token('lm-ink')).toBe(EMBER.ink);
+    expect(token('lm-signal')).toBe(EMBER.signal);
+    expect(EMBER.edge).toBeNull();
   });
 });
 
@@ -98,16 +99,19 @@ describe('the pre-JS start screen (index.html + public/brand/launch.css) uses th
   const html = read('index.html');
   const css = read('public/brand/launch.css');
 
-  it('index.html links launch.css in <head> and holds the still mark inside #root', () => {
+  it('index.html links launch.css in <head> and holds the still standard cut inside #root', () => {
     expect(html).toMatch(/<head>[\s\S]*<link rel="stylesheet" href="\/brand\/launch\.css" \/>[\s\S]*<\/head>/);
     const root = html.match(/<div id="root">([\s\S]*?)<\/div>\s*<noscript>/)?.[1] ?? '';
     expect(root).toContain('class="vitals-launch" aria-hidden="true"');
     expect(root).toContain(`viewBox="${CROP_VIEWBOX}"`);
+    expect(root).toContain(`<circle class="vitals-launch__track" cx="${CENTRE}" cy="${CENTRE}" r="${STANDARD.track!.r}" />`);
     expect(root).toContain(`d="${STANDARD.ring.d}"`);
     expect(root).toContain(`cx="${STANDARD.dot.cx}" cy="${STANDARD.dot.cy}" r="${STANDARD.dot.r}"`);
   });
 
   it('launch.css draws the standard cut with the computed length, trim, palette and timing', () => {
+    expect(num(css, /\.vitals-launch__track\s*{[^}]*stroke-width:\s*([\d.]+)/)).toBe(STANDARD.track!.stroke);
+    expect(num(css, /\.vitals-launch__track\s*{[^}]*stroke-opacity:\s*([\d.]+)/)).toBe(STANDARD.track!.opacity);
     expect(num(css, /\.vitals-launch__ring\s*{[^}]*stroke-width:\s*([\d.]+)/)).toBe(STANDARD.ring.stroke);
     expect(num(css, /\.vitals-launch__ring\s*{[^}]*stroke-dasharray:\s*([\d.]+)/)).toBeCloseTo(STANDARD.ring.length, 1);
     expect(num(css, /@keyframes vitals-launch-draw\s*{\s*from\s*{\s*stroke-dashoffset:\s*([\d.]+)/)).toBeCloseTo(trimOffset(STANDARD), 1);
@@ -115,14 +119,13 @@ describe('the pre-JS start screen (index.html + public/brand/launch.css) uses th
     expect(css).toMatch(new RegExp(`animation: vitals-launch-draw ${DRAW_ON.ringMs}ms cubic-bezier\\(0\\.4, 0, 0\\.2, 1\\) both`));
     expect(css).toMatch(new RegExp(`animation: vitals-launch-pop ${DRAW_ON.dotMs}ms cubic-bezier\\(0\\.34, 1\\.36, 0\\.64, 1\\) ${DRAW_ON.dotDelayMs}ms both`));
     expect(DRAW_ON.dotDelayMs + DRAW_ON.dotMs).toBeLessThan(1000);
-    for (const v of [PALETTE.light.ground, PALETTE.light.ink, PALETTE.light.signal, PALETTE.dark.ground, PALETTE.dark.ink, PALETTE.dark.signal]) {
-      expect(css).toContain(v);
-    }
+    expect(css.toLowerCase()).toMatch(new RegExp(`\\.vitals-launch\\s*{[^}]*--vl-ink:\\s*${EMBER.ink};[^}]*--vl-signal:\\s*${EMBER.signal};[^}]*--vl-edge:\\s*transparent`));
   });
 
-  it('launch.css follows html[data-theme] and the OS, and has the reduced-motion still rule', () => {
-    expect(css).toMatch(/html\[data-theme='dark'\] \.vitals-launch\s*{[^}]*background: #151618/);
-    expect(css).toMatch(/@media \(prefers-color-scheme: dark\)\s*{[\s\S]*html:not\(\[data-theme='light'\]\) \.vitals-launch\s*{[^}]*background: #151618/);
+  it('launch.css is dark only (the Ember backdrop, no theme branch) and has the reduced-motion still rule', () => {
+    expect(css).toMatch(new RegExp(`html\\s*{[^}]*background:\\s*${EMBER.ground}`));
+    expect(css).toMatch(new RegExp(`\\.vitals-launch\\s*{[^}]*background:\\s*${EMBER.ground}`));
+    expect(css).not.toMatch(/data-theme|prefers-color-scheme/);
     expect(css).toMatch(/html\[data-motion='reduce'\] \.vitals-launch__ring,\s*html\[data-motion='reduce'\] \.vitals-launch__dot\s*{\s*animation: none;/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*{\s*html:not\(\[data-motion='full'\]\) \.vitals-launch__ring,[\s\S]*?animation: none;/);
   });

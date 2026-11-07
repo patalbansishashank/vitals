@@ -54,12 +54,12 @@ it('R7 §7.3 (2), (3), (6)', async () => {
     const summary = { date: day(i), hrv: 55, rhr: 58, sleep: { stages: Array.from({ length: 120 }, (_, k) => ({ t: k * 240, s: k % 4 })) }, steps: 9000, notes: 'y'.repeat(12_000) };
     bytes += JSON.stringify(log).length + JSON.stringify(summary).length;
     // One import = one Evolu batch per day (puts issued without awaiting share a microtask batch and one sync message).
-    await Promise.all([a.put('dailyLogs', `log:${day(i)}`, log), a.put('bioSummaries', `sum:${day(i)}`, summary)]);
+    await Promise.all([a.put('dailyLogs', `log:${day(i)}`, log), a.put('daySummaries', `sum:${day(i)}`, summary)]);
   }
   for (let h = 0; h < 30 * 24; h++) {
     const hourStartUtc = new Date(Date.UTC(2026, 8, 1) + h * 3_600_000).toISOString();
     const chunkId = `c${String(h).padStart(21, '0')}`;
-    void a.put(BLOB_MANIFEST_COLLECTION, chunkId, { chunkId, source: 'ring', metric: 'hr', hourStartUtc, n: 60, min: 50, max: 140, bytes: 180, contentHash: 'h'.repeat(43), schemaVersion: 1, createdAt: hourStartUtc });
+    void a.put(BLOB_MANIFEST_COLLECTION, chunkId, { chunkId, source: 'test', metric: 'hr', hourStartUtc, n: 60, min: 50, max: 140, bytes: 180, contentHash: 'h'.repeat(43), schemaVersion: 1, createdAt: hourStartUtc });
   }
   const big = { list: Array.from({ length: 2500 }, (_, i) => ({ id: `s${i}`, name: `Scenario ${i}`, kcal: 1800 + i, notes: 'x'.repeat(60) })) };
   await a.put('kv', 'vitals.scenarios', big);

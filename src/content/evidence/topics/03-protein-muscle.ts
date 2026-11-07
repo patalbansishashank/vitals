@@ -1,4 +1,25 @@
-import type { EvidenceTopic } from '../schema';
+import type { Warrant } from '@/lib/bodyContracts';
+import type { EvidenceObservation, EvidenceTopic } from '../schema';
+
+/*
+ * Muscle protein synthesis (MPS) in Vitals is a simulated anabolic-response index: an exploratory display, never a
+ * measured fractional synthesis rate and never converted into grams of muscle. Acute and chronic endpoints differ.
+ */
+const W_ACUTE_SYNTHESIS: Warrant = {
+  type: 'empiricalFormal',
+  confidence: 'moderate',
+  scope: 'acute muscle protein synthesis in tracer studies, for the doses, ages and hours studied',
+};
+const W_ACUTE_NOT_CHRONIC: Warrant = {
+  type: 'empiricalFormal',
+  confidence: 'low',
+  scope: 'acute synthesis differences as a predictor of chronic muscle gain',
+};
+const MUSCLE_SYNTHESIS_TRACER = (referenceIds: string[]): EvidenceObservation => ({
+  tissue: 'skeletal muscle (protein synthesis rate, tracer)',
+  type: 'humanTissueFlux',
+  referenceIds,
+});
 
 /** Evidence topic for research/03-protein-mps-muscle-retention.md (pure data). */
 const topic: EvidenceTopic = {
@@ -406,7 +427,7 @@ lean change = −(lean lost to the deficit − credit)`,
       summary:
         'An energy deficit lowers muscle protein synthesis (MPS), the rate at which muscle builds new protein, both when fasted and after a meal. Muscle protein breakdown (MPB) is largely unchanged, so lower synthesis is the main driver of early lean loss. Higher protein and resistance exercise restore synthesis.',
       howModelled:
-        'The engine multiplies basal and meal-stimulated MPS by a factor that falls with deficit size and rises with protein adequacy. It has no deficit term for breakdown. A single resistance session adds MPS back through the training terms.',
+        'In the exploratory synthesis index, the engine multiplies basal and meal-stimulated MPS by a factor that falls with deficit size and rises with protein adequacy. It has no deficit term for breakdown. A single resistance session adds MPS back through the training terms.',
       equation: 'f_E,MPS(d, x_P) = max(0.5, 1 − 0.9 · d · (1 − 0.5 · x_P))',
       keyNumbers: [
         {
@@ -460,6 +481,12 @@ lean change = −(lean lost to the deficit − credit)`,
       status: 'proposed-fit',
       caveats: 'The equation is fitted by Vitals to these studies, and the time constants are unverified.',
       referenceIds: ['pasiakos2010', 'areta2014', 'hector2015', 'hector2018b', 'murphy2015', 'pasiakos2013'],
+      warrants: [W_ACUTE_SYNTHESIS],
+      outcomeScope:
+        'Muscle protein synthesis rate in an energy deficit; the index is not a measured synthesis rate',
+      population: 'Active and resistance-trained adults, 5–10 days of deficit',
+      observations: [MUSCLE_SYNTHESIS_TRACER(['pasiakos2010', 'pasiakos2013', 'hector2018b'])],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mps'],
     },
     {
@@ -469,7 +496,7 @@ lean change = −(lean lost to the deficit − credit)`,
       summary:
         'After a protein meal, muscle protein synthesis rises roughly in step with the dose up to about 0.24 g per kilogram of body mass in young people (0.40 in older people), then flattens without a hard limit. Larger meals mostly make the response last longer. Burning of large doses is small, and whole-body protein balance keeps improving with dose, largely because breakdown is suppressed.',
       howModelled:
-        'The engine treats the peak response to a meal as saturating at the age-dependent per-meal amount, but lets larger doses extend the duration through slower digestion. It counts leucine as a signal that is necessary but not sufficient, since total essential amino acid supply sustains the response.',
+        'The engine treats the peak response to a meal as saturating at the age-dependent per-meal amount, but lets larger doses extend the duration through slower digestion. It counts leucine as a signal that is necessary but not sufficient, since total essential amino acid supply sustains the response. Leucine enters only through the protein source’s known composition; there is no universal 2–3 g leucine switch. The result is a simulated anabolic-response index: exploratory, not a measured synthesis rate, and never converted into grams of muscle.',
       keyNumbers: [
         {
           label: 'Per-meal plateau in pooled tracer studies (isolated high-quality protein)',
@@ -547,6 +574,11 @@ lean change = −(lean lost to the deficit − credit)`,
         'churchwardvenne2012',
         'pinckaers2021',
       ],
+      warrants: [W_ACUTE_SYNTHESIS, W_ACUTE_NOT_CHRONIC],
+      outcomeScope: 'Acute muscle protein synthesis after one protein meal; not chronic muscle gain',
+      population: 'Young and older adults, mostly men, mostly after exercise; hours',
+      observations: [MUSCLE_SYNTHESIS_TRACER(['moore2015', 'witard2014', 'trommelen2023', 'holwerda2019'])],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mps', 'autophagyIdx'],
     },
     {
@@ -554,9 +586,9 @@ lean change = −(lean lost to the deficit − credit)`,
       title: 'Hour-by-hour muscle protein balance model (proposed)',
       category: 'cellular',
       summary:
-        'To show how meals, training and energy status play out within a day, Vitals adds an hourly model of muscle protein synthesis, breakdown and net balance. Meals feed a digestion model, amino acids appear in the blood with a lag, and synthesis responds to them with a saturating curve and a refractory (muscle-full) state. Training raises sensitivity for 12–48 hours. Its results are re-scaled each day to match the daily model.',
+        'To show how meals, training and energy status play out within a day, Vitals adds an hourly model of muscle protein synthesis, breakdown and net balance. Meals feed a digestion model, amino acids appear in the blood with a lag, and synthesis responds to them with a saturating curve and a refractory (muscle-full) state. Training raises sensitivity for 12–48 hours. It is a display index only: lean tissue comes from the daily model.',
       howModelled:
-        "The hourly layer is driven by meal protein, digestion speed, quality, energy status and training state. Its 24-hour net balance is re-normalised each day so that it equals the daily layer's change in muscle protein. Otherwise every extra gram of protein would turn into muscle, because acute synthesis differences do not predict chronic growth well.",
+        'The hourly layer is driven by meal protein, digestion speed, quality, energy status and training state. It gives a simulated anabolic-response index (synthesis as a percentage of basal): exploratory, not a measured synthesis rate, and never integrated into muscle mass. Lean tissue comes from the daily model alone, because acute synthesis differences do not predict chronic growth well.',
       equation: `dG_i/dt = −V_i,   V_i = Vmax · s_i · G_i/(Km + G_i),   G_i(t_i) = P_i
 Ra_q = Σ Q_i · F_sys · V_i,   dA_lag/dt = (Ra_q − A_lag)/τ_lag
 S(t) = x^n/(K_age^n + x^n),   x = A_lag/FFM,   K_age = K · (1 + 0.67·clamp((age − 30)/40, 0, 1))
@@ -643,6 +675,18 @@ NET = MPS − MPB;   E_dist,hourly = clamp((AI_day/AI_ref)^γ, 0.85, 1.05),   γ
         'tipton2018',
         'wolfe2006',
       ],
+      warrants: [
+        W_ACUTE_SYNTHESIS,
+        W_ACUTE_NOT_CHRONIC,
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope:
+            'digestion, amino-acid appearance and a refractory muscle-full state as the shape of the response',
+        },
+      ],
+      outcomeScope: 'Within-day pattern of simulated synthesis; a display index, not muscle gain',
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mps'],
     },
     {
@@ -713,6 +757,11 @@ NET = MPS − MPB;   E_dist,hourly = clamp((AI_day/AI_ref)^γ, 0.85, 1.05),   γ
         'damas2016',
         'areta2014',
       ],
+      warrants: [W_ACUTE_SYNTHESIS],
+      outcomeScope:
+        'Muscle protein turnover for 1–2 days after a resistance session; feeds the exploratory synthesis index',
+      observations: [MUSCLE_SYNTHESIS_TRACER(['phillips1997', 'macdougall1995', 'burd2010', 'damas2016'])],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['mps', 'mtorIdx'],
     },
     {
@@ -722,10 +771,12 @@ NET = MPS − MPB;   E_dist,hourly = clamp((AI_day/AI_ref)^γ, 0.85, 1.05),   γ
       summary:
         'Acute studies show that the pattern of protein across the day changes muscle protein synthesis by a few tens of per cent. Long trials mostly find little or no difference in lean mass when total protein is adequate. So total daily protein dominates, and spacing or timing matters more when total protein is marginal, when fasts are long, or in older adults.',
       howModelled:
-        'A distribution-efficiency factor counts how many meals reach the per-meal threshold and how long the eating window is. It multiplies only the training-driven gain. There is no bonus for timing around a workout or bedtime beyond what total protein provides. Long daily fasts add a small extra loss of lean tissue.',
-      equation: `n_eff = number of meals with quality-weighted protein ≥ max(0.28 g/kg FFM × (1 + 0.8·clamp((age − 30)/40, 0, 1)) × FFM, 15 g), at least 3 h apart; capped at 3
+        'Total daily protein drives the training-driven gain. How it is spread over meals changes nothing in the standard projection: a neutral design choice, not proof that timing has no effect. The older distribution-efficiency factor, which counted meals reaching a per-meal threshold and the length of the eating window, is kept only as a named research sensitivity. There is no bonus for timing around a workout or bedtime, and no lost-muscle estimate for a short eating window or a missed per-meal amount. Protein at regular meals stays a practical option.',
+      equation: `Standard projection: E_dist = 1 (a neutral design choice; daily protein carries the effect)
+Research sensitivity only:
+n_eff = number of meals with quality-weighted protein ≥ max(0.28 g/kg FFM × (1 + 0.8·clamp((age − 30)/40, 0, 1)) × FFM, 15 g), at least 3 h apart; capped at 3
 E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1)      (range 0.83–1.0; W = eating window in hours)
-ΔL_fastExtra (kg/d) = −k_f · max(0, t_fast,max − 16 h) · (p0/0.4) · (1 − 0.6·x_P) · M_RT,   k_f = 1.0 g lean per hour beyond 16 h (range 0–3)`,
+Proposed, not run: ΔL_fastExtra (kg/d) = −k_f · max(0, t_fast,max − 16 h) · (p0/0.4) · (1 − 0.6·x_P) · M_RT,   k_f = 1.0 g lean per hour beyond 16 h (range 0–3)`,
       keyNumbers: [
         {
           label: '24 trained men, 80 g whey over 12 h after exercise (8 × 10 g / 4 × 20 g / 2 × 40 g)',
@@ -802,11 +853,12 @@ E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1)      (rang
           label: 'Distribution efficiency from the hourly model (80 / 128 / 176 g per day)',
           value:
             'One meal 0.94 / 0.88 / 0.86; two meals 6 h apart 1.00 / 0.94 / 0.95; three even meals 1.00 (reference); three meals in a 6-hour window 0.96 / 0.88 / 0.90; six meals 1.02 / 0.98 / 0.95',
+          note: 'Research sensitivity only; the standard projection uses 1 for every pattern.',
           referenceIds: ['trommelen2023'],
         },
       ],
       timeCourse:
-        'Distribution penalties act on the daily training credit. The extra loss from long fasts applies to time-restricted or one-meal schedules at unchanged daily energy.',
+        'In the research sensitivity, distribution penalties act on the daily training credit. The standard projection applies none, and no extra loss is charged for time-restricted or one-meal schedules at unchanged daily energy.',
       moderators:
         'Total protein (dominant), age (a higher per-meal threshold), length of fasts, and whether at least one meal reaches the per-meal threshold when total protein is marginal (0.8–1.3 g/kg).',
       grade: 'C',
@@ -814,7 +866,7 @@ E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1)      (rang
         'The conclusion that total daily protein dominates is grade B, but the distribution penalty and the extra fasting loss are grade C, our own judgement.',
       status: 'contested',
       caveats:
-        "Acute synthesis differences (+25% and +31–48%) are much larger than the mostly null 8–12 week trials. The shrinkage (γ = 0.3) and the E_dist formula are judgement, with an uncertainty of 0 to 2 times the default penalty. Hudson's review calls the evidence limited and inconsistent.",
+        "Acute synthesis differences (+25% and +31–48%) are much larger than the mostly null 8–12 week trials. The shrinkage (γ = 0.3) and the E_dist formula are judgement, with an uncertainty of 0 to 2 times the default penalty. Hudson's review calls the evidence limited and inconsistent, so the standard projection applies no penalty.",
       referenceIds: [
         'areta2013',
         'mamerow2014',
@@ -837,6 +889,39 @@ E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1)      (rang
         'hudson2020b',
         'trommelen2023',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'total daily protein dominates chronic lean-mass and strength outcomes',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'a fixed chronic penalty for fewer protein meals or a short eating window',
+        },
+        {
+          type: 'tacitKnowledge',
+          confidence: 'moderate',
+          scope: 'protein at regular meals as a sustainable practice, not a fixed muscle effect',
+        },
+        {
+          type: 'functionallyTrue',
+          confidence: 'moderate',
+          scope: 'regular protein meals can make the daily total easier to reach',
+        },
+      ],
+      outcomeScope: 'Chronic lean-mass gain under different protein patterns at matched daily protein',
+      population: 'Mostly young trained men, some older adults and trained women; 1 day to 12 weeks',
+      observations: [
+        MUSCLE_SYNTHESIS_TRACER(['areta2013', 'mamerow2014']),
+        {
+          tissue: 'lean mass (DXA), 8–12 weeks',
+          type: 'humanOutcome',
+          referenceIds: ['kim2018', 'yasuda2020', 'moro2016', 'tinsley2019'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['rtMuscleGain'],
     },
     {
@@ -846,7 +931,7 @@ E_dist = 1 − 0.06·(3 − n_eff) − 0.05·clamp((8 − W)/4, 0, 1)      (rang
       summary:
         'Muscle needs a leucine signal and a complete set of essential amino acids. How much of a protein is usable depends on how well it is digested and on its scarcest essential amino acid (measured as DIAAS). Quality matters acutely and at marginal intakes. At 1.6 g per kilogram a day or more from mixed sources, trials find little difference between plant and animal protein for lean mass and strength.',
       howModelled:
-        'Each protein source has a daily quality multiplier used for the requirement and the training curve, and a meal multiplier used in the hourly model, built from its digestibility score and leucine content. Free essential amino acids count as roughly twice their weight in high-quality protein for the meal signal, branched-chain amino acids as a partial signal, and collagen as a low-value source.',
+        'Each protein source has a daily quality multiplier used for the requirement and the training curve, and a meal multiplier used in the hourly model, built from its digestibility score and leucine content. Free essential amino acids count as roughly twice their weight in high-quality protein for the meal signal, branched-chain amino acids as a partial signal, and collagen as a low-value source. Where a food’s protein source is unknown both multipliers are 1, a stated assumption: no leucine amount is invented for it, and no fixed leucine amount acts as a pass mark.',
       equation: `Q_meal = sqrt(min(1, DIAAS_adult)) · min(1.15, sqrt(Leu%/8.0))       (proposed)
 P_eff = Σ P_i · Q_daily,i`,
       keyNumbers: [
@@ -944,6 +1029,21 @@ P_eff = Σ P_i · Q_daily,i`,
         'zdzieblik2015',
         'trommelen2023',
       ],
+      warrants: [
+        W_ACUTE_SYNTHESIS,
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'chronic lean-mass differences between protein sources at adequate total protein',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope: 'a complete essential amino acid supply as substrate for muscle protein',
+        },
+      ],
+      outcomeScope:
+        'Protein quality for synthesis and training gains; the multipliers are derived, not measured',
       relatedMetricIds: ['mps', 'rtMuscleGain'],
     },
     {

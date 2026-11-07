@@ -1,0 +1,112 @@
+{
+  "route": "/v1/gauge/baselines",
+  "tool": "gauge_baselines",
+  "args": {
+    "date": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "Ring baselines for 2026-10-20 from 8 nights.",
+    "data": {
+      "date": "2026-10-20",
+      "usualOnset": {
+        "minutes": 1403,
+        "clock": "23:23",
+        "R": 0.999,
+        "n": 8,
+        "ready": true
+      },
+      "usualWake": {
+        "minutes": 295,
+        "clock": "04:55",
+        "R": 0.999,
+        "n": 8,
+        "ready": true
+      },
+      "usualMidpoint": {
+        "minutes": 129,
+        "clock": "02:09",
+        "R": 0.999,
+        "n": 8,
+        "ready": true
+      },
+      "sleepLowHr": {
+        "medianBpm": 51.5,
+        "s": 3,
+        "n": 8,
+        "spanDays": 7,
+        "ready": true
+      },
+      "hrvBaseline": {
+        "medianMs": 47,
+        "lnMedian": 3.85,
+        "lnS": 0.095,
+        "n": 8,
+        "spanDays": 7,
+        "ready": true
+      },
+      "tempBaseline": {
+        "medianC": 35.7,
+        "deltaC": -0.1,
+        "n": 8,
+        "spanDays": 7,
+        "ready": true
+      },
+      "learning": {
+        "nights": 8,
+        "needed": 7,
+        "learning": false
+      },
+      "sampledIdleHr": {
+        "medianBpm": null,
+        "n": 0,
+        "days": 0,
+        "label": "sampled non-exercise HR (not a resting heart rate)"
+      },
+      "restingHrFallback": null,
+      "labels": {
+        "usualOnset": "Usual time you fell asleep",
+        "usualWake": "Usual time you woke",
+        "usualMidpoint": "Usual sleep midpoint",
+        "sleepLowHr": "Sleeping low HR",
+        "hrvBaseline": "Usual HRV (ring-reported)",
+        "tempBaseline": "Usual skin temperature"
+      },
+      "units": {
+        "clock": "local HH:MM; minutes since local midnight",
+        "sleepLowHr": "bpm",
+        "restingHrFallback": "bpm (Health Connect RestingHeartRate; only while sleepLowHr is not ready)",
+        "hrvBaseline": "ms; lnMedian and lnS on ln(ms)",
+        "tempBaseline": "°C",
+        "learning": "nights"
+      },
+      "versions": [
+        "sleep-metrics/1",
+        "hr-support/1"
+      ],
+      "inputsHash": "sha256:a8b82774cb7be55a9e6e814bd2d6410b",
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T04:49:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 1121
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

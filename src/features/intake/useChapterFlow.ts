@@ -77,7 +77,7 @@ export function useChapterFlow(chapter: ChapterId, qs: readonly Question[], sctx
   const [announce, setAnnounce] = useState('');
   const [failed, setFailed] = useState<string | null>(null);
   // `base` is the state this render ends with: the stamp below must build on an adoption made in the same render (the
-  // stored document and the context can arrive together, e.g. the devices section sets the step device; stamping the
+  // stored document and the context can arrive together; stamping the
   // stale state would drop the adopted answers and reopen the chapter at question 1)
   let base = state;
   if (adopted !== storedKey) {
@@ -102,7 +102,7 @@ export function useChapterFlow(chapter: ChapterId, qs: readonly Question[], sctx
     [chapter, sctx, canSave],
   );
 
-  // chapter entry: locale, gentle mode and step device become answers (stamped during render, like the adoption above)
+  // chapter entry: locale and gentle mode become answers (stamped during render, like the adoption above)
   const stamped = stampContext(base.answers, ctx);
   if (stamped !== base.answers) setState({ ...base, answers: stamped });
   // … and are saved once the chapter has been started (only when the stored answers carry other values)

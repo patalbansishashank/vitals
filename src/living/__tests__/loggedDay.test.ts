@@ -3,8 +3,8 @@ import type { DayTemplate, PersonProfile, Schedule } from '@/engine';
 import type { StimulusVector } from '@/catalogues';
 import { freezePrescription, DEFAULT_ITEM_WEIGHTS } from '../prescription';
 import { toLoggedDay, scaleSession, stimulusToEngineSessions, type LoggedDayInput } from '../loggedDay';
+import { resolveFasts } from '../fastIntervals';
 import { catalogueEquivalence } from '../equivalence';
-import { createFakeObservationAdapter, matchWorkouts, observationsFromBioRecords, type BioRecordLike } from '../observations';
 import { effectiveEntries, aiEnergyShare, burdenMonitor, lapseState, tierOfEntry } from '../logs';
 import { localToInstant } from '../dates';
 import type { LogEntry, PlanDoc, PlanVersionDoc, PrescribedDaySnapshot } from '../types';
@@ -85,15 +85,84 @@ describe('prescription snapshot (§3.3)', () => {
 });
 
 describe('toLoggedDay (§3.4)', () => {
-  it('logged meals become absolute energy and macro grams with explicit meals; energy and protein are credited', () => {
+  it('logged meals of a day reported complete become exact energy and macro grams with explicit meals; energy and protein are credited', () => {
     const d = '2026-10-05';
-    const r = toLoggedDay(base(d, { entries: [meal(d, 9, 600, 50), meal(d, 13, 700, 55, { complete: true } as Partial<LogEntry>), meal(d, 18.5, 700, 55)] }));
+    const entries = [meal(d, 9, 600, 50), meal(d, 13, 700, 55, { complete: true } as Partial<LogEntry>), meal(d, 18.5, 700, 55)];
+    const r = toLoggedDay(base(d, { entries, status: { date: d, intake: 'complete' } }));
     expect(r.loggedDay.inputs.energy).toEqual({ kind: 'kcal', kcal: 2000 });
     expect(r.loggedDay.inputs.meals?.meals).toHaveLength(3);
+    expect(r.loggedDay.inputs.meals?.meals?.map((m) => m.energyKcal)).toEqual([600, 700, 700]);
     expect(r.loggedDay.items.find((i) => i.itemId === 'energy')).toMatchObject({ status: 'done', credit: 1 });
     expect(r.loggedDay.items.find((i) => i.itemId === 'protein')!.credit).toBeCloseTo(1, 9);
     expect(r.loggedDay.items.find((i) => i.itemId === 'window')!.credit).toBe(1);
     expect(r.intakeLogged).toBe(true);
+    expect(r.coverage.energy).toBe('complete');
+    expect(r.calibrationEligible).toBe(true);
+    expect(r.remainders).toEqual([]);
+  });
+
+  it('D5-01: three meals and a per-meal complete flag never make a complete day; observed meals stay exact, the rest is a separate remainder', () => {
+    const d = '2026-10-05';
+    const entries = [meal(d, 9, 600, 50), meal(d, 13, 700, 55, { complete: true } as Partial<LogEntry>), meal(d, 18.5, 700, 55)];
+    const r = toLoggedDay(base(d, { entries }));
+    expect(r.coverage.energy).toBe('partial');
+    expect(r.calibrationEligible).toBe(false);
+    expect(r.loggedDay.items.find((i) => i.itemId === 'energy')).toMatchObject({ status: 'unknown', credit: null });
+    const specs = r.loggedDay.inputs.meals!.meals!;
+    const observed = specs.filter((m) => m.eventId !== undefined);
+    expect(observed.map((m) => [m.clockH, m.energyKcal, m.macros?.proteinG])).toEqual([[9, 600, 50], [13, 700, 55], [18.5, 700, 55]]);
+    const imputed = specs.filter((m) => m.eventId === undefined);
+    const rest = imputed.reduce((a, m) => a + (m.energyKcal ?? 0), 0);
+    expect(r.remainders).toHaveLength(1);
+    expect(r.remainders[0]).toMatchObject({ channel: 'energy', scenario: 'expectedCredit', timing: 'prescribedSlots', provenance: 'imputed' });
+    expect(r.remainders[0]!.value).toBeCloseTo(rest, 6);
+    const e = r.loggedDay.inputs.energy;
+    expect(e.kind === 'kcal' && e.kcal).toBeCloseTo(2000 + rest, 6);
+    expect(r.assumptions.some((a) => a.kind === 'remainderImputation')).toBe(true);
+    expect(r.resolution).toBe('scenario');
+  });
+
+  it('D5-01/D6-02: one 500 kcal breakfast replays as 500 observed kcal at its clock; unknown macros are left out, never zero', () => {
+    const d = '2026-10-05';
+    const bf = { ...meal(d, 8, 500, 30), totals: { energyKcal: { value: 500, sd: 40 }, proteinG: { value: 30, sd: 3 }, carbG: { value: 0, sd: 0 }, fatG: { value: 0, sd: 0 }, unknown: ['carbG', 'fatG'] } } as LogEntry;
+    const r = toLoggedDay(base(d, { entries: [bf] }));
+    const spec = r.loggedDay.inputs.meals!.meals!.find((m) => m.eventId === bf.id)!;
+    expect(spec).toMatchObject({ clockH: 8, energyKcal: 500, macros: { proteinG: 30 } });
+    expect(spec.macros).not.toHaveProperty('carbG');
+    expect(spec.macros).not.toHaveProperty('fatG');
+    expect(r.observed).toMatchObject({ energyKcal: 500, proteinG: 30, meals: 1 });
+    expect(r.coverage.energy).toBe('partial');
+    expect(r.coverage.carbohydrate).toBe('partial');
+    expect(r.calibrationEligible).toBe(false);
+    // the remainder sits on the prescription's other slots and never rescales the breakfast
+    for (const m of r.loggedDay.inputs.meals!.meals!) if (m.eventId === undefined) expect(m.clockH).not.toBe(8);
+  });
+
+  it('D5-01: "nothing eaten" is a confirmed zero (eligible), never skipped; as-planned taps and backfill stay estimates', () => {
+    const d = '2026-10-06';
+    const zero = toLoggedDay(base(d, { status: { date: d, intake: 'none' } }));
+    expect(zero.loggedDay.inputs.energy).toEqual({ kind: 'zero' });
+    expect(zero.coverage.energy).toBe('confirmedZero');
+    expect(zero.calibrationEligible).toBe(true);
+    const tap = toLoggedDay(base(d, { status: { date: d, marks: { food: 'asPlanned' } } }));
+    expect(tap.coverage.energy).toBe('asPlannedEstimate');
+    expect(tap.calibrationEligible).toBe(false);
+    const asPlannedMeal = toLoggedDay(base(d, { entries: [meal(d, 9, 2000, 160, { source: { by: 'user', method: 'asPlanned' } } as Partial<LogEntry>)], status: { date: d, intake: 'complete' } }));
+    expect(asPlannedMeal.coverage.energy).toBe('complete');
+    expect(asPlannedMeal.calibrationEligible).toBe(false);
+    const partly = toLoggedDay(base(d, { status: { date: d, marks: { food: 'partly' } } }));
+    expect(partly.loggedDay.inputs.energy).not.toEqual(TRAIN.energy);
+  });
+
+  it('D5-01: a meal answered "not" gets no remainder; an answered "partly" slot gets half its planned energy as an imputed remainder', () => {
+    const d = '2026-10-06';
+    const r0 = rx(d);
+    const [s1, s2] = r0.meals;
+    const r = toLoggedDay(base(d, { status: { date: d, marks: { meals: { [s1!.slot]: 'not', [s2!.slot]: 'partly' } } } }));
+    const specs = r.loggedDay.inputs.meals!.meals!;
+    expect(specs.some((m) => m.clockH === s1!.clockH)).toBe(false);
+    expect(specs.find((m) => m.clockH === s2!.clockH)!.energyKcal).toBeCloseTo(0.5 * s2!.energyKcal, 6);
+    expect(r.loggedDay.items.find((i) => i.itemId === 'energy')!.credit).toBeNull();
   });
 
   it('nothing logged: every item unknown, no score, and the replay uses the expected credit', () => {
@@ -141,11 +210,18 @@ describe('toLoggedDay (§3.4)', () => {
     const first = new Date(Date.parse(last) + 18 * 3_600_000).toISOString();
     const r = toLoggedDay(base(d, { entries: [{ id: 'f1', date: d, tz: TZ, source: src, kind: 'fast', lastIntakeAt: last, firstIntakeAt: first, broken: true } as LogEntry] }));
     expect(r.loggedDay.items.find((i) => i.type === 'fast')).toMatchObject({ status: 'partial', credit: 0.5 });
-    expect(r.fast).toMatchObject({ startDay: 4, startH: 20, durationH: 18 });
+    expect(r.fast).toMatchObject({ startDay: 4, startH: 20, durationH: 18, source: 'observed' });
+    // the next day's breakfast ends the prescribed fast there (resolved across midnight, by when the meal happened)
     const d2 = '2026-10-10';
-    const r2 = toLoggedDay(base(d, { prescription: rx(d), entries: [meal(d2, 8, 500, 30, { date: d } as Partial<LogEntry>)].map((m) => ({ ...m, at: localToInstant(d2, 8, TZ) })) as LogEntry[] }));
+    const breakfast = meal(d2, 8, 500, 30);
+    const fasts = resolveFasts({ planStart: plan.startDate, tz: TZ, asOf: localToInstant('2026-10-11', 4, TZ), entries: [breakfast], days: [{ date: d, planDay: 4, prescription: rx(d), status: null }, { date: d2, planDay: 5, prescription: rx(d2), status: null }] });
+    const r2 = toLoggedDay(base(d, { prescription: rx(d), fasts }));
     expect(r2.loggedDay.items.find((i) => i.type === 'fast')!.credit).toBeCloseTo((12 - 12) / 12, 9);
     expect(r2.fast!.durationH).toBeCloseTo(12, 9);
+    // the meal's entry time is not its occurrence: the same breakfast entered two days later ends the fast at the same hour
+    const late = { ...breakfast, at: '2026-10-12T09:00:00.000Z', recordedAt: '2026-10-12T09:00:00.000Z' } as LogEntry;
+    const again = resolveFasts({ planStart: plan.startDate, tz: TZ, asOf: localToInstant('2026-10-13', 4, TZ), entries: [late], days: [{ date: d, planDay: 4, prescription: rx(d), status: null }] });
+    expect(again[0]!.achievedH).toBeCloseTo(12, 9);
   });
 
   it('unknown fast: kept for the replay only when E[c] ≥ 0.5', () => {
@@ -153,30 +229,15 @@ describe('toLoggedDay (§3.4)', () => {
     expect(toLoggedDay(base('2026-10-09', { expected: () => 0.3 })).fast).toBeNull();
   });
 
-  it('device steps beat manual steps; device sleep sets the night ending on the day; workouts mark sessions', () => {
+  it('steps and sleep come only from what the person logged (Vitals reads no devices)', () => {
     const d = '2026-10-05';
-    const obs = { date: d, steps: { value: 4500, source: 'ring' }, sleep: { bedH: 23.5, wakeH: 6.5, hours: 6.8, source: 'ring' }, workouts: [{ recordId: 'w1', startH: 18.2, durationMin: 46, exerciseType: 'strength_training', kind: 'resistance' as const, source: 'watch' }] };
-    const r = toLoggedDay(base(d, { observations: obs, entries: [{ id: 'st', date: d, tz: TZ, source: src, kind: 'steps', steps: 12000 } as LogEntry] }));
+    const r = toLoggedDay(base(d, { entries: [
+      { id: 'st', date: d, tz: TZ, source: src, kind: 'steps', steps: 4500 } as LogEntry,
+      { id: 'sl', date: d, tz: TZ, source: src, kind: 'sleep', bedAt: localToInstant('2026-10-04', 23.5, TZ), wakeAt: localToInstant(d, 6.5, TZ) } as LogEntry,
+    ] }));
     expect(r.loggedDay.inputs.steps).toBe(4500);
-    expect(r.loggedDay.items.find((i) => i.itemId === 'steps')!.credit).toBeCloseTo(0.5, 9);
-    expect(r.loggedDay.inputs.sleep).toMatchObject({ bedH: 23.5, wakeH: 6.5, hours: 6.8 });
-    expect(r.loggedDay.items.find((i) => i.type === 'rtSession')).toMatchObject({ status: 'done' });
-  });
-
-  // L-REV2 R1-7: the ring fold re-ids a Lumen workout; the device entry logged under its old id is that workout, not another
-  it('a device-logged session whose workout was re-id’d is the observed workout, not a second one', () => {
-    const d = '2026-10-05';
-    const w = { startH: 18.2, durationMin: 46, exerciseType: 'strength_training', kind: 'resistance' as const, source: 'ring' };
-    const stimulus = { effectiveSetsByRegion: {}, pattern: 'complex', loadClass: 'moderate', netKcal: 0, mem: 0, hiMinutes: 0, mobilityMinutes: {} };
-    const logged = {
-      id: 'dev', date: d, tz: TZ, source: { by: 'device', method: 'biometrics', bioRecordId: 'w-lumen', deviceKey: `${d}:workouts:w-lumen` },
-      kind: 'session', status: 'done', startH: 18.2, durationMin: 46, performed: [], bioWorkoutId: 'w-lumen', stimulus, catalogueVersion: 'device',
-      workout: { exerciseType: 'strength_training', kind: 'resistance' },
-    } as unknown as LogEntry;
-    const alone = toLoggedDay(base(d, { observations: { date: d, workouts: [{ recordId: 'w-ring', ...w }] } })).loggedDay.inputs.exercise;
-    const r = toLoggedDay(base(d, { observations: { date: d, workouts: [{ recordId: 'w-ring', aliases: ['w-lumen'], ...w }] }, entries: [logged] }));
-    expect(r.loggedDay.inputs.exercise).toEqual(alone);
-    expect(r.loggedDay.items.find((i) => i.type === 'rtSession')).toMatchObject({ status: 'done' });
+    expect(r.score.items.find((i) => i.itemId === 'steps')!.why).toBe('4500 steps');
+    expect(r.loggedDay.inputs.sleep).toMatchObject({ bedH: 23.5, wakeH: 6.5, hours: 7 });
   });
 
   it('a backfilled ("assumed") day replays as planned but is never scored nor counted as logged intake', () => {
@@ -185,6 +246,9 @@ describe('toLoggedDay (§3.4)', () => {
     expect(r.score.score).toBeNull();
     expect(r.intakeLogged).toBe(false);
     expect(r.loggedDay.inputs.energy).toEqual(TRAIN.energy);
+    // legacy backfill is never measured completeness (C1/D5-01)
+    expect(r.coverage.energy).toBe('asPlannedEstimate');
+    expect(r.calibrationEligible).toBe(false);
   });
 
   it('illness and stress become engine modifiers; substances become engine inputs', () => {
@@ -195,7 +259,7 @@ describe('toLoggedDay (§3.4)', () => {
       { id: 'e3', date: d, tz: TZ, source: src, kind: 'substance', substance: 'caffeine', clockH: 8, amount: 200, unit: 'mg' } as LogEntry,
     ] }));
     expect(r.loggedDay.inputs.modifiers).toMatchObject({ illness: true, stress: 'high' });
-    expect(r.loggedDay.inputs.substances?.caffeine).toEqual([{ clockH: 8, mg: 200 }]);
+    expect(r.loggedDay.inputs.substances?.caffeine).toEqual([{ clockH: 8, mg: 200, eventId: 'e3' }]);
   });
 });
 
@@ -226,35 +290,5 @@ describe('logs, provenance and burden', () => {
     expect(burdenMonitor([], [], '2026-10-12', '2026-10-05').minimalMode).toBe(false);
     expect(lapseState('2026-10-10', '2026-10-13', '2026-10-05')).toEqual({ welcomeBack: true, gap: ['2026-10-11', '2026-10-12'] });
     expect(lapseState('2026-10-11', '2026-10-13', '2026-10-05').welcomeBack).toBe(false);
-  });
-});
-
-describe('observation adapter', () => {
-  it('maps canonical biometrics records to day observations (vendor VO2max estimates never enter)', () => {
-    const recs: BioRecordLike[] = [
-      { kind: 'daily', record_id: 'd1', time: { tz_offset_s: 19800, local_date: '2026-10-05' }, provenance: { channel: 'file:apple_health', source_app: 'Health' }, steps: 8123, vo2max: { ml_kg_min: 44, method: 'vendor_estimate' } },
-      { kind: 'daily', record_id: 'd2', time: { tz_offset_s: 19800, local_date: '2026-10-06' }, provenance: { channel: 'manual' }, vo2max: { ml_kg_min: 41, method: 'field_test' } },
-      { kind: 'sleep', record_id: 's1', is_main: true, asleep_s: 25200, time: { start: '2026-10-04T17:30:00.000Z', end: '2026-10-05T01:00:00.000Z', tz_offset_s: 19800, local_date: '2026-10-05' }, provenance: { channel: 'ble:2301' } },
-      { kind: 'workout', record_id: 'w1', exercise_type: 'running', active_duration_s: 1800, time: { start: '2026-10-05T12:30:00.000Z', tz_offset_s: 19800, local_date: '2026-10-05' }, provenance: { channel: 'file:health_connect' } },
-      { kind: 'spot', record_id: 'x1', metric: 'weight_kg', value: 89.4, context: 'morning', time: { at: '2026-10-05T01:30:00.000Z', tz_offset_s: 19800, local_date: '2026-10-05' }, provenance: { channel: 'ble:scale', device: { type: 'scale', tier: 'B' } } },
-    ];
-    const obs = observationsFromBioRecords(recs, TZ);
-    const d5 = obs.find((o) => o.date === '2026-10-05')!;
-    expect(d5.steps!.value).toBe(8123);
-    expect(d5.vo2max).toBeUndefined();
-    expect(d5.sleep).toMatchObject({ bedH: 23, wakeH: 6.5, hours: 7 });
-    expect(d5.workouts![0]).toMatchObject({ kind: 'cardio', durationMin: 30, startH: 18 });
-    expect(d5.weights![0]).toMatchObject({ kg: 89.4, context: 'morning' });
-    expect(obs.find((o) => o.date === '2026-10-06')!.vo2max).toMatchObject({ mlKgMin: 41, method: 'field_test' });
-    const fake = createFakeObservationAdapter(obs);
-    expect(fake.observations('2026-10-05', '2026-10-05')).toHaveLength(1);
-  });
-
-  it('matches workouts by kind and duration (≥ 0.8 done, ≥ 0.3 partial, else none)', () => {
-    const s = rx('2026-10-05').sessions;
-    expect(matchWorkouts(s, [{ recordId: 'a', startH: 18, durationMin: 45, exerciseType: 'strength', kind: 'resistance', source: 'w' }])[0]).toMatchObject({ status: 'done' });
-    expect(matchWorkouts(s, [{ recordId: 'a', startH: 18, durationMin: 20, exerciseType: 'strength', kind: 'resistance', source: 'w' }])[0]).toMatchObject({ status: 'partial', ratio: 0.4 });
-    expect(matchWorkouts(s, [{ recordId: 'a', startH: 18, durationMin: 10, exerciseType: 'strength', kind: 'resistance', source: 'w' }])).toEqual([]);
-    expect(matchWorkouts(s, [{ recordId: 'a', startH: 18, durationMin: 50, exerciseType: 'run', kind: 'cardio', source: 'w' }])).toEqual([]);
   });
 });

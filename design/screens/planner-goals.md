@@ -237,7 +237,7 @@ as a ChangeCard `edit` class (`COMPONENTS §13.11`) rendered as a Faceplate:
  ranked goals ─────────────────────────────────────────────────────────────────────────────
  1 fat mass       lose 6.0 kg by week 15     body fat about 31 % (likely 28–34), above the healthy band
  2 lean mass      keep ±0.5 kg               you train 3 times a week; keeping muscle protects maintenance
- 3 sleep          raise regularity           your ring shows bedtimes varying by about 90 min
+ 3 sleep          raise regularity           your sleep log shows bedtimes varying by about 90 min
  constraints ──────────────────────────────────────────────────────────────────────────────
  training days    3 → 3 (from your answers)  · eating between 08:00–21:00 → 09:00–20:00
  fasting          none (you haven't opted in)

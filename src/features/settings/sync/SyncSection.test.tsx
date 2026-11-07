@@ -11,15 +11,26 @@ import { describeStatus } from './status';
 import { SyncSection } from './SyncSection';
 
 // The screen reads the sync view and writes through `dispatch('sync.…')`; both are replaced by a small fake device.
-const fake = vi.hoisted(() => ({ view: null as unknown, listeners: new Set<() => void>(), dispatch: null as unknown, describe: null as unknown, code: null as unknown }));
+const fake = vi.hoisted(() => ({
+  view: null as unknown,
+  listeners: new Set<() => void>(),
+  dispatch: null as unknown,
+  describe: null as unknown,
+  code: null as unknown,
+}));
 vi.mock('@/commands', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  dispatch: (id: string, input: unknown, opts?: unknown) => (fake.dispatch as (...a: unknown[]) => unknown)(id, input, opts),
+  dispatch: (id: string, input: unknown, opts?: unknown) =>
+    (fake.dispatch as (...a: unknown[]) => unknown)(id, input, opts),
 }));
 vi.mock('@/state/sync', async () => {
   const react = await import('react');
   return {
-    useSyncView: () => react.useSyncExternalStore((l: () => void) => (fake.listeners.add(l), () => void fake.listeners.delete(l)), () => fake.view),
+    useSyncView: () =>
+      react.useSyncExternalStore(
+        (l: () => void) => (fake.listeners.add(l), () => void fake.listeners.delete(l)),
+        () => fake.view,
+      ),
     readPairingCode: async () => fake.code,
     describeLocalData: () => (fake.describe as () => string | null)(),
   };
@@ -42,8 +53,17 @@ beforeEach(() => {
 const RELAY = 'https://relay.example.ts.net';
 const CODE = pairingCodeOf(RELAY, new Uint8Array(32).fill(7));
 
-function fakeController(init: { paired?: boolean; status?: Partial<SyncStatus>; local?: string | null } = {}) {
-  const view = (paired: boolean, relayUrl: string | null, status: SyncStatus) => ({ status, paired, enabled: paired, relayUrl, label: null, deviceId: 'ABCDEFGHIJKLMNOP' });
+function fakeController(
+  init: { paired?: boolean; status?: Partial<SyncStatus>; local?: string | null } = {},
+) {
+  const view = (paired: boolean, relayUrl: string | null, status: SyncStatus) => ({
+    status,
+    paired,
+    enabled: paired,
+    relayUrl,
+    label: null,
+    deviceId: 'ABCDEFGHIJKLMNOP',
+  });
   let status: SyncStatus = { ...OFF_STATUS, ...init.status };
   fake.view = view(Boolean(init.paired), init.paired ? RELAY : null, status);
   fake.code = CODE;
@@ -88,7 +108,10 @@ function fakeController(init: { paired?: boolean; status?: Partial<SyncStatus>; 
   const emit = (next: Partial<SyncStatus>) =>
     act(() => {
       status = { ...status, ...next };
-      set(Boolean((fake.view as { paired: boolean }).paired), (fake.view as { relayUrl: string | null }).relayUrl);
+      set(
+        Boolean((fake.view as { paired: boolean }).paired),
+        (fake.view as { relayUrl: string | null }).relayUrl,
+      );
     });
   return { calls, emit };
 }
@@ -106,10 +129,13 @@ describe('Settings › Sync, not paired', () => {
     const user = userEvent.setup();
     const { calls } = fakeController();
     render(<SyncSection />);
-    expect(screen.getByText(/server may hold a readable copy/)).toBeInTheDocument();
-    expect(screen.getByText(/connect to devices on your local network/)).toBeInTheDocument();
+    // without a paired server, setting up sync by address is the other way in: closed until asked for
+    expect(screen.queryByLabelText('Sync server address')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Other ways to join' }));
+    // no explainer and no local-network hint before anything went wrong
+    expect(screen.queryByText(/local network/)).toBeNull();
 
-    const input = screen.getByLabelText('sync server address');
+    const input = screen.getByLabelText('Sync server address');
     await user.type(input, 'http://192.168.1.5:4000');
     await user.click(screen.getByRole('button', { name: 'Set up sync on this device' }));
     expect(screen.getByRole('alert')).toHaveTextContent(/must use https:\/\//);
@@ -125,8 +151,12 @@ describe('Settings › Sync, not paired', () => {
     const words = await screen.findByRole('list', { name: 'The 24 words' });
     expect(within(words).getAllByRole('listitem')).toHaveLength(24);
     expect(screen.getByRole('img', { name: 'QR code of the pairing code' })).toBeInTheDocument();
-    expect(screen.getByText('Anyone with these words can read and change your Vitals data.')).toBeInTheDocument();
-    expect(screen.getByText(/Lose every device and these 24 words, and the data is gone\./)).toBeInTheDocument();
+    expect(
+      screen.getByText('Anyone with these words can read and change your Vitals data.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Lose every device and these 24 words, and the data is gone\./),
+    ).toBeInTheDocument();
     const hide = screen.getByRole('button', { name: 'Hide' });
     expect(hide).toHaveAttribute('aria-disabled', 'true');
     await user.click(hide);
@@ -147,11 +177,14 @@ describe('Settings › Sync, not paired', () => {
     const user = userEvent.setup();
     const { calls } = fakeController();
     render(<SyncSection />);
-    const input = screen.getByLabelText('sync server address');
+    await user.click(screen.getByRole('button', { name: 'Other ways to join' }));
+    const input = screen.getByLabelText('Sync server address');
     await user.type(input, 'http://127.0.0.1:4870');
-    relayCheck.result = { ok: false, message: 'No answer from that address. Is the server running and is Tailscale on?' };
+    relayCheck.result = { ok: false, message: 'No answer from that address. Is the server running?' };
     await user.click(screen.getByRole('button', { name: 'Set up sync on this device' }));
-    expect(await screen.findByText('No answer from that address. Is the server running and is Tailscale on?')).toBeInTheDocument();
+    expect(
+      await screen.findByText('No answer from that address. Is the server running?'),
+    ).toBeInTheDocument();
     expect(input).toHaveAttribute('aria-invalid', 'true');
     expect(calls.pair).not.toHaveBeenCalled();
     expect(screen.queryByRole('list', { name: 'The 24 words' })).not.toBeInTheDocument();
@@ -163,42 +196,57 @@ describe('Settings › Sync, not paired', () => {
     expect(relayCheck.calls).toEqual(['http://127.0.0.1:4870', 'http://127.0.0.1:4870']);
   });
 
-  it.each(['merge', 'replace'] as const)('joins with a pasted pairing URI and resolves the existing-data question with %s', async (choice) => {
-    const user = userEvent.setup();
-    const { calls } = fakeController({ local: '3 scenarios and your body' });
-    render(<SyncSection />);
-    await user.click(screen.getByRole('button', { name: 'Join with a pairing code' }));
-    fireEvent.change(screen.getByLabelText('pairing code'), { target: { value: `  ${CODE.uri}\n` } });
-    await user.click(screen.getByRole('button', { name: 'Join' }));
+  it.each(['merge', 'replace'] as const)(
+    'joins with a pasted pairing URI and resolves the existing-data question with %s',
+    async (choice) => {
+      const user = userEvent.setup();
+      const { calls } = fakeController({ local: '3 scenarios and your body' });
+      render(<SyncSection />);
+      await user.click(screen.getByRole('button', { name: 'Other ways to join' }));
+      await user.click(screen.getByRole('button', { name: 'Join with a pairing code' }));
+      fireEvent.change(screen.getByLabelText('Pairing code'), { target: { value: `  ${CODE.uri}\n` } });
+      await user.click(screen.getByRole('button', { name: 'Join' }));
 
-    const dialog = await screen.findByRole('alertdialog', { name: 'This device already has data' });
-    expect(dialog).toHaveTextContent('Merge it, or replace it with the synced data?');
-    expect(dialog).toHaveTextContent('3 scenarios and your body');
-    expect(calls.join).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole('button', { name: choice === 'merge' ? 'Merge' : 'Replace with synced data' }));
-    await waitFor(() => expect(calls.join).toHaveBeenCalledWith({ code: CODE.uri, onExisting: choice }));
-    // now paired
-    expect(await screen.findByRole('button', { name: 'Show pairing code' })).toBeInTheDocument();
-  });
+      const dialog = await screen.findByRole('alertdialog', { name: 'This device already has data' });
+      expect(dialog).toHaveTextContent('Merge it, or replace it with the synced data?');
+      expect(dialog).toHaveTextContent('3 scenarios and your body');
+      expect(calls.join).not.toHaveBeenCalled();
+      await user.click(
+        within(dialog).getByRole('button', {
+          name: choice === 'merge' ? 'Merge' : 'Replace with synced data',
+        }),
+      );
+      await waitFor(() => expect(calls.join).toHaveBeenCalledWith({ code: CODE.uri, onExisting: choice }));
+      // now paired
+      expect(await screen.findByRole('button', { name: 'Show pairing code' })).toBeInTheDocument();
+    },
+  );
 
   it('checks a pasted code and asks for the server with the 24 words', async () => {
     const user = userEvent.setup();
     const { calls } = fakeController();
     render(<SyncSection />);
+    await user.click(screen.getByRole('button', { name: 'Other ways to join' }));
     await user.click(screen.getByRole('button', { name: 'Join with a pairing code' }));
-    const area = screen.getByLabelText('pairing code');
+    const area = screen.getByLabelText('Pairing code');
     fireEvent.change(area, { target: { value: 'vitals-sync:1?u=x' } });
     await user.click(screen.getByRole('button', { name: 'Join' }));
     expect(screen.getByRole('alert')).toHaveTextContent('This pairing code is incomplete');
 
     fireEvent.change(area, { target: { value: CODE.words.join(' ') } });
     await user.click(screen.getByRole('button', { name: 'Join' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('With the 24 words, also enter the sync server address above.');
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'With the 24 words, also enter the sync server address above.',
+    );
     expect(calls.join).not.toHaveBeenCalled();
 
-    await user.type(screen.getByLabelText('sync server address'), 'relay.example.ts.net');
+    await user.type(screen.getByLabelText('Sync server address'), 'relay.example.ts.net');
     await user.click(screen.getByRole('button', { name: 'Join' }));
-    expect(calls.join).toHaveBeenCalledWith({ code: CODE.words.join(' '), relayUrl: RELAY, onExisting: 'merge' });
+    expect(calls.join).toHaveBeenCalledWith({
+      code: CODE.words.join(' '),
+      relayUrl: RELAY,
+      onExisting: 'merge',
+    });
   });
 });
 
@@ -223,13 +271,18 @@ describe('Settings › Sync, paired', () => {
 
   it('Sync now calls syncNow; changes the relay; stops syncing after confirmation', async () => {
     const user = userEvent.setup();
-    const { calls } = fakeController({ paired: true, status: { state: 'synced', endpoint: 'relay.example.ts.net', lastSyncedAt: todayAt(9, 5) } });
+    const { calls } = fakeController({
+      paired: true,
+      status: { state: 'synced', endpoint: 'relay.example.ts.net', lastSyncedAt: todayAt(9, 5) },
+    });
     render(<SyncSection />);
-    expect(screen.getByRole('status')).toHaveTextContent(/synced.*last synced 09:05 · relay\.example\.ts\.net/);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /Synced.*last synced 09:05 · relay\.example\.ts\.net/,
+    );
     await user.click(screen.getByRole('button', { name: 'Sync now' }));
     expect(calls.now).toHaveBeenCalledTimes(1);
 
-    const input = screen.getByLabelText('sync server address');
+    const input = screen.getByLabelText('Sync server address');
     await user.clear(input);
     await user.type(input, 'wss://other.example.ts.net/sync');
     await user.click(screen.getByRole('button', { name: 'Save address' }));
@@ -238,36 +291,47 @@ describe('Settings › Sync, paired', () => {
     await user.click(screen.getByRole('button', { name: 'Stop syncing on this device' }));
     const dialog = screen.getByRole('alertdialog', { name: 'Stop syncing on this device?' });
     await user.click(within(dialog).getByRole('button', { name: 'Stop syncing' }));
-    expect(calls.unpair).toHaveBeenCalledWith({}, { confirmation: expect.objectContaining({ commandId: 'sync.unpair' }) });
-    expect(await screen.findByRole('button', { name: 'Set up sync on this device' })).toBeInTheDocument();
+    expect(calls.unpair).toHaveBeenCalledWith(
+      {},
+      { confirmation: expect.objectContaining({ commandId: 'sync.unpair' }) },
+    );
+    expect(await screen.findByRole('button', { name: 'Other ways to join' })).toBeInTheDocument();
   });
 
   it('shows the server in use, that it answers now with its version, and the last sync', async () => {
-    relayCheck.result = { ok: true, message: 'Reached the server · version 0.4.0 · 21 ms', version: '0.4.0', ms: 21 };
-    fakeController({ paired: true, status: { state: 'synced', endpoint: 'relay.example.ts.net', lastSyncedAt: todayAt(9, 5) } });
+    relayCheck.result = {
+      ok: true,
+      message: 'Reached the server · version 0.4.0 · 21 ms',
+      version: '0.4.0',
+      ms: 21,
+    };
+    fakeController({
+      paired: true,
+      status: { state: 'synced', endpoint: 'relay.example.ts.net', lastSyncedAt: todayAt(9, 5) },
+    });
     render(<SyncSection />);
     const value = (key: string) => screen.getByText(key, { selector: 'dt' }).nextElementSibling;
-    expect(value('sync server')).toHaveTextContent(RELAY);
-    await waitFor(() => expect(value('answers now')).toHaveTextContent('yes (21 ms)'));
-    expect(value('server version')).toHaveTextContent('0.4.0');
-    expect(value('last sync')).toHaveTextContent('09:05');
+    expect(value('Sync server')).toHaveTextContent(RELAY);
+    await waitFor(() => expect(value('Answers now')).toHaveTextContent('Yes · 21 ms'));
+    expect(value('Server version')).toHaveTextContent('0.4.0');
+    expect(value('Last sync')).toHaveTextContent('09:05');
     expect(relayCheck.calls).toEqual([RELAY]);
   });
 
   it('says when the server does not answer, and Check server asks again', async () => {
     const user = userEvent.setup();
-    relayCheck.result = { ok: false, message: 'No answer from that address. Is the server running and is Tailscale on?' };
+    relayCheck.result = { ok: false, message: 'No answer from that address. Is the server running?' };
     fakeController({ paired: true, status: { state: 'offline', endpoint: 'relay.example.ts.net' } });
     render(<SyncSection />);
     const value = (key: string) => screen.getByText(key, { selector: 'dt' }).nextElementSibling;
-    await waitFor(() => expect(value('answers now')).toHaveTextContent('no'));
-    expect(screen.getByText('No answer from that address. Is the server running and is Tailscale on?')).toBeInTheDocument();
-    expect(screen.queryByText('server version')).not.toBeInTheDocument();
-    expect(value('last sync')).toHaveTextContent('not yet');
+    await waitFor(() => expect(value('Answers now')).toHaveTextContent('No'));
+    expect(screen.getByText('No answer from that address. Is the server running?')).toBeInTheDocument();
+    expect(screen.queryByText('Server version')).not.toBeInTheDocument();
+    expect(value('Last sync')).toHaveTextContent('Not yet');
 
     relayCheck.result = { ok: true, message: 'Reached the server · 5 ms', version: null, ms: 5 };
     await user.click(screen.getByRole('button', { name: 'Check server' }));
-    await waitFor(() => expect(value('answers now')).toHaveTextContent('yes (5 ms)'));
+    await waitFor(() => expect(value('Answers now')).toHaveTextContent('Yes · 5 ms'));
     expect(screen.queryByText(/No answer from that address/)).not.toBeInTheDocument();
     expect(relayCheck.calls).toEqual([RELAY, RELAY]);
   });
@@ -286,9 +350,16 @@ describe('Settings › Sync, paired', () => {
     render(<SyncSection />);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     emit({ state: 'offline', lastSyncedAt: todayAt(14, 2), pendingChanges: 37 });
-    expect(screen.getByRole('alert')).toHaveTextContent("Can't reach your sync server. Is Tailscale on? (last synced 14:02, 37 changes waiting)");
-    emit({ state: 'error', lastError: { code: 'unreachable', message: 'Failed to fetch', at: todayAt(14, 3) } });
-    expect(screen.getByRole('alert')).toHaveTextContent("Can't reach your sync server. Is Tailscale on? (last synced 14:02, 37 changes waiting)");
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Can't reach your sync server. (last synced 14:02, 37 changes waiting)",
+    );
+    emit({
+      state: 'error',
+      lastError: { code: 'unreachable', message: 'Failed to fetch', at: todayAt(14, 3) },
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Can't reach your sync server. (last synced 14:02, 37 changes waiting)",
+    );
     emit({ state: 'needs-permission' });
     expect(screen.getByRole('alert')).toHaveTextContent(/devices on your local network/);
   });
@@ -309,38 +380,48 @@ describe('Settings › Sync with a paired home server', () => {
     const { calls } = fakeController({ paired: true, status: { state: 'synced' } });
     fake.view = { ...(fake.view as object), relayUrl: BASE };
     withServer();
-    // a true sentence for a home server, never "only ever holds encrypted data"
-    expect(screen.getByText('Your home server holds a readable copy of your data and syncs your devices. The 24 words are the backup.')).toBeInTheDocument();
+    // The server card owns its connection facts; the backup area has one explanation.
+    expect(screen.getByRole('button', { name: 'About The 24 words' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Check server' })).toBeNull();
     expect(screen.queryByText(/only ever holds encrypted data/)).toBeNull();
-    expect(screen.getByText(/On · through your server/)).toBeInTheDocument();
-    expect(screen.getByText(/A device that already synced keeps the sync key/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set up sync on this device' })).toBeNull();
-    expect(screen.queryByLabelText('sync server address')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Other ways to join' })).toBeNull();
+    expect(screen.queryByLabelText('Sync server address')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Sync now' }));
     expect(calls.now).toHaveBeenCalledTimes(1);
     await user.click(screen.getByRole('button', { name: 'Show pairing code' }));
-    expect(within(await screen.findByRole('list', { name: 'The 24 words' })).getAllByRole('listitem')).toHaveLength(24);
+    expect(
+      within(await screen.findByRole('list', { name: 'The 24 words' })).getAllByRole('listitem'),
+    ).toHaveLength(24);
     expect(screen.getByTestId('pairing-qr')).toBeInTheDocument();
-    expect(screen.getByText('Anyone with these words can read and change your Vitals data.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Anyone with these words can read and change your Vitals data.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Stop syncing on this device' })).toBeInTheDocument();
   });
 
   it('a paired home server that gave no key: join by words or QR only, never a new group', () => {
     fakeController();
     withServer();
-    expect(screen.getByText('Your home server holds a readable copy of your data and syncs your devices. The 24 words are the backup.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'About The 24 words' })).toBeInTheDocument();
     expect(screen.queryByText(/only ever holds encrypted data/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Set up sync on this device' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Join with a pairing code' })).toBeInTheDocument();
-    expect(screen.getByLabelText('sync server address')).toHaveValue(BASE);
+    expect(screen.getByLabelText('Sync server address')).toHaveValue(BASE);
   });
 });
 
 describe('status and QR helpers', () => {
   it('describes other errors by their message', () => {
-    const v = describeStatus({ ...OFF_STATUS, state: 'error', lastError: { code: 'relay_rejected', message: 'The server refused this device', at: todayAt(1, 0) } });
+    const v = describeStatus({
+      ...OFF_STATUS,
+      state: 'error',
+      lastError: { code: 'relay_rejected', message: 'The server refused this device', at: todayAt(1, 0) },
+    });
     expect(v.problem).toBe('Sync stopped: The server refused this device.');
-    expect(describeStatus({ ...OFF_STATUS, state: 'synced', pendingChanges: 1, pendingBlobs: 2 }).detail).toBe('1 change waiting · 2 uploads waiting');
+    expect(
+      describeStatus({ ...OFF_STATUS, state: 'synced', pendingChanges: 1, pendingBlobs: 2 }).detail,
+    ).toBe('1 change waiting · 2 uploads waiting');
   });
 
   it('renders the QR code of a pairing URI as SVG paths', () => {

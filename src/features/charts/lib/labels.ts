@@ -6,7 +6,7 @@ import type { Phase } from '../types';
 
 export type Measure = (text: string) => number;
 
-/** Rough width of 11–12 px Archivo text; replaced by canvas measureText at runtime. */
+/** Rough width of 11–12 px Inter text; replaced by canvas measureText at runtime. */
 export const estimateWidth =
   (charPx = 6): Measure =>
   (text) =>

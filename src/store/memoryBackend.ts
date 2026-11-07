@@ -2,7 +2,7 @@
  * In-memory `PersistenceBackend`: tests, Node and private windows. `remote()` simulates a merged remote change so the
  * sync path (watch → projection) can be tested without an engine.
  */
-import { stampDoc, type BackendChange, type BackendDoc, type BackendOp, type PersistenceBackend } from './backend';
+import { restoreOps, restoredRows, stampDoc, type BackendChange, type BackendDoc, type BackendOp, type PersistenceBackend } from './backend';
 import { createHlc, newDeviceId } from './ids';
 import { jsonClone } from './json';
 
@@ -34,15 +34,20 @@ export function createMemoryBackend(options: { device?: string; now?: () => numb
     history.set(k, h);
   };
 
-  const write = (op: BackendOp): BackendDoc => {
-    const k = keyOf(op.col, op.id);
-    const prev = rows.get(k);
+  const prepare = (op: BackendOp, prev: BackendDoc | undefined): BackendDoc => {
     const ms = clock();
     const now = new Date(ms).toISOString();
     const doc =
       op.kind === 'put'
         ? stampDoc(prev, op.col, op.id, jsonClone(op.value), op.schema, hlc(ms), device, now, false)
         : stampDoc(prev, op.col, op.id, prev?.value ?? null, prev?._schema ?? 1, hlc(ms), device, now, true);
+    return doc;
+  };
+
+  const write = (op: BackendOp): BackendDoc => {
+    const k = keyOf(op.col, op.id);
+    const prev = rows.get(k);
+    const doc = prepare(op, prev);
     keep(k, prev);
     rows.set(k, doc);
     return doc;
@@ -70,9 +75,27 @@ export function createMemoryBackend(options: { device?: string; now?: () => numb
       emit({ col, id, doc: jsonClone(doc), origin: 'local' });
     },
     async batch(ops: readonly BackendOp[]) {
-      const docs = ops.map(write);
+      // Stage only touched rows. A bad value or clock must leave both rows and
+      // revision history intact, just like an aborted IndexedDB transaction.
+      const pending = new Map<string, BackendDoc>();
+      const docs = ops.map((op) => {
+        const k = keyOf(op.col, op.id);
+        const doc = prepare(op, pending.get(k) ?? rows.get(k));
+        pending.set(k, doc);
+        return doc;
+      });
+      for (const doc of docs) {
+        const k = keyOf(doc._col, doc._id);
+        keep(k, rows.get(k));
+        rows.set(k, doc);
+      }
       docs.forEach((d) => emit({ col: d._col, id: d._id, doc: jsonClone(d), origin: 'local' }));
       return docs.map((d) => jsonClone(d));
+    },
+    async restoreSnapshot(collections, ops) {
+      const previous = new Map(collections.map(col => [col, [...rows.values()].filter(doc => doc._col === col)]));
+      const written = await backend.batch!(restoreOps(ops, previous));
+      return restoredRows(written, previous).map(doc => jsonClone(doc));
     },
     async history<T>(col: string, id: string, limit: number) {
       return (history.get(keyOf(col, id)) ?? []).slice(0, limit).map((d) => jsonClone(d) as BackendDoc<T>);

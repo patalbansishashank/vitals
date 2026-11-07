@@ -2,7 +2,7 @@
 # installer, macOS universal dmg), the Android APK (signed when the keystore secrets exist), a checksums file, and a
 # GitHub Release with the CHANGELOG section as notes. Asset names are stable and listed in docs/RELEASING.md.
 # Candidate tags build artifacts only. The website deploy is deploy.yml and excludes candidate tags.
-# The test gate runs locally in `pnpm release`.
+# The shared validation gate checks the immutable source SHA before packaging or deployment.
 name: Release
 
 on:
@@ -40,6 +40,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.source.outputs.sha }}
       publish: ${{ steps.version.outputs.publish }}
     steps:
       # Stable tags publish; release candidates build every platform without publishing.
@@ -54,6 +55,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ env.RELEASE_TAG }}
+
+      - name: Freeze the source commit
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node (from .nvmrc)
         uses: actions/setup-node@v7
@@ -80,9 +85,29 @@ jobs:
           path: ${{ runner.temp }}/notes.md
           if-no-files-found: error
 
+  validate:
+    name: Validate release source
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  deploy:
+    name: Deploy validated website
+    needs: [prepare, validate]
+    if: needs.prepare.outputs.publish == 'true' && !contains(github.event.inputs.tag || github.ref_name, '-')
+    uses: ./.github/workflows/deploy.yml
+    with:
+      sha: ${{ needs.prepare.outputs.sha }}
+      release_tag: ${{ github.event.inputs.tag || github.ref_name }}
+      validated: true
+    secrets:
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
   desktop:
     name: Desktop (${{ matrix.name }})
-    needs: prepare
+    needs: [prepare, validate]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
     # Windows and macOS are built but never block the Linux and Android release: a failed optional leg leaves its
@@ -126,7 +151,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -192,7 +217,7 @@ jobs:
 
   android:
     name: Android
-    needs: prepare
+    needs: [prepare, validate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -201,7 +226,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6
@@ -264,7 +289,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ needs.prepare.outputs.sha }}
 
       # Named artifacts only: a re-run also finds this job's own release-X.Y.Z artifact from the first attempt.
       - name: Fetch the files

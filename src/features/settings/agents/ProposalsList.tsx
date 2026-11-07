@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Engraved, InlineWarning, Key } from '@/components';
+import { InlineWarning, Key } from '@/components';
 import { dispatch, getCommand, on, type Actor } from '@/commands';
+import { SettingsGroup, SettingsItem } from '../SettingRow';
 import { formatSyncTime } from '../sync/status';
 
 export const PROPOSALS_COPY = {
-  heading: 'proposals',
-  help: 'Changes the Coach or an agent proposed. Nothing changes until you apply one.',
-  empty: 'No proposals waiting.',
+  heading: (n: number) => (n === 1 ? '1 change waiting' : `${n} changes waiting`),
   apply: 'Apply',
   dismiss: 'Dismiss',
   applyFailed: 'That proposal could not be applied.',
   loadFailed: 'Could not read the proposals.',
   validUntil: (when: string) => `valid until ${when}`,
+  listLabel: 'Proposals waiting',
 } as const;
 
 export interface PendingProposal {
@@ -84,7 +84,7 @@ function titleOf(p: PendingProposal): string {
 }
 
 /** The pending proposals, read through `coach.pending` and read again whenever something is committed or staged. */
-function usePendingProposals() {
+export function usePendingProposals() {
   const [items, setItems] = useState<PendingProposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -119,7 +119,10 @@ function usePendingProposals() {
   return { items, error, refresh };
 }
 
-/** Settings › Agents › proposals: staged agent and Coach changes, each with Apply / Dismiss. */
+/**
+ * Settings › Agents › the changes waiting: staged agent and Coach changes, each with Apply / Dismiss. Shown only while
+ * there is one (or the list could not be read); nothing otherwise.
+ */
 export function ProposalsList() {
   const { items, error: loadError, refresh } = usePendingProposals();
   const [busy, setBusy] = useState<string | null>(null);
@@ -144,31 +147,27 @@ export function ProposalsList() {
     }
   };
 
+  const n = items?.length ?? 0;
+  const problem = error ?? loadError;
+  if (!n && !problem) return null;
   return (
-    <div className="grid gap-3 border-t border-line pt-4">
-      <div className="grid gap-1">
-        <Engraved as="p" className="m-0">
-          {PROPOSALS_COPY.heading}
-        </Engraved>
-        <p className="m-0 text-xs leading-[1.45] text-ink-2">{PROPOSALS_COPY.help}</p>
-      </div>
-      {items && items.length === 0 ? <p className="m-0 text-sm text-ink-2">{PROPOSALS_COPY.empty}</p> : null}
-      {items && items.length > 0 ? (
-        <ul className="m-0 grid list-none gap-3 p-0" aria-label="Proposals waiting">
-          {items.map((p) => (
-            <li key={p.pendingId} className="flex flex-wrap items-center justify-between gap-3">
-              <div className="grid min-w-0 gap-0.5">
-                <span className="text-sm text-ink">{titleOf(p)}</span>
-                {proposalDetail(p.input) ? <span className="text-xs leading-[1.45] break-words text-ink">{proposalDetail(p.input)}</span> : null}
-                <span className="text-xs leading-[1.45] text-ink-2">
+    <SettingsGroup label={n ? PROPOSALS_COPY.heading(n) : undefined}>
+      {n ? (
+        <ul className="settings-list" aria-label={PROPOSALS_COPY.listLabel}>
+          {items!.map((p) => (
+            <li key={p.pendingId}>
+              <div className="settings-list__text">
+                <span className="settings-list__title">{titleOf(p)}</span>
+                {proposalDetail(p.input) ? <span className="settings-list__meta text-ink">{proposalDetail(p.input)}</span> : null}
+                <span className="settings-list__meta">
                   {proposerName(p.actor)} · {formatSyncTime(p.createdAt)} · {PROPOSALS_COPY.validUntil(formatSyncTime(p.expiresAt))}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="settings-keys">
                 <Key size="sm" variant="quiet" disabled={busy !== null} onClick={() => void act(p.pendingId, false)}>
                   {PROPOSALS_COPY.dismiss}
                 </Key>
-                <Key size="sm" loading={busy === p.pendingId} disabled={busy !== null && busy !== p.pendingId} onClick={() => void act(p.pendingId, true)}>
+                <Key size="sm" variant="action" loading={busy === p.pendingId} disabled={busy !== null && busy !== p.pendingId} onClick={() => void act(p.pendingId, true)}>
                   {PROPOSALS_COPY.apply}
                 </Key>
               </div>
@@ -176,11 +175,13 @@ export function ProposalsList() {
           ))}
         </ul>
       ) : null}
-      {error || loadError ? (
-        <InlineWarning severity="danger" alert>
-          {error ?? loadError}
-        </InlineWarning>
+      {problem ? (
+        <SettingsItem>
+          <InlineWarning severity="danger" alert>
+            {problem}
+          </InlineWarning>
+        </SettingsItem>
       ) : null}
-    </div>
+    </SettingsGroup>
   );
 }

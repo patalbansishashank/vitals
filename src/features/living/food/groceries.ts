@@ -2,9 +2,9 @@
  * Groceries (design/screens/living-mode.md, Food › Groceries): the ingredients of the accepted recipes over a horizon
  * (today · 3 days · week), grouped by aisle, in buy units, with "already have" marks from the pantry.
  *
- * `GrocerySource` is the seam; `inMemoryGrocerySource` derives the list from Food's meal-plan store.
- * TODO(E4/E8): implement `GrocerySource` over `food.groceryList` (aggregation from `mealPlans`, the food table's
- * aisles and pack sizes, the pantry in `intake.kitchen`) and install it with `<GrocerySourceContext.Provider>`.
+ * `GrocerySource` is the seam. The app's `documentGrocerySource` reads the saved meal plans and the ONE pantry (the
+ * `pantry/me` document /food/pantry edits): "have it" on the list writes that document. `inMemoryGrocerySource` (tests)
+ * keeps everything in Food's meal-plan store.
  */
 import { createContext, useContext, useMemo, useSyncExternalStore } from 'react';
 import { addDays, compareDates } from '@/living/dates';
@@ -99,6 +99,37 @@ export interface GroceryList {
   count: number;
 }
 
+/** Progress counts every list item once: at home wins over bought when both marks exist. */
+export function groceryProgress(list: Pick<GroceryList, 'groups'>): {
+  total: number;
+  bought: number;
+  atHome: number;
+  done: number;
+  toBuy: number;
+  ratio: number;
+  word: string;
+} {
+  const items = list.groups.flatMap((g) => g.items);
+  const total = items.length;
+  const atHome = items.filter((i) => i.have).length;
+  const bought = items.filter((i) => i.bought && !i.have).length;
+  const done = atHome + bought;
+  const ratio = total > 0 ? done / total : 0;
+  const word =
+    total === 0
+      ? 'Nothing to buy'
+      : done === total
+        ? 'Everything covered'
+        : done === 0
+          ? 'Ready to shop'
+          : ratio < 0.4
+            ? 'Some covered'
+            : ratio < 0.65
+              ? 'About half done'
+              : 'Mostly covered';
+  return { total, bought, atHome, done, toBuy: total - done, ratio, word };
+}
+
 /** A name for matching: lowercase, without brackets, before any comma ("Spinach, raw" and "Spinach (palak)" → "spinach"). */
 function baseName(name: string): string {
   return name.toLowerCase().replace(/\(.*?\)/g, ' ').split(',')[0]!.replace(/\s+/g, ' ').trim();
@@ -167,8 +198,9 @@ export interface GrocerySource {
   /** The list for the plan's accepted meals between `from` and `to` (inclusive). */
   list(q: { planId: string; from: LocalDate; to: LocalDate }): GroceryList;
   setBought(itemKey: string, bought: boolean): void;
-  /** Pantry: mark an ingredient as already at home. */
+  /** Mark an ingredient as already at home (the document source adds it to the pantry). */
   setHave(name: string, have: boolean): void;
+  /** What is at home, by name. */
   pantry(): readonly string[];
   budget(): BudgetAnswer;
   setBudget(tier: BudgetTier | 'later'): void;
@@ -228,7 +260,7 @@ function ensureFoodNames(): void {
   void loadCatalogueModules().then(
     (m) => {
       modules = m;
-      for (const f of m.content.FOOD_FIXTURE) foodNames.set(f.id, f.name);
+      for (const f of m.content.FOOD_REFERENCE) foodNames.set(f.id, f.name); // D6-05: the bundled reference, never the test fixture
       for (const l of [...loadedListeners]) l();
     },
     () => undefined,
@@ -311,9 +343,24 @@ export function mealsFromDocs(q: { planId: string; from: LocalDate; to: LocalDat
 }
 
 /**
+ * "Have it" on the grocery list adds the item to the pantry document by name (`pantry.add` matches it to the catalogue,
+ * else keeps the words), so the list, /food/pantry, Settings › Kitchen and the Coach read one pantry. The command bus
+ * loads on demand; a failed write leaves the on-screen mark, which the person can still change.
+ */
+function addToPantryDoc(name: string): void {
+  const label = name.trim().slice(0, 80);
+  if (!label) return;
+  void import('@/commands')
+    .then(({ dispatch }) => dispatch('pantry.add', { items: [{ label }], source: 'picker' }))
+    .catch(() => undefined);
+}
+
+/**
  * The app's source: the saved meal plans (`mealPlans`/`recipes`) over the running plan's days, with the meals accepted
- * on Food in this session standing in for any day that has none saved. Pantry, bought marks and the budget stay in
- * Food's store; items in the pantry document count as already at home. No saved plans and nothing accepted → an empty list.
+ * on Food in this session standing in for any day that has none saved. The pantry is the pantry document: its items
+ * count as already at home, and "have it" writes to it (Food's store keeps the on-screen mark until the write lands,
+ * and an un-mark, which hides a pantry item from this list without deleting it). Bought marks and the budget stay in
+ * Food's store. No saved plans and nothing accepted → an empty list.
  */
 export const documentGrocerySource: GrocerySource = {
   list: (q) => {
@@ -326,8 +373,19 @@ export const documentGrocerySource: GrocerySource = {
     return buildGroceryList([...docs, ...session], { ...q, pantry: [...s.pantry, ...kept.names], pantryFoods: kept.foodIds, notHave: s.notHave, bought: s.bought });
   },
   setBought: (k, b) => useFoodStore.getState().setBought(k, b),
-  setHave: (n, h) => useFoodStore.getState().setPantry(n, h),
-  pantry: () => useFoodStore.getState().pantry,
+  setHave: (n, h) => {
+    useFoodStore.getState().setPantry(n, h);
+    if (h) addToPantryDoc(n);
+  },
+  pantry: () => {
+    const s = useFoodStore.getState();
+    const out = new Map<string, string>();
+    for (const n of [...pantryFromDocs().names, ...s.pantry]) {
+      const k = n.trim().toLowerCase();
+      if (k && !s.notHave.includes(k) && !out.has(k)) out.set(k, n.trim());
+    }
+    return [...out.values()];
+  },
   budget: () => useFoodStore.getState().budget,
   setBudget: (t) => useFoodStore.getState().setBudget(t),
   subscribe: (l) => {

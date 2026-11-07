@@ -163,12 +163,13 @@ export function freezePrescription(i: FreezeInput): PrescribedDaySnapshot {
     const startDate = addDays(i.plan.startDate, fastEvent.startDay);
     const last = localToInstant(startDate, fastEvent.startH, i.tz);
     const first = new Date(Date.parse(last) + fastEvent.durationH * 3_600_000).toISOString();
-    fast = { lastIntakeAt: last, firstIntakeAt: first, hours: fastEvent.durationH };
+    fast = { lastIntakeAt: last, firstIntakeAt: first, hours: fastEvent.durationH, ...(fastEvent.protocol ? { protocol: fastEvent.protocol } : {}) };
   }
   if (Number.isFinite(day.refeedFactor) && (day.refeedFactor ?? 1) < 1 && fast) fast.refeedFactor = day.refeedFactor;
 
   const supplements: PrescribedDaySnapshot['supplements'] = [];
-  if ((template.substances?.creatineG ?? 0) > 0) supplements.push({ supplementId: 'creatine', dose: template.substances!.creatineG!, unit: 'g' });
+  // (C2/D5-01) the planned dose's identity: a taking log linked to it replaces it, an unlinked one stays unresolved
+  if ((template.substances?.creatineG ?? 0) > 0) supplements.push({ supplementId: 'creatine', dose: template.substances!.creatineG!, unit: 'g', itemId: 'supplement:creatine' });
 
   // ---- items with weights
   const raw: Array<{ itemId: string; type: PlanItemType; target: Record<string, number> }> = [];

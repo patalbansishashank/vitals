@@ -1,20 +1,11 @@
 /* ==========================================================================
    Goal suggestion proposal card (design/screens/planner-goals.md §12).
-   Tokens only; achromatic chrome; prefix lp-sg-.
+   Tokens only; Ember chrome (stone labels, gold only on keys); prefix lp-sg-.
    ========================================================================== */
 
 @layer components {
   .lp-sg {
     min-width: 0;
-  }
-  .lp-sg__mark {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    margin-right: 8px;
-    border: 1.5px solid var(--lm-ink);
-    transform: rotate(45deg);
-    vertical-align: 1px;
   }
   .lp-sg__body {
     display: grid;
@@ -26,9 +17,12 @@
     gap: 8px;
     min-width: 0;
   }
+  /* section labels: body-s stone, sentence case, no rule */
   .lp-sg__label {
-    border-bottom: 1px solid var(--lm-line);
-    padding-bottom: 4px;
+    display: block;
+  }
+  .lp-sg__label::first-letter {
+    text-transform: uppercase;
   }
   .lp-sg__list {
     display: grid;
@@ -46,7 +40,7 @@
   }
   .lp-sg__rank {
     font-size: var(--lm-text-sm);
-    font-weight: 700;
+    font-weight: 400;
     color: var(--lm-ink-2);
     font-variant-numeric: tabular-nums;
   }
@@ -90,7 +84,7 @@
   }
   .lp-sg__missing strong {
     color: var(--lm-ink);
-    font-weight: 600;
+    font-weight: 500;
   }
   .lp-sg__plain {
     margin: 0;

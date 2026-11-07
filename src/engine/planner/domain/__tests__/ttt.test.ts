@@ -1,3 +1,4 @@
+import { CURRENT_TISSUE_FAT_ENDPOINT } from '@/lib/bodyContracts';
 // @vitest-environment node
 /**
  * Time-to-target (QA item 7; ruling R-TTT, release check 2026-10-01). Body-composition targets get their time-to-target
@@ -28,7 +29,8 @@ const FAT_10: RankedGoal = { metric: 'fatMass', direction: 'target', target: -10
 describe('time-to-target and the pre-run estimate (R-TTT)', () => {
   it('the reproduction: 10 kg of fat takes ≈ 25-40 weeks at 0.5-1 %BW/week, and the pre-run estimate says the same', async () => {
     const request: PlannerRequest = {
-      ...req([FAT_10, { metric: 'skeletalMuscle', direction: 'maximise' }, { metric: 'autophagyIdx', direction: 'maximise' }], 84),
+      // (the autophagy index this reproduction once ranked third is no goal since D2-02)
+      ...req([FAT_10, { metric: 'skeletalMuscle', direction: 'maximise' }], 84),
     };
     // pre-run (Goals screen): same function, before any optimiser work
     const pre = estimateTargets(request)[0]!;
@@ -52,13 +54,13 @@ describe('time-to-target and the pre-run estimate (R-TTT)', () => {
     expect(f.reach?.changeAtHorizon).toBeCloseTo(pre.changeAtHorizon, 9);
     expect(f.text).toContain(pre.text);
     expect(f.text).not.toMatch(/extrapolation|roughly \d{3} weeks/);
-    // the plans themselves come close to what the route reaches in the horizon (they also serve goals 2 and 3)
+    // the plans themselves come close to what the route reaches in the horizon (they also serve goal 2)
     const best = Math.min(...res.options.map((o) => o.scorecard[0]!.change));
     expect(best).toBeLessThan(0.8 * pre.changeAtHorizon);
   }, 300_000);
 
   it('+2 kg of skeletal muscle: a long but finite estimate at dossier 09 rates for 1-3 training years', () => {
-    const r = targetReach(req([{ metric: 'skeletalMuscle', direction: 'target', target: 2, targetKind: 'change' }, { metric: 'fatMass', direction: 'target', target: 0, targetKind: 'change' }], 112), 0)!;
+    const r = targetReach(req([{ metric: 'skeletalMuscle', direction: 'maximise', target: 2, targetKind: 'change' }, { metric: 'fatMass', direction: 'target', target: 0, targetKind: 'change' }], 112), 0)!;
     expect(r.supported).toBe(true);
     expect(r.kind).toBe('gain');
     expect(r.reachableInHorizon).toBe(false);
@@ -84,7 +86,7 @@ describe('time-to-target and the pre-run estimate (R-TTT)', () => {
   }, 300_000);
 
   it('truly unattainable targets: past the body-fat floor (no claim), or more than two years at the safe rate', async () => {
-    const res = await runDomainPlanner(req([{ metric: 'fatMass', direction: 'target', target: -30, targetKind: 'change' }], 84), OPTS);
+    const res = await runDomainPlanner(req([{ metric: 'bodyFatPct', direction: 'target', target: 2, endpointSemantics: CURRENT_TISSUE_FAT_ENDPOINT }], 84), OPTS);
     const f = res.feasibility[0]!;
     expect(f.status).toBe('unattainable');
     expect(f.beyondSafetyLimits).toBe(true);
@@ -92,7 +94,7 @@ describe('time-to-target and the pre-run estimate (R-TTT)', () => {
     expect(f.text).toMatch(/safety floor/);
     expect(f.text).not.toMatch(/about \d+ weeks/);
 
-    const far = targetReach(req([{ metric: 'skeletalMuscle', direction: 'target', target: 8, targetKind: 'change' }], 84), 0)!;
+    const far = targetReach(req([{ metric: 'skeletalMuscle', direction: 'maximise', target: 8, targetKind: 'change' }], 84), 0)!;
     expect(far.weeks).toBeNull();
     expect(far.beyondTwoYears).toBe(true);
     expect(far.text).toMatch(/more than two years/);
@@ -100,14 +102,15 @@ describe('time-to-target and the pre-run estimate (R-TTT)', () => {
   }, 300_000);
 
   it('the extended-horizon search text (metrics without a route) is capped at two years', () => {
-    expect(tttText({ weeks: 23, days: 159, searchedDays: 168, estimatedWeeks: null, ratePerWeek: null, bestValue: 14 }, 'kg')).toBe('At the fastest safe rate the model finds it takes about 23 weeks.');
+    // D4-08: what the search found, under the model — not a fastest-safe deadline, never "impossible"
+    expect(tttText({ weeks: 23, days: 159, searchedDays: 168, estimatedWeeks: null, ratePerWeek: null, bestValue: 14 }, 'kg')).toBe('Estimated: the best plan found takes about 23 weeks.');
     const est = tttText({ weeks: null, days: null, searchedDays: 365, estimatedWeeks: 70, ratePerWeek: 0.034, bestValue: 35 }, 'kg');
-    expect(est).toMatch(/not reached within 52 weeks/);
+    expect(est).toMatch(/Not found within 52 weeks in this search/);
     expect(est).toMatch(/roughly 70 weeks/);
     expect(est).toMatch(/0\.03 kg a week/);
     const long = tttText({ weeks: null, days: null, searchedDays: 365, estimatedWeeks: 248, ratePerWeek: 0.01, bestValue: 35 }, 'kg');
     expect(long).toMatch(/more than two years/);
     expect(long).not.toMatch(/248/);
-    expect(tttText({ weeks: null, days: null, searchedDays: 365, estimatedWeeks: null, ratePerWeek: null, bestValue: 35 }, 'kg')).toMatch(/not reached within 52 weeks/);
+    expect(tttText({ weeks: null, days: null, searchedDays: 365, estimatedWeeks: null, ratePerWeek: null, bestValue: 35 }, 'kg')).toMatch(/Not found within 52 weeks in this search/);
   });
 });

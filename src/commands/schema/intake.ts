@@ -45,7 +45,7 @@ export const ActivitySectionSchema = open({
   ),
   offDay: T.Enum(['mostlyHome', 'mixed', 'outAndAbout']),
   onFeetAtHome: T.Enum(['little', 'some', 'aLot']),
-  recreation: T.Array(open({ label: str, intensity: T.Enum(['light', 'moderate', 'vigorous']), minPerWeek: T.Number({ minimum: 0 }) }, ['label', 'intensity', 'minPerWeek'])),
+  recreation: T.Array(open({ id: str, label: str, intensity: T.Enum(['light', 'moderate', 'vigorous']), minPerWeek: T.Number({ minimum: 0 }) }, ['label', 'intensity', 'minPerWeek'])),
   measured: Measured,
   turns: Turns,
 });
@@ -153,19 +153,6 @@ const SupplementsV2 = open(
 );
 export const SupplementsSectionSchema = T.Union([SupplementsV2, SupplementsV1]);
 
-export const DevicesSectionSchema = open({
-  has: T.Array(T.Enum(['ring', 'watch', 'band', 'scale', 'chestStrap', 'phoneOnly', 'none'])),
-  models: strs,
-  platforms: T.Array(T.Enum(['android', 'ios', 'desktop'])),
-  streams: T.Array(
-    open(
-      { stream: str, imported: T.Boolean(), coach: T.Enum(['hidden', 'daily', 'daily+series']), engine: T.Boolean(), scores: T.Boolean() },
-      ['stream', 'imported', 'coach', 'engine', 'scores'],
-    ),
-  ),
-  turns: Turns,
-});
-
 export const INTAKE_SECTION_SCHEMAS = {
   activity: ActivitySectionSchema,
   training: TrainingSectionSchema,
@@ -173,7 +160,6 @@ export const INTAKE_SECTION_SCHEMAS = {
   kitchen: KitchenSectionSchema,
   supplements: SupplementsSectionSchema,
   markers: MarkersSectionSchema,
-  devices: DevicesSectionSchema,
 } as const satisfies Record<string, JsonSchema>;
 
 export type IntakeSection = keyof typeof INTAKE_SECTION_SCHEMAS;

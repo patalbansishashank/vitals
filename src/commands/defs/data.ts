@@ -3,7 +3,7 @@
  * merge) and erase. Export, import and erase are UI-only; import and erase are destructive (confirmation token).
  */
 import { exportAll, exportFileName, eraseAll, importAll, parseImport, serializeExport, storageUsage } from '@/state/persistence';
-import { getDocumentStore } from '@/state/runtime';
+import { bootDocuments, getDocumentStore, settleUnscopedWrites } from '@/state/runtime';
 import { settleCommits } from '../history';
 import { defineCommand, fail } from '../registry';
 import { T } from '../schema';
@@ -50,7 +50,9 @@ export const dataExport = defineCommand({
   idempotency: 'none',
   sideEffects: ['file'],
   execute: async (ctx) => {
+    await bootDocuments();
     await settleCommits();
+    await settleUnscopedWrites();
     const now = new Date(ctx.now);
     const text = serializeExport(exportAll(now));
     return { fileName: exportFileName(now), bytes: new TextEncoder().encode(text).length, text };
@@ -61,7 +63,7 @@ export const dataImport = defineCommand({
   id: 'data.import',
   version: 1,
   title: 'Import a data file',
-  description: 'Import a Vitals export (format 1 or 2). replace: the file replaces this device’s data; merge: keeps this device’s data and adds what is new (scenarios are kept side by side, safety answers and settings stay as they are).',
+  description: 'Import a Vitals export (format 1 or 2). replace: atomically replaces this device’s data while document sync is disconnected (other devices are untouched); merge: keeps this device’s data and adds what is new (scenarios are kept side by side, safety answers and settings stay as they are).',
   input: T.Object({ file: T.Union([T.String({ minLength: 2 }), T.OpenObject()]), mode: T.Enum(['replace', 'merge']) }),
   output: T.Object({ written: T.Array(T.String()), kept: T.Array(T.String()), skipped: T.Array(T.Object({ key: T.String(), label: T.String(), reason: T.String() })) }),
   perm: 'destructive',
@@ -71,18 +73,20 @@ export const dataImport = defineCommand({
   idempotency: 'none',
   sideEffects: ['docs', 'file'],
   execute: async (ctx, input) => {
+    if (ctx.dryRun) fail('precondition_failed', 'Use the import dialog to preview a data file. Import cannot run as a dry run.');
     const preview = parseImport(input.file);
     if (!preview.ok) fail('invalid_input', preview.message, { rule: preview.code });
     await settleCommits();
-    return importAll(preview, input.mode, { write: ctx.write, docs: ctx.docs });
+    if (ctx.signal.aborted) fail('cancelled', 'The import was cancelled.');
+    return importAll(preview, input.mode, { write: ctx.write, docs: ctx.docs, signal: ctx.signal });
   },
 });
 
 export const dataEraseAll = defineCommand({
   id: 'data.eraseAll',
   version: 1,
-  title: 'Erase everything on this device',
-  description: 'Delete every document, the boot cache and the caches on this device. Export first: this cannot be undone.',
+  title: 'Delete planning data',
+  description: 'Delete plans, logs, preferences and web caches on this device, and stop its server connection. Native sensor history and server copies stay. Export first: this cannot be undone.',
   input: T.Object({}),
   output: T.Object({ keys: T.Integer(), databases: T.Integer() }),
   perm: 'destructive',
@@ -92,8 +96,10 @@ export const dataEraseAll = defineCommand({
   idempotency: 'none',
   sideEffects: ['docs'],
   execute: async (ctx) => {
+    if (ctx.dryRun) fail('precondition_failed', 'Erasing device data cannot run as a dry run.');
     await settleCommits();
-    const out = await eraseAll();
+    if (ctx.signal.aborted) fail('cancelled', 'Erasing device data was cancelled.');
+    const out = await eraseAll({ signal: ctx.signal });
     ctx.ports.reload?.();
     return out;
   },

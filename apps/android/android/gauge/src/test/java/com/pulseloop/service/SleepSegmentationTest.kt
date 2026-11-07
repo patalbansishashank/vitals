@@ -1,0 +1,239 @@
+package com.pulseloop.service
+
+import com.pulseloop.data.entity.SleepSessionEntity
+import com.pulseloop.data.entity.SleepStageBlockEntity
+import com.pulseloop.ring.SleepStage
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Covers the pure sleep-splitting + aggregation logic ported from iOS `SleepServiceTests`
+ * (PR #83): the 60-minute gap segmenter and the day-collapse used by aggregate math.
+ */
+class SleepSegmentationTest {
+    private val minute = 60_000L
+    private var idSeq = 0
+
+    /** A stage block starting [startMin] minutes after [base], running [durMin] minutes. */
+    private fun block(base: Long, startMin: Int, durMin: Int, stage: SleepStage = SleepStage.LIGHT) =
+        SleepStageBlockEntity(
+            id = "b${idSeq++}", sessionId = "s", startAt = base + startMin * minute,
+            startMinute = startMin, durationMinutes = durMin, stageRaw = stage.name,
+        )
+
+    // ── asleepMinutes / spanMinutes (issue #63) ──────────────────────────
+
+    /**
+     * The reporter's night: the ring split it into two records nine minutes apart, 23:51–05:02 and
+     * 05:11–08:02, and the app reported 8 h 10 — the span, including the gap and the awake time
+     * inside each record. The vendor app reports `deepSleepTotal + lightSleepTotal + remTotal`
+     * instead (`SleepActivity:695`) and shows the span only as a range.
+     */
+    @Test
+    fun `a duration is time asleep, and the span is a separate number`() {
+        val base = 0L
+        val blocks = listOf(
+            block(base, 0, 240, SleepStage.LIGHT),      // 23:51 record: 4h asleep
+            block(base, 240, 71, SleepStage.DEEP),      //   … 1h11 more, ends at min 311
+            block(base, 320, 100, SleepStage.LIGHT),    // 05:11 record after a 9-minute gap
+            block(base, 420, 40, SleepStage.REM),
+        )
+        assertEquals("deep + light + rem, gap excluded", 451, asleepMinutes(blocks))
+    }
+
+    @Test
+    fun `awake blocks are excluded from the duration but not from the span`() {
+        val base = 0L
+        val blocks = listOf(
+            block(base, 0, 120, SleepStage.LIGHT),
+            block(base, 120, 30, SleepStage.AWAKE),
+            block(base, 150, 90, SleepStage.DEEP),
+        )
+        assertEquals(210, asleepMinutes(blocks))
+        val row = SleepSessionEntity(
+            id = "s", date = base, startAt = base, endAt = base + 240 * minute,
+            totalMinutes = asleepMinutes(blocks),
+        )
+        assertEquals("the span still covers the awake stretch", 240, row.spanMinutes)
+    }
+
+    /**
+     * SPEC GA.9, the lower/upper bounds rule: UNKNOWN (an unrecognised stage byte, or every byte of
+     * an unknown firmware) is not evidence of sleep. It bounds the night from above, never below.
+     */
+    @Test
+    fun `an unrecognised stage bounds sleep but is not counted as asleep`() {
+        val base = 0L
+        val blocks = listOf(
+            block(base, 0, 60, SleepStage.UNKNOWN),
+            block(base, 60, 60, SleepStage.LIGHT),
+            block(base, 120, 20, SleepStage.AWAKE),
+        )
+        assertEquals(60, asleepMinutes(blocks))
+        assertEquals(120, asleepUpperBoundMinutes(blocks))
+        assertEquals(0, asleepMinutes(listOf(block(base, 0, 300, SleepStage.UNKNOWN))))
+    }
+
+    @Test
+    fun `a night with no blocks has no duration`() {
+        assertEquals(0, asleepMinutes(emptyList()))
+    }
+
+    // ── segment ──────────────────────────────────────────────────────────
+
+    @Test
+    fun `empty in empty out`() {
+        assertTrue(SleepSegmentation.segment(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun `contiguous blocks stay in one session`() {
+        val base = 0L
+        val blocks = listOf(block(base, 0, 30), block(base, 30, 30), block(base, 60, 30))
+        val groups = SleepSegmentation.segment(blocks)
+        assertEquals(1, groups.size)
+        assertEquals(3, groups[0].size)
+    }
+
+    @Test
+    fun `short mid-night awakening does not split`() {
+        val base = 0L
+        // 59-minute gap between block end (min 60) and next start (min 119) — below the threshold.
+        val blocks = listOf(block(base, 0, 60), block(base, 119, 60))
+        assertEquals(1, SleepSegmentation.segment(blocks).size)
+    }
+
+    @Test
+    fun `a 60-minute gap splits into two sessions`() {
+        val base = 0L
+        // Gap from min 60 to min 120 == exactly 60 minutes -> split.
+        val blocks = listOf(block(base, 0, 60), block(base, 120, 45))
+        val groups = SleepSegmentation.segment(blocks)
+        assertEquals(2, groups.size)
+        assertEquals(1, groups[0].size)
+        assertEquals(1, groups[1].size)
+    }
+
+    @Test
+    fun `night plus afternoon nap splits into two, time-ordered`() {
+        val base = 0L
+        val night = (0 until 8).map { block(base, it * 60, 60, SleepStage.DEEP) }   // 8h night
+        val nap = block(base, 900, 45)                                              // ~15h later
+        val groups = SleepSegmentation.segment(nap.let { night + it }.shuffled())
+        assertEquals(2, groups.size)
+        assertTrue(groups[0].first().startAt < groups[1].first().startAt)
+        assertEquals(8, groups[0].size)
+        assertEquals(1, groups[1].size)
+    }
+
+    @Test
+    fun `overlapping blocks do not spuriously split`() {
+        val base = 0L
+        // A nested block fully inside the first must not push prevEnd backward and open a gap.
+        val blocks = listOf(block(base, 0, 120), block(base, 30, 10), block(base, 130, 30))
+        assertEquals(1, SleepSegmentation.segment(blocks).size)
+    }
+
+    // ── collapseByDay ────────────────────────────────────────────────────
+
+    private fun session(
+        id: String, day: Long, startMin: Int, durMin: Int, score: Int?, source: String = "ring",
+    ) =
+        SleepSessionEntity(
+            id = id, date = day, startAt = day + startMin * minute,
+            endAt = day + (startMin + durMin) * minute, totalMinutes = durMin, score = score,
+            sourceRaw = source,
+        )
+
+    @Test
+    fun `single-session day passes through unchanged`() {
+        val day = 1_000_000L
+        val s = session("night", day, 0, 480, 80)
+        val collapsed = SleepInsights.collapseByDay(listOf(s)) { emptyList() }
+        assertEquals(1, collapsed.size)
+        assertEquals("night", collapsed[0].session.id)
+    }
+
+    @Test
+    fun `multi-session day sums minutes and spans bounds`() {
+        val day = 1_000_000L
+        val night = session("night", day, 0, 480, 80)     // 8h
+        val nap = session("nap", day, 900, 45, 60)        // 45m later in the day
+        val collapsed = SleepInsights.collapseByDay(listOf(night, nap)) { emptyList() }
+        assertEquals(1, collapsed.size)
+        val c = collapsed[0].session
+        assertEquals(480 + 45, c.totalMinutes)             // SUM, not wall-clock span
+        assertEquals(night.startAt, c.startAt)             // earliest start
+        assertEquals(nap.endAt, c.endAt)                   // latest end
+    }
+
+    @Test
+    fun `combined score is duration-weighted`() {
+        val day = 1_000_000L
+        val night = session("night", day, 0, 480, 90)     // long, high score
+        val nap = session("nap", day, 900, 30, 30)         // short, low score
+        val collapsed = SleepInsights.collapseByDay(listOf(night, nap)) { emptyList() }
+        // Weighted: (90*480 + 30*30) / (480+30) = 44100/510 ≈ 86.5 -> 86.
+        assertEquals(86, collapsed[0].session.score)
+    }
+
+    @Test
+    fun `null scores are ignored, all-null yields null`() {
+        val day = 1_000_000L
+        val a = session("a", day, 0, 480, null)
+        val b = session("b", day, 900, 30, null)
+        val collapsed = SleepInsights.collapseByDay(listOf(a, b)) { emptyList() }
+        assertNull(collapsed[0].session.score)
+    }
+
+    // A connect no longer purges demo rows (PR #52), so a seeded night and a synced night can
+    // share a date — the seeder's guard only skips days that ALREADY have ring data. Summing the
+    // two reported ~13h asleep and inflated every average built on the collapse.
+    @Test
+    fun `a ring night outranks a demo night on the same day`() {
+        val day = 1_000_000L
+        val demo = session("demo-sleep-$day", day, 0, 420, 90, source = "demo")
+        val ring = session("ring", day, 30, 360, 70)
+        val collapsed = SleepInsights.collapseByDay(listOf(demo, ring)) { emptyList() }
+        assertEquals(1, collapsed.size)
+        val c = collapsed[0].session
+        assertEquals("ring", c.id)                  // passes through as a single-session day
+        assertEquals(360, c.totalMinutes)           // NOT 420 + 360
+        assertEquals(70, c.score)
+    }
+
+    @Test
+    fun `demo nights still collapse normally when no ring night shares the day`() {
+        val day = 1_000_000L
+        val night = session("demo-sleep-$day", day, 0, 420, 80, source = "demo")
+        val nap = session("demo-nap", day, 900, 30, 60, source = "demo")
+        val collapsed = SleepInsights.collapseByDay(listOf(night, nap)) { emptyList() }
+        assertEquals(1, collapsed.size)
+        assertEquals(450, collapsed[0].session.totalMinutes)
+        assertEquals("demo", collapsed[0].session.sourceRaw)
+    }
+
+    @Test
+    fun `demo and ring nights on different days both survive`() {
+        val d1 = 1_000_000L
+        val d2 = d1 + 86_400_000L
+        val collapsed = SleepInsights.collapseByDay(
+            listOf(session("demo-sleep-$d1", d1, 0, 420, 80, source = "demo"),
+                   session("ring", d2, 0, 400, 70)),
+        ) { emptyList() }
+        assertEquals(2, collapsed.size)
+    }
+
+    @Test
+    fun `distinct days stay distinct and sorted`() {
+        val d1 = 1_000_000L
+        val d2 = d1 + 86_400_000L
+        val collapsed = SleepInsights.collapseByDay(
+            listOf(session("later", d2, 0, 400, 70), session("earlier", d1, 0, 400, 70)),
+        ) { emptyList() }
+        assertEquals(2, collapsed.size)
+        assertTrue(collapsed[0].session.date < collapsed[1].session.date)
+    }
+}

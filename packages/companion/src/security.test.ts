@@ -46,7 +46,7 @@ describe('origin, host and CORS', () => {
   it('answers /health without auth, with roles', async () => {
     const res = await call('GET', '/health', { Origin: APP });
     expect(res.status).toBe(200);
-    expect(res.json()).toEqual({ version: PKG_VERSION, role: 'relay', roles: ['proxy', 'agent'], ownerCount: 0, persons: 0, mqtt: 'off' });
+    expect(res.json()).toEqual({ version: PKG_VERSION, role: 'relay', roles: ['proxy', 'agent'], ownerCount: 0, persons: 0, eventLoop: expect.objectContaining({ p99Ms: expect.any(Number), maxMs: expect.any(Number) }) });
     expect(res.headers['access-control-allow-origin']).toBe(APP);
   });
 

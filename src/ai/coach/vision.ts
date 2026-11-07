@@ -10,6 +10,7 @@ import type { ChatModel, Capabilities, JsonSchema } from '../providers/types';
 import { createAiExerciseResolver } from './exerciseResolver';
 import { createMarkerVisionPort } from './markers';
 import { askJson, isRecord, num, str } from './modelJson';
+import { blobCapturedAt } from './exif';
 
 /** The chosen model cannot read images; the Coach should ask the person to describe the meal in text instead. */
 export class VisionUnsupportedError extends Error {
@@ -32,6 +33,8 @@ export interface PhotoRecognizerOptions {
 export const GRAMS_MIN = 1;
 export const GRAMS_MAX = 2000;
 const FAT_CUES = ['none', 'some', 'glossy', 'pooled'] as const;
+/** Carbohydrate bases a label can state (D6-01/C3); anything else stays unknown. */
+const LABEL_CARB_BASES = ['available', 'totalByDifference'] as const;
 
 export const PHOTO_SCHEMA: JsonSchema = {
   type: 'object',
@@ -50,6 +53,7 @@ export const PHOTO_SCHEMA: JsonSchema = {
           name: { type: 'string' },
           localName: { type: 'string' },
           foodId: { type: 'string', description: 'An id from CANDIDATES when one fits; omit otherwise.' },
+          alternatives: { type: 'array', items: { type: 'string' }, description: 'Other CANDIDATES ids you cannot tell apart from foodId in the photo; omit when none.' },
           grams: { type: 'number', description: 'Estimated edible weight as served, in grams.' },
           gramsLow: { type: 'number' },
           gramsHigh: { type: 'number' },
@@ -61,16 +65,22 @@ export const PHOTO_SCHEMA: JsonSchema = {
     },
     labelPer100g: {
       type: 'object',
-      description: 'Only if a nutrition label is legible in the photo: values transcribed per 100 g (energyKcal, energyKj when the label gives kJ, proteinG, carbG, fatG, fibreG, sodiumMg ...).',
+      description:
+        'Only if a nutrition label is legible in the photo: values transcribed per 100 g (energyKcal, energyKj when the label gives kJ, proteinG, carbG, fatG, fibreG, sodiumMg ...). Only values printed on the label; leave a value out when the label does not give it (never 0).',
       additionalProperties: { type: 'number' },
+    },
+    labelCarbBasis: {
+      type: 'string',
+      enum: [...LABEL_CARB_BASES],
+      description: 'Only when the label states it: available (fibre already excluded) or totalByDifference (includes fibre). Omit otherwise.',
     },
   },
 };
 
 const SYSTEM = `You identify foods in a photo of a meal for a nutrition log.
 Return JSON only. List each visible component with its name, an estimate of its edible weight in grams as served (with a low and high bound), the cooking method, any visible fat cue (none, some, glossy, pooled), and your confidence.
-Do NOT state calories or nutrients for the food. The app looks those up from grams. If a nutrition label is legible, transcribe its per-100 g values into labelPer100g, otherwise omit it.
-Use a food id from CANDIDATES only when it clearly matches. Say plainly what you saw in one sentence. Do not guess hidden ingredients.`;
+Do NOT state calories or nutrients for the food. The app looks those up from grams. If a nutrition label is legible, transcribe its per-100 g values into labelPer100g (only values printed on it; leave out a value the label does not give, never 0) and say in labelCarbBasis whether its carbohydrate is available or total only when the label states it; otherwise omit both.
+Use a food id from CANDIDATES only when it clearly matches; when two or more candidates fit equally, give one as foodId and the others in alternatives. Say plainly what you saw in one sentence. Do not guess hidden ingredients.`;
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
 const unit = (v: unknown, dflt: number) => clamp(num(v) ?? dflt, 0, 1);
@@ -135,6 +145,10 @@ export function normalizeRecognition(raw: unknown, known?: (id: string) => boole
     const lo = clamp(Math.round(num(c.gramsLow) ?? grams * 0.8), GRAMS_MIN, grams);
     const hi = clamp(Math.round(num(c.gramsHigh) ?? grams * 1.25), grams, GRAMS_MAX * 2);
     const foodId = str(c.foodId, 80);
+    // (D6-06) candidates the model could not tell apart: known table ids only, never the pick itself, at most 4
+    const alts = foodId && Array.isArray(c.alternatives)
+      ? [...new Set(c.alternatives.map((a) => str(a, 80)).filter((a): a is string => !!a && a !== foodId && (!known || known(a))))].slice(0, 4)
+      : [];
     const cue = FAT_CUES.find((f) => f === c.visibleFatCue);
     const localName = str(c.localName, 80);
     const method = str(c.cookingMethod, 40);
@@ -142,6 +156,7 @@ export function normalizeRecognition(raw: unknown, known?: (id: string) => boole
       name,
       ...(localName ? { localName } : {}),
       ...(foodId && (!known || known(foodId)) ? { foodId } : {}),
+      ...(foodId && (!known || known(foodId)) && alts.length ? { alternatives: alts } : {}),
       grams,
       gramsLow: lo,
       gramsHigh: hi,
@@ -151,12 +166,14 @@ export function normalizeRecognition(raw: unknown, known?: (id: string) => boole
     });
   }
   const { label, problem } = normalizeLabel(root.labelPer100g);
+  const carbBasis = label ? LABEL_CARB_BASES.find((b) => b === root.labelCarbBasis) : undefined;
   const saw = str(root.saw, 300) ?? (comps.length ? `I see ${comps.map((c) => c.name).join(', ')}.` : 'I could not make out the food.');
   return {
     components: comps.slice(0, 20),
     saw: problem ? `${saw} ${problem}` : saw,
     confidence: unit(root.confidence, comps.length ? Math.min(...comps.map((c) => c.confidence)) : 0),
     ...(label ? { labelPer100g: label } : {}),
+    ...(carbBasis ? { labelCarbBasis: carbBasis } : {}),
   };
 }
 
@@ -190,7 +207,10 @@ export function createPhotoRecognizer(model: ChatModel, opts: PhotoRecognizerOpt
     const ids = idSet();
     const food = opts.foods;
     // no foods and no candidates offered: any foodId was invented, so none is kept
-    return normalizeRecognition(json, food ? (id) => !!food.get(id) : ids ? (id) => ids.has(id) : () => false);
+    const rec = normalizeRecognition(json, food ? (id) => !!food.get(id) : ids ? (id) => ids.has(id) : () => false);
+    // when the photo was taken: the image's own EXIF time with its offset only (C1), never the upload time
+    const capturedAt = await blobCapturedAt(req.image);
+    return capturedAt ? { ...rec, capturedAt } : rec;
   };
 }
 

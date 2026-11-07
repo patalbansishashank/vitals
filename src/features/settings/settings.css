@@ -1,33 +1,629 @@
-.settings-section {
-  scroll-margin-top: var(--lm-space-2);
-}
-
-.settings-unit-rows > div,
-.settings-appearance-rows > div {
-  row-gap: var(--lm-space-3);
-}
-
-.settings-unit-rows > div > :first-child {
-  flex-basis: 6.5rem;
-}
-
-.settings-unit-rows > div > :last-child,
-.settings-appearance-rows > div > :last-child {
-  min-width: 0;
-  max-width: 100%;
-}
-
-@media (max-width: 63.999rem) {
-  .settings-section {
-    /* The rail is 44 px targets + two 8 px gutters + its border. The
-       document already reserves a second top-bar height for subnavigation. */
-    scroll-margin-top: calc(44px + var(--lm-space-2) * 2 + 1px - var(--lm-topbar-h) + var(--lm-space-2));
-  }
-}
-
-@media (max-width: 30rem) {
-  .settings-appearance-rows > div:has(.lm-bank) {
+/* Settings (Lumen settings groups, SPEC §5 "Lists/groups"). Tokens only; the page stays transparent over the grain. */
+@layer components {
+  .settings-page {
     display: grid;
+    gap: var(--lm-stack);
+  }
+  /* r068 U5: no page max-width; the index and its sections take the full column. */
+
+  /* Desktop master/detail (r068 S16): the index is a sticky 288 px column at the left, the open section takes the rest
+     of the width. Below 1024 px SettingsPage renders the list and pushed pages instead. */
+  .settings-md {
+    display: grid;
+    grid-template-columns: 18rem minmax(0, 1fr);
+    align-items: start;
+    gap: var(--lm-space-8);
+  }
+  .settings-md__index {
+    position: sticky;
+    top: calc(var(--lm-header-h, 0px) + var(--lm-bar-gap));
+    max-height: calc(100dvh - var(--lm-header-h, 0px) - 2 * var(--lm-bar-gap));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+  }
+  .settings-md__detail {
+    display: grid;
+    gap: var(--lm-stack);
+    min-width: 0;
+  }
+  .settings-md__title {
+    margin: 0;
+    padding-top: var(--lm-space-2);
+    font-family: var(--lm-text-title-l--font);
+    font-size: var(--lm-text-title-l);
+    line-height: var(--lm-text-title-l--lh);
+    font-weight: var(--lm-text-title-l--wt);
+    letter-spacing: var(--lm-text-title-l--ls);
+    color: var(--lm-ink);
+  }
+
+  /* One section per page: its groups, 16 px apart (the group label carries 8 px of its own). */
+  .settings-section {
+    display: grid;
+    gap: var(--lm-stack);
+    min-width: 0;
+  }
+
+  .settings-section__saved {
+    display: flex;
+    justify-content: flex-end;
+    min-height: 1.125rem;
+  }
+
+  /* "Saved" with a check: in the header's status slot it keeps the bar's gutter (r068 S10) */
+  .settings-saved {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-space-1);
+    padding-inline-end: var(--lm-space-3);
+    font-size: var(--lm-text-label-s);
+    line-height: var(--lm-text-label-s--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .settings-saved svg {
+    color: var(--lm-signal);
+  }
+  .settings-saved[data-on] {
+    opacity: 1;
+  }
+
+  /* Group: sentence-case label, then one card surface. */
+  .settings-block {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .settings-block__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+  .settings-block__aside {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-inline-start: auto;
+    padding-bottom: 2px;
+  }
+  /* the (i) is 28 px with a 48 px hit area: its box must not make this head taller than the others */
+  .settings-block__aside .lm-info {
+    margin-block: -5px;
+  }
+
+  .settings-group {
+    --settings-divider-inset: 16px;
+    display: grid;
+    min-width: 0;
+    background: var(--lm-card-bg);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-card-radius);
+    color: var(--lm-ink);
+  }
+  .settings-group[data-icons] {
+    /* 16 px padding + 22 px icon + 14 px gap: the dividers start at the text column */
+    --settings-divider-inset: 52px;
+  }
+  /* rows only: a dialog (native, top layer) or a hidden input inside a group gets neither a divider nor a position */
+  .settings-group > :not(dialog, input) {
+    position: relative;
+    min-width: 0;
+  }
+  .settings-group > :not(dialog, input) ~ :not(dialog, input)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: var(--settings-divider-inset);
+    right: 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    pointer-events: none;
+  }
+  .settings-group > :first-child,
+  .settings-group > .settings-disclosure:first-child > .settings-row {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+  .settings-group > :last-child,
+  .settings-group > .settings-disclosure:last-child > .settings-row[aria-expanded='false'] {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+
+  /* Index / link row: icon · title · value · chevron, at least 64 px. */
+  .settings-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 64px;
+    padding: 12px 16px;
+    color: var(--lm-ink);
+    text-decoration: none;
+    font-size: 0.9375rem;
+    line-height: 1.375rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .settings-row--button {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+  }
+  @media (hover: hover) {
+    .settings-row:hover {
+      background: color-mix(in oklab, var(--lm-elevated) 60%, transparent);
+    }
+  }
+  .settings-row:active {
+    background: var(--lm-elevated);
+  }
+  .settings-row:focus-visible {
+    outline: 2px solid var(--lm-focus, var(--lm-signal));
+    outline-offset: -2px;
+  }
+  .settings-row__icon {
+    flex: none;
+    color: var(--lm-ink-2);
+  }
+  .settings-row__title {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  /* the state column: a fact, so mono caps (the Fact Line rule); a StatusDot inside it keeps its own mono word */
+  .settings-row__value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 48%;
+    justify-content: flex-end;
+    text-align: end;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--lm-ink-2);
+  }
+  /* A download and its installation help must fit the same narrow Settings group. */
+  .settings-section .lm-dl__main {
     grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+  .settings-section .lm-dl__download {
+    min-width: 0;
+    gap: 8px;
+  }
+  .settings-section .lm-dl__key {
+    height: auto;
+    min-height: 48px;
+    padding-block: 12px;
+  }
+  .settings-section .lm-dl__key .lm-key__label {
+    white-space: normal;
+    text-align: center;
+  }
+  /* off or not answered: a hollow ring where the on states have the filled dot (never colour alone: the word is there too) */
+  .settings-row__value .lm-status[data-tone='neutral'] .lm-status__dot {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--lm-ink-3);
+  }
+  /* an update waiting on Android (the About row's value): the 6 px gold attention dot */
+  .settings-row__dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-inline-start: 6px;
+    border-radius: 50%;
+    vertical-align: middle;
+    background: var(--lm-signal);
+  }
+  .settings-row__chev {
+    flex: none;
+    color: var(--lm-ink-3);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+
+  /* The index as the desktop master column (`variant="rail"`): compact 40 px rows, no values, no chevron; the open section
+     is selected the way the sidebar's current destination is. */
+  .settings-index[data-variant='rail'] {
+    gap: var(--lm-space-3);
+  }
+  /* plain rows on the backdrop, like the sidebar's: a navigation column, not a stack of cards */
+  .settings-index[data-variant='rail'] .settings-group {
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .settings-index[data-variant='rail'] .lm-group-label {
+    padding-inline: var(--lm-space-3);
+  }
+  .settings-index[data-variant='rail'] .settings-group > * ~ *::before {
+    display: none;
+  }
+  .settings-index[data-variant='rail'] .settings-row {
+    gap: var(--lm-space-3);
+    min-height: 40px;
+    padding: var(--lm-space-2) var(--lm-space-3);
+    border-radius: var(--lm-radius-field);
+    font-size: var(--lm-text-label);
+    line-height: var(--lm-text-label--lh);
+    font-weight: 500;
+    color: var(--lm-ink-2);
+  }
+  .settings-index[data-variant='rail'] .settings-row__icon {
+    width: 20px;
+    height: 20px;
+    color: var(--lm-ink-3);
+  }
+  .settings-index[data-variant='rail'] .settings-row__chev {
+    display: none;
+  }
+  /* the open section is the sidebar's selected row (r071): a 9 % ivory tint, an ivory icon and a 600 ivory label. Ivory is
+     where you are; gold is what you can do. Same rule as `.lm-side__row[aria-current]` in shell.css. */
+  .settings-index[data-variant='rail'] .settings-row[aria-current='page'] {
+    background: color-mix(in oklab, var(--lm-ink) 9%, transparent);
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .settings-index[data-variant='rail'] .settings-row[aria-current='page'] .settings-row__icon {
+    color: var(--lm-ink);
+  }
+  @media (forced-colors: active) {
+    .settings-index[data-variant='rail'] .settings-row[aria-current='page'] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+  .settings-row[aria-expanded='true'] .settings-row__chev {
+    transform: rotate(90deg);
+  }
+
+  /* Disclosure row (Licences, a kitchen list, other ways to join): the row, then its body inside the same group. */
+  .settings-disclosure__body {
+    padding: 0 16px 16px;
+  }
+
+  /* Control row: label (+ one fact line) left, control right; the control drops under the label when it does not fit.
+     `data-wide` (selectors, fields, selects; r068 S8/S19/S27): under the label at full width on phones, and from 768 px
+     one control column of the same width in every row, so the selectors line up instead of sizing to their words. */
+  .settings-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    min-height: 52px;
+    padding-block: 10px;
+  }
+  .settings-group > .settings-control {
+    min-height: 64px;
+    padding: 12px 16px;
+  }
+  .settings-control__text {
+    display: grid;
+    gap: 2px;
+    flex: 1 1 6rem;
+    min-width: 0;
+  }
+  .settings-control__label {
+    font-size: var(--lm-text-card);
+    line-height: var(--lm-text-card--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  /* a row's name with its (i): the key is 28 px, so it must not make the row taller than the 64 px minimum */
+  .settings-control__line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .settings-control__line .lm-info {
+    margin-block: -6px;
+  }
+  /* Settings › Widgets: a widget's name with its icon in its domain hue */
+  .settings-widget {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .settings-widget__icon {
+    flex: none;
+  }
+  .settings-control__help {
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .settings-control__control {
+    display: flex;
+    align-items: center;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .settings-control[data-wide] .settings-control__control > * {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  @media (max-width: 47.99rem) {
+    .settings-control[data-wide] {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .settings-control[data-wide] .settings-control__text {
+      flex: none;
+    }
+    .settings-control[data-wide] .settings-control__control {
+      width: 100%;
+    }
+  }
+  @media (min-width: 48rem) {
+    .settings-control[data-wide] {
+      flex-wrap: nowrap;
+    }
+    .settings-control[data-wide] .settings-control__control {
+      flex: 0 0 min(22rem, 48%);
+    }
+  }
+
+  /* Free-form row (key rows, lists, forms). */
+  .settings-item {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  /* Text pieces inside groups. */
+  .settings-value {
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  /* a note outside a group lines up with the group labels (2 px in); inside a group with the rows' text (r068 S29) */
+  .settings-note {
+    margin: 0;
+    padding-inline: 2px;
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+  .settings-text {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
+    color: var(--lm-ink);
+  }
+  .settings-group .settings-note {
+    padding-inline: 0;
+  }
+  .settings-keys {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  /* two (or more) keys of equal weight side by side, each as wide as the others, filling the row */
+  .settings-keys[data-equal] {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+  }
+  /* the fasting opt-ins (FastingTierControls) inside a group: the group's edge is the first rule */
+  .settings-item > div > .lm-safety-row:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+  .settings-item > div > .lm-safety-row:last-child {
+    padding-bottom: 0;
+  }
+  /* …and the rule between two of them runs from the text column to the card's right edge, like every other divider in
+     a group (r068 V7): each row reaches through the item's right padding and keeps it inside */
+  .settings-item > div > .lm-safety-row {
+    margin-inline-end: -16px;
+    padding-inline-end: 16px;
+  }
+  /* a state shown as a dot and words (Settings › Coach: on / off) */
+  .settings-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-space-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink-2);
+  }
+  .settings-status__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--lm-ink-3);
+  }
+  .settings-status[data-on] {
+    color: var(--lm-ink);
+  }
+  .settings-status[data-on] .settings-status__dot {
+    border-color: var(--lm-signal);
+    background: var(--lm-signal);
+  }
+  /* the provider list: one column on phones, a grid of two (three on wide screens) where there is room */
+  @media (min-width: 48rem) {
+    .settings-providers {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: var(--lm-space-6);
+    }
+  }
+  @media (min-width: 80rem) {
+    .settings-providers {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  /* a settings list in a sheet (Coach › Provider on phones): the page's gutter, room above the screen's bottom edge */
+  .settings-sheet {
+    padding: var(--lm-space-1) var(--lm-gutter) calc(var(--lm-gutter) * 2 + var(--lm-safe-bottom));
+  }
+  /* a quiet in-place disclosure for a secondary fact ("Where to find a code") */
+  .settings-details > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lm-space-1);
+    width: fit-content;
+    min-height: 32px;
+    cursor: pointer;
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    font-weight: 500;
+    color: var(--lm-signal);
+    list-style: none;
+  }
+  /* the settings chevron instead of the browser's ▶ marker (r068 V10): it turns down while open */
+  .settings-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .settings-details__chev {
+    flex: none;
+    transition: transform var(--lm-dur-fast) var(--lm-ease-standard);
+  }
+  .settings-details[open] .settings-details__chev {
+    transform: rotate(90deg);
+  }
+  .settings-details[open] > summary {
+    margin-bottom: var(--lm-space-1);
+  }
+  .settings-wrap {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* The licences: one two-line row each, the name over its licence (r068 S30) */
+  .settings-licences {
+    display: grid;
+    gap: var(--lm-card-gap);
+    margin: 0 0 var(--lm-card-gap);
+    padding: 0;
+    list-style: none;
+  }
+  .settings-licences li {
+    display: grid;
+    gap: 2px;
+  }
+  .settings-licences__name {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .settings-licences__licence {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+
+  /* List rows inside a group (devices, agent keys, proposals, AI tools): the group's divider and padding. */
+  .settings-list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .settings-list > li {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+    min-height: 64px;
+    padding: 12px 16px;
+  }
+  .settings-list > li + li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .settings-list__text {
+    display: grid;
+    gap: 2px;
+    flex: 1 1 12rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .settings-list__title {
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-weight: 400;
+    color: var(--lm-ink);
+  }
+  .settings-list__meta {
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    font-weight: 400;
+    color: var(--lm-ink-2);
+  }
+
+  /* Code and secrets shown once (agent key, recipes): a plain well, no card. */
+  .settings-code {
+    margin: 0;
+    padding: 6px 10px;
+    border-radius: var(--lm-radius-sm);
+    background: var(--lm-well);
+    font-family: var(--lm-font-mono, ui-monospace, monospace);
+    font-size: 0.75rem;
+    line-height: 1.125rem;
+    color: var(--lm-ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* The 8-digit pairing code just made, large and tabular. */
+  .settings-code-big {
+    font-size: 1.75rem;
+    line-height: 2.125rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--lm-ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .settings-key-storage {
+    width: 100%;
+    height: 12px;
+    accent-color: var(--lm-signal);
+  }
+  .settings-storage .lm-gcard__body,
+  .settings-about .lm-gcard__body {
+    gap: var(--lm-card-pad);
+  }
+  .settings-about .lm-key {
+    align-self: flex-start;
+  }
+
+  /* Settings rows use the same desktop inset as the shared cards. */
+  @media (min-width: 64rem) {
+    .settings-row,
+    .settings-group > .settings-control,
+    .settings-item {
+      padding-inline: var(--lm-card-pad);
+    }
   }
 }

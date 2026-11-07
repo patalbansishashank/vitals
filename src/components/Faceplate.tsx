@@ -6,24 +6,35 @@ export type FaceplateVariant = 'plain' | 'inset' | 'flush';
 export type FaceplateProps<T extends ElementType = 'section'> = {
   /** Rendered element. `section` by default; use `div` when it is not a landmark-worthy region. */
   as?: T;
-  /** `plain` (default) · `inset` recessed well, no shadow · `flush` no padding (charts, rasters, strips). */
+  /** `plain` (default) card material · `inset` flat well (#11100F) · `flush` no padding (charts, rasters, strips). */
   variant?: FaceplateVariant;
-  /** Header title (15/600). Renders a FaceplateHeader when given. */
+  /** Card heading (title-m 16/500, sentence case). Renders a FaceplateHeader when given. */
   title?: ReactNode;
   /** Heading level for `title`. Default h2. */
   titleAs?: 'h2' | 'h3' | 'h4';
-  /** Engraved caption beside the title (lowercase, 12 px). */
+  /**
+   * One fact line under the title (body-s, stone): a number, a date or a state ("6 of 7 days logged").
+   * Never helper text or a restated label — leave it out when there is no fact.
+   */
   caption?: ReactNode;
-  /** Right-aligned header actions (quiet keys, key banks, switches). */
+  /** Right-aligned header actions: text keys, action pills, a segmented control, a switch. */
   actions?: ReactNode;
-  /** Footer content above a hairline rule. */
+  /** Footer content, 16 px under the body. */
   footer?: ReactNode;
   children?: ReactNode;
 } & Omit<ComponentPropsWithoutRef<T>, 'as' | 'title' | 'children'>;
 
 /**
- * The only container: a panel screwed onto the chassis. Never nest faceplates —
- * inside one, structure comes from hairline rules (`Rule`, `Section`) and space.
+ * The plain titled card (Ember material): charcoal with fine grain and a faint gold wash from the top right, a 0.5 px gold
+ * hairline, 20 px corners, no shadow, 18 px padding (24 from 1024), with an optional header (title, a fact caption, actions)
+ * and footer. `data-domain="energy"` (heart, steps, food, recovery, body, sleep, videos, plan) opts the card into ONE soft
+ * glow in that domain's hue.
+ *
+ * It is the same material as `GradientCard`, not a second one: both draw the `.lm-face` / `.lm-material` recipe of
+ * src/styles/components.css (the domain wiring and the glow are declared there once). `GradientCard` adds what a card on
+ * Today has: the domain icon, title and (i) head, the foot, the whole-card open target and the glow's fade-in. `Faceplate`
+ * stays the card for sections, forms, tools and every page that is not a metric card, and its markup does not change.
+ * Never nest cards: inside one, structure comes from `Section`, `Rule` and space.
  */
 export function Faceplate<T extends ElementType = 'section'>({
   as,
@@ -59,7 +70,7 @@ export interface FaceplateHeaderProps {
 }
 
 /**
- * Title + engraved caption + right-aligned actions, separated from the body by a hairline.
+ * Title (+ fact caption under it) and right-aligned actions; 12 px of space to the body, no divider.
  * Title and caption form one label block so the row can centre it against the actions and,
  * when the two do not fit side by side, stack the actions under it on the same left edge.
  */
@@ -82,20 +93,20 @@ export function FaceplateHeader({ title, titleAs = 'h2', titleId, caption, actio
   );
 }
 
-/** A 1 px hairline divider inside a faceplate. */
+/** A 0.5 px gold hairline inside a card. */
 export function Rule({ className, ...rest }: ComponentPropsWithoutRef<'hr'>) {
   return <hr className={cx('lm-rule', className)} {...rest} />;
 }
 
 export interface SectionProps extends Omit<ComponentPropsWithoutRef<'div'>, 'title'> {
-  /** Sub-group label (13/600) followed by a hairline that runs to the edge. */
+  /** Sub-group label (14/500, ink, sentence case). No trailing rule. */
   label?: ReactNode;
-  /** Content placed after the hairline (e.g. a Switch "use measurement"). */
+  /** Content at the right end of the label row (e.g. a Switch "Use measurement"). */
   aside?: ReactNode;
   labelAs?: 'h3' | 'h4' | 'div';
 }
 
-/** A titled group inside a faceplate ("Where it sits", "Muscle"): label + hairline, then content. */
+/** A titled group inside a card ("Where it sits", "Muscle"): label, then content. */
 export function Section({ label, aside, labelAs = 'h3', className, children, ...rest }: SectionProps) {
   const L = labelAs;
   return (
@@ -117,15 +128,15 @@ export interface EngravedProps extends ComponentPropsWithoutRef<'span'> {
 }
 
 /**
- * The instrument label: lowercase 12/16, weight 500, ink-2. Author the text in
- * lowercase (screen readers and copy-paste match what is seen).
+ * Secondary line / caption: body-s (12/18, 350), stone. Plain sentence case — no
+ * small caps, no engraved costume. Only for facts (a number, a date, a state).
  */
 export function Engraved({ as = 'span', className, ...rest }: EngravedProps) {
   const C = as as ElementType;
   return <C className={cx('lm-eng', className)} {...rest} />;
 }
 
-/** Perforated dot-grid stage (Braun speaker grille) for the avatar and empty states. */
+/** Plain well behind the body figure and chart placeholders (the perforated dot grid is gone). */
 export function Stage({ className, ...rest }: ComponentPropsWithoutRef<'div'>) {
   return <div className={cx('lm-stage', className)} {...rest} />;
 }
@@ -134,7 +145,7 @@ export interface KeyValueListProps extends ComponentPropsWithoutRef<'dl'> {
   items: ReadonlyArray<{ key: ReactNode; value: ReactNode; id?: string }>;
 }
 
-/** Two-column definition list (Habits, About): label ink-2 left, value right, tabular. */
+/** Two-column definition list (Habits, About): label stone left, value ink right, tabular. */
 export function KeyValueList({ items, className, ...rest }: KeyValueListProps) {
   return (
     <dl className={cx('lm-kv', className)} {...rest}>

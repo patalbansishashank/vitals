@@ -28,11 +28,48 @@ export interface TdeeStackProps {
   controller?: ChartController;
   height?: number;
   textures?: boolean;
+  /**
+   * Draw the 7-day mean of every layer and line (r068 W2-9): training and fast days make the daily stack a saw-tooth
+   * that hides the trend; the crosshair readout still gives each day's own values.
+   */
+  weeklyMean?: boolean;
+}
+
+/** Centred 7-day mean (shorter windows at the ends). */
+function mean7(a: Float32Array): Float32Array {
+  const out = new Float32Array(a.length);
+  for (let i = 0; i < a.length; i++) {
+    let sum = 0;
+    let n = 0;
+    for (let j = Math.max(0, i - 3); j <= Math.min(a.length - 1, i + 3); j++) {
+      const v = a[j]!;
+      if (Number.isFinite(v)) {
+        sum += v;
+        n++;
+      }
+    }
+    out[i] = n ? sum / n : NaN;
+  }
+  return out;
+}
+
+function weeklySeries(s: ChartSeries): ChartSeries {
+  if (!s.stack) return { ...s, daily: { ...s.daily, values: mean7(s.daily.values) } };
+  return {
+    ...s,
+    daily: { ...s.daily, values: mean7(s.daily.values) },
+    stack: {
+      ...s.stack,
+      components: s.stack.components.map((c) => ({ ...c, daily: mean7(c.daily) })),
+      ...(s.stack.counterfactual ? { counterfactual: { ...s.stack.counterfactual, daily: mean7(s.stack.counterfactual.daily) } } : {}),
+    },
+  };
 }
 
 const RAMP = ['var(--lmc-energy-ramp-1)', 'var(--lmc-energy-ramp-2)', 'var(--lmc-energy-ramp-3)', 'var(--lmc-energy-ramp-4)'];
 
-export const TdeeStack = memo(function TdeeStack({ series, time, phases, controller: ext, height = 240, textures }: TdeeStackProps) {
+export const TdeeStack = memo(function TdeeStack({ series, time, phases, controller: ext, height = 240, textures, weeklyMean = false }: TdeeStackProps) {
+  const drawn = useMemo(() => (weeklyMean ? weeklySeries(series) : series), [series, weeklyMean]);
   const controller = useChartController(time.days, { controller: ext });
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -42,7 +79,7 @@ export const TdeeStack = memo(function TdeeStack({ series, time, phases, control
   const area: DataArea = useMemo(() => ({ left: tickCol, width: plotW }), [tickCol, plotW]);
   const geom: RowGeometry = useMemo(() => ({ cellW: width, area, compact: width < 600 }), [width, area]);
   useBodyInteractions(bodyRef, controller, area, []);
-  const model = useMemo(() => stackedAreaModel(series, { mode: 'focus', tickColCss: tickCol, phases, textures, labels: width >= 480 }), [series, tickCol, phases, textures, width]);
+  const model = useMemo(() => stackedAreaModel(drawn, { mode: 'focus', tickColCss: tickCol, phases, textures, labels: width >= 480 }), [drawn, tickCol, phases, textures, width]);
   const padding = useMemo(() => ({ top: 18, bottom: 6, left: tickCol, right: 8 }), [tickCol]);
   const comps = useMemo(() => series.stack?.components ?? [], [series]);
   const cf = series.stack?.counterfactual;
@@ -84,7 +121,8 @@ export const TdeeStack = memo(function TdeeStack({ series, time, phases, control
         {comps.map((c, k) => (
           <span key={c.id}>
             <KeyGlyph kind="bar" color={RAMP[Math.min(3, k)]!} />
-            {c.label}
+            {/* the legend names the layer in words; its abbreviation stays on the plot's own label (r068 W2-9) */}
+            {weeklyMean ? c.label.replace(/\s*\([A-Z]+\)$/, '') : c.label}
           </span>
         ))}
         <span>

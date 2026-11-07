@@ -97,6 +97,10 @@ export const CARDIOMETABOLIC_PARAMS: readonly ParamDef[] = [
   P('si.sugarA', 0.0034, '1/%E', 0.002, 0.005, 'C', '04 §4.18 F_sugar (Sigala 2022 PMID 35458210; Stanhope 2009 PMID 19381015: 25 %E ⇒ −8.5 %)', '04 §4.18', 'proposed-fit', { note: R_ASSUMED }),
   P('si.tauSugar', 7, 'd', 3, 14, 'C', '04 §4.18 F_sugar lag', '04 §4.18', 'proposed-fit', { note: R_ASSUMED }),
   FIX('si.homaRef', 1.56, '1', 'C', '04 §4.18 HOMA_ref = 5.0·7/22.5 at S_hep = 1', '04 §4.18', 'proposed-fit'),
+  // D7-06: HOMA is a descriptive surrogate, not a measured hepatic sensitivity; no validated HOMA → S_hep mapping exists.
+  // Default 0 keeps the latent S_hep prior (hepCal = 1). 1 = the legacy HOMA_ref/HOMA_user calibration, an explicitly
+  // unvalidated sensitivity scenario, applied only to an eligible same-draw fasting pair off insulin.
+  FIX('si.homaCalibration', 0, '0/1', 'D', 'D7-06 review 2026-10-18: legacy HOMA_ref/HOMA_user hepatic calibration, off by default (unvalidated scenario)', '04 §4.18', 'unverified'),
 
   // =================================================================================================================
   // 04 §4.19 + 13 §4.8 carbohydrate tolerance T_C (ruling R-TC)
@@ -171,9 +175,11 @@ export const CARDIOMETABOLIC_PARAMS: readonly ParamDef[] = [
   P('tau.ldlWeight', 37.5, 'd', 30, 45, 'C', '06 §4.7 implementation (fat-mass state, 30-45 d when the #01 lag is not available)', '06 §4.7', 'proposed-fit', { note: 'midpoint of the dossier range 30-45 d' }),
 
   // =================================================================================================================
-  // LEM term (06 §4.3): hyper-responder LDL rise in lean people on carbohydrate restriction (grade C/D, on by default)
+  // LEM term (06 §4.3): hyper-responder LDL rise in lean people on carbohydrate restriction (grade C/D). D7-07: an
+  // exploratory adverse-response SCENARIO, off in the standard projection. Off is model containment, not a claim of zero
+  // LDL response: a ketogenic exposure still marks the LDL/ApoB response uncertain (`cardiometabolicRunStatus`).
   // =================================================================================================================
-  FIX('lem.enabled', 1, '0/1', 'D', '06 §4.18 default toggles: LEM term on (labelled grade C/D)', '06 §4.18', 'proposed-fit'),
+  FIX('lem.enabled', 0, '0/1', 'D', 'D7-07 review 2026-10-18: LEM adverse-response scenario, default off (06 §4.18 had it on; no validated personal prediction)', '06 §4.18', 'unverified'),
   P('lem.a', 45, 'mg/dL', 10, 65, 'C', NORWITZ + ' (Buren BMI ~22: +70 total, ~25 composition ⇒ 45)', '06 §4.3', 'proposed-fit', { note: 'dossier range 10-65' }),
   P('lem.b', 4.5, 'mg/dL per BMI unit', 3.0, 5.9, 'C', 'Norwitz 2022 PMID 35106434 (BMI β = −4.5…−5.9 mg/dL per unit)', '06 §4.3', 'proposed-fit'),
   FIX('lem.bmiRef', 22, 'kg/m²', 'C', '06 §4.3', '06 §4.3', 'proposed-fit'),
@@ -296,7 +302,13 @@ export const CARDIOMETABOLIC_PARAMS: readonly ParamDef[] = [
   FIX('liver.l0A', 2.0, '%', 'C', '06 §4.9 L0 = 2.0·exp(0.11·(BMI − 22))·exp(0.9·z_L) (Szczepaniak 2005 PMID 15339742; Magkos 2016)', '06 §4.9', 'proposed-fit'),
   FIX('liver.l0B', 0.11, '1/BMI', 'C', '06 §4.9', '06 §4.9', 'proposed-fit'),
   P('liver.wl', 0.075, 'ln per %WL', 0.05, 0.1, 'B', LIVER, '06 §4.9', 'proposed-fit', { note: R_ASSUMED }),
-  P('liver.cr', 0.4, 'ln', 0.25, 0.55, 'B', 'Browning 2011; Mardinoglu 2018; Kirk 2009; Qadri 2026; Petersen 2026 (mean ln ≈ −0.42)', '06 §4.9', 'proposed-fit', { note: R_ASSUMED }),
+  P('liver.cr', 0.4, 'ln', 0.25, 0.55, 'B', 'Browning 2011; Mardinoglu 2018; Kirk 2009; Qadri 2026; Petersen 2026 (mean ln ≈ −0.42)', '06 §4.9', 'proposed-fit', {
+    note: `${R_ASSUMED}. D7-08: legacy sustained independent ketosis term, applied only when liver.ketoScenario = 1 (research comparator); the standard projection uses 0 with an uncertain-response status`,
+  }),
+  // D7-08: 0 = standard projection (no permanent independent keto liver-fat bonus; early composition effects are real but
+  // not calibrated for a person's long-term response). 1 = the legacy −0.4·Δs_keto term as an explicitly labelled
+  // early-composition sensitivity scenario. No invented time constant or amplitude.
+  FIX('liver.ketoScenario', 0, '0/1', 'D', 'D7-08 review 2026-10-18: legacy ketosis liver-fat term as a labelled scenario, default off', '06 §4.9', 'unverified'),
   P('liver.ex', 0.25, 'ln', 0.1, 0.4, 'B', 'Johnson 2009 (06 R55c); Keating 2015 (06 R55d); 10 §4.7 extraLiverFat −0.25·D_aer', '06 §4.9; 10 §4.7', 'proposed-fit', { note: R_ASSUMED }),
   FIX('liver.exRefMetH', 10, 'MET·h/wk', 'B', '06 §4.9 f_ex = exp(−0.25·min(1, METs·h/wk /10))', '06 §4.9', 'proposed-fit'),
   FIX('liver.exStack', 0.5, '1', 'B', '10 §4.7: extra = max(0, extra − 0.5 × weightLossEffect) when weight loss > 5 % dominates', '10 §4.7', 'proposed-fit'),
@@ -331,7 +343,12 @@ export const CARDIOMETABOLIC_PARAMS: readonly ParamDef[] = [
   P('a1c.tau', 50, 'd', 36, 65, 'A', TAHARA + ' (half-time 34.6 ± 10.1 d ⇒ τ 50 d)', '06 §4.11', 'verified'),
   FIX('a1c.eagSlope', 28.7, 'mg/dL per %', 'A', 'Nathan 2008 ADAG PMID 18540046: eAG = 28.7·A1c − 46.7', '06 §4.11', 'verified'),
   FIX('a1c.eagIntercept', 46.7, 'mg/dL', 'A', 'Nathan 2008 ADAG PMID 18540046', '06 §4.11', 'verified'),
-  P('a1c.meanGlucoseFactor', 1.3, '1', 1.3, 1.8, 'B', 'Petersen 2026 PMID 42660124 (24-h mean fell 1.3× FPG on non-keto diets, 1.8× on keto)', '06 §4.11', 'proposed-fit'),
+  P('a1c.meanGlucoseFactor', 1.3, '1', 1.3, 1.8, 'B', 'Petersen 2026 PMID 42660124 (24-h mean fell 1.3× FPG on non-keto diets, 1.8× on keto)', '06 §4.11', 'proposed-fit', {
+    note: 'D7-09: used only by the a1c.fpgScenario sensitivity scenario; fasting glucose is not the full-day mean glucose ADAG relates to HbA1c',
+  }),
+  // D7-09: 0 = standard (HbA1c stays its measured anchor; no deterministic HbA1c forecast from a fasting-glucose change).
+  // 1 = the legacy FPG-linked exploratory scenario (eAG change = factor × ΔFPG), excluded from target achievement.
+  FIX('a1c.fpgScenario', 0, '0/1', 'D', 'D7-09 review 2026-10-18: FPG-linked HbA1c sensitivity scenario, default off (ADAG relates mean glucose, not FPG)', '06 §4.11', 'unverified'),
 
   // =================================================================================================================
   // hs-CRP (06 §4.12) and urate (06 §4.13, 20 §4.7)
@@ -382,8 +399,10 @@ export const CARDIOMETABOLIC_PARAMS: readonly ParamDef[] = [
   // =================================================================================================================
   ...baselineParams(),
   FIX('apob.intercept', 11.09, 'mg/dL', 'B', 'NHANES 2013-14 (06 §2.4, R60): ApoB = 11.09 + 0.587·nonHDL-C', '06 §2.4', 'verified'),
-  FIX('apob.perNonHdl', 0.587, '1', 'B', 'NHANES 2013-14 (06 §2.4, R60), r = 0.94, resid SD 8.4 mg/dL', '06 §2.4', 'verified'),
-  FIX('lipid.vldlDivisor', 5, '1', 'B', '06 §4.6 non-HDL-C = LDL + TG/5', '06 §6', 'proposed-fit'),
+  FIX('apob.perNonHdl', 0.587, '1', 'B', 'NHANES 2013-14 (06 §2.4, R60), r = 0.94, resid SD 8.4 mg/dL', '06 §2.4', 'verified',
+    'D7-07: a cross-sectional association; as a change coefficient it is an exploratory proxy (ApoB response status exploratory), never a calibrated personal response'),
+  FIX('lipid.vldlDivisor', 5, '1', 'B', '06 §4.6 non-HDL-C = LDL + TG/5', '06 §6', 'proposed-fit',
+    'D7-07: LDL + TG/5 is a model proxy (Friedewald VLDL convention) with domain limits, never an identity or a measured panel; a measured non-HDL anchors the descriptor'),
 
   // =================================================================================================================
   // Person-level heterogeneity: ten latent quantiles of the correlated baseline residuals (06 §4.17; MODEL_SPEC §8.1)

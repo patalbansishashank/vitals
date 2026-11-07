@@ -18,7 +18,8 @@ function rule(css: string, selector: string): string {
   return m[1]!;
 }
 
-const INSET = /padding: var\(--lm-space-4\) var\(--lm-space-4\) var\(--lm-space-5\);/;
+// 16 / 16 / 20, in the space tokens or the card-pad tokens of the same values (r068: the start sheet insets like a card)
+const INSET = /padding: (?:var\(--lm-space-4\) var\(--lm-space-4\) var\(--lm-space-5\)|var\(--lm-card-pad\) var\(--lm-card-pad\) var\(--lm-card-pad-lg\));/;
 
 const ROOTS: [file: string, selector: string][] = [
   ['src/features/living/living.css', '.lv-sheet'],
@@ -43,7 +44,7 @@ describe('sheet content inset', () => {
   it('the Food panels put their content inside a padded root', () => {
     const src = read('src/features/living/food/components/panels.tsx');
     const panels = src.split('<ResponsivePanel').slice(1);
-    expect(panels).toHaveLength(3);
+    expect(panels).toHaveLength(2); // things that won't help, kitchen (the pantry is one page: /food/pantry)
     for (const p of panels) expect(p.slice(p.indexOf('>') + 1).trimStart()).toMatch(/^<div className="lv-food-sheet">/);
   });
 

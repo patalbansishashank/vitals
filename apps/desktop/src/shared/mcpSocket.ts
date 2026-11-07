@@ -43,9 +43,11 @@ export const isNamedPipe = (socketPath: string): boolean => socketPath.startsWit
 export interface Hello {
   /** The AI tool id from `--client`, or null when unknown. */
   client: string | null;
+  /** Explicit delegation on the private, same-OS-user socket; ordinary MCP calls cannot opt themselves in. */
+  fullControl?: true;
 }
 
-export const helloLine = (client: string | null): string => `${JSON.stringify({ client })}\n`;
+export const helloLine = (client: string | null, fullControl = false): string => `${JSON.stringify({ client, ...(client && fullControl ? { fullControl: true } : {}) })}\n`;
 
 /** Parses the first line of a connection; null when it is not a hello (a client that skipped it sends JSON-RPC at once). */
 export function parseHello(line: string): Hello | null {
@@ -53,7 +55,8 @@ export function parseHello(line: string): Hello | null {
     const v = JSON.parse(line) as unknown;
     if (!v || typeof v !== 'object' || 'jsonrpc' in v || !('client' in v)) return null;
     const client = (v as { client: unknown }).client;
-    return { client: typeof client === 'string' && /^[\w-]{1,32}$/.test(client) ? client : null };
+    const id = typeof client === 'string' && /^[\w-]{1,32}$/.test(client) ? client : null;
+    return { client: id, ...(id && (v as { fullControl?: unknown }).fullControl === true ? { fullControl: true as const } : {}) };
   } catch {
     return null;
   }

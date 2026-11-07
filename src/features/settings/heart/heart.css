@@ -1,0 +1,129 @@
+/* Settings › Heart rate (energy SPEC §V4.7): the bpm fields, the suggestion row and the zone bar. Tokens only. */
+@layer components {
+  .settings-heart__bpm {
+    display: flex;
+    align-items: center;
+    gap: var(--lm-inline);
+    width: 100%;
+  }
+  .settings-heart__field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .settings-heart__suggest {
+    gap: 10px;
+  }
+  .settings-heart__suggest-text {
+    display: grid;
+    gap: 2px;
+  }
+  .settings-heart__suggest-text .settings-text {
+    font-weight: 500;
+  }
+
+  /* Zones: the basis line, the bar, the freeze rule */
+  .settings-heart__zones {
+    gap: var(--lm-card-gap);
+  }
+  .settings-heart__basis {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+  }
+  .settings-heart__basis-name {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
+    color: var(--lm-ink);
+  }
+  .settings-heart__basis-why {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+
+  /* the zone bar (r068 S18): names over five equal bands, the six bpm edges under them, the unit once */
+  .settings-zbar {
+    display: grid;
+    gap: var(--lm-space-1-5);
+    padding-block: var(--lm-space-1);
+  }
+  .settings-zbar__names,
+  .settings-zbar__track {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .settings-zbar__names {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    color: var(--lm-ink-2);
+    text-align: center;
+  }
+  .settings-zbar__track {
+    gap: 2px;
+    height: 12px;
+  }
+  .settings-zbar__track > span {
+    border-radius: 2px;
+  }
+  .settings-zbar__track > span:first-child {
+    border-start-start-radius: var(--lm-radius-full);
+    border-end-start-radius: var(--lm-radius-full);
+  }
+  .settings-zbar__track > span:last-child {
+    border-start-end-radius: var(--lm-radius-full);
+    border-end-end-radius: var(--lm-radius-full);
+  }
+  .settings-zbar__ticks {
+    position: relative;
+    height: var(--lm-text-meta--lh);
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink);
+  }
+  .settings-zbar__ticks > span {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+  .settings-zbar__ticks > span[data-edge='start'] {
+    transform: none;
+  }
+  .settings-zbar__ticks > span[data-edge='end'] {
+    transform: translateX(-100%);
+  }
+  .settings-zbar__unit {
+    justify-self: end;
+  }
+  .settings-zbar__seen {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    text-transform: uppercase;
+    color: var(--lm-ink);
+  }
+  .settings-zbar__seen::before {
+    content: '';
+    width: 20%;
+    border-top: 1px dashed var(--lm-hue-heart);
+  }
+  .settings-zbar__seen > span {
+    padding-inline-start: 8px;
+    border-inline-start: 1px solid var(--lm-hue-heart);
+  }
+
+  @media (forced-colors: active) {
+    .settings-zbar__track > span {
+      border: 1px solid CanvasText;
+    }
+  }
+}

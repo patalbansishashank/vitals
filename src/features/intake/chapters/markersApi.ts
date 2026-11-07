@@ -6,7 +6,7 @@
 import { dispatch, jobs, on } from '@/commands/bus';
 import type { CommandResult } from '@/commands/types';
 import { getCommand } from '@/commands/registry';
-import type { MarkerContext, MarkerExtraction, MarkerReadingInput, MarkersChapter, MarkersView } from '@/markers';
+import type { MarkerContext, MarkerExtraction, MarkerId, MarkerReadingInput, MarkerSampleFacts, MarkersChapter, MarkersView } from '@/markers';
 import { getBlobStore } from '@/state/blobStore';
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; message: string; code?: string };
@@ -35,6 +35,11 @@ async function settle<T>(started: () => Promise<CommandResult<unknown>>): Promis
 
 export const getMarkers = (): Promise<ApiResult<MarkersView>> => settle<MarkersView>(() => dispatch('markers.get', {}));
 
+/**
+ * Typed entry (`markers.set`): value, unit and sample date as printed, plus any optional sample facts the caller has
+ * (`MarkerSampleFacts`, A1-009: draw id/instant/local hour, fasting, confirmed pairing, GFR quantity kind and explicit
+ * conversion, assay/lab, hormone therapy, sample context). Absent facts stay unknown; visible collection controls are W3.
+ */
 export interface SetInput {
   readings: MarkerReadingInput[];
   chapter?: Exclude<MarkersChapter, null>;
@@ -42,9 +47,15 @@ export interface SetInput {
 }
 export const setMarkers = (input: SetInput): Promise<ApiResult<MarkersView>> => settle<MarkersView>(() => dispatch('markers.set', input));
 
+/**
+ * One accepted report row (`markers.confirm`): the corrections the person made and the same optional sample facts as
+ * typed entry (A1-009), so report confirmation and direct entry preserve identical metadata; absent facts stay absent.
+ */
+export type ConfirmRow = { row: number; markerId?: MarkerId; value?: number; unit?: string; date: string; fasting?: boolean } & Partial<MarkerSampleFacts>;
+
 export interface ConfirmInput {
   extractionId: string;
-  accept: Array<{ row: number; value?: number; unit?: string; date: string; fasting?: boolean }>;
+  accept: ConfirmRow[];
   context: MarkerContext;
 }
 export const confirmExtraction = (input: ConfirmInput): Promise<ApiResult<MarkersView>> => settle<MarkersView>(() => dispatch('markers.confirm', input));

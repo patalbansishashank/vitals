@@ -1,24 +1,23 @@
-import { Fragment, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useId, useState, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import {
   CATEGORY_LABEL,
   EmptyStage,
   Faceplate,
+  Icon,
   Key,
-  KeyBank,
   ProgressRule,
-  Section,
   Skeleton,
-  Swatch,
   formatNumber,
 } from '@/components';
-import type { EvidenceCategory } from '@/content/evidence/schema';
+import { sentence } from '../copy';
 import { CATEGORY_ORDER, hasFilters, type GroupBy, type IndexUrlState } from '../data/filters';
 import type { MechanismDoc } from '../data/search';
 import type { EvidenceSearchState } from '../hooks';
 import { topicHref, type EvidenceNavState } from '../links';
 import { ClaimRow, MechanismRow, MetricStrip } from './Rows';
+import { countGrades, GradeShare } from './GradeShare';
 
 export const PAGE_SIZE = 40;
 const CLAIMS_PREVIEW = 6;
@@ -48,12 +47,13 @@ export function focusFirstResult(root: HTMLElement | null): void {
 
 function LoadingRows() {
   return (
-    <ul className="ev-list" aria-hidden="true">
+    <ul className="ev-list lm-material" aria-hidden="true">
       {[0, 1, 2, 3, 4].map((i) => (
         <li key={i} className="ev-row ev-row--skeleton">
-          <Skeleton width={120} height={10} />
-          <Skeleton width="70%" height={14} />
-          <Skeleton lines={2} height={11} />
+          <div className="ev-row__head">
+            <Skeleton width="70%" height={14} />
+            <Skeleton width={48} height={18} className="ev-skel-grade" />
+          </div>
         </li>
       ))}
     </ul>
@@ -71,13 +71,15 @@ function Progress({ search }: { search: EvidenceSearchState }) {
   );
 }
 
-function loadingCaption(search: EvidenceSearchState): string | null {
-  return search.settled ? null : `loading ${search.loaded} of ${search.total} topics`;
+function loadingLine(search: EvidenceSearchState): string | null {
+  return search.settled ? null : `Loading ${search.loaded} of ${search.total} topics`;
 }
 
 interface Group {
   key: string;
-  header: ReactNode;
+  title: string;
+  /** The topic page (topic groups). */
+  href?: string;
   count: number;
   rows: MechanismDoc[];
 }
@@ -99,20 +101,21 @@ function groupRows(all: MechanismDoc[], shown: number, by: GroupBy): Group[] {
     const key = keyOf(d);
     let g = groups[groups.length - 1];
     if (!g || g.key !== key) {
-      const header =
-        by === 'category' ? (
-          <span className="ev-grouphead">
-            <Swatch category={d.mechanism.category as EvidenceCategory} shape="square" />
-            {CATEGORY_LABEL[d.mechanism.category]}
-          </span>
-        ) : (
-          <span className="ev-grouphead">
-            <Link to={topicHref(d.topic.slug)} state={NAV_STATE} className="ev-link">
-              {d.topic.title}
-            </Link>
-          </span>
-        );
-      g = { key, header, count: totals.get(key) ?? 0, rows: [] };
+      g =
+        by === 'category'
+          ? {
+              key,
+              title: sentence(CATEGORY_LABEL[d.mechanism.category]),
+              count: totals.get(key) ?? 0,
+              rows: [],
+            }
+          : {
+              key,
+              title: d.topic.title,
+              href: topicHref(d.topic.slug),
+              count: totals.get(key) ?? 0,
+              rows: [],
+            };
       groups.push(g);
     }
     g.rows.push(d);
@@ -124,12 +127,9 @@ function ShowMore({ shown, total, onShowMore }: { shown: number; total: number; 
   if (shown >= total) return null;
   return (
     <div className="ev-more">
-      <Key icon={ChevronDown} onClick={onShowMore}>
+      <Key variant="outlined" icon={ChevronDown} onClick={onShowMore}>
         Show {formatNumber(Math.min(PAGE_SIZE, total - shown))} more
       </Key>
-      <span className="lm-eng">
-        {formatNumber(shown)} of {formatNumber(total)} shown
-      </span>
     </div>
   );
 }
@@ -141,8 +141,9 @@ export interface ResultsProps {
   onShowMore: () => void;
   onQuery: (q: string) => void;
   onClearFilters: () => void;
-  onGroup: (g: GroupBy) => void;
   onExplainMetric: (metricId: string) => void;
+  /** Offer "Clear filters" beside the count (phones, where the filters sit in a closed sheet; desktop has its column). */
+  clearInline?: boolean;
 }
 
 export function Results({
@@ -152,26 +153,30 @@ export function Results({
   onShowMore,
   onQuery,
   onClearFilters,
-  onGroup,
   onExplainMetric,
+  clearInline = true,
 }: ResultsProps) {
   const [allClaims, setAllClaims] = useState(false);
+  const headingId = useId();
   const hasQuery = search.tokens.length > 0;
   const filtered = hasFilters(state);
   const mechs = search.mechanisms;
-  const mechDocs = mechs.map((h) => h.doc);
 
   if (search.loaded === 0 && !search.settled) {
     return (
-      <Faceplate title="Mechanisms" caption={loadingCaption(search)}>
+      <section className="ev-library" aria-labelledby={headingId} aria-busy="true">
+        <h2 id={headingId} className="lm-sr">
+          Mechanisms
+        </h2>
+        <p className="ev-status">{loadingLine(search)}</p>
         <Progress search={search} />
         <LoadingRows />
-      </Faceplate>
+      </section>
     );
   }
 
   if (search.loaded === 0 && search.settled) {
-    return null; // the failure notice above explains
+    return null; // the failure state above says what happened
   }
 
   const example = (word: string) => (
@@ -182,38 +187,35 @@ export function Results({
 
   if (hasQuery) {
     const none = !mechs.length && !search.myths.length && !search.metrics.length;
-    const summary = `${mechs.length} ${mechs.length === 1 ? 'mechanism' : 'mechanisms'}, ${search.myths.length} ${search.myths.length === 1 ? 'claim' : 'claims'} and ${search.metrics.length} ${search.metrics.length === 1 ? 'metric' : 'metrics'} match “${state.q.trim()}”${search.settled ? '' : ' so far'}.`;
+    const q = state.q.trim();
+    const summary = `${mechs.length} ${mechs.length === 1 ? 'mechanism' : 'mechanisms'}, ${search.myths.length} ${search.myths.length === 1 ? 'claim' : 'claims'} and ${search.metrics.length} ${search.metrics.length === 1 ? 'metric' : 'metrics'} match “${q}”${search.settled ? '' : ' so far'}.`;
     if (none) {
       return (
         <>
           <p className="lm-sr" role="status">
-            {search.settled ? `No mechanism matches “${state.q.trim()}”.` : ''}
+            {search.settled ? `No mechanism matches “${q}”.` : ''}
           </p>
           {search.settled ? (
             <EmptyStage
-              title={`No mechanism matches “${state.q.trim()}”.`}
+              title={`No mechanism matches “${q}”.`}
               action={
                 <>
                   <Key onClick={() => onQuery('')}>Clear search</Key>
                   {filtered ? (
-                    <Key variant="quiet" onClick={onClearFilters}>
+                    <Key variant="text" onClick={onClearFilters}>
                       Clear filters
                     </Key>
                   ) : null}
                 </>
               }
-              art={null}
             >
-              Try a metric name, like {example('ketones')} or {example('hunger')}.
-              {filtered ? ' Filters are on, too.' : ''}
+              Try {example('ketones')} or {example('hunger')}.
             </EmptyStage>
           ) : (
-            <Faceplate title="Mechanisms" caption={loadingCaption(search)}>
+            <div className="ev-results">
+              <p className="ev-status">{loadingLine(search)}</p>
               <Progress search={search} />
-              <p className="ev-muted-line">
-                No matches yet. Still searching the topics that haven’t loaded.
-              </p>
-            </Faceplate>
+            </div>
           )}
         </>
       );
@@ -225,10 +227,7 @@ export function Results({
           {summary}
         </p>
         {search.metrics.length ? (
-          <Faceplate
-            title="Metrics"
-            caption={`${search.metrics.length} ${search.metrics.length === 1 ? 'channel' : 'channels'} in the Simulator · open one to explain it`}
-          >
+          <Faceplate title="Metrics">
             <MetricStrip
               docs={search.metrics.map((h) => h.doc)}
               tokens={search.tokens}
@@ -240,7 +239,7 @@ export function Results({
           <Faceplate
             title="Mechanisms"
             caption={
-              loadingCaption(search) ??
+              loadingLine(search) ??
               `${formatNumber(mechs.length)} ${mechs.length === 1 ? 'match' : 'matches'}`
             }
             data-results="mechanisms"
@@ -248,7 +247,7 @@ export function Results({
             <Progress search={search} />
             <ul className="ev-list">
               {mechs.slice(0, shown).map((h) => (
-                <MechanismRow key={h.doc.id} doc={h.doc} tokens={search.tokens} context="both" />
+                <MechanismRow key={h.doc.id} doc={h.doc} tokens={search.tokens} showTopic />
               ))}
             </ul>
             <ShowMore shown={Math.min(shown, mechs.length)} total={mechs.length} onShowMore={onShowMore} />
@@ -266,7 +265,7 @@ export function Results({
             </ul>
             {search.myths.length > CLAIMS_PREVIEW && !allClaims ? (
               <div className="ev-more">
-                <Key icon={ChevronDown} onClick={() => setAllClaims(true)}>
+                <Key variant="text" icon={ChevronDown} onClick={() => setAllClaims(true)}>
                   Show all {formatNumber(search.myths.length)} claims
                 </Key>
               </div>
@@ -286,61 +285,73 @@ export function Results({
             Clear filters
           </Key>
         }
-        art={null}
       >
-        {search.settled ? 'Try another grade or category.' : 'Some topics are still loading.'}
+        {search.settled ? null : 'Some topics are still loading.'}
       </EmptyStage>
     );
   }
 
-  const groups = groupRows(mechDocs, shown, state.group);
-  const caption =
-    loadingCaption(search) ??
-    (filtered
-      ? `${formatNumber(mechs.length)} of ${formatNumber(search.totalMechanisms)}`
-      : `${formatNumber(mechs.length)} in ${formatNumber(search.total)} topics`);
+  const groups = groupRows(
+    mechs.map((h) => h.doc),
+    shown,
+    state.group,
+  );
+  const line =
+    loadingLine(search) ??
+    (filtered ? `${formatNumber(mechs.length)} of ${formatNumber(search.totalMechanisms)} mechanisms` : null);
   return (
-    <Faceplate
-      title="Mechanisms"
-      caption={caption}
-      actions={
-        <KeyBank
-          size="sm"
-          label="Group by"
-          value={state.group}
-          onChange={onGroup}
-          options={[
-            { value: 'category', label: 'by category' },
-            { value: 'topic', label: 'by topic' },
-          ]}
-        />
-      }
-      data-results="mechanisms"
-    >
+    <section className="ev-library" aria-labelledby={headingId} data-results="mechanisms">
+      <h2 id={headingId} className="lm-sr">
+        Mechanisms
+      </h2>
+      {line || (filtered && clearInline) ? (
+        <div className="ev-statusrow">
+          {line ? <p className="ev-status">{line}</p> : null}
+          {filtered && clearInline ? (
+            <Key variant="text" size="sm" icon={RotateCcw} onClick={onClearFilters}>
+              Clear filters
+            </Key>
+          ) : null}
+        </div>
+      ) : null}
       <Progress search={search} />
       <div className="ev-groups" onKeyDown={onResultsKeyDown}>
-        {groups.map((g) => (
-          <Fragment key={g.key}>
-            <Section
-              labelAs="h3"
-              label={g.header}
-              aside={<span className="ev-count">{formatNumber(g.count)}</span>}
-              className="ev-group"
-            >
-              <ul className="ev-list">
+        {groups.map((g) => {
+          const id = `ev-group-${g.key}`;
+          return (
+            <section key={g.key} className="ev-group" aria-labelledby={id}>
+              <div className="ev-group__head">
+                <h3 id={id} className="ev-group__title">
+                  {g.href ? (
+                    // the whole heading row is the link's target; its count and chevron sit together at the trailing edge
+                    <Link to={g.href} state={NAV_STATE} className="ev-group__link">
+                      {g.title}
+                    </Link>
+                  ) : (
+                    g.title
+                  )}
+                </h3>
+                <span className="ev-group__end">
+                  <GradeShare counts={countGrades(g.rows.map((row) => row.mechanism))} />
+                  {/* (r068 final M18) a group cut short by the page says how much of it shows ("9 of 15") */}
+                  <span className="ev-count">
+                    {g.rows.length < g.count
+                      ? `${formatNumber(g.rows.length)} of ${formatNumber(g.count)}`
+                      : formatNumber(g.count)}
+                  </span>
+                  {g.href ? <Icon icon={ChevronRight} size={18} /> : null}
+                </span>
+              </div>
+              <ul className="ev-list lm-material">
                 {g.rows.map((d) => (
-                  <MechanismRow
-                    key={d.id}
-                    doc={d}
-                    context={state.group === 'category' ? 'topic' : 'category'}
-                  />
+                  <MechanismRow key={d.id} doc={d} showTopic={state.group === 'category'} />
                 ))}
               </ul>
-            </Section>
-          </Fragment>
-        ))}
+            </section>
+          );
+        })}
       </div>
       <ShowMore shown={Math.min(shown, mechs.length)} total={mechs.length} onShowMore={onShowMore} />
-    </Faceplate>
+    </section>
   );
 }

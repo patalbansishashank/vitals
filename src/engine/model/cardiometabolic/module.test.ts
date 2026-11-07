@@ -8,9 +8,11 @@
 import { buildModelParams, sampleParams, validateParamDefs, variableParamCount } from '../../core/paramsRegistry';
 import { MI, N_SERIES, SERIES } from '../../types/metrics';
 import { SIGNAL_DEFS } from '../../types/signals';
-import { cardiometabolicModule } from './index';
+import type { PersonProfile } from '../../types/profile';
+import { cardiometabolicObservedAnchors, glucoseLoweringContext, homaPairEligible } from './constants';
+import { cardiometabolicModule, cardiometabolicRunStatus } from './index';
 import { CARDIOMETABOLIC_PARAMS } from './params';
-import { dietDay, makeRig, MAN_PROFILE, RIG_FAT_SHARE, run, snapshot, stepDay, WOMAN_PROFILE, type Scenario } from './testkit';
+import { dietDay, makeRig, MAN_PROFILE, RIG_FAT_SHARE, run, snapshot, spotBhb, stepDay, WOMAN_PROFILE, type Scenario } from './testkit';
 
 const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
 const ZERO_DAY = { energyKcal: 0, proteinG: 0, carbG: 0, fatG: 0, fibreG: 0, sugarsG: 0, fructoseG: 0, satFatG: 0, mufaG: 0, pufaG: 0, viscousFibreG: 0, omega3G: 0, alcoholG: 0 };
@@ -148,18 +150,30 @@ describe('steady state at maintenance stays steady (30 simulated days)', () => {
 });
 
 describe('zero intake for 21 days stays finite and inside physical bounds', () => {
-  it('water-only fast with the 20 §4.3.4 ketone trajectory: no NaN, bounded outputs, T_fast → 0, liver fat falls, urate rises, LDL rises', () => {
-    const rig = makeRig({ burnIn: 3 });
-    const bhb = (d: number) => Math.min(6.1, 0.3 + 1.4 * d);
-    const r = run(rig, 21, (d) => ({ u: -1, bhb: bhb(d), carb24: 0, fmKg: rig.fm0 - 0.13 * (d + 1), day: ZERO_DAY }));
+  it('water-only fast with the 20 §4.3.4 ketone trajectory: no NaN, bounded outputs, T_fast → 0, liver fat falls, urate rises; LDL response uncertain', () => {
+    const fast = (params: Record<string, number> = {}) => {
+      const rig = makeRig({ burnIn: 3, params });
+      const bhb = (d: number) => Math.min(6.1, 0.3 + 1.4 * d);
+      const r = run(rig, 21, (d) => ({ u: -1, bhb: bhb(d), carb24: 0, fmKg: rig.fm0 - 0.13 * (d + 1), day: ZERO_DAY }));
+      return { rig, r };
+    };
+    const { rig, r } = fast();
     for (const x of r) for (const v of Object.values(x)) expect(Number.isFinite(v)).toBe(true);
     expect(rig.s.tcFast).toBeLessThan(0.01);
     expect(r[20]!.tc).toBeLessThan(0.25); // the slow component (τ 28 d) is still at e^(−21/28) of its start
     expect(r[20]!.liver).toBeLessThan(rig.k.l0);
     expect(r[20]!.ua).toBeGreaterThan(rig.k.ua0 + 1);
-    expect(r[20]!.ldl).toBeGreaterThan(rig.k.ldl0);
     expect(r[20]!.tg).toBeGreaterThan(15);
     expect(r[20]!.liver).toBeGreaterThan(0.5);
+    // D7-07: the standard model has no LEM term — the LDL number moves only with composition/weight, and its response is
+    // flagged uncertain from the first ketogenic day (zero coefficient ≠ zero biology); the exploratory scenario rises
+    expect(rig.s.ldlKeto).toBe(0);
+    expect(rig.s.ketoFromDay).toBe(0);
+    // zero-based daily index (A1-052): ketogenic from day 0 means daily[0] (the end of day 0) is already affected
+    expect(cardiometabolicRunStatus(rig.s, rig.k).ldl).toMatchObject({ status: 'scenario', reasonCode: 'ketogenicLipidResponseUncertain', fromDay: 0 });
+    const lem = fast({ 'lem.enabled': 1 });
+    expect(lem.r[20]!.ldl).toBeGreaterThan(lem.rig.k.ldl0);
+    expect(cardiometabolicRunStatus(lem.rig.s, lem.rig.k).ldl).toMatchObject({ status: 'exploratory', reasonCode: 'lemAdverseResponseScenario' });
   });
   it('composition-driven targets hold on zero-intake days (the held snapshot is the last fed day)', () => {
     const rig = makeRig({ burnIn: 1 });
@@ -438,3 +452,196 @@ describe('interface details', () => {
     near(stepDay(makeRig(), 0, {}).energyKcal, makeRig().hab.energyKcal, 1e-9);
   });
 });
+
+describe('measured baselines are anchors, never clamped (D7-02)', () => {
+  // LDL 310 mg/dL, TG 1200 mg/dL, FPG 300 mg/dL, HbA1c 14 %: accepted values outside the generator's calibration domain
+  const HIGH = { ldlMmolL: 310 / 38.67, tgMmolL: 1200 / 88.57, fastingGlucoseMmolL: 300 / 18.02, hba1cPct: 14 };
+
+  it('day 0 equals the measurement exactly; the solver copy stays in its domain; the markers are flagged out of domain', () => {
+    const rig = makeRig({ labs: HIGH, burnIn: 7 });
+    const t0 = snapshot(rig);
+    near(t0.ldl, 310, 1e-9);
+    near(t0.tg, 1200, 1e-9);
+    near(t0.fpg, 300, 1e-9);
+    near(t0.a1c, 14, 1e-12);
+    expect([rig.k.ldlAnchor, rig.k.tgAnchor, rig.k.fpgAnchor, rig.k.a1cAnchor].map((x) => Math.round(x * 1e6) / 1e6)).toEqual([310, 1200, 300, 14]);
+    expect([rig.k.ldl0, rig.k.tg0, rig.k.fpg0, rig.k.a1c0]).toEqual([250, 800, 240, 12]);
+    expect([...rig.k.outOfDomain].sort()).toEqual(['a1c', 'fpg', 'ldl', 'tg']);
+    // the recorded series reads the anchor too
+    const frame = new Float64Array(N_SERIES);
+    cardiometabolicModule.recordDay!(rig.s, rig.k, rig.bus, frame as never);
+    near(frame[MI.ldl]! * 38.67, 310, 1e-9);
+    near(frame[MI.triglycerides]! * 88.57, 1200, 1e-9);
+    near(frame[MI.fastingGlucose]! * 18.02, 300, 1e-9);
+  });
+
+  it('later days stay finite and are not pulled back into the old clamp at the anchor (status says Unsupported)', () => {
+    const rig = makeRig({ labs: HIGH, burnIn: 1 });
+    const r = run(rig, 60, (d) => ({ u: -0.2, fmKg: rig.fm0 - 0.05 * d, day: dietDay(rig, { kcal: rig.k.hab.energyKcal * 0.8 }) }));
+    for (const x of r) for (const v of Object.values(x)) expect(Number.isFinite(v)).toBe(true);
+    // a person repeating the habitual week keeps the measured value (no relabel by a solver bound)
+    const flat = run(makeRig({ labs: HIGH, burnIn: 1 }), 30, () => ({}));
+    near(flat[29]!.ldl, 310, 1e-6);
+    near(flat[29]!.a1c, 14, 1e-6);
+    const meta = cardiometabolicObservedAnchors(HIGH);
+    // A1-052: every modelled daily sample (from index 0) is unsupported; the exact observation is the t = 0 anchor
+    expect(meta.outputStatus.ldl).toEqual({ status: 'outOfDomain', reasonCode: 'observedBaselineOutsideCalibration', fromDay: 0 });
+    expect(meta.outputStatus.triglycerides?.status).toBe('outOfDomain');
+    expect(meta.outputStatus.fastingGlucose?.status).toBe('outOfDomain');
+    // dependents follow the actual mathematics: ApoB from non-HDL, S_I from the measured HOMA anchor
+    expect(meta.outputStatus.apoB).toMatchObject({ status: 'outOfDomain', reasonCode: 'dependsOnOutOfDomainBaseline' });
+    expect(meta.outputStatus.insulinSensitivity).toMatchObject({ status: 'outOfDomain', reasonCode: 'dependsOnOutOfDomainBaseline' });
+    expect(meta.outputStatus.hdl).toBeUndefined();
+    const ldl = meta.anchors.find((a) => a.series === 'ldl')!;
+    expect(ldl.unit).toBe('mmol/L');
+    near(ldl.value * 38.67, 310, 1e-9);
+    expect(ldl.outOfDomain).toBe(true);
+  });
+
+  it('values inside the domain behave exactly as before (anchor = solver value), and are flagged in domain', () => {
+    const labs = { ldlMmolL: 4.2, tgMmolL: 2.1, fastingGlucoseMmolL: 5.9, hba1cPct: 5.8 };
+    const rig = makeRig({ labs });
+    expect(rig.k.ldlAnchor).toBe(rig.k.ldl0);
+    expect(rig.k.tgAnchor).toBe(rig.k.tg0);
+    expect(rig.k.outOfDomain).toEqual([]);
+    const meta = cardiometabolicObservedAnchors(labs);
+    expect(meta.outputStatus).toEqual({});
+    expect(meta.anchors.every((a) => !a.outOfDomain)).toBe(true);
+  });
+
+  it('generated priors stay bounded; invalid (non-finite) observations are rejected at the boundary, never NaN', () => {
+    for (const u of [0.0001, 0.9999]) {
+      const rig = makeRig({ params: { 'u.ldl': u, 'u.lnTg': u, 'u.fpg': u, 'u.a1c': u } });
+      expect(rig.k.ldl0).toBeGreaterThanOrEqual(40);
+      expect(rig.k.ldl0).toBeLessThanOrEqual(250);
+      expect(rig.k.ldlAnchor).toBe(rig.k.ldl0);
+      expect(rig.k.outOfDomain).toEqual([]);
+    }
+    const nan = makeRig({ labs: { ldlMmolL: Number.NaN, tgMmolL: Number.POSITIVE_INFINITY } });
+    expect(Number.isFinite(nan.k.ldlAnchor) && Number.isFinite(nan.k.tgAnchor)).toBe(true);
+    expect(nan.k.ldlAnchor).toBe(makeRig().k.ldl0);
+    for (const v of Object.values(snapshot(nan))) expect(Number.isFinite(v)).toBe(true);
+    expect(cardiometabolicObservedAnchors({ ldlMmolL: Number.NaN }).anchors).toEqual([]);
+  });
+
+  it('a measured liver fat below the store floor is recorded exactly while the bus keeps the solver value', () => {
+    const rig = makeRig({ labs: { liverFatPct: 0.3 } });
+    expect(rig.k.lAnchor).toBe(0.3);
+    expect(rig.k.l0).toBe(0.5);
+    const frame = new Float64Array(N_SERIES);
+    cardiometabolicModule.recordDay!(rig.s, rig.k, rig.bus, frame as never);
+    near(frame[MI.liverFat]!, 0.3, 1e-12);
+    expect(rig.bus.liverFatPct).toBe(0.5);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------------------
+describe('response validity (review 2026-10-18: D7-06 HOMA, D7-07 lipids, D7-08 liver fat, D7-09 glycaemia)', () => {
+  const PAIR = { fastingGlucoseMmolL: 7.0, fastingInsulinUuMl: 15 };
+  const pairMeta = (g: Record<string, unknown>, i: Record<string, unknown>) => ({
+    fastingGlucoseMmolL: { source: 'marker' as const, measuredOn: '2026-02-01', ...g },
+    fastingInsulinUuMl: { source: 'marker' as const, measuredOn: '2026-02-01', ...i },
+  });
+  const withMeta = (labMeta: ReturnType<typeof pairMeta>, flags: Record<string, unknown> = {}): PersonProfile =>
+    ({ ...MAN_PROFILE, labMeta, ...(Object.keys(flags).length ? { safety: { mode: 'standard', flags } } : {}) }) as PersonProfile;
+
+  it('D7-06: no default HOMA → S_hep override; hepCal = 1 (latent prior) even for an eligible same-draw pair', () => {
+    const eligible = withMeta(pairMeta({ sampleId: 'd1', fastingHours: 10 }, { sampleId: 'd1', fastingHours: 10 }));
+    const rig = makeRig({ profile: eligible, labs: PAIR });
+    expect(rig.k.hepCal).toBe(1);
+    expect(rig.k.hepCalibrated).toBe(false);
+    expect(cardiometabolicRunStatus(rig.s, rig.k).insulinSensitivity).toBeUndefined();
+  });
+  it('D7-06 legacy scenario: calibrates only an eligible same-draw fasting pair off insulin; labelled exploratory', () => {
+    const on = { 'si.homaCalibration': 1 };
+    const eligible = withMeta(pairMeta({ sampleId: 'd1', fastingHours: 10 }, { sampleId: 'd1', fastingHours: 10 }));
+    const cal = makeRig({ profile: eligible, labs: PAIR, params: on });
+    expect(cal.k.hepCalibrated).toBe(true);
+    expect(cal.k.hepCal).not.toBe(1);
+    expect(cardiometabolicRunStatus(cal.s, cal.k).insulinSensitivity).toMatchObject({ status: 'exploratory', reasonCode: 'homaHepaticCalibrationScenario' });
+    // unpaired (two draws, or a February glucose with an October insulin), unknown or false fasting, insulin treatment
+    const cases = [
+      withMeta(pairMeta({ sampleId: 'feb', fastingHours: 10 }, { sampleId: 'oct', fastingHours: 10 })),
+      withMeta(pairMeta({ fastingHours: 10 }, { fastingHours: 10 })),
+      withMeta(pairMeta({ sampleId: 'd1' }, { sampleId: 'd1' })),
+      withMeta(pairMeta({ sampleId: 'd1', fastingStatus: 'nonFasting' }, { sampleId: 'd1', fastingHours: 12 })),
+      withMeta(pairMeta({ sampleId: 'd1', fastingHours: 10 }, { sampleId: 'd1', fastingHours: 10 }), { diabetesMedication: 'insulin' }),
+    ];
+    for (const profile of cases) {
+      const rig = makeRig({ profile, labs: PAIR, params: on });
+      expect(rig.k.hepCal).toBe(1);
+      expect(homaPairEligible(rig.ctx.profile)).toBe(false);
+    }
+  });
+
+  it('D7-07: a measured non-HDL anchors the descriptor exactly (discordant panel kept); LDL + TG/5 is only the proxy delta', () => {
+    // discordant measured panel: LDL 3.0, TG 1.0, non-HDL 4.5 mmol/L (LDL + TG/5 would say ≈ 3.4)
+    const rig = makeRig({ labs: { ldlMmolL: 3.0, tgMmolL: 1.0, nonHdlMmolL: 4.5 } });
+    expect(rig.k.nonHdlMeasured).toBe(true);
+    near(rig.k.nonHdlAnchor, 4.5 * 38.67, 1e-9);
+    near(rig.s.outNonHdlMg, 4.5 * 38.67, 1e-9);
+    const proxyOnly = makeRig({ labs: { ldlMmolL: 3.0, tgMmolL: 1.0 } });
+    expect(proxyOnly.k.nonHdlMeasured).toBe(false);
+    near(proxyOnly.k.nonHdlAnchor, proxyOnly.k.ldlAnchor + proxyOnly.k.tgAnchor / 5, 1e-9);
+    // a measured ApoB stays exact whatever the non-HDL says (independent measured analytes)
+    const apo = makeRig({ labs: { ldlMmolL: 3.0, tgMmolL: 1.0, nonHdlMmolL: 4.5, apoBgL: 0.7 } });
+    near(apo.s.outApoBgL, 0.7, 1e-12);
+  });
+  it('D7-07: ApoB response is exploratory from day 1; ketogenic exposure marks LDL/ApoB uncertain, never zero response', () => {
+    const rig = makeRig();
+    expect(cardiometabolicRunStatus(rig.s, rig.k).apoB).toMatchObject({ status: 'exploratory', reasonCode: 'apoBProxyResponseUnvalidated', fromDay: 1 });
+    expect(cardiometabolicRunStatus(rig.s, rig.k).ldl).toBeUndefined();
+    run(rig, 5, (d) => ({ bhb: d >= 2 ? spotBhb(1.5) : 0.1, day: dietDay(rig, { carbPct: 5 }) }));
+    expect(rig.s.ketoFromDay).toBe(2);
+    const st = cardiometabolicRunStatus(rig.s, rig.k);
+    expect(st.ldl).toMatchObject({ status: 'scenario', fromDay: 2 });
+    expect(st.apoB?.status).toBe('exploratory');
+  });
+
+  it('D7-08: no standard exp(−0.4) sustained liver multiplier; habitual trajectory stays stationary; the scenario restores it', () => {
+    const keto = (params: Record<string, number> = {}) => {
+      const rig = makeRig({ labs: { liverFatPct: 12 }, params });
+      const r = run(rig, 120, () => ({ bhb: spotBhb(1.5), u: 0, fmKg: rig.fm0 }));
+      return { rig, end: r[119]!.liver };
+    };
+    const std = keto();
+    expect(std.rig.k.liverCr).toBe(0);
+    near(std.end, 12, 1e-6);
+    expect(cardiometabolicRunStatus(std.rig.s, std.rig.k).liverFat).toMatchObject({ status: 'scenario', reasonCode: 'liverKetoResponseUnsupported' });
+    const scen = keto({ 'liver.ketoScenario': 1 });
+    near(scen.end / 12, Math.exp(-0.4), 0.02);
+    expect(cardiometabolicRunStatus(scen.rig.s, scen.rig.k).liverFat).toMatchObject({ status: 'exploratory', reasonCode: 'liverKetoCompositionScenario' });
+    // habitual week: no drift
+    const flat = makeRig({ labs: { liverFatPct: 12 } });
+    const h = run(flat, 60, () => ({}));
+    near(h[59]!.liver, 12, 1e-9);
+  });
+  it('D7-08: an unmeasured liver fat is a latent prior (estimated), a measured one is an anchor', () => {
+    const latent = makeRig();
+    expect(latent.k.liverMeasured).toBe(false);
+    expect(cardiometabolicRunStatus(latent.s, latent.k).liverFat).toMatchObject({ status: 'estimated', reasonCode: 'liverFatLatentPrior' });
+    const measured = makeRig({ labs: { liverFatPct: 9 } });
+    expect(measured.k.liverMeasured).toBe(true);
+    expect(cardiometabolicRunStatus(measured.s, measured.k).liverFat).toBeUndefined();
+  });
+
+  it('D7-09: glucose-lowering medication context makes fasting glucose a scenario (observations, no causal credit)', () => {
+    expect(glucoseLoweringContext(makeRig().ctx.profile)).toBe(false);
+    for (const flags of [{ diabetesMedication: 'sglt2' }, { diabetesMedication: 'metforminOnly' }, { type1Diabetes: true }]) {
+      const rig = makeRig({ profile: { ...MAN_PROFILE, safety: { mode: 'standard', flags } as never } });
+      expect(rig.k.glucoseLoweringContext).toBe(true);
+      expect(cardiometabolicRunStatus(rig.s, rig.k).fastingGlucose).toMatchObject({ status: 'scenario', reasonCode: 'glucoseLoweringMedicationContext' });
+    }
+    const diet = makeRig({ profile: { ...MAN_PROFILE, safety: { mode: 'standard', flags: { diabetesMedication: 'dietOnly' } } as never } });
+    expect(diet.k.glucoseLoweringContext).toBe(false);
+    const changed = makeRig({ profile: { ...MAN_PROFILE, medications: [{ id: 'm1', medicationClass: 'glp1', change: 'start', date: '2026-09-01' }] } });
+    expect(changed.k.glucoseLoweringContext).toBe(true);
+  });
+  it('D7-09: measured HbA1c is unchanged by a projected fasting-glucose fall in the standard projection', () => {
+    const rig = makeRig({ labs: { hba1cPct: 6.8, fastingGlucoseMmolL: 7.2 } });
+    const r = run(rig, 90, (d) => ({ u: -0.25, fmKg: rig.fm0 - RIG_FAT_SHARE * 0.08 * (d + 1), day: dietDay(rig, { kcal: rig.k.hab.energyKcal * 0.75 }) }));
+    expect(r[89]!.fpg).toBeLessThan(7.2 * 18.02);
+    expect(r[89]!.a1c).toBe(6.8);
+  });
+});
+

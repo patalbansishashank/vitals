@@ -1,3 +1,4 @@
+import type { RenalNutritionEnvelope } from '@/lib/renalScope';
 /**
  * Safety model (pure): the persisted screening state, its sanitiser and import validation. SCOFF item answers are
  * never persisted — only the `scoffRisk` flag (dossier 17 DS-10, §4.7).
@@ -12,9 +13,11 @@ import {
 } from '@/features/onboarding/safetyRules';
 
 export const SAFETY_KEY = 'vitals.safety';
-export const SAFETY_VERSION = 1;
+export const SAFETY_VERSION = 2;
 
 export interface SafetyValues {
+  /** null = legacy unknown source; [] = explicitly entered empty/revoked source. */
+  nutritionGuidance: RenalNutritionEnvelope[] | null;
   /** Committed answers (sanitised). null = not answered yet. */
   answers: ScreeningAnswers | null;
   /** ISO time the answers were committed (clearance lapses after 12 months). */
@@ -38,6 +41,9 @@ export interface SafetyValues {
 }
 
 export interface SafetyActions {
+  addNutritionGuidance: (envelope: RenalNutritionEnvelope, at: string) => void;
+  updateNutritionGuidance: (id: string, envelope: RenalNutritionEnvelope, at: string) => void;
+  revokeNutritionGuidance: (id: string, at: string) => void;
   /** Commit screening answers (sanitised here). Clears `pendingReview`. */
   commitAnswers: (answers: ScreeningAnswers, at: string) => void;
   /** "I entered my age by mistake": forget the under-18 answer so the questions start again. */
@@ -57,6 +63,7 @@ export interface SafetyActions {
 export type SafetyState = SafetyValues & SafetyActions;
 
 export const DEFAULT_SAFETY: SafetyValues = {
+  nutritionGuidance: null,
   answers: null,
   answeredAt: null,
   questionSetVersion: null,
@@ -100,6 +107,7 @@ export function pickSafetyValues(raw: unknown): SafetyValues {
   }
   const answers = isAnswers(s.answers) ? sanitizeAnswers(s.answers) : null;
   return {
+    nutritionGuidance: Array.isArray(s.nutritionGuidance) ? s.nutritionGuidance.filter(isNutritionGuidance).map((e) => ({ ...e, bounds: e.bounds.map((d) => ({ ...d })) })) : null,
     answers,
     answeredAt: answers ? orNull(s.answeredAt, isStr) : null,
     questionSetVersion: answers && typeof s.questionSetVersion === 'number' ? s.questionSetVersion : null,
@@ -113,9 +121,15 @@ export function pickSafetyValues(raw: unknown): SafetyValues {
   };
 }
 
+/** Structural transport validation; invalid clinical definitions stay recorded for canonical review. */
+export function isNutritionGuidance(x: unknown): x is RenalNutritionEnvelope {
+  return isObj(x) && isStr(x.id) && x.id.length > 0 && (x.condition === 'ckd' || x.condition === 'other') && isStr(x.assessedAt) && Array.isArray(x.bounds) && x.bounds.every(isObj);
+}
+
 /** Import validation: an object whose known fields have plausible shapes. */
 export function isSafetyState(x: unknown): boolean {
   if (!isObj(x)) return false;
+  if (x.nutritionGuidance !== undefined && x.nutritionGuidance !== null && (!Array.isArray(x.nutritionGuidance) || !x.nutritionGuidance.every(isNutritionGuidance))) return false;
   if (x.answers !== undefined && x.answers !== null && !isAnswers(x.answers)) return false;
   if (x.acknowledgements !== undefined && !isObj(x.acknowledgements)) return false;
   if (x.fastingOptIn !== undefined && x.fastingOptIn !== null && !isOptIn(x.fastingOptIn)) return false;

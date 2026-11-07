@@ -17,6 +17,8 @@ export interface WeightDecompositionProps {
   /** Values before day 1 (defaults to day-1 values). */
   baseline?: Partial<Record<keyof CompositionTracks, number>>;
   height?: number;
+  /** The "kg per week" unit at the legend's end (default on); off where the card's head already says it. */
+  legendUnit?: boolean;
 }
 
 const KEYS: Array<{ k: keyof CompositionTracks; label: string; color: string }> = [
@@ -25,6 +27,12 @@ const KEYS: Array<{ k: keyof CompositionTracks; label: string; color: string }> 
   { k: 'glycogen', label: 'glycogen', color: 'var(--lmc-decomp-glycogen)' },
   { k: 'water', label: 'water', color: 'var(--lmc-decomp-water)' },
 ];
+/**
+ * Stack order out from zero: lean tissue, fat, glycogen, water. Brass lean and bronze glycogen are both mid-dark warm
+ * tones (ΔE 9.7), so they never share an edge while fat moves the same way; every other same-sign neighbour is ≥ 18 ΔE.
+ * The legend, tooltip and table keep the reading order (KEYS).
+ */
+const STACK = (['lean', 'fat', 'glycogen', 'water'] as const).map((k) => KEYS.find((x) => x.k === k)!);
 
 export interface WeekDelta {
   week: number;
@@ -50,7 +58,7 @@ export function weeklyDeltas(c: CompositionTracks, days: number, baseline?: Weig
   return out;
 }
 
-export const WeightDecomposition = memo(function WeightDecomposition({ composition, time, baseline, height = 220 }: WeightDecompositionProps) {
+export const WeightDecomposition = memo(function WeightDecomposition({ composition, time, baseline, height = 220, legendUnit = true }: WeightDecompositionProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(rootRef) || 720;
   const [hover, setHover] = useState<number | null>(null);
@@ -95,12 +103,12 @@ export const WeightDecomposition = memo(function WeightDecomposition({ compositi
           <i data-shape="dot" style={{ background: 'var(--lm-ink)' }} />
           net change
         </span>
-        <span style={{ marginLeft: 'auto' }}>kg per week</span>
+        {legendUnit ? <span style={{ marginLeft: 'auto' }}>kg per week</span> : null}
       </div>
       <svg className="lmc-svg" width={width} height={height} role="group" aria-label="Weekly weight change split into fat, lean tissue, glycogen and water">
         {ticks.ticks.map((t) => (
           <g key={t}>
-            <line x1={m.l} x2={m.l + pw} y1={Math.round(Y(t)) + 0.5} y2={Math.round(Y(t)) + 0.5} stroke={t === 0 ? 'var(--lm-chart-axis)' : 'var(--lm-chart-grid)'} />
+            <line className={t === 0 ? undefined : 'lmc-grid'} x1={m.l} x2={m.l + pw} y1={Math.round(Y(t)) + 0.5} y2={Math.round(Y(t)) + 0.5} stroke={t === 0 ? 'var(--lm-chart-axis)' : undefined} />
             <text className="lmc-tick-t" x={m.l - 8} y={Y(t)} textAnchor="end" dominantBaseline="central">
               {t === 0 ? '0' : formatSigned(t, decimalsForStep(ticks.step))}
             </text>
@@ -114,8 +122,8 @@ export const WeightDecomposition = memo(function WeightDecomposition({ compositi
           const x = cx - bw / 2;
           let up = Y(0);
           let down = Y(0);
-          const pos = KEYS.filter(({ k }) => w.parts[k] > 0);
-          const neg = KEYS.filter(({ k }) => w.parts[k] < 0);
+          const pos = STACK.filter(({ k }) => w.parts[k] > 0);
+          const neg = STACK.filter(({ k }) => w.parts[k] < 0);
           return (
             <g
               key={w.week}
@@ -159,7 +167,7 @@ export const WeightDecomposition = memo(function WeightDecomposition({ compositi
       </svg>
       {hv ? (
         <div className="lmc-tip" style={{ left: Math.min(width - 190, m.l + (hover! + 1) * slot + 6), top: 36 }} aria-hidden="true">
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>week {hv.week}</div>
+          <div style={{ fontWeight: 500, marginBottom: 4 }}>Week {hv.week}</div>
           {KEYS.map(({ k, label, color }) => (
             <div key={k} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <i style={{ width: 8, height: 8, borderRadius: 2, background: color }} />

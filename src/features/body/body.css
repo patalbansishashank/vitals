@@ -1,34 +1,40 @@
 /* ==========================================================================
-   Your body (design/screens/your-body.md §3–§4). Tokens only; faceplates come
-   from the design system, this file lays them out and styles the few pieces
-   that are specific to the screen (progress scale, mini figure, rails).
-   DOM order = the spec's tab order (units → sex → … → figure → shape → habits);
-   grid areas place the faceplates per breakpoint.
+   Your body (design/screens/your-body.md §3–§4), r071. Tokens only; every card is a `GradientCard` from the design
+   system (the domain card material, one glow, the (i) head, the foot), so this file lays the page out and styles only
+   what is specific to the screen: the figure's frame and stage switch, the estimates' readouts, the scale's lit rail,
+   the summary rows, the maintenance bar's ember steps, the setup scale and the mini figure.
+   Phones read one column in the order: figure → estimates → shape → basics → maintenance → habits → labs. From
+   1024 px two independent stacks that end together: the figure, its estimates, maintenance and lab values on the
+   left; Shape beside the figure (every scale visibly reshapes it), then basics and habits on the right (r068 V-BD-3).
    ========================================================================== */
 
 @layer components {
+  /* ---- setup step keys (the ActionBar: a docked toolbar on phones, a row after the content on desktop) ---- */
   .lm-body-setup-actions {
     display: flex;
-    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     min-width: 0;
   }
-  .lm-body-setup-actions > .lm-key {
-    min-height: 44px;
+  /* the intake's step row (r068 V-BS-1): Back at the leading edge, Skip and the primary at the trailing edge; on
+     desktop it is the step card's foot, at the keys' own width */
+  .lm-body-setup-actions {
+    justify-content: flex-end;
   }
-  @media (max-width: 24rem) {
-    .lm-body-setup-actions {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-    .lm-body-setup-actions > .lm-key:last-child {
-      grid-column: 1 / -1;
-    }
-    /* Reserve both action rows above the bottom navigation. */
-    .lm-app[data-actionbar='true']:has(.lm-body-setup-actions) {
-      --lm-actionbar-h: calc(var(--lm-bar-control-h) * 2 + 29px);
-    }
+  .lm-body-setup-actions > [data-role='back'] {
+    margin-inline-end: auto;
+  }
+  /* phones: docked as the flow's toolbar, the keys (Back · Skip for now · Next) fill the row edge to edge */
+  .lm-actionbar[data-place='foot'] .lm-body-setup-actions > .lm-key {
+    flex: 1 1 auto;
+  }
+  /* a setup step's keys ride in the card's foot (desktop), under a hairline */
+  .lm-body-setup-foot {
+    margin-top: var(--lm-card-gap);
+    padding-top: var(--lm-card-gap);
+    border-top: var(--lm-hairline) solid var(--lm-line);
   }
 
   .lm-body {
@@ -62,9 +68,9 @@
   .lm-body-cols #body-estimates { order: 2; }
   .lm-body-cols #body-shape { order: 3; }
   .lm-body-cols #body-basics { order: 4; }
-  .lm-body-cols #body-habits { order: 5; }
-  .lm-body-cols #body-labs { order: 6; }
-  .lm-body-cols > .lm-body-stack > .lm-body-maintenance { order: 9; }
+  .lm-body-cols #body-maintenance { order: 5; }
+  .lm-body-cols #body-habits { order: 6; }
+  .lm-body-cols #body-labs { order: 7; }
   @media (min-width: 64rem) {
     .lm-body-cols {
       display: grid;
@@ -82,26 +88,117 @@
     }
   }
 
-  .lm-body-basics { grid-area: basics; }
+  /* ---- Maintenance (r071): the intake's driver bar in the ember ramp ----
+     ONE definition of the ramp for this card. It re-points the intake's own part variables (`--lm-ik-part-N`, which the
+     bar's segments, the parts list and their dots all read in intake.css) at the ember intensity steps: resting
+     metabolism, the large base, is the quiet deep step; the movement parts climb light, active and exercise and cycle
+     (neighbours always differ); digesting food, always the last part, is a neutral stone. Segment n and row n share one
+     colour; the 2 px gaps, the order, the dot and the dash of an assumed part keep each part readable without telling
+     colours apart. (Package 5b: when the intake page takes the ember ramp itself this block goes.) */
+  .lm-body-maint .lm-ik-driverbar,
+  .lm-body-maint .lm-ik-table {
+    --lm-ik-part-1: var(--lm-intensity-resting);
+    --lm-ik-part-2: var(--lm-intensity-light);
+    --lm-ik-part-3: var(--lm-intensity-active);
+    --lm-ik-part-4: var(--lm-intensity-exercise);
+    --lm-ik-part-5: var(--lm-intensity-light);
+    --lm-ik-part-6: var(--lm-intensity-active);
+    --lm-ik-part-7: var(--lm-intensity-exercise);
+    --lm-ik-part-8: var(--lm-intensity-light);
+    --lm-ik-part-9: color-mix(in oklab, var(--lm-ink-3) 60%, var(--lm-face));
+  }
+  .lm-body-maint .lm-ik-driverbar__seg:last-child,
+  .lm-body-maint .lm-ik-table tbody tr:last-child {
+    --lm-ik-part: color-mix(in oklab, var(--lm-ink-3) 60%, var(--lm-face));
+  }
+  /* 12 px tall with round ends (the intake's own bar is 16 px with a 4 px corner) */
+  .lm-body-maint .lm-ik-driverbar__bar {
+    height: 12px;
+    border-radius: 6px;
+  }
+  .lm-body-maint .lm-gcard__body {
+    gap: 16px;
+  }
+  .lm-body-maint__lead {
+    display: grid;
+    gap: 14px;
+    justify-items: start;
+    min-width: 0;
+  }
+  .lm-body-maint__lead > .lm-body-iv {
+    width: 100%;
+  }
+  .lm-body-maint__quiet {
+    margin: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    max-width: 40ch;
+  }
+  .lm-body-maint__lines {
+    display: grid;
+    gap: 8px;
+  }
+  .lm-body-maint__lines p {
+    margin: 0;
+    color: var(--lm-ink-2);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    max-width: 62ch;
+  }
+  .lm-body-maint__lines .lm-body-maint__measured {
+    color: var(--lm-ink);
+  }
+  /* the biggest unknown: one row, a spark, the sentence, a pill that acts */
+  .lm-body-maint__unknown {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 10px;
+    padding-top: 12px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-body-maint__unknown p {
+    margin: 0;
+    color: var(--lm-ink);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+  }
+  .lm-body-maint__spark {
+    color: var(--lm-ink-h);
+  }
+  @media (max-width: 29.99rem) {
+    .lm-body-maint__unknown {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .lm-body-maint__unknown > .lm-key {
+      grid-column: 2;
+      justify-self: start;
+    }
+  }
+
   .lm-body-figure { grid-area: figure; }
   .lm-body-est { grid-area: est; }
-  .lm-body-shape { grid-area: shape; }
-  .lm-body-habits-face { grid-area: habits; }
-  .lm-body-labs-face { grid-area: labs; }
-
-  /* ---- mobile (single column): figure first, then what it answers ---- */
-  /* Basics lays out exactly like Shape: figure and estimates first, the card after them. */
-  .lm-body[data-mode='basics'] {
-    grid-template-areas: 'figure' 'est' 'basics';
+  /* a setup step's card with its keys under it (desktop) */
+  .lm-body-step {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
   }
-  .lm-body[data-mode='shape'] {
-    grid-template-areas: 'figure' 'est' 'shape';
+  .lm-body-step[data-step='basics'] {
+    grid-area: step;
   }
-  .lm-body[data-mode='habits'] {
-    grid-template-areas: 'habits' 'est';
+  .lm-body-step[data-step='shape'] {
+    grid-area: step;
   }
 
-  /* ---- tablet and small desktop: figure beside the shape scales ---- */
+  /* ---- setup, phones (one column): the step's inputs first, the figure and estimates after them ---- */
+  .lm-body:is([data-mode='basics'], [data-mode='shape']) {
+    grid-template-areas: 'step' 'figure' 'est';
+  }
+
+  /* ---- setup, tablet and up: the shape card on the left, the figure and estimates beside it ---- */
   @media (min-width: 48rem) {
     .lm-body-mid {
       grid-area: mid;
@@ -113,46 +210,24 @@
     .lm-body-mid > * {
       grid-area: auto;
     }
-    /* Shape and Basics share one grid: two equal halves, the figure and estimates on the left and the step's card
-       on the right, the same gap between them and the page's own padding around them. */
-    :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape']) {
+    .lm-body:is([data-mode='basics'], [data-mode='shape']) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-    .lm-body[data-mode='basics'] {
-      grid-template-areas: 'mid basics';
-    }
-    .lm-body[data-mode='shape'] {
-      grid-template-areas: 'mid shape';
-    }
-    .lm-body[data-mode='habits'] {
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
-      grid-template-areas: 'habits mid';
+      grid-template-areas: 'step mid';
     }
   }
 
-  /* ---- wide screens, the two setup steps: the figure fills what the window has to spare ----
-     The left column (figure and estimates) is as tall as the window allows (context bar, 20 px, the column,
-     20 px, the action bar when there is one) and takes its height from the window alone, never from the right
-     card: the figure card absorbs whatever the estimates leave. When the right card grows (Adjust the drawing)
-     the page scrolls and the left column stays put under the context bar, the same size. When the left column's
-     own floor is taller than the window, it is its natural height and the page scrolls. The ceiling keeps the
-     figure sane on very tall windows (the extra then sits under the last card). The canvas follows the card;
-     only containers are sized here. */
+  /* ---- wide screens, the basics and shape steps: the figure column holds still beside the inputs ----
+     It is as tall as the window allows under the header (20 px above and below) and never takes its height from the
+     card beside it; when that card grows (Fine-tune shape) the page scrolls and the figure stays put. The ceiling
+     keeps the figure sane on very tall windows. The canvas follows the card; only containers are sized here. */
   @media (min-width: 64rem) {
-    .lm-body:is([data-mode='basics'], [data-mode='shape']) {
-      /* the shell leaves 32 px under the page; the gap above it is 20 px. Drop the page's own 32 px and pull it
-         down by that 12 px, so the page ends exactly 20 px above the action bar (or the window's foot). */
-      padding-bottom: 0;
-      margin-bottom: -12px;
-    }
-    :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape']) > .lm-body-mid {
+    .lm-body:is([data-mode='basics'], [data-mode='shape']) > .lm-body-mid {
       align-self: start;
       position: sticky;
-      top: calc(var(--lm-topbar-h) + 20px);
-      min-height: min(calc(100dvh - var(--lm-topbar-h) - var(--lm-actionbar-h) - 40px), 1400px);
+      top: calc(var(--lm-header-h, 0px) + 20px);
+      min-height: min(calc(100dvh - var(--lm-header-h, 0px) - 40px), 1400px);
     }
-    /* One canvas height for the setup steps and plain Your body (--lm-canvas-h above: about 47 % of the window, never
-       under 420 px), the same whatever the cards beside it do (Adjust the drawing, figure or visceral). */
+    /* One canvas height for the shape step and plain Your body (--lm-canvas-h below), whatever the cards beside it do. */
     :is(.lm-body[data-mode='basics'], .lm-body[data-mode='shape'], .lm-body-cols) .lm-body-figure:not([data-hidden='true']) .lm-body-stage {
       flex: none;
       height: calc(var(--lm-canvas-h) + var(--lm-canvas-chrome));
@@ -173,13 +248,6 @@
     gap: 16px;
     min-width: 0;
   }
-  .lm-body-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 12px;
-    min-width: 0;
-  }
   .lm-body-pair {
     display: grid;
     gap: 16px;
@@ -192,34 +260,73 @@
   }
   .lm-body-more {
     display: grid;
-    justify-items: start;
-    gap: 12px;
-    padding-top: 4px;
+    gap: var(--lm-card-gap);
   }
-  .lm-body-more > .lm-field,
-  .lm-body-more > .lm-body-form {
-    justify-self: stretch;
+  /* age, height and weight: one column on a phone, three across once the card has room (r068 BD-10) */
+  .lm-body-form {
+    container-type: inline-size;
   }
+  .lm-body-trio {
+    display: grid;
+    gap: var(--lm-stack);
+    min-width: 0;
+  }
+  @container (min-width: 30rem) {
+    .lm-body-trio {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--lm-card-gap);
+    }
+  }
+
+  /* ---- a card's disclosure row (Adjust the drawing, Fine-tune shape, More details): full width, the label on the
+     content edge, the chevron at the trailing edge, one hairline above; the same look open and closed (r068 G-8) ---- */
+  .lm-body-disc {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lm-inline);
+    width: 100%;
+    min-height: 44px;
+    padding: var(--lm-row-gap) 0 0;
+    border: 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    background: none;
+    color: var(--lm-ink);
+    font: var(--lm-text-label--wt) var(--lm-text-label) / var(--lm-text-label--lh) var(--lm-font-sans);
+    text-align: start;
+    cursor: pointer;
+  }
+  .lm-body-disc__chev {
+    flex: none;
+    color: var(--lm-ink-2);
+    transition: transform var(--lm-dur-fast) var(--lm-ease-out);
+  }
+  .lm-body-disc[aria-expanded='true'] .lm-body-disc__chev {
+    transform: rotate(180deg);
+  }
+  @media (hover: hover) {
+    .lm-body-disc:hover .lm-body-disc__label {
+      color: var(--lm-signal);
+    }
+  }
+  .lm-body-disc:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+    border-radius: var(--lm-radius-xs);
+  }
+  /* secondary lines (body-s, stone) and a card's one fact line (body, ink) */
   .lm-body-hint,
-  .lm-body-note,
-  .lm-body-lead {
+  .lm-body-note {
     margin: 0;
-    font-size: var(--lm-text-xs);
-    line-height: 1.45;
+    font-size: 12px;
+    line-height: 18px;
+    font-weight: 400;
     color: var(--lm-ink-2);
     max-width: 62ch;
   }
   .lm-body-note {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink);
-  }
-  .lm-body-note b {
-    font-weight: 600;
-  }
-  .lm-body-lead {
-    font-size: var(--lm-text-base);
-    line-height: 1.5;
+    font-size: 14px;
+    line-height: 21px;
     color: var(--lm-ink);
   }
   .lm-body-linkbtn {
@@ -229,44 +336,50 @@
     font: inherit;
     cursor: pointer;
   }
-  .lm-body-save {
-    white-space: nowrap;
-  }
-  /* setup on a phone: the progress scale needs the row */
-  @media (max-width: 47.99rem) {
-    .lm-body-save[data-setup='true'] {
-      display: none;
-    }
-  }
-  .lm-body-setup-top {
-    display: none;
-    align-items: center;
-    gap: 8px;
-  }
-  @media (min-width: 64rem) {
-    .lm-body-setup-top {
-      display: inline-flex;
-    }
+  /* a word in a readout's value slot (muscle "as expected"): body text in stone, never the numeral style */
+  .lm-body-words {
+    font-size: 14px;
+    line-height: 21px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--lm-ink-2);
   }
 
-  /* ---- figure ---- */
-  .lm-body-figure[data-hidden='true'] .lm-body-row {
-    margin-top: 12px;
+  /* ---- figure (r071): a flush card, so the head and the foot carry its padding and the stage bleeds ---- */
+  .lm-body-figure:not([data-hidden='true']) > .lm-cardhead {
+    padding: var(--lm-card-pad) var(--lm-card-pad) 0;
   }
-  /* The stage holds the 3D canvas plus its layer chips and caption. Its height is the canvas height we want
-     (--lm-canvas-h, a share of the window) plus that chrome, so the canvas itself measures what the variable says. */
+  .lm-body-figure:not([data-hidden='true']) > .lm-cardfoot {
+    padding: 0 var(--lm-card-pad) var(--lm-card-pad);
+  }
+  .lm-body-figure:not([data-hidden='true']) > .lm-gcard__body {
+    margin-top: 6px;
+  }
+  /* the stage switch (FIGURE · VISCERAL): a mono-caps segmented control in its own row over the stage (the figure's head
+     reaches the top of the stage, so an overlay would sit on it) */
+  .lm-body-viewbank {
+    padding: 0 var(--lm-card-pad);
+  }
+  /* The stage holds the 3D canvas plus its layer row. Its height is the canvas height we want (--lm-canvas-h, a share
+     of the window) plus that row, so the canvas itself measures what the variable says. */
   .lm-body {
-    --lm-canvas-h: clamp(360px, 40dvh, 480px);
-    --lm-canvas-chrome: 240px;
+    --lm-canvas-h: clamp(320px, 42dvh, 440px);
+    --lm-canvas-chrome: 96px;
+  }
+  /* the shape step on a phone: the figure follows the scales and is smaller (the mini figure covers a drag) */
+  .lm-body[data-mode='shape'] {
+    --lm-canvas-h: clamp(260px, 34dvh, 340px);
   }
   @media (min-width: 48rem) {
-    .lm-body {
+    .lm-body,
+    .lm-body[data-mode='shape'] {
       --lm-canvas-h: clamp(360px, 46dvh, 560px);
-      --lm-canvas-chrome: 140px;
+      --lm-canvas-chrome: 64px;
     }
   }
   @media (min-width: 64rem) {
-    .lm-body {
+    .lm-body,
+    .lm-body[data-mode='shape'] {
       --lm-canvas-h: clamp(420px, 47dvh, 760px);
     }
   }
@@ -278,12 +391,12 @@
   .lm-body-stage > .lm-avatar {
     height: 100%;
   }
-  .lm-body-stage > .lm-avatar .lm-avatar__stage {
+  .lm-body-stage .lm-avatar__stage {
     border-radius: 0;
   }
-  /* touch: "adjust on figure" is on — a 1 px ink frame; the figure owns the gesture */
+  /* touch: adjusting on the figure — a gold hairline frame; the figure owns the gesture */
   .lm-body-stage[data-adjusting='true'] {
-    outline: 1px solid var(--lm-ink);
+    outline: 1px solid var(--lm-gold-edge);
     outline-offset: -1px;
     touch-action: none;
   }
@@ -298,9 +411,6 @@
   .lm-body-stage > .lm-fig3d {
     height: 100%;
   }
-  .lm-body-stage .lm-avatar__stage {
-    border-radius: 0;
-  }
   /* visceral view: same box, grows only when the words need it (no page jump on switching) */
   .lm-body-stage--visceral {
     height: auto;
@@ -311,7 +421,6 @@
     .lm-body-stage--visceral {
       aspect-ratio: auto;
       max-height: none;
-      min-height: calc(var(--lm-canvas-h) + var(--lm-canvas-chrome));
       padding: 10px 12px 14px;
     }
   }
@@ -321,18 +430,21 @@
     }
   }
 
-  /* ---- Shape › Adjust the drawing ---- */
+  /* ---- Figure › Adjust the drawing (under the layer row; the flush card has no padding of its own). The text key's
+     label lines up with the card's content edge: its own 8 px padding and 1 px edge come off the inset. ---- */
   .lm-body-drawing {
     display: grid;
-    justify-items: start;
-    gap: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--lm-line);
+    gap: var(--lm-card-gap);
+    padding: 0 var(--lm-card-pad) var(--lm-card-pad);
+  }
+  @media (min-width: 64rem) {
+    .lm-body-drawing {
+      padding: 0 var(--lm-card-pad-lg) var(--lm-card-pad-lg);
+    }
   }
   .lm-body-drawing__panel {
-    justify-self: stretch;
     display: grid;
-    gap: 18px;
+    gap: var(--lm-stack);
     min-width: 0;
   }
   .lm-frame {
@@ -345,9 +457,8 @@
     justify-content: space-between;
     align-items: center;
     gap: 12px;
-    font-size: var(--lm-text-xs);
-    line-height: var(--lm-text-xs--lh);
-    letter-spacing: var(--lm-text-xs--ls);
+    font-size: 12px;
+    line-height: 18px;
     color: var(--lm-ink-2);
   }
   .lm-frame__end {
@@ -371,46 +482,183 @@
   }
   .lm-frame__foot {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px 12px;
+    justify-content: flex-start;
   }
 
-  /* ---- estimates ---- */
-  .lm-body-est__grid {
+  /* ---- estimates (r071): the hero, its scale, one stacked bar, then three smaller readouts ---- */
+  .lm-body-est .lm-gcard__body {
+    gap: 16px;
+  }
+  .lm-body-est__lead {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 20px 24px;
-  }
-  .lm-body-est__rail .lm-body-est__cell {
-    width: 204px;
-    padding-inline: 0 14px;
-    margin-inline-end: 14px;
-    border-right: 1px solid var(--lm-line);
-  }
-  .lm-body-est__rail .lm-body-est__cell:last-child {
-    border-right: 0;
-    margin-inline-end: 0;
-  }
-  .lm-body-est__cell {
+    gap: 8px;
+    justify-items: start;
     min-width: 0;
   }
-  .lm-body-est__cell .lm-readout__caption {
-    max-width: 34ch;
+  .lm-body-est__lead > .lm-hero {
+    max-width: 100%;
   }
-  .lm-body-est__gentle {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--lm-line);
+  /* the stacked bar's pale half must not dissolve into the glow: keep a hairline between its two parts */
+  .lm-body-est .lmz-stack {
+    margin-top: 2px;
+  }
+  /* three cells: the first two as wide as their words and ranges (in pounds a range is 11 characters), the third takes the
+     rest and may break "Lean mass index" onto two lines on the narrowest phone; the cells line up at their feet */
+  .lm-body-est__grid {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
     justify-content: space-between;
+    align-items: end;
+    gap: 8px 14px;
+    padding-top: 4px;
+  }
+  .lm-body-est__name,
+  .lm-body-est__range {
+    white-space: nowrap;
+  }
+  .lm-body-est__cell:last-child .lm-body-est__name {
+    white-space: normal;
+  }
+  .lm-body-est__cell {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+  }
+  /* Phone cards leave enough room for each label and its complete mass range. The index gets a full row. */
+  @media (max-width: 29.99rem) {
+    .lm-body-est__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px 16px;
+    }
+    .lm-body-est__cell:last-child {
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: baseline;
+    }
+    .lm-body-est__cell:last-child > .lm-body-iv,
+    .lm-body-est__cell:last-child > .lm-body-est__range {
+      grid-column: 1 / -1;
+    }
+  }
+  .lm-body-est__name {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .lm-body-est__sw {
+    flex: none;
+    align-self: center;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  /* a secondary readout: a number at 20 px, the unit small and muted */
+  .lm-body-est__v {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin: 0;
+    font-family: var(--lm-font-sans);
+    font-size: 1.25rem;
+    line-height: 1.5rem;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink);
+    white-space: nowrap;
+  }
+  .lm-body-est__u {
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+
+  /* ---- shape: the scale as a rail in the card language (r071) ----
+     The rail is lit in the card's hue up to the thumb (`--lm-pos`, set by ShapeScale), the thumb is an ivory disc with a
+     card-coloured ring and a soft glow. Only colours and one pseudo-element: the slider underneath is untouched. */
+  .lm-body-rail .lm-scale__well {
+    isolation: isolate;
+    border-color: color-mix(in oklab, var(--lm-ink) 12%, transparent);
+  }
+  .lm-body-rail .lm-scale__well::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: 0;
+    left: var(--lm-lit-from, 0%);
+    width: calc(var(--lm-lit-to, 0%) - var(--lm-lit-from, 0%));
+    border-radius: inherit;
+    background: color-mix(in oklab, var(--lm-hue, var(--lm-signal)) 34%, transparent);
+    pointer-events: none;
+  }
+  /* the likely range under the thumb: a neutral wash (gold is for the brand and the action, not for a range) */
+  .lm-body-rail .lm-scale__range {
+    background: color-mix(in oklab, var(--lm-ink) 38%, transparent);
+  }
+  .lm-body-rail .lm-scale__needle,
+  .lm-body-panel .lm-scale__needle {
+    background: var(--lm-ink);
+  }
+  .lm-body-rail .lm-scale__cap,
+  .lm-body-panel .lm-scale__cap {
+    top: -9px;
+    width: 16px;
+    height: 16px;
+    margin-left: -8px;
+    border: 3px solid var(--lm-face);
+    background: var(--lm-ink);
+    box-shadow: 0 0 10px 2px color-mix(in oklab, var(--lm-hue, var(--lm-signal)) 50%, transparent);
+  }
+  .lm-body-rail .lm-scale__ticks line,
+  .lm-body-panel .lm-scale__ticks line {
+    stroke: color-mix(in oklab, var(--lm-ink) 22%, transparent);
+  }
+  .lm-body-rail .lm-scale__ticks line[data-major='true'],
+  .lm-body-panel .lm-scale__ticks line[data-major='true'] {
+    stroke: color-mix(in oklab, var(--lm-ink) 40%, transparent);
+  }
+  /* the editors' range scale (the eating window): the span between its thumbs in the card's hue, not gold */
+  .lm-body-panel .lm-scale__span {
+    background: color-mix(in oklab, var(--lm-hue, var(--lm-signal)) 70%, transparent);
   }
 
   /* ---- shape ---- */
   .lm-body-shape__body {
     display: grid;
-    gap: 22px;
+    gap: 20px;
     min-width: 0;
+  }
+  /* "Fine-tune shape": the text key's label on the content edge (as under the figure) */
+  .lm-body-fine {
+    display: grid;
+    gap: var(--lm-card-gap);
+    min-width: 0;
+  }
+  .lm-body-fine__panel {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+    padding-top: var(--lm-row-gap);
+  }
+  /* Measurements: a row per measurement (its word left, the switch right), its inputs under it when on */
+  .lm-body-measure {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+  }
+  .lm-body-measure + .lm-body-measure {
+    padding-top: 12px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lm-switch.lm-body-measure__switch {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
   }
   .lm-body-optional {
     display: flex;
@@ -438,7 +686,7 @@
     flex: 1 1 200px;
   }
 
-  /* ---- labs ---- */
+  /* ---- labs: the editor's groups ---- */
   .lm-body-labs {
     display: grid;
     gap: 20px;
@@ -453,42 +701,103 @@
     }
   }
 
-  /* ---- choose a start ---- */
+  /* ---- choose a start (r071): Find plans as the hero card, Simulate a plan as the slim card under it ---- */
   .lm-body-start {
     display: grid;
-    gap: 16px;
+    gap: var(--lm-card-gap);
+    align-items: start;
   }
-  .lm-body-start__keys {
-    display: grid;
-    gap: 16px;
-  }
-  @media (min-width: 40rem) {
-    .lm-body-start__keys {
-      grid-template-columns: 1fr 1fr;
+  @media (min-width: 48rem) {
+    .lm-body-start {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  .lm-body-start__opt {
-    display: grid;
-    gap: 8px;
-    align-content: start;
+  .lm-body-start__glyph {
+    padding: 8px 2px 4px;
+    min-width: 0;
   }
-  .lm-body-start__opt .lm-key {
-    height: auto;
-    min-height: 56px;
-    padding-block: 12px;
-    white-space: normal;
-    text-align: center;
+  /* the slim card is one row: icon, title, the mono line, then the (i) at the end */
+  .lm-body-start__opt[data-size='slim'] {
+    min-height: 72px;
+  }
+  .lm-body-start__opt[data-size='slim'] > .lm-cardhead {
+    display: contents;
+  }
+  .lm-body-start__opt[data-size='slim'] .lm-cardhead__title {
+    flex: 0 1 auto;
+  }
+  .lm-body-start__opt[data-size='slim'] > .lm-gcard__body {
+    flex: 0 0 auto;
+    order: 1;
+    margin: 0 0 0 auto;
+  }
+  .lm-body-start__opt[data-size='slim'] .lm-info {
+    order: 2;
+    margin-inline-start: 4px;
   }
 
-  /* ---- setup progress scale (context bar) ---- */
-  /* Equal segments, each as wide as the widest label (never under 44 px): a content-sized grid of 1fr
-     columns makes every column the widest item's width, and the scale grows past that only if its slot
-     stretches it. Labels sit left under their bar; a label never overhangs (last resort: ellipsis). */
+  /* ---- summary rows (Basics on a phone, Habits, Lab values): hairlines between rows, the value at the right ----
+     A label never wraps against a short value; a value (08:00–20:00) never breaks (r068 BD-5). */
+  .lm-body-kv > div > dt,
+  .lm-body-kv > div > dd {
+    padding: 11px 0;
+    border-bottom: var(--lm-hairline) solid color-mix(in oklab, var(--lm-ink) 10%, transparent);
+    white-space: nowrap;
+  }
+  .lm-body-kv > div:last-child > dt,
+  .lm-body-kv > div:last-child > dd {
+    border-bottom: 0;
+  }
+  /* no column gap: the hairline under a row is one line (the value's own padding keeps it off the label) */
+  .lm-body-kv {
+    gap: 0;
+  }
+  .lm-body-kv > div > dd {
+    padding-left: 12px;
+    font-family: var(--lm-font-display, var(--lm-font-sans));
+    font-weight: 400;
+    letter-spacing: -0.005em;
+  }
+  /* a foot that holds only its one link keeps it at the trailing edge */
+  .lm-body .lm-cardfoot > .lm-cardfoot__link:only-child {
+    margin-inline-start: auto;
+  }
+  /* "typical" and "hidden": a fact about the value, in mono caps, never a sentence */
+  .lm-body-typical {
+    margin-inline-start: 6px;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta, 0.6875rem);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--lm-tone-2, var(--lm-ink-2));
+  }
+  .lm-body-kv > div > dd > .lm-body-typical:only-child {
+    margin-inline-start: 0;
+  }
+  /* an empty card: one mono line and its pill */
+  .lm-body-empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* ---- the figure's view keys line up with the card's content edge, not its border (r068 BD-9) ---- */
+  .lm-body-stage .lm-fig3d__viewbar {
+    right: calc(var(--lm-card-pad) - 6px);
+  }
+
+  /* ---- setup progress scale (header progress row, r071) ----
+     Three equal segments, each a row of ticks as wide as the widest label (never under 44 px). Done and current segments
+     are lit in gold, the rest unlit; the label is a mono-caps fact, ivory for the current step and stone for the others.
+     No dot, no width tricks. */
   .lm-body-steps {
     display: inline-grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(44px, 1fr);
-    column-gap: 6px;
+    column-gap: 8px;
     max-width: 100%;
     margin: 0;
     padding: 0;
@@ -496,68 +805,48 @@
   }
   .lm-body-steps li {
     display: grid;
-    gap: 3px;
+    gap: 6px;
     min-width: 0;
   }
   .lm-body-steps__bar {
-    position: relative;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--lm-well);
-    box-shadow: inset 0 0 0 1px var(--lm-line-strong);
+    height: 8px;
+    background: var(--lm-unlit);
+    -webkit-mask: repeating-linear-gradient(to right, #000 0 2px, transparent 2px 6px);
+    mask: repeating-linear-gradient(to right, #000 0 2px, transparent 2px 6px);
   }
   .lm-body-steps li[data-state='done'] .lm-body-steps__bar,
   .lm-body-steps li[data-state='current'] .lm-body-steps__bar {
-    background: var(--lm-ink);
-    box-shadow: none;
-  }
-  .lm-body-steps li[data-state='current'] .lm-body-steps__bar::after {
-    content: '';
-    position: absolute;
-    right: -2px;
-    top: -1px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
     background: var(--lm-signal);
-    box-shadow: 0 0 0 1px var(--lm-signal-edge);
   }
   .lm-body-steps__label {
     display: block;
-    font-size: var(--lm-text-2xs);
-    line-height: 12px;
-    font-stretch: 84%;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta, 0.6875rem);
+    line-height: var(--lm-text-meta--lh, 0.875rem);
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--lm-ink-3);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  /* reserves the label's current (bold) width, so the scale keeps its size from step to step */
-  .lm-body-steps__label::after {
-    content: attr(data-label);
-    display: block;
-    height: 0;
-    font-weight: 600;
-    visibility: hidden;
-  }
   .lm-body-steps li[data-state='current'] .lm-body-steps__label {
     color: var(--lm-ink);
-    font-weight: 600;
   }
 
-  /* ---- sticky mini figure (mobile) ---- */
+  /* ---- sticky mini figure (mobile): under the header while a shape slider is dragged with the stage out of view ---- */
   .lm-body-mini {
     position: fixed;
     z-index: var(--lm-z-sticky);
-    top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 64px);
+    top: calc(var(--lm-header-h, 0px) + 12px);
     right: calc(var(--lm-gutter) + var(--lm-safe-right, 0px));
     width: 120px;
     height: 120px;
     padding: 6px;
-    border: 1px solid var(--lm-line-strong);
+    border: var(--lm-hairline) solid var(--lm-line-strong);
     border-radius: var(--lm-radius-lg);
-    background: var(--lm-raised);
-    box-shadow: var(--lm-shadow-pop);
+    background: var(--lm-elevated);
     cursor: pointer;
     opacity: 0;
     transform: translateY(-4px);
@@ -571,11 +860,9 @@
     transform: none;
     pointer-events: auto;
   }
-  @media (max-width: 47.99rem) {
-    /* Shape setup has a second header row for completion; keep the floating figure below it. */
-    .lm-body[data-mode='shape'] ~ .lm-body-mini {
-      top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 96px);
-    }
+  .lm-body-mini:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
   }
   .lm-body-mini__fig {
     display: flex;
@@ -592,14 +879,7 @@
       display: none;
     }
   }
-}
-@layer components {
-  .lm-body-lead--gap {
-    margin-bottom: 20px;
-  }
-}
 
-@layer components {
   .lm-body-wrap {
     min-width: 0;
     white-space: normal;
@@ -608,17 +888,15 @@
     text-wrap: balance;
   }
   /* segments sized to their words, the spare width shared: "prefer not to say" stays on one line when the column
-     has room and wraps (to two lines at most) only in the narrowest one (Q3-J2-01) */
-  .lm-bank.lm-body-bank--fit[data-block='true'] > .lm-bank__key {
-    flex: 1 1 auto;
+     has room and wraps (to two lines at most) only in the narrowest one (Q3-J2-01). Overrides the equal-column grid
+     of components.css, so the selector carries its attributes too. */
+  .lm-bank.lm-body-bank--fit[data-segments]:not([data-orientation='vertical']) {
+    grid-template-columns: repeat(var(--lm-bank-n), auto);
+  }
+  .lm-bank.lm-body-bank--fit > .lm-bank__key {
     padding-inline: 10px;
   }
-  .lm-body-start > .lm-key {
-    justify-self: start;
-  }
-}
 
-@layer components {
   /* sheet / side-panel content: the panel body has no padding of its own */
   .lm-body-panel {
     padding: 16px calc(var(--lm-gutter) + var(--lm-safe-right, 0px)) 24px calc(var(--lm-gutter) + var(--lm-safe-left, 0px));

@@ -14,24 +14,43 @@
 >   tooltip explains *why* it is disabled (`aria-disabled="true"` instead of `disabled`).
 > - Transitions: colours/shadows `--lm-dur-fast`, layout `--lm-dur-base`, all on `--lm-ease-out`.
 >
-> **v0.2 (2026-10-01):** new primitives for the intake, the ladder, Living mode, the Coach and scores
+> **v0.2 (2026-10-01):** new primitives for the intake, the ladder, Living mode and the Coach
 > are in **§13**. Superseded v0.1 entries are marked in place (PlanCard → LadderCard, DifficultyMeter →
 > BurdenScale, OptimiserProgress slots). Where §13 and an older entry disagree, §13 wins;
 > `REVIEW_FINDINGS.md` still wins over both.
+>
+> **r071 (2026-10-30):** the foundation (package 0A) rewrote the entries for Key and Run key (§1), Key bank, link bank,
+> tabs and Chip (§2), Notice (§9, the v0.1 "Banner"), Drawer, Sheet and Dialog (§10), the sidebar, dock and top bar (§11)
+> and the date control (§13.8) to what ships, and added **§16** (the domain card recipe) and **§17** (the picture motion
+> hooks). Package 0B then built the card and picture components and gave them entries: **§18** (`GradientCard`,
+> `CardHead`, `InfoPanel`, `CardFoot`, `HeroNumber`, `MonoMeta`, `StatusDot`), **§19** (the pictures: the new
+> `RadialTicks`, `DottedTrack`, `HighlightBars`, `GlowLine`, `RangeScale`, `StackBar` and `WindowBar`, and the restyled
+> `Hypnogram`, `StateStrip`, `Stat`, `ShareBar` and `TwinTable`), **§20** (`Rail`, `CardGrid`, `CardLibrary`) and **§21**
+> (the intake model and its pictures, the `todayCards` and `widgetWeight` settings keys, the gallery). Values are not
+> copied here: `design/tokens.css` is the source of truth (§5 hues, §11 type, §15 glow, §16 motion). Entries this round
+> did not touch (Engraved, Switch, Select, the sliders, the schedule, planner and intake components …) still describe
+> the version they were written for; where one disagrees with `DESIGN.md`, `src/components/README.md` or the code, those
+> win (`DESIGN.md` supersedes `REVIEW_FINDINGS.md`).
 
 ---
 
 ## 0. Surfaces
 
 ### Faceplate `<Faceplate>`
-The only container. A panel screwed onto the chassis.
-- Anatomy: optional header row (title 15/600 + engraved caption + right-aligned actions) · body ·
-  optional footer rule. Header separated by a 1 px `--lm-line` rule, not a fill change.
-- Tokens: bg `--lm-face`, border 1 px `--lm-line-strong`, radius `--lm-radius-md`, shadow
-  `--lm-shadow-face`, padding 16 (mobile) / 20 (desktop).
+The plain container (the metric card is `GradientCard`, §18.1). A panel screwed onto the chassis.
+- Anatomy: optional header row (title-m 17/24 at 600 + one fact caption + right-aligned actions) · body · optional
+  footer. No divider: 12 px of space (16 from 1024) separates the header from the body.
+- Tokens (r071): the card material `--lm-card-bg` (the gold wash over the grain tile over `--lm-face`; a `data-domain`
+  card swaps the wash for one glow, §16), border 0.5 px `--lm-line`, radius `--lm-card-radius` (20), no shadow, padding
+  `--lm-card-pad` (18 phone, 24 from 1024).
 - Variants: `plain` · `inset` (bg `--lm-well`, no shadow — for sub-regions such as the avatar
   stage) · `flush` (no padding — charts, rasters).
-- Rule: never put a Faceplate inside a Faceplate. Use hairline rules and spacing.
+- Faceplate or `GradientCard` (§18.1)? They draw the same material: `.lm-face` and `.lm-material` share one rule in
+  `components.css`, with the same domain wiring and glow, and `Faceplate`'s markup does not change. `Faceplate` is the plain
+  titled card (title, fact caption, actions, footer) for sections, forms, tools and every page that is not a metric card.
+  `GradientCard` is the metric card: it adds the icon · title · (i) head, the foot, the whole-card open target and the
+  glow's fade-in on first view.
+- Rule: never put a Faceplate (or a `GradientCard`) inside a Faceplate. Use hairline rules and spacing.
 
 ### Engraved label `<Engraved>`
 Lowercase 12/16, weight 500, `--lm-ink-2`. Used for control captions, lane names, axis titles.
@@ -47,7 +66,7 @@ One token, `--lm-bar-control-h`, is the height of **every control** in the top b
 and in the action bar (`.lm-actionbar`): **36 px** for a fine pointer on every width, **44 px** under `(pointer: coarse)` so touch
 screens keep the 44 px touch target. It covers word keys and icon keys (Back, Skip, Next, Find plans, Start this plan, Apply,
 Undo, Stop …), key banks (schedule | results, figure | visceral, cards | table), steppers and number fields (the weeks
-selector), inputs, selects and date buttons, switches, chips (sync and ring status included) and the round run key.
+selector), inputs, selects and date buttons, switches, chips (sync status included) and the round run key.
 
 - Key padding in a bar is 0 14 px with the base 15 px label; bank keys are the token height minus the bank's 3 px well and
   1 px edge, so the bank as a whole is exactly the token height; icons keep their own sizes.
@@ -62,49 +81,66 @@ selector), inputs, selects and date buttons, switches, chips (sync and ring stat
 ## 1. Keys (buttons)
 
 ### Key `<Key>`
-- Anatomy: cap (rounded rect) · label (15/500, normal width) · optional leading icon 20 px ·
-  optional trailing indicator dot (6 px) · optional shortcut hint (12 px, `--lm-ink-3`).
-- Sizes: `sm` 32 h, 12 px x-padding, 13 px label · `md` 40 h, 16 px, 15 px · `lg` 48 h, 20 px,
-  15 px. Touch layouts use `md` minimum with 44 px hit area.
+r071: the primary is a gold PILL and every other variant a rounded rectangle in the card's language; no bevel, no shadow
+(the v1 table of `default | solid | quiet | danger | signal` with key shadows is gone).
+- Anatomy: cap · label · optional leading icon (20 px; 16 px on `sm`) · optional trailing icon (16 px; 18 px at stroke 2.25
+  on a primary) · optional shortcut hint (12 px, `--lm-ink-3`). `arrow` is shorthand for `trailingIcon={ArrowRight}`: the
+  arrow glyph U+2192 is in neither Geist file, so it is always an icon. A trailing icon takes 4 px off the padding on its
+  side.
+- Sizes: `sm` 32 h · `md` 40 h · `lg` 48 h. Side padding 12 / 16 / 24 (a primary: 14 / 22 / 22). Label 12/16 on `sm` and
+  14/20 otherwise, at 500; a primary's label is 15/600 (12/600 on `sm`). Corners: 8 / 10 / 12 for the secondary; a primary
+  uses `--lm-key-radius` (24 px: a full pill at 32, 40 and 48 px, and a 24 px corner rather than a stadium when a block
+  key's label wraps to two lines). Icon-only keys are round. A touch layout keeps a 44 px hit area, drawn invisibly (48
+  for icon keys, 32 under a fine pointer).
 - Variants:
-  | Variant | Fill | Text | Shadow | Use |
-  |---|---|---|---|---|
-  | `default` | `--lm-raised` | `--lm-ink` | `--lm-shadow-key` + 1 px `--lm-edge` border | most actions |
-  | `solid` | `--lm-ink` | `--lm-ink-inverse` | none | the single strongest non-run action in a view ("Open in Simulator") |
-  | `quiet` | transparent | `--lm-ink` | none | tertiary, inline ("Copy week") |
-  | `danger` | `--lm-raised` | `--lm-danger-fg` | key + `--lm-danger-edge` border | destructive ("Reset all data") |
-  | `signal` | `--lm-signal` | `--lm-signal-ink` | key + 1 px `--lm-signal-edge` | **only** Run / Find plans |
-- States: hover — `default` fill mixes 3 % ink (`color-mix(in oklab, var(--lm-raised), var(--lm-ink) 3%)`);
-  pressed — `--lm-shadow-key-pressed`, `translateY(1px)`, 80 ms; focus — ring; disabled — as
-  universal; loading — label stays, a 12 px ring spinner replaces the leading icon, width locked.
+  | Variant | Look | Use |
+  |---|---|---|
+  | `primary` (aliases `solid`, `signal`) | gold `--lm-signal` fill, `--lm-signal-ink` label, the pill | the one primary action per view ("Log snack", "Start", "Add task →") |
+  | `outlined` (alias `default`, the default) | the neutral tile: 6 % ink fill, 1 px `--lm-line-strong`, ivory label | ordinary actions |
+  | `action` | gold label on a 16 % gold tile (`--lm-gold-action`), 8 px corners; 32 h (28 `sm`, 40 `lg`) | an inline verb on a row ("Log") |
+  | `text` (alias `quiet`) | gold label, no fill, a gold tint on hover; icon-only = a stone icon | tertiary, inline; in a card's head or foot it takes the action tile |
+  | `danger` | rose label, a 45 % rose outline, a 6 % rose tint | destructive ("Reset all data") |
+- States: hover — the primary goes to `--lm-signal-hover`, the secondary to an 11 % ink fill; pressed (`pressed`) — gold
+  wash + gold edge (not on a primary); active — scale .98 (.985 on the secondary) and brightness .94 over 80 ms; focus — the
+  global 2 px gold ring at 2 px; disabled — a primary becomes a `--lm-raised` pill with a pale-stone label, the others keep
+  their shape at 42 %, and a disabled key with a `disabledReason` stays focusable; loading — the label stays, a 12 px
+  ring spinner replaces the leading icon, width locked.
 
 ### Run key `<RunKey>` (signature)
-- Round 56 px (desktop context bar: 44 px round + label to its left "Run"; mobile action bar:
-  56 px round with "Run" label inside at 13/600). Yellow `--lm-signal`, 1 px `--lm-signal-edge`,
-  `--lm-shadow-key`. Icon: none — the word is the icon.
-- States: idle · **stale** (a 6 px ink dot at 1 o'clock on the key's rim = "inputs changed") ·
-  running (label becomes elapsed seconds "1.2 s", a 2 px ink arc runs around the rim, the key
-  stays pressed) · done (releases with needle ease, dot disappears) · disabled (no scenario days
-  painted: `--lm-well` fill, faint label, tooltip "Paint at least one week first").
+The Simulator's and the Planner's primary: the gold pill of a primary Key (a full pill, `md` 40 h · `lg` 48 h, 20 / 24 px
+side padding, label 14/600), "Run" or, in the Planner, "Find plans", with an optional caption to its left (never a repeat
+of "Run").
+- States: idle · **stale** (a 6 px near-black dot after the label = "inputs changed") · running (the label becomes elapsed
+  seconds "1.2 s", a 14 px arc spins before it, the cap dims to brightness .94) · disabled (a `--lm-raised` fill, a
+  pale-stone label, a tooltip with the reason: "Paint at least one week first").
 - Keyboard: `⌘/Ctrl Enter` from anywhere in the Simulator.
-- Planner variant: pill 48 h "Find plans" (same colours), because the label is longer.
 
 ### Icon key `<IconKey>`
-32 or 40 square, 20 px icon, same variants as Key minus `signal`. Requires `aria-label`.
+Round, 32 / 40 / 48 px (`size`), a 20 px icon, `quiet` by default (a stone icon that brightens to ivory over a 6 % ivory
+hover); `action` and `primary` are a gold disc. Requires `label`: the accessible name and the tooltip on hover and focus.
 
 ---
 
 ## 2. Choice controls
 
-### Key bank (segmented control) `<KeyBank>`
-Braun push-button bank.
-- Anatomy: a well (`--lm-well`, radius sm, `--lm-shadow-well`) containing 2–6 equal keys separated
-  by 1 px `--lm-line`. Selected key: raised cap (`--lm-raised`, `--lm-shadow-key`) with a 6 px
-  **yellow indicator dot** left of its label; unselected keys: flat, `--lm-ink-2` label.
-- Sizes: `sm` 28 h (chart toolbar), `md` 36 h, touch 44 h.
-- Behaviour: `role="radiogroup"`, arrows move + select, Home/End. Pressing a key animates the dot
-  (fade 80 ms), never slides a highlight across.
-- Variants: `text` · `icon` · `icon+text`. Up to 6 keys; more → Select.
+### Key bank (segmented control) `<KeyBank>`, link bank `<LinkBank>`, tabs `<TabList>`
+One track for the three (r068 U2; r071 sets the labels in mono caps). The v1 Braun push-button bank with yellow indicator
+dots is gone.
+- Anatomy: a rounded-rectangle well (`--lm-select-track` = `--lm-well`, 12 px corners = `--lm-radius-track`, a 0.5 px
+  `--lm-line` hairline) holding 2–6 segments 3 px inside it (`--lm-select-inset`; their 9 px corners are concentric). It
+  fills the width it is given in equal columns (`block`, the default), each at least its label wide and never under 48 px
+  (40 in the small bank); `fit` sizes the track to its labels. When the labels cannot fit even so, the track scrolls
+  sideways without a bar; a label never wraps and a segment never drops to a second row.
+- Segments: a mono-caps label (Geist Mono 500, UPPERCASE, +0.08em, `--lm-text-meta`: 11 px, 12 px from 1024), pale stone,
+  hover to ivory over a 4 % tint where a pointer hovers. Selected = the gold tile (`--lm-select-on` gold wash,
+  `--lm-select-on-edge` gold edge, ivory label): gold is what you chose. No dots, no underline; an option `badge` is a
+  6 px gold "changed" dot after the label.
+- Sizes: `sm` 28 h (chart toolbar) · `md` 36 h · `lg` 44 h; every segment is at least 44 h under a coarse pointer, small
+  banks included. Inside the top bar and the action bar the track takes the bar height (36 / 44) and the segments fill it
+  at 14 px, still mono caps.
+- Behaviour: `KeyBank` is a `radiogroup` (arrows move + select, Home/End); `LinkBank` is a `nav` of links
+  (`aria-current="page"`); `TabList` is a `tablist` with `Tab` and `TabPanel`. Variants: `text` · `icon` · `icon+text`.
+  Up to 6 segments; more → Select.
 
 ### Switch `<Switch>`
 A slide switch, 36 × 20 track (well), 16 px thumb (raised cap with thumb shadow). On: track
@@ -121,10 +157,14 @@ Well field 40 h with trailing chevron; opens a Popover list (not native on deskt
 `<select>` on mobile). Selected option: bold check 16 px at left.
 
 ### Chip `<Chip>`
-24 h, radius xs, 12/500 text, 8 px x-padding. Variants: `metric` (leading 8 px category-hue
-swatch — a short 10 × 3 line-key for line metrics, 8 × 8 rounded square for bar metrics),
-`filter` (toggle, pressed state = ink fill), `status` (info/caution/danger icon + label). Remove
-affordance: trailing 16 px × (icon key, 24 hit).
+A pill (r071). Read-only it is a 22 h tag: a 6 % ink tint, a stone 12/16 label at 500, 9 px side padding, no border. When
+it acts (`filter`, `onClick`, a link) it is a 28 h pill with a 1 px `--lm-line` hairline, a 4 % ink tint and 12 px side
+padding, and it grows to the 48 px touch target under a coarse pointer below 768 px.
+Kinds: `plain` · `metric` (a leading category swatch: a 10 × 3 line key for line metrics, an 8 × 8 rounded square for bar
+metrics) · `domain` (a 6 px dot in the domain's solid, `domainColor(domain)`; the words stay stone, so the colour is on the
+mark only) · `filter` (a toggle; pressed = gold wash + gold edge + ivory label) · `status` (only a 6 px dot in the
+severity colour and the words, nothing around them). Removable (`onRemove`): a trailing 20 px × with a 28 px hit area.
+`Swatch` takes a `category`, a `domain` or a colour.
 
 ---
 
@@ -358,12 +398,15 @@ are `aria-hidden` shortcuts.
 The live estimate unit (no card).
 ```
  body fat                  ← engraved
- 23.4 %                    ← readout-md (32) wide tabular; unit 15 ink-2
+ 23.4 %                    ← readout-md (28) tabular; unit 14 stone
  ├──────█──────┤ 20–27 %   ← RangeBar + range text (12, ink-2)
 ```
-Variants: `md` (Your body), `sm` (22 px, readout strip), `inline` (15 px in sentences).
-Updating: digits roll (each changed digit translates 6 px + fades, 120 ms) — the fixed-place
-readout rule. Stale/unknown: "—" with caption "needs waist".
+Variants: `lg` (32), `md` (28, Your body) and `sm` (20, the readout strip); `ReadoutInline` is the one that sits in a
+sentence. r071: the figure and its unit are drawn by a `HeroNumber` (§18.5) at the readout's own sizes (tabular, no
+count-up; the unit 14 px, 12 on `sm`, after the figure), so one component draws every number and a readout is named once,
+in the figure (`role="img"`, "19.7 kg, range 18.6 to 20.9"); the look is unchanged.
+Updating (`animate`): the digits that changed roll (`HeroNumber`'s `roll`: each changed digit drops 6 px and fades in over
+`--lm-dur-fast`) — the fixed-place readout rule. Stale/unknown: "—" with caption "needs waist".
 
 ### Range bar `<RangeBar>`
 A 64–120 px wide, 8 px tall glyph: 1 px `--lm-line-strong` axis, the likely range as a 4 px
@@ -516,12 +559,14 @@ Hover/tap → phase summary popover (energy, macro split, window, training).
 
 ## 9. Feedback
 
-### Warning banner `<Banner>`
-Full-width inside the content column (not a toast). Anatomy: 20 px icon (info circle / caution
-triangle / danger octagon) · title (15/600, severity fg) · body (15, ink) · actions (keys) ·
-dismiss (only for info). Tokens: bg `--lm-<sev>-bg`, 1 px `--lm-<sev>-edge` border all round,
-radius md. **No thick coloured left border.** Danger banners cannot be dismissed while the
-condition holds; they can be collapsed to a one-line summary.
+### Notice `<Notice>` (the banner; the v0.1 "Warning banner `<Banner>`" is superseded)
+Full-width inside the content column (not a toast). r071: it takes the card material (grain over the card colour, the
+faint gold wash) with NO glow, a 0.5 px `--lm-line` hairline and 14 px corners (`--lm-radius-field`): a banner is a short
+strip, not a data card, so it never takes a domain glow and never wears the 20 px card corner. Anatomy: a drawn mark (a
+caution triangle in gold, a danger octagon in rose; info and ok carry none) · title (14/21 at 500, ivory) · one body line
+(14/21, stone) · at most one action · dismiss (info and ok only). Severity lives on the mark only: no tinted fill, no
+coloured title, **no coloured side stripe**. Danger banners cannot be dismissed while the condition holds; they can be
+collapsed to a one-line summary. `layout="ruled"` (inside a card) is plain text with no surface and no rules.
 
 ### Inline warning `<InlineWarning>`
 Inside controls/sections: icon 16 + one sentence (13, severity fg) + optional fix link.
@@ -553,21 +598,32 @@ primary key. No cartoon mascots.
 
 ## 10. Overlays
 
-### Drawer `<Drawer>` (desktop)
-Docked side panel (392 px) that pushes content when the viewport ≥ 1280, overlays (with
-`--lm-shadow-drawer`, no scrim) below that. Header with title + close. `Esc` closes. Focus moves
-to the drawer title on open and back to the invoking control on close.
+### Drawer `<SidePanel>` (alias `<Drawer>`; desktop)
+392 px (`--lm-drawer-w`). Overlay: `--lm-chassis-2` with a hairline left edge; the page keeps its width and positions
+(no scrim unless `scrim` opts in). `ResponsivePanel` always overlays on desktop; legacy `dockAtXl` is ignored. An explicit
+`mode="docked"` remains a low-level API for authored layouts, unused by the app. r071: an overlay panel opens on the spring from the right (`--lm-ease-spring`, 320 ms, one 2.5 %
+overshoot, behind `@supports (transition-timing-function: linear(0, 1))`), leaves in 220 ms with `--lm-ease-in`, and a hard
+colour extension past the right edge (0 blur, offscreen at rest) hides the gap the overshoot would open; under reduced
+motion it does not move and cross-fades in 100 ms. Header grammar: title · Cancel with a filled commit key, or title · ✕
+(`DESIGN.md`, Dialogs, sheets, side panels). `Esc` closes. Focus moves into the panel on open and returns to the invoking
+control on close (`useRestoreFocus`).
 
 ### Sheet `<Sheet>` (mobile)
-Bottom sheet, radius xl top corners, `--lm-shadow-sheet`, scrim `--lm-scrim` (except in peek
-detent), detents 35 / 60 / 92 %, drag handle, swipe-down to close, `--lm-ease-sheet` 320 ms.
-Content scrolls inside; the sheet header stays. Uses `<dialog>` semantics when modal (full
-detent), `role="region"` in peek.
+Bottom sheet on `--lm-chassis-2`, 24 px top corners (`--lm-radius-xl`; they were 18), a 0.5 px top hairline, scrim
+`--lm-scrim` (except in the peek detent), detents 35 / 60 / 92 % and content height, a 32 × 4 drag handle, swipe down to
+step down or close. r071 motion: it opens on a spring (`--lm-ease-spring`, 320 ms, a damped oscillator that overshoots once
+by 2.5 %, behind `@supports (transition-timing-function: linear(0, 1))`; `--lm-ease-sheet` elsewhere), leaves in 220 ms with
+`--lm-ease-in`, and the scrim fades in over 200 ms. A hard 32 px colour extension below the screen edge (0 blur, offscreen
+at rest, so it is not a shadow) hides the gap the overshoot would open. Under reduced motion (the OS setting or Settings ›
+Motion "reduce") it does not move: a 100 ms cross-fade. Content scrolls inside; the header stays. Uses `<dialog>` semantics
+when modal, `role="region"` in peek. Focus returns to the opener when it closes (`useRestoreFocus`;
+`src/components/__tests__/focusRestore.test.tsx` has one test per host).
 
 ### Dialog `<Dialog>`
-Only for destructive confirmation, import preview and the first-run consent. Centred Faceplate
-max 480, scrim, focus trap, `Esc` = cancel (except consent). Destructive dialogs require the
-action verb on the key ("Delete scenario"), never "OK".
+Only for destructive confirmation, import preview and the first-run consent. Centred, elevated (`--lm-elevated`, 24 px
+corners, a 0.5 px hairline), max 480 (640 `wide`), scrim, focus trap, `Esc` = cancel (except consent). Destructive dialogs
+require the action verb on the key ("Delete scenario"), never "OK". It enters from 6 px below over 200 ms; under reduced
+motion it cross-fades in 100 ms; focus returns to the opener on close.
 
 ### Popover `<Popover>`
 Menus, date picker, conflict explanations. Raised, radius md, shadow pop, 8 px offset. Portaled
@@ -577,18 +633,36 @@ Menus, date picker, conflict explanations. Raised, radius md, shadow pop, 8 px o
 
 ## 11. Navigation
 
-### Rail `<NavRail>` (≥ 1024) and Tab bar `<TabBar>` (< 1024)
-See `INFORMATION_ARCHITECTURE.md §3`. Both are KeyBanks: selected destination = pressed key +
-yellow indicator dot. Badges: 6 px ink dot for "stale results" on Simulate.
-**v0.2:** the destination set follows the mode (`INFORMATION_ARCHITECTURE.md §3.4–§3.6`): 4 keys in
-Planning, 5 in Living, and in the planning override the first slot is the return key "today ↩"
-(glyph `undo-2`, label `today`). The rail gains a lower group (evidence · planning · settings ·
-theme) separated by a hairline, and a plan-day readout under the wordmark ("day 15 / 84", 11 px
-condensed tabular, ink-2). Coach's badge is a 6 px ink dot = "a proposal is waiting"; never a count.
+### Sidebar `<Sidebar>` (≥ 1024) and dock `<TabBar>` (< 1024)
+See `INFORMATION_ARCHITECTURE.md §3`; the destination lists are in `src/components/README.md` §0 (`nav.ts`,
+`modeNav.tsx`). r071 rewrote this entry (the v1 "both are KeyBanks, selected = pressed key + yellow indicator dot" is
+gone). The rule that results: **ivory is where you are; gold is what you can do or chose.**
+- Dock (phones): a frosted dock holding a floating pill (`--lm-nav-pill-bg`, Charcoal Card at 94 %, a 0.5 px hairline,
+  36 px ends, `--lm-nav-pill-h` 64 px, at most 34 rem wide) of five keys that share its width equally, each about 56 px tall: a 22 px icon over a 12 px
+  label (label-s 500), the destination's name as the accessible name. The current key is an IVORY capsule (`--lm-nav-on-bg`) with a
+  near-black icon (stroke 2) and a 600 label (`--lm-nav-on-fg`), drawn by ONE thumb (`.lm-tabbar__thumb`, translated by
+  `--lm-tabbar-i`, the index `Chrome.tsx` writes) that glides to the pressed key by `transform` in 280 ms (`--lm-dur-glide`)
+  with the one damped overshoot (`--lm-ease-needle`). Under reduced motion it jumps; a page the dock does not list hides
+  it; a mode change cross-fades the keys. A press shrinks the key's icon and label to .96 for 80 ms. Forced colours: the
+  capsule is a `Highlight` fill with `HighlightText` ink.
+- Sidebar (desktop): 240 px, or a 64 px icon rail; 40 px rows with 14 px corners (`--lm-radius-field`), a 20 px icon and a
+  14/20 label at 500; hover a 6 % ink tint. The current row is a 9 % ivory tint with an ivory icon (stroke 2) and a 600
+  label: no gold and no side stripe; forced colours draw a 2 px `Highlight` outline. (The Settings master list still takes
+  the gold-soft row until package 5b moves it.)
+- Badges: a waiting proposal (Coach) or stale results (Simulate) is a 6 px gold dot at the icon's top right, never a
+  count; on the dock's current key the dot is near-black with a capsule-coloured ring, because gold on ivory would be
+  1.5:1.
 
-### Context bar `<ContextBar>`
-Sticky 56 h, `--lm-chassis-2` with a 1 px `--lm-line-strong` bottom rule. Left: title or switcher
-(17/600 display width); middle: local KeyBank tabs; right: parameters + primary key.
+### Top bar `<TopBar>` (was "Context bar `<ContextBar>`")
+One per screen, at the top of the content column, sticky: 56 px (one 48 px key row plus 4 px above and below, the safe area
+added), or 66 px on a phone tab page that has a fact row. Left: Back (pushed pages), then the title: the page role
+(`--lm-text-page`, 24/28 at 600, one line, truncated with an ellipsis; r071, SPEC Q2: no large collapsing title); on a
+phone's pushed page it is title-m beside Back. ABOVE the title, ONE fact in mono caps (`--lm-text-meta`, stone, one line: the
+date, or "Day 15 of 84" where a `DateControl` follows): on a phone tab page its own full-width row above the title row, on
+desktop and on pushed pages stacked over the title in the heading; the h1 stays first in the DOM and `order` draws the
+date first (r071, SPEC Q4: "like the references"). Right: at most two status icons, an optional primary key, the one ⋯.
+Tabs and progress rows sit inside the bar under it, and the tintless frost comes in over the first 80 px of scroll. Every
+control in the row is the bar height (36 / 44 px). The v1 "chassis-2 with a 1 px line-strong bottom rule" is gone.
 
 ### Scenario switcher `<ScenarioSwitcher>`
 Title with chevron → popover (desktop) / sheet (mobile): list of scenarios (name, horizon, last
@@ -603,7 +677,7 @@ wash (`--lm-ink` @ 4 %), zebra none, 1 px row rules. Columns: date/time + each v
 
 ---
 
-## 13. v0.2 primitives (intake, ladder, Living mode, Coach, scores)
+## 13. v0.2 primitives (intake, ladder, Living mode, Coach)
 
 Shared rules for everything in this section:
 - **Uncertainty travels with the number.** Any estimated, logged-by-AI, measured or projected value
@@ -614,7 +688,7 @@ Shared rules for everything in this section:
   an optimiser slot) — the same exception the v0.1 plan letter keys and lane swatches use.
 - **No yellow on Living screens** except the now-hand and indicator dots: there is nothing to "run".
   The yellow key returns only where a planner or simulation run starts (Find plans, Run, and the
-  "Find plans with these limits" key on the Ideal).
+  "Find plans" verb of the Ideal's Limits to change panel).
 - **Quiet mode** (`TodayView.quietMode`): components that show restriction-adjacent numbers (remaining
   energy, adherence, weight, kcal of a meal) take a `quiet` prop and render the category vocabulary
   in §13.9 instead; a quiet "show numbers" key reveals the number for that view only.
@@ -795,18 +869,27 @@ Specified in full in `screens/body-figure-v2.md §6`. Primitive contract:
   — group label, from → to, goal deltas with units, ΔD; top 3 shown, then "together, through
   interactions: +0.3 kg" when the remainder is non-zero.
 
-### 13.8 Date strip `<DateStrip>` (Living: Today, Food, Train)
-A week as seven day keys on one row; the instrument's date dial.
+### 13.8 Date control `<DateControl>` (r069 U2, restyled r071; Today, Food, Train, Ring)
+Replaced the week strip (owner, r069: "only the current date should be shown"). One full-width row reads the selection
+("Today · THU 29 OCT", "This week · 26 OCT–1 NOV") and opens the calendar (Gauge's history picker in Vitals' material):
+a sheet on phones, a popover from 1024 px. See DESIGN.md "Date control" for the look; the API:
 ```
-  mon   tue   wed   thu   fri   sat   sun        ‹ ›   week arrows (IconKey) at the ends
-  13    14   [15]   16    17    18    19
-  ◔     ◕     ◍     ·     ·     ·     ·          16 px AdherenceDial glyph (past) · hollow dot (future)
+<DateControl
+  value={period}                 // Period { kind: 'day'|'week'|'month'|'year'|'range', from, to } (period.ts)
+  onChange={(p) => …}            // put it in the address; every pick applies at once
+  today={today}
+  periods={ALL_PERIODS}          // default DAY_ONLY (no bank)
+  max={today}                    // optional bounds; a plan page leaves max open for its preview days
+  useMarks={useRingDays}         // optional hook (from, to) => Set of days with data, called only while open
+  domain="steps"                 // optional DomainName (r071): the calendar icon and the data dots wear this hue
+/>
 ```
-- Key 44 × 56 (touch) / 40 × 52 (pointer); today = pressed + yellow dot; selected (other date) =
-  2 px ink ring; paused days show a 1 px ink-3 strike line; plan start/end days carry a 2 px ink
-  bracket on their outer edge.
-- Swipe (touch) or ‹ › changes week; `[` `]` move one day. `role="tablist"`-like radiogroup with
-  `aria-label="Wed 15 Oct, today, adherence so far 62"`.
+`periodFromSearch` / `periodSearch` read and write the `?date=` / `?period=` address; `periodDays`, `periodEnd`,
+`periodStats` give a page its days so far and their total and average.
+r071 (package 0A): the row has the field radius (14 px), the lead word ("Today") in Geist 600 and the dates as a mono-caps fact;
+the calendar icon and the dots of days that hold data wear the page's domain hue (`domain`; stone without one); weekday
+letters are mono caps; the selection stays gold. Its styles moved from `living.css` to
+`src/features/living/components/dateControl.css`.
 
 ### 13.9 Adherence dial `<AdherenceDial>` (the "adherence ring")
 A **composition dial**, not a progress ring. The circle is always the whole day's prescription,
@@ -838,14 +921,13 @@ divided into arcs by each item's weight; each arc shows what happened to that it
  07:30  ◍ breakfast        520 kcal · protein 35 g             [✓]  ›
  12:30  ◍ lunch            plan: dal, rice, curd   ≈ 640 · 33 g [◐]  ›   partial: tap › for detail
  17:30  ⊟ lift · 45 min    mudgar swings, dand, baithak         [ ]  ›
- —      ⌁ steps            9 000                 6 120 · ring ⌁ [ ]
+ —      ⌁ steps            9 000                 6 120          [ ]
  —      ◷ fast             until 12:30 · 14 h done, 2 to go     [ ]
 ```
 - Columns: time (13 condensed tabular, ink-2) · glyph 20 · label (15/500) + target/plan (13 ink-2) ·
   logged value as `EstimateReadout` inline · **tick key** 44 × 44 · chevron IconKey.
 - Tick key states: empty (well) · done (ink fill, inverse check) · partial (half fill) · skipped
-  (hollow with a 1 px diagonal) · device-covered (small source glyph inside, e.g. ring) · assumed
-  (dashed outline; backfilled days).
+  (hollow with a 1 px diagonal) · assumed (dashed outline; backfilled days).
 - One tap on an empty tick = "as planned" (dispatches the row's `command`); tap again within 5 s =
   undo. The chevron (or long-press, or `⇧Space`) opens the row sheet: **as planned · partly ·
   skipped · something else** (+ the item's detail editor).
@@ -899,8 +981,8 @@ fill, 1 px `--lm-line`, radius md) so faceplates are never nested.
 
 ### 13.12 Source chip `<SourceChip>` and estimate readout `<EstimateReadout>`
 - **SourceChip** (Chip `plain` 24 h): glyph + who · how: "you · typed", "you · as planned",
-  "Coach · photo", "Coach · photo + your grams", "Coach · text", "label", "ring · Colmi R10",
-  "watch · Apple", "import · Health Connect", "assumed" (dashed outline). Tap → popover with the
+  "Coach · photo", "Coach · photo + your grams", "Coach · text", "label", "assumed" (dashed
+  outline). Tap → popover with the
   method, confidence ("Coach was fairly sure: 0.72"), and the band rule ("photo only: about ±35 %
   for energy").
 - **EstimateReadout**: value (tabular) + unit + "(likely lo–hi)" in ink-2 + optional SourceChip.
@@ -917,61 +999,9 @@ fill, 1 px `--lm-line`, radius md) so faceplates are never nested.
 - Detail popover: per-term bars (muscle · strength · cardio · energy · mobility) with their intent
   weights, and "also trained: …".
 
-### 13.14 Score tile `<ScoreTile>` and baseline gauge `<BaselineGauge>`
-Tiles live **inside one Faceplate** (a "signals" strip/grid with hairline dividers), never as
-separate cards or KPI tiles.
-```
- hrv status                                [B ●●●○]  v1.2
- within your normal                          ← state word 17/600 (or value "54 bpm")
- ├────────░░░░▓▓▓▓▓▓░░░░──────┤              ← BaselineGauge
-            38      47                         normal range band · ▮ 7-day mean · ○ last night
- 7-day 42 ms · normal 38–47 ms               ← 12 ink-2
- ⌁ ring · Colmi R10 · tier C · trend only    ← provenance 11 ink-3
- ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
- Oura says "balanced" · vendor opinion       ← optional, 12 ink-3, never larger than the tile text
-```
-- Header: title (engraved), GradeBadge `sm` (evidence certainty of the score), version chip
-  ("v1.2", 11 condensed, links to the score's changelog), and for convenience indices the label chip
-  "index · not a measurement".
-- Body by `output.display`: `number` (value + unit + band), `state` (word + gauge), `band` (word only).
-- **BaselineGauge**: 160–240 × 24 px; printed ticks; the personal normal range as a 6 px band
-  (ink @ 18 %); the 7-day mean as a 2 px ink bar; last night as a hollow 6 px dot; optional
-  population reference ticks (labelled, e.g. "median 81"). Borderline = the 80 % interval of the
-  7-day mean drawn as a thin bracket that straddles a band edge, state word "borderline".
-- **States**: ok · borderline · withheld ("—", reason "needs 14 nights · 9 so far" with a printed
-  14-tick count scale, 9 inked — a count, not a ring) · insufficient baseline (value shown, band
-  replaced by "normal range forming · 9 of 14 nights") · flag (StatusMark + word; see scores.md).
-- **Plan link**: when the score changed something today, a quiet line "→ eased today's session ·
-  Undo" linking to its change card.
-- Device tier C on heart-rate variability, autonomic load, SpO2 and temperature: values shown only
-  as change from your normal ("+0.3 °C vs your normal"), never absolute — the tile enforces this
-  from `tiersAllowed`.
+### 13.14 Score tile `<ScoreTile>` and baseline gauge `<BaselineGauge>` — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
-### 13.15 Stream matrix `<StreamMatrix>` (devices intake, Settings › Devices and streams)
-```
-                    bring in   my scores   my plan    Coach sees
- sleep              [● ]       [● ]        [● ]       [hidden | daily | daily + detail]
- heart rate         [● ]       [● ]        [● ]        hidden     ← resting HR feeds the model
- HRV                [● ]       [● ]        [○ ]        hidden
- SpO2               [● ]       [● ]        never ⓘ     hidden
- steps & workouts   [● ]        —          [● ]        hidden
- vendor scores      [○ ]       never ⓘ     never ⓘ     hidden
-                    [Use recommended]
-```
-- Rows = streams the chosen device offers; columns = the four `StreamPolicy` fields. Switches for
-  booleans, a 3-key KeyBank for the Coach (`hidden · daily · daily + detail`; detail = series, only
-  through a visible tool call).
-- "—" = not applicable; "never" + (i) = not allowed, with the reason ("No established mechanism
-  links SpO2 to your plan, so it's shown and trended only.").
-- Columns 2–4 are disabled while "bring in" is off. When a device is turned on, the recommended
-  cells (bring in, scores and plan for eligible streams) are **marked as suggested** (hollow
-  indicator dot) but nothing is stored until the person presses **Use recommended** or sets cells
-  one by one. **Use recommended** is the shared ring default (plan item 11, `ringDefaultPolicy`): every
-  stream in, scores and plan on where the engine can use the stream, the Coach sees **daily + detail**.
-  There is no separate Coach key; the switches stay, here and in Settings › Devices and streams.
-- Mobile (< 768): one row per stream as a block: name + "bring in" Switch on line 1, the other
-  three controls stacked under a hairline.
-- Every change is a UI-only consent command; nothing here is reachable by the Coach.
+### 13.15 Stream matrix `<StreamMatrix>` — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
 ### 13.16 Sync pill `<SyncPill>`
 24 h chip in the context bar (desktop) / 32 px icon key in the top bar (mobile). Glyph + text:
@@ -1070,7 +1100,7 @@ Where it applies (E21 for the ladder, E23 for the sweep):
 | Today checklist (PrescriptionRow) | the row's chevron area / row button opening the row sheet | time column, tick key (Key states) |
 | Food meals, groceries | recipe row opening the recipe sheet | target lines, grocery rows (checkbox is the control) |
 | Train items | session item row opening its detail | equivalence meter |
-| Progress tiles (ScoreTile, metric rows) | tiles that link to a metric page | static readouts |
+| Progress metric rows | rows that link to a metric page | static readouts |
 | DataTable rows (§12) | keep `--lm-face-hover` (replaces "ink @ 4 %") only when the row opens detail | otherwise none |
 
 ### 14.2 Answered list `<AnsweredList>` and answer row `<AnswerRow>`
@@ -1121,8 +1151,9 @@ sits inside the panel the same way.
   choice still commits on press and advances after 240 ms; Next then means "keep this answer".
 - **Change mode** (opened from a row): header line "changing an answer", footer **Cancel** (quiet,
   left) · **Save** (solid, right); no Ask me later. Esc = Cancel.
-- **Optional mode** (pickers that are optional, B0): the later key reads "Skip this list" / "No,
-  skip this chapter" and records "skipped by choice" (not asked later).
+- **Optional mode** (questions that are optional, B0): the later key reads "No, skip this chapter"
+  and records "skipped by choice" (not asked later). An optional picker (pantry) has no key of its
+  own: an empty list answered with Next is the choice ("skipped, by choice").
 - States: unanswered (Next `aria-disabled` with reason "Choose an answer first") · answered
   (pressed key / filled fields, Next enabled) · saving (Next spinner) · error (InlineWarning danger
   above the footer, focus moves to it) · loading (3 skeleton lines).
@@ -1193,8 +1224,12 @@ Container query on the row (`container-type: inline-size`), so it fits any colum
 - **Paste a list**: disclosure with a textarea (4 rows) + "Read the list"; result preview: "14
   matched · 3 kept as written" with each line ticked, then **Add 17 items**. With a provider the Coach
   parses it; without one, lines and commas are split and matched by name.
-- **Counts**: header total, per-group "n of N"; the question card's Done shows the total "Done (42)".
-- **Optional** (pantry): the card's footer has "Skip this list"; the picker shows no "required" marks.
+- **Counts**: header total, per-group "n of N" and the "N selected" line. In the intake the picker
+  draws no footer or Done key: it registers its save with the card (`CommitKey`), so the step's one
+  docked Next (Save when changing) writes the list and moves on; a failed write keeps the turn open.
+- **Optional** (pantry): no key of its own. Next with an empty list (nothing ticked, or "Clear
+  defaults" first) records "skipped, by choice"; the card's Skip still means "ask later". The
+  picker shows no "required" marks.
 - States: empty (no defaults for the region: note "No defaults for your region; pick what you have")
   · loading catalogue (skeleton chips) · error ("Couldn't load the list. Try again.") · saving.
 - Places: intake F5/F7/F7b/F7c; **Settings › Kitchen** (four Faceplates: Equipment · Cuisines ·
@@ -1235,10 +1270,10 @@ Chip `status` with text, low = dashed outline. Status text: "in range" ink-2, "a
 - [ ] Picker: search filters across groups; counts update; dashed outline on region defaults; notes show on chips; paste-a-list previews before adding.
 - [ ] BecauseChip readable in both themes, opens its popover with keyboard, short form at narrow widths.
 
-## 15. Batch 03 primitives (server, pairing, ring over MQTT, corrections)
+## 15. Batch 03 primitives (server, pairing)
 
-Specs that use these: `screens/server.md`, `screens/settings-sync-ai.md §13`,
-`screens/settings-data.md §11`. No new colour tokens: everything uses the faceplate, well, key,
+Specs that use these: `screens/server.md`, `screens/settings-sync-ai.md §13`. (The MQTT and
+correction primitives were removed in 0.6.0, when Vitals became manual-only.) No new colour tokens: everything uses the faceplate, well, key,
 ink and severity tokens of §1–§3 in both themes. Where §15 and an older entry disagree, §15 wins.
 
 ### 15.1 Pairing code field `<PairingCodeField>` (with QR entry)
@@ -1265,22 +1300,21 @@ ink and severity tokens of §1–§3 in both themes. Where §15 and an older ent
 - A11y: `role="group"` labelled "pairing code"; inputs named "first 4 characters" / "last 4
   characters"; errors announced politely.
 
-### 15.2 Shown-once block `<ShownOnce>` (codes, keys and credentials)
+### 15.2 Shown-once block `<ShownOnce>` (codes and keys)
 ```
  ┌───────────────────────────────────────────────────────────┐ inside a Faceplate: hairline frame,
  │ ⬣ Shown once. Copy it now: Vitals doesn't keep a readable │ no box shadow (not a nested card)
  │   copy. If you lose it, make a new one.                   │ caution mark + 13/500 ink
  │ ───────────────────────────────────────────────────────── │
- │ username   p1-lumen                          [Copy]       │ rows 44 h, value 15 tabular
- │ password   q8V…(24 chars)…Lm                 [Copy]       │ full value shown, wraps by character
- │ [Copy all]                                                │
- │ ☐ I've saved this  (variant credentials / key)            │
+ │ key        q8V…(32 chars)…Lm                 [Copy]       │ row 44 h, value 15 tabular; full
+ │                                                           │ value shown, wraps by character
+ │ ☐ I've saved this  (variant key)                          │
  │ [Done]  (enabled when ticked)                             │
  └───────────────────────────────────────────────────────────┘
 ```
 - Variants: `code` (a pairing code with QR and an expiry countdown, no tick box; closes itself when
-  used) · `key` (one agent key + recipe lines, each with Copy) · `credentials` (several values +
-  Copy all + tick box).
+  used) · `key` (one agent key + recipe lines, each with Copy, + tick box). (A `credentials`
+  variant for the MQTT card was removed in 0.6.0.)
 - Values are in a Well, 15/400 tabular, `user-select: all`, `word-break: break-all` so long values
   wrap at 390 px instead of overflowing.
 - Copy keys show "Copied" for 2 s (live region, polite); the clipboard is not cleared by Vitals
@@ -1303,35 +1337,656 @@ top bar (mobile), glyph + word, never colour alone. Replaces the sync pill when 
 | removed (token revoked) | danger mark | "pair again" | danger red glyph |
 | needs update | caution mark | "update server" | caution amber glyph |
 
-Small variant (state chips inside rows, e.g. provider rows and the MQTT card): 20 h, 12/500 text,
-glyph 12, no popover. Row words use the same set plus row-specific words ("signed in", "key set",
-"connected", "waiting", "never connected", "refused").
+Small variant (state chips inside rows, e.g. provider rows): 20 h, 12/500 text, glyph 12, no
+popover. Row words use the same set plus row-specific words ("signed in", "key set").
 Click (full pill) → Popover: state line, last sync, waiting changes, server name and host, **Check
 now** / **Sync now**, "Server settings". Spinner stops with reduced motion (static arc).
 
-### 15.4 Corrected-record marker `<CorrectedMarker>` and fed-by line `<FedBy>`
-```
- 6 h 0 min
- ✎ you corrected this · Undo           ← 12 px pencil glyph, 12/500 ink-2; Undo = quiet key (44 hit)
-   ring said 7 h 40 min                ← 12/400 ink-3, optional (Progress; popover on Today)
-
- fed by your ring · last 07:12  [Correct]     ← FedBy: 12/500 ink-2 + quiet key
-```
-- CorrectedMarker sits directly under the value it marks, never in a separate column; the value
-  itself is unchanged in style (the person's value is the value).
-- In charts: the corrected point is a hollow dot (1.5 px ring in the series colour, `--lm-face`
-  fill); the tooltip carries the marker text. No dashed segment (dashes mean something else).
-- Short form under 280 px: "✎ corrected · Undo".
-- FedBy replaces any manual log affordance for a device-fed stream; its Correct key opens the
-  correction sheet. Kinds: "your ring", "your watch", "your scale", or the device's name.
-- A11y: marker is text ("you corrected this; ring said 7 hours 40 minutes"); Undo named "Undo
-  correction of sleep on 2 October"; FedBy's key named "Correct sleep".
+### 15.4 Corrected-record marker `<CorrectedMarker>` and fed-by line `<FedBy>` — removed in 0.6.0 (manual-only; ring data lives in [Gauge](https://github.com/patalbansishashank/Gauge))
 
 ### 15.5 Acceptance checklist (components)
 - [ ] PairingCodeField: auto-advance, paste of code or link fills both groups, errors linked and announced, Scan QR fills and submits; 48/56 h; readable at 390.
 - [ ] Pairing QR is black on white with a quiet zone in both themes and scans from another phone.
-- [ ] ShownOnce: three variants; long values wrap at 390 without overflow; Copy and Copy all confirm politely; after Done only the masked line remains; never in exports or Coach context.
+- [ ] ShownOnce: two variants; long values wrap at 390 without overflow; Copy confirms politely; after Done only the masked line remains; never in exports or Coach context.
 - [ ] ServerPill: six states with glyph + word; small variant inside rows; popover keyboard-reachable; reduced motion stops the spinner.
-- [ ] CorrectedMarker: under the value, Undo works, "ring said" line on Progress, hollow chart dot with tooltip, short form under 280 px.
-- [ ] FedBy replaces manual logging for device-fed streams; never a disabled log key.
-- [ ] All four in light and dark: text ≥ 4.5:1, glyphs and hollow dot ≥ 3:1 on `--lm-face`.
+- [ ] All three in light and dark: text ≥ 4.5:1, glyphs ≥ 3:1 on `--lm-face`.
+
+---
+
+## 16. Domain card recipe (r071)
+
+A card says what it shows with its domain, not how much of it there is. The values are tokens, not a table here: the hues
+are `design/tokens.css` §5, the glow's position, size and strength §15, the motion §16. The CSS is `src/styles/components.css`
+("the card", "domain wiring", "the glow"), and `src/styles/__tests__/tokens.test.ts` pins it. Specimens: `/dev/components` ›
+Material and › Cards.
+
+There is ONE recipe. `Faceplate` (`.lm-face`), `.lm-material`, `.lm-card` and `GradientCard` (`.lm-material` plus the layout
+class `lm-gcard`, §18.1) draw the same material and take the same domain wiring and the same glow, declared once in
+`components.css`. `src/components/card.css` only lays a `GradientCard` out (head, body, foot, the open link) and moves its
+glow (`data-glow`, `data-reveal`): it declares no role variable, no glow size or alpha and no gradient, and the one glow input it sets is
+`--lm-glow-pos`. `src/components/domain.css` and `foundation-fallback.css` no longer exist, and
+`src/components/__tests__/r071Css.test.ts` fails if a second copy of the wiring or the glow appears. `Faceplate` stays the
+plain titled card for sections, forms and tools; `GradientCard` adds the icon · title · (i) head, the foot, the whole-card
+open target and the glow's fade-in.
+
+**Opt in.** `data-domain="energy"` on a `Faceplate`, `.lm-material` or `.lm-card`, or `<GradientCard domain="energy">`, which
+sets it. A picture or a number takes `data-hue` (its `hue` prop) for the same variables. The domains are the eight of the
+wheel, in its fixed order: `heart`, `energy`, `food`, `steps`, `recovery`, `body`, `sleep`, `videos`; plus `plan` (alias `gold`
+for `data-domain`) for the Next-up card. `neutral`, or no attribute, is the default card (the gold wash, no glow). In
+TypeScript, `Domain` (`src/components/domain.ts`) is the eight names plus `plan` and `neutral`; `DomainName` is
+`Exclude<Domain, 'neutral'>` (what `Chip`, `Swatch` and `DateControl` take); `domainToken(domain, role)` is the CSS colour of
+one role (`solid`, `ink`, `deep` or `dim`); and `domainColor(domain)` (`src/components/Chip.tsx`) is the solid of
+`domainToken`. The Android widgets' palette (the eight hues with their four steps, each card's glow, the card corner) is
+generated from the real `--lm-hue-*` and `--lm-glow-*` tokens by `pnpm android:design` (`scripts/android-design.mjs`):
+after changing one, run it and commit the result (`src/styles/__tests__/androidDesign.test.ts` fails otherwise).
+
+| Domain | Covers |
+|---|---|
+| `heart` | heart rate, zones, Heart Points, blood oxygen |
+| `energy` | energy burned and balance, kcal, the fast |
+| `food` | eaten, macros, meals, groceries, pantry |
+| `steps` | steps, distance, activity, workouts, Train |
+| `recovery` | HRV, stress, skin temperature, the recovery and day scores |
+| `body` | weight, composition, girths, blood markers |
+| `sleep` | sleep, stages, bedtime |
+| `videos` | short videos (the library only) |
+| `plan` / `gold` | Next up, plan rows, adherence, goals, check-ins |
+
+**Variables it sets**, on any element that carries `data-domain` or `data-hue`, for itself and its descendants: `--lm-hue` (the
+solid: a card icon, today's bar, in-range ticks, a status dot), `--lm-ink-h` (the soft ink tint: units, mono meta, the footer
+state word), `--lm-deep` (the glow core: never a mark, never text), `--lm-dim` (the unlit remainder of a track, a gauge or a tick
+row), `--lm-tone-2` (the secondary text colour on that card: the ink tint mixed 62 % into stone, which a `HeroNumber`'s unit and
+`MonoMeta tone="hue"` read), and the domain's `--lm-glow-pos`, `--lm-glow-size` and `--lm-glow-a`. `plan` sets `--lm-hue` to gold
+(`--lm-signal`), `--lm-ink-h` to ivory, `--lm-deep` to `--lm-hue-gold-deep`, `--lm-dim` to `--lm-unlit` and `--lm-tone-2` to
+stone. `data-domain="neutral"` sets `--lm-hue` to stone (`--lm-ink-2`), `--lm-ink-h` to ivory, `--lm-deep` to the card colour,
+`--lm-dim` to `--lm-unlit` and `--lm-tone-2` to stone; with no attribute nothing is set and the new pictures fall back to the
+same stone and ivory (`--lmz-*` in `viz-base.css`). A control that is not a card (the date row; `DateControl domain`) takes the
+attribute for the variables only: the glow needs the card classes.
+
+**The glow.** One `radial-gradient(in oklab ellipse <size> at <pos>, …)` of `--lm-deep` in five eased stops, alpha 1, .84,
+.50, .16 and 0 (each times the card's core alpha and `--lm-glow-k`) at 0, 20, 42, 64 and 86 %, over the card's grain tile
+(`--lm-grain-card`, fixed to the viewport) over `--lm-face`. The position, size and core alpha of each domain are tokens:
+`--lm-glow-<domain>-pos`, `-size` and `-a`.
+- One gradient layer: never a second one on the card (two read as a woven grid) and never a gradient on an inner element.
+  The card hairline keeps the default `border-box` clip, so the glow tints the edge where it meets it.
+- Never animated: it fades in once over `--lm-dur-glow` (900 ms) through the registered `@property --lm-glow-k`.
+  On a plain `Faceplate` or `.lm-material`, `data-glow="pending"` holds it at 0 (remove the attribute to fade it in) and
+  `data-glow="off"` is 0 with no transition. `GradientCard` holds it with `data-reveal="pending"` until the card is 20 % in
+  view (its `animate` prop, default true; `card.css`) and switches it off with `data-glow="none"`; its `glow` prop moves the
+  glow without resizing it, through `data-glow` (`card.css`: `tl` 0% 0%, `tr` 100% 0%, `bl` 0% 100%, `br` 100% 100%,
+  `bottom` 50% 112%), and an object `{ pos, size, a }` (`data-glow="custom"`) sets the three inputs inline.
+- Anchored away from small text: no small stone text and no solid-coloured mark in the core zone, and pale stone
+  (`--lm-ink-3`) never on a glow. Ivory text and ivory marks are safe everywhere (measured at least 5.1:1 at every glow's
+  brightest point).
+- `--lm-glow-k` (0 to 1) scales or switches off every glow; there is no user setting (SPEC Q6).
+- Behind `@supports`: an engine without `in oklab` or `color-mix()` keeps the plain card.
+- Never on a banner (`Notice`), an inset well (`data-variant="inset"`) or a control.
+
+**Marks on a glow.** Focal marks (a line, its end point, lit ticks, a thumb) are ivory; the hue lives in the glow and in the
+secondary marks (`--lm-hue`, `--lm-ink-h`, `--lm-dim`). Text never wears the solid. The eight hues are never plotted
+together (all pairs fail the colour-vision gates, by design): a chart that needs several series uses a derived set
+(`--lm-stage-*`, `--lm-intensity-*`, `--lm-hr-zone-1…5`, `--lm-macro-*`) or the category palette. One hero number per card,
+with its unit small and muted beside it; facts in mono caps.
+
+---
+
+## 17. Picture motion hooks (r071)
+
+`src/app/motion.ts`, beside the page entrance (`usePageEntrance`, `useEnter`, `enter`). Tests:
+`src/app/__tests__/motionHooks.test.tsx`. Durations come from the motion tokens in `design/tokens.css` §16 (the `MOTION`
+constant mirrors them in ms, `EASE_OUT` is `--lm-ease-out` and `EASE_NEEDLE` is `--lm-ease-needle`; `tokens.test.ts` pins
+both). The components that use the hooks are built (§18 to §20) and keep no motion code of their own. `@/components` still
+exports `useReveal({ animate, threshold })` (`[ref, pending]`), `useMotionEnabled(animate)`, `useCountUp(target, { enabled,
+active, from, duration, updateDuration })` and `canAnimate()`, which the pictures and the page code call: they are thin
+wrappers over `useInView`, `useCountUp` and `motionAllowed()` here (`src/components/lib/reveal.ts`, `lib/motion.ts`; test:
+`src/components/__tests__/reveal.test.tsx`), so there is one implementation.
+
+| Hook | What it does | Returns | Used by |
+|---|---|---|---|
+| `useInView(ref, { once, threshold })` | true once 20 % of the element shows (`once: true`, `threshold: 0.2` by default); true at once where motion cannot run | boolean | `GradientCard` (the glow's first view), `HeroNumber`, and every picture that animates: `RadialTicks`, `DottedTrack`, `HighlightBars`, `GlowLine`, `RangeScale`, `StackBar`, `WindowBar`, `Hypnogram`, `StateStrip`, `ShareBar` |
+| `useCountUp(value, { from, duration, updateDuration, start, reserve })` | 0 → `value` in 1100 ms expo-out on the first start; from the shown value in 400 ms when `value` changes | number (or `null` for no value) | `HeroNumber` |
+| `useSweep(count, { stagger, start })` | how many of `count` ticks are lit while a gauge sweeps, one per 14 ms | integer | no component (the gallery's motion demo) |
+| `useDrawIn(ref, { mode: 'clip' \| 'dash', duration, delay, start })` | a line draws left to right in 1200 ms: a `clip-path` reveal of the element, or `stroke-dashoffset` on an SVG path | void | no component (the gallery's motion demo) |
+| `useGrow(ref, { selector, axis, stagger, duration, start })` | bars scale from their baseline (`axis: 'y'`) or a stacked segment from its left (`'x'`), 700 ms, 60 ms apart | void | no component (the gallery's motion demo) |
+| `usePulse(times)` | true for `times` (default 2) pulses of 2.4 s from the first render, then false for good (a mark that must pulse again remounts with a new `key`) | boolean | no component (the gallery's motion demo) |
+| `useFlip(ref, key, { selector, duration })` | children (`[data-flip]`) slide from where they were to where they are when `key` changes, 280 ms on `--lm-ease-needle`. Places are measured against `ref`'s own box, so scrolling the page is not a move, and measured again when the box or a child is resized; a new slide starts from where a still-running one had the child | void | `CardGrid`, `CardLibrary` |
+| `fadeCue(el)` | the 100 ms cross-fade a state change gets under reduced motion instead of a move | void | `CardGrid` (a card added) |
+
+`enter(elements)` (the page entrance's rise and fade: 10 px, 420 ms) also serves `CardGrid`, for a card added after mount.
+The pictures do not call `useSweep`, `useDrawIn`, `useGrow` or `usePulse`: each sets `data-reveal="pending"` on its root
+while its `animate` prop is on and it is not yet in view (`useInView`), its stylesheet holds the hidden values and the
+transitions, and removing the attribute is the animation (§19). Where motion cannot run the attribute is never set, so the
+final markup is the static markup; `fakeMotion()` in `src/components/viz/__tests__/motionHelpers.ts` lets a test exercise
+both paths.
+
+`usePulse` feeds the live mark: `.lm-live` (`components.css`) is a 10 px ivory dot with two thin rings; put `pulsing` in
+`data-pulse` and the rings pulse twice (`--lm-pulse-cycles`, 2.4 s each: 4.8 s, under WCAG 2.2.2's five seconds), then stop.
+The mark never loops; a breathing status dot exists only while a real process runs. `.lm-meta` and `.lm-num-prop` are
+the mono-caps and proportional-figures classes the same pictures use.
+
+Shared rules:
+- State, not decoration. Every hook has a final frame that is the real content, and `motionAllowed()` false (jsdom,
+  `prefers-reduced-motion`, Settings › Motion "reduce") makes every hook return that final state on the first render:
+  `useInView` true, `useCountUp` the value, `useSweep` the count, `usePulse` not pulsing, the others do nothing.
+- Animate only `transform`, `opacity`, `clip-path`, `stroke-dashoffset` and the registered `--lm-glow-k` (a picture's
+  stylesheet may also move stroke and fill colours); never a layout property, never a gradient. Simple reveals use the Web
+  Animations API (`fill: backwards`), so a picture works without GSAP.
+- Start when 20 % in view, once per mount. A value that changes after a log re-animates from the old value to the new, not
+  from zero.
+- Width is reserved before a count-up (`HeroNumber` holds it with an invisible copy of the final string; a caller of
+  `useCountUp` sets a `min-width`; proportional figures for heroes, tabular for clocks and tables), so the unit never
+  moves; the element carries an `aria-label` with the final value and the animating digits are `aria-hidden`.
+- Tokens: `--lm-dur-count` 1100, `--lm-dur-draw` 1200, `--lm-dur-glow` 900, `--lm-dur-bars` 700, `--lm-dur-fill` 900,
+  `--lm-stagger-tick` 14, `--lm-stagger-bar` 60, `--lm-pulse-cycles` 2, `--lm-dur-spring` 320, `--lm-dur-exit` 220,
+  `--lm-dur-glide` 280, `--lm-ease-in`, `--lm-ease-spring` (AUDIT aliases: `--lm-dur-tick`, `--lm-dur-grow`,
+  `--lm-ease-expo-out`). Under reduced motion the durations drop to 0.01 ms, the staggers to 0 and `--lm-pulse-cycles` to 0.
+
+---
+
+## 18. Card components (r071)
+
+The card, its head, foot and panel, and the numbers and facts that sit in them. All are exported from `@/components`.
+Styles: `src/components/{card,infopanel,hero,mono,status}.css` (`@layer components`, tokens only, each with a forced-colours
+block; `src/components/__tests__/r071Css.test.ts` pins them). Specimens: `/dev/components` › Cards. The rules of every
+card: one hero number, its unit small and muted beside it; facts in mono caps; one glow in the card's domain hue (§16);
+ivory text and marks on the glow, small stone text and solid marks out of its core; gold only for the action, the
+selection and the moment; no card inside a card.
+
+### 18.1 Card `<GradientCard>`
+The metric card (`GradientCard.tsx`, `card.css`). It renders `<article class="lm-material lm-gcard">` (`as`: `article`,
+the default, `section`, `li` or `div`): the material of §16, so a `Faceplate` with `data-domain` and a `GradientCard` look
+alike. What it adds is the icon · title · (i) head, the foot, one whole-card open target and the glow's fade-in on first
+view. `Faceplate` (§0) stays the plain titled card (title, fact caption, actions, footer) for sections, forms, tools and
+every page that is not a metric card, and its markup does not change.
+```
+<GradientCard domain="sleep" size="card"
+  head={<CardHead icon={Moon} title="Sleep" info={…} />}
+  foot={<CardFoot state={{ word: 'Goal met' }} right="Goal 7 h 30" />}>
+  <HeroNumber parts={[{ value: 7, unit: 'h' }, { value: 56, unit: 'm' }]} size="num-l" label="7 hours 56 minutes" />
+  <MonoMeta tone="hue">23:12 – 07:08</MonoMeta>
+</GradientCard>
+```
+- Anatomy: `head` · `<div class="lm-gcard__body">` holding the children (a column, 12 px apart; absent when there are none) ·
+  `foot`. A flex column with padding `--lm-card-pad` (18, 24 from 1024), radius `--lm-card-radius` (20), a 0.5 px `--lm-line`
+  hairline, no shadow. `card.css` spaces the three parts itself; it does not read `--lm-card-inner-gap`.
+- Props:
+
+  | Prop | Meaning |
+  |---|---|
+  | `domain` | a `Domain`, default `neutral` (the gold-wash card, no glow). Sets `data-domain`, so every picture and number inside wears the card's hue without a prop |
+  | `glow` | `tl`, `tr`, `bl`, `br`, `bottom`, `none`, or `{ pos, size, a }` (exact position, size and core alpha). It moves the glow and never resizes it; a glow encodes the domain, never the value |
+  | `size` | `hero`, `card` (default), `tile` or `slim` (a `CardSize`, the word `CardGrid` reads). `hero` and `slim` fill a row, `card` is half a row from 1024, `tile` a quarter. `slim` lays the card out as one row (a round key, the words, a time: 14 px apart, padding 14 20 14 14) |
+  | `variant` | `plain` (default) · `inset` (a flat `--lm-well` card, no glow) · `flush` (no padding, for a chart or raster that bleeds) |
+  | `head`, `foot` | a `CardHead` and a `CardFoot`; nothing else belongs in either slot |
+  | `href` or `onOpen`, `openLabel` | the card's one open target (below); `openLabel` is the accessible name when "{title}" is not enough |
+  | `animate` | default true: the glow fades in once at 20 % in view (900 ms). False, reduced motion and tests draw it at once |
+  | any `<article>` attribute | passes through (`aria-label`, `id`, `className`, `style`, `data-*`) |
+- States: `data-reveal="pending"` while the glow waits for its first view (`animate` and not yet 20 % in view, so never
+  where motion cannot run), `data-glow="tl|tr|bl|br|bottom|none|custom"` for the position or off (`tl` 0% 0%, `tr` 100% 0%, `bl` 0% 100%, `br` 100% 100%, `bottom` 50% 112%; an object sets all three glow
+  inputs inline and is `custom`). Also `data-domain`, `data-size`, `data-variant`, `data-open` (with an open target) and
+  `data-enter` (the card rides the page entrance: `src/components/README.md` §0, Motion).
+- Open target: with `href` the title is a router link, with `onOpen` a button; either way its `::after` stretches over the
+  whole card (the card's radius), so the card is one target, and the (i), keys, links and fields sit above it. Hover
+  (hover-capable pointers) tints the card 4 % ivory; focus-visible draws the 2 px `--lm-focus` ring inside the card edge.
+- Keyboard: `T`, with focus inside the card (not in an input, textarea, select, editable field, dialog or aside) and a
+  Table twin in the head's `InfoSpec`, opens the (i) panel at the table. Ctrl, Meta and Alt combinations do nothing.
+- A11y: a card with a head is labelled by its title (`aria-labelledby` the heading) unless an `aria-label` is passed.
+  Forced colours: a 1 px `CanvasText` border on `Canvas`.
+- Tokens: `--lm-card-pad`, `--lm-card-radius`, `--lm-hairline`, `--lm-line`, `--lm-well` (inset), `--lm-focus`, and the
+  glow's inputs and role variables of §16.
+- Tests: `src/components/__tests__/cards.test.tsx`, `r071Css.test.ts`.
+
+### 18.2 Card head `<CardHead>` and the (i) key `<InfoKey>`
+`CardHead.tsx`. An icon in the domain's hue, the title and, at the right, the (i). Nothing else belongs in a head: no
+Details, Open or Table key (the foot carries the one navigation, the (i) panel the table).
+- Anatomy: `<header class="lm-cardhead">`, a row 6 px apart and at least `--lm-info-size` high: the icon (18 px, `--lm-hue`,
+  decorative) · the title (an `h3`; `as` gives `h2`; one line with an ellipsis, `--lm-text-card`: 15/20 at 600, 16/22
+  from 1024, Geist, with the full title as its `title` attribute) · `meta` (optional: a `MonoMeta` pushed to the right for
+  a live fact such as LIVE or REC) · the (i). In a card with an open target the title text is the stretched link or button.
+- Props: `icon` (an icon component), `title`, `info` (an `InfoSpec`; without it the head has no (i)), `meta`, `as`.
+- The (i) is `InfoKey` (`label`, `onClick`, `expanded`): a `<button class="lm-info">`, a 24 px footprint (`--lm-info-size`)
+  with a 48 px hit area (`--lm-info-hit`) drawn by a pseudo-element. At rest the surface and edge are transparent;
+  hover/focus uses `--lm-info-key-bg-hover` (7 % ivory) and an optional hairline. The 14 px Lucide
+  `Info` in stone (ivory on hover), press scale .94, the 2 px gold focus ring at 2 px. It is named "About {title}",
+  has `aria-haspopup="dialog"` and `aria-expanded` while its panel is open.
+- Tokens: the (i) reads its own `--lm-info-key-*`. `--lm-info-fg/-bg/-edge/-mark` are the "info" severity's (a notice) and
+  are not read here; `tokens.test.ts` fails if a token is declared twice and pins the (i)'s values.
+- Tests: `cards.test.tsx`, `src/styles/__tests__/tokens.test.ts`.
+
+### 18.3 Info panel `<InfoPanel>` and `InfoSpec`
+What the (i) opens (`InfoPanel.tsx`, `infopanel.css`). A `ResponsivePanel` (§10): a bottom sheet below 1024 px, a 392 px
+side panel from it, always overlaying without changing the page width; so it springs in, restores focus and leaves like
+every panel. It commits nothing, so its one way out is the ✕ (the One Way Out Rule). A foot action ("Remove from Today",
+"Add as widget") is allowed, a commit never.
+- `InfoSpec`, what a page passes as `info`:
+  - `title`: default the card's title (22/26, -0.015em);
+  - `body`: a string, a node, or sections `{ heading?, body }`; the reading text: plain, second person, 25 to 60 words,
+    `--lm-text-read` (15/23, 16/24 from 1024) at 400, at most 62ch;
+  - `source`: `{ kind, words? }`, kind `ring`, `phone`, `estimate`, `logged`, `plan` or `engine`, said as "Your ring", "Your
+    phone", "An estimate", "What you logged", "Your plan", "The Vitals engine" and then `words` (`sourceText`);
+  - `range`: a node (a band table, a sentence); `terms`: `{ term, text }[]`, the old per-value popovers;
+  - `evidence`: one or several `{ to, label, grade? }` links to `/evidence` pages (48 px rows with the grade badge and a
+    chevron; following one closes the panel);
+  - `explain`: the existing Explain content as a node; this layer never imports features, so the page passes
+    `<ExplainBody metricId=… />`;
+  - `twin`: `<ChartTwin data={…} />`, the picture's Table twin (§19); `footer`: the foot action.
+- Order: the reading text · "Where this comes from" · "Range" (mono labels, stone body text) · terms · evidence · explain ·
+  "Data table". `section="twin"` opens the panel scrolled to the table with its scroll region focused; the card's `T` key
+  asks for it.
+- Tests: `cards.test.tsx` (a named dialog trigger, one way out).
+
+### 18.4 Card foot `<CardFoot>` and state word `<StateWord>`
+`CardFoot.tsx`. On a `GradientCard` it takes the place of the Faceplate footer and of the fact lines ("Goal met",
+"Excellent"); it renders nothing when it has nothing.
+- `CardFoot`: `state` (`{ word, icon?, tone? }`, left) · `children` (the card's one control: a `KeyBank` or one key) · `link`
+  (`{ to | onClick, label }`: the card's one navigation, a small text key) · `right` (the range or goal, mono caps, at the
+  right edge) · `tone` (`hue`, default, tints it with the card's domain; `ink` is ivory, for a foot in a glow's core, such
+  as a bottom glow). Complete facts never wrap: textual facts use `OverflowText`. Measurements determine when separate
+  facts must stack (8 px, 12 px apart); the second row then aligns left with the first.
+- `StateWord` (`word`, `icon`, `tone`, `ink`): a mark and a word in mono caps. The mark is a 6 px dot in `--lm-hue` or a
+  14 px `icon`; `tone` `neutral | caution | danger` takes `--lm-caution-mark` or `--lm-danger-mark` for the mark. The word
+  is always there: a state is never colour alone.
+- Tests: `cards.test.tsx`.
+
+### 18.5 Hero number `<HeroNumber>`
+`HeroNumber.tsx`, `hero.css`. The one big number of a card, and the one number component: a `Readout` draws its figure
+and unit with it (§6).
+- Sizes (the numeral role tokens, `--lm-text-<role>` with `--lh`, `--ls`, `--wt`, `--font`): `hero` 64 (88 from 1024) ·
+  `num-l` 52 (64) · `num` 44 (52), Geist 300, line 1, -0.035em, proportional figures · `time` 36, 300, tabular (a clock) ·
+  `stat` 15/20 at 500, tabular (a secondary figure). `numerals` (`proportional | tabular`) defaults from the size. The
+  weight 300 comes only from these role tokens.
+- `value`: a number, a string ("16:30", "Weigh in": drawn as it is) or `null` (a dash). `format` and `decimals` make the
+  text; `parts` (`{ value, unit? }[]`) draws "7 h 56" with each piece counting on its own; `unit` sits 4 px after the
+  digits (6 px when it is the only part) in `--lm-text-unit` (15 px, 400) and `--lm-tone-2`, or under them with
+  `unitPlacement="below"`; `range` (a string, or a pair that reads "Likely lo–hi") is the likely range under the number,
+  in mono caps, and is required for an estimate; `hue` tints the unit and the range (the card's own domain is usually
+  enough).
+- Motion: a number counts up from 0 over 1100 ms (expo-out) on first view and from the shown value over 400 ms on a
+  change (`useCountUp`, started by `useInView`); on by default for `hero`, `num-l` and `num`, set with `countUp`
+  (`false`, or `{ from, duration }`). While it counts, the final text holds the width in an invisible twin, so the unit
+  never moves, and the unit and range wait for the first view (`data-reveal="pending"`, then a 400 ms fade after 500 and
+  700 ms). A string of a `time` figure, or any figure with `roll`, rolls the digits that changed and never counts: a
+  live readout (`RollingNumber`, in its own module `src/components/RollingNumber.tsx` and still exported from
+  `@/components`, draws the rolling digits). `animate={false}`, reduced motion and tests draw the final number at once, and
+  the settled markup is exactly the static one.
+- Quiet: `quietWord` replaces every digit with a word (the display face at 400, half the size, at least 24 px); `null`
+  draws nothing at all.
+- A11y: the root is `role="img"` with `label`, the final spoken value ("1,096 kilocalories"); the digits and the unit are
+  `aria-hidden`, so no one hears 0 to 1,096.
+- Tests: `cards.test.tsx`, `readoutHero.test.tsx`, `src/app/__tests__/motionHooks.test.tsx`.
+
+### 18.6 Mono meta `<MonoMeta>` and status dot `<StatusDot>`
+- `MonoMeta` (`MonoMeta.tsx`, `mono.css`): a fact in mono caps (Geist Mono 500, `--lm-text-meta` 11/14, 12/16 from 1024,
+  +0.08em), uppercase drawn by CSS so the DOM stays sentence case. Plain text and all-text `items` (joined with " · ")
+  form one bounded `OverflowText`; complex JSX remains structured. Overflowing text loops continuously, pauses on
+  hover/focus or offscreen/hidden, and exposes manual horizontal scrolling under reduced motion or keyboard focus;
+  `tone` `muted` (stone, default), `ink` (ivory) or `hue` (`--lm-tone-2`, the card's tint); `size="sm"` stays 11 px; `as`
+  `span | p | div`. Only for facts (a date, a range, a unit, a state, a legend label, a time, a tick), never above a
+  heading, never a sentence. It is meant to replace `.lm-fact`, `Engraved` and the Faceplate caption, which still exist.
+  `mono.css` is the one card, picture or layout stylesheet that declares uppercase.
+- `StatusDot` (`StatusDot.tsx`, `status.css`): a 6 px dot and its word in mono caps, meant to replace the
+  `.settings-status` chips and the breathing dots, which still exist. `tone` `live` (gold, "now") · `ok` · `caution` ·
+  `danger` (the severity marks `--lm-ok-mark` …) · `neutral` (`--lm-ink-3`); `label` is the word (a status is a mark plus a
+  word); `hideLabel` keeps it for assistive technology only. `pulse` breathes the dot (opacity 1 to 0.35, 1.1 s,
+  alternating) and is for a real running process only (a recording, a fast); it does not breathe under reduced motion.
+  Forced colours draw the dot in `CanvasText`.
+- Tests: `cards.test.tsx`, `r071Css.test.ts`.
+
+---
+
+## 19. Pictures (r071)
+
+Data drawn small, in the card's hue. Seven are new (`RadialTicks`, `DottedTrack`, `HighlightBars`, `GlowLine`,
+`RangeScale`, `StackBar`, `WindowBar`) and five are restyled in place (`Hypnogram`, `StateStrip`, `Stat`, `ShareBar`,
+`TwinTable`). Specimens: `/dev/components` › Ticks, tracks and bars · Lines, scales, stacks, windows · Restyled pictures.
+The older `TickStrip`, `DotFill`, `OvernightTrace`, `LevelBar`, `ArcRuler` and `DayDisc` stay until the pages that draw
+them move; each new picture's entry says what it replaces.
+
+The contract of the seven new pictures (`src/components/viz/__tests__/contract.test.tsx`):
+- Props: `hue` (sets `data-hue`, overriding the card's domain for this picture; without it a picture inside a card wears
+  the card's), `animate` (default true), `quiet`, `twin`, `className`, and a name (`label`, `name` on `HighlightBars`) that
+  is the first words of its sentence. `StackBar` and `WindowBar` take `hue` too, but nothing in them reads it: a stack's
+  parts carry their own token colours and a window is ivory and stone.
+- Exports, all from `@/components`: the component, its pure model (`radialModel`, `trackModel`, `barsModel`, `lineModel`,
+  `scaleModel`, `stackModel`, `windowModel`), its `spoken…` sentence (`spokenRadial`, `spokenTrack`, `spokenBars`,
+  `spokenLine`, `spokenRange`, `spokenStack`, `spokenWindow`) and its `…Twin(props): TwinData` (§19.9). The sentence and
+  the twin read the raw values, never the smoothed or drawn ones.
+- Role: one `role="img"` or `role="meter"` named by that sentence (a meter also has `aria-valuetext` and, for a number,
+  `aria-valuemin`, `-max` and `-now`); everything drawn inside is `aria-hidden`.
+- Quiet: no digit in the DOM or in aria, words only; the shape stays. Unknown is never zero: a missing value is nothing (no
+  lit ticks, thumb, marker or bar) and the sentence says it is unknown.
+- Reveal: `data-reveal="pending"` is on the root while `animate` is on and the picture is not yet 20 % in view (`useInView`)
+  and absent otherwise, so wherever motion cannot run the markup is the final one. The pending rules in the picture's
+  stylesheet hold the hidden values, the base rules hold the transitions, and removing the attribute is the animation. Only
+  `transform`, `opacity`, `clip-path`, `stroke-dashoffset`, stroke and fill colours and `--lm-glow-k` move
+  (`r071Css.test.ts`); under reduced motion the durations are 0.01 ms.
+- Colour: tokens only. Focal marks (the line, its end dot, lit ticks, the thumb) are ivory (`--lmz-lit`); the hue lives in
+  the card's glow and in secondary marks (today's bar, in-range ticks); the unlit remainder is `--lm-unlit`; text wears text
+  tokens, never the series colour. `viz-base.css` maps `--lmz-hue`, `--lmz-ink-h` and `--lmz-dim` to the role variables of
+  §16, and holds the shared read-out tooltip and inline twin.
+- Styles: classes `lmz-…` in `viz/{radial,track,bars,glow,scale,stack,window}.css` with `viz-base.css`; `viz.css` keeps the
+  old `lmv-` contract (flat, no uppercase, no glow, no gradient) for the restyled and retiring pictures.
+
+### 19.1 Radial ticks `<RadialTicks>`
+One reading in a bounded scale, or progress to a goal, as a ring of short radial ticks that light clockwise from 12
+o'clock; the number sits in the middle. A screen carries one ring (gauges are space-hungry); the rest of the page uses the
+linear pictures. Built from `DayDisc`'s lit-count model and `ArcRuler`'s tick drawing.
+- Geometry: a 132-unit box scaled to `size`: `xs` 28 · `sm` 72 · `md` 120 · `lg` 160 px, or any px. 72 ticks (60 under
+  120 px, 24 at `xs`; `count` is any integer from 6, to 144), a longer one every sixth and at the goal; 2 px strokes (1.5
+  at `sm`, 1.25 at `xs`), round caps. Lit ticks are ivory, the rest `--lm-unlit`.
+- Props: `label`, `value` (null is unknown), `goal` and `goalKind` (`target`, `floor` "at least", `limit`), `max` (the
+  value that fills the ring once, default the goal, else 100; with it the goal is a longer ivory tick), `mark`, `band`
+  (the likely range, a faint arc), `pending` (a dashed arc after the counted part), `fractional`, `lap2`, `parts`,
+  `centre` (a `HeroNumber` and a `MonoMeta`), `state`, `quietFill`, `quietWord`, `spoken`, `unit`, `valueText`,
+  `goalText`, `decimals`, `legend`.
+- Past the goal the ring is full and, with `lap2` (default; never for a `limit`), a second lap lights an inner ring of
+  short dashes in the domain's ink tint: neutral, never rose, told apart by position and not by colour.
+- `parts` splits the ring into arcs with 8° gaps (the Day score: 24 ticks each for three). Each part has `id`, `label`,
+  `value` (null is a missing part: a dashed outline arc, and `needs` says what it needs), `hue` and `confidence` (`low`
+  draws its lit ticks dashed); a legend names them.
+- States: `normal` · `learning` and `provisional` (dashed lit ticks) · `stale` (lit ticks at 60 %) · `zero` (an observed
+  zero: the first tick hollow) · `unknown` and `none` (a bare ring, no number) · `loading` (bare, `aria-busy`).
+- Quiet: no numeral anywhere; the fill is three steps (a third, two thirds, all) unless `quietFill="ratio"`.
+- Motion: the ticks light in sequence, each 200 ms (`--lm-dur-base`) and 14 ms (`--lm-stagger-tick`) after the one before
+  it; a change sweeps only the ticks between the old and new counts; the band, pending and missing arcs fade in after 600 ms.
+- A11y: the plot is `role="meter"` named by `label`, with `aria-valuetext` the sentence ("Steps: 7 605 steps, goal 9 000
+  steps"; "goal reached", "past the goal", "over the limit" said plainly, never praise or blame); the centre is `aria-hidden`.
+- Tests: `viz/__tests__/radialTicks.test.tsx`.
+
+### 19.2 Dotted track `<DottedTrack>`
+Progress toward a goal, one number, as a row of dots with a thumb. It replaces `TickStrip` rows and `DotFill`. The name and
+the value belong to the card's own row ("Protein … 32 / 150 G"); the track draws the dots, and `valueText` and `goalText` are
+the words of its sentence.
+- Geometry: one dot per 8 px (at least 8; `dots` or `ticks.count` sets an exact count, never closer than 4 px), 1.7 px
+  radius, on a 16 px bar; the lit width is snapped to whole dots from the measured width (288 px in jsdom). The thumb is a
+  14 px ivory disc (`--lm-thumb`) with a 3 px ring in the card colour, in the slot after the last lit dot (on the last dot
+  when full). `ticks.majorEvery` makes every Nth dot larger (week marks on a plan track).
+- Props: `label`, `value` (null is unknown), `goal` and `goalKind`, `valueText` (required: "32 g", or the words for an
+  unknown, "Nothing logged yet") and `goalText` ("of 150 g"), `from` and `to` (the domain the track spans, a plan's days 0
+  to 84), `unit`, `band` (the likely range, a faint capsule), `ghost` (the planned position, a hollow ring), `marks`
+  (`{ at, label?, tone? }`: a tick with a mono word under it), `endLabels` ("WARM", "6500K"), `hue`, `litB` and `valueB`
+  (a second tone drawn from the start: bought versus at home), `thumb`, `state`, `quiet`, `quietWord`.
+- Lit dots are ivory, or the domain solid with `hue` (the thumb stays ivory). Past the goal the first lap stays ivory and a
+  second lap lights again from the start in the ink tint (neutral, never rose) and the thumb passes the notch; a `limit` has
+  no celebratory end (its words say "over the limit", and its notch is taller).
+- States: `normal` · `provisional` (dotted rings, not discs) · `unknown` (no fill, no thumb) · `loading` (the bare dots,
+  `aria-busy`).
+- Motion: on first view the lit dots fill left to right (a `clip-path` over 900 ms, `--lm-dur-fill`, after 200 ms) and the
+  thumb follows; later changes take 420 ms (`--lm-dur-needle`) and the thumb 280 ms on `--lm-ease-needle`; band, ghost
+  and marks fade in after 700 ms.
+- A11y: `role="meter"` named by `label`; `aria-valuetext` the sentence ("Protein: 32 g, at least 150 g").
+- Tests: `viz/__tests__/dottedTrack.test.tsx`.
+
+### 19.3 Highlight bars `<HighlightBars>`
+A daily series as bars with the current day highlighted. It replaces `DayBars`, `StackedDays` and the Steps and Sleep period
+views.
+- Geometry: bars at most 20 px wide (8 in `variant="spark"`) with 4 px rounded tops and a 1.5 px base, 6 px apart (3 px
+  above ten bars, 2 px in a spark), growing from the baseline; the bars area is `height` px (72; 28 for a spark). Other days
+  wear the domain's ink tint at 40 %, the highlighted day the solid; a goal is a hairline across and never recolours a bar.
+  A recorded zero is a 2 px stub, a day with no reading is no bar.
+- Props: `name` (required) and `dates` (ISO dates), `values` (null is no bar), `goal`, `average` (a line with "avg" in the
+  left margin, never over a bar), `highlight` (`'last'` default, an index, or `null` for every bar solid), `stacks` (a stack
+  per bar, one `{ id, label, hue, values }` per app, 2 px gaps) with `limit`, `outline` (per bar: a partial or "at least"
+  day as a dashed outline, a pattern and not colour alone), `format`, `spoken(i)`, `unit`, `max`, `height`, `showAxis`,
+  `variant` (`full | spark`), `onScrub`, `quiet`, `twin`. The axis is weekday letters up to ten bars, else a day number
+  every seventh bar and the last.
+- Keyboard and pointer: one tab stop; left and right step through the days, Home and End jump, Escape clears; hover and
+  touch scrub. The day is read in a polite live region and shown in a tooltip, the value first, then the date.
+- Motion: the bars grow with `scaleY` over 700 ms (`--lm-dur-bars`), 60 ms apart (`--lm-stagger-bar`), so today's comes last.
+- A11y: `role="img"`; the sentence is the summary; the bars are `aria-hidden`. Quiet: words against the goal, weekday
+  names.
+- Tests: `viz/__tests__/highlightBars.test.tsx`.
+
+### 19.4 Glow line `<GlowLine>`
+The smooth line of an intraday or daily series with a live end dot. It replaces `OvernightTrace`, the Ring's day line and the
+sparks of Progress and the Ring. One picture for one data shape: a value that moves over time.
+- The line is ivory, 2.25 px, round caps, drawn in real px from the measured width (smoothing is never distorted by a
+  stretched viewBox); a null reading breaks it and a gap is never bridged. The hue lives in the card's glow and in the
+  secondary marks (the band, the hatched spans), never in the line.
+- Props: `label`, `unit`, `series` (points `{ t, v }`, or bare numbers; null breaks the line), `from` and `to`, `now` (the
+  live instant: labels the end dot and makes it pulse), `future` (the dotted projection, 38 % ivory), `band` (the likely
+  range: arrays aligned with the series and the projection, or `'iqr'`; a flat wash of the ink tint, never a gradient),
+  `reference` (the plan line, a hairline), `spans` (`awake` hatched, `workout` a flat wash), `marks` (labelled points),
+  `yTicks`, `xTicks` (`clock | hours | days | none`), `endDot` (`pulse | static | none`), `area` (a flat ivory wash, `true`
+  is 8 %), `smoothing` (`fine` a day of readings, `night` calm and bucketed, `spark` as given), `variant` (`full | spark`),
+  `height` (120; 56 for a spark), `decimals`, `gapMs`, `tz`, `state` (`normal | stale | none | loading`), `drawIn`, `quiet`,
+  `twin`.
+- The end dot is 10 px ivory with a 2 px ring and two thin halos that pulse twice (`PULSE_CYCLES` 2; 2400 and 2200 ms a
+  pulse) and stop; `endDot="static"` is a finished series. A stale line is dimmed to 70 % and its dot hollow.
+- Hover or focus reads a point (a crosshair, a tooltip, a polite live region); with focus on the plot (`full`, live), left
+  and right walk the points, Home and End jump, Escape clears.
+- Motion: the line wipes in over 1200 ms (`--lm-dur-draw`) after 120 ms; the band, area and plan line fade in after it
+  (+100 ms), the projection last (+300 ms), the end dot, marks and "now" word as the line ends (−200 ms); then the halos pulse.
+- A11y: the plot is `role="img"` named by the sentence ("Energy burned, 00:00 to 24:00: starts at 0, ends at 1 096 kcal at
+  14:58, lowest 0, highest 1 096; expected to reach 2 595 kcal; 24 readings"); quiet: the direction in words, no digit.
+- Tests: `viz/__tests__/glowLine.test.tsx`.
+
+### 19.5 Range scale `<RangeScale>`
+One reading on a bounded scale with the person's own usual range. It replaces `LevelTrack`, `RangeBands`, `LevelBar`,
+`ArcRuler`'s straight form, the meter variant of `EquivalenceMeter` and the evidence parameter range.
+- A printed scale: 41 ticks (17 for `size="inline"`, the 96 px glyph of a list row, which has no labels), the ticks inside
+  `usual` lit in the domain hue, a 3 px ivory marker at the value. `ticks="bands"` makes each band edge a long tick and names
+  each band under the scale when its word fits (else the current band is named once).
+- Props: `label`, `value` (null: no marker), `min`, `max`, `bands` (ascending `{ from, word, severity }`, severity `info | ok
+  | caution | danger`: always a mark and a word, never the colour of the marker), `usual`, `unit`, `spokenUnit`, `decimals`,
+  `ticks`, `endLabels` (hidden when quiet and they carry a digit), `size`, `state`, `ageText`, `quiet`, `twin`.
+- States: `normal`; `stale` keeps the last reading with its age and a gold dot, the marker hollow; `calibrating` draws
+  dashed ticks and says "Building baseline"; `none` has no marker.
+- Motion: the usual ticks light from the low end (200 ms each, 14 ms apart, after 150 ms), then the marker drops in with the
+  one damped overshoot (420 ms on `--lm-ease-needle`, after 400 ms).
+- A11y: `role="meter"` named by `label`, `aria-valuetext` the sentence ("HRV 48 milliseconds, balanced, your usual range 38 to
+  62"); quiet: the words only ("HRV, balanced, within your usual range").
+- Tests: `viz/__tests__/rangeScale.test.tsx`.
+
+### 19.6 Stack bar `<StackBar>`
+One whole in parts, as one bar (the night's stages, heart-rate zones, energy kinds, storage, a driver bar). It replaces the
+`ShareBar` rows used for a single whole.
+- A 10 px bar (6 px at `size="sm"`), 2 px card-colour gaps, each part as wide as its share and never narrower than 6 px;
+  under it a legend that names every part with its value. The legend follows the width of its container, not the screen's:
+  one column, two from 17 rem and four (value over name) from 34 rem. Parts that do not add up leave the rest as the bare unlit
+  track: a partial night is drawn partial.
+- Props: `label`, `rows` (`ShareBarRow`: `id`, `label`, `valueText`, `share` 0..1, `hue` a token colour such as
+  `var(--lm-intensity-resting)`, `unknown`), `total` (said in the sentence and the table), `size`, `legend` (`below | inline
+  | none`), `quiet` (names and shares in words: none, a small part, some, a large part, most), `twin`.
+- Motion: the segments grow from the left with `scaleX` over 700 ms, 60 ms apart; the gaps stay.
+- A11y: `role="img"`; the sentence names every part, a zero included ("Where it went so far: resting 742, light 238 …;
+  total 1 096 kcal").
+- Tests: `viz/__tests__/stackBar.test.tsx`.
+
+### 19.7 Window bar `<WindowBar>`
+When something happened against when it usually does: the Ring's Timing card and the Today sleep window.
+- One axis between two instants (`axis`, in ms, for example 20:00 to 12:00 the next day), the person's `usual` window as a
+  hairline-outlined band, the `actual` window as a solid ivory bar on top of it, `marks` (`{ t, label }`: fell asleep, woke) as
+  ticks with their words (two rows at most; a word that would overprint another is left to its tick and the sentence), round
+  hours as mono labels. `tz` sets the hours. A window past the axis is clipped to it and the sentence says so.
+- Quiet: no clock and no digit; the bars stay; the sentence says "later than usual" in words (a half hour either way is
+  "usual").
+- Motion: the bars wipe in over 600 ms (`--lm-dur-draw` / 2) after 120 ms; the axis never moves.
+- A11y: `role="img"`; "Sleep timing: 23:12 to 07:08, usual 23:00 to 07:00".
+- Tests: `viz/__tests__/windowBar.test.tsx`.
+
+### 19.8 The restyled pictures
+`Hypnogram`, `StateStrip`, `Stat`, `ShareBar` and `TwinTable` keep their props, their sentences and their old class names
+(`viz.css`, the `lmv-` contract: flat, tokens, no uppercase of its own: the mono caps come from the `lm-mono` class). The new
+look is additive:
+- `Hypnogram`: blocks 10 to 12 px, mono-caps row words; `legend` (the stage totals under the chart, from the raw totals; 2 x 2
+  on a phone, four across from 1024), `hatch` (a 45° texture per stage: the `chartPatterns` setting, so a stage is never
+  told by colour alone), `sessions` (`{ from, to, segments }[]`: a night recorded in parts on one shared axis; the gap
+  between parts is the hatched "No stage" band; `from`, `to` and `segments` are optional then), `animate` (the blocks grow
+  from their left edge in time order over 700 ms).
+- `StateStrip`: `hue` (the ordinal ramp as four lightness steps of a domain; the default ramp is unchanged), `stateHues` (a
+  domain per category state), `labels` (the state word inside every segment wide enough, on a taller 24 px track; the legend
+  keeps only the states no word fits in, so nothing is colour alone), `animate` (a wipe, and the now tick pulses twice);
+  the legend is mono caps.
+- `Stat`: a mono-caps label (with a 6 px dot in the domain hue when `hue` is given), the value 22 px at 400 with its unit
+  small and muted, the chip one fact line under it, no rules between cells (`StatGroup`).
+- `ShareBar`: a 6 px dot, the name (14/500), the value (15/500, tabular) and the share in mono caps over a pill track (6 px,
+  4 px at `sm`); `animate` (the fills grow from the left, transform only, 700 ms, 60 ms apart).
+- `TwinTable`: its markup is frozen (it equals `charts/living`'s, pinned by `contract.test.tsx`); r071 restyles it through
+  selectors. `TwinKey`, the "Table" key, is a text key with the table icon in both states ("Table", "Hide table").
+- Tests: `viz/__tests__/restyle.test.tsx`, `contract.test.tsx`.
+
+### 19.9 The Table twin `ChartTwin`, `InlineTwin`, `TwinData`
+Every chart keeps a twin: the rows of the table that say what the picture says. Each new picture exports `<picture>Twin(props):
+TwinData` (`title`, `caption` (the sentence), `head`, `rows`, `fileName`, optional `rowNoun`). A page puts `<ChartTwin
+data={…} />` into its card's (i) panel (`InfoSpec.twin`, which the card's `T` key opens), or sets the picture's `twin` prop,
+which draws an `InlineTwin`: a "Table" key and the table under the picture (not in quiet mode). `ChartTwin` is the
+`TwinTable` markup: a row count ("N days", or the `rowNoun`), a "Download CSV" key (`twinCsv`, `twinFileName`) and a
+keyboard-focusable scroll region with a sticky head.
+
+---
+
+## 20. Layout: Rail, CardGrid, CardLibrary (r071)
+
+Specimens: `/dev/components` › Rail, card grid, card library.
+
+### 20.1 Rail `<Rail>`, `<RailRow>`, `<RailNode>`
+The day rail that Today's plan, Food's meals and Train's exercises share (`Rail.tsx`, `rail.css`): a time, a node on a
+hairline spine, what the stop is with its targets, keys. It is extracted from the `.lv-item` rail in
+`src/features/living/living.css`, which stays until the last page has moved.
+- `Rail`: `children`, `timeAt` (`start`, default: the time before the node; `end`: the list-card form), `label`. A `ul` with
+  `role="list"`. A rail where no row has a time drops the time column, so its nodes line up with the card's text edge.
+- `RailRow`: `time` (mono, tabular), `node` (a `RailNode`), `title` (16/500), `meta` (the facts under it in mono caps: a node,
+  or an array of facts joined with " · "), `trailing` (keys at the row's end; they sit above the stretched title), `onOpen`
+  (makes the title a button whose target is the whole row), `highlight` (a gold-soft wash: the row a jump landed on), `id`.
+  At least 56 px high, `--lm-radius-field` corners, a `--lm-face-hover` wash on hover for an openable row.
+- `RailNode`: `status`, `label` (required: "Snack: log as planned"), `onPress`, `size`, `segments`, `lit`, `glyph`, `hue`,
+  `number`. A 28 px ring (`size={44}` for 44) inside a 44 px press target. With `onPress` it is a `button` (the tick);
+  without, a `role="img"` status mark with the same name.
+  - `status`: `empty` (a ring) · `done` (a gold disc whose check draws itself: the stroke 220 ms after 60 ms, the fill
+    140 ms) · `partial` (the left half gold) · `skipped` (struck) · `assumed` (a dashed gold ring: filled in for you).
+  - `segments` (2 to 12) draws one ring segment per set with a gap between them, `lit` of them gold (all when `done`);
+    `segmentArcs(n, lit)` is the pure layout. `glyph` (an icon tinted by `hue`) or `number` (a short mono figure) sits inside
+    the ring and is hidden once the stop is done.
+- Gold marks done (the action colour); a data hue only ever tints a glyph. A done title is struck and in stone, never paler
+  (pale stone must not sit on a glow). The spine is two 1 px `--lm-line-strong` hairlines per row, from the row's edge to the
+  ring, so it runs unbroken whatever a row's height, with none above the first stop or below the last.
+- Motion: the fill and the check run on state change only, so a rail that mounts done is simply done; reduced motion zeroes
+  them (`base.css`).
+- Tests: `src/components/__tests__/rail.test.tsx`.
+
+### 20.2 Card grid `<CardGrid>`, `packRows` and `packHeights`
+Today's cards in the person's own order, as a CSS grid (`CardGrid.tsx`, `cardgrid.css`). Today passes `equalRows` so adjacent
+card surfaces share the tallest natural content height in their row (r074 owner instruction). Empty-rendering choices
+reserve no slot and are excluded from gesture targets, while saved choices remain. Other callers may omit `equalRows`
+to use measured `packHeights` placement beneath shorter neighbours. Full-width cards remain row barriers.
+- Props: `items` (`{ id, size, node, edit? }[]`; `size` is `hero | wide | card | tile | slim`), `cols` (forces `2` or `12`),
+  `label` (a named group), `equalRows`, `editor` (`onResize`, `onReorder`), `keyboardEditing`, `className`.
+- Columns follow the card area's width: 2 below 900px, 12 from it. Hero, wide and slim fill the row; card is 2 of 2 or
+  6 of 12; tile is 1 of 2 or 3 of 12. Gap is `--lm-card-gap` (12, 16 from 1024 viewport width).
+- CardGrid calls `packRows(..., false)` to preserve explicit widths; a lone Quarter remains Quarter. Legacy callers may
+  use the helper's default widening. Cells carry `data-id`, `data-flip`, `data-size` and `data-span`.
+- Edit metadata supplies the label and supported sizes. Pointer interaction is always available when `editor` is passed:
+  drag the card surface after a movement threshold, or hold then drag on touch. A small diagonal corner mark, with a 44px
+  hit target, resizes horizontally through distinct widths that fit this viewport. At the right edge, outward travel is
+  scaled so the next width is reachable. Normal touch swipes scroll before the hold, even from the corner. Interactive
+  controls, chart scrubbing and ordinary card clicks keep their own behavior; active gestures suppress their synthetic
+  click only. There are no visible Move/Width strips or menu prerequisite.
+- `keyboardEditing` makes cards focus targets: Alt+Arrows/Home/End reorder; corner slider keys resize, using current-viewport
+  width names. Escape cancels a gesture, then exits keyboard entry. Changes commit through synced Today settings; hidden
+  selections retain their saved slots. The hero has no handles. Gesture timers, pointer capture and scroll gating clean
+  up on cancellation, blur, unmount and lost capture. Width/order survive reload.
+- Motion (the shared hooks of §17): a card that appears after mount rises 10 px and fades in (`enter`, 420 ms); an add, remove,
+  reorder or resize slides every card to its new place (`useFlip`, 280 ms on the damped curve). A change of column count
+  alone is a reflow, not a move. Under reduced motion an added card cross-fades in 100 ms
+  (`fadeCue`).
+- Tests: `src/components/__tests__/cardGrid.test.tsx`.
+
+### 20.3 Card library `<CardLibrary>` and `MonitorSheet`
+The panel that adds and removes cards (`CardLibrary.tsx`, `library.css`): `MonitorSheet` generalised. Today passes
+`organize={false}` because moving and resizing happen directly on its grid; signal lists retain their own panel ordering.
+Every change applies at once, so its header is title · ✕ (no Cancel, no verb). A bottom sheet on phones (60 and 92 %
+detents, opening at 60), a 392px overlay side panel from 1024px. Opening it never narrows the page.
+- Props: `open`, `onOpenChange`, `title`, `items` (`LibraryItem[]`), `selected` (`{ id, size? }[]`, in order, the hero left
+  out), `onChange`, `onReset`, `max` (the most that can be shown; locked rows count), `quiet`, `copy` (the words,
+  `DEFAULT_LIBRARY_COPY`), `defaultSelected` (what Reset puts back when it is not the items flagged `default`), `sizeLabels`,
+  `renderRowAction` (a key at the end of every row: "Add as widget"), `startAt` (`shown | add`: where the panel opens), `variant`.
+- `LibraryItem`: `id`, `label`, `hue` (a `Domain`: the row's hue dot and icon tint), `group` (the Add list's group name) and
+  optionally `icon`, `description` (one line, eight words at most), `preview` (a decorative thumbnail in the Add list), `sizes`
+  (more than one draws a size toggle; the first is the default), `default`, `locked` (always shown and always first: a lock
+  instead of a grip, no remove key, never stored), `unavailable` (why the card cannot be had now: it is listed greyed with
+  the reason and cannot be added; one the person already chose stays in their list, greyed), `valueText` (the current
+  value, hidden when quiet), `calibrating` ("Calibrating" instead of a value).
+- Rows: a 48 px grip, a hue dot and icon, the label with its description in stone, a size toggle, a 48 px remove key (a
+  minus in a circle; a plus to add). The Add list is grouped by domain (a mono group name with its hue dot, so a hue is never
+  the only word) with a search field above ten cards (`SEARCH_ABOVE`). The foot reads "Showing 6 of 29" and Reset to
+  default (disabled, with its reason, when already default). A removed item keeps its place and size for when it is added again.
+- Keyboard: Space picks a row up, the arrows (Home, End) move it, Space drops, Escape cancels; a polite live region says
+  where it went and focus stays on the grip. Pointer: press the grip and drag (pointer capture, edge auto-scroll). Rows slide
+  to their new places in 160 ms (`useFlip`; instant where motion cannot run). The grip is named "Move {label}, position N of M".
+- `variant="monitor"` keeps the markup and class names `MonitorSheet` always had (`lmv-mon*`); `MonitorSheet`
+  (`viz/MonitorSheet.tsx`) is now a thin wrapper over it, for the Ring's Signals card, and goes when the Ring migrates. Its
+  pure helpers (`moveId`, `removeId`, `addId`, `monitorCapacity`, `movedText`) live in `CardLibrary.tsx`; `sizeOf`,
+  `defaultSelection`, `sameSelection`, `groupItems` and `filterItems` are exported too.
+- Tests: `src/components/__tests__/cardLibrary.test.tsx`.
+
+---
+
+## 21. Intake, settings keys and the gallery (r071)
+
+### 21.1 Intake model `intakeModel`
+What was eaten against the day's targets, as ONE model (`src/features/living/model/intake.ts`, pure: no React, no store
+reads). Today's "Eaten so far", Food's Targets, the planless Today and the widgets all read it, so the number, the likely
+range, the kind and what is not known cannot disagree between screens. It wraps `intakeFigures`
+(`src/features/living/today/model.ts`) for energy and protein and applies the same rules to carbs, fat and fibre.
+- `intakeModel(view, rx, { energyUnit })` returns `channels` (energy, protein, carbs, fat, fibre, in that order, also named
+  `energy`, `protein`, …), `logged` (at least one meal), `status` (`Not logged | Partial | Complete | No intake`), `left`
+  (`{ amount, over, unit }`: what is left of the energy target, or how far past it; null without a figure or a target) and
+  `hasTargets` (a zero-energy fast day has none).
+- An `IntakeChannel`: `id`, `label`, `value` (null when nothing is known: never 0 for "unknown"), `lo` and `hi` (the likely
+  range, 80 %, only for an estimate), `target`, `kind` (`target`, or `floor` for protein: more is fine, neither is good or
+  bad), `state` (`value` · `atLeast` a lower bound, never drawn as exact · `partial` the figure is known but the macro lags
+  energy's coverage · `unknown`), `why` (`nothingLogged | notInFood`), `unit` (the person's energy unit, or `g`), `ratio`
+  (value / target, not capped: past 1 is a second lap on a ring, a thumb past the notch on a track), `over` (information, never
+  a fault).
+- Tests: `src/features/living/model/__tests__/intake.test.ts`.
+
+### 21.2 `IntakeRing` and `IntakeTrack`
+`src/features/living/components/IntakeViz.tsx`, `intakeViz.css`: the model drawn with the foundation pictures. A card with one
+or two figures (Today's "Eaten so far") draws rings; a card with four or more (Food's Targets) draws the energy ring and one
+track per other target.
+- `IntakeRing` (`channel`, `size`, `quiet`, `quietWord`, `animate`, `hue`, `centre`, `className`): a `RadialTicks` of one
+  channel (default `md` 120 px; no centre number under 100 px), the target a longer ivory tick, the likely range a faint arc,
+  a second lap past the target. The centre is a `HeroNumber` (`num` for three digits at 120 px or more, else `time`) with the
+  unit under it, a "At least" `MonoMeta` for a lower bound, or the reason for an unknown; `centre="none"` or a node.
+- `IntakeTrack` (`channel`, `quiet`, `animate`, `className`): the name left ("At least" beside a floor, "Partial" for a
+  macro that lags), "32 / 150 g" right in mono caps, a `DottedTrack` below; the lit dots wear the macro colour
+  (`--lm-macro-protein`, `-carbs`, `-fat`, `-fibre`) and the thumb stays ivory. Quiet mode hides it (a macro in grams is a number).
+- A lower bound is said as one and drawn dashed (`provisional`); an unknown draws no figure and no thumb and says why; over the
+  goal is never rose. The sentence (`spokenIntake`): "Energy: eaten about 750 of 2 050 kcal (range 640–860), 1 300 kcal left".
+- Tests: `src/features/living/components/__tests__/intakeViz.test.tsx`. The gallery has no sheet of its own for them; its
+  "DottedTrack · Eaten so far" specimen draws the same tracks directly.
+
+### 21.3 Settings keys `todayCards` and `widgetWeight`
+Two r071 keys in `src/state/internal/settingsModel.ts`, written through `settings.update` (`src/commands/defs/settings.ts`).
+There is no glow setting: `--lm-glow-k` has no key (SPEC Q6).
+- `todayCards`: `string[] | null`, default `null`, synced (`SYNCED_SETTING_KEYS`). The cards the person chose for Today, in
+  order, each `"id"` or `"id:size"` (`"steps:card"`; lower-case words joined by hyphens; at most `TODAY_CARDS_MAX` 40 entries
+  of at most `TODAY_CARD_ENTRY_MAX` 40 characters). `null` means the default set, and later changes to the default reach the
+  person; a list is the person's own and is the whole resolved list (the hero is implicit and never stored), so a card a
+  later release adds to the default never appears by itself. Availability (a ring, a plan, quiet mode) is decided when Today
+  draws, never when this is written: a card for a missing ring stays stored. It is never an AI's choice (not in
+  `AI_SETTING_KEYS`). `parseCardEntry`, `formatCardEntry` and `sanitizeTodayCards` (drops entries that are not `id` or
+  `id:size`, keeps the first of a card listed twice and the first 40, makes a non-array `null`; `[]` stays empty) guard it, so
+  a corrupt synced document can never break Today; import validation (`isSettingsState`) rejects a bad list. `CardLibrary`'s
+  `selected` is the same `{ id, size? }` list.
+- `widgetWeight`: `boolean`, default `false`, this device only (`DEVICE_SETTING_KEYS`; not an AI's either). It shows the
+  person's weight on the Android home-screen widgets: a weight is not something to leave on a screen anyone can see, so a
+  widget snapshot has none unless it is on.
+- Tests: `src/state/internal/settingsModel.test.ts`.
+
+### 21.4 The gallery `/dev/components`
+The living gallery (`src/app/dev/ComponentGalleryPage.tsx`; the route is lazy and in no navigation). The r071 sheets are
+`src/app/dev/specimens/*.tsx`: `index.tsx` exports `R071Sheets` and `R071_JUMP`, `kit.tsx` is the kit (`GallerySection`,
+`Spec`, `Row`), `specimens.css` the layout. A card never nests in a card, so these sheets are plain sections on the backdrop,
+each specimen a name, a note and the thing at the size it has on Today. The numbers are synthetic.
+
+| Jump-list entry (id) | Sheet | Specimens |
+|---|---|---|
+| tokens (`g-tokens`), material (`g-material`) | Tokens, Material | the token swatches, among them the wheel of domain hues; `Faceplate` cards in every domain, a banner (no glow), the live mark and the motion demo |
+| keys … icons (`g-keys` … `g-icons`) | the 0A primitives | every primitive, variant and state |
+| cards (`g-cards`) | Cards | `GradientCard` per domain, hero, card and slim, open targets and glow positions, the (i) panel (open it on load with `?info`), `HeroNumber` in every size, quiet mode, `MonoMeta`, state words and `StatusDot`, the wheel |
+| rings, tracks, bars (`g-ticks`) | Ticks, tracks and bars | `RadialTicks` (tiles, sizes, states, past the goal and a limit, quiet, parts, every hue), `DottedTrack` (Eaten so far, states, a plan, a range and a second tone), `HighlightBars` (tiles, the wide card, quiet, no highlight, empty) |
+| lines, scales (`g-lines`) | Lines, scales, stacks, windows | `GlowLine` (hero card, quiet, overnight, spark tiles, domain hues), `RangeScale` (tiles, bands, end labels and inline), `StackBar`, `WindowBar` |
+| restyled (`g-restyled`) | Restyled pictures | `Hypnogram` (also gaps, parts and quiet), `StateStrip` (ramps by hue, labelled), `Stat`, `ShareBar`, `TwinTable` and its key |
+| grid, library (`g-layout2`) | Rail, card grid, card library | every `Rail` status and form, `packRows` worked, `CardGrid` on phone and desktop columns, `CardLibrary` |

@@ -2,7 +2,8 @@
 
 > **History.** The Companion as a user install is replaced by the Vitals Server (`vitals-server`, see
 > [SERVER.md](SERVER.md)) from v0.4.0. This file describes v0.2 to v0.3 and is kept for history. `vitals-companion`
-> stays as an alias for one release.
+> stays as an alias for one release. Commands from the current checkout require **Node.js 26.10.0 or newer**;
+> the 22.18 requirement below belongs to the historical versions described here. See [SERVER.md](SERVER.md) for current operation.
 
 The Vitals Companion is a small program that runs next to Vitals. It does three jobs that a web page cannot do on its
 own:

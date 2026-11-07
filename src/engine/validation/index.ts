@@ -7,8 +7,13 @@
  *   fixtures/     §9.3 personas (MAN, WOMAN, LEAN_MAN) and schedule/program builders in the real input schema
  *   harness/      scenario types and runner, report tables, stub detection, invariants O-4…O-12, Euler reference (O-10)
  *   scenarios/    one file per dossier group; `ALL_SCENARIOS` is the registry the tests run
+ *   ledger.ts     evidence ledger (review D8-03): per scenario the study/cohort ids, evidence class (verification,
+ *                 conditional dynamics, development fit, independent empirical validation), dataset role, influenced
+ *                 parameters, observed/protocol/imputed inputs, population, endpoint operator and tolerance type
+ *   harness/ledgerReport.ts   deterministic read-only generator of KNOWN_MISSES.md, the release ledger and the
+ *                 evidence-class section of the internal report (printed by scenarios.test.ts; never writes files)
  *
- * Regenerate the report:  pnpm vitest run src/engine/validation --reporter=verbose   (see KNOWN_MISSES.md)
+ * Regenerate the report:  pnpm vitest run src/engine/validation --reporter=verbose   (capture recipe in KNOWN_MISSES.md)
  */
 export * from './harness/types';
 export { ArmView } from './harness/view';
@@ -23,3 +28,5 @@ export { dailyFuelBalance, glycogenTauDays, steadyGlycogenG } from './oracle/dai
 export { LEAN_MAN, MAN, PERSONAS, WOMAN, person, personWithTdee, tdee0Of } from './fixtures/personas';
 export * from './fixtures/programs';
 export { ALL_SCENARIOS, scenarioById } from './scenarios';
+export * from './ledger';
+export { freezeHashOf, knownMissesMarkdown, ledgerMarkdown, ledgerSummary, releaseLedgerJson, type LedgerSummary, type RunFacts } from './harness/ledgerReport';

@@ -740,14 +740,16 @@ export function createSyncRuntime(deps: SyncRuntimeDeps): SyncRuntime {
       if (profile && (profile.weightKg != null || profile.heightCm != null)) parts.push('your body');
       const goals = s.peek<{ goals?: unknown[] }>('goals', 'me');
       if (goals?.goals?.length) parts.push('your goals');
-      const scenarios = count('scenarios');
+      // the scenario every device starts with (the untouched starter, or an empty starter-picker one) is not the
+      // person's data: a brand-new device pairing in is not asked to merge it
+      const scenarios = s.peekAll<{ id?: string; createdAt?: string; updatedAt?: string; started?: boolean }>('scenarios').filter(
+        (sc) => sc.started !== false && !(sc.id === 'starter' && sc.createdAt === sc.updatedAt),
+      ).length;
       if (scenarios) parts.push(plural(scenarios, 'scenario', 'scenarios'));
       const plans = count('plans');
       if (plans) parts.push(plural(plans, 'plan', 'plans'));
       const logs = count('dailyLogs') + count('measurements');
       if (logs) parts.push(plural(logs, 'log entry', 'log entries'));
-      const health = count('bioRecords') + count('bioChunks');
-      if (health) parts.push(plural(health, 'health record', 'health records'));
       const coach = count('conversations');
       if (coach) parts.push(plural(coach, 'Coach conversation', 'Coach conversations'));
       const custom = count('catalogueCustom') + count('recipes') + count('mealPlans');

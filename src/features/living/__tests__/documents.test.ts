@@ -1,7 +1,8 @@
 /** Living on the bus: the document-backed read side and the command-backed actions agree (features/living/boot.ts). */
 import { freshState } from '@/commands/__tests__/harness';
-import { dispatch, settleCommits } from '@/commands';
-import { addDays, type PlanDoc } from '@/living';
+import { dispatch, installLivingPorts, settleCommits } from '@/commands';
+import { addDays, type LifecycleRevalidation, type PlanDoc, type PlanVersionDoc } from '@/living';
+import { mintWriteToken } from '@/store';
 import { getDocumentStore } from '@/state/runtime';
 import { seedClearedSafety, STANDARD_ANSWERS } from '@/features/onboarding/testing';
 import { currentDay, systemClock } from '../clock';
@@ -49,6 +50,30 @@ describe('document-backed Living data', () => {
     expect(source.today(TODAY)!.quietMode).toBe(false);
   }, 20_000);
 
+  it('reads the weekly target from real prescriptions and checks the entire stored plan horizon', async () => {
+    const { source } = await setup();
+    const store = getDocumentStore();
+    const plan = store.peek<PlanDoc>('plans', SEED_PLAN_ID)!;
+    const versionId = `${SEED_PLAN_ID}:v1`;
+    const version = store.peek<PlanVersionDoc>('planVersions', versionId)!;
+    const bands = (a: number[]) => ({ p10: [...a], p50: [...a], p90: [...a] });
+    await store.transact(mintWriteToken('migration', { label: 'weekly model test seed' }), async (tx) => {
+      await tx.put('plans', { ...plan, _id: SEED_PLAN_ID, headVersion: 2, request: { ...plan.request, constraints: { muscleRetention: { maxLossPct: 5, baseline: { kg: 30, date: plan.startDate, basis: 'modelSkeletalMuscle' } } } } });
+      await tx.append('planVersions', { ...version, _id: `${SEED_PLAN_ID}:v2`, version: 2, parent: 1, forecast: { ...version.forecast, asPrescribed: {
+        inEnergy: bands(Array<number>(84).fill(1500)),
+        tdee: bands(Array<number>(84).fill(2600)),
+        fatMass: bands(Array.from({ length: 84 }, (_, d) => 25 - d * 0.05)),
+        skeletalMuscle: bands(Array.from({ length: 84 }, (_, d) => 30 - d * 0.01)),
+      } } });
+    });
+    const review = source.checkIn(TODAY)?.weeklyModel;
+    expect(review?.targetKcal).toBeCloseTo(source.today(TODAY)!.prescription!.energyKcal, 5);
+    expect(review?.targetKcal).toBeCloseTo(2000, 0);
+    expect(review?.muscleBudget?.status).toBe('withinBudget');
+    expect(review?.muscleBudget?.floorKg).toBe(28.5);
+    expect(review?.evidence.enoughInputs).toBe(false);
+  }, 20_000);
+
   it('quiet mode is on by default in safety mode R1, and the person turning it off is respected (Q4-17)', async () => {
     const { source } = await setup();
     expect(source.today(TODAY)!.quietMode).toBe(false); // not R1, never set: off
@@ -79,6 +104,8 @@ describe('document-backed Living data', () => {
 
   it('marks the day, pauses and resumes, and ends only with the typed word', async () => {
     const { source, actions } = await setup();
+    // the planner's lifecycle decision is out of scope here (A1-001: a resume needs it): a startable revalidation
+    installLivingPorts({ revalidate: async () => ({ status: 'verified', certificateValid: true, startable: true }) as LifecycleRevalidation });
     expect((await actions.markDay(TODAY, 'asPlanned')).ok).toBe(true);
     await settleCommits();
     expect(source.days([TODAY])[0]!.logged).toBe(true);
@@ -93,6 +120,7 @@ describe('document-backed Living data', () => {
     await settleCommits();
     expect(getDocumentStore().peek<PlanDoc>('plans', SEED_PLAN_ID)).toMatchObject({ status: 'ended' });
     expect(source.today(TODAY)).toBeNull();
+    installLivingPorts();
   }, 20_000);
 
   it('names proposal cards by plan version', () => {

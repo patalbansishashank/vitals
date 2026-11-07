@@ -136,15 +136,42 @@ export interface Probe {
   exDef: Float64Array;
   fastRmrMult: Float64Array;
   fastRepletionGH: Float64Array;
+  /** Hepatic BHB (bus `bhbEndoMmolL`: other + MCT hepatic production, excludes ingested D-BHB), mmol/L. */
+  bhbEndo: Float64Array;
+  /** Ketone module state after the hour (D2-03/D2-08): pool end values (TKB basis) and the hour-end blood D-BHB. */
+  tkbEnd: Float64Array;
+  tkbExoEnd: Float64Array;
+  tkbMctEnd: Float64Array;
+  tkbExoMean: Float64Array;
+  tkbMctMean: Float64Array;
+  bhbEnd: Float64Array;
 }
 
 const PROBE_KEYS: readonly (keyof Probe)[] = [
   'bhb', 'tkb', 'ffa', 'insulinRel', 'insulinUuMl', 'liverG', 'muscleG', 'muscleRel', 'fastActive', 'kcal24', 'carb24', 'aF', 'aS',
   'fatOxGH', 'choOxGH', 'protOxGH', 'gngGH', 'dnlGH', 'glcChangeKcalH', 'teeKcalH', 'eAbsKcalH', 'glucose', 'fastProtOxGH', 'ketoneLossKcalH',
-  'sMus', 'sHep', 'carbTol', 'irIdx', 'exDef', 'fastRmrMult', 'fastRepletionGH',
+  'sMus', 'sHep', 'carbTol', 'irIdx', 'exDef', 'fastRmrMult', 'fastRepletionGH', 'bhbEndo', 'tkbEnd', 'tkbExoEnd', 'tkbMctEnd', 'tkbExoMean',
+  'tkbMctMean', 'bhbEnd',
 ];
 
-function capture(p: Probe, h: number, bus: SignalBus): void {
+/** The ketone state fields the spy reads (structural, so the kit does not depend on the module's full state type). */
+interface KetoneStateView {
+  tkb: number;
+  tkbExo: number;
+  tkbMct: number;
+  tkbExoMean: number;
+  tkbMctMean: number;
+  bhbEnd: number;
+}
+
+function capture(p: Probe, h: number, bus: SignalBus, ks: KetoneStateView): void {
+  p.bhbEndo[h] = bus.bhbEndoMmolL;
+  p.tkbEnd[h] = ks.tkb;
+  p.tkbExoEnd[h] = ks.tkbExo;
+  p.tkbMctEnd[h] = ks.tkbMct;
+  p.tkbExoMean[h] = ks.tkbExoMean;
+  p.tkbMctMean[h] = ks.tkbMctMean;
+  p.bhbEnd[h] = ks.bhbEnd;
   p.bhb[h] = bus.bhbMmolL;
   p.tkb[h] = bus.tkbMmolL;
   p.ffa[h] = bus.ffaMmolL;
@@ -196,6 +223,8 @@ export interface KitOptions {
   params?: Record<string, number>;
   burnInDays?: number;
   checks?: boolean;
+  /** Recording level (default 'full'); output masks must never change state (C7). */
+  record?: RunOptions['record'];
 }
 
 /** Run the full engine with the ketone spy. */
@@ -212,11 +241,11 @@ export function runKit(person: PersonProfile, schedule: Schedule, opts: KitOptio
       ...m,
       stepHour: (s: object, k: object, bus: SignalBus, hour: Parameters<AnyEngineModule['stepHour']>[3], day: Parameters<AnyEngineModule['stepHour']>[4], clock: Parameters<AnyEngineModule['stepHour']>[5]) => {
         inner(s, k, bus, hour, day, clock);
-        if (clock.hourIndex >= 0 && clock.hourIndex < n) capture(probe, clock.hourIndex, bus);
+        if (clock.hourIndex >= 0 && clock.hourIndex < n) capture(probe, clock.hourIndex, bus, s as unknown as KetoneStateView);
       },
     } as AnyEngineModule;
   });
-  const options: RunOptions = { mode: 'simulate', record: 'full', burnInDays: opts.burnInDays ?? 14, checks: opts.checks ?? true, collectEvents: true };
+  const options: RunOptions = { mode: 'simulate', record: opts.record ?? 'full', burnInDays: opts.burnInDays ?? 14, checks: opts.checks ?? true, collectEvents: true };
   if (opts.params) {
     const base = buildModelParams(mods);
     const v = new Float64Array(base.values);

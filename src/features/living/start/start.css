@@ -6,19 +6,115 @@
     margin: 4px 0 16px;
   }
   .lv-start {
-    /* the shared panel body (Sheet / SidePanel) has no padding: inset 16 like the head and foot, 20 at the end */
-    padding: var(--lm-space-4) var(--lm-space-4) var(--lm-space-5);
+    /* the shared panel body (Sheet / SidePanel) has no padding: inset like the head and foot */
+    padding: var(--lm-card-pad) var(--lm-card-pad) var(--lm-card-pad-lg);
     display: grid;
-    gap: 20px;
+    gap: var(--lm-stack);
   }
   .lv-start__note {
     margin: 8px 0 0;
-    font-size: var(--lm-text-sm);
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
     color: var(--lm-ink-2);
   }
+  /* the safety status as a row with its mark (and the step that can change it at the end) */
+  .lv-start__status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--lm-row-gap) var(--lm-inline);
+    padding: var(--lm-inline) var(--lm-card-gap);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-control-radius);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 3%);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    color: var(--lm-ink);
+  }
+  .lv-start__status > span {
+    min-width: 0;
+  }
+  /* the start date: four choices as a 2 × 2 grid, so "pick a date" never clips (r068 SS1) */
+  .lv-start .lv-start__when.lm-bank[data-segments] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .lv-start .lv-start__when.lm-bank > .lm-bank__key,
+  .lv-start .lv-start__missed.lm-bank > .lm-bank__key {
+    min-width: 0;
+  }
+  /* "If I miss a session": three long choices stack on a phone */
+  @media (max-width: 29.99rem) {
+    .lv-start .lv-start__missed.lm-bank[data-segments] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  .lv-start__time {
+    max-width: 10rem;
+  }
   .lv-start__days {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--lm-select-inset);
+    padding: var(--lm-select-inset);
+    border: var(--lm-hairline) solid var(--lm-line);
+    border-radius: var(--lm-select-radius);
+    background: var(--lm-select-track);
+  }
+  .lv-start__day {
+    min-width: 0;
+    height: 36px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--lm-select-key-radius);
+    background: transparent;
+    color: var(--lm-ink-3);
+    font: inherit;
+    font-size: var(--lm-text-label-s);
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .lv-start__day:hover {
+    color: var(--lm-ink);
+    background: color-mix(in oklab, transparent, var(--lm-ink) 4%);
+  }
+  .lv-start__day[aria-pressed='true'] {
+    background: var(--lm-select-on);
+    border-color: var(--lm-select-on-edge);
+    color: var(--lm-ink);
+    font-weight: 600;
+  }
+  .lv-start__day:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: -2px;
+  }
+  @media (pointer: coarse) {
+    .lv-start__day {
+      height: 44px;
+    }
+  }
+}
+@layer components {
+  .lv-start__preview {
+    display: grid;
+    gap: 16px;
+    padding-bottom: 20px;
+    border-bottom: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-start__preview .lv-daydots {
+    width: 100%;
+  }
+  .lv-start__status {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .lv-start__status > .lm-key {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+  .lv-start__day {
+    height: 44px;
+    font-family: var(--lm-font-mono);
+    text-transform: uppercase;
+    letter-spacing: var(--lm-text-meta--ls);
+    font-size: var(--lm-text-meta);
   }
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { Checkbox, Faceplate, Key, KeyBank, ScaleRange, ScaleSlider, Section, Stepper, Switch, formatNumber } from '@/components';
 import type { CardioModality } from '@/engine/types/schedule';
@@ -7,7 +7,6 @@ import type { ConstraintDraft, HungerTolerance, LongestFast } from '@/state/plan
 import { useEnergyUnit, type EnergyUnit } from '@/state/settingsStore';
 import { fmtClock, fmtKcal, fmtKcalValue, fmtSteps } from '../format';
 import { LONGEST_FAST_OPTIONS } from '../request';
-import { WindowDial } from './WindowDial';
 
 /** Local value while dragging, committed to the store on release (no localStorage write per frame). */
 const same = (a: unknown, b: unknown): boolean =>
@@ -21,29 +20,31 @@ function useLive<T>(stored: T): [T, (v: T) => void] {
   return [changed ? stored : s.live, (live: T) => setS({ stored, live })];
 }
 
-const WEEKDAY_LABEL = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+const WEEKDAY_LABEL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 const WEEKDAY_NAME = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
 /** Levers the user can refuse (registry ids, dossier 13 §4C / 18 §4.4.1 / 21 §4J). */
 export const EXCLUDABLE: ReadonlyArray<{ id: string; label: string; help?: string | ((energy: EnergyUnit) => string); group: 'days' | 'phases' | 'extras' }> = [
-  { id: 'lowDays', label: 'low-energy days', help: (e) => `Two days a week at ${fmtKcalValue(500, e)}–${fmtKcal(700, e)}`, group: 'days' },
-  { id: 'refeedDay', label: 'refeed days', help: 'Higher-carbohydrate days at maintenance inside a deficit', group: 'days' },
-  { id: 'dietBreak', label: 'diet breaks', help: 'One or two weeks at maintenance between deficit blocks', group: 'days' },
-  { id: 'B2', label: 'very-low-carbohydrate phases', help: 'Net carbohydrate 20–50 g a day', group: 'phases' },
-  { id: 'B6', label: 'very-low-fat phases', help: 'High carbohydrate, fat kept low', group: 'phases' },
-  { id: 'B3', label: 'short, hard deficits', help: 'A few weeks at a larger deficit with lifting', group: 'phases' },
-  { id: 'L7', label: 'creatine', help: '3–5 g a day with training; adds about 1 kg of water', group: 'extras' },
-  { id: 'L8', label: 'omega-3 capsules', help: '2–3 g EPA + DHA a day', group: 'extras' },
-  { id: 'L9', label: 'fibre supplement', help: 'Psyllium or oat beta-glucan before meals', group: 'extras' },
-  { id: 'L2', label: 'walks after meals', help: '5–15 minutes of light walking', group: 'extras' },
+  { id: 'lowDays', label: 'Low-energy days', help: (e) => `Two days a week at ${fmtKcalValue(500, e)}–${fmtKcal(700, e)}`, group: 'days' },
+  { id: 'refeedDay', label: 'Refeed days', help: 'Higher-carbohydrate days at maintenance inside a deficit', group: 'days' },
+  { id: 'dietBreak', label: 'Diet breaks', help: 'One or two weeks at maintenance between deficit blocks', group: 'days' },
+  { id: 'B2', label: 'Very-low-carbohydrate phases', help: 'Net carbohydrate 20–50 g a day', group: 'phases' },
+  { id: 'B6', label: 'Very-low-fat phases', help: 'High carbohydrate, fat kept low', group: 'phases' },
+  { id: 'B3', label: 'Short, hard deficits', help: 'A few weeks at a larger deficit with lifting', group: 'phases' },
+  { id: 'L7', label: 'Creatine', help: '3–5 g a day with training; adds about 1 kg of water', group: 'extras' },
+  { id: 'L8', label: 'Omega-3 capsules', help: '2–3 g EPA + DHA a day', group: 'extras' },
+  { id: 'L9', label: 'Fibre supplement', help: 'Psyllium or oat beta-glucan before meals', group: 'extras' },
+  { id: 'L2', label: 'Walks after meals', help: '5–15 minutes of light walking', group: 'extras' },
 ];
 
 const MODALITIES: ReadonlyArray<{ value: CardioModality; label: string }> = [
-  { value: 'walk', label: 'walk' },
-  { value: 'cycle', label: 'cycle' },
-  { value: 'run', label: 'run' },
-  { value: 'swim', label: 'swim' },
-  { value: 'row', label: 'row' },
+  { value: 'walk', label: 'Walk' },
+  { value: 'cycle', label: 'Cycle' },
+  { value: 'run', label: 'Run' },
+  { value: 'swim', label: 'Swim' },
+  { value: 'row', label: 'Row' },
 ];
 
 export interface LimitsPanelProps {
@@ -52,18 +53,19 @@ export interface LimitsPanelProps {
   onReset?: () => void;
   /** Some limits differ from Habits (shows "Reset to my habits"). */
   customised: boolean;
-  /** Longest fast the safety screening allows, h, and why longer ones are off. */
+  /** Longest fast the safety screening allows, h (longer options are off). */
   safetyMaxFastH: number;
-  fastLockReason: string | null;
+  /** The fasting and short-window opt-ins (FastingTierControls), under the "Longest fast" bank they unlock. */
+  fastingControls?: ReactNode;
   disabled?: boolean;
 }
 
 /**
- * Practical limits (planner-goals.md §6, COMPONENTS §8 `<Constraints>`): training, eating, fasting and nutrient floors
- * (the "won't do" list is its own section, `WontDoPanel`). Changes apply immediately and re-evaluate the "Before you
- * run" hints.
+ * Practical limits (planner-goals.md §6, COMPONENTS §8 `<Constraints>`): training, eating, fasting, nutrient floors
+ * and what to leave out. Changes apply immediately and re-evaluate the "Before you run" hints.
  */
-export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, fastLockReason, disabled }: LimitsPanelProps) {
+export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, fastingControls, disabled }: LimitsPanelProps) {
+  const energy = useEnergyUnit();
   const [train, setTrain] = useLive<readonly [number, number]>(c.trainingDays);
   const [cardio, setCardio] = useLive<readonly [number, number]>(c.cardioDays);
   const [eat, setEat] = useLive<readonly [number, number]>([c.earliestH, c.latestH]);
@@ -71,6 +73,7 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
   const [steps, setSteps] = useLive<readonly [number, number]>(c.steps);
   const [time, setTime] = useLive(c.trainingTimeH);
   const [protein, setProtein] = useLive(c.proteinFloor ?? 1.2);
+  const [muscleLoss, setMuscleLoss] = useLive(c.maxMuscleLossPct ?? 5);
   const days = new Set(c.trainingWeekdays);
 
   const toggleDay = (d: Weekday) => {
@@ -85,10 +88,16 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
     disabled: disabled || h > Math.max(12, safetyMaxFastH),
   }));
 
+  const toggleExcluded = (id: string, on: boolean) => {
+    const set = new Set(c.excluded);
+    if (on) set.add(id);
+    else set.delete(id);
+    onChange({ excluded: [...set].sort() });
+  };
+
   return (
     <Faceplate
       title="Practical limits"
-      caption="what you can and won’t do"
       className="lp-limits"
       actions={
         customised && onReset ? (
@@ -101,7 +110,7 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
       <div className="lp-limits__body">
         <Section label="Training">
           <ScaleRange
-            label="resistance training days a week"
+            label="Resistance training days a week"
             value={train}
             onChange={setTrain}
             onCommit={(v) => onChange({ trainingDays: [v[0], v[1]] })}
@@ -116,18 +125,26 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
             disabled={disabled}
           />
           <fieldset className="lp-days" disabled={disabled}>
-            <legend className="lm-eng">days I can train</legend>
+            <legend className="lp-label">Days I can train</legend>
+            {/* a 7-segment multi-select in the selector's language: on is the gold tile, off is plain (r068 PG5) */}
             <div className="lp-days__keys">
               {WEEKDAY_LABEL.map((l, d) => (
-                <Key key={l} size="sm" pressed={days.has(d as Weekday)} onClick={() => toggleDay(d as Weekday)} aria-label={WEEKDAY_NAME[d]}>
+                <button
+                  key={l}
+                  type="button"
+                  className="lp-days__key"
+                  aria-pressed={days.has(d as Weekday)}
+                  onClick={() => toggleDay(d as Weekday)}
+                  aria-label={WEEKDAY_NAME[d]}
+                >
                   {l}
-                </Key>
+                </button>
               ))}
             </div>
           </fieldset>
           <div className="lp-limits__pair">
             <ScaleSlider
-              label="usual training time"
+              label="Usual training time"
               size="sm"
               value={time}
               onChange={setTime}
@@ -142,8 +159,8 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
               disabled={disabled}
             />
             <div className="lp-field">
-              <span className="lm-eng" id="lp-session-l">
-                longest session
+              <span className="lp-label" id="lp-session-l">
+                Longest session
               </span>
               <Stepper
                 name="longest session"
@@ -159,7 +176,7 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
             </div>
           </div>
           <ScaleRange
-            label="cardio days a week"
+            label="Cardio days a week"
             value={cardio}
             onChange={setCardio}
             onCommit={(v) => onChange({ cardioDays: [v[0], v[1]] })}
@@ -172,14 +189,20 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
             valueText={(v, w) => `${w === 'low' ? 'at least' : 'at most'} ${v} cardio days`}
             disabled={disabled}
           />
+          <div className="lp-limits__pair">
           <div className="lp-field">
-            <span className="lm-eng" id="lp-cardio-l">
-              cardio I’d do
+            <span className="lp-label" id="lp-cardio-l">
+              Cardio I’d do
             </span>
             <KeyBank labelledBy="lp-cardio-l" size="sm" value={c.cardioModality} onChange={(v) => onChange({ cardioModality: v })} options={MODALITIES.map((m) => ({ ...m, disabled }))} />
           </div>
+          <div className="lp-field">
+            <span className="lp-label">Longest cardio session</span>
+            <Stepper name="longest cardio session" value={Math.min(c.maxCardioSessionMin ?? 90, c.maxSessionMin)} onChange={(v) => onChange({ maxCardioSessionMin: v })} min={5} max={Math.min(90, c.maxSessionMin)} step={5} unit="min" unitText="minutes" disabled={disabled} />
+          </div>
+          </div>
           <ScaleRange
-            label="daily steps"
+            label="Steps outside cardio"
             value={steps}
             onChange={setSteps}
             onCommit={(v) => onChange({ steps: [v[0], v[1]] })}
@@ -191,15 +214,15 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
             minorStep={1000}
             labels={[2000, 6000, 10000, 14000, 18000].map((v) => ({ value: v, label: `${v / 1000}k` }))}
             format={(v) => fmtSteps(v, true)}
-            valueText={(v, w) => `${w === 'low' ? 'at least' : 'at most'} ${v} steps`}
+            valueText={(v, w) => `${w === 'low' ? 'at least' : 'at most'} ${v} steps outside planned cardio`}
             disabled={disabled}
           />
+          <p className="lp-field__hint">Walking or running sessions in the plan add to this step target.</p>
         </Section>
 
         <Section label="Eating">
-          <div className="lp-eat">
-            <ScaleRange
-              label="eating between"
+          <ScaleRange
+              label="Eating between"
               value={eat}
               onChange={setEat}
               onCommit={(v) => onChange({ earliestH: v[0], latestH: v[1] })}
@@ -212,13 +235,11 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
               labels={[6, 9, 12, 15, 18, 21, 24].map((v) => ({ value: v, label: String(v % 24).padStart(2, '0') }))}
               format={fmtClock}
               valueText={(v, w) => `${w === 'low' ? 'first meal from' : 'last meal by'} ${fmtClock(v)}`}
-              thumbLabels={['earliest first meal', 'latest last meal']}
-              disabled={disabled}
-            />
-            <WindowDial startH={eat[0]} endH={eat[1]} />
-          </div>
+            thumbLabels={['earliest first meal', 'latest last meal']}
+            disabled={disabled}
+          />
           <ScaleRange
-            label="meals a day"
+            label="Meals a day"
             value={meals}
             onChange={setMeals}
             onCommit={(v) => onChange({ mealsPerDay: [v[0], v[1]] })}
@@ -232,8 +253,8 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
             disabled={disabled}
           />
           <div className="lp-field">
-            <span className="lm-eng" id="lp-fast-l">
-              longest fast I’d do
+            <span className="lp-label" id="lp-fast-l">
+              Longest fast I’d do
             </span>
             <KeyBank
               labelledBy="lp-fast-l"
@@ -243,23 +264,36 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
               onChange={(v) => onChange({ longestFastH: Number(v) as LongestFast })}
               options={fastOptions}
             />
-            <p className="lp-field__note">
-              {c.longestFastH < 24
-                ? `Up to ${c.longestFastH} h between the last meal and the next: plans use daily eating windows, no fasting days.`
-                : `Plans may use fasts up to ${c.longestFastH} h when your goals call for them.`}
-              {safetyMaxFastH < 72 && fastLockReason ? ` Longer fasts: ${fastLockReason}` : ''}
-            </p>
+            {/* r068 W2-16: a greyed option says why */}
+            {fastOptions.some((o) => o.disabled) && !disabled ? (
+              <span className="lp-field__hint">
+                {LONGEST_FAST_OPTIONS.filter((h) => h > Math.max(12, safetyMaxFastH))
+                  .map((h) => `${h} h`)
+                  .join(' and ')}{' '}
+                {fastingControls ? 'need “Allow fasts over 24 hours” below.' : 'are off under your safety answers.'}
+              </span>
+            ) : null}
           </div>
-          <Switch
-            label="I’d like fasting to be part of the plan"
-            labelStyle="sentence"
-            checked={c.prefersFasting}
-            onChange={(v) => onChange({ prefersFasting: v })}
-            disabled={disabled}
-          />
+          {/* the preference only matters once fasting days are allowed (24 h and longer) */}
+          {c.longestFastH >= 24 ? (
+            <div className="lm-safety-row lp-switchrow">
+              <div className="lm-safety-row__text">
+                <span className="lm-safety-row__label" id="lp-prefer-fast-l">
+                  I’d like fasting to be part of the plan
+                </span>
+              </div>
+              <Switch
+                labelledBy="lp-prefer-fast-l"
+                checked={c.prefersFasting}
+                onChange={(v) => onChange({ prefersFasting: v })}
+                disabled={disabled}
+              />
+            </div>
+          ) : null}
+          {fastingControls ? <div className="lp-limits__optins">{fastingControls}</div> : null}
           <div className="lp-field">
-            <span className="lm-eng" id="lp-hunger-l">
-              hunger I can live with
+            <span className="lp-label" id="lp-hunger-l">
+              Hunger I can live with
             </span>
             <KeyBank<HungerTolerance>
               labelledBy="lp-hunger-l"
@@ -267,17 +301,47 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
               value={c.hungerTolerance}
               onChange={(v) => onChange({ hungerTolerance: v })}
               options={[
-                { value: 'low', label: 'little', disabled },
-                { value: 'medium', label: 'some', disabled },
-                { value: 'high', label: 'a lot', disabled },
+                { value: 'low', label: 'Little', disabled },
+                { value: 'medium', label: 'Some', disabled },
+                { value: 'high', label: 'A lot', disabled },
               ]}
             />
           </div>
         </Section>
 
+        <Section label="Muscle retention">
+          <div className="lm-safety-row lp-switchrow">
+            <div className="lm-safety-row__words"><span className="lp-label" id="lp-muscle-budget-l">Limit modeled muscle loss</span></div>
+            <Switch
+              labelledBy="lp-muscle-budget-l"
+              checked={c.maxMuscleLossPct !== null && c.maxMuscleLossPct !== undefined}
+              onChange={(on) => onChange({ maxMuscleLossPct: on ? 5 : null })}
+              disabled={disabled}
+            />
+          </div>
+          {c.maxMuscleLossPct !== null && c.maxMuscleLossPct !== undefined ? (
+            <ScaleSlider
+              label="Whole-plan loss budget"
+              value={muscleLoss}
+              onChange={setMuscleLoss}
+              onCommit={(v) => onChange({ maxMuscleLossPct: v })}
+              min={0}
+              max={10}
+              step={0.5}
+              majorStep={5}
+              minorStep={0.5}
+              labels={[0, 5, 10]}
+              unit="%"
+              valueText={(v) => `${formatNumber(v, 1)} percent of starting modeled skeletal muscle over the whole plan`}
+              disabled={disabled}
+            />
+          ) : null}
+          <p className="lp-field__hint">Relative to starting modeled skeletal muscle across the whole plan. A scenario limit; actual muscle loss cannot be guaranteed.</p>
+        </Section>
+
         <Section label="Nutrients">
           <ScaleSlider
-            label="protein at least"
+            label="Protein at least"
             value={protein}
             onChange={setProtein}
             onCommit={(v) => onChange({ proteinFloor: v <= 1.2 ? null : v })}
@@ -288,53 +352,38 @@ export function LimitsPanel({ c, onChange, onReset, customised, safetyMaxFastH, 
             minorStep={0.1}
             unit="g/kg"
             labels={[1.2, 2.0, 2.4]}
-            reference={{ value: 1.6, label: 'typical for lifting' }}
+            reference={{ value: 1.6, label: 'typical' }}
             valueText={(v) => `protein at least ${formatNumber(v, 1)} grams per kilogram`}
-            note={protein <= 1.2 ? 'The evidence minimum while losing fat; it can’t go lower.' : 'Grams per kg of reference body weight, every eating day.'}
             disabled={disabled}
           />
           <div className="lp-field">
-            <span className="lm-eng" id="lp-carb-l">
-              net carbohydrate at least
+            <span className="lp-label" id="lp-carb-l">
+              Net carbohydrate at least
             </span>
             <KeyBank
               labelledBy="lp-carb-l"
               size="sm"
               value={String(c.carbFloorG)}
               onChange={(v) => onChange({ carbFloorG: Number(v) })}
-              options={[0, 50, 100, 150].map((g) => ({ value: String(g), label: g === 0 ? 'no floor' : `${g} g`, disabled }))}
+              options={[0, 50, 100, 150].map((g) => ({ value: String(g), label: g === 0 ? 'No floor' : `${g} g`, disabled }))}
             />
-            <p className="lp-field__note">{c.carbFloorG >= 50 ? 'Keeps every day out of the ketogenic range.' : 'Plans may use very-low-carbohydrate days when a goal calls for them.'}</p>
           </div>
         </Section>
 
-      </div>
-    </Faceplate>
-  );
-}
-
-export interface WontDoPanelProps {
-  c: ConstraintDraft;
-  onChange: (patch: Partial<ConstraintDraft>) => void;
-  disabled?: boolean;
-}
-
-/** The "won't do" list (planner-goals.md §6): its own section, under "Before you run" on wide screens. */
-export function WontDoPanel({ c, onChange, disabled }: WontDoPanelProps) {
-  const energy = useEnergyUnit();
-  const toggleExcluded = (id: string, on: boolean) => {
-    const set = new Set(c.excluded);
-    if (on) set.add(id);
-    else set.delete(id);
-    onChange({ excluded: [...set].sort() });
-  };
-  return (
-    <Faceplate title="Won’t do" className="lp-wontface">
-      <div className="lp-wont">
-        {EXCLUDABLE.map((x) => (
-          <Checkbox key={x.id} label={x.label} help={typeof x.help === 'function' ? x.help(energy) : x.help} checked={c.excluded.includes(x.id)} onChange={(on) => toggleExcluded(x.id, on)} disabled={disabled} />
-        ))}
-        <Checkbox label="changing my sleep" help="Keep bed and wake times as they are" checked={c.sleepFixed} onChange={(on) => onChange({ sleepFixed: on })} disabled={disabled} />
+        {/* what the plans may not use: a chip per lever, selected = left out (its detail in the title tooltip) */}
+        <Section label="Leave out">
+          {/* what the plans may not use: a checked box is left out (r068 PG5: a list, not a chip cloud) */}
+          <div className="lp-leaveout" role="group" aria-label="Leave out of plans">
+            {EXCLUDABLE.map((x) => (
+              <span key={x.id} title={typeof x.help === 'function' ? x.help(energy) : x.help}>
+                <Checkbox checked={c.excluded.includes(x.id)} onChange={(on) => toggleExcluded(x.id, on)} disabled={disabled} label={cap(x.label)} />
+              </span>
+            ))}
+            <span title="Keep bed and wake times as they are">
+              <Checkbox checked={c.sleepFixed} onChange={(on) => onChange({ sleepFixed: on })} disabled={disabled} label="Sleep changes" />
+            </span>
+          </div>
+        </Section>
       </div>
     </Faceplate>
   );

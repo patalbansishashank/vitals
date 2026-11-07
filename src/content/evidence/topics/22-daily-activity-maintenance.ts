@@ -194,6 +194,7 @@ const topic: EvidenceTopic = {
         'activityIntake.walkCadence',
         'activityIntake.cvStepCost',
         'activityIntake.cvStepsWrist',
+        'activityIntake.cvStepsFused',
         'activityIntake.cvStepsPhone',
         'activityIntake.cvStepsPhoneNotCarried',
         'activityIntake.cvStepsRough',

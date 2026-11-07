@@ -23,6 +23,31 @@
  *    lipolysis/ketogenesis functions (04's absolute meal insulin, ≈ 2× higher and 4 h longer after low-carbohydrate
  *    meals, drove very-low-carbohydrate BHB to ≈ 0.2 mM for most of the day).
  *  - Caffeine half-life: single owner `moderators.caffeineTHalfH` × `moderators.caffeineOcMult` (combined OC).
+ * Energy basis (C3/C7, D6-02, 2026-10-18):
+ *  - `eAbsKcalH` is MODELED APPEARING METABOLIZABLE ENERGY on the reported-ME boundary (`./energyBasis.ts`
+ *    `INTAKE_ENERGY_BASIS`): food ME already excludes fecal/urinary losses, so no excretion is charged again downstream;
+ *    TEF stays expenditure. The 15 §4.2 fibre/nut ME corrections are applied on top as a ratio (`dmeRatio`).
+ *  - Energy-only intake (`HourInput.unallocatedKcal`, part of `kcal`): the energy of a meal not explained by its KNOWN grams
+ *    (unknown macros, or a source-reconciliation residual). It enters the meal's gut-energy pool, empties with it (absorptive
+ *    state, 07 §4.1) and appears as energy only: it never feeds a named glucose, fructose, amino-acid or fat stream, the
+ *    glucose/insulin excursions or the ketone insulin proxy. A negative value (known grams above the reported energy) is a
+ *    reconciliation correction that follows the same emptying and never makes an hour's appearing energy negative (any
+ *    unapplied part is carried, `reconDebtKcal`). Substrate-dependent outputs of such days carry the day's energy status.
+ *  - Ingestion-to-appearance audit (`./energyBasis.ts` `intakeEnergyAudit`): registered intake = appeared + retained gut
+ *    stores/tails + declared pre-appearance losses, from the first hour of the run, independent of the eAbs identities.
+ * Scope and ME corrections (D6-07/D6-08, 2026-10-18; `INTAKE_KINETICS_SCOPE`, `INTAKE_ME_CORRECTION_POLICY`):
+ *  - The appearance streams are phenomenological GUT-APPEARANCE approximations for schedule comparison. Intestinal uptake,
+ *    systemic appearance after first-pass (splanchnic) use and oxidation are different observables; the 60/90 g/h caps are
+ *    design limits, not verified universal maxima. Fibre energy (2 kcal/g) appears with the carbohydrate kernel as energy
+ *    only (never as small-intestinal glucose); its hourly timing is unsupported, its daily ME is kept. Carbohydrate of
+ *    unknown mixture is routed as glucose-equivalent — a declared scenario assumption. A new stomach→lumen→splanchnic
+ *    ledger and colonic timing are P3 research, not implemented here.
+ *  - The generic 15 §4.2 fibre slope and nut delta are OFF by default (scenario switches `fibreMeScenario`,
+ *    `nutMeScenario`); when on, the fibre scenario only lowers ME (no positive low-fibre uplift). A correction is bound to
+ *    its ORIGINATING meal: the ratio of the meal's own day is frozen in its ring slot and applied to that meal's gut-energy
+ *    emptying, so a late meal keeps its correction across midnight whatever the next day holds; ethanol, exogenous ketones
+ *    and carbohydrate eaten during exercise are never corrected. Food/form-specific measured ME arrives as the food's
+ *    own energy upstream (an alternative route, never stacked).
  */
 import { defineModule } from '../../core/moduleKit';
 import { param } from '../../core/paramsRegistry';
@@ -144,7 +169,9 @@ const KF_THETA = 2;
 const KF_CDF = 3;
 const KF_EK = 4;
 const KF_DK = 5;
-const KETONE_FIELDS = 6;
+export const KETONE_FIELDS = 6;
+/** Field offsets inside one exogenous-ketone slot. */
+export const KF = { T0: KF_T0, MMOL: KF_MMOL, THETA: KF_THETA, CDF: KF_CDF, EK: KF_EK, DK: KF_DK } as const;
 
 /**
  * Numerical housekeeping of the ring (MODEL_SPEC §1.3 step 1, review m15): a pool (carbohydrate kernel, protein, gut
@@ -235,7 +262,10 @@ export interface IntakeState {
   sMusPowIns: number;
   mTol: number;
   mIns: number;
-  /** Today's ME-correction ratio (dME_fibre + dME_nut)/E applied to each hour's appearing energy (15 §4.2). */
+  /**
+   * Today's ME-correction ratio (dME_fibre + dME_nut)/E (15 §4.2 scenarios; 0 by default). Frozen into each meal slot
+   * registered today (`mealDme`) and applied to that meal's gut-energy emptying (origin-bound, D6-08).
+   */
   dmeRatio: number;
   /** Today's correction, kcal/d (diagnostic). */
   dmeKcalD: number;
@@ -250,10 +280,34 @@ export interface IntakeState {
   mctNz: number;
   alcNz: number;
   ketNz: number;
+  /**
+   * (D6-02) Energy-only kcal per kcal of gut energy of each ring slot (`HourInput.unallocatedKcal`; signed: a negative value
+   * is a source-reconciliation correction). Appears as energy only, at the slot's gastric emptying.
+   */
+  mealUK: Float64Array;
+  /** (D6-02) Negative energy-only correction not yet applied (an hour's appearing energy never goes below 0), kcal ≤ 0. */
+  reconDebtKcal: number;
+  /** (D6-08) ME-correction ratio of each ring slot's originating day (kcal per kcal of the slot's gut energy). */
+  mealDme: Float64Array;
+  /** (D6-08) Negative ME correction not yet applied (appearing ME never goes below 0), kcal ≤ 0. Outside the audit. */
+  dmeDebtKcal: number;
+  /**
+   * (D6-02/C7) Ingestion-to-appearance audit, cumulative kcal since init: energy registered into the gut/pools (engine
+   * convention, MCT 8.3 kcal/g, energy-only included), raw appearance (before the 15 §4.2 ratio), declared pre-appearance
+   * losses (fed exogenous-ketone bioavailability, a dropped ketone dose), the ME-correction ratio's kcal, and the
+   * compiler-submitted hourly kcal (+ exercise carbohydrate) for comparison.
+   */
+  auditInKcal: number;
+  auditOutKcal: number;
+  auditLossKcal: number;
+  auditMeKcal: number;
+  auditSubmittedKcal: number;
 }
 
 /** Constants (MODEL_SPEC §0.3: parameters are read only in prepare()). */
 export interface IntakeConst {
+  /** Run-local scratch: exact meal-shape coefficients for the most recently used time-to-peak. */
+  mealShape: { tp: number; offset: number; dk: number; gexp: number; idec: number; iexp: number };
   raGlcMax: number;
   raTotMax: number;
   glcFast: number;
@@ -323,6 +377,9 @@ export interface IntakeConst {
   crTauUpMax: number;
   crTauDown: number;
   crLoadGPerKg: number;
+  /** (D6-08) scenario switches: the generic fibre and nut ME corrections (off by default). */
+  fibreScenario: boolean;
+  nutScenario: boolean;
   /** k_net = k_F − GE_fib + c_f, kcal per g fibre. */
   fibreKNet: number;
   fibreRef: number;
@@ -339,6 +396,12 @@ export interface IntakeConst {
   ketoneKcalPerG: number;
   /** t_p of carbohydrate taken during exercise (absorbed as glucose, review M8), h. */
   exCarbTp: number;
+  /**
+   * (D6-02) Energy-only intake that resets hFast, kcal: min(4·hFastProtein, 4·hFastCarb) — the smallest energy that could
+   * meet an 08 §4.10 reset threshold under some feasible composition. Engineering assumption for unknown composition, so an
+   * observed caloric meal never extends fasted-state outputs; derived from the two thresholds (no new coefficient).
+   */
+  hFastUnallocKcal: number;
   walkFactor: number;
   walkFactorLast: number;
   walkMinMin: number;
@@ -350,7 +413,8 @@ export interface IntakeConst {
   /**
    * Hour accumulators (preallocated): 0 glc kernel g, 1 fru+gal kernel g, 2 fibre g, 3 protein digested g,
    * 4 Σ Q·F_sys·digested g, 5 gut energy emptied kcal, 6 fat g, 7 MCT g, 8 Σ change of the instantaneous
-   * quality-weighted systemic AA rate over the hour, g/h.
+   * quality-weighted systemic AA rate over the hour, g/h, 9 energy-only kcal (D6-02), 10 origin-bound ME-correction
+   * kcal of flushed gut energy (D6-08).
    */
   acc: Float64Array;
 }
@@ -407,6 +471,7 @@ function prepare(ctx: ModuleContext): IntakeConst {
   const xMax = v('crXMax');
 
   return {
+    mealShape: { tp: Number.NaN, offset: Number.NaN, dk: 0, gexp: 0, idec: 0, iexp: 0 },
     raGlcMax: v('raGlcMaxGH'),
     raTotMax: v('raGlcFruMaxGH'),
     glcFast: v('glcFastMmolL'),
@@ -467,6 +532,8 @@ function prepare(ctx: ModuleContext): IntakeConst {
     crTauUpMax: v('crTauUpMaxD'),
     crTauDown: v('crTauDownD'),
     crLoadGPerKg: v('crLoadGPerKg'),
+    fibreScenario: v('fibreMeScenario') >= 0.5,
+    nutScenario: v('nutMeScenario') >= 0.5,
     fibreKNet: v('fibreKFKcalPerG') - v('fibreGEKcalPerG') + ATW_FIB,
     fibreRef: v('fibreRefGPer1000Kcal'),
     fibreCapNeg: v('fibreCapNegFrac'),
@@ -480,13 +547,14 @@ function prepare(ctx: ModuleContext): IntakeConst {
     ketoneFedFactor: v('ketoneFedFactor'),
     ketoneKcalPerG: v('ketoneKcalPerG'),
     exCarbTp: v('exCarbTpH'),
+    hFastUnallocKcal: Math.min(ATW_P * v('hFastProteinG'), ATW_C * v('hFastCarbG')),
     walkFactor: v('walkGlcFactor'),
     walkFactorLast: v('walkGlcFactorLastMeal'),
     walkMinMin: v('walkMinMinutes'),
     fibre0: prof.habitualFibreG > 0 ? prof.habitualFibreG : 16,
     bw0: prof.weightKg > 0 ? prof.weightKg : 70,
     scratch: new Float64Array(2),
-    acc: new Float64Array(9),
+    acc: new Float64Array(11),
   };
 }
 
@@ -529,11 +597,15 @@ function startDay(s: IntakeState, k: IntakeConst, bus: SignalBus, day: DayInput)
   s.sMusPowIns = Math.pow(sMus, k.insSmusExp);
   s.mTol = 1 + k.glcTolCoef * (1 - tc);
   s.mIns = 1 - k.insTolCoef * (1 - tc);
-  // 15 §4.2 fibre and nut ME corrections for today, distributed over appearing energy (ratio to E)
+  // 15 §4.2 fibre and nut ME corrections: labelled sensitivity scenarios, off by default (D6-08). When on, the fibre
+  // scenario only lowers ME above the reference density (upper cap 0: no positive low-fibre uplift) and the ratio is
+  // frozen into the meals registered today (origin-bound), never applied to ethanol, ketones or exercise carbohydrate.
+  if (s.mealDme === undefined) s.mealDme = new Float64Array(MEAL_SLOTS); // a snapshot from before the field existed
+  if (s.dmeDebtKcal === undefined) s.dmeDebtKcal = 0;
   const e = day.energyKcal > 0 ? day.energyKcal : 0;
-  const dFib = fibreMeCorrection(s.fibreEffG, e, k.fibreKNet, k.fibreRef, k.fibreCapNeg, k.fibreCapPos);
+  const dFib = k.fibreScenario ? fibreMeCorrection(s.fibreEffG, e, k.fibreKNet, k.fibreRef, k.fibreCapNeg, 0) : 0;
   const nuts = day.nutsG > 0 ? day.nutsG : 0;
-  const dNut = -(day.nutDelta > 0 ? day.nutDelta : 0) * nuts * k.nutKcalPerG;
+  const dNut = k.nutScenario ? -(day.nutDelta > 0 ? day.nutDelta : 0) * nuts * k.nutKcalPerG : 0;
   s.dmeKcalD = e > 0 ? dFib + dNut : 0;
   s.dmeRatio = e > 0 ? s.dmeKcalD / e : 0;
   if (s.dmeRatio < -0.5) s.dmeRatio = -0.5;
@@ -638,6 +710,8 @@ function flushSlot(s: IntakeState, base: number, acc: Float64Array, k: IntakeCon
     acc[5] = acc[5]! + g;
     acc[6] = acc[6]! + g * m[base + MF.FATK]!;
     acc[7] = acc[7]! + g * m[base + MF.MCTK]!;
+    acc[9] = acc[9]! + g * s.mealUK[base / MEAL_FIELDS]!;
+    acc[10] = acc[10]! + g * s.mealDme[base / MEAL_FIELDS]!;
   }
   m[base + MF.CDF] = 1;
   m[base + MF.PROT] = 0;
@@ -648,7 +722,8 @@ function flushSlot(s: IntakeState, base: number, acc: Float64Array, k: IntakeCon
 
 /**
  * Register one meal (all macros ingested in this hour) into the ring. Grams are already validated (≥ 0).
- * `glc` + `fg` = net carbohydrate; `mct` ⊂ `fat`.
+ * `glc` + `fg` = net carbohydrate; `mct` ⊂ `fat`; `unalloc` = energy-only kcal (D6-02; signed, bounded below by minus the
+ * meal's own substrate energy).
  */
 function registerMeal(
   s: IntakeState,
@@ -669,6 +744,8 @@ function registerMeal(
   speed: number,
   lag: number,
   walkEligible: boolean,
+  unalloc: number,
+  dme: number,
 ): void {
   const m = s.meals;
   // free slot, else the oldest active slot is flushed into this hour and reused
@@ -691,13 +768,33 @@ function registerMeal(
   s.nextSlot = (slot + 1) % MEAL_SLOTS;
   const b = slot * MEAL_FIELDS;
   const carb = glc + fg;
-  const gutE = ATW_P * prot + ATW_C * carb + ATW_F * fat + ATW_FIB * fib;
+  const subE = ATW_P * prot + ATW_C * carb + ATW_F * fat + ATW_FIB * fib;
+  // energy-only part (D6-02): positive joins the gut pool; negative (reconciliation) cannot exceed the meal's own energy
+  const appE = subE - (ATW_F - ATW_MCT) * mct;
+  const u = unalloc < -appE ? -appE : unalloc;
+  const gutE = u > 0 ? subE + u : subE;
+  s.mealUK[slot] = gutE > 0 ? u / gutE : 0;
+  // (D6-08) the ME-correction ratio of the meal's own day, applied to this meal's gut energy as it empties
+  s.mealDme[slot] = gutE > 0 ? dme : 0;
+  s.auditInKcal += appE + (gutE > 0 ? u : 0);
 
   m[b + MF.T0] = hourIndex;
   m[b + MF.C0] = glc;
   m[b + MF.FG0] = fg;
   m[b + MF.FIB0] = fib;
-  m[b + MF.DK] = Math.exp(-1 / tp);
+  // These coefficients depend only on the exact input time-to-peak and this run's insulin offset.
+  // Keep their original expressions (division before exp); cache neither meal amplitudes nor mutable physiology.
+  const shape = k.mealShape;
+  if (shape.tp !== tp || shape.offset !== k.insTpOffset) {
+    const tpi = tp + k.insTpOffset;
+    shape.tp = tp;
+    shape.offset = k.insTpOffset;
+    shape.dk = Math.exp(-1 / tp);
+    shape.gexp = Math.exp(1 - 0.5 / tp);
+    shape.idec = Math.exp(-1 / tpi);
+    shape.iexp = Math.exp(1 - 0.5 / tpi);
+  }
+  m[b + MF.DK] = shape.dk;
   m[b + MF.EK] = m[b + MF.DK]!;
   m[b + MF.TP] = tp;
   m[b + MF.CDF] = carb + fib > 0 ? 0 : 1;
@@ -731,13 +828,12 @@ function registerMeal(
   );
   m[b + MF.GAMP] = aM * mClock(hourOfDay, k.mClockRef, k.mClockSlope, k.mClockSpan);
   m[b + MF.GDEC] = m[b + MF.DK]!;
-  m[b + MF.GEXP] = Math.exp(1 - 0.5 / tp);
+  m[b + MF.GEXP] = shape.gexp;
   // 04 §4.17 insulin excursion; L_I = (0.5 + 0.5·GI/100)·C
   const lI = (k.insGiWeight + (1 - k.insGiWeight) * (gi / 100)) * carb;
   m[b + MF.IAMP] = insulinAmplitude(lI, prot, s.sMusPowIns, k.insBmax, k.insKI, k.insBP);
-  const tpi = tp + k.insTpOffset;
-  m[b + MF.IDEC] = Math.exp(-1 / tpi);
-  m[b + MF.IEXP] = Math.exp(1 - 0.5 / tpi);
+  m[b + MF.IDEC] = shape.idec;
+  m[b + MF.IEXP] = shape.iexp;
   m[b + MF.WALK] = walkEligible ? 0 : 1;
   m[b + MF.LAST] = walkEligible && isLastMealHour(day, hourOfDay) ? 1 : 0;
   s.mealActive[slot] = 1;
@@ -752,9 +848,16 @@ function registerKetone(s: IntakeState, k: IntakeConst, g: number, fed: boolean,
       break;
     }
   }
-  if (slot < 0) slot = 0; // > 4 concurrent doses: overwrite the first (its undelivered rest is dropped; never occurs in practice)
-  const b = slot * KETONE_FIELDS;
   const kt = s.ketones;
+  if (slot < 0) {
+    // > 4 concurrent doses: overwrite the first (its undelivered rest is dropped, a declared loss; never occurs in practice)
+    slot = 0;
+    s.auditLossKcal += (1 - kt[KF_CDF]!) * ((kt[KF_MMOL]! * k.ketoneMw) / 1000) * k.ketoneKcalPerG;
+  }
+  const b = slot * KETONE_FIELDS;
+  // audit: the dose's energy is registered; the fed-state bioavailability factor is a declared pre-appearance loss
+  s.auditInKcal += k.ketoneKcalPerG * g;
+  if (fed) s.auditLossKcal += k.ketoneKcalPerG * g * (1 - k.ketoneFedFactor);
   const theta = fed ? k.ketoneTpFed : k.ketoneTpFasted;
   kt[b + KF_T0] = hourIndex;
   kt[b + KF_MMOL] = ((g / k.ketoneMw) * 1000) * (fed ? k.ketoneFedFactor : 1);
@@ -782,7 +885,10 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
   const fatIn = hour.fatG > 0 ? hour.fatG : 0;
   const fib = hour.fibreG > 0 ? hour.fibreG : 0;
   const macros = prot + carb + fatIn + fib;
-  if (macros > 1e-9) {
+  // energy-only intake (D6-02): part of hour.kcal, not explained by the known grams; absent field = none
+  const un = hour.unallocatedKcal;
+  const unalloc = un !== undefined && un === un && un > -1e12 && un < 1e12 ? (macros > 1e-9 || un > 0 ? un : 0) : 0;
+  if (macros > 1e-9 || unalloc > 1e-9) {
     const fg = (hour.fructoseG > 0 ? hour.fructoseG : 0) + (hour.galactoseG > 0 ? hour.galactoseG : 0);
     const fgc = fg < carb ? fg : carb;
     const tp = hour.timeToPeakH > 0.05 ? hour.timeToPeakH : 1;
@@ -790,15 +896,18 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
       s, k, day, hour.hourOfDay, hIdx, acc, carb - fgc, fgc, fib, prot, fatIn,
       hour.mctG > 0 ? (hour.mctG < fatIn ? hour.mctG : fatIn) : 0, tp, hour.glycaemicIndex > 0 ? hour.glycaemicIndex : 55,
       hour.proteinQMeal > 0 ? hour.proteinQMeal : 1, hour.proteinSpeed > 0 ? hour.proteinSpeed : 1,
-      tp <= 0.5 ? 0 : k.gutLag, true,
+      tp <= 0.5 ? 0 : k.gutLag, true, unalloc, s.dmeRatio,
     );
   }
   // carbohydrate eaten during exercise (ruling R-EXCARB, review M8): its own glucose slot, t_p 0.5 h, GI 100, no lag;
   // not part of the hour's meal fields (HourInput.exCarbG)
   const exCarb = hour.exCarbG > 0 ? hour.exCarbG : 0;
-  if (exCarb > 0) registerMeal(s, k, day, hour.hourOfDay, hIdx, acc, exCarb, 0, 0, 0, 0, 0, k.exCarbTp, 100, 1, 1, 0, false);
-  if (hour.exoKetoneG > 0) registerKetone(s, k, hour.exoKetoneG, s.fed === 1 || macros > 1e-9, hIdx);
-  if (hour.alcoholG > 0) s.etohG += hour.alcoholG;
+  if (exCarb > 0) registerMeal(s, k, day, hour.hourOfDay, hIdx, acc, exCarb, 0, 0, 0, 0, 0, k.exCarbTp, 100, 1, 1, 0, false, 0, 0);
+  if (hour.exoKetoneG > 0) registerKetone(s, k, hour.exoKetoneG, s.fed === 1 || macros > 1e-9 || unalloc > 1e-9, hIdx);
+  if (hour.alcoholG > 0) {
+    s.etohG += hour.alcoholG;
+    s.auditInKcal += ATW_ALC * hour.alcoholG;
+  }
 
   // post-meal walk (21 C2 via R-LEVERS): a walk of ≥ walkMin min in the meal hour or the next lowers that meal's glucose excursion
   const walked = hour.exModality === WALK_CODE && hour.exMin >= k.walkMinMin;
@@ -813,6 +922,8 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
   let aGut = 0; // gut energy emptied kcal
   let aFat = 0; // fat g
   let aMct = 0; // MCT g
+  let aUn = 0; // energy-only kcal (D6-02)
+  let aDme = 0; // origin-bound ME correction kcal (D6-08)
   let glcExc = 0;
   let insExc = 0;
   if (s.nActive > 0) {
@@ -824,8 +935,14 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
     const pRem = s.pRem;
     const gEm = s.gEm;
     const gRem = s.gRem;
-    for (let i = 0; i < MEAL_SLOTS; i++) {
+    const uk = s.mealUK;
+    const dk = s.mealDme;
+    // Slots are visited in their original order; stop once every live meal has been processed.
+    // Capture the count before retiring slots below, which changes s.nActive during this pass.
+    let remaining = s.nActive;
+    for (let i = 0; i < MEAL_SLOTS && remaining > 0; i++) {
       if (act[i] === 0) continue;
+      remaining--;
       const b = i * MEAL_FIELDS;
       const age = hIdx - m[b + F_T0]!; // whole hours since the meal started (0 in the meal hour)
       let busy = 0;
@@ -865,6 +982,8 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
         aGut += em;
         aFat += em * m[b + F_FATK]!;
         aMct += em * m[b + F_MCTK]!;
+        aUn += em * uk[i]!;
+        aDme += em * dk[i]!;
         const rem = gRem[j]!;
         m[b + F_GUT] = rem;
         if (rem > 0) busy = 1;
@@ -913,6 +1032,8 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
     aGut += acc[5]!;
     aFat += acc[6]!;
     aMct += acc[7]!;
+    aUn += acc[9]!;
+    aDme += acc[10]!;
     acc.fill(0);
     s.accDirty = 0;
   }
@@ -971,11 +1092,31 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
   // ---- 7. energy appearing this hour (engine convention; MCT at 8.3 kcal/g) + 15 §4.2 ME corrections
   const fat = aFat;
   const mct = aMct;
-  const eRaw =
+  let eRaw =
     ATW_C * (glcOut + fgOut) + ATW_P * aProt + ATW_F * (fat - mct) + ATW_MCT * mct + ATW_FIB * aFib + ATW_ALC * alcOx +
     k.ketoneKcalPerG * ((ketMmol * k.ketoneMw) / 1000);
-  const eAbs = eRaw * (1 + s.dmeRatio);
+  // energy-only appearance (D6-02); a negative reconciliation never makes the hour negative (carried as debt)
+  if (aUn !== 0 || s.reconDebtKcal !== 0) {
+    eRaw += aUn + s.reconDebtKcal;
+    s.reconDebtKcal = 0;
+    if (eRaw < 0) {
+      s.reconDebtKcal = eRaw;
+      eRaw = 0;
+    }
+  }
+  // (D6-08) origin-bound ME correction of the meals emptying now (0 unless a scenario is on); never below 0 (carried)
+  let eAbs = eRaw;
+  if (aDme !== 0 || s.dmeDebtKcal !== 0) {
+    eAbs = eRaw + aDme + s.dmeDebtKcal;
+    s.dmeDebtKcal = 0;
+    if (eAbs < 0) {
+      s.dmeDebtKcal = eAbs;
+      eAbs = 0;
+    }
+  }
   s.dayAbsKcal += eAbs;
+  s.auditOutKcal += eRaw;
+  s.auditMeKcal += eAbs - eRaw;
 
   // ---- 8. fed state and clocks (07 §4.1-4.2, 08 §4.10, 17 §2.1)
   const absFlux = aGut;
@@ -983,7 +1124,8 @@ function stepHour(s: IntakeState, k: IntakeConst, bus: SignalBus, hour: HourInpu
   s.fed = fed;
   s.hoursPostAbsorptive = fed === 1 ? 0 : s.hoursPostAbsorptive + 1;
   const kcalIn = (hour.kcal > 0 ? hour.kcal : 0) + ATW_C * exCarb;
-  s.hoursSinceMeal = prot >= k.hFastProt || carb + exCarb >= k.hFastCarb ? 0 : s.hoursSinceMeal + 1;
+  s.auditSubmittedKcal += kcalIn;
+  s.hoursSinceMeal = prot >= k.hFastProt || carb + exCarb >= k.hFastCarb || unalloc >= k.hFastUnallocKcal ? 0 : s.hoursSinceMeal + 1;
   s.hoursSinceIntake = kcalIn > ZERO_INTAKE_KCAL ? 0 : s.hoursSinceIntake + 1;
 
   // ---- 9. insulin (04 §4.17 × 05 basal factor, R-INS) and glucose (04 §4.16; 07 §4.4.3 in fasting)
@@ -1093,6 +1235,91 @@ function endOfDay(s: IntakeState, k: IntakeConst, bus: SignalBus, day: DayInput)
   bus.fibreEffG = s.fibreEffG;
 }
 
+/**
+ * What the intake module's streams mean (D6-07, C6): the observable each one approximates, its status and scope. Declarative
+ * (shown in the Explain sheet; consumers map `status` to inline `Approximate` / `Unsupported`); nothing here changes the
+ * numbers. `version` versions these labels only; numeric changes go through the parameters, whose registry hash already
+ * keys derived artifacts (C7).
+ */
+export const INTAKE_KINETICS_SCOPE = {
+  version: 2,
+  observables: {
+    raGlcGH: { observable: 'gutGlucoseAppearance', status: 'approximate', notThe: ['intestinalUptake', 'systemicAppearanceAfterFirstPass', 'oxidation'] },
+    raFruGalGH: { observable: 'gutFructoseGalactoseAppearance', status: 'approximate', notThe: ['intestinalUptake', 'systemicAppearanceAfterFirstPass', 'oxidation'] },
+    raProtGH: { observable: 'proteinDigestion', status: 'approximate', notThe: ['systemicAminoAcidAppearance'] },
+    raAaQGH: { observable: 'systemicAminoAcidAppearance', status: 'approximate', notThe: ['muscleProteinSynthesis'] },
+    raFatGH: { observable: 'gutFatAppearance', status: 'approximate', notThe: ['oxidation'] },
+    eAbsKcalH: { observable: 'appearingMetabolizableEnergy', status: 'approximate', notThe: ['grossAbsorption'] },
+    fibreEnergy: { observable: 'colonicFermentationEnergy', status: 'unsupported', hourly: 'unsupported', daily: 'kept' },
+    glucoseMmolL: { observable: 'plasmaGlucoseExcursion', status: 'approximate', notThe: ['personalCalibratedGlucose'] },
+  },
+  caps: { glucoseGH: 'designLimit', glucoseFructoseGH: 'designLimit' },
+  /** Contexts in which the timing kernels are out of domain (a status, never a generic multiplier). */
+  outOfDomain: ['gastroparesis', 'bariatricSurgery', 'glp1Medication', 'inflammatoryBowelDisease'],
+  research: 'stomach→lumen→splanchnic ledger and colonic fibre timing are P3 research (not implemented)',
+} as const;
+
+/** A context that puts the timing kernels out of domain (`INTAKE_KINETICS_SCOPE.outOfDomain`). */
+export type IntakeTimingContext = (typeof INTAKE_KINETICS_SCOPE.outOfDomain)[number];
+
+/**
+ * Domain of the hourly appearance curves for one person (D6-07, C6). Known disease/medication context marks the timing
+ * kernels out of domain — a STATUS for the hourly curves (inline `Unsupported`), never a generic multiplier on the numbers;
+ * daily energy stays usable. Read from the screening's diabetes medication, the dated medication classes (the latest
+ * GLP-1 change on or before `asOf` decides; no date given = any change counts as current) and explicitly stated contexts
+ * (gastroparesis, bariatric surgery, inflammatory bowel disease). Pure.
+ */
+export function intakeTimingDomain(
+  ctx: {
+    diabetesMedication?: string;
+    medications?: ReadonlyArray<{ medicationClass: string; change: 'start' | 'stop' | 'doseChange'; date: string }>;
+    contexts?: readonly IntakeTimingContext[];
+  },
+  asOf?: string,
+): { status: 'approximate' | 'outOfDomain'; reasons: IntakeTimingContext[] } {
+  const reasons = new Set<IntakeTimingContext>();
+  for (const c of ctx.contexts ?? []) if ((INTAKE_KINETICS_SCOPE.outOfDomain as readonly string[]).includes(c)) reasons.add(c);
+  if (ctx.diabetesMedication === 'glp1') reasons.add('glp1Medication');
+  const glp1 = (ctx.medications ?? []).filter((m) => m.medicationClass === 'glp1' && (asOf === undefined || m.date <= asOf));
+  if (glp1.length > 0) {
+    const latest = glp1.reduce((a, b) => (b.date >= a.date ? b : a));
+    if (latest.change !== 'stop') reasons.add('glp1Medication');
+  }
+  const list = INTAKE_KINETICS_SCOPE.outOfDomain.filter((c) => reasons.has(c));
+  return { status: list.length > 0 ? 'outOfDomain' : 'approximate', reasons: list };
+}
+
+/**
+ * Named intake assumptions (C6, D6-07/D6-08), keyed by the id a run lists when it applies; `series` = outputs it enters
+ * directly. The loop decides applicability (e.g. carbohydrate with an unknown mixture on a day; a scenario switch on).
+ */
+export const INTAKE_ASSUMPTIONS = {
+  /** Carbohydrate of unknown glucose/fructose/galactose mixture is routed as glucose-equivalent. */
+  unknownCarbMixtureAsGlucose: { reasonCode: 'carbMixtureUnknown', uncertaintyKind: 'scenario', series: ['glucose', 'liverGlycogen', 'muscleGlycogen', 'glycogenTotal'] },
+  /** Fibre energy appears with the carbohydrate kernel: hourly timing unsupported, daily ME kept. */
+  fibreEnergyHourlyTiming: { reasonCode: 'fibreHourlyTimingUnsupported', uncertaintyKind: 'heuristic', series: [] },
+  /** The generic fibre ME slope scenario is on (uncalibrated; off in the standard projection). */
+  fibreMeScenario: { reasonCode: 'genericFibreMeScenario', uncertaintyKind: 'scenario', series: ['energyBalance'] },
+  /** The generic nut ME delta scenario is on (no species/form identity; off in the standard projection). */
+  nutMeScenario: { reasonCode: 'genericNutMeScenario', uncertaintyKind: 'scenario', series: ['energyBalance'] },
+} as const satisfies Record<string, { reasonCode: string; uncertaintyKind: 'scenario' | 'heuristic'; series: readonly string[] }>;
+
+/**
+ * Food-matrix ME correction policy (D6-08). Each correction states what it represents; none stacks on another; every
+ * correction follows its originating meal; ethanol, exogenous ketones and exercise carbohydrate are excluded. Zero is the
+ * conservative design default (abstention), not a claim of no food-matrix effect. DAMM remains a P3 development
+ * comparator (it reuses the Corbin 17-person crossover and needs transit/methanogen inputs).
+ */
+export const INTAKE_ME_CORRECTION_POLICY = {
+  version: 2,
+  genericFibre: { default: 'off', represents: 'unavailableSubstrate', direction: 'lowerOnly', param: 'intake.fibreMeScenario' },
+  genericNut: { default: 'off', represents: 'sourceMEDelta', param: 'intake.nutMeScenario', note: 'no almond coefficient without species/form identity' },
+  measuredFoodME: { represents: 'sourceME', route: 'food energy upstream (alternative, never stacked)' },
+  binding: 'originatingMeal',
+  excludes: ['ethanol', 'exogenousKetones', 'exerciseCarbohydrate'],
+  substrateStreams: 'unchanged (energy-only correction)',
+} as const;
+
 export const intakeModule = defineModule<IntakeState, IntakeConst>({
   id: 'intake',
   specSection: '§1.3',
@@ -1164,6 +1391,15 @@ export const intakeModule = defineModule<IntakeState, IntakeConst>({
       mctNz: 0,
       alcNz: 0,
       ketNz: 0,
+      mealUK: new Float64Array(MEAL_SLOTS),
+      reconDebtKcal: 0,
+      mealDme: new Float64Array(MEAL_SLOTS),
+      dmeDebtKcal: 0,
+      auditInKcal: 0,
+      auditOutKcal: 0,
+      auditLossKcal: 0,
+      auditMeKcal: 0,
+      auditSubmittedKcal: 0,
     };
     bus.fibreEffG = s.fibreEffG;
     bus.creatineSatFrac = 0;

@@ -1,5 +1,5 @@
 /** React bindings for the server client: the pairing (no token) and the connection state from the status watcher. */
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { getServerClient, watchServer, type ServerClient, type ServerConnection, type ServerPairing, type ServerWatcher } from '@/net/server';
 
 /** One watcher per client, created on first use and shared by every view (the app has one client). */
@@ -43,4 +43,14 @@ export function useServerConnection(): { connection: ServerConnection; check: ()
     if (client.isPaired()) void watcher.check();
   }, [client, watcher]);
   return { connection, check: watcher.check };
+}
+
+/** Keep relative times and online/fresh indicators current without reading the clock during render. */
+export function useServerNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
 }

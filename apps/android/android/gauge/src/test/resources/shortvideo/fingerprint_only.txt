@@ -1,0 +1,46 @@
+# A layout whose pager sends no scroll events: items are told apart by the in-memory fingerprint.
+# Keys a,b,c then back to b (seen), then d. A caption flicker (key x for 100 ms) must not count.
+# expect reels=4
+0 screen instagram in key=fp:a h=2772
+250 tick
+500 tick
+750 tick
+1000 tick
+1250 tick
+1500 tick
+1500 screen instagram in key=fp:b h=2772
+1750 tick
+2000 tick
+2250 tick
+2500 tick
+2750 tick
+3000 tick
+3000 screen instagram in key=fp:c h=2772
+3250 tick
+3500 tick
+3750 tick
+4000 tick
+4250 tick
+4500 tick
+4500 screen instagram in key=fp:x h=2772
+4600 screen instagram in key=fp:c h=2772
+4850 tick
+5100 tick
+5350 tick
+5600 tick
+5850 tick
+6100 tick
+6100 screen instagram in key=fp:b h=2772
+6350 tick
+6600 tick
+6850 tick
+7100 tick
+7350 tick
+7600 tick
+7600 screen instagram in key=fp:d h=2772
+7850 tick
+8100 tick
+8350 tick
+8600 tick
+8850 tick
+9100 tick

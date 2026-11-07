@@ -5,6 +5,8 @@
  * Maintainers: a topic was written from the research file `research/NN-*.md` whose number prefixes the topic file;
  * that number is internal (`EvidenceTopic.dossier`) and never appears in text the user can read.
  */
+import type { UncertaintyKind, Warrant } from '@/lib/bodyContracts';
+
 export type EvidenceGrade = 'A' | 'B' | 'C' | 'D';
 
 /**
@@ -33,7 +35,6 @@ export const EVIDENCE_TOPIC_SLUGS = [
   'extended-water-fasting',
   'other-levers',
   'daily-activity-maintenance',
-  'wearable-scores',
   'tracking-replanning',
   'training-catalogue',
   'supplements',
@@ -91,6 +92,19 @@ export interface KeyNumber {
   value: string;
   note?: string;
   referenceIds?: string[];
+  /** (D8-02) what kind of uncertainty the stated range is (sensitivity range, measurement repeatability…). */
+  uncertaintyKind?: UncertaintyKind;
+}
+
+/**
+ * (D2-02) What supporting evidence actually observed: tissue and observation type (human tissue flux, a blood marker, a
+ * human outcome, animal/cell work, or a model definition). Educational content names these instead of implying a measured
+ * organ-level quantity.
+ */
+export interface EvidenceObservation {
+  tissue: string;
+  type: 'humanTissueFlux' | 'humanBloodMarker' | 'humanOutcome' | 'animal' | 'cell' | 'modelDefinition';
+  referenceIds?: string[];
 }
 
 export interface Mechanism {
@@ -123,7 +137,71 @@ export interface Mechanism {
    * article shows them as parameter cards; every id must resolve in `PARAM_INDEX` (`./params.ts`, a test checks).
    */
   relatedParamIds?: string[];
+  // ---- contract additions 2026-10-18 (C6, D2-02, D8-07; optional, shown only in the info sheet)
+  /** Outcome-scoped warrants (formal trial grade alone is not the warrant). */
+  warrants?: Warrant[];
+  /** The outcome/estimand the warrants cover ("direction of fasting-induced BHB rise", not "longevity"). */
+  outcomeScope?: string;
+  /** Population the evidence is from. */
+  population?: string;
+  /** Tissue and observation type of the supporting evidence. */
+  observations?: EvidenceObservation[];
+  /**
+   * How the engine uses the mechanism: production, exploratory (latent/scenario only, no objective) or not modelled
+   * (informational; an inactive pathway reads "Not modelled").
+   */
+  modelStatus?: 'production' | 'exploratory' | 'notModelled';
 }
+
+/* ------------------------------------------------------------------------------------- external validation (D8-03, C7) */
+
+/**
+ * Role of a dataset/arm/outcome for a frozen model version (D8-03): `verification` (code/oracle/invariant checks, incl.
+ * shared-input Hall oracles — conditional dynamics, not independent prediction), `estimation`/`calibration` (development),
+ * `externalEvaluation` (untouched holdout evaluated after the version froze). Reading a completed evaluation does not
+ * invalidate it for that version; data used to tune a later version are development for that later version.
+ */
+export type ValidationRole = 'verification' | 'estimation' | 'calibration' | 'externalEvaluation';
+/** Meaning of a tolerance: a reported SD/SEM/CI, a clinical margin or a design tolerance (never mixed into one probability). */
+export type ToleranceType = 'sd' | 'sem' | 'ci' | 'clinical' | 'design';
+
+export interface ValidationRecord {
+  studyId: string;
+  cohortId?: string;
+  arm?: string;
+  outcome: string;
+  /** Frozen model/release version the record applies to, and the freeze hash taken before holdout outcomes were read. */
+  modelVersion: string;
+  freezeHash?: string;
+  role: ValidationRole;
+  /** Parameters/policies the data influenced (empty for an untouched external evaluation). */
+  parametersInfluenced: string[];
+  /** Model inputs that were measured in the study vs imputed for the replay. */
+  inputs: { observed: string[]; imputed: string[] };
+  /** Measurement operator / endpoint convention compared (e.g. 'dxaFatMass', 'scaleWake'). */
+  endpointOperator?: string;
+  population: string;
+  toleranceType: ToleranceType;
+  source: string;
+  result?: {
+    status: 'pass' | 'knownMiss' | 'aborted' | 'noData' | 'error' | 'skipped';
+    bias?: number;
+    mae?: number;
+    direction?: 'over' | 'under' | 'mixed';
+    /** Interval coverage/width only when the endpoint distribution supports it; sensitivity ≠ prediction coverage. */
+    coverage?: number;
+    width?: number;
+    coverageKind?: 'sensitivity' | 'prediction';
+  };
+}
+
+/** Inline status of a validation entry (D8-03). */
+export const VALIDATION_ROLE_LABEL: Readonly<Record<ValidationRole, string>> = {
+  verification: 'Verified',
+  estimation: 'Development',
+  calibration: 'Development',
+  externalEvaluation: 'Independently tested',
+};
 
 export interface Myth {
   id: string;

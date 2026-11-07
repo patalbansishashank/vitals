@@ -1,6 +1,6 @@
 /**
- * MODULE appetite — Hunger Pressure Index (HPI), unmet-appetite effort, plan-survival (adherence) probability,
- * diet fatigue. Outputs only: never changes intake (orchestrator ruling R-INTAKE; ad-libitum drift = future work).
+ * MODULE appetite — Hunger Pressure Index (HPI), unmet-appetite effort, legacy latent adherence index, diet fatigue.
+ * Outputs only: never changes intake (orchestrator ruling R-INTAKE; ad-libitum drift = future work).
  * Spec: docs/MODEL_SPEC.md §1.12 · Dossiers: 12 §4.9-4.12 (owner); 15 §4.5-4.6 (satiety terms), 16 §4.1 (sleep debt dF
  * feeds D_sleep), 16 §4.5 (luteal drive, mean-zero over the cycle), 10 §4.3 (appetite part of exercise compensation = D_ex), 13 §4.10
  * (keto-induction hook), 21 §4 (behavioural levers → adherence).
@@ -14,7 +14,21 @@
  * satiety references are the habitual diet, D_sleep is relative to the habitual sleep debt, D_ex to the habitual
  * exercise, D_WL to the tissue mass latched at t = 0, and diet fatigue sees u = EI/T̄ − 1 against the 7-day mean
  * expenditure (a habitual exerciser eating a flat intake is not "in deficit" on training days). `endBurnIn` latches these
- * references and clears the burn-in effort, so the HPI is exactly its baseline HPI(0) at t = 0 and adherence is 100 %.
+ * references and clears the burn-in effort, so the HPI is exactly its baseline HPI(0) at t = 0.
+ *
+ * D2-06 (contract C6; `APPETITE_OUTPUT_CONTRACT`):
+ *  - The HPI is an UNCALIBRATED burden index built from interpretable drive directions (weight-loss feedback, satiety,
+ *    exercise, sleep, fatigue, meal pattern, luteal phase). It becomes a personal 0–10 hunger forecast only through the
+ *    person's own consistent fixed-time ratings (`ratingCalibration.ts`); ratings calibrate burden, never endocrine
+ *    mechanisms, and missing ratings are missing (never zero hunger). Felt hunger, fullness, craving, effort and observed
+ *    item completion are different quantities.
+ *  - Ketosis relief has no default magnitude: `appetite.ketoAtten` is 0 (the legacy 0.9 cancelled up to 90 % of every
+ *    positive drive). The fasting-hunger time course ψ (07 §4.10) stays as a labelled relief scenario on the acute-deficit
+ *    drive only.
+ *  - `adherence` is a deprecated LATENT index 100·exp(−Σh) of an undefined dropout hazard: no event definition, horizon or
+ *    calibration, so it is never a probability of sticking with the plan, a goal or a starting "100 %" prediction. Recorded
+ *    item completion and coverage (living plan) are the observed behaviour. HPI and the user's hunger tolerance are
+ *    preferences/burden, never medical thresholds, and a low burden never relaxes energy, protein or symptom rules.
  */
 import { defineModule } from '../../core/moduleKit';
 import { param } from '../../core/paramsRegistry';
@@ -59,6 +73,23 @@ const weightLossDrive = weightLossDriveI;
 
 export { APPETITE_PARAMS } from './params';
 
+/** What the appetite outputs mean (D2-06, C6): adapters, exports and the info sheet read this, never the legacy goal notes. */
+export const APPETITE_OUTPUT_CONTRACT = {
+  version: 2,
+  hunger: { unit: 'index', status: 'uncalibratedIndex', calibratedBy: 'personal fixed-time 0–10 ratings', identifiesMechanisms: false },
+  adherence: {
+    unit: '%',
+    status: 'deprecated',
+    semantics: 'latentHazardIndex',
+    probability: false,
+    /** No defined dropout event, horizon or population calibration: never shown as a probability or a starting 100 %. */
+    dropoutDefinition: null,
+    observedBehaviour: 'living-plan item completion with coverage',
+  },
+  ketosisRelief: { defaultOffset: 0, legacyScenario: { id: 'legacyKetoRelief', param: 'appetite.ketoAtten', value: 0.9 } },
+  fastingRelief: { status: 'scenario', appliesTo: 'acute-deficit drive of zero-intake spans' },
+} as const;
+
 /** Days of habitual exercise averaged into ExEE0 at the end of burn-in (the habitual week). */
 const EX_BURN_DAYS = 7;
 /** Days in the expenditure window of the energy-status driver u (MODEL_SPEC §1.12: 7-day trailing mean TDEE estimate). */
@@ -71,7 +102,7 @@ export interface AppetiteState {
   fatigue: number;
   /** Smoothed unmet appetite ("effort") E_s, kcal-eq/d (τ 1 d). */
   effortS: number;
-  /** Ketosis appetite adaptation K_ad 0..1 (τ 10 d up / 3 d down). */
+  /** Ketosis appetite adaptation K_ad 0..1 (τ 10 d up / 3 d down); acts only through `ketoAtten` (default 0, D2-06). */
   kAd: number;
   /** 28-day filtered net exercise EE S_ex, kcal/d. */
   sEx: number;
@@ -87,7 +118,10 @@ export interface AppetiteState {
   u: number;
   /** Habitual fast sleep debt dF (clamped 0..4 h) latched at t = 0, h. */
   dSleepRefH: number;
-  /** Cumulative dropout hazard Σh (recorded days only) and P_surv = exp(−Σh). */
+  /**
+   * Cumulative legacy hazard Σh (recorded days only) and the latent index exp(−Σh) (field name kept for snapshot
+   * compatibility; D2-06: not a survival probability — no dropout event, horizon or calibration is defined).
+   */
   cumHazard: number;
   pSurv: number;
   /** Meals/day pattern memory for D_meal: days since the meal count changed, previous count. */
@@ -380,7 +414,7 @@ export const appetiteModule = defineModule<AppetiteState, AppetiteK>({
    * End of burn-in (§3.4; MODEL_SPEC §1.12 baseline contract): composition resets the body, energy calibrates NEAT0.
    * Latches ExEE0 (habitual week), the defended weight (tissue mass at t = 0 plus the habitual day's mean-minus-midnight
    * offset, so the day-0 daily mean is not read as a change), the habitual sleep debt and the expenditure window;
-   * clears the burn-in effort and fatigue (the habitual diet is the zero of unmet appetite); adherence starts at 1.
+   * clears the burn-in effort and fatigue (the habitual diet is the zero of unmet appetite); the latent index restarts.
    */
   endBurnIn(s, k, bus) {
     latchExerciseBaseline(s);
@@ -487,7 +521,8 @@ export const appetiteModule = defineModule<AppetiteState, AppetiteK>({
     s.satietyS = sat;
 
     // ---- unmet appetite, ketosis attenuation, HPI (12 §4.9.3). The acute-deficit drive of a zero-intake span follows 07's
-    // fasting-hunger time course beyond its peak (ψ̄ = the day's mean factor, 1 on any day with food every < 30 h).
+    // fasting-hunger time course beyond its peak (ψ̄ = the day's mean factor, 1 on any day with food every < 30 h): a labelled
+    // relief scenario. Ketosis attenuation k.ketoAtten defaults to 0 (D2-06: no universal offset; scenario via override).
     const psi = nh > 0 ? s.fastPsiSum / nh : 1;
     s.fastPsi = psi;
     s.effortRaw =
@@ -500,7 +535,8 @@ export const appetiteModule = defineModule<AppetiteState, AppetiteK>({
     s.effortK = (eS > 0 ? eS * (1 - k.ketoAtten * kk * s.kAd) : eS) + k.ketoInduction * (ki > 0 ? ki : 0);
     s.hpi = hungerPressureIndex(s.effortK, k.hpiMid, k.hpiScale);
 
-    // ---- adherence (12 §4.10a; 21 §4G levers as a multiplicative hazard shift); recorded days only
+    // ---- legacy latent adherence index (12 §4.10a; 21 §4G levers as a multiplicative hazard shift); recorded days only.
+    // D2-06: deprecated index, not a probability (`APPETITE_OUTPUT_CONTRACT.adherence`)
     if (clock.day >= 0) {
       s.cumHazard += k.leverMult * dropoutHazard(s.hpi, k.hazCoef, k.hazThr, k.hazScale);
       s.pSurv = Math.exp(-s.cumHazard);

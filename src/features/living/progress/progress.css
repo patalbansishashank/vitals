@@ -1,101 +1,49 @@
-/* ==========================================================================
-   Progress (design/screens/living-mode.md §8) and score detail
-   (design/screens/scores.md §3.2). Faceplates on the chassis, hairlines
-   inside, achromatic chrome — colour only on data marks and status marks.
-   Mobile: one column with an anchor-chip rail; desktop: a sticky section
-   index on the left. Tokens only (var(--lm-*)).
-   ========================================================================== */
-
+/* Progress: the foundation owns card material, typography and domain glows. */
 @layer components {
-  /* ---- page grid and section index ----------------------------------------- */
+  .lv-prog__saved.lm-mono {
+    margin: 0 0 var(--lm-card-gap);
+    overflow-wrap: anywhere;
+  }
   .lv-prog {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    gap: var(--lm-card-gap);
     align-items: start;
   }
-  .lv-prog-main {
+  .lv-prog__col {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
+    gap: var(--lm-card-gap);
     min-width: 0;
   }
-  .lv-prog-index {
-    display: none;
-  }
-  @media (min-width: 64rem) {
-    .lv-prog {
-      grid-template-columns: 200px minmax(0, 1fr);
-      gap: 24px;
-    }
-    .lv-prog-index {
-      display: block;
-      align-self: stretch;
-    }
-    .lv-prog-index__sticky {
-      position: sticky;
-      top: calc(var(--lm-topbar-h) + 20px);
-    }
-  }
-  .lv-prog-index__label {
-    margin: 0 0 8px;
+  .lv-prog__hero {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
   .lv-prog-face {
-    scroll-margin-top: calc(var(--lm-topbar-h) + var(--lm-safe-top) + 72px);
-  }
-  @media (min-width: 64rem) {
-    .lv-prog-face {
-      scroll-margin-top: calc(var(--lm-topbar-h) + 16px);
-    }
-  }
-  .lv-prog-plan {
+    scroll-margin-top: calc(var(--lm-header-h, 0px) + 16px);
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
-
-  /* mobile anchor chips: a snap rail; the next chip peeks (scroll-padding = gutter) */
-  .lv-prog-rail {
-    padding: 8px 0;
-    border-bottom: 1px solid var(--lm-line);
-    background: var(--lm-chassis);
+  .lv-prog-face .lm-gcard__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lm-card-gap);
   }
-  .lv-prog-rail .lm-scroll-rail {
-    scroll-padding-inline: var(--lm-gutter);
+  /* A measured SVG must follow its column rather than become the column's intrinsic width. */
+  .lv-prog-face .lmc-tl {
+    contain: inline-size;
+    inline-size: 100%;
   }
-  @media (min-width: 64rem) {
-    .lv-prog-rail {
-      display: none;
-    }
+  .lv-prog-face .lm-hero {
+    max-width: 100%;
   }
-  .lv-prog-rail__chip {
-    position: relative;
-    height: 36px;
-    padding-inline: 14px;
-    flex: none;
-    scroll-snap-align: start;
-    text-decoration: none;
-    white-space: nowrap;
+  .lv-prog-face .lm-hero__line {
+    flex-wrap: wrap;
   }
-  /* 44 px touch target around the 36 px chip */
-  .lv-prog-rail__chip::after {
-    content: '';
-    position: absolute;
-    inset: -4px 0;
-  }
-  .lv-prog-rail__chip[aria-current='true'] {
-    background: var(--lm-ink);
-    border-color: var(--lm-ink);
-    color: var(--lm-ink-inverse);
-  }
-
-  /* ---- shared bits ---------------------------------------------------------- */
   .lv-prog-state {
-    margin: 0 0 12px;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
+    margin: 0;
+    color: var(--lm-ink-h);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
   .lv-prog-list {
     display: grid;
@@ -103,290 +51,187 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
+    color: var(--lm-ink-h);
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
   }
-  .lv-prog-note {
-    margin: 0;
-    font-size: 12px;
-    color: var(--lm-ink-2);
+  .lv-prog-list li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .lv-prog-list svg {
+    flex: none;
   }
   .lv-prog-month {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    margin-bottom: 8px;
+  }
+  .lv-prog-month .lm-key[data-icon-only] {
+    width: 48px;
+    height: 48px;
   }
   .lv-prog-month__name {
-    min-width: 9ch;
+    min-width: 11ch;
     text-align: center;
-    font-size: var(--lm-text-sm);
-    font-weight: 600;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    line-height: var(--lm-text-meta--lh);
+    letter-spacing: var(--lm-text-meta--ls);
+    text-transform: uppercase;
+    color: var(--lm-ink-h);
   }
-  .lv-prog-table {
+  .lv-prog-ghost {
     width: 100%;
-    border-collapse: collapse;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
+    height: 120px;
+    overflow: visible;
   }
-  .lv-prog-table th,
-  .lv-prog-table td {
-    padding: 8px 8px 8px 0;
-    border-bottom: 1px solid var(--lm-line);
-    text-align: left;
-    vertical-align: baseline;
+  .lv-prog-ghost path {
+    fill: none;
+    stroke: var(--lm-hue-body-ink);
+    stroke-width: 2;
+    stroke-dasharray: 4 6;
+    opacity: 0.4;
   }
-  .lv-prog-table thead th {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--lm-ink-2);
-  }
-  .lv-prog-table tbody th {
-    font-weight: 500;
-  }
-  .lv-prog-table__sub {
-    display: block;
-    font-size: 12px;
-    color: var(--lm-ink-2);
-  }
-  .lv-prog-table tr.is-missing {
-    color: var(--lm-ink-3);
-  }
-
-  /* ---- goals / check-ins ------------------------------------------------------ */
-  .lv-prog-goal,
-  .lv-prog-checkin {
+  .lv-prog-parts {
     display: grid;
-    gap: 6px;
-  }
-  .lv-prog-goal > p,
-  .lv-prog-checkin > p {
-    margin: 0;
-  }
-  .lv-prog-goal__title,
-  .lv-prog-checkin__title {
-    margin: 0;
-    font-size: var(--lm-text-sm);
-    font-weight: 600;
-  }
-  .lv-prog-goal__state {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 17px;
-    line-height: 22px;
-    font-weight: 600;
-  }
-  .lv-prog-goal__date {
-    font-variant-numeric: tabular-nums;
-    font-size: var(--lm-text-sm);
-  }
-  .lv-prog-goal__cause,
-  .lv-prog-goal__keep {
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-    color: var(--lm-ink-2);
-  }
-  .lv-prog-goal__act {
-    margin-top: 4px;
-  }
-
-  /* ---- adherence --------------------------------------------------------------- */
-  .lv-prog-adh__readouts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px 40px;
-    margin-bottom: 16px;
-  }
-  .lv-prog-word {
-    display: grid;
-    gap: 2px;
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-  }
-  .lv-prog-word__aside {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--lm-ink-2);
-  }
-
-  /* ---- body ----------------------------------------------------------------------- */
-  .lv-prog-comp {
-    display: grid;
-    gap: 10px;
-    margin: 0;
-  }
-  .lv-prog-comp__row {
-    display: grid;
-    grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
-    gap: 4px 12px;
-    align-items: baseline;
-  }
-  .lv-prog-comp__row dd {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 10px;
-    align-items: baseline;
-    margin: 0;
-  }
-  .lv-prog-comp__since {
-    font-size: 12px;
-    color: var(--lm-ink-2);
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* ---- body signals footer ------------------------------------------------------ */
-  .lv-prog-more {
-    margin: 0;
-    font-size: 12px;
-    line-height: 18px;
-    color: var(--lm-ink-3);
-  }
-  .lv-prog-more a {
-    color: var(--lm-ink-2);
-  }
-
-  /* ---- log calendar ------------------------------------------------------------ */
-  .lv-prog-cal {
-    width: 100%;
-    max-width: 420px;
-    border-collapse: collapse;
-    table-layout: fixed;
-    margin-bottom: 8px;
-  }
-  .lv-prog-cal th {
-    padding: 0 0 4px;
-    text-align: center;
-    font-weight: 500;
-  }
-  .lv-prog-cal__cell {
-    padding: 1px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
     text-align: center;
   }
-  .lv-prog-cal__key {
+  .lv-prog-parts > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .lv-prog-parts .lm-mono {
+    overflow-wrap: anywhere;
+    letter-spacing: 0;
+  }
+  .lv-prog-composition {
     position: relative;
+  }
+  .lv-prog-composition__start {
+    position: absolute;
+    inset-block-start: -3px;
+    inset-inline-start: var(--start);
+    height: 16px;
+    border-left: 2px dashed var(--lm-ink);
+    pointer-events: none;
+  }
+  .lv-prog-girths {
     display: grid;
-    justify-items: center;
-    align-content: center;
-    gap: 2px;
-    min-height: 44px;
+  }
+  .lv-prog-girth {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto 16px;
+    align-items: center;
+    gap: 8px;
+    min-height: 64px;
+    padding-block: 10px;
+    border: 0;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+    background: none;
+    color: var(--lm-ink);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+  }
+  .lv-prog-girth > span:first-child {
+    display: grid;
+    gap: 4px;
+  }
+  .lv-prog-girth > span:nth-child(2) {
+    font-variant-numeric: tabular-nums;
+  }
+  .lv-prog-girth:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 2px;
+  }
+  @media (hover: hover) {
+    .lv-prog-girth:hover {
+      background: var(--lm-ink-tile);
+    }
+  }
+  @media (min-width: 64rem) {
+    .lv-prog {
+      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    }
+    .lv-prog[data-single='true'] {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* ---- log: the selected day under the calendar, one row that opens it on Today ---- */
+  .lv-prog-sel {
+    display: grid;
+    gap: 4px;
+    margin-top: 12px;
+    padding-top: 4px;
+    border-top: var(--lm-hairline) solid var(--lm-line);
+  }
+  .lv-prog-sel:empty {
+    display: none;
+  }
+  .lv-prog-sel__open {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 18px;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    margin-inline: -8px;
+    padding: 8px;
     border-radius: var(--lm-radius-sm);
     color: var(--lm-ink);
     text-decoration: none;
+    transition: background var(--lm-dur-fast) var(--lm-ease-out);
   }
   @media (hover: hover) {
-    a.lv-prog-cal__key:hover {
+    .lv-prog-sel__open:hover {
       background: var(--lm-face-hover);
     }
   }
-  .lv-prog-cal__key[data-outside='true'] {
+  .lv-prog-sel__open:focus-visible {
+    outline: 2px solid var(--lm-focus);
+    outline-offset: 0;
+  }
+  .lv-prog-sel__main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lv-prog-sel__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--lm-inline);
+  }
+  .lv-prog-sel__line > .lv-prog-sel__status::before {
+    content: '· ';
+  }
+  .lv-prog-sel__date {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-weight: 500;
+  }
+  .lv-prog-sel__entries {
+    font-size: var(--lm-text-body-s);
+    line-height: var(--lm-text-body-s--lh);
+    color: var(--lm-ink-2);
+  }
+  .lv-prog-sel__status {
+    font-size: var(--lm-text-body);
+    line-height: var(--lm-text-body--lh);
+    font-variant-numeric: tabular-nums;
+    color: var(--lm-ink-2);
+    white-space: nowrap;
+  }
+  .lv-prog-sel__chev {
     color: var(--lm-ink-3);
   }
-  .lv-prog-cal__cell[data-today='true'] .lv-prog-cal__key {
-    box-shadow: inset 0 0 0 2px var(--lm-ink);
-  }
-  .lv-prog-cal__cell[data-assumed='true'] .lv-prog-cal__key {
-    outline: 1px dashed var(--lm-ink-3);
-    outline-offset: -3px;
-  }
-  .lv-prog-cal__cell[data-paused='true'] .lv-prog-cal__key::after {
-    content: '';
-    position: absolute;
-    left: 6px;
-    right: 6px;
-    top: 50%;
-    border-top: 1px solid var(--lm-ink-3);
-  }
-  .lv-prog-cal__num {
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-  }
-  .lv-prog-cal__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--lm-ink);
-  }
-  .lv-prog-cal__none {
-    width: 6px;
-    height: 6px;
-  }
-
-  /* ---- log day list -------------------------------------------------------------- */
-  .lv-prog-days {
-    display: grid;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .lv-prog-day {
-    display: grid;
-    gap: 6px;
-    padding: 10px 0;
-    border-top: 1px solid var(--lm-line);
-  }
-  .lv-prog-day:first-child {
-    border-top: 0;
-  }
-  .lv-prog-day__head {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-  }
-  .lv-prog-day__date {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    font-weight: 600;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink);
-  }
-  @media (pointer: fine) {
-    .lv-prog-day__date {
-      min-height: 32px;
-    }
-  }
-  .lv-prog-day__score {
-    font-size: 12px;
-    color: var(--lm-ink-2);
-    font-variant-numeric: tabular-nums;
-  }
-  .lv-prog-day__entries {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: 12px;
-    color: var(--lm-ink-2);
-  }
-  .lv-prog-day__entries li {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  /* ---- plan versions ----------------------------------------------------------- */
-  .lv-prog-versions {
-    display: grid;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: var(--lm-text-sm);
-  }
-  .lv-prog-versions li + li {
-    border-top: 1px solid var(--lm-line);
-  }
-  .lv-prog-versions a {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    color: var(--lm-ink);
-    font-variant-numeric: tabular-nums;
+  .lv-prog-sel__conflict {
+    justify-self: start;
   }
 
   /* ---- add a measurement ---------------------------------------------------- */
@@ -396,118 +241,55 @@
     display: grid;
     gap: 16px;
   }
-  .lv-measure__date {
-    margin: 0;
-  }
   .lv-measure__repeats {
     display: grid;
     gap: 10px;
-    margin: 0;
-    padding: 0;
-    border: 0;
   }
   .lv-measure__pair {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
+}
 
-  /* ---- score detail ------------------------------------------------------------ */
-  .lv-detail {
+@layer components {
+  .lv-prog-goal {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    align-items: start;
+    gap: 6px;
   }
-  .lv-detail__col {
-    display: grid;
-    gap: 16px;
-    min-width: 0;
-  }
-  @media (min-width: 64rem) {
-    .lv-detail {
-      grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    }
-  }
-  .lv-detail__readout {
-    display: grid;
-    gap: 10px;
-    justify-items: start;
-  }
-  .lv-detail__readout > p {
+  .lv-prog-goal > p {
     margin: 0;
   }
-  .lv-detail__state {
+  .lv-prog-goal__title {
+    margin: 0;
+    font-size: var(--lm-text-body);
+    font-weight: 500;
+  }
+  .lv-prog-goal__state {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 24px;
-    line-height: 30px;
-    font-weight: 600;
-    font-stretch: var(--lm-wdth-wide);
+    gap: 6px;
+    font-family: var(--lm-font-mono);
+    font-size: var(--lm-text-meta);
+    text-transform: uppercase;
+    letter-spacing: var(--lm-text-meta--ls);
   }
-  .lv-detail__valueline {
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
+  .lv-prog-goal__date,
+  .lv-prog-goal__keep {
+    font-size: var(--lm-text-body);
+    color: var(--lm-ink-h);
   }
-  .lv-detail__value {
-    font-size: 24px;
-    line-height: 30px;
-    font-weight: 600;
-    color: var(--lm-ink);
+  .lv-prog-goal__act {
+    margin-top: 4px;
   }
-  .lv-detail__lines {
-    display: grid;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
-    font-variant-numeric: tabular-nums;
-  }
-  .lv-detail__prov {
-    font-size: 11px;
-    color: var(--lm-ink-3);
-  }
-  .lv-detail__flag,
-  .lv-detail__prose {
-    margin: 0 0 12px;
-    font-size: var(--lm-text-sm);
-    line-height: var(--lm-text-sm--lh);
-  }
-  .lv-detail__vendor {
-    color: var(--lm-ink-3);
-  }
-  .lv-detail__decisions {
-    display: grid;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: var(--lm-text-sm);
-  }
-  .lv-detail__decisions a {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    color: var(--lm-ink);
-  }
-  .lv-detail__evidence {
-    margin: 12px 0 0;
-    font-size: var(--lm-text-sm);
-  }
-  .lv-detail__versions {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: var(--lm-text-sm);
-    color: var(--lm-ink-2);
-  }
-  .lv-detail__ver {
-    font-size: 11px;
-    font-stretch: var(--lm-wdth-condensed);
-    color: var(--lm-ink);
+  #adherence .lmz-bars__col[data-empty]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    width: min(20px, 100%);
+    margin-inline: auto;
+    border: 1px dashed var(--lm-ink-3);
+    border-radius: 4px 4px 0 0;
+    opacity: 0.6;
   }
 }

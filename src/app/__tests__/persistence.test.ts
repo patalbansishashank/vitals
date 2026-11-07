@@ -21,27 +21,35 @@ describe('persistence registry', () => {
 
   it('round-trips every vitals.* key through export → erase → import', async () => {
     act(() => useSettingsStore.getState().set({ units: 'imperial', theme: 'dark', chartPatterns: true }));
-    localStorage.setItem('vitals.scenarios', JSON.stringify({ state: { list: ['Spring cut'] }, version: 3 }));
+    localStorage.setItem('vitals.notes', JSON.stringify({ state: { list: ['Spring cut'] }, version: 3 }));
     localStorage.setItem('vitals.raw', 'plain text');
     localStorage.setItem('other.app', 'not ours');
 
     const file = serializeExport(exportAll(new Date('2026-09-30T10:00:00Z')));
-    const parsed = JSON.parse(file) as { vitalsVersion: string; stores: Record<string, unknown> };
+    const parsed = JSON.parse(file) as { vitalsVersion: string; stores: Record<string, unknown>; collections: Record<string, Array<Record<string, unknown> & { _id: string }>> };
     expect(parsed.vitalsVersion).toBe(EXPORT_FORMAT_VERSION);
-    expect(Object.keys(parsed.stores).sort()).toEqual(['vitals.raw', 'vitals.scenarios', SETTINGS_KEY].sort());
+    expect(Object.keys(parsed.stores).sort()).toEqual(['vitals.raw', 'vitals.notes', SETTINGS_KEY].sort());
 
     await eraseAll();
     expect(listStoredKeys()).toEqual([]);
     expect(localStorage.getItem('other.app')).toBe('not ours');
 
     const result = await act(() => importAll(file, 'replace'));
-    expect(result.written.sort()).toEqual(['vitals.raw', 'vitals.scenarios', SETTINGS_KEY].sort());
+    // The v2 document section also carries profile/safety defaults without legacy mirror keys.
+    expect(result.written.sort()).toEqual(['vitals.body', 'vitals.safety', 'vitals.raw', 'vitals.notes', SETTINGS_KEY].sort());
     expect(localStorage.getItem('vitals.raw')).toBe('plain text');
-    expect(JSON.parse(localStorage.getItem('vitals.scenarios')!)).toEqual({ state: { list: ['Spring cut'] }, version: 3 });
+    expect(JSON.parse(localStorage.getItem('vitals.notes')!)).toEqual({ state: { list: ['Spring cut'] }, version: 3 });
     // the registered settings store rehydrated from the imported file
     expect(useSettingsStore.getState().units).toBe('imperial');
     expect(useSettingsStore.getState().theme).toBe('dark');
     expect(useSettingsStore.getState().chartPatterns).toBe(true);
+    // Every exported document body survives too; newly booted default projections
+    // may add data, but must not invent an imported payload from unrelated shared fields.
+    const restored = exportAll();
+    for (const [col, docs] of Object.entries(parsed.collections)) for (const doc of docs) {
+      const bodyAndId = Object.fromEntries(Object.entries(doc).filter(([key]) => key === '_id' || !key.startsWith('_')));
+      expect(restored.collections?.[col as keyof NonNullable<typeof restored.collections>]?.find((row) => row._id === doc._id)).toMatchObject(bodyAndId);
+    }
   });
 
   it('refuses files that are not Vitals exports or come from a newer version', () => {

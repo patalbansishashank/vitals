@@ -1,7 +1,8 @@
 /**
  * Exercise section (COMPONENTS §5 SessionRow): resistance sessions (volume descriptor or hard sets by region,
  * proximity to failure, load, rest, style, time of day) and cardio (modality, duration, intensity by %VO2max / MET /
- * speed / power / RPE, carbohydrate during), plus steps. Defaults are the engine's (MODEL_SPEC §5.3).
+ * speed / power / RPE, carbohydrate during), plus steps and what the step number counts (D3-07: whole day, outside
+ * training or not sure). Defaults are the engine's (MODEL_SPEC §5.3).
  */
 import { useState } from 'react';
 import { ChevronDown, Plus, X } from 'lucide-react';
@@ -29,6 +30,7 @@ import type {
   RtVolumePreset,
   TrainingRegion,
 } from '@/engine';
+import type { StepsScope } from '@/engine/types/schedule';
 import { DEFAULTS, RT_PRESETS, TRAINING_REGIONS } from '@/engine';
 import { WEEKDAYS_SHORT, formatClock } from '../lib/calendar';
 import { newSession, removeSession, sessionLabel, updateSession, type NewSessionKind } from '../editing';
@@ -113,7 +115,8 @@ export function sessionSummary(s: ExerciseSession): string {
     const vol = s.setsByRegion
       ? `${Math.round(totalSets(s))} hard sets`
       : `${VOLUME.find((v) => v.value === (s.volume ?? 'moderate'))!.label} volume`;
-    return `${formatClock(s.startH)} · ${Math.round(dur)} min · ${vol} · RIR ${s.rir ?? DEFAULTS.rtRir}${s.toFailure ? ' · to failure' : ''}`;
+    // D3-01: effort shows only when entered (reps left in reserve); the engine default is not presented as a known value
+    return `${formatClock(s.startH)} · ${Math.round(dur)} min · ${vol}${s.rir !== undefined ? ` · ${s.rir} reps left` : ''}${s.toFailure ? ' · to failure' : ''}`;
   }
   const m = intensityMode(s);
   const inten =
@@ -225,7 +228,7 @@ export function ExerciseEditor({
           label="Add a session"
           placement="bottom-start"
           trigger={(tp) => (
-            <Key {...tp} size="sm" variant="quiet" icon={Plus} disabled={ex.length >= 6}>
+            <Key {...tp} size="sm" variant="outlined" icon={Plus} disabled={ex.length >= 6}>
               {mode === 'habitual' ? 'Add an extra session' : 'Add'}
             </Key>
           )}
@@ -264,9 +267,30 @@ export function ExerciseEditor({
           t.steps === undefined ? `default: your typical ${formatNumber(typicalSteps, 0)} a day` : undefined
         }
       />
+      {/* D3-07: what the step number counts (unanswered = unknown: an explicit overlap scenario, never assumed) */}
+      <div className="sim-field">
+        <span className="lm-eng">steps count</span>
+        <KeyBank<StepsScope>
+          size="sm"
+          label="Steps count"
+          options={STEPS_SCOPES}
+          value={t.stepsScope}
+          onChange={(v) => {
+            apply((x) => ({ ...x, stepsScope: v }), 'stepsScope');
+            commit();
+          }}
+        />
+      </div>
     </div>
   );
 }
+
+/** D3-07 scope words of a day's step number. */
+const STEPS_SCOPES: ReadonlyArray<{ value: StepsScope; label: string }> = [
+  { value: 'totalDay', label: 'whole day' },
+  { value: 'excludesTraining', label: 'outside training' },
+  { value: 'unknown', label: 'not sure' },
+];
 
 /**
  * The habitual week's sessions, read-only (Your body → habits is where they change), with this day's own entry when a

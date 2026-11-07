@@ -1,6 +1,6 @@
 /**
  * The AI provider configuration (non-secret: keys live in the KeyVault, never here or in any log). Written by
- * `ai.configure` from Settings › AI provider; the Coach runtime (`src/ai/coach`) subscribes and rebuilds its model.
+ * `ai.configure` from Settings › Coach; the Coach runtime (`src/ai/coach`) subscribes and rebuilds its model.
  *
  * Persistence: the device-local `uiPrefs/me` document, field `aiProvider` (never synced: the key it pairs with lives on
  * this device only; exported with the other device preferences, and it holds no secret). Bound to the document store on

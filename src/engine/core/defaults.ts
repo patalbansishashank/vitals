@@ -5,7 +5,48 @@
  * ParamDef owned by a module. Each default cites the dossier that justifies it.
  */
 
-export const ENGINE_VERSION = '1.0.0-contract';
+/**
+ * Engine semantics version. It is part of every snapshot key, the registry hash, planner checkpoint keys and stored run
+ * metadata, so a change invalidates derived projections, snapshots and caches (C7; observations are never rewritten).
+ * 1.1.0 (2026-10-18 contracts, W0): planned fast length/label is policy metadata only, observed fasts end at the first
+ * verified intake and refeed ramps never rescale observed days (D2-01); set groups compile per group (D3-01); reported meal
+ * energy with unknown macros is preserved as unallocated energy (D6-02); resolved per-day exposure summaries (D4-01);
+ * measured t = 0 lab anchors and series status sidecars (D7-02); contract fingerprint in registry/snapshot keys (D4-03).
+ * Stored results with a former ASI objective are not reused under it (D2-02).
+ * 1.2.0 (2026-10-18, W1 conserved physiology, exposure and measurement foundations): daily TEE uses the recorded hourly
+ * costs (D1-01); one VAT transition for every recording mask (D1-02, D8-01); body-fat evidence deduplicated by lineage
+ * (D1-03); no universal fat-type lean multipliers and explicit protein-deficient-surplus abstention (D1-04/D1-05);
+ * hydration/cycle proxies separated from tissue kg (D1-06); exercise compensation as a sensitivity structure (D1-07); a
+ * tissue floor ends the run at a model limit (D1-08); ketone provenance, nitrogen ledger, hunger calibration, endocrine
+ * and measured-ketone semantics (D2-03, D2-05…D2-08); task-specific training dose, public-health minutes, growth state,
+ * history-based detraining, one exercise energy ledger, production post-RT REE 0 and dose provenance (D3-02…D3-09); the
+ * applied intake correction is booked per day (D5-03); nutrient classes, carbohydrate mixture/appearance, nut ME only for a
+ * stated form and normalised active-ingredient exposure (D6-03, D6-07, D6-08, D7-04); transient vs sustained hepatic
+ * response (D7-08); sensitivity bands from stochastic members only with a uniform latent selector (D8-02); observed sleep
+ * mapped to its wake date (D8-06); hook-aware signal declarations and inactive moderator pathways (D8-07). Derived
+ * snapshots, caches, worker results and forecasts are invalidated; observations and adopted prescriptions are not rewritten.
+ * 1.3.0 (2026-10-18, W2 planner policy and the living loop): SafetyTrace fields for the legacy eating-day EA under its
+ * explicit name, the daily exposure ledger (EI, net session EEE, FFM_act, unclipped daily EA), calendar EA_7/EA_28 over
+ * every calendar day (fast and refeed days included) with their day coverage, and end-of-day fat mass (D4-04, D4-05);
+ * day-stamped snapshots key on the trace layout, so older safety snapshots are recomputed, never continued. Stored legacy
+ * `ea7` values keep their original version (no retrospective recalculation).
+ * 1.4.0 (2026-10-19, re-audit stage 1, waves 0-1): per-nutrient known/unknown masks seed conditional statuses from the
+ * first affected day, and induced statuses keep their root's onset, reason and uncertainty kind (A1-013/A1-014); reported
+ * meal energy is kept for every ledger status (A1-025); food ethanol and standalone drinks both count, linked once by event
+ * (A1-029); polyols travel by identity with an unmodelled substrate route (A1-031); physical-bout keys, unknown hard-set
+ * doses and effort-scale identities reach the training models (A1-020/A1-022/A1-062); total sleep is separate from
+ * main-episode timing with explicit unrated quality (A1-053); out-of-domain lab baselines are unsupported from daily index 0
+ * (A1-052); bands are finite with per-day availability, member envelopes and explicit structural modes (A1-049/A1-065);
+ * the step-overlap reference is disclosed on both operands (A1-040). Derived snapshots, caches, bands, worker results and
+ * certificates are invalidated; observations and adopted prescriptions are not rewritten.
+ */
+/**
+ * 1.5.0 (2026-10-19, re-audit stage 2): endpoint operator identity and all-member goal availability, capability-driven
+ * bounded objectives, current clinician guidance scope, explicit execution scenarios, complete-horizon route witnesses,
+ * and independent intake/exercise exposure coverage. Derived caches/snapshots/checkpoints are invalidated; immutable logs,
+ * adopted schedules and original forecasts retain their historical identities.
+ */
+export const ENGINE_VERSION = '1.5.0-reaudit';
 
 /** Unit conversions (definitional). */
 export const KCAL_PER_KJ = 1 / 4.184;
@@ -30,8 +71,19 @@ export const RHO = {
   proteinPerG: 4.7,
 } as const;
 
-/** 17 §2.5: zero-energy threshold for the fasting clock (kcal per intake event / per day). */
+/**
+ * 17 §2.5: zero-energy tolerance for the adherence/safety clocks (kcal per intake event / per day; hours since intake,
+ * fast tiers). Not the literal zero-calorie fast clock: the compiler ends an observed zero-calorie fast at the first
+ * verified intake with positive energy (D2-01/D5-05, `ADHERENCE_ZERO_DAY_TOLERANCE_KCAL` in the contracts).
+ */
 export const ZERO_INTAKE_KCAL = 50;
+
+/**
+ * Reconciliation tolerance of a reported meal energy against its known grams (D6-02): each known macro may be rounded to
+ * the whole gram on a label or log, so a convention energy above the reported value by at most Σ 0.5 g × factor is
+ * rounding, not a source conflict. An accounting convention, not a physiological coefficient.
+ */
+export const MEAL_GRAM_ROUNDING_G = 0.5;
 
 // ---------------------------------------------------------------- input defaults (MODEL_SPEC §5.2 table)
 
@@ -101,7 +153,12 @@ export const DEFAULTS = {
     onFeetAtHome: 'some' as const,
     recreationMinPerWeekRange: [0, 2520] as const,
   },
-  /** Resistance session defaults (09 §4.1, §4.13). */
+  /**
+   * Resistance session defaults (09 §4.1, §4.13): assumptions applied when a field is not reported, never a known hard
+   * intensity. Set groups (D3-01) keep an unknown load/RIR/rest as NaN with `assumed = 1`, so the muscle module applies
+   * these values as flagged assumptions; legacy sessions without groups keep the resolved defaults (legacy merged dose).
+   * The f_RIR/f_load/f_rest dose maps behind them are versioned sensitivity priors, not personal validated biology.
+   */
   rtRir: 2,
   rtLoadPct1RM: 70,
   rtRestSec: 120,

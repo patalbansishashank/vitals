@@ -7,7 +7,7 @@ import { getDocumentStore } from '@/state/runtime';
 import { useProfileStore } from '@/state/profileStore';
 import { useScheduleStore } from '@/state/scheduleStore';
 import { useSettingsStore } from '@/state/settingsStore';
-import { allCommands, dispatch, dispatchSync, jobs, mintConfirmation, on, outputOf, settleCommits, type BusEvent, type CommandResult } from '..';
+import { allCommands, changeSets, defineCommand, dispatch, dispatchSync, jobs, mintConfirmation, on, outputOf, seal, settleCommits, type BusEvent, type CommandResult } from '..';
 import { AI, MCP, freshState } from './harness';
 import { stub } from '../defs/_shared';
 import { T } from '../schema';
@@ -49,6 +49,17 @@ describe('bus events', () => {
     expect(seen.filter((e) => e.type === 'committed').map((e) => e.type === 'committed' && e.commandId)).toEqual(['profile.patch']);
     expect(seen.find((e) => e.type === 'committed')).toMatchObject({ changeSet: { commandId: 'profile.patch' } });
     expect(seen.find((e) => e.type === 'read')).toMatchObject({ commandId: 'profile.get', actor: { kind: 'user' } });
+  });
+});
+
+describe('scenario prescription inspection', () => {
+  it('can read the complete saved prescription without exposing a mutable schedule reference', async () => {
+    const id = useScheduleStore.getState().activeId!;
+    expect(outputOf(await dispatch('scenario.get', { id }))?.schedule).toBeUndefined();
+    const full = outputOf(await dispatch('scenario.get', { id, includeSchedule: true }))!;
+    expect(full.schedule).toEqual(useScheduleStore.getState().scenarios.find(sc => sc.id === id)!.schedule);
+    full.schedule!.horizonDays = 1;
+    expect(useScheduleStore.getState().scenarios.find(sc => sc.id === id)!.schedule.horizonDays).not.toBe(1);
   });
 });
 
@@ -185,5 +196,65 @@ describe('limits, gates, stubs, dry runs, jobs', () => {
       if (d.perm === 'write') expect(d.impact, d.id).toBeDefined();
       for (const s of ['ui', 'ai', 'webmcp', 'mcp'] as const) if (!d.surfaces.includes(s)) expect(d.excludedReason?.[s], `${d.id} ${s}`).toBeTruthy();
     }
+  });
+});
+
+describe('dispatchSync cancellation of asynchronous executors', () => {
+  defineCommand({
+    id: 'app.testAsyncSync',
+    version: 1,
+    title: 'Test async dispatchSync',
+    description: 'Test-only command.',
+    input: T.Object({ theme: T.Enum(['dark', 'light']), async: T.Boolean() }),
+    output: T.String(),
+    perm: 'write',
+    impact: 'low',
+    surfaces: ['ui'],
+    excludedReason: { ai: 'test-only', webmcp: 'test-only', mcp: 'test-only' },
+    undo: { kind: 'inversePatch' },
+    idempotency: 'none',
+    sideEffects: ['docs'],
+    execute: (ctx, input) => {
+      useSettingsStore.setState({ theme: input.theme });
+      if (!input.async) return 'done';
+      return Promise.resolve().then(async () => {
+        try {
+          ctx.write(() => useSettingsStore.setState({ theme: 'light' }));
+        } catch {
+          // Exercise the document path too after a cancelled write scope.
+        }
+        await ctx.docs.put('deviceSettings', { _id: 'me', theme: 'light' });
+        return 'late';
+      });
+    },
+  });
+
+  it('restores a synchronous write and consumes the rejected continuation', async () => {
+    const initial = useSettingsStore.getState().theme;
+    expect(() => dispatchSync('app.testAsyncSync', { theme: 'dark', async: true })).toThrow(/asynchronous/);
+    expect(useSettingsStore.getState().theme).toBe(initial);
+    await Promise.resolve();
+    await Promise.resolve();
+    await settleCommits();
+    expect(getDocumentStore().peek<{ theme: string }>('deviceSettings', 'me')?.theme).not.toBe('light');
+    expect(changeSets().filter((cs) => cs.commandId === 'app.testAsyncSync')).toHaveLength(0);
+  });
+
+  it('keeps an earlier coalesced edit when the next invocation is async', async () => {
+    const opts = { coalesceKey: 'test-async-sync' };
+    expect(dispatchSync('app.testAsyncSync', { theme: 'dark', async: false }, opts).ok).toBe(true);
+    const prior = changeSets().find((cs) => cs.commandId === 'app.testAsyncSync')!;
+    expect(() => dispatchSync('app.testAsyncSync', { theme: 'light', async: true }, opts)).toThrow(/asynchronous/);
+    expect(useSettingsStore.getState().theme).toBe('dark');
+    expect(changeSets().find((cs) => cs.id === prior.id)).toBe(prior);
+    await Promise.resolve();
+    seal(prior.id);
+    await settleCommits();
+    expect(getDocumentStore().peek<{ theme: string }>('deviceSettings', 'me')?.theme).toBe('dark');
+  });
+
+  it('keeps ordinary asynchronous dispatch working', async () => {
+    expect(outputOf(await dispatch('app.testAsyncSync', { theme: 'dark', async: true }))).toBe('late');
+    expect(useSettingsStore.getState().theme).toBe('light');
   });
 });

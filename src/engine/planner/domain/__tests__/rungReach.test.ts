@@ -45,7 +45,8 @@ describe('rungReach: time to target at a rung’s effort (§1.4)', () => {
       expect(r.alpha).toBeLessThan(1);
       if (Number.isFinite(r.routeD)) expect(r.routeD).toBeLessThanOrEqual(r === hi ? 0.6 * d1 : 0.3 * d1);
       expect(r.text).not.toMatch(INTERNAL);
-      expect(r.text).toMatch(/^At this plan's effort it takes (about \d+ weeks|more than two years)/);
+      // D4-08: an estimate at this plan's effort, never a fastest-safe deadline
+      expect(r.text).toMatch(/^Estimated: at this plan's effort it takes (about \d+ weeks|more than two years)/);
     }
     expect(hi.alpha).toBeGreaterThanOrEqual(lo.alpha);
     const w = (r: typeof hi) => (r.weeks === null ? Infinity : r.weeks);

@@ -7,7 +7,7 @@
  * first; `ketones.kProt` and `ketones.aHs` second line. They are ordinary ParamDefs, so the integration pass can
  * override them through `RunOptions.paramOverrides` without touching the code.
  */
-import type { ParamDef } from '../../types/params';
+import type { ParamDef, ParamDistributionMeta } from '../../types/params';
 
 const P05 = '05';
 
@@ -43,7 +43,7 @@ const SRC = {
   umpierrez2024: 'Umpierrez 2024 PMID 39052901',
 } as const;
 
-export const KETONES_PARAMS: readonly ParamDef[] = [
+const RAW_PARAMS: readonly ParamDef[] = [
   // ---------------------------------------------------------------- distribution & clearance (05 §4.1)
   { id: 'ketones.vdPerBW', value: 0.25, unit: 'L/kg BW', low: 0.18, high: 0.31, grade: 'A', source: SRC.owen1973, dossier: `${P05} §4.1`, status: 'verified', label: 'Ketone volume of distribution' },
   { id: 'ketones.clFFM', value: 0.0134, unit: 'L/min/kg FFM', low: 0.0134 * 0.7, high: 0.0134 * 1.3, grade: 'A', source: `${SRC.owen1973} (DERIVED: 2.9 %/min × 0.25 L/kg)`, dossier: `${P05} §4.1`, status: 'proposed-fit', label: 'Low-concentration ketone clearance CL0 per kg FFM', note: '±30 % (dossier)' },
@@ -121,5 +121,36 @@ export const KETONES_PARAMS: readonly ParamDef[] = [
   { id: 'ketones.hystH', value: 2, unit: 'h', low: 2, high: 2, grade: 'B', source: 'MODEL_SPEC §1.7 step 7 (2-h hysteresis)', dossier: 'MODEL_SPEC §1.7', status: 'proposed-fit', label: 'Hours a crossing must persist before an event', draw: 'fixed' },
   { id: 'ketones.thrHigh', value: 3.0, unit: 'mmol/L BHB', low: 3.0, high: 3.0, grade: 'A', source: SRC.umpierrez2024, dossier: `${P05} §6, §9`, status: 'verified', label: 'Fasting-ketosis / warning threshold', draw: 'fixed' },
   { id: 'ketones.thrMax', value: 6.0, unit: 'mmol/L BHB', low: 6.0, high: 6.0, grade: 'A', source: '05 §6 convention', dossier: `${P05} §6`, status: 'verified', label: 'Warning threshold at any intake', draw: 'fixed' },
-  { id: 'ketones.adaptedThr', value: 0.9, unit: '0..1', low: 0.9, high: 0.9, grade: 'B', source: 'MODEL_SPEC §7.1 (ketoAdapted event)', dossier: 'MODEL_SPEC §7.1', status: 'proposed-fit', label: 'A_f level reported as keto-adapted', draw: 'fixed' },
+  { id: 'ketones.adaptedThr', value: 0.9, unit: '0..1', low: 0.9, high: 0.9, grade: 'B', source: 'MODEL_SPEC §7.1 (ketoAdapted event)', dossier: 'MODEL_SPEC §7.1', status: 'proposed-fit', label: 'Retired: A_f level once reported as keto-adapted', draw: 'fixed', note: 'D2-08: retired. The "keto-adapted" certificate event is no longer emitted (A_f is a latent state); kept so saved scenario keys still parse.' },
 ];
+
+/** Constants of the two latent adaptation states A_f / A_s (D2-08): priors and sensitivity of a latent state, never a completion %. */
+const ADAPTATION = new Set(['aH', 'aHs', 'aM', 'c50', 'afHill', 'tauAfUp', 'tauAfDn', 'afInitCarbG', 'asLo', 'asSpan', 'tauAs', 'adaptedThr'].map((n) => `ketones.${n}`));
+/** Classification conventions of the ketosis state machine (labels and alert thresholds; not physiology). */
+const CONVENTION = new Set(['thrLight', 'thrNutritional', 'thrExit', 'hystH', 'thrHigh', 'thrMax', 'tkbFloor'].map((n) => `ketones.${n}`));
+
+/**
+ * What a ketone constant's draw represents (D2-08, C6/C7): kinetic and adaptation constants are fitted priors with
+ * parameter sensitivity (a single blood concentration cannot identify production, clearance, volume and adaptation
+ * separately); no precision floor and no sex/age correction is implied. Measured reference values keep `empirical`.
+ */
+function ketoneDistribution(p: ParamDef): ParamDistributionMeta {
+  const fixed = p.draw === 'fixed' || p.low === p.high;
+  const id = p.id;
+  const basis = CONVENTION.has(id)
+    ? 'classification convention of the ketosis state machine (labels/alerts), not physiology'
+    : ADAPTATION.has(id)
+      ? 'latent keto-adaptation state prior and sensitivity; not a percent adaptation certificate or readiness measure'
+      : 'fitted kinetic prior (05 calibration / coupled engine); concentration kinetics, not individually identified';
+  return {
+    uncertaintyKind: fixed ? 'heuristic' : 'parameterSensitivity',
+    bounds: 'support',
+    nominal: fixed ? 'designPoint' : 'mode',
+    basis,
+    population: 'healthy adults represented by the 05/20 calibration studies; extrapolated elsewhere',
+    version: 1,
+    label: CONVENTION.has(id) ? 'policy' : p.status === 'verified' ? 'empirical' : 'designPrior',
+  };
+}
+
+export const KETONES_PARAMS: readonly ParamDef[] = RAW_PARAMS.map((p) => ({ ...p, distribution: ketoneDistribution(p) }));

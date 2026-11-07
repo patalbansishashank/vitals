@@ -21,9 +21,6 @@ export type CommandDomain =
   // `day.get` is in the catalogue (§1.9) although the domain list of §1.2 omits it
   | 'day'
   | 'log'
-  | 'bio'
-  // batch 03 (SUITE_SPEC §14.6, E28): corrections of device values
-  | 'biometrics'
   // E20: blood markers (SUITE_SPEC §13.5.6)
   | 'markers'
   | 'catalogue'
@@ -42,7 +39,9 @@ export type CommandDomain =
   | 'kitchen'
   | 'pantry'
   // plan 04 item 12: the Coach's briefing for agents over MCP
-  | 'briefing';
+  | 'briefing'
+  // energy SPEC §V3.2: the activity review (detected activities, approval, manual logs)
+  | 'activity';
 export type CommandId = `${CommandDomain}.${string}`;
 export type Perm = 'read' | 'write' | 'destructive';
 export type Impact = 'low' | 'consequential';
@@ -181,8 +180,7 @@ export interface PendingChangeRef {
 export type CommandResult<O = unknown> =
   | { ok: true; output: O; changeSet: ChangeSetSummary | null; notices: Notice[] }
   | { ok: true; job: JobRef; notices: Notice[] }
-  /** `redirected`: the bus staged another command in place of the one dispatched (SUITE_SPEC §14.6: an entry by an agent
-   * for a stream a device owns becomes a `biometrics.correct` proposal; `pending.pendingId` is the proposal id). */
+  /** `redirected`: the bus staged another command in place of the one dispatched; `pending.pendingId` is the proposal id). */
   | { ok: true; pending: PendingChangeRef; notices: Notice[]; redirected?: CommandId; redirectedInput?: unknown }
   | { ok: false; error: CommandError };
 
@@ -220,7 +218,7 @@ export interface CommandPorts {
 }
 export interface PlannerPort {
   /** The request the Planner screen would run now, with its hash (null when the goal set cannot run). */
-  prepare(): { request: unknown; hash: string } | null;
+  prepare(options?: { tier?: 'S' | 'M' | 'L' | 'X' }): { request: unknown; hash: string } | null;
   run(request: unknown, options: { signal: AbortSignal; onProgress: (p: unknown) => void }): Promise<unknown>;
   /** Hard stop (terminates the workers). */
   cancel(): void;

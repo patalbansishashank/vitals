@@ -4,15 +4,20 @@
  * the decoder, repair or day-estimation code — and checks every input-space bound, tier rule and user hard constraint.
  * A failing plan is discarded, never repaired.
  */
-import type { DayTemplate, MacroAmount, Schedule, ScheduleDay } from '../../types/schedule';
+import type { CardioSession, DayTemplate, MacroAmount, Schedule, ScheduleDay, SubstanceSpec } from '../../types/schedule';
 import { BLOCKS, type BlockId } from './registry/blocks';
 import type { PlanningContext } from './context';
-import { HC, tierForHours } from './safety';
+import { generalProteinFloor, HC, tierForHours, type IntensityChannel } from './safety';
 import { refeedRamp } from '../../core/compileSchedule';
 
 export interface ValidationResult {
   ok: boolean;
   reasons: string[];
+  /**
+   * Required comparisons this validator could not make (A1-003/A1-007): a clinician intensity maximum with no comparable
+   * stated dose, a dose of unknown mass or an incompletely observed source. Not a violation; never a pass.
+   */
+  unchecked?: string[];
 }
 
 /** 10 §4.8 moderate-equivalent intensity bands, fraction of VO2max (upper bounds checked). */
@@ -26,9 +31,78 @@ interface VDay {
   p: number;
   c: number;
   f: number;
-  /** Explicit kept meals (a fast-shortened day). */
+  /** (A1-014) The day's protein / carbohydrate / fat is only a known lower bound (a meal without that analysis). */
+  pUnknown: boolean;
+  cUnknown: boolean;
+  fUnknown: boolean;
+  /**
+   * A fast-shortened day: touched by a fast event or a graded refeed day (A1-008). An ordinary explicit meal list is not
+   * a shortened day: the same diet as meal times/shares or as a count has the same floors.
+   */
   shortened: boolean;
   mealHours: number[];
+}
+
+/** Mass of one active dose in mg (C3 canonical); null for a molar dose (no declared mass conversion here). */
+function activeMg(a: { amount: number; unit: string }): number | null {
+  if (!Number.isFinite(a.amount) || a.amount < 0) return null;
+  if (a.unit === 'g') return a.amount * 1000;
+  if (a.unit === 'mg') return a.amount;
+  if (a.unit === 'ug') return a.amount / 1000;
+  return null;
+}
+
+/**
+ * One ingredient's day total over the legacy channel and the normalized actives (A1-007), the validator's own reading:
+ * doses sharing an explicit event identity count once; when one side has a dose without identity the two may coincide,
+ * so the known total is the larger side and the possible total their sum. `unknown` = a dose of unknown mass.
+ */
+function ingredientDay(legacy: ReadonlyArray<{ mg: number; eventId?: string }>, actives: SubstanceSpec['actives'], ingredient: string): { known: number; possible: number; unknown: boolean } {
+  const ids = new Set(legacy.map((l) => l.eventId).filter(Boolean));
+  let sl = 0;
+  let lNoId = false;
+  for (const l of legacy) {
+    if (!(l.mg > 0)) continue;
+    sl += l.mg;
+    if (!l.eventId) lNoId = true;
+  }
+  let sa = 0;
+  let aNoId = false;
+  let unknown = false;
+  for (const a of actives ?? []) {
+    if (a.ingredient !== ingredient) continue;
+    if (a.eventId && ids.has(a.eventId)) continue;
+    const mg = activeMg(a);
+    if (mg === null) {
+      unknown = true;
+      continue;
+    }
+    sa += mg;
+    if (!a.eventId) aNoId = true;
+  }
+  const ambiguous = sl > 0 && sa > 0 && (lNoId || aNoId);
+  return { known: ambiguous ? Math.max(sl, sa) : sl + sa, possible: sl + sa, unknown };
+}
+
+/** The validator's own reading of a cardio session's comparable intensities (A1-003): every phase, never a mean. */
+function cardioParts(x: CardioSession, channel: IntensityChannel): Array<number | null> {
+  const scale = (x as { rpeScale?: string }).rpeScale;
+  const val = (p: { pctVo2max?: number; met?: number; rpe?: number }, sc: string | undefined): number | null => {
+    const v = channel === 'pctVo2maxFraction' ? p.pctVo2max : channel === 'grossMet' ? p.met : sc === 'cr10' ? p.rpe : undefined;
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  };
+  const own = val(x, scale);
+  if (!x.phases?.length) return [own];
+  const out: Array<number | null> = [];
+  let booked = 0;
+  for (const ph of x.phases) {
+    booked += Math.max(0, ph.durationMin);
+    if ((ph.kind as string) === 'remainder') out.push(null);
+    else if (ph.pctVo2max !== undefined || ph.met !== undefined || ph.rpe !== undefined || ph.speedKmh !== undefined || ph.powerW !== undefined) out.push(val(ph, (ph as { rpeScale?: string }).rpeScale ?? scale));
+    else out.push(own);
+  }
+  if (booked < x.durationMin - 1e-9) out.push(own);
+  return out;
 }
 
 function merged(s: Schedule, d: number): DayTemplate {
@@ -55,7 +129,7 @@ function amount(m: MacroAmount | { unit: 'gPer1000Kcal'; value: number } | undef
   return null; // remainder
 }
 
-function expand(ctx: PlanningContext, t: DayTemplate): Omit<VDay, 't' | 'shortened' | 'mealHours'> {
+function expand(ctx: PlanningContext, t: DayTemplate): Pick<VDay, 'kcal' | 'p' | 'c' | 'f'> {
   const tdee = ctx.rp.tdee0Kcal;
   const bw = ctx.rp.weightKg;
   const ffm = ctx.rp.ffm0Kg;
@@ -75,6 +149,45 @@ function expand(ctx: PlanningContext, t: DayTemplate): Omit<VDay, 't' | 'shorten
   return { kcal: 4 * p + 4 * c + 9 * f + 2 * fib, p, c, f };
 }
 
+/**
+ * Day totals from explicit meals that state their own amounts (A1-008/A1-014), the validator's own reading: a reported
+ * meal's energy is exactly its `energyKcal` and only the grams it lists are known (an absent macro is unknown, an
+ * explicit 0 a known zero); other meals take their listed grams, else their share of the day's macros — a share-filled
+ * gram on a day with reported meals is a scenario fill, not a known amount. Null when no meal states amounts (the day's
+ * template totals stand). `unknown*` = the total is only a known lower bound.
+ */
+function explicitMealTotals(t: DayTemplate, x: { kcal: number; p: number; c: number; f: number }): { kcal: number; p: number; c: number; f: number; pUnknown: boolean; cUnknown: boolean; fUnknown: boolean } | null {
+  const ms = t.meals?.meals;
+  if (!ms?.length || !ms.some((m) => m.energyKcal !== undefined || m.macros !== undefined)) return null;
+  const reportedDay = ms.some((m) => m.energyKcal !== undefined);
+  const shares = ms.map((m) => (typeof m.share === 'number' && m.share > 0 ? m.share : 1));
+  const S = shares.reduce((a, b) => a + b, 0) || ms.length;
+  const r = { kcal: 0, p: 0, c: 0, f: 0, pUnknown: false, cUnknown: false, fUnknown: false };
+  const isKnown = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  ms.forEach((m, i) => {
+    const w = shares[i]! / S;
+    const kn = (m as { nutrientKnowledge?: Partial<Record<string, string>> }).nutrientKnowledge;
+    const part = (g: number | undefined, key: 'protein' | 'carbohydrate' | 'fat', dayG: number): { v: number; unknown: boolean } => {
+      const stated = kn?.[key];
+      if (stated !== undefined && stated !== 'known') return { v: isKnown(g) ? g : 0, unknown: true };
+      if (isKnown(g)) return { v: g, unknown: false };
+      if (m.energyKcal !== undefined || reportedDay) return { v: 0, unknown: true };
+      return { v: w * dayG, unknown: false };
+    };
+    const p = part(m.macros?.proteinG, 'protein', x.p);
+    const c = part(m.macros?.carbG, 'carbohydrate', x.c);
+    const f = part(m.macros?.fatG, 'fat', x.f);
+    r.p += p.v;
+    r.c += c.v;
+    r.f += f.v;
+    r.pUnknown ||= p.unknown;
+    r.cUnknown ||= c.unknown;
+    r.fUnknown ||= f.unknown;
+    r.kcal += m.energyKcal !== undefined && Number.isFinite(m.energyKcal) && m.energyKcal >= 0 ? m.energyKcal : m.macros ? 4 * p.v + 4 * c.v + 9 * f.v : w * x.kcal;
+  });
+  return r;
+}
+
 function mealTimes(t: DayTemplate): number[] {
   const m = t.meals ?? {};
   if (m.meals?.length) return m.meals.map((x) => x.clockH);
@@ -86,10 +199,19 @@ function mealTimes(t: DayTemplate): number[] {
   return out;
 }
 
-export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResult {
+/**
+ * `elapsedDays`: the schedule starts this many days after the plan start (a re-plan's prescription from today), so the
+ * novice / sedentary progression limits (HC-X2, HC-X3) continue from the plan's week instead of restarting at week 1.
+ */
+export function validatePlan(ctx: PlanningContext, s: Schedule, opts: { elapsedDays?: number } = {}): ValidationResult {
+  const wOff = Math.max(0, Math.floor((opts.elapsedDays ?? 0) / 7));
   const reasons: string[] = [];
+  const unchecked: string[] = [];
   const bad = (rule: string, msg: string) => {
     if (reasons.length < 40) reasons.push(`${rule}: ${msg}`);
+  };
+  const cannot = (rule: string, msg: string) => {
+    if (unchecked.length < 20 && !unchecked.includes(`${rule}: ${msg}`)) unchecked.push(`${rule}: ${msg}`);
   };
   const caps = ctx.caps;
   const pr = ctx.practical;
@@ -117,7 +239,10 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
   const intake: number[] = [];
   for (let d = 0; d < T; d++) {
     const t = merged(s, d);
-    const x = expand(ctx, t);
+    const x0 = expand(ctx, t);
+    // (A1-008/A1-014) meals that state their own amounts resolve the day (unknown analysis stays a lower bound)
+    const em = explicitMealTotals(t, x0);
+    const x = em ?? { ...x0, pUnknown: false, cUnknown: false, fUnknown: false };
     const covered = evs.reduce((acc, v) => acc + Math.max(0, Math.min(v.b, d * 24 + 24) - Math.max(v.a, d * 24)), 0);
     const hours: number[] = [];
     if (covered < 24 - 1e-9 && x.kcal > HC.zeroKcal) {
@@ -137,7 +262,19 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
     const eaten = !(covered >= 24 - 1e-9 || hours.length === 0);
     // the engine scales every macro of a refeed day by its factor (17 HC-F3)
     const kcal = eaten ? x.kcal * factor : 0;
-    days.push({ t, kcal, p: eaten ? x.p * factor : 0, c: eaten ? x.c * factor : 0, f: eaten ? x.f * factor : 0, shortened: !!t.meals?.meals?.length || factor < 1, mealHours: hours });
+    // (A1-008) a day is shortened by an actual fast (event coverage) or a graded refeed, never by its meal representation
+    days.push({
+      t,
+      kcal,
+      p: eaten ? x.p * factor : 0,
+      c: eaten ? x.c * factor : 0,
+      f: eaten ? x.f * factor : 0,
+      pUnknown: eaten && x.pUnknown,
+      cUnknown: eaten && x.cUnknown,
+      fUnknown: eaten && x.fUnknown,
+      shortened: covered > 1e-9 || factor < 1,
+      mealHours: hours,
+    });
     intake.push(...hours);
   }
   intake.sort((a, b) => a - b);
@@ -210,10 +347,15 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
       n++;
     }
     // borderline weeks (within 0.1 % of the 10 % deficit threshold) are judged with the lower floor (repair uses the higher)
-    const floor = (100 * k) / n / tdee < 100 - HC.proteinDeficitThresholdPct - 0.1 || caps.ageYears >= 65 ? caps.proteinFloorDeficitRw : caps.proteinFloorRw;
-    // the floor can never exceed the hard caps (35 %E, 3.1 g/kg FFM, protein lock): safety wins over a user floor
-    const eff = Math.min(floor, (HC.protein.capPctEnergy / 100) * x.kcal / 4 / rw, (caps.proteinCapGPerKgFfm * caps.ffmKg) / rw, caps.proteinCapRw);
+    const deficitPct = 100 - (100 * k) / n / tdee;
+    const floor = generalProteinFloor(caps, deficitPct > HC.proteinDeficitThresholdPct + 0.1 ? deficitPct : 0).value / rw;
+    const eff = floor;
     if (x.p / rw < eff - 0.005) {
+      // (A1-014) a known lower bound under a floor proves nothing when part of the day's protein is unanalysed
+      if (x.pUnknown) {
+        cannot('HC-M1', `day ${d + 1} protein not fully analysed`);
+        continue;
+      }
       bad('HC-M1', `day ${d + 1} protein ${(x.p / rw).toFixed(2)} g/kg (floor ${floor})`);
       break;
     }
@@ -234,13 +376,53 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
       bad('HC-M2', `protein above 35 % of energy in days ${a + 1}-${a + 7}`);
       break;
     }
+    // (A1-014) a known lower bound under a cap cannot prove compliance
+    for (let d = a; d < a + 7; d++) if (days[d]!.pUnknown && Number.isFinite(caps.proteinCapRw)) cannot('HC-M2', `days ${a + 1}-${a + 7} protein not fully analysed`);
+  }
+  // Re-evaluate each canonical clinical requirement on this validator's independently expanded days.
+  for (const bound of caps.renal.clinical.bounds) {
+    const def = bound.normalized;
+    if (bound.status !== 'enforceable' || !def || def.quantity !== 'proteinPerDay') continue;
+    if (def.scope !== 'total') { if (def.mandatory) cannot(def.id, 'unsupported clinical protein scope'); continue; }
+    if (def.window.kind !== 'day' && def.window.kind !== 'rolling') { if (def.mandatory) cannot(def.id, 'unsupported clinical protein window'); continue; }
+    const n = def.window.kind === 'rolling' ? def.window.days : 1;
+    if (n > T) { if (def.mandatory) cannot(def.id, 'clinical rolling window incomplete'); continue; }
+    for (let end = n - 1; end < T; end++) {
+      const window = days.slice(end - n + 1, end + 1);
+      if (def.comparator === 'floor' && window.some((d) => d.kcal <= HC.zeroKcal || d.shortened)) continue;
+      const amount = window.reduce((sum, d) => sum + d.p, 0) / n;
+      const unknown = window.some((d) => d.pUnknown);
+      if (def.comparator === 'cap' ? amount > def.value + 0.05 : !unknown && amount < def.value - 0.05)
+        bad(def.id, `protein ${amount.toFixed(2)} g/day outside entered ${def.value} g/day (${def.window.kind})`);
+      else if (unknown && def.mandatory) cannot(def.id, 'clinical protein not fully analysed');
+    }
   }
   for (let d = 0; d < T; d++) {
     const x = days[d]!;
     if (x.kcal < HC.fat.appliesAboveKcal || x.shortened) continue;
     const fFloor = Math.max((HC.fat.minPctEnergy / 100) * x.kcal / 9, caps.fatFloorG);
-    if (x.f < fFloor - EPS_G) bad('HC-M3', `day ${d + 1} fat ${x.f.toFixed(0)} g < ${fFloor.toFixed(0)} g`);
-    if (caps.carbFloorG > 0 && x.c < caps.carbFloorG - EPS_G) bad('HC-M4', `day ${d + 1} carbohydrate ${x.c.toFixed(0)} g < ${caps.carbFloorG} g`);
+    if (x.f < fFloor - EPS_G) {
+      if (x.fUnknown) cannot('HC-M3', `day ${d + 1} fat not fully analysed`);
+      else bad('HC-M3', `day ${d + 1} fat ${x.f.toFixed(0)} g < ${fFloor.toFixed(0)} g`);
+    }
+    if (caps.carbFloorG > 0 && x.c < caps.carbFloorG - EPS_G) {
+      if (x.cUnknown) cannot('HC-M4', `day ${d + 1} carbohydrate not fully analysed`);
+      else bad('HC-M4', `day ${d + 1} carbohydrate ${x.c.toFixed(0)} g < ${caps.carbFloorG} g`);
+    }
+  }
+  // D4-01 total-fat lock (% of energy) on every eating day at the planned estimate; the resolved check (runtime
+  // maintenance, overrides, refeeds) is `safetyAudit.evaluatePlanSafety`
+  if (caps.fatMaxPctEnergy !== null) {
+    for (let d = 0; d < T; d++) {
+      const x = days[d]!;
+      if (!(x.kcal > 0)) continue;
+      const pctE = (900 * x.f) / x.kcal;
+      if (pctE > caps.fatMaxPctEnergy + EPS_PCT) {
+        bad('lock.fat-cap', `day ${d + 1} fat ${pctE.toFixed(1)} % of energy (cap ${caps.fatMaxPctEnergy} %)`);
+        break;
+      }
+      if (x.fUnknown) cannot('lock.fat-cap', `day ${d + 1} fat not fully analysed`);
+    }
   }
 
   // ---- eating window, meals (HC-F5, user window, single-meal days)
@@ -329,12 +511,28 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
       for (const x of ex) {
         const s0 = d * 24 + x.startH;
         if (!caps.exercise.allowed) bad('HC-X4', `session on day ${d + 1} although exercise prescription is locked`);
+        else if (x.kind === 'resistance' ? !caps.exercise.rtAllowed : !caps.exercise.cardioAllowed) bad('HC-X4', `${x.kind} session on day ${d + 1} is outside the permitted activities`);
         if (!allowed.has((ctx.startWeekday + d) % 7)) bad('user.trainingWeekdays', `session on a disallowed weekday (day ${d + 1})`);
         if ((x.durationMin ?? 60) > pr.maxSessionMin + 1) bad('user.maxSessionMin', `day ${d + 1} session ${x.durationMin} min`);
+        if (x.kind === 'cardio' && (x.durationMin ?? 60) > pr.maxCardioSessionMin + 1e-6) bad('user.maxCardioSessionMin', `day ${d + 1} cardio ${x.durationMin} min`);
         for (const z of spans) {
           if (z.h < 24 - 1e-6) continue;
           if (s0 >= z.a && s0 < z.b) bad('HC-F4', `session inside a ${z.h.toFixed(0)}-h fast on day ${d + 1}`);
           if (z.h > 24 + 1e-6 && d >= Math.floor(z.a / 24) && d <= Math.floor((z.b - 1e-9) / 24)) bad('HC-F4', `training on a day touched by a ${z.h.toFixed(0)}-h fast (day ${d + 1})`);
+        }
+        // (D4-02/A1-003) every clinician intensity maximum on every part of the session (the peak phase, never a mean)
+        for (const cap of caps.exercise.intensityCaps ?? []) {
+          if (cap.status === 'unknownUnit' || cap.status === 'invalidValue') continue; // the limit itself needs review (final check)
+          if (!cap.normalized) {
+            cannot('envelope.intensity', `${cap.original.convention} limit has no comparable dose (day ${d + 1})`);
+            continue;
+          }
+          const n = cap.normalized;
+          const parts = x.kind === 'cardio' ? cardioParts(x, n.channel) : [n.channel === 'grossMet' && typeof x.met === 'number' && Number.isFinite(x.met) ? x.met : null];
+          for (const v of parts) {
+            if (v === null) cannot('envelope.intensity', `${x.kind} intensity on day ${d + 1} not comparable to the ${cap.original.convention} limit`);
+            else if (v > n.max + 1e-9) bad('envelope.intensity', `${x.kind} intensity ${v} on day ${d + 1} above the clinician limit ${cap.original.max} ${cap.original.unit}`);
+          }
         }
         if (x.kind === 'cardio') {
           minutes += x.durationMin;
@@ -347,23 +545,59 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
         }
       }
     }
-    if (caps.rtNovice && sets > HC.rtNovice.startSetsMax + HC.rtNovice.setsIncreasePerWeek * w + 0.05) bad('HC-X2', `week ${w + 1}: ${sets.toFixed(1)} sets per muscle`);
-    if (caps.sedentaryStart && minutes > HC.sedentary.startMinPerWeek * Math.pow(1 + HC.sedentary.increasePct / 100, w) + 1) bad('HC-X3', `week ${w + 1}: ${minutes} exercise minutes`);
+    if (caps.rtNovice && sets > HC.rtNovice.startSetsMax + HC.rtNovice.setsIncreasePerWeek * (w + wOff) + 0.05) bad('HC-X2', `week ${w + wOff + 1}: ${sets.toFixed(1)} sets per muscle`);
+    if (caps.sedentaryStart && minutes > HC.sedentary.startMinPerWeek * Math.pow(1 + HC.sedentary.increasePct / 100, w + wOff) + 1) bad('HC-X3', `week ${w + wOff + 1}: ${minutes} exercise minutes`);
     if (to - from === 7 && active >= 7) bad('HC-X3', `week ${w + 1} has no rest day`);
   }
 
-  // ---- substances and opt-in levers (HC-M10..M12, 21 L7/L8)
+  // ---- exercise gate (D4-02): no "training as usual" while exercise prescription is stopped, steps ≤ the ceiling; (A1-004)
+  // from the day the governing envelope's entered review date passes, no sessions and steps at the habit
+  const lapse = caps.exercise.gateChange ?? null;
+  for (let d = 0; d < T; d++) {
+    const t = days[d]!.t;
+    if (lapse !== null && d >= lapse.day) {
+      if ((t.exercise ?? []).length || t.habitualTraining) bad('HC-X4.envelope', `training on day ${d + 1} after the clinician review date ${lapse.date}`);
+      const hab = Math.max(0, ctx.rp.habits.typicalSteps);
+      if (t.steps !== undefined && t.steps > hab + 0.5) bad('HC-X4.steps', `day ${d + 1} prescribes ${Math.round(t.steps)} steps after the clinician review date (habit ${Math.round(hab)})`);
+    }
+    if (t.habitualTraining && !caps.exercise.habitualTrainingAllowed) bad('HC-X4', `training as usual on day ${d + 1} although exercise prescription is stopped`);
+    if (t.habitualTraining && (caps.exercise.intensityCaps ?? []).some((c) => c.status !== 'unknownUnit' && c.status !== 'invalidValue')) cannot('envelope.intensity', `training as usual on day ${d + 1} has no stated intensity`);
+    const ceil = caps.exercise.stepsCeiling;
+    if (ceil !== null && t.steps !== undefined && t.steps > ceil + 0.5) bad('HC-X4.steps', `day ${d + 1} prescribes ${Math.round(t.steps)} steps (ceiling ${Math.round(ceil)})`);
+  }
+
+  // ---- substances and opt-in levers (HC-M10..M12, 21 L7/L8; D4-01 caffeine, creatine and potassium-supplement caps).
+  // (A1-007) the legacy channels and the normalized active-ingredient doses together, in canonical units (1000 mg = 1 g),
+  // a dose shared by an explicit event identity once; an observed day whose source is not fully observed is unchecked
+  const potCap = ctx.caps.constraints.merged.find((m) => m.quantity === 'potassiumSupplementPerDay' && m.comparator === 'cap')?.value ?? null;
   for (let d = 0; d < T; d++) {
     const t = days[d]!.t;
     const sub = t.substances;
+    const obs = t.observed;
+    const fully = (ch: 'caffeine' | 'supplements') => {
+      if (!obs) return true;
+      const c = obs.coverage?.[ch];
+      return c === 'complete' || c === 'confirmedZero';
+    };
     if (sub?.alcohol?.length) bad('HC-M10', `alcohol on day ${d + 1}`);
-    if (sub?.caffeine?.length) {
-      const tot = sub.caffeine.reduce((a, c) => a + c.mg, 0);
-      if (tot > 400 || sub.caffeine.some((c) => c.mg > 200)) bad('HC-M11', `caffeine on day ${d + 1}`);
+    const caf = ingredientDay((sub?.caffeine ?? []).map((c) => ({ mg: c.mg, ...(c.eventId ? { eventId: c.eventId } : {}) })), sub?.actives, 'caffeine');
+    if (caf.known > 0 || caf.unknown) {
+      const doses = [...(sub?.caffeine ?? []).map((c) => c.mg), ...(sub?.actives ?? []).filter((a) => a.ingredient === 'caffeine').map((a) => activeMg(a) ?? 0)];
+      if (caf.known > 400 || doses.some((mg) => mg > 200)) bad('HC-M11', `caffeine on day ${d + 1}`);
+      if (caps.caffeineMaxMgPerDay !== null && caf.known > caps.caffeineMaxMgPerDay + 0.5) bad('lock.caffeine-cap', `caffeine ${caf.known} mg on day ${d + 1} (cap ${caps.caffeineMaxMgPerDay} mg/day)`);
+      else if (caps.caffeineMaxMgPerDay !== null && (caf.unknown || caf.possible > caps.caffeineMaxMgPerDay + 0.5 || !fully('caffeine') || !fully('supplements'))) cannot('lock.caffeine-cap', `caffeine on day ${d + 1} not fully known`);
     }
-    if (sub?.creatineG !== undefined && sub.creatineG > 0) {
-      if (sub.creatineG > HC.creatineMaxG + 1e-9) bad('HC-M12', `creatine ${sub.creatineG} g on day ${d + 1}`);
+    const cre = ingredientDay(sub?.creatineG !== undefined && sub.creatineG > 0 ? [{ mg: sub.creatineG * 1000 }] : [], sub?.actives, 'creatine');
+    if (cre.known > 0 || cre.unknown) {
+      const g = cre.known / 1000;
+      if (g > caps.creatineMaxG + 1e-9) bad('HC-M12', `creatine ${+g.toFixed(3)} g on day ${d + 1}`);
+      else if (cre.unknown || cre.possible / 1000 > caps.creatineMaxG + 1e-9 || !fully('supplements')) cannot('HC-M12', `creatine on day ${d + 1} not fully known`);
       if (!caps.creatineAllowed || pr.excluded.has('L7') || pr.excluded.has('creatine')) bad('HC-M12', `creatine not allowed (day ${d + 1})`);
+    }
+    if (potCap !== null) {
+      const pot = ingredientDay([], sub?.actives, 'potassium');
+      if (pot.known / 1000 > potCap + 1e-9) bad('lock.potassium-supp-cap', `potassium supplement ${+(pot.known / 1000).toFixed(3)} g on day ${d + 1} (cap ${potCap} g/day)`);
+      else if (pot.unknown || !fully('supplements')) cannot('lock.potassium-supp-cap', `potassium supplement on day ${d + 1} not fully known`);
     }
     if (sub?.creatineLoading) bad('HC-M12', 'creatine loading is not planned');
     if (t.macros.fatTypes?.omega3G && !(caps.optInLevers.has('L8') || caps.optInLevers.has('omega3'))) bad('tier.optIn', 'omega-3 without consent');
@@ -373,5 +607,5 @@ export function validatePlan(ctx: PlanningContext, s: Schedule): ValidationResul
     const lever = v.e.durationH <= 24 ? 'fastDay24' : 'waterFast';
     if (pr.excluded.has(lever)) bad('user.excluded', `${lever} on day ${v.e.startDay + 1}`);
   }
-  return { ok: reasons.length === 0, reasons };
+  return { ok: reasons.length === 0, reasons, ...(unchecked.length ? { unchecked } : {}) };
 }

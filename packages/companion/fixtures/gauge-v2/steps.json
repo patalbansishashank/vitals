@@ -1,0 +1,266 @@
+{
+  "route": "/v1/gauge/steps",
+  "tool": "gauge_steps",
+  "args": {
+    "from": "2026-10-20",
+    "to": "2026-10-20"
+  },
+  "timeZone": "Asia/Kolkata",
+  "envelope": {
+    "ok": true,
+    "status": "applied",
+    "summary": "Fused steps for 2026-10-20 to 2026-10-20: 8750 located in 13 intervals.",
+    "data": {
+      "fusionVersion": "steps-fuse/1",
+      "from": "2026-10-20",
+      "to": "2026-10-20",
+      "units": {
+        "steps": "steps",
+        "coverage": "min of the local day",
+        "ringResidual": "steps the ring counted but did not place in time (never added to located)"
+      },
+      "intervals": [
+        {
+          "start": "2026-10-20T06:30:00+05:30",
+          "end": "2026-10-20T06:45:00+05:30",
+          "steps": 0,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleObserved",
+          "alternatives": []
+        },
+        {
+          "start": "2026-10-20T06:45:00+05:30",
+          "end": "2026-10-20T07:00:00+05:30",
+          "steps": 0,
+          "source": "ring:0123456789abcdef",
+          "lineage": "ring",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "preference",
+          "alternatives": [
+            {
+              "source": "phone:counter",
+              "lineage": "phone",
+              "steps": 0,
+              "support": "minute"
+            }
+          ]
+        },
+        {
+          "start": "2026-10-20T07:00:00+05:30",
+          "end": "2026-10-20T07:30:00+05:30",
+          "steps": 3000,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleSustainedGait",
+          "alternatives": [
+            {
+              "source": "ring:0123456789abcdef",
+              "lineage": "ring",
+              "steps": 36,
+              "support": "minute"
+            }
+          ],
+          "disagreement": true
+        },
+        {
+          "start": "2026-10-20T07:30:00+05:30",
+          "end": "2026-10-20T08:00:00+05:30",
+          "steps": 0,
+          "source": "ring:0123456789abcdef",
+          "lineage": "ring",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "preference",
+          "alternatives": [
+            {
+              "source": "phone:counter",
+              "lineage": "phone",
+              "steps": 0,
+              "support": "minute"
+            }
+          ]
+        },
+        {
+          "start": "2026-10-20T08:00:00+05:30",
+          "end": "2026-10-20T08:20:00+05:30",
+          "steps": 0,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleObserved",
+          "alternatives": []
+        },
+        {
+          "start": "2026-10-20T08:20:00+05:30",
+          "end": "2026-10-20T09:00:00+05:30",
+          "steps": 0,
+          "source": "ring:0123456789abcdef",
+          "lineage": "ring",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "preference",
+          "alternatives": [
+            {
+              "source": "phone:counter",
+              "lineage": "phone",
+              "steps": 0,
+              "support": "minute"
+            }
+          ]
+        },
+        {
+          "start": "2026-10-20T09:00:00+05:30",
+          "end": "2026-10-20T12:00:00+05:30",
+          "steps": 0,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleObserved",
+          "alternatives": []
+        },
+        {
+          "start": "2026-10-20T12:00:00+05:30",
+          "end": "2026-10-20T12:15:00+05:30",
+          "steps": 1350,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleObserved",
+          "alternatives": []
+        },
+        {
+          "start": "2026-10-20T12:15:00+05:30",
+          "end": "2026-10-20T16:30:00+05:30",
+          "steps": 0,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleObserved",
+          "alternatives": []
+        },
+        {
+          "start": "2026-10-20T16:30:00+05:30",
+          "end": "2026-10-20T17:00:00+05:30",
+          "steps": 0,
+          "source": "ring:0123456789abcdef",
+          "lineage": "ring",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "preference",
+          "alternatives": [
+            {
+              "source": "phone:counter",
+              "lineage": "phone",
+              "steps": 0,
+              "support": "minute"
+            }
+          ]
+        },
+        {
+          "start": "2026-10-20T17:00:00+05:30",
+          "end": "2026-10-20T17:40:00+05:30",
+          "steps": 4400,
+          "source": "ring:0123456789abcdef",
+          "lineage": "ring",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "preference",
+          "alternatives": [
+            {
+              "source": "phone:counter",
+              "lineage": "phone",
+              "steps": 4200,
+              "support": "minute"
+            },
+            {
+              "source": "hc:com.google.android.apps.fitness",
+              "lineage": "phone",
+              "steps": 4150,
+              "support": "span",
+              "sameLineage": true
+            }
+          ]
+        },
+        {
+          "start": "2026-10-20T17:40:00+05:30",
+          "end": "2026-10-20T18:30:00+05:30",
+          "steps": 0,
+          "source": "ring:0123456789abcdef",
+          "lineage": "ring",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "preference",
+          "alternatives": [
+            {
+              "source": "phone:counter",
+              "lineage": "phone",
+              "steps": 0,
+              "support": "minute"
+            }
+          ]
+        },
+        {
+          "start": "2026-10-20T18:30:00+05:30",
+          "end": "2026-10-20T19:00:00+05:30",
+          "steps": 0,
+          "source": "phone:counter",
+          "lineage": "phone",
+          "support": "minute",
+          "unit": "minute",
+          "selectionReason": "soleObserved",
+          "alternatives": []
+        }
+      ],
+      "days": [
+        {
+          "date": "2026-10-20",
+          "located": 8750,
+          "ringDailyTotal": 9000,
+          "ringResidual": 4564,
+          "phoneDailyTotal": 8550,
+          "headline": 9000,
+          "headlinePolicy": "atLeast",
+          "resolved": false,
+          "headlineLabel": "At least: includes ring steps not placed in time",
+          "coverage": {
+            "ringMin": 235,
+            "phoneMin": 750,
+            "eitherMin": 750,
+            "unknownMin": 690
+          }
+        }
+      ],
+      "inputsHash": "sha256:af2504f8c45c65db4c1e074c5b5566b0",
+      "source": "lumen_health",
+      "timeZone": "Asia/Kolkata",
+      "installations": [
+        {
+          "id": "6f1d2c3b4a594e8f9d0123456789abcd",
+          "deviceName": "Pixel 8",
+          "appVersion": "2.9.0",
+          "app": "gauge",
+          "status": "active",
+          "supersededBy": null,
+          "lastUploadAt": "2026-10-20T23:30:00+05:30"
+        }
+      ],
+      "freshness": {
+        "lastUploadAt": "2026-10-20T23:30:00+05:30",
+        "lastReadingAt": "2026-10-20T19:00:00+05:30",
+        "minutesSinceLastUpload": 0,
+        "minutesSinceLastReading": 270
+      },
+      "tz": "Asia/Kolkata"
+    }
+  }
+}

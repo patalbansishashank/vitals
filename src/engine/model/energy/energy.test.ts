@@ -4,9 +4,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { selectRmr0, resolveProfile } from '../../core/resolveProfile';
-import { validateParamDefs } from '../../core/paramsRegistry';
+import { drawKindOf, sampleParams, validateParamDefs } from '../../core/paramsRegistry';
 import type { PersonProfile } from '../../types/profile';
-import { energyModule, HX } from './index';
+import { applyEnergyStructuralScenario, ENERGY_NOMINAL_COMPENSATION_SCENARIO, ENERGY_STRUCTURAL_SCENARIOS, energyModule, HX, lutealCycleEstimable } from './index';
 import { ENERGY_PARAMS } from './params';
 import { EnergyRig, MAN02_INPUT, makeParams, mean, planFromPct, profileWith, type DayPlan } from './testRig';
 
@@ -30,7 +30,7 @@ describe('energy — parameter registry', () => {
       ['betaATPlus', 0.12, 0, 0.35], ['sigmaAT', 0.6, 0.4, 0.8], ['tauROn', 7, 3, 14], ['tauNOn', 14, 7, 30],
       ['tauOff', 14, 14, 42], ['tefP', 0.25, 0.2, 0.3], ['tefC', 0.075, 0.05, 0.1], ['tefF', 0.025, 0, 0.03],
       ['tefAlc', 0.1, 0.05, 0.22], ['tefFibre', 0.3, 0, 0.3], ['kP', 0.6, 0.3, 1.1], ['kCaff', 0.1, 0.05, 0.25],
-      ['cMet', 0.15, 0, 0.28], ['phiC', 0.1, 0.05, 0.15],
+      ['cMet', 0, 0, 0.15], ['phiC', 0.1, 0.05, 0.15],
     ];
     for (const [id, v, lo, hi] of want) {
       const p = byId.get(`energy.${id}`)!;
@@ -40,7 +40,13 @@ describe('energy — parameter registry', () => {
     expect(pval('gngCost')).toBe(0); // ruling on review M5: default 0, 0.2 = registry high
     expect(byId.get('energy.gngCost')!.high).toBe(0.2);
     expect(pval('tauP')).toBe(2);
-    expect(pval('cMetPerBmi')).toBe(0.01);
+    expect(pval('cMetPerBmi')).toBe(0);
+  });
+  it('D1-07: compensation parameters are structural (never drawn); the BMI slope is removed for nominal, draws and overrides', () => {
+    for (const id of ['cMet', 'cMetPerBmi', 'tauComp', 'compCapFrac']) expect(drawKindOf(byId.get(`energy.${id}`)!), id).toBe('fixed');
+    expect(byId.get('energy.cMet')!.distribution?.uncertaintyKind).toBe('scenario');
+    const k = energyModule.prepare(new EnergyRig(WORKED, makeParams({ 'energy.cMetPerBmi': 0.02 })).ctx);
+    expect(k.cMetPerBmi).toBe(0);
   });
 });
 
@@ -178,6 +184,35 @@ describe('energy — RMR terms (02 §4.2, §4.3, §4.5)', () => {
     rig.bus.lutealWeight = 0;
     const d = rig.runDay(rig.habitualPlan());
     expect(d.rmr).toBeCloseTo(1879, 9);
+  });
+  describe('D8-07: unknown or irregular phase gives phase-average (zero-deviation) RMR, never a static follicular offset', () => {
+    const fem = (cycle: Record<string, unknown>) =>
+      profileWith(
+        { schemaVersion: 1, body: { sex: 'female', ageYears: 30, heightCm: 165, weightKg: 65 }, cycle: { tracking: true, cycleLengthD: 28, ...cycle }, startDate: '2026-01-05' },
+        { rmr0: 1370, tdee0: 2100, pPct: 0.16, cPct: 0.46, fPct: 0.38, ffm0: 45.5, fm0: 19.5 },
+      );
+    const runConst = (cycle: Record<string, unknown>, s: number): number[] => {
+      const rig = new EnergyRig(fem(cycle));
+      rig.bus.lutealWeight = s;
+      return rig.runDays(30, rig.habitualPlan()).map((d) => d.rmr);
+    };
+    it('estimable only with tracking, a last period start, no hormonal contraception and a regular cycle', () => {
+      expect(lutealCycleEstimable(fem({ lastPeriodStart: '2025-12-20' }), '2026-01-05')).toBe(true);
+      expect(lutealCycleEstimable(fem({}), '2026-01-05')).toBe(false);
+      expect(lutealCycleEstimable(fem({ lastPeriodStart: '2025-12-20', regularity: 'irregular' }), '2026-01-05')).toBe(false);
+      expect(lutealCycleEstimable(fem({ lastPeriodStart: '2025-12-20', regularity: 'unknown' }), '2026-01-05')).toBe(false);
+      expect(lutealCycleEstimable(fem({ lastPeriodStart: '2025-12-20', contraception: 'combinedOral' }), '2026-01-05')).toBe(false);
+      expect(lutealCycleEstimable(WORKED, '2026-01-05')).toBe(false);
+    });
+    it('a constant 0 (untracked) or a constant phase-average 0.5 leaves RMR at the reference from the first day', () => {
+      for (const cycle of [{}, { lastPeriodStart: '2025-12-20', regularity: 'irregular' }, { lastPeriodStart: '2025-12-20', contraception: 'iud' }]) {
+        for (const s of [0, 0.5]) for (const r of runConst(cycle, s)) expect(r).toBeCloseTo(1370, 9);
+      }
+    });
+    it('an estimable cycle keeps the tracked prior (s̄ = 0.5 until a full cycle is observed)', () => {
+      const r = runConst({ lastPeriodStart: '2025-12-20' }, 0);
+      expect(r[0]).toBeLessThan(1370 - 1); // follicular day against the 0.5 prior: the documented −2.5 % centring
+    });
   });
 });
 
@@ -317,23 +352,57 @@ describe('energy — adaptive thermogenesis ODE (02 §4.8-4.9; R-AT)', () => {
   });
 });
 
-describe('energy — exercise compensation, metabolic part (10 §4.3; R-COMP)', () => {
+describe('energy — exercise compensation, metabolic part (10 §4.3; R-COMP; D1-07 structural scenarios)', () => {
   const bmi25 = profileWith(MAN02_INPUT, { rmr0: 1850, tdee0: 2800, pPct: 0.16, cPct: 0.45, fPct: 0.39, ffm0: 63, fm0: 18 });
-  const compAt = (enet: number): number => {
-    const rig = new EnergyRig(bmi25);
+  const legacy = (): ReturnType<typeof makeParams> => {
+    const base = makeParams();
+    return { ...base, values: applyEnergyStructuralScenario(base, base.values, 'legacyRmrResponse') };
+  };
+  const compAt = (enet: number, params = legacy(), profile = bmi25): number => {
+    const rig = new EnergyRig(profile, params);
     const r = rig.runDays(200, rig.habitualPlan(), (bus, _d, h) => {
       bus.exEEKcalH = h === 17 ? enet : 0;
     });
     return r[199]!.comp;
   };
-  it('10 §4.17 T7 at BMI 25: E_net 263 / 105 / 429 kcal/d → −39 / −16 / −64 kcal/d', () => {
+  it('nominal is the zero-RMR-response reference: added activity changes no RMR term (intake, NEAT and AT stay separate)', () => {
+    expect(ENERGY_NOMINAL_COMPENSATION_SCENARIO).toBe('zeroRmrResponse');
+    expect(pval('cMet')).toBe(ENERGY_STRUCTURAL_SCENARIOS.exerciseCompensation.zeroRmrResponse.values['energy.cMet']);
+    for (const enet of [0, 263, 3000]) expect(compAt(enet, makeParams())).toBe(0);
+    // the same intervention without any RMR response: RMR differs from the no-exercise run only through other terms (none here)
+    const ex = new EnergyRig(bmi25).runDays(60, new EnergyRig(bmi25).habitualPlan(), (bus, _d, h) => {
+      bus.exEEKcalH = h === 17 ? 400 : 0;
+    });
+    const rest = new EnergyRig(bmi25).runDays(60, new EnergyRig(bmi25).habitualPlan());
+    expect(ex[59]!.rmr).toBeCloseTo(rest[59]!.rmr, 9);
+  });
+  it('legacy scenario keeps the documented old structure: 10 §4.17 T7 E_net 263 / 105 / 429 kcal/d → −39 / −16 / −64 kcal/d', () => {
     expect(compAt(263)).toBeCloseTo(-39.45, 1);
     expect(compAt(105)).toBeCloseTo(-15.75, 1);
     expect(compAt(429)).toBeCloseTo(-64.35, 1);
   });
-  it('is capped at −5 % of RMR and is 0 without extra exercise', () => {
+  it('legacy scenario is capped at −5 % of RMR and is 0 without extra exercise', () => {
     expect(compAt(3000)).toBeCloseTo(-0.05 * 1850, 1);
     expect(compAt(0)).toBe(0);
+  });
+  it('BMI alone cannot cause suppression: same activity at BMI 25 and BMI ≈ 33 gives the same compensation', () => {
+    const heavy = profileWith({ ...MAN02_INPUT, body: { ...MAN02_INPUT.body, weightKg: 107 } }, { rmr0: 1850, tdee0: 2800, pPct: 0.16, cPct: 0.45, fPct: 0.39, ffm0: 63, fm0: 44 });
+    expect(compAt(263, legacy(), heavy)).toBeCloseTo(compAt(263, legacy(), bmi25), 9);
+    expect(compAt(263, makeParams(), heavy)).toBe(0);
+  });
+  it('competing structural scenarios survive parameter draws (applied to every member; never drawn themselves)', () => {
+    const base = makeParams();
+    const draws = sampleParams(base.defs, { count: 8, seed: 7 });
+    const i = base.index.get('energy.cMet')!;
+    for (const v of draws) {
+      expect(v[i]).toBe(0);
+      const leg = applyEnergyStructuralScenario(base, v, 'legacyRmrResponse');
+      expect(leg[i]).toBe(0.15);
+      // only the scenario's structural entries change; every drawn parameter is kept
+      let changed = 0;
+      for (let j = 0; j < v.length; j++) if (leg[j] !== v[j]) changed++;
+      expect(changed).toBe(1);
+    }
   });
 });
 

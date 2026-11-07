@@ -1,8 +1,8 @@
 /**
  * Deterministic explanation templates (dossier 18 §4.12 naming, §4.17 explanations; no LLM, no backend). Numbers are
  * rounded to meaningful precision; hedging follows the evidence grade (A/B plain, C "the model suggests", D
- * "speculative"). Sequencing is never credited (MODEL_SPEC R-SEQ): diet breaks and refeeds are explained by hunger and
- * adherence only; fasting protocols carry their lean-mass cost (20 §4C).
+ * "speculative"). Sequencing is never credited (MODEL_SPEC R-SEQ): diet breaks and refeeds are explained by the hunger
+ * burden and practicality only (no adherence probability, D2-06); fasting protocols carry their lean-mass cost (20 §4C).
  */
 import type { Schedule } from '../../types/schedule';
 import type { SimulationResult } from '../../types/result';
@@ -26,6 +26,8 @@ export const RULE_TEXT: Record<string, string> = {
   'HC-E2': 'the limits on very-low-energy days (at most 2 a week, never consecutive)',
   'HC-E3': 'the maximum safe energy deficit for your body',
   'HC-E3.28': 'the maximum safe energy deficit over four weeks, fast days included',
+  userMuscleRetention: 'your whole-plan modeled muscle-loss budget',
+  'user.maxCardioSessionMin': 'your longest cardio session',
   'HC-E4': 'the minimum energy availability while training in a deficit (30 kcal per kg fat-free mass, kept at about 31)',
   'HC-E5': 'the maximum safe rate of weight loss',
   'HC-E6': 'the 20 % cap on total weight loss in one plan',
@@ -149,7 +151,7 @@ export function optionName(ctx: PlanningContext, s: Schedule, plan: DecodedPlan 
   if (multi) name = 'Periodic multi-day fasts (opt-in)';
   else if (has('B12')) name = 'Alternate zero-energy days (opt-in)';
   else if (has('B11')) name = 'Two low-energy days a week';
-  else if (f24) name = 'Weekly 24-hour fasts';
+  else if (f24) name = `24-hour fasts (${events.filter(e => e.kind === 'fast' && e.durationH <= 24).length} total)`;
   else if (has('B3')) name = 'Short aggressive cut, then maintenance';
   else if (has('B8')) name = `Deficit blocks (−${size(main)} %) with maintenance breaks`;
   else {
@@ -303,7 +305,7 @@ function phaseWhy(ctx: PlanningContext, blockId: BlockId, pct: number, protein: 
         return `A ${d} % energy deficit on most days with ${refeed.days} refeed day${refeed.days > 1 ? 's' : ''} a week (about ${100 - Math.round(refeed.weekPct)} % below maintenance over the week), protein at ${p} g/kg to protect lean tissue; fat loss follows the weekly deficit, and the refeed days ease hunger (see Evidence › Hormones and appetite) without adding fat loss of their own.`;
       return `A steady ${d} % energy deficit with protein at ${p} g/kg to protect lean tissue; fat loss follows the size of the deficit.`;
     case 'B2':
-      return `Net carbohydrate at ${Math.round(carbG ?? 30)} g/day so the body runs mainly on fat and ketones${has('transient') ? ', which serves your ketone or autophagy-signal goal' : ''}; ${bal.kind === 'deficit' ? `the ${d} % deficit, not the carbohydrate level, drives the fat loss` : 'energy stays at maintenance'}.`;
+      return `Net carbohydrate at ${Math.round(carbG ?? 30)} g/day so the body runs mainly on fat and ketones${has('transient') ? ', which serves your ketone goal' : ''}; ${bal.kind === 'deficit' ? `the ${d} % deficit, not the carbohydrate level, drives the fat loss` : 'energy stays at maintenance'}.`;
     case 'B6':
       return `Fat at the 15 %-of-energy floor with most energy from carbohydrate${has('lipids') ? ', which lowers LDL and ApoB (your ranked goal)' : ''}; ${bal.kind === 'deficit' ? `fat loss follows the ${d} % deficit, not the macro split` : 'energy stays at maintenance'}.`;
     case 'B11':
@@ -382,29 +384,16 @@ export function phaseExplanations(ctx: PlanningContext, plan: DecodedPlan, sched
 }
 
 /**
- * Goal-specific explanation sentences (QA item 9): the autophagy index's confidence and its cost for muscle (08 §4.10,
- * §4.15), the hunger levers actually used (12 §4.9: protein, fibre, energy density, diet breaks — sequencing earns
- * nothing), and the strength prescription (09 §4.2/§4.3, 10 §4.11).
+ * Goal-specific explanation sentences (QA item 9): the hunger levers actually used (12 §4.9: protein, fibre, energy
+ * density, diet breaks — sequencing earns nothing) and the strength prescription (09 §4.2/§4.3, 10 §4.11). The autophagy
+ * research index is not a goal (D2-02), so no sentence credits a fast or a protein level with raising it.
  */
 export function goalNotes(ctx: PlanningContext, plan: DecodedPlan, schedule: Schedule): string[] {
   const out: string[] = [];
   const ls = plan.lifestyle;
+  if (ls.cardioSessions > 0 && (ls.cardioModality === 'walk' || ls.cardioModality === 'run'))
+    out.push('The daily step target is outside the separately listed walking or running sessions; those sessions add to the total steps you will see on your watch.');
   const rank = (id: string) => ctx.goals.findIndex((g) => g.metric === id);
-  const muscleRank = ctx.classRank.muscle ?? Infinity;
-  const fasts = (schedule.events ?? []).map((e) => e.durationH);
-  const longest = fasts.length ? Math.max(...fasts) : 0;
-  const dailyFast = Math.round(24 - ls.windowLengthH);
-  const iA = rank('autophagyIdx');
-  if (iA >= 0) {
-    const L = ls.windowLengthH;
-    const compat =
-      L >= 10 ? 'fully compatible with muscle gain' : L >= 8 ? 'compatible with muscle gain when protein of at least 1.6 g/kg is spread over 3 or more meals' : L >= 6 ? 'a mild conflict with muscle gain' : 'a conflict with muscle gain';
-    let t = `Goal ${iA + 1} (autophagy signal) is a relative, conditions-based index with low confidence (grade C/D): it is not a measurement of autophagy in your cells (see Evidence › Autophagy and nutrient-sensing pathways). The daily fast of about ${dailyFast} h raises it by a few points and is ${compat}.`;
-    if (longest > 24) t += ` The ${Math.round(longest)}-hour fasts raise it most but cost lean tissue (a strong conflict with muscle gain).`;
-    else if (longest > 20) t += ' The 24-hour fasts raise it further at a moderate lean-tissue cost.';
-    else if (muscleRank < iA) t += ' Because you ranked muscle above it, no fast longer than a day is used.';
-    out.push(t);
-  }
   const iH = rank('hunger');
   if (iH >= 0) {
     const levers: string[] = [`protein ${r1(avgProtein(ctx, schedule))} g/kg`, `fibre ${Math.round(ls.fibreG + ls.viscousG)} g/day`];
@@ -426,35 +415,44 @@ function avgProtein(ctx: PlanningContext, s: Schedule): number {
   return a ? a.protein : 0;
 }
 
+/**
+ * The plan's hunger burden (D2-06): the appetite model's HPI is an uncalibrated burden index (a planning prior until
+ * anchored to the person's own ratings), the tolerance a subjective preference — the rating is a burden status
+ * (low / moderate / high / unknown), not a predicted 0-10 rating. `adherencePct` is withheld: the legacy plan-survival
+ * index is not a probability of sticking with the plan and is never shown or exported as one (NaN = not available, the
+ * field's existing convention).
+ */
 export function hungerAssessment(ctx: PlanningContext, sim: SimulationResult): HungerAssessment {
   const h = sim.daily.hunger;
-  const ad = sim.final.adherence;
   if (!h || !h.length || !Number.isFinite(h[0]!)) {
-    return { meanIdx: NaN, peak7Idx: NaN, daysAboveTolerance: 0, adherencePct: ad ?? NaN, rating: 'unknown', text: 'Hunger is not yet modelled (appetite module pending).' };
+    return { meanIdx: NaN, peak7Idx: NaN, daysAboveTolerance: 0, adherencePct: NaN, rating: 'unknown', text: 'Hunger burden: Unknown.' };
   }
+  // finite days only: a day without a value is missing, not zero hunger
+  const v: number[] = [];
+  for (let d = 0; d < h.length; d++) if (Number.isFinite(h[d]!)) v.push(h[d]!);
   let s = 0;
   let above = 0;
   let peak = -Infinity;
   const tol = 100 * ctx.practical.hTol;
-  for (let d = 0; d < h.length; d++) {
-    s += h[d]!;
-    if (h[d]! > tol) above++;
+  for (let d = 0; d < v.length; d++) {
+    s += v[d]!;
+    if (v[d]! > tol) above++;
     if (d >= 6) {
       let w = 0;
-      for (let k = d - 6; k <= d; k++) w += h[k]!;
+      for (let k = d - 6; k <= d; k++) w += v[k]!;
       peak = Math.max(peak, w / 7);
     }
   }
-  const mean = s / h.length;
+  const mean = s / v.length;
   if (!Number.isFinite(peak)) peak = mean;
   const rating: HungerAssessment['rating'] = mean <= tol - 10 ? 'low' : mean <= tol ? 'moderate' : 'high';
   const text =
     rating === 'low'
-      ? 'Hunger should stay comfortably within your tolerance.'
+      ? 'Hunger burden: low against your tolerance.'
       : rating === 'moderate'
-        ? `Hunger stays near your tolerance${above ? `, above it on about ${above} days` : ''}.`
-        : `Expect noticeable hunger: above your tolerance on about ${above} days.`;
-  return { meanIdx: r1(mean), peak7Idx: r1(peak), daysAboveTolerance: above, adherencePct: ad ?? NaN, rating, text };
+        ? `Hunger burden: near your tolerance${above ? `, above it on about ${above} days` : ''}.`
+        : `Hunger burden: high, above your tolerance on about ${above} days.`;
+  return { meanIdx: r1(mean), peak7Idx: r1(peak), daysAboveTolerance: above, adherencePct: NaN, rating, text };
 }
 
 /** Safety notes shown with an option (17 wording; 20 §4C lean cost of fasting; scale-weight caveats). */

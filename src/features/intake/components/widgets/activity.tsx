@@ -1,6 +1,7 @@
 /** Composite turns of chapter 1 (a normal day): work days × hours, step numbers, sport rows, sleep. */
 import { useState } from 'react';
 import { Checkbox, InlineWarning, Key, KeyBank, ScaleRange, Stepper, TextInput, formatNumber } from '@/components';
+import { CommitKey } from '../CommitKey';
 import type { RecreationEntry, RecreationIntensity } from '@/engine/types/profile';
 import { looksLikeTraining, SLEEP_PRESETS, sleepText, type SleepRange, type StepsValue, type WorkTimeValue } from '../../chapters/activity';
 import { A, TURN } from '../../copy';
@@ -29,7 +30,6 @@ export function WorkTimeWidget({ value, values, onCommit, labelledBy }: WidgetPr
         className="lm-ik-keys--presets"
         options={HOURS.map((h) => ({ value: String(h), label: `${h} h` }))}
         value={value ? String(value.hours) : undefined}
-        defaultValue="8"
         onCommit={(h) => onCommit({ days, hours: Number(h) })}
       />
     </div>
@@ -58,9 +58,9 @@ export function StepsWidget({ value, values, onCommit, labelledBy }: WidgetProps
           />
           <div className="lm-ik-inline">
             <Stepper name={A.stepsNumber.name} value={mean} onChange={setMean} min={0} max={40000} step={100} inputMode="numeric" />
-            <Key onClick={() => mean !== null && onCommit({ mean })} disabledReason={mean === null ? TURN.exact : undefined}>
+            <CommitKey onClick={() => mean !== null && onCommit({ mean })} disabledReason={mean === null ? TURN.exact : undefined}>
               {TURN.done}
-            </Key>
+            </CommitKey>
           </div>
         </>
       ) : (
@@ -73,23 +73,19 @@ export function StepsWidget({ value, values, onCommit, labelledBy }: WidgetProps
             <span className="lm-ik-row__label">{A.stepsNumber.offDay}</span>
             <Stepper name={A.stepsNumber.offDay} value={offDay} onChange={setOffDay} min={0} max={40000} step={100} inputMode="numeric" />
           </div>
-          <div className="lm-ik-done">
-            <Key
+          <CommitKey
               onClick={() => onCommit({ ...(workday !== null ? { workday } : {}), ...(offDay !== null ? { offDay } : {}) })}
               disabledReason={workday === null && offDay === null ? TURN.exact : undefined}
             >
               {TURN.done}
-            </Key>
-          </div>
+            </CommitKey>
         </div>
       )}
-      <div className="lm-ik-inline">
-        {working ? <Checkbox checked={split} onChange={setSplit} label={A.stepsNumber.split} /> : null}
-        <Key variant="quiet" size="sm" onClick={() => onCommit({ importLater: true })}>
-          {A.stepsNumber.importLater}
-        </Key>
-      </div>
-      <p className="lm-ik-note">{A.stepsNumber.importNote}</p>
+      {working ? (
+        <div className="lm-ik-inline">
+          <Checkbox checked={split} onChange={setSplit} label={A.stepsNumber.split} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -113,7 +109,7 @@ export function SportRowsWidget({ value, onCommit, labelledBy }: WidgetProps<Rec
           <Key onClick={() => onCommit([])} aria-describedby={labelledBy}>
             {A.sport.none}
           </Key>
-          <Key variant="quiet" onClick={() => setRows([{ label: '', intensity: 'moderate', minPerWeek: null }])}>
+          <Key variant="text" onClick={() => setRows([{ label: '', intensity: 'moderate', minPerWeek: null }])}>
             {A.sport.addRow}
           </Key>
         </div>
@@ -132,7 +128,7 @@ export function SportRowsWidget({ value, onCommit, labelledBy }: WidgetProps<Rec
                     onChange={(e) => set(i, { label: e.currentTarget.value })}
                     style={{ flex: '1 1 10rem', minWidth: 0 }}
                   />
-                  <Key variant="quiet" size="sm" aria-label={TURN.remove(who)} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>
+                  <Key variant="text" size="sm" aria-label={TURN.remove(who)} onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))}>
                     ×
                   </Key>
                 </div>
@@ -161,7 +157,7 @@ export function SportRowsWidget({ value, onCommit, labelledBy }: WidgetProps<Rec
                         >
                           {A.sport.moveToTraining}
                         </Key>
-                        <Key size="sm" variant="quiet" onClick={() => setKept((k) => [...k, r.label.trim()])}>
+                        <Key size="sm" variant="text" onClick={() => setKept((k) => [...k, r.label.trim()])}>
                           {A.sport.keepHere}
                         </Key>
                       </span>
@@ -174,15 +170,15 @@ export function SportRowsWidget({ value, onCommit, labelledBy }: WidgetProps<Rec
             );
           })}
           <div className="lm-ik-actions">
-            <Key variant="quiet" onClick={() => setRows((rs) => [...rs, { label: '', intensity: 'moderate', minPerWeek: null }])}>
+            <Key variant="text" onClick={() => setRows((rs) => [...rs, { label: '', intensity: 'moderate', minPerWeek: null }])}>
               {A.sport.addRow}
             </Key>
-            <Key
+            <CommitKey
               onClick={() => onCommit(valid.map((r) => ({ label: r.label.trim(), intensity: r.intensity, minPerWeek: r.minPerWeek ?? 0 })))}
               disabledReason={valid.length === 0 ? A.sport.namePlaceholder : undefined}
             >
               {valid.length ? TURN.doneCount(valid.length) : TURN.done}
-            </Key>
+            </CommitKey>
           </div>
         </>
       )}
@@ -214,7 +210,6 @@ export function SleepWidget({ value, onCommit, labelledBy }: WidgetProps<SleepRa
         className="lm-ik-keys--presets"
         options={[...Object.entries(SLEEP_PRESETS).map(([k, r]) => ({ value: k, label: sleepText(r) })), { value: 'other', label: A.sleep.other }]}
         value={presetOf(value)}
-        defaultValue="23-07"
         onCommit={(k) => {
           if (k === 'other') return setOther(true);
           onCommit({ ...SLEEP_PRESETS[k as keyof typeof SLEEP_PRESETS] });
@@ -234,9 +229,7 @@ export function SleepWidget({ value, onCommit, labelledBy }: WidgetProps<SleepRa
             format={(h: number) => clock(h)}
             valueText={(h: number, which) => `${which === 'low' ? A.sleep.thumbs[0] : A.sleep.thumbs[1]} ${clock(h)}`}
           />
-          <div className="lm-ik-done">
-            <Key onClick={() => onCommit({ bed: range[0] % 24, wake: range[1] % 24 })}>{TURN.done}</Key>
-          </div>
+          <CommitKey onClick={() => onCommit({ bed: range[0] % 24, wake: range[1] % 24 })}>{TURN.done}</CommitKey>
         </div>
       ) : null}
     </div>

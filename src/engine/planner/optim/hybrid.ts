@@ -1,5 +1,5 @@
 /**
- * Hybrid planner algorithm (E6 benchmark ruling, 2026-10-01): the frozen v1 search decides Hard (goal-1 quality), the
+ * Hybrid planner algorithm (E6 benchmark ruling, 2026-10-01): the frozen v1 search proposes Hard (goal-1 quality), the
  * v2 pipeline builds the ladder (Medium, Easy) around it; the caller runs the Ideal on top as before.
  *
  * Why: on the held-out benchmark v2 was better on the ladder (hypervolume) and no worse on the synthetic suites, but not
@@ -11,10 +11,20 @@
  * tier's QD + ladder + robust shares on top for the rungs (about +37 % EU; tier M still ≈ 30 s on 8 workers). A
  * budget-neutral split (v1 on the goal-1 share only) was measured and failed the gate on R1, R2 and T4
  * (docs/PLANNER_BENCHMARK.md). Tier X has no v1 tier and always runs v2 alone.
+ *
+ * D4-09 production adapter (`PLANNER_COMPARISON_POLICY` v2, `./policy`): the frozen v1 package stays the historical
+ * benchmark comparator, untouched; here its option A is only a proposal. The v2 run revalidates it (validator, joint
+ * screen, independent safety audit) and it becomes Hard only when it is not worse than v2's own Hard finalists under
+ * the production Hard key — the same quantised goal-first comparison the stages, floors, chance repair and rungs use —
+ * with ties going to the proposal. So the shipped Hard never comes from v1's d − η·R stage comparator.
+ * `stageEU['hybrid.pinnedHard']` reports whether the proposal won; the domain result records the policy version and
+ * fingerprint (`provenance.policyVersion` / `policyFingerprint`).
  */
 import { runPlannerV1, type PlannerConfigV1, type PlannerProblemV1 } from '../bench/baselines/v1';
 import { TIER_BUDGET_EU, TIER_SHARES, runPlanner, type PlannerConfig, type PlannerProblem, type PlannerResult } from './pipeline';
 import type { Evaluator, PlanStructure } from './types';
+
+export { PLANNER_COMPARISON_POLICY, PLANNER_POLICY_FINGERPRINT } from './policy';
 
 export type PlannerAlgorithm = 'hybrid' | 'v2';
 /** The shipped default (benchmark gate, docs/PLANNER_BENCHMARK.md). */
@@ -51,8 +61,9 @@ export async function runPlannerWith<S extends PlanStructure>(
   const c2: PlannerConfig = { ...cfg, totalEU: Math.max(1, total - used1) };
   // v1's unused EU rolls over to the ladder run
   if (onProgress) c2.onProgress = (q) => onProgress({ ...q, euUsed: q.euUsed + used1, euBudget: total });
-  // v1 found no plan: v2 searches alone with what is left
-  const res = await runPlanner(a ? { ...problem, ladder: { ...ladder!, pinHard: { structure: a.structureIndex, x: a.x, chanceChecked: true } } } : problem, evaluator, c2);
+  // v1 found no plan: v2 searches alone with what is left. The pinned Hard is revalidated by the v2 run (its own
+  // validator, joint selection screen and independent safety audit, C5/D4-03): v1's own chance check is not trusted
+  const res = await runPlanner(a ? { ...problem, ladder: { ...ladder!, pinHard: { structure: a.structureIndex, x: a.x } } } : problem, evaluator, c2);
   // the ladder run returned nothing although v1 found a plan (its short budget found no safe Hard and the pinned plan
   // did not reach its finalists; 7 of 240 held-out full requests): the v2 search alone with the tier budget, which never
   // returned an empty result on the benchmark

@@ -1,6 +1,6 @@
 /**
  * Row hover sweep (PLAN 02 item 11; COMPONENTS §14.1). The hover fill is computed here from the actual token values in
- * src/styles/tokens.css for both themes (jsdom computes no styles): every text ink keeps ≥ 4.5:1 on the hover fill and
+ * src/styles/tokens.css (the one Ember palette; jsdom computes no styles): every text ink keeps ≥ 4.5:1 on the hover fill and
  * on the touch pressed fill, and the shift is a few percent of lightness, not a tint. The stylesheets are then read as
  * text: interactive rows paint the token and never change text colour; rows that open nothing have no hover rule.
  * The ladder has its own test (src/features/planner/__tests__/hoverContrast.test.ts).
@@ -14,11 +14,10 @@ const root = resolve(__dirname, '../../..');
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
 const tokens = read('src/styles/tokens.css');
 
-/** `--name: #hex` from the first (light) block and from the forced-dark block. */
-function token(name: string, theme: 'light' | 'dark'): RGB {
-  const src = theme === 'light' ? tokens : tokens.slice(tokens.indexOf(':root[data-theme="dark"]'));
-  const m = src.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
-  if (!m) throw new Error(`token --${name} (${theme}) not found`);
+/** `--name: #hex` from the :root palette (dark only: there is one). */
+function token(name: string): RGB {
+  const m = tokens.match(new RegExp(`--${name}:\\s*(#[0-9a-fA-F]{6})`));
+  if (!m) throw new Error(`token --${name} not found`);
   return [1, 3, 5].map((i) => parseInt(m[1]!.slice(i, i + 2), 16) / 255) as RGB;
 }
 
@@ -71,29 +70,28 @@ describe('row hover token keeps text readable', () => {
     expect(read('design/tokens.css')).toMatch(/--lm-face-hover:\s*color-mix\(in oklab,\s*var\(--lm-face\),\s*var\(--lm-ink\)\s*6%\)/);
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    it(`gives ink, ink-2 and ink-3 ≥ 4.5:1 on the hover and pressed fills (${theme})`, () => {
-      const ink = token('lm-ink', theme);
-      const face = token('lm-face', theme);
-      const p = hoverShare();
-      const fills: Record<string, RGB> = {
-        'face hover': mix(face, ink, p),
-        'face pressed (10 %)': mix(face, ink, 0.1),
-        // menu rows over a popover (raised) or a sheet (face): ink at 4 % alpha (6 % fails ink-3 on dark raised: 4.3:1)
-        'raised menu row': over(token('lm-raised', theme), ink, 0.04),
-        'face menu row': over(face, ink, 0.04),
-      };
-      const dL = Math.abs(toOklab(fills['face hover']!)[0] - toOklab(face)[0]);
-      expect(dL, `${theme} lightness shift`).toBeGreaterThan(0.02);
-      expect(dL, `${theme} lightness shift`).toBeLessThan(0.07);
-      for (const [name, fill] of Object.entries(fills)) {
-        for (const t of INKS) {
-          const c = contrast(token(t, theme), fill);
-          expect(c, `${t} on ${theme} ${name} = ${c.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
-        }
+  it('gives ink, ink-2 and ink-3 ≥ 4.5:1 on the hover and pressed fills', () => {
+    const ink = token('lm-ink');
+    const face = token('lm-face');
+    const p = hoverShare();
+    const fills: Record<string, RGB> = {
+      'face hover': mix(face, ink, p),
+      'face pressed (10 %)': mix(face, ink, 0.1),
+      // menu rows over a popover (raised / elevated) or a sheet (face): ink at 4 % alpha
+      'raised menu row': over(token('lm-raised'), ink, 0.04),
+      'elevated menu row': over(token('lm-elevated'), ink, 0.04),
+      'face menu row': over(face, ink, 0.04),
+    };
+    const dL = Math.abs(toOklab(fills['face hover']!)[0] - toOklab(face)[0]);
+    expect(dL, 'lightness shift').toBeGreaterThan(0.02);
+    expect(dL, 'lightness shift').toBeLessThan(0.07);
+    for (const [name, fill] of Object.entries(fills)) {
+      for (const t of INKS) {
+        const c = contrast(token(t), fill);
+        expect(c, `${t} on ${name} = ${c.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
       }
-    });
-  }
+    }
+  });
 });
 
 /** All `{…}` bodies of rules whose selector list contains `selector` and `:hover`. */
@@ -110,28 +108,36 @@ const INTERACTIVE: [file: string, selector: string, fill: RegExp][] = [
   ['src/features/living/living.css', '.lv-item.is-open', /background: var\(--lm-face-hover\)/],
   ['src/features/living/train/train.css', '.lv-train-weekrow', /background: var\(--lm-face-hover\)/],
   ['src/features/living/train/train.css', '.lv-train-result', /background: var\(--lm-face-hover\)/],
-  ['src/features/living/progress/progress.css', 'a.lv-prog-cal__key', /background: var\(--lm-face-hover\)/],
-  ['src/features/evidence/evidence.css', '.ev-row', /background: var\(--lm-face-hover\)/],
-  ['src/features/evidence/evidence.css', '.ev-pager__a', /background: var\(--lm-face-hover\)/],
+  // the Progress log calendar is the shared adherence calendar now (its days link to Today)
+  ['src/features/charts/living/living-charts.css', '.lmc-cal__day', /background: var\(--lm-face-hover\)/],
+  // evidence rows sit on the grained card material: a translucent ink share keeps the grain (the menu's readable 4 %)
+  ['src/features/evidence/evidence.css', '.ev-row', /background: color-mix\(in oklab, transparent, var\(--lm-ink\) 4%\)/],
   ['src/features/planner/planner.css', '.lp-week tbody tr', /background: var\(--lm-face-hover\)/],
   ['src/features/simulator/simulator.css', '.sim-scenarios__item', /background: color-mix\(in oklab, transparent, var\(--lm-ink\) 4%\)/],
 ];
 
 const NO_TEXT_COLOUR: [file: string, selector: string][] = [
   ...INTERACTIVE.map(([f, s]) => [f, s] as [string, string]),
-  ['src/features/living/components/ScoreTile.css', '.lv-score__link'],
-  ['src/features/living/components/ScoreTile.css', '.lv-score__ver'],
 ];
 
 /** Rows that open nothing (their control is a key inside them, or nothing at all): no hover rule at all. */
 const NON_INTERACTIVE: [file: string, selector: string][] = [
   ['src/features/evidence/evidence.css', '.ev-table'],
   ['src/features/charts/charts.css', '.lmc-table'],
-  ['src/features/intake/intake.css', '.lm-ik-row-a'],
   ['src/features/components/SupplementRow.css', '.lm-supprow'],
 ];
 
 describe('row hover sweep', () => {
+  it('answered intake rows hover only when their Change key stretches over the row', () => {
+    const css = read('src/features/intake/intake.css');
+    const rules = hoverRules(css, '.lm-ik-row-a');
+    expect(rules).toHaveLength(1);
+    expect(rules[0]).toMatch(/background: var\(--lm-face-hover\)/);
+    expect(rules[0]).not.toMatch(/(^|[^-])color:/);
+    expect(css).toMatch(/\.lm-ik-row-a:has\(\.lm-ik-row-a__key\):hover/);
+    expect(css).not.toMatch(/\.lm-ik-row-a:hover/);
+    expect(css).toMatch(/\.lm-ik-row-a__key::after \{[^}]*position: absolute;[^}]*inset: 0;/);
+  });
   it.each(INTERACTIVE)('%s %s paints the surface hover inside @media (hover: hover)', (file, selector, fill) => {
     const css = read(file);
     const rules = hoverRules(css, selector);
@@ -149,6 +155,15 @@ describe('row hover sweep', () => {
   it('menu rows (shared Menu/Listbox) use the 4 % share that stays readable on the dark popover', () => {
     const rules = hoverRules(read('src/styles/components.css'), '.lm-menu__item');
     expect(rules.join('\n')).toMatch(/background: color-mix\(in oklab, transparent, var\(--lm-ink\) 4%\)/);
+  });
+
+  it('the article pager is a pair of text links: hover underlines the title, no fill and no colour change', () => {
+    const rules = hoverRules(read('src/features/evidence/evidence.css'), '.ev-pager__a');
+    expect(rules.join('\n')).toMatch(/text-decoration: underline;/);
+    for (const r of rules) {
+      expect(r).not.toMatch(/background/);
+      expect(r).not.toMatch(/(^|[^-])color:/);
+    }
   });
 
   it.each(NON_INTERACTIVE)('%s %s has no row hover', (file, selector) => {

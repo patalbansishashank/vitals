@@ -19,9 +19,14 @@ describe('index URL state', () => {
     expect(parseIndexParams(new URLSearchParams('group=dossier')).group).toBe('topic');
   });
 
+  it('groups by topic unless a link asks for categories', () => {
+    expect(parseIndexParams(new URLSearchParams('')).group).toBe('topic');
+    expect(parseIndexParams(new URLSearchParams('group=category')).group).toBe('category');
+  });
+
   it('accepts repeated params and drops unknown values', () => {
     const s = parseIndexParams(new URLSearchParams('cat=body&cat=nonsense&grade=E&grade=c&group=weird'));
-    expect(s).toEqual({ q: '', categories: ['body'], grades: ['C'], group: 'category' });
+    expect(s).toEqual({ q: '', categories: ['body'], grades: ['C'], group: 'topic' });
   });
 
   it('round-trips state → URL → state', () => {
@@ -43,8 +48,8 @@ describe('index URL state', () => {
 
   it('writes canonical, minimal URLs and keeps unrelated params', () => {
     const p = writeIndexParams(
-      { q: ' keto ', categories: ['fuel', 'body'], grades: ['B', 'A'], group: 'category' },
-      new URLSearchParams('theme=dark&cat=energy'),
+      { q: ' keto ', categories: ['fuel', 'body'], grades: ['B', 'A'], group: 'topic' },
+      new URLSearchParams('theme=dark&cat=energy&group=topic'),
     );
     expect(p.get('theme')).toBe('dark');
     expect(p.get('q')).toBe('keto');

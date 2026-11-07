@@ -24,6 +24,20 @@
  * its baseline exactly and a person repeating the habitual week shows no drift. Insulin sensitivity is absolute
  * (reference healthy adult = 1), so `insulinResistanceIdx = 1 − S_I` is the person's absolute IR (review m13).
  *
+ * Measured baselines (D7-02): an accepted lab value is the t = 0 anchor of its marker exactly — never clamped into a
+ * plausible replacement by the solver bounds. The response equations read a solver-domain copy (`K.ldl0` …); the recorded
+ * marker is anchor + mechanism deltas, with the numerical output bounds widened to include the anchor, so day 0 equals
+ * the measurement even outside the calibration domain. Such a marker's later values are finite compatibility numbers
+ * whose status is `outOfDomain` (`cardiometabolicObservedAnchors`), not an asserted response.
+ *
+ * Response validity (D7-06…D7-09; `cardiometabolicRunStatus`): the standard projection keeps the latent hepatic
+ * sensitivity prior (no HOMA → S_hep override), no LEM lean-responder LDL term, no permanent independent ketosis liver-fat
+ * bonus and no HbA1c forecast from fasting glucose — each available only as an explicitly labelled scenario toggle.
+ * Switching a term off is model containment, never a claim of zero biology: a ketogenic exposure above the habitual state
+ * marks the LDL/ApoB and liver-fat responses uncertain from that day, ApoB's non-HDL proxy response is exploratory, an
+ * unmeasured liver fat is a latent prior, and a glucose-lowering medication context makes glycaemic changes observations
+ * without causal attribution. The core applies these statuses (finalize) beside the numbers; nothing here rewrites them.
+ *
  * Optional inputs: `DayInput.cholesterolMg` (undefined/NaN = habitual, no effect), `dashFraction` (undefined/NaN = from
  * foodQuality), `saunaSessionsPerWeek` (undefined = 0). Dossier 06 has no smoking term for any modelled marker, so
  * `habits.smoker` is not read. Exercise doses (aerobic min/wk at ≥ 40 % VO2max, MET·h/wk, resistance sets/wk) are
@@ -38,6 +52,9 @@ import { MI } from '../../types/metrics';
 import type { MetricFrame, ModuleContext, StepClock } from '../../types/module';
 import type { DayInput, HourInput } from '../../types/inputs';
 import type { SignalBus } from '../../types/signals';
+import type { SeriesId } from '../../types/metrics';
+import type { SeriesStatusMeta } from '../../types/result';
+import { worstStatus } from '@/lib/bodyContracts';
 import { MGDL_PER_MMOLL_CHOL, MGDL_PER_MMOLL_GLC, MGDL_PER_MMOLL_TG } from './baselines';
 import { buildK, type CardiometabolicK } from './constants';
 import { Diet, readDiet } from './diet';
@@ -211,8 +228,10 @@ export interface CardiometabolicState {
   outTgMmol: number;
   /** Systolic blood pressure, mmHg. */
   outSbp: number;
-  /** Intrahepatic triglyceride, %. */
+  /** Intrahepatic triglyceride, % (solver state: the bus value other modules read). */
   outLiverPct: number;
+  /** Recorded liver fat, %: the measured anchor × the same mechanism factor (D7-02; equals `outLiverPct` in domain). */
+  outLiverRecPct: number;
   /** Fasting glucose, mmol/L. */
   outFpgMmol: number;
   /** hs-CRP relative to the baseline value (1 = baseline). */
@@ -238,22 +257,43 @@ export interface CardiometabolicState {
   rate14PctWk: number;
   /** Weight lost vs t = 0, kg (positive = lost; ΔFM / fat share of weight change). */
   kgLost: number;
+  /** D7-07/D7-08: first plan day whose ketosis state exceeds the habitual reference (−1 = none so far). */
+  ketoFromDay: number;
+  /**
+   * A1-048: first plan day on which the ketosis-dependent LDL response applies, independent of whether s_keto can still rise
+   * above a saturated habitual reference (−1 = none so far): an ongoing ketogenic state (current or habitual reference
+   * nonzero) while the opt-in LEM scenario is on (its unvalidated term — and its weight-response interaction — is in the
+   * trajectory), or, with it off, while the prescription changes the LEM drivers (planned energy away from maintenance:
+   * the omitted, uncertain response). A stationary habitual week in the standard projection never sets it.
+   */
+  lemFromDay: number;
 }
 
 /**
  * Outputs in the metrics' units; display-only blocks only when recorded or `all` (init and end of burn-in, so the state
  * always holds the baseline values). S_I and liver fat are always computed (other modules read them).
  */
+/**
+ * Numerical output bound that never relabels the t = 0 anchor (D7-02): the solver bounds [lo, hi] widened to include the
+ * anchor, so a measured value outside them stays exact while every output stays finite.
+ */
+function clampAround(x: number, lo: number, hi: number, anchor: number): number {
+  return clamp(x, anchor < lo ? anchor : lo, anchor > hi ? anchor : hi);
+}
+
 function computeOutputs(s: CardiometabolicState, k: CardiometabolicK, all = false): void {
   s.outSensitivity = wholeBodySensitivity(s.sHep, s.sMus, k);
-  s.outLiverPct = clamp(k.l0 * Math.exp(s.lnLslow + s.liverD), k.liverMin, k.liverMax);
+  const liverF = Math.exp(s.lnLslow + s.liverD);
+  s.outLiverPct = clamp(k.l0 * liverF, k.liverMin, k.liverMax);
+  s.outLiverRecPct = k.lAnchor === k.l0 ? s.outLiverPct : clampAround(k.lAnchor * liverF, k.liverMin, k.liverMax, k.lAnchor);
   if (all || k.doLipids) {
-    const ldlMg = clamp(k.ldl0 + s.ldlComp + s.ldlPort + s.ldlKeto + s.ldlWeight, 20, 600);
-    const hdlMg = clamp(k.hdl0 + s.hdlComp + s.hdlEx + s.hdlWeight, 12, 160);
-    const tgMg = clamp(k.tg0 * Math.exp(s.tgComp + s.tgAcute + s.tgN3 + s.tgEx + s.tgWeight), 15, 3000);
-    const nonHdl = ldlMg + tgMg / k.vldlDivisor;
-    const nonHdl0 = k.ldl0 + k.tg0 / k.vldlDivisor;
-    const apoBmg = clamp(k.apoB0 + k.apobPerNonHdl * (nonHdl - nonHdl0), 10, 500);
+    const ldlMg = clampAround(k.ldlAnchor + s.ldlComp + s.ldlPort + s.ldlKeto + s.ldlWeight, 20, 600, k.ldlAnchor);
+    const hdlMg = clampAround(k.hdlAnchor + s.hdlComp + s.hdlEx + s.hdlWeight, 12, 160, k.hdlAnchor);
+    const tgMg = clampAround(k.tgAnchor * Math.exp(s.tgComp + s.tgAcute + s.tgN3 + s.tgEx + s.tgWeight), 15, 3000, k.tgAnchor);
+    // D7-07: the LDL + TG/divisor proxy moves the descriptor and the exploratory ApoB proxy; a measured non-HDL anchors it
+    const dProxy = ldlMg - k.ldlAnchor + (tgMg - k.tgAnchor) / k.vldlDivisor;
+    const nonHdl = k.nonHdlAnchor + dProxy;
+    const apoBmg = clampAround(k.apoBAnchor + k.apobPerNonHdl * dProxy, 10, 500, k.apoBAnchor);
     s.outLdlMmol = ldlMg / MGDL_PER_MMOLL_CHOL;
     s.outApoBgL = apoBmg / 100;
     s.outHdlMmol = hdlMg / MGDL_PER_MMOLL_CHOL;
@@ -264,11 +304,11 @@ function computeOutputs(s: CardiometabolicState, k: CardiometabolicK, all = fals
   if (all || k.doBp) {
     let lev = s.sbpN3 + s.sbpSauna;
     if (lev < -k.bpLeverCap) lev = -k.bpLeverCap;
-    s.outSbp = clamp(k.sbp0 + s.sbpFast + s.sbpSlow + s.sbpAlcohol + s.sbpEx + lev, 60, 260);
+    s.outSbp = clampAround(k.sbpAnchor + s.sbpFast + s.sbpSlow + s.sbpAlcohol + s.sbpEx + lev, 60, 260, k.sbpAnchor);
   }
   if (all || k.doGlyc) {
-    s.outFpgMmol = clamp(k.fpg0 + s.fpgWeight + s.fpgAcute + s.fpgFast, 40, 500) / MGDL_PER_MMOLL_GLC;
-    s.outA1cPct = clamp(k.a1c0 + s.a1cDelta, 3.5, 15);
+    s.outFpgMmol = clampAround(k.fpgAnchor + s.fpgWeight + s.fpgAcute + s.fpgFast, 40, 500, k.fpgAnchor) / MGDL_PER_MMOLL_GLC;
+    s.outA1cPct = clampAround(k.a1cAnchor + s.a1cDelta, 3.5, 15, k.a1cAnchor);
   }
   if (all || k.doCrp) s.outCrpRel = Math.exp(clamp(s.crpWeight + s.crpEx, -3, 3));
   if (all || k.doUa) s.outUaRel = Math.max(1, k.ua0 + s.uaKeto + s.uaDiet + s.uaWeight) / k.ua0;
@@ -363,6 +403,64 @@ function exerciseHour(s: CardiometabolicState, k: CardiometabolicK, bus: SignalB
   s.hoursSinceEx = 0;
 }
 
+/** A ketosis state above the habitual reference by more than this counts as a ketogenic exposure (numerical guard). */
+const KETO_EXPOSURE_EPS = 1e-6;
+/** A planned intake/maintenance ratio further than this from 1 is a prescribed energy change (floating-point guard only). */
+const PLANNED_ENERGY_EPS = 1e-9;
+
+/**
+ * Response validity of the module's recorded series for one run (D7-06…D7-09), from its constants and final state.
+ * `fromDay` is the zero-based daily-sample index (daily[0] is the end of day 0, already a modelled response; A1-052):
+ *   apoB              exploratory from day 1 (the non-HDL proxy response is a cross-sectional association)
+ *   ldl, apoB         from the first day the ketosis-dependent response applies — a rise above the habitual ketosis
+ *                     reference, or (A1-048) an ongoing ketogenic state whose LEM drivers change, including a saturated
+ *                     habitual reference: scenario (response uncertain: the LEM term is off, which is not a zero response;
+ *                     the objective guard withholds LDL/ApoB reductions and target credit, rises stay visible) or
+ *                     exploratory (the LEM adverse-response scenario is on and its term contributes)
+ *   liverFat          estimated (unmeasured: a latent BMI prior); from the first ketogenic day scenario (independent keto
+ *                     response unsupported) or exploratory (legacy keto scenario on)
+ *   insulinSensitivity exploratory when the legacy HOMA calibration set it; outOfDomain from day 1 when that calibration
+ *                     rests on an out-of-domain glucose baseline
+ *   fastingGlucose    scenario in a glucose-lowering medication context (observations, no causal credit), from the day the
+ *                     as-of chronology puts it in force (A1-063: day 0 when current at the baseline, a change's own day
+ *                     inside the run; nothing for a stop before a newer baseline or a change past the horizon)
+ * Pure; the core puts these on the recorder (worst status wins) so dependants close over them.
+ */
+export function cardiometabolicRunStatus(
+  s: Pick<CardiometabolicState, 'ketoFromDay'> & Partial<Pick<CardiometabolicState, 'lemFromDay'>>,
+  k: Pick<CardiometabolicK, 'lemEnabled' | 'liverKetoScenario' | 'liverMeasured' | 'hepCalibrated' | 'glucoseLoweringContext' | 'outOfDomain'> & Partial<Pick<CardiometabolicK, 'glucoseLoweringFromDay'>>,
+): Partial<Record<SeriesId, SeriesStatusMeta>> {
+  const out: Partial<Record<SeriesId, SeriesStatusMeta>> = {};
+  const put = (id: SeriesId, meta: SeriesStatusMeta) => {
+    const cur = out[id];
+    if (!cur || worstStatus(cur.status, meta.status) !== cur.status) out[id] = meta;
+  };
+  put('apoB', { status: 'exploratory', reasonCode: 'apoBProxyResponseUnvalidated', fromDay: 1, uncertaintyKind: 'scenario' });
+  if (!k.liverMeasured) put('liverFat', { status: 'estimated', reasonCode: 'liverFatLatentPrior', uncertaintyKind: 'parameterSensitivity' });
+  const lemDay = s.lemFromDay ?? -1;
+  if (s.ketoFromDay >= 0 || lemDay >= 0) {
+    // the first affected daily sample: a ketogenic rise, or (A1-048) the ketosis-dependent LDL response applying
+    const lipidFrom = s.ketoFromDay >= 0 && lemDay >= 0 ? Math.min(s.ketoFromDay, lemDay) : Math.max(s.ketoFromDay, lemDay);
+    const lipid: SeriesStatusMeta = k.lemEnabled === 1
+      ? { status: 'exploratory', reasonCode: 'lemAdverseResponseScenario', fromDay: lipidFrom, uncertaintyKind: 'scenario' }
+      : { status: 'scenario', reasonCode: 'ketogenicLipidResponseUncertain', fromDay: lipidFrom, uncertaintyKind: 'scenario' };
+    put('ldl', lipid);
+    put('apoB', lipid);
+  }
+  if (s.ketoFromDay >= 0) {
+    const from = s.ketoFromDay;
+    put('liverFat', k.liverKetoScenario === 1
+      ? { status: 'exploratory', reasonCode: 'liverKetoCompositionScenario', fromDay: from, uncertaintyKind: 'scenario' }
+      : { status: 'scenario', reasonCode: 'liverKetoResponseUnsupported', fromDay: from, uncertaintyKind: 'scenario' });
+  }
+  if (k.hepCalibrated) {
+    put('insulinSensitivity', { status: 'exploratory', reasonCode: 'homaHepaticCalibrationScenario', uncertaintyKind: 'scenario' });
+    if (k.outOfDomain.includes('fpg')) put('insulinSensitivity', { status: 'outOfDomain', reasonCode: 'dependsOnOutOfDomainBaseline', fromDay: 1 });
+  }
+  if (k.glucoseLoweringContext) put('fastingGlucose', { status: 'scenario', reasonCode: 'glucoseLoweringMedicationContext', fromDay: Math.max(0, k.glucoseLoweringFromDay ?? 0), uncertaintyKind: 'scenario' });
+  return out;
+}
+
 export const cardiometabolicModule = defineModule<CardiometabolicState, CardiometabolicK>({
   id: 'cardiometabolic',
   specSection: '§1.14',
@@ -402,9 +500,11 @@ export const cardiometabolicModule = defineModule<CardiometabolicState, Cardiome
       tgComp: 0, tgAcute: 0, tgN3: 0, tgEx: 0, tgWeight: 0,
       sbpFast: 0, sbpSlow: 0, sbpAlcohol: 0, sbpEx: 0, sbpN3: 0, sbpSauna: 0,
       lnLslow: 0, liverD: 0, fpgWeight: 0, fpgAcute: 0, fpgFast: 0, a1cDelta: 0, crpWeight: 0, crpEx: 0, uaKeto: 0, uaDiet: 0, uaWeight: 0,
-      outSensitivity: 1, outLdlMmol: 0, outApoBgL: 0, outHdlMmol: 0, outTgMmol: 0, outSbp: 0, outLiverPct: k.l0, outFpgMmol: 0,
-      outCrpRel: 1, outUaRel: 1, outA1cPct: k.a1c0, outNonHdlMg: 0, outTgHdl: 0,
+      outSensitivity: 1, outLdlMmol: 0, outApoBgL: 0, outHdlMmol: 0, outTgMmol: 0, outSbp: 0, outLiverPct: k.l0, outLiverRecPct: k.lAnchor, outFpgMmol: 0,
+      outCrpRel: 1, outUaRel: 1, outA1cPct: k.a1cAnchor, outNonHdlMg: 0, outTgHdl: 0,
       fdnlPct: 0, paGlucoseMmolL: bus.glucoseMmolL, paInsulinUuMl: bus.insulinUuMl, homaObs: 0, sKeto: 0, rate14PctWk: 0, kgLost: 0,
+      ketoFromDay: -1,
+      lemFromDay: -1,
     };
     s.diet.copyFrom(k.hab);
     s.today.copyFrom(k.hab);
@@ -467,6 +567,7 @@ export const cardiometabolicModule = defineModule<CardiometabolicState, Cardiome
     // ------------------------------------------------------------------------------------ ketosis and reference tracking
     const bhbMean = s.nHours > 0 ? s.bhbSum / s.nHours : bus.bhbMmolL;
     const sKeto = ketosisState(bhbMean, k);
+    if (!burn && s.ketoFromDay < 0 && sKeto - s.sKetoRef > KETO_EXPOSURE_EPS) s.ketoFromDay = clock.day;
     if (burn) {
       // burn-in: deltas stay ≈ 0 (references follow the day); the last habitual week is accumulated for endBurnIn
       s.tmRef = tm;
@@ -551,6 +652,17 @@ export const cardiometabolicModule = defineModule<CardiometabolicState, Cardiome
     s.ogttNotRepresentative = 1 - s.tolerance > k.readyThreshold ? 1 : 0;
 
     const h = k.hab;
+    // A1-048: applicability of the ketosis-dependent LDL response, tracked apart from a rise of the clipped ketosis state
+    // (a saturated habitual reference cannot rise). An ongoing ketogenic state (current or habitual reference nonzero):
+    //  - with the opt-in LEM scenario on, its unvalidated term is in the trajectory → exploratory from the first such day;
+    //  - with it off, the response it omits matters once the prescription changes the LEM drivers — the day's planned energy
+    //    departs from its maintenance reference (deficit, surplus or a fast; the planned ratio, not the model's noisy
+    //    balance, so a stationary habitual week is never tagged) → scenario, which the objective guard reads.
+    if (!burn && s.lemFromDay < 0 && (sKeto > KETO_EXPOSURE_EPS || s.sKetoRef > KETO_EXPOSURE_EPS)) {
+      const mk = day.maintenanceKcal;
+      const plannedU = Number.isFinite(mk) && mk > 0 ? E / mk - 1 : u;
+      if (k.lemEnabled === 1 || Math.abs(plannedU) > PLANNED_ENERGY_EPS) s.lemFromDay = clock.day;
+    }
     // ------------------------------------------------------------------------------------ lipids (06 §4.2-4.7)
     if (k.doLipids) {
       let dTc = 0;
@@ -634,7 +746,9 @@ export const cardiometabolicModule = defineModule<CardiometabolicState, Cardiome
         } else fpgFastT = MGDL_PER_MMOLL_GLC * clamp(s.paGlucoseMmolL - s.paGlcNorm0 * hepPowUsed, -k.glcFastClamp, k.glcFastClamp);
       }
       s.fpgFast = fpgFastT;
-      s.a1cDelta = relax(s.a1cDelta, (k.meanGlucoseFactor * (s.fpgWeight + s.fpgAcute + s.fpgFast)) / k.eagSlope, k.fA1c);
+      // D7-09: HbA1c is not forecast from fasting glucose in the standard projection (FPG is not the full-day mean glucose
+      // ADAG relates to HbA1c); the legacy FPG-linked path runs only as the labelled `a1c.fpgScenario`
+      s.a1cDelta = k.a1cFpgScenario === 1 ? relax(s.a1cDelta, (k.meanGlucoseFactor * (s.fpgWeight + s.fpgAcute + s.fpgFast)) / k.eagSlope, k.fA1c) : 0;
     }
 
     // ------------------------------------------------------------------------------------ hs-CRP (06 §4.12)
@@ -691,7 +805,7 @@ export const cardiometabolicModule = defineModule<CardiometabolicState, Cardiome
     out[MI.hdl] = s.outHdlMmol;
     out[MI.triglycerides] = s.outTgMmol;
     out[MI.sbp] = s.outSbp;
-    out[MI.liverFat] = s.outLiverPct;
+    out[MI.liverFat] = s.outLiverRecPct;
     out[MI.fastingGlucose] = s.outFpgMmol;
     out[MI.crp] = s.outCrpRel;
     out[MI.uricAcid] = s.outUaRel;

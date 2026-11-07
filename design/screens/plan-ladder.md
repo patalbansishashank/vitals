@@ -117,7 +117,7 @@ would need buying, and why a fast was or wasn't used. Then **Start this plan**.
 | Cards | LadderCard × 1–4, PhaseTimeline, RangeBar, BurdenScale, LimitCostRow, StatusMark | `COMPONENTS §13.6–13.7` |
 | Tabs | KeyBank `overview · days · curves · limits · safety` | for the selected rung (Ideal included) |
 | Start | StartPlanSheet (`COMPONENTS §13.19`), Dialog (replace) | `SUITE_SPEC §3.2` |
-| Adopt limits | ResponsivePanel with Checkbox list per binding limit group + Key `signal` "Find plans with these limits" | Ideal only |
+| Adopt limits | ResponsivePanel with Checkbox list per binding limit group; header Cancel · "Limits to change" · gold "Find plans" | Ideal only |
 | Running | OptimiserProgress (4 slots), provisional LadderCards | §8 |
 
 ## 6. Content & copy
@@ -264,13 +264,13 @@ delta, lean-tissue delta — each a signed number with unit.
   nothing is logged).
 
 ### 6.8 Adopt some of these limits (Ideal)
-Panel title "Which limits could you change?" Rows = binding limit groups with their cost:
+Panel title "Limits to change". Rows = binding limit groups with their cost:
 > ☐ training days: 3 → **5** · +0.6 kg fat loss · effort +9
 > ☐ eating window: 8 h → **10 h** · +0.2 kg · effort +4
 > ☐ equipment: buy **a pull-up bar** (₹) · +0.4 kg muscle
-Each row can take an intermediate value (Stepper/KeyBank bounded by the Ideal's value). Footer:
-yellow **Find plans with these limits** (signal pill — this is a planner run) → the goals screen's
-limits update (visible, undoable) and a warm re-run produces a new ladder.
+Each row can take an intermediate value (Stepper/KeyBank bounded by the Ideal's value). The panel
+header is Cancel · title · the gold **Find plans** verb (this is a planner run; no ✕ beside a commit)
+→ the goals screen's limits update (visible, undoable) and a warm re-run produces a new ladder.
 
 ### 6.9 Comparison table (`cards · table`)
 The contract's comparison view: rows × rungs in this order — **effort** (0–100 + the seven burden

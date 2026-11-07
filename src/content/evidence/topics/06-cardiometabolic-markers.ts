@@ -13,9 +13,9 @@ const topic: EvidenceTopic = {
       title: 'How every blood marker moves towards its target',
       category: 'cardio',
       summary:
-        "Each marker has a steady-state target set by today's diet, weight, ketosis and exercise. The measured value then drifts towards that target rather than jumping to it. Where several drivers act at different speeds, the engine keeps one state per driver, so reversing one driver reverses only its own share. Results are shown as change from your own starting value, because the engine does not know your lab results.",
+        "Each marker has a steady-state target set by today's diet, weight, ketosis and exercise. The measured value then drifts towards that target rather than jumping to it. Where several drivers act at different speeds, the engine keeps one state per driver, so reversing one driver reverses only its own share. A lab result you enter anchors its own marker exactly; a marker you have not measured starts from a labelled population estimate. Results are shown as change from that starting value.",
       howModelled:
-        'Targets are built by adding terms for LDL, HDL, blood pressure, fasting glucose and uric acid, and by multiplying terms for triglycerides, insulin, hs-CRP, liver fat and the liver enzyme ALT. Each day the marker closes part of the gap to its target. Person-to-person differences come from one persistent random draw per marker, plus a response multiplier for responses with a long tail. The draws are correlated so that a simulated person is internally consistent.',
+        'Targets are built by adding terms for LDL, HDL, blood pressure, fasting glucose and uric acid, and by multiplying terms for triglycerides, insulin, hs-CRP, liver fat and the liver enzyme ALT. Each day the marker closes part of the gap to its target. Person-to-person differences come from one persistent random draw per marker, plus a response multiplier for responses with a long tail. The draws are correlated with each other so that a simulated person is internally consistent, but a measured lab replaces only its own marker’s draw: it does not adjust the markers you have not measured, because no validated joint model exists for that.',
       equation: `X*(t) = steady-state target given today's drivers
 dX/dt = (X*(t) − X(t)) / τ_X
 X(t+1) = X(t) + (X*(t) − X(t)) · (1 − exp(−1/τ_X))
@@ -364,12 +364,12 @@ Cap the effect above 900 mg/day.`,
       title: 'Estimating ApoB from other cholesterol measures',
       category: 'cardio',
       summary:
-        'ApoB counts the number of atherogenic particles in the blood, since each LDL or VLDL particle carries one. Nobody expects the user to know their ApoB, so the engine estimates it from non-HDL cholesterol, which is LDL plus the cholesterol in triglyceride-rich particles. Saturated fat raises LDL cholesterol more than it raises ApoB.',
+        'ApoB counts the number of atherogenic particles in the blood, since each LDL or VLDL particle carries one. A measured ApoB is kept exactly. Without one, the engine estimates a starting ApoB from non-HDL cholesterol, which is total cholesterol minus HDL: the cholesterol carried by all ApoB particles. Saturated fat raises LDL cholesterol more than it raises ApoB.',
       howModelled:
-        'ApoB changes by 0.587 times the change in non-HDL cholesterol, where non-HDL is estimated as LDL plus one fifth of the triglyceride level in mg/dL. For changes driven by saturated fat, the engine can shrink the ApoB change by a factor of 0.6.',
+        'A measured non-HDL cholesterol is kept exactly. Without one, non-HDL is approximated as LDL plus one fifth of the triglyceride level in mg/dL: a model convention, not an identity, and least reliable when triglycerides are high; only total cholesterol minus HDL from one matched panel equals non-HDL. Without a measured ApoB, the start comes from the population line below, a labelled estimate. ApoB then changes by 0.587 times the change in non-HDL: a cross-sectional association used as an exploratory proxy, not a calibrated personal response, so ApoB is never a goal. For changes driven by saturated fat, the engine can shrink the ApoB change by a factor of 0.6.',
       equation: `ApoB = 11.09 + 0.587 · nonHDL      (resid SD 8.4 mg/dL)
-nonHDL ≈ LDL + TG/5
-dApoB = 0.587 · dNonHDL   (optional ×0.6 for the saturated-fat-driven part)`,
+nonHDL = TC − HDL (one matched measured panel); otherwise model proxy nonHDL ≈ LDL + TG/5
+dApoB = 0.587 · dNonHDL   (exploratory proxy; optional ×0.6 for the saturated-fat-driven part)`,
       keyNumbers: [
         {
           label: 'Relationships in US adults (NHANES 2013–14, 2347 fasting adults)',
@@ -402,8 +402,36 @@ dApoB = 0.587 · dNonHDL   (optional ×0.6 for the saturated-fat-driven part)`,
         'The NHANES relationships are strong and the trial supports the shrink factor; the direct ApoB coefficients are small and imprecise.',
       status: 'proposed-fit',
       caveats:
-        'The shrink factor is proposed from a single trial in people with a particular LDL pattern. The regression comes from a US cross-section from 2013–14.',
+        'The shrink factor is proposed from a single trial in people with a particular LDL pattern. The regression comes from a US cross-section from 2013–14: it describes how ApoB and non-HDL differ between people, not how one person’s ApoB moves when diet changes. Cholesterol mass and particle number need not move together.',
       referenceIds: ['cdc2020', 'mensink2003', 'chiu2017'],
+      warrants: [
+        {
+          type: 'analyticallyTrue',
+          confidence: 'high',
+          scope: 'non-HDL equals total cholesterol minus HDL only within one matched measured panel',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'cross-sectional ApoB–non-HDL line in US adults; not a change coefficient for one person',
+        },
+        {
+          type: 'causallyCoherent',
+          confidence: 'moderate',
+          scope: 'cholesterol mass and particle number need not move in proportion',
+        },
+      ],
+      outcomeScope:
+        'Estimated starting ApoB and an exploratory proxy for its change; a measured ApoB stays exact',
+      population: 'US adults (NHANES 2013–14, fasting); adults with small dense LDL (3-week trial)',
+      observations: [
+        {
+          tissue: 'serum ApoB and lipid panel',
+          type: 'humanBloodMarker',
+          referenceIds: ['cdc2020', 'chiu2017'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['apoB'],
     },
     {
@@ -413,7 +441,7 @@ dApoB = 0.587 · dNonHDL   (optional ×0.6 for the saturated-fat-driven part)`,
       summary:
         'Across randomised trials, mostly in people with obesity who lose weight, LDL ends up slightly higher on very-low-carbohydrate diets than on low-fat diets, by about 0.07–0.16 mmol/L (roughly 3–6 mg/dL). Triglycerides are lower and HDL is higher. These averages hide very large differences between people, which the next entry covers.',
       howModelled:
-        'The average difference is already produced by the fat-swap terms, the weight-loss terms and the triglyceride terms working together. The engine adds a separate term only for the tail of large responders in lean people.',
+        'The average difference is already produced by the fat-swap terms, the weight-loss terms and the triglyceride terms working together. The standard projection adds no separate term for the tail of large responders in lean people; ketogenic eating instead marks the LDL and ApoB response as uncertain (next entry).',
       keyNumbers: [
         {
           label:
@@ -476,6 +504,24 @@ dApoB = 0.587 · dNonHDL   (optional ×0.6 for the saturated-fat-driven part)`,
         'petersen2026',
         'krauss2006',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'high',
+          scope:
+            'average LDL, triglyceride and HDL differences against low-fat diets, mostly in adults with obesity losing weight',
+        },
+      ],
+      outcomeScope:
+        'Average lipid change on very-low-carbohydrate versus low-fat diets; says little about one person',
+      population: 'Mostly adults with overweight or obesity losing weight; 6 months or longer',
+      observations: [
+        {
+          tissue: 'serum lipid panel',
+          type: 'humanBloodMarker',
+          referenceIds: ['bueno2013', 'mansoor2016', 'chawla2020'],
+        },
+      ],
       relatedMetricIds: ['ldl', 'apoB'],
     },
     {
@@ -485,11 +531,11 @@ dApoB = 0.587 · dNonHDL   (optional ×0.6 for the saturated-fat-driven part)`,
       summary:
         'In a minority of lean, insulin-sensitive people, a few weeks of very-low-carbohydrate eating can raise LDL by 50–250 mg/dL, with high HDL and low triglycerides. The rise gets smaller as BMI increases. One proposed explanation, the "Lipid Energy Model", is that in lean people the liver carries more of the body\'s fuel fat in lipoprotein particles. That explanation has not been proven in controlled trials, and what the high LDL means for risk is unresolved.',
       howModelled:
-        'An extra term is added to the LDL target: the ketosis state times a personal multiplier times a BMI-dependent amount (45 mg/dL at BMI 22, falling 4.5 mg/dL for each BMI unit, so zero at BMI 32.2) times an energy-balance modifier. The energy modifier is optional. The term is labelled as speculative in the app.',
-      equation: `LEM_term (mg/dL) = s_keto · m_i · max(0, A_LEM − b_LEM·(BMI − 22)) · E_mod
+        'Off in the standard projection: the term below is kept only as an opt-in adverse-response scenario, labelled speculative. Off does not mean no response. When a plan is ketogenic, LDL and ApoB results are marked limited, so no LDL or ApoB target can be promised, and a measured rise and repeat lipid tests stay the guide. The scenario adds to the LDL target the ketosis state times a personal multiplier times a BMI-dependent amount (45 mg/dL at BMI 22, falling 4.5 mg/dL for each BMI unit, so zero at BMI 32.2) times an optional energy-balance modifier. No probability of being a responder is given.',
+      equation: `Opt-in scenario, off by default: LEM_term (mg/dL) = s_keto · m_i · max(0, A_LEM − b_LEM·(BMI − 22)) · E_mod
 A_LEM = 45 mg/dL at BMI 22;  b_LEM = 4.5 mg/dL per BMI unit
 s_keto ∈ [0, 1] from the ketosis topic (BHB from about 0.5 mM, saturating at 1.5 mM or more)
-m_i ~ lognormal(μ = 0, σ = 0.6)   (P(m > 2) = 12 %)
+m_i ~ lognormal(μ = 0, σ = 0.6)   (scenario spread, not an incidence)
 E_mod = clip(1 − 2·(EI/EE − 1), 0, 1.5)    (deficits raise, surpluses lower LDL; grade D, optional)`,
       keyNumbers: [
         {
@@ -576,7 +622,7 @@ E_mod = clip(1 − 2·(EI/EE − 1), 0, 1.5)    (deficits raise, surpluses lower
         'The existence of large rises in lean people rests on two small controlled trials plus observational data (B), but the size-versus-BMI equation and the mechanism rest on a self-selected survey and single-person experiments (C/D).',
       status: 'contested',
       caveats:
-        'The Lipid Energy Model is a hypothesis. The clinical meaning of these LDL values is unresolved: the coronary imaging is reassuring only at low power. The energy-balance modifier rests on two single-person experiments plus a case series of 24.',
+        'The Lipid Energy Model is a hypothesis. The clinical meaning of these LDL values is unresolved: the coronary imaging is reassuring only at low power. The energy-balance modifier rests on two single-person experiments plus a case series of 24. Turning the term off is a modelling choice, not evidence that LDL will not rise.',
       referenceIds: [
         'retterstol2018',
         'buren2021',
@@ -588,6 +634,41 @@ E_mod = clip(1 − 2·(EI/EE − 1), 0, 1.5)    (deficits raise, surpluses lower
         'petersen2026',
         'ference2019',
       ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'high',
+          scope:
+            'large LDL rises on very-low-carbohydrate diets occur in some lean people (two small controlled trials)',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'predicting the size of one person’s rise from BMI, or how often it happens',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope: 'the lipid energy explanation, an unproven hypothesis',
+        },
+        {
+          type: 'ecologicallyValid',
+          confidence: 'moderate',
+          scope: 'repeat lipid tests on a stable diet as the way to see a personal response',
+        },
+      ],
+      outcomeScope:
+        'LDL and ApoB rise on very-low-carbohydrate eating in lean people; an opt-in scenario, not a forecast',
+      population:
+        'Normal-weight young adults (controlled trials, 3–4 weeks); self-selected adults already restricting carbohydrate (survey)',
+      observations: [
+        {
+          tissue: 'serum LDL cholesterol and ApoB',
+          type: 'humanBloodMarker',
+          referenceIds: ['retterstol2018', 'buren2021', 'norwitz2022a'],
+        },
+      ],
+      modelStatus: 'exploratory',
       relatedMetricIds: ['ldl', 'apoB'],
     },
     {
@@ -1016,11 +1097,32 @@ decayed with the composition time constant (4 days)`,
       moderators: 'Baseline TG (proportional), BMI and insulin resistance (stronger effect at higher BMI).',
       grade: 'A',
       gradeReason:
-        'A large dose-response meta-analysis and several others agree on the mean; the shape below 1 g/day and in normal lipids is graded B.',
+        'For the triglyceride change only: a large dose-response meta-analysis and several others agree on the mean; the shape below 1 g/day and in normal lipids is graded B.',
       status: 'proposed-fit',
       caveats:
-        'The meta-analyses conflict on the slope: −43 mg/dL at 2 g/day in one, −27 to −30 mg/dL at about 3.25 g/day in others. Two settings are provided.',
+        'The meta-analyses conflict on the slope: −43 mg/dL at 2 g/day in one, −27 to −30 mg/dL at about 3.25 g/day in others. Two settings are provided. Lower triglycerides from fish oil do not by themselves show fewer heart events, and results from one prescription product do not transfer to every fish-oil supplement.',
       referenceIds: ['wang2023', 'skulasray2011', 'eslick2009', 'balk2006', 'skulasray2019'],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'high',
+          scope: 'triglyceride lowering by EPA + DHA dose in randomised trials',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'low',
+          scope: 'fewer cardiovascular events inferred from triglyceride lowering',
+        },
+      ],
+      outcomeScope: 'Triglyceride change with EPA + DHA dose; not cardiovascular events',
+      population: 'Adults in 90 randomised trials (median 13 weeks); larger falls with high triglycerides',
+      observations: [
+        {
+          tissue: 'serum triglycerides',
+          type: 'humanBloodMarker',
+          referenceIds: ['wang2023', 'skulasray2011'],
+        },
+      ],
       relatedMetricIds: ['triglycerides'],
     },
     {
@@ -1679,11 +1781,11 @@ isometric: optional −5 (unverified shrinkage of −10.9)`,
       summary:
         'Liver fat (intrahepatic triglyceride, IHTG) falls very quickly with less energy or less carbohydrate, because the liver makes less new fat from sugar within a day and burns more fat. In several trials it fell by 30–55 % within one to two weeks. At the same weight loss, very-low-carbohydrate eating cut liver fat more in the short term.',
       howModelled:
-        'Liver fat is tracked on the log scale. Weight loss cuts it by 7.5 % for each 1 % of weight lost, and ketosis adds a further factor. It falls with a 12-day time constant and rises with a 21-day one. ALT, a liver enzyme, follows half of the change in log liver fat.',
+        'Liver fat is tracked on the log scale. Weight loss cuts it by 7.5 % for each 1 % of weight lost, and a deficit adds a fast early fall. The standard projection adds no lasting extra fall for ketosis: early trials show a real short-term effect of diet composition, but its long-term size for one person is unknown, so that response is marked uncertain rather than set to a proven zero. The former ketosis factor is kept only as a labelled sensitivity scenario. Liver fat falls with a 12-day time constant and rises with a 21-day one. A measured value (MRI or spectroscopy, with its method and date) anchors the start; otherwise the start is an estimate from BMI and is never shown as a measurement. ALT, a liver enzyme, follows half of the change in log liver fat. A lower simulated liver fat never means fibrosis has resolved and never clears a clinical flag.',
       equation: `L0 = 2.0 · exp(0.11·(BMI − 22)) · exp(0.9·z_L)      [% liver fat]
 ln L*_slow = ln L0 + ln f_wl + ln f_cr + ln f_ex − ln(over)
 f_wl = exp(−0.075 · %WL)
-f_cr = exp(−0.40 · s_keto)
+f_cr = 1 in the standard projection; exp(−0.40 · s_keto) only in the labelled sensitivity scenario
 acute deficit term: −0.9·(D_def − 0.2)⁺ added to ln L*
 ln ALT* = ln ALT0 + 0.5·(lnL_total − lnL0), floor 11 U/L (men) or 8 U/L (women), time constant 21 days`,
       keyNumbers: [
@@ -1756,7 +1858,7 @@ ln ALT* = ln ALT0 + 0.5·(lnL_total − lnL0), floor 11 U/L (men) or 8 U/L (wome
         {
           label: 'Calibration',
           value:
-            'Weight-loss factor: −4.3 % weight predicts −28 % (observed −28 %); −7 % predicts −41 % (observed −38 to −44.5 %); −10.8 % predicts −56 % (observed −52 %); the very-low-fat type 2 diabetes result is under-predicted (0.55 predicted against 0.19 observed). Ketosis factor: about −0.42 on the log scale on average, −0.40 used',
+            'Weight-loss factor: −4.3 % weight predicts −28 % (observed −28 %); −7 % predicts −41 % (observed −38 to −44.5 %); −10.8 % predicts −56 % (observed −52 %); the very-low-fat type 2 diabetes result is under-predicted (0.55 predicted against 0.19 observed). Ketosis factor: about −0.42 on the log scale on average; −0.40 in the sensitivity scenario only',
           note: 'The benefit over diets that do not produce ketosis is real at 10 % weight loss but absent at 11 weeks in one trial, so its sustained size is uncertain.',
           referenceIds: ['browning2011', 'kirk2009', 'magkos2016', 'petersen2005'],
         },
@@ -1770,7 +1872,7 @@ ln ALT* = ln ALT0 + 0.5·(lnL_total − lnL0), floor 11 U/L (men) or 8 U/L (wome
         'Multiple controlled human trials measured with spectroscopy agree that liver fat falls rapidly; the size of the extra carbohydrate-restriction benefit is graded B.',
       status: 'proposed-fit',
       caveats:
-        'The baseline liver-fat equation is graded C. The ALT elasticity is graded C. The sustained advantage of ketosis at equal weight loss is unresolved, and the mitochondrial signal from one crossover trial is a possible trade-off.',
+        'The baseline liver-fat equation is graded C. The ALT elasticity is graded C. The sustained advantage of ketosis at equal weight loss is unresolved, and the mitochondrial signal from one crossover trial is a possible trade-off. A lower liver fat in a simulation is not evidence of liver health, a normal ALT or fibrosis regression.',
       referenceIds: [
         'kirk2009',
         'browning2011',
@@ -1782,6 +1884,39 @@ ln ALT* = ln ALT0 + 0.5·(lnL_total − lnL0), floor 11 U/L (men) or 8 U/L (wome
         'qadri2026',
         'vilargomez2015',
         'szczepaniak2005',
+      ],
+      warrants: [
+        {
+          type: 'empiricalFormal',
+          confidence: 'high',
+          scope: 'liver fat falls within days of eating less (spectroscopy and MRI trials)',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope:
+            'a larger early fall with very-low-carbohydrate eating at matched deficit; long-term size unknown',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope: 'less new fat made from sugar and more fat burned in the liver as the early pathway',
+        },
+        {
+          type: 'analyticallyTrue',
+          confidence: 'high',
+          scope: 'multiplying separately fitted factors is not a demonstrated long-term response',
+        },
+      ],
+      outcomeScope:
+        'Liver fat (absolute %) under restriction and carbohydrate reduction; not fibrosis or liver health',
+      population: 'Adults with obesity, fatty liver or type 2 diabetes; 1 day to about a year',
+      observations: [
+        {
+          tissue: 'liver fat (MR spectroscopy, MRI-PDFF)',
+          type: 'humanOutcome',
+          referenceIds: ['kirk2009', 'browning2011', 'petersen2026', 'qadri2026'],
+        },
       ],
       relatedMetricIds: ['liverFat'],
     },

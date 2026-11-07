@@ -12,7 +12,7 @@ import { useLivingClock } from '../clock';
 import { useLivingSource } from '../data/source';
 import type { ChangeAction, ChangeCardModel } from '../model/changeCard';
 import type { ChangeActionExtra, ChangeCardView } from '../components/ChangeCard';
-import { useCoachProblem } from './availability';
+import { useCoachOnServer, useCoachProblem } from './availability';
 import { COACH_COPY } from './copy';
 import { briefingFromLiving, type BriefingModel } from './briefing';
 import { CoachAdapterContext } from './adapterContext';
@@ -29,7 +29,9 @@ export type CoachStatusKind =
   | 'cors'
   | 'noTools'
   | 'basic'
-  | 'safetyNoPlanning';
+  | 'safetyNoPlanning'
+  /** The Coach runs on the paired server and can't answer now (`problem` says why; none while it is being checked). */
+  | 'serverUnavailable';
 
 export interface CoachStatus {
   kind: CoachStatusKind;
@@ -71,6 +73,8 @@ export interface CoachTurn {
   error?: { kind: string; message: string };
   /** Conversation segment (after about 30 turns earlier days are summarised for the Coach). */
   segment?: number;
+  /** While streaming: what the Coach is doing now ("Looking at sleep…"), one short line. */
+  progress?: string;
 }
 
 export type CoachStreamEvent =
@@ -102,6 +106,26 @@ export interface CoachAdapter {
   briefing(): BriefingModel;
   subscribe(listener: () => void): () => void;
   revision(): number;
+  /** Only when the Coach runs on the paired server: its temporary chats. */
+  server?: ServerCoachControls;
+}
+
+/** A chat kept on the paired server (temporary: deleted `retentionHours` after its last message). */
+export interface ServerChat {
+  id: string;
+  title?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface ServerCoachControls {
+  current(): { id: string; expiresAt: string } | null;
+  retentionHours(): number;
+  list(): Promise<ServerChat[]>;
+  open(id: string): Promise<{ ok: boolean; message?: string }>;
+  keep(): Promise<{ ok: boolean; message?: string; expiresAt?: string }>;
+  remove(id?: string): Promise<{ ok: boolean; message?: string }>;
+  fresh(): void;
 }
 
 /** The one conversation (day after day); onboarding conversations get their own ids. */
@@ -112,18 +136,21 @@ const NO_PROVIDER_STATUS: CoachStatus = { kind: 'noProvider', vision: false };
 const NO_CONVERSATIONS: ConversationSummary[] = [];
 const NO_TURNS: CoachTurn[] = [];
 
+/** The Coach on the paired server while its adapter loads: nothing to send yet, and no "connect a provider". */
+const SERVER_LOADING_STATUS: CoachStatus = { kind: 'serverUnavailable', provider: 'your server', vision: false };
+
 /** No provider connected: an empty conversation, nothing sent anywhere; the briefing still shows what it would know. */
-export function createNoProviderAdapter(opts: { briefing?: () => BriefingModel; problem?: string | null } = {}): CoachAdapter {
+export function createNoProviderAdapter(opts: { briefing?: () => BriefingModel; problem?: string | null; onServer?: boolean } = {}): CoachAdapter {
   const briefing = opts.briefing ?? (() => briefingFromLiving(null, null));
-  const status: CoachStatus = opts.problem ? { ...NO_PROVIDER_STATUS, problem: opts.problem } : NO_PROVIDER_STATUS;
+  const status: CoachStatus = opts.onServer ? SERVER_LOADING_STATUS : opts.problem ? { ...NO_PROVIDER_STATUS, problem: opts.problem } : NO_PROVIDER_STATUS;
   return {
     status: () => status,
     conversations: () => NO_CONVERSATIONS,
     history: () => NO_TURNS,
     send: async (_input, onEvent) => {
-      onEvent({ type: 'error', kind: 'noProvider', message: COACH_COPY.composerReason });
+      onEvent({ type: 'error', kind: 'noProvider', message: COACH_COPY.noProvider.title });
     },
-    act: async () => ({ ok: false, message: COACH_COPY.composerReason }),
+    act: async () => ({ ok: false, message: COACH_COPY.noProvider.title }),
     briefing,
     subscribe: () => () => undefined,
     revision: () => 0,
@@ -144,8 +171,21 @@ export function useCoachAdapter(): CoachAdapter {
   const source = useLivingSource();
   const clock = useLivingClock();
   const problem = useCoachProblem();
-  const fallback = useMemo(() => createNoProviderAdapter({ briefing: () => briefingFromLiving(source, clock), problem }), [source, clock, problem]);
-  return installed ?? fallback;
+  const onServer = useCoachOnServer();
+  const fallback = useMemo(() => createNoProviderAdapter({ briefing: () => briefingFromLiving(source, clock), problem, onServer }), [source, clock, problem, onServer]);
+  // the server's Coach reads the data itself: "What the Coach knows" is the same picture, built here from the living source
+  const withBriefing = useMemo<CoachAdapter | null>(() => {
+    if (!installed?.server) return null;
+    const a = installed;
+    return {
+      ...a,
+      briefing: () => {
+        const s = a.status();
+        return briefingFromLiving(source, clock, { provider: { name: s.provider ?? 'your server', model: s.model ?? 'its AI' } });
+      },
+    };
+  }, [installed, source, clock]);
+  return withBriefing ?? installed ?? fallback;
 }
 
 /** Re-render on every adapter change; returns the adapter's revision (key memoised reads on it). */

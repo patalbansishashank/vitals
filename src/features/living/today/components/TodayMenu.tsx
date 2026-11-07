@@ -1,150 +1,103 @@
 /**
- * The Today menu (⋯ in Today's context row; living-mode.md §2): Re-plan the rest (same goals) · Re-plan from scratch ·
- * Check in now (from 2 days before check-in day) · I'm busy or away… · Log a fast… (any day, prescribed fast or not) · Pause plan / Resume plan · End plan… · Plan
- * details · Planning tools. "I'm busy or away…" tells the plan about the days (`plan.declareEvent`, or `plan.shift` to
- * push the plan back by them); the proposal it makes shows as a change card on Today. Re-plan from scratch and Planning tools navigate first, then set the planning override (the Living route
- * guard clears it on entry). End needs the typed word.
+ * Today's items in the header's one ⋯ (SPEC §4): Busy or away · Log a fast · (quiet mode) Show numbers. Actions only
+ * (r068 U14): Plan details is a place, in the sidebar's and More's "Your plan" group, never in the ⋯. Check-ins live in
+ * the header's status capsule; pause, end and re-plan live once, in Plan details.
+ *
+ * "Busy or away" tells the plan about the days (`plan.declareEvent`, or `plan.shift` to push the plan back by them); the
+ * proposal it makes waits on Today behind the "changes waiting" capsule. The sheets render in the page (never inside the
+ * header), so the header's control sizing never reaches them.
  */
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
-import { Ellipsis } from 'lucide-react';
-import { Checkbox, Field, IconKey, Key, KeyBank, Menu, ResponsivePanel, TextInput, toast } from '@/components';
-import { enterPlanningTools } from '@/app/shell';
-import { addDays, daysBetween, weekdayOf } from '@/living/dates';
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Checkbox, Field, ResponsivePanel, TextInput, toast, type MenuEntry } from '@/components';
+import { addDays, daysBetween, isLocalDate } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import type { PlanEventInput } from '../../data/actions';
-import { useActivePlanStore, type ActivePlan } from '../../activePlan';
+import type { ActivePlan } from '../../activePlan';
 import { TODAY_COPY } from '../../copy';
 import { useLivingActions } from '../../data/actions';
-import { fmtDay } from '../../format';
-import { livingPaths } from '../../paths';
-import { TypedConfirmDialog } from '../../components/TypedConfirmDialog';
+import { DateTarget } from '../../components/DateTarget';
 import { FastSheet } from './FastSheet';
 
-export function TodayMenu({ plan, today, onCheckIn }: { plan: ActivePlan; today: LocalDate; onCheckIn: () => void }) {
-  const navigate = useNavigate();
-  const actions = useLivingActions();
-  const [ending, setEnding] = useState(false);
-  const [pausing, setPausing] = useState(false);
+export interface TodayMenuOptions {
+  plan: ActivePlan;
+  today: LocalDate;
+  /** Quiet mode is on: offer Show numbers / Hide numbers. */
+  quietMode?: boolean;
+  showNumbers?: boolean;
+  onToggleNumbers?: () => void;
+}
+
+/** The page items for `<TopBar menu={…} />` and the sheets they open (render `sheets` in the page). */
+export function useTodayMenu({ plan, today, quietMode = false, showNumbers = false, onToggleNumbers }: TodayMenuOptions): { menu: MenuEntry[]; sheets: ReactNode } {
   const [away, setAway] = useState(false);
   const [fasting, setFasting] = useState(false);
-  const left = Math.max(0, daysBetween(today, plan.plannedEndDate));
-  const daysToCheckIn = (plan.policy.checkInWeekday - weekdayOf(today) + 7) % 7;
-  const checkInOpen = daysToCheckIn <= 2 && plan.status === 'active';
   const m = TODAY_COPY.menuItems;
-  return (
+  const canDeclare = plan.status === 'active' || plan.status === 'scheduled';
+  const menu: MenuEntry[] = [
+    { id: 'away', label: m.away, onSelect: () => setAway(true), disabled: !canDeclare, ...(canDeclare ? {} : { hint: TODAY_COPY.status.paused.toLowerCase() }) },
+    { id: 'fast', label: m.fast, onSelect: () => setFasting(true) },
+    ...(quietMode && onToggleNumbers ? [{ id: 'numbers', label: showNumbers ? m.hideNumbers : m.showNumbers, onSelect: onToggleNumbers }] : []),
+  ];
+  const sheets = (
     <>
-      <Menu
-        label={TODAY_COPY.menu}
-        trigger={(tp) => <IconKey {...tp} icon={Ellipsis} label={TODAY_COPY.menu} />}
-        items={[
-          {
-            id: 'replan',
-            label: m.replanRest,
-            onSelect: () => {
-              toast(TODAY_COPY.replanning(left));
-              void actions.replanRest().then((o) => toast(o.message ?? (o.ok ? TODAY_COPY.replanReady : TODAY_COPY.replanDidntFinish)));
-            },
-          },
-          {
-            id: 'scratch',
-            label: m.replanScratch,
-            onSelect: () => {
-              navigate(livingPaths.replanFromScratch);
-              useActivePlanStore.getState().setPlanningOverride(true);
-            },
-          },
-          { id: 'checkin', label: m.checkIn, onSelect: onCheckIn, disabled: !checkInOpen, hint: checkInOpen ? undefined : `from ${fmtDay(addDays(today, daysToCheckIn - 2))}` },
-          { id: 'away', label: m.away, onSelect: () => setAway(true), disabled: plan.status !== 'active' && plan.status !== 'scheduled' },
-          { id: 'fast', label: m.fast, onSelect: () => setFasting(true) },
-          plan.status === 'paused'
-            ? { id: 'resume', label: m.resume, onSelect: () => void actions.resume(today).then((o) => toast(o.ok ? 'The plan is running again.' : (o.message ?? 'Couldn’t resume.'))), separatorBefore: true }
-            : { id: 'pause', label: m.pause, onSelect: () => setPausing(true), disabled: plan.status !== 'active', separatorBefore: true },
-          { id: 'end', label: m.end, onSelect: () => setEnding(true), tone: 'danger' },
-          { id: 'details', label: m.details, onSelect: () => navigate(livingPaths.planActive), separatorBefore: true },
-          { id: 'planning', label: m.planning, onSelect: () => enterPlanningTools(navigate) },
-        ]}
-      />
-      <TypedConfirmDialog
-        open={ending}
-        onClose={() => setEnding(false)}
-        title={TODAY_COPY.endTitle(plan.name)}
-        body={TODAY_COPY.endBody}
-        word="end"
-        instruction={TODAY_COPY.endType}
-        confirmLabel={TODAY_COPY.endKey}
-        onConfirm={async (typed) => {
-          const o = await actions.end(typed);
-          if (!o.ok) {
-            toast(o.message ?? 'The plan couldn’t be ended.');
-            return;
-          }
-          setEnding(false);
-          toast(`${plan.name} has ended. You can restore it for 7 days.`);
-          navigate('/plan');
-        }}
-      />
-      <PauseSheet open={pausing} onClose={() => setPausing(false)} today={today} />
       {away ? <AwaySheet onClose={() => setAway(false)} today={today} /> : null}
       {fasting ? <FastSheet onClose={() => setFasting(false)} /> : null}
     </>
   );
-}
-
-/** Pause plan: from · reason (living-mode.md §4.6, IA §4.12). Paused days prescribe the usual day. */
-function PauseSheet({ open, onClose, today }: { open: boolean; onClose: () => void; today: LocalDate }) {
-  const actions = useLivingActions();
-  const [from, setFrom] = useState<'today' | 'tomorrow'>('today');
-  const [reason, setReason] = useState('');
-  return (
-    <ResponsivePanel
-      open={open}
-      onClose={onClose}
-      title={TODAY_COPY.pauseTitle}
-      footer={
-        <>
-          <Key onClick={onClose}>{TODAY_COPY.cancel}</Key>
-          <Key
-            variant="solid"
-            onClick={() =>
-              void actions.pause(from === 'today' ? today : addDays(today, 1), reason.trim() || undefined).then((o) => {
-                toast(o.ok ? 'The plan is paused. Your usual days until you resume.' : (o.message ?? 'Couldn’t pause.'));
-                if (o.ok) onClose();
-              })
-            }
-          >
-            {TODAY_COPY.pauseKey}
-          </Key>
-        </>
-      }
-    >
-      <div className="lv-sheet">
-        <p className="lv-sheet__target">{TODAY_COPY.pauseBody}</p>
-        <KeyBank
-          label="from"
-          value={from}
-          onChange={setFrom}
-          options={[
-            { value: 'today', label: 'today' },
-            { value: 'tomorrow', label: 'tomorrow' },
-          ]}
-        />
-        <Field label="reason (optional)" help="Only you see this.">
-          <TextInput value={reason} onChange={(e) => setReason(e.target.value)} placeholder="travel, illness, a busy week" />
-        </Field>
-      </div>
-    </ResponsivePanel>
-  );
+  return { menu, sheets };
 }
 
 type EventKind = PlanEventInput['kind'];
 const EVENT_KINDS: readonly EventKind[] = ['busy', 'travel', 'illness', 'noTraining', 'socialMeal'];
 
+/** A wrapping row of pill choices that acts as one radio group (five reasons do not fit a segmented track). */
+function ChoiceChips<V extends string>({ label, value, options, onChange }: { label: string; value: V; options: ReadonlyArray<{ value: V; label: string }>; onChange: (v: V) => void }) {
+  const refs = useRef(new Map<V, HTMLButtonElement>());
+  const labelId = useId();
+  const move = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+    if (!d) return;
+    e.preventDefault();
+    const next = options[(i + d + options.length) % options.length]!;
+    onChange(next.value);
+    refs.current.get(next.value)?.focus();
+  };
+  return (
+    <div className="lv-choices">
+      <span className="lv-choices__label" id={labelId}>
+        {label}
+      </span>
+      <div className="lv-choices__row" role="radiogroup" aria-labelledby={labelId}>
+        {options.map((o, i) => (
+          <button
+            key={o.value}
+            ref={(el) => {
+              if (el) refs.current.set(o.value, el);
+              else refs.current.delete(o.value);
+            }}
+            type="button"
+            role="radio"
+            aria-checked={o.value === value}
+            tabIndex={o.value === value ? 0 : -1}
+            className="lm-chip"
+            onClick={() => onChange(o.value)}
+            onKeyDown={(e) => move(e, i)}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
- * I'm busy or away… (living-mode.md §4.5): what's happening · from · to (a meal out: one day) · note. Defaults to
- * tomorrow until the day after. The plan answers with a proposal on Today (or applies a lighter change at once).
+ * Busy or away (living-mode.md §4.5): what's happening · from · to (a meal out: one day) · note. Defaults to tomorrow
+ * until the day after. The two dates are Lumen date targets side by side (the platform picker opens on tap); pushing
+ * the plan back is the themed checkbox on its own 48 px row. The plan answers with a proposal on Today (or applies a
+ * lighter change at once).
  */
-function AwaySheet({ onClose, today }: { onClose: () => void; today: LocalDate }) {
+export function AwaySheet({ onClose, today }: { onClose: () => void; today: LocalDate }) {
   const actions = useLivingActions();
   const [kind, setKind] = useState<EventKind>('busy');
   const [from, setFrom] = useState<LocalDate>(addDays(today, 1));
@@ -160,40 +113,28 @@ function AwaySheet({ onClose, today }: { onClose: () => void; today: LocalDate }
   const c = TODAY_COPY;
   const send = async () => {
     setSending(true);
-    toast(c.awayWorking);
     const o = back ? await actions.shift({ from, days, mode: 'pushBack' }) : await actions.declareEvent({ kind, from, to: end, ...(note.trim() ? { note: note.trim() } : {}) });
     setSending(false);
     toast(o.message ?? (o.ok ? c.replanReady : c.awayDidntFinish));
     if (o.ok) onClose();
   };
   return (
-    <ResponsivePanel
-      open
-      onClose={onClose}
-      title={c.awayTitle}
-      footer={
-        <>
-          <Key onClick={onClose}>{c.cancel}</Key>
-          <Key variant="solid" loading={sending} onClick={() => void send()}>
-            {c.awayKey}
-          </Key>
-        </>
-      }
-    >
+    <ResponsivePanel open onClose={onClose} title={c.awayTitle} defaultDetent="full" onDone={() => void send()} doneLabel={c.awayKey} doneDisabled={sending}>
       <div className="lv-sheet">
-        <p className="lv-sheet__target">{c.awayBody}</p>
-        <KeyBank label={c.awayKind} value={kind} onChange={setKind} options={EVENT_KINDS.map((k) => ({ value: k, label: c.awayKinds[k] }))} />
-        <Field label={oneDay ? c.awayOn : c.awayFrom}>
-          <TextInput type="date" value={from} min={today} onChange={(e) => e.target.value && setFrom(e.target.value)} />
-        </Field>
-        {oneDay ? null : (
-          <Field label={c.awayTo}>
-            <TextInput type="date" value={end} min={from} max={last} onChange={(e) => e.target.value && setTo(e.target.value)} />
+        <ChoiceChips label={c.awayKind} value={kind} onChange={setKind} options={EVENT_KINDS.map((k) => ({ value: k, label: c.awayKinds[k] }))} />
+        <div className="lv-dates">
+          <Field label={oneDay ? c.awayOn : c.awayFrom}>
+            <DateTarget value={from} min={today} onChange={(v) => isLocalDate(v) && v >= today && setFrom(v)} />
           </Field>
-        )}
-        {oneDay ? null : <Checkbox checked={pushBack} onChange={setPushBack} label={c.awayPushBack} help={c.awayPushBackHelp(days)} />}
+          {oneDay ? null : (
+            <Field label={c.awayTo}>
+              <DateTarget value={end} min={from} max={last} onChange={(v) => isLocalDate(v) && setTo(v)} />
+            </Field>
+          )}
+        </div>
+        {oneDay ? null : <Checkbox checked={pushBack} onChange={setPushBack} label={c.awayPushBack(days)} />}
         {back ? null : (
-          <Field label={c.awayNote} help={c.awayNoteHelp}>
+          <Field label={c.awayNote}>
             <TextInput value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} />
           </Field>
         )}

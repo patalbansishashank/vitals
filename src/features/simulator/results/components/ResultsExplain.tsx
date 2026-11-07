@@ -2,7 +2,8 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import type { CompiledSchedule, SimulationResult } from '@/engine';
 import type { ChartController, ChartData, Resolution } from '@/features/charts';
 import { ExplainDrawer } from '@/features/evidence';
-import { explainDrivers, explainDriversTitle, explainReading, type ExplainCursor } from '../lib/explainContext';
+import type { BandMeta } from '@/lib/bodyContracts';
+import { explainDrivers, explainDriversTitle, explainReading, explainStatus, type ExplainCursor } from '../lib/explainContext';
 import type { UnitPrefs } from '../lib/metrics';
 
 export interface ResultsExplainProps {
@@ -14,6 +15,10 @@ export interface ResultsExplainProps {
   result: SimulationResult | null;
   compiled: CompiledSchedule | null;
   prefs: UnitPrefs;
+  /** Where each channel's range came from (`buildResultsData().bandSource`), for the sheet's range basis. */
+  bandSource?: ReadonlyMap<string, 'draws' | 'fallback' | 'none'> | null;
+  /** The ensemble's band semantics by channel (`BandedResult.bandMeta`): member count, uncertainty kind, coverage. */
+  bandMeta?: Partial<Record<string, BandMeta>> | null;
 }
 
 const noop = () => () => {};
@@ -23,7 +28,7 @@ const noop = () => () => {};
  * it there. Subscribes to the chart controller only while open, so moving the crosshair re-renders this drawer and
  * nothing else (the lanes stay imperative).
  */
-export function ResultsExplain({ metricId, onClose, returnTo, controller, data, result, compiled, prefs }: ResultsExplainProps) {
+export function ResultsExplain({ metricId, onClose, returnTo, controller, data, result, compiled, prefs, bandSource, bandMeta }: ResultsExplainProps) {
   const open = Boolean(metricId);
   const subCursor = useCallback((fn: () => void) => controller.cursor.subscribe(() => fn()), [controller]);
   const subView = useCallback((fn: () => void) => controller.view.subscribe(() => fn()), [controller]);
@@ -38,6 +43,13 @@ export function ResultsExplain({ metricId, onClose, returnTo, controller, data, 
     [open, data, result, compiled, prefs, metricId, cursor],
   );
 
+  // C6: the run's status of the channel and what its range is, for the drawer's "How to read it"
+  const status = useMemo(() => {
+    if (!open || !result || !metricId) return null;
+    const source = bandSource?.get(metricId);
+    const meta = bandMeta?.[metricId];
+    return explainStatus(result, metricId, source || meta ? { ...(source ? { source } : {}), ...(meta ? { meta } : {}) } : null);
+  }, [open, result, metricId, bandSource, bandMeta]);
   // the channel's unit as the chart shows it (user's units, change-from-baseline suffix), not the engine's
   const unit = useMemo(() => (metricId ? data?.series.find((s) => s.id === metricId)?.unit : undefined), [data, metricId]);
 
@@ -51,6 +63,7 @@ export function ResultsExplain({ metricId, onClose, returnTo, controller, data, 
       drivers={drivers}
       driversTitle={metricId ? explainDriversTitle(metricId) : undefined}
       unit={unit}
+      status={status}
     />
   );
 }

@@ -1,5 +1,5 @@
-import { Fragment, useId, useMemo, type ReactNode } from 'react';
-import { Checkbox, Engraved, Faceplate, KeyBank, MQ, Notice, useMediaQuery, type KeyBankOption } from '@/components';
+import { useId, useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { Checkbox, KeyBank, MQ, Notice, useMediaQuery, type KeyBankOption } from '@/components';
 import { MESSAGES, QUESTIONS, QUESTION_GROUP, SCREENING, YES_NO, YES_NO_PREFER } from './copy';
 import {
   CONDITION_ITEMS,
@@ -30,6 +30,12 @@ function toggleItem<I>(list: readonly I[] | undefined, item: I, on: boolean): I[
   return on ? (cur.includes(item) ? [...cur] : [...cur, item]) : cur.filter((x) => x !== item);
 }
 
+/** The urgent route under a "yes" to fainting / chest pain / dizziness (D4-02): one concise, actionable line. */
+export const SYMPTOMS_NOW = {
+  title: 'Happening now?',
+  body: 'Chest pain, fainting or severe breathlessness right now: call your local emergency number.',
+} as const;
+
 /** DOM id of a question card (used to scroll to the first unanswered one). */
 export const questionDomId = (q: QuestionId) => `q-${q}`;
 
@@ -42,14 +48,17 @@ export interface ScreeningFormProps {
 }
 
 /**
- * The screening questions (design §6.2, dossier §4.1): one faceplate per question, follow-ups expand
- * inline, and every answer that changes the mode shows its consequence immediately in a polite live region.
- * Each question is a fieldset + legend; yes/no answers are KeyBank radio groups; lists are checkbox groups.
+ * The screening questions (design §6.2, dossier §4.1): one card per group ("You", "Eating", …) under its sentence-case
+ * title, the group's questions separated by inset hairlines; follow-ups expand inline, and every answer that changes
+ * the mode shows its consequence immediately in a polite live region. Each question is a fieldset + legend; yes/no
+ * answers are KeyBank pill rows; the longer choices (age, pregnancy) are radio rows split by inset hairlines on the
+ * group's one surface (never a bordered box inside the card); lists are checkbox groups.
  */
 export function ScreeningForm({ answers, onChange, scoffPrivacyNote = false }: ScreeningFormProps) {
-  const wide = useMediaQuery(MQ.md);
   const visible = visibleQuestions(answers);
   const outcome = useMemo(() => evaluateScreening(answers), [answers]);
+  // from 1280 px the groups run in two balanced stacks (see SPLIT_START); below, one column in question order
+  const split = useMediaQuery(MQ.xl);
   const set = (patch: Partial<ScreeningAnswers> | ((prev: ScreeningAnswers) => Partial<ScreeningAnswers>)) =>
     onChange((prev) => ({ ...prev, ...(typeof patch === 'function' ? patch(prev) : patch) }));
 
@@ -65,12 +74,9 @@ export function ScreeningForm({ answers, onChange, scoffPrivacyNote = false }: S
             <QuestionCard q={q} title={QUESTIONS.ageBand.title} help={QUESTIONS.ageBand.help} messages={messagesFor('ageBand', 'sarcf')}>
               {({ legendId, helpId }) => (
                 <>
-                  <KeyBank<AgeBand>
+                  <ChoiceRows<AgeBand>
                     labelledBy={legendId}
                     describedBy={helpId}
-                    size="lg"
-                    block={!wide}
-                    orientation={wide ? 'horizontal' : 'vertical'}
                     value={answers.ageBand}
                     onChange={(v) => set({ ageBand: v })}
                     options={(Object.keys(QUESTIONS.ageBand.options) as AgeBand[]).map((v) => ({ value: v, label: QUESTIONS.ageBand.options[v] }))}
@@ -103,11 +109,8 @@ export function ScreeningForm({ answers, onChange, scoffPrivacyNote = false }: S
           node: (
             <QuestionCard q={q} title={QUESTIONS.pregnancy.title} messages={messagesFor('pregnancy')}>
               {({ legendId }) => (
-                <KeyBank<PregnancyAnswer>
+                <ChoiceRows<PregnancyAnswer>
                   labelledBy={legendId}
-                  size="lg"
-                  block={!wide}
-                  orientation="vertical"
                   value={answers.pregnancy}
                   onChange={(v) => set({ pregnancy: v })}
                   options={(Object.keys(QUESTIONS.pregnancy.options) as PregnancyAnswer[]).map((v) => ({ value: v, label: QUESTIONS.pregnancy.options[v] }))}
@@ -224,6 +227,25 @@ export function ScreeningForm({ answers, onChange, scoffPrivacyNote = false }: S
         });
         break;
       case 'symptoms':
+        cards.push({
+          q,
+          node: (
+            <QuestionCard q={q} title={QUESTIONS.symptoms.title} messages={messagesFor(q)}>
+              {({ legendId }) => (
+                <>
+                  <KeyBank<YesNoPrefer> labelledBy={legendId} size="lg" value={answers.symptoms} onChange={(v) => set({ symptoms: v })} options={yesNoPrefer} />
+                  {/* D4-02: a current severe symptom needs action now, in the symptom flow itself (not in an info sheet) */}
+                  {answers.symptoms === 'yes' ? (
+                    <Notice severity="danger" layout="ruled" title={SYMPTOMS_NOW.title}>
+                      <p className="m-0">{SYMPTOMS_NOW.body}</p>
+                    </Notice>
+                  ) : null}
+                </>
+              )}
+            </QuestionCard>
+          ),
+        });
+        break;
       case 'supervisedExercise':
       case 'musculoskeletal':
       case 'alcohol': {
@@ -241,25 +263,51 @@ export function ScreeningForm({ answers, onChange, scoffPrivacyNote = false }: S
     }
   }
 
-  let lastGroup: string | null = null;
-  return (
-    <div className="grid gap-4">
-      {cards.map(({ q, node }) => {
-        const group = QUESTION_GROUP[q];
-        const head = group !== lastGroup && cards.length > 1;
-        lastGroup = group;
-        return (
-          <Fragment key={q}>
-            {head ? (
-              <Engraved as="p" className="lm-onb-group" aria-hidden="true">
-                {SCREENING.groups[group]}
-              </Engraved>
-            ) : null}
+  // the questions arrive in group order: consecutive questions of one group share a card
+  const groups: Array<{ group: keyof typeof SCREENING.groups; cards: typeof cards }> = [];
+  for (const c of cards) {
+    const group = QUESTION_GROUP[c.q];
+    const last = groups[groups.length - 1];
+    if (last && last.group === group) last.cards.push(c);
+    else groups.push({ group, cards: [c] });
+  }
+  const render = (list: typeof groups) =>
+    list.map(({ group, cards: inGroup }) => (
+      <ScreeningGroup key={group} title={SCREENING.groups[group]}>
+        {inGroup.map(({ q, node }) => (
+          <div key={q} className="lm-onb-groups__item">
             {node}
-          </Fragment>
-        );
-      })}
-    </div>
+          </div>
+        ))}
+      </ScreeningGroup>
+    ));
+  if (split) {
+    return (
+      <div className="lm-onb-groups" data-split="true">
+        <div className="lm-onb-groups__col">{render(groups.filter((g) => SPLIT_START.has(g.group)))}</div>
+        <div className="lm-onb-groups__col">{render(groups.filter((g) => !SPLIT_START.has(g.group)))}</div>
+      </div>
+    );
+  }
+  return <div className="lm-onb-groups">{render(groups)}</div>;
+}
+
+/**
+ * The groups in the leading stack of the two-column form (r068 V-WE-2): You, Eating and Alcohol (about 950 px) beside
+ * Health and Activity (about 1 050 px), so the stacks end together instead of the left stopping after Eating while
+ * Activity and Alcohol run on alone at the right.
+ */
+const SPLIT_START: ReadonlySet<keyof typeof SCREENING.groups> = new Set(['you', 'eating', 'alcohol']);
+
+function ScreeningGroup({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <section className="lm-onb-group" aria-labelledby={`${id}-t`}>
+      <h2 className="lm-onb-group__title" id={`${id}-t`}>
+        {title}
+      </h2>
+      <div className="lm-onb-group__card lm-material">{children}</div>
+    </section>
   );
 }
 
@@ -280,7 +328,7 @@ function QuestionCard({ q, title, help, messages, children }: QuestionCardProps)
   const legendId = `${id}-legend`;
   const helpId = help ? `${id}-help` : undefined;
   return (
-    <Faceplate as="div" id={questionDomId(q)} className="lm-onb-q">
+    <div id={questionDomId(q)} className="lm-onb-q">
       <fieldset className="lm-onb-fs">
         <legend className="lm-onb-q__legend" id={legendId}>
           {title}
@@ -300,7 +348,65 @@ function QuestionCard({ q, title, help, messages, children }: QuestionCardProps)
           </Notice>
         ))}
       </div>
-    </Faceplate>
+    </div>
+  );
+}
+
+/**
+ * A single choice drawn as Lumen list rows on the group's surface: the label at the left, a radio mark at the right
+ * (an ink-3 ring, gold with a gold dot when chosen), inset hairlines between rows, 48 px each. The keyboard model is
+ * the segmented control's (an APG radio group): arrows move and select, wrapping; Home and End jump.
+ */
+function ChoiceRows<V extends string>({
+  options,
+  value,
+  onChange,
+  labelledBy,
+  describedBy,
+}: {
+  options: ReadonlyArray<{ value: V; label: string }>;
+  value: V | undefined;
+  onChange: (v: V) => void;
+  labelledBy: string;
+  describedBy?: string;
+}) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const chosen = options.findIndex((o) => o.value === value);
+  const tabStop = chosen >= 0 ? chosen : 0;
+  const select = (i: number) => {
+    const o = options[i];
+    if (!o) return;
+    onChange(o.value);
+    refs.current[i]?.focus();
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const n = options.length;
+    const to = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? (i + 1) % n : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? (i - 1 + n) % n : e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    select(to);
+  };
+  return (
+    <div role="radiogroup" aria-labelledby={labelledBy} aria-describedby={describedBy} className="lm-onb-choices">
+      {options.map((o, i) => (
+        <button
+          key={o.value}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          type="button"
+          role="radio"
+          aria-checked={o.value === value}
+          tabIndex={i === tabStop ? 0 : -1}
+          className="lm-onb-choice"
+          onClick={() => onChange(o.value)}
+          onKeyDown={(e) => onKeyDown(e, i)}
+        >
+          <span className="lm-onb-choice__label">{o.label}</span>
+          <span className="lm-onb-choice__mark" aria-hidden="true" />
+        </button>
+      ))}
+    </div>
   );
 }
 

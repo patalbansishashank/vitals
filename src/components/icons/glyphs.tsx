@@ -83,13 +83,6 @@ export const SlidersGlyph = glyph(
     <circle cx="7" cy="14.5" r="2" />
   </>,
 );
-export const ThemeGlyph = glyph(
-  'ThemeGlyph',
-  <>
-    <circle cx="10" cy="10" r="6.5" />
-    <path d="M10 3.5a6.5 6.5 0 0 0 0 13z" fill="currentColor" />
-  </>,
-);
 
 /* ---- activity + physiology ------------------------------------------------ */
 export const DumbbellPlate = glyph('DumbbellPlate', <path d="M2.5 10h15M5 6.5v7M7.5 5v10M12.5 5v10M15 6.5v7" />);

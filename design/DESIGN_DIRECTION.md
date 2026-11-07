@@ -1,6 +1,9 @@
 # Vitals — Design Direction
 
 > Status: v1, 2026-09-30. Owner of this document: design lead. Tokens: `tokens.css`.
+> **Superseded (2026-10-17):** the app now uses the Ember look (dark only, Manrope, gold on charcoal); the values in
+> `tokens.css` are the current ones. The Braun chassis, Archivo widths, light theme and yellow-dot keys described below
+> are history.
 > Companion docs: `INFORMATION_ARCHITECTURE.md`, `COMPONENTS.md`, `CHART_SPEC.md`, `AVATAR_SPEC.md`,
 > `screens/*.md`, and the living reference `prototype/index.html`.
 
@@ -72,8 +75,8 @@ Rules:
   labels; never mono as a "technical" costume.
 - Readouts that change live (sliders, crosshair, optimiser) use `tabular-nums slashed-zero` so
   digits never jitter (fixed-place readouts). Static summary numbers keep proportional figures.
-- Units are set one step smaller and in `--lm-ink-2` after a thin space: `23.4 %`, `2 540 kcal`,
-  `1.8 mmol/L`. Thousands use a no-break space (U+00A0; in Archivo it is as narrow as a thin space) so a number never breaks across lines, in metric locales; comma in en-US.
+- Units are set one step smaller and in `--lm-ink-2` after a thin space: `23.4 %`, `2,540 kcal`,
+  `1.8 mmol/L`. Group thousands with commas in normal UI, chart values and table twins, regardless of the device locale. Keep a value and its unit together without inserting spaces inside the number.
 - Ranges read as "likely 20–27 %" with an en dash; ± only in tables.
 - Screen titles: display width, 30 px desktop / 24 px mobile, weight 600, tracking −0.015 em.
 - Prose measure: 68 ch, 17 px / 26 px (Evidence library).
@@ -239,7 +242,7 @@ their scale (0–100) and meaning in the Explain drawer.
 
 ## 7. Voice
 
-- **Second person, present tense, short.** "Your maintenance is about 2 540 kcal."
+- **Second person, present tense, short.** "Your maintenance is about 2,540 kcal."
 - **Specific over soothing.** Not "great progress!" but "Fat mass falls 4.3 kg over 12 weeks."
 - **Numbers carry units and ranges.** "likely 18.6–21.0 kg".
 - **Say the mechanism.** "Hunger rises because leptin falls with fat mass and the deficit."
@@ -370,17 +373,14 @@ The direction holds; these are the additions engineers and writers need.
 | Drift | **ahead · on track · behind** | words with shape marks, never red/green |
 | The 0–100 per-day number | **adherence** | never "score" alone, never "compliance"; distinct from the model's plan-survival series |
 | AI action review | **proposal** (waits for Apply) · **logged** (applied, Undo) · **needs your confirmation** | |
-| Device trust | **tier A · B · C** | "trend only" for tier C heart-rate variability, autonomic load, oxygen, temperature |
-| Vendor numbers | "**{vendor} says …**" · vendor opinion | never as Vitals' value |
 
 **Colour additions**: rung hues alias the validated plan hues (Hard cobalt, Medium copper, Easy
 teal); the Ideal is ink, dashed. Adherence, change-card states and burdens are achromatic. Living
 screens carry **no yellow key** — yellow stays reserved for starting a run (Run, Find plans).
 
 **Anti-patterns added**: streak counters or "days in a row" headlines; closing-the-ring moments;
-red for being behind; "make up for yesterday"; an AI change applied without a card; a vendor score
-in a primary position; a Start key on the Ideal; sex or gender words on the figure's Frame
-control; a visceral "blob".
+red for being behind; "make up for yesterday"; an AI change applied without a card; a Start key on the Ideal;
+sex or gender words on the figure's Frame control; a visceral "blob".
 
 **Voice samples (Living)**:
 > "Welcome back. Nothing to catch up on. Today's plan is below."
@@ -388,5 +388,3 @@ control; a visceral "blob".
 > updated."
 > "Three days without training moves your goal date by 2–4 days. Apply?"
 > "Logged lunch: about 640 kcal (510–780), 33 g protein. Tap any amount to correct it."
-> "Signs of strain for 2 nights. Today's session is now easy. Any of these: alcohol, travel, a hard
-> session yesterday?"

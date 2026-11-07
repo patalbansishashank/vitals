@@ -3,7 +3,11 @@ import { useIsoLayoutEffect } from './hooks';
 
 export type Placement = 'bottom-start' | 'bottom-end' | 'bottom' | 'top-start' | 'top-end' | 'top' | 'right' | 'left';
 
-const MARGIN = 8;
+/**
+ * How close a floating box may come to the viewport's edge: the page gutter on phones (16 px, so a menu's edge lines up
+ * with the cards under it, r068 V8), 8 px on desktop where the bar is wider than any menu.
+ */
+const edgeMargin = (viewportWidth: number): number => (viewportWidth < 1024 ? 16 : 8);
 
 /** Place a floating box next to an anchor rect, flipping and clamping inside the viewport. */
 export function computePosition(
@@ -13,6 +17,7 @@ export function computePosition(
   offset = 8,
   viewport = { width: window.innerWidth, height: window.innerHeight },
 ): { top: number; left: number; placement: Placement } {
+  const MARGIN = edgeMargin(viewport.width);
   let side = placement.split('-')[0] as 'top' | 'bottom' | 'left' | 'right';
   const align = (placement.split('-')[1] ?? 'center') as 'start' | 'end' | 'center';
 
@@ -62,8 +67,8 @@ export function useAnchoredPosition(
     const ar = a.getBoundingClientRect();
     const fr = f.getBoundingClientRect();
     const width = matchWidth ? Math.max(fr.width, ar.width) : fr.width;
-    // a key in a bar at the foot of the screen (phone context bar, action bar) opens its menu upward, never over the bars
-    const up = placement.startsWith('bottom') && a.closest('.lm-actionbar-slot, .lm-ctx[data-bottom]');
+    // a key in the docked bottom toolbar (a focused flow on phones) opens its menu upward, never over the toolbar
+    const up = placement.startsWith('bottom') && a.closest('.lm-actionbar-slot[data-docked]');
     const pos = computePosition(ar, { width, height: fr.height }, up ? (placement.replace('bottom', 'top') as Placement) : placement, offset);
     setStyle((prev) =>
       prev.top === pos.top && prev.left === pos.left && (!matchWidth || prev.minWidth === ar.width)

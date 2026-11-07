@@ -1,6 +1,7 @@
 /**
  * Run options and results (docs/MODEL_SPEC.md §5.5, §8, §10).
  */
+import type { BandAvailability, BandMeta, CausalResolution, OutputStatus, UncertaintyKind } from '@/lib/bodyContracts';
 import type { SeriesId } from './metrics';
 import type { RunMode } from './module';
 import type { ConstraintMargin, SimEvent, SimWarning, WarningMargin } from './events';
@@ -12,6 +13,11 @@ import type { CompileNoteCode } from './inputs';
  * 'none'  = no series; only `final`, `safety` and events/warnings (benchmarks, feasibility probes).
  */
 export type RecordMode = 'full' | 'daily' | 'none';
+
+/** Independent daily exposure-knowledge codes; zero/legacy absence is unknown, never confirmed zero. */
+export const EA_EXPOSURE_COVERAGE = { unknown: 0, partial: 1, complete: 2, confirmedZero: 3, scenario: 4 } as const;
+/** Session coverage alone is a named conditional scope, separate from exhaustive actual-day exercise. */
+export const EA_EXERCISE_SCOPE = { unknown: 0, actualDay: 1, coveredSessions: 2, prescribedScenario: 3 } as const;
 
 /** Keys of the daily SafetyTrace arrays (17 §2.1), usable as early-abort quantities. */
 export type SafetyTraceKey = keyof SafetyTrace;
@@ -60,6 +66,10 @@ export interface EngineSnapshot {
   readonly latch?: { readonly block: number; readonly maintenanceKcal: number; readonly bodyMassKg: number; readonly ffmKg: number };
   /** CR-L1: the safety trace of days [0, day), restored so the continuation's trailing windows see the same history. */
   readonly tracePrefix?: Readonly<Partial<Record<SafetyTraceKey, Float32Array>>>;
+  /** C7: `CONTRACT_FINGERPRINT` (plus any semantics key) at capture; a mismatch must never be restored. */
+  readonly contracts?: string;
+  /** D7-02: measured t = 0 lab anchors of the run (day-stamped snapshots), so a resumed run reports the same anchors. */
+  readonly observedAnchors?: readonly ObservedAnchor[];
 }
 
 /**
@@ -98,6 +108,62 @@ export interface AnchorApplied {
 export interface IntakeOffset {
   fromDay: number;
   kcal: number;
+  /**
+   * D5-03: how the correction is applied. 'absorbedMacroImputation' (the only implemented law, = absent) scales the day's
+   * meals; it is an imputed-intake scenario, never an expenditure offset, and legacy offsets keep this meaning.
+   */
+  mechanism?: 'absorbedMacroImputation';
+  /** D5-03: the requested residual before controller bounds, kcal/d, and the decision that set it. */
+  requestedKcal?: number;
+  decisionId?: string;
+}
+
+/** D5-03: what an offset actually did on one day (zero-energy days are left alone, so A is flat there). */
+export interface OffsetApplied {
+  day: number;
+  requestedKcal: number;
+  appliedKcal: number;
+  skippedReason?: 'zeroEnergyDay';
+}
+
+/**
+ * D1-08: domain validity of a run, separate from clinical danger and numeric abort. A numerical floor crossing terminates
+ * the run with `modelLimit` and the last fully conserved hour (`validThroughHour`); later days are not scored.
+ */
+export interface DomainValidity {
+  status: 'valid' | 'modelLimit' | 'outsideDomain';
+  validThroughHour?: number;
+  reasonCode: string;
+  /** Fixture/challenge bookkeeping kept apart: protocol fidelity, parameter-fit checks, external prediction. */
+  protocolFidelity?: 'matched' | 'mismatched' | 'unknown';
+  version: number;
+}
+
+/**
+ * Status of one recorded series in a run (C6): numbers and statuses travel separately; a forbidding status makes the
+ * series' finite compatibility values invisible to objectives and UI (D1-05, D7-02, D7-07/08/09, D8-05, D8-08).
+ */
+export interface SeriesStatusMeta {
+  status: OutputStatus;
+  reasonCode: string;
+  /** First plan day the status applies from (absent = whole run). */
+  fromDay?: number;
+  uncertaintyKind?: UncertaintyKind;
+  resolution?: CausalResolution;
+  /** (A1-013) An induced status: the root output whose status it inherits (its reason is then `dependsOn:<root>`). */
+  inducedBy?: string;
+  /** (A1-013) The root output's own reason code, kept beside an induced status. */
+  rootReason?: string;
+}
+
+/** D7-02: an accepted measured value used exactly as the t = 0 anchor (never clamped into a plausible replacement). */
+export interface ObservedAnchor {
+  series: SeriesId;
+  value: number;
+  unit: string;
+  observationId?: string;
+  /** Outside the model's calibration domain: the value stays visible, its projection is unavailable or scenario-only. */
+  outOfDomain: boolean;
 }
 
 export interface RunOptions {
@@ -134,6 +200,14 @@ export interface RunOptions {
   anchors?: readonly AnchorSpec[];
   /** CR-L3: energy-balance bias δ as an absorbed intake offset (see `IntakeOffset`). */
   intakeOffsetKcal?: readonly IntakeOffset[];
+  /**
+   * D3-04/D3-05/D3-08/D8-02 (A1-065): explicitly selected structural modes, by parameter id → value, for parameters whose
+   * draw kind is fixed (e.g. `muscle.growthScenarioUnknown` 1 = progress, `muscle.eDistMode` 1 = legacy,
+   * `activity.epocRt` 0.05). Applied to the nominal run AND to every ensemble member vector (direct and chunked), so a band
+   * is conditional on the same structure as its nominal path; stochastic parameters keep their declared sampling law.
+   * Absent = production modes. Part of request/cache/snapshot keys and echoed in `SimulationMeta`/`BandedResult`.
+   */
+  structuralModes?: Readonly<Record<string, number>>;
 }
 
 /**
@@ -205,6 +279,28 @@ export interface SafetyTrace {
    * not a planned gain). Optional in the type.
    */
   deficitPct28?: Float32Array;
+
+  // ---- contract additions 2026-10-18 (D4-04, D8-04, D4-05; optional, allocated only by a core that computes them)
+  /** D4-04: explicit alias of the legacy eating-day statistic `ea7` (non-fast-day mean of clipped samples). */
+  eatingDayEa7?: Float32Array;
+  /** D4-04: calendar EA_n = Σ(EI − EEE_net)/Σ FFM_act over the available days of the trailing 7 / 28, kcal/kg FFM/d (unclipped). */
+  calendarEa7?: Float32Array;
+  calendarEa28?: Float32Array;
+  /** D4-04: days with known intake inside each calendar window (no zero-padding of unknown history). */
+  eaCoverage7?: Float32Array;
+  eaCoverage28?: Float32Array;
+  /** D4-04/D8-04: the daily ledger: EI (ME) kcal, net session EEE kcal, FFM_act kg at the documented sample, raw daily EA. */
+  eiKcal?: Float32Array;
+  eeeNetKcal?: Float32Array;
+  ffmActKg?: Float32Array;
+  eaRawDaily?: Float32Array;
+  /** A2-022: independent intake and exercise knowledge; values use EA_EXPOSURE_COVERAGE. Absent means legacy/unknown. */
+  eaIntakeCoverage?: Float32Array;
+  eaExerciseCoverage?: Float32Array;
+  /** A2-022: scope of the exercise channel, encoded with EA_EXERCISE_SCOPE. */
+  eaExerciseScope?: Float32Array;
+  /** D4-05: fat mass at the end of the day (with `ffmActKg` gives tissue fat fraction 100·FM/(FM + FFM_act)). */
+  fatMassKg?: Float32Array;
 }
 
 export interface SimulationMeta {
@@ -223,6 +319,28 @@ export interface SimulationMeta {
   startDay?: number;
   /** CR-L2: anchors applied during the run, in day order. */
   anchors?: AnchorApplied[];
+  /** C7: contract fingerprint the run was computed under. */
+  contracts?: string;
+  /** C2/D2-01: weakest causal resolution of the run's realised inputs ('daily' when daily-native models read observed days). */
+  resolution?: CausalResolution;
+  /** D1-08: domain validity / model-limit termination. */
+  validity?: DomainValidity;
+  /** C6: per-series status (absent series = estimated under the run's assumptions). */
+  outputStatus?: Partial<Record<SeriesId, SeriesStatusMeta>>;
+  /** D5-03: actual applied correction per day. */
+  offsetsApplied?: OffsetApplied[];
+  /** D7-02: measured values used exactly as t = 0 anchors. */
+  observedAnchors?: ObservedAnchor[];
+  /** Named assumptions active in the run ('growthBurnInAnchor', 'legacyRollingIntakeRouting', …; D3-05, D2-01). */
+  assumptions?: readonly string[];
+  /**
+   * (A1-013/A1-022/A1-031/A1-040) Structured detail of named assumptions: id, first affected plan day, the outputs it
+   * conditions and the reason (e.g. 'unknownMacroAllocation', 'unknownHardSetCount', 'polyolRouteUnmodelled',
+   * 'habitualStepsOverlapUnknown'). `assumptions` keeps the bare ids for older readers.
+   */
+  assumptionDetails?: ReadonlyArray<{ id: string; fromDay?: number; affects?: readonly SeriesId[]; reasonCode: string; scenario?: string }>;
+  /** (A1-065) Structural modes the run was computed under (absent = production modes). */
+  structuralModes?: Readonly<Record<string, number>>;
   /**
    * Present when RunOptions.checks (MODEL_SPEC §9.1 O-4/O-5), evaluated from module STATES, not from the fluxes alone:
    * hourly S_h = (ρF + ηF)·ΔFM + (ρL + ηL)·ΔLT with ΔFM/ΔLT from the published masses, signed deposition cost
@@ -300,4 +418,35 @@ export interface BandedResult {
    * the (parameter-dependent) baseline.
    */
   method: Partial<Record<SeriesId, 'draws' | 'fallback' | 'none'>>;
+  /**
+   * D8-02/C6: what each band is (parameter-sensitivity range with unvalidated coverage, quantiles from stochastic members
+   * only, endpoint convention). Absent = legacy semantics (`LEGACY_BAND_META`).
+   */
+  bandMeta?: Partial<Record<SeriesId, BandMeta>>;
+  /**
+   * D8-02/A1-049: per-series, per-day band availability (attempted/valid/excluded counts, exclusion reasons, per-day method,
+   * member status and onset). A whole-series `method` cannot encode a valid prefix and an unavailable suffix: a day whose
+   * `BandAvailability.method[d]` is `BAND_DAY_METHOD.none` has NO usable range, whatever finite compatibility values the
+   * p10/p50/p90 arrays hold there (never a nominal fallback, never the previous day's range). Absent = legacy result.
+   */
+  bandDays?: Partial<Record<SeriesId, BandAvailability>>;
+  /** (A1-065) Structural modes the nominal run and every member were computed under (absent = production modes). */
+  structuralModes?: Readonly<Record<string, number>>;
+}
+
+/**
+ * One ensemble member as it crosses the reducer/worker boundary (D8-02/A1-049): its band inputs (`daily`, change series
+ * relative to the member's own t = 0) together with its per-series status/onset and run validity/abort, so a reducer can
+ * count valid, scenario and excluded members per day. Numeric arrays stay finite-or-NaN compatibility storage; validity
+ * travels here, never as an interpreted zero.
+ */
+export interface EnsembleMemberEnvelope {
+  daily: Partial<Record<SeriesId, Float32Array>>;
+  nDays: number;
+  /** The member's `SimulationMeta.outputStatus` (absent series = estimated). */
+  status?: Partial<Record<SeriesId, SeriesStatusMeta>>;
+  /** D1-08 validity of the member run: days after `validThroughHour` are not valid contributions. */
+  validity?: DomainValidity;
+  /** Early abort of the member: the engine records the abort day itself, so only days after `aborted.day` are invalid contributions. */
+  aborted?: { day: number; bound: string; magnitude: number };
 }

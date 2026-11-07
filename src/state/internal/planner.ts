@@ -4,6 +4,7 @@
  * no duplicate metrics, horizon 28–183 days.
  */
 import type { PlannerProgressInfo, PlannerRequest, PlannerResult, Strictness } from '@/engine/planner/domain/types';
+import { isProductionGoalEligible } from '@/engine/types/metrics';
 import { usePlannerStore } from '../plannerStore';
 import {
   EMPTY_RUN,
@@ -35,7 +36,8 @@ export type GoalOp =
   | { op: 'setStrictness'; value: Strictness }
   | { op: 'setSuggested'; record: SuggestedRecord | null };
 
-export type GoalOpOutcome = AddGoalOutcome | 'applied' | 'unchanged' | 'not-found';
+/** `ineligible`: the metric cannot be a goal under its capability (C6; e.g. the autophagy index, D2-02). */
+export type GoalOpOutcome = AddGoalOutcome | 'ineligible' | 'applied' | 'unchanged' | 'not-found';
 
 let keySeq = 0;
 const newKey = (metric: string) => `${metric}-${Date.now().toString(36)}-${(keySeq++).toString(36)}`;
@@ -47,7 +49,10 @@ export function applyGoalOps(ops: readonly GoalOp[]): GoalOpOutcome[] {
     const s = usePlannerStore.getState();
     switch (op.op) {
       case 'add': {
-        if (s.goals.some((g) => g.metric === op.goal.metric)) out.push('duplicate');
+        // C6 gate at the store boundary (every entry point: screens, Coach, MCP): a metric whose capability is not
+        // optimizable is never added as a new goal. Goals saved before the gate stay in the list as information.
+        if (!isProductionGoalEligible(op.goal.metric)) out.push('ineligible');
+        else if (s.goals.some((g) => g.metric === op.goal.metric)) out.push('duplicate');
         else if (s.goals.length >= MAX_PLANNER_GOALS) out.push('full');
         else {
           const goal: GoalDraft = { ...op.goal, key: op.goal.key ?? newKey(op.goal.metric) };

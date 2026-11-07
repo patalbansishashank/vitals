@@ -28,7 +28,7 @@ const px = (t: number, x0: number, x1: number, a: DataArea) => a.left + ((t - x0
 
 /** Canvas-based text measurement for SVG labels (falls back to an estimate). */
 let measureCtx: CanvasRenderingContext2D | null | undefined;
-export function measureText(text: string, font = '500 11.5px Archivo, Helvetica, Arial, sans-serif'): number {
+export function measureText(text: string, font = '500 12px Inter, system-ui, sans-serif'): number {
   if (measureCtx === undefined) {
     try {
       measureCtx = document.createElement('canvas').getContext('2d');
@@ -259,7 +259,7 @@ export const EventRibbon = memo(function EventRibbon({ controller, time, events,
   const labels = useMemo(() => {
     if (span > labelSpan) return new Map<string, { left: number; text: string }>();
     const items = shown.map((s, k) => ({ id: String(k), x: s.x, text: s.e.label, priority: EVENT_PRIORITY[s.e.type] }));
-    const placed = placeEventLabels(items, area.left + area.width, (t) => measureText(t, '400 semi-condensed 11px Archivo, Helvetica, Arial, sans-serif'), {
+    const placed = placeEventLabels(items, area.left + area.width, (t) => measureText(t, '400 11px Inter, system-ui, sans-serif'), {
       glyphGap: -4,
       pad: 10,
       avoidGlyphs: false,
@@ -268,6 +268,8 @@ export const EventRibbon = memo(function EventRibbon({ controller, time, events,
   }, [shown, span, labelSpan, area.left, area.width]);
 
   const keto = ['var(--lm-keto-1)', 'var(--lm-keto-2)', 'var(--lm-keto-3)'];
+  // r068 W2-9: no band and no event in view → no empty lane
+  if (!runs.length && !shown.length) return null;
   return (
     <div className="lmc-row lmc-events">
       <Gutter>{state ? `${state.label.toLowerCase()} · events` : 'events'}</Gutter>
@@ -330,7 +332,7 @@ export const TimeAxis = memo(function TimeAxis({ controller, time, geom, sticky 
   for (const tk of ticks) {
     const x = Math.round(px(tk.t, view.x0, view.x1, area)) + 0.5;
     if (x < area.left - 1 || x > area.left + area.width + 1) continue;
-    const w = measureText(tk.label, '400 semi-condensed 11px Archivo, Helvetica, Arial, sans-serif');
+    const w = measureText(tk.label, '400 11px Inter, system-ui, sans-serif');
     const lx = tk.anchor === 'start' ? x + 4 : x;
     const l = tk.anchor === 'start' ? lx : x - w / 2;
     const inside = tk.anchor === 'start' ? lx + w <= right : x - w / 2 >= area.left - 4 && x + w / 2 <= right;

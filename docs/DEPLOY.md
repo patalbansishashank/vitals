@@ -35,7 +35,7 @@ The project folder is linked to the site through `.netlify/state.json`, which is
 - SPA fallback: `/*` to `/index.html` with status 200, so deep links and refreshes on nested routes work.
 - `Cache-Control: public, max-age=31536000, immutable` for hashed files under `/assets/*`.
 - Security headers on `/*`: HSTS (above), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, and a Content-Security-Policy that allows only same-origin scripts, workers, fonts and connections.
-- The `[build]` block (`pnpm build`, publish `dist`, Node 22) documents the build. CI builds before deploying and passes `--no-build`, so Netlify never runs it.
+- The `[build]` block (`pnpm build`, publish `dist`, Node 26.12.1) documents the build. CI builds before deploying and passes `--no-build`, so Netlify never runs it.
 
 ## CI deploy
 

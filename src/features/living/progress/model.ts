@@ -5,7 +5,7 @@
  */
 import { addDays, compareDates, daysBetween, weekdayOf } from '@/living/dates';
 import type { LocalDate } from '@/living';
-import type { ScoreHistoryData, TrendLaneData } from '@/features/charts/living/types';
+import type { TrendLaneData } from '@/features/charts/living/types';
 
 export type TrendRange = '2wk' | '4wk' | '12wk' | 'all';
 export const TREND_RANGES: readonly TrendRange[] = ['2wk', '4wk', '12wk', 'all'];
@@ -59,7 +59,10 @@ export function readTrend(data: TrendLaneData | null, today: LocalDate): TrendRe
   return { weighDays: days.size, lastWeighIn, gapDays: lastWeighIn ? daysBetween(lastWeighIn, today) : null, now, sd, first };
 }
 
-/** 80 % interval around a value from an SD, as [nearer to zero, farther] for a signed change. */
+/**
+ * The ±1.2816 SD range around a value (the 10th–90th percentile of a normal with that SD), as [nearer to zero, farther]
+ * for a signed change. A conditional range from the filter's SD: not a calibrated 80 % prediction interval (D5-02).
+ */
 export function signedInterval(value: number, sd: number): [number, number] {
   const a = value - 1.2816 * sd;
   const b = value + 1.2816 * sd;
@@ -108,23 +111,17 @@ export function firstCheckIn(plan: { startDate: LocalDate; policy: { checkInWeek
   return addDays(first, (plan.policy.checkInWeekday - weekdayOf(first) + 7) % 7);
 }
 
-/** The last `days` of a score history (null = all), re-indexed. */
-export function sliceHistory(h: ScoreHistoryData, days: number | null): ScoreHistoryData {
-  if (days === null || days >= h.days) return h;
-  const k = h.days - days;
-  const cut = (a: number[]) => a.slice(k);
-  const shift = (xs: Array<{ day: number; label: string }> | undefined) => xs?.filter((x) => x.day >= k).map((x) => ({ ...x, day: x.day - k }));
-  const versions = shift(h.versions);
-  const deviceChanges = shift(h.deviceChanges);
-  return {
-    ...h,
-    startDate: addDays(h.startDate, k),
-    days,
-    nightly: cut(h.nightly),
-    mean7: cut(h.mean7),
-    ...(h.normal ? { normal: { lo: cut(h.normal.lo), hi: cut(h.normal.hi) } } : {}),
-    ...(versions ? { versions } : {}),
-    ...(deviceChanges ? { deviceChanges } : {}),
-    ...(h.compare ? { compare: { ...h.compare, values: cut(h.compare.values) } } : {}),
-  };
+
+/**
+ * The weight readout's start-to-goal strip (A.3.3): how far the trend has come from its first value toward the goal, in
+ * the goal's direction. A move away from the goal reads as 0 done (never a negative strip). Null without a goal, a trend
+ * or a distance to cover.
+ */
+export function goalProgress(r: Pick<TrendReading, 'first' | 'now'>, goal: number | null): { done: number; total: number; change: number; target: number } | null {
+  if (goal === null || !Number.isFinite(goal) || r.first === null || r.now === null) return null;
+  const target = goal - r.first;
+  const total = Math.abs(target);
+  if (total < 0.05) return null;
+  const change = r.now - r.first;
+  return { done: Math.max(0, change * Math.sign(target)), total, change, target };
 }

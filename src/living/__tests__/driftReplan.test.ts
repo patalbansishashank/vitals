@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { DayTemplate, PersonProfile, Schedule } from '@/engine';
 import type { PlannerRequest, PlannerResult } from '@/engine/planner/domain/types';
-import { driftCauses, driftGoal, hysteresisState, rawDriftState, goalDateRangeText } from '../drift';
+import { classifyDrift, driftGoal, hysteresisState, rawDriftState, goalDateRangeText } from '../drift';
 import {
   adoptionPolicy,
   applyEnergyNudge,
@@ -21,47 +21,68 @@ import type { ConfirmedState, ItemOutcome, LoggedDay } from '../plannerContract'
 import type { PlanDoc, PlanVersionDoc } from '../types';
 import { DEFAULT_ITEM_WEIGHTS } from '../prescription';
 
-describe('drift (§3.8)', () => {
+describe('drift (§3.8, D5-02)', () => {
   const band = { p10: 84, p50: 85, p90: 86 };
-  it('raw state against the 80 % band, by goal direction', () => {
+  it('raw state against the band, by goal direction', () => {
     expect(rawDriftState(83.5, band, 'down')).toBe('ahead');
     expect(rawDriftState(86.5, band, 'down')).toBe('behind');
     expect(rawDriftState(85.2, band, 'down')).toBe('onTrack');
     expect(rawDriftState(86.5, band, 'up')).toBe('ahead');
   });
 
-  it('hysteresis: one check-in outside keeps "on track"; two in a row change it; flapping never does', () => {
+  it('hysteresis: one check-in outside keeps "on track"; two in a row change it; flapping or an unclear read never does', () => {
     expect(hysteresisState(['behind']).state).toBe('onTrack');
     expect(hysteresisState(['behind', 'behind'])).toEqual({ state: 'behind', checkInsOutside: 2 });
     expect(hysteresisState(['behind', 'onTrack', 'behind', 'onTrack']).state).toBe('onTrack');
     expect(hysteresisState(['behind', 'behind', 'onTrack']).state).toBe('behind');
     expect(hysteresisState(['behind', 'behind', 'onTrack', 'onTrack']).state).toBe('onTrack');
+    expect(hysteresisState(['behind', 'unclear', 'behind']).state).toBe('onTrack');
   });
 
-  it('goal date moves only at ≥ 3 days and after two check-ins outside; causes name the main driver; no red words', () => {
-    const one = driftGoal({ goal: 0, metric: 'scaleWeight', target: 80, better: 'down', trend: { value: 86.6, sd: 0.2 }, band, previous: [], goalDate: { before: '2026-12-20', after: '2026-12-29', range: ['2026-12-22', '2027-01-05'] } });
+  it('a larger trend SD makes the same read unclear (the observation noise affects the decision)', () => {
+    expect(classifyDrift({ value: 86.6, sd: 0.2 }, band, 'down')).toMatchObject({ raw: 'behind', read: 'behind', certainty: 'clear' });
+    expect(classifyDrift({ value: 86.6, sd: 0.8 }, band, 'down')).toMatchObject({ raw: 'behind', read: 'unclear', certainty: 'unclear' });
+  });
+
+  it('two real confirmations change the state; the daily read and a replayed decision id never advance it', () => {
+    const base = { goal: 0, metric: 'scaleWeight' as const, target: 80, better: 'down' as const, band, goalDate: { before: '2026-12-20', after: '2026-12-29', range: ['2026-12-22', '2027-01-05'] as [string, string] } };
+    // one confirmed "behind" plus today's daily read outside: still on track (the daily read is not a decision)
+    const one = driftGoal({ ...base, trend: { value: 86.6, sd: 0.2 }, decisions: [{ id: 'd1', read: 'behind' }] });
     expect(one.state).toBe('onTrack');
     expect(one.goalDate.shiftDays).toBeNull();
-    const two = driftGoal({
-      goal: 0, metric: 'scaleWeight', target: 80, better: 'down', trend: { value: 86.6, sd: 0.2 }, band, previous: ['behind'],
-      goalDate: { before: '2026-12-20', after: '2026-12-29', range: ['2026-12-22', '2027-01-05'] },
-      causes: { days: 84, intakeExcessKcal: 0, deltaKcal: 120, rhoKcalPerKg: 7000 },
-    });
+    // the same decision rendered twice counts once
+    const replay = driftGoal({ ...base, trend: { value: 86.6, sd: 0.2 }, decisions: [{ id: 'd1', read: 'behind' }, { id: 'd1', read: 'behind' }] });
+    expect(replay.state).toBe('onTrack');
+    expect(replay.decisionIds).toEqual(['d1']);
+    const two = driftGoal({ ...base, trend: { value: 86.6, sd: 0.2 }, decisions: [{ id: 'd1', read: 'behind' }, { id: 'd2', read: 'behind' }] });
     expect(two.state).toBe('behind');
     expect(two.goalDate.shiftDays).toBe(9);
-    expect(two.causes[0]!.cause).toBe('expenditure');
     expect(two.action).toBe('replan');
-    expect(two.text).toMatch(/120 kcal a day less than assumed/);
-    const lapse = driftGoal({ goal: 0, metric: 'scaleWeight', target: 80, better: 'down', trend: { value: 86.6, sd: 0.2 }, band, previous: ['behind'], causes: { days: 28, intakeExcessKcal: 350, deltaKcal: 0, rhoKcalPerKg: 7000 } });
-    expect(lapse.action).toBe('easeOptions');
-    for (const t of [one.text, two.text, lapse.text]) expect(t).not.toMatch(/fail|bad|red|§/i);
-    const small = driftGoal({ goal: 0, metric: 'scaleWeight', target: 80, better: 'down', trend: { value: 86.6, sd: 0.2 }, band, previous: ['behind'], goalDate: { before: '2026-12-20', after: '2026-12-22', range: null } });
+    expect(two.text).toBe('Behind');
+    const none = driftGoal({ ...base, trend: { value: 85, sd: 0.2 }, decisions: [] });
+    expect(none.certainty).toBe('unclear');
+    expect(none.text).toBe('Unclear');
+    for (const t of [one.text, two.text, none.text]) expect(t).not.toMatch(/fail|bad|red|§/i);
+    const small = driftGoal({ ...base, trend: { value: 86.6, sd: 0.2 }, decisions: [{ id: 'd1', read: 'behind' }, { id: 'd2', read: 'behind' }], goalDate: { before: '2026-12-20', after: '2026-12-22', range: null } });
     expect(small.goalDate.shiftDays).toBeNull();
   });
 
-  it('cause shares sum to 1; ranges wider than two weeks round to weeks', () => {
-    const c = driftCauses(1.0, { days: 14, intakeExcessKcal: 200, deltaKcal: 100, rhoKcalPerKg: 7000 });
-    expect(c.reduce((s, x) => s + x.share, 0)).toBeCloseTo(1, 12);
+  it('no causal shares or expenditure statement; the observed intake difference and the residual travel instead', () => {
+    const g = driftGoal({
+      goal: 0, metric: 'scaleWeight', target: 80, better: 'down', trend: { value: 86.6, sd: 0.2 }, band,
+      decisions: [{ id: 'a', read: 'behind' }, { id: 'b', read: 'behind' }],
+      loggedIntakeDiff: { kcalPerDay: 120, quantDays: 3, daysInWindow: 7 },
+      residual: { status: 'estimated', value: 150, range: [60, 240], unit: 'kcal/day', uncertaintyKind: 'conditionalResidual', coverageStatus: 'unvalidated', reasonCode: 'balanceModelResidual' },
+      operator: 'scaleWake',
+    });
+    expect(g.causes).toEqual([]);
+    expect(g.text).not.toMatch(/burn|expenditure|metabolism|updated/i);
+    expect(g.loggedIntakeDiff).toEqual({ kcalPerDay: 120, quantDays: 3, daysInWindow: 7 });
+    expect(g.residual?.uncertaintyKind).toBe('conditionalResidual');
+    expect(g.operator).toBe('scaleWake');
+  });
+
+  it('ranges wider than two weeks round to weeks', () => {
     expect(goalDateRangeText(['2026-12-01', '2026-12-25'])).toMatchObject({ roundedToWeeks: true, to: '2026-12-22' });
   });
 });
@@ -199,5 +220,17 @@ describe('legacy planner adapter (TODO E6)', () => {
     const v = versionFromReplan({ result: res, plan, head: headV, today: '2026-10-20', reason: 'event', adoption: 'propose', createdBy: { kind: 'system' }, createdAt: '2026-10-20T08:00:00.000Z' });
     expect(v).toMatchObject({ version: 2, parent: 1, status: 'proposed', effectiveFromDay: 15, reason: 'event' });
     expect(v.forecast.goals[0]).toMatchObject({ metric: 'scaleWeight', endP50: 84.5 });
+    // D5-05: no realistic bands → explicitly unavailable, never the as-prescribed band relabelled; C5: never carried as safe
+    expect(v.forecast.realisticStatus).toBe('unavailable');
+    expect(v.forecast.realistic).toEqual({});
+    expect(v.safetyStatus).toBe('unchecked');
+    const f32 = (xs: number[]) => Float32Array.from(xs);
+    const asP = { p10: f32([86, 85]), p50: f32([87, 86]), p90: f32([88, 87]) };
+    const real = { p10: f32([86.5, 85.5]), p50: f32([87.5, 86.5]), p90: f32([88.5, 87.5]) };
+    const both = versionFromReplan({ result: { ...res, forecast: { ...res.forecast, bands: { scaleWeight: asP }, realisticBands: { scaleWeight: real } } }, plan, head: headV, today: '2026-10-20', reason: 'event', adoption: 'propose', createdBy: { kind: 'system' }, createdAt: '2026-10-20T08:00:00.000Z', historyHash: 'h1' });
+    expect(both.forecast.realisticStatus).toBe('available');
+    expect(both.forecast.realistic.scaleWeight!.p50).toEqual([87.5, 86.5]);
+    expect(both.forecast.asPrescribed.scaleWeight!.p50).toEqual([87, 86]);
+    expect(both.forecast.historyHash).toBe('h1');
   });
 });

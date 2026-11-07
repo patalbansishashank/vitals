@@ -1,7 +1,7 @@
 /** `intake.nextQuestions` (E9b): the intake question sets as headless data (through the state gateway). */
 import { implementLate as implement } from './late';
 
-type Section = 'activity' | 'training' | 'diet' | 'kitchen' | 'supplements' | 'markers' | 'devices';
+type Section = 'activity' | 'training' | 'diet' | 'kitchen' | 'supplements' | 'markers';
 
 implement(
   'intake.nextQuestions',

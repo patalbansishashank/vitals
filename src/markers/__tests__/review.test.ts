@@ -42,7 +42,7 @@ describe('retest dates in note texts', () => {
   });
 
   it('every placeholder in the table is one the note builder fills', () => {
-    const known = /^\{(v|value|date|cap|uln|old|d1|d2|start|date\+\d+[wm])\}$/;
+    const known = /^\{(v|value|date|cap|uln|old|d1|d2|start|sampleClaim|date\+\d+[wm])\}$/;
     for (const r of TABLE.rules) for (const m of r.message.match(/\{[^}]*\}/g) ?? []) expect(m, r.id).toMatch(known);
   });
 });
@@ -60,8 +60,8 @@ describe('HOMA-IR note', () => {
     // 5.0 mmol/L × 12 µU/mL / 22.5 = 2.67
     const ev = evaluateMarkers(
       doc([
-        { id: 'fpg', value: 90, unit: 'mg/dL', date: DATE },
-        { id: 'insulin', value: 12, unit: 'µU/mL', date: DATE },
+        { id: 'fpg', value: 90, unit: 'mg/dL', date: DATE, sampleId: 'd1', fastingHours: 10 },
+        { id: 'insulin', value: 12, unit: 'µU/mL', date: DATE, sampleId: 'd1', fastingHours: 10 },
       ]),
       ctx,
     );

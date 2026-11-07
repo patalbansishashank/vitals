@@ -4,6 +4,8 @@
  * a reload recomputes the same projection.
  */
 import type { PersonProfile, Schedule, SeriesId, SimulationResult } from '@/engine';
+import { ensembleBands } from '@/engine/core/bands';
+import { BAND_DAY_METHOD, BAND_EXCLUSION_REASONS, type BandAvailability, type BandMeta, type OutputStatus } from '@/lib/bodyContracts';
 import { inputsHash } from '@/features/simulator/lib/hash';
 import type { DrawSeries } from '@/workers/simulationClient';
 
@@ -17,15 +19,84 @@ export const DRAW_CHUNK = 4;
 export type SimStatus = 'idle' | 'running' | 'done' | 'cancelled' | 'error';
 export type SimPhase = 'nominal' | 'ensemble';
 
+/**
+ * A1-049: one channel's per-day member accounting in the shape the Simulator screen reads (`BandsLike['days']`): which days
+ * have a usable range, the attempted/valid/excluded members, why members were excluded (from the first day each applies),
+ * whether a day with excluded members shows the valid members' range (named so), and the members' conditional status.
+ */
+export interface SimBandDays {
+  /** 1 = the day's P10–P90 is a usable range; 0 = none that day (whatever finite numbers its quantile slots hold). */
+  available: Uint8Array;
+  attempted: Uint16Array;
+  valid: Uint16Array;
+  excluded: Uint16Array;
+  reasons: ReadonlyArray<{ code: string; fromDay: number; members: number }>;
+  /** The producer offers, on days with excluded members (non-finite, forbidding status, abort), the valid members' range. */
+  validOnly: boolean;
+  /** The contributing members' conditional status (labelled scenario/limited paths retained) and its first day. */
+  qualifier?: { status: OutputStatus; fromDay: number };
+}
+
+/** The screen's per-day accounting of one channel from the reducer's `BandAvailability` (A1-049). Pure. */
+export function simBandDays(av: BandAvailability): SimBandDays {
+  const n = av.method.length;
+  const available = new Uint8Array(n);
+  let validOnly = false;
+  for (let d = 0; d < n; d++) {
+    available[d] = av.method[d] !== BAND_DAY_METHOD.none ? 1 : 0;
+    if (av.method[d] === BAND_DAY_METHOD.conditionalValid) validOnly = true;
+  }
+  const reasons: Array<{ code: string; fromDay: number; members: number }> = [];
+  for (const code of BAND_EXCLUSION_REASONS) {
+    const a = av.excludedBy[code];
+    if (!a) continue;
+    let from = -1;
+    let members = 0;
+    for (let d = 0; d < a.length; d++) {
+      if (a[d]! > 0 && from < 0) from = d;
+      if (a[d]! > members) members = a[d]!;
+    }
+    if (from >= 0) reasons.push({ code, fromDay: from, members });
+  }
+  return {
+    available,
+    attempted: new Uint16Array(n).fill(av.attempted),
+    valid: av.valid,
+    excluded: av.excluded,
+    reasons,
+    validOnly,
+    ...(av.status !== 'estimated' ? { qualifier: { status: av.status, fromDay: av.fromDay ?? 0 } } : {}),
+  };
+}
+
 export interface SimBands {
+  /**
+   * Compatibility quantiles of the series with at least one usable day; the others have no band (`bandMeta[id].method ===
+   * 'none'`). Finite storage: a day's range is usable only where `days[id].available` (A1-049) says so.
+   */
   p10: Partial<Record<SeriesId, Float32Array>>;
   p50: Partial<Record<SeriesId, Float32Array>>;
   p90: Partial<Record<SeriesId, Float32Array>>;
-  /** Draws folded in so far (the nominal run is always included as one more member). */
+  /** Stochastic draws folded in so far. The nominal run is never a member of the quantiles (D8-02). */
   drawsDone: number;
   drawsTotal: number;
   complete: boolean;
   method: 'draws';
+  /**
+   * D8-02/C6: what each band is — a parameter-sensitivity range with unvalidated predictive coverage, the members that
+   * contributed and the endpoint convention (change series re-based on the nominal t = 0 value). Never an 80 % prediction
+   * interval. Optional only for bands built before 2026-10-18 (legacy meaning: `LEGACY_BAND_META`).
+   */
+  bandMeta?: Partial<Record<SeriesId, BandMeta>>;
+  /**
+   * A1-051: the producer's per-series method ('draws' | 'none'): an explicit 'none' suppresses that series' band whatever
+   * arrays travel with it (never replaced by a display fallback). Optional only for bands built before 2026-10-19.
+   */
+  methodBySeries?: Partial<Record<SeriesId, 'draws' | 'none'>>;
+  /** A1-049: per-series, per-day availability, counts, reasons and member status (the reducer's contract form). */
+  bandDays?: Partial<Record<SeriesId, BandAvailability>>;
+  /** A1-049: the same accounting in the screen's form (`BandsLike['days']`). */
+  days?: Partial<Record<SeriesId, SimBandDays>>;
 }
 
 export interface ScenarioRun {
@@ -81,58 +152,35 @@ export function runHash(profile: PersonProfile, schedule: Schedule): string {
 
 // ---------------------------------------------------------------- percentiles
 
-function quantileSorted(s: Float64Array, n: number, p: number): number {
-  if (n === 0) return Number.NaN;
-  const idx = (n - 1) * p;
-  const lo = Math.floor(idx);
-  const hi = Math.ceil(idx);
-  return s[lo]! + (s[hi]! - s[lo]!) * (idx - lo);
-}
-
 /**
- * P10/P50/P90 per day over the nominal run plus the draws (linear interpolation between order statistics, as
- * `simulateEnsemble`). Non-finite samples are ignored.
+ * P10/P50/P90 per day over the stochastic draws only (D8-02): the same reducer as `simulateEnsemble` (`core/bands.ts`,
+ * linear interpolation between order statistics), so both give identical bands and metadata for the same members. The
+ * nominal run supplies the series list and, for change-from-baseline series, the t = 0 value the members' changes are
+ * re-based on (`nominalInitial`; without it those series get no band). The nominal values never enter the quantiles; a
+ * series no draw contributes to has no band (`methodBySeries` 'none', A1-051). A1-049: the draws arrive as member envelopes
+ * (status, validity, abort), and the per-day accounting travels as `bandDays` and, for the screen, `days`.
  */
 export function computeBands(
   nominal: SimulationResult['daily'],
   draws: readonly DrawSeries[],
   drawsTotal: number,
+  nominalInitial?: SimulationResult['initial'],
 ): SimBands {
-  const p10: SimBands['p10'] = {};
-  const p50: SimBands['p50'] = {};
-  const p90: SimBands['p90'] = {};
-  const buf = new Float64Array(draws.length + 1);
-  for (const id of Object.keys(nominal) as SeriesId[]) {
-    const nd = nominal[id];
-    if (!nd) continue;
-    const a10 = new Float32Array(nd.length);
-    const a50 = new Float32Array(nd.length);
-    const a90 = new Float32Array(nd.length);
-    for (let d = 0; d < nd.length; d++) {
-      let n = 0;
-      const v0 = nd[d]!;
-      if (Number.isFinite(v0)) buf[n++] = v0;
-      for (const r of draws) {
-        const v = r[id]?.[d];
-        if (v !== undefined && Number.isFinite(v)) buf[n++] = v;
-      }
-      const s = buf.subarray(0, n).sort();
-      a10[d] = quantileSorted(s, n, 0.1);
-      a50[d] = quantileSorted(s, n, 0.5);
-      a90[d] = quantileSorted(s, n, 0.9);
-    }
-    p10[id] = a10;
-    p50[id] = a50;
-    p90[id] = a90;
-  }
+  const b = ensembleBands(nominal, nominalInitial, draws);
+  const days: Partial<Record<SeriesId, SimBandDays>> = {};
+  for (const id of Object.keys(b.bandDays) as SeriesId[]) days[id] = simBandDays(b.bandDays[id]!);
   return {
-    p10,
-    p50,
-    p90,
+    p10: b.p10,
+    p50: b.p50,
+    p90: b.p90,
     drawsDone: draws.length,
     drawsTotal,
     complete: draws.length >= drawsTotal,
     method: 'draws',
+    bandMeta: b.bandMeta,
+    methodBySeries: b.method,
+    bandDays: b.bandDays,
+    days,
   };
 }
 

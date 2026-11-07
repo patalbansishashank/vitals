@@ -52,6 +52,20 @@ export async function seedIntake(o: { diet?: Record<string, unknown>; stance?: '
   });
 }
 
+/** Raw `catalogueCustom` documents (custom foods as `catalogue.addFood` stores them, or malformed synced ones). */
+export async function seedCustomFoods(docs: ReadonlyArray<Record<string, unknown>>): Promise<void> {
+  await seed(async (tx) => {
+    for (const d of docs) await tx.put('catalogueCustom', d as Record<string, unknown> & { _id: string });
+  });
+}
+
+/** A stored recipe document (legacy `gramsRaw` or schema 2) under `id`. */
+export async function seedRecipe(id: string, body: Record<string, unknown>): Promise<void> {
+  await seed(async (tx) => {
+    await tx.put('recipes', { title: 'Recipe', servings: 1, createdAt: '2026-09-30T00:00:00.000Z', updatedAt: '2026-09-30T00:00:00.000Z', ...body, _id: id });
+  });
+}
+
 async function seed(fn: Parameters<ReturnType<typeof getDocumentStore>['transact']>[1]): Promise<void> {
   const store = getDocumentStore();
   await store.ready;

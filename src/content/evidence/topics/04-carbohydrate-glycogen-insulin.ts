@@ -568,9 +568,9 @@ with no carbohydrate: S = 1.5 mmol/kg/h × exp(−Δt/1.5 h)`,
       summary:
         "Absorbed glucose goes first to the brain and red cells. The liver stores about a fifth. Insulin then shifts the body's fuel mix towards carbohydrate and away from fat. Muscle stores most of what is left, up to its capacity. Only when both liver and muscle are nearly full and intake still exceeds the most the body can burn does any carbohydrate become fat. Even a single 479 g starch meal was stored 72% as glycogen and burned 28% over 10 hours, with no net fat synthesis.",
       howModelled:
-        "Each hour the engine spreads each meal's carbohydrate over time with a gamma-shaped curve, then allocates the glucose in order: liver glycogen, oxidation, muscle glycogen, and net fat synthesis only if total glycogen is at least 95% of capacity. The share of energy burned as carbohydrate depends on glycogen level and insulin.",
+        "Each hour the engine spreads each meal's carbohydrate over time with a gamma-shaped curve. This curve is an approximate gut-appearance estimate for comparing schedules: not measured intestinal uptake, not the glucose that reaches the circulation after the liver's first pass, and not oxidation. Its caps are design limits taken from carbohydrate burned during long exercise in trained athletes, not verified absorption maxima. A stated glucose, fructose and galactose mixture is kept; carbohydrate of unknown mixture is simulated at a default mixture, a stated assumption. Fibre adds its energy to the day, but its hourly timing is not modelled. With gastroparesis, bariatric surgery, inflammatory bowel disease or GLP-1 medication the hourly curves are outside their range, while daily energy stays usable. The engine then allocates the glucose in order: liver glycogen, oxidation, muscle glycogen, and net fat synthesis only if total glycogen is at least 95% of capacity. The share of energy burned as carbohydrate depends on glycogen level and insulin.",
       equation: `Ra_glc(t) = Σ_m C_glc,m · (t − t_m)/θ_m² · exp(−(t − t_m)/θ_m)     (gamma curve with k = 2, θ_m = t_p,m)
-cap: Ra_glc ≤ 60 g/h;  Ra_glc + Ra_fru ≤ 90–105 g/h
+design limits (not verified maxima): Ra_glc ≤ 60 g/h;  Ra_glc + Ra_fru ≤ 90 g/h (sensitivity up to 105)
 f_C,pa = clamp( 0.45 · (G_tot/G_ref)² · (1 − 0.75·A_keto), 0.05, 0.85 )
 f_C(t) = f_C,pa + (f_C,max − f_C,pa) · Ins(t)²/(Ins(t)² + EC50_ox²)
 CHOox(t) = f_C(t) · EE_np(t)/4.1 [g/h];   FATox(t) = (1 − f_C(t)) · EE_np(t)/9.4 [g/h]
@@ -584,9 +584,9 @@ DNL_fat = DNL_glc/3.2;   heat = 0.28 · 4.1 · DNL_glc`,
           referenceIds: ['acheson1982'],
         },
         {
-          label: 'Maximum absorption',
+          label: 'Carbohydrate burned from drinks during long exercise (trained athletes)',
           value: 'Glucose about 1.0–1.1 g/min (60–66 g/h); glucose plus fructose about 1.5–1.75 g/min',
-          note: 'Peak exogenous glucose oxidation is about 1.1 g/min.',
+          note: 'These are oxidation rates, a different quantity from intestinal uptake or appearance in the blood. Vitals uses 60 and 90 g/h as design limits of its appearance curve, not as verified absorption maxima.',
           referenceIds: ['fuchs2019'],
         },
         {
@@ -626,8 +626,44 @@ DNL_fat = DNL_glc/3.2;   heat = 0.28 · 4.1 · DNL_glc`,
         'The overall partition is grade B (tracer, calorimetry and magnetic-resonance data), but the individual coefficients are grade C.',
       status: 'proposed-fit',
       caveats:
-        'The algorithm is proposed by Vitals; every coefficient comes from the tables in the glycogen entries.',
+        'The algorithm is proposed by Vitals; every coefficient comes from the tables in the glycogen entries. Gut appearance, appearance after the liver and oxidation are separate quantities: the curve approximates the first, and only the energy balance is checked exactly. A model with separate stomach, intestine and liver stages, and hourly fibre timing, are research that is not built.',
       referenceIds: ['acheson1982', 'fuchs2019', 'magnusson1992', 'schwarz1995', 'campbell1992', 'owen1967'],
+      warrants: [
+        {
+          type: 'firstPrinciples',
+          confidence: 'high',
+          scope:
+            'conservation: every gram eaten is stored, burned, carried to a later hour or converted, never lost or created',
+        },
+        {
+          type: 'empiricalFormal',
+          confidence: 'moderate',
+          scope: 'the overall split between glycogen storage and oxidation after a large meal (calorimetry)',
+        },
+        {
+          type: 'physiologicallyIntuitive',
+          confidence: 'moderate',
+          scope:
+            'a smooth delay from eating to appearance, for comparing schedules; not a personal hourly peak or absorption rate',
+        },
+      ],
+      outcomeScope:
+        'Approximate hourly appearance and disposal of meal carbohydrate; daily energy is kept even where hourly timing is unsupported',
+      population:
+        'Healthy adults at rest (meal studies) and trained athletes during exercise (oxidation caps); not gastroparesis, bariatric surgery, bowel disease or GLP-1 medication',
+      observations: [
+        {
+          tissue: 'whole body (indirect calorimetry)',
+          type: 'humanTissueFlux',
+          referenceIds: ['acheson1982'],
+        },
+        {
+          tissue: 'whole body (exogenous carbohydrate oxidation, breath ¹³CO₂)',
+          type: 'humanTissueFlux',
+          referenceIds: ['fuchs2019'],
+        },
+      ],
+      relatedParamIds: ['intake.raGlcMaxGH', 'intake.raGlcFruMaxGH'],
       relatedMetricIds: ['glycogenTotal', 'choOxidation', 'dnl'],
     },
     {
@@ -1338,7 +1374,7 @@ glucose rise multiplier M_tol = 1 + 0.6·(1 − T_C);   insulin peak multiplier 
       summary:
         'Fructose is cleared by the liver on first pass, bypassing insulin control, and gives a small glucose and insulin response. Its effects on liver fat and blood fats depend on dose and on energy balance: swapping it for other carbohydrate at equal calories shows no harm, while large amounts in energy surplus raise liver fat, triglyceride, LDL and uric acid. Only digestible carbohydrate drives blood glucose and glycogen, and fibre carries little energy.',
       howModelled:
-        'Fructose to the liver follows the liver-glycogen split: 15% to glycogen, 40% released as glucose, 45% burned. It raises the fractional-DNL sugar multiplier. Warnings trigger when fructose-containing added sugars exceed 10% of energy in a surplus. Net carbohydrate excludes fibre, fermentable fibre is counted at 2 kcal/g, and only viscous soluble fibre lowers the glucose response.',
+        'Fructose to the liver follows the liver-glycogen split: 15% to glycogen, 40% released as glucose, 45% burned. It raises the fractional-DNL sugar multiplier. Warnings trigger when fructose-containing added sugars exceed 10% of energy in a surplus. Net carbohydrate excludes fibre, fermentable fibre is counted at 2 kcal/g, and only viscous soluble fibre lowers the glucose response. Fibre energy comes from the large bowel, not from small-intestinal glucose: it counts for the day, while its hourly timing is not modelled.',
       equation: `net_CHO = total_CHO − fibre − polyols·(1 − polyol absorbed fraction)     (only if fibre is inside total carbohydrate on the label)
 Energy_fibre = 2 kcal/g · fermentable fibre + 0 · insoluble fibre`,
       keyNumbers: [

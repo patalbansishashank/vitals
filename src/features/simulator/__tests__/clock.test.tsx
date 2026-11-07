@@ -109,7 +109,7 @@ describe('<ClockRing> editor', () => {
     );
     expect(screen.getByText(/Eat 12:00 to 20:00, 3 meals/)).toBeInTheDocument();
     expect(screen.getByText('fast 16 h')).toBeInTheDocument();
-    expect(screen.getByText('16:8')).toBeInTheDocument();
+    expect(screen.getByText('window 8 h')).toBeInTheDocument(); // r068 W2-10: words, never the 16:8 ratio
   });
 
   it('moves the window start with the keyboard and rescales the inner meal', () => {

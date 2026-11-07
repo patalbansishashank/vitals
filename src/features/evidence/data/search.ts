@@ -226,7 +226,17 @@ export function snippetFields(doc: EvidenceDoc): Array<[field: string, text: str
   return doc.metric.caveat ? [['caveat', doc.metric.caveat]] : [];
 }
 
-/** A ~200-character window around the first matched word, or null when nothing matches. */
+/**
+ * Where one clause of prose ends and the next begins: the space after a sentence's closing mark when a capital, digit or
+ * opening mark follows (so "e.g. the" stays whole), and the " · " between key numbers.
+ */
+const CLAUSE_BREAK = /(?<=[.!?][)"'”’]?)\s+(?=[\p{Lu}\p{N}("'“‘])|\s+·\s+/gu;
+
+/**
+ * The passage that matched: the clause (a sentence, or one key number) holding the first matched word, whole when it
+ * fits in `width` characters; a longer clause is cut at word boundaries around the match, with "…" where it was cut.
+ * Null when no prose matches.
+ */
 export function makeSnippet(doc: EvidenceDoc, tokens: readonly string[], width = 200): Snippet | null {
   const re = hitPattern(tokens);
   if (!re) return null;
@@ -235,17 +245,36 @@ export function makeSnippet(doc: EvidenceDoc, tokens: readonly string[], width =
     const m = re.exec(text);
     if (!m) continue;
     const at = m.index;
-    let start = Math.max(0, at - Math.round(width * 0.3));
-    if (start > 0) {
-      const space = text.indexOf(' ', start);
-      start = space >= 0 && space < at ? space + 1 : start;
+    const hitEnd = at + m[0].length;
+    let from = 0;
+    let to = text.length;
+    for (const b of text.matchAll(CLAUSE_BREAK)) {
+      const i = b.index ?? 0;
+      if (i + b[0].length <= at) from = i + b[0].length;
+      else if (i >= hitEnd) {
+        to = i;
+        break;
+      }
     }
-    let end = Math.min(text.length, start + width);
-    if (end < text.length) {
-      const space = text.lastIndexOf(' ', end);
-      end = space > at ? space : end;
+    let start = from;
+    let end = to;
+    if (to - from > width) {
+      const lead = Math.round(width * 0.3);
+      // keep the clause's opening unless the match sits too far in to show it with some words after
+      if (at - from > width - lead) {
+        start = at - lead;
+        const space = text.indexOf(' ', start);
+        start = space >= 0 && space < at ? space + 1 : start;
+      }
+      end = Math.min(to, start + width);
+      if (end < to) {
+        const space = text.lastIndexOf(' ', end);
+        end = space >= hitEnd ? space : end;
+      }
     }
-    const body = `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`;
+    const cut = end < to;
+    const passage = text.slice(start, end);
+    const body = `${start > from ? '…' : ''}${cut ? passage.replace(/[\s,;:–—-]+$/u, '') : passage}${cut ? '…' : ''}`;
     return { field, segments: highlight(body, tokens) };
   }
   return null;

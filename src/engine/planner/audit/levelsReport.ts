@@ -24,12 +24,14 @@ const REASON_TEXT: Readonly<Record<string, string>> = {
   noEasy: 'no easier plan, so none in between',
   hardEasySame: 'Hard and Easy too alike, so none in between',
   bandEmpty: 'nothing distinct in between',
-  easyProof: 'no easier plan keeps half of Hard',
+  easyProof: 'no easier plan found that keeps half of Hard',
   easyRejected: 'easier plans failed a safety check',
   sameAsHard: 'the same plan as Hard',
   carried: 'the earlier rung failed against the new Hard',
-  noHard: 'no safe plan',
-  noSafePlan: 'no safe plan',
+  // D4-08: a search that returns no plan is a finite-search result (not found within the budget), never proof that no
+  // safe plan exists; an explicit policy contradiction is reported by the planner itself (provenPolicyConflict)
+  noHard: 'no plan found within the search budget',
+  noSafePlan: 'no plan found within the search budget',
   stopped: 'the search was stopped first',
 };
 

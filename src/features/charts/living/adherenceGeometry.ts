@@ -97,7 +97,9 @@ export function dialSentence(items: readonly DialItem[], score: number | null, o
         : `Adherence ${opts.final ? '' : 'so far '}${Math.round(score)} of 100`;
   const parts = items.map((i) => {
     const s = arcState(i);
-    return s === 'partial' ? `${i.label} ${Math.round((i.credit ?? 0) * 100)} percent` : `${i.label} ${STATE_WORD[s]}`;
+    // quiet: words only, so a partial item reads "partly" rather than its percentage
+    return s === 'partial' && opts.quietWord === undefined ? `${i.label} ${Math.round((i.credit ?? 0) * 100)} percent` : `${i.label} ${STATE_WORD[s]}`;
   });
-  return `${head.replace(/\s+:/, ':')}, based on ${known} of ${items.length} items${parts.length ? `: ${parts.join(', ')}` : ''}.`;
+  const basis = opts.quietWord !== undefined ? '' : `, based on ${known} of ${items.length} items`;
+  return `${head.replace(/\s+:/, ':')}${basis}${parts.length ? `: ${parts.join(', ')}` : ''}.`;
 }

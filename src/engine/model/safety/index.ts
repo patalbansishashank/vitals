@@ -17,6 +17,7 @@
  */
 import { defineModule } from '../../core/moduleKit';
 import { wakeRecordHour } from '../../core/math';
+import { EA_EXPOSURE_COVERAGE, EA_EXERCISE_SCOPE } from '../../types/result';
 import type { SignalBus } from '../../types/signals';
 import type { DayInput, HourInput } from '../../types/inputs';
 import type { FinalizeSink, ModuleContext, StepClock } from '../../types/module';
@@ -25,7 +26,7 @@ import { SERIES, SERIES_INDEX } from '../../types/metrics';
 import type { SeriesDef } from '../../types/metrics';
 import { SAFETY_PARAMS, readSafetyConstants } from './params';
 import { RULE_INDEX } from './rules';
-import { N_REG as N_REG_IMPORT, RING as RING_IMPORT, RING28 as RING28_IMPORT, newSafetyState, setHit, setHitWorst } from './state';
+import { EXPOSURE_RING_VERSION, N_REG as N_REG_IMPORT, RING as RING_IMPORT, RING28 as RING28_IMPORT, newSafetyState, setHit, setHitWorst } from './state';
 import type { SafetyK, SafetyState } from './state';
 import {
   bfFloorPct,
@@ -39,14 +40,14 @@ import {
   ringSum,
 } from './derived';
 import { closeEpisode, plannedMealToMealH } from './episodes';
-import { evaluateDay, exclusiveBands, recordOwnDay } from './evaluate';
+import { evaluateDay, exclusiveBands, mealNutrientUnknownBits, recordOwnDay } from './evaluate';
 import { buildWarnings } from './messages';
 
 export type { SafetyState } from './state';
-export { SAFETY_PARAMS } from './params';
+export { SAFETY_PARAMS, SAFETY_EA_POLICY, SAFETY_EA_EXPOSURE_POLICY } from './params';
 export { RULES, RULE_INDEX, MAX_MESSAGE_CHARS, W_F04_TEXT } from './rules';
-export { computeConstraintMargins, computeWarningMargins, worstMargin } from './constraints';
-export type { ConstraintPerson, ConstraintOptions } from './constraints';
+export { computeConstraintMargins, computeWarningMargins, eaUnevaluatedDays, worstMargin, calendarEaSummary, eaExposureReview, repeatedCalendarEaPolicy } from './constraints';
+export type { ConstraintPerson, ConstraintOptions, CalendarEaSummary, EaExposureReview, EaConcern, CalendarEaPolicyDay } from './constraints';
 export { FAST_TIER_IDS, fastTier, fastTierId, ketoFedStrict } from './derived';
 export type { FastTier, FastTierId, KetoFedFlags } from './derived';
 
@@ -152,6 +153,53 @@ function traceValue(k: SafetyK, code: number, d: number): number {
   }
 }
 
+/** A2-022 exposure flags: independent known intake, compatible FFM and covered net exercise (all enter calendar EA). */
+const EA_INTAKE_KNOWN = 1;
+const EA_FFM_VALID = 2;
+const EA_EXERCISE_KNOWN = 4;
+const EA_KNOWN = EA_INTAKE_KNOWN + EA_FFM_VALID + EA_EXERCISE_KNOWN;
+
+/**
+ * D4-04: the day's intake is known for the exposure ledger. A prescribed day carries no coverage map (its intake is the
+ * plan's); a realised day needs energy coverage complete, confirmed zero or as-planned. Unknown or partial intake is
+ * excluded from calendar EA (a partial log is a lower bound, never a precise reassuring number).
+ */
+function intakeKnown(day: DayInput): boolean {
+  const cov = day.coverage;
+  if (cov === undefined) return true;
+  const e = cov.energy;
+  return e === 'complete' || e === 'confirmedZero' || e === 'asPlannedEstimate';
+}
+
+/** Independent exercise coverage: neither missing logs nor an empty prescribed session list confirms actual zero. */
+function exerciseKnown(day: DayInput): boolean {
+  if (day.exerciseCoverageScope === 'unknown') return false;
+  if (day.coverage === undefined) return true; // explicitly prescribed scenario, never observed completeness
+  const exercise = day.coverage.exercise;
+  return exercise === 'complete' || exercise === 'confirmedZero' || exercise === 'asPlannedEstimate';
+}
+
+function coverageCode(coverage: DayInput['coverage'], channel: 'energy' | 'exercise'): number {
+  if (coverage === undefined || coverage[channel] === 'asPlannedEstimate') return EA_EXPOSURE_COVERAGE.scenario;
+  switch (coverage[channel]) {
+    case 'complete': return EA_EXPOSURE_COVERAGE.complete;
+    case 'confirmedZero': return EA_EXPOSURE_COVERAGE.confirmedZero;
+    case 'partial': return EA_EXPOSURE_COVERAGE.partial;
+    default: return EA_EXPOSURE_COVERAGE.unknown;
+  }
+}
+
+/**
+ * A state restored from a snapshot taken before the D4-04 exposure rings existed: allocate them with every earlier day
+ * unknown (no zero-padding of unknown history; coverage starts from here).
+ */
+function upgradeExposureRings(s: SafetyState): void {
+  s.eee28Ring = new Float64Array(RING28);
+  s.ffm28Ring = new Float64Array(RING28);
+  s.eaKnown28Ring = new Float64Array(RING28);
+  s.exposureVersion = EXPOSURE_RING_VERSION;
+}
+
 /** Mean of the last `n` samples of a 14-day ring over the days whose `fast` flag is 0; NaN when there are none. */
 function meanNonFast(ring: Float64Array, fast: Float64Array, head: number, n: number): number {
   let sum = 0;
@@ -231,6 +279,37 @@ function computeDay(s: SafetyState, k: SafetyK, bus: SignalBus, d: number): void
   const ea7 = fastToday ? Number.NaN : !fastIn7 ? bus.ea7KcalKgFfm : cEa > 0 ? eaNF / cEa : Number.NaN;
   q.eaFinite = Number.isFinite(ea7);
   q.ea7 = q.eaFinite ? Math.fround(ea7) : Number.NaN;
+  // D4-04 calendar exposure: Σ(EI − EEE_net)/Σ FFM_act over the known days of the trailing 7 / 28 calendar days (fast,
+  // refeed and rest days included, unclipped); unknown days are excluded and counted out of the coverage
+  const nCal = s.seen28 < RING28 ? s.seen28 : RING28;
+  let num7 = 0;
+  let den7 = 0;
+  let c7 = 0;
+  let num28 = 0;
+  let den28 = 0;
+  let c28 = 0;
+  for (let j = 1; j <= nCal; j++) {
+    const i = (s.idx28 - j + 2 * RING28) % RING28;
+    if (s.eaKnown28Ring[i] !== EA_KNOWN) continue;
+    const e = s.ei28Ring[i]! - s.eee28Ring[i]!;
+    const f = s.ffm28Ring[i]!;
+    num28 += e;
+    den28 += f;
+    c28++;
+    if (j <= 7) {
+      num7 += e;
+      den7 += f;
+      c7++;
+    }
+  }
+  q.calEa7 = c7 > 0 && den7 > 0 ? num7 / den7 : Number.NaN;
+  q.calEa28 = c28 > 0 && den28 > 0 ? num28 / den28 : Number.NaN;
+  q.calCov7 = c7;
+  q.calCov28 = c28;
+  const iToday = (s.idx28 - 1 + RING28) % RING28;
+  const flagsToday = nCal > 0 ? s.eaKnown28Ring[iToday]! : 0;
+  q.eaRaw = flagsToday === EA_KNOWN ? (s.ei28Ring[iToday]! - s.eee28Ring[iToday]!) / s.ffm28Ring[iToday]! : Number.NaN;
+  q.eiKnown = (flagsToday & EA_INTAKE_KNOWN) !== 0;
   q.eee7 = ringSum(s.eeeRing, head, RING, n7, 0);
   // EA rules need exercise (HC-E4) and, since the integration pass, an energy deficit (`eaNeedsDeficit`, see params)
   q.eaApplies = (k.eaNeedsExercise === 0 || q.eee7 > 0) && (k.eaNeedsDeficit === 0 || q.def7 > k.deficitAnyPct);
@@ -316,6 +395,18 @@ function computeDay(s: SafetyState, k: SafetyK, bus: SignalBus, d: number): void
   if (tr.ei28) tr.ei28[d] = q.ei28;
   if (tr.fastH7Cap) tr.fastH7Cap[d] = q.fastH7Cap;
   if (tr.deficitPct28) tr.deficitPct28[d] = q.def28;
+  // D4-04/D4-05 exposure ledger (allocated by a core that records them; trace-only, no bus signal): the eating-day
+  // statistic under its explicit name, calendar EA_7/EA_28 with their known-day coverage, and the raw daily ledger
+  if (tr.eatingDayEa7) tr.eatingDayEa7[d] = q.ea7;
+  if (tr.calendarEa7) tr.calendarEa7[d] = q.calEa7;
+  if (tr.calendarEa28) tr.calendarEa28[d] = q.calEa28;
+  if (tr.eaCoverage7) tr.eaCoverage7[d] = q.calCov7;
+  if (tr.eaCoverage28) tr.eaCoverage28[d] = q.calCov28;
+  if (tr.eiKcal) tr.eiKcal[d] = q.eiKnown ? q.ei : Number.NaN;
+  if (tr.eeeNetKcal) tr.eeeNetKcal[d] = (flagsToday & EA_EXERCISE_KNOWN) !== 0 ? s.dayEeeKcal : Number.NaN;
+  if (tr.ffmActKg) tr.ffmActKg[d] = q.ffm;
+  if (tr.eaRawDaily) tr.eaRawDaily[d] = q.eaRaw;
+  if (tr.fatMassKg) tr.fatMassKg[d] = q.fm;
 }
 
 export const safetyModule = defineModule<SafetyState, SafetyK>({
@@ -398,9 +489,13 @@ export const safetyModule = defineModule<SafetyState, SafetyK>({
       }
       if (m2m > c.tierT2MaxH) longStarts.push(sp.startHour);
     }
+    // (A1-014) per-day unknown-nutrient bits: the compiler's per-meal mask union and the meal specs' own statement; a set
+    // bit makes that nutrient's day total a known lower bound (warnings never assert a deficiency from it)
+    const nutrientUnknownDay = new Uint8Array(nDays);
     for (let d = 0; d < nDays; d++) {
       const day = sDays[d];
       if (cover[d]! >= c.fastDayMinHours || (day !== undefined && (day.refeedFactor ?? 1) < 1)) fastDay[d] = 1;
+      if (day !== undefined) nutrientUnknownDay[d] = (((day as { nutrientUnknownMask?: number }).nutrientUnknownMask ?? 0) | mealNutrientUnknownBits(day.template)) & 0xff;
     }
     longStarts.sort((a, b) => a - b);
     const hIn = prof.input.habits ?? {};
@@ -415,8 +510,9 @@ export const safetyModule = defineModule<SafetyState, SafetyK>({
       abortOp[i] = b.op === '<' ? 1 : 2;
       abortValue[i] = b.value;
     });
-    return {
+    const k: SafetyK & { readonly nutrientUnknownDay: Uint8Array } = {
       ...c,
+      nutrientUnknownDay,
       isFemale,
       heightM: prof.heightM,
       age0Years: prof.ageYears,
@@ -438,6 +534,10 @@ export const safetyModule = defineModule<SafetyState, SafetyK>({
         f.fatOxidationDisorderOrPorphyria === true ||
         edRisk,
       exerciseFlag: f.exerciseRestriction === true || f.faintingOrChestPain === true,
+      // D2-07/D8-04: the period-change sign is relevant unless the person told they do not menstruate (unknown stays
+      // relevant: absence of logs never reassures); a logged missed period or new irregularity is a concern of its own
+      cycleSignRelevant: prof.cycle.menstruating !== 'no',
+      cycleConcern: prof.cycle.recentChange === 'missedPeriods' || prof.cycle.recentChange === 'newIrregularity',
       hotFlag: f.hotClimate === true,
       kidneyStones: f.kidneyStones === true,
       novice: habits.trainingHistory === 'none' || habits.trainingHistory === 'lt1y',
@@ -462,6 +562,7 @@ export const safetyModule = defineModule<SafetyState, SafetyK>({
       abortOp,
       abortValue,
     };
+    return k;
   },
   init: (k: SafetyK, ctx: ModuleContext): SafetyState =>
     newSafetyState(ctx.nDays, k.warn, ctx.profile.weightKg),
@@ -618,10 +719,23 @@ export const safetyModule = defineModule<SafetyState, SafetyK>({
     s.tdee28Ring[j0] = s.dayTeeKcal;
     s.tm28Ring[j0] = bus.tissueMassKg;
     s.fast28Ring[j0] = d >= 0 && d < k.fastDay.length ? k.fastDay[d]! : 0;
-    // daily EA sample (17 §2.1 EA = (EI − EEE)/FFM; clipped like wellbeing's EA_7 samples, 19 §5) for EA_7 over non-fast days
+    // daily EA sample (17 §2.1 EA = (EI − EEE)/FFM; clipped like wellbeing's EA_7 samples, 19 §5) for EA_7 over non-fast
+    // days. D8-04 (SAFETY_EA_POLICY v2): an invalid fat-free mass gives no sample (NaN: the EA rules are unchecked over the
+    // window), never a division by a substitute 1 kg
     const ffmD = bus.ffmActKg;
-    const eaD = (s.dayIntakeKcal - s.dayEeeKcal) / (ffmD > 1 ? ffmD : 1);
+    const eaD = ffmD > 1 ? (s.dayIntakeKcal - s.dayEeeKcal) / ffmD : Number.NaN;
     s.ea28Ring[j0] = eaD < k.eaSampleMin ? k.eaSampleMin : eaD > k.eaSampleMax ? k.eaSampleMax : eaD;
+    // Exposure ledger: raw RMR-net session EEE, end-of-day FFM, and independent intake/exercise coverage.
+    if (s.exposureVersion !== EXPOSURE_RING_VERSION) upgradeExposureRings(s);
+    s.eee28Ring[j0] = s.dayEeeKcal;
+    s.ffm28Ring[j0] = ffmD;
+    // the habitual burn-in is the model's assumed history, not observed exposure: no calendar window is padded with it.
+    // Independent flags; neither an absent session nor a missing outcome establishes actual exercise coverage.
+    s.eaKnown28Ring[j0] = d >= 0
+      ? (intakeKnown(day) && Number.isFinite(s.dayIntakeKcal) ? EA_INTAKE_KNOWN : 0)
+        + (ffmD > 1 && Number.isFinite(ffmD) ? EA_FFM_VALID : 0)
+        + (exerciseKnown(day) && Number.isFinite(s.dayEeeKcal) && s.dayEeeKcal >= 0 ? EA_EXERCISE_KNOWN : 0)
+      : 0;
     s.idx28 = (j0 + 1) % RING28;
     if (s.seen28 < 1e9) s.seen28++;
     if (s.daysSeen < 1e9) s.daysSeen++;
@@ -631,6 +745,13 @@ export const safetyModule = defineModule<SafetyState, SafetyK>({
       return;
     }
     computeDay(s, k, bus, d);
+    if (k.trace.eaIntakeCoverage) k.trace.eaIntakeCoverage[d] = coverageCode(day.coverage, 'energy');
+    if (k.trace.eaExerciseCoverage) k.trace.eaExerciseCoverage[d] = coverageCode(day.coverage, 'exercise');
+    if (k.trace.eaExerciseScope) k.trace.eaExerciseScope[d] = day.exerciseCoverageScope !== undefined
+      ? EA_EXERCISE_SCOPE[day.exerciseCoverageScope]
+      : day.coverage === undefined || day.coverage.exercise === 'asPlannedEstimate' ? EA_EXERCISE_SCOPE.prescribedScenario
+        : day.coverage.exercise === 'confirmedZero' ? EA_EXERCISE_SCOPE.actualDay
+          : day.coverage.exercise === 'complete' ? EA_EXERCISE_SCOPE.coveredSessions : EA_EXERCISE_SCOPE.unknown;
     s.lastDay = d;
     if (s.warn) {
       recordOwnDay(s, k, d, referenceWeightKg(k, s.q.bw, k.heightM));

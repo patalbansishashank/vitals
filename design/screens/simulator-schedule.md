@@ -3,6 +3,10 @@
 > Reference rendering: `prototype/index.html#schedule` (painter, program keys, day editor, clock
 > ring, preview strip all live). Components: `COMPONENTS.md §3–5`.
 
+> r073 owner override: the day editor starts closed and always overlays the full-width calendar (side panel from
+> 1024px, sheet below). It never reserves a docked column or changes the horizon/calendar width. Earlier prototype
+> drawings below that show docking are historical.
+
 ## 1. Purpose
 
 Build "what I'm going to do" over 1–6 months, fast. The user defines a handful of reusable

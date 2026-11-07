@@ -7,7 +7,14 @@
  * option opens unchanged in the Simulator.
  *
  * No diet names appear anywhere: presets (UI) fill these fields with numbers.
+ *
+ * Contract additions of 2026-10-18 (C1–C7, all optional so existing schedules stay valid; absent = the previous
+ * behaviour): set groups and dose provenance on resistance sessions (D3-01, D3-09), interval phases and health-intensity
+ * class on cardio (D3-03), steps scope (D3-07), reported meal energy with unknown macros (D6-02), carbohydrate mixture /
+ * duration / form (D6-07), ME-correction binding (D6-08), active-ingredient doses (D7-04), observed sleep episodes (D8-06),
+ * fast provenance (D2-01) and per-day observation metadata from the realised history (C1/C2).
  */
+import type { CausalResolution, ChannelCoverageMap } from '@/lib/bodyContracts';
 
 /** What "% of maintenance" is relative to (orchestrator ruling; `blockStart` = dossier 18 `phaseStart`). */
 export type EnergyReference = 'baseline' | 'current' | 'blockStart';
@@ -112,6 +119,22 @@ export interface FoodQualitySpec {
    * (quality 3 → the registry's `cardiometabolic.dash.q3Fraction`, else 0). Added 2026-09-30 (additive).
    */
   dashFraction?: number;
+  /**
+   * Food-matrix ME correction bound to its originating intake (D6-08): a measured food/form-specific ME REPLACES the
+   * convention energy of that food (never stacks with another discount); absent = no correction (the conservative
+   * design default, not a claim of no matrix effect).
+   */
+  meCorrection?: MeCorrectionSpec;
+}
+
+/** One food-matrix energy correction and what it represents (D6-08). */
+export interface MeCorrectionSpec {
+  kind: 'sourceMeasuredME' | 'unavailableSubstrate' | 'netEnergy' | 'sensitivityScenario';
+  /** Signed correction to the day's ME, kcal (negative = less available energy). */
+  kcal: number;
+  /** Originating meal event and food (the correction follows that intake across midnight). */
+  originEventId?: string;
+  foodId?: string;
 }
 
 export type MealSplit = 'even' | 'biggerLast' | 'biggerFirst';
@@ -124,6 +147,61 @@ export interface MealSpec {
   /** Explicit grams for this meal (overrides share for the given macros). */
   macros?: Partial<Record<'proteinG' | 'carbG' | 'fatG' | 'fibreG' | 'alcoholG', number>>;
   proteinSource?: ProteinSource;
+  /**
+   * Reported metabolizable energy of this meal, kcal (D6-02, C3). When set, the meal's energy is exactly this value and
+   * `macros` lists only the KNOWN grams: an absent macro is unknown, never zero, and the energy not explained by the known
+   * grams is unallocated (never deposited in a named glucose/fat/amino-acid pool, never forced through 4/4/9 closure).
+   * An explicit `0` in `macros` is a known zero.
+   */
+  energyKcal?: number;
+  /**
+   * (D6-02/A1-014) Explicit nutrient knowledge of `macros` when the producer has it: 'known' (analysed or stated, an
+   * explicit 0 included), 'imputed' (a named scenario fill), 'unknown' (absent analysis; a compatibility 0 in `macros` is
+   * then NOT a known zero). Absent = derive from `macros` key presence when `energyKcal` is set, else the prescription's
+   * own construction (an ordinary fully specified macro prescription is complete by construction).
+   */
+  nutrientKnowledge?: Readonly<Partial<Record<MealNutrientKey, 'known' | 'imputed' | 'unknown'>>>;
+  /**
+   * (D6-01/D6-03/A1-031) Polyols of this meal by identity, g (`POLYOL_IDENTITY_UNKNOWN` = an identity-unknown total). They
+   * are NOT part of `macros.carbG` (non-polyol available carbohydrate); their energy stays inside `energyKcal` under the
+   * source's own convention. The engine has no polyol substrate route: glucose/insulin/fuel/ketone outputs that depend on
+   * these grams carry a named conditional status (never a resolved zero, never 4 kcal/g glucose).
+   */
+  polyolsG?: Readonly<Record<string, number>>;
+  /** How the polyols relate to the source's figures: inside the printed carbohydrate total or not, and the energy convention. */
+  polyolBasis?: { inPrintedCarb: boolean | 'unknown'; energyConvention: 'insideReportedME' | 'sourceSpecific' | 'unknown' };
+  /**
+   * The exposure provider's verdict on `energyKcal` minus the convention energy of the known grams (D6-02, C3):
+   * `reconciliation` = a source record's residual of either sign (specific vs general factors, rounding) — the report is
+   * kept exactly and the signed residual is an energy-only correction, never a conflict; `unallocated` = energy of unknown
+   * macros; `conflict` = typed numbers that disagree. Absent = the compiler classifies by its gram-rounding tolerance.
+   */
+  energyResidual?: 'unallocated' | 'reconciliation' | 'conflict';
+  /** Id of the logged event this meal replays (binds ME corrections and identity across midnight, C2/D6-08). */
+  eventId?: string;
+  /** Duration of eating/drinking, h (D6-07); absent = the engine's point-meal convention. */
+  intakeDurationH?: number;
+  /** Physical form (D6-07). */
+  form?: MealForm;
+  /** Event-specific carbohydrate mixture, g (D6-07); `unknownG` keeps an unresolved remainder unknown (not glucose). */
+  carbComposition?: CarbComposition;
+}
+
+/** Nutrients whose knowledge is tracked per meal (D6-02/A1-014; same keys as `EnergyLedger.macroMask`). */
+export type MealNutrientKey = 'protein' | 'carbohydrate' | 'fat' | 'fibre' | 'ethanol';
+
+/** Key of an identity-unknown polyol total in a `polyolsG` map (A1-031); every other key is a named polyol ('maltitol'…). */
+export const POLYOL_IDENTITY_UNKNOWN = 'unidentified';
+
+/** Physical form of an intake event (D6-07). */
+export type MealForm = 'solid' | 'liquid' | 'mixed' | 'unknown';
+
+/** Carbohydrate mixture of one event, g (or g/h for during-exercise feeding); absent components are unknown. */
+export interface CarbComposition {
+  glucoseEqG?: number;
+  fructoseG?: number;
+  galactoseG?: number;
+  unknownG?: number;
 }
 
 export interface MealPlan {
@@ -150,6 +228,61 @@ export type TrainingRegion =
 /** Dossier 09 §4.1 simple-descriptor presets (effective sets per major region per week). */
 export type RtVolumePreset = 'minimal' | 'light' | 'moderate' | 'high' | 'veryHigh';
 
+/** How the load acts in a set group: decides which effort/load factors apply (isometric holds bypass fRIR/fLoad, D3-01). */
+export type ContractionType = 'dynamic' | 'isometric' | 'ballistic';
+
+/** Field-level dose provenance (D3-09): a default or inferred field is never treated as a reported hard set. */
+export type DoseFieldProvenance = 'reported' | 'inferred' | 'default' | 'unknown';
+
+/**
+ * (D3-09/A1-022) Named scenario behind a numeric dose whose hard-set count is unknown: `legacyMinuteConversion` = the
+ * retained minutes → sets convention (e.g. 2.5 resistance-min per set). A labelled conditional scenario, not an observation.
+ */
+export type UnknownDoseScenario = 'legacyMinuteConversion';
+
+/**
+ * Identity of a subjective effort rating (D3-03/D3-09/A1-062). The scales have different anchors and are never aliases:
+ *  - `rirRpe`: resistance RPE anchored on reps in reserve (RIR = 10 − RPE);
+ *  - `cr10`: Borg CR10 (the serialized name of existing records is kept; 3 = moderate, 5 = strong);
+ *  - `relativeEffort0To10`: the WHO/CDC generic relative-effort scale (0 sitting, 10 maximal; 5–6 moderate, 7–8 vigorous);
+ *  - `unknown`: unscaled/legacy. Only `relativeEffort0To10` (or a stated class/talk test) classifies guideline minutes;
+ *    a CR10, RIR-RPE or unscaled number alone leaves guideline minutes unknown.
+ */
+export type EffortScale = 'rirRpe' | 'cr10' | 'relativeEffort0To10' | 'unknown';
+export const EFFORT_SCALES: readonly EffortScale[] = ['rirRpe', 'cr10', 'relativeEffort0To10', 'unknown'];
+
+/** How a guideline intensity class was established (A1-062): stated, talk test, the declared generic scale, or not at all. */
+export type HealthClassSource = 'stated' | 'talkTest' | 'relativeEffort0To10' | 'unknown';
+
+/**
+ * One homogeneous group of performed or prescribed sets inside a true physical bout (D3-01). The engine applies
+ * e_r = Σ_g n_g·w_rg·fType_g·fRIR_g·fLoad_g·fRest_g per group with the run's drawn factors, then sums; groups never become
+ * extra sessions and splitting identical groups changes nothing.
+ */
+export interface ResistanceSetGroup {
+  /** Physical sets in the group (whole sets; not the sum of region weights). */
+  sets: number;
+  /** Per-set region weights w_rg (1 direct, 0.5 indirect…). */
+  regionWeights: Partial<Record<TrainingRegion, number>>;
+  contraction: ContractionType;
+  /**
+   * True when `regionWeights` already include the contraction-type factor (the legacy catalogue `setsByRegion` did): the
+   * engine then must not apply fType again. Default false.
+   */
+  typeFactorIncluded?: boolean;
+  /** Load, % of 1RM; RIR, reps; inter-set rest, s; absent = unknown (the engine's default is an assumption). */
+  loadPct1RM?: number;
+  rir?: number;
+  restSec?: number;
+  reps?: number;
+  holdSec?: number;
+  exerciseId?: string;
+  /** Minutes from the session start to the group's first set, and its duration (keeps hour/midnight crossings exact). */
+  startOffsetMin?: number;
+  durationMin?: number;
+  provenance?: Partial<Record<'sets' | 'regions' | 'load' | 'rir' | 'rest', DoseFieldProvenance>>;
+}
+
 export interface ResistanceSession {
   kind: 'resistance';
   startH: number;
@@ -175,10 +308,62 @@ export interface ResistanceSession {
    */
   met?: number;
   /**
+   * (SPEC V1.5, 2026-10-27) Chosen gross energy of the whole approved bout, kcal (the V2 estimate: G of the shared ledger).
+   * When finite and > 0 the activity module books exactly this gross — uniformly over the bout's minutes, or per phase when
+   * phases carry their own — regardless of the engine's simulated body mass or drawn O2 energy equivalent; `met` should
+   * still carry the equivalent MET (descriptors, hour table). Added because the equivalent-MET adapter alone failed the
+   * replay gate (dated vs simulated mass, drawn kcal/L): see model/activity/realisedEnergy.test.ts. Absent = unchanged.
+   */
+  realisedGrossKcal?: number;
+  /**
    * Cold-water immersion straight after this session (dossier 21 intervention catalogue; blunts the hypertrophy
    * response of the session, muscle module). Default false. Added 2026-09-30 (additive).
    */
   coldWaterImmersion?: boolean;
+  /** Stable identity of the bout (log entry or prescription slot), carried through compilation (D3-01). */
+  sessionId?: string;
+  /**
+   * (D3-01/A1-020/A1-021) Physical bout identity shared by every engine session part of ONE bout (a hybrid's resistance and
+   * cardio parts, several exercises of one workout). Per-bout nonlinear terms are evaluated per bout id; absent = `sessionId`
+   * (or, for legacy identity-less schedules, the origin day + session index).
+   */
+  boutId?: string;
+  /**
+   * (r063, additive) Moving minutes of the WHOLE physical bout (same `boutId`) when this session is one moving part of a
+   * bout split around its pauses. EPOC's duration factor reads the bout's minutes, not the part's, so the parts book one
+   * recovery (φ of the bout × Σ the parts' net). Absent = the session is the whole bout (`durationMin`), exactly as before.
+   */
+  boutDurationMin?: number;
+  /** Homogeneous set groups (D3-01). When present they are the session's dose and `setsByRegion`/`volume` are ignored. */
+  groups?: readonly ResistanceSetGroup[];
+  /**
+   * (D3-09/A1-022) Status of the session's quantitative hard-set dose: 'unknown' = the set count was not observed and the
+   * groups are the named `unknownDoseScenario` (minute conversion), never observed parity or a reported dose.
+   */
+  doseStatus?: 'reported' | 'inferred' | 'default' | 'unknown';
+  unknownDoseScenario?: UnknownDoseScenario;
+  /**
+   * Legacy marker (D3-01 migration): `setsByRegion` already includes the contraction-type factor (catalogue conversion
+   * multiplied by the set factor). Absent = unknown; the compiler records it so fType is applied exactly once.
+   */
+  setsByRegionIncludesTypeFactor?: boolean;
+  /** (SPEC V1.3, 2026-10-27) Heart-rate summary of the bout. INERT: no engine module reads it (display/audit only). */
+  hr?: SessionHrSummary;
+}
+
+/**
+ * Heart-rate summary of an approved bout (SPEC V1.3, additive). Inert for physiology: the engine never reads it, so an HR
+ * estimate can never create training stimulus or change energy except through the booked equivalent MET.
+ */
+export interface SessionHrSummary {
+  /** Time-weighted mean over supported seconds, bpm. */
+  avgBpm: number;
+  /** Raw maximum of the valid samples, bpm. */
+  maxBpm: number;
+  /** Seconds of supported HR (hr-support/1); 0 = sampled statistics only. */
+  supportedS: number;
+  /** How the summary was formed: 'hr-support/1' supported time, 'sampled' sparse samples, 'manual' a stated average. */
+  method: 'hr-support/1' | 'sampled' | 'manual';
 }
 
 export type CardioModality = 'walk' | 'run' | 'cycle' | 'swim' | 'row' | 'hiit' | 'other';
@@ -191,12 +376,85 @@ export interface CardioSession {
   /** Any one of these; default intensity is modality-specific moderate (MODEL_SPEC §5.2.5). */
   pctVo2max?: number;
   met?: number;
+  /**
+   * (SPEC V1.5, 2026-10-27) Chosen gross energy of the whole approved bout, kcal (the V2 estimate: G of the shared ledger).
+   * When finite and > 0 the activity module books exactly this gross — uniformly over the bout's minutes, or per phase when
+   * phases carry their own — regardless of the engine's simulated body mass or drawn O2 energy equivalent; `met` should
+   * still carry the equivalent MET (descriptors, hour table). Added because the equivalent-MET adapter alone failed the
+   * replay gate (dated vs simulated mass, drawn kcal/L): see model/activity/realisedEnergy.test.ts. Absent = unchanged.
+   */
+  realisedGrossKcal?: number;
   speedKmh?: number;
   powerW?: number;
   /** Borg CR-10 rating. */
   rpe?: number;
   /** Carbohydrate eaten during the session, g/h (spares liver glycogen, dossier 04 §4.3). */
   carbDuringGPerH?: number;
+  /** Mixture of the carbohydrate eaten during the session, g/h by component (D6-07); absent = unknown mixture. */
+  carbDuringComposition?: CarbComposition;
+  /** Stable identity of the bout (D3-01/D3-07). */
+  sessionId?: string;
+  /** (A1-020/A1-021) Physical bout identity shared by the parts of one bout; absent = `sessionId` (see `ResistanceSession.boutId`). */
+  boutId?: string;
+  /**
+   * (r063, additive) Moving minutes of the WHOLE physical bout (same `boutId`) when this session is one moving part of a
+   * bout split around its pauses. EPOC's duration factor reads the bout's minutes, not the part's, so the parts book one
+   * recovery (φ of the bout × Σ the parts' net). Absent = the session is the whole bout (`durationMin`), exactly as before.
+   */
+  boutDurationMin?: number;
+  /**
+   * Interval structure (D3-03): phases with their own durations and intensities summing to `durationMin`; energy and
+   * high-intensity minutes are computed per phase, never from a session mean. (A1-021) Several doses of one bout are an
+   * ordered concatenation of their phases, steady segments and unknown remainders (`kind: 'steady' | 'remainder'`), so
+   * merging records never averages away work periods; a `remainder` has no invented intensity.
+   */
+  phases?: readonly IntervalPhase[];
+  /**
+   * Guideline activity class stated or classified for public-health minutes (D3-03); 'unknown' is not zero activity. A
+   * whole-bout class is set only when every minute belongs to it (vigorous work + light recovery is not wholly vigorous).
+   */
+  healthIntensityClass?: HealthIntensityClass;
+  /** (A1-062) How `healthIntensityClass` was established. */
+  healthClassSource?: HealthClassSource;
+  /**
+   * Scale of `rpe` (D3-03/D3-09/A1-062). Existing serialized 'cr10' is Borg CR10 (never read as the generic guideline
+   * scale); absent = unknown. Phases inherit it only when they declare no scale of their own.
+   */
+  rpeScale?: EffortScale;
+  /** Locomotor steps this session contributes to a total-day step count (D3-07; subtracted from the step ledger only). */
+  stepsIncluded?: number;
+  /** (SPEC V1.3, 2026-10-27) Heart-rate summary of the bout. INERT: no engine module reads it (display/audit only). */
+  hr?: SessionHrSummary;
+}
+
+/** Public-health intensity class (WHO moderate/vigorous minutes; light does not count; unknown stays unknown). */
+export type HealthIntensityClass = 'light' | 'moderate' | 'vigorous' | 'unknown';
+
+/**
+ * One phase of an interval session (D3-03). (A1-021) `steady` is a non-interval segment of a concatenated bout with its own
+ * intensity; `remainder` is booked time of unknown intensity (no MET, no class: unknown minutes, never invented work).
+ */
+export interface IntervalPhase {
+  kind: 'work' | 'recovery' | 'warmup' | 'cooldown' | 'steady' | 'remainder';
+  durationMin: number;
+  pctVo2max?: number;
+  met?: number;
+  /**
+   * (SPEC V1.5) Chosen gross energy of this phase, kcal (a supported speed or power segment of an approved bout). Booked
+   * exactly when finite and > 0; when the phases carry it they must tile the bout and the session's value is their sum.
+   */
+  realisedGrossKcal?: number;
+  rpe?: number;
+  speedKmh?: number;
+  powerW?: number;
+  /** (A1-062) Scale of this phase's `rpe`; absent = the session's explicitly declared `rpeScale`, else unknown. */
+  rpeScale?: EffortScale;
+  /** (A1-021/A1-062) Guideline class of this phase's minutes (stated/talk test/generic scale) and how it was established. */
+  healthIntensityClass?: HealthIntensityClass;
+  healthClassSource?: HealthClassSource;
+  /** (A1-021) Exercise and log record the phase came from (provenance inside a concatenated bout). */
+  exerciseId?: string;
+  sourceId?: string;
 }
 
 export type ExerciseSession = ResistanceSession | CardioSession;
@@ -208,14 +466,64 @@ export interface SleepSpec {
   hours?: number;
   quality?: 'poor' | 'fair' | 'good';
   shiftWork?: boolean;
+  /**
+   * An observed sleep episode (D8-06): an episode ending on day D affects waking day D (observed episodes map to the WAKE
+   * date; planned template nights keep the starting-date convention). Raw instants are kept unchanged. It is the MAIN
+   * episode: its bed/wake instants place hourly sleep (a nap never stretches it).
+   */
+  observed?: ObservedSleepEpisode;
+  /**
+   * (D8-06/A1-053) Every observed episode of the waking day (main + naps, duplicates/overlaps included as logged); the
+   * compiler unions them once. Absent = only `observed`.
+   */
+  observedEpisodes?: readonly ObservedSleepEpisode[];
+  /**
+   * (A1-053) Known total asleep hours of the waking day (the union of every observed episode, h), as reduced from the logs.
+   * The compiler honours it and never replaces it with the main interval's duration.
+   */
+  observedTotalHours?: number;
+  /** (A1-053) `partial` = only part of the waking day's sleep is known (e.g. a nap-only record): its known dose is a scenario, never a full night. */
+  observedCoverage?: 'complete' | 'partial';
+}
+
+/**
+ * A logged sleep episode with its instants and zone (D8-06); subjective quality/restfulness only when actually entered. An
+ * absent `quality` on an observed episode is UNRATED: it clears a planned template quality and is never read as good/poor.
+ */
+export interface ObservedSleepEpisode {
+  bedAt: string;
+  wakeAt: string;
+  tz?: string;
+  quality?: 'poor' | 'fair' | 'good';
+  /** Subjective restfulness 0–10 when entered. */
+  restfulness?: number;
+  /** Main episode vs a nap (naps are added to duration, not to the main-episode timing). */
+  kind?: 'main' | 'nap';
+  eventId?: string;
 }
 
 export interface SubstanceSpec {
-  caffeine?: { clockH: number; mg: number }[];
-  alcohol?: { clockH: number; drinks: number; withMeal?: boolean }[];
+  caffeine?: { clockH: number; mg: number; eventId?: string }[];
+  alcohol?: { clockH: number; drinks: number; withMeal?: boolean; eventId?: string }[];
   creatineG?: number;
   creatineLoading?: boolean;
-  exogenousKetones?: { clockH: number; gBhb: number; form: 'ester' | 'salt' }[];
+  exogenousKetones?: { clockH: number; gBhb: number; form: 'ester' | 'salt'; eventId?: string }[];
+  /**
+   * Normalised active-ingredient doses of products actually taken or planned (D7-04, C3): identity, amount in the
+   * identity's canonical unit, time and origin. Unknown potency is not listed as a number (it stays an unchecked log).
+   */
+  actives?: readonly ActiveDoseSpec[];
+}
+
+/** One active-ingredient dose event (D7-04). Bolus/peak dose is kept; daily averages are derived, never stored instead. */
+export interface ActiveDoseSpec {
+  ingredient: string;
+  amount: number;
+  unit: 'g' | 'mg' | 'ug' | 'mmol';
+  clockH?: number;
+  /** Product/log event it came from; a planned dose replaced by a linked log disappears from the plan side. */
+  eventId?: string;
+  origin: 'observed' | 'planned';
 }
 
 export interface HydrationSpec {
@@ -265,6 +573,32 @@ export interface DayTemplate {
   substances?: SubstanceSpec;
   hydration?: HydrationSpec;
   modifiers?: ModifierSpec;
+  /**
+   * What `steps` counts (D3-07): `totalDay` includes the locomotor steps of sessions (they are subtracted from the step
+   * energy ledger only, via `sessionIncludedSteps`/session `stepsIncluded`), `excludesTraining` does not, `unknown` =
+   * legacy/unanswered (an explicit overlap scenario). Absent = 'unknown'.
+   */
+  stepsScope?: StepsScope;
+  /** Steps of the day's sessions inside a total-day count, when known (D3-07). */
+  sessionIncludedSteps?: number;
+  /** Observation metadata of a realised (replayed) day from the shared history (C1/C2); absent on prescriptions. */
+  observed?: DayObservationMeta;
+}
+
+/** Scope of a daily step count (D3-07). */
+export type StepsScope = 'totalDay' | 'excludesTraining' | 'unknown';
+
+/**
+ * Per-day observation metadata a realised-history replay attaches (C1/C2): per-channel coverage, the causal resolution of
+ * the day's inputs, and the canonical events/assumptions behind it. Physiology never drops a day for calibration reasons.
+ */
+export interface DayObservationMeta {
+  coverage: ChannelCoverageMap;
+  resolution: CausalResolution;
+  eventIds?: readonly string[];
+  assumptionIds?: readonly string[];
+  /** Content hash of the realised history the day came from. */
+  historyHash?: string;
 }
 
 /** Per-day entry: which program, plus an optional override (the "this day" edit scope). */
@@ -311,6 +645,16 @@ export interface FastEvent {
    * refeed (as if `refeed: 'auto'`). Added 2026-09-30 (additive).
    */
   refeedFactors?: readonly number[];
+  /**
+   * Provenance of the fast (D2-01/D5-05): `planned` = prescription metadata (policy/consent/forecast; never a
+   * physiological multiplier by its length), `observed` = an explicitly completed interval, `censored` = a running fast
+   * observed only up to `asOf`. Absent = 'planned'.
+   */
+  source?: 'planned' | 'observed' | 'censored';
+  /** `zeroCalorie` water-only clock vs a `modified` protocol with permitted intake (its identity is not zero intake). */
+  protocol?: 'zeroCalorie' | 'modified';
+  /** Canonical fast-interval id from the realised history. */
+  eventId?: string;
 }
 
 export type ScheduleEvent = FastEvent;
@@ -348,4 +692,9 @@ export interface Schedule {
   defaults?: ScheduleDefaults;
   /** Behavioural adherence levers (21 §4G), default none. Added 2026-09-30 (additive). */
   adherence?: AdherenceLevers;
+  /**
+   * The observed prefix of this schedule (C2): days [0, throughDay) were built from the realised history with this content
+   * hash and contract version; later days are prospective. Absent = a purely prospective schedule.
+   */
+  realised?: { historyHash: string; asOf: string; contractVersion: number; throughDay: number };
 }

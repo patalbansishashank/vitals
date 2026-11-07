@@ -4,8 +4,13 @@
  * 04 §4.16 Taylor and §4.17 Acheson checks; 15 V1-V3 (fibre/nut ME, module path), V9-V10 (alcohol), V13 (caffeine
  * residual), V14-V15 (creatine). The module is driven directly (other modules are stubs).
  */
-import { MF, MEAL_FIELDS } from '../index';
+import { INTAKE_ASSUMPTIONS, INTAKE_KINETICS_SCOPE, INTAKE_ME_CORRECTION_POLICY, MF, MEAL_FIELDS, intakeTimingDomain } from '../index';
+import { INTAKE_PARAMS } from '../params';
+import { intakeEnergyAudit } from '../energyBasis';
 import { makeHarness, WOMAN_65, type Harness } from './harness';
+
+/** The legacy 15 §4.2 comparator: both generic ME-correction scenarios switched on (D6-08). */
+const SCENARIO_ON = { 'intake.fibreMeScenario': 1, 'intake.nutMeScenario': 1 } as const;
 
 /** Gut energy left in meal slot 0. */
 const gut = (H: Harness, slot = 0) => H.s.meals[slot * MEAL_FIELDS + MF.GUT]!;
@@ -299,10 +304,10 @@ describe('15 §4.12 creatine (V14, V15) through the module', () => {
   });
 });
 
-describe('15 V1-V3 through the module (fibre EMA and daily ME correction)', () => {
-  it('V1: at steady 40 g vs 21 g fibre on 2,550 kcal the module corrects −30 to −90 kcal/d relative', () => {
+describe('15 V1-V3 through the module (fibre EMA and daily ME correction; legacy sensitivity scenario)', () => {
+  it('V1: at steady 40 g vs 21 g fibre on 2,550 kcal the scenario corrects −30 to −90 kcal/d relative', () => {
     const run = (fibre: number) => {
-      const H = makeHarness(undefined, { startHourOfDay: 0 });
+      const H = makeHarness(undefined, { startHourOfDay: 0, overrides: SCENARIO_ON });
       H.day.energyKcal = 2550;
       H.day.fibreG = fibre;
       H.idle(24 * 30);
@@ -318,8 +323,8 @@ describe('15 V1-V3 through the module (fibre EMA and daily ME correction)', () =
     expect(d).toBeGreaterThanOrEqual(-90);
   });
 
-  it('V3: 84 g whole raw almonds → −120 to −140 kcal/d; nut fibre excluded from F_eff', () => {
-    const H = makeHarness(undefined, { startHourOfDay: 0 });
+  it('V3: 84 g whole raw almonds → −120 to −140 kcal/d under the scenario; nut fibre excluded from F_eff', () => {
+    const H = makeHarness(undefined, { startHourOfDay: 0, overrides: SCENARIO_ON });
     H.day.energyKcal = 2400;
     H.day.fibreG = 8 * 2.4 + 0.11 * 84; // typical density + the almonds' own fibre
     H.day.nutsG = 84;
@@ -340,5 +345,215 @@ describe('15 V1-V3 through the module (fibre EMA and daily ME correction)', () =
     H.day.fibreG = 40;
     H.idle(24 * 3);
     expect(H.s.fibreEffG).toBeCloseTo(40 + (f0 - 40) * Math.exp(-1), 9);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------- D6-08 ME-correction policy */
+
+/** One mixed meal at `clockH` of the next day boundary-relative hour; returns the harness after `hours` more hours. */
+function lateMeal(opts: { overrides?: Record<string, number>; nextDayFibre: number; nextDayEnergy: number; nextDayMeal: boolean }): { appeared: number; me: number; eAbsAfterMidnight: number } {
+  const H = makeHarness(undefined, { startHourOfDay: 0, overrides: opts.overrides });
+  // day 0: a habitual-density day so the fibre EMA sits at 40 g; the late meal at 22:00
+  H.day.energyKcal = 2400;
+  H.day.fibreG = 40;
+  H.day.nutsG = 30;
+  H.day.nutDelta = 0.25;
+  H.idle(22);
+  H.eat(MIXED_700);
+  H.step();
+  H.idle(1); // 23:00 → endOfDay
+  // day 1: a different day (fast or fed, different fibre) — the late meal keeps its own correction
+  H.day = { ...H.day, energyKcal: opts.nextDayEnergy, fibreG: opts.nextDayFibre, nutsG: 0, nutDelta: 0 };
+  let after = 0;
+  for (let h = 0; h < 12; h++) {
+    if (opts.nextDayMeal && h === 8) H.eat({ proteinG: 20, carbG: 30, fatG: 10, fibreG: 2 });
+    H.step();
+    if (h < 8) after += H.bus.eAbsKcalH;
+  }
+  const a = intakeEnergyAudit(H.s, H.k);
+  return { appeared: a.appearedKcal, me: a.meCorrectionKcal, eAbsAfterMidnight: after };
+}
+
+describe('D6-08 food-matrix ME corrections: off by default, origin-bound, never stacked', () => {
+  it('standard projection: no generic fibre or nut correction (design abstention, labelled as such)', () => {
+    const H = makeHarness(undefined, { startHourOfDay: 0 });
+    H.day.energyKcal = 2400;
+    H.day.fibreG = 5; // very low fibre: the legacy model would add a positive uplift
+    H.day.nutsG = 84;
+    H.day.nutDelta = 0.25;
+    H.idle(24 * 5);
+    H.step();
+    expect(H.s.dmeKcalD).toBe(0);
+    expect(H.s.dmeRatio).toBe(0);
+    const sw = INTAKE_PARAMS.filter((p) => p.id === 'intake.fibreMeScenario' || p.id === 'intake.nutMeScenario');
+    expect(sw.map((p) => [p.value, p.draw])).toEqual([[0, 'fixed'], [0, 'fixed']]); // a draw cannot reintroduce it
+    expect(INTAKE_ME_CORRECTION_POLICY.genericFibre.default).toBe('off');
+    expect(INTAKE_ME_CORRECTION_POLICY.binding).toBe('originatingMeal');
+  });
+
+  it('the fibre scenario never applies a positive low-fibre uplift', () => {
+    const H = makeHarness(undefined, { startHourOfDay: 0, overrides: { 'intake.fibreMeScenario': 1 } });
+    H.day.energyKcal = 2400;
+    H.day.fibreG = 5;
+    H.idle(24 * 10);
+    H.step();
+    expect(H.s.dmeKcalD).toBe(0);
+  });
+
+  it('a late meal keeps its originating correction across midnight, whatever the next day eats (fast vs fed, fibre)', () => {
+    const fast = lateMeal({ overrides: SCENARIO_ON, nextDayFibre: 0, nextDayEnergy: 0, nextDayMeal: false });
+    const fed = lateMeal({ overrides: SCENARIO_ON, nextDayFibre: 60, nextDayEnergy: 3000, nextDayMeal: true });
+    expect(fast.me).toBeLessThan(0); // the scenario lowers this meal's ME
+    // the hours after midnight carry only the late meal until 08:00: identical in both runs
+    expect(fed.eAbsAfterMidnight).toBeCloseTo(fast.eAbsAfterMidnight, 9);
+    // by default nothing is corrected at all
+    const off = lateMeal({ nextDayFibre: 0, nextDayEnergy: 0, nextDayMeal: false });
+    expect(off.me).toBe(0);
+  });
+
+  it('ethanol and exogenous ketones are never scaled by a food-matrix correction', () => {
+    const run = (overrides?: Record<string, number>) => {
+      const H = makeHarness(undefined, { startHourOfDay: 0, overrides });
+      H.day.energyKcal = 2400;
+      H.day.fibreG = 60;
+      H.day.nutsG = 84;
+      H.day.nutDelta = 0.25;
+      H.idle(24 * 5);
+      H.eat({ alcoholG: 28, exoKetoneG: 10, kcal: 7 * 28 });
+      let e = 0;
+      for (let h = 0; h < 8; h++) {
+        H.step();
+        e += H.bus.eAbsKcalH;
+      }
+      return e;
+    };
+    expect(run(SCENARIO_ON)).toBeCloseTo(run(), 9);
+  });
+
+  it('the audit stays exact with the scenario on: appearing ME = raw appearance + correction', () => {
+    const H = makeHarness(undefined, { startHourOfDay: 0, overrides: SCENARIO_ON });
+    H.day.energyKcal = 2400;
+    H.day.fibreG = 60;
+    let e = 0;
+    for (let d = 0; d < 6; d++)
+      for (let h = 0; h < 24; h++) {
+        if (d >= 4 && (h === 8 || h === 13 || h === 19)) H.eat(MIXED_700);
+        H.step();
+        e += H.bus.eAbsKcalH;
+      }
+    const a = intakeEnergyAudit(H.s, H.k);
+    expect(Math.abs(a.imbalanceKcal)).toBeLessThan(1e-6);
+    expect(a.meCorrectionKcal).toBeLessThan(0);
+    expect(e).toBeCloseTo(a.appearedKcal + a.meCorrectionKcal, 6);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------- D6-07 scope labels */
+
+describe('D6-07 appearance scope: phenomenological kernels, not verified absorption maxima', () => {
+  it('the caps are labelled design limits, not verified universal intestinal maxima', () => {
+    for (const id of ['intake.raGlcMaxGH', 'intake.raGlcFruMaxGH']) {
+      const p = INTAKE_PARAMS.find((x) => x.id === id)!;
+      expect(p.status).not.toBe('verified');
+      expect(p.label).toMatch(/design limit/i);
+      expect(p.distribution).toMatchObject({ nominal: 'designPoint', label: 'designPrior' });
+      expect(p.note).toMatch(/oxidation/i);
+    }
+    expect(INTAKE_KINETICS_SCOPE.caps).toEqual({ glucoseGH: 'designLimit', glucoseFructoseGH: 'designLimit' });
+    expect(INTAKE_KINETICS_SCOPE.observables.raGlcGH.notThe).toEqual(expect.arrayContaining(['intestinalUptake', 'systemicAppearanceAfterFirstPass', 'oxidation']));
+    expect(INTAKE_KINETICS_SCOPE.observables.fibreEnergy).toMatchObject({ status: 'unsupported', hourly: 'unsupported', daily: 'kept' });
+    expect(INTAKE_ASSUMPTIONS.unknownCarbMixtureAsGlucose.uncertaintyKind).toBe('scenario');
+  });
+
+  it('fibre energy is never relabelled small-intestinal glucose; its daily ME is kept', () => {
+    const H = makeHarness();
+    H.eat({ fibreG: 30, kcal: 60 });
+    let glc = 0;
+    let e = 0;
+    for (let h = 0; h < 24; h++) {
+      H.step();
+      glc += H.bus.raGlcGH + H.bus.raFruGalGH;
+      e += H.bus.eAbsKcalH;
+    }
+    expect(glc).toBe(0);
+    expect(e).toBeCloseTo(60, 6);
+  });
+
+  it('known disease/medication context marks the hourly timing out of domain (a status, never a multiplier)', () => {
+    expect(intakeTimingDomain({})).toEqual({ status: 'approximate', reasons: [] });
+    expect(intakeTimingDomain({ diabetesMedication: 'metforminOnly' }).status).toBe('approximate');
+    expect(intakeTimingDomain({ diabetesMedication: 'glp1' })).toEqual({ status: 'outOfDomain', reasons: ['glp1Medication'] });
+    expect(intakeTimingDomain({ contexts: ['bariatricSurgery', 'gastroparesis'] }).reasons).toEqual(['gastroparesis', 'bariatricSurgery']);
+    // dated classes: the latest GLP-1 change on or before the date decides
+    const meds = [
+      { medicationClass: 'glp1', change: 'start' as const, date: '2026-03-01' },
+      { medicationClass: 'glp1', change: 'stop' as const, date: '2026-08-01' },
+    ];
+    expect(intakeTimingDomain({ medications: meds }, '2026-05-01').status).toBe('outOfDomain');
+    expect(intakeTimingDomain({ medications: meds }, '2026-09-01').status).toBe('approximate');
+    expect(intakeTimingDomain({ medications: meds }, '2026-01-01').status).toBe('approximate');
+    // the module's numbers do not depend on the status (no generic GLP-1 multiplier exists)
+    expect(INTAKE_PARAMS.some((p) => /glp|bariatric|gastropares/i.test(p.id))).toBe(false);
+  });
+
+  it('glucose + fructose mixture appears faster than glucose alone at the design limits (kernel behaviour, conserved)', () => {
+    const run = (fru: number) => {
+      const H = makeHarness();
+      H.eat({ carbG: 150, fructoseG: fru, glycaemicIndex: 70, timeToPeakH: 0.5 });
+      let first2 = 0;
+      let total = 0;
+      for (let h = 0; h < 30; h++) {
+        H.step();
+        const r = H.bus.raGlcGH + H.bus.raFruGalGH;
+        if (h < 2) first2 += r;
+        total += r;
+      }
+      return { first2, total };
+    };
+    const glcOnly = run(0);
+    const mixed = run(50);
+    expect(mixed.first2).toBeGreaterThan(glcOnly.first2);
+    expect(glcOnly.total).toBeCloseTo(150, 6);
+    expect(mixed.total).toBeCloseTo(150, 6);
+  });
+});
+
+/* ------------------------------------------------------------------------------------------- D7-08 coupling (intake side) */
+
+describe('D7-08 liver-fat → S_hep → intake glucose/insulin coupling stays coherent', () => {
+  const day = (sHep: number) => {
+    const H = makeHarness(undefined, { startHourOfDay: 0 });
+    H.bus.sHep = sHep;
+    let glc = 0;
+    let ins = 0;
+    let iKet = 0;
+    let e = 0;
+    for (let h = 0; h < 24; h++) {
+      if (h === 8 || h === 13 || h === 19) H.eat(MIXED_700);
+      H.step();
+      glc += H.bus.glucoseMmolL;
+      ins += H.bus.insulinUuMl;
+      iKet += H.bus.insulinRefRel;
+      e += H.bus.eAbsKcalH;
+    }
+    return { glc, ins, iKet, e, fastGlc: H.s.glcFastToday, fastIns: H.s.insFastToday };
+  };
+
+  it('better hepatic insulin sensitivity lowers fasting glucose, insulin and the ketone insulin proxy monotonically', () => {
+    const worse = day(0.6);
+    const ref = day(1);
+    const better = day(1.4);
+    expect(worse.fastGlc).toBeGreaterThan(ref.fastGlc);
+    expect(ref.fastGlc).toBeGreaterThan(better.fastGlc);
+    expect(worse.fastIns).toBeGreaterThan(ref.fastIns);
+    expect(ref.fastIns).toBeGreaterThan(better.fastIns);
+    expect(worse.ins).toBeGreaterThan(better.ins);
+    expect(worse.iKet).toBeGreaterThan(better.iKet);
+  });
+
+  it('S_hep changes curves only, never the energy that appears (no liver or ketosis bonus enters through intake)', () => {
+    const a = day(0.6);
+    const b = day(1.4);
+    expect(b.e).toBeCloseTo(a.e, 9);
   });
 });

@@ -8,6 +8,10 @@
  *
  * Keyboard (role="grid", roving tabindex): arrows move, ⇧+arrows extend, Space toggles, P paints the selection with
  * the armed program, Enter opens the editor, Delete clears, A–Z arm a program, 0 disarms, ⌘C/⌘V copy/paste weeks.
+ *
+ * A cell shows the day of the month (the month too on the 1st and on the first day), filled with its energy tone; the
+ * program letter only when the schedule has more than one program; a full fast its length; a flag mark on warning
+ * days; today a gold-edge hairline. Everything else is in its accessible name and the day editor.
  */
 import {
   memo,
@@ -20,7 +24,8 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react';
-import { Glyphs, Icon, cx } from '@/components';
+import { CheckCheck } from 'lucide-react';
+import { Glyphs, Icon, IconKey, cx } from '@/components';
 import type { ScheduleModel, CellModel } from '../useScheduleModel';
 import {
   WEEKDAYS_SHORT,
@@ -30,6 +35,7 @@ import {
   linearRange,
   rectRange,
   rowOf,
+  todayISO,
   type CalendarGrid,
 } from '../lib/calendar';
 import { balanceLabel, energyFill } from '../lib/energy';
@@ -350,6 +356,9 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
     }
   };
 
+  // one program: the letter would say nothing the tray does not
+  const showLetter = model.schedule.programs.length > 1;
+  const today = todayISO();
   const rows: ReactNode[] = [];
   for (let r = 0; r < g.rows; r++) {
     const slots: ReactNode[] = [];
@@ -367,16 +376,19 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
       const next = c < 6 ? model.fasts[d + 1] : null;
       const joinL = !!f && f.from <= 0 && !!prev && prev.span === f.span;
       const joinR = !!f && f.to >= 24 && !!next && next.span === f.span;
+      const dom = Number(cell.iso.slice(8, 10));
       slots.push(
         <RasterCell
           key={d}
           cell={cell}
-          dateText={formatCellDate(cell.iso)}
+          dateText={d === 0 || dom === 1 ? formatCellDate(cell.iso) : String(dom)}
+          showLetter={showLetter}
           fast={f}
           joinL={joinL}
           joinR={joinR}
           selected={selection.has(d)}
           editing={editorDay === d}
+          today={cell.iso === today}
           tabbable={d === focusDay}
         />,
       );
@@ -415,7 +427,9 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
   const allDays = () => Array.from({ length: g.nDays }, (_, i) => i);
 
   return (
-    <div className="sim-raster" style={{ gridTemplateRows: `auto repeat(${g.rows}, auto) auto` }}>
+    <div className="sim-raster" style={{ gridTemplateRows: `auto auto repeat(${g.rows}, auto) auto` }}>
+      {/* r068 W2-11: the blocks as a band of rows above the calendar (name · weeks · balance), never a bracket column */}
+      <div className="sim-raster__phases" style={{ gridRow: 1 }}>
       {model.phases.map((ph, i) => (
         <PhaseLabel
           key={`${ph.startDay}-${i}`}
@@ -429,11 +443,12 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
           onSelect={() => p.onSelectPhase(ph)}
         />
       ))}
+      </div>
       <div
         ref={gridRef}
         className="sim-raster__grid"
         role="grid"
-        style={{ gridRow: `1 / span ${g.rows + 1}` }}
+        style={{ gridRow: `2 / span ${g.rows + 1}` }}
         aria-label={`${model.schedule.horizonDays}-day schedule`}
         aria-rowcount={g.rows + 1}
         aria-colcount={8}
@@ -446,14 +461,7 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
       >
         <div role="row" className="sim-raster__row sim-raster__head" aria-rowindex={1}>
           <div role="columnheader" className="sim-raster__corner">
-            <button
-              type="button"
-              className="sim-raster__all"
-              onClick={() => p.onSelect(allDays(), 0)}
-              aria-label="Select all days"
-            >
-              <span aria-hidden="true">all</span>
-            </button>
+            <IconKey size="sm" icon={CheckCheck} label="Select all days" className="sim-raster__all" onClick={() => p.onSelect(allDays(), 0)} />
           </div>
           {WEEKDAYS_SHORT.map((w, i) => (
             <div key={w} role="columnheader" className="sim-raster__dow" data-weekend={i >= 5 || undefined}>
@@ -463,11 +471,20 @@ export function ScheduleRaster(p: ScheduleRasterProps) {
         </div>
         {rows}
       </div>
-      {p.children ? (
-        <div className="sim-raster__foot" style={{ gridRow: g.rows + 2 }}>
-          {p.children}
-        </div>
-      ) : null}
+      <div className="sim-raster__foot" style={{ gridRow: g.rows + 3 }}>
+        {/* what the two gold edges mean */}
+        <p className="sim-raster__key" aria-hidden="true">
+          <span>
+            <i data-k="today" />
+            today
+          </span>
+          <span>
+            <i data-k="sel" />
+            selected
+          </span>
+        </p>
+        {p.children}
+      </div>
     </div>
   );
 }
@@ -489,7 +506,7 @@ function PhaseLabel({
   onSelect: () => void;
 }) {
   const unit = useEnergyUnit();
-  const style = { gridRow: `${phase.row0 + 2} / ${phase.row1 + 3}` } as CSSProperties;
+  const style = undefined as CSSProperties | undefined;
   const sub = phaseWeeks(phase);
   // true planned balance against maintenance at this plan's activity (R-MAINT), not the habitual week; an auto-named
   // regime block ("deficit") is simply named by it ("deficit 20 %")
@@ -537,32 +554,34 @@ function PhaseLabel({
 interface CellProps {
   cell: CellModel;
   dateText: string;
+  showLetter: boolean;
   fast: DayFast | null;
   joinL: boolean;
   joinR: boolean;
   selected: boolean;
   editing: boolean;
+  /** The calendar day is today: a gold-edge hairline and a gold date. */
+  today: boolean;
   tabbable: boolean;
 }
 
 const RasterCell = memo(function RasterCell({
   cell,
   dateText,
+  showLetter,
   fast,
   joinL,
   joinR,
   selected,
   editing,
+  today,
   tabbable,
 }: CellProps) {
   const full = !!fast?.full || cell.zero;
   const partial = !!fast && !full;
   const style: CSSProperties = full ? {} : { background: energyFill(cell.step) };
-  const label = full
-    ? fast?.isLabelDay || !fast
-      ? formatFastHours(fast?.span.hours ?? 24)
-      : 'fast'
-    : `${Math.round(cell.pct)}%`;
+  // a full fast names its length once (on its label day); other days need no figure: the tone and the editor say it
+  const label = full ? (fast?.isLabelDay || !fast ? formatFastHours(fast?.span.hours ?? 24) : null) : null;
   return (
     <div
       role="gridcell"
@@ -570,18 +589,23 @@ const RasterCell = memo(function RasterCell({
       data-day={cell.day}
       data-sel={selected || undefined}
       data-edit={editing || undefined}
+      data-today={today || undefined}
       data-join-l={joinL || undefined}
       data-join-r={joinR || undefined}
       data-flag={cell.flag ?? undefined}
       aria-selected={selected}
-      aria-label={cell.ariaLabel}
+      aria-label={today ? `${cell.ariaLabel}, today` : cell.ariaLabel}
       tabIndex={tabbable ? 0 : -1}
       style={style}
     >
       <span className="sim-cell__top" aria-hidden="true">
-        <span className="sim-cell__letter">{cell.letter}</span>
-        <span className="sim-cell__date">{dateText}</span>
-        <span className="sim-cell__pct">{label}</span>
+        {/* "5 Oct": the day, then the month, which drops to its own small line on a narrow cell (r068 SC2: never clipped) */}
+        <span className="sim-cell__date">
+          {dateText.split(/\s/)[0]}
+          {/\s/.test(dateText) ? <span className="sim-cell__mon">{`\u00a0${dateText.split(/\s/).slice(1).join(' ')}`}</span> : null}
+        </span>
+        {showLetter && !full ? <span className="sim-cell__letter">{cell.letter}</span> : null}
+        {label ? <span className="sim-cell__fastlen">{label}</span> : null}
       </span>
       <span className="sim-cell__glyphs" aria-hidden="true">
         {fast?.isStart ? <Icon icon={Glyphs.FastClock} size={16} /> : null}
@@ -595,13 +619,6 @@ const RasterCell = memo(function RasterCell({
         {cell.highSteps && !cell.cardio ? <Icon icon={Glyphs.Footsteps} size={16} /> : null}
         {cell.shortWindow && !fast ? <Icon icon={Glyphs.SleepArc} size={16} /> : null}
       </span>
-      {cell.shares && !full ? (
-        <span className="sim-cell__bar" aria-hidden="true">
-          <i style={{ flexGrow: cell.shares[0], background: 'var(--lm-macro-protein)' }} />
-          <i style={{ flexGrow: cell.shares[1], background: 'var(--lm-macro-carbs)' }} />
-          <i style={{ flexGrow: cell.shares[2], background: 'var(--lm-macro-fat)' }} />
-        </span>
-      ) : null}
       {partial && fast ? (
         <span
           className="sim-cell__band"

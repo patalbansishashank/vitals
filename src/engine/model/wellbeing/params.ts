@@ -8,6 +8,11 @@
  *    unverified = dossier UNVERIFIED.
  *  - the micronutrient tables (15 §4.9) are grade D: they carry ±30 % plausible bounds but `draw: 'fixed'` (the
  *    `micronutrientScore` metric has no uncertainty band, §6 row 55).
+ *
+ * 2026-10-18 review (D8-02, D8-04, D8-05, D8-08, D8-09): parameters no engine pathway reads any more stay registered with
+ * their draw kind unchanged (removing or fixing them would shift every later ensemble draw) and say "INACTIVE" in their
+ * note; EA tier values are policy references, not diagnostic breakpoints; the keto heavy-tail selector is a uniform latent
+ * quantile implementing a DESIGN mixture fraction, not a population incidence.
  */
 import type { EvidenceGrade, ParamDef, ParamStatus } from '../../types/params';
 import { MICRO_NUTRIENTS, MICRO_PATTERN_ROWS } from './microTables';
@@ -45,16 +50,27 @@ const BURKE = 'Burke 2021 PMID 32697366; Burke 2017 PMID 28012184; Shaw 2019 PMI
 const BOSTOCK = 'Bostock 2020 PMID 32232045';
 const CALTON_GARDNER = 'Gardner 2010 PMID 20573800; Calton 2010 PMID 20537171';
 
+/** D8-02: distribution semantics of the keto heavy-tail selector and its design fraction (hashed with the registry). */
+const KETO_TAIL_DIST = {
+  uncertaintyKind: 'heuristic',
+  bounds: 'support',
+  nominal: 'designPoint',
+  basis: 'inverse-CDF selector of a designed two-branch τ_p mixture (heavy branch when U > 1 − fraction); not a population incidence',
+  population: 'Bostock 2020 online forum sample (no representative denominator)',
+  version: 1,
+  label: 'designPrior',
+} as const;
+
 const core: ParamDef[] = [
   // ---------------------------------------------------------------- 19 §4.1 energy availability
-  def('eaTierT0', 45, 'kcal/kg FFM/d', 42, 48, 'B', LOUCKS, '19 §4.1, §4.20', 'verified', 'EA tier limit T0/T1 (also the weight-stable prior of EA_s(0) and the P1NP reference); ±3'),
-  def('eaTierT1', 30, 'kcal/kg FFM/d', 27, 33, 'B', LOUCKS, '19 §4.1, §4.20', 'verified', 'Loucks threshold (LH pulsatility); strength/mood reference; ±3'),
-  def('eaTierT2', 15, 'kcal/kg FFM/d', 12, 18, 'B', LOUCKS, '19 §4.1, §4.20', 'verified', 'severe-LEA tier limit T2/T3; ±3'),
+  def('eaTierT0', 45, 'kcal/kg FFM/d', 42, 48, 'B', LOUCKS, '19 §4.1, §4.20', 'verified', 'EA tier limit T0/T1 (also the weight-stable prior of EA_s(0) and the P1NP reference); ±3. Policy/context reference (D8-04), not a universal breakpoint or a healthy-status clearance'),
+  def('eaTierT1', 30, 'kcal/kg FFM/d', 27, 33, 'B', LOUCKS, '19 §4.1, §4.20', 'verified', 'Loucks threshold (LH pulsatility); strength/concern-flag reference; ±3. Policy/context reference (D8-04), not diagnostic of REDs'),
+  def('eaTierT2', 15, 'kcal/kg FFM/d', 12, 18, 'B', LOUCKS, '19 §4.1, §4.20', 'verified', 'severe-LEA tier limit T2/T3; ±3. Policy/context reference (D8-04)'),
   def('eaTauS', 3, 'd', 2, 5, 'C', 'ASSUMPTION consistent with 3-5 d responses (Ihle 2004; Papageorgiou 2017/2018)', '19 §4.1, §4.20', 'proposed-fit', 'EWMA τ of EA_s'),
   fixed('eaWindowShortD', 7, 'd', 'A', 'definition of EA_7 (17 §2.1)', '17 §2.1; 19 §4.1', 'verified', 'trailing mean length of ea7KcalKgFfm'),
   fixed('eaWindowLongD', 14, 'd', 'B', 'definition of EA_c (19 §4.1)', '19 §4.1', 'verified', 'trailing mean length of EA_c'),
-  fixed('eaFloor', -5, 'kcal/kg FFM/d', 'C', '19 §5 row 20 (zero-intake days: clip at −5 in all formulas)', '19 §5, §2', 'proposed-fit'),
-  fixed('eaCeil', 70, 'kcal/kg FFM/d', 'C', '19 §2 state table (typical range −5…70)', '19 §2', 'proposed-fit', 'upper clip of the daily EA sample'),
+  fixed('eaFloor', -5, 'kcal/kg FFM/d', 'C', '19 §5 row 20 (zero-intake days: clip at −5 in all formulas)', '19 §5, §2', 'proposed-fit', 'lower clip of the INTERNAL drive sample only; the raw EA exposure is never clipped (D8-04)'),
+  fixed('eaCeil', 70, 'kcal/kg FFM/d', 'C', '19 §2 state table (typical range −5…70)', '19 §2', 'proposed-fit', 'upper clip of the INTERNAL drive sample only; the raw EA exposure is never clipped (D8-04)'),
 
   // ---------------------------------------------------------------- 19 §4.2(a) bone turnover
   def('boneP1npDrop', 0.17, '1', 0.1, 0.25, 'B', PAPA18, '19 §4.2(a), §4.20', 'verified', 'P1NP fall at EA 15 (diet-created) 54.8→45.2 µg/L'),
@@ -80,17 +96,18 @@ const core: ParamDef[] = [
   def('bmdKSpine', 0.13, '% BMD per % weight lost', 0, 0.2, 'C', 'Villareal 2016 PMID 26332798; Soltani 2016 PMID 27154437', '19 §4.2(b), §4.20', 'proposed-fit', 'spine (internal state, not a metric)'),
   def('bmdMAgeHigh', 1.5, '1', 1, 2, 'D', 'Villareal 2011 PMID 21449785; Riedt 2005 PMID 15746990; Shapses 2001 PMID 11450709', '19 §4.2(b), §4.20', 'unverified', 'mAge for ≥ 65 y or postmenopausal (1.0 below 50 / premenopausal)'),
   fixed('bmdAgeStepYears', 65, 'y', 'C', 'Villareal 2011 PMID 21449785', '19 §4.2(b)', 'proposed-fit'),
-  def('bmdRhoRt', 0.35, '1', 0, 0.67, 'C', 'Villareal 2011 PMID 21449785; Beavers 2025 PMID 40540267', '19 §4.2(b), §4.20', 'proposed-fit', 'ρ_RT: mRT = 1 − ρ_RT with progressive RT ≥ 2×/wk (contested, O4)'),
-  fixed('bmdRtSessionsPerWeek', 2, 'sessions/wk', 'C', 'Villareal 2011 PMID 21449785', '19 §4.2(b)', 'proposed-fit'),
+  def('bmdRhoRt', 0.35, '1', 0, 0.67, 'C', 'Villareal 2011 PMID 21449785; Beavers 2025 PMID 40540267', '19 §4.2(b), §4.20', 'proposed-fit', 'INACTIVE (D8-05): logged set presence is not a dose-qualified progressive loading measure, so no protection is credited. Was ρ_RT: mRT = 1 − ρ_RT with progressive RT ≥ 2×/wk (contested, O4)'),
+  fixed('bmdRtSessionsPerWeek', 2, 'sessions/wk', 'C', 'Villareal 2011 PMID 21449785', '19 §4.2(b)', 'proposed-fit', 'INACTIVE (D8-05): no any-set protection'),
   def('bmdMSrc', 0.25, '1', 0, 0.5, 'C', 'Villareal 2006 PMID 17159017; Soltani 2016 PMID 27154437', '19 §4.2(b), §4.20', 'proposed-fit', 'mSrc when ≥ 60 % of the deficit is exercise energy'),
   fixed('bmdSrcShare', 0.6, '1', 'C', 'Villareal 2006 PMID 17159017', '19 §4.2(b)', 'proposed-fit'),
-  def('bmdMCaLow', 1.5, '1', 1, 3, 'D', 'Riedt 2005 PMID 15746990; Ricci 1998 PMID 9626637', '19 §4.2(b), §4.20', 'unverified', 'mCa: postmenopausal and Ca < 1.0 g/d'),
-  fixed('bmdCaThresholdMg', 1000, 'mg/d', 'C', 'Riedt 2005 PMID 15746990', '19 §4.2(b)', 'proposed-fit'),
+  def('bmdMCaLow', 1.5, '1', 1, 3, 'D', 'Riedt 2005 PMID 15746990; Ricci 1998 PMID 9626637', '19 §4.2(b), §4.20', 'unverified', 'INACTIVE (D8-05/D8-08): unvalidated calcium multiplier disabled. Was mCa: postmenopausal and Ca < 1.0 g/d'),
+  fixed('bmdCaThresholdMg', 1000, 'mg/d', 'C', 'Riedt 2005 PMID 15746990', '19 §4.2(b)', 'proposed-fit', 'INACTIVE (D8-05/D8-08)'),
   def('bmdTauLoss', 120, 'd', 60, 200, 'C', 'ASSUMPTION (Zibellini 2015: ≥ 6 mo to see loss)', '19 §4.2(b), §4.20', 'proposed-fit'),
-  def('bmdTauRecovery', 240, 'd', 120, 480, 'D', 'ASSUMPTION (no human recovery data, O3)', '19 §4.2(b), §4.20', 'unverified'),
+  def('bmdTauRecovery', 240, 'd', 120, 480, 'D', 'ASSUMPTION (no human recovery data, O3)', '19 §4.2(b), §4.20', 'unverified', 'INACTIVE (D8-05): no automatic BMD recovery on regain without a validated law'),
 
   // ---------------------------------------------------------------- 19 §4.3 strength capacity
-  def('strengthA', 0.15, '1', 0.1, 0.3, 'C', STRENGTH_SRC, '19 §4.3, §4.20', 'proposed-fit', 'a_strength at EA_c 15 (a_power 0.20 is not exposed: no power series/signal in v1)'),
+  def('strengthA', 0.15, '1', 0.1, 0.3, 'C', STRENGTH_SRC, '19 §4.3, §4.20', 'proposed-fit', 'a_strength at EA_c 15 (a_power 0.20 is not exposed: no power series/signal in v1). Exploratory structural scenario (D8-04), compared with the no-penalty structure (strengthPenaltyStructure)'),
+  fixed('strengthPenaltyStructure', 1, '1', 'C', 'review D8-04 (structural alternative, not a measured law)', '19 §4.3', 'proposed-fit', 'exploratory structure switch: 1 = legacy baseline-relative EA penalty, 0 = no-penalty alternative (neither assures no risk; concern flags stay)'),
   fixed('strengthEaWidth', 15, 'kcal/kg FFM/d', 'C', STRENGTH_SRC, '19 §4.3', 'proposed-fit', 'width of the (30 − EA_c)/15 ramp'),
   fixed('strengthEaRampCap', 1.3, '1', 'C', STRENGTH_SRC, '19 §4.3', 'proposed-fit'),
   def('strengthTauOn', 28, 'd', 14, 56, 'C', 'ASSUMPTION (Nindl 2007 8-wk course)', '19 §4.3, §4.20', 'unverified', 'τ while M_EA is falling'),
@@ -102,7 +119,7 @@ const core: ParamDef[] = [
   fixed('leanGateMin', 0.3, '1', 'C', 'ASSUMPTION (19 O1)', '19 §4.3', 'unverified'),
 
   // ---------------------------------------------------------------- 19 §4.4 endurance capacity
-  fixed('tteIntercept', 36.8, 'min', 'A', BERGSTROM, '19 §4.4, §4.20', 'verified', 'TTE_75 = intercept + slope·G, G in g/100 g wet muscle, r = 0.92, n = 9'),
+  fixed('tteIntercept', 36.8, 'min', 'A', BERGSTROM, '19 §4.4, §4.20', 'verified', 'TTE_75 = intercept + slope·G, G in g/100 g wet muscle, r = 0.92, n = 9. Task-scoped (D8-09): glycogen-limited cycling time to exhaustion near 75 % VO2max only, never race time'),
   fixed('tteSlope', 41.6, 'min per g/100 g ww', 'A', BERGSTROM, '19 §4.4, §4.20', 'verified'),
   fixed('econRefIntensity', 0.75, 'frac VO2max', 'A', BERGSTROM, '19 §4.4', 'verified', 'reference intensity of the capacity index (71-82 % VO2max)'),
   def('econDo2Cost', 0.065, '1', 0.05, 0.08, 'B', BURKE, '19 §4.4, §4.20', 'verified', 'fractional rise in O2 cost at full fat adaptation and gI = 1'),
@@ -115,10 +132,17 @@ const core: ParamDef[] = [
   fixed('ketoCarbThresholdG', 50, 'g/d', 'C', BOSTOCK, '13 §4.10', 'proposed-fit', 'carbohydrate threshold that triggers induction'),
   fixed('ketoTauP', 2.5, 'd', 'C', BOSTOCK, '13 §4.10', 'proposed-fit', 'τ_p of Φ = Φ_max·(Δt/τ_p)·e^{1−Δt/τ_p} (peak at Δt = τ_p)'),
   fixed('ketoTauPHeavy', 6, 'd', 'C', BOSTOCK, '13 §4.10', 'proposed-fit', 'heavy-tail τ_p (IQR upper bound 15 d)'),
-  fixed('ketoHeavyTailFraction', 0.25, '1', 'C', BOSTOCK, '13 §4.10', 'proposed-fit', 'share of simulated users on the heavy tail'),
-  def('ketoHeavyTailQuantile', 0.5, '1', 0, 1, 'C', BOSTOCK, '13 §4.10; MODEL_SPEC §1.15, §8.1', 'proposed-fit', 'latent quantile: heavy-tail τ_p when > 1 − fraction (nominal 0.5 → τ_p 2.5 d)'),
-  fixed('ketoNaMitigation', 0.3, '1', 'D', BOSTOCK, '13 §4.10', 'proposed-fit', 'Φ_max × (1 − value) when sodium ≥ threshold (grade D)'),
-  fixed('ketoNaThresholdG', 2, 'g/d', 'D', BOSTOCK, '13 §4.10', 'proposed-fit'),
+  {
+    ...fixed('ketoHeavyTailFraction', 0.25, '1', 'C', BOSTOCK, '13 §4.10', 'proposed-fit', 'design mixture fraction of the heavy τ_p branch (D8-02): a scenario construction, not population keto-flu incidence'),
+    distribution: { ...KETO_TAIL_DIST, nominal: 'designPoint' },
+  },
+  {
+    ...def('ketoHeavyTailQuantile', 0.5, '1', 0, 1, 'C', BOSTOCK, '13 §4.10; MODEL_SPEC §1.15, §8.1', 'proposed-fit', 'latent quantile U ~ Uniform(0, 1): heavy-tail τ_p when U > 1 − fraction, so the designed 25 % branch is selected by 25 % of draws (D8-02; a triangular draw selected only 12.5 %); nominal design point 0.5 → τ_p 2.5 d'),
+    draw: 'uniform',
+    distribution: KETO_TAIL_DIST,
+  },
+  fixed('ketoNaMitigation', 0, '1', 'D', BOSTOCK, '13 §4.10', 'proposed-fit', 'D8-09: no default sodium mitigation of keto-induction symptoms (Φ_max × (1 − value) when sodium ≥ threshold). alt 0.3 (13 §4.10, grade D): an unvalidated sensitivity heuristic only, never a salt recommendation or symptom guarantee; shared renal/BP/medication policy governs any electrolyte suggestion'),
+  fixed('ketoNaThresholdG', 2, 'g/d', 'D', BOSTOCK, '13 §4.10', 'proposed-fit', 'sodium threshold of the (default-off) mitigation sensitivity heuristic'),
 
   // ---------------------------------------------------------------- 19 §4.5 mood tier rubric
   fixed('weightWindowD', 14, 'd', 'C', 'Helms 2014 PMID 24864135; Garthe 2011 PMID 21558571 (14-d loss rate)', '19 §4.2(b), §4.5', 'proposed-fit', 'smoothing window of scale weight (WL_pct) and of the weight-loss rate r'),
@@ -158,8 +182,9 @@ const microScalars: ParamDef[] = [
   fixed('microIronRiskKcal', 1500, 'kcal/d', 'D', '15 §4.9 iron rule', '15 §4.9', 'proposed-fit', 'iron_risk AMBER trigger: menstruating and energy below this …'),
   fixed('microIronRiskTrainHWk', 5, 'h/wk', 'D', '15 §4.9 iron rule', '15 §4.9', 'proposed-fit', 'iron_risk RED escalation: endurance training ≥ this'),
   fixed('microIronVegMult', 1.8, '1', 'D', 'NIH-ODS iron RDA ×1.8 for vegetarians (UNVERIFIED in 15)', '15 §4.9', 'unverified', 'iron EAR multiplier for vegetarian / vegan diets'),
-  fixed('microMvmVitaminRdaMult', 1.2, 'EAR', 'D', '15 §4.9 (R = 1.2 ≈ RDA); multivitamin = 100 % of RDA of vitamins', '15 §4.9', 'proposed-fit', 'multivitamin adds this many EARs of each vitamin'),
-  fixed('microMvmMineralFrac', 0.4, 'RDA', 'D', 'Fulgoni/NHANES MVM users (15 §4.9 ref 85): ~30-50 % of the Mg/Ca RDA', '15 §4.9', 'proposed-fit', 'multivitamin adds this share of the RDA of Mg and Ca (midpoint of 30-50 %)'),
+  fixed('microMvmVitaminRdaMult', 1.2, 'EAR', 'D', '15 §4.9 (R = 1.2 ≈ RDA); multivitamin = 100 % of RDA of vitamins', '15 §4.9', 'proposed-fit', 'INACTIVE (D8-08): a multivitamin of unknown composition supplies no dose and RDA is not universally 1.2 EAR; actual product actives come from the shared exposure ledger'),
+  fixed('microMvmMineralFrac', 0.4, 'RDA', 'D', 'Fulgoni/NHANES MVM users (15 §4.9 ref 85): ~30-50 % of the Mg/Ca RDA', '15 §4.9', 'proposed-fit', 'INACTIVE (D8-08): no invented mineral credit from an unknown multivitamin'),
+  fixed('microObservationWindowD', 28, 'd', 'D', 'review D8-08 (engineering default: observation window of logged nutrient days)', '15 §4.9', 'proposed-fit', 'trailing window over which KNOWN logged nutrient amounts are summarised with their day counts (capped at the ring capacity); not a usual-intake guarantee'),
 ];
 
 /** Per-nutrient tables (density, EARs, quality and pattern multipliers). Grade D, never drawn. */

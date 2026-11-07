@@ -36,7 +36,7 @@ export interface DesktopMcpBridge {
     add(id: AiToolId): Promise<AiToolRow>;
     remove(id: AiToolId): Promise<AiToolRow>;
     /** One handler; a new one replaces the old. */
-    onCall(handler: (call: { client: string; tool: string; args: unknown; idempotencyKey?: string }) => Promise<unknown>): () => void;
+    onCall(handler: (call: { client: string; tool: string; args: unknown; idempotencyKey?: string; fullControl?: boolean }) => Promise<unknown>): () => void;
     setManifest(manifest: unknown): void;
     setServer(info: McpServerInfo | null): void;
   };

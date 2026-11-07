@@ -1,4 +1,4 @@
-/** Your body with the intake: "a normal day" in Habits, the asked-later chip, the maintenance panel and Your setup. */
+/** Your body with the intake: the maintenance card is the one home of "a normal day"; the asked-later capsule sits in the header. */
 import { act, render, screen, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe('Your body with the intake', () => {
-  it('shows a normal day, the asked-later reminder, the maintenance drivers and Your setup', async () => {
+  it('keeps one home for a normal day (the maintenance card), the asked-later reminder in the header, and no copies in Habits', async () => {
     await saveChapter(
       'activity',
       {
@@ -47,19 +47,26 @@ describe('Your body with the intake', () => {
     render(<RouterProvider router={router} />);
     expect(await screen.findByRole('heading', { level: 1, name: 'Your body' })).toBeInTheDocument();
 
+    // Habits shows only what its own editor sets: no "a normal day" line, no second edit link, no steps or training type
     const habits = document.getElementById('body-habits')!;
-    expect(within(habits).getByText('a normal day')).toBeInTheDocument();
-    expect(within(habits).getByText(/5 days × 8 h/)).toBeInTheDocument();
-    expect(within(habits).getByRole('link', { name: 'Edit a normal day' })).toHaveAttribute('href', '/onboarding/activity?from=body');
-    // one question asked later (the job card) → the reminder chip
-    expect(within(habits).getByRole('button', { name: /1 question asked later/ })).toBeInTheDocument();
+    expect(within(habits).queryByText('A normal day')).toBeNull();
+    expect(within(habits).queryByRole('link', { name: 'Edit a normal day' })).toBeNull();
+    expect(within(habits).queryByText(/typical steps|training type/)).toBeNull();
+    expect(within(habits).getByText('Stress')).toBeInTheDocument();
 
+    // one question asked later (the job card) → the reminder, a status icon in the header (its words its name and
+    // tooltip, a gold dot), opening the question; not in a card
+    const header = document.querySelector<HTMLElement>('.lm-ctx-slot')!;
+    const reminder = within(header).getByRole('link', { name: '1 question asked later — answer now' });
+    expect(reminder).toHaveClass('lm-status-icon');
+    expect(reminder.getAttribute('href')).toMatch(/^\/onboarding\//);
+    expect(reminder.querySelector('.lm-status-icon__dot')).not.toBeNull();
+    expect(within(habits).queryByRole('link', { name: /asked later/ })).toBeNull();
+
+    // the maintenance card: the one maintenance number on the page (Estimates no longer repeats it)
     const maint = document.getElementById('body-maintenance')!;
-    expect(within(maint).getByRole('heading', { name: 'Maintenance' })).toBeInTheDocument();
-    const table = within(maint).getAllByRole('table')[0]!;
-    expect(within(table).getByRole('rowheader', { name: 'steps' })).toBeInTheDocument();
-    // the work part rests on the skipped job card: marked assumed
-    expect(within(table).getByText('assumed — you skipped this')).toBeInTheDocument();
+    expect(maint.querySelector('.lm-hero')).not.toBeNull();
+    expect(within(document.getElementById('body-estimates')!).queryByText('maintenance')).toBeNull();
     // the old "Your setup" card is gone from Your body
     expect(document.getElementById('body-setup')).toBeNull();
   });
