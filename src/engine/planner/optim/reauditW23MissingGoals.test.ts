@@ -113,7 +113,7 @@ describe('A2-001 production planner paths', () => {
       expect(o.goalAvailability[0]!.status).toBe('unavailable');
     }
     const checkpoint = decodeCheckpoint(saved[Math.floor(saved.length / 2)]!);
-    expect(CHECKPOINT_VERSION).toBe(7);
+    expect(CHECKPOINT_VERSION).toBe(8);
     const resumed = await runPlanner(problem, evaluator, { ...cfg, checkpoint: { save: () => {}, resume: checkpoint } });
     expect(resumed.provenance.resumedFrom).toBe(checkpoint.label);
     expect(resumed.options.map((o) => [o.structure.id, o.goalAvailability, o.robustSelection, o.robust])).toEqual(

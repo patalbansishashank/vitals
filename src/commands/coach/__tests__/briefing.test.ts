@@ -131,10 +131,12 @@ describe('briefing_get = the Coach briefing', () => {
     // the provider is only in the visible panel, never in the text
     expect(coach.visible.provider).toEqual({ name: 'OpenRouter', model: 'Claude Sonnet 5.5' });
     expect(mcp.text).not.toContain('OpenRouter');
-    // manual only: no body-signal or score sections, and the rules say so
+    // Raw signal/score sections stay out of the default briefing; connected records require provenance and coverage.
     expect(mcp.sections).not.toContain('signals');
     expect(mcp.sections).not.toContain('bio');
-    expect(STATIC_BRIEFING).toContain('Vitals reads no devices or health files');
+    expect(STATIC_BRIEFING).toContain('connected-device records');
+    expect(STATIC_BRIEFING).toContain('Inspect the returned provenance and coverage');
+    expect(STATIC_BRIEFING).toContain('never invent a missing device reading');
   });
 
   it('uses the person’s time zone from the command context (the server sets it)', async () => {

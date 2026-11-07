@@ -360,7 +360,7 @@ Perm: R read, W write (low impact), W·c consequential write (staged for agents)
 Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Idem: N natural, K key, — none.
 
 <!-- commands:start -->
-164 commands (164 implemented, 0 stubs) in 31 domains: activity 8 · agents 1 · ai 2 · app 1 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 20 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 5 · profile 5 · safety 12 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
+167 commands (167 implemented, 0 stubs) in 31 domains: activity 8 · agents 1 · ai 2 · app 1 · briefing 1 · catalogue 10 · coach 7 · data 4 · day 1 · evidence 2 · food 8 · goals 3 · history 3 · intake 4 · job 3 · kitchen 3 · log 20 · markers 5 · nav 1 · pantry 4 · plan 18 · planner 8 · profile 5 · safety 12 · scenario 12 · settings 2 · sim 5 · supplements 3 · sync 7 · today 1 · train 3.
 
 | Command | Tool name | Perm | Surfaces | Undo | Idem | Run | Status | Title |
 |---|---|---|---|---|---|---|---|---|
@@ -474,7 +474,10 @@ Undo: IP inverse patch, RT retract, TS tombstone, CP compensating, — none. Ide
 | `plan.swapExercise` | `plan_swap_exercise` | W | all | IP | K |  | implemented | Swap an exercise |
 | `plan.versions` | `plan_versions` | R | all | — | — |  | implemented | Plan versions |
 | `planner.find` | `planner_find` | W | all | — | K | job | implemented | Find plans |
+| `planner.improveCurrent` | `planner_improve_current` | R | all | — | N | job | implemented | Compare changes to this routine |
+| `planner.improvementResult` | `planner_improvement_result` | R | all | — | — |  | implemented | Read a routine comparison |
 | `planner.inputs` | `planner_inputs` | R | all | — | — |  | implemented | Inspect the current planner inputs |
+| `planner.openImprovement` | `planner_open_improvement` | W | all | TS | K |  | implemented | Open a compared routine in Simulator |
 | `planner.openInSimulator` | `planner_open_in_simulator` | W | all | TS | K |  | implemented | Open a plan in the Simulator |
 | `planner.result` | `planner_result` | R | all | — | — |  | implemented | Read the Planner result |
 | `planner.stop` | `planner_stop` | W | all | — | N |  | implemented | Stop the Planner |

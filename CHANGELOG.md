@@ -4,13 +4,14 @@ All notable changes to Vitals. Dates are release dates (IST).
 
 ## Unreleased
 
-## [0.8.5] - 2026-11-07
+## [0.8.6] - 2026-11-07
 
 ### Added
 - Experimental tracking for explicitly chosen Simulator plans. Preset deficit, energy-availability, loss-rate and cut-duration warnings remain recorded in a collapsed Plan Details disclosure. Current medical restrictions still apply; tracking does not issue a verified-plan certificate or guarantee individual outcomes.
 - Owner-delegated agent control across registered app commands, including current-routine comparisons with matched calorie, macro and training controls.
 
 ### Fixed
+- Release checks now verify the current optimizer checkpoint format and regenerated command documentation.
 - A user can turn off the general adult 25% deficit preset without discarding clinician, marker, imported or condition-specific restrictions. The screening's generated duplicate follows the same choice.
 - Simulator plans preserve the person's selected practical limits and muscle-retention budget when started. Protein targets and optional higher-protein preferences stay distinct from actual food logs.
 - Documented habitual sleep reaches the model, and reported bike sessions linked to recreation are counted once.

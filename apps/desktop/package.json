@@ -1,6 +1,6 @@
 {
   "name": "@vitals/desktop",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "private": true,
   "license": "MIT",
   "description": "Vitals for the desktop: the app, in its own window, and the Vitals MCP for AI tools.",

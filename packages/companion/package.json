@@ -1,6 +1,6 @@
 {
   "name": "vitals-companion",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "private": true,
   "description": "Vitals Server: sync relay, per-person store (home role), device pairing, AI proxy and MCP on one port.",
   "license": "MIT",
